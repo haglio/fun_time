@@ -232,7 +232,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 7827 the same day: what a satellite is launched with is one record rather than
 # three declarations, so the paragraphs telling each reader about the other two
 # are the record's name.
-MAX_PROSE_LINES = 7827
+# 7824 on 2026-09-25: the main lock's docstring said which player it reaches,
+# which the lock's own tests in test_command_dispatch.py are named for.
+MAX_PROSE_LINES = 7824
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

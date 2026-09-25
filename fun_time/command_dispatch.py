@@ -50,7 +50,7 @@ from .media_metadata import forget_indexed_clip
 from .mode_plan import MAIN_GENAU_MODE, MAIN_VIDEO_MODE, main_player_displays
 from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
-from .player_status import MainPlayerStatus, read_main_player_status
+from .player_status import MainPlayerStatus, read_genau_status, read_main_player_status
 from .players import Player
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
@@ -1428,13 +1428,18 @@ def _forward_to_the_vr_main_player(verb: str, state: BridgeState, config: Bridge
 
 def _main_lock(verb: str, state: BridgeState, config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """To whichever player is showing, because the lock is about what is on
-    screen: the main player's video in video mode, Genau's clip in genau.  The same
-    split the speed controls make, and for the same reason."""
-    target = (config.main_player_cmd_file if main_player_displays(state.main_mode)
-              else config.genau_cmd_file)
-    append_command(target, verb)
+    if main_player_displays(state.main_mode):
+        append_command(config.main_player_cmd_file, verb)
+        return state, []
+    append_command(config.genau_cmd_file, verb)
+    if hosting_origenerator(state, config) and _locks_genau(verb, config):
+        return state, [WindowOp(op="follow_genaus_lock")]
     return state, []
+
+
+def _locks_genau(verb: str, config: BridgeConfig) -> bool:
+    return verb == LOCK_ON or (
+        verb == TOGGLE_LOCK and not read_genau_status(config.genau_status_file).locked)
 
 
 def _forward_to_genau(verb: str, state: BridgeState, config: BridgeConfig,

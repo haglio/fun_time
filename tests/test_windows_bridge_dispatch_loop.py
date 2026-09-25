@@ -2724,6 +2724,95 @@ class TestOrigeneratorShows:
         assert runner._pending_rfb_urls == ["file:///tab.html"]  # held, not dropped
 
 
+def _genau_publishes(tmp_path, *, locked: bool, clip: str) -> None:
+    (tmp_path / "genau_status.txt").write_text(
+        f"locked={int(locked)}\nclip={clip}\n", encoding="utf-8")
+
+
+def _what_the_gallery_heard(tmp_path) -> list[str]:
+    heard = tmp_path / "origenerator_cmd.txt"
+    return heard.read_text(encoding="utf-8").splitlines() if heard.exists() else []
+
+
+class TestAGenauLockTakesTheGalleryToTheClip:
+    """In genau mode beside the hosted Origenerator, the main lock takes the
+    gallery to the clip -- the app makes some of Genau's clips, and a lock on
+    one of its own shows already goes there.  It follows what Genau reports
+    holding rather than what was on screen at the press, since an unlocked
+    Genau can move on to the next clip between the two."""
+
+    FIRST = r"C:\library\genau\clips\wan22_i2v_00007__topaz.mp4"
+    NEXT = r"C:\library\genau\clips\wan22_i2v_00008__topaz.mp4"
+
+    def _genau_beside_the_gallery(self, tmp_path):
+        runner = make_runner(tmp_path, config=_hosting(tmp_path), origenerator_pid=700)
+        _the_hosted_app_answers(tmp_path)
+        runner.state = replace(runner.state, main_mode=MainMode.GENAU,
+                               satellites_mode="origenerator", origenerator_ready=True)
+        return runner
+
+    def test_the_gallery_goes_to_the_clip_genau_holds_once_it_holds_it(self, tmp_path):
+        runner = self._genau_beside_the_gallery(tmp_path)
+        _genau_publishes(tmp_path, locked=False, clip=self.FIRST)
+
+        runner._dispatch("main_lock")
+        runner.tick()
+        assert _what_the_gallery_heard(tmp_path) == []
+
+        _genau_publishes(tmp_path, locked=True, clip=self.NEXT)
+        runner.tick()
+        assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.NEXT}"]
+
+    def test_letting_genau_move_on_leaves_the_gallery_alone(self, tmp_path):
+        """Genau still says it is locked until it has read the press, so an
+        unlock is the one press where waiting for "locked" would be wrong."""
+        runner = self._genau_beside_the_gallery(tmp_path)
+        _genau_publishes(tmp_path, locked=True, clip=self.FIRST)
+
+        runner._dispatch("main_lock")
+        runner.tick()
+
+        assert _what_the_gallery_heard(tmp_path) == []
+
+    def test_saying_lock_takes_the_gallery_there_though_genau_already_holds_the_clip(
+            self, tmp_path):
+        runner = self._genau_beside_the_gallery(tmp_path)
+        _genau_publishes(tmp_path, locked=True, clip=self.FIRST)
+
+        runner._dispatch("main_lock_on")
+        runner.tick()
+
+        assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.FIRST}"]
+
+    def test_a_status_caught_half_written_is_waited_past(self, tmp_path):
+        runner = self._genau_beside_the_gallery(tmp_path)
+        _genau_publishes(tmp_path, locked=False, clip=self.FIRST)
+        runner._dispatch("main_lock")
+
+        (tmp_path / "genau_status.txt").write_text("", encoding="utf-8")
+        runner.tick()
+        _genau_publishes(tmp_path, locked=True, clip=self.FIRST)
+        runner.tick()
+
+        assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.FIRST}"]
+
+    @pytest.mark.parametrize(("main_mode", "satellites_mode"), [
+        (MainMode.VIDEO, "origenerator"),   # the main player's lock, not Genau's
+        (MainMode.GENAU, "video"),          # the players showing, the gallery parked
+    ])
+    def test_a_lock_leaves_the_gallery_alone_unless_genau_and_the_gallery_are_both_up(
+            self, tmp_path, main_mode, satellites_mode):
+        runner = self._genau_beside_the_gallery(tmp_path)
+        runner.state = replace(runner.state, main_mode=main_mode,
+                               satellites_mode=satellites_mode)
+        _genau_publishes(tmp_path, locked=True, clip=self.FIRST)
+
+        runner._dispatch("main_lock_on")
+        runner.tick()
+
+        assert _what_the_gallery_heard(tmp_path) == []
+
+
 class TestOrigeneratorWindowConverger:
     """The convergence itself is the windows object's (see
     tests/test_role_windows.py); what the runner owns is when it runs."""
