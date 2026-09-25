@@ -918,11 +918,10 @@ class _GenauUnit:
 
     def render_latest_frame(self) -> None:
         frame = self.role.take_frame()
-        if frame is None:
-            return
-        wrapped = _wraps_the_viewer(self.role)  # no row blended into one: it would ride
-        self.texture.upload(frame if wrapped else self._furnished(frame))  # round the nadir
-        self.screen.rehang(self.texture.aspect)
+        if frame is not None:
+            self.texture.upload(frame if _wraps_the_viewer(self.role) else self._furnished(frame))
+        if self.texture.ready:
+            self.screen.rehang(self.texture.aspect)
 
     def _furnished(self, frame):
         """The clip with its controls on it, where every other player draws them."""

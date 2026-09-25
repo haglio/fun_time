@@ -1509,12 +1509,11 @@ class TestTheClipsOwnControls:
         clip = np.zeros((360, 640, 3), dtype=np.uint8)
         unit.role.take_frame = lambda: clip
         unit.role.projection = projection
-        uploaded: list = []
-        unit.texture = SimpleNamespace(aspect=16 / 9, upload=uploaded.append)
+        unit.texture = _FakeTexture()
         unit.screen = SimpleNamespace(placement=SPOTS[MAIN],
                                       rehang=lambda _aspect: None)
         unit.render_latest_frame()
-        return clip, uploaded[-1]
+        return clip, unit.texture.uploads[-1]
 
     def test_a_wrapped_clip_is_uploaded_with_no_controls_blended_into_it(self):
         """Blended in they ride round the nadir with the picture; the console
@@ -1573,6 +1572,25 @@ class TestTheClipsOwnControls:
         x, y = readout_xy(pill.shape[1], win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
         middle = (round((y + pill.shape[0] / 2) * factor), round((x + pill.shape[1] / 2) * factor))
         assert furnished[middle].max() > 0
+
+
+def test_a_frozen_clips_picture_goes_where_its_handle_drags_it():
+    unit = TestTheClipsOwnControls()._unit()
+    handed_once = iter([np.zeros((360, 640, 3), dtype=np.uint8)])
+    unit.role.take_frame = lambda: next(handed_once, None)
+    unit.role.projection = FLAT
+    unit.texture = _FakeTexture()
+    unit.screen = _HangingScreen(SPOTS[MAIN])
+    dragged = Placement(azimuth_deg=-30.0, elevation_deg=8.0, width_deg=70.0)
+
+    with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+        unit.render_latest_frame()
+        unit.screen.placement = dragged
+        unit.render_latest_frame()
+
+    assert np.array_equal(unit.screen.mesh.uploads[-1],
+                          surface_vertices(dragged, aspect=unit.texture.aspect))
+
 
 class _FakeRenderer:
     """Records which meshes were drawn, so a screen nobody draws is visible."""
