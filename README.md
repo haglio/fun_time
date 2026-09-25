@@ -386,6 +386,7 @@ The mute reaches the two sinks differently, which is why `SET_VOLUME` carries tw
 
 - `Esc` toggles OmniPause; `Space` enters it.
 - While OmniPaused, the global hotkeys are suspended — only `Esc` (toggle OmniPause) and `Ctrl+Alt+Q` (quit) stay active.
+- Entering it parks the OSR2, and in Genau mode Genau's picture goes home with the device: it holds for the second the broker waits, then glides to the clip's parked end as the device settles there. Control off does the same. `Shift+Esc` sends the device to the far end instead, and the picture stays where it stopped.
 
 ### The satellites' scrubber and volume chip
 
@@ -511,16 +512,7 @@ The audio companion and the Python dispatch loop both read this file as the auth
 
 Written by `fun_time/command_dispatch.py` when Genau or Robot Hand commands are dispatched.
 
-Values:
-
-- `PREV`
-- `NEXT`
-- `OFFSET_QUARTER_CYCLE`
-- `WEIRD`
-- `TOGGLE_CLIP_LOCK`
-- `CLIP_SECONDS_UP` / `CLIP_SECONDS_DOWN` / `CLIP_SECONDS <seconds>`
-- `TOGGLE_CRUISE` / `CRUISE_ON` / `CRUISE_OFF`
-- `TOGGLE_LEARNED` / `LEARNED_ON` / `LEARNED_OFF`
+The verbs it may carry are the registry in `../player_core`'s `player_core/genau_controls.py`, written down as a contract in `../genau`'s `tests/test_genau_vocabulary.py`.
 
 `OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
 
@@ -533,7 +525,7 @@ holds the screen before Genau moves on — 8–12 seconds unless `CLIP_SECONDS
 the auto-advance that spends it, because that is the word the reference shows
 and the phrase a speaker says ("clip seconds thirty"). The interval keeps
 counting while the room is paused, so OmniPause leaves the clip on screen where
-the user left it. `TOGGLE_CLIP_LOCK` pins the current clip while the interval
+the user left it. `TOGGLE_LOCK` pins the current clip while the interval
 runs on around it; `WEIRD` condemns the clip, moving the file to
 `videos/genau/weird/` and taking up its successor.
 
