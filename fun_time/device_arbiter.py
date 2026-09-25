@@ -67,6 +67,7 @@ class DeviceArbiter:
         # Whether a hold left Genau's output switched off, so a driver taking the
         # device back knows to switch it on again.
         self._muted = False
+        self._stopped_by_control_off = False
 
     def sync(self, main_mode: str, *, paused: bool,
              control: str = OSR2_DRIVING) -> None:
@@ -97,6 +98,7 @@ class DeviceArbiter:
             return
         self._asserted_control = None
         self._hand_the_output_back()
+        self._start_what_control_off_stopped(main_mode, paused=paused)
         if not main_player_displays(main_mode) or paused:
             self._funscript_driving = None
             self._park_touch_deadline = None
@@ -148,12 +150,19 @@ class DeviceArbiter:
         if all(queued):
             self._asserted_control, self._asserted_at = control, now
             self._muted = self._muted or control in _HELD
+            self._stopped_by_control_off = control == OSR2_CONTROL_OFF
 
     def _hand_the_output_back(self) -> None:
         """Switch Genau's output on again the moment somebody is driving, in
         whatever mode the hold was let go in."""
         if self._muted and append_command(self.genau_cmd_file, TCODE_ON):
             self._muted = False
+
+    def _start_what_control_off_stopped(self, main_mode: str, *, paused: bool) -> None:
+        if not self._stopped_by_control_off or paused:
+            return
+        if main_player_displays(main_mode) or append_command(self.genau_cmd_file, "RESUME"):
+            self._stopped_by_control_off = False
 
     def _holding_for_park_touch(self, now: float, status) -> bool:
         """Whether the hand-to-script flip is still waiting for a touch-down.

@@ -127,6 +127,32 @@ class TestNobodyDriving:
 
         assert genau(driver).splitlines() == [*_HELD_VERBS, "SET_TCODE_ENABLED 1"]
 
+    def test_driving_again_in_genau_mode_starts_the_hand_control_off_stopped(self, tmp_path):
+        clock = FakeClock()
+        driver = make_driver(tmp_path, clock=clock)
+        publish_main_player(driver)
+        driver.sync("genau", paused=False, control=OSR2_CONTROL_OFF)
+
+        clock.advance(REASSERT_S)
+        driver.sync("genau", paused=False, control=OSR2_DRIVING)
+        driver.sync("genau", paused=False, control=OSR2_DRIVING)
+
+        assert genau(driver).splitlines() == ["PAUSE", "PARK", "RESUME"]
+
+    def test_the_hand_control_off_stopped_waits_out_an_omnipause(self, tmp_path):
+        clock = FakeClock()
+        driver = make_driver(tmp_path, clock=clock)
+        publish_main_player(driver)
+        driver.sync("genau", paused=False, control=OSR2_CONTROL_OFF)
+
+        clock.advance(REASSERT_S)
+        driver.sync("genau", paused=True, control=OSR2_DRIVING)
+        held_through_the_pause = genau(driver).splitlines()
+        driver.sync("genau", paused=False, control=OSR2_DRIVING)
+
+        assert held_through_the_pause == ["PAUSE", "PARK"]
+        assert genau(driver).splitlines() == ["PAUSE", "PARK", "RESUME"]
+
     def test_the_handoff_re_asserts_when_control_comes_back(self, tmp_path):
         """Nobody had the device through the silence, so re-entry must say who
         has it again rather than believing the driver it remembered."""
@@ -140,7 +166,7 @@ class TestNobodyDriving:
         clock.advance(REASSERT_S)
         driver.sync("video", paused=False, control=OSR2_DRIVING)
 
-        assert genau(driver).splitlines()[-1] == "PAUSE"
+        assert genau(driver).splitlines() == ["PAUSE", "PAUSE", "PARK", "PAUSE"]
         assert main_player(driver).splitlines()[-1] == "SET_TCODE_ENABLED 1"
 
 
