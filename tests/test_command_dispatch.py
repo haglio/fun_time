@@ -2426,6 +2426,21 @@ def test_genau_activate_activates_genau_and_lowers_main_player(tmp_path: Path):
     assert [op.op for op in ops if op.op == "restack_main"] == ["restack_main"]
 
 
+def test_a_mode_switch_clicked_while_paused_swaps_the_windows_and_leaves_the_band_to_the_pause(
+        tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(main_mode=MainMode.VIDEO, omni_paused=True)
+
+    new_state, ops = dispatch_command("genau_activate", state, config)
+
+    assert new_state.main_mode is MainMode.GENAU
+    assert [(op.op, op.key) for op in ops] == [
+        ("show_role", "genau"),
+        ("activate_role", "genau"),
+        ("hide_role", "main_player"),
+    ]
+
+
 def test_a_mode_switch_tells_main_player_only_whether_it_is_on_screen(tmp_path: Path):
     """The arbiter owns the main player's T-Code lever inside video mode, and a main player parked
     off screen in genau mode sends nothing — so the switch says nothing of it."""
@@ -4321,12 +4336,25 @@ class TestSatellitesModeSwitch:
                 ("notice", "Origenerator is still starting")]
             assert _origenerator_cmds(config) == []
 
-    def test_omnipaused_switch_is_state_only(self, tmp_path):
+    def test_a_switch_clicked_while_paused_still_hands_the_players_to_the_hosted_app(
+            self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state = _up(omni_paused=True)
-        state, ops = dispatch_command("origenerator_activate", state, config)
+        for player in Player.SATELLITES:
+            write_playlist_file(config.satellite(player).playlist_file,
+                                [str(tmp_path / f"{player.label}.mp4")])
+        state, _ops = dispatch_command("origenerator_activate", _up(omni_paused=True), config)
         assert state.satellites_mode == "origenerator"
-        assert ops == []
+        assert _origenerator_cmds(config) == ["OPEN_SHOWS"]
+        for player in Player.SATELLITES:
+            assert _cmds(config, player) == ["LOCK_OFF"]
+
+    def test_a_switch_clicked_while_paused_leaves_the_topmost_band_to_the_pause(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        _state, ops = dispatch_command("origenerator_activate", _up(omni_paused=True), config)
+        assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
+            ("show_role", "origenerator"),
+            ("activate_role", "origenerator"),
+        ]
 
 
 class TestOrigeneratorTransport:

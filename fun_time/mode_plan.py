@@ -23,8 +23,6 @@ STARTUP_MAIN_MODE = MAIN_VIDEO_MODE
 class ModeSwitchPlan:
     target_mode: MainMode
     is_transition: bool
-    # RESUME on every transition: in genau mode Genau drives from here, and in
-    # video mode the arbiter takes it from here.
     genau_cmd: str | None
     hud_cmd: str | None
     main_player_should_play: bool | None
@@ -71,23 +69,12 @@ def build_mode_switch_plan(
             log_message=f"Already in {target_mode} mode",
         )
 
-    if omni_paused:
-        return ModeSwitchPlan(
-            target_mode=target_mode,
-            is_transition=False,
-            genau_cmd=None,
-            hud_cmd=None,
-            main_player_should_play=None,
-            main_player_display_cmd=None,
-            log_message=f"Mode set to {target_mode} (omnipaused)",
-        )
-
     return ModeSwitchPlan(
         target_mode=target_mode,
         is_transition=True,
-        genau_cmd="RESUME",
+        genau_cmd=None if omni_paused else "RESUME",
         hud_cmd=hud_verb(target_mode),
-        main_player_should_play=main_player_displays(target_mode),
+        main_player_should_play=None if omni_paused else main_player_displays(target_mode),
         main_player_display_cmd=main_player_display_verb(target_mode),
         log_message=f"Switched to {target_mode} mode",
     )
