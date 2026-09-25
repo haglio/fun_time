@@ -62,11 +62,12 @@ def test_a_launched_child_sees_the_mute_switch_though_the_caller_set_no_environm
              ".write_text(os.environ.get('FUN_TIME_MUTE_AUDIO', 'unset'))")
     job = create_run_job()
     cmdline = subprocess.list2cmdline([sys.executable, "-c", probe])
-    pi = _launch_on_desktop(cmdline, None, str(tmp_path), job)
+    # Started outside tmp_path and waited out, not polled for its report: the
+    # report exists before it is written, and a directory a dying child still
+    # stands in cannot be removed -- which failed this test's teardown once.
+    pi = _launch_on_desktop(cmdline, None, str(_repo_root()), job)
     try:
-        deadline = time.time() + 20
-        while time.time() < deadline and not report.exists():
-            time.sleep(0.05)
+        hidden_desktop._wait_for_the_run(pi.hProcess, ceiling_s=20)
     finally:
         _close_process_handles(pi)
         close_run_job(job)
