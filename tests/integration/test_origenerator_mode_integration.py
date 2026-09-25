@@ -433,6 +433,23 @@ def test_the_players_play_the_hosted_apps_shows_and_come_back_to_their_own(hoste
         assert sorted(_own_clips(session, player)) == own_lists[player]
 
 
+def test_a_switch_clicked_while_paused_hands_the_players_over_and_the_resume_bands_the_window(
+        hosted_session):
+    session, hwnd = hosted_session
+    session.write_dashboard_command("omnipause_toggle")
+    session.wait_for_new_log("OmniPause: entering", timeout=12)
+
+    _enter_the_mode(session)
+    _wait_for_the_shows(session)
+
+    session.write_dashboard_command("omnipause_toggle")
+    session.wait_for_new_log("OmniPause: leaving", timeout=12)
+    _wait(lambda: is_window_topmost(hwnd),
+          timeout=10, desc="the hosted window to join the topmost band once the pause lifts")
+
+    _leave_the_mode(session)
+
+
 def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hosted_session):
     """The demo's 'landscape player under other windows': the post-overlay
     pass resolved the satellites by pid, python_exe is the venv's pythonw
