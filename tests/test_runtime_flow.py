@@ -116,14 +116,13 @@ def test_a_mode_switch_leaves_the_paused_flags_and_main_players_tcode_alone(flow
     assert "SET_TCODE_ENABLED 1" not in _main_player_cmds(flow_files)
 
 
-def test_mode_switch_during_omnipause_no_side_effects(flow_files):
+def test_a_mode_switch_during_omnipause_swaps_the_display_and_resumes_nothing(flow_files):
     result = _mode_switch(flow_files, current="video", target="genau", omni_paused=True)
 
     assert result.next_mode == "genau"
-    assert result.is_transition is False
-    assert not flow_files["main_player_paused_file"].exists(), "Omnipause must NOT write flag files"
-    assert not flow_files["genau_cmd_file"].exists(), "Omnipause must NOT write cmd file"
-    assert not flow_files["main_player_cmd_file"].exists()
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "HUD_OFF\n"
+    assert _main_player_cmds(flow_files) == ["DISPLAY_OFF"]
+    assert not flow_files["main_player_paused_file"].exists()
 
 
 def test_toggle_fmode_replaces_playlists_and_reloads_main_player(tmp_path: Path):

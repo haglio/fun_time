@@ -97,9 +97,11 @@ def apply_mode_switch(
         omni_paused=omni_paused,
     )
     if plan.is_transition:
-        write_flag_file(main_player_paused_file, not plan.main_player_should_play)
+        if plan.main_player_should_play is not None:
+            write_flag_file(main_player_paused_file, not plan.main_player_should_play)
         for cmd in (plan.genau_cmd, plan.hud_cmd):
-            append_command(Path(genau_cmd_file), cmd)
+            if cmd is not None:
+                append_command(Path(genau_cmd_file), cmd)
         append_command(Path(main_player_cmd_file), plan.main_player_display_cmd)
     return ModeSwitchFlowResult(
         next_mode=plan.target_mode,
@@ -328,7 +330,6 @@ def apply_satellites_switch(
     *,
     current_mode: str,
     target_mode: str,
-    omni_paused: bool,
     origenerator_cmd_file: str | Path | None,
     channels: Sequence[SatelliteChannel],
 ) -> SatellitesSwitchFlowResult:
@@ -340,17 +341,12 @@ def apply_satellites_switch(
     session's hold on the player -- what holds is the app's to say now -- and
     tells the app to fill both, so the mode opens playing rather than empty.
     Leaving tells it to let go; the players come home once it has (see
-    :mod:`fun_time.player_handover`).  Under OmniPause the switch is
-    state-only, exactly as a main-mode switch is: the room is frozen.
+    :mod:`fun_time.player_handover`).
     """
     if current_mode == target_mode:
         return SatellitesSwitchFlowResult(
             next_mode=target_mode, is_transition=False,
             log_message=f"Satellites already in {target_mode} mode")
-    if omni_paused:
-        return SatellitesSwitchFlowResult(
-            next_mode=target_mode, is_transition=False,
-            log_message=f"Satellites set to {target_mode} (omnipaused)")
     if target_mode == VIDEO_MODE:
         if origenerator_cmd_file is not None:
             append_command(Path(origenerator_cmd_file), CLOSE_SHOWS)

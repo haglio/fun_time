@@ -49,7 +49,7 @@ def test_genau_to_video_starts_main_player_under_genaus_hud():
     assert plan.main_player_display_cmd == "DISPLAY_ON"
 
 
-def test_every_transition_resumes_genau():
+def test_every_transition_outside_a_pause_resumes_genau():
     # In genau mode the Robot Hand drives from here; in video mode the dispatch
     # loop's arbiter takes it from here, and may have left Genau paused for a
     # funscript's stretch — the switch is authoritative either way.
@@ -68,13 +68,15 @@ def test_same_mode_is_noop():
         assert plan.main_player_display_cmd is None
 
 
-def test_omnipaused_skips_transition():
-    plan = build_mode_switch_plan(current_mode="video", target_mode="genau", omni_paused=True)
-    assert plan.target_mode == "genau"
-    assert plan.is_transition is False
-    assert plan.genau_cmd is None
-    assert plan.main_player_should_play is None
-    assert plan.main_player_display_cmd is None
+def test_a_switch_while_paused_changes_what_shows_and_leaves_both_players_frozen():
+    for current, target in (("video", "genau"), ("genau", "video")):
+        plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=True)
+        assert plan.target_mode == target
+        assert plan.is_transition is True
+        assert plan.hud_cmd == hud_verb(target)
+        assert plan.main_player_display_cmd == main_player_display_verb(target)
+        assert plan.genau_cmd is None
+        assert plan.main_player_should_play is None
 
 
 def test_the_main_slot_has_exactly_two_modes_and_they_are_spelled_here():
