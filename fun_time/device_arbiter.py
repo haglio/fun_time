@@ -17,12 +17,11 @@ from pathlib import Path
 from player_core.console import (
     OSR2_CONTROL_OFF,
     OSR2_DRIVING,
-    OSR2_PARKED,
-    OSR2_RETRACTED,
 )
 from player_core.file_channel import append_command
 from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
+from .broker_control import HOLD_VERB, PARK_CMD
 from .mode_plan import main_player_displays
 from .player_status import read_main_player_status
 
@@ -33,8 +32,6 @@ REASSERT_S = 1.0
 
 TCODE_OFF = "SET_TCODE_ENABLED 0"
 TCODE_ON = "SET_TCODE_ENABLED 1"
-
-_HELD = (OSR2_PARKED, OSR2_RETRACTED)
 
 
 class DeviceArbiter:
@@ -91,7 +88,7 @@ class DeviceArbiter:
         floor-touch made the moment depend on the live motion, and the trace —
         which had to draw that moment before it happened — could only guess it.
         """
-        if control in (OSR2_CONTROL_OFF, *_HELD):
+        if control == OSR2_CONTROL_OFF or control in HOLD_VERB:
             self._carry_out(control)
             self._funscript_driving = None
             self._park_touch_deadline = None
@@ -144,12 +141,13 @@ class DeviceArbiter:
         now = self._clock()
         if self._asserted_control == control and now - self._asserted_at < REASSERT_S:
             return
-        genau = ("RESUME", TCODE_OFF) if control in _HELD else ("PAUSE", "PARK")
+        genau = (("RESUME", TCODE_OFF, HOLD_VERB[control]) if control in HOLD_VERB
+                 else ("PAUSE", PARK_CMD))
         queued = [append_command(self.main_player_cmd_file, TCODE_OFF)]
         queued += [append_command(self.genau_cmd_file, verb) for verb in genau]
         if all(queued):
             self._asserted_control, self._asserted_at = control, now
-            self._muted = self._muted or control in _HELD
+            self._muted = self._muted or control in HOLD_VERB
             self._stopped_by_control_off = control == OSR2_CONTROL_OFF
 
     def _hand_the_output_back(self) -> None:

@@ -248,10 +248,11 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("robot_hand_toggle_learned", "robot_hand_learned_on", "robot_hand_learned_off"),
             ),
             _Row(
-                "Hold the motion still — cruise off, no amplitude, and the "
-                "center at one end: park settles the OSR2 home, retract sends "
-                "it to the far end, away from you.  A funscript stands down for "
-                "it too.  Unlike OmniPause the room plays on",
+                "Hold the OSR2 at one end: park settles it home, retract sends "
+                "it to the far end, away from you, and Genau's picture goes "
+                "there with it.  A funscript stands down for it too.  Unlike "
+                "OmniPause the room plays on, the motion included, unheard "
+                "until the hold is let go",
                 (),
                 ("robot_hand_park", "robot_hand_retract"),
             ),

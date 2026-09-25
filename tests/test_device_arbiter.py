@@ -54,8 +54,7 @@ def main_player(driver: DeviceArbiter) -> str:
     return driver.main_player_cmd_file.read_text(encoding="utf-8").strip()
 
 
-# What a hold says to Genau: play on, with nothing of it reaching the device.
-_HELD_VERBS = ["RESUME", "SET_TCODE_ENABLED 0"]
+_PARKED_VERBS = ["RESUME", "SET_TCODE_ENABLED 0", "PARK"]
 
 
 class TestNobodyDriving:
@@ -77,17 +76,15 @@ class TestNobodyDriving:
             driver.sync(mode, paused=False, control=OSR2_PARKED)
 
             assert main_player(driver) == "SET_TCODE_ENABLED 0", mode
-            assert genau(driver).splitlines() == ["RESUME", "SET_TCODE_ENABLED 0"], mode
+            assert genau(driver).splitlines() == _PARKED_VERBS, mode
 
-    def test_either_hold_says_the_same_thing_here(self, tmp_path):
-        """Which end the device is held at is the broker's, written when the
-        button is pressed; both holds leave the same two engines saying nothing."""
+    def test_each_hold_tells_genau_which_end_it_holds_the_device_at(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_player(driver)
 
         driver.sync("video", paused=False, control=OSR2_RETRACTED)
 
-        assert genau(driver).splitlines() == _HELD_VERBS
+        assert genau(driver).splitlines() == ["RESUME", "SET_TCODE_ENABLED 0", "RETRACT"]
 
     def test_control_off_stops_genau_and_tells_it_the_device_is_going_home(self, tmp_path):
         driver = make_driver(tmp_path)
@@ -107,11 +104,11 @@ class TestNobodyDriving:
 
         driver.sync("video", paused=False, control=OSR2_PARKED)
         driver.sync("video", paused=False, control=OSR2_PARKED)
-        assert genau(driver).splitlines() == _HELD_VERBS
+        assert genau(driver).splitlines() == _PARKED_VERBS
 
         clock.advance(REASSERT_S)
         driver.sync("video", paused=False, control=OSR2_PARKED)
-        assert genau(driver).splitlines() == _HELD_VERBS * 2
+        assert genau(driver).splitlines() == _PARKED_VERBS * 2
 
     def test_control_coming_back_switches_the_output_on_again(self, tmp_path):
         """Said once, and in whatever mode the hold was let go in: genau mode has
@@ -125,7 +122,7 @@ class TestNobodyDriving:
         driver.sync("genau", paused=False, control=OSR2_DRIVING)
         driver.sync("genau", paused=False, control=OSR2_DRIVING)
 
-        assert genau(driver).splitlines() == [*_HELD_VERBS, "SET_TCODE_ENABLED 1"]
+        assert genau(driver).splitlines() == [*_PARKED_VERBS, "SET_TCODE_ENABLED 1"]
 
     def test_driving_again_in_genau_mode_starts_the_hand_control_off_stopped(self, tmp_path):
         clock = FakeClock()
