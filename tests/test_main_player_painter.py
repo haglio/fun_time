@@ -3,10 +3,9 @@
 Five things are drawn every frame -- the timeline along the lower edge, the time
 readout at its left, the console in the top-left corner, the volume chip above the
 timeline's right-hand end, and the loop's two frames above their marks -- and the
-order they are built in is load-bearing in ways nothing was watching: the
-heatmap's color row is built at the inset track's width and framed at the
-window's, the room's two files are read before anything drawn believes them, and
-the overlay ids are the z-order rather than the call order.
+order they are built in is load-bearing in ways nothing was watching: the room's
+two files are read before anything drawn believes them, and the overlay ids are
+the z-order rather than the call order.
 
 The player here is a spy rather than mpv: what reaches it is a list of overlay
 calls, which is exactly what a frame is.
@@ -161,11 +160,7 @@ class TestWhatOneFramePutsUp:
 
         assert player.ids.index(0) < player.ids.index(7)
 
-    def test_the_timeline_is_built_at_the_track_width_and_framed_at_the_window(self):
-        """Two widths, deliberately: the color row fills the inset track, and
-        the strip it is framed into spans the window so it lines up with the
-        plain bar.  Build the row at the window's width and the strip is drawn
-        at the wrong scale, silently."""
+    def test_the_strip_is_handed_the_window_it_is_drawn_across(self):
         heatmap = HeatmapStrip()
         painter, player = _painter(FakeSession(), heatmap=heatmap)
 

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from player_core.funscript import Funscript
 from player_core.modes import LoopState
-from player_core.timeline import BAR_INSET_Y, bar_track_x
+from player_core.timeline import BAR_INSET_Y, bar_track_x, progress_bar_bgra
 
-import main_player.overlay
 from main_player.heatmap import build_heatmap
 from main_player.overlay import (
     TIMELINE_HEIGHT,
@@ -16,12 +16,18 @@ from main_player.overlay import (
     label_xs,
     loop_thumbnail_xys,
     time_to_x,
+    timeline_bgra,
     timeline_height,
+    timeline_x,
 )
 
 
 def _funscript():
     return Funscript(actions=[(0, 0), (1000, 100), (2000, 0)])
+
+
+WIN_W = 1000
+TRACK_W = bar_track_x(WIN_W)[1] - bar_track_x(WIN_W)[0]
 
 
 class TestTheHeightOfTheTimelineRow:
@@ -57,49 +63,48 @@ class TestTheHeightOfTheTimelineRow:
 
 
 class TestHeatmapStrip:
-    def test_builds_one_color_per_pixel_of_width(self):
+    def test_builds_one_color_per_pixel_of_the_track_it_fills(self):
         fs = _funscript()
         strip = HeatmapStrip()
 
-        strip.update("v0.mp4", fs, 4000.0, width=40)
+        strip.update("v0.mp4", fs, 4000.0, width=WIN_W)
 
-        assert strip.colors == build_heatmap(fs, 40, start_ms=0, end_ms=4000.0)
-        assert len(strip.colors) == 40
+        assert strip.colors == build_heatmap(fs, TRACK_W, start_ms=0, end_ms=4000.0)
         assert strip.height == 24
 
     def test_unscripted_video_has_no_strip(self):
         strip = HeatmapStrip()
 
-        strip.update("plain.mp4", None, 4000.0, width=40)
+        strip.update("plain.mp4", None, 4000.0, width=WIN_W)
 
         assert strip.colors == []
         assert strip.height == 0
 
     def test_caches_until_the_video_changes(self):
         strip = HeatmapStrip()
-        strip.update("v0.mp4", _funscript(), 4000.0, width=40)
+        strip.update("v0.mp4", _funscript(), 4000.0, width=WIN_W)
         built = strip.colors
 
         # Same video key: not rebuilt even if a different funscript is passed.
-        strip.update("v0.mp4", Funscript(actions=[]), 4000.0, width=40)
+        strip.update("v0.mp4", Funscript(actions=[]), 4000.0, width=WIN_W)
         assert strip.colors is built
 
         # New video key: rebuilt.
-        strip.update("v1.mp4", Funscript(actions=[]), 4000.0, width=40)
+        strip.update("v1.mp4", Funscript(actions=[]), 4000.0, width=WIN_W)
         assert strip.colors != built
 
     def test_width_change_rebuilds(self):
         strip = HeatmapStrip()
-        strip.update("v0.mp4", _funscript(), 4000.0, width=40)
+        strip.update("v0.mp4", _funscript(), 4000.0, width=WIN_W)
 
-        strip.update("v0.mp4", _funscript(), 4000.0, width=64)
+        strip.update("v0.mp4", _funscript(), 4000.0, width=800)
 
-        assert len(strip.colors) == 64
+        assert len(strip.colors) == bar_track_x(800)[1] - bar_track_x(800)[0]
 
     def test_full_view_window_spans_the_video(self):
         strip = HeatmapStrip()
 
-        strip.update("v0.mp4", _funscript(), 4000.0, width=40)
+        strip.update("v0.mp4", _funscript(), 4000.0, width=WIN_W)
 
         assert strip.window == (0.0, 4000.0)
         assert strip.record_in_ms is None
@@ -109,21 +114,21 @@ class TestHeatmapStrip:
         strip = HeatmapStrip()
 
         strip.update(
-            "v0.mp4", fs, 600_000.0, width=40,
+            "v0.mp4", fs, 600_000.0, width=WIN_W,
             loop_state=LoopState.RECORDING, record_in_ms=50_000, position_ms=50_000.0,
         )
 
         assert strip.window == (48_000, 70_000)
         assert strip.height == 48
         assert strip.record_in_ms == 50_000
-        assert strip.colors == build_heatmap(fs, 40, start_ms=48_000, end_ms=70_000)
+        assert strip.colors == build_heatmap(fs, TRACK_W, start_ms=48_000, end_ms=70_000)
 
     def test_recording_view_rescales_in_steps_not_continuously(self):
         strip = HeatmapStrip()
 
         def update(position_ms):
             strip.update(
-                "v0.mp4", _funscript(), 600_000.0, width=40,
+                "v0.mp4", _funscript(), 600_000.0, width=WIN_W,
                 loop_state=LoopState.RECORDING, record_in_ms=50_000, position_ms=position_ms,
             )
 
@@ -141,20 +146,20 @@ class TestHeatmapStrip:
         fs = _funscript()
         strip = HeatmapStrip()
         strip.update(
-            "v0.mp4", fs, 600_000.0, width=40,
+            "v0.mp4", fs, 600_000.0, width=WIN_W,
             loop_state=LoopState.RECORDING, record_in_ms=50_000, position_ms=66_800.0,
         )
 
-        strip.update("v0.mp4", fs, 600_000.0, width=40, loop_state=LoopState.LOOPING)
+        strip.update("v0.mp4", fs, 600_000.0, width=WIN_W, loop_state=LoopState.LOOPING)
 
         assert strip.window == (0.0, 600_000.0)
         assert strip.height == 24
         assert strip.record_in_ms is None
-        assert strip.colors == build_heatmap(fs, 40, start_ms=0, end_ms=600_000.0)
+        assert strip.colors == build_heatmap(fs, TRACK_W, start_ms=0, end_ms=600_000.0)
 
         # A later recording zooms afresh from its own in point.
         strip.update(
-            "v0.mp4", fs, 600_000.0, width=40,
+            "v0.mp4", fs, 600_000.0, width=WIN_W,
             loop_state=LoopState.RECORDING, record_in_ms=100_000, position_ms=100_000.0,
         )
         assert strip.window == (98_000, 120_000)
@@ -216,12 +221,9 @@ def _rgba(bar, y, x):
 
 class TestHeatmapBgra:
     def _framed_strip(self, win_w=1000):
-        # Production builds the color row at the inset track width, then frames
-        # it to full window width.
-
         x0, x1 = bar_track_x(win_w)
         strip = HeatmapStrip()
-        strip.update("v.mp4", _funscript(), 4000.0, width=x1 - x0)  # window 0..4000
+        strip.update("v.mp4", _funscript(), 4000.0, width=win_w)
         return heatmap_bgra(strip, 2000, (1000, 3000), win_w), x0, x1
 
     def test_strip_is_inset_from_the_window_edges(self):
@@ -251,6 +253,36 @@ class TestHeatmapBgra:
         strip = HeatmapStrip()
         strip.update("plain.mp4", None, 4000.0, width=100)
         assert heatmap_bgra(strip, 0, None, 100) is None
+
+
+class TestTheTimelineUnderAVideo:
+    def test_an_unscripted_video_gets_the_plain_bar_across_its_whole_length(self):
+        strip = HeatmapStrip()
+        strip.update("plain.mp4", None, 4000.0, width=WIN_W)
+
+        drawn = timeline_bgra(strip, 2000, (1000, 3000), WIN_W, record_in_ms=500)
+
+        assert np.array_equal(
+            drawn, progress_bar_bgra(2000, 4000.0, (1000, 3000), WIN_W, record_in_ms=500))
+
+    def test_a_scripted_video_gets_its_heatmap_strip_instead(self):
+        strip = HeatmapStrip()
+        strip.update("v0.mp4", _funscript(), 4000.0, width=WIN_W)
+
+        drawn = timeline_bgra(strip, 2000, (1000, 3000), WIN_W)
+
+        assert np.array_equal(drawn, heatmap_bgra(strip, 2000, (1000, 3000), WIN_W))
+
+    @pytest.mark.parametrize("funscript", [None, _funscript()], ids=["plain", "scripted"])
+    def test_it_says_where_it_draws_the_playcursor(self, funscript):
+        strip = HeatmapStrip()
+        strip.update("v0.mp4", funscript, 4000.0, width=WIN_W)
+
+        for position in range(100, 3900, 7):
+            bar = timeline_bgra(strip, position, None, WIN_W)
+            white = np.flatnonzero((bar[bar.shape[0] // 2] == 255).all(axis=1))
+            x = timeline_x(strip, position, WIN_W)
+            assert white.tolist() == [x - 1, x, x + 1]
 
 
 class TestLoopThumbCapture:
@@ -293,7 +325,7 @@ class TestWhereTheLoopsTwoFramesGo:
     overlap nudge) moves them.
     """
 
-    TRACK = (40, 868)          # bar_track_x(1000): the inset the bar sits on
+    TRACK = (40, 868)
     WIN_W, WIN_H = 1000, 600
     FRAME_H, FRAME_W = 10, 20
 
@@ -345,14 +377,3 @@ class TestWhereTheLoopsTwoLabelsGo:
         assert label_xs(100, 500, 60, 60, 1000) == (70, 470)
         ix, ox = label_xs(100, 120, 60, 60, 1000)  # markers close
         assert ox >= ix + 60
-
-
-def test_the_overlay_hands_on_none_of_the_timeline_it_does_not_use():
-    """main_player.app imports from player_core directly in eleven other places.
-
-    Two of the shared timeline's names were imported here and used nowhere
-    in the module, kept alive by a blanket noqa so main_player.app could reach them
-    through this one -- an indirection that bought nothing.
-    """
-    assert not hasattr(main_player.overlay, "bar_track_x")
-    assert not hasattr(main_player.overlay, "progress_bar_bgra")
