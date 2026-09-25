@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from itertools import pairwise
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from player_core.funscript import Funscript
 from player_core.playhead import PlayheadHudPainter, lower_edge_height, readout_xy, video_playhead
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, progress_bar_bgra
 from player_core.volume import (
@@ -23,41 +26,92 @@ from fun_time_vr.furniture import (
     SCRUBBER,
     VOLUME,
     FurniturePointer,
+    Scrubber,
     chip_state,
     control_size,
     furniture_at,
     on_its_controls,
     paint_row,
-    scrubber_state,
     with_furniture,
 )
 from fun_time_vr.layout import MIN_WIDTH_DEG
 from fun_time_vr.pointer import Screen
 from fun_time_vr.scene import Placement
+from main_player.overlay import HeatmapStrip, heatmap_bgra
+
+_STROKES = Funscript(actions=[(0, 0), (500, 100), (1_000, 0), (6_000, 100), (9_000, 0)])
 
 
-class TestScrubberState:
-    def test_holds_still_while_the_cursor_stays_on_a_pixel(self):
-        # An hour-long clip moves the playcursor one track pixel every ~2s;
-        # between crossings the painted bar is identical, so the key must not
-        # move with every millisecond of playback.
-        before = scrubber_state(1920, 1080, 1_000.0, 3_600_000.0)
-        after = scrubber_state(1920, 1080, 1_040.0, 3_600_000.0)
+class TestTheScrubber:
+    def test_a_scripted_videos_bar_is_the_desktop_main_players_heatmap_strip(self):
+        width = _SIZE[0]
+        scrubber = Scrubber()
+        scrubber.state(_SIZE, 1_000.0, 10_000.0, video=Path("v0.mp4"), funscript=_STROKES)
+        desktop = HeatmapStrip()
+        desktop.update(Path("v0.mp4"), _STROKES, 10_000.0, width)
+
+        assert np.array_equal(scrubber.bgra(1_000.0, width),
+                              heatmap_bgra(desktop, 1_000.0, None, width))
+
+    def test_a_video_with_no_script_gets_the_plain_bar_every_player_draws(self):
+        scrubber = Scrubber()
+        scrubber.state(_SIZE, 1_000.0, 10_000.0, video=Path("plain.mp4"))
+
+        assert np.array_equal(scrubber.bgra(1_000.0, _SIZE[0]),
+                              progress_bar_bgra(1_000.0, 10_000.0, None, _SIZE[0]))
+
+    @pytest.mark.parametrize("funscript", [None, _STROKES], ids=["plain", "scripted"])
+    def test_the_bar_never_changes_while_its_state_holds_still(self, funscript):
+        scrubber = Scrubber()
+
+        def look(position_ms: float):
+            state = scrubber.state(_SIZE, position_ms, 10_000.0,
+                                   video=Path("v0.mp4"), funscript=funscript)
+            return state, scrubber.bgra(position_ms, _SIZE[0]).tobytes()
+
+        looks = [look(float(position)) for position in range(0, 10_001, 3)]
+
+        assert all(bar == next_bar for (state, bar), (next_state, next_bar) in pairwise(looks)
+                   if state == next_state)
+
+    def test_its_state_moves_when_the_next_videos_script_takes_the_bar(self):
+        scrubber = Scrubber()
+        steady = Funscript(actions=[(0, 40), (10_000, 60)])
+
+        first = scrubber.state(_SIZE, 0.0, 10_000.0, video=Path("v0.mp4"), funscript=_STROKES)
+        second = scrubber.state(_SIZE, 0.0, 10_000.0, video=Path("v1.mp4"), funscript=steady)
+
+        assert first != second
+
+
+    @pytest.mark.parametrize("funscript", [None, _STROKES], ids=["plain", "scripted"])
+    def test_its_state_holds_still_while_an_hour_long_videos_cursor_stays_on_a_pixel(
+            self, funscript):
+        scrubber = Scrubber()
+
+        before = scrubber.state((1920, 1080), 1_000.0, 3_600_000.0,
+                                video=Path("v0.mp4"), funscript=funscript)
+        after = scrubber.state((1920, 1080), 1_040.0, 3_600_000.0,
+                               video=Path("v0.mp4"), funscript=funscript)
+
         assert before == after
 
-    def test_moves_when_the_cursor_crosses_a_pixel(self):
-        before = scrubber_state(1920, 1080, 1_000.0, 600_000.0)
-        later = scrubber_state(1920, 1080, 60_000.0, 600_000.0)
-        assert before != later
+    def test_its_state_moves_when_the_cursor_crosses_a_pixel(self):
+        scrubber = Scrubber()
 
-    def test_moves_when_the_target_resizes(self):
-        # A new clip's size repositions the bar and rescales the track.
-        assert scrubber_state(1920, 1080, 0.0, 60_000.0) != scrubber_state(
-            1280, 720, 0.0, 60_000.0
-        )
+        assert scrubber.state((1920, 1080), 1_000.0, 600_000.0) != scrubber.state(
+            (1920, 1080), 60_000.0, 600_000.0)
 
-    def test_zero_duration_is_safe_and_stable(self):
-        assert scrubber_state(1920, 1080, 0.0, 0.0) == scrubber_state(1920, 1080, 0.0, 0.0)
+    def test_its_state_moves_when_the_picture_is_resized(self):
+        scrubber = Scrubber()
+
+        assert scrubber.state((1920, 1080), 0.0, 60_000.0) != scrubber.state(
+            (1280, 720), 0.0, 60_000.0)
+
+    def test_a_video_of_no_length_yet_has_a_steady_state(self):
+        scrubber = Scrubber()
+
+        assert scrubber.state((1920, 1080), 0.0, 0.0) == scrubber.state((1920, 1080), 0.0, 0.0)
 
 
 class TestChipState:
@@ -172,7 +226,8 @@ class TestTheRowOfItsOwn:
         width, height = self._SIZE
         in_the_row = height - TIMELINE_HEIGHT // 2
 
-        row = paint_row(1_000.0, 10_000.0, video_playhead(1_000.0, 10_000.0, 30.0),
+        row = paint_row(progress_bar_bgra(1_000.0, 10_000.0, None, width),
+                        video_playhead(1_000.0, 10_000.0, 30.0),
                         VolumeHud(volume=70, muted=False), self._SIZE,
                         volume_painter=VolumeHudPainter(), readout_painter=PlayheadHudPainter())
 
@@ -188,9 +243,9 @@ class TestTheRowOfItsOwn:
         the eye through a texture, and the swap is the last thing paint_row does."""
         x = bar_track_x(self._SIZE[0])[0] + 3
 
-        row = paint_row(1_000.0, 10_000.0, None, VolumeHud(), self._SIZE,
-                        volume_painter=VolumeHudPainter(), readout_painter=PlayheadHudPainter())
         bgra = progress_bar_bgra(1_000.0, 10_000.0, None, self._SIZE[0])
+        row = paint_row(bgra, None, VolumeHud(), self._SIZE,
+                        volume_painter=VolumeHudPainter(), readout_painter=PlayheadHudPainter())
 
         assert row[self._SIZE[1] - TIMELINE_HEIGHT // 2, x, :3].tolist() == bgra[
             TIMELINE_HEIGHT // 2, x, 2::-1].tolist()
@@ -200,7 +255,8 @@ class TestTheRowOfItsOwn:
         width, height = self._SIZE
         playhead = video_playhead(1_000.0, 10_000.0, 30.0)
 
-        row = paint_row(1_000.0, 10_000.0, playhead, VolumeHud(), self._SIZE,
+        row = paint_row(progress_bar_bgra(1_000.0, 10_000.0, None, width), playhead,
+                        VolumeHud(), self._SIZE,
                         volume_painter=VolumeHudPainter(), readout_painter=PlayheadHudPainter())
 
         pill = PlayheadHudPainter().bgra(playhead)

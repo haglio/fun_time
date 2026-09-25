@@ -23,6 +23,7 @@ from app_support.file_channel import write_flag
 from player_core.console import ConsoleModel
 from player_core.console_hud import ConsoleHud
 from player_core.drive_readout import DriveHud
+from player_core.funscript import Funscript
 from player_core.modes import MainMode
 from player_core.playhead import (
     PlayheadHudPainter,
@@ -76,7 +77,7 @@ from fun_time_vr.cover import (
     CoverWatcher,
 )
 from fun_time_vr.dash_panel import DASH_WIDTH_PX, dash_actions, dash_height
-from fun_time_vr.furniture import control_size
+from fun_time_vr.furniture import Scrubber, control_size, scaled
 from fun_time_vr.layout import (
     DASH,
     LANDSCAPE,
@@ -93,6 +94,7 @@ from fun_time_vr.library_panel import LIBRARY_SIZE_PX, scroll_from_stick, scroll
 from fun_time_vr.notices import NoticeBoard
 from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.player import (
+    _OV_SCRUBBER,
     VrSettings,
     _ControllerPosts,
     _CoverUnit,
@@ -140,6 +142,7 @@ from fun_time_vr.scene import (
 )
 from fun_time_vr.stacking import Stacking
 from fun_time_vr.video_thread import VideoThread
+from main_player.overlay import HeatmapStrip, heatmap_bgra
 from main_player.play_points import play_points_filename
 
 
@@ -336,11 +339,13 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
 class _OverlayPlayer:
     def __init__(self):
         self.overlays: list[tuple[int, int, int]] = []
+        self.bitmaps: dict[int, np.ndarray] = {}
         self.removed: list[int] = []
         self.showing_picture = False
 
-    def overlay(self, ident, x, y, _bgra):
+    def overlay(self, ident, x, y, bgra):
         self.overlays.append((ident, x, y))
+        self.bitmaps[ident] = bgra
 
     def remove_overlay(self, ident):
         self.removed.append(ident)
@@ -355,6 +360,7 @@ def _unit_with_pixels(width=640, height=480) -> tuple[_VideoUnit, _OverlayPlayer
     unit._chip_shown = None
     unit._readout_shown = None
     unit._readout_painter = PlayheadHudPainter()
+    unit._scrubber = Scrubber()
     # A target that already holds pixels; the GL half is the integration
     # suite's, and overlay_furniture reads only these three fields of it.
     unit.target = SimpleNamespace(ready=True, width=width, height=height,
@@ -443,6 +449,46 @@ def test_the_furniture_is_painted_once_and_not_per_tick():
     # alone; the chip shows the same volume and stays.
     unit.overlay_furniture(300_000.0, 600_000.0, hud, painter)
     assert len(player.overlays) == 3
+
+
+_STROKES = Funscript(actions=[(0, 0), (500, 100), (1_000, 0), (6_000, 100), (9_000, 0)])
+
+
+def test_a_scripted_videos_scrubber_is_the_desktop_heatmap_strip_blown_up():
+    unit, player = _unit_with_pixels()
+
+    unit.overlay_furniture(1_000.0, 10_000.0, VolumeHud(), VolumeHudPainter(),
+                           video=Path("v0.mp4"), funscript=_STROKES)
+
+    width, _height = unit.control_size()
+    desktop = HeatmapStrip()
+    desktop.update(Path("v0.mp4"), _STROKES, 10_000.0, width)
+    assert np.array_equal(player.bitmaps[_OV_SCRUBBER], scaled(
+        heatmap_bgra(desktop, 1_000.0, None, width), unit.target.width / width))
+
+
+def test_the_main_player_paints_its_videos_script_into_its_scrubber(
+        tmp_path, faked_collaborators):
+    vr = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
+                    audio_device="", compositor_layers=False)
+    unit = _MainUnit(_manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS,
+                     remembered={}, genau_role=SimpleNamespace(showing=False))
+    unit.player = _OverlayPlayer()
+    unit.player.frame_rate = 30.0
+    unit.target = SimpleNamespace(ready=True, width=640, height=360, aspect=16 / 9)
+    unit._volume_painter = VolumeHudPainter()
+    unit.role = SimpleNamespace(
+        set_paused=lambda _paused: None, tick=lambda _now: None, seek_to=lambda _ms: True,
+        position_ms=1_000.0, duration_ms=10_000.0, paused=False, projection=FLAT,
+        volume=70, muted=False, current_video=Path("v0.mp4"), current_funscript=_STROKES)
+
+    unit.pump(threading.Event(), 0.0)
+
+    width, _height = unit.control_size()
+    desktop = HeatmapStrip()
+    desktop.update(Path("v0.mp4"), _STROKES, 10_000.0, width)
+    assert np.array_equal(unit.player.bitmaps[_OV_SCRUBBER], scaled(
+        heatmap_bgra(desktop, 1_000.0, None, width), 640 / width))
 
 
 def test_no_furniture_lands_before_the_target_holds_pixels():
@@ -656,7 +702,7 @@ class TestThePanelUnderThePointer:
     slot and pressed there, and -- while the video wraps the viewer and there is
     nothing to dock to -- carrying that video's row and moved by a handle of its own."""
 
-    def _unit(self, tmp_path, *, wrapped=False, showing=False):
+    def _unit(self, tmp_path, *, wrapped=False, showing=False, funscript=None):
         projection = EQUIRECT_180_SBS if wrapped else FLAT
         seeks: list[float] = []
         main_unit = _like(_MainUnit, SimpleNamespace(
@@ -675,7 +721,8 @@ class TestThePanelUnderThePointer:
                 position=1_000.0, duration=600_000.0,
                 playhead=video_playhead(1_000.0, 600_000.0, 30.0),
                 hud=VolumeHud(volume=70, muted=False),
-                seek=seeks.append, scrub_duration_ms=600_000.0),
+                seek=seeks.append, scrub_duration_ms=600_000.0,
+                video=Path("feature.mp4"), funscript=funscript),
         ))
         genau = _like(_GenauUnit, SimpleNamespace(
             owns_the_slot=showing,
@@ -826,6 +873,18 @@ class TestThePanelUnderThePointer:
         assert flat.unit._row is None
         assert np.array_equal(
             np.asarray(wrapped.unit._image)[-_WRAPPED_ROW_H:], wrapped.unit._row)
+
+    def test_a_wrapped_scripted_videos_row_is_the_desktop_heatmap_strip(self, tmp_path):
+        p = self._unit(tmp_path, wrapped=True, funscript=_STROKES)
+
+        p.unit.pump(threading.Event(), 0.0)
+
+        desktop = HeatmapStrip()
+        desktop.update(Path("feature.mp4"), _STROKES, 600_000.0, PANEL_WIDTH_PX)
+        strip = heatmap_bgra(desktop, 1_000.0, None, PANEL_WIDTH_PX)
+        x0, x1 = bar_track_x(PANEL_WIDTH_PX)
+        assert np.array_equal(p.unit._row[-strip.shape[0]:, x0:x1],
+                              strip[:, x0:x1][:, :, [2, 1, 0, 3]])
 
     def test_a_wrapped_videos_row_says_where_that_video_is(self, tmp_path):
         p = self._unit(tmp_path, wrapped=True)
@@ -1521,6 +1580,7 @@ class TestTheClipsOwnControls:
         unit._volume_painter = VolumeHudPainter()
         unit._readout_painter = PlayheadHudPainter()
         unit._control_size = None
+        unit._scrubber = Scrubber()
         unit._scrubber_shown = unit._chip_shown = unit._readout_shown = None
         unit._bar = unit._chip = unit._readout = None
         return unit

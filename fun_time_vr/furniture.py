@@ -8,13 +8,16 @@ when what they show moves; one per unit per pump tick cost the pump its time.
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from player_core.funscript import Funscript
 from player_core.playhead import on_readout, readout_xy
-from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, bar_x, progress_bar_bgra
+from player_core.timeline import TIMELINE_HEIGHT
 from player_core.volume import VolumeHud, chip_local, chip_xy, hit_part, volume_at
 
+from main_player.overlay import HeatmapStrip, timeline_bgra, timeline_x
 from satellite.pointer import time_at
 
 from .console_panel import DEG_PER_PX
@@ -59,11 +62,10 @@ def with_furniture(frame: np.ndarray, pieces) -> np.ndarray:
 
 
 def paint_row(
-    position_ms: float, duration_ms: float, playhead, hud: VolumeHud, size: tuple[int, int],
+    bar: np.ndarray, playhead, hud: VolumeHud, size: tuple[int, int],
     *, volume_painter, readout_painter,
 ) -> np.ndarray:
     width, height = size  # a transparent strip: RGBA rows, top row first
-    bar = progress_bar_bgra(position_ms, duration_ms, None, width)
     under = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     under.paste(Image.fromarray(bar, "RGBA"), (0, height - bar.shape[0]))
     over = Image.new("RGBA", (width, height), (0, 0, 0, 0))
@@ -155,12 +157,19 @@ class FurniturePointer:
             self._set_volume(level)
 
 
-def scrubber_state(
-    width: int, height: int, position_ms: float, duration_ms: float
-) -> tuple[int, int, int]:
-    """What the bar depends on: it is identical until the cursor crosses a pixel."""
-    x0, x1 = bar_track_x(width)
-    return (width, height, bar_x(position_ms, duration_ms, x0, x1))
+class Scrubber:
+    def __init__(self) -> None:
+        self._strip = HeatmapStrip()
+
+    def state(
+        self, size: tuple[int, int], position_ms: float, duration_ms: float, *,
+        video: Path | None = None, funscript: Funscript | None = None,
+    ) -> tuple:
+        self._strip.update(video, funscript, duration_ms, size[0])
+        return size, self._strip.colors, timeline_x(self._strip, position_ms, size[0])
+
+    def bgra(self, position_ms: float, width: int) -> np.ndarray:
+        return timeline_bgra(self._strip, position_ms, None, width)
 
 
 def chip_state(width: int, height: int, hud: VolumeHud) -> tuple[int, int, VolumeHud]:
