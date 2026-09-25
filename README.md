@@ -592,13 +592,15 @@ The hosted Origenerator's channel, spoken in the same idioms as the satellites'
 side, exactly as it was said (`portrait_next`, `landscape_lock`,
 `portrait_fmode`, …) — the app declared those buttons, so it is what answers
 them — plus `OPEN_SHOWS` (entering the mode, which fills both players with
-their base state), `CLOSE_SHOWS` and `QUIT`, and `PORTRAIT_SAY:<phrase>` for a
-spoken command the session heard about one side. The paused flag freezes its
-shows for OmniPause. The status file reports which players its shows hold
-(`portrait_active=`, `portrait_video=`, `portrait_locked=`, and the landscape
-trio); a side it has let go of is what the session waits for, up to three
-seconds, before handing that player its own list back — kept meanwhile in
-`portrait_playlist.kept.tsv` / `landscape_playlist.kept.tsv`.
+their base state), `CLOSE_SHOWS`, `FILTER_ENHANCED` (the console's
+enhanced-only switch), `QUIT` and `RELEASE`, `PORTRAIT_SAY:<phrase>` for a
+spoken command the session heard about one side, and `GO_TO|<clip>` once Genau
+has locked on a clip, which takes the gallery to that clip when the app made
+it. The paused flag freezes its shows for OmniPause. The status file says only
+that the app is up (`ready=1`), which is what opens the mode. A side the app
+has let go of is one whose panel it has published empty; the session waits for
+that, up to three seconds, before handing that player its own list back — kept
+meanwhile in `portrait_playlist.kept.tsv` / `landscape_playlist.kept.tsv`.
 
 The app is handed each player's own playlist, command and status files at
 launch, and publishes the panel for each player it holds to its

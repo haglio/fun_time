@@ -69,10 +69,11 @@ _OPS_WITH_NO_WINDOWS = frozenset({
 # Ops that still act in a headset: the AHK bridge IS launched there, the clipper
 # is a subprocess of its own, an RFB tab is skipped rather than misdelivered
 # (a session with no browser window of its own opens none), and taking the
-# players back from a hosted app is file work on the players' own channels.
+# players back from a hosted app is file work on the players' own channels, as
+# is sending the hosted gallery to the clip Genau's role says it has locked.
 _OPS_THAT_STILL_ACT = frozenset({
     Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS, Op.SAVE_CLIP, Op.OPEN_RFB_TAB,
-    Op.TAKE_BACK_PLAYERS,
+    Op.TAKE_BACK_PLAYERS, Op.FOLLOW_GENAUS_LOCK,
 })
 
 

@@ -178,6 +178,7 @@ class Op(StrEnum):
     OPEN_RFB_TAB = "open_rfb_tab"
     SAVE_CLIP = "save_clip"
     TAKE_BACK_PLAYERS = "take_back_players"
+    FOLLOW_GENAUS_LOCK = "follow_genaus_lock"
 
 
 @dataclass(frozen=True)

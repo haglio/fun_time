@@ -38,6 +38,7 @@ from .dashboard_actions import (
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter
 from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_SYSTEM, notice
+from .gallery_follows_genau import GalleryFollowsGenau
 from .hud_feed import HudFeed
 from .hud_transport import HudPublisher
 from .library_browser import browse_library
@@ -296,6 +297,10 @@ class DispatchLoopRunner:
             satellite_cmd_files=tuple(
                 config.satellite(player).cmd_file for player in Player.SATELLITES),
         )
+        self.gallery_follows_genau = GalleryFollowsGenau(
+            genau_status_file=config.genau_status_file,
+            origenerator_cmd_file=config.origenerator_cmd_file,
+        )
 
     def _the_satellite_modes_this_session_can_be_in(self, state: BridgeState) -> BridgeState:
         """*state* with the satellite mode axis corrected to what is on offer,
@@ -381,6 +386,7 @@ class DispatchLoopRunner:
             if self.dashboard_enabled:
                 self._update_dashboard()
         self.bring_the_players_home(now=now)
+        self.gallery_follows_genau.sync()
         self.watch.sample_due(now=now, paused=self.state.omni_paused,
                               satellites=not hosting_origenerator(self.state, self.config))
         self.hud.publish_due(self.state, now=now)
@@ -959,6 +965,10 @@ def _run_take_back_players(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner.expect_the_players_home(now=time.monotonic())
 
 
+def _run_follow_genaus_lock(runner: DispatchLoopRunner, _op: WindowOp) -> None:
+    runner.gallery_follows_genau.expect_a_lock()
+
+
 def _run_ahk_passthrough(runner: DispatchLoopRunner, op: WindowOp) -> None:
     if op.op == Op.UNSUSPEND_HOTKEYS and runner.env.integration:
         return
@@ -981,6 +991,7 @@ _OP_HANDLERS = {
     Op.OPEN_RFB_TAB: _run_open_rfb_tab,
     Op.SAVE_CLIP: _run_save_clip,
     Op.TAKE_BACK_PLAYERS: _run_take_back_players,
+    Op.FOLLOW_GENAUS_LOCK: _run_follow_genaus_lock,
 }
 assert set(_OP_HANDLERS) == set(Op), "every window op needs a handler"
 
