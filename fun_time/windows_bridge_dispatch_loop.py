@@ -836,7 +836,7 @@ class DispatchLoopRunner:
                 runner=self._run_browser,
             )
             if selected:
-                append_command(self.config.main_player_cmd_file, play_file(scripted_item(selected)))
+                append_command(self.config.main_player_cmd_file, play_file(scripted_item(selected, self.config.regen_metadata_root)))
         finally:
             if manage_session:
                 self.windows.restore_all_topmost(

@@ -1833,7 +1833,7 @@ class _FakeLibraryHost:
         self.closed = True
 
 
-def _a_library(tmp_path, host, remembered=None):
+def _a_library(tmp_path, host, remembered=None, metadata_root=None):
     with patch("fun_time_vr.player.FrameTexture"):
         return _LibraryUnit(
             remembered=remembered or {},
@@ -1842,6 +1842,7 @@ def _a_library(tmp_path, host, remembered=None):
             main_player_cmd_file=tmp_path / "main_player_cmd.txt",
             main_player_status_file=tmp_path / "main_player_status.txt",
             dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+            metadata_root=metadata_root,
         )
 
 
@@ -1903,6 +1904,22 @@ class TestTheLibraryUnderThePointer:
         assert (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8").strip() == (
             BROWSE_LIBRARY_CLOSE)
         assert not unit.showing
+
+    def test_a_vr_video_picked_plays_with_the_script_in_the_librarys_own_tree(self, tmp_path):
+        library = tmp_path / "library" / "videos"
+        kept = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished" / "Scene One.mp4"
+        script = library / "scripts" / "scripts" / "VR" / "finished" / "Scene One.funscript"
+        script.parent.mkdir(parents=True)
+        script.write_text("{}", encoding="utf-8")
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host, metadata_root=library / "metadata")
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+
+        host.said.append(f"picked {kept}")
+        unit.pump(threading.Event(), 0.0)
+
+        assert str(script) in (tmp_path / "main_player_cmd.txt").read_text(encoding="utf-8")
 
     def test_its_own_close_puts_it_away_playing_nothing(self, tmp_path):
         host = _FakeLibraryHost()

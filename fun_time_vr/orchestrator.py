@@ -333,6 +333,7 @@ def stock_the_playlists(
         build_main_playlist(
             main_player_playlist, manifest.media.main_player_library_sources,
             scripted_filter=main_scripted_filter, recent=main_recent,
+            metadata_root=metadata_root,
         )
         logger.info(
             "Resumed playlists; rebuilt the main player's around the video it was on"

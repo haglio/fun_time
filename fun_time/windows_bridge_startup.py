@@ -471,7 +471,7 @@ def start_core_session(
         # on screen.  (The satellites' dirs are the same in either app, so their
         # resume stands.)
         build_main_playlist(main_player_playlist, main_sources, scripted_filter=carried.main_scripted_filter,
-                            recent=carried.main_latest)
+                            recent=carried.main_latest, metadata_root=regen_metadata_root)
         logger.info(
             "Resumed playlists; rebuilt the main player's around the video it was on"
             if resume_main_video(main_player_playlist, main_player_status.video)

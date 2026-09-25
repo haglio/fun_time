@@ -119,6 +119,7 @@ def apply_main_fmode(
     recent: bool = False,
     start_at_top: bool = False,
     shapes: VideoShapes | None = None,
+    metadata_root: Path | None = None,
 ) -> None:
     """Rebuild the main player's playlist under *enabled* and hand it to the main player.
 
@@ -134,15 +135,17 @@ def apply_main_fmode(
     still holds it — which a reorder's always does — so a newest-first rebuild
     would otherwise apply only after it, and the new arrivals never come up.
     """
-    paths = build_main_playlist_paths(main_sources, enabled, recent=recent, shapes=shapes)
-    write_main_player_playlist_file(build_playlist_file_path(Path(state_dir), PLAYLIST_MAIN_PLAYER), paths)
+    paths = build_main_playlist_paths(main_sources, enabled, recent=recent, shapes=shapes,
+                                      metadata_root=metadata_root)
+    write_main_player_playlist_file(build_playlist_file_path(Path(state_dir), PLAYLIST_MAIN_PLAYER), paths,
+                                    metadata_root=metadata_root)
     # Queued in order — the reload first, the flag with it, the jump last so it
     # lands on the list the reload has just taken.  The main player's HUD has no other way
     # to know the flag: the playlist it is handed has already been narrowed,
     # and a list of scripted videos looks like any other.
     verbs = [RELOAD_PLAYLIST, f"{SET_F_MODE} {int(enabled)}"]
     if start_at_top and paths:
-        verbs.append(play_file(scripted_item(paths[0])))
+        verbs.append(play_file(scripted_item(paths[0], metadata_root)))
     for verb in verbs:
         append_command(Path(main_player_cmd_file), verb)
 
@@ -216,6 +219,7 @@ def apply_fmode(
             state_dir=state_dir,
             main_player_cmd_file=main_player_cmd_file,
             shapes=main_shapes,
+            metadata_root=regen_metadata_root,
         )
     for player in Player.SATELLITES:
         if player in named:
