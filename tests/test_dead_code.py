@@ -239,7 +239,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 7787 the same day: the heatmap strip builds its colors across the track of
 # the frame it is handed, so the painter's paragraph telling its caller to do
 # that went, and the plain bar standing in for it is timeline_bgra's own branch.
-MAX_PROSE_LINES = 7787
+# 7786 the same day: what the headset's scrubber repaints on is the Scrubber's
+# state, held to the bar it draws by a test rather than a docstring.
+MAX_PROSE_LINES = 7786
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

@@ -47,6 +47,7 @@ from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import set_app_user_model_id
 from player_core.drive_gate import DriveGate
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
+from player_core.funscript import Funscript
 from player_core.genau_notifier import GenauNotifier
 from player_core.player_verbs import play_file
 from player_core.playhead import (
@@ -62,7 +63,7 @@ from player_core.render_player import MpvRenderPlayer
 from player_core.status import StatusWriter
 from player_core.tcode import UdpTCodeSink
 from player_core.tcode_driver import FunscriptTCodeDriver
-from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
+from player_core.timeline import TIMELINE_HEIGHT
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
 
 from fun_time.dashboard_actions import (
@@ -120,12 +121,12 @@ from .cover import (
 from .dash_panel import DASH_WIDTH_PX, DashPointer, dash_height, paint_dash
 from .furniture import (
     FurniturePointer,
+    Scrubber,
     chip_state,
     control_size,
     on_its_controls,
     paint_row,
     scaled,
-    scrubber_state,
     with_furniture,
 )
 from .genau_role import GenauRole, run_ticks
@@ -352,6 +353,8 @@ class _SlotControls:  # what the row shows and does, said by the player in the s
     hud: VolumeHud
     seek: Callable[[float], None]
     scrub_duration_ms: float  # 1.0 for Genau, which counts frames and seeks by fraction
+    video: Path | None = None
+    funscript: Funscript | None = None
 
 
 class _VideoUnit:
@@ -379,6 +382,7 @@ class _VideoUnit:
         self._banner_shown: tuple | None = None
         self._readout_shown: tuple | None = None
         self._readout_painter = PlayheadHudPainter()
+        self._scrubber = Scrubber()
 
     def render_latest_frame(self) -> None:
         sized = (self.target.width, self.target.height)
@@ -406,7 +410,10 @@ class _VideoUnit:
     def control_size(self) -> tuple[int, int]:  # see :mod:`fun_time_vr.furniture`
         return control_size(self.shown.width_deg, self.target.aspect)
 
-    def overlay_furniture(self, position_ms: float, duration_ms: float, volume_hud, painter) -> None:
+    def overlay_furniture(
+        self, position_ms: float, duration_ms: float, volume_hud, painter, *,
+        video: Path | None = None, funscript: Funscript | None = None,
+    ) -> None:
         """The desktop's own scrubber and volume chip, painted small and blown up to
         the video's pixels: one angular size on every screen, however far it zooms."""
         if not self.target.ready:
@@ -414,13 +421,14 @@ class _VideoUnit:
         width, height = self.control_size()
         factor = self.target.width / width
         scrubber = (_NO_TIMELINE if self.player.showing_picture
-                    else scrubber_state(width, height, position_ms, duration_ms))
+                    else self._scrubber.state((width, height), position_ms, duration_ms,
+                                              video=video, funscript=funscript))
         if scrubber != self._scrubber_shown:
             self._scrubber_shown = scrubber
             if scrubber is _NO_TIMELINE:
                 self.player.remove_overlay(_OV_SCRUBBER)
             else:
-                bar = scaled(progress_bar_bgra(position_ms, duration_ms, None, width), factor)
+                bar = scaled(self._scrubber.bgra(position_ms, width), factor)
                 self.player.overlay(_OV_SCRUBBER, 0, self.target.height - bar.shape[0], bar)
         chip = chip_state(width, height, volume_hud)
         if chip != self._chip_shown:
@@ -578,6 +586,7 @@ class _MainUnit(_VideoUnit):
                 self.role.position_ms, self.role.duration_ms, self.player.frame_rate),
             hud=VolumeHud(volume=self.role.volume, muted=self.role.muted),
             seek=self.role.seek_to, scrub_duration_ms=self.role.duration_ms,
+            video=self.role.current_video, funscript=self.role.current_funscript,
         )
 
     @property
@@ -636,6 +645,7 @@ class _MainUnit(_VideoUnit):
             controls = self.controls
             self.overlay_furniture(
                 controls.position, controls.duration, controls.hud, self._volume_painter,
+                video=controls.video, funscript=controls.funscript,
             )
             self.overlay_readout(controls.playhead)
         if self._notices is not None:
@@ -896,6 +906,7 @@ class _GenauUnit:
         self._volume_painter = VolumeHudPainter()
         self._readout_painter = PlayheadHudPainter()
         self._control_size: tuple[int, int] | None = None
+        self._scrubber = Scrubber()
         self._scrubber_shown = self._chip_shown = self._readout_shown = None
         self._bar = self._chip = self._readout = None
 
@@ -949,10 +960,10 @@ class _GenauUnit:
         self._control_size = size
         factor = width / size[0]
         played, of = self.role.playhead
-        scrubber = scrubber_state(*size, played, of)
+        scrubber = self._scrubber.state(size, played, of)
         if scrubber != self._scrubber_shown:
             self._scrubber_shown = scrubber
-            self._bar = scaled(progress_bar_bgra(played, of, None, size[0]), factor)
+            self._bar = scaled(self._scrubber.bgra(played, size[0]), factor)
         hud = VolumeHud(volume=self.role.volume, muted=self.role.muted)
         chip = chip_state(*size, hud)
         if chip != self._chip_shown:
@@ -1059,6 +1070,7 @@ class _PanelUnit:
         self._image = None
         self._key = self._row_key = None
         self._row = None
+        self._scrubber = Scrubber()
         self._uploaded = None
         self.texture = FrameTexture()
         self.screen = _HangingScreen(main_unit.screen.placement)
@@ -1144,8 +1156,8 @@ class _PanelUnit:
             return
         if row_key != self._row_key:
             self._row = None if row_key is None else paint_row(
-                self._controls.position, self._controls.duration, self._controls.playhead,
-                self._controls.hud, _WRAPPED_ROW_SIZE,
+                self._scrubber.bgra(self._controls.position, _WRAPPED_ROW_SIZE[0]),
+                self._controls.playhead, self._controls.hud, _WRAPPED_ROW_SIZE,
                 volume_painter=self._row_painter, readout_painter=self._readout_painter)
         image = paint_panel(self._painter, hud, hover=hover, notices=lines, row=self._row)
         self._pointer.painted(
@@ -1159,7 +1171,8 @@ class _PanelUnit:
         if controls is None:
             return None
         size = _WRAPPED_ROW_SIZE
-        return (scrubber_state(*size, controls.position, controls.duration),
+        return (self._scrubber.state(size, controls.position, controls.duration,
+                                     video=controls.video, funscript=controls.funscript),
                 controls.playhead, chip_state(*size, controls.hud))
 
     def render_latest_frame(self) -> None:
