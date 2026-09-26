@@ -249,7 +249,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # overwrite nothing can do now that every writer queues its verbs.
 # 7698 the same day: both kinds of player drive the OSR2 through one object, so
 # each session's paragraphs on its own driving went.
-MAX_PROSE_LINES = 7695
+# 7690 the same day: the screens' give-up wait is named and tested, so the
+# comments that walked through their poll went.
+MAX_PROSE_LINES = 7690
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

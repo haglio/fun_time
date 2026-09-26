@@ -27,6 +27,7 @@ from .monitors import MonitorInfo, virtual_desktop_rect
 from .overlay_progress import (
     CANCEL_WORD,
     CANCELING,
+    Progress,
     cancel_file_for,
     parse_progress,
     what_the_flag_asks,
@@ -130,7 +131,7 @@ class OverlayWindow:
         self._content = content
         self._title = title
         self._stale_timeout_s = stale_timeout_s
-        self._last_modified = 0.0
+        self._unmoved_since = time.time()
         self._status_held = False
         self._offering = False
         self._hwnd = 0
@@ -204,49 +205,40 @@ class OverlayWindow:
         self._content.hint_label.configure(text="")
 
     def _poll(self) -> None:
+        progress = self._read_progress()
         try:
-            if self._progress_file.exists():
-                mtime = self._progress_file.stat().st_mtime
-                progress = parse_progress(
-                    self._progress_file.read_text(encoding="utf-8"))
-
-                if progress.done:
-                    self._root.destroy()
-                    return
-
-                # A torn write is not a step: hold the last readable line.
-                if not progress.malformed:
-                    self._offering = bool(progress.hint)
-                    if progress.total > 0:
-                        self._content.progress_var.set(
-                            progress.step / progress.total * 100)
-                    # The hotkey script's route: its flag is on disk and no key
-                    # ever reached this window.
-                    if progress.hint and what_the_flag_asks(
-                            cancel_file_for(self._progress_file)) == CANCEL_WORD:
-                        self._say_canceling()
-                    if not self._status_held:
-                        if progress.message:
-                            self._content.status_label.configure(text=progress.message)
-                        self._content.hint_label.configure(text=progress.hint)
-
-                self._last_modified = mtime
-
-            # Unmoved for stale_timeout_s: the orchestrator died holding the
-            # cover up.  Never leave the desktop under a panel that will not go.
-            if self._last_modified > 0:
-                age = time.time() - self._last_modified
-                if age > self._stale_timeout_s:
-                    self._root.destroy()
-                    return
-
-        except (OSError, tk.TclError):
-            pass
-
-        try:
+            if progress.done or self._unmoved_too_long():
+                self._root.destroy()
+                return
+            if not progress.malformed:
+                self._show(progress)
             self._root.after(POLL_MS, self._poll)
         except tk.TclError:
             pass  # window already destroyed
+
+    def _read_progress(self) -> Progress:
+        try:
+            moved_at = self._progress_file.stat().st_mtime
+            progress = parse_progress(self._progress_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return Progress(malformed=True)
+        self._unmoved_since = moved_at
+        return progress
+
+    def _unmoved_too_long(self) -> bool:
+        return time.time() - self._unmoved_since > self._stale_timeout_s
+
+    def _show(self, progress: Progress) -> None:
+        self._offering = bool(progress.hint)
+        if progress.total > 0:
+            self._content.progress_var.set(progress.step / progress.total * 100)
+        if progress.hint and what_the_flag_asks(
+                cancel_file_for(self._progress_file)) == CANCEL_WORD:
+            self._say_canceling()
+        if not self._status_held:
+            if progress.message:
+                self._content.status_label.configure(text=progress.message)
+            self._content.hint_label.configure(text=progress.hint)
 
     def run(self, on_shown: Callable[[], None] | None = None) -> None:
         """Show the cover and hold it until the progress file says otherwise.

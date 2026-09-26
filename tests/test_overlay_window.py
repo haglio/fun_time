@@ -131,15 +131,38 @@ class TestTheCoverComesDown:
 
         assert window._root.destroyed
 
-    def test_a_missing_progress_file_alone_never_closes_the_cover(self, tmp_path: Path):
-        """Before the orchestrator's first write there is nothing to be stale:
-        the cover holds, and keeps polling for the file to appear."""
-        window = _cover(tmp_path)
+    def test_a_cover_that_looks_before_its_progress_file_appears_holds_and_keeps_looking(
+            self, tmp_path: Path):
+        """Its wait runs from its own start, so a first look that beats the
+        orchestrator's first write is no reason to come down."""
+        window = _cover(tmp_path, stale_timeout_s=60.0)
 
         window._poll()
 
         assert not window._root.destroyed
         assert len(window._root.rearmed) == 1
+
+    def test_a_cover_whose_progress_file_never_appears_comes_down_once_its_wait_is_up(
+            self, tmp_path: Path):
+        """What stood over every monitor until he restarted the machine, twice:
+        a unit test's loading screen whose progress file went with the test's
+        scratch folder before the screen's first look at it."""
+        window = _cover(tmp_path, stale_timeout_s=0.05)
+        time.sleep(0.1)
+
+        window._poll()
+
+        assert window._root.destroyed
+
+    def test_a_progress_file_the_cover_can_never_read_still_lets_its_wait_run_out(
+            self, tmp_path: Path):
+        window = _cover(tmp_path, stale_timeout_s=0.05)
+        window._progress_file.mkdir()
+        time.sleep(0.1)
+
+        window._poll()
+
+        assert window._root.destroyed
 
 
 def test_the_two_wordmarks_are_one_magenta():
@@ -338,6 +361,16 @@ class TestALineTheCoverCannotRead:
 
         assert window._content.progress_var.value == 50.0
         assert window._content.status_label.text == "Waiting for players..."
+
+    def test_a_line_torn_inside_a_character_leaves_the_cover_looking(self, tmp_path: Path):
+        """A read that stopped the poll would leave the cover with no way down."""
+        window = _cover(tmp_path, stale_timeout_s=60.0)
+        window._progress_file.write_bytes("2/6|Waiting for players…".encode()[:-1])
+
+        window._poll()
+
+        assert not window._root.destroyed
+        assert [ms for ms, _cb in window._root.rearmed] == [POLL_MS]
 
     def test_a_torn_line_is_not_the_end_of_startup(self, tmp_path: Path):
         """The one thing that lifts the cover is the orchestrator's own DONE."""
