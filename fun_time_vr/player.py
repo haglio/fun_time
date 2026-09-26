@@ -143,6 +143,8 @@ from .layout import (
     migrate_layout,
     read_layout,
     rearranged,
+    shown_at,
+    widening,
     write_layout,
 )
 from .library_panel import (
@@ -212,6 +214,7 @@ from .scene import (
     attached_below,
     quad_layer_placement,
     surface_vertices,
+    widened,
 )
 from .scheduling import ahead_of_background_work
 from .stacking import Stacking
@@ -321,12 +324,15 @@ class _HangingScreen:
         return self.mesh is not None and self.mesh.ready
 
     def rehang(self, aspect: float) -> None:
-        hanging = (self.placement, aspect)
+        self.rehang_at(self.placement, aspect)
+
+    def rehang_at(self, placement: Placement, aspect: float) -> None:
+        hanging = (placement, aspect)
         if hanging == self._hanging:
             return
         if self.mesh is None:
             self.mesh = ScreenMesh()
-        self.mesh.upload(surface_vertices(self.placement, aspect=aspect))
+        self.mesh.upload(surface_vertices(placement, aspect=aspect))
         self._hanging = hanging
 
     def close(self) -> None:
@@ -381,19 +387,24 @@ class _VideoUnit:
             if (self.target.width, self.target.height) != sized:
                 self.layer_rect = None
         if self.target.ready:
-            self.screen.rehang(self.target.aspect)
+            self.screen.rehang_at(self.shown, self.target.aspect)
+
+    @property
+    def shown(self) -> Placement:
+        return shown_at(self.screen_name, self.screen.placement, self.target.aspect)
 
     def layer_placement(self, scene_yaw_deg: float = 0.0, scene_pitch_deg: float = 0.0):
         """Pose and size for this screen's compositor quad, at the aspect its
         swapchain last copied; the scene angles turn and tilt the arrangement."""
         width, height = self.layer_rect
+        aspect = width / height
         return quad_layer_placement(
-            self.screen.placement, aspect=width / height,
+            shown_at(self.screen_name, self.screen.placement, aspect), aspect=aspect,
             scene_yaw_deg=scene_yaw_deg, scene_pitch_deg=scene_pitch_deg,
         )
 
     def control_size(self) -> tuple[int, int]:  # see :mod:`fun_time_vr.furniture`
-        return control_size(self.screen.placement.width_deg, self.target.aspect)
+        return control_size(self.shown.width_deg, self.target.aspect)
 
     def overlay_furniture(self, position_ms: float, duration_ms: float, volume_hud, painter) -> None:
         """The desktop's own scrubber and volume chip, painted small and blown up to
@@ -481,9 +492,14 @@ def _in_the_slot(screen, picture, projection) -> tuple[Hanging, ...]:
         return (Hanging(Screen(MAIN, screen.placement, picture.aspect,
                                pressable=True, immersive=True),
                         picture=picture, wrap=wrap),)
-    return (Hanging(Screen(MAIN, screen.placement, picture.aspect, movable=True,
-                           resizable=True, pressable=True, picture=True),
+    return (Hanging(_picture_screen(MAIN, screen.placement, picture.aspect),
                     mesh=screen, picture=picture),)
+
+
+def _picture_screen(name: str, placement: Placement, aspect: float) -> Screen:
+    by = widening(name, aspect)
+    return Screen(name, widened(placement, by), aspect, movable=True, resizable=True,
+                  pressable=True, picture=True, widened_by=by)
 
 
 def _metadata_root(manifest) -> Path | None:
@@ -753,8 +769,7 @@ class _SatelliteUnit(_VideoUnit):
         if not self.target.ready:
             return ()
         picture = Hanging(
-            Screen(self.screen_name, self.screen.placement, self.target.aspect,
-                   movable=True, resizable=True, pressable=True, picture=True),
+            _picture_screen(self.screen_name, self.screen.placement, self.target.aspect),
             mesh=self.screen, picture=self.target)
         if not self.hud_ready:
             return (picture,)
@@ -781,7 +796,7 @@ class _SatelliteUnit(_VideoUnit):
                 self.hud_texture.upload(rgba)
         if self._hud_shown and self.target.ready:
             self.hud_screen.placement = attached_below(
-                self.screen.placement, aspect=self.target.aspect,
+                self.shown, aspect=self.target.aspect,
                 width_deg=self.hud_texture.width * DEG_PER_PX,
                 hanging_aspect=self.hud_texture.aspect, gap_deg=HUD_GAP_DEG,
             )
@@ -920,12 +935,17 @@ class _GenauUnit:
         if frame is not None:
             self.texture.upload(frame if _wraps_the_viewer(self.role) else self._furnished(frame))
         if self.texture.ready:
-            self.screen.rehang(self.texture.aspect)
+            self.screen.rehang_at(self.shown, self.texture.aspect)
+
+    @property
+    def shown(self) -> Placement:
+        return shown_at(MAIN, self.screen.placement, self.texture.aspect)
 
     def _furnished(self, frame):
         """The clip with its controls on it, where every other player draws them."""
         height, width = frame.shape[:2]
-        size = control_size(self.screen.placement.width_deg, width / height)
+        aspect = width / height
+        size = control_size(shown_at(MAIN, self.screen.placement, aspect).width_deg, aspect)
         self._control_size = size
         factor = width / size[0]
         played, of = self.role.playhead
@@ -1146,10 +1166,11 @@ class _PanelUnit:
         if not _upload(self):
             return
         wrapped = _wrapped_slot(self._main_unit, self._genau) is not None
+        slot_aspect = _picture_in_the_slot(self._main_unit, self._genau).aspect
         under, aspect, gap = (
             (self._dash.screen.placement, self._dash.texture.aspect, 0.0) if wrapped else
-            (self._main_unit.screen.placement,
-             _picture_in_the_slot(self._main_unit, self._genau).aspect, HUD_GAP_DEG))
+            (shown_at(MAIN, self._main_unit.screen.placement, slot_aspect), slot_aspect,
+             HUD_GAP_DEG))
         self.screen.placement = attached_below(
             under, aspect=aspect, width_deg=PANEL_WIDTH_DEG,
             hanging_aspect=self.texture.aspect, gap_deg=gap,

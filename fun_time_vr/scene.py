@@ -7,7 +7,7 @@ of the "windowed" layout.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -35,6 +35,14 @@ def elevation_at(height: float, radius: float = RADIUS) -> float:
 
 def half_width(width_deg: float, radius: float = RADIUS) -> float:
     return radius * math.tan(math.radians(width_deg) / 2.0)
+
+
+def widened_deg(width_deg: float, by: float) -> float:
+    return math.degrees(2.0 * math.atan(math.tan(math.radians(width_deg) / 2.0) * by))
+
+
+def widened(placement: Placement, by: float) -> Placement:
+    return replace(placement, width_deg=widened_deg(placement.width_deg, by))
 
 
 def turn_deg(from_deg: float, to_deg: float) -> float:
