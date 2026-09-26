@@ -4178,6 +4178,71 @@ def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path, monkeypa
     assert calls == [] and ops == []
 
 
+def _genau_vr_config(tmp_path):
+    """A headset session, whose Genau browses a folder of VR clips beside its flat one."""
+    config = _vr_config(tmp_path)
+    config.genau_vr_clips = str(tmp_path / "vr_clips")
+    return config
+
+
+def test_a_shape_press_in_genau_mode_narrows_genaus_clips(tmp_path, monkeypatch):
+    calls: list[dict] = []
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
+                        lambda **kwargs: calls.append(kwargs))
+    config = _genau_vr_config(tmp_path)
+
+    state, ops = dispatch_command(
+        "main_projection_vr", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert (state.genau_plays_vr, state.genau_plays_flat) == (True, False)
+    assert (state.main_plays_vr, state.main_plays_flat) == (True, True)
+    assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHAPES vr"]
+    assert calls == []
+    assert [op.key for op in ops] == ["VR only"]
+
+
+def test_putting_genaus_other_shape_back_names_both(tmp_path):
+    config = _genau_vr_config(tmp_path)
+    narrowed = _make_state(main_mode=MainMode.GENAU, genau_plays_vr=False)
+
+    state, ops = dispatch_command("main_projection_both", narrowed, config)
+
+    assert (state.genau_plays_vr, state.genau_plays_flat) == (True, True)
+    assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHAPES vr flat"]
+    assert [op.key for op in ops] == ["2D + VR"]
+
+
+def test_neither_of_genaus_shapes_holds_its_clip(tmp_path):
+    config = _genau_vr_config(tmp_path)
+    only_flat = _make_state(main_mode=MainMode.GENAU, genau_plays_vr=False)
+
+    state, ops = dispatch_command("main_projection_none", only_flat, config)
+
+    assert (state.genau_plays_vr, state.genau_plays_flat) == (False, False)
+    assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["LOCK_ON"]
+    assert [op.key for op in ops] == ["No clips left"]
+
+
+def test_asking_genau_for_the_shapes_it_already_plays_sends_it_nothing(tmp_path):
+    config = _genau_vr_config(tmp_path)
+
+    _state, ops = dispatch_command(
+        "main_projection_both", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert ops == [] and not config.genau_cmd_file.exists()
+
+
+def test_a_genau_with_only_flat_clips_ignores_the_filter(tmp_path):
+    """The desktop's Genau, and a headset whose config names no VR clips folder."""
+    config = _vr_config(tmp_path)
+
+    state, ops = dispatch_command(
+        "main_projection_vr", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert (state.genau_plays_vr, state.genau_plays_flat) == (True, True)
+    assert ops == [] and not config.genau_cmd_file.exists()
+
+
 def test_main_reset_puts_back_the_defaults_the_main_player_holds_itself(tmp_path):
     config = _make_config(tmp_path)
 

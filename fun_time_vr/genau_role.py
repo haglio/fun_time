@@ -39,6 +39,8 @@ from player_core.robot_hand import RobotHandState, bpm_for_speed
 from player_core.robot_hand_beat import BeatEngine
 from player_core.robot_hand_driver import RobotHandTCodeDriver
 
+from fun_time.vr_videos import keep_shapes
+
 from .genau_settings import GenauSettings
 from .projection import default_projection
 
@@ -81,9 +83,10 @@ class GenauRole:
         self._volume = 100
         self._muted = False
         self._projection_of: tuple[Path | None, str] = (None, "")
+        self._recent = False
+        self._shapes = (True, True)
 
-        clips = scan_clips(self._clips_dirs, shuffle_on_load=settings.shuffle_on_load)
-        self._sequence = ClipSequenceController(clips, start_at=start_clip)
+        self._sequence = ClipSequenceController(self._scan(), start_at=start_clip)
         decode = decode or (
             lambda path: load_clip_frames(path, cache_dir_for_clips_folder(path.parent)))
 
@@ -135,6 +138,7 @@ class GenauRole:
             hud=self._hud,
             set_volume=self._set_volume,
             reorder_clips=self._reorder,
+            keep_shapes=self._keep_shapes,
         )
         self._controller = GenauRefreshController(
             controls=self._controls,
@@ -247,17 +251,31 @@ class GenauRole:
     def _set_volume(self, level: int, muted: bool) -> None:
         self._volume, self._muted = level, muted
 
-    def _reorder(self, recent: bool) -> None:
-        """LATEST and SHUFFLE: rescan the folder in that order and browse it from the top."""
+    def _scan(self) -> list[Path]:
+        plays_vr, plays_flat = self._shapes
+        return keep_shapes(
+            scan_clips(self._clips_dirs, shuffle_on_load=self._settings.shuffle_on_load,
+                       recent=self._recent),
+            vr_dirs=self._vr_dirs, plays_vr=plays_vr, plays_flat=plays_flat)
+
+    def _rescan(self) -> list[Path]:
         try:
-            clips = scan_clips(
-                self._clips_dirs, shuffle_on_load=self._settings.shuffle_on_load, recent=recent,
-            )
+            return self._scan()
         except (OSError, RuntimeError):
             self._log.warning("Could not rescan %s; keeping the sequence", self._clips_dirs,
                               exc_info=True)
-            return
-        self._selection.reorder(clips)
+            return []
+
+    def _reorder(self, recent: bool) -> None:
+        """LATEST and SHUFFLE: rescan the folder in that order and browse it from the top."""
+        self._recent = recent
+        if clips := self._rescan():
+            self._selection.reorder(clips)
+
+    def _keep_shapes(self, plays_vr: bool, plays_flat: bool) -> None:
+        self._shapes = (plays_vr, plays_flat)
+        if clips := self._rescan():
+            self._selection.narrow(clips)
 
     def _condemn(self, path: Path, weird_dir: Path) -> None:
         try:

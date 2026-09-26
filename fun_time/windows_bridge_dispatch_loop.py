@@ -1047,6 +1047,7 @@ def build_bridge_config_from_manifest(
         loopback_port=manifest.loopback_port,
         main_sources=manifest.media.main_player_library_sources,
         vr_library_dirs=manifest.media.vr_library_dirs,
+        genau_vr_clips=manifest.media.genau_vr_clips,
         python_exe=manifest.executables.python_exe,
         portrait_sources=manifest.media.portrait_dirs,
         landscape_sources=manifest.media.landscape_dirs,

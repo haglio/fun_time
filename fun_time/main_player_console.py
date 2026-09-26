@@ -59,6 +59,8 @@ class MainSlotInputs:
     genau_latest: bool = False
     plays_vr: bool | None = None
     plays_flat: bool | None = None
+    genau_plays_vr: bool | None = None
+    genau_plays_flat: bool | None = None
     nothing_to_reset: bool = False
     in_vr: bool = False
     crowned: bool = True
@@ -79,8 +81,8 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         cruise=genau.cruise_active,
         learned=genau.learned_active,
         shape=genau.shape,
-        plays_vr=inputs.plays_vr,
-        plays_flat=inputs.plays_flat,
+        plays_vr=inputs.plays_vr if video else inputs.genau_plays_vr,
+        plays_flat=inputs.plays_flat if video else inputs.genau_plays_flat,
         pace_s=inputs.genau_pace_s,
         length_mode=main_player.length_mode,
         compilation=main_player.compilation,

@@ -100,6 +100,8 @@ class BridgeState:
     # It alone does not resume (fun_time.session_resume.NOT_RESUMED): Genau
     # reshuffles its clips folder at every launch.
     genau_latest: bool = False
+    genau_plays_vr: bool = True
+    genau_plays_flat: bool = True
     # The player most recently navigated, as a :class:`Player` slot.  Any command
     # naming a player, or a main next/prev, updates it; the player-agnostic "active_*"
     # commands resolve against it — nav reaches all three, the satellite-only

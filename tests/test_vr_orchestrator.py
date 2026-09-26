@@ -19,6 +19,7 @@ from fun_time import win32_taskbar
 from fun_time.config import load_config
 from fun_time.hosted_origenerator import HostedApp
 from fun_time.manifest import LaunchManifest, build_windows_bridge_manifest, write_manifest_data
+from fun_time.modes import VideoShapes
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCELING,
@@ -59,6 +60,7 @@ from fun_time_vr.orchestrator import (
     build_vr_manifest,
     launch_vr_player,
     main_playlist_has_vr,
+    resume_genau_shapes,
     stock_the_playlists,
     validate_vr_config,
     vr_main_sources,
@@ -391,6 +393,15 @@ class TestTheModeASessionComesBackIn:
 
         assert given["mode"] == "carried.main_mode"
 
+    def test_genau_is_sent_the_shapes_it_was_left_browsing(self):
+        """After the seeding, which writes Genau's command file whole."""
+        (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
+        (resume,) = self._calls("run_vr_bridge", "resume_genau_shapes")
+
+        assert resume.lineno > seed.lineno
+        assert [ast.unparse(arg) for arg in resume.args] == [
+            "Path(commands.genau_cmd_file)", "genau_clip_shapes(carried, bridge_config)"]
+
     def test_the_playlists_are_stocked_under_the_shapes_the_session_was_left_on(self):
         (stock,) = self._calls("run_vr_bridge", "stock_the_playlists")
         given = {kw.arg: ast.unparse(kw.value) for kw in stock.keywords}
@@ -682,6 +693,45 @@ class TestStockingThePlaylists:
         assert main_player_playlist.read_text(encoding="utf-8") == f"{flat}\n"
 
 
+class TestResumeGenausShapes:
+    """Genau rescans its folders whole at every launch, so a narrowing it was
+    left under has to be re-sent, the way a satellite's lock is."""
+
+    def _shapes(self, tmp_path: Path, *, plays_vr: bool, plays_flat: bool) -> VideoShapes:
+        return VideoShapes(vr_dirs=str(tmp_path / "vr_clips"),
+                           plays_vr=plays_vr, plays_flat=plays_flat)
+
+    def test_queues_the_one_shape_genau_was_narrowed_to(self, tmp_path: Path):
+        genau = tmp_path / "genau_cmd.txt"
+        genau.write_text("PAUSE\n", encoding="utf-8")
+
+        resume_genau_shapes(genau, self._shapes(tmp_path, plays_vr=False, plays_flat=True))
+
+        assert genau.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SHAPES flat"]
+
+    def test_queues_nothing_while_genau_plays_both(self, tmp_path: Path):
+        genau = tmp_path / "genau_cmd.txt"
+
+        resume_genau_shapes(genau, self._shapes(tmp_path, plays_vr=True, plays_flat=True))
+
+        assert not genau.exists()
+
+    def test_queues_nothing_for_neither_since_genau_launches_holding_its_clip(self, tmp_path: Path):
+        genau = tmp_path / "genau_cmd.txt"
+
+        resume_genau_shapes(genau, self._shapes(tmp_path, plays_vr=False, plays_flat=False))
+
+        assert not genau.exists()
+
+    def test_queues_nothing_to_a_genau_with_only_flat_clips(self, tmp_path: Path):
+        """The desktop's, which the narrowing a headset session left carries over to."""
+        genau = tmp_path / "genau_cmd.txt"
+
+        resume_genau_shapes(genau, VideoShapes(vr_dirs="", plays_vr=True, plays_flat=False))
+
+        assert not genau.exists()
+
+
 class TestTheCrossingBackToTheDesktop:
     """FunTimeVR's end of it, the desktop orchestrator's mirrored: the request
     cleared coming in, the relay spawned going out (docs/entering-vr.md)."""
@@ -866,6 +916,17 @@ class TestGenausRoleInTheManifest:
 
         assert vr["clips_dirs"] == str(config.paths.clips_dir)
         assert vr["vr_clip_dirs"] == ""
+
+    def test_the_dispatch_loop_is_told_which_folder_holds_the_vr_clips(self, config, tmp_path):
+        """Where it decides whether the console offers Genau the VR and flat pair."""
+        named = replace(config, vr=replace(config.vr, clips_dir=tmp_path / "vr_clips"))
+
+        def bridge_config(session_config):
+            path = write_manifest_data(build_vr_manifest(session_config), tmp_path / "launch.ini")
+            return build_bridge_config_from_manifest(LaunchManifest.read(path), vr_main_player=True)
+
+        assert bridge_config(named).genau_vr_clips == str(tmp_path / "vr_clips")
+        assert bridge_config(config).genau_vr_clips == ""
 
     def test_the_companions_address_is_fun_times_own(self, config):
         vr = build_vr_manifest(config)["vr"]

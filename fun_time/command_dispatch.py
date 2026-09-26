@@ -97,6 +97,7 @@ from .satellites_mode import (
 )
 from .shared_state import BridgeState, SatelliteState
 from .voice_commands import ORIGENERATOR_PHRASES
+from .vr_videos import shapes_verb
 from .watch_stats import record_watch_event, watch_stats_path
 from .window_roles import visible_main_slot_roles
 
@@ -484,12 +485,10 @@ _PROJECTION_COMMANDS: dict[str, tuple[bool, bool]] = {
     "main_projection_none": (False, False),
 }
 
-# What each is called where it is flashed.
 _PROJECTION_LABELS: dict[tuple[bool, bool], str] = {
     (True, True): "2D + VR",
     (True, False): "VR only",
     (False, True): "2D only",
-    (False, False): "No videos left",
 }
 
 
@@ -1000,41 +999,68 @@ def main_video_shapes(state: BridgeState, config: BridgeConfig) -> VideoShapes:
                        plays_flat=state.main_plays_flat)
 
 
+def genau_clip_shapes(state: BridgeState, config: BridgeConfig) -> VideoShapes:
+    return VideoShapes(vr_dirs=config.genau_vr_clips,
+                       plays_vr=state.genau_plays_vr,
+                       plays_flat=state.genau_plays_flat)
+
+
 def _dispatch_main_projection(
     plays_vr: bool, plays_flat: bool, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Narrow the main player's browse to a shape of video, or widen it back.
+    """Narrow what the main slot's player browses to a shape of video, or widen it back.
 
-    A rebuild, so it goes the way F-mode's does.  Asking for the state already
-    running rebuilds nothing: a reorder is what reshuffles, and this must not
-    become a second way to do it.  Ignored where the rotation holds one shape.
+    Asking for the state already running changes nothing: a reorder is what
+    reshuffles, and this must not become a second way to do it.  Ignored where
+    that player's library holds one shape.
     """
-    shapes = main_video_shapes(state, config)
+    on_main_player = main_player_displays(state.main_mode)
+    shapes = (main_video_shapes if on_main_player else genau_clip_shapes)(state, config)
     if not shapes.offered:
-        logger.info("No VR library in this session; shape filter ignored")
+        logger.info("Nothing but flat %s in this session; shape filter ignored",
+                    "videos" if on_main_player else "clips")
         return state, []
     if (shapes.plays_vr, shapes.plays_flat) == (plays_vr, plays_flat):
         return state, []
-    state = replace(state, main_plays_vr=plays_vr, main_plays_flat=plays_flat)
-    if not (plays_vr or plays_flat):
-        # Nothing to rebuild from, so the video on screen is held instead: a
-        # state you can see, where an empty list would look like a no-op.
-        append_command(config.main_player_cmd_file, _MAIN_LOCK_COMMANDS["main_lock_on"])
+    if on_main_player:
+        state, ops = _narrow_the_main_player(plays_vr, plays_flat, state, config)
     else:
-        apply_main_fmode(
-            enabled=state.main_scripted_filter,
-            main_sources=config.main_sources,
-            recent=state.main_latest,
-            state_dir=config.state_dir,
-            main_player_cmd_file=config.main_player_cmd_file,
-            shapes=main_video_shapes(state, config),
-            metadata_root=config.regen_metadata_root,
-        )
-    label = _PROJECTION_LABELS[(plays_vr, plays_flat)]
-    logger.info("Main player shapes: %s", label)
-    return state, [WindowOp(
+        state, ops = _narrow_genau(plays_vr, plays_flat, state, config)
+    label = _PROJECTION_LABELS.get(
+        (plays_vr, plays_flat), "No videos left" if on_main_player else "No clips left")
+    logger.info("%s shapes: %s", "Main player" if on_main_player else "Genau", label)
+    return state, [*ops, WindowOp(
         op="notice", key=label, source=SOURCE_MAIN,
         level=logging.WARNING if not (plays_vr or plays_flat) else NOTICE)]
+
+
+def _narrow_the_main_player(
+    plays_vr: bool, plays_flat: bool, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    state = replace(state, main_plays_vr=plays_vr, main_plays_flat=plays_flat)
+    if not (plays_vr or plays_flat):
+        append_command(config.main_player_cmd_file, LOCK_ON)
+        return state, []
+    apply_main_fmode(
+        enabled=state.main_scripted_filter,
+        main_sources=config.main_sources,
+        recent=state.main_latest,
+        state_dir=config.state_dir,
+        main_player_cmd_file=config.main_player_cmd_file,
+        shapes=main_video_shapes(state, config),
+        metadata_root=config.regen_metadata_root,
+    )
+    return state, []
+
+
+def _narrow_genau(
+    plays_vr: bool, plays_flat: bool, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    state = replace(state, genau_plays_vr=plays_vr, genau_plays_flat=plays_flat)
+    if not (plays_vr or plays_flat):
+        return _lock_genau(LOCK_ON, state, config)
+    append_command(config.genau_cmd_file, shapes_verb(plays_vr=plays_vr, plays_flat=plays_flat))
+    return state, []
 
 
 def main_player_at_defaults(

@@ -209,6 +209,14 @@ def test_the_panel_says_which_shapes_of_video_the_browse_may_reach():
     assert _button(headset, "main_projection_both").lit is False    # the flat one, dark
 
 
+def test_the_shapes_reported_are_the_shapes_of_whoever_is_showing():
+    both = dict(plays_vr=True, plays_flat=True, genau_plays_vr=False, genau_plays_flat=True)
+
+    assert _button(_payload(main_mode=MainMode.VIDEO, **both), "main_projection_flat").lit is True
+    assert _button(_payload(main_mode=MainMode.GENAU, **both), "main_projection_both").lit is False
+    assert _button(_payload(main_mode=MainMode.GENAU, **both), "main_projection_none").lit is True
+
+
 def test_the_published_text_carries_the_rows_the_player_draws():
     payload = _payload(main_mode=MainMode.GENAU, broker=True)
 

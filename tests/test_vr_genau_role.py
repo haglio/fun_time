@@ -186,6 +186,43 @@ class TestTheClipOnScreen:
         assert genau.role.current_clip != newest   # the rescan took the folder up whole
 
 
+class TestNarrowingToAShape:
+    """The console's VR and flat pair, said to Genau as SHAPES."""
+
+    def test_a_vr_clip_on_screen_gives_way_to_the_flat_ones(self, tmp_path):
+        genau = Genau(tmp_path, flat_clips=("delta.mp4", "epsilon.mp4"))
+
+        genau.send("SHAPES flat")
+
+        assert genau.role.current_clip == genau.flat_dir / "delta.mp4"
+        genau.send("NEXT")
+        assert genau.role.current_clip == genau.flat_dir / "epsilon.mp4"
+        genau.send("NEXT")
+        assert genau.role.current_clip == genau.flat_dir / "delta.mp4"
+
+    def test_a_clip_on_screen_of_the_shape_kept_stays_up(self, tmp_path):
+        genau = Genau(tmp_path, flat_clips=("delta.mp4",),
+                      start_clip=tmp_path / "vr_clips" / "beta_180.mp4")
+        up_before = list(genau.notifier.clips)
+
+        genau.send("SHAPES vr")
+
+        assert genau.role.current_clip == genau.clips_dir / "beta_180.mp4"
+        assert genau.notifier.clips == up_before
+        genau.send("NEXT")
+        genau.send("NEXT")
+        assert genau.role.current_clip == genau.clips_dir / "alpha_180.mp4"
+
+    def test_a_reorder_rescans_under_the_shape_kept(self, tmp_path):
+        genau = Genau(tmp_path, flat_clips=("delta.mp4",))
+        genau.send("SHAPES flat")
+
+        genau.send("LATEST")
+        genau.send("NEXT")
+
+        assert genau.role.current_clip == genau.flat_dir / "delta.mp4"
+
+
 class TestTheFrameHandedToTheRenderThread:
     def test_the_first_frame_is_there_once_the_clip_is_decoded(self, tmp_path):
         genau = Genau(tmp_path)

@@ -442,6 +442,19 @@ class TestHudPublishing:
         assert published("video") is True
         assert published("genau") is False
 
+    def test_the_console_offers_genaus_shapes_only_where_it_has_vr_clips(self, tmp_path):
+        state = BridgeState(main_mode=MainMode.GENAU, genau_plays_vr=False)
+
+        def shape_buttons(config) -> list[tuple[str, bool]]:
+            make_feed(tmp_path, config=config).publish(state)
+            return [(button["command"], bool(button.get("lit")))
+                    for row in console(tmp_path)["rows"] for button in row
+                    if button.get("command", "").startswith("main_projection")]
+
+        assert shape_buttons(make_config(tmp_path)) == []
+        assert shape_buttons(make_config(tmp_path, genau_vr_clips=str(tmp_path / "vr_clips"))) == [
+            ("main_projection_both", False), ("main_projection_none", True)]
+
     def test_the_consoles_reset_is_faded_while_there_is_nothing_to_put_back(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
         status = feed.config.main_player_status_file

@@ -162,7 +162,7 @@ def _browse_order_buttons(slot: MainSlot, *, remembered: bool = False) -> tuple[
     )
 
 
-def _projection_buttons(slot: MainSlot, *, remembered: bool) -> tuple[Button, ...]:
+def _projection_buttons(slot: MainSlot, *, remembered: bool, things: str) -> tuple[Button, ...]:
     if slot.plays_vr is None or slot.plays_flat is None:
         return ()
     vr, flat = bool(slot.plays_vr), bool(slot.plays_flat)
@@ -175,16 +175,16 @@ def _projection_buttons(slot: MainSlot, *, remembered: bool) -> tuple[Button, ..
             ("main_projection_flat" if flat else "main_projection_none") if vr
             else ("main_projection_both" if flat else "main_projection_vr"),
             VR_ICON,
-            "Only the VR videos are playing" if vr and not flat
-            else "Drop the VR videos" if vr
-            else "Put the VR videos back", group_break=True, **state(vr)),
+            f"Only the VR {things} are playing" if vr and not flat
+            else f"Drop the VR {things}" if vr
+            else f"Put the VR {things} back", group_break=True, **state(vr)),
         Button(
             ("main_projection_vr" if vr else "main_projection_none") if flat
             else ("main_projection_both" if vr else "main_projection_flat"),
             FLAT_ICON,
-            "Only the flat videos are playing" if flat and not vr
-            else "Drop the flat videos" if flat
-            else "Put the flat videos back", **state(flat)),
+            f"Only the flat {things} are playing" if flat and not vr
+            else f"Drop the flat {things}" if flat
+            else f"Put the flat {things} back", **state(flat)),
     )
 
 
@@ -263,7 +263,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
                    "shuffled from the top",
                    dim=slot.nothing_to_reset, group_break=True),
             *_browse_order_buttons(slot, remembered=remembered),
-            *_projection_buttons(slot, remembered=remembered),
+            *_projection_buttons(slot, remembered=remembered, things="videos"),
             *_length_buttons(slot, remembered=remembered),
             _compilation_button(slot),
             _clip_scene_button(slot),
@@ -301,6 +301,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
                lit=slot.flipped, group_break=True),
         Button("genau_weird_clip", TRASH_ICON, "Mark weird — move it out", danger=True),
         *_browse_order_buttons(slot),
+        *_projection_buttons(slot, remembered=False, things="clips"),
     )
 
 

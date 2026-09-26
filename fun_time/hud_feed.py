@@ -14,14 +14,19 @@ from player_core.drive_readout import read_drive
 from player_core.satellite_hud import HudModel, hud_text, parse_hud
 
 from .bridge_records import BridgeConfig
-from .command_dispatch import main_player_at_defaults, satellite_at_defaults
+from .command_dispatch import (
+    genau_clip_shapes,
+    main_player_at_defaults,
+    main_video_shapes,
+    satellite_at_defaults,
+)
 from .console_buttons import aim_row, osr2_controls
 from .crown import Crown
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SatelliteInputs, build_panels
 from .main_player_console import MainSlotInputs, console_model, device_word
 from .media_renditions import renditions
-from .modes import is_favorite_path, read_favs_content, source_roots
+from .modes import is_favorite_path, read_favs_content
 from .osr2_section import DeviceBlock, player_with_the_osr2
 from .player_status import (
     is_broker_heartbeat_fresh,
@@ -138,16 +143,18 @@ class HudFeed:
         # what has the OSR2, whether the broker is up, and which player a bare
         # command reaches -- none of which the player can see for itself.
         main_player = read_main_player_status(self.config.main_player_status_file)
-        shapes_offered = bool(source_roots(self.config.vr_library_dirs))
+        main_shapes = main_video_shapes(state, self.config)
+        genau_shapes = genau_clip_shapes(state, self.config)
         self.publisher.publish_text("main_player", console_text(console_model(MainSlotInputs(
             main_mode=state.main_mode,
             active=state.active_player == Player.MAIN,
             scripted_filter=state.main_scripted_filter,
             latest=state.main_latest,
             genau_latest=state.genau_latest,
-            # None where the rotation holds one shape: the pair is the headset's.
-            plays_vr=state.main_plays_vr if shapes_offered else None,
-            plays_flat=state.main_plays_flat if shapes_offered else None,
+            plays_vr=main_shapes.plays_vr if main_shapes.offered else None,
+            plays_flat=main_shapes.plays_flat if main_shapes.offered else None,
+            genau_plays_vr=genau_shapes.plays_vr if genau_shapes.offered else None,
+            genau_plays_flat=genau_shapes.plays_flat if genau_shapes.offered else None,
             osr2_mode=osr2_mode,
             osr2_control=state.osr2_control,
             broker=broker,

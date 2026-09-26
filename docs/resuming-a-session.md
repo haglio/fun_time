@@ -40,13 +40,17 @@ the sound level, each side's lock, whether the OSR2 was let go of or held at one
 end — and there is no more reason for those to reset overnight than for the clip
 on screen to.
 
-Four of them have a live counterpart to re-assert, since none lives in a file a
+Five of them have a live counterpart to re-assert, since none lives in a file a
 new process reads:
 
 - the sound level is seeded to both audio sinks at startup
   (`fun_time.audio_volume.publish_audio_level`),
 - each satellite lock is queued back on that satellite's command file
   (`resume_satellite_locks`),
+- Genau's choice between its VR and flat clips is queued back on Genau's
+  command file in the headset (`fun_time_vr.orchestrator.resume_genau_shapes`), because Genau rescans
+  its folders whole at every launch; a desktop Genau has only flat clips, so
+  nothing is sent to it,
 - the main slot's mode is what startup seeds the two main-slot players and their
   windows for (`fun_time.windows_bridge_startup.seed_startup_states`),
 - the OSR2's control state is carried out by the device arbiter

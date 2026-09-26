@@ -435,7 +435,7 @@ _EXPECTED_STATE_KEYS = {
     "omni_paused": "0",
     "main_latest": "0", "portrait_latest": "0", "landscape_latest": "0",
     "main_plays_vr": "1", "main_plays_flat": "1",
-    "genau_latest": "0",
+    "genau_latest": "0", "genau_plays_vr": "1", "genau_plays_flat": "1",
     "active_player": "1",
     "portrait_filter": "", "landscape_filter": "",
     "portrait_loop": "", "landscape_loop": "",

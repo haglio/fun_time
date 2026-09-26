@@ -60,6 +60,7 @@ class BridgeConfig:
     # sources themselves.  Empty in a desktop session, whose rotation has none —
     # and that emptiness is what leaves the shape filter off its console.
     vr_library_dirs: str = ""
+    genau_vr_clips: str = ""
     # Our own interpreter — what the library browser is launched with, since the
     # bridge process has no Qt event loop to host that window in.
     python_exe: str = ""
