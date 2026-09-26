@@ -15,7 +15,7 @@ import pytest
 from player_core.console import OSR2_CONTROL_OFF
 from player_core.drive_readout import DriveHud, publish_drive
 from player_core.hud_button import Button
-from player_core.modes import MainMode
+from player_core.modes import MainMode, Osr2State
 from player_core.satellite_hud import HudCell, HudModel, hud_text, parse_hud
 
 from fun_time.bridge_records import BridgeConfig
@@ -544,6 +544,55 @@ class TestHudPublishing:
 
         assert not (tmp_path / "portrait_hud.json").exists()
         assert not (tmp_path / "landscape_hud.json").exists()
+
+
+def _published(tmp_path, player: str) -> HudModel:
+    return parse_hud((tmp_path / f"{player}_hud.json").read_text(encoding="utf-8"))
+
+
+def _osr2_commands(model: HudModel) -> list[str]:
+    return [button.command for row in model.osr2_rows for button in row]
+
+
+def _console_commands(tmp_path) -> list[str]:
+    return [button.get("command", "") for row in console(tmp_path)["rows"] for button in row]
+
+
+class TestTheOsr2SectionIsOnThePlayerThatHasTheOsr2:
+    def test_the_main_console_has_it_to_begin_with(self, tmp_path):
+        make_feed(tmp_path).publish(BridgeState())
+
+        assert console(tmp_path)["has_osr2"] is True
+        assert "robot_hand_park" in _console_commands(tmp_path)
+        for player in ("portrait", "landscape"):
+            assert _osr2_commands(_published(tmp_path, player)) == [f"{player}_take_osr2"]
+            assert _published(tmp_path, player).osr2 == ""
+
+    def test_a_side_player_that_takes_it_carries_the_whole_section(self, tmp_path):
+        make_feed(tmp_path).publish(BridgeState(osr2_player=2, osr2_control=OSR2_CONTROL_OFF))
+
+        portrait = _published(tmp_path, "portrait")
+        assert {"robot_hand_toggle_cruise", "robot_hand_park",
+                "robot_hand_release"} <= set(_osr2_commands(portrait))
+        assert portrait.osr2 == Osr2State.OFF
+        assert portrait.osr2_control == OSR2_CONTROL_OFF
+        assert [button.command for button in portrait.osr2_controls] == ["broker_panel"]
+
+    def test_the_players_it_left_carry_the_button_that_takes_it(self, tmp_path):
+        make_feed(tmp_path).publish(BridgeState(osr2_player=2))
+
+        assert console(tmp_path)["has_osr2"] is False
+        assert "robot_hand_park" not in _console_commands(tmp_path)
+        assert "main_take_osr2" in _console_commands(tmp_path)
+        assert _osr2_commands(_published(tmp_path, "landscape")) == ["landscape_take_osr2"]
+
+    def test_a_side_the_hosted_app_has_carries_it_as_well(self, tmp_path):
+        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+
+        feed.publish(BridgeState(satellites_mode="origenerator", osr2_player=3))
+
+        assert "robot_hand_park" in _osr2_commands(_published(tmp_path, "landscape"))
+        assert _osr2_commands(_published(tmp_path, "portrait")) == ["portrait_take_osr2"]
 
 
 class TestOsr2Mode:

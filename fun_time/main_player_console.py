@@ -58,6 +58,7 @@ class MainSlotInputs:
     nothing_to_reset: bool = False
     in_vr: bool = False
     crowned: bool = True
+    has_osr2: bool = True
 
 
 def console_model(inputs: MainSlotInputs) -> ConsoleModel:
@@ -86,6 +87,7 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         nothing_to_reset=inputs.nothing_to_reset,
         flipped=genau.flipped,
         crowned=inputs.crowned,
+        has_osr2=inputs.has_osr2,
     )
     return ConsoleModel(
         main_mode=inputs.main_mode,
@@ -96,7 +98,8 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         locked=slot.locked,
         latest=slot.latest,
         rows=console_rows(slot, in_vr=inputs.in_vr),
-        osr2_controls=osr2_controls(broker=inputs.broker),
+        osr2_controls=osr2_controls(broker=inputs.broker) if inputs.has_osr2 else (),
+        has_osr2=inputs.has_osr2,
     )
 
 
