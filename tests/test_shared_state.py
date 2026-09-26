@@ -236,6 +236,14 @@ class TestSharedState:
         assert loaded.satellite(Player.PORTRAIT).loop == ""
         assert loaded.satellite(Player.LANDSCAPE).loop == ""
 
+    def test_a_switch_that_starts_on_reads_on_from_a_file_written_before_it(self, tmp_path):
+        state_file = tmp_path / "shared_state.ini"
+        state_file.write_text("[state]\nmain_mode = video\n", encoding="utf-8")
+
+        loaded = read_shared_state(state_file)
+
+        assert (loaded.main_plays_vr, loaded.main_plays_flat) == (True, True)
+
     def test_state_files_without_filter_keys_load_as_unfiltered(self, tmp_path):
         # A state file written before filters existed must still load.
         state_file = tmp_path / "shared_state.ini"
