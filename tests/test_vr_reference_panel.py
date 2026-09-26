@@ -102,3 +102,14 @@ class TestWhenItIsUp:
 
         assert pointer.state.open
         assert page_of(pointer.state) == 1
+
+
+class TestTheControls:
+    def test_each_control_s_mark_spans_more_than_half_its_button(self):
+        panel = np.asarray(paint_reference(ReferenceState(open=True, page=0)))
+
+        for action, rect in reference_actions().items():
+            button = panel[rect.y:rect.y + rect.height, rect.x:rect.x + rect.width, :3]
+            ys, xs = np.nonzero(button.max(axis=2) > 128)
+            spans = max(xs.max() - xs.min() + 1, ys.max() - ys.min() + 1)
+            assert spans > rect.width / 2, action

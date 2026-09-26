@@ -15,7 +15,7 @@ from shared_ui.palette import (
     TEXT_MUTED,
     TEXT_PRIMARY,
 )
-from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS, BUTTON_SIZE
+from shared_ui.spacing import BUTTON_MARK, BUTTON_RADIUS, BUTTON_SIZE
 
 from fun_time.command_reference import build_reference_sections
 from fun_time.dashboard_layout import Rect
@@ -96,9 +96,9 @@ def paint_reference(state: ReferenceState) -> Image.Image:
         )
         mark = "chevron_right" if action == NEXT_PAGE else "chevron_left"
         panel.alpha_composite(
-            glyph_image(mark, BUTTON_ICON, TEXT_PRIMARY),
-            (rect.x + (rect.width - BUTTON_ICON) // 2,
-             rect.y + (rect.height - BUTTON_ICON) // 2),
+            glyph_image(mark, BUTTON_MARK, TEXT_PRIMARY),
+            (rect.x + (rect.width - BUTTON_MARK) // 2,
+             rect.y + (rect.height - BUTTON_MARK) // 2),
         )
 
     y = _HEAD_H
