@@ -2,8 +2,9 @@
 
 The Robot Hand and a funscript both feed the broker's one UDP T-Code inlet, so only one
 may drive at a time.  This is the arbiter that hands the device between them —
-edge-triggered on the main player's published status, and asserted rather than
-fired-and-forgotten, because a verb queued on a file channel can still die.
+edge-triggered on the published status of the player that has the OSR2, and
+asserted rather than fired-and-forgotten, because a verb queued on a file
+channel can still die.
 
 Above it sits the console's own four-state switch: parked, retracted and
 control off are nobody driving, and this is what carries them out.
@@ -45,7 +46,7 @@ class SatelliteLine:
 
 
 class DeviceArbiter:
-    """The video-mode handoff between the main player's funscript and the Robot Hand."""
+    """The handoff between the Robot Hand and the funscript of the player that has the OSR2."""
 
     def __init__(
         self,
@@ -67,6 +68,7 @@ class DeviceArbiter:
         # yet" — set while nobody is arbitrating, so the next arbitration
         # re-asserts the correct driver.
         self._driving: tuple[Player, bool] | None = None
+        self._mode: str | None = None
         self._statuses: dict[Player, ScriptedStatus] = {}
         # When the park-touch hold releases the pending hand-to-script flip;
         # None outside one — see _holding_for_park_touch.
@@ -80,18 +82,20 @@ class DeviceArbiter:
 
     def sync(self, main_mode: str, *, paused: bool,
              control: str = OSR2_DRIVING, holder: Player = Player.MAIN) -> None:
-        """In video mode, route the OSR2 to the funscript or the Robot Hand,
-        moment to moment.
+        """Route the OSR2 to *holder*'s funscript or the Robot Hand, moment to
+        moment -- a side player in every mode, the main player in video mode.
 
         *control* off, parked or retracted is nobody driving, in every mode, and
         nothing below runs: there is no device to hand over.
 
         The funscript drives while it is actively scripting (``has_funscript``
         and not ``funscript_resting``); the hand drives the unscripted stretches.
-        Each handoff sets both levers: the main player's T-Code on + the hand paused for the
-        funscript, or the main player's T-Code off (so its gap drift can't fight) + the hand
-        resumed.  Edge-triggered, so it fires once per handoff; outside video
-        mode, or paused, the remembered state is cleared so re-entry re-asserts.
+        Each handoff sets both levers: the holder's T-Code on + the hand paused
+        for the funscript, or the holder's T-Code off + the hand resumed, and
+        every other player's T-Code off.
+        Edge-triggered, so it fires once per handoff; paused, in a new mode, or
+        where the holder is not arbitrated, the remembered state is cleared so
+        the next arbitration re-asserts.
 
         The handoff itself is not smoothed here, and nothing waits for the
         motion: whoever takes the device walks it from where it is to where it
@@ -100,6 +104,8 @@ class DeviceArbiter:
         floor-touch made the moment depend on the live motion, and the trace —
         which had to draw that moment before it happened — could only guess it.
         """
+        if main_mode != self._mode:
+            self._mode, self._driving = main_mode, None
         if control == OSR2_CONTROL_OFF or control in HOLD_VERB:
             self._carry_out(control, paused=paused)
             self._driving = None
@@ -109,7 +115,7 @@ class DeviceArbiter:
         self._hand_the_output_back()
         self._start_what_control_off_stopped(main_mode, paused=paused)
         if paused or (holder is Player.MAIN and not main_player_displays(main_mode)):
-            self._let_the_last_driver_go(holder)
+            self._let_the_last_driver_go(holder, paused=paused)
             self._driving = None
             self._park_touch_deadline = None
             return
@@ -159,10 +165,13 @@ class DeviceArbiter:
             return read_main_player_status(self.main_player_status_file, fallback=previous)
         return read_satellite_status(self._satellites[player].status_file, fallback=previous)
 
-    def _let_the_last_driver_go(self, holder: Player) -> None:
+    def _let_the_last_driver_go(self, holder: Player, *, paused: bool) -> None:
         if self._driving is None or self._driving[0] is holder:
             return
-        append_command(self._cmd_file(self._driving[0]), TCODE_OFF)
+        last_driver, its_script_drove = self._driving
+        append_command(self._cmd_file(last_driver), TCODE_OFF)
+        if its_script_drove and not paused:
+            append_command(self.genau_cmd_file, "RESUME")
 
     def _carry_out(self, control: str, *, paused: bool) -> None:
         """Hold the device where *control* says against both engines, asserted on
@@ -196,7 +205,7 @@ class DeviceArbiter:
     def _holding_for_park_touch(self, now: float, status) -> bool:
         """Whether the hand-to-script flip is still waiting for a touch-down.
 
-        The touch is THE MAIN PLAYER'S CHOICE, published with its status: the trace picks
+        The touch is THE HOLDER'S CHOICE, published with its status: the trace picks
         one touch-down, draws the blue ending on it, and this side simply ends
         the hand's turn when the playhead reaches it — one chooser, so the device
         cannot stop at a different trough than the picture drew.  When each

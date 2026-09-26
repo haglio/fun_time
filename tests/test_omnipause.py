@@ -5,6 +5,7 @@ from player_core.modes import MainMode
 
 from fun_time.broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
 from fun_time.omnipause import build_omnipause_plan
+from fun_time.players import Player
 
 
 def test_toggle_enters_omnipause_when_not_already_paused():
@@ -44,6 +45,13 @@ def test_leaving_does_not_give_it_back_while_control_is_off():
     resume here put Genau's motion back on a device the room had let go of."""
     plan = build_omnipause_plan("leave", omni_paused=True, main_mode=MainMode.GENAU,
                                 osr2_control=OSR2_CONTROL_OFF)
+
+    assert plan.resume_genau_playback is False
+
+
+def test_leaving_leaves_the_hand_to_the_arbiter_while_a_side_player_has_the_osr2():
+    plan = build_omnipause_plan("leave", omni_paused=True, main_mode=MainMode.GENAU,
+                                osr2_player=Player.PORTRAIT)
 
     assert plan.resume_genau_playback is False
 

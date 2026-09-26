@@ -19,6 +19,7 @@ from player_core.file_channel import append_command as real_append
 from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from fun_time.device_arbiter import REASSERT_S, TCODE_OFF, TCODE_ON, DeviceArbiter, SatelliteLine
+from fun_time.mode_plan import build_mode_switch_plan
 from fun_time.players import Player
 from tests.role_window_fakes import FakeClock
 
@@ -464,6 +465,37 @@ class TestASidePlayerThatHasTheOsr2:
         driver.sync("genau", paused=False, holder=Player.MAIN)
 
         assert side(tmp_path, Player.PORTRAIT)[-1] == TCODE_OFF
+
+    def test_the_main_player_taking_it_back_in_genau_mode_starts_the_robot_hand_again(
+            self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_side(tmp_path, Player.PORTRAIT)
+        driver.sync("genau", paused=False, holder=Player.PORTRAIT)
+
+        driver.sync("genau", paused=False, holder=Player.MAIN)
+
+        assert genau(driver).splitlines()[-1] == "RESUME"
+
+    def test_a_side_player_let_go_of_while_the_room_is_paused_leaves_the_robot_hand_paused(
+            self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_side(tmp_path, Player.PORTRAIT)
+        driver.sync("genau", paused=False, holder=Player.PORTRAIT)
+
+        driver.sync("genau", paused=True, holder=Player.MAIN)
+
+        assert genau(driver).splitlines()[-1] == "PAUSE"
+
+    def test_a_mode_switch_under_its_script_pauses_the_robot_hand_again_at_once(self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_side(tmp_path, Player.PORTRAIT)
+        driver.sync("genau", paused=False, holder=Player.PORTRAIT)
+        real_append(driver.genau_cmd_file, build_mode_switch_plan(
+            current_mode="genau", target_mode="video", omni_paused=False).genau_cmd)
+
+        driver.sync("video", paused=False, holder=Player.PORTRAIT)
+
+        assert genau(driver).splitlines()[-1] == "PAUSE"
 
     def test_a_hold_switches_every_player_off(self, tmp_path):
         driver = make_driver(tmp_path)

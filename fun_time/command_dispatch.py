@@ -50,7 +50,7 @@ from .media_metadata import forget_indexed_clip
 from .mode_plan import MAIN_GENAU_MODE, MAIN_VIDEO_MODE, main_player_displays
 from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
-from .osr2_section import TAKE_OSR2_COMMANDS, take_osr2_command
+from .osr2_section import TAKE_OSR2_COMMANDS, player_with_the_osr2, take_osr2_command
 from .player_status import MainPlayerStatus, read_genau_status, read_main_player_status
 from .players import Player
 from .random_favs_browser import FavEntry, target_for_fav
@@ -774,6 +774,7 @@ def _dispatch_leave_omnipause(
         broker_cmd_file=config.broker_cmd_file,
         origenerator_paused_file=config.origenerator_paused_file,
         osr2_control=state.osr2_control,
+        osr2_player=player_with_the_osr2(state),
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     # Un-minimize first, then re-band, then focus: leaving OmniPause is the room
