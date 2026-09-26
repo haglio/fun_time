@@ -61,6 +61,7 @@ from fun_time.notice_overlay import NoticeOverlay
 from fun_time.press_channel import PressChannel
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.session_end import mark_session_end
+from fun_time.shared_state import shared_state_path
 from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 
@@ -652,6 +653,7 @@ class DashboardWindow(QMainWindow):
             cover_dir=app_config.state_dir,
             make_overlay=NoticeOverlay,
             held=self._reveal.deferred,
+            shared_state_file=shared_state_path(app_config.state_dir),
         )
         self._notice_timer = QTimer(self)
         self._notice_timer.timeout.connect(self._notices.poll)

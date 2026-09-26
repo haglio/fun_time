@@ -16,6 +16,7 @@ from player_core.modes import MainMode
 
 from fun_time import windows_bridge_orchestrator
 from fun_time.config import load_config
+from fun_time.crown import Crown
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
 from fun_time.loading_cover import open_the_cover
@@ -53,7 +54,7 @@ from fun_time.session_handoff import (
     request_handoff,
     take_handoff_request,
 )
-from fun_time.shared_state import BridgeState, shared_state_path
+from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time.shortcuts import Shortcut
 from fun_time.win32 import StackedWindow
 from fun_time.windows_bridge_orchestrator import (
@@ -73,6 +74,7 @@ from fun_time.windows_bridge_orchestrator import (
     kill_process_tree,
     kill_recorded_child,
     run_session,
+    seat_the_secondary_monitor,
     silence_the_players,
     write_pids_file,
 )
@@ -2826,3 +2828,47 @@ class TestTheHudPublisherASessionStarts:
             windows_bridge_orchestrator.start_hud_priming(bridge_config, manifest, enabled=True)
 
         assert publisher.call_args.args[2] == ("Side", "XYZ")
+
+
+def test_the_reveal_seats_the_secondary_monitor_for_the_crown_the_room_came_back_with(
+        cfg_factory, tmp_path, monkeypatch):
+    manifest = LaunchManifest.read(write_windows_bridge_manifest(
+        load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME))
+    write_shared_state(shared_state_path(Path(manifest.commands.state_dir)),
+                       BridgeState(crowned=Crown.MAIN))
+    status = Path(manifest.commands.main_player_status_file)
+    status.parent.mkdir(parents=True, exist_ok=True)
+    status.write_text("video=C:/fixtures/scene one.mp4\nportrait=1\n", encoding="utf-8")
+    monkeypatch.setenv("FUN_TIME_FAKE_MONITORS", "0,0,2560,1392;2560,0,1440,3440")
+
+    with patch("fun_time.role_windows.window_rect", return_value=None), \
+         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.role_windows.place_window") as place:
+        seat_the_secondary_monitor(manifest, {"portrait": 3001, "main_player": 2001})
+
+    assert sorted(call.args for call in place.call_args_list) == [
+        (2001, 2560, 940, 1440, 2500), (3001, 2560, 0, 1440, 940)]
+
+
+def test_the_desktop_rooms_loop_is_handed_the_secondary_monitor_to_arrange(
+        cfg_factory, tmp_path, monkeypatch):
+    manifest_path = write_windows_bridge_manifest(
+        load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+    monkeypatch.setenv("FUN_TIME_FAKE_MONITORS", "0,0,2560,1392;2560,0,1440,3440")
+    fake_proc = MagicMock()
+    fake_proc.wait.return_value = 0
+
+    with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+               side_effect=lambda **kwargs: _fake_startup_result()), \
+         patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc), \
+         patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+         patch("fun_time.windows_bridge_orchestrator.serve_loopback"), \
+         patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as runner:
+        _a_session(
+            manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+            state_dir=tmp_path / "state", project_dir=tmp_path,
+            env=SessionEnvironment(integration=True, show_overlays=False),
+        )
+
+    rects = runner.call_args.kwargs["secondary_rects"](majority=Crown.MAIN)
+    assert (rects.portrait.height, rects.main.height) == (940, 2500)

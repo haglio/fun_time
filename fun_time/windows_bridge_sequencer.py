@@ -325,13 +325,8 @@ class _CoreSession:
 
 
 def _plan_the_layout(m: LaunchManifest) -> ScreenLayout:
-    """Every window's rect, from the monitors and the manifest's layout section.
-
-    mpv sizes its output to the geometry it was launched with and will NOT
-    rescale when a later Win32 move resizes the window, so each satellite has to
-    be started straight into its real rect — which means the whole plan has to
-    exist before the first child does.
-    """
+    """Every window's rect, from the monitors and the manifest's layout section,
+    made before the first child so each player opens where it plays."""
     return screen_layout(m.layout)
 
 

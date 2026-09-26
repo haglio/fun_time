@@ -110,6 +110,7 @@ class BridgeState:
     muted: bool = False
     osr2_control: str = OSR2_DRIVING  # the console's four-button group sets it
     crowned: Crown = Crown.MAIN
+    majority: Crown = Crown.PORTRAIT
 
     def satellite(self, player: Player) -> SatelliteState:
         """The slice of this state one satellite carries."""

@@ -40,6 +40,10 @@ class FakeSatellitePlayer(RefusesSeeks):
         # carried on — the player's own account of where it has got to lives
         # in player_core, and this only counts the asking.
         self.pushes = 0
+        self.tiled_to: list[tuple[int, int]] = []
+
+    def tile_to_fill(self, window_width: int, window_height: int) -> None:
+        self.tiled_to.append((window_width, window_height))
 
     # --- the interface SatelliteSession drives -------------------------------
     def load(self, path: Path) -> None:

@@ -34,6 +34,7 @@ NOT_RESUMED = frozenset({
     "genau_latest",
     "satellites_mode",
     "origenerator_ready",
+    "majority",
 })
 
 NOT_RESUMED_PER_SATELLITE = frozenset({"nav_anchor"})

@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import sys
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import urlparse
@@ -1728,9 +1729,9 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     assert portrait_kwargs["log_file"] == state_dir / "portrait_satellite.log"
     assert landscape_kwargs["log_file"] == state_dir / "landscape_satellite.log"
 
-    # Each satellite launches straight into its own real rect (mpv won't rescale
-    # on a later Win32 resize), so the portrait rect must land on the portrait
-    # satellite and the landscape rect on the landscape one — never swapped.
+    # Each satellite launches straight into its own real rect, so the portrait
+    # rect must land on the portrait satellite and the landscape rect on the
+    # landscape one — never swapped.
     for kwargs, rect in ((portrait_kwargs, portrait_rect),
                          (landscape_kwargs, landscape_rect)):
         placed = kwargs["placement"]
@@ -2244,3 +2245,31 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
         _proc, _argv, kwargs = self._launch(project_dirs=str(checkout))
 
         assert kwargs["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
+
+
+def test_only_the_portrait_player_is_launched_to_tile(tmp_path):
+    state_dir = tmp_path / "state"
+    with patch("fun_time.windows_bridge_startup.launch_satellite",
+               side_effect=[202, 303]) as launch:
+        launch_core_apps(
+            python_exe="fun_time_python.exe", satellite_module="satellite",
+            portrait=_slot(Player.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
+                           WindowRect(x=2560, y=0, width=1440, height=2500)),
+            landscape=_slot(Player.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
+                            WindowRect(x=1664, y=0, width=896, height=1392)),
+            result_file=tmp_path / "core_apps.ini",
+        )
+
+    assert [call.kwargs["placement"].tiles for call in launch.call_args_list] == [True, False]
+
+
+def test_a_satellite_launched_to_tile_is_told_so_on_its_command_line():
+    placement = WindowPlacement(x=0, y=0, width=1, height=1, title="Portrait AI Player")
+
+    tiling = _build_satellite_launch_command(
+        "python.exe", "satellite", channels=_a_satellite_channels(),
+        placement=replace(placement, tiles=True))
+    plain = _build_satellite_launch_command(
+        "python.exe", "satellite", channels=_a_satellite_channels(), placement=placement)
+
+    assert ("--tile" in tiling, "--tile" in plain) == (True, False)

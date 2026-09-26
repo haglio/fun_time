@@ -6,6 +6,7 @@ import socket
 import threading
 import time
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -18,6 +19,7 @@ from player_core.playlist import PlaylistItem, write_playlist
 
 from fun_time import load_config
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
+from fun_time.crown import Crown
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.manifest import (
@@ -41,6 +43,7 @@ from fun_time.shortcuts import Shortcut
 from fun_time.voice_commands import format_spoken_command, parse_command_line
 from fun_time.voice_control import VoiceController
 from fun_time.watch_stats import load_watch_stats
+from fun_time.window_layout import MonitorRect, secondary_monitor_rects
 from fun_time.windows_bridge_dispatch_loop import (
     _AHK_PASSTHROUGH_OPS,
     _OP_HANDLERS,
@@ -3198,3 +3201,65 @@ class TestThePlayersComeHome:
             runner._dispatch("satellites_video_activate")
 
         expect.assert_called_once()
+
+
+SECONDARY_MONITOR = MonitorRect(2560, 0, 1440, 3440)
+
+
+def _seating_runner(tmp_path, cfg_path, *, main_video_portrait: bool) -> DispatchLoopRunner:
+    config = make_config(tmp_path)
+    config.main_player_status_file.write_text(
+        f"video=C:/fixtures/scene one.mp4\nportrait={int(main_video_portrait)}\n", encoding="utf-8")
+    return make_runner(
+        tmp_path, config=config,
+        role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_PLAYER_HWND},
+        secondary_rects=partial(secondary_monitor_rects, SECONDARY_MONITOR,
+                                load_config(cfg_path).layout))
+
+
+def test_a_portrait_video_on_the_crowned_main_player_gives_it_most_of_the_secondary_monitor(
+        tmp_path, cfg_path):
+    runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=True)
+    usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_PLAYER_HWND: (2560, 2500, 1440, 940)}
+
+    with patch("fun_time.role_windows.window_rect", side_effect=usual.get), \
+         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.role_windows.place_window") as place:
+        runner.tick()
+
+    assert [call.args for call in place.call_args_list] == [
+        (PORTRAIT_HWND, 2560, 0, 1440, 940), (MAIN_PLAYER_HWND, 2560, 940, 1440, 2500)]
+
+
+def test_the_room_writes_down_which_player_has_most_of_the_secondary_monitor(tmp_path, cfg_path):
+    runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=True)
+
+    with patch("fun_time.role_windows.window_rect", return_value=None), \
+         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.role_windows.place_window"):
+        runner.tick()
+
+    assert read_shared_state(runner.shared_state_file).majority is Crown.MAIN
+
+
+def test_a_landscape_video_hands_most_of_the_secondary_monitor_back_to_the_portrait_player(
+        tmp_path, cfg_path):
+    runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=False)
+    traded = {PORTRAIT_HWND: (2560, 0, 1440, 940), MAIN_PLAYER_HWND: (2560, 940, 1440, 2500)}
+
+    with patch("fun_time.role_windows.window_rect", side_effect=traded.get), \
+         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.role_windows.place_window") as place:
+        runner.tick()
+
+    assert [call.args for call in place.call_args_list] == [
+        (MAIN_PLAYER_HWND, 2560, 2500, 1440, 940), (PORTRAIT_HWND, 2560, 0, 1440, 2500)]
+
+
+def test_a_room_that_arranges_no_secondary_monitor_moves_nothing(tmp_path):
+    runner = make_runner(tmp_path, role_hwnds={"portrait": PORTRAIT_HWND})
+
+    with patch("fun_time.role_windows.place_window") as place:
+        runner.tick()
+
+    place.assert_not_called()

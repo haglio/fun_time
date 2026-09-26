@@ -10,6 +10,7 @@ import socket
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
@@ -29,6 +30,7 @@ from .command_dispatch import (
     room_at_defaults,
     routes_to_origenerator,
 )
+from .crown import majority_now
 from .dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
     HELP_REFERENCE,
@@ -71,6 +73,7 @@ from .win32 import (
     window_exists,
     window_rect,
 )
+from .window_layout import SecondaryMonitorRects
 from .window_roles import visible_roles
 from .windows_bridge_random_favs_browser import open_rfb_tab
 from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
@@ -228,6 +231,7 @@ class DispatchLoopRunner:
         rfb_shortcut: Shortcut | None = None,
         sync_interval_ms: int = 200,
         origenerator_already_open: bool = False,
+        secondary_rects: Callable[..., SecondaryMonitorRects] | None = None,
     ) -> None:
         self.config = config
         self.dashboard_cmd_file = dashboard_cmd_file
@@ -242,6 +246,7 @@ class DispatchLoopRunner:
         # Every window the session manages, and the one cache of their HWNDs:
         # the tick and the library browser's own thread both go through here.
         self.windows = windows
+        self.secondary_rects = secondary_rects
         self.dashboard_enabled = dashboard_enabled
         self.env = env
         # This loop holds the state each player's own HUD is drawn from (locks,
@@ -373,6 +378,7 @@ class DispatchLoopRunner:
         # After the batch, so a switch and a switch straight back inside one
         # batch cancel rather than minimize the player they just brought back.
         self.windows.flush_pending_hides()
+        self._seat_the_secondary_monitor()
 
         self._sync_voice_suspension()
 
@@ -389,6 +395,15 @@ class DispatchLoopRunner:
         self.watch.sample_due(now=now, paused=self.state.omni_paused,
                               satellites=not hosting_origenerator(self.state, self.config))
         self.hud.publish_due(self.state, now=now)
+
+    def _seat_the_secondary_monitor(self) -> None:
+        if self.secondary_rects is None:
+            return
+        most = majority_now(self.state, self.config.main_player_status_file)
+        self.windows.seat(self.secondary_rects(majority=most))
+        if most is not self.state.majority:
+            self.state = replace(self.state, majority=most)
+            write_shared_state(self.shared_state_file, self.state)
 
     def expect_the_players_home(self, *, now: float) -> None:
         """Both satellites are on their way back from the hosted app."""
