@@ -40,6 +40,7 @@ from .hud_transport import HudPublisher
 from .library_handles import build_library_handles
 from .loading_cover import LoadingCover
 from .lock_hud import prime_group_indexes
+from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
 from .mode_plan import main_player_displays
@@ -58,7 +59,6 @@ from .overlay_progress import (
     what_the_flag_asks,
 )
 from .players import Player
-from .press_channel import PRESS_PORT_FILENAME
 from .process_identity import NAMER
 from .role_windows import ChildPids, WindowRoles
 from .runtime_flow import write_flag_file

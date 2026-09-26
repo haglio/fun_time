@@ -55,10 +55,10 @@ from fun_time.event_log import event_log_path
 from fun_time.loading_reveal import LoadingReveal
 from fun_time.log_panel import LogPanelWidget
 from fun_time.log_panel_model import ui_state_path
+from fun_time.loopback_inbox import PRESS_PORT_FILENAME, LoopbackInbox
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.notice_feed import NoticeFeed
 from fun_time.notice_overlay import NoticeOverlay
-from fun_time.press_channel import PressChannel
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.session_end import mark_session_end
 from fun_time.shared_state import shared_state_path
@@ -645,7 +645,9 @@ class DashboardWindow(QMainWindow):
 
         # Connected first: the channel's listener emits as soon as it exists.
         self._press_received.connect(self._handle_press_event)
-        self._press_channel = PressChannel(app_config.state_dir, self._press_received.emit)
+        self._press_channel = LoopbackInbox(
+            app_config.state_dir / PRESS_PORT_FILENAME, listener_name="press-listener",
+            on_arrival=self._press_received.emit)
 
         self._notices = NoticeFeed(
             layout=app_config.layout,

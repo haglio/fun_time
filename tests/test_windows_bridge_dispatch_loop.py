@@ -3030,15 +3030,22 @@ class TestOrigeneratorWatchGuard:
         note.assert_called_once_with("portrait_next")
 
 
-def test_close_closes_the_press_socket(tmp_path):
-    """The socket the loop hints the dashboard's presses through is the loop's
-    for its lifetime, and nothing closed it -- a session's end left it to the
-    interpreter's exit to reap (bug 87)."""
-    runner = make_runner(tmp_path)
+def test_a_press_hint_leaves_no_socket_open_behind_it(tmp_path, monkeypatch):
+    opened = []
+    real_socket = socket.socket
 
-    runner.close()
+    def recording_socket(*args, **kwargs):
+        opened.append(real_socket(*args, **kwargs))
+        return opened[-1]
 
-    assert runner._press_socket.fileno() == -1
+    with _press_channel(tmp_path) as recv_sock:
+        runner = make_runner(tmp_path, dashboard_enabled=True)
+        monkeypatch.setattr(socket, "socket", recording_socket)
+        runner._send_press("pause")
+        monkeypatch.undo()
+
+        assert _presses_until(recv_sock, "pause") == ["pause"]
+    assert opened and all(sender.fileno() == -1 for sender in opened)
 
 
 class TestASessionThatHostsNoOrigenerator:
