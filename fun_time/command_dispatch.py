@@ -67,6 +67,7 @@ from .runtime_flow import (
     apply_satellite_filter,
     apply_satellites_switch,
 )
+from .satellite_control import read_satellite_status
 from .satellite_groups import (
     cancel_lock,
     clear_side_grouping,
@@ -165,25 +166,31 @@ def _percent_rate(command: str, prefix: str) -> str | None:
     return f"{SET_SPEED} {pct / 100:g}"
 
 
-def _speed_target(state: BridgeState, config: BridgeConfig, *, by_driver: bool) -> str:
-    """Which engine a speed command drives.
+def _speed_target(state: BridgeState, config: BridgeConfig, *,
+                  by_driver: bool) -> Player | None:
+    """Which engine a speed command drives: a player, or None for the Robot Hand.
 
-    genau mode -> 'genau'.  Video mode runs both, so an engine-named command
-    goes where its name says — the video's rate to the main player, the one on screen —
-    while the unqualified nudge follows the OSR2: the main player's funscript while it is
-    driving, else the Robot Hand.  The hand is paused for the whole of a
-    scripted stretch, so a nudge sent there then reaches an engine that cannot
-    move — and a device nobody is driving, held at either end or let go, has no
-    motion to speed up either, so the nudge reaches the video then as well.
+    An engine-named command goes where its name says — in video mode the video's
+    rate to the main player, the one on screen; elsewhere the hand.  The
+    unqualified nudge follows the OSR2: the funscript of the player that has it
+    while that script is driving, in any mode, else the Robot Hand, which is
+    paused for the whole of a scripted stretch.  A device nobody is driving, held
+    at either end or let go, has no motion to speed up, so the nudge reaches the
+    video then.
     """
+    holder = player_with_the_osr2(state)
+    driving = by_driver and state.osr2_control == OSR2_DRIVING
+    if driving and holder is not Player.MAIN:
+        status = read_satellite_status(config.satellite(holder).status_file)
+        return holder if status.funscript_driving else None
     if not main_player_displays(state.main_mode):
-        return "genau"
-    if not by_driver or state.osr2_control != OSR2_DRIVING:
-        return "main_player"
-    if (state.osr2_player == Player.MAIN
+        return None
+    if not driving:
+        return Player.MAIN
+    if (holder is Player.MAIN
             and read_main_player_status(config.main_player_status_file).funscript_driving):
-        return "main_player"
-    return "genau"
+        return Player.MAIN
+    return None
 
 
 _DEFAULT_LENGTH_MODE = LengthMode.MIXED
@@ -1598,10 +1605,15 @@ def _speed(main_player_cmd: str | None, genau_cmd: str | None, by_driver: bool,
            _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """Send a speed command to the engine it drives (see :func:`_speed_target`)."""
     target = _speed_target(state, config, by_driver=by_driver)
-    if target == "main_player" and main_player_cmd is not None:
-        append_command(config.main_player_cmd_file, main_player_cmd)
-    elif target == "genau" and genau_cmd is not None:
-        append_command(config.genau_cmd_file, genau_cmd)
+    verb = genau_cmd if target is None else main_player_cmd
+    if verb is None:
+        return state, []
+    if target is None:
+        append_command(config.genau_cmd_file, verb)
+    elif target is Player.MAIN:
+        append_command(config.main_player_cmd_file, verb)
+    else:
+        send_satellite(config, target, verb)
     return state, []
 
 
