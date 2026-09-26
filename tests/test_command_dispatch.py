@@ -4629,10 +4629,11 @@ def test_discarding_a_demoted_clip_again_marks_it_weird(tmp_path: Path):
 
 class TestASessionThatHostsNoOrigenerator:
     def test_a_resumed_origenerator_mode_still_drives_the_players(self, tmp_path):
-        """A VR session hosts no Origenerator while its manifest still names the
-        app's command file, and the shared state file can carry origenerator
-        mode over from a desktop session: every satellite verb then went to an
-        app that was not there, and "portrait next" did nothing."""
+        """A config naming no Origenerator hosts none while its manifest still
+        names the app's command file, and the shared state file can carry
+        origenerator mode over from a session that hosted one: every satellite
+        verb then went to an app that was not there, and "portrait next" did
+        nothing."""
         config = replace(_origenerator_config(tmp_path), origenerator_enabled=False)
         state = _up(satellites_mode="origenerator")
 
