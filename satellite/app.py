@@ -36,6 +36,7 @@ from main_player.play_points import PlayPoints
 
 from .cli import audio_muted, build_parser, resolve_playlist
 from .contract import SatelliteChannels, WindowPlacement
+from .frame_over import FrameOver
 from .hud_overlay import HudOverlay
 from .pointer import Pointer
 from .runtime import SatelliteControls, apply_command
@@ -143,6 +144,7 @@ class _Runtime:
     dashboard_cmd_file: Path | None
     status_writer: StatusWriter | None
     hud: HudOverlay | None
+    frame_over: FrameOver
 
 
 def _build_runtime(args, wid: int, playlist: list[Path]) -> _Runtime:
@@ -189,6 +191,7 @@ def _build_runtime(args, wid: int, playlist: list[Path]) -> _Runtime:
         status_writer=(StatusWriter(channels.status, status_fields)
                        if channels.status else None),
         hud=hud,
+        frame_over=FrameOver(player),
     )
 
 
@@ -211,6 +214,7 @@ def _take_events(runtime: _Runtime, win_w: int, win_h: int) -> None:
 def _paint_overlays(runtime: _Runtime, win_w: int, win_h: int) -> None:
     """The scrubber, the volume chip and the playhead pill over this frame."""
     session, player = runtime.session, runtime.player
+    runtime.frame_over.paint(session.frame, win_w, win_h)
     if session.showing_picture:
         player.remove_overlay(_OV_SCRUBBER)
     else:

@@ -84,6 +84,7 @@ from fun_time.session_handoff import (
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from main_player.play_points import PlayPoints, play_points_filename
 from satellite.contract import SatelliteChannels
+from satellite.frame_over import FrameOver
 from satellite.hud_overlay import HudOverlay
 from satellite.pointer import OMNIPAUSE_TOGGLE
 from satellite.runtime import SatelliteControls
@@ -374,6 +375,7 @@ class _VideoUnit:
         self._banner_shown: tuple | None = None
         self._readout_shown: tuple | None = None
         self._readout_painter = PlayheadHudPainter()
+        self._frame_over = FrameOver(self.player)
 
     def render_latest_frame(self) -> None:
         sized = (self.target.width, self.target.height)
@@ -418,6 +420,10 @@ class _VideoUnit:
             x, y = chip_xy(win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
             self.player.overlay(_OV_VOLUME, round(x * factor), round(y * factor),
                                 scaled(painter.bgra(volume_hud), factor))
+
+    def overlay_frame(self, frame: Path | None) -> None:
+        if self.target.ready:
+            self._frame_over.paint(frame, self.target.width, self.target.height)
 
     def overlay_banner(self, notice) -> None:
         """Flash *notice* over this picture, or clear what was flashing --
@@ -807,6 +813,7 @@ class _SatelliteUnit(_VideoUnit):
             apply_satellite_command(command, self._controls)
         self.session.advance()
         self.player.push_still()
+        self.overlay_frame(self.session.frame)
         self._status_writer.write(self.session)
         self.hud.tick(video=self.session.name_on_screen, playback_speed=self.session.speed)
         for event in self._presses.drain():

@@ -17,12 +17,14 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
+from PIL import Image
 from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import chip_xy
 
 from satellite.app import _run
 from satellite.cli import build_parser
+from satellite.frame_over import FRAME_OVERLAY_ID
 from tests.satellite_fakes import FakeSatellitePlayer
 
 
@@ -224,3 +226,17 @@ def test_each_pass_creeps_a_little_further_into_the_picture(tmp_path):
     _code, player, _fake = _run_loop(tmp_path, args)
 
     assert player.pushes == 1
+
+
+def test_a_frame_the_source_sends_goes_over_the_picture_across_the_window(tmp_path):
+    clips = _clips(tmp_path, "v0")
+    frame = tmp_path / "frame one.png"
+    Image.new("RGB", (32, 24), (30, 60, 90)).save(frame)
+    args = _loop_args(tmp_path, clips)
+    (tmp_path / "cmd.txt").write_text(f"SHOW_FRAME {frame}\nQUIT\n", encoding="utf-8")
+
+    _code, player, _fake = _run_loop(tmp_path, args)
+
+    x, y, bgra = player.overlays[FRAME_OVERLAY_ID]
+    assert (x, y) == (0, 0)
+    assert bgra.shape == (480, 640, 4)

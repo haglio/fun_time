@@ -484,3 +484,30 @@ class TestWhereAClipWasLeft:
         session.close()
 
         assert PlayPoints(file).point_for(tmp_path / "v0.mp4") == 2_048
+
+
+class TestAFrameOverThePicture:
+    def test_a_frame_shown_stays_until_it_is_cleared(self, tmp_path):
+        session, _player = _make_session(tmp_path, entries=2)
+
+        session.show_frame(tmp_path / "frame one.png")
+        assert session.frame == tmp_path / "frame one.png"
+        session.clear_frame()
+        assert session.frame is None
+
+    def test_a_step_to_another_item_takes_the_frame_off(self, tmp_path):
+        session, _player = _make_session(tmp_path, entries=2)
+        session.show_frame(tmp_path / "frame.png")
+
+        session.step(1)
+
+        assert session.frame is None
+
+    def test_rolling_on_when_the_picture_runs_out_takes_the_frame_off(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=2)
+        session.show_frame(tmp_path / "frame.png")
+
+        player.simulate_eof_advance()
+        session.advance()
+
+        assert session.frame is None

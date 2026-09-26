@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import threading
+from pathlib import Path
 
 from player_core import player_verbs
 from player_core.player_verbs import (
+    CLEAR_FRAME,
     LOCK_OFF,
     LOCK_ON,
     NEXT,
@@ -14,6 +16,7 @@ from player_core.player_verbs import (
     RELOAD_PLAYLIST,
     SET_PACE,
     SET_SPEED,
+    SHOW_FRAME,
     SPEED_DOWN,
     SPEED_UP,
     TRASH,
@@ -35,6 +38,14 @@ def _controls(tmp_path, *, entries=3, **wired) -> SatelliteControls:
 
 
 class TestApplyCommand:
+    def test_show_frame_puts_that_picture_over_the_one_on_screen(self, tmp_path):
+        controls = _controls(tmp_path)
+
+        assert apply_command(f"{SHOW_FRAME} C:/frames/run one-3.png", controls) is True
+        assert controls.session.frame == Path("C:/frames/run one-3.png")
+        assert apply_command(CLEAR_FRAME, controls) is True
+        assert controls.session.frame is None
+
     def test_set_pace_is_how_long_a_picture_holds_the_screen(self, tmp_path):
         session, player = make_satellite_session(tmp_path)
         controls = SatelliteControls(session, reload_playlist=_never_reloads)
@@ -171,7 +182,7 @@ def test_every_verb_the_satellite_answers_is_the_familys_or_its_own():
     its_own = {NEXT_VERSION, PREV_VERSION}
     assert set(VERBS) == its_own | {
         NEXT, PREV, LOCK_ON, LOCK_OFF, TRASH, SPEED_UP, SPEED_DOWN, SET_SPEED,
-        PLAY_FILE, RELOAD_PLAYLIST, SET_PACE, QUIT,
+        PLAY_FILE, RELOAD_PLAYLIST, SET_PACE, SHOW_FRAME, CLEAR_FRAME, QUIT,
     }
     assert all(getattr(player_verbs, verb) == verb for verb in set(VERBS) - its_own)
     assert not [verb for verb in its_own if hasattr(player_verbs, verb)]

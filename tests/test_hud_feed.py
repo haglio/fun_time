@@ -234,6 +234,17 @@ class TestHudPublishing:
 
         assert panel(tmp_path, "portrait")["lock_label"] == "Locked"
 
+    def test_what_the_hosted_app_says_about_the_picture_on_screen_reaches_the_player(
+        self, tmp_path,
+    ):
+        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        (tmp_path / "origenerator_portrait_hud.json").write_text(
+            hud_text(HudModel(player="portrait", item_note="Enhancing…")), encoding="utf-8")
+
+        feed.publish(BridgeState(satellites_mode="origenerator"))
+
+        assert panel(tmp_path, "portrait")["item_note"] == "Enhancing…"
+
     def test_a_hosted_app_still_booting_is_published_so_the_button_can_dim(
         self, tmp_path,
     ):
