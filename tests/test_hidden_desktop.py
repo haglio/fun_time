@@ -36,6 +36,19 @@ from tests.integration.hidden_desktop import (
     main,
 )
 
+A_STARVED_PROBES_CEILING_S = 120
+
+
+def _run_in_a_run_job(probe: str) -> None:
+    job = create_run_job()
+    pi = _launch_on_desktop(subprocess.list2cmdline([sys.executable, "-c", probe]),
+                            None, str(_repo_root()), job)
+    try:
+        hidden_desktop._wait_for_the_run(pi.hProcess, ceiling_s=A_STARVED_PROBES_CEILING_S)
+    finally:
+        _close_process_handles(pi)
+        close_run_job(job)
+
 
 def test_a_hidden_desktop_launch_is_muted_however_the_caller_leaves_the_environment():
     """Off-screen hides a player's window, not its sound, and a repro that
@@ -58,19 +71,11 @@ def test_a_launched_child_sees_the_mute_switch_though_the_caller_set_no_environm
     """End to end: a child started through the launcher with no environment named
     still finds the mute switch set, so nothing off-screen can be heard."""
     report = tmp_path / "mute.txt"
-    probe = (f"import os, pathlib; pathlib.Path({str(report)!r})"
-             ".write_text(os.environ.get('FUN_TIME_MUTE_AUDIO', 'unset'))")
-    job = create_run_job()
-    cmdline = subprocess.list2cmdline([sys.executable, "-c", probe])
     # Started outside tmp_path and waited out, not polled for its report: the
     # report exists before it is written, and a directory a dying child still
     # stands in cannot be removed -- which failed this test's teardown once.
-    pi = _launch_on_desktop(cmdline, None, str(_repo_root()), job)
-    try:
-        hidden_desktop._wait_for_the_run(pi.hProcess, ceiling_s=20)
-    finally:
-        _close_process_handles(pi)
-        close_run_job(job)
+    _run_in_a_run_job(f"import os, pathlib; pathlib.Path({str(report)!r})"
+                      ".write_text(os.environ.get('FUN_TIME_MUTE_AUDIO', 'unset'))")
 
     assert report.read_text() == "1"
 
@@ -87,14 +92,7 @@ def test_a_run_stays_below_normal_priority_though_a_process_in_it_raises_itself(
         f"kernel32.SetPriorityClass(me, {subprocess.ABOVE_NORMAL_PRIORITY_CLASS})\n"
         f"pathlib.Path({str(report)!r}).write_text(str(kernel32.GetPriorityClass(me)))\n"
     )
-    job = create_run_job()
-    pi = _launch_on_desktop(subprocess.list2cmdline([sys.executable, "-c", probe]),
-                            None, str(_repo_root()), job)
-    try:
-        hidden_desktop._wait_for_the_run(pi.hProcess, ceiling_s=20)
-    finally:
-        _close_process_handles(pi)
-        close_run_job(job)
+    _run_in_a_run_job(probe)
 
     assert int(report.read_text()) == subprocess.BELOW_NORMAL_PRIORITY_CLASS
 
