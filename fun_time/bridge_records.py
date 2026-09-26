@@ -177,6 +177,7 @@ class Op(StrEnum):
     UNSUSPEND_HOTKEYS = "unsuspend_hotkeys"
     OPEN_RFB_TAB = "open_rfb_tab"
     SAVE_CLIP = "save_clip"
+    MAIN_PLAYER_ANSWERS = "main_player_answers"
     TAKE_BACK_PLAYERS = "take_back_players"
     FOLLOW_GENAUS_LOCK = "follow_genaus_lock"
 

@@ -209,6 +209,10 @@ _MAIN_PLAYER_CMD_MAP = {
     "main_player_next_funscripted": "NEXT_FUNSCRIPTED",
 }
 
+_VERBS_THE_MAIN_PLAYER_ANSWERS = frozenset({
+    "PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP", "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED",
+})
+
 
 _NUMERIC_PREFIXES = {
     "robot_hand_amp_": "AMP",
@@ -1430,8 +1434,11 @@ def _forward_to_main_player_on_screen(verb: str, state: BridgeState, config: Bri
                               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """Loop recording, versions and length only make sense while the main player owns the
     main slot — video mode, not genau."""
-    if main_player_displays(state.main_mode):
-        append_command(config.main_player_cmd_file, verb)
+    if not main_player_displays(state.main_mode):
+        return state, []
+    append_command(config.main_player_cmd_file, verb)
+    if verb in _VERBS_THE_MAIN_PLAYER_ANSWERS and not config.vr_main_player:
+        return state, [WindowOp(op="main_player_answers")]
     return state, []
 
 

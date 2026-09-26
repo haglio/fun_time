@@ -92,6 +92,8 @@ _OPS_THAT_STILL_ACT = frozenset({
     Op.TAKE_BACK_PLAYERS, Op.FOLLOW_GENAUS_LOCK,
 })
 
+_OPS_A_HEADSET_NEVER_RAISES = frozenset({Op.MAIN_PLAYER_ANSWERS})
+
 
 def _headset_config(root: Path, *, names_an_origenerator: bool = True) -> BridgeConfig:
     """The bridge config a headset session runs on, built the way
@@ -497,8 +499,16 @@ class TestWhatAHeadsetDoesNotHost:
             f"window ops a VR session neither acts on nor states as a no-op: {unclassified}"
         )
 
-    def test_the_two_op_sets_between_them_cover_the_whole_vocabulary(self):
-        """A new op added to the dispatcher must be placed on one side or the
-        other, rather than waiting for a command that happens to raise it."""
-        assert set(Op) == _OPS_WITH_NO_WINDOWS | _OPS_THAT_STILL_ACT
-        assert not _OPS_WITH_NO_WINDOWS & _OPS_THAT_STILL_ACT
+    def test_nothing_it_sends_waits_on_an_answer_its_main_player_never_gives(self, landed):
+        waiting = {
+            where for where, written in landed.items()
+            if set(written.get("__ops__", ())) & _OPS_A_HEADSET_NEVER_RAISES
+        }
+        assert not waiting, f"these wait on the headset's main player to answer: {waiting}"
+
+    def test_the_op_sets_between_them_cover_the_whole_vocabulary(self):
+        """A new op added to the dispatcher must be placed in one of them,
+        rather than waiting for a command that happens to raise it."""
+        placed = (_OPS_WITH_NO_WINDOWS, _OPS_THAT_STILL_ACT, _OPS_A_HEADSET_NEVER_RAISES)
+        assert set(Op) == frozenset().union(*placed)
+        assert sum(map(len, placed)) == len(set(Op))
