@@ -128,7 +128,7 @@ from fun_time_vr.pointer import (
 from fun_time_vr.projection import EQUIRECT_180_SBS, FLAT
 from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
 from fun_time_vr.render import immersive_mode
-from fun_time_vr.satellite_hud import hud_screen_name
+from fun_time_vr.satellite_hud import HUD_GAP_DEG, hud_screen_name
 from fun_time_vr.scene import (
     MAIN_WIDTH_DEG,
     RADIUS,
@@ -649,9 +649,9 @@ class _FakePanelTexture:
 
 
 class TestThePanelUnderThePointer:
-    """The console in the headset: docked under the main player and pressed
-    there, and -- while the video wraps the viewer and there is nothing to dock
-    to -- carrying that video's row and moved by a handle of its own."""
+    """The console in the headset: docked under whichever picture fills the main
+    slot and pressed there, and -- while the video wraps the viewer and there is
+    nothing to dock to -- carrying that video's row and moved by a handle of its own."""
 
     def _unit(self, tmp_path, *, wrapped=False, showing=False):
         projection = EQUIRECT_180_SBS if wrapped else FLAT
@@ -708,7 +708,7 @@ class TestThePanelUnderThePointer:
                               dashboard_cmd_file=command_file, notices=notices)
         return SimpleNamespace(unit=unit, command_file=command_file, seeks=seeks,
                                event_log=event_log, notices=notices, main_unit=main_unit,
-                               dash=dash)
+                               genau=genau, dash=dash)
 
     @staticmethod
     def _uv(unit, x: float, y: float) -> tuple[float, float]:
@@ -792,6 +792,17 @@ class TestThePanelUnderThePointer:
         assert followed.azimuth_deg == -40.0
         assert followed.elevation_deg < docked.elevation_deg  # a bigger player hangs lower
         assert followed.width_deg == docked.width_deg == PANEL_WIDTH_DEG
+
+    def test_it_rides_under_genaus_clip_at_the_clips_own_shape(self, tmp_path):
+        p = self._unit(tmp_path, showing=True)
+        p.unit.pump(threading.Event(), 0.0)
+
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            p.unit.render_latest_frame()
+
+        assert p.unit.screen.placement == attached_below(
+            p.genau.screen.placement, aspect=p.genau.texture.aspect, width_deg=PANEL_WIDTH_DEG,
+            hanging_aspect=_FakePanelTexture.aspect, gap_deg=HUD_GAP_DEG)
 
     def test_no_row_joins_it_while_the_video_draws_its_own(self, tmp_path):
         p = self._unit(tmp_path)

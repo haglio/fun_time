@@ -233,7 +233,6 @@ _NO_TIMELINE = object()
 MAIN_VIDEO_CAP_PX = 4096
 SATELLITE_VIDEO_CAP_PX = 2048
 
-PANEL_DOCK_FALLBACK_ASPECT = 16 / 9  # the main player's shape until it decodes one
 _WRAPPED_ROW_SIZE = (PANEL_WIDTH_PX, lower_edge_height(PANEL_WIDTH_PX, timeline_h=TIMELINE_HEIGHT))
 
 LIBRARY_READING_SHOWN_AFTER_S = 0.3
@@ -1013,9 +1012,6 @@ def _upload(unit) -> bool:
 
 
 class _PanelUnit:
-    """The console, docked under the main player -- or, a wrapped video leaving nothing to
-    dock to and no edge for a scrubber, carrying that video's row and docked to the dash."""
-
     SPOTS: dict[str, Placement] = {}
 
     def __init__(
@@ -1149,13 +1145,11 @@ class _PanelUnit:
     def render_latest_frame(self) -> None:
         if not _upload(self):
             return
-        # Every frame: what it hangs from moves, and its repaints are seconds apart.
         wrapped = _wrapped_slot(self._main_unit, self._genau) is not None
         under, aspect, gap = (
             (self._dash.screen.placement, self._dash.texture.aspect, 0.0) if wrapped else
             (self._main_unit.screen.placement,
-             self._main_unit.target.aspect if self._main_unit.target.ready
-             else PANEL_DOCK_FALLBACK_ASPECT, HUD_GAP_DEG))
+             _picture_in_the_slot(self._main_unit, self._genau).aspect, HUD_GAP_DEG))
         self.screen.placement = attached_below(
             under, aspect=aspect, width_deg=PANEL_WIDTH_DEG,
             hanging_aspect=self.texture.aspect, gap_deg=gap,
@@ -1840,12 +1834,16 @@ class _SaysWhenItFirstMoves:  # places the OSR2's first move against the rest of
 def _scene_is_up(main_unit, genau, satellites: Sequence, panel) -> bool:
     """Every picture the session opens with RENDERED, not merely sized
     (``has_picture``, never ``ready``); the main slot counts once."""
-    main = genau.texture if genau.role.showing else main_unit.target
+    main = _picture_in_the_slot(main_unit, genau)
     return bool(
         main.has_picture
         and panel.texture.has_picture
         and all(satellite.target.has_picture for satellite in satellites)
     )
+
+
+def _picture_in_the_slot(main_unit: _MainUnit, genau: _GenauUnit) -> RenderTarget | FrameTexture:
+    return genau.texture if genau.role.showing else main_unit.target
 
 
 def _wrapped_slot(main_unit: _MainUnit, genau: _GenauUnit) -> _MainUnit | _GenauUnit | None:
