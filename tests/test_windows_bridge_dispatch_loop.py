@@ -2822,6 +2822,26 @@ class TestASessionThatHostsNoOrigenerator:
         assert runner.state.satellites_mode == "origenerator"
 
 
+class TestWhatTheHostedAppIsHanded:
+    """What voice asks before echoing a phrase: a command bound for the hosted
+    app's show gets no word back from the dispatch, whatever it would say on a
+    player."""
+
+    def test_in_its_mode_a_side_verb_said_any_way_goes_to_the_show(self, tmp_path):
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        runner.state = BridgeState(satellites_mode="origenerator", origenerator_ready=True,
+                                   active_player=3)
+
+        assert [runner.hands_to_the_hosted_app(command) for command in (
+            "landscape_fmode_on", "both_fmode_on", "active_fmode_on", "main_fmode_on",
+        )] == [True, True, True, False]
+
+    def test_in_video_mode_nothing_goes_to_it(self, tmp_path):
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+
+        assert runner.hands_to_the_hosted_app("landscape_fmode_on") is False
+
+
 def _hosting(tmp_path, **overrides):
     """A config for a session hosting an Origenerator, whose status file is
     where that app says it has finished booting."""

@@ -554,6 +554,11 @@ class DispatchLoopRunner:
             self.config.state_dir, f"a crossing to {target.app_name}")
         self.ahk_cmd_file.write_text("end_session", encoding="utf-8")
 
+    def hands_to_the_hosted_app(self, command: str) -> bool:
+        resolved = resolve_active_player_command(command, self.state.active_player)
+        return any(routes_to_origenerator(each, self.state, self.config)
+                   for each in expand_group_command(resolved))
+
     def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command)
         # A press bound for an Origenerator show steps that show, and booking

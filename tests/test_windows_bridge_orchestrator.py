@@ -2719,6 +2719,24 @@ class TestStartingVoice:
 
         assert controller.call_args.kwargs["confirm_commands"] is False
 
+    def test_the_controller_asks_the_loop_what_goes_to_the_hosted_app(
+        self, cfg_factory, tmp_path,
+    ):
+        """Only the loop knows the room's mode, and so which words the hosted
+        app's show takes from a player -- the ones voice then has to echo."""
+        config_path = cfg_factory({"voice_control": {"enabled": True}})
+        runner = MagicMock()
+
+        with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
+             patch.object(windows_bridge_orchestrator, "VoiceController") as controller, \
+             patch.object(windows_bridge_orchestrator.threading, "Thread"):
+            windows_bridge_orchestrator.start_voice_control(
+                str(config_path), dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+                dispatch_runner=runner,
+            )
+
+        assert controller.return_value.hands_to_the_hosted_app is runner.hands_to_the_hosted_app
+
 
 class TestTheHudPublisherASessionStarts:
     def test_it_names_the_camera_words_the_content_overlay_lists(self, tmp_path: Path):

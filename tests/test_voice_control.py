@@ -82,6 +82,33 @@ class TestHandleHeard:
         assert (tmp_path / "cmd.txt").read_text(encoding="utf-8") == "landscape_next @1.000\n"
         assert seen == [("landscape next", "landscape", 25)]
 
+    def test_a_command_a_player_reports_for_itself_is_not_confirmed_twice(
+            self, tmp_path, monkeypatch):
+        """The dispatch flashes which way F-mode went on a player, so the words
+        are not echoed on top of it."""
+        vc = self._controller(tmp_path)
+        seen = []
+        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
+
+        vc.handle_heard(_heard(Recognition(phrase="landscape f mode on")))
+
+        assert seen == []
+
+    def test_the_same_command_handed_to_the_hosted_app_is_confirmed_here(
+            self, tmp_path, monkeypatch):
+        """In Origenerator mode the words go to the show on that side and the
+        dispatch flashes nothing, so without the echo the log showed only that
+        what was said was being figured out."""
+        vc = self._controller(tmp_path)
+        vc.hands_to_the_hosted_app = lambda command: command == "landscape_fmode_on"
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append((msg, source)))
+
+        vc.handle_heard(_heard(Recognition(phrase="landscape f mode on")))
+
+        assert seen == [("landscape f mode on", "landscape")]
+
     def test_a_sound_alike_phrase_is_confirmed_under_its_friendly_name(self, tmp_path, monkeypatch):
         """"go now" drives Genau; the confirmation shows "genau", not the raw
         sound-alike the recognizer listens for."""

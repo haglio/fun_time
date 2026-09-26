@@ -864,6 +864,7 @@ def start_voice_control(
             )
             dispatch_runner.voice_controller = voice_controller
             voice_controller.active_player = lambda: dispatch_runner.state.active_player
+            voice_controller.hands_to_the_hosted_app = dispatch_runner.hands_to_the_hosted_app
             voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
             voice_thread.start()
             logger.info("Voice control thread launched")
