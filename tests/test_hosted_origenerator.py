@@ -4,12 +4,24 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from player_core.file_channel import consume_command_file
+
 from fun_time import load_config
-from fun_time.hosted_origenerator import _adopt_a_kept_origenerator, bring_up_the_hosted_app
+from fun_time.hosted_origenerator import (
+    HAND_OVER,
+    TAKE_BACK,
+    _adopt_a_kept_origenerator,
+    bring_up_the_hosted_app,
+)
 from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo
 from fun_time.session_handoff import keep_the_origenerator, kept_origenerator
-from fun_time.window_layout import screen_layout
+from fun_time.window_layout import WindowLayoutPlan, WindowRect, screen_layout
+from fun_time.windows_bridge_startup import launch_origenerator, origenerator_session_args
+
+_A_PLAN = WindowLayoutPlan(
+    portrait=WindowRect(0, 0, 10, 10), landscape=WindowRect(0, 0, 10, 10),
+    dashboard=WindowRect(0, 0, 10, 10), random_favs_browser=WindowRect(1, 2, 30, 40))
 
 
 def _manifest_for(cfg_factory, tmp_path, overrides):
@@ -50,6 +62,109 @@ class TestWhereTheAppsOwnWindowGoes:
         with patch("fun_time.window_layout.enumerate_monitors",
                    side_effect=AssertionError("the monitors were read")):
             assert bring_up_the_hosted_app(manifest, project_dirs="") is None
+
+
+class TestHandingTheWindowToTheHeadset:
+    """A headset session has no monitor to put the app's window on, so it asks
+    for the window's picture instead and sends its pointer's presses back."""
+
+    def _launch(self, cfg_factory, tmp_path, *, in_a_headset):
+        origenerator = tmp_path / "origenerator"
+        origenerator.mkdir()
+        config, manifest = _manifest_for(
+            cfg_factory, tmp_path, {"paths": {"origenerator_dir": str(origenerator)}})
+        monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
+        captured = {}
+        looking = patch("fun_time.window_layout.enumerate_monitors",
+                        return_value=monitors)
+        launching = patch("fun_time.hosted_origenerator.launch_origenerator",
+                          side_effect=lambda **kw: captured.update(kw) or 91)
+        with looking, launching:
+            bring_up_the_hosted_app(manifest, project_dirs="", in_a_headset=in_a_headset)
+        return config, captured
+
+    def test_a_headset_session_names_both_files(self, cfg_factory, tmp_path):
+        config, captured = self._launch(cfg_factory, tmp_path, in_a_headset=True)
+
+        assert captured["frames_file"] == str(config.origenerator_frames_file)
+        assert captured["input_file"] == str(config.origenerator_input_file)
+
+    def test_a_session_on_the_monitors_names_neither(self, cfg_factory, tmp_path):
+        """The window itself is what is seen there, and a picture written every
+        tick for nobody is a grab of a window every tick for nothing."""
+        _config, captured = self._launch(cfg_factory, tmp_path, in_a_headset=False)
+
+        assert captured["frames_file"] is None
+        assert captured["input_file"] is None
+
+    def test_the_real_launch_carries_the_pair_through(self, cfg_factory, tmp_path):
+        """Through `launch_origenerator` itself rather than a stand-in for it:
+        a stand-in that takes anything cannot fail on an argument the real one
+        does not accept, which is how the pair reached it and killed the launch
+        (tests/integration/test_origenerator_mode_integration.py caught it)."""
+        started = {}
+
+        class _Started:
+            pid = 91
+
+        with patch("fun_time.windows_bridge_startup.subprocess.Popen",
+                   side_effect=lambda cmd, **kw: started.update(cmd=cmd) or _Started()):
+            launch_origenerator(
+                python_exe="py.exe", origenerator_dir=tmp_path, layout_plan=_A_PLAN,
+                command_file="c", paused_file="p", status_file="s",
+                dashboard_cmd_file="d", players={},
+                frames_file="st/origenerator_frame.bin",
+                input_file="st/origenerator_input.txt",
+            )
+
+        assert "--frames-file" in started["cmd"]
+        assert "--input-file" in started["cmd"]
+
+    def test_the_flags_are_the_ones_the_app_declares(self, cfg_factory, tmp_path):
+        """The app publishes its launch contract because neither repo may import
+        the other; these are the two flags of it this pair is written as."""
+        argv = origenerator_session_args(
+            layout_plan=_A_PLAN, command_file="c", paused_file="p", status_file="s",
+            dashboard_cmd_file="d", players={},
+            frames_file="st/origenerator_frame.bin",
+            input_file="st/origenerator_input.txt",
+        )
+
+        assert argv[argv.index("--frames-file") + 1] == "st/origenerator_frame.bin"
+        assert argv[argv.index("--input-file") + 1] == "st/origenerator_input.txt"
+
+
+class TestTellingAKeptAppWhereItsWindowGoes:
+    """A crossing keeps the app running, and it was started for the session it
+    left: the one adopting it says on the command file which shape it is."""
+
+    def _adopt(self, cfg_factory, tmp_path, *, in_a_headset):
+        origenerator = tmp_path / "origenerator"
+        origenerator.mkdir()
+        config, manifest = _manifest_for(
+            cfg_factory, tmp_path, {"paths": {"origenerator_dir": str(origenerator)}})
+        keep_the_origenerator(config.paths.state_dir, pid=6060, created_at=44)
+        monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
+        looking = patch("fun_time.window_layout.enumerate_monitors", return_value=monitors)
+        alive = patch("fun_time.hosted_origenerator.get_process_creation_time",
+                      return_value=44)
+        with looking, alive:
+            app = bring_up_the_hosted_app(manifest, project_dirs="", in_a_headset=in_a_headset)
+        assert app is not None and app.already_open
+        return config, consume_command_file(config.origenerator_cmd_file, uppercase=False)
+
+    def test_a_headset_session_asks_for_the_picture(self, cfg_factory, tmp_path):
+        config, said = self._adopt(cfg_factory, tmp_path, in_a_headset=True)
+
+        assert said == [f"{HAND_OVER}|{config.origenerator_frames_file}"
+                        f"|{config.origenerator_input_file}"]
+
+    def test_a_desktop_session_takes_the_window_back(self, cfg_factory, tmp_path):
+        """One the headset had shown is still publishing and still up; here it
+        parks, as a hosted window boots, and writes no picture for nobody."""
+        _config, said = self._adopt(cfg_factory, tmp_path, in_a_headset=False)
+
+        assert said == [TAKE_BACK]
 
 
 class TestAdoptingAKeptOrigenerator:

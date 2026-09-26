@@ -253,6 +253,14 @@ class ProjectConfig:
         return self.paths.state_dir / "origenerator_status.txt"
 
     @property
+    def origenerator_frames_file(self) -> Path:
+        return self.paths.state_dir / "origenerator_frame.bin"
+
+    @property
+    def origenerator_input_file(self) -> Path:
+        return self.paths.state_dir / "origenerator_input.txt"
+
+    @property
     def audio_paused_file(self) -> Path:
         return self.paths.state_dir / "audio_paused.txt"
 

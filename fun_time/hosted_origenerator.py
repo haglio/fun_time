@@ -1,14 +1,11 @@
-"""The hosted Origenerator, brought up the same way by either shape of session.
-
-Its shows are the satellite players' own playlists (:mod:`fun_time.player_handover`),
-and the headset's satellites are players, so a VR session hosts it as a desktop
-session does.
-"""
+"""The hosted Origenerator, brought up the same way by either shape of session."""
 from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import NamedTuple
+
+from player_core.file_channel import append_command
 
 from .manifest import LaunchManifest
 from .players import Player
@@ -26,6 +23,10 @@ from .windows_bridge_startup import (
 
 logger = logging.getLogger(__name__)
 
+# Said by a session adopting a kept app, which was started for the one it left.
+HAND_OVER = "HAND_OVER"
+TAKE_BACK = "TAKE_BACK"
+
 
 class HostedApp(NamedTuple):
     pid: int
@@ -34,7 +35,6 @@ class HostedApp(NamedTuple):
 
 
 def _adopt_a_kept_origenerator(m: LaunchManifest) -> HostedApp | None:
-    """A hosted app the session before this one left running, or None."""
     state_dir = Path(m.commands.origenerator_status_file).parent
     kept = kept_origenerator(state_dir)
     forget_the_kept_origenerator(state_dir)
@@ -63,9 +63,9 @@ def bring_up_the_hosted_app(
     *,
     plan: WindowLayoutPlan | None = None,
     project_dirs: str,
+    in_a_headset: bool = False,
 ) -> HostedApp | None:
-    """Adopt, take over, or launch the app the manifest names; None where it
-    names none."""
+    """Adopt, take over, or launch the app the manifest names, or None."""
     origenerator_dir = m.runtime.origenerator_dir.strip()
     if not origenerator_dir:
         return None
@@ -74,6 +74,9 @@ def bring_up_the_hosted_app(
     claim_the_osr2(origenerator_dir)
     kept = _adopt_a_kept_origenerator(m)
     if kept is not None:
+        append_command(Path(m.commands.origenerator_cmd_file), (
+            f"{HAND_OVER}|{m.commands.origenerator_frames_file}"
+            f"|{m.commands.origenerator_input_file}") if in_a_headset else TAKE_BACK)
         return kept
     # Both read on the app's first tick, and a room never opens paused.
     write_flag_file(m.commands.origenerator_paused_file, False)
@@ -86,6 +89,8 @@ def bring_up_the_hosted_app(
         Path(player.hud_file).unlink(missing_ok=True)
     contract = dict(
         layout_plan=plan,
+        frames_file=m.commands.origenerator_frames_file if in_a_headset else None,
+        input_file=m.commands.origenerator_input_file if in_a_headset else None,
         command_file=m.commands.origenerator_cmd_file,
         paused_file=m.commands.origenerator_paused_file,
         status_file=m.commands.origenerator_status_file,

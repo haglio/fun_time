@@ -6,6 +6,7 @@ import inspect
 
 from fun_time_vr import layout, player, room
 from fun_time_vr import room as under_test
+from fun_time_vr.layout import Layout
 from fun_time_vr.pointer import Screen
 from fun_time_vr.room import Hanging
 from fun_time_vr.scene import Placement
@@ -280,8 +281,41 @@ class TestTheGatesOnTheRoomsAssembly:
         assert self._spots_held_by(layout) == {}
         assert {name for name, kind in vars(player).items()
                 if isinstance(kind, type) and getattr(kind, "SPOTS", None)} == {
-            "_MainUnit", "_GenauUnit", "_SatelliteUnit", "_DashUnit", "_LibraryUnit"}
+            "_MainUnit", "_GenauUnit", "_SatelliteUnit", "_DashUnit", "_LibraryUnit",
+            "_GalleryUnit"}
         assert self._spots_held_by(player) == {}
+
+    def _units_built_in_the_assembly(self):
+        """Every unit the assembly constructs, with the words it hands it."""
+        tree = ast.parse(inspect.getsource(player._run))
+        for call in ast.walk(tree):
+            if not isinstance(call, ast.Call):
+                continue
+            kind = getattr(player, ast.unparse(call.func), None)
+            if isinstance(kind, type) and kind.__name__ in self._kinds_of_screen():
+                yield kind, {word.arg: ast.unparse(word.value) for word in call.keywords}
+
+    def test_every_unit_is_handed_the_remembered_spots_in_the_shape_it_asks_for(self):
+        """The assembly is a shell no test opens -- its units need a GL context
+        to build -- so one constructed there with the wrong shape raises in the
+        headset alone, which is how one reached him: the whole layout went to a
+        unit that wanted its placements, and entering VR sat on the transition
+        until the runtime gave up on a player that had already died."""
+        handed = {kind: words["remembered"] for kind, words in
+                  self._units_built_in_the_assembly() if "remembered" in words}
+
+        assert handed, "nothing in the assembly is handed a remembered layout"
+        for kind, given in handed.items():
+            wants = inspect.signature(kind.__init__).parameters["remembered"].annotation
+            assert given == ("remembered" if wants == Layout.__name__
+                             else "remembered.placements"), (kind.__name__, wants, given)
+
+    def test_every_word_the_assembly_hands_a_unit_is_one_that_unit_takes(self):
+        """The same blind spot, one step wider: a parameter renamed under a unit
+        leaves the call in the shell naming the old one, and nothing says so
+        until the room is built on a headset."""
+        for kind, words in self._units_built_in_the_assembly():
+            inspect.signature(kind.__init__).bind_partial(None, **dict.fromkeys(words))
 
     def test_the_room_is_the_one_list_everything_is_read_off(self):
         """One registration per screen: the same list is what is pumped, what

@@ -617,7 +617,8 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         progress.advance("companions")
         # First of them, as on the desktop: the slowest boot, waited on by nothing.
         hosted = bring_up_the_hosted_app(
-            manifest, project_dirs=manifest.runtime.genau_project_dirs)
+            manifest, project_dirs=manifest.runtime.genau_project_dirs,
+            in_a_headset=True)
         if hosted is not None:
             hosted_taken_over = hosted.taken_over
             children["origenerator_pid"] = ChildProcess(
