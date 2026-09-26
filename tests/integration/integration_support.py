@@ -4,6 +4,7 @@ import configparser
 import json
 import os
 import random
+import re
 import shutil
 import socket
 import subprocess
@@ -568,6 +569,36 @@ def _sink_udp_port() -> int:
     sink.bind(("127.0.0.1", 0))
     _udp_sinks.append(sink)
     return sink.getsockname()[1]
+
+
+def tcode_heard(port: int, *, seconds: float) -> list[tuple[float, int, float]]:
+    sink = next(sink for sink in _udp_sinks if sink.getsockname()[1] == port)
+    sink.setblocking(False)
+    while True:
+        try:
+            sink.recv(65536)
+        except BlockingIOError:
+            break
+    heard: list[tuple[float, int, float]] = []
+    started = time.monotonic()
+    while time.monotonic() < started + seconds:
+        try:
+            datagram, (_host, sender) = sink.recvfrom(65536)
+        except BlockingIOError:
+            time.sleep(0.02)
+            continue
+        at = round(time.monotonic() - started, 2)
+        heard += [(at, sender, int(digits) / (10 ** len(digits) - 1))
+                  for digits in re.findall(rb"L0(\d+)", datagram)]
+    return heard
+
+
+def senders(heard: list[tuple[float, int, float]]) -> dict[int, tuple]:
+    """Each sender heard: how many moves, over which seconds, between which heights."""
+    return {sender: (len(moves), min(at for at, _h in moves), max(at for at, _h in moves),
+                     round(min(h for _at, h in moves), 2), round(max(h for _at, h in moves), 2))
+            for sender in {sender for _at, sender, _h in heard}
+            for moves in [[(at, h) for at, s, h in heard if s == sender]]}
 
 
 def close_udp_sinks() -> None:
