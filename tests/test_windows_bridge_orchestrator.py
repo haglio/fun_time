@@ -2350,6 +2350,7 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.why_unavailable", return_value=""), \
+             patch("fun_time.windows_bridge_orchestrator.WhisperReader"), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController", return_value=mock_vc):
 
             _a_session(
@@ -2689,18 +2690,28 @@ class TestTheSessionEndsOnItsMarker:
 
 
 class TestStartingVoice:
+    @staticmethod
+    def _started(config_path, tmp_path, *, controller=None, second_listener=None,
+                 dispatch_runner=None):
+        with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
+             patch.object(windows_bridge_orchestrator, "WhisperReader",
+                          return_value=second_listener or MagicMock()), \
+             patch.object(windows_bridge_orchestrator, "VoiceController",
+                          controller or MagicMock()), \
+             patch.object(windows_bridge_orchestrator.threading, "Thread"):
+            return windows_bridge_orchestrator.start_voice_control(
+                windows_bridge_orchestrator.prepare_voice_control(str(config_path)),
+                dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+                dispatch_runner=dispatch_runner or MagicMock(),
+            )
+
     def test_a_microphone_that_will_not_open_leaves_a_session_without_voice(
         self, cfg_factory, tmp_path,
     ):
         config_path = cfg_factory({"voice_control": {"enabled": True}})
 
-        with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
-             patch.object(windows_bridge_orchestrator, "VoiceController",
-                          side_effect=OSError("no microphone")):
-            voice = windows_bridge_orchestrator.start_voice_control(
-                str(config_path), dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-                dispatch_runner=MagicMock(),
-            )
+        voice = self._started(config_path, tmp_path,
+                              controller=MagicMock(side_effect=OSError("no microphone")))
 
         assert voice == (None, None)
 
@@ -2708,14 +2719,9 @@ class TestStartingVoice:
         self, cfg_factory, tmp_path,
     ):
         config_path = cfg_factory({"voice_control": {"enabled": True, "confirm_commands": False}})
+        controller = MagicMock()
 
-        with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
-             patch.object(windows_bridge_orchestrator, "VoiceController") as controller, \
-             patch.object(windows_bridge_orchestrator.threading, "Thread"):
-            windows_bridge_orchestrator.start_voice_control(
-                str(config_path), dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-                dispatch_runner=MagicMock(),
-            )
+        self._started(config_path, tmp_path, controller=controller)
 
         assert controller.call_args.kwargs["confirm_commands"] is False
 
@@ -2725,17 +2731,98 @@ class TestStartingVoice:
         """Only the loop knows the room's mode, and so which words the hosted
         app's show takes from a player -- the ones voice then has to echo."""
         config_path = cfg_factory({"voice_control": {"enabled": True}})
-        runner = MagicMock()
+        controller, runner = MagicMock(), MagicMock()
 
-        with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
-             patch.object(windows_bridge_orchestrator, "VoiceController") as controller, \
-             patch.object(windows_bridge_orchestrator.threading, "Thread"):
-            windows_bridge_orchestrator.start_voice_control(
-                str(config_path), dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-                dispatch_runner=runner,
-            )
+        self._started(config_path, tmp_path, controller=controller, dispatch_runner=runner)
 
         assert controller.return_value.hands_to_the_hosted_app is runner.hands_to_the_hosted_app
+
+    def test_the_session_listens_with_the_second_listener_it_started_loading(
+        self, cfg_factory, tmp_path,
+    ):
+        config_path = cfg_factory({"voice_control": {"enabled": True}})
+        controller, second_listener = MagicMock(), MagicMock()
+
+        self._started(config_path, tmp_path, controller=controller,
+                      second_listener=second_listener)
+
+        assert controller.call_args.kwargs["second_listener"] is second_listener
+
+    def test_a_session_that_listens_starts_loading_its_second_listener_when_voice_is_prepared(
+        self, cfg_factory,
+    ):
+        config_path = cfg_factory({"voice_control": {"enabled": True}})
+        second_listener = MagicMock()
+
+        with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
+             patch.object(windows_bridge_orchestrator, "WhisperReader",
+                          return_value=second_listener):
+            prepared = windows_bridge_orchestrator.prepare_voice_control(str(config_path))
+
+        second_listener.load_ahead.assert_called_once_with()
+        assert prepared.second_listener is second_listener
+
+    @pytest.mark.parametrize(("enabled", "unavailable"), [(False, ""), (True, "No module named vosk")])
+    def test_a_session_that_will_not_listen_loads_no_second_listener(
+        self, cfg_factory, enabled, unavailable,
+    ):
+        config_path = cfg_factory({"voice_control": {"enabled": enabled}})
+
+        with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=unavailable), \
+             patch.object(windows_bridge_orchestrator, "WhisperReader") as second_listener:
+            prepared = windows_bridge_orchestrator.prepare_voice_control(str(config_path))
+
+        assert prepared is None
+        second_listener.assert_not_called()
+
+    def test_a_session_prepares_voice_before_the_room_comes_up_and_listens_with_it(
+        self, cfg_factory, tmp_path,
+    ):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        state_dir = tmp_path / "state"
+        ahk_cmd_file = state_dir / "ahk_cmd.txt"
+        prepared = object()
+        order: list[object] = []
+
+        class Hotkeys:
+            def poll(self):
+                return 0 if ahk_cmd_file.exists() and ahk_cmd_file.read_text(
+                    encoding="utf-8") == "exit" else None
+
+            def wait(self, timeout=None):
+                return 0
+
+        def the_room_comes_up(**_kwargs):
+            order.append("the room comes up")
+            return _fake_startup_result()
+
+        def voice_starts(voice, **_kwargs):
+            order.append(voice)
+            (state_dir / SESSION_END_MARKER).write_text("the quit chord", encoding="utf-8")
+            return None, None
+
+        with patch.object(windows_bridge_orchestrator, "prepare_voice_control",
+                          side_effect=lambda _config_path: order.append("voice prepared")
+                          or prepared), \
+             patch.object(windows_bridge_orchestrator, "run_startup_sequence",
+                          side_effect=the_room_comes_up), \
+             patch.object(windows_bridge_orchestrator.subprocess, "Popen", return_value=Hotkeys()), \
+             patch.object(windows_bridge_orchestrator, "start_voice_control",
+                          side_effect=voice_starts), \
+             patch.object(windows_bridge_orchestrator, "DispatchLoopRunner"), \
+             patch.object(windows_bridge_orchestrator, "get_process_creation_time",
+                          side_effect=lambda pid: pid * 10), \
+             patch.object(windows_bridge_orchestrator, "close_window"), \
+             patch.object(windows_bridge_orchestrator, "kill_process_tree"):
+            _a_session(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=state_dir, project_dir=tmp_path,
+                env=SessionEnvironment(integration=True, show_overlays=False),
+            )
+
+        assert order == ["voice prepared", "the room comes up", prepared]
 
 
 class TestTheHudPublisherASessionStarts:

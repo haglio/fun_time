@@ -126,6 +126,7 @@ from fun_time.windows_bridge_orchestrator import (
     clear_last_sessions_leftovers,
     kill_recorded_child,
     let_go_of_a_kept_origenerator,
+    prepare_voice_control,
     see_the_hosted_app_out,
     silence_the_players,
     start_hud_priming,
@@ -481,6 +482,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
     # The dispatch loop and voice controller log under fun_time.*, which
     # set_up_logging wired for fun_time_vr.orchestrator alone.
     add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
+    prepared_voice = prepare_voice_control(manifest.runtime.config_path)
     bridge_config = build_bridge_config_from_manifest(manifest, vr_main_player=True)
     commands = manifest.commands
     pids_file = state_dir / "bridge_pids.ini"
@@ -674,7 +676,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         dispatch_thread.start()
 
         voice_controller, voice_thread = start_voice_control(
-            manifest.runtime.config_path,
+            prepared_voice,
             dashboard_cmd_file=dashboard_cmd_file,
             dispatch_runner=dispatch_runner,
         )

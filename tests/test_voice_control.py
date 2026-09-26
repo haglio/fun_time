@@ -387,9 +387,9 @@ class TestTheListenerItRuns:
     def test_the_second_listener_is_handed_to_the_first_whichever_way_commands_are_settled(self, tmp_path):
         reader = object()
         confirmed = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
-                                    confirm_commands=True, second_listener=lambda: reader)
+                                    confirm_commands=True, second_listener=reader)
         unconfirmed = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
-                                      confirm_commands=False, second_listener=lambda: reader)
+                                      confirm_commands=False, second_listener=reader)
 
         assert confirmed.engines.second_opinion is reader
         assert unconfirmed.engines.second_opinion is reader

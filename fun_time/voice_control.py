@@ -7,7 +7,6 @@ import logging
 import threading
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from player_core.file_channel import append_command
 from voice_core.commands import CommandRules
@@ -137,7 +136,7 @@ class VoiceController:
         device_name: str | None = None,
         sample_rate: int = 16000,
         confirm_commands: bool = True,
-        second_listener: Callable[[], Any] = WhisperReader,
+        second_listener: Callable[[bytes, str], str] | None = None,
     ) -> None:
         self.cmd_file = Path(cmd_file)
         self._muted = threading.Event()
@@ -160,7 +159,7 @@ class VoiceController:
             recovered=self._announce_the_microphone_is_back,
             keeps_misses=self._is_listening,
         )
-        self.engines = Engines(second_opinion=second_listener())
+        self.engines = Engines(second_opinion=second_listener or WhisperReader())
         self._listener = CommandListener(
             command_rules(confidence_threshold=confidence_threshold,
                           confirm_commands=confirm_commands),
