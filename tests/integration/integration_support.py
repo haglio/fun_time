@@ -11,6 +11,7 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from player_core.file_channel import append_command
@@ -376,14 +377,16 @@ class FunTimeIntegrationSession:
         records, _offset = read_events(event_log_path(self.config.paths.state_dir))
         return [record for record in records if is_announcement(record)]
 
-    def wait_until(self, predicate, *, timeout: float = 10.0, description: str = "condition") -> None:
+    def wait_until(self, predicate, *, timeout: float = 10.0,
+                   description: str | Callable[[], str] = "condition") -> None:
         deadline = time.time() + timeout
         while time.time() < deadline:
             if predicate():
                 return
             time.sleep(0.2)
+        described = description() if callable(description) else description
         raise AssertionError(
-            f"Timed out waiting for {description}\n{self._log_tail()}"
+            f"Timed out waiting for {described}\n{self._log_tail()}"
         )
 
     def wait_for_log(self, needle: str, timeout: float = 10.0) -> str:
