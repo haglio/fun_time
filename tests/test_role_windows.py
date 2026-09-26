@@ -16,7 +16,7 @@ from fun_time.role_windows import (
     ChildPids,
     WindowRoles,
 )
-from fun_time.window_layout import WindowRect
+from fun_time.window_layout import SecondaryMonitorRects, WindowRect
 from fun_time.windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
@@ -350,3 +350,16 @@ def test_the_window_that_shrinks_moves_before_the_one_that_grows_into_its_room()
         windows.place([("main_player", WindowRect(2560, 940, 1440, 2500)), ("portrait", TOP_STRIP)])
 
     assert [call.args[0] for call in place.call_args_list] == [PORTRAIT_HWND, MAIN_PLAYER_HWND]
+
+
+def test_genaus_window_takes_the_main_players_rect_whichever_of_them_is_showing():
+    windows = make_windows(role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_PLAYER_HWND,
+                                       "genau": GENAU_HWND})
+    rects = SecondaryMonitorRects(portrait=TOP_STRIP, main=WindowRect(2560, 940, 1440, 2500))
+
+    with patch("fun_time.role_windows.window_rect", return_value=(0, 0, 640, 480)), \
+         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.role_windows.place_window") as place:
+        windows.seat(rects)
+
+    assert {call.args for call in place.call_args_list} >= {(GENAU_HWND, 2560, 940, 1440, 2500)}

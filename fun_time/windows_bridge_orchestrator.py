@@ -783,7 +783,8 @@ def seat_the_secondary_monitor(manifest: LaunchManifest, role_hwnds: dict[str, i
     rects = secondary_rects(manifest)
     if state is None or rects is None:
         return
-    most = majority_now(state, Path(manifest.commands.main_player_status_file))
+    most = majority_now(state, Path(manifest.commands.main_player_status_file),
+                        Path(manifest.commands.genau_status_file))
     WindowRoles(pids=ChildPids(), role_hwnds=role_hwnds).seat(rects(majority=most))
 
 

@@ -3212,7 +3212,7 @@ def _seating_runner(tmp_path, cfg_path, *, main_video_portrait: bool) -> Dispatc
         f"video=C:/fixtures/scene one.mp4\nportrait={int(main_video_portrait)}\n", encoding="utf-8")
     return make_runner(
         tmp_path, config=config,
-        role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_PLAYER_HWND},
+        role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_PLAYER_HWND, "genau": GENAU_HWND},
         secondary_rects=partial(secondary_monitor_rects, SECONDARY_MONITOR,
                                 load_config(cfg_path).layout))
 
@@ -3220,7 +3220,8 @@ def _seating_runner(tmp_path, cfg_path, *, main_video_portrait: bool) -> Dispatc
 def test_a_portrait_video_on_the_crowned_main_player_gives_it_most_of_the_secondary_monitor(
         tmp_path, cfg_path):
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=True)
-    usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_PLAYER_HWND: (2560, 2500, 1440, 940)}
+    usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_PLAYER_HWND: (2560, 2500, 1440, 940),
+             GENAU_HWND: (2560, 2500, 1440, 940)}
 
     with patch("fun_time.role_windows.window_rect", side_effect=usual.get), \
          patch("fun_time.role_windows.is_window_minimized", return_value=False), \
@@ -3228,7 +3229,8 @@ def test_a_portrait_video_on_the_crowned_main_player_gives_it_most_of_the_second
         runner.tick()
 
     assert [call.args for call in place.call_args_list] == [
-        (PORTRAIT_HWND, 2560, 0, 1440, 940), (MAIN_PLAYER_HWND, 2560, 940, 1440, 2500)]
+        (PORTRAIT_HWND, 2560, 0, 1440, 940), (MAIN_PLAYER_HWND, 2560, 940, 1440, 2500),
+        (GENAU_HWND, 2560, 940, 1440, 2500)]
 
 
 def test_the_room_writes_down_which_player_has_most_of_the_secondary_monitor(tmp_path, cfg_path):
@@ -3245,7 +3247,8 @@ def test_the_room_writes_down_which_player_has_most_of_the_secondary_monitor(tmp
 def test_a_landscape_video_hands_most_of_the_secondary_monitor_back_to_the_portrait_player(
         tmp_path, cfg_path):
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=False)
-    traded = {PORTRAIT_HWND: (2560, 0, 1440, 940), MAIN_PLAYER_HWND: (2560, 940, 1440, 2500)}
+    traded = {PORTRAIT_HWND: (2560, 0, 1440, 940), MAIN_PLAYER_HWND: (2560, 940, 1440, 2500),
+              GENAU_HWND: (2560, 940, 1440, 2500)}
 
     with patch("fun_time.role_windows.window_rect", side_effect=traded.get), \
          patch("fun_time.role_windows.is_window_minimized", return_value=False), \
@@ -3253,7 +3256,25 @@ def test_a_landscape_video_hands_most_of_the_secondary_monitor_back_to_the_portr
         runner.tick()
 
     assert [call.args for call in place.call_args_list] == [
-        (MAIN_PLAYER_HWND, 2560, 2500, 1440, 940), (PORTRAIT_HWND, 2560, 0, 1440, 2500)]
+        (MAIN_PLAYER_HWND, 2560, 2500, 1440, 940), (GENAU_HWND, 2560, 2500, 1440, 940),
+        (PORTRAIT_HWND, 2560, 0, 1440, 2500)]
+
+
+def test_in_genau_mode_a_portrait_clip_gives_genau_most_of_the_secondary_monitor(tmp_path, cfg_path):
+    runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=False)
+    runner.config.genau_status_file.write_text(
+        "clip=C:/fixtures/clip one.mp4\nportrait=1\n", encoding="utf-8")
+    runner.state = replace(runner.state, main_mode=MainMode.GENAU)
+    usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), GENAU_HWND: (2560, 2500, 1440, 940)}
+
+    with patch("fun_time.role_windows.window_rect", side_effect=usual.get), \
+         patch("fun_time.role_windows.is_window_minimized",
+               side_effect=lambda hwnd: hwnd == MAIN_PLAYER_HWND), \
+         patch("fun_time.role_windows.place_window") as place:
+        runner.tick()
+
+    assert [call.args for call in place.call_args_list] == [
+        (PORTRAIT_HWND, 2560, 0, 1440, 940), (GENAU_HWND, 2560, 940, 1440, 2500)]
 
 
 def test_a_room_that_arranges_no_secondary_monitor_moves_nothing(tmp_path):
