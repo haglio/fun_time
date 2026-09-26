@@ -74,4 +74,5 @@ def status_fields(session, handoff_touch_ms: int | None, *,
         "has_compilation": "1" if library.has_compilation else "0",
         "has_other_versions": "1" if library.has_other_versions else "0",
         "jump_to": library.jump_to,
+        "portrait": "" if session.portrait is None else "1" if session.portrait else "0",
     }

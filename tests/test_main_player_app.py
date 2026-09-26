@@ -37,6 +37,7 @@ class StubSession:
     locked = True
     speed = 1.0
     showing_picture = False
+    portrait = None
 
 
 class FakeGate:

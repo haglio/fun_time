@@ -292,3 +292,8 @@ class TestTheReadoutTheWordLeaves:
 
         rect = next(r for r, b in painter.buttons if b.command == "main_next")
         assert painter.press_at(*self._center(rect, origin)) == "main_next"
+
+
+def test_the_crown_on_the_console_is_lit_while_the_room_has_given_it_to_the_main_player():
+    assert _button(_payload(crowned=True), "main_crown").lit is True
+    assert _button(_payload(crowned=False), "main_crown").lit is False

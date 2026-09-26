@@ -19,6 +19,7 @@ from player_core.modes import MainMode
 from player_core.satellite_hud import HudCell, HudModel, hud_text, parse_hud
 
 from fun_time.bridge_records import BridgeConfig
+from fun_time.crown import Crown
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
 from fun_time.shared_state import BridgeState, SatelliteState
@@ -172,7 +173,8 @@ class TestHudPublishing:
         assert portrait.lock_label == "Unlocked · Shuffle"
         assert portrait.active is True
         assert [button.command for button in portrait.rows[0]] == [
-            "satellites_video_activate", "origenerator_activate", "portrait_minimize"]
+            "satellites_video_activate", "origenerator_activate", "portrait_minimize",
+            "portrait_crown"]
         assert [button.lit for button in portrait.rows[0][:2]] == [False, True]
         assert [button.command for button in portrait.rows[1]] == ["portrait_next"]
 
@@ -191,8 +193,10 @@ class TestHudPublishing:
             assert published.corner is None
             assert published.seeds == ()
             assert published.lock_label == "Origenerator mode"
+            crown = ["portrait_crown"] if player == "portrait" else []
             assert [[button.command for button in row] for row in published.rows] == [
-                ["satellites_video_activate", "origenerator_activate", f"{player}_minimize"]]
+                ["satellites_video_activate", "origenerator_activate", f"{player}_minimize",
+                 *crown]]
 
     @pytest.mark.parametrize(("hosting", "satellites_mode"), [
         (False, "video"), (True, "video"), (True, "origenerator")])
@@ -579,3 +583,23 @@ class TestOsr2Mode:
         with patch("app_support.file_channel.time") as mock_time:
             mock_time.time.return_value = 110.0
             assert feed.osr2_mode() == "auto"
+
+
+def test_the_consoles_crown_goes_dark_once_the_room_gives_it_to_the_portrait_player(tmp_path):
+    feed = make_feed(tmp_path)
+
+    feed.publish(BridgeState(crowned=Crown.PORTRAIT))
+
+    crown = next(button for row in console(tmp_path)["rows"] for button in row
+                 if button["command"] == "main_crown")
+    assert not crown.get("lit")
+
+
+def test_the_portrait_panels_crown_is_lit_once_the_room_gives_it_the_crown(tmp_path):
+    feed = make_feed(tmp_path)
+
+    feed.publish(BridgeState(crowned=Crown.PORTRAIT))
+
+    crown = next(button for row in panel(tmp_path, "portrait")["rows"] for button in row
+                 if button["command"] == "portrait_crown")
+    assert crown.get("lit")

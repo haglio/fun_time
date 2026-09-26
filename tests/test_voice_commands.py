@@ -660,3 +660,8 @@ class TestBuildVoiceCommands:
             build_voice_commands(
                 filter_commands={"pause": "filter_both_pause"}, clip_jump_phrases=(),
             )
+
+
+def test_the_crown_is_given_by_naming_the_player_after_the_word_crown():
+    assert (VOICE_COMMANDS["crown portrait"], VOICE_COMMANDS["crown main"]) == (
+        "portrait_crown", "main_crown")

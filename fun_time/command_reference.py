@@ -163,6 +163,13 @@ _SECTIONS: tuple[_Section, ...] = (
                 voice_display=("origenerator mode", "satellite video mode"),
             ),
             _Row(
+                "Crown the main player or the portrait player — while the crowned "
+                "one plays a portrait video it takes most of the secondary monitor, "
+                "and the other tiles what it shows across the strip that is left",
+                (),
+                ("main_crown", "portrait_crown"),
+            ),
+            _Row(
                 "Video mode on both sides at once — the main player's video "
                 "and the satellite players",
                 (),

@@ -28,7 +28,7 @@ def test_the_band_is_the_players_own_controls_in_the_consoles_order():
     ending with the one that acts on the window rather than on anything in it."""
     assert _names(_band(latest=False)) == [
         "prev", "next", "lock", "trash", "fmode", "reset", "shuffle", "latest",
-        "cycle_version", "minimize"]
+        "cycle_version", "minimize", "crown"]
 
 
 def test_every_button_posts_that_players_own_verb():
@@ -87,8 +87,9 @@ def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
 
     assert len(rows) == 2
     assert [b.command for b in rows[0]] == [
-        "satellites_video_activate", "origenerator_activate", "portrait_minimize"]
-    assert [b.lit for b in rows[0]] == [False, True, False]
+        "satellites_video_activate", "origenerator_activate", "portrait_minimize",
+        "portrait_crown"]
+    assert [b.lit for b in rows[0]][:3] == [False, True, False]
     assert [b.width for b in rows[0][:2]] == [FIT_THE_WORD, FIT_THE_WORD]
     assert rows[0][2].group_break and rows[0][2].glyph == MINIMIZE_ICON
     assert "minimize" not in _names(rows[1])
@@ -164,3 +165,18 @@ def test_the_versions_button_is_dim_where_the_clip_has_only_itself():
     assert alone.dim and "none for this one" in alone.tooltip
     assert not paired.dim and "none" not in paired.tooltip
     assert shared_mark_name(CONTROL_FACES["cycle_version"]) == "versions"
+
+
+def test_the_portrait_players_crown_is_lit_while_it_holds_the_crown():
+    held = _band(crowned=True)[-1]
+    given_away = _band(crowned=False)[-1]
+
+    assert (held.command, held.lit, given_away.lit) == ("portrait_crown", True, False)
+    assert held.tooltip.startswith("Crowned")
+
+
+def test_only_the_portrait_player_wears_a_crown():
+    assert "landscape_crown" not in [
+        button.command for row in player_rows("landscape", latest=False,
+                                               satellites_mode=SatellitesMode.VIDEO)
+        for button in row]

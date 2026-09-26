@@ -57,6 +57,7 @@ class MainSlotInputs:
     plays_flat: bool | None = None
     nothing_to_reset: bool = False
     in_vr: bool = False
+    crowned: bool = True
 
 
 def console_model(inputs: MainSlotInputs) -> ConsoleModel:
@@ -84,6 +85,7 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         osr2_control=inputs.osr2_control,
         nothing_to_reset=inputs.nothing_to_reset,
         flipped=genau.flipped,
+        crowned=inputs.crowned,
     )
     return ConsoleModel(
         main_mode=inputs.main_mode,

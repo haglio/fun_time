@@ -404,3 +404,10 @@ class TestTheStatusFilesShape:
         path.write_text("video=C:/clips/a=b.mp4\n", encoding="utf-8")
 
         assert read_key_values(path) == {"video": "C:/clips/a=b.mp4"}
+
+
+def test_the_main_players_video_is_portrait_where_it_says_so(tmp_path: Path):
+    status_file = tmp_path / "main_player_status.txt"
+    status_file.write_text("video=C:/v/n.mp4\nportrait=1\n", encoding="utf-8")
+
+    assert read_main_player_status(status_file).portrait is True

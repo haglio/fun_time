@@ -54,6 +54,7 @@ class MainPlayerStatus(PlayerStatus):
     has_compilation: bool = False
     has_other_versions: bool = False
     jump_to: str = ""
+    portrait: bool | None = None
 
     @property
     def funscript_driving(self) -> bool:
@@ -110,9 +111,14 @@ def read_main_player_status(path: Path, *, fallback: MainPlayerStatus | None = N
             has_compilation=_status_bool(values, "has_compilation"),
             has_other_versions=_status_bool(values, "has_other_versions"),
             jump_to=values.get("jump_to", "").strip(),
+            portrait=_status_shape(values),
         )
     except (OSError, ValueError):
         return fallback or MainPlayerStatus()
+
+
+def _status_shape(values: dict) -> bool | None:
+    return {"1": True, "0": False}.get(values.get("portrait", "").strip())
 
 
 def _status_touch(values: dict) -> int | None:

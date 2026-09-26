@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fun_time import load_config
+from fun_time.crown import Crown
 from fun_time.dashboard_layout import dashboard_window_height
 from fun_time.monitors import MonitorInfo
 from fun_time.window_layout import (
@@ -11,6 +12,7 @@ from fun_time.window_layout import (
     compute_main_media_rect,
     compute_window_layout,
     screen_layout,
+    secondary_monitor_rects,
 )
 
 
@@ -171,3 +173,31 @@ def test_the_dashboard_takes_a_bar_and_a_log_and_the_browser_takes_the_rest(cfg_
     assert plan.random_favs_browser.y == plan.dashboard.y + plan.dashboard.height
     assert plan.random_favs_browser.height > plan.dashboard.height
 
+
+
+def test_a_main_player_given_most_of_the_screen_trades_sizes_with_the_portrait_player(
+        cfg_path: Path):
+    layout = load_config(cfg_path).layout
+    secondary = MonitorRect(2560, 0, 1440, 3440)
+    usual_portrait = compute_window_layout(
+        primary_monitor=MonitorRect(0, 0, 2560, 1392), secondary_monitor=secondary,
+        layout_config=layout).portrait
+    usual_main = compute_main_media_rect(secondary_monitor=secondary, layout_config=layout)
+
+    rects = secondary_monitor_rects(secondary, layout, majority=Crown.MAIN)
+
+    assert rects.portrait == MonitorRect(2560, 0, usual_main.width, usual_main.height)
+    assert rects.main == MonitorRect(
+        2560, 3440 - usual_portrait.height, usual_portrait.width, usual_portrait.height)
+
+
+def test_a_portrait_player_given_most_of_the_screen_sits_where_startup_puts_both(cfg_path: Path):
+    layout = load_config(cfg_path).layout
+    secondary = MonitorRect(2560, 0, 1440, 3440)
+
+    rects = secondary_monitor_rects(secondary, layout, majority=Crown.PORTRAIT)
+
+    assert rects.portrait == compute_window_layout(
+        primary_monitor=MonitorRect(0, 0, 2560, 1392), secondary_monitor=secondary,
+        layout_config=layout).portrait
+    assert rects.main == compute_main_media_rect(secondary_monitor=secondary, layout_config=layout)

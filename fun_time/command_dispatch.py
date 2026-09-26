@@ -34,6 +34,7 @@ from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_lev
 from .bridge_records import BridgeConfig, WindowOp
 from .broker_control import HOLD_VERB, PARK_CMD, RESUME_CMD, write_broker_command
 from .content import load_web_providers
+from .crown import CROWNS, Crown
 from .event_log import (
     FAVORITE,
     NOTICE,
@@ -582,6 +583,8 @@ def command_player(command: str) -> Player | None:
     lock, and by naming its F-mode or its reset — everything it shares with a
     satellite.  It has no weird/cycle, so nothing else selects it.
     """
+    if command in CROWNS:
+        return None
     if command.startswith("portrait_"):
         return Player.PORTRAIT
     if command.startswith("landscape_"):
@@ -1205,8 +1208,8 @@ def _dispatch_set_filter(
 # In origenerator mode each satellite player is the hosted app's: it hands the
 # player what to play and answers every press on the buttons it drew.  So what
 # is said to a side goes there as it was said, and the session keeps only what
-# is about the player itself -- parking its window, and the rate it plays at.
-_THE_PLAYERS_OWN = ("_minimize", "_speed_")
+# is about the player itself -- parking its window, its crown, and its rate.
+_THE_PLAYERS_OWN = ("_minimize", "_crown", "_speed_")
 
 
 def _about_a_satellite(command: str) -> bool:
@@ -1371,6 +1374,11 @@ def _video_activate(state: BridgeState, config: BridgeConfig,
         state, ops = _dispatch_satellites_switch(
             "satellites_video_activate", state, config, ops)
     return state, ops
+
+
+def _crown(crown: Crown, state: BridgeState, _config: BridgeConfig,
+           _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return replace(state, crowned=crown), []
 
 
 # --- the handler map ---------------------------------------------------------
@@ -1695,6 +1703,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_satellites_switch, cmd)
                      for cmd in ("origenerator_activate", "satellites_video_activate", "satellites_toggle")})
     handlers["video_activate"] = _video_activate
+    handlers.update({command: partial(_crown, crown) for command, crown in CROWNS.items()})
     handlers.update({cmd: partial(_speed, verb, verb, True)
                      for cmd, verb in _SPEED_BY_DRIVER.items()})
     handlers.update({f"main_player_{act}": partial(_speed, verb, _GENAU_RATE_ENDS.get(act), False)

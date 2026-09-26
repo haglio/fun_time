@@ -21,9 +21,16 @@ class StubSession:
         self.locked = True
         self.speed = 1.0
         self.showing_picture = False
+        self.portrait = None
 
 
 class TestStatusFields:
+    def test_a_main_player_showing_a_portrait_video_says_so(self):
+        session = StubSession()
+        session.portrait = True
+
+        assert status_fields(session, None)["portrait"] == "1"
+
     def test_a_main_player_showing_a_picture_says_so(self):
         session = StubSession()
         session.showing_picture = True
@@ -54,6 +61,7 @@ class TestStatusFields:
             "has_funscript", "funscript_resting", "loop_state",
             "loop_in_ms", "loop_out_ms", "handoff_touch_ms",
             "length_mode", "compilation", "has_compilation", "has_other_versions", "jump_to",
+            "portrait",
         ]
 
     def test_the_seven_every_player_leads_with_read_back_as_the_familys_record(self):

@@ -110,6 +110,7 @@ class HudPanel:
     # nothing to put back -- the button is drawn faded and takes no press.
     nothing_to_reset: bool = False
     has_other_versions: bool = False
+    crowned: bool = False
 
 
 def _others(items: list[str], current: str) -> list[str]:
@@ -438,6 +439,7 @@ def build_hud_panel(
     satellites_mode: SatellitesMode | None = None,
     origenerator_ready: bool = True,
     in_vr: bool = False,
+    crowned: bool = False,
 ) -> HudPanel:
     """One side's HUD panel, from everything that side is (:class:`SatelliteInputs`).
 
@@ -487,13 +489,14 @@ def build_hud_panel(
         in_vr=in_vr,
         nothing_to_reset=inputs.nothing_to_reset,
         has_other_versions=inputs.has_other_versions,
+        crowned=crowned,
     )
 
 
 def _satellite_panel(
     inputs: SatelliteInputs, metadata_root: Path | None, active_player: str,
     satellites_mode: SatellitesMode | None = None, origenerator_ready: bool = True,
-    in_vr: bool = False,
+    in_vr: bool = False, crowned: str = "",
 ) -> HudPanel:
     index: GroupIndex | None = None
     if inputs.current:
@@ -510,6 +513,7 @@ def _satellite_panel(
     return build_hud_panel(
         inputs, index=index, active=active_player == inputs.player,
         satellites_mode=satellites_mode, origenerator_ready=origenerator_ready, in_vr=in_vr,
+        crowned=crowned == inputs.player,
     )
 
 
@@ -532,7 +536,7 @@ def build_panels(
     portrait: SatelliteInputs, landscape: SatelliteInputs, *,
     metadata_root: Path | None = None, active_player: str = "",
     satellites_mode: SatellitesMode | None = None, origenerator_ready: bool = True,
-    in_vr: bool = False,
+    in_vr: bool = False, crowned: str = "",
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
@@ -550,9 +554,9 @@ def build_panels(
     called everywhere else in here; the one translation lives where the number does.
     """
     return (_satellite_panel(portrait, metadata_root, active_player, satellites_mode,
-                        origenerator_ready, in_vr),
+                        origenerator_ready, in_vr, crowned=crowned),
             _satellite_panel(landscape, metadata_root, active_player, satellites_mode,
-                        origenerator_ready, in_vr))
+                        origenerator_ready, in_vr, crowned=crowned))
 
 
 def panel_thumbnails(
