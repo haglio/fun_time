@@ -203,16 +203,20 @@ class VoiceController:
         if recognition.phrase:
             self._hand_on(recognition.phrase, spoken_at=heard.spoken_at)
             return
+        if not heard.words_formed:
+            return
         doubted = recognition.refused_phrase or recognition.unconfirmed_phrase
         if doubted:
-            self._report(f"not sure enough of: {friendly_voice(doubted)}", heard_text=doubted)
+            self._report_words("not sure enough of a command", "not sure enough of",
+                               friendly_voice(doubted), heard_text=doubted)
         elif recognition.unrecognized_text:
-            self._report_no_command(recognition.unrecognized_text)
-        elif heard.words_formed and recognition.silent_reading:
-            self._report(f"too quiet to act on: {recognition.silent_reading}",
-                         heard_text=recognition.silent_reading)
-        elif heard.words_formed:
-            self._report(DID_NOT_CATCH_IT, heard_text="")
+            self._report_words(NO_COMMAND, NO_COMMAND, recognition.unrecognized_text,
+                               heard_text=recognition.unrecognized_text)
+        elif recognition.silent_reading:
+            self._report_words("too quiet to act on", "too quiet to act on",
+                               recognition.silent_reading, heard_text=recognition.silent_reading)
+        elif self._is_listening():
+            notice(logger, DID_NOT_CATCH_IT, source=SOURCE_SYSTEM, level=logging.WARNING)
 
     def _hand_on(self, phrase: str, *, spoken_at: float) -> None:
         written = self._write_spoken(phrase, spoken_at=spoken_at)
@@ -221,18 +225,13 @@ class VoiceController:
                    source=notice_source(VOICE_COMMANDS[phrase], self.active_player()),
                    level=logging.WARNING)
 
-    def _report(self, message: str, *, heard_text: str) -> None:
-        if self._is_listening():
-            notice(logger, message, source=_source_for_heard_text(heard_text),
-                   level=logging.WARNING)
-
-    def _report_no_command(self, words: str) -> None:
+    def _report_words(self, logged: str, shown: str, words: str, *, heard_text: str) -> None:
         if not self._is_listening():
             return
-        source = _source_for_heard_text(words)
-        notice(logger, f"{NO_COMMAND} ({_how_many(words)})", source=source,
+        source = _source_for_heard_text(heard_text)
+        notice(logger, f"{logged} ({_how_many(words)})", source=source,
                level=logging.WARNING, flashes=False)
-        flash_unlogged(self.cmd_file.parent, f"{NO_COMMAND}: {words}", source=source,
+        flash_unlogged(self.cmd_file.parent, f"{shown}: {words}", source=source,
                        level=logging.WARNING)
 
     def _say_it_is_being_worked_on(self, forming: str) -> None:
