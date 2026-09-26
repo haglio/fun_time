@@ -190,6 +190,12 @@ class MainRole:
         return self._funscript
 
     @property
+    def funscript_as_played(self) -> Funscript | None:
+        if self._funscript is None or not self._locked:
+            return self._funscript
+        return self._funscript.looped(0, round(self._player.duration_ms))
+
+    @property
     def speed(self) -> float:
         return self._speed
 
@@ -224,9 +230,8 @@ class MainRole:
         return self._scripted_filter
 
     def _funscript_resting(self) -> bool:
-        if self._funscript is None:
-            return False
-        return self._funscript.is_resting_at(int(self._player.position_ms))
+        script = self.funscript_as_played
+        return script is not None and script.is_resting_at(int(self._player.position_ms))
 
     # ------------------------------------------------------------------ verbs
 
@@ -300,10 +305,9 @@ class MainRole:
             return
         if not self._the_screen_has_resumed():
             return
-        if self._funscript is not None:
-            self._driver.update(
-                int(self._player.position_ms), self._funscript, now=now, speed=self._speed
-            )
+        script = self.funscript_as_played
+        if script is not None:
+            self._driver.update(int(self._player.position_ms), script, now=now, speed=self._speed)
         else:
             self._driver.park(now=now)
 

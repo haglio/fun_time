@@ -82,12 +82,14 @@ class FakePlayer(RefusesSeeks):
 class FakeDriver:
     def __init__(self):
         self.updates: list[tuple[int, float]] = []
+        self.scripts: list = []
         self.parks = 0
         self.resets = 0
         self.closed = False
 
     def update(self, position_ms, fs, *, now=None, speed=1.0):
         self.updates.append((position_ms, speed))
+        self.scripts.append(fs)
 
     def park(self, *, now=None):
         self.parks += 1
@@ -685,6 +687,34 @@ class TestStatus:
         assert role.status_fields(None)["speed"] == "1.25"
 
 
+class TestTheScriptAsItPlays:
+    def test_a_locked_video_plays_its_script_again_each_time_round(self, role_parts):
+        assert role_parts.role.funscript_as_played.position_at(60_400) == 100
+
+    def test_an_unlocked_video_plays_its_script_once(self, role_parts):
+        role = role_parts.role
+
+        role.set_locked(False)
+
+        assert role.funscript_as_played is role.current_funscript
+
+    def test_the_device_is_driven_as_it_plays(self, role_parts):
+        role, player, driver = role_parts.role, role_parts.player, role_parts.driver
+        player.position_ms = 5_000
+
+        role.tick(now=1.0)
+
+        assert driver.scripts[-1] is role.funscript_as_played
+
+    def test_keeps_a_gap_too_short_to_hand_over_before_it_comes_round(self, role_parts):
+        role, player = role_parts.role, role_parts.player
+        player.duration_ms = 10_000.0
+        player.position_ms = 8_000.0
+
+        assert role.current_funscript.is_resting_at(8_000) is True
+        assert role.status_fields(None)["funscript_resting"] == "0"
+
+
 class TestWhatTheDriveGateReadsOffIt:
     """The panel's drive gate reads the role as the main player's reads its session: the
     script in play and the rate the video runs at."""
@@ -692,9 +722,9 @@ class TestWhatTheDriveGateReadsOffIt:
     def test_the_script_in_play(self, role_parts):
         role = role_parts.role
 
-        assert role.current_funscript is not None
+        assert role.funscript_as_played is not None
         role.apply_command("NEXT", on_quit=_never_quits)
-        assert role.current_funscript is None
+        assert role.funscript_as_played is None
 
     def test_the_rate_the_video_runs_at(self, role_parts):
         role = role_parts.role

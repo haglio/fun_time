@@ -88,12 +88,19 @@ class SatelliteSession:
         return self._loaded_funscript[1]
 
     @property
+    def funscript_as_played(self) -> Funscript | None:
+        script = self.current_funscript
+        if script is None or not self._locked:
+            return script
+        return script.looped(0, round(self._player.duration_ms))
+
+    @property
     def has_funscript(self) -> bool:
         return self.current_funscript is not None
 
     @property
     def funscript_resting(self) -> bool:
-        script = self.current_funscript
+        script = self.funscript_as_played
         return script is not None and script.is_resting_at(int(self.position_ms))
 
     def set_tcode_enabled(self, enabled: bool) -> None:
@@ -216,7 +223,7 @@ class SatelliteSession:
         elif position_ms + REWIND_MS < self._last_pos_ms:
             self._device.take_over()
         self._last_pos_ms = position_ms
-        self._device.drive(position_ms, self.current_funscript, speed=self._speed)
+        self._device.drive(position_ms, self.funscript_as_played, speed=self._speed)
 
     def discard(self) -> None:
         """Drop the clip on screen from the list and play the next — "trash"."""
