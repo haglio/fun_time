@@ -190,10 +190,10 @@ def _read_back(written: str | None, default: bool | int | str) -> bool | int | s
     """One value off the file, read as the type of *default* says.  An absent key,
     a malformed number or an unknown mode word is that default, so a file written
     before the field existed -- or hand-edited since -- is still a session."""
-    if isinstance(default, bool):
-        return written == "1"
     if written is None:
         return default
+    if isinstance(default, bool):
+        return written == "1"
     if isinstance(default, Enum):
         return read_mode(type(default), written, default)
     if isinstance(default, int):
