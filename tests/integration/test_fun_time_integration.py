@@ -19,8 +19,10 @@ from fun_time.win32 import (
     find_window_by_title,
     is_window_minimized,
     is_window_topmost,
+    iter_zorder,
 )
 from fun_time.win32_process import is_process_alive
+from fun_time.window_roles import GENAU_TITLES
 from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
 
 from .integration_support import (
@@ -301,6 +303,38 @@ def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTime
     shared_integration_session.write_dashboard_command("main_video_activate")
     shared_integration_session.wait_for_new_log("Switched to video mode", timeout=12)
 
+
+def _directly_beneath(lower: int, upper: int) -> bool:
+    stack = [window.hwnd for window in iter_zorder()]
+    return upper in stack and lower in stack and stack.index(lower) == stack.index(upper) + 1
+
+
+def test_a_switch_to_video_while_paused_keeps_the_video_directly_under_genaus_hud(
+        shared_integration_session: FunTimeIntegrationSession):
+    s = shared_integration_session
+    s.write_dashboard_command("omnipause_toggle")
+    s.wait_for_new_log("OmniPause: entering", timeout=12)
+    s.write_dashboard_command("genau_activate")
+    s.wait_for_new_log("Switched to genau mode", timeout=12)
+    s.wait_until(
+        lambda: is_window_minimized(find_window_by_title("Main Player", exact=True)),
+        timeout=12,
+        description="the main player to go down for genau mode",
+    )
+
+    s.write_dashboard_command("main_video_activate")
+    s.wait_for_new_log("Switched to video mode", timeout=12)
+    main_player = find_window_by_title("Main Player", exact=True)
+    genau = next(hwnd for hwnd in (find_window_by_title(title, exact=True)
+                                   for title in GENAU_TITLES) if hwnd)
+    s.wait_until(
+        lambda: _directly_beneath(main_player, genau),
+        timeout=10,
+        description="the main player to sit directly under Genau's HUD while paused",
+    )
+
+    s.write_dashboard_command("omnipause_toggle")
+    s.wait_for_new_log("OmniPause: leaving", timeout=12)
 
 def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunTimeIntegrationSession):
     """Regression: omnipause must pause Genau, not close it.

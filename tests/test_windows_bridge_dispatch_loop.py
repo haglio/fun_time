@@ -1050,6 +1050,21 @@ class TestDispatchLoopRunner:
 
             assert minimized == wanted, mode
 
+    def test_a_mode_switch_clicked_while_paused_restacks_the_main_slot_as_paused(self, tmp_path):
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
+        write_shared_state(tmp_path / "shared_state.ini",
+                           BridgeState(omni_paused=True, main_mode=MainMode.GENAU))
+        (tmp_path / "dashboard_cmd.txt").write_text("main_video_activate", encoding="utf-8")
+
+        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.role_windows.restore_window"), \
+             patch("fun_time.role_windows.activate_window"), \
+             patch.object(runner.windows, "restack_main_slot") as restack:
+            runner.tick()
+
+        restack.assert_called_once_with(MainMode.VIDEO, paused=True)
+
     def test_leaving_omnipause_brings_back_every_window_a_button_parked(self, tmp_path):
         """A player parked from its own HUD took that HUD down with it, so it
         cannot ask to come back — resuming the room is what returns it, to the same

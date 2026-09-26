@@ -13,6 +13,7 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
+from .mode_plan import main_player_displays
 from .satellites_mode import origenerator_shows
 from .win32 import (
     activate_window,
@@ -22,6 +23,7 @@ from .win32 import (
     is_window_minimized,
     is_window_topmost,
     minimize_window,
+    place_beneath,
     place_window,
     restore_window,
     set_always_on_top,
@@ -335,7 +337,8 @@ class WindowRoles:
         self.restack_origenerator(main_mode, satellites_mode)
         self.restack_main_slot(main_mode)
 
-    def restack_origenerator(self, main_mode: str, satellites_mode: str) -> None:
+    def restack_origenerator(self, main_mode: str, satellites_mode: str, *,
+                             paused: bool = False) -> None:
         """Promote the hosted Origenerator's window above the RFB it covers.
 
         Only in origenerator mode — the two share one rect, and
@@ -343,13 +346,13 @@ class WindowRoles:
         after the fixed roles is what stacks it on top.  In video mode it is
         parked and stays out of the band.
         """
-        if not role_topmost(ORIGENERATOR_ROLE, main_mode, satellites_mode):
+        if paused or not role_topmost(ORIGENERATOR_ROLE, main_mode, satellites_mode):
             return
         hwnd = self.hwnd(ORIGENERATOR_ROLE)
         if hwnd:
             set_always_on_top(hwnd, True)
 
-    def restack_main_slot(self, main_mode: str) -> None:
+    def restack_main_slot(self, main_mode: str, *, paused: bool = False) -> None:
         """Re-establish the main player/Genau z-order for this mode.
 
         The main player and Genau share one screen rect — in video mode Genau's transparent HUD
@@ -365,6 +368,10 @@ class WindowRoles:
         """
         main_player = self.hwnd("main_player")
         genau = self.hwnd("genau")
+        if paused:
+            if main_player and genau and main_player_displays(main_mode):
+                place_beneath(main_player, genau)
+            return
         for hwnd in (main_player, genau):
             if hwnd:
                 set_always_on_top(hwnd, False)

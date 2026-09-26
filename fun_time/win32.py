@@ -364,10 +364,17 @@ def set_always_on_top(hwnd: int, on_top: bool, *, under: int = 0) -> None:
         insert_after = ctypes.wintypes.HWND(under)
     else:
         insert_after = HWND_TOPMOST
+    _stack_after(hwnd, insert_after, what=f"set_always_on_top({hwnd}, {on_top})")
+
+
+def place_beneath(hwnd: int, above: int) -> None:
+    _stack_after(hwnd, ctypes.wintypes.HWND(above), what=f"place_beneath({hwnd}, {above})")
+
+
+def _stack_after(hwnd: int, insert_after, *, what: str) -> None:
     _without_hanging(
         _user32.SetWindowPos, hwnd, insert_after, 0, 0, 0, 0,
-        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-        what=f"set_always_on_top({hwnd}, {on_top})",
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE, what=what,
     )
 
 

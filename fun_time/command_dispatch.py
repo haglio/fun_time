@@ -31,7 +31,7 @@ from player_core.player_verbs import (
 )
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
-from .bridge_records import BridgeConfig, Op, WindowOp
+from .bridge_records import BridgeConfig, WindowOp
 from .broker_control import HOLD_VERB, PARK_CMD, RESUME_CMD, write_broker_command
 from .content import load_web_providers
 from .crown import CROWNS, Crown
@@ -1311,15 +1311,6 @@ def _satellites_slot_ops(satellites_mode: str) -> list[WindowOp]:
     ]
 
 
-_RESTACKS = frozenset({Op.RESTACK_MAIN, Op.RESTACK_ORIGENERATOR})
-
-
-def _without_restacks_while_paused(ops: list[WindowOp], *, paused: bool) -> list[WindowOp]:
-    if not paused:
-        return ops
-    return [op for op in ops if op.op not in _RESTACKS]
-
-
 def _dispatch_satellites_switch(
     command: str, state: BridgeState, config: BridgeConfig, ops: list[WindowOp]
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -1347,8 +1338,7 @@ def _dispatch_satellites_switch(
     )
     state = replace(state, satellites_mode=result.next_mode)
     if result.is_transition:
-        ops.extend(_without_restacks_while_paused(
-            _satellites_slot_ops(result.next_mode), paused=state.omni_paused))
+        ops.extend(_satellites_slot_ops(result.next_mode))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
@@ -1367,8 +1357,7 @@ def _dispatch_mode_switch(
     )
     state = replace(state, main_mode=result.next_mode)
     if result.is_transition:
-        ops.extend(_without_restacks_while_paused(
-            _main_slot_ops(result.next_mode), paused=state.omni_paused))
+        ops.extend(_main_slot_ops(result.next_mode))
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
