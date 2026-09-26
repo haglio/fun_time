@@ -2,15 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from player_core.playlist import PlaylistItem
+
 from satellite.cli import audio_muted, build_parser, resolve_playlist
 
 
-def test_resolve_playlist_reads_videos_dropping_funscripts(tmp_path):
+def test_resolve_playlist_reads_each_video_with_its_funscript(tmp_path):
     pl = tmp_path / "portrait.tsv"
     pl.write_text("a.mp4\nb.mp4\tb.funscript\n", encoding="utf-8")
     args = build_parser().parse_args(["--playlist", str(pl)])
 
-    assert resolve_playlist(args) == [Path("a.mp4"), Path("b.mp4")]
+    assert resolve_playlist(args) == [
+        PlaylistItem(Path("a.mp4")), PlaylistItem(Path("b.mp4"), Path("b.funscript"))]
 
 
 def test_resolve_playlist_without_a_file_is_empty():

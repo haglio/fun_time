@@ -23,7 +23,7 @@ from fun_time.modes import (
     read_favs_content,
     shuffle_paths,
     sort_paths_by_recency,
-    write_main_player_playlist_file,
+    write_playlist_file,
 )
 
 
@@ -160,9 +160,8 @@ def test_build_all_playlists_writes_satellite_playlist_files(tmp_path: Path):
         rng=random.Random(1),
     )
 
-    # Each satellite gets a plain one-path-per-line playlist the native player
-    # reads; the main slot is the main player, which reads its own .tsv playlist.  One
-    # video from each source survives the favorites filter.
+    # Each player reads a playlist of its own.  One video from each source survives
+    # the favorites filter, and only the main player's has a script beside it.
     assert _lines(state_dir / "portrait_playlist.tsv") == [str(portrait_video)]
     assert _lines(state_dir / "landscape_playlist.tsv") == [str(landscape_video)]
     assert _lines(state_dir / "main_player_playlist.tsv") == [f"{main_video}\t{mirrored}"]
@@ -321,6 +320,19 @@ def test_a_kept_video_is_f_modes_unless_the_librarys_own_tree_marks_its_script(t
     assert not has_handcrafted_funscript(str(kept), metadata_root=metadata_root)
 
 
+def test_a_side_screens_playlist_pairs_each_video_with_its_funscript(tmp_path: Path):
+    library = tmp_path / "videos" / "videos" / "portrait"
+    scripted, plain = library / "scripted.mp4", library / "plain.mp4"
+    script = tmp_path / "videos" / "scripts" / "scripts" / "portrait" / "scripted.funscript"
+    script.parent.mkdir(parents=True)
+    script.write_text("{}", encoding="utf-8")
+    playlist = tmp_path / "portrait_playlist.tsv"
+
+    write_playlist_file(playlist, [str(scripted), str(plain)])
+
+    assert _lines(playlist) == [f"{scripted}\t{script}", str(plain)]
+
+
 def test_the_main_players_playlist_pairs_a_kept_video_with_the_librarys_script(tmp_path: Path):
     library = tmp_path / "library" / "videos"
     kept = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished" / "scene one.mp4"
@@ -329,7 +341,7 @@ def test_the_main_players_playlist_pairs_a_kept_video_with_the_librarys_script(t
     script.write_text("{}", encoding="utf-8")
     playlist = tmp_path / "main_player_playlist.txt"
 
-    write_main_player_playlist_file(playlist, [str(kept)], metadata_root=library / "metadata")
+    write_playlist_file(playlist, [str(kept)], metadata_root=library / "metadata")
 
     assert str(script) in _lines(playlist)[0]
 

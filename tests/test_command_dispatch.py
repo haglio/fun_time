@@ -1361,6 +1361,18 @@ def test_play_video_command_switches_the_satellite_to_the_path(tmp_path: Path):
     assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
 
 
+def test_a_clip_sent_to_a_side_screen_carries_its_funscript(tmp_path: Path):
+    config = _make_config(tmp_path)
+    clip = tmp_path / "videos" / "videos" / "portrait" / "pick_me.mp4"
+    script = tmp_path / "videos" / "scripts" / "scripts" / "portrait" / "pick_me.funscript"
+    script.parent.mkdir(parents=True)
+    script.write_text("{}", encoding="utf-8")
+
+    dispatch_command(f"portrait_play_video|{clip}", _make_state(), config)
+
+    assert _cmds(config, 2) == [f"PLAY_FILE {clip}\t{script}"]
+
+
 def test_lock_video_command_when_already_locked_switches_and_stays_locked(tmp_path: Path):
     """A HUD double-click sends "<player>_lock_video|<path>": on an already-locked
     satellite (repeat-one) it just plays the picked clip, which keeps it locked."""

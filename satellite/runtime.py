@@ -92,11 +92,10 @@ def _set_speed(controls: SatelliteControls, value: str) -> bool:
 
 
 def _play_file(controls: SatelliteControls, value: str) -> bool:
-    """``PLAY_FILE`` carries one playlist line; a satellite drops its funscript."""
     item = item_from_line(value)
     if item is None:
         return False
-    controls.session.play_file(item.path)
+    controls.session.play_file(item.path, item.funscript)
     return True
 
 

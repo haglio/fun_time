@@ -37,6 +37,7 @@ get_process_image_name  # the integration reap, to tell a leftover app from pyte
 _.active_filter  # HudClicks lives in player_core; the reads are in that sibling
 
 PROJECT_VR_ICON  # project_paths; read by fun_time_vr, a scan of its own
+timeline_x  # main_player.overlay; the headset's scrubber repaints on it, a scan of its own
 set_window_icon  # win32; the VR session's window asks for it, a scan of its own
 draw_nothing_at_all  # win32; the VR session's window asks for it too
 # The headset hold's channel: written by fun_time_vr's orchestrator and read by

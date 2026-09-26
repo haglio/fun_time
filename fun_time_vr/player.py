@@ -89,7 +89,7 @@ from satellite.hud_overlay import HudOverlay
 from satellite.pointer import OMNIPAUSE_TOGGLE
 from satellite.runtime import SatelliteControls
 from satellite.runtime import apply_command as apply_satellite_command
-from satellite.session import SatelliteSession
+from satellite.session import SatelliteSession, funscripts_of
 from satellite.status import status_fields as satellite_status_fields
 from satellite.volume import SatelliteVolume
 
@@ -720,11 +720,13 @@ class _SatelliteUnit(_VideoUnit):
         self.cmd_file = channels.command
         self.paused_file = channels.paused
         self.playlist_file = channels.playlist
+        items = read_playlist(self.playlist_file)
         self.session = SatelliteSession(
-            self._read_playlist(),
+            [item.path for item in items],
             player=self.player,
             start_paused=read_paused_state(self.paused_file, logger=logger),
             play_points=PlayPoints(channels.play_points),
+            funscripts=funscripts_of(items),
         )
         self._status_writer = StatusWriter(channels.status, satellite_status_fields)
         self._controls = SatelliteControls(
@@ -817,13 +819,10 @@ class _SatelliteUnit(_VideoUnit):
             return self.hud_surface.size or (1, 1)
         return self.control_size()
 
-    def _read_playlist(self) -> list[Path]:
-        return [item.path for item in read_playlist(self.playlist_file)]
-
     def _reload_playlist(self) -> None:
-        reloaded = self._read_playlist()
+        reloaded = read_playlist(self.playlist_file)
         if reloaded:
-            self.session.replace_playlist(reloaded)
+            self.session.replace_playlist([item.path for item in reloaded], funscripts_of(reloaded))
 
     def pump(self, stop: threading.Event, now: float) -> None:
         self.session.set_paused(read_paused_state(self.paused_file, logger=logger))
@@ -848,6 +847,7 @@ class _SatelliteUnit(_VideoUnit):
         self.overlay_furniture(
             self.session.position_ms, self.session.duration_ms,
             self.volume.hud, self._volume_painter,
+            video=self.session.current_video, funscript=self.session.current_funscript,
         )
         self.overlay_readout(video_playhead(
             self.session.position_ms, self.session.duration_ms, self.player.frame_rate))

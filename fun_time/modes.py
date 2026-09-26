@@ -345,25 +345,15 @@ def rotated_onto(entries: list[PlaylistItem], last_video: str) -> list[PlaylistI
     return entries
 
 
-def write_playlist_file(path: Path, paths: list[str]) -> None:
-    """Write a satellite playlist: one video path per line, no funscript column.
-
-    A satellite is silent and unscripted, so it drops that column anyway and
-    there is nothing to look up.
-    """
-    write_playlist(path, [PlaylistItem(Path(video_path)) for video_path in paths])
+def write_playlist_file(path: Path, video_paths: list[str], *,
+                        metadata_root: Path | None = None) -> None:
+    write_playlist(path, [scripted_item(video_path, metadata_root) for video_path in video_paths])
 
 
 def scripted_item(video_path: str, metadata_root: Path | None = None) -> PlaylistItem:
     """*video_path* paired with the funscript mirrored beside it, when it has one."""
     funscript = matching_funscript(video_path, metadata_root)
     return PlaylistItem(Path(video_path), Path(funscript) if funscript else None)
-
-
-def write_main_player_playlist_file(path: Path, video_paths: list[str], *,
-                                    metadata_root: Path | None = None) -> None:
-    """Write the main player's playlist, pairing each video with its funscript when it has one."""
-    write_playlist(path, [scripted_item(video_path, metadata_root) for video_path in video_paths])
 
 
 def build_one_satellite_playlist(
@@ -383,7 +373,8 @@ def build_one_satellite_playlist(
         sources, favorites_filter, favs_file, filter_query=filter_query, recent=recent, rng=rng,
         metadata_root=metadata_root,
     )
-    write_playlist_file(build_playlist_file_path(state_dir, name), paths)
+    write_playlist_file(build_playlist_file_path(state_dir, name), paths,
+                        metadata_root=metadata_root)
 
 
 @dataclass(frozen=True)
@@ -435,7 +426,7 @@ def build_main_playlist(playlist_file: Path, main_sources: str, *, scripted_filt
     built under it, and one player quietly holding the whole library while the
     HUDs say F-mode is what this rebuild would otherwise leave standing.
     """
-    write_main_player_playlist_file(
+    write_playlist_file(
         playlist_file,
         build_main_playlist_paths(main_sources, scripted_filter, recent=recent,
                                   metadata_root=metadata_root),
@@ -465,7 +456,7 @@ def build_all_playlists(
         rng=rng,
         metadata_root=metadata_root,
     )
-    write_main_player_playlist_file(
+    write_playlist_file(
         build_playlist_file_path(state_dir, PLAYLIST_MAIN_PLAYER),
         build_main_playlist_paths(main_sources, False, rng=rng, metadata_root=metadata_root),
         metadata_root=metadata_root,

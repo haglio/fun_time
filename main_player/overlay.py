@@ -6,22 +6,8 @@ those decisions into textures.
 """
 from __future__ import annotations
 
-import numpy as np
 from player_core.modes import LoopState
-
-# The scrubber and its frame are the shared engine's now, so every player draws
-# the same one; the funscript heatmap below is the main player's own, built on that frame.
-from player_core.timeline import (
-    BAR_BORDER,
-    BORDER_W,
-    TIMELINE_HEIGHT,
-    bar_track_x,
-    bar_x,
-    draw_border,
-    draw_track_marks,
-    framed_track,
-    progress_bar_bgra,
-)
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, bar_x, progress_bar_bgra
 
 from .heatmap import build_heatmap
 
@@ -249,47 +235,20 @@ def loop_thumbnail_xys(
 
 # --- RGBA overlay rendering (BGRA arrays for mpv overlay_add) -----------------
 # mpv owns the window and hardware-decodes the video; the main player's overlays go on top
-# as BGRA bitmaps.  No pygame — these produce plain numpy arrays.  The scrubber
-# and its frame come from player_core.timeline; the heatmap fill below is the main player's.
-
-_HEATMAP_ALPHA = 178  # ~70%: present but unobtrusive under the video
-
-
-def heatmap_bgra(heatmap, position_ms, loop_bounds, width):
-    """The lower heatmap strip as a BGRA array, or None when there is nothing
-    to draw.  Uses the same inset, floated, bordered frame and full-height marks
-    as the plain bar, with the funscript heatmap as the track fill."""
-    strip_h = heatmap.height
-    if strip_h <= 0 or not heatmap.colors:
-        return None
-    bar, x0, x1, y0, y1 = framed_track(width, strip_h)
-    row = np.asarray(heatmap.colors, dtype=np.uint8)
-    bar[y0:y1, x0:x1, 0] = row[np.newaxis, :, 2]
-    bar[y0:y1, x0:x1, 1] = row[np.newaxis, :, 1]
-    bar[y0:y1, x0:x1, 2] = row[np.newaxis, :, 0]
-    bar[y0:y1, x0:x1, 3] = _HEATMAP_ALPHA
-    draw_border(bar, x0, x1, y0, y1, BORDER_W, BAR_BORDER)
-    draw_track_marks(
-        bar, x0=x0, x1=x1, y0=y0, y1=y1,
-        to_x=lambda ms: timeline_x(heatmap, ms, width),
-        position_ms=position_ms, loop_bounds=loop_bounds,
-        record_in_ms=heatmap.record_in_ms,
-    )
-    return bar
+# as BGRA bitmaps.  No pygame — these produce plain numpy arrays.
 
 
 def timeline_x(heatmap, ms, width):
-    x0, x1 = bar_track_x(width)
     start_ms, end_ms = heatmap.window
-    if heatmap.colors:
-        return x0 + time_to_x(ms, start_ms, end_ms, x1 - x0)
-    return bar_x(ms, end_ms, x0, x1)
+    return bar_x(ms - start_ms, end_ms - start_ms, *bar_track_x(width))
 
 
 def timeline_bgra(heatmap, position_ms, loop_bounds, width, *, record_in_ms=None):
-    strip = heatmap_bgra(heatmap, position_ms, loop_bounds, width)
-    if strip is not None:
-        return strip
-    _start_ms, duration_ms = heatmap.window
+    start_ms, end_ms = heatmap.window
     return progress_bar_bgra(
-        position_ms, duration_ms, loop_bounds, width, record_in_ms=record_in_ms)
+        position_ms - start_ms, end_ms - start_ms,
+        None if loop_bounds is None else (loop_bounds[0] - start_ms, loop_bounds[1] - start_ms),
+        width,
+        record_in_ms=None if record_in_ms is None else record_in_ms - start_ms,
+        height=timeline_height(heatmap), heatmap=heatmap.colors,
+    )

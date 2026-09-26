@@ -24,6 +24,7 @@ from player_core.console import ConsoleModel
 from player_core.console_hud import ConsoleHud
 from player_core.drive_readout import DriveHud
 from player_core.funscript import Funscript
+from player_core.funscript import load as load_funscript
 from player_core.modes import MainMode
 from player_core.playhead import (
     PlayheadHudPainter,
@@ -32,6 +33,7 @@ from player_core.playhead import (
     readout_xy,
     video_playhead,
 )
+from player_core.playlist import PlaylistItem
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import (
     CHIP_H,
@@ -142,8 +144,10 @@ from fun_time_vr.scene import (
 )
 from fun_time_vr.stacking import Stacking
 from fun_time_vr.video_thread import VideoThread
-from main_player.overlay import HeatmapStrip, heatmap_bgra
+from main_player.overlay import HeatmapStrip, timeline_bgra
 from main_player.play_points import play_points_filename
+from satellite.session import SatelliteSession
+from tests.satellite_fakes import FakeSatellitePlayer
 
 
 def test_the_player_is_told_its_manifest_and_nothing_else():
@@ -305,6 +309,22 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
     assert unit._audio_device == "Example Headset"
 
 
+def test_a_side_screen_hands_its_session_the_scripts_its_playlist_names(
+        tmp_path, faked_collaborators):
+    clip, script, unscripted = tmp_path / "v0.mp4", tmp_path / "v0.funscript", tmp_path / "v1.mp4"
+    vr = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
+                    audio_device="", compositor_layers=False)
+
+    with patch("fun_time_vr.player.read_playlist",
+               return_value=[PlaylistItem(clip, script), PlaylistItem(unscripted)]):
+        _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
+                       vr=vr, remembered={})
+
+    handed = faked_collaborators["SatelliteSession"].call_args
+    assert handed.args[0] == [clip, unscripted]
+    assert handed.kwargs["funscripts"] == {clip: script}
+
+
 @pytest.mark.parametrize("player", ["portrait", "landscape"])
 def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
         player, tmp_path, faked_collaborators):
@@ -464,7 +484,7 @@ def test_a_scripted_videos_scrubber_is_the_desktop_heatmap_strip_blown_up():
     desktop = HeatmapStrip()
     desktop.update(Path("v0.mp4"), _STROKES, 10_000.0, width)
     assert np.array_equal(player.bitmaps[_OV_SCRUBBER], scaled(
-        heatmap_bgra(desktop, 1_000.0, None, width), unit.target.width / width))
+        timeline_bgra(desktop, 1_000.0, None, width), unit.target.width / width))
 
 
 def test_the_main_player_paints_its_videos_script_into_its_scrubber(
@@ -488,7 +508,36 @@ def test_the_main_player_paints_its_videos_script_into_its_scrubber(
     desktop = HeatmapStrip()
     desktop.update(Path("v0.mp4"), _STROKES, 10_000.0, width)
     assert np.array_equal(unit.player.bitmaps[_OV_SCRUBBER], scaled(
-        heatmap_bgra(desktop, 1_000.0, None, width), 640 / width))
+        timeline_bgra(desktop, 1_000.0, None, width), 640 / width))
+
+
+def test_a_side_screen_paints_its_clips_script_into_its_scrubber(
+        tmp_path, faked_collaborators):
+    vr = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
+                    audio_device="", compositor_layers=False)
+    unit = _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
+                          vr=vr, remembered={})
+    clip = tmp_path / "v0.mp4"
+    clip.write_bytes(b"")
+    script = tmp_path / "v0.funscript"
+    script.write_text('{"actions": [{"at": 0, "pos": 0}, {"at": 700, "pos": 100}, '
+                      '{"at": 3000, "pos": 40}]}', encoding="utf-8")
+    unit.session = SatelliteSession(
+        [clip], player=FakeSatellitePlayer(duration_ms=10_000.0), funscripts={clip: script})
+    unit.player = _OverlayPlayer()
+    unit.player.frame_rate = 30.0
+    unit.player.push_still = lambda: None
+    unit.target = SimpleNamespace(ready=True, width=640, height=360, aspect=16 / 9)
+    unit.volume = SimpleNamespace(hud=VolumeHud())
+    unit._volume_painter = VolumeHudPainter()
+
+    unit.pump(threading.Event(), 0.0)
+
+    width, _height = unit.control_size()
+    desktop = HeatmapStrip()
+    desktop.update(clip, load_funscript(script), 10_000.0, width)
+    assert np.array_equal(unit.player.bitmaps[_OV_SCRUBBER], scaled(
+        timeline_bgra(desktop, 0.0, None, width), 640 / width))
 
 
 def test_no_furniture_lands_before_the_target_holds_pixels():
@@ -881,7 +930,7 @@ class TestThePanelUnderThePointer:
 
         desktop = HeatmapStrip()
         desktop.update(Path("feature.mp4"), _STROKES, 600_000.0, PANEL_WIDTH_PX)
-        strip = heatmap_bgra(desktop, 1_000.0, None, PANEL_WIDTH_PX)
+        strip = timeline_bgra(desktop, 1_000.0, None, PANEL_WIDTH_PX)
         x0, x1 = bar_track_x(PANEL_WIDTH_PX)
         assert np.array_equal(p.unit._row[-strip.shape[0]:, x0:x1],
                               strip[:, x0:x1][:, :, [2, 1, 0, 3]])

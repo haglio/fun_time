@@ -241,7 +241,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # that went, and the plain bar standing in for it is timeline_bgra's own branch.
 # 7786 the same day: what the headset's scrubber repaints on is the Scrubber's
 # state, held to the bar it draws by a test rather than a docstring.
-MAX_PROSE_LINES = 7786
+# 7772 the same day: the heatmap's fill is the shared scrubber's, so the main
+# player's copy of that frame and its paragraphs went, and the side screens stopped
+# being described as unscripted now that they color their bars too.
+MAX_PROSE_LINES = 7772
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

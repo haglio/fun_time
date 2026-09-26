@@ -8,7 +8,6 @@ from pathlib import Path
 
 from player_core.file_channel import append_command
 from player_core.player_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST, play_file
-from player_core.playlist import PlaylistItem
 
 from satellite.versions import step_version
 
@@ -29,7 +28,7 @@ from .media_metadata import (
     widened_seed_items,
 )
 from .media_renditions import renditions
-from .modes import collect_video_files, write_playlist_file
+from .modes import collect_video_files, scripted_item, write_playlist_file
 from .players import Player
 from .runtime_flow import satellite_browse_paths
 from .satellite_control import read_satellite_status
@@ -68,7 +67,7 @@ def play_video(config: BridgeConfig, player: Player, path: str) -> None:
     ``PLAY_FILE`` is the native player's jump-or-splice: it jumps to the clip if
     it is already queued, else splices it in after the current clip and plays it.
     """
-    send_satellite(config, player, play_file(PlaylistItem(Path(path))))
+    send_satellite(config, player, play_file(scripted_item(path, config.regen_metadata_root)))
 
 
 def cancel_lock(player: Player, state: BridgeState, config: BridgeConfig) -> BridgeState:
@@ -316,7 +315,8 @@ def group_loop(
     # survives the reload, so the clip on screen is never restarted and only what
     # comes up next becomes the group, which then cycles by auto-advance.
     items = [current] + [m for m in items if normalize_path_key(m) != normalize_path_key(current)]
-    write_playlist_file(config.satellite(player).playlist_file, items)
+    write_playlist_file(config.satellite(player).playlist_file, items,
+                        metadata_root=config.regen_metadata_root)
     send_satellite(config, player, RELOAD_PLAYLIST)
     message = f"Loop {Player(player).label}: {len(items)} {axis}s"
     logger.info(message)
@@ -440,7 +440,8 @@ def no_loop(
     # browse is only reshaped when it actually has clips; otherwise the loop's
     # queue keeps playing and just the flag clears.
     if browse:
-        write_playlist_file(config.satellite(player).playlist_file, _browse_after(browse, current))
+        write_playlist_file(config.satellite(player).playlist_file, _browse_after(browse, current),
+                            metadata_root=config.regen_metadata_root)
         send_satellite(config, player, RELOAD_PLAYLIST)
     # Only the loop itself goes.  The map anchor and any widened row stay, so the HUD
     # keeps hanging exactly where it was and switching a loop off takes away the lit
