@@ -69,6 +69,7 @@ class DeviceArbiter:
         # re-asserts the correct driver.
         self._driving: tuple[Player, bool] | None = None
         self._mode: str | None = None
+        self._have_had_the_device = {Player.MAIN}
         self._statuses: dict[Player, ScriptedStatus] = {}
         # When the park-touch hold releases the pending hand-to-script flip;
         # None outside one — see _holding_for_park_touch.
@@ -92,7 +93,7 @@ class DeviceArbiter:
         and not ``funscript_resting``); the hand drives the unscripted stretches.
         Each handoff sets both levers: the holder's T-Code on + the hand paused
         for the funscript, or the holder's T-Code off + the hand resumed, and
-        every other player's T-Code off.
+        every other player that has had the device told to keep off it.
         Edge-triggered, so it fires once per handoff; paused, in a new mode, or
         where the holder is not arbitrated, the remembered state is cleared so
         the next arbitration re-asserts.
@@ -145,15 +146,14 @@ class DeviceArbiter:
             append_command(self._cmd_file(holder), TCODE_ON if funscript_driving else TCODE_OFF),
             append_command(self.genau_cmd_file, "PAUSE" if funscript_driving else "RESUME"),
             *(append_command(self._cmd_file(other), TCODE_OFF)
-              for other in self._players() if other is not holder),
+              for other in self._have_had_the_device if other is not holder),
         ]
         if all(queued):
             self._driving = (holder, funscript_driving)
+            if funscript_driving:
+                self._have_had_the_device.add(holder)
             self._asserted_at = now
             self._park_touch_deadline = None
-
-    def _players(self) -> tuple[Player, ...]:
-        return (Player.MAIN, *self._satellites)
 
     def _cmd_file(self, player: Player) -> Path:
         if player is Player.MAIN:
@@ -183,7 +183,8 @@ class DeviceArbiter:
             genau = ("PAUSE" if paused else "RESUME", TCODE_OFF, HOLD_VERB[control])
         else:
             genau = ("PAUSE", PARK_CMD)
-        queued = [append_command(self._cmd_file(player), TCODE_OFF) for player in self._players()]
+        queued = [append_command(self._cmd_file(player), TCODE_OFF)
+                  for player in self._have_had_the_device]
         queued += [append_command(self.genau_cmd_file, verb) for verb in genau]
         if all(queued):
             self._carried_out, self._asserted_at = (control, paused), now
