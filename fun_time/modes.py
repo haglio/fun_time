@@ -414,7 +414,8 @@ def build_satellite_playlists(
 
 
 def build_main_playlist(playlist_file: Path, main_sources: str, *, scripted_filter: bool,
-                        recent: bool = False, metadata_root: Path | None = None) -> None:
+                        recent: bool = False, shapes: VideoShapes | None = None,
+                        metadata_root: Path | None = None) -> None:
     """Build and write the main player's playlist alone.
 
     The one-player counterpart to :func:`build_all_playlists`, for a startup
@@ -428,7 +429,7 @@ def build_main_playlist(playlist_file: Path, main_sources: str, *, scripted_filt
     """
     write_playlist_file(
         playlist_file,
-        build_main_playlist_paths(main_sources, scripted_filter, recent=recent,
+        build_main_playlist_paths(main_sources, scripted_filter, recent=recent, shapes=shapes,
                                   metadata_root=metadata_root),
         metadata_root=metadata_root)
 
