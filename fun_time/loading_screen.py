@@ -32,7 +32,7 @@ def main() -> None:
     # Tk is the screen's own; the launch imports this module for the title.
     from .overlay_window import OverlayWindow  # noqa: PLC0415
 
-    OverlayWindow(
+    OverlayWindow.over_every_monitor(
         Path(sys.argv[1]),
         title=WINDOW_TITLE,
         status=STARTUP_PHASES[0].message,

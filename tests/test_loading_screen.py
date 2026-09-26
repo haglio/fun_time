@@ -17,7 +17,7 @@ class TestWhatTheScreenOpensOn:
         with patch("fun_time.overlay_window.OverlayWindow") as window:
             main()
 
-        assert window.call_args.kwargs["status"] == STARTUP_PHASES[0].message
+        assert window.over_every_monitor.call_args.kwargs["status"] == STARTUP_PHASES[0].message
 
 
 class TestWindowTitle:

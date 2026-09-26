@@ -39,7 +39,7 @@ class TestMain:
             built.append(FakeOverlay(*args, **kwargs))
             return built[-1]
 
-        monkeypatch.setattr(closing_screen, "OverlayWindow", build)
+        monkeypatch.setattr(closing_screen.OverlayWindow, "over_every_monitor", build)
         monkeypatch.setattr(sys, "argv", ["closing_screen", str(progress_file)])
 
         closing_screen.main()
