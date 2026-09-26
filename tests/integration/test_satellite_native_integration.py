@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import glob
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -32,6 +31,8 @@ from satellite.contract import SatelliteChannels, WindowPlacement
 
 from .integration_support import (
     checkout_project_dirs,
+    end_satellite,
+    identify_child,
     published_status,
     real_config_path,
     sample_library_clips,
@@ -91,6 +92,7 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
         # importing an unlanded player_core name dies at import.
         project_dirs=checkout_project_dirs(),
     )
+    satellite_process = identify_child(pid)
     try:
         first = _wait(
             lambda: (lambda s: s.video if s.duration_ms > 0 and s.position_ms > 0 else None)(
@@ -118,7 +120,7 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
     finally:
         append_command(cmd, QUIT)
         time.sleep(1.0)
-        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+        end_satellite(satellite_process, tmp_path / "portrait_satellite.log")
 
 
 def test_another_sessions_startup_reap_leaves_this_satellite_alone(tmp_path):
@@ -156,6 +158,7 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone(tmp_path):
         # importing an unlanded player_core name dies at import.
         project_dirs=checkout_project_dirs(),
     )
+    satellite_process = identify_child(pid)
     try:
         _wait(lambda: read_satellite_status(status).position_ms > 0,
               timeout=30, desc="the satellite to start playing")
@@ -175,7 +178,7 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone(tmp_path):
         _wait(lambda: get_process_creation_time(pid) is None,
               timeout=10, desc="our own reap to clear a satellite stranded on our files")
     finally:
-        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+        end_satellite(satellite_process, tmp_path / "portrait_satellite.log")
 
 
 def test_the_satellite_composites_the_published_lock_hud(tmp_path):
@@ -234,6 +237,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
         # importing an unlanded player_core name dies at import.
         project_dirs=checkout_project_dirs(),
     )
+    satellite_process = identify_child(pid)
     try:
         _wait(
             lambda: read_satellite_status(status).position_ms > 0,
@@ -250,7 +254,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
     finally:
         append_command(cmd, QUIT)
         time.sleep(1.0)
-        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+        end_satellite(satellite_process, tmp_path / "portrait_satellite.log")
 
 
 def _pictures(folder: Path, count: int) -> list[Path]:
@@ -286,6 +290,7 @@ def test_a_satellite_holds_a_picture_for_the_pace_it_is_sent_and_under_a_lock(tm
         log_file=tmp_path / "portrait_satellite.log",
         project_dirs=checkout_project_dirs(),
     )
+    satellite_process = identify_child(pid)
     try:
         first = _wait(
             lambda: (lambda s: s.video if s.picture else None)(read_satellite_status(status)),
@@ -310,4 +315,4 @@ def test_a_satellite_holds_a_picture_for_the_pace_it_is_sent_and_under_a_lock(tm
     finally:
         append_command(cmd, QUIT)
         time.sleep(1.0)
-        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+        end_satellite(satellite_process, tmp_path / "portrait_satellite.log")

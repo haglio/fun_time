@@ -33,7 +33,7 @@ from fun_time.player_status import (
     read_main_player_status,
 )
 from fun_time.process_identity import NAMER
-from fun_time.win32_process import get_process_image_name
+from fun_time.win32_process import get_process_creation_time, get_process_image_name
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
     kill_process_tree,
@@ -844,6 +844,30 @@ def clear_run_roots(*, budget_s: float = RELEASE_BUDGET_S, sleep=time.sleep) -> 
         raise RootsLeftBehind(
             "this run's temp roots are still in the system temp dir:\n"
             + "\n".join(f"{root}: {refusal}" for root, refusal in refused))
+
+
+def identify_child(pid: int) -> ChildProcess:
+    return ChildProcess(pid=pid, created_at=get_process_creation_time(pid) or 0)
+
+
+def end_satellite(satellite: ChildProcess, log: Path, *, budget_s: float = RELEASE_BUDGET_S,
+                  sleep=time.sleep) -> None:
+    kill_recorded_child(satellite)
+    deadline = time.monotonic() + budget_s
+    while not _let_go(log):
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"the satellite (pid {satellite.pid}) still holds {log} "
+                f"{budget_s:g}s after its process tree was ended")
+        sleep(0.5)
+
+
+def _let_go(log: Path) -> bool:
+    try:
+        log.unlink(missing_ok=True)
+    except PermissionError:
+        return False
+    return True
 
 
 def _remove_each(roots) -> list[tuple[Path, OSError]]:

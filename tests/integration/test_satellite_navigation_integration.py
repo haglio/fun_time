@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import glob
 import os
-import subprocess
 import sys
 import time
 from contextlib import contextmanager
@@ -41,6 +40,8 @@ from satellite.contract import SatelliteChannels, WindowPlacement
 
 from .integration_support import (
     checkout_project_dirs,
+    end_satellite,
+    identify_child,
     published_status,
     real_config_path,
     sample_library_clips,
@@ -148,6 +149,7 @@ def launched(tmp_path: Path, videos: list[str], *, width: int, height: int):
         # This checkout's siblings, as a session launches them.
         project_dirs=checkout_project_dirs(),
     )
+    satellite_process = identify_child(pid)
     sat = _Satellite(pid, cmd, paused, status, playlist, hud, log)
     try:
         _wait(
@@ -159,7 +161,7 @@ def launched(tmp_path: Path, videos: list[str], *, width: int, height: int):
     finally:
         append_command(cmd, QUIT)
         time.sleep(1.0)
-        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+        end_satellite(satellite_process, log)
 
 
 @pytest.fixture
