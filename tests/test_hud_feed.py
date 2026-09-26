@@ -586,6 +586,18 @@ class TestTheOsr2SectionIsOnThePlayerThatHasTheOsr2:
         assert "main_take_osr2" in _console_commands(tmp_path)
         assert _osr2_commands(_published(tmp_path, "landscape")) == ["landscape_take_osr2"]
 
+    def test_a_side_player_whose_clip_is_scripted_says_its_funscript_has_the_osr2(self, tmp_path):
+        feed = make_feed(tmp_path)
+        (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
+        (tmp_path / "portrait_status.txt").write_text(
+            "video=C:/v/p.mp4\nhas_funscript=1\nfunscript_resting=0\n", encoding="utf-8")
+
+        with patch("app_support.file_channel.time") as mock_time:
+            mock_time.time.return_value = 110.0
+            feed.publish(BridgeState(osr2_player=2))
+
+        assert _published(tmp_path, "portrait").osr2 == Osr2State.FUNSCRIPT
+
     def test_a_side_the_hosted_app_has_carries_it_as_well(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
 

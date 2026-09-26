@@ -18,7 +18,8 @@ from player_core.console import (
 from player_core.file_channel import append_command as real_append
 from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
-from fun_time.device_arbiter import REASSERT_S, DeviceArbiter
+from fun_time.device_arbiter import REASSERT_S, TCODE_OFF, TCODE_ON, DeviceArbiter, SatelliteLine
+from fun_time.players import Player
 from tests.role_window_fakes import FakeClock
 
 
@@ -27,8 +28,27 @@ def make_driver(tmp_path: Path, clock=None) -> DeviceArbiter:
         main_player_status_file=tmp_path / "main_player_status.txt",
         main_player_cmd_file=tmp_path / "main_player_cmd.txt",
         genau_cmd_file=tmp_path / "rh_cmd.txt",
+        satellites={player: SatelliteLine(status_file=tmp_path / f"{player.label}_status.txt",
+                                          cmd_file=tmp_path / f"{player.label}_cmd.txt")
+                    for player in Player.SATELLITES},
         clock=clock or FakeClock(),
     )
+
+
+def publish_side(tmp_path: Path, player: Player, *, has_funscript=True, resting=False,
+                 position_ms=10, touch_ms=None) -> None:
+    (tmp_path / f"{player.label}_status.txt").write_text(
+        f"video=C:\\clip.mp4\nposition_ms={position_ms}\n"
+        f"has_funscript={1 if has_funscript else 0}\n"
+        f"funscript_resting={1 if resting else 0}\n"
+        f"handoff_touch_ms={'' if touch_ms is None else touch_ms}\n",
+        encoding="utf-8",
+    )
+
+
+def side(tmp_path: Path, player: Player) -> list[str]:
+    path = tmp_path / f"{player.label}_cmd.txt"
+    return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
 
 
 def publish_main_player(driver: DeviceArbiter, *, has_funscript=True, resting=False,
@@ -287,25 +307,6 @@ class TestVideoModeFunscriptHandoff:
         assert genau(driver) == "RESUME"
         assert main_player(driver) == "SET_TCODE_ENABLED 0"
 
-    def test_a_scripted_stretch_is_the_robot_hands_while_a_side_player_has_the_osr2(self, tmp_path):
-        driver = make_driver(tmp_path)
-        publish_main_player(driver, has_funscript=True, resting=False)
-
-        driver.sync("video", paused=False, main_has_osr2=False)
-
-        assert genau(driver) == "RESUME"
-        assert main_player(driver) == "SET_TCODE_ENABLED 0"
-
-    def test_the_funscript_drives_again_once_the_main_player_takes_it_back(self, tmp_path):
-        driver = make_driver(tmp_path)
-        publish_main_player(driver, has_funscript=True, resting=False)
-        driver.sync("video", paused=False, main_has_osr2=False)
-
-        driver.sync("video", paused=False)
-
-        assert genau(driver).splitlines()[-1] == "PAUSE"
-        assert main_player(driver).splitlines()[-1] == "SET_TCODE_ENABLED 1"
-
     def test_commands_written_only_on_change(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_player(driver, has_funscript=True, resting=False)
@@ -401,3 +402,86 @@ class TestVideoModeFunscriptHandoff:
         driver.sync("video", paused=False)
 
         assert genau(driver) == "PAUSE"
+
+
+class TestASidePlayerThatHasTheOsr2:
+    def test_drives_it_from_its_own_clips_funscript(self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_main_player(driver, has_funscript=True, resting=False)
+        publish_side(tmp_path, Player.PORTRAIT)
+
+        driver.sync("video", paused=False, holder=Player.PORTRAIT)
+
+        assert side(tmp_path, Player.PORTRAIT) == [TCODE_ON]
+        assert genau(driver) == "PAUSE"
+        assert main_player(driver) == TCODE_OFF
+
+    def test_leaves_the_stretches_its_clip_does_not_script_to_the_robot_hand(self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_main_player(driver, has_funscript=True, resting=False)
+        publish_side(tmp_path, Player.PORTRAIT, resting=True)
+
+        driver.sync("video", paused=False, holder=Player.PORTRAIT)
+
+        assert side(tmp_path, Player.PORTRAIT) == [TCODE_OFF]
+        assert genau(driver) == "RESUME"
+        assert main_player(driver) == TCODE_OFF
+
+    def test_drives_it_in_genau_mode_as_well(self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_side(tmp_path, Player.LANDSCAPE)
+
+        driver.sync("genau", paused=False, holder=Player.LANDSCAPE)
+
+        assert side(tmp_path, Player.LANDSCAPE) == [TCODE_ON]
+        assert genau(driver) == "PAUSE"
+
+    def test_the_other_side_player_sends_nothing(self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_side(tmp_path, Player.PORTRAIT)
+        publish_side(tmp_path, Player.LANDSCAPE)
+
+        driver.sync("video", paused=False, holder=Player.PORTRAIT)
+
+        assert side(tmp_path, Player.LANDSCAPE) == [TCODE_OFF]
+
+    def test_the_player_it_took_the_osr2_from_stops_sending(self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_side(tmp_path, Player.PORTRAIT)
+        publish_side(tmp_path, Player.LANDSCAPE)
+        driver.sync("video", paused=False, holder=Player.PORTRAIT)
+
+        driver.sync("video", paused=False, holder=Player.LANDSCAPE)
+
+        assert side(tmp_path, Player.PORTRAIT)[-1] == TCODE_OFF
+        assert side(tmp_path, Player.LANDSCAPE)[-1] == TCODE_ON
+
+    def test_the_main_player_taking_it_back_in_genau_mode_quiets_the_side_player(self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_side(tmp_path, Player.PORTRAIT)
+        driver.sync("genau", paused=False, holder=Player.PORTRAIT)
+
+        driver.sync("genau", paused=False, holder=Player.MAIN)
+
+        assert side(tmp_path, Player.PORTRAIT)[-1] == TCODE_OFF
+
+    def test_a_hold_switches_every_player_off(self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_side(tmp_path, Player.PORTRAIT)
+
+        driver.sync("video", paused=False, control=OSR2_PARKED, holder=Player.PORTRAIT)
+
+        assert side(tmp_path, Player.PORTRAIT) == [TCODE_OFF]
+        assert side(tmp_path, Player.LANDSCAPE) == [TCODE_OFF]
+        assert main_player(driver) == TCODE_OFF
+
+    def test_the_flip_to_its_script_waits_for_the_touch_its_trace_chose(self, tmp_path):
+        clock = FakeClock()
+        driver = make_driver(tmp_path, clock=clock)
+        publish_side(tmp_path, Player.PORTRAIT, resting=True, position_ms=1_000)
+        driver.sync("video", paused=False, holder=Player.PORTRAIT)
+
+        publish_side(tmp_path, Player.PORTRAIT, resting=False, position_ms=1_200, touch_ms=1_600)
+        driver.sync("video", paused=False, holder=Player.PORTRAIT)
+
+        assert side(tmp_path, Player.PORTRAIT) == [TCODE_OFF]

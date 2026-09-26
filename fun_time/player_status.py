@@ -15,7 +15,26 @@ from player_core.status import PlayerStatus, parse_status
 
 
 @dataclass(frozen=True)
-class MainPlayerStatus(PlayerStatus):
+class ScriptedStatus(PlayerStatus):
+    has_funscript: bool = False
+    funscript_resting: bool = False
+    handoff_touch_ms: int | None = None
+
+    @property
+    def funscript_driving(self) -> bool:
+        return self.has_funscript and not self.funscript_resting
+
+
+def scripted_fields(values: dict[str, str]) -> dict:
+    return {
+        "has_funscript": _status_bool(values, "has_funscript"),
+        "funscript_resting": _status_bool(values, "funscript_resting"),
+        "handoff_touch_ms": _status_touch(values),
+    }
+
+
+@dataclass(frozen=True)
+class MainPlayerStatus(ScriptedStatus):
     """Snapshot of what the main player is playing, parsed from its status file.
 
     The family's seven and then the main player's own; only the fields with
@@ -34,18 +53,11 @@ class MainPlayerStatus(PlayerStatus):
 
     locked: bool = True
     loop_state: LoopState = LoopState.NORMAL
-    has_funscript: bool = False
-    funscript_resting: bool = False
     # The A/B range the main player is looping, as it published it — 0/0 when nothing is.
     # Read through :attr:`loop_bounds` rather than directly; the pair only means
     # a loop alongside ``loop_state``.
     loop_in_ms: int = 0
     loop_out_ms: int = 0
-    # The touch-down the main player's trace chose for the handoff boundary in play, in
-    # media ms — the arbiter ends Genau's turn there, so the device is set down
-    # exactly where the picture drew the blue ending.  None when there is no
-    # chosen touch (a raised floor takes the ramp and flips at once).
-    handoff_touch_ms: int | None = None
     # The video's place in the library, as only the main player knows it; the
     # console's buttons for these are lit from here, dim from a player that
     # says nothing.
@@ -55,14 +67,6 @@ class MainPlayerStatus(PlayerStatus):
     has_other_versions: bool = False
     jump_to: str = ""
     portrait: bool | None = None
-
-    @property
-    def funscript_driving(self) -> bool:
-        """True when the funscript is actively driving the OSR2 — scripted and
-        not resting.  The moment-to-moment handoff signal: whoever this points
-        to (the main player's funscript, else the Robot Hand) also takes the unqualified speed
-        nudge, since that is the engine a nudge can actually move."""
-        return self.has_funscript and not self.funscript_resting
 
     @property
     def loop_bounds(self) -> tuple[int, int] | None:
@@ -101,11 +105,9 @@ def read_main_player_status(path: Path, *, fallback: MainPlayerStatus | None = N
         return MainPlayerStatus(
             **asdict(parse_status(values, default=PlayerStatus(locked=True))),
             loop_state=read_mode(LoopState, values.get("loop_state", "").strip(), LoopState.NORMAL),
-            has_funscript=_status_bool(values, "has_funscript"),
-            funscript_resting=_status_bool(values, "funscript_resting"),
+            **scripted_fields(values),
             loop_in_ms=int(values.get("loop_in_ms", "0").strip() or 0),
             loop_out_ms=int(values.get("loop_out_ms", "0").strip() or 0),
-            handoff_touch_ms=_status_touch(values),
             length_mode=read_mode(LengthMode, values.get("length_mode", "").strip(), None),
             compilation=values.get("compilation", "").strip(),
             has_compilation=_status_bool(values, "has_compilation"),
@@ -122,8 +124,8 @@ def _status_flag_or_none(values: dict, key: str) -> bool | None:
 
 
 def _status_touch(values: dict) -> int | None:
-    """The touch-down the main player's trace chose for the boundary in play, or None —
-    absent on a raised floor, an unlatched forecast, or an older main player."""
+    """The touch-down the player's trace chose for the boundary in play, or None —
+    absent on a raised floor, an unlatched forecast, or an older player."""
     raw = values.get("handoff_touch_ms", "").strip()
     return int(raw) if raw.isdigit() else None
 

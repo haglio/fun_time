@@ -727,8 +727,13 @@ class _SatelliteUnit(_VideoUnit):
             start_paused=read_paused_state(self.paused_file, logger=logger),
             play_points=PlayPoints(channels.play_points),
             funscripts=funscripts_of(items),
+            tcode=FunscriptTCodeDriver(_SaysWhenItFirstMoves(
+                UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), player)),
         )
-        self._status_writer = StatusWriter(channels.status, satellite_status_fields)
+        self.drive_gate = DriveGate(self.session)
+        self._status_writer = StatusWriter(
+            channels.status,
+            lambda session: satellite_status_fields(session, self.drive_gate.handoff_touch()))
         self._controls = SatelliteControls(
             session=self.session, reload_playlist=self._reload_playlist)
         self.hud_surface = HudSurface()
@@ -737,6 +742,7 @@ class _SatelliteUnit(_VideoUnit):
             command_file=channels.dashboard_cmd,
             player=self.hud_surface,
             drive_file=channels.drive,
+            drive_gate=self.drive_gate,
         )
         self.hud_texture = FrameTexture()
         self.hud_screen = _HangingScreen(self.screen.placement)

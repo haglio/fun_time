@@ -14,6 +14,7 @@ from player_core.player_verbs import (
     RELOAD_PLAYLIST,
     SET_PACE,
     SET_SPEED,
+    SET_TCODE_ENABLED,
     SPEED_DOWN,
     SPEED_UP,
     TRASH,
@@ -22,6 +23,7 @@ from player_core.player_verbs import (
 from satellite.runtime import VERBS, SatelliteControls, apply_command
 from satellite.versions import NEXT_VERSION, PREV_VERSION, step_version
 from tests.satellite_fakes import make_satellite_session
+from tests.tcode_fakes import FakeTCode
 
 
 def _never_reloads() -> None:
@@ -166,6 +168,25 @@ class TestApplyCommand:
         assert apply_command(SET_SPEED, controls) is False
         assert controls.session.speed == 1.0
 
+    def test_the_room_switches_its_line_to_the_osr2_on_and_off(self, tmp_path):
+        tcode = FakeTCode()
+        session, _player = make_satellite_session(
+            tmp_path, funscripts={0: _one_stroke(tmp_path / "v0.funscript")}, tcode=tcode)
+        controls = SatelliteControls(session, reload_playlist=_never_reloads)
+
+        assert apply_command(f"{SET_TCODE_ENABLED} 1", controls) is True
+        session.advance()
+        assert apply_command(f"{SET_TCODE_ENABLED} 0", controls) is True
+        session.advance()
+
+        assert len(tcode.updates) == 1
+
+
+def _one_stroke(path):
+    path.write_text('{"actions": [{"at": 0, "pos": 0}, {"at": 500, "pos": 90}]}',
+                    encoding="utf-8")
+    return path
+
 
 def test_every_verb_the_satellite_answers_is_the_familys_or_its_own():
     """Everything a satellite answers is a verb any player may be sent, bar the
@@ -176,7 +197,7 @@ def test_every_verb_the_satellite_answers_is_the_familys_or_its_own():
     its_own = {NEXT_VERSION, PREV_VERSION}
     assert set(VERBS) == its_own | {
         NEXT, PREV, LOCK_ON, LOCK_OFF, TRASH, SPEED_UP, SPEED_DOWN, SET_SPEED,
-        PLAY_FILE, RELOAD_PLAYLIST, SET_PACE, QUIT,
+        PLAY_FILE, RELOAD_PLAYLIST, SET_PACE, QUIT, SET_TCODE_ENABLED,
     }
     assert all(getattr(player_verbs, verb) == verb for verb in set(VERBS) - its_own)
     assert not [verb for verb in its_own if hasattr(player_verbs, verb)]

@@ -27,9 +27,9 @@ def player_with_the_osr2(state) -> Player:
 
 
 def take_osr2_button(player: Player) -> Button:
-    driver = "" if player is Player.MAIN else ", and the Robot Hand drives it"
     return Button(take_osr2_command(player), "OSR2",
-                  f"Take over the OSR2 — its controls move to this player{driver}",
+                  "Take over the OSR2 — it follows this player's funscripts, "
+                  "and its controls move here",
                   width=BUTTON_WORD_W)
 
 

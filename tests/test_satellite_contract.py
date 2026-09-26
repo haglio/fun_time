@@ -10,7 +10,7 @@ record it started as, which no spelling can survive being wrong on one side of.
 """
 from __future__ import annotations
 
-from dataclasses import fields
+from dataclasses import MISSING, fields, replace
 from pathlib import Path
 
 from fun_time.manifest import CommandFiles
@@ -31,6 +31,8 @@ _FILLED = SatelliteChannels(
     hud=Path("state/portrait_hud.json"),
     dashboard_cmd=Path("state/dashboard_cmd.txt"),
     drive=Path("state/genau_drive.txt"),
+    tcode_host="127.0.0.1",
+    tcode_port=50557,
 )
 
 _PLACED = WindowPlacement(x=2560, y=0, width=1440, height=2500,
@@ -108,7 +110,8 @@ class TestReadOutOfTheManifest:
     per-side lookup."""
 
     def _commands(self) -> CommandFiles:
-        spelled = {name: f"state/{name}" for name in CommandFiles.__dataclass_fields__}
+        spelled = {name: f"state/{name}" for name, field in CommandFiles.__dataclass_fields__.items()
+                   if field.default is MISSING}
         return CommandFiles(**spelled)
 
     def test_a_side_s_files_are_read_by_side_rather_than_spelled_out(self):
@@ -139,6 +142,13 @@ class TestReadOutOfTheManifest:
         landscape = SatelliteChannels.from_manifest(commands, "landscape")
 
         assert portrait.dashboard_cmd == landscape.dashboard_cmd
+
+    def test_each_side_sends_its_funscript_to_the_main_players_osr2_inlet(self):
+        commands = replace(self._commands(), tcode_udp_host="127.0.0.2", tcode_udp_port="50599")
+
+        portrait = SatelliteChannels.from_manifest(commands, "portrait")
+
+        assert (portrait.tcode_host, portrait.tcode_port) == ("127.0.0.2", 50599)
 
     def test_the_motion_each_side_draws_is_the_one_genau_publishes(self):
         commands = self._commands()

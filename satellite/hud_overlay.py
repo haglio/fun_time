@@ -17,6 +17,7 @@ from pathlib import Path
 
 from player_core.drive_readout import DriveHud, read_drive
 from player_core.file_channel import append_command
+from player_core.modes import Osr2State
 from player_core.satellite_hud import (
     MARGIN,
     HudClicks,
@@ -48,9 +49,12 @@ class HudOverlay:
         overlay_id: int = HUD_OVERLAY_ID,
         clock=time.monotonic,
         drive_file: Path | None = None,
+        drive_gate=None,
     ) -> None:
         self._hud_file = Path(hud_file)
         self._drive_file = None if drive_file is None else Path(drive_file)
+        self._drive_gate = drive_gate
+        self._published_drive: DriveHud | None = None
         self._drive: DriveHud | None = None
         self._command_file = Path(command_file)
         self._player = player
@@ -188,7 +192,11 @@ class HudOverlay:
     def _motion(self) -> DriveHud | None:
         if self._drive_file is None or self._model is None or not self._model.osr2:
             return None
-        return read_drive(self._drive_file) or self._drive
+        self._published_drive = read_drive(self._drive_file) or self._published_drive
+        if self._drive_gate is None:
+            return self._published_drive
+        return self._drive_gate.readout(
+            self._published_drive, device_drives_itself=self._model.osr2 == Osr2State.AUTO)
 
     def _draw(self) -> None:
         if self._model is None or self._renderer is None:
@@ -196,7 +204,8 @@ class HudOverlay:
             self.close()
             return
         rendered = self._renderer.render(
-            replace(self._model, playback_speed=self._playback_speed, drive=self._drive),
+            replace(self._model, playback_speed=self._playback_speed, drive=self._drive,
+                    drive_composed=self._drive_gate is not None),
             video=self._video, hover_loop=self._hover_loop,
             hover_tip=self._hover_tip, hover_pos=self._hover_pos,
         )

@@ -19,7 +19,7 @@ from .console_buttons import aim_row, osr2_controls
 from .crown import Crown
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SatelliteInputs, build_panels
-from .main_player_console import MainSlotInputs, console_model, osr2_state
+from .main_player_console import MainSlotInputs, console_model, device_word
 from .media_renditions import renditions
 from .modes import is_favorite_path, read_favs_content, source_roots
 from .osr2_section import DeviceBlock, player_with_the_osr2
@@ -79,16 +79,17 @@ class HudFeed:
                   if self.config.broker_heartbeat_file else False)
         osr2_mode = self.osr2_mode()
         with_the_osr2 = player_with_the_osr2(state)
-        section = DeviceBlock(
-            rows=(aim_row(cruise=genau.cruise_active, learned=genau.learned_active,
-                          shape=genau.shape, control=state.osr2_control),),
-            osr2=osr2_state(main_mode=state.main_mode, osr2_mode=osr2_mode,
-                            funscript_driving=False),
-            control=state.osr2_control,
-            controls=osr2_controls(broker=broker))
 
         def device(player: Player) -> DeviceBlock:
-            return section if player is with_the_osr2 else DeviceBlock.offered_to(player)
+            if player is not with_the_osr2:
+                return DeviceBlock.offered_to(player)
+            scripted = read_satellite_status(self.config.satellite(player).status_file)
+            return DeviceBlock(
+                rows=(aim_row(cruise=genau.cruise_active, learned=genau.learned_active,
+                              shape=genau.shape, control=state.osr2_control),),
+                osr2=device_word(osr2_mode, scripted.funscript_driving),
+                control=state.osr2_control,
+                controls=osr2_controls(broker=broker))
 
         def satellite(name: str, player: Player, *, sources: str, status_file: Path) -> SatelliteInputs:
             current = self._satellite_clip(name, status_file)

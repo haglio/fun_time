@@ -1,7 +1,7 @@
 """Run loop for a native satellite player: an mpv window fun_time drives.
 
 The satellite half of the main player's app shell, stripped to essentials — no
-tcode and no loop recording.  mpv renders the video into a
+loop recording.  mpv renders the video into a
 pygame/SDL window; fun_time positions that window by HWND after launch and drives
 playback through the command + paused files, reading back the status file.  Three
 things are composited on top: the lock HUD from the panel fun_time publishes, the
@@ -23,6 +23,7 @@ from pathlib import Path
 import pygame
 from app_support.logging_utils import install_exception_logging
 from app_support.win32 import set_app_user_model_id
+from player_core.drive_gate import DriveGate
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
 from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
@@ -30,6 +31,8 @@ from player_core.playlist import PlaylistItem
 from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.session_quit import quit_gesture
 from player_core.status import StatusWriter
+from player_core.tcode import UdpTCodeSink
+from player_core.tcode_driver import FunscriptTCodeDriver
 from player_core.timeline import TIMELINE_HEIGHT
 from player_core.volume import VolumeHudPainter, chip_xy
 
@@ -163,7 +166,9 @@ def _build_runtime(args, wid: int, playlist: list[PlaylistItem]) -> _Runtime:
     session = SatelliteSession([item.path for item in playlist], player=player,
                                start_paused=start_paused,
                                play_points=PlayPoints(channels.play_points),
-                               funscripts=funscripts_of(playlist))
+                               funscripts=funscripts_of(playlist),
+                               tcode=_osr2_line(channels))
+    drive_gate = DriveGate(session)
     stop_event = threading.Event()
 
     def _reload_playlist() -> None:
@@ -175,7 +180,7 @@ def _build_runtime(args, wid: int, playlist: list[PlaylistItem]) -> _Runtime:
     hud = (
         HudOverlay(
             hud_file=channels.hud, command_file=channels.dashboard_cmd, player=player,
-            drive_file=channels.drive,
+            drive_file=channels.drive, drive_gate=drive_gate,
         )
         if channels.hud and channels.dashboard_cmd
         else None
@@ -195,12 +200,20 @@ def _build_runtime(args, wid: int, playlist: list[PlaylistItem]) -> _Runtime:
         paused_file=paused_file,
         command_file=channels.command,
         dashboard_cmd_file=channels.dashboard_cmd,
-        status_writer=(StatusWriter(channels.status, status_fields)
+        status_writer=(StatusWriter(
+            channels.status,
+            lambda session: status_fields(session, drive_gate.handoff_touch()))
                        if channels.status else None),
         hud=hud,
         timeline=HeatmapStrip(),
         tiles=args.tile,
     )
+
+
+def _osr2_line(channels: SatelliteChannels) -> FunscriptTCodeDriver | None:
+    if not channels.tcode_host or not channels.tcode_port:
+        return None
+    return FunscriptTCodeDriver(UdpTCodeSink(channels.tcode_host, channels.tcode_port))
 
 
 def _take_events(runtime: _Runtime, win_w: int, win_h: int) -> None:

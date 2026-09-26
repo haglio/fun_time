@@ -15,12 +15,14 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from app_support.file_channel import read_key_values
-from player_core.status import PlayerStatus, parse_status
+from player_core.status import parse_status
+
+from .player_status import ScriptedStatus, scripted_fields
 
 
 @dataclass(frozen=True)
-class SatelliteStatus(PlayerStatus):
-    """The family's seven, and how many clips the satellite's playlist holds."""
+class SatelliteStatus(ScriptedStatus):
+    """The family's seven, its clip's script, and how many clips its playlist holds."""
 
     playlist_length: int = 0
 
@@ -36,8 +38,10 @@ REREAD_ATTEMPTS = 5
 REREAD_AFTER_S = 0.005
 
 
-def read_satellite_status(status_file: Path) -> SatelliteStatus:
-    """Parse a native satellite's status file; an absent or blank file reads empty."""
+def read_satellite_status(status_file: Path, *,
+                          fallback: SatelliteStatus | None = None) -> SatelliteStatus:
+    """Parse a native satellite's status file; a blank file reads empty, and one
+    that cannot be read is *fallback*, else empty."""
     for _ in range(REREAD_ATTEMPTS):
         try:
             fields = read_key_values(Path(status_file))
@@ -48,9 +52,10 @@ def read_satellite_status(status_file: Path) -> SatelliteStatus:
             break
         return SatelliteStatus(
             **asdict(parse_status(fields)),
+            **scripted_fields(fields),
             playlist_length=_int(fields.get("playlist_length")),
         )
-    return SatelliteStatus()
+    return fallback or SatelliteStatus()
 
 
 def _int(value: str | None) -> int:

@@ -113,6 +113,12 @@ class VoiceControlConfig:
 
 
 @dataclass(frozen=True)
+class TcodeTarget:
+    host: str = "127.0.0.1"
+    port: int = ports.TCODE_UDP
+
+
+@dataclass(frozen=True)
 class VrConfig:
     """What FunTimeVR needs beyond the desktop session's own config.
 
@@ -162,6 +168,7 @@ class ProjectConfig:
     loopback_port: int = LOOPBACK_PORT
     # FunTimeVR's additions; the desktop session never reads them.
     vr: VrConfig = VrConfig()
+    main_player_tcode: TcodeTarget = TcodeTarget()
     # Config key ``instance_id``; read through the property below.
     instance_id_override: str | None = None
 
@@ -465,6 +472,7 @@ def load_config(config_path: str | Path | None = None, *, project_dir: Path | No
     voice_raw = optional_section(raw, "voice_control", path)
     regen_raw = optional_section(raw, "regen", path)
     vr_raw = optional_section(raw, "vr", path)
+    main_player_raw = optional_section(raw, "main_player", path) or {}
 
     return ProjectConfig(
         project_dir=project_dir,
@@ -477,6 +485,9 @@ def load_config(config_path: str | Path | None = None, *, project_dir: Path | No
         regen=_load_regen_config(regen_raw, project_dir),
         loopback_port=int(raw.get("loopback_port", LOOPBACK_PORT)),
         vr=_load_vr_config(vr_raw, project_dir),
+        main_player_tcode=TcodeTarget(
+            host=str(main_player_raw.get("tcode_udp_host", "127.0.0.1")),
+            port=int(main_player_raw.get("tcode_udp_port", ports.TCODE_UDP))),
         instance_id_override=str(raw["instance_id"]) if raw.get("instance_id") else None,
     )
 

@@ -3,10 +3,24 @@ from __future__ import annotations
 REWIND_MS = 50
 
 
+class _Unconnected:
+    def update(self, position_ms: int, script, *, speed: float = 1.0) -> None:
+        pass
+
+    def park(self) -> None:
+        pass
+
+    def reset(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+
 class ScriptedDevice:
-    def __init__(self, tcode) -> None:
-        self._tcode = tcode
-        self._enabled = True
+    def __init__(self, tcode=None, *, enabled: bool = True) -> None:
+        self._tcode = _Unconnected() if tcode is None else tcode
+        self._enabled = enabled
 
     def set_enabled(self, enabled: bool) -> None:
         if enabled and not self._enabled:

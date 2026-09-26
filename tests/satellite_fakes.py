@@ -118,7 +118,7 @@ class FakeSatellitePlayer(RefusesSeeks):
 
 
 def make_satellite_session(tmp_path, *, entries=1, start_paused=False, duration_ms=5_000.0,
-                          play_points=None, funscripts=None):
+                          play_points=None, funscripts=None, tcode=None):
     """A SatelliteSession over *entries* fabricated clips and its fake player.
 
     The one session builder for the three satellite test modules, which each
@@ -135,4 +135,5 @@ def make_satellite_session(tmp_path, *, entries=1, start_paused=False, duration_
     return SatelliteSession(
         playlist, player=player, start_paused=start_paused, play_points=play_points,
         funscripts={playlist[index]: script for index, script in (funscripts or {}).items()},
+        tcode=tcode,
     ), player

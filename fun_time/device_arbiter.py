@@ -11,8 +11,10 @@ control off are nobody driving, and this is what carries them out.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 
 from player_core.console import (
     OSR2_CONTROL_OFF,
@@ -23,7 +25,9 @@ from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from .broker_control import HOLD_VERB, PARK_CMD
 from .mode_plan import main_player_displays
-from .player_status import read_main_player_status
+from .player_status import ScriptedStatus, read_main_player_status
+from .players import Player
+from .satellite_control import read_satellite_status
 
 # How often the standing pair (SET_TCODE_ENABLED + PAUSE/RESUME) is re-queued
 # without an edge, so a verb lost in transit converges instead of staying lost
@@ -32,6 +36,12 @@ REASSERT_S = 1.0
 
 TCODE_OFF = "SET_TCODE_ENABLED 0"
 TCODE_ON = "SET_TCODE_ENABLED 1"
+
+
+@dataclass(frozen=True)
+class SatelliteLine:
+    status_file: Path
+    cmd_file: Path
 
 
 class DeviceArbiter:
@@ -43,18 +53,21 @@ class DeviceArbiter:
         main_player_status_file: Path,
         main_player_cmd_file: Path,
         genau_cmd_file: Path,
+        satellites: Mapping[Player, SatelliteLine] = MappingProxyType({}),
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.main_player_status_file = main_player_status_file
         self.main_player_cmd_file = main_player_cmd_file
         self.genau_cmd_file = genau_cmd_file
+        self._satellites = dict(satellites)
         self._clock = clock
-        # Whether the funscript is driving the OSR2 right now (so the hand is
-        # paused and the main player's T-Code is on) or the Robot Hand is (a funscript gap
-        # or an unscripted video).  None means "no decision applied yet" — set
-        # outside video mode so re-entry re-asserts the correct driver.
-        self._funscript_driving: bool | None = None
-        self._main_player_status = None
+        # Which player's funscript is driving the OSR2 right now (so the hand is
+        # paused and that player's T-Code is on), or that the Robot Hand is (a
+        # funscript gap or an unscripted clip).  None means "no decision applied
+        # yet" — set while nobody is arbitrating, so the next arbitration
+        # re-asserts the correct driver.
+        self._driving: tuple[Player, bool] | None = None
+        self._statuses: dict[Player, ScriptedStatus] = {}
         # When the park-touch hold releases the pending hand-to-script flip;
         # None outside one — see _holding_for_park_touch.
         self._park_touch_deadline: float | None = None
@@ -66,7 +79,7 @@ class DeviceArbiter:
         self._stopped_by_control_off = False
 
     def sync(self, main_mode: str, *, paused: bool,
-             control: str = OSR2_DRIVING, main_has_osr2: bool = True) -> None:
+             control: str = OSR2_DRIVING, holder: Player = Player.MAIN) -> None:
         """In video mode, route the OSR2 to the funscript or the Robot Hand,
         moment to moment.
 
@@ -89,25 +102,26 @@ class DeviceArbiter:
         """
         if control == OSR2_CONTROL_OFF or control in HOLD_VERB:
             self._carry_out(control, paused=paused)
-            self._funscript_driving = None
+            self._driving = None
             self._park_touch_deadline = None
             return
         self._carried_out = None
         self._hand_the_output_back()
         self._start_what_control_off_stopped(main_mode, paused=paused)
-        if not main_player_displays(main_mode) or paused:
-            self._funscript_driving = None
+        if paused or (holder is Player.MAIN and not main_player_displays(main_mode)):
+            self._let_the_last_driver_go(holder)
+            self._driving = None
             self._park_touch_deadline = None
             return
-        previous = self._main_player_status
-        status = read_main_player_status(self.main_player_status_file, fallback=previous)
-        self._main_player_status = status
-        funscript_driving = status.funscript_driving and main_has_osr2
+        previous = self._statuses.get(holder)
+        status = self._read_status(holder, previous)
+        self._statuses[holder] = status
+        funscript_driving = status.funscript_driving
         now = self._clock()
-        if (funscript_driving == self._funscript_driving
+        if ((holder, funscript_driving) == self._driving
                 and now - self._asserted_at < REASSERT_S):
             return
-        if funscript_driving and self._funscript_driving is False:
+        if funscript_driving and self._driving == (holder, False):
             # Taking the device FROM the hand: a motion whose floor rests ON the
             # park is set down where the trace draws its blue ending, on its next
             # touch-down, so the flip holds for that one touch; a raised floor
@@ -120,19 +134,35 @@ class DeviceArbiter:
                 return
         else:
             self._park_touch_deadline = None
-        # The edge is recorded only once both verbs actually queued.
-        queued_main_player = append_command(
-            self.main_player_cmd_file,
-            TCODE_ON if funscript_driving else TCODE_OFF,
-        )
-        queued_genau = append_command(
-            self.genau_cmd_file,
-            "PAUSE" if funscript_driving else "RESUME",
-        )
-        if queued_main_player and queued_genau:
-            self._funscript_driving = funscript_driving
+        # The edge is recorded only once every verb actually queued.
+        queued = [
+            append_command(self._cmd_file(holder), TCODE_ON if funscript_driving else TCODE_OFF),
+            append_command(self.genau_cmd_file, "PAUSE" if funscript_driving else "RESUME"),
+            *(append_command(self._cmd_file(other), TCODE_OFF)
+              for other in self._players() if other is not holder),
+        ]
+        if all(queued):
+            self._driving = (holder, funscript_driving)
             self._asserted_at = now
             self._park_touch_deadline = None
+
+    def _players(self) -> tuple[Player, ...]:
+        return (Player.MAIN, *self._satellites)
+
+    def _cmd_file(self, player: Player) -> Path:
+        if player is Player.MAIN:
+            return self.main_player_cmd_file
+        return self._satellites[player].cmd_file
+
+    def _read_status(self, player: Player, previous) -> ScriptedStatus:
+        if player is Player.MAIN:
+            return read_main_player_status(self.main_player_status_file, fallback=previous)
+        return read_satellite_status(self._satellites[player].status_file, fallback=previous)
+
+    def _let_the_last_driver_go(self, holder: Player) -> None:
+        if self._driving is None or self._driving[0] is holder:
+            return
+        append_command(self._cmd_file(self._driving[0]), TCODE_OFF)
 
     def _carry_out(self, control: str, *, paused: bool) -> None:
         """Hold the device where *control* says against both engines, asserted on
@@ -144,7 +174,7 @@ class DeviceArbiter:
             genau = ("PAUSE" if paused else "RESUME", TCODE_OFF, HOLD_VERB[control])
         else:
             genau = ("PAUSE", PARK_CMD)
-        queued = [append_command(self.main_player_cmd_file, TCODE_OFF)]
+        queued = [append_command(self._cmd_file(player), TCODE_OFF) for player in self._players()]
         queued += [append_command(self.genau_cmd_file, verb) for verb in genau]
         if all(queued):
             self._carried_out, self._asserted_at = (control, paused), now

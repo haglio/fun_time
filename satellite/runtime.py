@@ -3,9 +3,7 @@
 fun_time writes one verb per line to the satellite's command file; the run loop
 drains them and looks each one up here.  Pause is NOT a verb — it rides its own
 flag file (like the main player), so a paused satellite is a settled state rather
-than a verb race.  A satellite is silent and unscripted, so its vocabulary is the
-part of the family's (:mod:`player_core.player_verbs`) that is about the list,
-the clip on screen and the rate it plays at: no sound, no funscript.
+than a verb race.
 """
 from __future__ import annotations
 
@@ -27,6 +25,7 @@ from player_core.player_verbs import (
     RELOAD_PLAYLIST,
     SET_PACE,
     SET_SPEED,
+    SET_TCODE_ENABLED,
     SPEED_DOWN,
     SPEED_UP,
     TRASH,
@@ -119,6 +118,11 @@ def _quit(controls: SatelliteControls, _value: str) -> bool:
     return True
 
 
+def _set_tcode_enabled(controls: SatelliteControls, value: str) -> bool:
+    controls.session.set_tcode_enabled(value.strip() != "0")
+    return True
+
+
 def _set_pace(controls: SatelliteControls, value: str) -> bool:
     seconds = pace_seconds(value)
     if seconds is None:
@@ -157,6 +161,10 @@ CONTROLS: tuple[Control, ...] = (
         verbs=(Verb(PLAY_FILE, _play_file, takes_a_value=True),),
     ),
     Control(name="pace", verbs=(Verb(SET_PACE, _set_pace, takes_a_value=True),)),
+    Control(
+        name="device",
+        verbs=(Verb(SET_TCODE_ENABLED, _set_tcode_enabled, takes_a_value=True),),
+    ),
     Control(
         name="playlist",
         needs=("reload_playlist",),

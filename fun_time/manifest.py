@@ -13,7 +13,7 @@ import configparser
 from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
 
-from app_support import state_files
+from app_support import ports, state_files
 
 from .config import LayoutConfig, RegenConfig
 from .main_player_console import main_player_console_path
@@ -103,6 +103,8 @@ def build_windows_bridge_manifest(
             "origenerator_cmd_file": str(config.origenerator_cmd_file),
             "origenerator_paused_file": str(config.origenerator_paused_file),
             "origenerator_status_file": str(config.origenerator_status_file),
+            "tcode_udp_host": config.main_player_tcode.host,
+            "tcode_udp_port": str(config.main_player_tcode.port),
         },
         "dashboard": {
             "enabled": "1" if dashboard_enabled else "0",
@@ -250,6 +252,8 @@ class CommandFiles:
     origenerator_paused_file: str = ""
     portrait_origenerator_hud_file: str = ""
     landscape_origenerator_hud_file: str = ""
+    tcode_udp_host: str = "127.0.0.1"
+    tcode_udp_port: str = str(ports.TCODE_UDP)
 
     def player_file(self, player: str, kind: str) -> str:
         """One satellite side's file of a given kind, asked for by side rather
