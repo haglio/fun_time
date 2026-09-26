@@ -176,10 +176,10 @@ def build_voice_commands(
         "version": "main_player_cycle_version",
         "shorts": "main_player_length_shorts",
         "full length": "main_player_length_full",
-        # Which shape of video the main player may reach, in the headset, where
-        # the rotation holds both.  "mixed" is taken by the length above, so the
-        # both-shapes phrase names the shapes instead; neither shape gets no
-        # phrase at all, being a browse with nothing in it.
+        # Which shape of video the player on the main screen may reach, in the
+        # headset, where its library holds both.  "mixed" is taken by the length
+        # above, so the both-shapes phrase names the shapes instead; neither
+        # shape gets no phrase at all, being a browse with nothing in it.
         "vr only": "main_projection_vr",
         "flat only": "main_projection_flat",
         "two d only": "main_projection_flat",

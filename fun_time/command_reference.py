@@ -381,9 +381,10 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             _Row("Latest main — reload it newest-first", (), ("main_latest",)),
             _Row(
-                "Shape of what plays, in the headset: \"VR only\", \"flat only\" "
-                "(or \"2D only\") or \"flat and VR\" — the console's own pair of "
-                "buttons reaches a fourth state, neither, which plays nothing",
+                "Shape of what plays in the headset, the video here and Genau's "
+                "clips in Genau mode: \"VR only\", \"flat only\" (or \"2D only\") "
+                "or \"flat and VR\" — the console's own pair of buttons reaches a "
+                "fourth state, neither, which holds what is on screen",
                 (),
                 ("main_projection_vr", "main_projection_flat",
                  "main_projection_both", "main_projection_none"),

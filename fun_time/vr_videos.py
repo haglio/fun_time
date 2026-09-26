@@ -54,3 +54,9 @@ def keep_shapes(
     if not (plays_vr or plays_flat):
         return []
     return [path for path in paths if is_vr_video(path, vr_dirs) is plays_vr]
+
+
+def shapes_verb(*, plays_vr: bool, plays_flat: bool) -> str:
+    """Genau's word for browsing only the shapes asked for, at least one of them."""
+    return " ".join(("SHAPES", *(word for word, plays in (("vr", plays_vr), ("flat", plays_flat))
+                                 if plays)))

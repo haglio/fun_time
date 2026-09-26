@@ -308,6 +308,32 @@ class TestProjectionPair:
         assert all(b.remembered and not b.lit for b in pair)
 
 
+class TestGenausProjectionPair:
+    """The same pair over Genau's clips, where its folders hold both shapes."""
+
+    def _pair(self, plays_vr, plays_flat):
+        rows = console_rows(MainSlot(main_mode=MainMode.GENAU, latest=False,
+                                     plays_vr=plays_vr, plays_flat=plays_flat))
+        return [b for row in rows for b in row if b.command.startswith("main_projection")]
+
+    def test_it_follows_the_browse_order_as_it_does_under_a_video(self):
+        actions = _actions(MainSlot(main_mode=MainMode.GENAU, latest=False,
+                                    plays_vr=True, plays_flat=True))
+
+        assert actions[actions.index("main_latest") + 1:][:2] == [
+            "main_projection_flat", "main_projection_vr"]
+
+    def test_it_says_clips_where_the_video_pair_says_videos(self):
+        tips = [b.tooltip for plays in ((True, True), (True, False), (False, False))
+                for b in self._pair(*plays)]
+
+        assert tips == [
+            "Drop the VR clips", "Drop the flat clips",
+            "Only the VR clips are playing", "Put the flat clips back",
+            "Put the VR clips back", "Put the flat clips back",
+        ]
+
+
 class TestLengthPair:
     """Full length and shorts, as the two lengths each button includes."""
 

@@ -106,7 +106,7 @@ def _headset_config(root: Path, *, names_an_origenerator: bool = True) -> Bridge
     does, unless told not to.
     """
     folders = {name: root / name for name in (
-        "primary", "portrait", "landscape", "vr", "weird", "clips", "audio", "state")}
+        "primary", "portrait", "landscape", "vr", "weird", "clips", "vr_clips", "audio", "state")}
     for folder in folders.values():
         folder.mkdir(parents=True, exist_ok=True)
     favs_file = root / "favs.csv"
@@ -133,7 +133,7 @@ def _headset_config(root: Path, *, names_an_origenerator: bool = True) -> Bridge
         "layout": {"primary_monitor": 1, "secondary_monitor": 2,
                    "main_top_ratio": 0.7, "landscape_width_ratio": 0.6},
         "audio_companion": {"host": "127.0.0.1", "port": 50556},
-        "vr": {"library_dirs": [str(folders["vr"])]},
+        "vr": {"library_dirs": [str(folders["vr"])], "clips_dir": str(folders["vr_clips"])},
     }), encoding="utf-8")
     manifest = write_manifest_data(build_vr_manifest(load_config(config_file)),
                                    folders["state"] / "windows_bridge_launch.ini")

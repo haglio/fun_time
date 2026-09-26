@@ -35,10 +35,12 @@ from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path, genau_proj
 apply_genau_dirs_to_sys_path()
 
 from app_support.win32 import mutex_name
+from player_core.file_channel import append_command
 from player_core.playlist import read_playlist
 
 from fun_time.broker_control import PARK_CMD, write_broker_command
 from fun_time.child_launch import no_child_log, no_console_window, open_child_log
+from fun_time.command_dispatch import genau_clip_shapes
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.engine_preflight import engine_missing_abort
 from fun_time.engine_vendoring import ensure_engine_vendored
@@ -117,6 +119,7 @@ from fun_time.single_instance import (
     show_already_running_message,
 )
 from fun_time.state_file_names import take_up_the_retired_state_file_names
+from fun_time.vr_videos import shapes_verb
 from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -212,6 +215,7 @@ def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, di
     # browse can be narrowed to one shape or the other.
     manifest["media"]["vr_library_dirs"] = "|".join(
         str(path) for path in config.vr.library_dirs)
+    manifest["media"]["genau_vr_clips"] = str(config.vr.clips_dir or "")
     manifest["vr"] = {
         "player_module": VR_PLAYER_MODULE,
         "library_dirs": "|".join(str(path) for path in config.vr.library_dirs),
@@ -348,6 +352,15 @@ def stock_the_playlists(
         )
     else:
         logger.info("Resumed last session's playlists")
+
+
+def resume_genau_shapes(genau_cmd_file: Path, shapes: VideoShapes) -> None:
+    """Genau rescans its folders whole at every launch, so the one shape it was
+    narrowed to is queued back, as a satellite's lock is; neither needs nothing,
+    Genau launching locked on the clip it was left showing."""
+    if shapes.narrows and (shapes.plays_vr or shapes.plays_flat):
+        append_command(genau_cmd_file,
+                       shapes_verb(plays_vr=shapes.plays_vr, plays_flat=shapes.plays_flat))
 
 
 # A running frame loop answers within a frame or two; a headset presenting
@@ -568,6 +581,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             (Path(commands.portrait_cmd_file), carried.satellite(Player.PORTRAIT).locked),
             (Path(commands.landscape_cmd_file), carried.satellite(Player.LANDSCAPE).locked),
         ])
+        resume_genau_shapes(Path(commands.genau_cmd_file), genau_clip_shapes(carried, bridge_config))
         stock_the_playlists(
             manifest,
             state_dir=state_dir,

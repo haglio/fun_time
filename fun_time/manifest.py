@@ -67,6 +67,7 @@ def build_windows_bridge_manifest(
             "weird_dir": str(config.paths.weird_dir),
             "favs_file": str(config.paths.favs_file),
             "genau_clips": str(config.paths.clips_dir),
+            "genau_vr_clips": "",
             "genau_audio": str(config.paths.audio_dir),
         },
         "modules": {
@@ -199,6 +200,7 @@ class MediaSources:
     genau_audio: str
     # Defaulted, so this parse refuses no manifest a reader accepts today.
     vr_library_dirs: str = ""
+    genau_vr_clips: str = ""
 
 
 @dataclass(frozen=True)
