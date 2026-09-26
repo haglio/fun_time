@@ -234,7 +234,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # are the record's name.
 # 7824 on 2026-09-25: the main lock's docstring said which player it reaches,
 # which the lock's own tests in test_command_dispatch.py are named for.
-MAX_PROSE_LINES = 7824
+# 7805 the same day: the main player's window stopped answering keys of its
+# own, Fun Time's hotkeys being the room's keyboard, so the table of them went.
+MAX_PROSE_LINES = 7805
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

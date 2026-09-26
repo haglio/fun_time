@@ -26,12 +26,10 @@ class TestQuitRequested:
     def test_closing_the_window_quits(self):
         assert quit_requested([pygame.event.Event(pygame.QUIT)])
 
-    def test_ctrl_q_quits_as_it_does_in_playback(self):
+    def test_no_key_does_not_even_ctrl_q(self):
+        """The room's keyboard is Fun Time's, whose quit is Ctrl+Alt+Q, and
+        playback answers no key of its own either."""
         event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_q, mod=pygame.KMOD_CTRL)
-        assert quit_requested([event])
-
-    def test_an_ordinary_keypress_does_not(self):
-        event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_q, mod=0)
         assert not quit_requested([event])
 
 
