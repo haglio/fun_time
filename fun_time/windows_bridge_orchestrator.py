@@ -495,7 +495,10 @@ class _AppendOnWriteHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
             ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            append_line(self.log_path, f"{ts} {record.getMessage()}\r\n")
+            lines = [f"{ts} {record.getMessage()}"]
+            if record.exc_info:
+                lines += logging.Formatter().formatException(record.exc_info).splitlines()
+            append_line(self.log_path, "".join(f"{line}\r\n" for line in lines))
         except Exception:  # logging must never take the app down
             pass
 
