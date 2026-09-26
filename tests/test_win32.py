@@ -33,6 +33,7 @@ from fun_time.win32 import (
     is_window_topmost,
     minimize_window,
     move_window,
+    place_beneath,
     restore_window,
     set_always_on_top,
     window_answers,
@@ -149,6 +150,19 @@ class TestSetAlwaysOnTop:
         assert flags & win32.SWP_NOMOVE
         assert flags & win32.SWP_NOACTIVATE
 
+
+
+class TestPlaceBeneath:
+    def test_it_lands_directly_beneath_the_window_above_without_moving_or_taking_focus(self):
+        with patch("fun_time.win32._user32") as mock:
+            place_beneath(111, 2**40 + 7)
+
+        args = mock.SetWindowPos.call_args[0]
+        assert args[0] == 111
+        assert args[1].value == 2**40 + 7
+        assert args[6] & win32.SWP_NOACTIVATE
+        assert args[6] & win32.SWP_NOMOVE
+        assert args[6] & win32.SWP_NOSIZE
 
 class TestAWindowThatHasStoppedAnswering:
     """SetWindowPos and ShowWindow SEND messages to the thread owning the window

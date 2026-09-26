@@ -947,12 +947,12 @@ def _run_restack_main(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     # Re-stack the overlapping main player/Genau pair for the current mode.  Not
     # integration-guarded: SetWindowPos(HWND_TOPMOST) uses SWP_NOACTIVATE, so
     # it changes only the z-band, never focus.
-    runner.windows.restack_main_slot(runner.state.main_mode)
+    runner.windows.restack_main_slot(runner.state.main_mode, paused=runner.state.omni_paused)
 
 
 def _run_restack_origenerator(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner.windows.restack_origenerator(
-        runner.state.main_mode, runner.state.satellites_mode)
+        runner.state.main_mode, runner.state.satellites_mode, paused=runner.state.omni_paused)
 
 
 def _run_disable_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:

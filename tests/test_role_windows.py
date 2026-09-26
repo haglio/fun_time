@@ -230,6 +230,27 @@ class TestTopmostBands:
         assert {PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_PLAYER_HWND,
                 HOSTED_HWND} <= set(promoted)
 
+    def test_a_restack_while_paused_puts_the_video_directly_under_genaus_hud(self):
+        windows = make_windows(rfb_hwnd=RFB_HWND)
+        placed: list[tuple[int, int]] = []
+        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.role_windows.set_always_on_top"), \
+             patch("fun_time.role_windows.place_beneath",
+                   side_effect=lambda hwnd, above: placed.append((hwnd, above))):
+            windows.restack_main_slot(MainMode.VIDEO, paused=True)
+
+        assert placed == [(MAIN_PLAYER_HWND, GENAU_HWND)]
+
+    def test_a_restack_while_paused_leaves_the_topmost_band_to_the_pause(self):
+        windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
+        with patch("fun_time.role_windows.place_beneath"):
+            for main_mode in (MainMode.VIDEO, MainMode.GENAU):
+                assert self._promotions(windows, "restack_main_slot",
+                                        main_mode=main_mode, paused=True) == []
+            assert self._promotions(windows, "restack_origenerator", main_mode=MainMode.VIDEO,
+                                    satellites_mode="origenerator", paused=True) == []
+
 
 class TestOrigeneratorWindowConverger:
     """The hosted app's window is converged to what the satellites' mode says,
