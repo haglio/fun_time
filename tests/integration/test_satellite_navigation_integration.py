@@ -24,6 +24,7 @@ from unittest.mock import patch
 import pytest
 from player_core.file_channel import append_command
 from player_core.player_verbs import LOCK_ON, QUIT
+from player_core.playlist import read_playlist
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
@@ -233,7 +234,7 @@ def test_reload_playlist_keeps_the_current_clip(satellite):
 
 
 def _playlist_videos(satellite: _Satellite) -> list[str]:
-    return [v.strip() for v in satellite.playlist.read_text(encoding="utf-8").splitlines() if v.strip()]
+    return [str(item.path) for item in read_playlist(satellite.playlist)]
 
 
 def _bridge_config(satellite: _Satellite, tmp_path: Path) -> BridgeConfig:
