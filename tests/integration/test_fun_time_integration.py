@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,7 @@ from player_core.modes import LoopState
 
 from fun_time.config import SatelliteFiles
 from fun_time.media_actions import remove_from_favs
-from fun_time.player_status import read_main_player_status
+from fun_time.player_status import MainPlayerStatus, read_main_player_status
 from fun_time.players import Player
 from fun_time.role_windows import MAIN_BLANK_SETTLE_S
 from fun_time.runtime_flow import write_flag_file
@@ -22,8 +23,10 @@ from fun_time.win32 import (
 )
 from fun_time.win32_process import is_process_alive
 from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
+from main_player.controls import SEEK_STEP_MS
 
 from .integration_support import (
+    COMMAND_BUDGET_S,
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
@@ -441,22 +444,85 @@ def test_fun_time_the_satellites_take_the_main_players_playback_speed(
     s.write_dashboard_command("play")
     s.wait_until(
         lambda: s.read_main_player_status().video != "" and s.read_main_player_status().speed == 1.0,
-        timeout=15,
+        timeout=COMMAND_BUDGET_S,
         description="the main player to be playing at normal speed",
     )
 
     s.write_dashboard_command("main_player_speed_150")
     s.wait_until(
         lambda: all(read_satellite_status(status).speed == 1.5 for status in statuses),
-        timeout=15,
+        timeout=COMMAND_BUDGET_S,
         description="both satellites to take the main player's one and a half speed",
     )
 
     s.write_dashboard_command("main_player_speed_100")
     s.wait_until(
         lambda: all(read_satellite_status(status).speed == 1.0 for status in statuses),
-        timeout=15,
+        timeout=COMMAND_BUDGET_S,
         description="both satellites back at normal speed with the main player",
+    )
+
+
+NUDGE_SLACK_MS = 1_000
+NUDGE_HEADROOM_MS = SEEK_STEP_MS + 2_000
+LONG_ENOUGH_TO_NUDGE_MS = 25_000
+
+
+def _loaded_and_playing(status: MainPlayerStatus) -> bool:
+    return status.video != "" and status.duration_ms > 0 and not status.paused
+
+
+def _main_player_playing_in_video_mode(session: FunTimeIntegrationSession) -> None:
+    session.write_dashboard_command("main_video_activate")
+    session.write_dashboard_command("play")
+    session.wait_until(
+        lambda: _loaded_and_playing(session.read_main_player_status()),
+        timeout=COMMAND_BUDGET_S,
+        description="the main player to be playing a loaded video in video mode",
+    )
+
+
+@contextmanager
+def _main_player_held_still(session: FunTimeIntegrationSession):
+    write_flag_file(session.config.main_player_paused_file, True)
+    try:
+        session.wait_until(
+            lambda: session.read_main_player_status().paused,
+            timeout=COMMAND_BUDGET_S,
+            description="the main player to hold still",
+        )
+        yield
+    finally:
+        write_flag_file(session.config.main_player_paused_file, False)
+
+
+def _a_different_video_loaded(status: MainPlayerStatus, than: str) -> bool:
+    return status.video not in ("", than) and status.duration_ms > 0
+
+
+def _step_to_a_video_long_enough_to_nudge(session: FunTimeIntegrationSession) -> int:
+    for _ in range(12):
+        shown = session.read_main_player_status()
+        if shown.duration_ms >= LONG_ENOUGH_TO_NUDGE_MS:
+            return shown.duration_ms
+        session.write_dashboard_command("main_next")
+        session.wait_until(
+            lambda than=shown.video: _a_different_video_loaded(session.read_main_player_status(), than),
+            timeout=COMMAND_BUDGET_S,
+            description="the main player to load the next video",
+        )
+    raise AssertionError(f"no sampled video runs {LONG_ENOUGH_TO_NUDGE_MS} ms, to nudge each way")
+
+
+def _nudge(session: FunTimeIntegrationSession, command: str, *, by_ms: int) -> None:
+    before = session.read_main_player_status()
+    aim = min(max(before.position_ms + by_ms, 0), before.duration_ms)
+    session.write_dashboard_command(command)
+    session.wait_until(
+        lambda: abs(session.read_main_player_status().position_ms - aim) <= NUDGE_SLACK_MS,
+        timeout=COMMAND_BUDGET_S,
+        description=lambda: (f"{command} to move the held main player from {before.position_ms} ms "
+                             f"to {aim} ms; it reads {session.read_main_player_status().position_ms}"),
     )
 
 
@@ -464,105 +530,43 @@ def test_fun_time_main_player_nudge_seeks_playback(shared_integration_session: F
     """main_nudge_next/prev in video mode drive the main player's seek via its command
     file, observed through the main player's published status position."""
     s = shared_integration_session
-
-    # Let the orchestrator finish processing commands from prior tests.
-    time.sleep(2.0)
-    # Ensure we're in video mode so the main player is the active display and its seek is
-    # observable in the published status.
-    s.write_dashboard_command("main_video_activate")
-    # Wait for a *loaded* video: a non-zero duration means mpv knows the
-    # length, so a seek target won't be clamped to 0 by an as-yet-unknown
-    # duration (which would make the forward seek a no-op).
-    s.wait_until(
-        lambda: s.read_main_player_status().video != "" and s.read_main_player_duration_ms() > 0,
-        timeout=15,
-        description="the main player to report a loaded video with a known duration",
-    )
-
-    # The library is a random sample of real clips with mixed lengths, and a
-    # ±10s nudge is only observable on a video long enough to hold ~15s of
-    # forward headroom. Advance through the playlist until one loads that is
-    # long enough for the seek assertions below.
-    MIN_DURATION_MS = 25_000
-    for _ in range(12):
-        if s.read_main_player_duration_ms() >= MIN_DURATION_MS:
-            break
-        prev_video = s.read_main_player_status().video
-        s.write_dashboard_command("main_next")
-        s.wait_until(
-            lambda pv=prev_video: (
-                s.read_main_player_status().video not in ("", pv)
-                and s.read_main_player_duration_ms() > 0
-            ),
-            timeout=15,
-            description="the main player to load the next video",
-        )
-    duration = s.read_main_player_duration_ms()
-    assert duration >= MIN_DURATION_MS, (
-        f"no sampled video long enough for a ±10s nudge test: duration={duration}"
-    )
-
-    # The looping playhead sits at an arbitrary spot; if it is near the end, a
-    # forward seek clamps at the duration and never advances. Nudge back until
-    # there is comfortable forward headroom first.
-    for _ in range(30):
-        if s.read_main_player_status().position_ms <= duration - 15_000:
-            break
-        s.write_dashboard_command("main_nudge_prev")
-        time.sleep(0.4)
-
-    before = s.read_main_player_status().position_ms
-    assert before <= duration - 12_000, (
-        f"could not create forward headroom: pos={before} duration={duration}"
-    )
-
-    s.write_dashboard_command("main_nudge_next")
-    s.wait_until(
-        lambda: s.read_main_player_status().position_ms >= before + 9_000,
-        timeout=10,
-        description=f"the main player to jump forward ~10s after nudge (before={before}, duration={duration})",
-    )
-
-    after_fwd = s.read_main_player_status().position_ms
-    s.write_dashboard_command("main_nudge_prev")
-    s.wait_until(
-        lambda: s.read_main_player_status().position_ms <= after_fwd - 9_000,
-        timeout=10,
-        description=f"the main player to jump back ~10s after nudge (after_fwd={after_fwd})",
-    )
+    _main_player_playing_in_video_mode(s)
+    with _main_player_held_still(s):
+        duration = _step_to_a_video_long_enough_to_nudge(s)
+        while s.read_main_player_status().position_ms > duration - NUDGE_HEADROOM_MS:
+            _nudge(s, "main_nudge_prev", by_ms=-SEEK_STEP_MS)
+        _nudge(s, "main_nudge_next", by_ms=SEEK_STEP_MS)
+        _nudge(s, "main_nudge_prev", by_ms=-SEEK_STEP_MS)
 
 
 def test_fun_time_main_player_record_loop_cancel_cycle(shared_integration_session: FunTimeIntegrationSession):
     """The record gesture round-trips through the main player: record → looping → cancel,
     observed through the main player's published loop state."""
     s = shared_integration_session
-    s.wait_until(
-        lambda: s.read_main_player_status().video != "",
-        timeout=15,
-        description="the main player status file to report a current video",
-    )
-    assert s.read_main_player_status().loop_state is LoopState.NORMAL
+    _main_player_playing_in_video_mode(s)
+    with _main_player_held_still(s):
+        assert s.read_main_player_status().loop_state is LoopState.NORMAL
 
-    s.write_dashboard_command("main_player_record_tap")
-    s.wait_until(
-        lambda: s.read_main_player_status().loop_state is LoopState.RECORDING,
-        timeout=10,
-        description="the main player to enter recording state",
-    )
+        s.write_dashboard_command("main_player_record_tap")
+        s.wait_until(
+            lambda: s.read_main_player_status().loop_state is LoopState.RECORDING,
+            timeout=COMMAND_BUDGET_S,
+            description="the main player to enter recording state",
+        )
 
-    s.write_dashboard_command("main_player_record_tap")
-    s.wait_until(
-        lambda: s.read_main_player_status().loop_state is LoopState.LOOPING,
-        timeout=10,
-        description="the main player to enter looping state",
-    )
+        s.write_dashboard_command("main_player_record_tap")
+        s.wait_until(
+            lambda: s.read_main_player_status().loop_state is LoopState.LOOPING,
+            timeout=COMMAND_BUDGET_S,
+            description="the main player to enter looping state",
+        )
 
-    s.write_dashboard_command("main_player_loop_cancel")
-    s.wait_until(
-        lambda: s.read_main_player_status().loop_state is LoopState.NORMAL,
-        timeout=10,
-        description="the main player to return to normal state",
-    )
+        s.write_dashboard_command("main_player_loop_cancel")
+        s.wait_until(
+            lambda: s.read_main_player_status().loop_state is LoopState.NORMAL,
+            timeout=COMMAND_BUDGET_S,
+            description="the main player to return to normal state",
+        )
 
 
 def test_fun_time_video_mode_comes_back_to_the_video_main_player_was_showing(shared_integration_session: FunTimeIntegrationSession):
