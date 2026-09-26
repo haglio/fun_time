@@ -1278,33 +1278,80 @@ class TestWhatASpokenCommandFlashes:
 
         assert self._flashed(tmp_path, spoken, [said_itself]) == [("More seeds", "portrait", 25)]
 
+    @staticmethod
+    def _run_for_real(tmp_path, command, said, *, config=None, **state):
+        runner = make_runner(tmp_path, config=config)
+        runner._last_watch_sample = float("inf")
+        runner.state = replace(runner.state, **state)
+        (tmp_path / "dashboard_cmd.txt").write_text(
+            format_spoken_command(command, spoken_at=1.0, said=said), encoding="utf-8")
+        flashed = []
+        with patch("fun_time.windows_bridge_dispatch_loop.notice",
+                   side_effect=lambda _log, msg, *, source, level=25: flashed.append(
+                       (msg, source, level))):
+            runner.tick()
+        return flashed
+
     @pytest.mark.parametrize(("command", "said"), [
         ("portrait_more_seeds", "more seeds"),
         ("portrait_latest", "portrait latest"),
         ("landscape_fmode", "landscape f mode"),
     ])
     def test_a_spoken_command_run_for_real_flashes_one_entry(self, tmp_path, command, said):
-        runner = make_runner(tmp_path)
-        runner._last_watch_sample = float("inf")
-        (tmp_path / "dashboard_cmd.txt").write_text(
-            format_spoken_command(command, spoken_at=1.0, said=said), encoding="utf-8")
-        flashed = []
-        with patch("fun_time.windows_bridge_dispatch_loop.notice",
-                   side_effect=lambda _log, msg, **_how: flashed.append(msg)):
-            runner.tick()
+        flashed = self._run_for_real(tmp_path, command, said)
 
         assert len(flashed) == 1, flashed
 
+    def test_a_jump_the_main_player_is_not_there_to_answer_says_what_was_heard(self, tmp_path):
+        flashed = self._run_for_real(
+            tmp_path, "main_player_compilation", "compilation", main_mode=MainMode.GENAU)
+
+        assert flashed == [("compilation", "system", 25)]
+
+    def test_a_clip_save_with_no_main_player_to_save_from_says_what_was_heard(self, tmp_path):
+        flashed = self._run_for_real(
+            tmp_path, "clipper_save", "save clip", main_mode=MainMode.GENAU)
+
+        assert flashed == [("save clip", "system", 25)]
+
+    @pytest.mark.parametrize(("command", "said"), [
+        ("landscape_trash", "landscape weird"),
+        ("landscape_wrong_action", "landscape wrong action"),
+    ])
+    def test_a_judgement_on_a_side_that_has_named_no_video_says_what_was_heard(
+        self, tmp_path, command, said,
+    ):
+        flashed = self._run_for_real(tmp_path, command, said)
+
+        assert flashed == [(said, "landscape", 25)]
+
+    def test_a_crossing_to_the_session_already_running_says_only_that(self, tmp_path):
+        flashed = self._run_for_real(tmp_path, "exit_vr", "exit VR")
+
+        assert flashed == [(f"Already running {DESKTOP.app_name}", "system", logging.WARNING)]
+
+    def test_a_jump_the_headsets_main_player_cannot_answer_says_what_was_heard(self, tmp_path):
+        flashed = self._run_for_real(
+            tmp_path, "main_player_compilation", "compilation",
+            config=make_config(tmp_path, vr_main_player=True), main_mode=MainMode.VIDEO)
+
+        assert flashed == [("compilation", "system", 25)]
+
     @pytest.mark.parametrize("command", [
         "main_player_compilation", "main_player_full_vid", "main_player_clip_jump",
-        "main_player_funscript_jump", "main_player_next_funscripted", "clipper_save",
+        "main_player_funscript_jump", "main_player_next_funscripted",
     ])
-    def test_a_command_whose_outcome_is_flashed_once_it_lands_says_nothing_now(
-        self, tmp_path, command,
-    ):
-        spoken = format_spoken_command(command, spoken_at=1.0, said="whatever was said")
+    def test_a_jump_the_main_player_answers_itself_says_nothing_now(self, tmp_path, command):
+        flashed = self._run_for_real(
+            tmp_path, command, "whatever was said", main_mode=MainMode.VIDEO)
 
-        assert self._flashed(tmp_path, spoken) == []
+        assert flashed == []
+
+    def test_a_clip_save_that_answers_once_it_lands_says_nothing_now(self, tmp_path):
+        spoken = format_spoken_command("clipper_save", spoken_at=1.0, said="save clip")
+
+        with patch.object(DispatchLoopRunner, "_handle_clipper_save"):
+            assert self._flashed(tmp_path, spoken, [WindowOp(op="save_clip")]) == []
 
     def test_a_pressed_command_flashes_only_what_it_says_itself(self, tmp_path):
         assert self._flashed(tmp_path, "landscape_next") == []

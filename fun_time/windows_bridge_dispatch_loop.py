@@ -125,15 +125,6 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
 
 HANDOFF_COMMANDS: dict[str, HandoffTarget] = {"enter_vr": VR, "exit_vr": DESKTOP}
 
-OUTCOME_FLASHED_ONCE_IT_LANDS = frozenset({
-    "main_player_compilation",
-    "main_player_full_vid",
-    "main_player_clip_jump",
-    "main_player_funscript_jump",
-    "main_player_next_funscripted",
-    "clipper_save",
-})
-
 
 # The side-agnostic actions the main player (the main player) answers, and what it answers with.
 # Navigation is the same gesture on every player; "end loop" is the same *word* for
@@ -281,7 +272,7 @@ class DispatchLoopRunner:
             getattr(config, "main_player_notice_file", None) or Path("main_player_notice.txt")
         )[0]
         self.voice_controller: VoiceController | None = None
-        self._flashes = 0
+        self._answers = 0
         # Watch tracking ("breeding"): every player's current clip, sampled and
         # classified into completions and skips for the stats file.
         # Satellites on their way back from the hosted app: by when they land,
@@ -461,7 +452,7 @@ class DispatchLoopRunner:
     def _handle_line(self, line: CommandLine) -> None:
         source = notice_source(line.command, self.state.active_player)
         frozen = self._frozen(line.command, line.spoken_at)
-        flashes_before = self._flashes
+        answers_before = self._answers
         resolved = resolve_active_player_command(line.command, self.state.active_player)
         for command in expand_group_command(resolved):
             self._handle_command(command, line.spoken_at)
@@ -470,11 +461,11 @@ class DispatchLoopRunner:
         if frozen:
             self._flash(f"ignored during OmniPause: {line.said}", source=source,
                         level=logging.WARNING)
-        elif self._flashes == flashes_before and line.command not in OUTCOME_FLASHED_ONCE_IT_LANDS:
+        elif self._answers == answers_before:
             self._flash(line.said, source=source)
 
     def _flash(self, message: str, *, source: str, level: int = NOTICE) -> None:
-        self._flashes += 1
+        self._answers += 1
         notice(logger, message, source=source, level=level)
 
     def _frozen(self, cmd: str, spoken_at: float | None) -> bool:
@@ -565,12 +556,12 @@ class DispatchLoopRunner:
         session already running it says so and stays put."""
         target = HANDOFF_COMMANDS[cmd]
         if target is this_session(vr_main_player=self.config.vr_main_player):
-            notice(logger, f"Already running {target.app_name}", source=SOURCE_SYSTEM,
-                   level=logging.WARNING)
+            self._flash(f"Already running {target.app_name}", source=SOURCE_SYSTEM,
+                        level=logging.WARNING)
             return
         if session_end_asked(self.config.state_dir):
-            notice(logger, f"Already crossing to {target.app_name}", source=SOURCE_SYSTEM,
-                   level=logging.WARNING)
+            self._flash(f"Already crossing to {target.app_name}", source=SOURCE_SYSTEM,
+                        level=logging.WARNING)
             return
         logger.info("Handing this session over to %s", target.app_name)
         if self.config.broker_cmd_file is not None:
@@ -964,11 +955,16 @@ def _run_open_rfb_tab(runner: DispatchLoopRunner, op: WindowOp) -> None:
 def _run_save_clip(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     # Slow work runs beside the loop, like the browse and the broker toggles;
     # the thread flashes the result when the save lands.
+    runner._answers += 1
     threading.Thread(
         target=runner._handle_clipper_save,
         daemon=True,
         name="clipper-save",
     ).start()
+
+
+def _run_main_player_answers(runner: DispatchLoopRunner, _op: WindowOp) -> None:
+    runner._answers += 1
 
 
 def _run_notice(runner: DispatchLoopRunner, op: WindowOp) -> None:
@@ -1004,6 +1000,7 @@ _OP_HANDLERS = {
     Op.UNSUSPEND_HOTKEYS: _run_ahk_passthrough,
     Op.OPEN_RFB_TAB: _run_open_rfb_tab,
     Op.SAVE_CLIP: _run_save_clip,
+    Op.MAIN_PLAYER_ANSWERS: _run_main_player_answers,
     Op.TAKE_BACK_PLAYERS: _run_take_back_players,
     Op.FOLLOW_GENAUS_LOCK: _run_follow_genaus_lock,
 }
