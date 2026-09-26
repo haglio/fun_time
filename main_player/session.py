@@ -18,6 +18,7 @@ from player_core.playback_rate import clamp_rate
 from player_core.playlist import PlaylistItem
 
 from .play_points import PlayPoints
+from .scripted_device import REWIND_MS, ScriptedDevice
 from .seeking import OwedSeek, seek_if_taken
 from .session_loops import SessionLoops
 
@@ -27,7 +28,6 @@ logger = logging.getLogger(__name__)
 # than merely ticking forward.  A rewind that also lands within
 # _EOF_WRAP_START_MS of zero is the file wrapping at EOF (mpv loop-file=inf
 # restarts at 0), as opposed to a user seeking backward to some interior point.
-_REWIND_MS = 50
 _EOF_WRAP_START_MS = 250
 
 # While marking a loop, close it once the playhead comes within this of the
@@ -55,7 +55,7 @@ class PlayerSession:
             raise ValueError("playlist must not be empty")
         self._take_up(playlist)
         self._player = player
-        self._tcode = tcode
+        self._device = ScriptedDevice(tcode)
         self._version_index = version_index or {}
         self._play_points = play_points or PlayPoints(None)
         self._paused = start_paused
@@ -64,7 +64,6 @@ class PlayerSession:
         # are the only things that move it.  Unlocking hands the end of the file
         # back to the playlist — see :meth:`set_locked`.
         self._locked = True
-        self._tcode_enabled = True
         self._speed = 1.0
         self._volume = MAX_VOLUME
         self._index = 0
@@ -198,7 +197,7 @@ class PlayerSession:
         broker may have parked or retracted the device outright -- aims from a
         height nothing is at.
         """
-        self._tcode.reset()
+        self._device.take_over()
 
     def set_paused(self, paused: bool) -> None:
         if paused == self._paused:
@@ -249,9 +248,7 @@ class PlayerSession:
         the broker's UDP inlet.  Muting just skips the per-tick update;
         re-enabling is a takeover, since the device is wherever the hand left it.
         """
-        if enabled and not self._tcode_enabled:
-            self._take_the_device_over()
-        self._tcode_enabled = enabled
+        self._device.set_enabled(enabled)
 
     @property
     def playlist(self) -> list[PlaylistItem]:
@@ -378,13 +375,13 @@ class PlayerSession:
             return
 
         pos_ms = self._player.position_ms
-        rewound = pos_ms + _REWIND_MS < self._last_pos_ms
+        rewound = pos_ms + REWIND_MS < self._last_pos_ms
         prev_pos_ms, self._last_pos_ms = self._last_pos_ms, pos_ms
         self._play_points.observe(self.current_video, pos_ms, self._player.duration_ms)
 
         if self._advance_loop_state(pos_ms, prev_pos_ms, rewound):
             return
-        self._drive_device(pos_ms)
+        self._device.drive(pos_ms, self._funscript, speed=self._speed)
         self._advance_at_eof()
 
     def _advance_loop_state(
@@ -422,17 +419,6 @@ class PlayerSession:
             self._take_the_device_over()
         return False
 
-    def _drive_device(self, pos_ms: float) -> None:
-        """Where the script says the device should be by now, or its rest."""
-        if not self._tcode_enabled:
-            return
-        if self._funscript is not None:
-            self._tcode.update(int(pos_ms), self._funscript, speed=self._speed)
-        else:
-            # No funscript to drive from: rest the OSR2 at its closest
-            # position rather than leave it wherever the last video left it.
-            self._tcode.park()
-
     def _advance_at_eof(self) -> None:
         """The end of the file, with nothing holding it: step to the next entry,
         wrapping at the end so the playlist plays around.
@@ -456,7 +442,7 @@ class PlayerSession:
 
     def close(self) -> None:
         self._play_points.leave()
-        self._tcode.close()
+        self._device.close()
         self._player.close()
 
     def load(self, index: int) -> None:
