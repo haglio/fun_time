@@ -10,7 +10,7 @@ from shared_ui.palette import BG_BUTTON, BG_PRIMARY, BG_TERTIARY, BLUE, MAGENTA,
 from shared_ui.spacing import (
     BUTTON_GAP,
     BUTTON_GROUP_GAP,
-    BUTTON_MARK_INSET_HUD,
+    BUTTON_MARK_INSET,
     BUTTON_PAD_H_TIGHT,
     BUTTON_SIZE_HUD,
 )
@@ -158,7 +158,7 @@ class TestItIsTheDesktopsBar:
         rect = dash_actions()[QUIT_BUTTON]
 
         assert rect.width == rect.height == BUTTON_SIZE_HUD
-        assert ("power", BUTTON_SIZE_HUD - 2 * BUTTON_MARK_INSET_HUD) in asked
+        assert ("power", BUTTON_SIZE_HUD - 2 * BUTTON_MARK_INSET) in asked
 
     def test_a_row_reads_the_way_the_log_panel_writes_it(self):
         row = format_row(_record("portrait next", source=SOURCE_PORTRAIT))

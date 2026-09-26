@@ -18,7 +18,7 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QTextBrowser, QWidget
 from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.icons import glyph_pixmap
-from shared_ui.spacing import BUTTON_MARK_INSET_HUD, BUTTON_RADIUS_HUD
+from shared_ui.spacing import BUTTON_MARK_INSET, BUTTON_RADIUS_HUD
 
 from fun_time import load_config
 from fun_time.dashboard_actions import (
@@ -1151,7 +1151,7 @@ def test_a_pressed_control_keeps_the_edge_its_state_gave_it():
 
 
 def _mark_side(rect) -> int:
-    return min(rect.width, rect.height) - 2 * BUTTON_MARK_INSET_HUD
+    return min(rect.width, rect.height) - 2 * BUTTON_MARK_INSET
 
 
 class TestMarkCache:
