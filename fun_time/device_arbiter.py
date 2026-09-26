@@ -58,8 +58,7 @@ class DeviceArbiter:
         # When the park-touch hold releases the pending hand-to-script flip;
         # None outside one — see _holding_for_park_touch.
         self._park_touch_deadline: float | None = None
-        # The control state last carried out, None while somebody is driving.
-        self._asserted_control: str | None = None
+        self._carried_out: tuple[str, bool] | None = None
         self._asserted_at: float = 0.0
         # Whether a hold left Genau's output switched off, so a driver taking the
         # device back knows to switch it on again.
@@ -89,11 +88,11 @@ class DeviceArbiter:
         which had to draw that moment before it happened — could only guess it.
         """
         if control == OSR2_CONTROL_OFF or control in HOLD_VERB:
-            self._carry_out(control)
+            self._carry_out(control, paused=paused)
             self._funscript_driving = None
             self._park_touch_deadline = None
             return
-        self._asserted_control = None
+        self._carried_out = None
         self._hand_the_output_back()
         self._start_what_control_off_stopped(main_mode, paused=paused)
         if not main_player_displays(main_mode) or paused:
@@ -135,18 +134,20 @@ class DeviceArbiter:
             self._asserted_at = now
             self._park_touch_deadline = None
 
-    def _carry_out(self, control: str) -> None:
+    def _carry_out(self, control: str, *, paused: bool) -> None:
         """Hold the device where *control* says against both engines, asserted on
         the heartbeat the way the handoff pair is."""
         now = self._clock()
-        if self._asserted_control == control and now - self._asserted_at < REASSERT_S:
+        if self._carried_out == (control, paused) and now - self._asserted_at < REASSERT_S:
             return
-        genau = (("RESUME", TCODE_OFF, HOLD_VERB[control]) if control in HOLD_VERB
-                 else ("PAUSE", PARK_CMD))
+        if control in HOLD_VERB:
+            genau = ("PAUSE" if paused else "RESUME", TCODE_OFF, HOLD_VERB[control])
+        else:
+            genau = ("PAUSE", PARK_CMD)
         queued = [append_command(self.main_player_cmd_file, TCODE_OFF)]
         queued += [append_command(self.genau_cmd_file, verb) for verb in genau]
         if all(queued):
-            self._asserted_control, self._asserted_at = control, now
+            self._carried_out, self._asserted_at = (control, paused), now
             self._muted = self._muted or control in HOLD_VERB
             self._stopped_by_control_off = control == OSR2_CONTROL_OFF
 

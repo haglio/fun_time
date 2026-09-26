@@ -133,8 +133,9 @@ _SECTIONS: tuple[_Section, ...] = (
             # Space and "pause" both enter Omnipause; "pause" is shown for parity.
             _Row("Omnipause", ("Space",), ("enter_omnipause",), ("pause",)),
             _Row(
-                "Relief Omnipause — pause everything and retract the OSR2 away "
-                "from you, rather than parking it",
+                "Relief Omnipause — Omnipause and retract together: everything "
+                "pauses and the OSR2 goes away from you, and it stays retracted "
+                "after you resume, until you drive it again",
                 ("Shift+Esc",),
                 ("relief_omnipause",),
             ),

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from player_core.console import OSR2_CONTROL_OFF, OSR2_DRIVING
 
-from .broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
+from .broker_control import HOLD_VERB, PARK_CMD, RESUME_CMD
 from .mode_plan import MAIN_GENAU_MODE, main_player_displays
 
 
@@ -13,8 +13,8 @@ class OmniPausePlan:
     action: str
     next_omni_paused: bool
     resume_main_player_playback: bool
-    # Where this leaves the OSR2: parked home on a plain enter, retracted away
-    # on a relief enter, back on the script feed on a leave.
+    # Where this leaves the OSR2: parked home on an enter; on a leave, back on
+    # the script feed, or still where a park or retract is holding it.
     broker_command: str
     log_message: str
     # Whether leaving may resume the Robot Hand outright.  Not in video mode:
@@ -29,25 +29,18 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str,
     """Decide what one omnipause action means.
 
     ``toggle`` resolves against the current state; ``enter`` and ``leave`` are
-    that decision already made.  ``relief`` is an enter that sends the OSR2 to
-    the far end of its travel rather than home — the sensation emergency, where
-    the device has to be off the user rather than merely still.
+    that decision already made.
     """
     if action == "toggle":
         action = "leave" if omni_paused else "enter"
 
-    if action in ("enter", "relief"):
-        retract = action == "relief"
+    if action == "enter":
         return OmniPausePlan(
             action=action,
             next_omni_paused=True,
             resume_main_player_playback=False,
-            broker_command=RETRACT_CMD if retract else PARK_CMD,
-            log_message=(
-                "OmniPause: entering (relief — retracting the OSR2)"
-                if retract
-                else "OmniPause: entering"
-            ),
+            broker_command=PARK_CMD,
+            log_message="OmniPause: entering",
         )
 
     if action == "leave":
@@ -62,7 +55,7 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str,
             # with the OSR2 let go of, the console's switch decides who drives.
             resume_genau_playback=(main_mode == MAIN_GENAU_MODE
                                    and osr2_control != OSR2_CONTROL_OFF),
-            broker_command=RESUME_CMD,
+            broker_command=HOLD_VERB.get(osr2_control, RESUME_CMD),
             log_message="OmniPause: leaving",
         )
 

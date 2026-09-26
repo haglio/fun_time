@@ -389,16 +389,10 @@ def apply_enter_omnipause(
     main_player_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
     origenerator_paused_file: str | Path | None = None,
-    relief: bool = False,
 ) -> OmniPauseFlowResult:
-    """Freeze the whole session, and send the OSR2 somewhere safe.
-
-    ``relief`` picks which somewhere: home by default, or — for the sensation
-    emergency Shift+Esc raises — the far end of the travel, away from the user.
-    Nothing else about the freeze differs between the two.
-    """
+    """Freeze the whole session, and send the OSR2 home."""
     plan = build_omnipause_plan(
-        "relief" if relief else "enter",
+        "enter",
         omni_paused=omni_paused,
         main_mode=main_mode,
     )

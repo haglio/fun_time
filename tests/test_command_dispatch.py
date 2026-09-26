@@ -14,6 +14,7 @@ from player_core.console import (
     OSR2_CONTROL_BUTTONS,
     OSR2_DRIVING,
     OSR2_PARKED,
+    OSR2_RETRACTED,
 )
 from player_core.modes import MainMode
 
@@ -2897,20 +2898,31 @@ def test_enter_omnipause_emits_disable_all_topmost(tmp_path: Path):
     assert any(op.op == "disable_all_topmost" for op in ops)
 
 
-def test_relief_omnipause_retracts_the_osr2_and_otherwise_enters_normally(tmp_path: Path):
-    """Shift+Esc lands on the same frozen session a plain enter does, with the
-    OSR2 sent away instead of home."""
+def test_relief_omnipause_is_omnipause_and_the_retract_hold_together(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False)
 
     new_state, ops = dispatch_command("relief_omnipause", state, config)
 
-    assert new_state.omni_paused is True
+    assert (new_state.omni_paused, new_state.osr2_control) == (True, OSR2_RETRACTED)
     assert config.broker_cmd_file.read_text(encoding="utf-8") == "RETRACT"
     assert any(op.op == "disable_all_topmost" for op in ops)
     assert any(op.op == "suspend_hotkeys" for op in ops)
-    assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
-    assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"
+    assert all(paused.read_text(encoding="utf-8") == "1" for paused in (
+        config.portrait_paused_file, config.landscape_paused_file,
+        config.main_player_paused_file, config.genau_paused_file,
+        config.audio_paused_file))
+
+
+def test_leaving_the_pause_relief_entered_keeps_the_osr2_retracted(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state, _ops = dispatch_command("relief_omnipause", _make_state(main_mode=MainMode.GENAU),
+                                   config)
+
+    state, _ops = dispatch_command("omnipause_toggle", state, config)
+
+    assert (state.omni_paused, state.osr2_control) == (False, OSR2_RETRACTED)
+    assert config.broker_cmd_file.read_text(encoding="utf-8") == "RETRACT"
 
 
 def test_omnipause_toggle_enter_emits_disable_all_topmost(tmp_path: Path):

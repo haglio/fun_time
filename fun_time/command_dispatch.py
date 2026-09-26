@@ -13,6 +13,7 @@ from player_core.console import (
     OSR2_CONTROL_BUTTONS,
     OSR2_CONTROL_OFF,
     OSR2_DRIVING,
+    OSR2_RETRACTED,
 )
 from player_core.file_channel import append_command
 from player_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
@@ -707,7 +708,7 @@ def _dispatch_omnipause_toggle(
 
 
 def _dispatch_enter_omnipause(
-    state: BridgeState, config: BridgeConfig, *, relief: bool = False
+    state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     result = apply_enter_omnipause(
         omni_paused=state.omni_paused,
@@ -720,7 +721,6 @@ def _dispatch_enter_omnipause(
         main_player_paused_file=config.main_player_paused_file,
         broker_cmd_file=config.broker_cmd_file,
         origenerator_paused_file=config.origenerator_paused_file,
-        relief=relief,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     ops = [WindowOp(op="disable_all_topmost"), WindowOp(op="suspend_hotkeys")]
@@ -1496,8 +1496,10 @@ def _enter_omnipause(state: BridgeState, config: BridgeConfig,
 
 
 def _relief_omnipause(state: BridgeState, config: BridgeConfig,
-                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return _dispatch_enter_omnipause(state, config, relief=True)
+                      target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    state, ops = _dispatch_enter_omnipause(state, config)
+    state, _ = _robot_hand_hold(OSR2_RETRACTED, state, config, target_path)
+    return state, ops
 
 
 def _fmode(players: tuple[str, ...], target: bool | None, state: BridgeState,
