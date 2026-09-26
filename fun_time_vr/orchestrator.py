@@ -54,9 +54,11 @@ from fun_time.modes import (
     PLAYLIST_MAIN_PLAYER,
     PLAYLIST_PORTRAIT,
     SatelliteBuild,
+    VideoShapes,
     build_all_playlists,
     build_main_playlist,
     build_playlist_file_path,
+    source_roots,
 )
 from fun_time.orchestrator import (
     ensure_runtime_files,
@@ -307,10 +309,11 @@ def stock_the_playlists(
     *,
     state_dir: Path,
     metadata_root: Path,
-    vr_library_dirs,
     resumed: bool,
     main_scripted_filter: bool,
     main_recent: bool,
+    main_plays_vr: bool = True,
+    main_plays_flat: bool = True,
     main_video: str = "",
 ) -> None:
     """The three playlists a VR session opens on: built fresh with nothing to
@@ -330,10 +333,12 @@ def stock_the_playlists(
         )
         logger.info("Nothing to resume; built fresh playlists")
         return
-    if not main_playlist_has_vr(main_player_playlist, vr_library_dirs):
+    vr_dirs = manifest.media.vr_library_dirs
+    if main_plays_vr and not main_playlist_has_vr(main_player_playlist, source_roots(vr_dirs)):
         build_main_playlist(
             main_player_playlist, manifest.media.main_player_library_sources,
             scripted_filter=main_scripted_filter, recent=main_recent,
+            shapes=VideoShapes(vr_dirs=vr_dirs, plays_vr=main_plays_vr, plays_flat=main_plays_flat),
             metadata_root=metadata_root,
         )
         logger.info(
@@ -567,10 +572,11 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             manifest,
             state_dir=state_dir,
             metadata_root=bridge_config.regen_metadata_root,
-            vr_library_dirs=config.vr.library_dirs,
             resumed=resumed,
             main_scripted_filter=carried.main_scripted_filter,
             main_recent=carried.main_latest,
+            main_plays_vr=carried.main_plays_vr,
+            main_plays_flat=carried.main_plays_flat,
             main_video=main_player_status.video,
         )
 

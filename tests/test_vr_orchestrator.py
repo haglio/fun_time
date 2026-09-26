@@ -391,6 +391,13 @@ class TestTheModeASessionComesBackIn:
 
         assert given["mode"] == "carried.main_mode"
 
+    def test_the_playlists_are_stocked_under_the_shapes_the_session_was_left_on(self):
+        (stock,) = self._calls("run_vr_bridge", "stock_the_playlists")
+        given = {kw.arg: ast.unparse(kw.value) for kw in stock.keywords}
+
+        assert (given["main_plays_vr"], given["main_plays_flat"]) == (
+            "carried.main_plays_vr", "carried.main_plays_flat")
+
     def test_the_reveal_releases_the_players_the_mode_puts_to_work(self):
         """The desktop's own reveal: the video in video mode, Genau's hand and its
         music in genau mode -- rather than unpausing the video whatever the mode."""
@@ -532,7 +539,6 @@ class TestStockingThePlaylists:
             self._manifest(config, tmp_path),
             state_dir=state,
             metadata_root=tmp_path / "metadata",
-            vr_library_dirs=config.vr.library_dirs,
             resumed=False,
             main_scripted_filter=False,
             main_recent=False,
@@ -561,7 +567,6 @@ class TestStockingThePlaylists:
             self._manifest(config, tmp_path),
             state_dir=state,
             metadata_root=tmp_path / "metadata",
-            vr_library_dirs=config.vr.library_dirs,
             resumed=True,
             main_scripted_filter=False,
             main_recent=False,
@@ -591,7 +596,6 @@ class TestStockingThePlaylists:
             self._manifest(config, tmp_path),
             state_dir=state,
             metadata_root=tmp_path / "metadata",
-            vr_library_dirs=config.vr.library_dirs,
             resumed=True,
             main_scripted_filter=False,
             main_recent=False,
@@ -618,7 +622,6 @@ class TestStockingThePlaylists:
             self._manifest(config, tmp_path),
             state_dir=state,
             metadata_root=tmp_path / "metadata",
-            vr_library_dirs=config.vr.library_dirs,
             resumed=True,
             main_scripted_filter=False,
             main_recent=False,
@@ -626,6 +629,57 @@ class TestStockingThePlaylists:
         )
 
         assert main_player_playlist.read_text(encoding="utf-8") == f"{vr_clip}\n"
+
+    def test_a_crossing_rebuilds_under_the_shape_it_was_left_on(self, config, tmp_path):
+        """The console carries "VR only" across; the rebuilt list has to hold it."""
+        library = tmp_path / "library"
+        vr_clip = library / "VR" / "finished" / "scene one.mp4"
+        flat = library / "2D" / "scene two.mp4"
+        for clip in (vr_clip, flat):
+            clip.write_bytes(b"")
+        state = tmp_path / "state"
+        state.mkdir(exist_ok=True)
+        main_player_playlist = state / "main_player_playlist.tsv"
+        main_player_playlist.write_text(f"{flat}\n", encoding="utf-8")
+
+        stock_the_playlists(
+            self._manifest(config, tmp_path),
+            state_dir=state,
+            metadata_root=tmp_path / "metadata",
+            resumed=True,
+            main_scripted_filter=False,
+            main_recent=False,
+            main_plays_flat=False,
+            main_video=str(flat),
+        )
+
+        entries = main_player_playlist.read_text(encoding="utf-8").splitlines()
+        assert [entry.split("\t")[0] for entry in entries] == [str(vr_clip)]
+
+    def test_a_session_left_on_flat_only_reopens_on_its_own_list(self, config, tmp_path):
+        """Holding no VR video is what "2D only" asked for, not a desktop's list."""
+        library = tmp_path / "library"
+        (library / "VR" / "finished" / "scene one.mp4").write_bytes(b"")
+        flat = library / "2D" / "scene two.mp4"
+        flat.write_bytes(b"")
+        (library / "2D" / "scene three.mp4").write_bytes(b"")  # a rebuild would add it
+        state = tmp_path / "state"
+        state.mkdir(exist_ok=True)
+        main_player_playlist = state / "main_player_playlist.tsv"
+        main_player_playlist.write_text(f"{flat}\n", encoding="utf-8")
+
+        stock_the_playlists(
+            self._manifest(config, tmp_path),
+            state_dir=state,
+            metadata_root=tmp_path / "metadata",
+            resumed=True,
+            main_scripted_filter=False,
+            main_recent=False,
+            main_plays_vr=False,
+            main_video=str(flat),
+        )
+
+        assert main_player_playlist.read_text(encoding="utf-8") == f"{flat}\n"
 
 
 class TestTheCrossingBackToTheDesktop:
