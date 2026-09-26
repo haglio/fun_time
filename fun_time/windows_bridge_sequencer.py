@@ -13,7 +13,6 @@ import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from app_support import state_files
 from player_core.file_channel import append_command
 from player_core.modes import MainMode
 
@@ -434,8 +433,7 @@ def _launch_the_main_slot_players(
     # it went wrong: Genau derived it from its own config's state dir and wrote it
     # into the Genau repo, while the main player was told to read it out of Fun Time's — so
     # Video mode showed a console with the Genau half missing.
-    genau_state = Path(m.commands.genau_cmd_file).parent
-    genau_drive_file = genau_state / state_files.GENAU_DRIVE
+    genau_drive_file = Path(m.commands.genau_drive_file)
     # Genau's own resume: it rescans its clips folder every launch and opens at
     # the top of it, so the clip the last session was left showing survives only
     # in the status file it published — read here, before this session's Genau

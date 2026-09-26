@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import pytest
 from PIL import Image
+from player_core.drive_readout import DriveHud, publish_drive
 from player_core.satellite_hud import MARGIN
 
 from satellite.hud_overlay import HudOverlay
@@ -308,3 +310,67 @@ def test_the_published_loop_state_wins_over_the_optimistic_one(tmp_path: Path, p
     assert overlay.active_loop == ""
 
 
+
+
+def _give_it_the_osr2(panel: Path) -> None:
+    published = json.loads(panel.read_text(encoding="utf-8"))
+    published.update(osr2="robot_hand", osr2_control="driving")
+    panel.write_text(json.dumps(published), encoding="utf-8")
+
+
+def _publish_motion(path: Path, offset: float) -> None:
+    publish_drive(path, DriveHud(
+        speed=50, amplitude=80, center=50,
+        waveform=tuple(0.5 + 0.4 * math.sin(i / 6 + offset) for i in range(80))))
+
+
+def _overlay_with_the_motion(tmp_path: Path, panel: Path, player) -> HudOverlay:
+    return HudOverlay(hud_file=panel, command_file=tmp_path / "dashboard_cmd.txt",
+                      player=player, clock=lambda: 0.0, drive_file=tmp_path / "drive.txt")
+
+
+class TestAPanelWithTheOsr2:
+    def test_draws_the_motion_genau_publishes_under_the_osr2_line(self, tmp_path: Path, panel: Path):
+        _give_it_the_osr2(panel)
+        _publish_motion(tmp_path / "drive.txt", 0.0)
+        overlay = _overlay_with_the_motion(tmp_path, panel, FakeSatellitePlayer())
+
+        overlay.tick()
+
+        assert overlay.targets.tracks
+
+    def test_redraws_as_the_motion_moves(self, tmp_path: Path, panel: Path):
+        _give_it_the_osr2(panel)
+        _publish_motion(tmp_path / "drive.txt", 0.0)
+        player = FakeSatellitePlayer()
+        overlay = _overlay_with_the_motion(tmp_path, panel, player)
+        overlay.tick()
+        first = player.overlays[overlay.overlay_id][2].copy()
+
+        _publish_motion(tmp_path / "drive.txt", 3.0)
+        overlay.tick()
+
+        assert not (player.overlays[overlay.overlay_id][2] == first).all()
+
+    def test_a_panel_without_it_draws_no_motion(self, tmp_path: Path, panel: Path):
+        _publish_motion(tmp_path / "drive.txt", 0.0)
+        overlay = _overlay_with_the_motion(tmp_path, panel, FakeSatellitePlayer())
+
+        overlay.tick()
+
+        assert overlay.targets.tracks == []
+
+    def test_a_band_of_the_readout_keeps_a_drag_until_it_is_let_go(self, tmp_path: Path, panel: Path):
+        _give_it_the_osr2(panel)
+        _publish_motion(tmp_path / "drive.txt", 0.0)
+        overlay = _overlay_with_the_motion(tmp_path, panel, FakeSatellitePlayer())
+        overlay.tick()
+        x, y, w, h = next(band.rect for band in overlay.targets.tracks if band.axis == "speed")
+
+        overlay.press(MARGIN + x + 1, MARGIN + y + h // 2)
+        dragged = overlay.drag_to(MARGIN + x + w - 2, MARGIN + y + h // 2)
+        overlay.release()
+
+        assert _commands(tmp_path) == ["robot_hand_speed_1", "robot_hand_speed_99"]
+        assert dragged == "robot_hand_speed_99"
+        assert overlay.holding is False

@@ -63,6 +63,11 @@ class Pointer:
         own question, and a held one also drags the volume slider."""
         if self._hud is not None:
             self._hud.motion(mx, my)
+            if not held:
+                self._hud.release()
+            elif self._hud.holding:
+                self._hud.drag_to(mx, my)
+                return
         if held:
             self._volume.drag_at(mx, my, win_w=win_w, win_h=win_h,
                                  timeline_h=TIMELINE_HEIGHT)

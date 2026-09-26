@@ -736,6 +736,7 @@ class _SatelliteUnit(_VideoUnit):
             hud_file=channels.hud,
             command_file=channels.dashboard_cmd,
             player=self.hud_surface,
+            drive_file=channels.drive,
         )
         self.hud_texture = FrameTexture()
         self.hud_screen = _HangingScreen(self.screen.placement)
@@ -876,14 +877,13 @@ class _GenauUnit:
         if not vr.clips_dirs:
             raise RuntimeError("the launch manifest names no clips folder for Genau's role")
         commands = manifest.commands
-        genau_state = Path(commands.genau_cmd_file).parent
         self.role = GenauRole(
             clips_dirs=vr.clips_dirs,
             vr_dirs=vr.vr_clip_dirs,
             settings=vr.genau,
             command_file=Path(commands.genau_cmd_file),
             paused_file=Path(commands.genau_paused_file),
-            drive_file=genau_state / "genau_drive.txt",
+            drive_file=Path(commands.genau_drive_file),
             console_file=Path(commands.main_player_console_file),
             notifier=GenauNotifier(vr.notify_host, vr.notify_port),
             tcode_sink=_SaysWhenItFirstMoves(
