@@ -48,6 +48,8 @@ class _StubHud:
         self._takes = takes
         self.presses: list[tuple[int, int]] = []
         self.motions: list[tuple[int, int]] = []
+        self.drags: list[tuple[int, int]] = []
+        self.holding = False
 
     def press(self, x: int, y: int) -> bool:
         self.presses.append((x, y))
@@ -55,6 +57,13 @@ class _StubHud:
 
     def motion(self, x: int, y: int) -> None:
         self.motions.append((x, y))
+
+    def drag_to(self, x: int, y: int) -> str:
+        self.drags.append((x, y))
+        return ""
+
+    def release(self) -> None:
+        self.holding = False
 
 
 def _asks(tmp_path) -> Path:
@@ -254,5 +263,22 @@ class TestDragging:
         _motion(pointer, CHIP_HALFWAY, held=True)
 
         assert hud.motions == [ON_THE_VIDEO, CHIP_HALFWAY]
+
+    def test_a_band_the_hud_took_hold_of_keeps_the_drag_over_the_chip(self, tmp_path):
+        pointer, player, hud = _pointer(tmp_path)
+        hud.holding = True
+
+        _motion(pointer, CHIP_HALFWAY, held=True)
+
+        assert hud.drags == [CHIP_HALFWAY]
+        assert player.volume == 100
+
+    def test_the_button_coming_up_lets_the_band_go(self, tmp_path):
+        pointer, _player, hud = _pointer(tmp_path)
+        hud.holding = True
+
+        _motion(pointer, ON_THE_VIDEO, held=False)
+
+        assert hud.holding is False
 
 

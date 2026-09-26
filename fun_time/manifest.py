@@ -13,6 +13,8 @@ import configparser
 from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
 
+from app_support import state_files
+
 from .config import LayoutConfig, RegenConfig
 from .main_player_console import main_player_console_path
 from .players import Player
@@ -255,6 +257,10 @@ class CommandFiles:
         ``portrait_hud_file``.  Both the HUD publisher and the VR player build
         their sides in a loop and have nowhere to write the key by hand."""
         return getattr(self, f"{player}_{kind}_file")
+
+    @property
+    def genau_drive_file(self) -> str:
+        return str(Path(self.genau_cmd_file).parent / state_files.GENAU_DRIVE)
 
 
 @dataclass(frozen=True)

@@ -32,6 +32,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "left at, so playing one again picks up there")
     p.add_argument("--hud-file", type=Path, default=None,
                    help="Lock-HUD panel fun_time publishes; drawn into the video")
+    p.add_argument("--drive-file", type=Path, default=None,
+                   help="The motion Genau publishes, drawn under the OSR2 line "
+                        "while this player has the OSR2")
     p.add_argument("--dashboard-cmd-file", type=Path, default=None,
                    help="Where a click on the lock HUD, or on the picture itself, "
                         "posts its fun_time command")

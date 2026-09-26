@@ -64,12 +64,21 @@ class _FakeHud:
     def __init__(self):
         self.presses: list[tuple[int, int]] = []
         self.motions: list[tuple[int, int]] = []
+        self.drags: list[tuple[int, int]] = []
+        self.released = 0
 
     def press(self, x, y):
         self.presses.append((x, y))
 
     def motion(self, x, y):
         self.motions.append((x, y))
+
+    def drag_to(self, x, y):
+        self.drags.append((x, y))
+        return ""
+
+    def release(self):
+        self.released += 1
 
 
 _PICTURE_SIZE = (640, 480)
@@ -147,6 +156,20 @@ class TestAPressOnASatellite:
         p.pointer.hover(HUD, (0.25, 0.5), size=_HUD_SIZE)
 
         assert p.hud.motions == [(50 + MARGIN, 50 + MARGIN)]
+
+    def test_a_drag_on_the_hud_reaches_it_at_the_inset_the_desktop_draws_it_at(self):
+        p = self._pointer()
+
+        p.pointer.drag(HUD, 0.25, 0.5, size=_HUD_SIZE)
+
+        assert p.hud.drags == [(50 + MARGIN, 50 + MARGIN)]
+
+    def test_letting_go_lets_go_of_whatever_the_hud_held(self):
+        p = self._pointer()
+
+        p.pointer.release()
+
+        assert p.hud.released == 1
 
     def test_a_pointer_off_the_hud_leaves_no_tooltip(self):
         p = self._pointer()

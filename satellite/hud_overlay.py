@@ -15,6 +15,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
+from player_core.drive_readout import DriveHud, read_drive
 from player_core.file_channel import append_command
 from player_core.satellite_hud import (
     MARGIN,
@@ -46,8 +47,11 @@ class HudOverlay:
         player,
         overlay_id: int = HUD_OVERLAY_ID,
         clock=time.monotonic,
+        drive_file: Path | None = None,
     ) -> None:
         self._hud_file = Path(hud_file)
+        self._drive_file = None if drive_file is None else Path(drive_file)
+        self._drive: DriveHud | None = None
         self._command_file = Path(command_file)
         self._player = player
         self.overlay_id = overlay_id
@@ -102,6 +106,10 @@ class HudOverlay:
                 self._clicks.active_filter = model.filter_query
             self._model = model
             redraw = True
+        drive = self._motion()
+        if drive != self._drive:
+            self._drive = drive
+            redraw = True
         if redraw:
             self._draw()
         if self._clicks is not None:
@@ -118,6 +126,20 @@ class HudOverlay:
             self._post(command)
             self._draw()  # a loop button lights up before fun_time answers
         return True
+
+    @property
+    def holding(self) -> bool:
+        return self._clicks is not None and self._clicks.holding
+
+    def drag_to(self, x: int, y: int) -> str:
+        command = self._clicks.drag_to(*self._local(x, y)) if self._clicks is not None else ""
+        if command:
+            self._post(command)
+        return command
+
+    def release(self) -> None:
+        if self._clicks is not None:
+            self._clicks.release()
 
     def motion(self, x: int, y: int) -> None:
         """The cursor moved to window coordinates ``(x, y)``."""
@@ -163,13 +185,18 @@ class HudOverlay:
         except OSError:
             return None
 
+    def _motion(self) -> DriveHud | None:
+        if self._drive_file is None or self._model is None or not self._model.osr2:
+            return None
+        return read_drive(self._drive_file) or self._drive
+
     def _draw(self) -> None:
         if self._model is None or self._renderer is None:
             self.targets = _EMPTY_TARGETS
             self.close()
             return
         rendered = self._renderer.render(
-            replace(self._model, playback_speed=self._playback_speed),
+            replace(self._model, playback_speed=self._playback_speed, drive=self._drive),
             video=self._video, hover_loop=self._hover_loop,
             hover_tip=self._hover_tip, hover_pos=self._hover_pos,
         )

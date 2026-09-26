@@ -175,6 +175,7 @@ def _build_runtime(args, wid: int, playlist: list[PlaylistItem]) -> _Runtime:
     hud = (
         HudOverlay(
             hud_file=channels.hud, command_file=channels.dashboard_cmd, player=player,
+            drive_file=channels.drive,
         )
         if channels.hud and channels.dashboard_cmd
         else None

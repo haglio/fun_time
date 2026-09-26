@@ -30,6 +30,7 @@ _FILLED = SatelliteChannels(
     play_points=Path("state/portrait_play_points.json"),
     hud=Path("state/portrait_hud.json"),
     dashboard_cmd=Path("state/dashboard_cmd.txt"),
+    drive=Path("state/genau_drive.txt"),
 )
 
 _PLACED = WindowPlacement(x=2560, y=0, width=1440, height=2500,
@@ -138,6 +139,14 @@ class TestReadOutOfTheManifest:
         landscape = SatelliteChannels.from_manifest(commands, "landscape")
 
         assert portrait.dashboard_cmd == landscape.dashboard_cmd
+
+    def test_the_motion_each_side_draws_is_the_one_genau_publishes(self):
+        commands = self._commands()
+
+        portrait = SatelliteChannels.from_manifest(commands, "portrait")
+        landscape = SatelliteChannels.from_manifest(commands, "landscape")
+
+        assert portrait.drive == landscape.drive == Path(commands.genau_drive_file)
         assert portrait.dashboard_cmd == Path("state/dashboard_cmd_file")
 
     def test_the_play_points_are_named_by_a_rule_rather_than_a_key(self):

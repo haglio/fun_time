@@ -76,10 +76,14 @@ class SatellitePointer:
                 u, v, size=size, duration_ms=self._duration_ms(), muted=self._volume().muted)
 
     def drag(self, kind: str, u: float, v: float, *, size: tuple[int, int]) -> None:
-        if kind != HUD:
+        if kind == HUD:
+            px, py = surface_pixel(u, v, size)
+            self._hud.drag_to(px + MARGIN, py + MARGIN)
+        else:
             self._furniture.drag(u, v, size=size, duration_ms=self._duration_ms())
 
     def release(self) -> None:
+        self._hud.release()
         self._furniture.release()
 
     def hover(self, kind: str, uv: tuple[float, float] | None, *, size: tuple[int, int]) -> None:

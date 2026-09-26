@@ -18,6 +18,7 @@ CHANNELS = (
     ("play_points", "--play-points-file", None),
     ("hud", "--hud-file", "hud"),
     ("dashboard_cmd", "--dashboard-cmd-file", None),
+    ("drive", "--drive-file", None),
 )
 
 PLACEMENT = (
@@ -53,6 +54,7 @@ class SatelliteChannels:
     play_points: Path | None = None
     hud: Path | None = None
     dashboard_cmd: Path | None = None
+    drive: Path | None = None
 
     @classmethod
     def from_args(cls, args) -> SatelliteChannels:
@@ -66,6 +68,7 @@ class SatelliteChannels:
             play_points=args.play_points_file,
             hud=args.hud_file,
             dashboard_cmd=args.dashboard_cmd_file,
+            drive=args.drive_file,
         )
 
     @classmethod
@@ -74,6 +77,7 @@ class SatelliteChannels:
         return cls(
             play_points=play_points,
             dashboard_cmd=Path(commands.dashboard_cmd_file),
+            drive=Path(commands.genau_drive_file),
             **{field: Path(commands.player_file(player, kind))
                for field, _flag, kind in CHANNELS if kind is not None},
         )
