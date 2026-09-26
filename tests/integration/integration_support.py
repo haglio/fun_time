@@ -185,6 +185,11 @@ def _kill_leftover_hosted_apps(window_pids) -> None:
 # gap between one session closing and the next opening has run 20 to 30 seconds.
 QUIT_BUDGET_S = 60.0
 
+# How long a session is given to come up.  A run's processes start below normal
+# priority, so on that same busy machine a session that opens in 5 to 10 seconds
+# alone has taken 24 to 41, and two were still starting, not stuck, at 45.
+START_BUDGET_S = 120.0
+
 
 class FunTimeIntegrationSession:
     def __init__(self, config_path: Path):
@@ -281,7 +286,7 @@ class FunTimeIntegrationSession:
             self._stderr_fh.close()
         return exit_code
 
-    def start(self, wait_seconds: float = 45.0, project_dir: Path | None = None,
+    def start(self, wait_seconds: float = START_BUDGET_S, project_dir: Path | None = None,
               env_overrides: dict[str, str] | None = None) -> None:
         """Launch the orchestrator and wait for it to report the bridge up.
 
