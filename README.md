@@ -406,9 +406,9 @@ The player keeps running under it — its lock, loop and playlist are untouched,
 
 ### Closing one window closes the session
 
-There is no window of a session you can close on its own. Every player answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, under the closing cover, exactly like the dashboard's Quit button, `Ctrl+Alt+Q` or a spoken "quit". Ctrl+Q on the main player goes the same way.
+There is no window of a session you can close on its own. Every player answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, under the closing cover, exactly like the dashboard's Quit button, `Ctrl+Alt+Q` or a spoken "quit".
 
-The alternative was worse than it sounds: a player that closed itself left the sequencer's layout with a gap nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the players out one press at a time while the dashboard and the audio companion carried on. Run standalone, outside a session, each player still closes on its own close, because then that is the whole application. See `satellite/session_quit.py` and `genau/session_quit.py`.
+The alternative was worse than it sounds: a player that closed itself left the sequencer's layout with a gap nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the players out one press at a time while the dashboard and the audio companion carried on. Launched by hand, outside a session, a satellite or the main player still closes on its own close, because then that is the whole application; Genau runs only inside a session. See `player_core.session_quit`.
 
 ### F-Mode
 

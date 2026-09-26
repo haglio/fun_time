@@ -205,9 +205,6 @@ class PlayerSession:
             # the device walked on to wherever it was aimed and froze there.
             self._take_the_device_over()
 
-    def toggle_pause(self) -> None:
-        self.set_paused(not self._paused)
-
     @property
     def speed(self) -> float:
         """Playback rate multiplier (1.0 = normal)."""

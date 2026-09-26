@@ -33,7 +33,6 @@ from .dashboard import Dashboard
 from .display import Display
 from .funscript_jumps import FunscriptJumps
 from .input import Input
-from .keys import Keys
 from .loading import LoadingCanceled, LoadingScreen
 from .modes import Modes, reload_playlist
 from .notice import NoticeWriter
@@ -263,11 +262,8 @@ def _run(args) -> int:
     # the room's selection changes.
     take_up_playlist = partial(
         reload_playlist, session, jumps, partial(resolve_playlist, args, source=source))
-    # What this window's keyboard and mouse reach, and what SDL's events are
-    # taken to mean.  See main_player.keys, main_player.pointer, main_player.input.
-    keys = Keys(session, modes, dashboard)
     pointer = Pointer(session, heatmap, volume, console_hud, dashboard)
-    window_input = Input(pointer, keys, dashboard)
+    window_input = Input(pointer, dashboard)
     # What a verb from Fun Time reaches.  See main_player.controls for what each moves.
     controls = _controls(
         session, stop_event, modes=modes, jumps=jumps,

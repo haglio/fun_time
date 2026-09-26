@@ -54,18 +54,7 @@ def repaint_due(*, phase: str, last_phase: str | None, now: float, last_paint_s:
 
 
 def quit_requested(events) -> bool:
-    """Whether *events* hold the user giving up on the wait.
-
-    The same two gestures playback answers — the window's close button and
-    Ctrl-Q — so the loading screen is not a window that ignores them.
-    """
-    for event in events:
-        if event.type == pygame.QUIT:
-            return True
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
-            if event.mod & pygame.KMOD_CTRL:
-                return True
-    return False
+    return any(event.type == pygame.QUIT for event in events)
 
 
 def stop_if_asked() -> None:

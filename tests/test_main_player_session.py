@@ -480,13 +480,6 @@ class TestPause:
         assert not session.is_paused
         assert player.paused is False
 
-    def test_toggle_pause_flips(self, tmp_path):
-        session, player, tcode = _make_session(tmp_path)
-        session.toggle_pause()
-        assert session.is_paused
-        session.toggle_pause()
-        assert not session.is_paused
-
     def test_set_paused_same_state_is_noop(self, tmp_path):
         """Fun Time owns the paused flag through a file and re-asserts it on
         every tick, so being told what is already true is the common path
