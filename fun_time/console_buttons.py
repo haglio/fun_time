@@ -25,6 +25,8 @@ from shared_ui.spacing import BUTTON_WORD_W
 
 from .crown import CROWN_ICON, Crown
 from .mode_plan import main_player_displays
+from .osr2_section import take_osr2_button
+from .players import Player
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,7 @@ class MainSlot:
     nothing_to_reset: bool = False
     flipped: bool = False
     crowned: bool = True
+    has_osr2: bool = True
 
 
 # The glyphs this console types, as against the family's marks it names below.
@@ -117,7 +120,7 @@ def console_rows(slot: MainSlot, *, in_vr: bool = False) -> tuple[tuple[Button, 
         ),
         _transport_row(slot),
         _playback_speed_row() if main_player_displays(slot.main_mode) else _clip_seconds_row(),
-        _control_row(slot),
+        _control_row(slot) if slot.has_osr2 else (take_osr2_button(Player.MAIN),),
     )
 
 
@@ -321,14 +324,25 @@ def _clip_seconds_row() -> tuple[Button, ...]:
 
 
 def _control_row(slot: MainSlot) -> tuple[Button, ...]:
-    control = slot.osr2_control
+    return (
+        *aim_row(cruise=slot.cruise, learned=slot.learned, shape=slot.shape,
+                 control=slot.osr2_control),
+        *((
+            Button("main_player_funscript_jump", FUNSCRIPT_JUMP_ICON,
+                   "Skip ahead to where this video's scripting starts up again",
+                   group_break=True),
+        ) if main_player_displays(slot.main_mode) else ()),
+    )
+
+
+def aim_row(*, cruise: bool, learned: bool, shape: str, control: str) -> tuple[Button, ...]:
     return (
         Button("robot_hand_toggle_cruise", "cc",
-               "Cruise control: vary the motion hands-free", lit=slot.cruise),
+               "Cruise control: vary the motion hands-free", lit=cruise),
         Button("robot_hand_toggle_learned", "hi",
                "Human inspired: motion drawn from real hand-made scripts, not a waveform",
-               lit=slot.learned),
-        Button("robot_hand_cycle_shape", WAVE_ICON, f"Waveform: {shape_label(slot.shape)}"),
+               lit=learned),
+        Button("robot_hand_cycle_shape", WAVE_ICON, f"Waveform: {shape_label(shape)}"),
         Button("quarter_button", QUARTER_ICON, "Offset the motion a ¼ cycle"),
         Button("osr2_control_off", CONTROL_OFF_ICON,
                "Control off — the OSR2 settles home and is left there; nothing "
@@ -346,9 +360,4 @@ def _control_row(slot: MainSlot) -> tuple[Button, ...]:
                "Driving — the OSR2 back on whatever the motion was doing, "
                "cruise included",
                lit=control == OSR2_DRIVING),
-        *((
-            Button("main_player_funscript_jump", FUNSCRIPT_JUMP_ICON,
-                   "Skip ahead to where this video's scripting starts up again",
-                   group_break=True),
-        ) if main_player_displays(slot.main_mode) else ()),
     )

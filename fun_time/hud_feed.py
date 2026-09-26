@@ -15,12 +15,14 @@ from player_core.satellite_hud import HudModel, hud_text, parse_hud
 
 from .bridge_records import BridgeConfig
 from .command_dispatch import main_player_at_defaults, satellite_at_defaults
+from .console_buttons import aim_row, osr2_controls
 from .crown import Crown
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SatelliteInputs, build_panels
-from .main_player_console import MainSlotInputs, console_model
+from .main_player_console import MainSlotInputs, console_model, osr2_state
 from .media_renditions import renditions
 from .modes import is_favorite_path, read_favs_content, source_roots
+from .osr2_section import DeviceBlock, player_with_the_osr2
 from .player_status import (
     is_broker_heartbeat_fresh,
     is_osr2_device_on,
@@ -72,6 +74,21 @@ class HudFeed:
         if self.publisher is None:
             return
         favs = self._favs_content()
+        genau = read_genau_status(self.config.genau_status_file)
+        broker = (is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
+                  if self.config.broker_heartbeat_file else False)
+        osr2_mode = self.osr2_mode()
+        with_the_osr2 = player_with_the_osr2(state)
+        section = DeviceBlock(
+            rows=(aim_row(cruise=genau.cruise_active, learned=genau.learned_active,
+                          shape=genau.shape, control=state.osr2_control),),
+            osr2=osr2_state(main_mode=state.main_mode, osr2_mode=osr2_mode,
+                            funscript_driving=False),
+            control=state.osr2_control,
+            controls=osr2_controls(broker=broker))
+
+        def device(player: Player) -> DeviceBlock:
+            return section if player is with_the_osr2 else DeviceBlock.offered_to(player)
 
         def satellite(name: str, player: Player, *, sources: str, status_file: Path) -> SatelliteInputs:
             current = self._satellite_clip(name, status_file)
@@ -97,7 +114,7 @@ class HudFeed:
                     active=state.active_player == player,
                     origenerator_ready=state.origenerator_ready,
                     in_vr=self.config.vr_main_player,
-                    crowned=state.crowned == player.label)))
+                    crowned=state.crowned == player.label, device=device(player))))
         else:
             portrait, landscape = build_panels(
                 satellite("portrait", 2, sources=self.config.portrait_sources,
@@ -114,8 +131,8 @@ class HudFeed:
                 in_vr=self.config.vr_main_player,
                 crowned=state.crowned,
             )
-            self.publisher.publish("portrait", portrait)
-            self.publisher.publish("landscape", landscape)
+            self.publisher.publish("portrait", portrait, device(Player.PORTRAIT))
+            self.publisher.publish("landscape", landscape, device(Player.LANDSCAPE))
         # The main console: the controls for whichever player owns the slot,
         # what has the OSR2, whether the broker is up, and which player a bare
         # command reaches -- none of which the player can see for itself.
@@ -130,18 +147,18 @@ class HudFeed:
             # None where the rotation holds one shape: the pair is the headset's.
             plays_vr=state.main_plays_vr if shapes_offered else None,
             plays_flat=state.main_plays_flat if shapes_offered else None,
-            osr2_mode=self.osr2_mode(),
+            osr2_mode=osr2_mode,
             osr2_control=state.osr2_control,
-            broker=is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
-            if self.config.broker_heartbeat_file else False,
+            broker=broker,
             # The console's buttons are lit and named from what each player
             # published, since the player drawing it is not always their subject.
             main_player=main_player,
-            genau=read_genau_status(self.config.genau_status_file),
+            genau=genau,
             genau_pace_s=self._genau_pace_s(),
             nothing_to_reset=main_player_at_defaults(state, self.config, main_player),
             in_vr=self.config.vr_main_player,
             crowned=state.crowned is Crown.MAIN,
+            has_osr2=with_the_osr2 is Player.MAIN,
         ))))
 
     def _hosted_panel(self, player: Player) -> HudModel | None:
