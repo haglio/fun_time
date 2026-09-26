@@ -25,6 +25,7 @@ from .clipper_save import save_clip_session
 from .command_dispatch import (
     dispatch_command,
     hosting_origenerator,
+    notice_source,
     room_at_defaults,
     routes_to_origenerator,
 )
@@ -59,7 +60,7 @@ from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import DESKTOP, VR, HandoffTarget, request_handoff, this_session
 from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .shortcuts import Shortcut
-from .voice_commands import parse_command_line
+from .voice_commands import CommandLine, parse_command_line
 from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
 from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
@@ -123,6 +124,15 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
 
 
 HANDOFF_COMMANDS: dict[str, HandoffTarget] = {"enter_vr": VR, "exit_vr": DESKTOP}
+
+OUTCOME_FLASHED_ONCE_IT_LANDS = frozenset({
+    "main_player_compilation",
+    "main_player_full_vid",
+    "main_player_clip_jump",
+    "main_player_funscript_jump",
+    "main_player_next_funscripted",
+    "clipper_save",
+})
 
 
 # The side-agnostic actions the main player (the main player) answers, and what it answers with.
@@ -271,6 +281,7 @@ class DispatchLoopRunner:
             getattr(config, "main_player_notice_file", None) or Path("main_player_notice.txt")
         )[0]
         self.voice_controller: VoiceController | None = None
+        self._flashes = 0
         # Watch tracking ("breeding"): every player's current clip, sampled and
         # classified into completions and skips for the stats file.
         # Satellites on their way back from the hosted app: by when they land,
@@ -364,10 +375,7 @@ class DispatchLoopRunner:
         self._batching_rfb = True
         try:
             for line in poll_dashboard_commands(self.dashboard_cmd_file):
-                raw_command, spoken_at = parse_command_line(line)
-                resolved = resolve_active_player_command(raw_command, self.state.active_player)
-                for command in expand_group_command(resolved):
-                    self._handle_command(command, spoken_at)
+                self._handle_line(parse_command_line(line))
         finally:
             self._batching_rfb = False
         self._flush_rfb_tabs()
@@ -450,17 +458,35 @@ class DispatchLoopRunner:
                 level=_MAIN_PLAYER_NOTICE_LEVELS.get(level, NOTICE),
             )
 
+    def _handle_line(self, line: CommandLine) -> None:
+        source = notice_source(line.command, self.state.active_player)
+        frozen = self._frozen(line.command, line.spoken_at)
+        flashes_before = self._flashes
+        resolved = resolve_active_player_command(line.command, self.state.active_player)
+        for command in expand_group_command(resolved):
+            self._handle_command(command, line.spoken_at)
+        if not line.said:
+            return
+        if frozen:
+            self._flash(f"ignored during OmniPause: {line.said}", source=source,
+                        level=logging.WARNING)
+        elif self._flashes == flashes_before and line.command not in OUTCOME_FLASHED_ONCE_IT_LANDS:
+            self._flash(line.said, source=source)
+
+    def _flash(self, message: str, *, source: str, level: int = NOTICE) -> None:
+        self._flashes += 1
+        notice(logger, message, source=source, level=level)
+
+    def _frozen(self, cmd: str, spoken_at: float | None) -> bool:
+        return self.state.omni_paused and spoken_at is not None and cmd not in SUSPEND_EXEMPT_COMMANDS
+
     def _handle_command(self, cmd: str, spoken_at: float | None = None) -> None:
         """Route one polled command (already expanded from any ``both_*``).
 
         ``spoken_at`` is when a voice command's utterance began, and None for
         the instantaneous hotkey and dashboard presses.
         """
-        if (
-            self.state.omni_paused
-            and spoken_at is not None
-            and cmd not in SUSPEND_EXEMPT_COMMANDS
-        ):
+        if self._frozen(cmd, spoken_at):
             # Freeze SPOKEN commands while paused — ``spoken_at`` marks a voice
             # line, and the deliberate mouse stays live because a click is not an
             # accident.  Backstops VoiceController's own suspend, closing the
@@ -553,11 +579,6 @@ class DispatchLoopRunner:
         mark_session_end(
             self.config.state_dir, f"a crossing to {target.app_name}")
         self.ahk_cmd_file.write_text("end_session", encoding="utf-8")
-
-    def hands_to_the_hosted_app(self, command: str) -> bool:
-        resolved = resolve_active_player_command(command, self.state.active_player)
-        return any(routes_to_origenerator(each, self.state, self.config)
-                   for each in expand_group_command(resolved))
 
     def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command)
@@ -950,8 +971,8 @@ def _run_save_clip(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     ).start()
 
 
-def _run_notice(_runner: DispatchLoopRunner, op: WindowOp) -> None:
-    notice(logger, op.key, source=op.source, level=op.level)
+def _run_notice(runner: DispatchLoopRunner, op: WindowOp) -> None:
+    runner._flash(op.key, source=op.source, level=op.level)
 
 
 def _run_take_back_players(runner: DispatchLoopRunner, _op: WindowOp) -> None:

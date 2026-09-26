@@ -2691,8 +2691,7 @@ class TestTheSessionEndsOnItsMarker:
 
 class TestStartingVoice:
     @staticmethod
-    def _started(config_path, tmp_path, *, controller=None, second_listener=None,
-                 dispatch_runner=None):
+    def _started(config_path, tmp_path, *, controller=None, second_listener=None):
         with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
              patch.object(windows_bridge_orchestrator, "WhisperReader",
                           return_value=second_listener or MagicMock()), \
@@ -2701,8 +2700,7 @@ class TestStartingVoice:
              patch.object(windows_bridge_orchestrator.threading, "Thread"):
             return windows_bridge_orchestrator.start_voice_control(
                 windows_bridge_orchestrator.prepare_voice_control(str(config_path)),
-                dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-                dispatch_runner=dispatch_runner or MagicMock(),
+                dashboard_cmd_file=tmp_path / "dashboard_cmd.txt", dispatch_runner=MagicMock(),
             )
 
     def test_a_microphone_that_will_not_open_leaves_a_session_without_voice(
@@ -2724,18 +2722,6 @@ class TestStartingVoice:
         self._started(config_path, tmp_path, controller=controller)
 
         assert controller.call_args.kwargs["confirm_commands"] is False
-
-    def test_the_controller_asks_the_loop_what_goes_to_the_hosted_app(
-        self, cfg_factory, tmp_path,
-    ):
-        """Only the loop knows the room's mode, and so which words the hosted
-        app's show takes from a player -- the ones voice then has to echo."""
-        config_path = cfg_factory({"voice_control": {"enabled": True}})
-        controller, runner = MagicMock(), MagicMock()
-
-        self._started(config_path, tmp_path, controller=controller, dispatch_runner=runner)
-
-        assert controller.return_value.hands_to_the_hosted_app is runner.hands_to_the_hosted_app
 
     def test_the_session_listens_with_the_second_listener_it_started_loading(
         self, cfg_factory, tmp_path,

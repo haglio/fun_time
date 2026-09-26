@@ -17,6 +17,7 @@ from fun_time.filter_vocab import (
 )
 from fun_time.voice_commands import (
     VOICE_COMMANDS,
+    CommandLine,
     build_voice_commands,
     format_spoken_command,
     friendly_voice,
@@ -26,16 +27,16 @@ from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
 
 
 class TestCommandLineFormat:
-    def test_round_trips_the_utterance_start(self):
-        line = format_spoken_command("portrait_lock_on", spoken_at=1234.5)
-        assert parse_command_line(line) == ("portrait_lock_on", 1234.5)
+    def test_round_trips_the_utterance_start_and_what_was_said(self):
+        line = format_spoken_command("portrait_lock_on", spoken_at=1234.5, said="lock portrait")
+        assert parse_command_line(line) == CommandLine("portrait_lock_on", 1234.5, "lock portrait")
 
     def test_an_unstamped_line_is_a_bare_command(self):
         """Hotkeys and dashboard presses are instantaneous — no back-dating."""
-        assert parse_command_line("portrait_next") == ("portrait_next", None)
+        assert parse_command_line("portrait_next") == CommandLine("portrait_next")
 
     def test_a_command_ending_in_an_unparseable_stamp_stays_whole(self):
-        assert parse_command_line("filter_both_come @ shot") == ("filter_both_come @ shot", None)
+        assert parse_command_line("filter_both_come @ shot") == CommandLine("filter_both_come @ shot")
 
 
 class TestTheSpokenCrossing:

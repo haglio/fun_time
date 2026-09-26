@@ -14,7 +14,7 @@ from voice_core.listener import CommandListener, Engines, ListenerEvents, Listen
 from voice_core.listening import Heard
 from voice_core.whisper_reader import WhisperReader
 
-from fun_time.command_dispatch import command_player
+from fun_time.command_dispatch import notice_source
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_MAIN,
@@ -23,7 +23,6 @@ from fun_time.event_log import (
     notice,
 )
 from fun_time.voice_commands import (
-    SELF_REPORTING_COMMANDS,
     VOICE_COMMANDS,
     format_spoken_command,
     friendly_voice,
@@ -33,22 +32,6 @@ logger = logging.getLogger(__name__)
 
 WORKING_ON_IT = "Figuring out what you said..."
 DID_NOT_CATCH_IT = "couldn't catch what you said"
-
-
-def _source_for_command(command: str, active_player: int | None = None) -> str:
-    """The event-log source a recognized command's confirmation flashes on.
-
-    A command naming a player flashes over it; a bare one ("next" after
-    "portrait next") names none but REACHES one -- whichever the session last
-    addressed -- and belongs over that player rather than the main one it would
-    otherwise default to.  Everything else flashes on the main player.
-    """
-    player = active_player if command.startswith("active_") else command_player(command)
-    return {
-        1: SOURCE_MAIN,
-        2: SOURCE_PORTRAIT,
-        3: SOURCE_LANDSCAPE,
-    }.get(player, SOURCE_SYSTEM)
 
 
 # The player words a speaker can put in any command, and which window a notice
@@ -143,10 +126,7 @@ class VoiceController:
         self._muted = threading.Event()
         self._suspended = threading.Event()
         self._words_forming = False
-        # Which player a bare command reaches, and whether one goes to the hosted
-        # app's show, asked of the dispatch loop as it is spoken: one process.
         self.active_player: Callable[[], int | None] = lambda: None
-        self.hands_to_the_hosted_app: Callable[[str], bool] = lambda _command: False
         self.listener_settings = ListenerSettings(
             model_name=model_path,
             device_name=device_name,
@@ -195,32 +175,26 @@ class VoiceController:
         """Thaw voice when omnipause lifts."""
         self._suspended.clear()
 
-    def _write_command(self, command: str, *, spoken_at: float) -> bool:
-        """Append a command to the dashboard command file; return whether it was.
+    def _write_spoken(self, phrase: str, *, spoken_at: float) -> bool:
+        """Append the phrase's command to the dashboard command file; return whether it was.
 
         No-op (returns False) when muted, and — while suspended by omnipause —
         for everything but the exempt commands.  The line carries *spoken_at*, so
         the dispatcher acts on the video that was on screen when the user started
         talking rather than whatever replaced it during recognition.
         """
+        command = VOICE_COMMANDS[phrase]
         if self._muted.is_set():
             return False
         if self._suspended.is_set() and command not in SUSPEND_EXEMPT_COMMANDS:
             return False
-        return append_command(self.cmd_file, format_spoken_command(command, spoken_at=spoken_at))
+        return append_command(self.cmd_file, format_spoken_command(
+            command, spoken_at=spoken_at, said=friendly_voice(phrase)))
 
     def handle_heard(self, heard: Heard) -> None:
-        """Act on one utterance the listener settled.
-
-        On screen it stays quiet: a white confirmation over the player a
-        dispatched command addresses, a yellow report over the player a refused,
-        doubted or unmatched phrase named -- the confirmation only when the
-        command really dispatched, the reports only while the room is being
-        listened to.  The log line for every outcome is the listener's.
-        """
         recognition = heard.recognition
         if recognition.phrase:
-            self._dispatch(recognition.phrase, spoken_at=heard.spoken_at)
+            self._hand_on(recognition.phrase, spoken_at=heard.spoken_at)
             return
         doubted = recognition.refused_phrase or recognition.unconfirmed_phrase
         if doubted:
@@ -234,16 +208,11 @@ class VoiceController:
         elif heard.words_formed:
             self._report(DID_NOT_CATCH_IT, heard_text="")
 
-    def _dispatch(self, phrase: str, *, spoken_at: float) -> None:
-        command = VOICE_COMMANDS[phrase]
-        dispatched = self._write_command(command, spoken_at=spoken_at)
-        source = _source_for_command(command, self.active_player())
-        reported_by_the_dispatch = (command in SELF_REPORTING_COMMANDS
-                                    and not self.hands_to_the_hosted_app(command))
-        if dispatched and not reported_by_the_dispatch:
-            notice(logger, friendly_voice(phrase), source=source)
-        elif not dispatched and not self._muted.is_set() and self._suspended.is_set():
-            notice(logger, f"ignored during OmniPause: {friendly_voice(phrase)}", source=source,
+    def _hand_on(self, phrase: str, *, spoken_at: float) -> None:
+        written = self._write_spoken(phrase, spoken_at=spoken_at)
+        if not written and self._suspended.is_set() and not self._muted.is_set():
+            notice(logger, f"ignored during OmniPause: {friendly_voice(phrase)}",
+                   source=notice_source(VOICE_COMMANDS[phrase], self.active_player()),
                    level=logging.WARNING)
 
     def _report(self, message: str, *, heard_text: str) -> None:
