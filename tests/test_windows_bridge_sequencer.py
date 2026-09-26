@@ -298,9 +298,8 @@ class TestRunStartupSequence:
         assert core_called["main_player_paused_file"] == str(cfg.main_player_paused_file)
 
     def test_the_satellites_launch_straight_into_their_layout_rects(self, cfg_factory, tmp_path):
-        """mpv won't rescale on a later Win32 resize, so the sequencer threads
-        the computed rects into the core launch — this is what makes the
-        native video fill its window."""
+        """The sequencer threads the computed rects into the core launch, so
+        each player opens where it plays."""
         _cfg, _result, core_called, ui_called = self._captured_launch(cfg_factory, tmp_path)
 
         assert core_called["portrait"].rect.x == 2560
@@ -703,10 +702,8 @@ class TestTheOrderInsideTheStartupPhases:
         return order
 
     def test_the_layout_is_computed_before_any_player_launches(self, cfg_factory, tmp_path):
-        """mpv sizes its output to the geometry it was launched with and will
-        NOT rescale when a later Win32 move resizes the window, so a satellite
-        has to be started straight into its real rect.  Computing the layout
-        after the launch would hand it the wrong one."""
+        """A satellite is started straight into its real rect, so computing the
+        layout after the launch would hand it the wrong one."""
         order = self._sequence(cfg_factory, tmp_path)
 
         assert order.index("layout") < order.index("core")

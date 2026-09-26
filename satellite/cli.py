@@ -46,6 +46,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Never play audio, and leave the volume chip a read-only "
                         "indicator; without it a satellite still opens muted, but "
                         "its chip can unmute it")
+    p.add_argument("--tile", action="store_true", default=False,
+                   help="Show a portrait picture side by side, as many times as "
+                        "fit, while the window is wider than it is tall")
     p.add_argument("--taskbar-identity", default=None,
                    help="Group this window under the launching application's taskbar "
                         "button; the orchestrator passes its own AppUserModelID. "

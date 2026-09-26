@@ -16,8 +16,9 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
@@ -30,6 +31,7 @@ from .append_only import append_line
 from .checkout_overrides import genau_project_kwargs
 from .child_launch import no_child_log, no_console_window
 from .config import VoiceControlConfig, load_config
+from .crown import majority_now
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from .event_log import THE_LISTENERS_LOGGERS
 from .filter_vocab import load_camera_words
@@ -76,7 +78,7 @@ from .session_handoff import (
     release_the_headset,
     request_handoff,
 )
-from .shared_state import shared_state_path
+from .shared_state import read_shared_state, shared_state_path
 from .shortcuts import Shortcut, resolve_shortcut
 from .standalone_origenerator import RELEASE
 from .state_file_names import take_up_the_retired_state_file_names
@@ -93,6 +95,7 @@ from .win32 import (
     windows_obscuring,
 )
 from .win32_process import get_process_creation_time
+from .window_layout import SecondaryMonitorRects, screen_layout, secondary_monitor_rects
 from .window_roles import GENAU_TITLE
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -767,6 +770,23 @@ def clear_last_sessions_leftovers(
         stale.unlink(missing_ok=True)
 
 
+def secondary_rects(manifest: LaunchManifest) -> Callable[..., SecondaryMonitorRects] | None:
+    try:
+        layout = screen_layout(manifest.layout)
+    except (ValueError, OSError):
+        return None
+    return partial(secondary_monitor_rects, layout.secondary_monitor, layout.config)
+
+
+def seat_the_secondary_monitor(manifest: LaunchManifest, role_hwnds: dict[str, int]) -> None:
+    state = read_shared_state(shared_state_path(Path(manifest.commands.state_dir)))
+    rects = secondary_rects(manifest)
+    if state is None or rects is None:
+        return
+    most = majority_now(state, Path(manifest.commands.main_player_status_file))
+    WindowRoles(pids=ChildPids(), role_hwnds=role_hwnds).seat(rects(majority=most))
+
+
 def _reveal_the_room(
     result: StartupResult,
     *,
@@ -790,6 +810,7 @@ def _reveal_the_room(
     # session is topmost yet: revealing here would show players sitting under
     # whatever was on those monitors, climbing over it a second later.
     role_hwnds = _fix_post_loading_windows(result, overlay_hwnd=cover.hwnd)
+    seat_the_secondary_monitor(manifest, role_hwnds)
 
     cover.take_it_down()
 
@@ -937,6 +958,7 @@ def _start_the_dispatch_loop(
         hud_publisher=hud_publisher,
         rfb_shortcut=rfb_shortcut,
         origenerator_already_open=result.origenerator_already_open,
+        secondary_rects=secondary_rects(manifest),
     )
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
     dispatch_thread.start()

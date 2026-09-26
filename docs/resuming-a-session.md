@@ -61,6 +61,10 @@ Nothing else survives, because nothing carries it into the new session:
 OmniPause's paused flags are cleared before the players launch, and a
 keyboard-navigation selection was never a thing you could leave running.
 
+Nor does which player has most of the secondary monitor: startup opens both
+windows where they always open, and the session's first ticks seat them from
+the crown, which does come back, and the shape of the main player's video.
+
 The satellite side's mode is dropped on purpose rather than for want of a way
 to carry it. Every room is built in video mode, because the hosted Origenerator
 that origenerator mode is made of is still booting when the room opens and

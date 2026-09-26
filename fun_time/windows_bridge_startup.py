@@ -917,16 +917,12 @@ def launch_core_apps(
     dashboard_cmd_file: str | Path | None = None,
     project_dirs: str | None = None,
 ) -> None:
-    """Spawn the two native satellite players (portrait + landscape).
-
-    Each launches straight into its final rect: mpv sizes its output to the
-    launch geometry and does NOT rescale when a later Win32 move resizes the
-    window, so launching at the real rect is what makes the video fill it.
-    """
+    """Spawn the two native satellite players (portrait + landscape), each
+    straight into its rect, and the portrait one ready to tile."""
     portrait = for_player(portrait, Player.PORTRAIT)
     landscape = for_player(landscape, Player.LANDSCAPE)
 
-    def _launch(slot: SatelliteSlot, title: str, role: str) -> int:
+    def _launch(slot: SatelliteSlot, title: str, role: str, *, tiles: bool) -> int:
         return launch_satellite(
             python_exe=python_exe,
             satellite_module=satellite_module,
@@ -937,14 +933,15 @@ def launch_core_apps(
                 title=title,
                 # One of Fun Time's windows rather than an application of its
                 # own -- see TASKBAR_IDENTITY_ARGS.
-                taskbar_identity=TASKBAR_IDENTITY_ARGS[1]),
+                taskbar_identity=TASKBAR_IDENTITY_ARGS[1],
+                tiles=tiles),
             role=role,
             log_file=slot.log_file,
             project_dirs=project_dirs,
         )
 
-    portrait_pid = _launch(portrait, SATELLITE_PORTRAIT_TITLE, "Portrait")
-    landscape_pid = _launch(landscape, SATELLITE_LANDSCAPE_TITLE, "Landscape")
+    portrait_pid = _launch(portrait, SATELLITE_PORTRAIT_TITLE, "Portrait", tiles=True)
+    landscape_pid = _launch(landscape, SATELLITE_LANDSCAPE_TITLE, "Landscape", tiles=False)
     _write_result_file(
         result_file,
         {

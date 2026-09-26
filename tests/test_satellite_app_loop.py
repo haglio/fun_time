@@ -49,6 +49,8 @@ class _FakePygame:
         self.event = SimpleNamespace(get=self._next_batch)
         self.time = SimpleNamespace(Clock=lambda: SimpleNamespace(tick=lambda _fps: None))
         self.NOFRAME = 32
+        self.window = SimpleNamespace(resizable=False)
+        self.Window = SimpleNamespace(from_display_module=lambda: self.window)
 
     def _next_batch(self):
         return self._batches.pop(0) if self._batches else []
@@ -61,7 +63,7 @@ class _FakePygame:
 
 
 def _loop_args(tmp_path: Path, playlist: list[Path], *, no_audio: bool = False,
-               **extra: str):
+               tile: bool = False, **extra: str):
     """The loop's args, defaulting to how ``_build_satellite_launch_command``
     launches one — which no longer passes ``--no-audio``, so the volume chip in
     these runs is the live one a session gets."""
@@ -72,6 +74,8 @@ def _loop_args(tmp_path: Path, playlist: list[Path], *, no_audio: bool = False,
             "--title", "Portrait AI Player"]
     if no_audio:
         argv.append("--no-audio")
+    if tile:
+        argv.append("--tile")
     for flag, value in extra.items():
         argv += [f"--{flag.replace('_', '-')}", value]
     (tmp_path / "playlist.tsv").write_text(
@@ -243,3 +247,33 @@ def test_each_pass_creeps_a_little_further_into_the_picture(tmp_path):
     _code, player, _fake = _run_loop(tmp_path, args)
 
     assert player.pushes == 1
+
+
+def test_a_portrait_player_lays_its_picture_out_in_tiles_across_its_window(tmp_path):
+    clips = _clips(tmp_path, "v0")
+    args = _loop_args(tmp_path, clips, tile=True)
+    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+
+    _code, player, _fake = _run_loop(tmp_path, args)
+
+    assert player.tiled_to == [(640, 480)]
+
+
+def test_a_landscape_player_is_never_asked_to_tile(tmp_path):
+    clips = _clips(tmp_path, "v0")
+    args = _loop_args(tmp_path, clips)
+    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+
+    _code, player, _fake = _run_loop(tmp_path, args)
+
+    assert player.tiled_to == []
+
+
+def test_the_window_takes_the_size_fun_time_gives_it_from_outside(tmp_path):
+    clips = _clips(tmp_path, "v0")
+    args = _loop_args(tmp_path, clips)
+    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+
+    _code, _player, fake = _run_loop(tmp_path, args)
+
+    assert fake.window.resizable is True

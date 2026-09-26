@@ -38,6 +38,7 @@ from .modes import Modes, reload_playlist
 from .notice import NoticeWriter
 from .overlay import HeatmapStrip, LoopThumbCapture
 from .painter import HUD_OVERLAYS, ConsolePanel, Painter
+from .player_window import take_outside_resizes
 from .pointer import Pointer
 from .published import Published
 from .session import PlayerSession
@@ -113,6 +114,7 @@ def _open_window(args):
     if icon is not None:
         pygame.display.set_icon(icon)  # must precede set_mode to take effect
     screen = pygame.display.set_mode((args.width, args.height), pygame.NOFRAME)
+    take_outside_resizes(pygame)
     pygame.display.set_caption("Main Player")
     return screen
 
@@ -279,7 +281,7 @@ def _run(args) -> int:
         heatmap=heatmap, volume=volume, loop_thumbs=loop_thumbs)
 
     while not stop_event.is_set():
-        win_w, win_h = screen.get_size()
+        win_w, win_h = pygame.display.get_window_size()
         window_input.deal(pygame.event.get(), win_w, win_h)
 
         session.set_paused(read_paused_state(paused_file, logger=logger))
@@ -305,6 +307,7 @@ def _run(args) -> int:
             clock.tick(60)
             continue
 
+        player.tile_to_fill(win_w, win_h)
         player.push_still()
         painter.paint(win_w, win_h, hover=pointer.hover)
 

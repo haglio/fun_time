@@ -187,7 +187,7 @@ class TestHowTheSevenPartsAreJoinedUp:
         assert _said(_call(_run_body(), "painter.paint").keywords[0].value) == "pointer.hover"
 
     def test_both_parts_are_given_the_window_the_way_round_it_was_measured(self):
-        """One `screen.get_size()` at the top of the frame feeds both, and the
+        """One size read off the window at the top of the frame feeds both, and the
         pair is (width, height) in both.  Transposed, every overlay is laid out
         against a 600x1000 window in a 1000x600 one and every press maps to the
         wrong place."""
@@ -208,6 +208,29 @@ class TestHowTheSevenPartsAreJoinedUp:
         next session opens on this one's playlist while the HUD names a mode
         from before it, and a compilation entered here is lost outright."""
         assert _said(_call(_run_body(), "memory.sync").args[0]) == "modes.remembered"
+
+
+class TestAWindowFunTimeResizes:
+    def test_the_frame_is_measured_off_the_window_as_it_is_now(self):
+        loop = next(n for n in ast.walk(_run_body()) if isinstance(n, ast.While))
+
+        assert _call(loop, "pygame.display.get_window_size")
+
+    def test_the_window_takes_the_size_fun_time_gives_it_from_outside(self):
+        tree = ast.parse((Path(__file__).resolve().parents[1] / "main_player" / "app.py")
+                         .read_text(encoding="utf-8"))
+        opening = next(n for n in ast.walk(tree)
+                       if isinstance(n, ast.FunctionDef) and n.name == "_open_window")
+
+        assert _said(_call(opening, "take_outside_resizes").args[0]) == "pygame"
+
+    def test_the_painted_frame_tiles_the_picture_to_the_window_it_measured(self):
+        loop = next(n for n in ast.walk(_run_body()) if isinstance(n, ast.While))
+        _write, skip, _paint = _run_loop_lines()
+        tiling = _call(loop, "player.tile_to_fill")
+
+        assert [_said(a) for a in tiling.args] == ["win_w", "win_h"]
+        assert skip < tiling.lineno
 
 
 class TestWhatABlankedFrameStillDoes:

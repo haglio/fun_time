@@ -328,6 +328,13 @@ def move_window(hwnd: int, x: int, y: int, w: int, h: int, *, activate: bool = T
     )
 
 
+def place_window(hwnd: int, x: int, y: int, w: int, h: int) -> None:
+    _without_hanging(
+        _user32.SetWindowPos, hwnd, 0, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE,
+        what=f"place_window({hwnd})",
+    )
+
+
 def window_rect(hwnd: int) -> tuple[int, int, int, int] | None:
     """Where *hwnd* sits, as (x, y, width, height), or None if it is gone.
 

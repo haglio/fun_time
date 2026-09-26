@@ -21,6 +21,7 @@ from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import BUTTON_MARK_INSET, BUTTON_RADIUS_HUD
 
 from fun_time import load_config
+from fun_time.crown import Crown
 from fun_time.dashboard_actions import (
     ENTER_VR,
     FMODE_TOGGLE,
@@ -61,7 +62,12 @@ from fun_time.event_log import EVENT_LOG_FILENAME, NOTICE, SOURCE_DASH
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
 from fun_time.project_paths import PROJECT_ICON
-from fun_time.window_layout import compute_main_media_rect, compute_window_layout
+from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
+from fun_time.window_layout import (
+    compute_main_media_rect,
+    compute_window_layout,
+    secondary_monitor_rects,
+)
 from fun_time.windows_bridge_dispatch_loop import expand_group_command, poll_dashboard_commands
 from tests.integration.integration_support import environment_with_this_checkouts_siblings
 from tests.sleeps import sleeps_in
@@ -1375,6 +1381,29 @@ def _write_event(app_config, message: str, *, level: int) -> None:
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(
             {"ts": 1.0, "level": level, "source": SOURCE_DASH, "msg": message}) + "\n")
+
+
+def test_a_main_player_notice_lands_on_the_main_player_wherever_the_crown_has_put_it(
+        dashboard_app_config):
+    write_shared_state(shared_state_path(dashboard_app_config.state_dir),
+                       BridgeState(majority=Crown.MAIN))
+    window = _notice_window(dashboard_app_config, held=False)
+    try:
+        path = dashboard_app_config.state_dir / EVENT_LOG_FILENAME
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(
+                {"ts": 1.0, "level": NOTICE, "source": "main", "msg": "Clip saved"}) + "\n")
+
+        window._notices.poll()
+
+        (_message, target), = window._notices.overlay.flashed
+    finally:
+        window.close()
+    layout = dashboard_app_config.layout
+    _primary, secondary = get_logical_monitor_rects(
+        _monitors(), primary_index=layout.primary_monitor,
+        secondary_index=layout.secondary_monitor)
+    assert target == secondary_monitor_rects(secondary, layout, majority=Crown.MAIN).main
 
 
 def test_nothing_flashes_through_the_cover_and_nothing_is_dropped_either(

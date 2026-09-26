@@ -13,6 +13,7 @@ _.do_GET  # http.server dispatches by getattr
 _.leaveEvent  # Qt calls it when the pointer leaves the dashboard bar
 _.mouseMoveEvent  # Qt event override
 _.optionxform  # ConfigParser hook, set to keep key case
+_.resizable  # pygame's Window property, set so SDL takes a resize from outside
 
 # --- Win32 struct fields written for an API call, never read back ---
 _.cbSize

@@ -8,6 +8,7 @@ from player_core.console import OSR2_CONTROL_OFF, OSR2_RETRACTED
 from player_core.modes import MainMode
 
 from fun_time.bridge_records import SatelliteChannel
+from fun_time.crown import Crown
 from fun_time.player_handover import hand_back, keep_aside
 from fun_time.players import Player
 from fun_time.session_resume import (
@@ -273,6 +274,14 @@ class TestResumeSharedState:
             for name in NOT_RESUMED_PER_SATELLITE:
                 assert getattr(state.satellite(player), name) == getattr(
                     fresh.satellite(player), name)
+
+    def test_a_room_reopens_with_the_windows_where_startup_puts_them(self, tmp_path: Path):
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(crowned=Crown.MAIN, majority=Crown.MAIN))
+
+        state = resume_shared_state(state_file, resumed=True)
+
+        assert (state.crowned, state.majority) == (Crown.MAIN, Crown.PORTRAIT)
 
     def test_the_state_left_behind_is_named_positively_and_is_all_of_it(self):
         """The list used to run the other way: what came BACK was spelled out,

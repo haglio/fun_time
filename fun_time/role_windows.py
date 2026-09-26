@@ -22,10 +22,13 @@ from .win32 import (
     is_window_minimized,
     is_window_topmost,
     minimize_window,
+    place_window,
     restore_window,
     set_always_on_top,
     window_exists,
+    window_rect,
 )
+from .window_layout import SecondaryMonitorRects, WindowRect
 from .window_roles import (
     FIXED_TOPMOST_ROLES,
     GENAU_TITLES,
@@ -278,6 +281,22 @@ class WindowRoles:
             restore_window(hwnd, activate=False)
         self._minimized_hwnds = []
         self._parked_hwnds = []
+
+    def seat(self, rects: SecondaryMonitorRects) -> None:
+        self.place([("portrait", rects.portrait), ("main_player", rects.main)])
+
+    def place(self, placements: Iterable[tuple[str, WindowRect]]) -> None:
+        moves = []
+        for role, rect in placements:
+            hwnd = self.hwnd(role)
+            if not hwnd or is_window_minimized(hwnd):
+                continue
+            now = window_rect(hwnd)
+            if now != (rect.x, rect.y, rect.width, rect.height):
+                growth = rect.width * rect.height - (now[2] * now[3] if now else 0)
+                moves.append((growth, hwnd, rect))
+        for _growth, hwnd, rect in sorted(moves, key=lambda move: move[0]):
+            place_window(hwnd, rect.x, rect.y, rect.width, rect.height)
 
     # -- the topmost bands --------------------------------------------------
 

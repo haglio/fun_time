@@ -35,6 +35,7 @@ from player_core.volume import VolumeHudPainter, chip_xy
 
 from main_player.overlay import HeatmapStrip, timeline_bgra
 from main_player.play_points import PlayPoints
+from main_player.player_window import take_outside_resizes
 
 from .cli import audio_muted, build_parser, resolve_playlist
 from .contract import SatelliteChannels, WindowPlacement
@@ -122,6 +123,7 @@ def _open_window(args) -> int:
     # its HWND (the pygame surface is never blitted) and the sequencer sizes it to
     # the portrait/landscape rect.
     pygame.display.set_mode((placement.width, placement.height), pygame.NOFRAME)
+    take_outside_resizes(pygame)
     # A distinct --title per satellite, so the sequencer can resolve each window
     # to its slot by title when the pid lookup fails; also its Alt-Tab name.
     pygame.display.set_caption(placement.title)
@@ -146,6 +148,7 @@ class _Runtime:
     status_writer: StatusWriter | None
     hud: HudOverlay | None
     timeline: HeatmapStrip
+    tiles: bool
 
 
 def _build_runtime(args, wid: int, playlist: list[PlaylistItem]) -> _Runtime:
@@ -195,6 +198,7 @@ def _build_runtime(args, wid: int, playlist: list[PlaylistItem]) -> _Runtime:
                        if channels.status else None),
         hud=hud,
         timeline=HeatmapStrip(),
+        tiles=args.tile,
     )
 
 
@@ -251,6 +255,8 @@ def _run(args, playlist: list[PlaylistItem]) -> int:
                 apply_command(cmd, runtime.controls)
 
         runtime.session.advance()
+        if runtime.tiles:
+            runtime.player.tile_to_fill(win_w, win_h)
         runtime.player.push_still()
         if runtime.status_writer is not None:
             runtime.status_writer.write(runtime.session)

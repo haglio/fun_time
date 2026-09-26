@@ -27,13 +27,19 @@ PLACEMENT = (
     ("height", "--height"),
     ("title", "--title"),
     ("taskbar_identity", "--taskbar-identity"),
+    ("tiles", "--tile"),
 )
 
 
 def _argv(record, table) -> list[str]:
-    return [word for field, flag, *_ in table
-            if getattr(record, field) is not None
-            for word in (flag, str(getattr(record, field)))]
+    words: list[str] = []
+    for field, flag, *_ in table:
+        value = getattr(record, field)
+        if isinstance(value, bool):
+            words += [flag] if value else []
+        elif value is not None:
+            words += [flag, str(value)]
+    return words
 
 
 @dataclass(frozen=True)
@@ -78,7 +84,8 @@ class SatelliteChannels:
 
 @dataclass(frozen=True)
 class WindowPlacement:
-    """Where a satellite's window opens, what it is called, and whose it is."""
+    """Where a satellite's window opens, what it is called, whose it is, and whether
+    it tiles a portrait picture across it."""
 
     x: int | None = None
     y: int | None = None
@@ -86,11 +93,13 @@ class WindowPlacement:
     height: int = 900
     title: str = "Satellite"
     taskbar_identity: str | None = None
+    tiles: bool = False
 
     @classmethod
     def from_args(cls, args) -> WindowPlacement:
         return cls(x=args.x, y=args.y, width=args.width, height=args.height,
-                   title=args.title, taskbar_identity=args.taskbar_identity)
+                   title=args.title, taskbar_identity=args.taskbar_identity,
+                   tiles=args.tile)
 
     def to_argv(self) -> list[str]:
         return _argv(self, PLACEMENT)
