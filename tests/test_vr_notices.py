@@ -1,9 +1,12 @@
 """What the headset is shown of the session's log, and where each line goes."""
 from __future__ import annotations
 
-import json
 import logging
+import time
 from pathlib import Path
+
+from voice_core.commands import Recognition
+from voice_core.listening import Heard
 
 from fun_time.event_log import (
     FAVORITE,
@@ -13,14 +16,32 @@ from fun_time.event_log import (
     SOURCE_MAIN,
     SOURCE_PORTRAIT,
     SOURCE_SYSTEM,
+    EventLogHandler,
+    EventRecord,
+    event_line,
 )
+from fun_time.unlogged_notices import UnloggedNotices
+from fun_time.voice_control import VoiceController
 from fun_time_vr.notices import KEPT, MAIN, NoticeBoard, screen_for
 
 
-def _write(path: Path, message: str, level: int = NOTICE, source: str = SOURCE_SYSTEM) -> None:
+def _write(path: Path, message: str, level: int = NOTICE, source: str = SOURCE_SYSTEM,
+           *, flashes: bool = True) -> None:
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(
-            {"ts": 1.0, "level": level, "source": source, "msg": message}) + "\n")
+        handle.write(event_line(EventRecord(1.0, level, source, message, flashes)) + "\n")
+
+
+class _Unlogged:
+    def __init__(self, *records: EventRecord) -> None:
+        self._waiting = list(records)
+        self.stopped = False
+
+    def take_all(self) -> list[EventRecord]:
+        taken, self._waiting = self._waiting, []
+        return taken
+
+    def stop(self) -> None:
+        self.stopped = True
 
 
 def _log(tmp_path: Path) -> Path:
@@ -68,12 +89,11 @@ class TestWhatItPicksUp:
         path = _log(tmp_path)
         board = NoticeBoard(path)
         _write(path, "Voice command: landscape_next", level=logging.INFO)
-        _write(path, "unrecognized voice command: portrait net", level=logging.WARNING)
+        _write(path, "No clip that way", level=logging.WARNING)
 
         board.pump(None, now=1.0)
 
-        assert [line.message for line in board.lines] == [
-            "unrecognized voice command: portrait net"]
+        assert [line.message for line in board.lines] == ["No clip that way"]
 
     def test_the_level_rides_along_for_the_color(self, tmp_path):
         path = _log(tmp_path)
@@ -132,6 +152,69 @@ class TestTheBannerOverEachPlayer:
 
         assert board.banner(MAIN) is None
         assert [line.message for line in board.lines] == ["skip"]
+
+
+class TestWordsFlashedWithNoLogLine:
+    def test_they_go_on_the_strip_and_over_the_player_they_name(self, tmp_path):
+        board = NoticeBoard(_log(tmp_path), unlogged=_Unlogged(EventRecord(
+            2.0, logging.WARNING, SOURCE_PORTRAIT, "unrecognized voice command: alpha beta")))
+
+        board.pump(None, now=1.0)
+
+        assert [line.message for line in board.lines] == ["unrecognized voice command: alpha beta"]
+        assert board.banner(SOURCE_PORTRAIT).message == "unrecognized voice command: alpha beta"
+
+    def test_they_never_join_what_the_dash_lists(self, tmp_path):
+        board = NoticeBoard(_log(tmp_path), unlogged=_Unlogged(EventRecord(
+            2.0, logging.WARNING, SOURCE_PORTRAIT, "unrecognized voice command: alpha beta")))
+
+        board.pump(None, now=1.0)
+
+        assert board.records == ()
+
+    def test_the_line_logged_in_their_place_is_listed_and_not_flashed(self, tmp_path):
+        path = _log(tmp_path)
+        board = NoticeBoard(path)
+        _write(path, "unrecognized voice command (2 words)", level=logging.WARNING, flashes=False)
+
+        board.pump(None, now=1.0)
+
+        assert [record.message for record in board.records] == [
+            "unrecognized voice command (2 words)"]
+        assert board.lines == ()
+        assert board.banner(MAIN) is None
+
+    def test_closing_the_board_closes_their_inbox(self, tmp_path):
+        unlogged = _Unlogged()
+
+        NoticeBoard(_log(tmp_path), unlogged=unlogged).close()
+
+        assert unlogged.stopped
+
+    def test_speech_that_is_no_command_reaches_the_headset_in_its_words_alone(self, tmp_path):
+        path = _log(tmp_path)
+        board = NoticeBoard(path, unlogged=UnloggedNotices(tmp_path))
+        voice_log = logging.getLogger("fun_time.voice_control")
+        written = EventLogHandler(path)
+        voice_log.addHandler(written)
+        try:
+            VoiceController(cmd_file=tmp_path / "dashboard_cmd.txt",
+                            model_path="unused").handle_heard(Heard(
+                Recognition(unrecognized_text="put the kettle on"),
+                spoken_at=1.0, peak=2000, audio=b"", candidates={}))
+            deadline = time.monotonic() + 5.0
+            while not board.lines and time.monotonic() < deadline:
+                board.pump(None, now=1.0)
+                time.sleep(0.02)
+        finally:
+            voice_log.removeHandler(written)
+            board.close()
+
+        assert [line.message for line in board.lines] == [
+            "unrecognized voice command: put the kettle on"]
+        assert board.banner(MAIN).message == "unrecognized voice command: put the kettle on"
+        assert [record.message for record in board.records] == [
+            "unrecognized voice command (4 words)"]
 
 
 class TestWhatItDrops:

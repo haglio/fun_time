@@ -77,6 +77,7 @@ class EventRecord:
     level: int
     source: str
     message: str
+    flashes: bool = True
 
 
 def event_log_path(state_dir: str | Path) -> Path:
@@ -108,44 +109,60 @@ class EventLogHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            line = json.dumps(
-                {
-                    "ts": record.created,
-                    "level": record.levelno,
-                    "source": getattr(record, "source", SOURCE_SYSTEM),
-                    "msg": record.getMessage(),
-                },
-                ensure_ascii=False,
-            )
+            line = event_line(EventRecord(
+                ts=record.created,
+                level=record.levelno,
+                source=getattr(record, "source", SOURCE_SYSTEM),
+                message=record.getMessage(),
+                flashes=getattr(record, "flashes", True),
+            ))
             with self.path.open("a", encoding="utf-8") as fh:
                 fh.write(line + "\n")
         except Exception:  # logging must never take the app down
             pass
 
 
-def notice(logger: logging.Logger, message: str, *, source: str, level: int = NOTICE) -> None:
-    """Log a message meant for the person watching the screen.
+def event_line(record: EventRecord) -> str:
+    payload: dict[str, object] = {
+        "ts": record.ts, "level": record.level, "source": record.source, "msg": record.message,
+    }
+    if not record.flashes:
+        payload["flash"] = False
+    return json.dumps(payload, ensure_ascii=False)
 
-    "Clip saved", "No other seeds", "unrecognized voice command: …".  Each reaches
-    three surfaces: the dashboard's log panel keeps the history, a notice flashes
-    over the player *source* names (:mod:`fun_time.notice_feed`), and a VR
-    session, which has neither, draws a strip on the console hanging in the
+
+def parse_event_line(line: str | bytes) -> EventRecord | None:
+    try:
+        payload = json.loads(line)
+        return EventRecord(
+            ts=float(payload["ts"]),
+            level=int(payload["level"]),
+            source=str(payload["source"]),
+            message=str(payload["msg"]),
+            flashes=payload.get("flash", True) is not False,
+        )
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def notice(logger: logging.Logger, message: str, *, source: str, level: int = NOTICE,
+           flashes: bool = True) -> None:
+    """Log a message meant for the person watching the screen: "Clip saved", "No
+    other seeds".  The log panel lists it, and unless *flashes* is off it flashes
+    over the player *source* names (:mod:`fun_time.notice_feed`), or in the
     headset (:mod:`fun_time_vr.notices`).
 
     *level* defaults to NOTICE (a normal announcement, white); pass FAVORITE for
     one about the favorites or a funscript, which reads green, WARNING for a
     command that hit a dead end (yellow), or ERROR for a failure (red).
     """
-    logger.log(level, message, extra={"source": source})
+    logger.log(level, message, extra={"source": source, "flashes": flashes})
 
 
 def is_announcement(record: EventRecord) -> bool:
-    """Whether *record* is loud enough to flash — a notice, or louder.
-
-    The verbosity dial governs only what the log panel *lists*; a notice always
-    flashes, exactly as the old cursor tooltip always showed.
-    """
-    return record.level >= NOTICE
+    """Whether *record* flashes: a notice, or louder, logged with *flashes* on.
+    The verbosity dial governs only what the log panel lists."""
+    return record.flashes and record.level >= NOTICE
 
 
 def read_events(path: str | Path, offset: int = 0) -> tuple[list[EventRecord], int]:
@@ -176,21 +193,8 @@ def read_events(path: str | Path, offset: int = 0) -> tuple[list[EventRecord], i
         blob = fh.read()
 
     consumed = blob.rfind(b"\n") + 1  # 0 until the first line is complete
-    records: list[EventRecord] = []
-    for raw in blob[:consumed].splitlines():
-        try:
-            payload = json.loads(raw.decode("utf-8"))
-            records.append(
-                EventRecord(
-                    ts=float(payload["ts"]),
-                    level=int(payload["level"]),
-                    source=str(payload["source"]),
-                    message=str(payload["msg"]),
-                )
-            )
-        except (ValueError, KeyError, TypeError, UnicodeDecodeError):
-            continue
-    return records, offset + consumed
+    parsed = map(parse_event_line, blob[:consumed].splitlines())
+    return [record for record in parsed if record is not None], offset + consumed
 
 
 # What the family's listener says of each utterance -- how it ended, how loud it

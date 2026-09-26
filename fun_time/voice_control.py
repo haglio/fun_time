@@ -22,6 +22,7 @@ from fun_time.event_log import (
     SOURCE_SYSTEM,
     notice,
 )
+from fun_time.unlogged_notices import flash_unlogged
 from fun_time.voice_commands import (
     VOICE_COMMANDS,
     format_spoken_command,
@@ -32,6 +33,12 @@ logger = logging.getLogger(__name__)
 
 WORKING_ON_IT = "Figuring out what you said..."
 DID_NOT_CATCH_IT = "couldn't catch what you said"
+NO_COMMAND = "unrecognized voice command"
+
+
+def _how_many(words: str) -> str:
+    count = len(words.split())
+    return f"{count} word{'' if count == 1 else 's'}"
 
 
 # The player words a speaker can put in any command, and which window a notice
@@ -200,8 +207,7 @@ class VoiceController:
         if doubted:
             self._report(f"not sure enough of: {friendly_voice(doubted)}", heard_text=doubted)
         elif recognition.unrecognized_text:
-            self._report(f"unrecognized voice command: {recognition.unrecognized_text}",
-                         heard_text=recognition.unrecognized_text)
+            self._report_no_command(recognition.unrecognized_text)
         elif heard.words_formed and recognition.silent_reading:
             self._report(f"too quiet to act on: {recognition.silent_reading}",
                          heard_text=recognition.silent_reading)
@@ -219,6 +225,15 @@ class VoiceController:
         if self._is_listening():
             notice(logger, message, source=_source_for_heard_text(heard_text),
                    level=logging.WARNING)
+
+    def _report_no_command(self, words: str) -> None:
+        if not self._is_listening():
+            return
+        source = _source_for_heard_text(words)
+        notice(logger, f"{NO_COMMAND} ({_how_many(words)})", source=source,
+               level=logging.WARNING, flashes=False)
+        flash_unlogged(self.cmd_file.parent, f"{NO_COMMAND}: {words}", source=source,
+                       level=logging.WARNING)
 
     def _say_it_is_being_worked_on(self, forming: str) -> None:
         if forming and not self._words_forming and self._is_listening():
