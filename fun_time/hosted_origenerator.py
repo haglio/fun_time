@@ -92,13 +92,14 @@ def bring_up_the_hosted_app(
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
         players=players,
     )
-    origenerator_pid = the_open_origenerator(origenerator_dir)
-    if origenerator_pid:
-        take_it_over(origenerator_dir, pid=origenerator_pid,
+    open_app = the_open_origenerator(origenerator_dir)
+    if open_app is not None:
+        take_it_over(origenerator_dir, pid=open_app.pid,
                      args=origenerator_session_args(**contract))
-        logger.info("Took over the Origenerator already open from %s (pid %d)",
-                    origenerator_dir, origenerator_pid)
-        return HostedApp(origenerator_pid, already_open=True, taken_over=True)
+        logger.info("Took over the Origenerator %s from %s (pid %d)",
+                    "still starting" if open_app.starting else "already open",
+                    origenerator_dir, open_app.pid)
+        return HostedApp(open_app.pid, already_open=not open_app.starting, taken_over=True)
     origenerator_pid = launch_origenerator(
         python_exe=(m.executables.origenerator_python_exe.strip()
                     or origenerator_interpreter(origenerator_dir)),

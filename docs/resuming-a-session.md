@@ -72,6 +72,9 @@ entered at all: the switch answers "Origenerator is still starting", and both
 satellite HUDs draw that button dim. An Origenerator that was already open when
 the session began — one he opened himself and the session took over, or one a
 crossing kept — has no boot left to wait out, so its mode is open from the start.
+One he opened that is still starting when the session begins offers itself as
+starting, and is taken over rather than joined by a second copy; its mode waits
+for it exactly as a launched one's does.
 
 Dropping the mode means putting back what the mode took. While the hosted app
 has a satellite, that player's playlist file holds the app's pictures and the

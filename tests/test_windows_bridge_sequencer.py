@@ -1439,7 +1439,8 @@ class TestOrigeneratorLaunch:
         launch.assert_not_called()
         assert result.origenerator_pid == 0
 
-    def _checkout_with_an_open_app(self, cfg_factory, tmp_path, *, created_at=None):
+    def _checkout_with_an_open_app(self, cfg_factory, tmp_path, *, created_at=None,
+                                   starting=False):
         checkout = tmp_path / "origenerator"
         cfg = load_config(cfg_factory({"paths": {"origenerator_dir": str(checkout)}}))
         manifest_path = write_windows_bridge_manifest(
@@ -1448,9 +1449,50 @@ class TestOrigeneratorLaunch:
         open_app = os.getpid()
         (checkout / "state").mkdir(parents=True)
         (checkout / "state" / "fun_time_offer.txt").write_text(
-            f"{open_app} {created_at or get_process_creation_time(open_app)}\n",
+            f"{open_app} {created_at or get_process_creation_time(open_app)}"
+            f"{' starting' if starting else ''}\n",
             encoding="utf-8")
         return cfg, manifest_path, checkout, open_app
+
+    def test_an_origenerator_still_starting_is_taken_over_rather_than_launched(
+        self, cfg_factory, tmp_path
+    ):
+        _cfg, manifest_path, checkout, open_app = self._checkout_with_an_open_app(
+            cfg_factory, tmp_path, starting=True)
+
+        with _sequencer_stubs(launch_origenerator=dict()) as stubs:
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        stubs.launch_origenerator.assert_not_called()
+        assert result.origenerator_pid == open_app
+        assert json.loads((checkout / "state" / "fun_time_takeover.json").read_text(
+            encoding="utf-8"))["pid"] == open_app
+
+    def test_a_room_that_took_over_an_app_still_starting_has_to_hear_from_it(
+        self, cfg_factory, tmp_path
+    ):
+        _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
+            cfg_factory, tmp_path, starting=True)
+
+        with _sequencer_stubs(launch_origenerator=dict()):
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert not result.origenerator_already_open
+        assert result.origenerator_taken_over
+
+    def test_a_startup_canceled_after_taking_over_an_app_still_starting_leaves_it_off_the_kill_list(
+        self, cfg_factory, tmp_path
+    ):
+        _cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
+            cfg_factory, tmp_path, starting=True)
+
+        with _sequencer_stubs(launch_origenerator=dict()), \
+             pytest.raises(StartupCancelled) as excinfo:
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
+                                 progress=_CancelOnAdvance(cancel_on=2))
+
+        assert open_app not in excinfo.value.launched_pids
+        assert excinfo.value.origenerator_taken_over
 
     def test_an_origenerator_already_open_is_taken_over_rather_than_launched(
         self, cfg_factory, tmp_path

@@ -20,7 +20,7 @@ from player_core.modes import MainMode
 from main_player.play_points import play_points_filename
 from satellite.contract import SatelliteChannels
 
-from .hosted_origenerator import bring_up_the_hosted_app
+from .hosted_origenerator import HostedApp, bring_up_the_hosted_app
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, main_player_displays
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
@@ -231,16 +231,12 @@ class _LaunchedChildren:
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
 
-    def hosts_an_app_it_launched(self, origenerator_pid: int) -> int:
-        self.pids.append(origenerator_pid)
-        return origenerator_pid
-
-    def hosts_an_app_already_open(self, origenerator_pid: int, *, taken_over: bool) -> int:
-        self.origenerator_already_open = True
-        if taken_over:
-            self.origenerator_taken_over = True
-            return origenerator_pid
-        return self.hosts_an_app_it_launched(origenerator_pid)
+    def hosts(self, app: HostedApp) -> int:
+        self.origenerator_already_open = app.already_open
+        self.origenerator_taken_over = app.taken_over
+        if not app.taken_over:
+            self.pids.append(app.pid)
+        return app.pid
 
 
 def release_the_players(m: LaunchManifest, main_mode: MainMode) -> None:
@@ -514,11 +510,7 @@ def _launch_the_hosted_origenerator(
     """The hosted app, first of the children and waited on by none, or 0 for a
     session the config names no checkout for."""
     app = bring_up_the_hosted_app(m, plan=plan, project_dirs=project_dirs)
-    if app is None:
-        return 0
-    if app.already_open:
-        return launched.hosts_an_app_already_open(app.pid, taken_over=app.taken_over)
-    return launched.hosts_an_app_it_launched(app.pid)
+    return 0 if app is None else launched.hosts(app)
 
 
 def _launch_core_media(
