@@ -143,9 +143,10 @@ class VoiceController:
         self._muted = threading.Event()
         self._suspended = threading.Event()
         self._words_forming = False
-        # Which player a bare command reaches, asked of the dispatch loop as it
-        # is spoken -- the two run in one process.
+        # Which player a bare command reaches, and whether one goes to the hosted
+        # app's show, asked of the dispatch loop as it is spoken: one process.
         self.active_player: Callable[[], int | None] = lambda: None
+        self.hands_to_the_hosted_app: Callable[[str], bool] = lambda _command: False
         self.listener_settings = ListenerSettings(
             model_name=model_path,
             device_name=device_name,
@@ -232,7 +233,9 @@ class VoiceController:
         command = VOICE_COMMANDS[phrase]
         dispatched = self._write_command(command, spoken_at=spoken_at)
         source = _source_for_command(command, self.active_player())
-        if dispatched and command not in SELF_REPORTING_COMMANDS:
+        reported_by_the_dispatch = (command in SELF_REPORTING_COMMANDS
+                                    and not self.hands_to_the_hosted_app(command))
+        if dispatched and not reported_by_the_dispatch:
             notice(logger, friendly_voice(phrase), source=source)
         elif not dispatched and not self._muted.is_set() and self._suspended.is_set():
             notice(logger, f"ignored during OmniPause: {friendly_voice(phrase)}", source=source,
