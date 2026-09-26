@@ -2409,32 +2409,39 @@ def test_main_video_activate_raises_main_player_under_genaus_hud(tmp_path: Path)
     assert [op.op for op in ops if op.op == "restack_main"] == ["restack_main"]
 
 
-def test_genau_activate_activates_genau_and_lowers_main_player(tmp_path: Path):
+def test_a_switch_to_video_hands_genau_its_hud_only_after_the_main_player_is_up(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    _state, ops = dispatch_command("main_video_activate", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert ops[-1] == WindowOp(op="hand_over_the_main_slot", key="video")
+
+
+def test_genau_activate_makes_genau_the_display_and_leaves_the_main_player_to_the_handover(
+        tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.VIDEO)
 
     new_state, ops = dispatch_command("genau_activate", state, config)
 
     assert new_state.main_mode is MainMode.GENAU
-    slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
-    assert slot_ops == [
-        ("show_role", "genau"),
-        ("activate_role", "genau"),
-        ("hide_role", "main_player"),
+    assert ops == [
+        WindowOp(op="show_role", key="genau"),
+        WindowOp(op="activate_role", key="genau"),
+        WindowOp(op="hand_over_the_main_slot", key="genau"),
     ]
-    # The mode switch re-stacks the main player/Genau pair for the new mode.
-    assert [op.op for op in ops if op.op == "restack_main"] == ["restack_main"]
 
 
 def test_a_mode_switch_tells_main_player_only_whether_it_is_on_screen(tmp_path: Path):
     """The arbiter owns the main player's T-Code lever inside video mode, and a main player parked
     off screen in genau mode sends nothing — so the switch says nothing of it."""
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
 
-    dispatch_command("genau_activate", state, config)
+    dispatch_command("genau_activate", _make_state(main_mode=MainMode.VIDEO), config)
+    assert not config.main_player_cmd_file.exists()
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8").splitlines() == ["DISPLAY_OFF"]
+    dispatch_command("main_video_activate", _make_state(main_mode=MainMode.GENAU), config)
+    assert config.main_player_cmd_file.read_text(encoding="utf-8").splitlines() == ["DISPLAY_ON"]
 
 
 # --- genau command forwarding (_GENAU_CMD_MAP) ---

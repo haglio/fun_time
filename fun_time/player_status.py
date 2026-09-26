@@ -111,14 +111,14 @@ def read_main_player_status(path: Path, *, fallback: MainPlayerStatus | None = N
             has_compilation=_status_bool(values, "has_compilation"),
             has_other_versions=_status_bool(values, "has_other_versions"),
             jump_to=values.get("jump_to", "").strip(),
-            portrait=_status_shape(values),
+            portrait=_status_flag_or_none(values, "portrait"),
         )
     except (OSError, ValueError):
         return fallback or MainPlayerStatus()
 
 
-def _status_shape(values: dict) -> bool | None:
-    return {"1": True, "0": False}.get(values.get("portrait", "").strip())
+def _status_flag_or_none(values: dict, key: str) -> bool | None:
+    return {"1": True, "0": False}.get(values.get(key, "").strip())
 
 
 def _status_touch(values: dict) -> int | None:
@@ -144,6 +144,7 @@ class GenauStatus:
     clip: str = ""
     flipped: bool = False
     portrait: bool | None = None
+    hud_on: bool | None = None
 
 
 def _status_bool(values: dict[str, str], key: str, *, default: bool = False) -> bool:
@@ -168,7 +169,8 @@ def read_genau_status(path: Path) -> GenauStatus:
             shape=values.get("shape", "sine").strip(),
             clip=values.get("clip", "").strip(),
             flipped=_status_bool(values, "flipped"),
-            portrait=_status_shape(values),
+            portrait=_status_flag_or_none(values, "portrait"),
+            hud_on=_status_flag_or_none(values, "hud"),
         )
     except (OSError, ValueError):
         return GenauStatus()

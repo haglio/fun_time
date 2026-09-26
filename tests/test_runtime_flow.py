@@ -80,26 +80,27 @@ def _mode_switch(files, *, current, target, omni_paused=False):
 
 def _main_player_cmds(files) -> list[str]:
     """What the switch queued for the main player, one verb per line as it drains them."""
-    return files["main_player_cmd_file"].read_text(encoding="utf-8").split("\n")[:-1]
+    cmd_file = files["main_player_cmd_file"]
+    return cmd_file.read_text(encoding="utf-8").split("\n")[:-1] if cmd_file.exists() else []
 
 
-def test_video_to_genau_resumes_genau_and_parks_main_player(flow_files):
+def test_video_to_genau_resumes_genau_and_pauses_the_main_player_on_its_picture(flow_files):
     result = _mode_switch(flow_files, current="video", target="genau")
 
     assert result.next_mode == "genau"
     assert result.is_transition is True
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_OFF\n"
     assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "1"
-    assert _main_player_cmds(flow_files) == ["DISPLAY_OFF"]
+    assert _main_player_cmds(flow_files) == []
 
 
-def test_genau_to_video_starts_main_player_under_genaus_hud(flow_files):
+def test_genau_to_video_starts_main_player_under_genau(flow_files):
     # RESUME either way: the dispatch loop's arbiter takes the hand from here,
     # pausing it for the funscript's stretches on its next tick.
     result = _mode_switch(flow_files, current="genau", target="video")
 
     assert result.next_mode == "video"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON\n"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
     assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "0"
     assert _main_player_cmds(flow_files) == ["DISPLAY_ON"]
 
@@ -121,7 +122,7 @@ def test_a_mode_switch_during_omnipause_swaps_the_display_and_resumes_nothing(fl
 
     assert result.next_mode == "genau"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "HUD_OFF\n"
-    assert _main_player_cmds(flow_files) == ["DISPLAY_OFF"]
+    assert _main_player_cmds(flow_files) == []
     assert not flow_files["main_player_paused_file"].exists()
 
 

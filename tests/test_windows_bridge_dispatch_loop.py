@@ -899,11 +899,12 @@ class TestDispatchLoopRunner:
     def test_mode_switch_leaves_the_outgoing_player_up_for_a_beat(self, tmp_path):
         """Minimizing freezes a window's Alt-Tab thumbnail — Windows stops
         compositing it — so the player being left has to be minimized only once
-        the DISPLAY_OFF sent with the same switch is on screen.  Minimize in the
+        the DISPLAY_OFF it is sent as it steps aside is on screen.  Minimize in the
         frame or two that takes and the thumbnail keeps the video frame it was
         sitting on, which is the whole thing the blanking is for."""
         clock = FakeClock()
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
+        runner.config.genau_status_file.write_text("hud=0\n", encoding="utf-8")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("genau_activate", encoding="utf-8")
 
@@ -1049,6 +1050,61 @@ class TestDispatchLoopRunner:
                 runner.tick()
 
             assert minimized == wanted, mode
+
+    def test_genau_turns_into_the_hud_only_once_the_main_player_has_had_its_settle(self, tmp_path):
+        clock = FakeClock()
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
+        write_shared_state(tmp_path / "shared_state.ini", BridgeState(main_mode=MainMode.GENAU))
+        (tmp_path / "dashboard_cmd.txt").write_text("main_video_activate", encoding="utf-8")
+        genau_cmds = runner.config.genau_cmd_file
+
+        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.role_windows.restore_window"), \
+             patch("fun_time.role_windows.activate_window"), \
+             patch("fun_time.role_windows.set_always_on_top"):
+            runner.tick()
+            assert "HUD_ON" not in genau_cmds.read_text(encoding="utf-8").split()
+            clock.advance(MAIN_BLANK_SETTLE_S)
+            runner.tick()
+
+        assert genau_cmds.read_text(encoding="utf-8").split()[-1] == "HUD_ON"
+
+    def test_the_main_player_stays_under_genau_until_genau_says_it_is_solid(self, tmp_path):
+        clock = FakeClock()
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
+        genau_status = runner.config.genau_status_file
+        genau_status.write_text("hud=1\n", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("genau_activate", encoding="utf-8")
+        demoted: list[int] = []
+        minimized: list[int] = []
+
+        def main_player_verbs() -> list[str]:
+            cmd_file = runner.config.main_player_cmd_file
+            return cmd_file.read_text(encoding="utf-8").split() if cmd_file.exists() else []
+
+        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.role_windows.restore_window"), \
+             patch("fun_time.role_windows.activate_window"), \
+             patch("fun_time.role_windows.set_always_on_top",
+                   side_effect=lambda h, on: None if on else demoted.append(h)), \
+             patch("fun_time.role_windows.minimize_window",
+                   side_effect=lambda h, **kw: minimized.append(h)):
+            runner.tick()
+            clock.advance(MAIN_BLANK_SETTLE_S)
+            runner.tick()
+            assert (demoted, minimized) == ([], [])
+            assert "DISPLAY_OFF" not in main_player_verbs()
+
+            genau_status.write_text("hud=0\n", encoding="utf-8")
+            runner.tick()
+            clock.advance(MAIN_BLANK_SETTLE_S)
+            runner.tick()
+
+        assert MAIN_PLAYER_HWND in demoted
+        assert minimized == [MAIN_PLAYER_HWND]
+        assert "DISPLAY_OFF" in main_player_verbs()
 
     def test_a_mode_switch_clicked_while_paused_restacks_the_main_slot_as_paused(self, tmp_path):
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
@@ -1622,12 +1678,10 @@ class TestModeSwitchVisibility:
                    side_effect=lambda h: calls.append(("activate", h))), \
              patch("fun_time.role_windows.set_always_on_top"):
             runner._dispatch(command)
-            # The outgoing player's minimize is held back a beat, so it can paint
-            # the black the same switch told it to before its Alt-Tab thumbnail
-            # freezes (see WindowRoles.hide_after_settle).  Let that beat pass,
-            # so these tests still see the whole ordered sequence.
+            runner.config.genau_status_file.write_text("hud=0\n", encoding="utf-8")
+            runner.tick()
             clock.advance(MAIN_BLANK_SETTLE_S)
-            runner.windows.flush_pending_hides()
+            runner.tick()
 
         assert runner.state.main_mode == {
             "genau_activate": "genau", "main_video_activate": "video",

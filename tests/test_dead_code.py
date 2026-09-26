@@ -244,7 +244,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # 7772 the same day: the heatmap's fill is the shared scrubber's, so the main
 # player's copy of that frame and its paragraphs went, and the side screens stopped
 # being described as unscripted now that they color their bars too.
-MAX_PROSE_LINES = 7772
+# 7713 on 2026-09-26: the main slot's handover finishes a mode switch, so the
+# notes narrating the switch's steps went, and so did one guarding against an
+# overwrite nothing can do now that every writer queues its verbs.
+MAX_PROSE_LINES = 7713
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

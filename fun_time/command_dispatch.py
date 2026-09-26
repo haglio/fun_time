@@ -796,27 +796,24 @@ def _main_focus_ops() -> list[WindowOp]:
 def _main_slot_ops(main_mode: str) -> list[WindowOp]:
     """Visibility + z-order ops for the main player-slot windows on a mode switch.
 
-    The two players (the main player and Genau) share one screen rect; exactly the mode's
-    player(s) are shown and the inactive slot-mate hidden.  The new window is
-    shown and activated BEFORE the old one hides so focus never falls through
-    to another application.  Finally the pair is re-stacked for the new mode
-    (``restack_main``): the main player topmost, with Genau's HUD above it in video mode.
-    The main player and Genau overlap, so their z-order is explicit — unlike every other
-    window, a plain topmost flag can't say "Genau above the main player, both on top."
+    The two players (the main player and Genau) share one screen rect.  The incoming
+    window is shown and activated first, so focus never falls through to another
+    application; the handover then finishes the switch once the incoming player
+    is up (see ``MainSlotHandover``), so nothing else ever shows through the rect.
     """
     restack = WindowOp(op="restack_main")
     if main_mode == MAIN_GENAU_MODE:
         return [
             WindowOp(op="show_role", key="genau"),
             WindowOp(op="activate_role", key="genau"),
-            WindowOp(op="hide_role", key="main_player"),
-            restack,
+            WindowOp(op="hand_over_the_main_slot", key=MAIN_GENAU_MODE),
         ]
     return [
         WindowOp(op="show_role", key="main_player"),
         WindowOp(op="show_role", key="genau"),
         WindowOp(op="activate_role", key="genau"),
         restack,
+        WindowOp(op="hand_over_the_main_slot", key=MAIN_VIDEO_MODE),
     ]
 
 

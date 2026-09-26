@@ -30,23 +30,35 @@ def test_the_verbs_each_mode_says_to_the_two_players():
     assert (hud_verb("genau"), main_player_display_verb("genau")) == ("HUD_OFF", "DISPLAY_OFF")
 
 
-def test_video_to_genau_parks_main_player_and_blanks_it():
+def test_video_to_genau_makes_genau_the_display_and_pauses_the_main_player():
     plan = build_mode_switch_plan(current_mode="video", target_mode="genau", omni_paused=False)
     assert plan.target_mode == "genau"
     assert plan.is_transition is True
     assert plan.genau_cmd == "RESUME"
     assert plan.hud_cmd == "HUD_OFF"
     assert plan.main_player_should_play is False
-    assert plan.main_player_display_cmd == "DISPLAY_OFF"
 
 
-def test_genau_to_video_starts_main_player_under_genaus_hud():
+def test_genau_to_video_starts_main_player_under_genau():
     plan = build_mode_switch_plan(current_mode="genau", target_mode="video", omni_paused=False)
     assert plan.is_transition is True
     assert plan.genau_cmd == "RESUME"
-    assert plan.hud_cmd == "HUD_ON"
     assert plan.main_player_should_play is True
     assert plan.main_player_display_cmd == "DISPLAY_ON"
+
+
+def test_genau_stays_the_display_through_a_switch_to_video_paused_or_not():
+    for omni_paused in (False, True):
+        plan = build_mode_switch_plan(current_mode="genau", target_mode="video",
+                                      omni_paused=omni_paused)
+        assert plan.hud_cmd is None
+
+
+def test_the_main_player_keeps_its_picture_through_a_switch_to_genau_paused_or_not():
+    for omni_paused in (False, True):
+        plan = build_mode_switch_plan(current_mode="video", target_mode="genau",
+                                      omni_paused=omni_paused)
+        assert plan.main_player_display_cmd is None
 
 
 def test_every_transition_outside_a_pause_resumes_genau():
@@ -73,8 +85,6 @@ def test_a_switch_while_paused_changes_what_shows_and_leaves_both_players_frozen
         plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=True)
         assert plan.target_mode == target
         assert plan.is_transition is True
-        assert plan.hud_cmd == hud_verb(target)
-        assert plan.main_player_display_cmd == main_player_display_verb(target)
         assert plan.genau_cmd is None
         assert plan.main_player_should_play is None
 
