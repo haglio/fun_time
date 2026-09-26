@@ -30,7 +30,7 @@ def main() -> None:
         sys.exit(1)
 
     progress_file = Path(sys.argv[1])
-    OverlayWindow(
+    OverlayWindow.over_every_monitor(
         progress_file,
         title=WINDOW_TITLE,
         status="Closing...",

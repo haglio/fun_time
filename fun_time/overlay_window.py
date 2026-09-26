@@ -119,55 +119,59 @@ class OverlayWindow:
     def __init__(
         self,
         progress_file: Path,
+        root: tk.Tk,
+        content: _Content,
         *,
         title: str,
-        status: str,
         stale_timeout_s: float,
     ) -> None:
         self._progress_file = progress_file
+        self._root = root
+        self._content = content
+        self._title = title
         self._stale_timeout_s = stale_timeout_s
         self._last_modified = 0.0
         self._status_held = False
         self._offering = False
-        self._title = title
         self._hwnd = 0
 
+    @classmethod
+    def over_every_monitor(
+        cls, progress_file: Path, *, title: str, status: str, stale_timeout_s: float,
+    ) -> OverlayWindow:
         # Made first, so the cover goes up over it and it stays under the cover
         # for good: a window put under the cover joins the topmost band only if
         # some topmost window sits below the cover.
         create_hidden_topmost_window()
 
-        self._root = tk.Tk()
-        self._root.title(title)
-        self._root.resizable(False, False)
-        self._root.attributes("-topmost", True)
-        self._root.overrideredirect(True)
-        self._root.configure(bg=BG)
+        root = tk.Tk()
+        root.title(title)
+        root.resizable(False, False)
+        root.attributes("-topmost", True)
+        root.overrideredirect(True)
+        root.configure(bg=BG)
 
-        # Out here, not in the failure path, where a Tk not answering raised
-        # again with nothing left to catch it.
-        desktop = virtual_desktop_rect()
-        if desktop is None:
-            desktop = MonitorInfo(
-                x=0, y=0,
-                width=self._root.winfo_screenwidth(),
-                height=self._root.winfo_screenheight(),
-            )
-        vx, vy = desktop.x, desktop.y
+        desktop = virtual_desktop_rect() or MonitorInfo(
+            x=0, y=0, width=root.winfo_screenwidth(), height=root.winfo_screenheight(),
+        )
+        root.geometry(f"{desktop.width}x{desktop.height}+{desktop.x}+{desktop.y}")
 
-        self._root.geometry(f"{desktop.width}x{desktop.height}+{vx}+{vy}")
+        _apply_theme(root)
 
-        _apply_theme(self._root)
-
-        self._content = _build_content(self._root, origin=(vx, vy), status=status)
+        window = cls(
+            progress_file, root,
+            _build_content(root, origin=(desktop.x, desktop.y), status=status),
+            title=title, stale_timeout_s=stale_timeout_s,
+        )
 
         # The focus is taken so Esc lands here rather than on whatever the
         # session put up last, before the hotkey script is up to take it.
-        self._root.bind("<Escape>", self._on_escape)
-        self._root.focus_force()
+        root.bind("<Escape>", window._on_escape)
+        root.focus_force()
 
-        self._root.after(POLL_MS, self._poll)
-        self._root.after(TOPMOST_POLL_MS, self._stay_on_top)
+        root.after(POLL_MS, window._poll)
+        root.after(TOPMOST_POLL_MS, window._stay_on_top)
+        return window
 
     def _stay_on_top(self) -> None:
         """Take the top of the topmost band back, and keep taking it: every

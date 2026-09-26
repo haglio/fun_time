@@ -76,30 +76,18 @@ def _cover(tmp_path: Path, *, stale_timeout_s: float = 5.0,
            title: str = "Fun Time Loading") -> OverlayWindow:
     """The overlay's live loops over fakes standing in for Tk.
 
-    Constructing the real window opens a borderless cover over every monitor
-    of whoever runs the suite — the one thing this conftest exists to prevent
-    — and unlike Qt, tkinter has no offscreen platform.  So the Tk widgets
-    are the boundary faked here, and everything from the progress file to the
-    destroy decision runs for real.
-
-    Every attribute the constructor sets, so the topmost pass and the cancel
-    are reachable too; they were left out and could not be called at all.
+    The real window is a borderless cover over every monitor of whoever runs
+    the suite, and unlike Qt, tkinter has no offscreen platform.  So the Tk
+    widgets are the boundary faked here, and everything from the progress file
+    to the destroy decision runs for real.
     """
-    window = OverlayWindow.__new__(OverlayWindow)
-    window._progress_file = tmp_path / "progress.txt"
-    window._stale_timeout_s = stale_timeout_s
-    window._last_modified = 0.0
-    window._status_held = False
-    window._offering = False
-    window._title = title
-    window._hwnd = 0
-    window._root = _FakeRoot()
-    window._content = _Content(
-        status_label=_FakeLabel(),
-        progress_var=_FakeVar(),
-        hint_label=_FakeLabel(),
+    return OverlayWindow(
+        tmp_path / "progress.txt",
+        _FakeRoot(),
+        _Content(status_label=_FakeLabel(), progress_var=_FakeVar(), hint_label=_FakeLabel()),
+        title=title,
+        stale_timeout_s=stale_timeout_s,
     )
-    return window
 
 
 class TestTheCoverComesDown:
