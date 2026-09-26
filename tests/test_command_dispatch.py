@@ -2919,6 +2919,37 @@ class TestOsr2ControlState:
         assert not config.genau_cmd_file.exists()
 
 
+class TestTakingTheOsr2:
+    @pytest.mark.parametrize(("command", "player", "had_it"), [
+        ("portrait_take_osr2", Player.PORTRAIT, Player.MAIN),
+        ("landscape_take_osr2", Player.LANDSCAPE, Player.PORTRAIT),
+        ("main_take_osr2", Player.MAIN, Player.LANDSCAPE),
+    ])
+    def test_the_player_whose_button_was_pressed_has_it_and_the_others_do_not(
+            self, command, player, had_it, tmp_path: Path):
+        after, ops = dispatch_command(command, _make_state(osr2_player=had_it),
+                                      _make_config(tmp_path))
+
+        assert after.osr2_player == player
+        assert ops == []
+
+    def test_a_side_player_takes_it_in_origenerator_mode_too(self, tmp_path: Path):
+        config = _origenerator_config(tmp_path)
+        state = _up(satellites_mode="origenerator")
+
+        assert not routes_to_origenerator("portrait_take_osr2", state, config)
+        assert dispatch_command("portrait_take_osr2", state, config)[0].osr2_player == Player.PORTRAIT
+
+    def test_the_bare_nudge_speeds_the_robot_hand_while_a_side_player_has_it(self, tmp_path: Path):
+        config = _make_config(tmp_path)
+        _set_main_player_driving(config, driving=True)
+
+        dispatch_command("speed_up", _make_state(osr2_player=Player.PORTRAIT), config)
+
+        assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+        assert not config.main_player_cmd_file.exists()
+
+
 def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
     """What is left of auto-advance is its pace: the arming and the hold it could
     disagree with are one padlock now (see the main lock tests above)."""

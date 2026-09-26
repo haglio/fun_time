@@ -437,6 +437,7 @@ _EXPECTED_STATE_KEYS = {
     "volume": "100", "muted": "0",
     "osr2_control": "driving",
     "crowned": "main", "majority": "portrait",
+    "osr2_player": "1",
 }
 
 

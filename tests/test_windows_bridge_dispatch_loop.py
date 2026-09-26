@@ -2717,7 +2717,17 @@ class TestVideoModeFunscriptHandoff:
         with patch.object(runner.arbiter, "sync") as sync:
             runner.tick()
 
-        sync.assert_called_once_with("video", paused=True, control="driving")
+        sync.assert_called_once_with("video", paused=True, control="driving",
+                                     main_has_osr2=True)
+
+    def test_the_tick_tells_the_arbiter_when_a_side_player_has_the_osr2(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode=MainMode.VIDEO, osr2_player=Player.LANDSCAPE)
+
+        with patch.object(runner.arbiter, "sync") as sync:
+            runner.tick()
+
+        assert sync.call_args.kwargs["main_has_osr2"] is False
 
 
 class TestTheSatellitesTakeTheMainPlayersRate:

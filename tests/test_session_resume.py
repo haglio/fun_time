@@ -247,6 +247,12 @@ class TestResumeSharedState:
 
             assert resume_shared_state(state_file, resumed=True).osr2_control == control
 
+    def test_carries_which_player_has_the_osr2(self, tmp_path: Path):
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(osr2_player=Player.LANDSCAPE))
+
+        assert resume_shared_state(state_file, resumed=True).osr2_player == Player.LANDSCAPE
+
     def test_carries_the_mode_the_primary_slot_was_left_in(self, tmp_path: Path):
         """Which player owns the big display is as much a thing you set as the
         sound level, so leaving the session showing Genau and reopening on the main player

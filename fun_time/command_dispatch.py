@@ -50,6 +50,7 @@ from .media_metadata import forget_indexed_clip
 from .mode_plan import MAIN_GENAU_MODE, MAIN_VIDEO_MODE, main_player_displays
 from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
+from .osr2_section import TAKE_OSR2_COMMANDS, take_osr2_command
 from .player_status import MainPlayerStatus, read_genau_status, read_main_player_status
 from .players import Player
 from .random_favs_browser import FavEntry, target_for_fav
@@ -179,7 +180,8 @@ def _speed_target(state: BridgeState, config: BridgeConfig, *, by_driver: bool) 
         return "genau"
     if not by_driver or state.osr2_control != OSR2_DRIVING:
         return "main_player"
-    if read_main_player_status(config.main_player_status_file).funscript_driving:
+    if (state.osr2_player == Player.MAIN
+            and read_main_player_status(config.main_player_status_file).funscript_driving):
         return "main_player"
     return "genau"
 
@@ -570,7 +572,8 @@ _MAIN_PLAYER_RESET_VERBS = (
 # without the F-mode forms here, "main f mode" would be the one way of
 # addressing a player that did not leave it addressed.
 _MAIN_SELECTING_COMMANDS = frozenset(
-    {"main_next", "main_prev", MAIN_RESET, "main_player_lock", "genau_lock"}
+    {"main_next", "main_prev", MAIN_RESET, "main_player_lock", "genau_lock",
+     take_osr2_command(Player.MAIN)}
     | set(_MAIN_LOCK_COMMANDS)
     | {f"main_fmode{suffix}" for suffix in ("", "_on", "_off")}
 )
@@ -1205,8 +1208,9 @@ def _dispatch_set_filter(
 # In origenerator mode each satellite player is the hosted app's: it hands the
 # player what to play and answers every press on the buttons it drew.  So what
 # is said to a side goes there as it was said, and the session keeps only what
-# is about the player itself -- parking its window, its crown, and its rate.
-_THE_PLAYERS_OWN = ("_minimize", "_crown", "_speed_")
+# is about the player itself -- parking its window, its crown, its rate, and
+# taking the OSR2.
+_THE_PLAYERS_OWN = ("_minimize", "_crown", "_speed_", "_take_osr2")
 
 
 def _about_a_satellite(command: str) -> bool:
@@ -1505,6 +1509,11 @@ def _robot_hand_release(state: BridgeState, config: BridgeConfig,
     return replace(state, osr2_control=OSR2_DRIVING), []  # also the way off "off"
 
 
+def _take_the_osr2(player: Player, state: BridgeState, _config: BridgeConfig,
+                   _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return replace(state, osr2_player=player), []
+
+
 def _osr2_control_off(state: BridgeState, config: BridgeConfig,
                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     # No dials written down: letting go turns none, so none to put back.
@@ -1710,6 +1719,8 @@ def _build_handlers() -> dict[str, Handler]:
                      for control in HOLD_VERB})
     handlers[OSR2_CONTROL_BUTTONS[OSR2_DRIVING]] = _robot_hand_release
     handlers[OSR2_CONTROL_BUTTONS[OSR2_CONTROL_OFF]] = _osr2_control_off
+    handlers.update({cmd: partial(_take_the_osr2, player)
+                     for cmd, player in TAKE_OSR2_COMMANDS.items()})
     handlers["clipper_save"] = _save_clip
     handlers["genau_flip_ends"] = _flip_genaus_clip_on_screen
     handlers["genau_filter_enhanced"] = _filter_the_shows_enhanced
