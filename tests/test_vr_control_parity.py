@@ -4,16 +4,18 @@ A headset runs the same orchestrator, the same dispatch loop, the same AHK
 hotkey script and the same voice control as the desktop.  What differs is who
 is listening at the far end of each file channel: the main player is
 :class:`fun_time_vr.roles.MainRole` rather than the main player, Genau and both satellites
-live inside the one VR process, and the windows the desktop's ops act on do not
+live inside the one VR process, the hosted Origenerator answers a side in its
+mode as it does on the desktop, and the windows the desktop's ops act on do not
 exist.  So a control can be perfectly routed and still be dead in the headset —
 which is exactly how the main-slot padlock and F-mode's status line came to be
 dead there with the whole suite green.
 
 This module closes that.  It walks every command the reference can produce —
-every hotkey, every spoken phrase — through the real dispatch against a
-VR-shaped config, and holds each verb that lands to the vocabulary of whatever
-will actually read it in a VR session.  The only way to leave a control dead in
-the headset is to name it, with its reason, in
+every hotkey, every spoken phrase — through the real dispatch, against the
+config a headset session builds and in both of the satellite side's modes, and
+holds each verb that lands to the vocabulary of whatever will actually read it
+in a VR session.  The only way to leave a control dead in the headset is to
+name it, with its reason, in
 :data:`fun_time_vr.roles.UNIMPLEMENTED_MAIN_PLAYER_VERBS` or in one of the sets here.
 """
 from __future__ import annotations
@@ -28,17 +30,24 @@ from player_core.playlist import read_playlist
 from fun_time.bridge_records import BridgeConfig, Op
 from fun_time.command_dispatch import dispatch_command
 from fun_time.command_reference import build_reference_sections
+from fun_time.config import load_config
+from fun_time.manifest import LaunchManifest, write_manifest_data
 from fun_time.mode_plan import MAIN_MODES, MAIN_VIDEO_MODE
 from fun_time.modes import PLAYLIST_PORTRAIT, build_playlist_file_path
+from fun_time.players import Player
+from fun_time.satellites_mode import ORIGENERATOR_MODE
 from fun_time.satellites_mode import VIDEO_MODE as SATELLITE_VIDEO_MODE
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import VOICE_COMMANDS
+from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time_vr import roles
+from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.roles import UNIMPLEMENTED_MAIN_PLAYER_VERBS, MainRole
 from main_player import controls as main_player_controls
 from satellite.runtime import SatelliteControls
 from satellite.runtime import apply_command as apply_satellite_command
 from satellite.session import SatelliteSession
+from tests.origenerator_contract import answers
 from tests.satellite_fakes import FakeSatellitePlayer
 from tests.test_vr_roles import FakeDriver, FakePlayer
 
@@ -50,16 +59,17 @@ _CHANNELS = (
     "main_player_cmd_file", "genau_cmd_file", "portrait_cmd_file", "landscape_cmd_file",
     "origenerator_cmd_file", "broker_cmd_file", "main_player_paused_file",
     "genau_paused_file", "audio_paused_file", "portrait_paused_file",
-    "landscape_paused_file",
+    "landscape_paused_file", "origenerator_paused_file",
 )
 
 # Window ops a VR session raises and nothing acts on: every role lives inside
-# the one VR process with no HWND of its own, so these resolve nothing and
-# settle into no-ops — the state of affairs fun_time_vr.orchestrator's docstring
-# names.  ``notice`` is here for a nearer reason: its overlay is a desktop
-# window the session does not launch, so a flash that would confirm a key on the
-# desktop confirms nothing in the headset.  Listed so the sweep can tell a
-# designed no-op from a new one.
+# the one VR process with no HWND of its own, and the session hands its
+# dispatch loop no window of the hosted Origenerator's either — that one boots
+# parked and stays parked for the stay (docs/known-issues.md) — so these
+# resolve nothing and settle into no-ops.  ``notice`` is here for a nearer
+# reason: its overlay is a desktop window the session does not launch, so a
+# flash that would confirm a key on the desktop confirms nothing in the
+# headset.  Listed so the sweep can tell a designed no-op from a new one.
 _OPS_WITH_NO_WINDOWS = frozenset({
     Op.NOTICE, Op.SHOW_ROLE, Op.HIDE_ROLE, Op.ACTIVATE_ROLE, Op.MINIMIZE_ROLE,
     Op.RESTORE_PARKED, Op.RESTACK_MAIN, Op.RESTACK_ORIGENERATOR,
@@ -77,50 +87,47 @@ _OPS_THAT_STILL_ACT = frozenset({
 })
 
 
-def _vr_config(tmp_path: Path) -> BridgeConfig:
-    """A bridge config shaped the way ``fun_time_vr.orchestrator`` builds one.
+def _headset_config(root: Path, *, names_an_origenerator: bool = True) -> BridgeConfig:
+    """The bridge config a headset session runs on, built the way
+    ``fun_time_vr.orchestrator.run_vr_bridge`` builds it: the VR manifest
+    written out, read back, and handed to the dispatch loop's own builder.
 
-    ``origenerator_enabled`` is False for the reason the builder gives: the
-    hosted app rides in a Chrome window a VR session never opens.
+    Off a fabricated config that names an Origenerator checkout, as a real one
+    does, unless told not to.
     """
-    state_dir = tmp_path / "state"
-    state_dir.mkdir(parents=True, exist_ok=True)
-    favs_file = tmp_path / "favs.csv"
+    folders = {name: root / name for name in (
+        "primary", "portrait", "landscape", "vr", "weird", "clips", "audio", "state")}
+    for folder in folders.values():
+        folder.mkdir(parents=True, exist_ok=True)
+    favs_file = root / "favs.csv"
     favs_file.write_text("local_file,web_url\n", encoding="utf-8")
-    weird_dir = tmp_path / "weird"
-    weird_dir.mkdir(exist_ok=True)
-    for name in ("primary", "portrait", "landscape"):
-        (tmp_path / name).mkdir(exist_ok=True)
-    return BridgeConfig(
-        vr_main_player=True,
-        origenerator_enabled=False,
-        origenerator_cmd_file=state_dir / "origenerator_cmd.txt",
-        portrait_cmd_file=state_dir / "portrait_cmd.txt",
-        portrait_paused_file=state_dir / "portrait_paused.txt",
-        portrait_status_file=state_dir / "portrait_status.txt",
-        portrait_playlist_file=state_dir / "portrait_playlist.tsv",
-        landscape_cmd_file=state_dir / "landscape_cmd.txt",
-        landscape_paused_file=state_dir / "landscape_paused.txt",
-        landscape_status_file=state_dir / "landscape_status.txt",
-        landscape_playlist_file=state_dir / "landscape_playlist.tsv",
-        favs_file=favs_file,
-        weird_dir=weird_dir,
-        state_dir=state_dir,
-        main_sources=str(tmp_path / "primary"),
-        portrait_sources=str(tmp_path / "portrait"),
-        landscape_sources=str(tmp_path / "landscape"),
-        broker_mode_file=state_dir / "broker_mode.txt",
-        genau_cmd_file=state_dir / "genau_cmd.txt",
-        genau_paused_file=state_dir / "genau_paused.txt",
-        genau_status_file=state_dir / "genau_status.txt",
-        audio_paused_file=state_dir / "audio_paused.txt",
-        audio_volume_file=state_dir / "audio_volume.txt",
-        main_player_cmd_file=state_dir / "main_player_cmd.txt",
-        main_player_paused_file=state_dir / "main_player_paused.txt",
-        main_player_status_file=state_dir / "main_player_status.txt",
-        dashboard_state_file=state_dir / "dashboard_state.ini",
-        broker_cmd_file=state_dir / "broker_cmd.txt",
-    )
+    paths = {
+        "ahk_exe": str(root / "AutoHotkey64.exe"),
+        "python_exe": str(root / "python.exe"),
+        "main_player_library_dirs": [str(folders["primary"])],
+        "portrait_dirs": [str(folders["portrait"])],
+        "landscape_dirs": [str(folders["landscape"])],
+        "weird_dir": str(folders["weird"]),
+        "clips_dir": str(folders["clips"]),
+        "audio_dir": str(folders["audio"]),
+        "favs_file": str(favs_file),
+        "state_dir": str(folders["state"]),
+    }
+    if names_an_origenerator:
+        checkout = root / "origenerator"
+        checkout.mkdir(exist_ok=True)
+        paths["origenerator_dir"] = str(checkout)
+    config_file = root / "fun_time_config.json"
+    config_file.write_text(json.dumps({
+        "paths": paths,
+        "layout": {"primary_monitor": 1, "secondary_monitor": 2,
+                   "main_top_ratio": 0.7, "landscape_width_ratio": 0.6},
+        "audio_companion": {"host": "127.0.0.1", "port": 50556},
+        "vr": {"library_dirs": [str(folders["vr"])]},
+    }), encoding="utf-8")
+    manifest = write_manifest_data(build_vr_manifest(load_config(config_file)),
+                                   folders["state"] / "windows_bridge_launch.ini")
+    return build_bridge_config_from_manifest(LaunchManifest.read(manifest), vr_main_player=True)
 
 
 def every_command() -> list[str]:
@@ -157,26 +164,47 @@ def _drain(config: BridgeConfig) -> dict[str, list[str]]:
     return written
 
 
-@pytest.fixture(scope="module")
-def landed(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
-    """Dispatch every command in both main-slot modes; report what each sent.
+def _sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[str]]]:
+    """Dispatch every command in every pairing of the two slots' modes; report
+    what each sent.
 
-    Keyed ``"<mode>/<command>"``, because several controls route by mode and
-    the padlock this module was written for was dead in one and fine in the
-    other — a failure has to say which.  Module-scoped: the sweep is the same
-    for every assertion below and runs the whole reference twice.
+    Keyed ``"<main mode>/<satellites mode>/<command>"``, because several
+    controls route by mode and the padlock this module was written for was dead
+    in one and fine in the other — a failure has to say which.  The hosted app
+    has always answered by the time a command is dispatched here, so switching
+    into its mode is a switch rather than a notice that it is still starting.
     """
-    config = _vr_config(tmp_path_factory.mktemp("vr_parity"))
     _drain(config)
     sweep: dict[str, dict[str, list[str]]] = {}
-    for mode in MAIN_MODES:
-        for command in every_command():
-            state = BridgeState(main_mode=mode, satellites_mode=SATELLITE_VIDEO_MODE)
-            _state, ops = dispatch_command(command, state, config, target_path="")
-            written = _drain(config)
-            written["__ops__"] = sorted({op.op for op in ops})
-            sweep[f"{mode}/{command}"] = written
+    for main_mode in MAIN_MODES:
+        for satellites_mode in satellites_modes:
+            for command in every_command():
+                state = BridgeState(main_mode=main_mode, satellites_mode=satellites_mode,
+                                    origenerator_ready=True)
+                _state, ops = dispatch_command(command, state, config, target_path="")
+                written = _drain(config)
+                written["__ops__"] = sorted({op.op for op in ops})
+                sweep[f"{main_mode}/{satellites_mode}/{command}"] = written
     return sweep
+
+
+@pytest.fixture(scope="module")
+def landed(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
+    """The sweep, for a headset hosting the Origenerator its config names.
+
+    Module-scoped: the sweep is the same for every assertion below and runs the
+    whole reference four times.
+    """
+    return _sweep(_headset_config(tmp_path_factory.mktemp("vr_parity")),
+                  (SATELLITE_VIDEO_MODE, ORIGENERATOR_MODE))
+
+
+@pytest.fixture(scope="module")
+def landed_hosting_none(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
+    """The sweep for a headset whose config names no Origenerator, in the
+    origenerator mode a desktop session's shared state can still carry in."""
+    root = tmp_path_factory.mktemp("vr_parity_hosting_none")
+    return _sweep(_headset_config(root, names_an_origenerator=False), (ORIGENERATOR_MODE,))
 
 
 def _sent_to(landed, channel: str) -> dict[str, str]:
@@ -251,7 +279,7 @@ class TestTheMainPlayer:
             assert reason.strip(), f"{verb} is excepted with no reason"
 
     def test_a_reset_unlocks_it_and_puts_its_speed_back_to_normal(self, tmp_path):
-        config = _vr_config(tmp_path)
+        config = _headset_config(tmp_path)
         role = _main_role(tmp_path)
         role.apply_command("SPEED_DOWN", on_quit=lambda: None)
 
@@ -304,7 +332,7 @@ class TestTheSatellites:
         assert not dead, f"the hosted satellite session answers none of these: {dead}"
 
     def test_a_reset_unlocks_it_and_starts_a_fresh_browse_from_the_top(self, tmp_path):
-        config = _vr_config(tmp_path)
+        config = _headset_config(tmp_path)
         clips = [tmp_path / "portrait" / f"{name}.mp4" for name in ("alpha", "beta", "gamma")]
         for clip in clips:
             clip.write_bytes(b"")
@@ -343,24 +371,89 @@ class TestGenau:
         assert not dead, f"player_core's control registry answers none of these: {dead}"
 
 
-class TestWhatAHeadsetDoesNotHost:
-    def test_nothing_is_ever_routed_to_an_origenerator(self, landed):
-        """A VR session launches no Random Favs Browser, and the hosted app
-        rides in its Chrome window — so a satellite verb sent there is a key
-        that vanishes.
+# Said to a side in origenerator mode, where what a side is told is the hosted
+# app's to answer, and answered by nothing over there.  Keyed by what the line
+# says after the side.
+_UNANSWERED_BY_THE_HOSTED_APP: dict[str, str] = {
+    "wrong_action": "a show's picture carries no act label to strike, and the app "
+                    "refuses the strike on purpose",
+    "lock_action": "the app narrows a show to an act only when told the act's name",
+    "lock_on": 'the spoken "lock" asks for a state, and the app answers only the '
+               "toggle the key sends",
+    "lock_off": 'the spoken "unlock" asks for a state, and the app answers only the '
+                "toggle the key sends",
+    "fmode_on": 'the spoken "f mode on" asks for a state, and the app answers only '
+                "the toggle",
+    "fmode_off": 'the spoken "f mode off" asks for a state, and the app answers only '
+                 "the toggle",
+}
 
-        Worse than vanishing: origenerator mode pauses both satellite PLAYERS
-        for the whole mode, so a headset that merely resumed the mode from a
-        desktop session sat in front of two black screens with no key that
-        reached them.  ``origenerator_enabled`` off is what settles it, and the
-        dispatch loop then carries a resumed mode back to video.
+
+def _said_after_the_side(line: str) -> str:
+    for player in Player.SATELLITES:
+        side = f"{player.label}_"
+        if line.lower().startswith(side):
+            return line[len(side):].lower()
+    return line
+
+
+class TestTheHostedOrigenerator:
+    """In origenerator mode what is said to a side goes to the hosted app, which
+    a headset hosts as the desktop does, and the app says in the document it
+    publishes which lines its command file answers."""
+
+    def test_it_is_sent_what_is_said_to_a_side_in_its_mode(self, landed):
+        """The precondition, so the check below cannot pass on a channel the
+        sweep never reached."""
+        assert landed["video/origenerator/portrait_next"]["origenerator_cmd_file"] == [
+            "portrait_next"]
+
+    def test_every_line_it_is_sent_is_one_it_answers(self, landed):
+        """A line the app does not answer is a control that does nothing at all
+        in its mode, on the monitors and in the headset alike."""
+        dead = {
+            line: where
+            for where, written in landed.items()
+            for line in written.get("origenerator_cmd_file", ())
+            if not answers(line)
+            and _said_after_the_side(line) not in _UNANSWERED_BY_THE_HOSTED_APP
+        }
+        assert not dead, (
+            "the hosted Origenerator answers none of these and none is a stated "
+            f"exception in _UNANSWERED_BY_THE_HOSTED_APP: {dead}"
+        )
+
+    def test_the_stated_exceptions_are_all_lines_it_really_refuses(self):
+        answered = [
+            f"{player.label}_{said}"
+            for said in _UNANSWERED_BY_THE_HOSTED_APP
+            for player in Player.SATELLITES
+            if answers(f"{player.label}_{said}")
+        ]
+        assert not answered, (
+            f"_UNANSWERED_BY_THE_HOSTED_APP names lines the app now answers: {answered}"
+        )
+
+    def test_every_exception_says_why(self):
+        for said, reason in _UNANSWERED_BY_THE_HOSTED_APP.items():
+            assert reason.strip(), f"{said} is excepted with no reason"
+
+
+class TestWhatAHeadsetDoesNotHost:
+    """Windows, for any role; and an Origenerator, where its config names none."""
+
+    def test_a_config_naming_no_origenerator_sends_one_nothing(self, landed_hosting_none):
+        """Its manifest still names the app's command file, and the shared state
+        a desktop session left can still say origenerator mode — so a gate on
+        anything but the config would send every satellite verb to an app that
+        is not there, and leave both satellites with no key that reached them.
         """
         routed = {
             where: written["origenerator_cmd_file"]
-            for where, written in landed.items()
+            for where, written in landed_hosting_none.items()
             if written.get("origenerator_cmd_file")
         }
-        assert not routed, f"these reached an Origenerator the headset has none of: {routed}"
+        assert not routed, f"these reached an Origenerator the config names none of: {routed}"
 
     def test_every_window_op_raised_is_one_a_headset_has_an_answer_for(self, landed):
         """Either it acts here, or it is a known no-op because the roles have no
