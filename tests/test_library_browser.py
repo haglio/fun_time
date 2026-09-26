@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 import pytest
 from PIL import Image
-from PyQt6.QtCore import QEvent, QPointF, Qt
-from PyQt6.QtGui import QKeyEvent, QMouseEvent, QTextDocumentFragment
+from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
+from PyQt6.QtGui import QIcon, QKeyEvent, QMouseEvent, QTextDocumentFragment
 from PyQt6.QtWidgets import QAbstractItemView, QApplication, QListWidget
 from shared_ui.colors import TEXT_MUTED, TEXT_PRIMARY
 
@@ -1025,6 +1025,29 @@ def test_a_browse_with_no_window_frame_closes_from_its_header(browser, tmp_path:
 
     assert dismissed == [True]
     assert not headset.isVisible()
+
+
+def _where_the_mark_lands(button) -> QRect:
+    worn = button.grab().toImage()
+    icon = button.icon()
+    button.setIcon(QIcon())
+    bare = button.grab().toImage()
+    button.setIcon(icon)
+    inked = [(x, y) for y in range(worn.height()) for x in range(worn.width())
+             if worn.pixel(x, y) != bare.pixel(x, y)]
+    xs, ys = [x for x, _ in inked], [y for _, y in inked]
+    return QRect(QPoint(min(xs), min(ys)), QPoint(max(xs), max(ys)))
+
+
+def test_the_close_mark_spans_more_than_half_its_button(browser, tmp_path: Path):
+    headset = browser([_handle("alpha scene", section="main")], thumbnail_cache=tmp_path,
+                      on_pick=lambda _v: None, on_dismiss=lambda: None)
+    headset.show()
+    button = headset.dismiss_button
+
+    mark = _where_the_mark_lands(button)
+
+    assert max(mark.width(), mark.height()) > button.height() / 2
 
 
 def test_a_still_is_scaled_to_fit_its_tile_and_never_stretched(browser, tmp_path: Path):

@@ -58,7 +58,8 @@ from shared_ui.colors import (
 )
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, make_font
 from shared_ui.icons import glyph_icon
-from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS, BUTTON_SIZE, MARGIN_STANDARD
+from shared_ui.mark_button import fill_square_with_mark
+from shared_ui.spacing import BUTTON_RADIUS, MARGIN_STANDARD
 
 from .library_handles import LibraryHandle, handle_for, handles_by_shape
 from .library_tree import Folder, SubFolder, folder_at, folder_of
@@ -642,10 +643,8 @@ def folder_header() -> QLabel:
 
 
 def dismiss_button(on_click: Callable[[], None]) -> QToolButton:
-    button = QToolButton()
-    button.setIcon(glyph_icon("cross", color=TEXT_PRIMARY, size=BUTTON_ICON))
-    button.setIconSize(QSize(BUTTON_ICON, BUTTON_ICON))
-    button.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
+    button = fill_square_with_mark(QToolButton())
+    button.setIcon(glyph_icon("cross", color=TEXT_PRIMARY))
     button.setToolTip("Close")
     button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
     button.setStyleSheet(
