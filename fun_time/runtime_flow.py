@@ -426,12 +426,14 @@ def apply_leave_omnipause(
     broker_cmd_file: str | Path | None = None,
     origenerator_paused_file: str | Path | None = None,
     osr2_control: str = OSR2_DRIVING,
+    osr2_player: Player = Player.MAIN,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "leave",
         omni_paused=omni_paused,
         main_mode=main_mode,
         osr2_control=osr2_control,
+        osr2_player=osr2_player,
     )
     write_flag_file(genau_paused_file, False)
     write_flag_file(audio_paused_file, False)

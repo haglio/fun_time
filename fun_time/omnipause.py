@@ -6,6 +6,7 @@ from player_core.console import OSR2_CONTROL_OFF, OSR2_DRIVING
 
 from .broker_control import HOLD_VERB, PARK_CMD, RESUME_CMD
 from .mode_plan import MAIN_GENAU_MODE, main_player_displays
+from .players import Player
 
 
 @dataclass(frozen=True)
@@ -17,15 +18,16 @@ class OmniPausePlan:
     # the script feed, or still where a park or retract is holding it.
     broker_command: str
     log_message: str
-    # Whether leaving may resume the Robot Hand outright.  Not in video mode:
-    # there the per-video arbiter owns which of the hand and the funscript has
-    # the device, and a blanket resume here started the hand against a funscript that was still
-    # driving — two drivers on the OSR2 at once until the next arbiter tick.
+    # Whether leaving may resume the Robot Hand outright.  Not where the arbiter
+    # owns which of the hand and a funscript has the device -- video mode, or a
+    # side player holding the OSR2: a blanket resume there started the hand
+    # against a funscript still driving, two drivers on the OSR2 at once.
     resume_genau_playback: bool = False
 
 
 def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str,
-                        osr2_control: str = OSR2_DRIVING) -> OmniPausePlan:
+                        osr2_control: str = OSR2_DRIVING,
+                        osr2_player: Player = Player.MAIN) -> OmniPausePlan:
     """Decide what one omnipause action means.
 
     ``toggle`` resolves against the current state; ``enter`` and ``leave`` are
@@ -50,11 +52,9 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str,
             # The main player owns the display in video mode, so leaving omnipause
             # resumes its playback there (in genau mode Genau owns the display).
             resume_main_player_playback=main_player_displays(main_mode),
-            # Only genau mode, where the hand always has the device: in video
-            # mode this would race the arbiter onto a funscript's stretch, and
-            # with the OSR2 let go of, the console's switch decides who drives.
             resume_genau_playback=(main_mode == MAIN_GENAU_MODE
-                                   and osr2_control != OSR2_CONTROL_OFF),
+                                   and osr2_control != OSR2_CONTROL_OFF
+                                   and osr2_player is Player.MAIN),
             broker_command=HOLD_VERB.get(osr2_control, RESUME_CMD),
             log_message="OmniPause: leaving",
         )

@@ -2940,6 +2940,17 @@ class TestTakingTheOsr2:
         assert not routes_to_origenerator("portrait_take_osr2", state, config)
         assert dispatch_command("portrait_take_osr2", state, config)[0].osr2_player == Player.PORTRAIT
 
+    def test_the_rooms_resume_in_genau_mode_leaves_the_robot_hand_to_the_side_players_script(
+            self, tmp_path: Path):
+        config = _make_config(tmp_path)
+        state = _make_state(main_mode=MainMode.GENAU, omni_paused=True,
+                            osr2_player=Player.PORTRAIT)
+
+        after, _ops = dispatch_command("omnipause_toggle", state, config)
+
+        assert after.omni_paused is False
+        assert not config.genau_cmd_file.exists()
+
     def test_the_bare_nudge_speeds_the_robot_hand_while_a_side_player_has_it(self, tmp_path: Path):
         config = _make_config(tmp_path)
         _set_main_player_driving(config, driving=True)
