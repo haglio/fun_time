@@ -1,7 +1,7 @@
 """Run loop for a native satellite player: an mpv window fun_time drives.
 
-The satellite half of the main player's app shell, stripped to essentials — no funscript,
-tcode, heatmap, record or version cycling.  mpv renders the video into a
+The satellite half of the main player's app shell, stripped to essentials — no
+tcode and no loop recording.  mpv renders the video into a
 pygame/SDL window; fun_time positions that window by HWND after launch and drives
 playback through the command + paused files, reading back the status file.  Three
 things are composited on top: the lock HUD from the panel fun_time publishes, the
@@ -26,12 +26,14 @@ from app_support.win32 import set_app_user_model_id
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
 from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
+from player_core.playlist import PlaylistItem
 from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.session_quit import quit_gesture
 from player_core.status import StatusWriter
-from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
+from player_core.timeline import TIMELINE_HEIGHT
 from player_core.volume import VolumeHudPainter, chip_xy
 
+from main_player.overlay import HeatmapStrip, timeline_bgra
 from main_player.play_points import PlayPoints
 
 from .cli import audio_muted, build_parser, resolve_playlist
@@ -39,7 +41,7 @@ from .contract import SatelliteChannels, WindowPlacement
 from .hud_overlay import HudOverlay
 from .pointer import Pointer
 from .runtime import SatelliteControls, apply_command
-from .session import SatelliteSession
+from .session import SatelliteSession, funscripts_of
 from .status import status_fields
 from .volume import SatelliteVolume
 
@@ -143,9 +145,10 @@ class _Runtime:
     dashboard_cmd_file: Path | None
     status_writer: StatusWriter | None
     hud: HudOverlay | None
+    timeline: HeatmapStrip
 
 
-def _build_runtime(args, wid: int, playlist: list[Path]) -> _Runtime:
+def _build_runtime(args, wid: int, playlist: list[PlaylistItem]) -> _Runtime:
     channels = SatelliteChannels.from_args(args)
     paused_file = channels.paused
     start_paused = paused_file is not None and read_paused_state(paused_file, logger=logger)
@@ -154,14 +157,16 @@ def _build_runtime(args, wid: int, playlist: list[Path]) -> _Runtime:
     # auto-advance is seamless instead of a cold on-screen reload.
     # muted=True: a satellite is heard only once its chip is asked (satellite.volume).
     player = MpvPlayer(wid, muted=True, loop_file=False, prefetch=True)
-    session = SatelliteSession(playlist, player=player, start_paused=start_paused,
-                               play_points=PlayPoints(channels.play_points))
+    session = SatelliteSession([item.path for item in playlist], player=player,
+                               start_paused=start_paused,
+                               play_points=PlayPoints(channels.play_points),
+                               funscripts=funscripts_of(playlist))
     stop_event = threading.Event()
 
     def _reload_playlist() -> None:
         reloaded = resolve_playlist(args)
         if reloaded:
-            session.replace_playlist(reloaded)
+            session.replace_playlist([item.path for item in reloaded], funscripts_of(reloaded))
 
     # Composited into this window's video, so it needs no window of its own.
     hud = (
@@ -189,6 +194,7 @@ def _build_runtime(args, wid: int, playlist: list[Path]) -> _Runtime:
         status_writer=(StatusWriter(channels.status, status_fields)
                        if channels.status else None),
         hud=hud,
+        timeline=HeatmapStrip(),
     )
 
 
@@ -214,7 +220,9 @@ def _paint_overlays(runtime: _Runtime, win_w: int, win_h: int) -> None:
     if session.showing_picture:
         player.remove_overlay(_OV_SCRUBBER)
     else:
-        scrubber = progress_bar_bgra(session.position_ms, session.duration_ms, None, win_w)
+        runtime.timeline.update(session.current_video, session.current_funscript,
+                                session.duration_ms, win_w)
+        scrubber = timeline_bgra(runtime.timeline, session.position_ms, None, win_w)
         player.overlay(_OV_SCRUBBER, 0, win_h - scrubber.shape[0], scrubber)
     vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
     player.overlay(_OV_VOLUME, vx, vy, runtime.volume_painter.bgra(runtime.volume.hud))
@@ -227,7 +235,7 @@ def _paint_overlays(runtime: _Runtime, win_w: int, win_h: int) -> None:
             pill.shape[1], win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT), pill)
 
 
-def _run(args, playlist: list[Path]) -> int:
+def _run(args, playlist: list[PlaylistItem]) -> int:
     runtime = _build_runtime(args, _open_window(args), playlist)
     clock = pygame.time.Clock()
     while not runtime.stop_event.is_set():

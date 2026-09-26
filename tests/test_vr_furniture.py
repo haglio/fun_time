@@ -37,21 +37,21 @@ from fun_time_vr.furniture import (
 from fun_time_vr.layout import MIN_WIDTH_DEG
 from fun_time_vr.pointer import Screen
 from fun_time_vr.scene import Placement
-from main_player.overlay import HeatmapStrip, heatmap_bgra
+from main_player.heatmap import build_heatmap
 
 _STROKES = Funscript(actions=[(0, 0), (500, 100), (1_000, 0), (6_000, 100), (9_000, 0)])
 
 
 class TestTheScrubber:
-    def test_a_scripted_videos_bar_is_the_desktop_main_players_heatmap_strip(self):
+    def test_a_scripted_videos_bar_is_filled_with_its_scripts_colors(self):
         width = _SIZE[0]
+        x0, x1 = bar_track_x(width)
         scrubber = Scrubber()
         scrubber.state(_SIZE, 1_000.0, 10_000.0, video=Path("v0.mp4"), funscript=_STROKES)
-        desktop = HeatmapStrip()
-        desktop.update(Path("v0.mp4"), _STROKES, 10_000.0, width)
 
-        assert np.array_equal(scrubber.bgra(1_000.0, width),
-                              heatmap_bgra(desktop, 1_000.0, None, width))
+        assert np.array_equal(scrubber.bgra(1_000.0, width), progress_bar_bgra(
+            1_000.0, 10_000.0, None, width,
+            heatmap=build_heatmap(_STROKES, x1 - x0, start_ms=0, end_ms=10_000.0)))
 
     def test_a_video_with_no_script_gets_the_plain_bar_every_player_draws(self):
         scrubber = Scrubber()

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from player_core.playback_rate import MAX_RATE, MIN_RATE
 
 from main_player.play_points import PlayPoints
@@ -298,6 +300,42 @@ class TestVersions:
 
         assert len(player.opened) == opened
         assert session.showing == session.current_video
+
+
+def _script(path, *actions):
+    path.write_text(json.dumps({"actions": [{"at": at, "pos": pos} for at, pos in actions]}),
+                    encoding="utf-8")
+    return path
+
+
+class TestTheScriptOfTheClipOnScreen:
+    def test_a_clip_brings_the_funscript_its_playlist_line_named(self, tmp_path):
+        script = _script(tmp_path / "v1.funscript", (0, 0), (400, 90))
+        session, _player = _make_session(tmp_path, entries=2, funscripts={1: script})
+
+        assert session.current_funscript is None
+        session.step(1)
+        assert session.current_funscript.actions == [(0, 0), (400, 90)]
+
+    def test_a_clip_played_from_outside_the_playlist_brings_its_script(self, tmp_path):
+        session, _player = _make_session(tmp_path)
+        newcomer = tmp_path / "brought_back.mp4"
+        newcomer.write_text("fake")
+        script = _script(tmp_path / "brought_back.funscript", (0, 10), (300, 70))
+
+        session.play_file(newcomer, script)
+
+        assert session.current_funscript.actions == [(0, 10), (300, 70)]
+
+    def test_a_rebuilt_playlist_brings_the_scripts_it_was_written_with(self, tmp_path):
+        session, _player = _make_session(
+            tmp_path, entries=2, funscripts={0: _script(tmp_path / "v0.funscript", (0, 0), (100, 99))})
+        clip = tmp_path / "v0.mp4"
+        rescripted = _script(tmp_path / "v0 again.funscript", (0, 50), (200, 60))
+
+        session.replace_playlist([clip, tmp_path / "v1.mp4"], {clip: rescripted})
+
+        assert session.current_funscript.actions == [(0, 50), (200, 60)]
 
 
 class TestPlayFile:

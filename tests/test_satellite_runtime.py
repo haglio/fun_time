@@ -68,11 +68,16 @@ class TestApplyCommand:
         assert apply_command(f"{PLAY_FILE} {tmp_path / 'v2.mp4'}", controls) is True
         assert controls.session.current_video == tmp_path / "v2.mp4"
 
-    def test_play_file_drops_a_funscript_column_rather_than_taking_it_for_the_path(self, tmp_path):
+    def test_play_file_takes_the_funscript_column_as_the_clips_script(self, tmp_path):
         controls = _controls(tmp_path)
-        line = f"{PLAY_FILE} {tmp_path / 'v2.mp4'}\t{tmp_path / 'v2.funscript'}"
-        assert apply_command(line, controls) is True
+        script = tmp_path / "v2.funscript"
+        script.write_text('{"actions": [{"at": 0, "pos": 20}, {"at": 250, "pos": 80}]}',
+                          encoding="utf-8")
+
+        assert apply_command(f"{PLAY_FILE} {tmp_path / 'v2.mp4'}\t{script}", controls) is True
+
         assert controls.session.current_video == tmp_path / "v2.mp4"
+        assert controls.session.current_funscript.actions == [(0, 20), (250, 80)]
 
     def test_a_version_step_plays_the_rendition_the_family_names_next(self, tmp_path):
         controls = _controls(tmp_path)

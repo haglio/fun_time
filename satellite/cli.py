@@ -11,7 +11,7 @@ import argparse
 import os
 from pathlib import Path
 
-from player_core.playlist import read_playlist
+from player_core.playlist import PlaylistItem, read_playlist
 
 from fun_time.win32_desktop import on_hidden_desktop
 
@@ -54,16 +54,13 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def resolve_playlist(args) -> list[Path]:
-    """The videos to play, from the explicit ``--playlist`` file.
-
-    A satellite is silent and unscripted, so the funscript column of the main player's shared
-    playlist format is dropped.  No file means nothing to play (fun_time always
-    supplies one; standalone without it is an error the caller reports).
-    """
+def resolve_playlist(args) -> list[PlaylistItem]:
+    """The videos to play, from the explicit ``--playlist`` file.  No file means
+    nothing to play (fun_time always supplies one; standalone without it is an
+    error the caller reports)."""
     if args.playlist is None:
         return []
-    return [item.path for item in read_playlist(Path(args.playlist))]
+    return read_playlist(Path(args.playlist))
 
 
 def audio_muted(args) -> bool:

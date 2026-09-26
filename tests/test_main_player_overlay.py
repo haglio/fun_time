@@ -12,7 +12,6 @@ from main_player.overlay import (
     HeatmapStrip,
     LoopThumbCapture,
     ZoomWindow,
-    heatmap_bgra,
     label_xs,
     loop_thumbnail_xys,
     time_to_x,
@@ -214,17 +213,12 @@ def _rgba(bar, y, x):
     return int(px[2]), int(px[1]), int(px[0]), int(px[3])
 
 
-# The plain scrubber and its track geometry moved to player_core.timeline —
-# tested there (tests/test_timeline.py).  What stays here is the main player's own funscript
-# heatmap, which builds on that shared frame.
-
-
-class TestHeatmapBgra:
+class TestAScriptedVideosStrip:
     def _framed_strip(self, win_w=1000):
         x0, x1 = bar_track_x(win_w)
         strip = HeatmapStrip()
         strip.update("v.mp4", _funscript(), 4000.0, width=win_w)
-        return heatmap_bgra(strip, 2000, (1000, 3000), win_w), x0, x1
+        return timeline_bgra(strip, 2000, (1000, 3000), win_w), x0, x1
 
     def test_strip_is_inset_from_the_window_edges(self):
         bgra, x0, x1 = self._framed_strip()
@@ -249,11 +243,6 @@ class TestHeatmapBgra:
         amber = [x for x in range(x0, x1) if _rgba(bgra, my, x)[:3] == (235, 180, 60)]
         assert amber and any(x < cx for x in amber) and any(x > cx for x in amber)
 
-    def test_unscripted_strip_is_none(self):
-        strip = HeatmapStrip()
-        strip.update("plain.mp4", None, 4000.0, width=100)
-        assert heatmap_bgra(strip, 0, None, 100) is None
-
 
 class TestTheTimelineUnderAVideo:
     def test_an_unscripted_video_gets_the_plain_bar_across_its_whole_length(self):
@@ -265,13 +254,26 @@ class TestTheTimelineUnderAVideo:
         assert np.array_equal(
             drawn, progress_bar_bgra(2000, 4000.0, (1000, 3000), WIN_W, record_in_ms=500))
 
-    def test_a_scripted_video_gets_its_heatmap_strip_instead(self):
+    def test_a_scripted_video_gets_the_same_bar_filled_with_its_scripts_colors(self):
         strip = HeatmapStrip()
         strip.update("v0.mp4", _funscript(), 4000.0, width=WIN_W)
 
         drawn = timeline_bgra(strip, 2000, (1000, 3000), WIN_W)
 
-        assert np.array_equal(drawn, heatmap_bgra(strip, 2000, (1000, 3000), WIN_W))
+        assert np.array_equal(
+            drawn, progress_bar_bgra(2000, 4000.0, (1000, 3000), WIN_W, heatmap=strip.colors))
+
+    def test_a_strip_zoomed_into_a_recording_maps_its_own_window(self):
+        strip = HeatmapStrip()
+        strip.update("v0.mp4", _funscript(), 600_000.0, width=WIN_W,
+                     loop_state=LoopState.RECORDING, record_in_ms=50_000, position_ms=59_000.0)
+
+        drawn = timeline_bgra(strip, 59_000.0, None, WIN_W, record_in_ms=50_000)
+
+        assert strip.window == (48_000, 70_000)
+        assert np.array_equal(drawn, progress_bar_bgra(
+            11_000.0, 22_000.0, None, WIN_W, record_in_ms=2_000, height=48,
+            heatmap=strip.colors))
 
     @pytest.mark.parametrize("funscript", [None, _funscript()], ids=["plain", "scripted"])
     def test_it_says_where_it_draws_the_playcursor(self, funscript):

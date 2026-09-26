@@ -17,12 +17,14 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
+from player_core.funscript import load as load_funscript
 from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
-from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, progress_bar_bgra
 from player_core.volume import chip_xy
 
+from main_player.heatmap import build_heatmap
 from satellite.app import _run
-from satellite.cli import build_parser
+from satellite.cli import build_parser, resolve_playlist
 from tests.satellite_fakes import FakeSatellitePlayer
 
 
@@ -93,8 +95,7 @@ def _run_loop(tmp_path: Path, args, *, fake=None) -> tuple[int, FakeSatellitePla
          patch("satellite.app.deliver_the_focusing_click"), \
          patch("satellite.app._load_icon_surface", return_value=None), \
          patch("satellite.app.MpvPlayer", return_value=player):
-        code = _run(args, playlist=[Path(line.split("\t")[0]) for line in
-                                    (tmp_path / "playlist.tsv").read_text(encoding="utf-8").splitlines()])
+        code = _run(args, playlist=resolve_playlist(args))
     return code, player, fake
 
 
@@ -125,6 +126,24 @@ def test_one_pass_puts_up_where_the_clip_is_and_how_long_it_runs(tmp_path):
     at = readout_xy(pill.shape[1], win_w=640, win_h=480, timeline_h=TIMELINE_HEIGHT)
     assert any((x, y) == at and np.array_equal(bgra, pill)
                for x, y, bgra in player.overlays.values())
+
+
+def test_a_scripted_clips_scrubber_is_filled_with_its_scripts_colors(tmp_path):
+    clip = _clips(tmp_path, "v0")[0]
+    script = tmp_path / "v0.funscript"
+    script.write_text('{"actions": [{"at": 0, "pos": 0}, {"at": 900, "pos": 100}, '
+                      '{"at": 2400, "pos": 10}]}', encoding="utf-8")
+    args = _loop_args(tmp_path, [f"{clip}\t{script}"])
+    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+
+    _code, player, _fake = _run_loop(tmp_path, args)
+
+    x0, x1 = bar_track_x(640)
+    _x, _y, bar = player.overlays[11]
+    assert np.array_equal(bar, progress_bar_bgra(
+        0.0, player.duration_ms, None, 640,
+        heatmap=build_heatmap(load_funscript(script), x1 - x0,
+                              start_ms=0, end_ms=player.duration_ms)))
 
 
 def test_commands_drain_and_act_before_the_frame_is_published(tmp_path):

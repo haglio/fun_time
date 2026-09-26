@@ -9,7 +9,6 @@ from app_support.file_channel import write_flag
 from player_core.console import OSR2_DRIVING
 from player_core.file_channel import append_command
 from player_core.player_verbs import LOCK_OFF, RELOAD_PLAYLIST, SET_F_MODE, play_file
-from player_core.playlist import PlaylistItem
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,6 @@ from .modes import (
     build_playlist_file_path,
     build_satellite_playlist_paths,
     scripted_item,
-    write_main_player_playlist_file,
     write_playlist_file,
 )
 from .omnipause import build_omnipause_plan
@@ -137,8 +135,8 @@ def apply_main_fmode(
     """
     paths = build_main_playlist_paths(main_sources, enabled, recent=recent, shapes=shapes,
                                       metadata_root=metadata_root)
-    write_main_player_playlist_file(build_playlist_file_path(Path(state_dir), PLAYLIST_MAIN_PLAYER), paths,
-                                    metadata_root=metadata_root)
+    write_playlist_file(build_playlist_file_path(Path(state_dir), PLAYLIST_MAIN_PLAYER), paths,
+                        metadata_root=metadata_root)
     # Queued in order — the reload first, the flag with it, the jump last so it
     # lands on the list the reload has just taken.  The main player's HUD has no other way
     # to know the flag: the playlist it is handed has already been narrowed,
@@ -311,10 +309,10 @@ def apply_satellite_filter(
     if query and not paths:
         return SatelliteFilterFlowResult(0, False, f"Filter {label}: no matches for '{query}'")
     playlist_path = build_playlist_file_path(Path(state_dir), name)
-    write_playlist_file(playlist_path, paths)
+    write_playlist_file(playlist_path, paths, metadata_root=regen_metadata_root)
     append_command(Path(cmd_file), RELOAD_PLAYLIST)
     if start_at_top and paths:
-        append_command(Path(cmd_file), play_file(PlaylistItem(Path(paths[0]))))
+        append_command(Path(cmd_file), play_file(scripted_item(paths[0], regen_metadata_root)))
     summary = "cleared" if not query else f"'{query}'"
     return SatelliteFilterFlowResult(len(paths), True, f"Filter {label}: {summary} ({len(paths)})")
 

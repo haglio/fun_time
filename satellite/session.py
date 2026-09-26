@@ -1,11 +1,11 @@
 """Playlist/navigation orchestration for a satellite player, decoupled from the
 window.
 
-A satellite is the simple half of the main player: an unscripted looper of short clips, muted
+A satellite is the simple half of the main player: a looper of short clips, muted
 until its own chip is asked.  It owns its playlist position and drives an
 mpv-backed *player* (:class:`player_core.mpv_player.MpvPlayer`) to
-load/pause/lock/seek — but with no funscript, no OSR2/T-Code and no loop
-recording, it is a fraction of the main player's own PlayerSession.  Navigation is fully
+load/pause/lock/seek — but with no OSR2/T-Code and no loop recording, it is a
+fraction of the main player's own PlayerSession.  Navigation is fully
 in-process (a Python list + index), which is the whole point of dropping VLC:
 no HTTP playlist to resolve ids against, and pausing is a flag.
 
@@ -20,14 +20,22 @@ fine: those are deliberate gestures, not the every-few-seconds cadence.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
+from player_core.funscript import Funscript
+from player_core.funscript import load as load_funscript
 from player_core.playback_rate import clamp_rate
+from player_core.playlist import PlaylistItem
 
 from main_player.play_points import PlayPoints
 from main_player.seeking import OwedSeek, seek_if_taken
 
 logger = logging.getLogger(__name__)
+
+
+def funscripts_of(items: Iterable[PlaylistItem]) -> dict[Path, Path]:
+    return {item.path: item.funscript for item in items if item.funscript is not None}
 
 
 class SatelliteSession:
@@ -38,10 +46,13 @@ class SatelliteSession:
         player,
         start_paused: bool = False,
         play_points: PlayPoints | None = None,
+        funscripts: Mapping[Path, Path] | None = None,
     ) -> None:
         if not playlist:
             raise ValueError("playlist must not be empty")
         self._playlist = list(playlist)
+        self._funscripts = dict(funscripts or {})
+        self._loaded_funscript: tuple[Path | None, Funscript | None] = (None, None)
         self._player = player
         self._paused = start_paused
         self._locked = False
@@ -64,6 +75,13 @@ class SatelliteSession:
     @property
     def current_video(self) -> Path:
         return self._playlist[self._index]
+
+    @property
+    def current_funscript(self) -> Funscript | None:
+        path = self._funscripts.get(self.current_video)
+        if path != self._loaded_funscript[0]:
+            self._loaded_funscript = (path, None if path is None else load_funscript(path))
+        return self._loaded_funscript[1]
 
     @property
     def showing(self) -> Path:
@@ -180,7 +198,7 @@ class SatelliteSession:
         self._versions.pop(self._playlist.pop(self._index), None)
         self.load(self._index)
 
-    def play_file(self, video: Path) -> None:
+    def play_file(self, video: Path, funscript: Path | None = None) -> None:
         """Jump to *video* if it is already in the playlist, else splice it in
         after the current clip and play it.
 
@@ -188,6 +206,8 @@ class SatelliteSession:
         the speaker actually saw) and a HUD switch both target an item, so those
         just jump; a newcomer from outside the list is inserted next and played.
         """
+        if funscript is not None:
+            self._funscripts[video] = funscript
         for i, path in enumerate(self._playlist):
             if path == video:
                 self.load(i)
@@ -195,7 +215,9 @@ class SatelliteSession:
         self._playlist.insert(self._index + 1, video)
         self.load(self._index + 1)
 
-    def replace_playlist(self, playlist: list[Path]) -> None:
+    def replace_playlist(
+        self, playlist: list[Path], funscripts: Mapping[Path, Path] | None = None,
+    ) -> None:
         """Swap in a rebuilt playlist but keep playing the current clip if it
         survives, else restart at the top.
 
@@ -209,6 +231,7 @@ class SatelliteSession:
         current = self.current_video
         chosen = self._versions.get(current)
         self._playlist = list(playlist)
+        self._funscripts = dict(funscripts or {})
         self._versions = {} if chosen is None else {current: chosen}
         for i, path in enumerate(self._playlist):
             if path == current:
