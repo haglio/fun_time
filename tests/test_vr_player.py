@@ -20,6 +20,7 @@ from unittest.mock import DEFAULT, patch
 import numpy as np
 import pytest
 from app_support.file_channel import write_flag
+from PIL import Image
 from player_core.console import ConsoleModel
 from player_core.console_hud import ConsoleHud
 from player_core.drive_readout import DriveHud
@@ -139,6 +140,7 @@ from fun_time_vr.scene import (
 from fun_time_vr.stacking import Stacking
 from fun_time_vr.video_thread import VideoThread
 from main_player.play_points import play_points_filename
+from satellite.frame_over import FRAME_OVERLAY_ID, FrameOver
 
 
 def test_the_player_is_told_its_manifest_and_nothing_else():
@@ -357,7 +359,20 @@ def _unit_with_pixels(width=640, height=480) -> tuple[_VideoUnit, _OverlayPlayer
     unit.target = SimpleNamespace(ready=True, width=width, height=height,
                                  aspect=width / height)
     unit.screen = SimpleNamespace(placement=SPOTS[MAIN])
+    unit._frame_over = FrameOver(player)
     return unit, player
+
+
+def test_a_frame_the_source_sends_goes_over_the_whole_picture(tmp_path):
+    unit, player = _unit_with_pixels(64, 48)
+    frame = tmp_path / "frame.png"
+    Image.new("RGB", (32, 24), (30, 60, 90)).save(frame)
+
+    unit.overlay_frame(frame)
+    unit.overlay_frame(None)
+
+    assert player.overlays == [(FRAME_OVERLAY_ID, 0, 0)]
+    assert player.removed == [FRAME_OVERLAY_ID]
 
 
 def test_a_picture_has_no_timeline_so_its_scrubber_comes_off_once_and_the_chip_stays():
