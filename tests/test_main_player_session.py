@@ -161,6 +161,42 @@ class TestFunscriptResting:
         assert session.funscript_resting is False
 
 
+class TestTheScriptAsItPlays:
+    def test_a_locked_video_plays_its_script_again_each_time_round(self, tmp_path):
+        session, _player, _tcode = _make_session(tmp_path)
+
+        assert session.funscript_as_played.position_at(61_000) == 0
+
+    def test_an_unlocked_video_plays_its_script_once(self, tmp_path):
+        session, _player, _tcode = _make_session(tmp_path)
+
+        session.set_locked(False)
+
+        assert session.funscript_as_played is session.current_funscript
+
+    def test_a_running_loop_plays_its_stretch_again_and_again(self, tmp_path):
+        session, _player, _tcode = _make_session(tmp_path)
+        session.set_locked(False)
+
+        session.restore_loop(2000, 4000)
+
+        assert session.funscript_as_played.position_at(5_000) == 0
+
+    def test_the_device_is_driven_as_it_plays(self, tmp_path):
+        session, player, tcode = _make_session(tmp_path)
+
+        _watch_to(session, player, 1_500)
+
+        assert tcode.updates[-1][1] is session.funscript_as_played
+
+    def test_keeps_a_gap_too_short_to_hand_over_before_it_comes_round(self, tmp_path):
+        session, player, _tcode = _make_session(tmp_path, duration_ms=10_000)
+        player.position_ms = 8_500
+
+        assert session.current_funscript.is_resting_at(8_500) is True
+        assert session.funscript_resting is False
+
+
 class TestLoadAndPlay:
     def test_init_loads_first_entry_and_plays(self, tmp_path):
         session, player, tcode = _make_session(tmp_path)
@@ -1029,7 +1065,7 @@ class TestSpeed:
 
         session.advance()
 
-        assert tcode.updates[-1] == (1500, session.current_funscript, 2.0)
+        assert tcode.updates[-1] == (1500, session.funscript_as_played, 2.0)
 
 
 class TestTakingTheDeviceBack:

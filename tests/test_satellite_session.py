@@ -458,6 +458,31 @@ class TestTheOsr2:
         assert tcode.closed is True
 
 
+class TestALockedClipsScript:
+    def test_comes_round_again_with_the_clip(self, tmp_path):
+        session, _player, _tcode = _driving(tmp_path, locked=True)
+
+        assert session.funscript_as_played.position_at(6_000) == 90
+
+    def test_drives_the_device_as_it_comes_round(self, tmp_path):
+        session, player, tcode = _driving(tmp_path, locked=True)
+        session.set_tcode_enabled(True)
+        player.position_ms = 4_900
+
+        session.advance()
+
+        assert tcode.updates[-1][1] is session.funscript_as_played
+
+    def test_keeps_a_gap_too_short_to_hand_over_before_it_comes_round(self, tmp_path):
+        script = _script(tmp_path / "v0.funscript", (0, 0), (1000, 90), (2000, 0))
+        session, player = _make_session(tmp_path, duration_ms=10_000.0, funscripts={0: script})
+        session.set_locked(True)
+        player.position_ms = 8_000
+
+        assert session.current_funscript.is_resting_at(8_000) is True
+        assert session.funscript_resting is False
+
+
 class TestPlayFile:
     def test_play_file_jumps_to_a_playlist_item(self, tmp_path):
         session, player = _make_session(tmp_path, entries=3)  # on v0

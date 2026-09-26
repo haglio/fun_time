@@ -122,15 +122,23 @@ class PlayerSession:
         return self._funscript
 
     @property
+    def funscript_as_played(self):
+        repeating = self._repeating()
+        if self._funscript is None or repeating is None:
+            return self._funscript
+        return self._funscript.looped(*repeating)
+
+    def _repeating(self) -> tuple[int, int] | None:
+        if self._loops.bounds is not None:
+            return self._loops.bounds
+        if self._locked:
+            return 0, round(self._player.duration_ms)
+        return None
+
+    @property
     def funscript_resting(self) -> bool:
-        """Whether the current spot sits in the funscript's quiet lead-in or an
-        interior gap (a buffer past the nearest dense action), where the script
-        has nothing to say.  Video mode hands these stretches to the Robot Hand.  False when
-        there is no funscript — there is then nothing to rest between.
-        """
-        if self._funscript is None:
-            return False
-        return self._funscript.is_resting_at(int(self.position_ms))
+        script = self.funscript_as_played
+        return script is not None and script.is_resting_at(int(self.position_ms))
 
     @property
     def current_video(self) -> Path:
@@ -381,7 +389,7 @@ class PlayerSession:
 
         if self._advance_loop_state(pos_ms, prev_pos_ms, rewound):
             return
-        self._device.drive(pos_ms, self._funscript, speed=self._speed)
+        self._device.drive(pos_ms, self.funscript_as_played, speed=self._speed)
         self._advance_at_eof()
 
     def _advance_loop_state(
