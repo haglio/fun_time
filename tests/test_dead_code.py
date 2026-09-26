@@ -247,7 +247,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 7713 on 2026-09-26: the main slot's handover finishes a mode switch, so the
 # notes narrating the switch's steps went, and so did one guarding against an
 # overwrite nothing can do now that every writer queues its verbs.
-MAX_PROSE_LINES = 7713
+# 7698 the same day: both kinds of player drive the OSR2 through one object, so
+# each session's paragraphs on its own driving went.
+MAX_PROSE_LINES = 7698
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
