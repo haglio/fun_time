@@ -26,7 +26,7 @@ from .pointer import surface_pixel
 # Pixels across, held: the screen keeps one size between the modes (the genau
 # rows are narrower) and across titles (elided), so its bitmap never rescales.
 PANEL_WIDTH_PX = 380
-PANEL_WIDTH_DEG = 32.6  # its fixed angular width; it docks under the main player
+PANEL_WIDTH_DEG = 32.6
 DEG_PER_PX = PANEL_WIDTH_DEG / PANEL_WIDTH_PX  # every control in the scene, one size
 
 # Segoe UI Bold, the face every HUD here is read at a glance in, at 9pt.
