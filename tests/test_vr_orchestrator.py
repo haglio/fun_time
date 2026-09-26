@@ -1543,10 +1543,16 @@ class TestOpeningAVrSession:
         config.paths.state_dir.mkdir(parents=True, exist_ok=True)
         runner = MagicMock()
         start_voice = MagicMock(return_value=(None, None))
+        prepared = object()
+        order: list[str] = []
+        prepare_voice = MagicMock(side_effect=lambda _path: order.append("voice") or prepared)
 
         with _launch_stand_ins(
             orchestrator, [],
             DispatchLoopRunner=runner,
+            prepare_voice_control=prepare_voice,
+            launch_vr_player=MagicMock(
+                side_effect=lambda **_kwargs: order.append("player") or MagicMock(pid=202)),
             start_voice_control=start_voice,
             _wait_for_session_end=MagicMock(return_value="ahk"),
         ), patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
@@ -1554,8 +1560,10 @@ class TestOpeningAVrSession:
             orchestrator.run_vr_bridge(config, SessionEnvironment())
 
         manifest = LaunchManifest.read(config.paths.state_dir / "windows_bridge_launch.ini")
+        assert order == ["voice", "player"], "voice was prepared after the player launched"
+        prepare_voice.assert_called_once_with(manifest.runtime.config_path)
         start_voice.assert_called_once_with(
-            manifest.runtime.config_path,
+            prepared,
             dashboard_cmd_file=Path(manifest.commands.dashboard_cmd_file),
             dispatch_runner=runner.return_value,
         )

@@ -24,11 +24,12 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from player_core.file_channel import append_command
 from player_core.modes import MainMode
 from voice_core.listener import why_unavailable
+from voice_core.whisper_reader import WhisperReader
 
 from .append_only import append_line
 from .checkout_overrides import genau_project_kwargs
 from .child_launch import no_child_log, no_console_window
-from .config import load_config
+from .config import VoiceControlConfig, load_config
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from .event_log import THE_LISTENERS_LOGGERS
 from .filter_vocab import load_camera_words
@@ -832,48 +833,62 @@ def _serve_loopback(port: int, dispatch_runner: DispatchLoopRunner) -> Threading
     return server
 
 
-def start_voice_control(
-    config_path: str, *, dashboard_cmd_file: Path, dispatch_runner: DispatchLoopRunner,
-) -> tuple[VoiceController | None, threading.Thread | None]:
-    """Start listening, when the config asks for it and the import took.
+@dataclass(frozen=True)
+class PreparedVoice:
+    settings: VoiceControlConfig
+    second_listener: WhisperReader
 
-    Every failure here is logged and swallowed: a session without voice is a
-    session, and one that refuses to open because a microphone stack did not
-    import is not.
-    """
-    voice_controller: VoiceController | None = None
-    voice_thread: threading.Thread | None = None
+
+def prepare_voice_control(config_path: str) -> PreparedVoice | None:
+    """Every failure here and in start_voice_control is logged and swallowed: a
+    session without voice is a session, and one that refuses to open because a
+    microphone stack did not import is not."""
     try:
         cfg = load_config(config_path)
         unavailable = why_unavailable()
-        voice_diag = (
-            f"available={not unavailable}, "
-            f"enabled={cfg.voice_control.enabled}, "
-            f"model={cfg.voice_control.model_path}, "
-            f"device_name={cfg.voice_control.device_name}"
-        )
-        logger.info("Voice control check: %s", voice_diag)
-        if not unavailable and cfg.voice_control.enabled:
-            voice_controller = VoiceController(
-                cmd_file=dashboard_cmd_file,
-                model_path=cfg.voice_control.model_path,
-                confidence_threshold=cfg.voice_control.confidence_threshold,
-                device_name=cfg.voice_control.device_name,
-                sample_rate=cfg.voice_control.sample_rate,
-                confirm_commands=cfg.voice_control.confirm_commands,
-            )
-            dispatch_runner.voice_controller = voice_controller
-            voice_controller.active_player = lambda: dispatch_runner.state.active_player
-            voice_controller.hands_to_the_hosted_app = dispatch_runner.hands_to_the_hosted_app
-            voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
-            voice_thread.start()
-            logger.info("Voice control thread launched")
-        elif cfg.voice_control.enabled:
-            logger.error("Voice control enabled but import failed: %s", unavailable)
-        else:
+        logger.info("Voice control check: available=%s, enabled=%s, model=%s, device_name=%s",
+                    not unavailable, cfg.voice_control.enabled, cfg.voice_control.model_path,
+                    cfg.voice_control.device_name)
+        if not cfg.voice_control.enabled:
             logger.info("Voice control disabled in config")
+            return None
+        if unavailable:
+            logger.error("Voice control enabled but import failed: %s", unavailable)
+            return None
+        second_listener = WhisperReader()
+        second_listener.load_ahead()
+        return PreparedVoice(cfg.voice_control, second_listener)
     except Exception:
         logger.exception("Voice control setup failed")
+        return None
+
+
+def start_voice_control(
+    prepared: PreparedVoice | None, *, dashboard_cmd_file: Path,
+    dispatch_runner: DispatchLoopRunner,
+) -> tuple[VoiceController | None, threading.Thread | None]:
+    if prepared is None:
+        return None, None
+    try:
+        settings = prepared.settings
+        voice_controller = VoiceController(
+            cmd_file=dashboard_cmd_file,
+            model_path=settings.model_path,
+            confidence_threshold=settings.confidence_threshold,
+            device_name=settings.device_name,
+            sample_rate=settings.sample_rate,
+            confirm_commands=settings.confirm_commands,
+            second_listener=prepared.second_listener,
+        )
+        dispatch_runner.voice_controller = voice_controller
+        voice_controller.active_player = lambda: dispatch_runner.state.active_player
+        voice_controller.hands_to_the_hosted_app = dispatch_runner.hands_to_the_hosted_app
+        voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
+        voice_thread.start()
+        logger.info("Voice control thread launched")
+    except Exception:
+        logger.exception("Voice control setup failed")
+        return None, None
     return voice_controller, voice_thread
 
 
@@ -1063,6 +1078,7 @@ def run_session(
     # Bridge lines land in the log AHK writes to, before the script goes up, so
     # the line naming what was launched is in the file the script then appends.
     add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
+    prepared_voice = prepare_voice_control(manifest.runtime.config_path)
 
     dashboard_cmd_file = Path(manifest.commands.dashboard_cmd_file)
     ahk_cmd_file = state_dir / "ahk_cmd.txt"
@@ -1162,7 +1178,7 @@ def run_session(
         )
         loopback_server = _serve_loopback(manifest.loopback_port, dispatch_runner)
         voice_controller, voice_thread = start_voice_control(
-            manifest.runtime.config_path,
+            prepared_voice,
             dashboard_cmd_file=dashboard_cmd_file,
             dispatch_runner=dispatch_runner,
         )
