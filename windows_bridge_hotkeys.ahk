@@ -74,15 +74,8 @@ global EndingPhase := false
 Suspend true
 global StartupSuspended := true
 
-; Up here because the auto-execute section ends at the first hotkey line, so an
-; assignment written beside the gate it answers would never run.
-global OrigeneratorHasKeyboard := false
-
 SetTimer(ProcessAhkCommand, 150)
 SetTimer(WatchStartup, 150)
-; Short, because the interval is how long the gate's answer may be wrong — and
-; wrong one way, his typing in Origenerator runs as session commands.
-SetTimer(WatchWhoHasTheKeyboard, 50)
 
 ; Liveness beacon: a periodic line proving the hotkey script's message pump is
 ; still running. If it stops (then resumes after a gap), AHK froze — e.g. the
@@ -106,44 +99,6 @@ Log("Hotkey script started")
 Esc::PauseOrCancelStartup()
 +Esc::QueueCommand("relief_omnipause")
 #SuspendExempt false
-
-; The hosted Origenerator's MAIN window is a typing app — prompts, filters,
-; renames — and these hotkeys are single bare letters, so while it is focused
-; the keyboard is its, wholesale.  Its region SHOWS are not: a slideshow has
-; no text field, and the arrows and WASD must drive the portrait and
-; landscape regions by SIDE, exactly as they drive the players — wherever the
-; focus sits, a show's included.  So only the main window gates the hotkeys
-; off.  Matched by EXACT title, never by a title that merely contains the name:
-; "Origenerator" appears in plenty of his other windows — an Explorer at the
-; checkout, a terminal on a branch — and a substring match silently killed
-; every hotkey while one of those was focused.  The exempt trio above stays
-; global on purpose — quitting and the omnipause pair are session gestures,
-; wherever the focus sits.
-;
-; The gate is a flag and never a question.  AutoHotkey evaluates a #HotIf
-; expression on the script's MAIN thread while the keyboard hook HOLDS the key,
-; and that hook sees every key pressed anywhere on the machine — so a gate that
-; asks Windows something delays the user's typing in whatever app he is in,
-; which is what a dead keyboard is.  This timer does the asking instead.
-WatchWhoHasTheKeyboard() {
-    global OrigeneratorHasKeyboard
-    ; Windows' own GetWindowTextW rather than WinGetTitle: this runs on the same
-    ; thread that answers the gate, so it must not wait on another app.  Handed a
-    ; window of another process, GetWindowTextW returns the caption Windows is
-    ; already holding and asks that process nothing.  No foreground window at all
-    ; — one being destroyed, a handover between two apps, the secure desktop in
-    ; front — is not Origenerator focused, and neither is a window with no title.
-    focused := DllCall("GetForegroundWindow", "Ptr")
-    if !focused {
-        OrigeneratorHasKeyboard := false
-        return
-    }
-    chars := 256
-    caption := Buffer(chars * 2)
-    length := DllCall("GetWindowTextW", "Ptr", focused, "Ptr", caption, "Int", chars)
-    OrigeneratorHasKeyboard := (StrGet(caption, length, "UTF-16") = "Origenerator")
-}
-#HotIf !OrigeneratorHasKeyboard
 
 Space::QueueCommand("enter_omnipause")
 [::QueueCommand("main_prev")
@@ -275,8 +230,6 @@ k::QueueCommand("genau_weird_clip")
 m::QueueCommand("genau_prev_clip")
 SC033::QueueCommand("genau_lock")
 SC034::QueueCommand("genau_next_clip")
-
-#HotIf
 
 ; -------------------- CORE FUNCTIONS --------------------
 
