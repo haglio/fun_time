@@ -23,7 +23,6 @@ A hand-written copy is exactly what would keep passing while production broke.
 """
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
@@ -41,6 +40,7 @@ from fun_time.windows_bridge_startup import (
     origenerator_launch_kwargs,
 )
 from tests.integration.integration_support import checkout_project_dirs
+from tests.origenerator_contract import CONTRACT_FILE, named_checkout, published_by
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -91,37 +91,15 @@ def _real_config():
     return None
 
 
-def _named_checkout() -> Path | None:
-    """This worktree's own ``state/origenerator_dir.txt``, if it names one.
-
-    The same override a branch session reads (fun_time.branch_session), for the
-    same reason: a worktree under judgment is usually paired with a worktree of
-    Origenerator, and the launch worth proving here is the one THIS branch would
-    make — not the primary install's, which is what the machine's config names.
-    """
-    override = Path(__file__).resolve().parents[2] / "state" / "origenerator_dir.txt"
-    if not override.exists():
-        return None
-    for line in override.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line and not line.startswith("#"):
-            named = Path(line)
-            # Only if it is still THERE.  A worktree retired after its branch
-            # landed leaves this file naming a directory that no longer
-            # exists, and returning it turned the test below into a skip — a
-            # guard that silently stops guarding, which is the failure mode it
-            # was written against in the first place.  Fall through to the
-            # config's own checkout instead, which is the launch worth proving
-            # once a branch is gone.
-            return named if named.exists() else None
-    return None
-
-
 def _hosted_checkout_and_python():
+    """The Origenerator this branch would launch: the one its own
+    ``state/origenerator_dir.txt`` names, which is how a worktree under
+    judgment is paired with a worktree of Origenerator, else the one the
+    machine's config names."""
     config = _real_config()
     if config is None:
         pytest.skip("no local fun_time_config.json (git-ignored; absent in CI)")
-    checkout = _named_checkout() or config.paths.origenerator_dir
+    checkout = named_checkout() or config.paths.origenerator_dir
     if not checkout or not Path(checkout).exists():
         pytest.skip("this session hosts no Origenerator (paths.origenerator_dir)")
     python_exe = config.paths.origenerator_python_exe or origenerator_interpreter(checkout)
@@ -206,16 +184,12 @@ def test_the_command_under_test_is_the_one_production_builds(tmp_path):
 
 
 def _the_contract_it_publishes(checkout: Path) -> dict:
-    """What the hosted app says its launch takes and its window is called.
-
-    Read from the checkout this session would actually start, which is the
-    only place the two sides can be compared: neither repo installs the other,
-    so nothing in either one's own gate can see both.
-    """
-    published = Path(checkout) / "origenerator_contract.json"
-    if not published.exists():
-        pytest.skip(f"the hosted app publishes no contract at {published}")
-    return json.loads(published.read_text(encoding="utf-8"))
+    """What the hosted app says its launch takes and its window is called,
+    read from the checkout this session would actually start."""
+    published = published_by(checkout)
+    if published is None:
+        pytest.skip(f"the hosted app at {checkout} publishes no {CONTRACT_FILE}")
+    return published
 
 
 def test_this_session_sends_exactly_the_flags_the_hosted_app_declares(tmp_path):
