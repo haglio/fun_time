@@ -75,6 +75,30 @@ def test_a_launched_child_sees_the_mute_switch_though_the_caller_set_no_environm
     assert report.read_text() == "1"
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 process creation")
+def test_a_run_stays_below_normal_priority_though_a_process_in_it_raises_itself(tmp_path):
+    report = tmp_path / "priority.txt"
+    probe = (
+        "import ctypes, ctypes.wintypes as wt, pathlib\n"
+        "kernel32 = ctypes.WinDLL('kernel32')\n"
+        "kernel32.SetPriorityClass.argtypes = [wt.HANDLE, wt.DWORD]\n"
+        "kernel32.GetPriorityClass.argtypes = [wt.HANDLE]\n"
+        "me = wt.HANDLE(-1)\n"
+        f"kernel32.SetPriorityClass(me, {subprocess.ABOVE_NORMAL_PRIORITY_CLASS})\n"
+        f"pathlib.Path({str(report)!r}).write_text(str(kernel32.GetPriorityClass(me)))\n"
+    )
+    job = create_run_job()
+    pi = _launch_on_desktop(subprocess.list2cmdline([sys.executable, "-c", probe]),
+                            None, str(_repo_root()), job)
+    try:
+        hidden_desktop._wait_for_the_run(pi.hProcess, ceiling_s=20)
+    finally:
+        _close_process_handles(pi)
+        close_run_job(job)
+
+    assert int(report.read_text()) == subprocess.BELOW_NORMAL_PRIORITY_CLASS
+
+
 def test_argv_runs_pytest_on_the_integration_dir():
     argv = build_run_argv([])
     assert argv[1:3] == ["-m", "pytest"]

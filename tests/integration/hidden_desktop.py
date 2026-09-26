@@ -122,6 +122,7 @@ STILL_ACTIVE = 259
 # because a process created by a process in a job joins that job.
 JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x00000800
 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+JOB_OBJECT_LIMIT_PRIORITY_CLASS = 0x00000020
 _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
 
 
@@ -305,7 +306,9 @@ def create_run_job() -> int:
     info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
     info.BasicLimitInformation.LimitFlags = (
         JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK
+        | JOB_OBJECT_LIMIT_PRIORITY_CLASS
     )
+    info.BasicLimitInformation.PriorityClass = subprocess.BELOW_NORMAL_PRIORITY_CLASS
     if not _kernel32.SetInformationJobObject(
         job, _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION, ctypes.byref(info), ctypes.sizeof(info)
     ):
