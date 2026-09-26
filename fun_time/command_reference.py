@@ -281,6 +281,12 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Next Genau clip", (".",), ("genau_next_clip",)),
             _Row("Mark the Genau clip weird — skip it, and out of rotation", ("K",), ("genau_weird_clip",)),
             _Row(
+                "Lock / unlock the Genau clip — locked (the default) it repeats; "
+                "unlocked Genau moves on every few seconds",
+                (",",),
+                ("genau_lock",),
+            ),
+            _Row(
                 "Flip the Genau clip half a loop, for a picture running opposite the "
                 "OSR2 — it stays flipped, and saying it again puts it back",
                 (),
@@ -291,7 +297,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Volume down / up, in tenths — the clip music", (), ("audio_volume_down", "audio_volume_up")),
             _Row(
                 "Seconds a clip holds the screen before Genau moves on — only "
-                "while it is unlocked (the ' key in the main player holds it)",
+                "while it is unlocked (the , key holds it)",
                 (),
                 ("genau_clip_seconds_down", "genau_clip_seconds_up"),
                 ("clip seconds 1–60",),
@@ -304,12 +310,16 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Previous video", ("[",), ("main_prev",)),
             _Row("Next video", ("]",), ("main_next",)),
             _Row(
-                "Lock / unlock the main player — locked (the default) what is on "
-                "screen repeats; unlocked it moves on and the list runs around. "
-                "Reaches whichever player is showing: the main player's video here, Genau's "
-                "clip in Genau mode",
+                "Lock / unlock the video — locked (the default) it repeats; "
+                "unlocked it moves on and the list runs around",
                 ("'",),
-                ("main_lock", "main_lock_on", "main_lock_off"),
+                ("main_player_lock",),
+            ),
+            _Row(
+                "Lock / unlock whichever player is on the main screen — the "
+                "video here, Genau's clip in Genau mode",
+                (),
+                ("main_lock_on", "main_lock_off"),
             ),
             _Row("Nudge back 10 seconds", ("-",), ("main_nudge_prev",)),
             _Row("Nudge forward 10 seconds", ("=",), ("main_nudge_next",)),

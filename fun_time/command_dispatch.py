@@ -550,7 +550,7 @@ _MAIN_PLAYER_RESET_VERBS = (
 # without the F-mode forms here, "main f mode" would be the one way of
 # addressing a player that did not leave it addressed.
 _MAIN_SELECTING_COMMANDS = frozenset(
-    {"main_next", "main_prev", MAIN_RESET}
+    {"main_next", "main_prev", MAIN_RESET, "main_player_lock", "genau_lock"}
     | set(_MAIN_LOCK_COMMANDS)
     | {f"main_fmode{suffix}" for suffix in ("", "_on", "_off")}
 )
@@ -1432,6 +1432,18 @@ def _main_lock(verb: str, state: BridgeState, config: BridgeConfig,
     if main_player_displays(state.main_mode):
         append_command(config.main_player_cmd_file, verb)
         return state, []
+    return _lock_genau(verb, state, config)
+
+
+def _genau_lock_on_screen(verb: str, state: BridgeState, config: BridgeConfig,
+                          _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    if main_player_displays(state.main_mode):
+        return state, []
+    return _lock_genau(verb, state, config)
+
+
+def _lock_genau(verb: str, state: BridgeState,
+                config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
     append_command(config.genau_cmd_file, verb)
     if hosting_origenerator(state, config) and _locks_genau(verb, config):
         return state, [WindowOp(op="follow_genaus_lock")]
@@ -1623,6 +1635,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["main_nudge_next"] = partial(_forward_to_main_player, "SEEK_FWD")
     handlers.update({cmd: partial(_main_lock, verb)
                      for cmd, verb in _MAIN_LOCK_COMMANDS.items()})
+    handlers["genau_lock"] = partial(_genau_lock_on_screen, TOGGLE_LOCK)
+    handlers["main_player_lock"] = partial(_forward_to_main_player_on_screen, TOGGLE_LOCK)
     handlers["projection_cycle"] = partial(_forward_to_the_vr_main_player, "CYCLE_PROJECTION")
     handlers["recenter_view"] = partial(_forward_to_the_vr_main_player, "RECENTER")
     handlers["tilt_up"] = partial(_forward_to_the_vr_main_player, "TILT_UP")
