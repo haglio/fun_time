@@ -10,6 +10,7 @@ PID Windows has since recycled is recognized rather than shot.
 """
 from __future__ import annotations
 
+import ast
 import json
 import socket
 import time
@@ -667,3 +668,28 @@ def test_a_wait_that_runs_out_describes_how_things_stood_when_it_gave_up(session
 
     with pytest.raises(AssertionError, match="as it gave up"):
         session.wait_until(not_yet, timeout=0.01, description=lambda: stood["then"])
+
+
+def _module_scoped_fixtures(tree: ast.Module) -> set[str]:
+    return {
+        node.name for node in tree.body if isinstance(node, ast.FunctionDef)
+        and any(isinstance(d, ast.Call) and any(
+            k.arg == "scope" and getattr(k.value, "value", None) == "module" for k in d.keywords)
+            for d in node.decorator_list)}
+
+
+def _tests_left_to_a_reaped_shared_session(source: str) -> list[str]:
+    tree = ast.parse(source)
+    shared = _module_scoped_fixtures(tree)
+    tests = [(node.name, bool(shared & {a.arg for a in node.args.args}))
+             for node in tree.body
+             if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")]
+    first_on_its_own = next((i for i, (_name, on_shared) in enumerate(tests) if not on_shared),
+                            len(tests))
+    return [name for name, on_shared in tests[first_on_its_own:] if on_shared]
+
+
+def test_a_modules_shared_session_is_done_with_before_a_test_starts_one_of_its_own():
+    for module in sorted((Path(__file__).parent / "integration").glob("test_*.py")):
+        assert _tests_left_to_a_reaped_shared_session(
+            module.read_text(encoding="utf-8")) == [], module.name

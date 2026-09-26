@@ -608,6 +608,62 @@ def test_fun_time_video_mode_comes_back_to_the_video_main_player_was_showing(sha
     s.wait_for_new_log("Dispatching command: main_nudge_next", timeout=10)
 
 
+def _swinging_script(path: Path) -> Path:
+    write(path, document([{"at": ms, "pos": 0 if ms % 2000 == 0 else 100}
+                          for ms in range(0, 3_600_000, 1000)], duration_seconds=3600))
+    return path
+
+
+def _script_that_starts_in_ten_hours(path: Path) -> Path:
+    write(path, document([{"at": 36_000_000, "pos": 50}], duration_seconds=36_000))
+    return path
+
+
+def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
+    shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
+):
+    s = shared_integration_session
+    portrait = s.config.satellite(Player.PORTRAIT)
+    s.wait_until(lambda: bool(read_satellite_status(portrait.status_file).video)
+                 and not read_satellite_status(portrait.status_file).paused,
+                 timeout=30, description="the portrait player playing a video")
+    video = Path(read_satellite_status(portrait.status_file).video)
+    sink = s.config.main_player_tcode.port
+    before = senders(tcode_heard(sink, seconds=2))
+    try:
+        s.write_dashboard_command("portrait_take_osr2")
+        append_command(portrait.cmd_file,
+                       play_file(PlaylistItem(video, _swinging_script(tmp_path / "swings.funscript"))))
+        s.write_dashboard_command("portrait_lock")
+        s.wait_for_new_log("Locked portrait satellite", timeout=12)
+        s.wait_until(lambda: read_satellite_status(portrait.status_file).funscript_driving,
+                     timeout=30, description="the portrait player's funscript to be driving")
+        time.sleep(1.0)
+        scripted = senders(tcode_heard(sink, seconds=4))
+        assert len(scripted) == 1, (before, scripted)
+        ((portraits_line, (_moves, _first, _last, lowest, highest)),) = scripted.items()
+        assert highest - lowest > 0.5, scripted
+
+        s.write_dashboard_command("speed_up")
+        s.wait_until(lambda: read_satellite_status(portrait.status_file).speed > 1.0, timeout=10,
+                     description="the speed nudge to reach the portrait player")
+        append_command(portrait.cmd_file, f"{SET_SPEED} 1")
+
+        append_command(portrait.cmd_file, play_file(PlaylistItem(
+            video, _script_that_starts_in_ten_hours(tmp_path / "later.funscript"))))
+        s.wait_until(lambda: read_satellite_status(portrait.status_file).funscript_resting,
+                     timeout=30, description="the portrait player to reach a stretch with no funscript")
+        time.sleep(2.0)
+        resting = senders(tcode_heard(sink, seconds=4))
+        assert resting and portraits_line not in resting, (portraits_line, resting)
+    finally:
+        s.write_dashboard_command("main_take_osr2")
+        if read_satellite_status(portrait.status_file).locked:
+            s.write_dashboard_command("portrait_lock")
+            s.wait_for_new_log("Unlocked portrait satellite", timeout=12)
+        append_command(portrait.cmd_file, RELOAD_PLAYLIST)
+
+
 def _held_still(session: FunTimeIntegrationSession, side: SatelliteFiles) -> SatelliteStatus:
     session.wait_until(
         lambda: bool(read_satellite_status(side.status_file).video),
@@ -751,62 +807,6 @@ def test_fun_time_reset_all_leaves_every_player_unlocked(
         timeout=12,
         description="Reset All to leave all three players unlocked",
     )
-
-
-def _swinging_script(path: Path) -> Path:
-    write(path, document([{"at": ms, "pos": 0 if ms % 2000 == 0 else 100}
-                          for ms in range(0, 3_600_000, 1000)], duration_seconds=3600))
-    return path
-
-
-def _script_that_starts_in_ten_hours(path: Path) -> Path:
-    write(path, document([{"at": 36_000_000, "pos": 50}], duration_seconds=36_000))
-    return path
-
-
-def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
-    shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
-):
-    s = shared_integration_session
-    portrait = s.config.satellite(Player.PORTRAIT)
-    s.wait_until(lambda: bool(read_satellite_status(portrait.status_file).video)
-                 and not read_satellite_status(portrait.status_file).paused,
-                 timeout=30, description="the portrait player playing a video")
-    video = Path(read_satellite_status(portrait.status_file).video)
-    sink = s.config.main_player_tcode.port
-    before = senders(tcode_heard(sink, seconds=2))
-    try:
-        s.write_dashboard_command("portrait_take_osr2")
-        append_command(portrait.cmd_file,
-                       play_file(PlaylistItem(video, _swinging_script(tmp_path / "swings.funscript"))))
-        s.write_dashboard_command("portrait_lock")
-        s.wait_for_new_log("Locked portrait satellite", timeout=12)
-        s.wait_until(lambda: read_satellite_status(portrait.status_file).funscript_driving,
-                     timeout=30, description="the portrait player's funscript to be driving")
-        time.sleep(1.0)
-        scripted = senders(tcode_heard(sink, seconds=4))
-        assert len(scripted) == 1, (before, scripted)
-        ((portraits_line, (_moves, _first, _last, lowest, highest)),) = scripted.items()
-        assert highest - lowest > 0.5, scripted
-
-        s.write_dashboard_command("speed_up")
-        s.wait_until(lambda: read_satellite_status(portrait.status_file).speed > 1.0, timeout=10,
-                     description="the speed nudge to reach the portrait player")
-        append_command(portrait.cmd_file, f"{SET_SPEED} 1")
-
-        append_command(portrait.cmd_file, play_file(PlaylistItem(
-            video, _script_that_starts_in_ten_hours(tmp_path / "later.funscript"))))
-        s.wait_until(lambda: read_satellite_status(portrait.status_file).funscript_resting,
-                     timeout=30, description="the portrait player to reach a stretch with no funscript")
-        time.sleep(2.0)
-        resting = senders(tcode_heard(sink, seconds=4))
-        assert resting and portraits_line not in resting, (portraits_line, resting)
-    finally:
-        s.write_dashboard_command("main_take_osr2")
-        if read_satellite_status(portrait.status_file).locked:
-            s.write_dashboard_command("portrait_lock")
-            s.wait_for_new_log("Unlocked portrait satellite", timeout=12)
-        append_command(portrait.cmd_file, RELOAD_PLAYLIST)
 
 
 def _videos(playlist: Path) -> list[str]:
