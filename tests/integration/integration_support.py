@@ -29,7 +29,6 @@ from fun_time.modes import (
 )
 from fun_time.player_status import (
     MainPlayerStatus,
-    read_key_values,
     read_main_player_status,
 )
 from fun_time.process_identity import NAMER
@@ -79,14 +78,6 @@ def published_status(read, path: Path, *, budget_s: float = 2.0,
         sleep(0.01)
         status = read(path)
     return status
-
-
-def _status_fields(path: Path) -> dict[str, str]:
-    """A published status file's fields, or none while it is missing or being replaced."""
-    try:
-        return read_key_values(path)
-    except (OSError, ValueError):
-        return {}
 
 
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
@@ -190,6 +181,11 @@ QUIT_BUDGET_S = 60.0
 # alone has taken 24 to 41, and two were still starting, not stuck, at 45.
 START_BUDGET_S = 120.0
 
+# How long a command is given to show in what a player publishes.  When other
+# sessions' normal-priority work held every core, the dispatch loop went 66
+# seconds between two passes and every command still landed afterwards.
+COMMAND_BUDGET_S = 120.0
+
 
 class FunTimeIntegrationSession:
     def __init__(self, config_path: Path):
@@ -229,16 +225,6 @@ class FunTimeIntegrationSession:
     def read_main_player_status(self) -> MainPlayerStatus:
         """Parse the main player's published status file."""
         return published_status(read_main_player_status, self.config.main_player_status_file)
-
-    def read_main_player_duration_ms(self) -> int:
-        """The main player's current video duration in ms (published, but not carried on
-        MainPlayerStatus, which only parses fields with production consumers).  A
-        non-zero value means mpv has loaded the file and knows its length."""
-        fields = published_status(_status_fields, self.config.main_player_status_file)
-        try:
-            return int(fields.get("duration_ms", "").strip() or 0)
-        except ValueError:
-            return 0
 
     def read_child_pids(self) -> dict[str, int]:
         """Read all child PIDs from bridge_pids.ini."""

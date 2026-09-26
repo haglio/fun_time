@@ -18,7 +18,7 @@ from unittest.mock import patch
 
 import pytest
 
-from fun_time import windows_bridge_orchestrator
+from fun_time import player_status, windows_bridge_orchestrator
 from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.player_status import MainPlayerStatus
 from fun_time.windows_bridge_orchestrator import ChildProcess
@@ -582,6 +582,8 @@ def test_a_status_read_that_caught_the_file_mid_replace_is_read_again():
 def test_a_duration_read_refused_mid_replace_is_read_again(session, monkeypatch):
     """Windows can refuse a read outright while the player replaces its status
     file, and the refusal went straight up into the test that asked."""
+    session.config.main_player_status_file.parent.mkdir(parents=True, exist_ok=True)
+    session.config.main_player_status_file.write_text("", encoding="utf-8")
     refusals = iter([PermissionError(13, "Permission denied")])
 
     def read(path):
@@ -589,9 +591,9 @@ def test_a_duration_read_refused_mid_replace_is_read_again(session, monkeypatch)
             raise refusal
         return {"video": "C:/example/scene one.mp4", "duration_ms": "61000"}
 
-    monkeypatch.setattr(integration_support, "read_key_values", read)
+    monkeypatch.setattr(player_status, "read_key_values", read)
 
-    assert session.read_main_player_duration_ms() == 61_000
+    assert session.read_main_player_status().duration_ms == 61_000
 
 
 def test_a_replace_that_outlasts_one_retry_is_still_waited_out():
