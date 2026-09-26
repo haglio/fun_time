@@ -87,6 +87,7 @@ from fun_time_vr.layout import (
     REFERENCE,
     clamp_placement,
     read_layout,
+    shown_at,
 )
 from fun_time_vr.library_panel import LIBRARY_SIZE_PX, scroll_from_stick, scroll_line
 from fun_time_vr.notices import NoticeBoard
@@ -135,6 +136,7 @@ from fun_time_vr.scene import (
     Placement,
     attached_below,
     surface_vertices,
+    widened,
 )
 from fun_time_vr.stacking import Stacking
 from fun_time_vr.video_thread import VideoThread
@@ -347,6 +349,7 @@ class _OverlayPlayer:
 def _unit_with_pixels(width=640, height=480) -> tuple[_VideoUnit, _OverlayPlayer]:
     player = _OverlayPlayer()
     unit = _VideoUnit.__new__(_VideoUnit)
+    unit.screen_name = MAIN
     unit.player = player
     unit._scrubber_shown = None
     unit._chip_shown = None
@@ -800,9 +803,10 @@ class TestThePanelUnderThePointer:
         with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
             p.unit.render_latest_frame()
 
+        clip = p.genau.texture.aspect
         assert p.unit.screen.placement == attached_below(
-            p.genau.screen.placement, aspect=p.genau.texture.aspect, width_deg=PANEL_WIDTH_DEG,
-            hanging_aspect=_FakePanelTexture.aspect, gap_deg=HUD_GAP_DEG)
+            shown_at(MAIN, p.genau.screen.placement, clip), aspect=clip,
+            width_deg=PANEL_WIDTH_DEG, hanging_aspect=_FakePanelTexture.aspect, gap_deg=HUD_GAP_DEG)
 
     def test_no_row_joins_it_while_the_video_draws_its_own(self, tmp_path):
         p = self._unit(tmp_path)
@@ -1402,6 +1406,12 @@ class TestTheMainSlotUnderThePointer:
         assert screen.name == MAIN
         assert screen.aspect == 4 / 3
 
+    def test_genaus_clip_is_offered_at_the_width_it_hangs_at_to_keep_the_slots_area(self):
+        screen = self._slot(showing=True)
+
+        assert screen.placement == shown_at(MAIN, SPOTS[MAIN], 4 / 3)
+        assert widened(SPOTS[MAIN], screen.widened_by) == screen.placement
+
     @pytest.mark.parametrize("state", [
         {"projection": EQUIRECT_180_SBS},
         {"showing": True, "clip_projection": EQUIRECT_180_SBS},
@@ -1522,7 +1532,7 @@ class TestTheClipsOwnControls:
         unit.role.projection = projection
         unit.texture = _FakeTexture()
         unit.screen = SimpleNamespace(placement=SPOTS[MAIN],
-                                      rehang=lambda _aspect: None)
+                                      rehang_at=lambda _placement, _aspect: None)
         unit.render_latest_frame()
         return clip, unit.texture.uploads[-1]
 
@@ -1572,6 +1582,15 @@ class TestTheClipsOwnControls:
 
         assert unit._control_size == control_size(SPOTS[MAIN].width_deg, 640 / 360)
 
+    def test_a_tall_clips_controls_are_painted_for_the_width_it_hangs_at(self):
+        unit = self._unit()
+
+        unit._furnished(np.zeros((640, 360, 3), dtype=np.uint8))
+
+        tall = 360 / 640
+        assert unit._control_size == control_size(
+            shown_at(MAIN, SPOTS[MAIN], tall).width_deg, tall)
+
     def test_the_clip_says_which_frame_is_up_beside_its_bar(self):
         unit = self._unit()
 
@@ -1599,8 +1618,36 @@ def test_a_frozen_clips_picture_goes_where_its_handle_drags_it():
         unit.screen.placement = dragged
         unit.render_latest_frame()
 
+    aspect = unit.texture.aspect
     assert np.array_equal(unit.screen.mesh.uploads[-1],
-                          surface_vertices(dragged, aspect=unit.texture.aspect))
+                          surface_vertices(shown_at(MAIN, dragged, aspect), aspect=aspect))
+
+
+def _area(corners) -> float:
+    upper_left, lower_left, upper_right = corners[0, :3], corners[1, :3], corners[2, :3]
+    return float(np.linalg.norm(upper_right - upper_left)
+                 * np.linalg.norm(upper_left - lower_left))
+
+
+def test_a_clip_taller_than_it_is_wide_hangs_over_the_area_a_widescreen_clip_does():
+    unit = TestTheClipsOwnControls()._unit()
+    unit.role.take_frame = lambda: np.zeros((640, 360, 3), dtype=np.uint8)
+    unit.role.projection = FLAT
+    unit.texture = SimpleNamespace(ready=True, aspect=360 / 640, upload=lambda _pixels: None)
+    unit.screen = _HangingScreen(SPOTS[MAIN])
+
+    with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+        unit.render_latest_frame()
+
+    assert _area(unit.screen.mesh.uploads[-1]) == pytest.approx(
+        _area(surface_vertices(SPOTS[MAIN], aspect=16 / 9)))
+
+
+def test_a_satellite_offers_a_picture_of_another_shape_over_the_area_its_usual_one_covers():
+    (picture,) = _a_satellite(PORTRAIT).hangings()
+
+    assert _area(surface_vertices(picture.screen.placement, aspect=picture.screen.aspect)) == (
+        pytest.approx(_area(surface_vertices(SPOTS[PORTRAIT], aspect=9 / 16))))
 
 
 class _FakeRenderer:

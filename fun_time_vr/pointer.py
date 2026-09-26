@@ -17,6 +17,8 @@ from .scene import (
     half_width,
     surface_vertices,
     turn_deg,
+    widened,
+    widened_deg,
 )
 
 Vec3 = tuple[float, float, float]
@@ -128,6 +130,7 @@ def screen_uv(
 
 
 HANDLE_DEG = 4.0
+_HALF_TURN_DEG = 180.0
 MOVE = "move"
 RESIZE = "resize"
 SURFACE = "surface"
@@ -198,10 +201,12 @@ def handle_vertices(
 class Grab:
     def __init__(
         self, handle: str, placement: Placement, *, start: SurfacePoint, aspect: float = 1.0,
-        radius: float = RADIUS,
+        widened_by: float = 1.0, radius: float = RADIUS,
     ) -> None:
         self.handle = handle
         self._placement = placement
+        self._widened_by = widened_by
+        self._size_deg = widened_deg(placement.width_deg, 1.0 / widened_by)
         self._start = start
         self._aspect = aspect
         self._radius = radius
@@ -233,7 +238,7 @@ class Grab:
             return clamp_placement(Placement(
                 azimuth_deg=turn_deg(0.0, azimuth),
                 elevation_deg=elevation_at(lift, self._radius),
-                width_deg=placement.width_deg,
+                width_deg=self._size_deg,
             ))
         return self._resized_to(point)
 
@@ -246,13 +251,15 @@ class Grab:
         down = 2.0 * math.asin(
             max(-1.0, min(1.0, (y - point.y) * self._aspect / (2.0 * self._radius))))
         weight = (math.cos(math.radians(self._width_deg) / 2.0) / self._aspect) ** 2
-        width_deg = clamp_width(math.degrees((across + weight * down) / (1.0 + weight)))
+        reached_deg = min(math.degrees((across + weight * down) / (1.0 + weight)), _HALF_TURN_DEG)
+        size_deg = clamp_width(widened_deg(reached_deg, 1.0 / self._widened_by))
+        width_deg = widened_deg(size_deg, self._widened_by)
         self._width_deg = width_deg
         lift = y / math.cos(math.radians(width_deg) / 2.0) - self._half_height(width_deg)
         return Placement(  # not clamp_placement: its azimuth limit would slip the anchor
             azimuth_deg=turn_deg(0.0, azimuth + self._side * width_deg / 2.0),
             elevation_deg=clamp_elevation(elevation_at(lift, self._radius)),
-            width_deg=width_deg,
+            width_deg=size_deg,
         )
 
 
@@ -301,6 +308,7 @@ class Screen:
     pressable: bool = False
     immersive: bool = False  # wrapped round the viewer: no rectangle, so no hover
     picture: bool = False
+    widened_by: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -430,7 +438,7 @@ class Pointer:
         taken = screen.name if edge == PRESS else None
         if edge == PRESS and hover.handle in (MOVE, RESIZE):
             self._grab = (screen, Grab(hover.handle, screen.placement, start=point,
-                                       aspect=screen.aspect))
+                                       aspect=screen.aspect, widened_by=screen.widened_by))
         elif edge == PRESS and screen.picture and not self._on_its_controls(
                 screen, hover.u, hover.v):
             self._start_squeeze(aim, scene_rotation, PressEvent(
@@ -484,11 +492,11 @@ class Pointer:
     def _dragging(self, ray: Ray, point: SurfacePoint | None, edge: str | None) -> Frame:
         screen, grab = self._grab
         moved = {}
-        placement = screen.placement
+        shown = screen.placement
         if point is not None:
-            placement = grab.dragged_to(point)
-            moved[screen.name] = placement
-        u, v = screen_uv(point, placement, screen.aspect) if point is not None else (0.5, 0.5)
+            moved[screen.name] = grab.dragged_to(point)
+            shown = widened(moved[screen.name], screen.widened_by)
+        u, v = screen_uv(point, shown, screen.aspect) if point is not None else (0.5, 0.5)
         seen = dict(ray=ray, point=point, hover=Hover(screen.name, grab.handle, u, v), moved=moved)
         return self._let_go(**seen) if edge == RELEASE else Frame(**seen)
 

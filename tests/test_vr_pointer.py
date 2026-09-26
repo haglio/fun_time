@@ -47,7 +47,13 @@ from fun_time_vr.pointer import (
     scene_ray,
     screen_uv,
 )
-from fun_time_vr.scene import RADIUS, Placement, scene_placement_quaternion, surface_vertices
+from fun_time_vr.scene import (
+    RADIUS,
+    Placement,
+    scene_placement_quaternion,
+    surface_vertices,
+    widened,
+)
 
 _AHEAD = Ray(origin=(0.0, 0.0, 0.0), direction=(0.0, 0.0, -1.0))
 
@@ -375,6 +381,44 @@ class TestAGrab:
         assert grab.dragged_to(_on_the_cylinder(144.0, -30.0)).width_deg == MAX_WIDTH_DEG
 
 
+class TestAGrabOnAPictureShownNarrowerThanItsSize:
+    _TALL = 9 / 16
+    _BY = 0.5
+    _SIZE = Placement(azimuth_deg=0.0, elevation_deg=0.0, width_deg=80.0)
+
+    def test_a_move_carries_its_size_rather_than_the_width_it_is_shown_at(self):
+        grab = Grab(MOVE, widened(self._SIZE, self._BY), start=_on_the_cylinder(0.0, 0.9),
+                    aspect=self._TALL, widened_by=self._BY)
+
+        moved = grab.dragged_to(_on_the_cylinder(10.0, 0.9))
+
+        assert moved.width_deg == pytest.approx(self._SIZE.width_deg)
+
+    @pytest.mark.parametrize("side", [1.0, -1.0])
+    def test_a_corner_sets_the_size_it_keeps_from_the_width_it_is_dragged_to(self, side):
+        shown = widened(self._SIZE, self._BY)
+        anchor = _seen_at(shown, self._TALL, (1 - side) / 2, 1.0)
+        grab = Grab(RESIZE, shown, start=_seen_at(shown, self._TALL, (1 + side) / 2, 0.0),
+                    aspect=self._TALL, widened_by=self._BY)
+        wider = 1.5 * shown.width_deg
+
+        grown = grab.dragged_to(_seen_at(
+            _anchored((anchor.azimuth_deg, anchor.y), side, wider, self._TALL),
+            self._TALL, (1 + side) / 2, 0.0))
+
+        assert widened(grown, self._BY).width_deg == pytest.approx(wider)
+
+    def test_a_resize_stops_at_the_smallest_and_the_widest_size(self):
+        shown = widened(self._SIZE, self._BY)
+        anchor = _seen_at(shown, self._TALL, 0.0, 1.0)
+        grab = Grab(RESIZE, shown, start=_seen_at(shown, self._TALL, 1.0, 0.0),
+                    aspect=self._TALL, widened_by=self._BY)
+
+        pushed_past = _on_the_cylinder(anchor.azimuth_deg - 20.0, anchor.y + 1.0)
+        assert grab.dragged_to(pushed_past).width_deg == MIN_WIDTH_DEG
+        assert grab.dragged_to(_on_the_cylinder(144.0, -30.0)).width_deg == MAX_WIDTH_DEG
+
+
 class TestTheTrigger:
     def test_a_squeeze_presses_once_and_a_release_releases_once(self):
         trigger = TriggerEdge()
@@ -476,6 +520,21 @@ class TestThePointerOverTheScene:
         released = self._frame(pointer, _hands(right=_aim_turned(_LANDSCAPE, 5.0, 1 + dv / 2)))
         assert released.settled
         assert released.moved["landscape"].azimuth_deg == pytest.approx(43.0, abs=1e-4)
+
+    def test_a_picture_shown_narrower_than_its_size_is_dragged_by_its_bar_at_its_size(self):
+        size = _LANDSCAPE.placement
+        picture = replace(_LANDSCAPE, placement=widened(size, 0.5), widened_by=0.5)
+        pointer = Pointer()
+        _du, dv = handle_extent(picture.placement, picture.aspect)
+        bar = (0.5, 1 + dv / 2)
+
+        self._frame(pointer, _hands(right=_aim_at_uv(picture, *bar), right_trigger=1.0),
+                    screens=[picture])
+        dragged = self._frame(pointer, _hands(right=_aim_turned(picture, 5.0, bar[1]),
+                                              right_trigger=1.0), screens=[picture])
+
+        assert dragged.moved["landscape"].width_deg == pytest.approx(size.width_deg)
+        assert (dragged.hover.u, dragged.hover.v) == pytest.approx(bar, abs=1e-6)
 
     def test_a_drag_let_go_of_moves_nothing_while_the_trigger_stays_down(self):
         pointer = Pointer()

@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from collections.abc import Mapping
 from dataclasses import fields, replace
 from pathlib import Path
 
-from .scene import Placement, turn_deg
+from .scene import Placement, turn_deg, widened
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ LIBRARY = "library"
 LAYOUT_FILENAME = "vr_layout.json"
 
 PLAYERS = (MAIN, LANDSCAPE, PORTRAIT)
+USUAL_ASPECT = {MAIN: 16 / 9, LANDSCAPE: 16 / 9, PORTRAIT: 9 / 16}
 
 
 AZIMUTH_LIMIT_DEG = 150.0
@@ -45,6 +47,14 @@ def clamp_placement(placement: Placement) -> Placement:
         elevation_deg=clamp_elevation(placement.elevation_deg),
         width_deg=clamp_width(placement.width_deg),
     )
+
+
+def widening(name: str, aspect: float) -> float:
+    return math.sqrt(aspect / USUAL_ASPECT[name])
+
+
+def shown_at(name: str, placement: Placement, aspect: float) -> Placement:
+    return widened(placement, widening(name, aspect))
 
 
 def grown(placement: Placement, factor: float) -> Placement:

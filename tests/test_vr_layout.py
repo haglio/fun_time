@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import math
 
+import numpy as np
 import pytest
 
 from fun_time_vr.layout import (
@@ -23,6 +24,7 @@ from fun_time_vr.layout import (
     nearer,
     read_layout,
     rearranged,
+    shown_at,
     write_layout,
 )
 from fun_time_vr.scene import MAIN_WIDTH_DEG, RADIUS, Placement, surface_vertices
@@ -188,4 +190,26 @@ class TestWhereTheControllersLeaveThePlayers:
 
     def test_a_still_stick_leaves_every_player_where_it_was(self):
         assert rearranged(self._PLAYERS, grow=1.0, nearer_by=1.0) == {}
+
+
+def _area(placement: Placement, aspect: float) -> float:
+    corners = surface_vertices(placement, aspect=aspect)
+    return float(np.ptp(corners[:, 0]) * np.ptp(corners[:, 1]))
+
+
+class TestAPictureKeepsItsArea:
+    def test_a_clip_taller_than_it_is_wide_covers_what_a_widescreen_one_does_in_the_main_slot(
+            self):
+        slot = Placement(0.0, 0.0, 80.0)
+
+        assert _area(shown_at(MAIN, slot, 9 / 16), 9 / 16) == pytest.approx(
+            _area(shown_at(MAIN, slot, 16 / 9), 16 / 9))
+
+    @pytest.mark.parametrize("name, usual", [
+        (MAIN, 16 / 9), (LANDSCAPE, 16 / 9), (PORTRAIT, 9 / 16)])
+    def test_a_picture_of_its_screens_usual_shape_is_as_wide_as_the_screen_was_left(
+            self, name, usual):
+        left = Placement(30.0, 20.0, 38.0)
+
+        assert shown_at(name, left, usual).width_deg == pytest.approx(left.width_deg)
 
