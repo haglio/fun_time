@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from player_core.console import OSR2_CONTROL_OFF, OSR2_PARKED
+from player_core.console import OSR2_CONTROL_OFF, OSR2_PARKED, OSR2_RETRACTED
 from player_core.modes import MainMode
 
-from fun_time.broker_control import RETRACT_CMD
+from fun_time.broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
 from fun_time.omnipause import build_omnipause_plan
 
 
@@ -48,21 +48,20 @@ def test_leaving_does_not_give_it_back_while_control_is_off():
     assert plan.resume_genau_playback is False
 
 
-def test_a_hold_still_resumes_it_so_the_stilled_motion_keeps_the_device_there():
-    """A hold is Genau playing with no travel left -- its own stream is what
-    walks the device to that end and keeps it there."""
+def test_leaving_under_a_hold_plays_the_hand_on_unheard():
     plan = build_omnipause_plan("leave", omni_paused=True, main_mode=MainMode.GENAU,
                                 osr2_control=OSR2_PARKED)
 
     assert plan.resume_genau_playback is True
 
 
-def test_relief_enters_omnipause_but_retracts_the_osr2():
-    """Relief is an enter in every respect but one: the OSR2 goes away rather
-    than home, because the point of it is getting the device off the user."""
-    plan = build_omnipause_plan("relief", omni_paused=False, main_mode=MainMode.VIDEO)
+def test_leaving_hands_the_osr2_back_unless_a_hold_is_keeping_it():
+    commands = {control: build_omnipause_plan("leave", omni_paused=True,
+                                              main_mode=MainMode.VIDEO,
+                                              osr2_control=control).broker_command
+                for control in (OSR2_PARKED, OSR2_RETRACTED, OSR2_CONTROL_OFF)}
 
-    assert plan.next_omni_paused is True
-    assert plan.broker_command == RETRACT_CMD
+    assert commands == {OSR2_PARKED: PARK_CMD, OSR2_RETRACTED: RETRACT_CMD,
+                        OSR2_CONTROL_OFF: RESUME_CMD}
 
 

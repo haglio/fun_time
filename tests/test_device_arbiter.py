@@ -86,6 +86,25 @@ class TestNobodyDriving:
 
         assert genau(driver).splitlines() == ["RESUME", "SET_TCODE_ENABLED 0", "RETRACT"]
 
+    def test_a_hold_under_omnipause_leaves_genau_paused(self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_main_player(driver)
+
+        driver.sync("genau", paused=True, control=OSR2_RETRACTED)
+
+        assert genau(driver).splitlines() == ["PAUSE", "SET_TCODE_ENABLED 0", "RETRACT"]
+
+    def test_the_room_coming_back_under_a_hold_plays_the_hand_on_unheard_at_once(self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_main_player(driver)
+        driver.sync("video", paused=True, control=OSR2_RETRACTED)
+
+        driver.sync("video", paused=False, control=OSR2_RETRACTED)
+
+        assert genau(driver).splitlines() == [
+            "PAUSE", "SET_TCODE_ENABLED 0", "RETRACT",
+            "RESUME", "SET_TCODE_ENABLED 0", "RETRACT"]
+
     def test_control_off_stops_genau_and_tells_it_the_device_is_going_home(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_player(driver)

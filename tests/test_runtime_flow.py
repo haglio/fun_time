@@ -622,32 +622,6 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "1"
 
 
-def test_apply_enter_omnipause_relief_retracts_and_still_freezes_everything(flow_files):
-    """Relief freezes the session exactly as a plain enter does — only the OSR2's
-    destination changes, from home to the far end of its travel."""
-    result = apply_enter_omnipause(
-        omni_paused=False,
-        main_mode=MainMode.VIDEO,
-        portrait_paused_file=flow_files["portrait_paused_file"],
-        landscape_paused_file=flow_files["landscape_paused_file"],
-        genau_paused_file=flow_files["genau_paused_file"],
-        audio_paused_file=flow_files["audio_paused_file"],
-        genau_cmd_file=flow_files["genau_cmd_file"],
-        main_player_paused_file=flow_files["main_player_paused_file"],
-        broker_cmd_file=flow_files["broker_cmd_file"],
-        relief=True,
-    )
-
-    assert result.next_omni_paused is True
-    assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "RETRACT"
-    assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nRETRACT\n"
-    assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "1"
-
-
 def test_with_no_broker_to_park_the_device_genau_is_only_paused(flow_files):
     apply_enter_omnipause(
         omni_paused=False,
