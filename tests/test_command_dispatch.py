@@ -539,13 +539,53 @@ def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
 
-def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(tmp_path: Path):
-    """A satellite's own lock key selects that player; the main player's does the same,
+def test_the_comma_holds_genaus_clip_while_genau_is_on_the_main_screen(tmp_path: Path):
+    """The comma sits under K in Genau's own cluster of keys, the way S and Down
+    sit under W and Up in the satellites'."""
+    config = _make_config(tmp_path)
+
+    dispatch_command("genau_lock", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
+    assert not config.main_player_cmd_file.exists()
+
+
+def test_the_apostrophe_holds_the_video_while_the_video_is_on_the_main_screen(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    dispatch_command("main_player_lock", _make_state(main_mode=MainMode.VIDEO), config)
+
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
+    assert not config.genau_cmd_file.exists()
+
+
+@pytest.mark.parametrize(("key_command", "main_mode"), [
+    ("genau_lock", MainMode.VIDEO),
+    ("main_player_lock", MainMode.GENAU),
+])
+def test_a_lock_key_does_nothing_while_the_other_player_is_on_the_main_screen(
+        tmp_path: Path, key_command, main_mode):
+    config = _make_config(tmp_path)
+
+    dispatch_command(key_command, _make_state(main_mode=main_mode), config)
+
+    assert not config.main_player_cmd_file.exists()
+    assert not config.genau_cmd_file.exists()
+
+
+@pytest.mark.parametrize(("command", "main_mode"), [
+    ("main_lock", MainMode.VIDEO),
+    ("main_player_lock", MainMode.VIDEO),
+    ("genau_lock", MainMode.GENAU),
+])
+def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(
+        tmp_path: Path, command, main_mode):
+    """A satellite's own lock key selects that player; the main player's do the same,
     so a following bare "next" goes where the last thing you touched was."""
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO, active_player=2)
+    state = _make_state(main_mode=main_mode, active_player=2)
 
-    state, _ops = dispatch_command("main_lock", state, config)
+    state, _ops = dispatch_command(command, state, config)
 
     assert state.active_player == 1
 

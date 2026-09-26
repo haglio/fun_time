@@ -197,12 +197,12 @@ e::QueueCommand("landscape_loop")
 +Down::QueueCommand("portrait_nav_down")
 +w::QueueCommand("landscape_nav_up")
 +s::QueueCommand("landscape_nav_down")
-; The main slot's lock, reaching whichever player is showing: the main player's video
-; holds instead of walking the playlist, Genau's clip holds instead of moving on
-; every few seconds.  The apostrophe sits beside the satellites' own lock keys on
-; the home row, and gave up Save clip to take it — that moved one key left, to the
+; The video's lock, while the video is on the main slot: it holds instead of
+; walking the playlist.  Genau's clip has a lock key of its own in Genau's
+; cluster below, so each key holds the player whose keys sit around it.  The
+; apostrophe gave up Save clip to take this — that moved one key left, to the
 ; semicolon (bound by scancode because a bare ; opens a comment in AHK).
-'::QueueCommand("main_lock")
+'::QueueCommand("main_player_lock")
 SC027::QueueCommand("clipper_save")
 
 ; The main player loop recording: hold R to mark, release to loop, press again to cancel.
@@ -268,11 +268,12 @@ c::QueueCommand("robot_hand_toggle_cruise")
 y::QueueCommand("robot_hand_toggle_learned")
 
 ; Genau's clip cluster, laid out like the arrow keys are for the portrait side:
-; K above to condemn the clip, M and . either side for previous and next.  The
-; hold that used to sit below K is the apostrophe now — one lock key for whichever
-; player is on the main slot.
+; K above to condemn the clip, M and . either side for previous and next, and the
+; comma under K to hold it, where Down sits under Up and S under W.  Comma and
+; period by scancode, the way the semicolon is.
 k::QueueCommand("genau_weird_clip")
 m::QueueCommand("genau_prev_clip")
+SC033::QueueCommand("genau_lock")
 SC034::QueueCommand("genau_next_clip")
 
 #HotIf

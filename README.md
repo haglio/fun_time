@@ -254,7 +254,7 @@ Every player has its own playback speed: the main player's row on its console, a
 
 The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Video** (`H`) and **Genau** (`G`). `\` offsets the Robot Hand's motion by a quarter cycle in either. `N` opens the **library browser** (see below); the chosen video plays in the main player, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
 
-The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive the main player in every mode (in Genau mode the paused main player still navigates in the background). The `'` clip-save key reads the current video/time from the main player's status file in video mode.
+The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive the main player in every mode (in Genau mode the paused main player still navigates in the background). The `;` clip-save key reads the current video/time from the main player's status file in video mode.
 
 Spoken, "video mode" puts both sides on their video players at once; "main video mode" and "satellite video mode" do one side, and "genau mode" or "origenerator mode" puts a side back — heard as "go now mode" and "aura generator mode", since neither name is in the recognizer's vocabulary.
 
@@ -525,8 +525,8 @@ holds the screen before Genau moves on — 8–12 seconds unless `CLIP_SECONDS
 the auto-advance that spends it, because that is the word the reference shows
 and the phrase a speaker says ("clip seconds thirty"). The interval keeps
 counting while the room is paused, so OmniPause leaves the clip on screen where
-the user left it. `TOGGLE_LOCK` pins the current clip while the interval
-runs on around it; `WEIRD` condemns the clip, moving the file to
+the user left it. `TOGGLE_LOCK` (the `,` key) pins the current clip while the
+interval runs on around it; `WEIRD` condemns the clip, moving the file to
 `videos/genau/weird/` and taking up its successor.
 
 Genau (the `../genau` project) consumes and clears this file.

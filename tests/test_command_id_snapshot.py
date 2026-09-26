@@ -28,7 +28,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Commands no spoken phrase, hotkey or reference row names: posted straight off
 # a player's own surface as a literal string in that player's repo.  The three
-# minimize buttons live on the HUDs (player_core / the main player's console); the speed
+# minimize buttons live on the HUDs (player_core / the main player's console); the
+# padlock on that console locks whichever player is on the main screen; the speed
 # pair is Genau's console's own ± marks beside its drive readout; the enhanced
 # filter is the switch the console draws over a hosted Origenerator's shows,
 # which the room hears as "enhanced only" rather than under this id.  The two
@@ -36,6 +37,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 HUD_ONLY_COMMAND_IDS = (
     "genau_filter_enhanced",
     "landscape_minimize",
+    "main_lock",
     "main_minimize",
     "main_scene_next",
     "main_scene_prev",
@@ -126,6 +128,7 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "genau_clip_seconds_down",
     "genau_clip_seconds_up",
     "genau_flip_ends",
+    "genau_lock",
     "genau_next_clip",
     "genau_prev_clip",
     "genau_weird_clip",
@@ -179,7 +182,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "main_fmode_off",
     "main_fmode_on",
     "main_latest",
-    "main_lock",
     "main_lock_off",
     "main_lock_on",
     "main_next",
@@ -196,6 +198,7 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "main_player_length_mixed",
     "main_player_length_none",
     "main_player_length_shorts",
+    "main_player_lock",
     "main_player_loop_cancel",
     "main_player_next_funscripted",
     "main_player_record_down",

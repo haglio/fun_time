@@ -2751,11 +2751,12 @@ class TestAGenauLockTakesTheGalleryToTheClip:
                                satellites_mode="origenerator", origenerator_ready=True)
         return runner
 
-    def test_the_gallery_goes_to_the_clip_genau_holds_once_it_holds_it(self, tmp_path):
+    @pytest.mark.parametrize("press", ["main_lock", "genau_lock"])  # the padlock, the comma
+    def test_the_gallery_goes_to_the_clip_genau_holds_once_it_holds_it(self, tmp_path, press):
         runner = self._genau_beside_the_gallery(tmp_path)
         _genau_publishes(tmp_path, locked=False, clip=self.FIRST)
 
-        runner._dispatch("main_lock")
+        runner._dispatch(press)
         runner.tick()
         assert _what_the_gallery_heard(tmp_path) == []
 
