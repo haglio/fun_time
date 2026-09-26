@@ -63,7 +63,8 @@ keyboard-navigation selection was never a thing you could leave running.
 
 Nor does which player has most of the secondary monitor: startup opens both
 windows where they always open, and the session's first ticks seat them from
-the crown, which does come back, and the shape of the main player's video.
+the crown, which does come back, and the shape of what the main player shows,
+whether that is a video or one of Genau's clips.
 
 The satellite side's mode is dropped on purpose rather than for want of a way
 to carry it. Every room is built in video mode, because the hosted Origenerator

@@ -46,6 +46,8 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 
 ## Standing rules a comment cannot enforce
 
+- **A player in his words is the room's slot, never the app in it.** The Main, Portrait and Landscape players are the players; Video, Genau and Origenerator are what plays in them. A feature he gives "the Main player" holds in Genau mode too, although `main_player/` is only Video's: the crown shipped Video-only and he answered that Genau was the main reason for it (2026-09-26).
+
 - **The omnipause exempt set is settled: never widen it, and never ask him whether to.** A paused room may be heard to do exactly three things: resume, quit, retract the OSR2. The reference popup was exempt once and was walked back, and he has closed the question for good, so when a command seems to need the pause lifted, the fix is to say on screen why it was ignored (2026-09-13: asked whether "browse" should work while paused, he answered that it should never have been a question). `tests/test_command_reference.py` pins the whole frozenset, so it fails rather than drifts.
 - **Every launch entry point calls `apply_genau_dirs_to_sys_path()` before importing anything that reaches the dispatch loop.** `tests/test_launch_smoke.py` imports each the way its `.vbs` runs it and goes red for whichever one is missing it.
 - **No key inside a satellite or a VR player ends that player.** A satellite is one of a set the sequencer placed, and killing one leaves the session running around a gap; the session ends as a whole, through Ctrl+Alt+Q. Do not add a per-window quit handler back.

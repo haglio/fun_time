@@ -411,3 +411,10 @@ def test_the_main_players_video_is_portrait_where_it_says_so(tmp_path: Path):
     status_file.write_text("video=C:/v/n.mp4\nportrait=1\n", encoding="utf-8")
 
     assert read_main_player_status(status_file).portrait is True
+
+
+def test_genaus_clip_is_portrait_where_it_says_so(tmp_path: Path):
+    status_file = tmp_path / "genau_status.txt"
+    status_file.write_text("clip=C:/clips/alpha.mp4\nportrait=1\n", encoding="utf-8")
+
+    assert read_genau_status(status_file).portrait is True

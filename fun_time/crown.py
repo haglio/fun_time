@@ -4,10 +4,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from player_core.modes import MainMode
-
 from .mode_plan import main_player_displays
-from .player_status import read_main_player_status
+from .player_status import read_genau_status, read_main_player_status
 
 if TYPE_CHECKING:
     from .shared_state import BridgeState
@@ -27,11 +25,17 @@ class Crown(StrEnum):
 CROWNS = {crown.command: crown for crown in Crown}
 
 
-def majority(crowned: Crown, *, main_mode: MainMode, main_portrait: bool | None) -> Crown:
-    main_takes_it = crowned is Crown.MAIN and main_player_displays(main_mode) and main_portrait
-    return Crown.MAIN if main_takes_it else Crown.PORTRAIT
+def majority(crowned: Crown, *, main_portrait: bool | None, held: Crown) -> Crown:
+    if crowned is Crown.PORTRAIT:
+        return Crown.PORTRAIT
+    if main_portrait is None:
+        return held
+    return Crown.MAIN if main_portrait else Crown.PORTRAIT
 
 
-def majority_now(state: BridgeState, main_player_status_file: Path) -> Crown:
-    return majority(state.crowned, main_mode=state.main_mode,
-                    main_portrait=read_main_player_status(main_player_status_file).portrait)
+def majority_now(state: BridgeState, main_player_status_file: Path, genau_status_file: Path) -> Crown:
+    if main_player_displays(state.main_mode):
+        main_portrait = read_main_player_status(main_player_status_file).portrait
+    else:
+        main_portrait = read_genau_status(genau_status_file).portrait
+    return majority(state.crowned, main_portrait=main_portrait, held=state.majority)

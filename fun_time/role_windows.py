@@ -283,7 +283,7 @@ class WindowRoles:
         self._parked_hwnds = []
 
     def seat(self, rects: SecondaryMonitorRects) -> None:
-        self.place([("portrait", rects.portrait), ("main_player", rects.main)])
+        self.place([("portrait", rects.portrait), ("main_player", rects.main), ("genau", rects.main)])
 
     def place(self, placements: Iterable[tuple[str, WindowRect]]) -> None:
         moves = []

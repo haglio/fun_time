@@ -399,7 +399,8 @@ class DispatchLoopRunner:
     def _seat_the_secondary_monitor(self) -> None:
         if self.secondary_rects is None:
             return
-        most = majority_now(self.state, self.config.main_player_status_file)
+        most = majority_now(self.state, self.config.main_player_status_file,
+                            self.config.genau_status_file)
         self.windows.seat(self.secondary_rects(majority=most))
         if most is not self.state.majority:
             self.state = replace(self.state, majority=most)
