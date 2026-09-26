@@ -32,6 +32,14 @@ GENAU_DIRS_OVERRIDE_NAME = "genau_project_dirs.txt"
 ORIGENERATOR_DIR_OVERRIDE_NAME = "origenerator_dir.txt"
 
 
+def is_a_worktree(checkout: Path) -> bool:
+    return checkout.parent.name == "worktrees" and checkout.parent.parent.name == ".claude"
+
+
+def primary_of(checkout: Path) -> Path:
+    return checkout.parents[2] if is_a_worktree(checkout) else checkout
+
+
 def override_lines(path: Path) -> list[str] | None:
     """*path*'s entries, or None where the file does not exist.  None and [] are
     different answers: absent means the machine's config still decides, empty

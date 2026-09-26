@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import NamedTuple
 
+from .checkout_overrides import primary_of
 from .win32_process import get_process_creation_time
 
 OFFER_NAME = "fun_time_offer.txt"
@@ -48,6 +49,8 @@ def claim_the_osr2(origenerator_dir: str | Path) -> None:
     created_at = get_process_creation_time(os.getpid())
     if created_at is None:
         return
-    state = _state_dir(origenerator_dir)
-    state.mkdir(parents=True, exist_ok=True)
-    (state / SESSION_NAME).write_text(f"{os.getpid()} {created_at}", encoding="utf-8")
+    checkout = Path(origenerator_dir)
+    for claimed in dict.fromkeys((checkout, primary_of(checkout))):
+        state = _state_dir(claimed)
+        state.mkdir(parents=True, exist_ok=True)
+        (state / SESSION_NAME).write_text(f"{os.getpid()} {created_at}", encoding="utf-8")
