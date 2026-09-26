@@ -590,6 +590,8 @@ def origenerator_session_args(
     status_file: str | Path,
     dashboard_cmd_file: str | Path,
     players: Mapping[str, HandedPlayer],
+    frames_file: str | Path | None = None,
+    input_file: str | Path | None = None,
 ) -> list[str]:
     args = ["--fun-time", *_rect_args("", layout_plan.random_favs_browser)]
     # The two satellite regions, for a show the hosted app opens itself where a
@@ -603,6 +605,9 @@ def origenerator_session_args(
             f"--{side}-status-file", str(player.status_file),
             f"--{side}-hud-file", str(player.hud_file),
         ])
+    if frames_file is not None and input_file is not None:
+        args.extend(["--frames-file", str(frames_file),
+                     "--input-file", str(input_file)])
     args.extend(TASKBAR_IDENTITY_ARGS)
     args.extend([
         "--command-file", str(command_file),
@@ -664,6 +669,8 @@ def launch_origenerator(
     status_file: str | Path,
     dashboard_cmd_file: str | Path,
     players: Mapping[str, HandedPlayer],
+    frames_file: str | Path | None = None,
+    input_file: str | Path | None = None,
     project_dirs: str | None = None,
 ) -> int:
     """Launch the hosted Origenerator, returning its PID.
@@ -680,6 +687,7 @@ def launch_origenerator(
         python_exe=python_exe, layout_plan=layout_plan, command_file=command_file,
         paused_file=paused_file, status_file=status_file,
         dashboard_cmd_file=dashboard_cmd_file, players=players,
+        frames_file=frames_file, input_file=input_file,
     )
     kwargs = origenerator_launch_kwargs(
         origenerator_dir=origenerator_dir, project_dirs=project_dirs)

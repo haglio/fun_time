@@ -266,6 +266,9 @@ class TestOrigeneratorInVr:
         given = {kw.arg: ast.unparse(kw.value) for kw in call.keywords}
 
         assert given["project_dirs"] == "manifest.runtime.genau_project_dirs"
+        # No monitor in here to put the app's own window on, so the launch asks
+        # for its picture instead.
+        assert given["in_a_headset"] == "True"
 
     def test_a_session_with_no_checkout_named_still_hosts_none(self, config, tmp_path):
         """The mode is offered off the checkout alone, in the headset as on the

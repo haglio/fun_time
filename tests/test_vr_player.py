@@ -65,6 +65,7 @@ from fun_time.overlay_progress import (
     PhaseProgress,
 )
 from fun_time.shared_state import BridgeState, shared_state_path
+from fun_time.window_layout import MonitorRect, compute_window_layout
 from fun_time_vr import player, room
 from fun_time_vr.console_panel import (
     PANEL_WIDTH_DEG,
@@ -80,6 +81,7 @@ from fun_time_vr.dash_panel import DASH_WIDTH_PX, dash_actions, dash_height
 from fun_time_vr.furniture import Scrubber, control_size, scaled
 from fun_time_vr.layout import (
     DASH,
+    GALLERY,
     LANDSCAPE,
     LIBRARY,
     MAIN,
@@ -101,6 +103,7 @@ from fun_time_vr.player import (
     _CoverUnit,
     _DashUnit,
     _draw_eyes,
+    _GalleryUnit,
     _GenauUnit,
     _hands_for_the_players,
     _HangingScreen,
@@ -2198,6 +2201,11 @@ def _uv(x: int, y: int) -> tuple[float, float]:
     return (x + 0.5) / width, 1 - (y + 0.5) / height
 
 
+def _no_gallery():
+    """A gallery the laser is nowhere near, for the browse's own tests."""
+    return SimpleNamespace(takes_the_stick=False)
+
+
 class TestTheLibraryUnderThePointer:
     def test_it_opens_where_the_last_session_left_it(self, tmp_path):
         moved = Placement(azimuth_deg=-25.0, elevation_deg=18.0, width_deg=60.0)
@@ -2345,7 +2353,8 @@ class TestTheLibraryUnderThePointer:
         host.sent.clear()
 
         hands = _hands_for_the_players(
-            unit, {"left": HandInput(stick=0.2), "right": HandInput(stick=-1.0, forward=True)},
+            unit, _no_gallery(),
+            {"left": HandInput(stick=0.2), "right": HandInput(stick=-1.0, forward=True)},
             elapsed_s=0.5)
         unit.pump(threading.Event(), 0.0)
 
@@ -2357,7 +2366,8 @@ class TestTheLibraryUnderThePointer:
         unit = _a_library(tmp_path, host)
         hands = {"right": HandInput(stick=-1.0)}
 
-        assert _hands_for_the_players(unit, hands, elapsed_s=0.5) == hands
+        assert _hands_for_the_players(
+            unit, _no_gallery(), hands, elapsed_s=0.5) == hands
         assert host.sent == []
 
     def test_closing_the_session_ends_its_browser(self, tmp_path):
@@ -2658,12 +2668,29 @@ class TestTheSpotEachScreenStartsIn:
     def test_the_satellites_ride_above_the_horizon(self):
         assert _SatelliteUnit.SPOTS[LANDSCAPE].elevation_deg > 0
 
+    def test_the_gallery_hangs_clear_of_the_player_beside_it(self, cfg_path):
+        """The hosted app's window takes the browser's rect on the monitors,
+        which is taller than it is wide: a screen as wide as a player's would
+        stand half again as tall as the main one, over the player next to it --
+        and in that mode, that player is showing one of the app's own shows."""
+        plan = compute_window_layout(
+            primary_monitor=MonitorRect(0, 0, 2560, 1392),
+            secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
+            layout_config=load_config(cfg_path).layout,
+        )
+        gallery = _GalleryUnit.SPOTS[GALLERY]
+        landscape = _SatelliteUnit.SPOTS[LANDSCAPE]
+
+        assert plan.random_favs_browser.height > plan.random_favs_browser.width
+        assert (gallery.azimuth_deg + gallery.width_deg / 2
+                < landscape.azimuth_deg - landscape.width_deg / 2)
+
     def test_only_the_screens_a_controller_places_keep_one(self):
         """The console is one of them: a video that wraps the viewer leaves no
         picture to dock it under, so the dashboard carries it and keeps a second
         spot for that.  The reference is not -- it hangs from the dashboard,
         wherever that was put."""
-        assert set(SPOTS) == {MAIN, PORTRAIT, LANDSCAPE, PANEL, DASH, LIBRARY}
+        assert set(SPOTS) == {MAIN, PORTRAIT, LANDSCAPE, PANEL, DASH, LIBRARY, GALLERY}
 
     def test_every_one_of_them_is_already_inside_the_scene(self):
         """A spot outside the reach a drag is held to would be clamped the first
@@ -2704,6 +2731,14 @@ class TestPuttingTheRoomBack:
         unit.put_back()
 
         assert unit.screen.placement == _MainUnit.SPOTS[MAIN]
+
+    def test_the_hosted_apps_window_goes_back_to_its_own_spot(self):
+        unit = _like(_GalleryUnit, SimpleNamespace(
+            screen=SimpleNamespace(placement=_DRAGGED_OFF)))
+
+        unit.put_back()
+
+        assert unit.screen.placement == _GalleryUnit.SPOTS[GALLERY]
 
     def test_the_browse_goes_back_to_its_own_spot(self, tmp_path):
         unit = _a_library(tmp_path, _FakeLibraryHost())

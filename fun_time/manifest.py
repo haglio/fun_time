@@ -104,6 +104,8 @@ def build_windows_bridge_manifest(
             "origenerator_cmd_file": str(config.origenerator_cmd_file),
             "origenerator_paused_file": str(config.origenerator_paused_file),
             "origenerator_status_file": str(config.origenerator_status_file),
+            "origenerator_frames_file": str(config.origenerator_frames_file),
+            "origenerator_input_file": str(config.origenerator_input_file),
             "tcode_udp_host": config.main_player_tcode.host,
             "tcode_udp_port": str(config.main_player_tcode.port),
         },
@@ -252,6 +254,8 @@ class CommandFiles:
     broker_tray_launcher: str = ""
     origenerator_cmd_file: str = ""
     origenerator_paused_file: str = ""
+    origenerator_frames_file: str = ""
+    origenerator_input_file: str = ""
     portrait_origenerator_hud_file: str = ""
     landscape_origenerator_hud_file: str = ""
     tcode_udp_host: str = "127.0.0.1"

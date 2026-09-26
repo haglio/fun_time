@@ -427,6 +427,16 @@ class TestOrigeneratorPaths:
         assert cfg.origenerator_paused_file == state / "origenerator_paused.txt"
         assert cfg.origenerator_status_file == state / "origenerator_status.txt"
 
+    def test_the_hosted_apps_window_is_handed_over_through_the_state_dir(self, cfg_path):
+        """A headset session has no monitor for that window, so the app writes
+        its picture into one file and reads the room's presses from another."""
+        cfg = load_config(cfg_path)
+
+        assert cfg.origenerator_frames_file == (
+            cfg.paths.state_dir / "origenerator_frame.bin")
+        assert cfg.origenerator_input_file == (
+            cfg.paths.state_dir / "origenerator_input.txt")
+
     def test_each_sides_hosted_panel_lives_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         state = (tmp_path / "state").resolve()

@@ -33,7 +33,6 @@ class ScreenLayout:
 
 
 def screen_layout(layout_config: LayoutConfig) -> ScreenLayout:
-    """The plan for the monitors this machine has right now."""
     primary_rect, secondary_rect = get_logical_monitor_rects(
         enumerate_monitors(),
         primary_index=layout_config.primary_monitor,
