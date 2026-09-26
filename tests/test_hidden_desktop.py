@@ -332,7 +332,10 @@ def _held_in_its_exit(pid: int, release: Path):
         _kernel32.DebugActiveProcessStop(pid)
 
 
-def _pid_written_to(path: Path, timeout: float = 30.0) -> int:
+STARVED_CHILD_BUDGET_S = 120.0
+
+
+def _pid_written_to(path: Path, timeout: float = STARVED_CHILD_BUDGET_S) -> int:
     deadline = time.monotonic() + timeout
     while not (path.exists() and path.read_text()):
         if time.monotonic() > deadline:
@@ -423,10 +426,7 @@ def test_the_broker_a_run_starts_survives_that_runs_job(tmp_path):
     cmdline = subprocess.list2cmdline([sys.executable, "-c", spawn_broker])
     pi = _launch_on_desktop(cmdline, None, str(_repo_root()), job)
     try:
-        deadline = time.time() + 20
-        while time.time() < deadline and not pid_file.exists():
-            time.sleep(0.1)
-        broker_pid = int(pid_file.read_text())
+        broker_pid = _pid_written_to(pid_file)
     finally:
         _close_process_handles(pi)
         close_run_job(job)
