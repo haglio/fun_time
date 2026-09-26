@@ -39,7 +39,7 @@ from .dashboard_actions import (
     REFERENCE_OPEN_FILENAME,
 )
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
-from .device_arbiter import DeviceArbiter
+from .device_arbiter import DeviceArbiter, SatelliteLine
 from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_SYSTEM, notice
 from .gallery_follows_genau import GalleryFollowsGenau
 from .hud_feed import HudFeed
@@ -48,6 +48,7 @@ from .library_browser import browse_library
 from .main_slot_handover import MainSlotHandover
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .modes import scripted_item
+from .osr2_section import player_with_the_osr2
 from .player_handover import PanelStamp, hand_back, let_go_since, panel_stamp
 from .player_status import (
     is_broker_heartbeat_fresh,
@@ -299,6 +300,9 @@ class DispatchLoopRunner:
             main_player_status_file=config.main_player_status_file,
             main_player_cmd_file=config.main_player_cmd_file,
             genau_cmd_file=config.genau_cmd_file,
+            satellites={player: SatelliteLine(status_file=config.satellite(player).status_file,
+                                              cmd_file=config.satellite(player).cmd_file)
+                        for player in Player.SATELLITES},
         )
         self.satellite_speeds = SatelliteSpeeds(
             main_player_status_file=config.main_player_status_file,
@@ -365,7 +369,7 @@ class DispatchLoopRunner:
         # Hand).
         self.arbiter.sync(self.state.main_mode, paused=self.state.omni_paused,
                           control=self.state.osr2_control,
-                          main_has_osr2=self.state.osr2_player == Player.MAIN)
+                          holder=player_with_the_osr2(self.state))
 
         # Dashboard commands, several at once under rapid hotkey presses.  Each
         # raw line yields a command plus, for a spoken one, when the utterance

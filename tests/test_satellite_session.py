@@ -7,6 +7,7 @@ from player_core.playback_rate import MAX_RATE, MIN_RATE
 from main_player.play_points import PlayPoints
 from main_player.seeking import GIVE_UP_AFTER
 from tests.satellite_fakes import make_satellite_session as _make_session
+from tests.tcode_fakes import FakeTCode
 
 
 class TestLoadAndPlay:
@@ -336,6 +337,125 @@ class TestTheScriptOfTheClipOnScreen:
         session.replace_playlist([clip, tmp_path / "v1.mp4"], {clip: rescripted})
 
         assert session.current_funscript.actions == [(0, 50), (200, 60)]
+
+
+def _driving(tmp_path, *, entries=2, scripted=(0, 1), locked=False):
+    tcode = FakeTCode()
+    scripts = {index: _script(tmp_path / f"v{index}.funscript", (0, 0), (1000, 90), (2000, 0))
+               for index in scripted}
+    session, player = _make_session(tmp_path, entries=entries, funscripts=scripts, tcode=tcode)
+    if locked:
+        session.set_locked(True)
+    return session, player, tcode
+
+
+class TestTheOsr2:
+    def test_a_satellite_sends_nothing_until_it_is_told_to_drive(self, tmp_path):
+        session, player, tcode = _driving(tmp_path)
+        player.position_ms = 1500
+
+        session.advance()
+
+        assert tcode.updates == [] and tcode.parks == 0
+
+    def test_told_to_drive_it_follows_its_clips_funscript_at_its_own_rate(self, tmp_path):
+        session, player, tcode = _driving(tmp_path)
+        session.set_speed(1.5)
+        session.set_tcode_enabled(True)
+        player.position_ms = 1500
+
+        session.advance()
+
+        assert tcode.updates == [(1500, session.current_funscript, 1.5)]
+
+    def test_a_clip_with_no_funscript_rests_the_device(self, tmp_path):
+        session, _player, tcode = _driving(tmp_path, scripted=())
+        session.set_tcode_enabled(True)
+
+        session.advance()
+
+        assert tcode.updates == [] and tcode.parks == 1
+
+    def test_told_to_stop_it_sends_nothing_more(self, tmp_path):
+        session, _player, tcode = _driving(tmp_path)
+        session.set_tcode_enabled(True)
+        session.set_tcode_enabled(False)
+
+        session.advance()
+
+        assert tcode.updates == []
+
+    def test_a_paused_satellite_drives_nothing(self, tmp_path):
+        session, _player, tcode = _driving(tmp_path)
+        session.set_tcode_enabled(True)
+        session.set_paused(True)
+
+        session.advance()
+
+        assert tcode.updates == []
+
+    def test_taking_the_device_starts_from_wherever_it_is(self, tmp_path):
+        session, _player, tcode = _driving(tmp_path)
+        before = tcode.resets
+
+        session.set_tcode_enabled(True)
+
+        assert tcode.resets == before + 1
+
+    def test_every_jump_of_the_clock_starts_it_from_wherever_it_is(self, tmp_path):
+        session, player, tcode = _driving(tmp_path, entries=3)
+        jumps = (lambda: session.step(1), lambda: session.seek_to(2500),
+                 lambda: session.set_speed(2.0))
+        for jump in jumps:
+            before = tcode.resets
+            jump()
+            assert tcode.resets == before + 1
+
+    def test_a_clip_it_rolls_onto_by_itself_starts_it_from_wherever_it_is(self, tmp_path):
+        session, player, tcode = _driving(tmp_path)
+        before = tcode.resets
+
+        player.simulate_eof_advance()
+        session.advance()
+
+        assert tcode.resets == before + 1
+
+    def test_a_locked_clip_coming_round_again_starts_it_from_wherever_it_is(self, tmp_path):
+        session, player, tcode = _driving(tmp_path, locked=True)
+        session.set_tcode_enabled(True)
+        player.position_ms = 4900
+        session.advance()
+        before = tcode.resets
+
+        player.position_ms = 30
+        session.advance()
+
+        assert tcode.resets == before + 1
+
+    def test_resuming_starts_it_from_wherever_it_is(self, tmp_path):
+        session, _player, tcode = _driving(tmp_path)
+        session.set_paused(True)
+        before = tcode.resets
+
+        session.set_paused(False)
+
+        assert tcode.resets == before + 1
+
+    def test_it_says_whether_its_clip_is_scripted_and_resting_where_it_is(self, tmp_path):
+        session, player, _tcode = _driving(tmp_path, scripted=(1,))
+
+        assert (session.has_funscript, session.funscript_resting) == (False, False)
+        session.step(1)
+        player.position_ms = 1000
+        assert session.has_funscript is True
+        assert session.funscript_resting is session.current_funscript.is_resting_at(1000)
+
+    def test_closing_the_satellite_closes_its_line_to_the_device(self, tmp_path):
+        session, _player, tcode = _driving(tmp_path)
+
+        session.close()
+
+        assert tcode.closed is True
 
 
 class TestPlayFile:

@@ -2718,7 +2718,7 @@ class TestVideoModeFunscriptHandoff:
             runner.tick()
 
         sync.assert_called_once_with("video", paused=True, control="driving",
-                                     main_has_osr2=True)
+                                     holder=Player.MAIN)
 
     def test_the_tick_tells_the_arbiter_when_a_side_player_has_the_osr2(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2727,7 +2727,7 @@ class TestVideoModeFunscriptHandoff:
         with patch.object(runner.arbiter, "sync") as sync:
             runner.tick()
 
-        assert sync.call_args.kwargs["main_has_osr2"] is False
+        assert sync.call_args.kwargs["holder"] is Player.LANDSCAPE
 
 
 class TestTheSatellitesTakeTheMainPlayersRate:
@@ -2745,7 +2745,7 @@ class TestTheSatellitesTakeTheMainPlayersRate:
 
         for side in ("portrait", "landscape"):
             sent = (tmp_path / f"{side}_cmd.txt").read_text(encoding="utf-8").splitlines()
-            assert sent == ["SET_SPEED 0.5"], side
+            assert [verb for verb in sent if verb.startswith("SET_SPEED")] == ["SET_SPEED 0.5"], side
 
 
 class TestExpandGroupCommand:

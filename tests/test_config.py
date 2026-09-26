@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+from app_support import ports
 
 from fun_time import config
 from fun_time.config import PROJECT_DIR as CONFIG_ROOT
@@ -160,6 +161,18 @@ class TestLoadConfig:
 
         cfg = load_config(path)
         assert cfg.random_favs_browser.enabled is False
+
+
+class TestTheMainPlayersOsr2Inlet:
+    def test_is_the_brokers_own_where_the_config_names_none(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        assert (cfg.main_player_tcode.host, cfg.main_player_tcode.port) == (
+            "127.0.0.1", ports.TCODE_UDP)
+
+    def test_is_the_one_the_main_player_section_names(self, cfg_factory):
+        cfg = load_config(cfg_factory(
+            {"main_player": {"tcode_udp_host": "127.0.0.9", "tcode_udp_port": 50600}}))
+        assert (cfg.main_player_tcode.host, cfg.main_player_tcode.port) == ("127.0.0.9", 50600)
 
 
 class TestRegenConfig:

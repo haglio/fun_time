@@ -374,3 +374,31 @@ class TestAPanelWithTheOsr2:
         assert _commands(tmp_path) == ["robot_hand_speed_1", "robot_hand_speed_99"]
         assert dragged == "robot_hand_speed_99"
         assert overlay.holding is False
+
+
+class _Gate:
+    def __init__(self, composed: DriveHud) -> None:
+        self.asked: list[tuple[DriveHud | None, bool]] = []
+        self._composed = composed
+
+    def readout(self, published, *, device_drives_itself: bool = False) -> DriveHud:
+        self.asked.append((published, device_drives_itself))
+        return self._composed
+
+
+class TestAPanelWithTheOsr2ItsOwnPlayerScripts:
+    def test_draws_genaus_motion_with_the_players_own_script_folded_in(self, tmp_path, panel):
+        _give_it_the_osr2(panel)
+        _publish_motion(tmp_path / "drive.txt", 0.0)
+        composed = DriveHud(speed=50, amplitude=80, center=50, driven="funscript",
+                            waveform=tuple(0.2 for _ in range(80)))
+        gate = _Gate(composed)
+        overlay = HudOverlay(hud_file=panel, command_file=tmp_path / "dashboard_cmd.txt",
+                             player=FakeSatellitePlayer(), clock=lambda: 0.0,
+                             drive_file=tmp_path / "drive.txt", drive_gate=gate)
+
+        overlay.tick()
+
+        ((published, drives_itself),) = gate.asked
+        assert published.amplitude == 80 and drives_itself is False
+        assert overlay.targets.tracks

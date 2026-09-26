@@ -27,11 +27,15 @@ def osr2_state(*, main_mode: MainMode, osr2_mode: str, funscript_driving: bool) 
     "something other than the Robot Hand has the device" — so every ± mark and
     draggable band on the drive readout went dead.
     """
+    return device_word(osr2_mode, funscript_driving and main_player_displays(main_mode))
+
+
+def device_word(osr2_mode: str, funscript_driving: bool) -> Osr2State:
     if osr2_mode == "off":
         return Osr2State.OFF
     if osr2_mode == "auto":
         return Osr2State.AUTO
-    if funscript_driving and main_player_displays(main_mode):
+    if funscript_driving:
         return Osr2State.FUNSCRIPT
     return Osr2State.ROBOT_HAND
 

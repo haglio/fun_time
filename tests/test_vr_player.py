@@ -325,6 +325,21 @@ def test_a_side_screen_hands_its_session_the_scripts_its_playlist_names(
     assert handed.kwargs["funscripts"] == {clip: script}
 
 
+def test_a_side_screen_drives_the_headsets_osr2_inlet_with_its_clips_script(
+        tmp_path, faked_collaborators):
+    vr = VrSettings(tcode_udp_host="127.0.0.9", tcode_udp_port=8123, library_dirs=(),
+                    audio_device="", compositor_layers=False)
+
+    _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
+                   vr=vr, remembered={})
+
+    assert faked_collaborators["UdpTCodeSink"].call_args.args == ("127.0.0.9", 8123)
+    assert (faked_collaborators["SatelliteSession"].call_args.kwargs["tcode"]
+            is faked_collaborators["FunscriptTCodeDriver"].return_value)
+    assert (faked_collaborators["HudOverlay"].call_args.kwargs["drive_gate"]
+            is faked_collaborators["DriveGate"].return_value)
+
+
 @pytest.mark.parametrize("player", ["portrait", "landscape"])
 def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
         player, tmp_path, faked_collaborators):

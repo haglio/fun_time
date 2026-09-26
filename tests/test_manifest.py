@@ -70,6 +70,7 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
         "state_dir", "main_player_notice_file",
         "origenerator_cmd_file", "origenerator_paused_file",
         "origenerator_status_file",
+        "tcode_udp_host", "tcode_udp_port",
     },
     "dashboard": {"enabled"},
     "loopback": {"port"},

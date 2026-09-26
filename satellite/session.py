@@ -4,8 +4,8 @@ window.
 A satellite is the simple half of the main player: a looper of short clips, muted
 until its own chip is asked.  It owns its playlist position and drives an
 mpv-backed *player* (:class:`player_core.mpv_player.MpvPlayer`) to
-load/pause/lock/seek — but with no OSR2/T-Code and no loop recording, it is a
-fraction of the main player's own PlayerSession.  Navigation is fully
+load/pause/lock/seek — but with no loop recording, it is a fraction of the
+main player's own PlayerSession.  Navigation is fully
 in-process (a Python list + index), which is the whole point of dropping VLC:
 no HTTP playlist to resolve ids against, and pausing is a flag.
 
@@ -29,6 +29,7 @@ from player_core.playback_rate import clamp_rate
 from player_core.playlist import PlaylistItem
 
 from main_player.play_points import PlayPoints
+from main_player.scripted_device import REWIND_MS, ScriptedDevice
 from main_player.seeking import OwedSeek, seek_if_taken
 
 logger = logging.getLogger(__name__)
@@ -47,9 +48,12 @@ class SatelliteSession:
         start_paused: bool = False,
         play_points: PlayPoints | None = None,
         funscripts: Mapping[Path, Path] | None = None,
+        tcode=None,
     ) -> None:
         if not playlist:
             raise ValueError("playlist must not be empty")
+        self._device = ScriptedDevice(tcode, enabled=False)
+        self._last_pos_ms = 0.0
         self._playlist = list(playlist)
         self._funscripts = dict(funscripts or {})
         self._loaded_funscript: tuple[Path | None, Funscript | None] = (None, None)
@@ -82,6 +86,18 @@ class SatelliteSession:
         if path != self._loaded_funscript[0]:
             self._loaded_funscript = (path, None if path is None else load_funscript(path))
         return self._loaded_funscript[1]
+
+    @property
+    def has_funscript(self) -> bool:
+        return self.current_funscript is not None
+
+    @property
+    def funscript_resting(self) -> bool:
+        script = self.current_funscript
+        return script is not None and script.is_resting_at(int(self.position_ms))
+
+    def set_tcode_enabled(self, enabled: bool) -> None:
+        self._device.set_enabled(enabled)
 
     @property
     def showing(self) -> Path:
@@ -135,13 +151,18 @@ class SatelliteSession:
 
     def seek_to(self, ms: float) -> bool:
         """Jump to *ms* in the clip on screen, or False where mpv refuses it."""
-        return seek_if_taken(self._player, ms)
+        taken = seek_if_taken(self._player, ms)
+        if taken:
+            self._device.take_over()
+        return taken
 
     def set_paused(self, paused: bool) -> None:
         if paused == self._paused:
             return
         self._paused = paused
         self._player.set_paused(paused)
+        if not paused:
+            self._device.take_over()
 
     @property
     def speed(self) -> float:
@@ -150,6 +171,7 @@ class SatelliteSession:
     def set_speed(self, speed: float) -> None:
         self._speed = clamp_rate(speed)
         self._player.set_speed(self._speed)
+        self._device.take_over()
 
     def set_pace(self, seconds: float) -> None:
         self._player.set_pace(seconds)
@@ -180,16 +202,21 @@ class SatelliteSession:
         clip too (repeat-one), with no staged next to roll onto.
         """
         self._resume.pay(self._player, self.seek_to)
-        self._play_points.observe(
-            self.current_video, self._player.position_ms, self._player.duration_ms)
-        if self._paused or self._locked:
+        position_ms = self._player.position_ms
+        self._play_points.observe(self.current_video, position_ms, self._player.duration_ms)
+        if self._paused:
             return
-        if self._player.advanced_to_next:
+        if not self._locked and self._player.advanced_to_next:
             self._play_points.ended()
             self._index = (self._index + 1) % len(self._playlist)
             self._player.drop_consumed()
             self._stage_next()
             self._resume.owe(self._play_points.point_for(self.current_video) or None)
+            self._device.take_over()
+        elif position_ms + REWIND_MS < self._last_pos_ms:
+            self._device.take_over()
+        self._last_pos_ms = position_ms
+        self._device.drive(position_ms, self.current_funscript, speed=self._speed)
 
     def discard(self) -> None:
         """Drop the clip on screen from the list and play the next — "trash"."""
@@ -252,6 +279,8 @@ class SatelliteSession:
         self._player.set_paused(self._paused)
         self._stage_next()
         self._resume.owe(self._play_points.point_for(clip) or None)
+        self._device.take_over()
+        self._last_pos_ms = 0.0
 
     def _stage_next(self) -> None:
         """Hand mpv the upcoming clip so prefetch can open it before it is needed.
@@ -267,4 +296,5 @@ class SatelliteSession:
     def close(self) -> None:
         """Tear down the underlying player, whatever thread is still driving it."""
         self._play_points.leave()
+        self._device.close()
         self._player.close()

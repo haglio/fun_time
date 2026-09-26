@@ -12,7 +12,7 @@ from player_core.status import PlayerStatus
 from player_core.status import status_fields as player_status_fields
 
 
-def status_fields(session) -> dict[str, str]:
+def status_fields(session, handoff_touch_ms: int | None) -> dict[str, str]:
     return {
         **player_status_fields(PlayerStatus(
             video=str(session.current_video),
@@ -24,4 +24,7 @@ def status_fields(session) -> dict[str, str]:
             picture=session.showing_picture,
         )),
         "playlist_length": str(session.playlist_length),
+        "has_funscript": "1" if session.has_funscript else "0",
+        "funscript_resting": "1" if session.funscript_resting else "0",
+        "handoff_touch_ms": "" if handoff_touch_ms is None else str(int(handoff_touch_ms)),
     }

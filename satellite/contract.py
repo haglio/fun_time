@@ -19,6 +19,8 @@ CHANNELS = (
     ("hud", "--hud-file", "hud"),
     ("dashboard_cmd", "--dashboard-cmd-file", None),
     ("drive", "--drive-file", None),
+    ("tcode_host", "--tcode-host", None),
+    ("tcode_port", "--tcode-port", None),
 )
 
 PLACEMENT = (
@@ -55,6 +57,8 @@ class SatelliteChannels:
     hud: Path | None = None
     dashboard_cmd: Path | None = None
     drive: Path | None = None
+    tcode_host: str | None = None
+    tcode_port: int | None = None
 
     @classmethod
     def from_args(cls, args) -> SatelliteChannels:
@@ -69,6 +73,8 @@ class SatelliteChannels:
             hud=args.hud_file,
             dashboard_cmd=args.dashboard_cmd_file,
             drive=args.drive_file,
+            tcode_host=args.tcode_host,
+            tcode_port=args.tcode_port,
         )
 
     @classmethod
@@ -78,6 +84,8 @@ class SatelliteChannels:
             play_points=play_points,
             dashboard_cmd=Path(commands.dashboard_cmd_file),
             drive=Path(commands.genau_drive_file),
+            tcode_host=commands.tcode_udp_host,
+            tcode_port=int(commands.tcode_udp_port),
             **{field: Path(commands.player_file(player, kind))
                for field, _flag, kind in CHANNELS if kind is not None},
         )
