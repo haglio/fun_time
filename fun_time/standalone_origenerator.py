@@ -3,26 +3,38 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import NamedTuple
 
 from .win32_process import get_process_creation_time
 
 OFFER_NAME = "fun_time_offer.txt"
+OFFER_STILL_STARTING = "starting"
 TAKEOVER_NAME = "fun_time_takeover.json"
 SESSION_NAME = "fun_time_session.txt"
 RELEASE = "RELEASE"
+
+
+class OpenOrigenerator(NamedTuple):
+    pid: int
+    starting: bool
 
 
 def _state_dir(origenerator_dir: str | Path) -> Path:
     return Path(origenerator_dir) / "state"
 
 
-def the_open_origenerator(origenerator_dir: str | Path) -> int:
+def the_open_origenerator(origenerator_dir: str | Path) -> OpenOrigenerator | None:
     try:
-        pid, created_at = map(int, (_state_dir(origenerator_dir) / OFFER_NAME)
-                              .read_text(encoding="utf-8").split())
+        pid, created_at, *still = (_state_dir(origenerator_dir) / OFFER_NAME).read_text(
+            encoding="utf-8").split()
+        pid, created_at = int(pid), int(created_at)
     except (OSError, ValueError):
-        return 0
-    return pid if get_process_creation_time(pid) == created_at else 0
+        return None
+    if still not in ([], [OFFER_STILL_STARTING]):
+        return None
+    if get_process_creation_time(pid) != created_at:
+        return None
+    return OpenOrigenerator(pid, starting=bool(still))
 
 
 def take_it_over(origenerator_dir: str | Path, *, pid: int, args: list[str]) -> None:
