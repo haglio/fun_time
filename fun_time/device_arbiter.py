@@ -66,7 +66,7 @@ class DeviceArbiter:
         self._stopped_by_control_off = False
 
     def sync(self, main_mode: str, *, paused: bool,
-             control: str = OSR2_DRIVING) -> None:
+             control: str = OSR2_DRIVING, main_has_osr2: bool = True) -> None:
         """In video mode, route the OSR2 to the funscript or the Robot Hand,
         moment to moment.
 
@@ -102,7 +102,7 @@ class DeviceArbiter:
         previous = self._main_player_status
         status = read_main_player_status(self.main_player_status_file, fallback=previous)
         self._main_player_status = status
-        funscript_driving = status.funscript_driving
+        funscript_driving = status.funscript_driving and main_has_osr2
         now = self._clock()
         if (funscript_driving == self._funscript_driving
                 and now - self._asserted_at < REASSERT_S):

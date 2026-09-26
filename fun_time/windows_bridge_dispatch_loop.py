@@ -364,7 +364,8 @@ class DispatchLoopRunner:
         # Hand the OSR2 to the current video's funscript (or back to the Robot
         # Hand).
         self.arbiter.sync(self.state.main_mode, paused=self.state.omni_paused,
-                          control=self.state.osr2_control)
+                          control=self.state.osr2_control,
+                          main_has_osr2=self.state.osr2_player == Player.MAIN)
 
         # Dashboard commands, several at once under rapid hotkey presses.  Each
         # raw line yields a command plus, for a spoken one, when the utterance

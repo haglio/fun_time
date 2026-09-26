@@ -37,11 +37,14 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 HUD_ONLY_COMMAND_IDS = (
     "genau_filter_enhanced",
     "landscape_minimize",
+    "landscape_take_osr2",
     "main_lock",
     "main_minimize",
     "main_scene_next",
     "main_scene_prev",
+    "main_take_osr2",
     "portrait_minimize",
+    "portrait_take_osr2",
     "robot_hand_speed_down",
     "robot_hand_speed_up",
 )

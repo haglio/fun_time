@@ -287,6 +287,25 @@ class TestVideoModeFunscriptHandoff:
         assert genau(driver) == "RESUME"
         assert main_player(driver) == "SET_TCODE_ENABLED 0"
 
+    def test_a_scripted_stretch_is_the_robot_hands_while_a_side_player_has_the_osr2(self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_main_player(driver, has_funscript=True, resting=False)
+
+        driver.sync("video", paused=False, main_has_osr2=False)
+
+        assert genau(driver) == "RESUME"
+        assert main_player(driver) == "SET_TCODE_ENABLED 0"
+
+    def test_the_funscript_drives_again_once_the_main_player_takes_it_back(self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_main_player(driver, has_funscript=True, resting=False)
+        driver.sync("video", paused=False, main_has_osr2=False)
+
+        driver.sync("video", paused=False)
+
+        assert genau(driver).splitlines()[-1] == "PAUSE"
+        assert main_player(driver).splitlines()[-1] == "SET_TCODE_ENABLED 1"
+
     def test_commands_written_only_on_change(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_player(driver, has_funscript=True, resting=False)

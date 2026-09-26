@@ -302,5 +302,5 @@ def test_the_session_keeps_only_the_players_own_controls_in_origenerator_mode():
         f"{side}_{own}"
         for side in ("portrait", "landscape")
         for own in ("minimize", "crown", "speed_up", "speed_down", "speed_reset",
-                    "speed_min", "speed_max")
+                    "speed_min", "speed_max", "take_osr2")
     } & side_commands, sorted(kept)
