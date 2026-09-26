@@ -13,6 +13,7 @@ neither may import the other.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from types import MappingProxyType
 
 from fun_time.filter_vocab import filter_voice_commands
@@ -29,26 +30,29 @@ from .content import load_content
 # process that produced it — the voice controller and the dispatch loop are
 # threads of that same process.
 _SPOKEN_AT_SEP = " @"
+_SAID_SEP = "\t"
 
 
-def format_spoken_command(command: str, *, spoken_at: float) -> str:
-    """The command-file line for *command*, stamped with its utterance start."""
-    return f"{command}{_SPOKEN_AT_SEP}{spoken_at:.3f}"
+@dataclass(frozen=True)
+class CommandLine:
+    command: str
+    spoken_at: float | None = None
+    said: str = ""
 
 
-def parse_command_line(line: str) -> tuple[str, float | None]:
-    """Split a command-file line into ``(command, spoken_at)``.
+def format_spoken_command(command: str, *, spoken_at: float, said: str) -> str:
+    return f"{command}{_SPOKEN_AT_SEP}{spoken_at:.3f}{_SAID_SEP}{said}"
 
-    ``spoken_at`` is None for an unstamped line — a hotkey or dashboard press,
-    which needs no back-dating.
-    """
-    command, separator, stamp = line.rpartition(_SPOKEN_AT_SEP)
+
+def parse_command_line(line: str) -> CommandLine:
+    stamped, _, said = line.partition(_SAID_SEP)
+    command, separator, stamp = stamped.rpartition(_SPOKEN_AT_SEP)
     if not separator:
-        return line, None
+        return CommandLine(line)
     try:
-        return command, float(stamp)
+        return CommandLine(command, float(stamp), said)
     except ValueError:
-        return line, None
+        return CommandLine(line)
 
 
 # A hosted Origenerator's own vocabulary, said to one of its sides.
@@ -530,45 +534,6 @@ def build_voice_commands(
 
 
 VOICE_COMMANDS: Mapping[str, str] = build_voice_commands()
-
-
-# Commands that flash their own outcome, so the generic "I heard you" echo must
-# not stack a second notice on top.  The clip and funscript jumps report from the main player,
-# where they landed or could not; the rest report from the dispatch, which alone
-# knows which way a toggle went or which act a judgement struck — and by owning
-# the notice there, the keys and the buttons flash it too, not just voice.  Every
-# spelling of each is listed, any of them being what voice hands over.
-SELF_REPORTING_COMMANDS = frozenset({
-    "main_player_compilation",
-    "main_player_full_vid",
-    "main_player_clip_jump",
-    "main_player_funscript_jump",
-    "main_player_next_funscripted",
-    *(
-        f"{side}_{judgement}"
-        for judgement in ("trash", "wrong_action")
-        for side in ("portrait", "landscape", "active", "both")
-    ),
-    # Every spelling of F-mode: the dispatch flashes which way each one went, so a
-    # spoken one must not stack the generic echo on top of that.
-    "fmode_toggle",
-    "fmode_on",
-    "fmode_off",
-    *(
-        f"{player}_fmode{suffix}"
-        for player in ("main", "portrait", "landscape", "both", "active")
-        for suffix in ("", "_on", "_off")
-    ),
-    # Every spelling of the two browse orders, for the same reason: the dispatch
-    # flashes "Latest" / "Shuffle" on the player it reordered.  Echoed as well,
-    # "main latest" came back as two notices at once — the phrase, and the outcome
-    # of it — which is one more than either says.  "both latest" made three.
-    *(
-        f"{player}_{order}"
-        for player in ("main", "portrait", "landscape", "both", "active")
-        for order in ("latest", "shuffle")
-    ),
-})
 
 
 # recognizer phrase -> what the reference and the notices show, one pair per word

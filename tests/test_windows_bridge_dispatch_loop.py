@@ -38,7 +38,7 @@ from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import DESKTOP, VR, take_handoff_request
 from fun_time.shared_state import BridgeState, SatelliteState, read_shared_state, write_shared_state
 from fun_time.shortcuts import Shortcut
-from fun_time.voice_commands import parse_command_line
+from fun_time.voice_commands import format_spoken_command, parse_command_line
 from fun_time.voice_control import VoiceController
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import (
@@ -1216,10 +1216,10 @@ class TestDispatchLoopRunner:
 
         runner.tick()
 
-        vc._write_command("landscape_next", spoken_at=1.0)
-        vc._write_command("play", spoken_at=2.0)
+        vc._write_spoken("landscape next", spoken_at=1.0)
+        vc._write_spoken("play", spoken_at=2.0)
         written = vc_cmd.read_text(encoding="utf-8").splitlines()
-        assert [parse_command_line(line)[0] for line in written] == ["play"]
+        assert [parse_command_line(line).command for line in written] == ["play"]
 
     def test_leaving_omnipause_unsuspends_the_voice_controller(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -1232,9 +1232,123 @@ class TestDispatchLoopRunner:
 
         runner.tick()
 
-        vc._write_command("landscape_next", spoken_at=1.0)
+        vc._write_spoken("landscape next", spoken_at=1.0)
         written = vc_cmd.read_text(encoding="utf-8").splitlines()
-        assert [parse_command_line(line)[0] for line in written] == ["landscape_next"]
+        assert [parse_command_line(line).command for line in written] == ["landscape_next"]
+
+
+class TestWhatASpokenCommandFlashes:
+    @staticmethod
+    def _flashed(tmp_path, line, ops=(), **state):
+        runner = make_runner(tmp_path)
+        runner._last_watch_sample = float("inf")
+        runner.state = replace(runner.state, **state)
+        (tmp_path / "dashboard_cmd.txt").write_text(line, encoding="utf-8")
+        flashed = []
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
+                   return_value=(runner.state, list(ops))), \
+             patch("fun_time.windows_bridge_dispatch_loop.notice",
+                   side_effect=lambda _log, msg, *, source, level=25: flashed.append(
+                       (msg, source, level))):
+            runner.tick()
+        return flashed
+
+    def test_a_command_that_says_nothing_itself_flashes_what_was_heard_over_its_player(
+        self, tmp_path,
+    ):
+        spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
+
+        assert self._flashed(tmp_path, spoken) == [("landscape next", "landscape", 25)]
+
+    @pytest.mark.parametrize(("active_player", "source"), [(2, "portrait"), (1, "main")])
+    def test_a_bare_command_flashes_over_the_player_it_reached(
+        self, tmp_path, active_player, source,
+    ):
+        """"Portrait next" makes portrait the active player, so the "next" after
+        it drives portrait -- and what was heard belongs over portrait."""
+        spoken = format_spoken_command("active_next", spoken_at=1.0, said="next")
+
+        flashed = self._flashed(tmp_path, spoken, active_player=active_player)
+
+        assert flashed == [("next", source, 25)]
+
+    def test_a_command_that_says_what_it_did_is_the_one_entry(self, tmp_path):
+        spoken = format_spoken_command("portrait_more_seeds", spoken_at=1.0, said="more seeds")
+        said_itself = WindowOp(op="notice", key="More seeds", source="portrait")
+
+        assert self._flashed(tmp_path, spoken, [said_itself]) == [("More seeds", "portrait", 25)]
+
+    @pytest.mark.parametrize(("command", "said"), [
+        ("portrait_more_seeds", "more seeds"),
+        ("portrait_latest", "portrait latest"),
+        ("landscape_fmode", "landscape f mode"),
+    ])
+    def test_a_spoken_command_run_for_real_flashes_one_entry(self, tmp_path, command, said):
+        runner = make_runner(tmp_path)
+        runner._last_watch_sample = float("inf")
+        (tmp_path / "dashboard_cmd.txt").write_text(
+            format_spoken_command(command, spoken_at=1.0, said=said), encoding="utf-8")
+        flashed = []
+        with patch("fun_time.windows_bridge_dispatch_loop.notice",
+                   side_effect=lambda _log, msg, **_how: flashed.append(msg)):
+            runner.tick()
+
+        assert len(flashed) == 1, flashed
+
+    @pytest.mark.parametrize("command", [
+        "main_player_compilation", "main_player_full_vid", "main_player_clip_jump",
+        "main_player_funscript_jump", "main_player_next_funscripted", "clipper_save",
+    ])
+    def test_a_command_whose_outcome_is_flashed_once_it_lands_says_nothing_now(
+        self, tmp_path, command,
+    ):
+        spoken = format_spoken_command(command, spoken_at=1.0, said="whatever was said")
+
+        assert self._flashed(tmp_path, spoken) == []
+
+    def test_a_pressed_command_flashes_only_what_it_says_itself(self, tmp_path):
+        assert self._flashed(tmp_path, "landscape_next") == []
+
+    def test_a_spoken_both_command_says_what_was_heard_once(self, tmp_path):
+        spoken = format_spoken_command("both_next", spoken_at=1.0, said="both next")
+
+        assert self._flashed(tmp_path, spoken) == [("both next", "system", 25)]
+
+    def test_a_command_frozen_by_omnipause_says_it_was_ignored(self, tmp_path):
+        spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
+
+        assert self._flashed(tmp_path, spoken, omni_paused=True) == [
+            ("ignored during OmniPause: landscape next", "landscape", logging.WARNING)]
+
+    def test_a_named_command_flashes_over_its_player_whichever_is_active(self, tmp_path):
+        spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
+
+        assert self._flashed(tmp_path, spoken, active_player=2) == [
+            ("landscape next", "landscape", 25)]
+
+    @pytest.mark.parametrize(("command", "said"), [
+        ("landscape_fmode_on", "landscape f mode on"),
+        ("active_fmode_on", "f mode on"),
+    ])
+    def test_words_the_hosted_apps_show_takes_flash_what_was_heard(
+        self, tmp_path, command, said,
+    ):
+        """On a player F-mode flashes which way it went; in origenerator mode the
+        words go to the show on that side, which flashes nothing here."""
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        _the_hosted_app_answers(tmp_path)
+        write_shared_state(tmp_path / "shared_state.ini", BridgeState(
+            satellites_mode="origenerator", active_player=3))
+        runner._last_watch_sample = float("inf")
+        (tmp_path / "dashboard_cmd.txt").write_text(
+            format_spoken_command(command, spoken_at=1.0, said=said), encoding="utf-8")
+        flashed = []
+        with patch("fun_time.windows_bridge_dispatch_loop.notice",
+                   side_effect=lambda _log, msg, *, source, level=25: flashed.append(
+                       (msg, source))):
+            runner.tick()
+
+        assert flashed == [(said, "landscape")]
 
 
 class TestOpenRfbTab:
@@ -2820,26 +2934,6 @@ class TestASessionThatHostsNoOrigenerator:
         runner.tick()
 
         assert runner.state.satellites_mode == "origenerator"
-
-
-class TestWhatTheHostedAppIsHanded:
-    """What voice asks before echoing a phrase: a command bound for the hosted
-    app's show gets no word back from the dispatch, whatever it would say on a
-    player."""
-
-    def test_in_its_mode_a_side_verb_said_any_way_goes_to_the_show(self, tmp_path):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
-        runner.state = BridgeState(satellites_mode="origenerator", origenerator_ready=True,
-                                   active_player=3)
-
-        assert [runner.hands_to_the_hosted_app(command) for command in (
-            "landscape_fmode_on", "both_fmode_on", "active_fmode_on", "main_fmode_on",
-        )] == [True, True, True, False]
-
-    def test_in_video_mode_nothing_goes_to_it(self, tmp_path):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
-
-        assert runner.hands_to_the_hosted_app("landscape_fmode_on") is False
 
 
 def _hosting(tmp_path, **overrides):

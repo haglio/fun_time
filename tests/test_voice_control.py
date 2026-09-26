@@ -72,55 +72,27 @@ class TestHandleHeard:
     def _controller(self, tmp_path: Path) -> VoiceController:
         return VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
 
-    def test_a_recognized_command_dispatches_and_confirms_over_its_player(self, tmp_path, monkeypatch):
-        vc = self._controller(tmp_path)
-        seen = []
-        monkeypatch.setattr(voice_control, "notice",
-                            lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
-
-        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
-
-        assert (tmp_path / "cmd.txt").read_text(encoding="utf-8") == "landscape_next @1.000\n"
-        assert seen == [("landscape next", "landscape", 25)]
-
-    def test_a_command_a_player_reports_for_itself_is_not_confirmed_twice(
-            self, tmp_path, monkeypatch):
-        """The dispatch flashes which way F-mode went on a player, so the words
-        are not echoed on top of it."""
+    def test_a_recognized_command_is_handed_on_with_what_was_said_and_flashes_nothing_here(
+        self, tmp_path, monkeypatch,
+    ):
         vc = self._controller(tmp_path)
         seen = []
         monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
 
-        vc.handle_heard(_heard(Recognition(phrase="landscape f mode on")))
+        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
 
+        assert (tmp_path / "cmd.txt").read_text(encoding="utf-8") == "landscape_next @1.000\tlandscape next\n"
         assert seen == []
 
-    def test_the_same_command_handed_to_the_hosted_app_is_confirmed_here(
-            self, tmp_path, monkeypatch):
-        """In Origenerator mode the words go to the show on that side and the
-        dispatch flashes nothing, so without the echo the log showed only that
-        what was said was being figured out."""
+    def test_a_sound_alike_phrase_is_handed_on_under_its_friendly_name(self, tmp_path):
+        """"go now" drives Genau; what the room says it heard is "genau", not the
+        raw sound-alike the recognizer listens for."""
         vc = self._controller(tmp_path)
-        vc.hands_to_the_hosted_app = lambda command: command == "landscape_fmode_on"
-        seen = []
-        monkeypatch.setattr(voice_control, "notice",
-                            lambda _log, msg, *, source, level=25: seen.append((msg, source)))
-
-        vc.handle_heard(_heard(Recognition(phrase="landscape f mode on")))
-
-        assert seen == [("landscape f mode on", "landscape")]
-
-    def test_a_sound_alike_phrase_is_confirmed_under_its_friendly_name(self, tmp_path, monkeypatch):
-        """"go now" drives Genau; the confirmation shows "genau", not the raw
-        sound-alike the recognizer listens for."""
-        vc = self._controller(tmp_path)
-        seen = []
-        monkeypatch.setattr(voice_control, "notice",
-                            lambda _log, msg, *, source, level=25: seen.append(msg))
 
         vc.handle_heard(_heard(Recognition(phrase="go now")))
 
-        assert seen == ["genau"]
+        [line] = (tmp_path / "cmd.txt").read_text(encoding="utf-8").splitlines()
+        assert parse_command_line(line).said == "genau"
 
     def test_a_command_heard_while_omnipaused_says_it_was_ignored(self, tmp_path, monkeypatch):
         vc = self._controller(tmp_path)
@@ -196,56 +168,6 @@ class TestHandleHeard:
         vc.handle_heard(_heard(Recognition(unrecognized_text=heard)))
 
         assert seen == [(f"unrecognized voice command: {heard}", source)]
-
-    def test_a_bare_command_confirms_over_the_player_it_reached(self, tmp_path, monkeypatch):
-        """"Portrait next" makes portrait the active player, so the "next" after
-        it drives portrait -- and the confirmation belongs over portrait, not
-        over the main player the command's own name resolves to."""
-        vc = self._controller(tmp_path)
-        vc.active_player = lambda: 2  # Player.PORTRAIT
-        seen = []
-        monkeypatch.setattr(voice_control, "notice",
-                            lambda _log, msg, *, source, level=25: seen.append(source))
-
-        vc.handle_heard(_heard(Recognition(phrase="next")))
-
-        assert seen == ["portrait"]
-
-    def test_a_bare_command_with_the_main_player_active_confirms_over_it(
-            self, tmp_path, monkeypatch):
-        vc = self._controller(tmp_path)
-        vc.active_player = lambda: 1  # Player.MAIN
-        seen = []
-        monkeypatch.setattr(voice_control, "notice",
-                            lambda _log, msg, *, source, level=25: seen.append(source))
-
-        vc.handle_heard(_heard(Recognition(phrase="next")))
-
-        assert seen == ["main"]
-
-    def test_a_named_command_ignores_which_player_is_active(self, tmp_path, monkeypatch):
-        """"Landscape next" says who it is for; the active side has no say."""
-        vc = self._controller(tmp_path)
-        vc.active_player = lambda: 2
-        seen = []
-        monkeypatch.setattr(voice_control, "notice",
-                            lambda _log, msg, *, source, level=25: seen.append(source))
-
-        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
-
-        assert seen == ["landscape"]
-
-    def test_with_nothing_to_ask_a_bare_command_falls_back_to_the_main_player(
-            self, tmp_path, monkeypatch):
-        """A listener nobody wired to a dispatch loop still has to flash somewhere."""
-        vc = self._controller(tmp_path)
-        seen = []
-        monkeypatch.setattr(voice_control, "notice",
-                            lambda _log, msg, *, source, level=25: seen.append(source))
-
-        vc.handle_heard(_heard(Recognition(phrase="next")))
-
-        assert seen == ["system"]
 
     def test_a_player_word_inside_a_longer_word_does_not_claim_the_report(self):
         """The player has to be *named* — matched whole, not as a fragment."""
@@ -416,35 +338,35 @@ class TestTheListenerItRuns:
 
 
 class TestWriteCommand:
-    def test_write_command_stamps_the_utterance_start(self, tmp_path: Path):
+    def test_writing_stamps_the_utterance_start(self, tmp_path: Path):
         """Every spoken command carries when the user began saying it."""
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
-        vc._write_command("landscape_next", spoken_at=1234.5)
-        assert cmd_file.read_text(encoding="utf-8") == "landscape_next @1234.500\n"
+        vc._write_spoken("landscape next", spoken_at=1234.5)
+        assert cmd_file.read_text(encoding="utf-8") == "landscape_next @1234.500\tlandscape next\n"
 
-    def test_write_command_appends_multiple(self, tmp_path: Path):
+    def test_writing_appends_multiple(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
-        vc._write_command("landscape_next", spoken_at=1.0)
-        vc._write_command("pause", spoken_at=2.0)
+        vc._write_spoken("landscape next", spoken_at=1.0)
+        vc._write_spoken("pause", spoken_at=2.0)
         lines = cmd_file.read_text(encoding="utf-8").strip().splitlines()
-        assert lines == ["landscape_next @1.000", "pause @2.000"]
+        assert lines == ["landscape_next @1.000\tlandscape next", "pause @2.000\tpause"]
 
-    def test_mute_prevents_write_command(self, tmp_path: Path):
+    def test_mute_prevents_writing(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc.mute()
-        vc._write_command("landscape_next", spoken_at=1.0)
+        vc._write_spoken("landscape next", spoken_at=1.0)
         assert not cmd_file.exists()
 
-    def test_unmute_restores_write_command(self, tmp_path: Path):
+    def test_unmute_restores_writing(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc.mute()
         vc.unmute()
-        vc._write_command("landscape_next", spoken_at=1.0)
-        assert cmd_file.read_text(encoding="utf-8") == "landscape_next @1.000\n"
+        vc._write_spoken("landscape next", spoken_at=1.0)
+        assert cmd_file.read_text(encoding="utf-8") == "landscape_next @1.000\tlandscape next\n"
 
     def test_is_muted_property(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
@@ -461,18 +383,18 @@ class TestWriteCommand:
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc.suspend()
-        for command in ("landscape_next", "help_reference", "pause", "speed_up"):
-            vc._write_command(command, spoken_at=1.0)
+        for phrase in ("landscape next", "help", "pause", "speed up"):
+            vc._write_spoken(phrase, spoken_at=1.0)
         assert not cmd_file.exists()
 
     def test_suspend_still_lets_resume_and_quit_through(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc.suspend()
-        vc._write_command("play", spoken_at=1.0)
-        vc._write_command("quit", spoken_at=2.0)
+        vc._write_spoken("play", spoken_at=1.0)
+        vc._write_spoken("quit", spoken_at=2.0)
         written = cmd_file.read_text(encoding="utf-8").splitlines()
-        assert [parse_command_line(line)[0] for line in written] == ["play", "quit"]
+        assert [parse_command_line(line).command for line in written] == ["play", "quit"]
 
     def test_suspend_still_lets_relief_through(self, tmp_path: Path):
         """Voice frozen by omnipause must not swallow the one command whose whole
@@ -482,9 +404,9 @@ class TestWriteCommand:
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc.suspend()
-        vc._write_command("relief_omnipause", spoken_at=1.0)
+        vc._write_spoken("relief omni pause", spoken_at=1.0)
         written = cmd_file.read_text(encoding="utf-8").splitlines()
-        assert [parse_command_line(line)[0] for line in written] == ["relief_omnipause"]
+        assert [parse_command_line(line).command for line in written] == ["relief_omnipause"]
 
     def test_suspend_freezes_the_reference_popup_too(self, tmp_path: Path):
         """The popup gets no exemption: the freeze is a flat rule about what a
@@ -493,8 +415,8 @@ class TestWriteCommand:
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc.suspend()
-        vc._write_command("help_reference", spoken_at=1.0)
-        vc._write_command("help_reference_close", spoken_at=2.0)
+        vc._write_spoken("help", spoken_at=1.0)
+        vc._write_spoken("close help", spoken_at=2.0)
         assert not cmd_file.exists()
 
     def test_unsuspend_restores_every_command(self, tmp_path: Path):
@@ -502,8 +424,8 @@ class TestWriteCommand:
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc.suspend()
         vc.unsuspend()
-        vc._write_command("landscape_next", spoken_at=1.0)
-        assert cmd_file.read_text(encoding="utf-8") == "landscape_next @1.000\n"
+        vc._write_spoken("landscape next", spoken_at=1.0)
+        assert cmd_file.read_text(encoding="utf-8") == "landscape_next @1.000\tlandscape next\n"
 
     def test_mute_beats_the_suspend_exemption(self, tmp_path: Path):
         """"Voice off" means off: an exempt command must not slip past a mute."""
@@ -511,5 +433,5 @@ class TestWriteCommand:
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc.suspend()
         vc.mute()
-        vc._write_command("play", spoken_at=1.0)
+        vc._write_spoken("play", spoken_at=1.0)
         assert not cmd_file.exists()

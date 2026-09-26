@@ -587,6 +587,11 @@ def command_player(command: str) -> Player | None:
     return None
 
 
+def notice_source(command: str, active_player: int | None) -> str:
+    player = active_player if command.startswith("active_") else command_player(command)
+    return _PLAYER_NOTICE_SOURCE.get(player, SOURCE_SYSTEM)
+
+
 def dispatch_command(
     command: str,
     state: BridgeState,
@@ -830,9 +835,7 @@ _FMODE_COMMANDS: dict[str, tuple[tuple[Player, ...], bool | None]] = {
     "landscape_fmode_off": ((Player.LANDSCAPE,), False),
 }
 
-# Where each player's flash goes, so a sided F-mode reports on that player's own
-# display and the all-players one reports to the room.
-_FMODE_NOTICE_SOURCE = {
+_PLAYER_NOTICE_SOURCE = {
     Player.MAIN: SOURCE_MAIN,
     Player.PORTRAIT: SOURCE_PORTRAIT,
     Player.LANDSCAPE: SOURCE_LANDSCAPE,
@@ -912,12 +915,10 @@ def _dispatch_fmode(
     # Flash which way it went, on the display it went on — a sided F-mode reports
     # from that player, the all-players one from the room.  It goes off the players
     # *asked for*, not the ones that moved: "f mode" is a gesture at the room even
-    # on the press where only one player was left to narrow.  The dispatch owns
-    # this rather than the voice echo, so the F key and the HUD buttons flash it
-    # too, not just a spoken "F mode" (which is why fmode is self-reporting — see
-    # SELF_REPORTING_COMMANDS).  Enabling is green, since what it narrows to is the
-    # favorites and the funscripts; disabling is an ordinary white notice.
-    source = _FMODE_NOTICE_SOURCE[players[0]] if len(players) == 1 else SOURCE_SYSTEM
+    # on the press where only one player was left to narrow.  Enabling is green,
+    # since what it narrows to is the favorites and the funscripts; disabling is
+    # an ordinary white notice.
+    source = _PLAYER_NOTICE_SOURCE[players[0]] if len(players) == 1 else SOURCE_SYSTEM
     notice_op = WindowOp(
         op="notice",
         key=f"{F_MODE_LABEL} enabled" if enabled else f"{F_MODE_LABEL} disabled",
@@ -1084,8 +1085,7 @@ def _dispatch_reorder(
     # in, so naming the player and then spelling the order out a second time
     # ("Latest: portrait newest-first") only read as a log line that had escaped
     # onto the screen.  The count and the side stay in the log, where they are of
-    # use.  The dispatch owns the notice the way it owns F-mode's, so a spoken
-    # reorder is not echoed on top of it (see SELF_REPORTING_COMMANDS).
+    # use.
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
     logger.info("%s: %s (%d clips)", label, player_name, result.count)
     return state, [WindowOp(op="notice", key=label, source=satellite_source(player))]
