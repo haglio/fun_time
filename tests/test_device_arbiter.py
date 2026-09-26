@@ -437,14 +437,15 @@ class TestASidePlayerThatHasTheOsr2:
         assert side(tmp_path, Player.LANDSCAPE) == [TCODE_ON]
         assert genau(driver) == "PAUSE"
 
-    def test_the_other_side_player_sends_nothing(self, tmp_path):
+    def test_a_side_player_that_never_had_it_is_told_nothing(self, tmp_path):
         driver = make_driver(tmp_path)
+        publish_main_player(driver, has_funscript=True, resting=False)
         publish_side(tmp_path, Player.PORTRAIT)
-        publish_side(tmp_path, Player.LANDSCAPE)
 
+        driver.sync("video", paused=False)
         driver.sync("video", paused=False, holder=Player.PORTRAIT)
 
-        assert side(tmp_path, Player.LANDSCAPE) == [TCODE_OFF]
+        assert side(tmp_path, Player.LANDSCAPE) == []
 
     def test_the_player_it_took_the_osr2_from_stops_sending(self, tmp_path):
         driver = make_driver(tmp_path)
@@ -497,15 +498,16 @@ class TestASidePlayerThatHasTheOsr2:
 
         assert genau(driver).splitlines()[-1] == "PAUSE"
 
-    def test_a_hold_switches_every_player_off(self, tmp_path):
+    def test_a_hold_switches_off_every_player_that_has_had_it(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_side(tmp_path, Player.PORTRAIT)
+        driver.sync("video", paused=False, holder=Player.PORTRAIT)
 
         driver.sync("video", paused=False, control=OSR2_PARKED, holder=Player.PORTRAIT)
 
-        assert side(tmp_path, Player.PORTRAIT) == [TCODE_OFF]
-        assert side(tmp_path, Player.LANDSCAPE) == [TCODE_OFF]
-        assert main_player(driver) == TCODE_OFF
+        assert side(tmp_path, Player.PORTRAIT) == [TCODE_ON, TCODE_OFF]
+        assert side(tmp_path, Player.LANDSCAPE) == []
+        assert main_player(driver).splitlines()[-1] == TCODE_OFF
 
     def test_the_flip_to_its_script_waits_for_the_touch_its_trace_chose(self, tmp_path):
         clock = FakeClock()
