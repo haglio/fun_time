@@ -504,8 +504,8 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert "landscape_lock" in commands
-        assert "portrait_lock" not in commands
+        assert "landscape_lock_on" in commands
+        assert "portrait_lock_on" not in commands
 
     def test_bare_active_next_targets_the_active_player(self, tmp_path):
         """A non-lock bare command ('next') also follows the active side."""
@@ -534,7 +534,7 @@ class TestDispatchLoopRunner:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
-        assert mock_dispatch.call_args[0][0] == "portrait_lock"
+        assert mock_dispatch.call_args[0][0] == "portrait_lock_on"
         assert mock_dispatch.call_args.kwargs["target_path"] == "C:\\clips\\meant.mp4"
 
     def test_the_tick_samples_every_player_on_the_watch_cadence(self, tmp_path):
@@ -1391,9 +1391,9 @@ class TestOpenRfbTab:
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
 
         def fake_dispatch(cmd, state, config, target_path=""):
-            if cmd == "portrait_lock":
+            if cmd == "portrait_lock_on":
                 return replace(state, portrait=SatelliteState(locked=True)), [WindowOp(op="open_rfb_tab", key="http://p")]
-            if cmd == "landscape_lock":
+            if cmd == "landscape_lock_on":
                 return replace(state, landscape=SatelliteState(locked=True)), [WindowOp(op="open_rfb_tab", key="http://l")]
             return state, []
 
@@ -2125,44 +2125,6 @@ class TestIdempotentVoiceCommands:
 
         mock_log.assert_called_once_with("post-enter")
 
-    # -- lock portrait / lock landscape --
-
-    def test_portrait_lock_on_dispatches_when_unlocked(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SatelliteState(locked=False))
-        with patch.object(runner, "_dispatch") as mock_d:
-            cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("portrait_lock_on", encoding="utf-8")
-            runner.tick()
-        mock_d.assert_called_once_with("portrait_lock", None)
-
-    def test_portrait_lock_on_noop_when_locked(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SatelliteState(locked=True))
-        with patch.object(runner, "_dispatch") as mock_d:
-            cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("portrait_lock_on", encoding="utf-8")
-            runner.tick()
-        mock_d.assert_not_called()
-
-    def test_landscape_lock_on_dispatches_when_unlocked(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SatelliteState(locked=False))
-        with patch.object(runner, "_dispatch") as mock_d:
-            cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("landscape_lock_on", encoding="utf-8")
-            runner.tick()
-        mock_d.assert_called_once_with("landscape_lock", None)
-
-    def test_landscape_lock_on_noop_when_locked(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SatelliteState(locked=True))
-        with patch.object(runner, "_dispatch") as mock_d:
-            cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("landscape_lock_on", encoding="utf-8")
-            runner.tick()
-        mock_d.assert_not_called()
-
     # -- f mode, sided --
 
     def test_a_sided_fmode_reaches_the_dispatch_as_written(self, tmp_path):
@@ -2223,44 +2185,6 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner.tick()
         mock_d.assert_called_once_with("genau_activate", None)
-
-    # -- lock off (idempotent unlock) --
-
-    def test_portrait_lock_off_unlocks_when_locked(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SatelliteState(locked=True))
-        with patch.object(runner, "_dispatch") as mock_d:
-            cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("portrait_lock_off", encoding="utf-8")
-            runner.tick()
-        mock_d.assert_called_once_with("portrait_lock", None)
-
-    def test_portrait_lock_off_noop_when_already_unlocked(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SatelliteState(locked=False))
-        with patch.object(runner, "_dispatch") as mock_d:
-            cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("portrait_lock_off", encoding="utf-8")
-            runner.tick()
-        mock_d.assert_not_called()
-
-    def test_landscape_lock_off_unlocks_when_locked(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SatelliteState(locked=True))
-        with patch.object(runner, "_dispatch") as mock_d:
-            cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("landscape_lock_off", encoding="utf-8")
-            runner.tick()
-        mock_d.assert_called_once_with("landscape_lock", None)
-
-    def test_landscape_lock_off_noop_when_already_unlocked(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SatelliteState(locked=False))
-        with patch.object(runner, "_dispatch") as mock_d:
-            cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("landscape_lock_off", encoding="utf-8")
-            runner.tick()
-        mock_d.assert_not_called()
 
     # -- the dashboard snapshot's failure mode --
 
@@ -2625,30 +2549,32 @@ class TestBothSatelliteCommands:
         assert commands == ["portrait_next", "landscape_next"]
 
     def test_lock_both_locks_each_unlocked_satellite(self, tmp_path):
-        """"lock both" (both_lock_on) reuses the idempotent per-satellite lock:
-        an already-locked side is left alone, so it only toggles the unlocked one."""
+        """"lock both" (both_lock_on) is the spoken lock said to each side: an
+        already-locked side is left alone, so only the unlocked one locks."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=True))
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-            mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
-            runner.tick()
+        runner.tick()
 
-        commands = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert commands == ["landscape_lock"]  # portrait already locked → skipped
+        assert [_told(runner, player) for player in Player.SATELLITES] == [[], ["LOCK_ON"]]
+        assert runner.state.satellite(Player.LANDSCAPE).locked is True
 
     def test_unlock_both_unlocks_each_locked_satellite(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(landscape=SatelliteState(locked=True), portrait=SatelliteState(locked=True))
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_off", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-            mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
-            runner.tick()
+        runner.tick()
 
-        commands = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert commands == ["portrait_lock", "landscape_lock"]
+        assert [_told(runner, player) for player in Player.SATELLITES] == [
+            ["LOCK_OFF", "NEXT"], ["LOCK_OFF", "NEXT"]]
+
+
+def _told(runner, player) -> list[str]:
+    """What the loop's dispatch sent satellite *player*, in order."""
+    cmd_file = runner.config.satellite(player).cmd_file
+    return cmd_file.read_text(encoding="utf-8").split() if cmd_file.exists() else []
 
 
 class TestHudPublishing:

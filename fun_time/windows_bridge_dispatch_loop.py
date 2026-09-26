@@ -524,18 +524,6 @@ class DispatchLoopRunner:
         elif cmd == "play":
             if self.state.omni_paused:
                 self._handle_omnipause_toggle()
-        elif cmd == "portrait_lock_on":
-            if not self.state.satellite(Player.PORTRAIT).locked:
-                self._dispatch("portrait_lock", spoken_at)
-        elif cmd == "landscape_lock_on":
-            if not self.state.satellite(Player.LANDSCAPE).locked:
-                self._dispatch("landscape_lock", spoken_at)
-        elif cmd == "portrait_lock_off":
-            if self.state.satellite(Player.PORTRAIT).locked:
-                self._dispatch("portrait_lock", spoken_at)
-        elif cmd == "landscape_lock_off":
-            if self.state.satellite(Player.LANDSCAPE).locked:
-                self._dispatch("landscape_lock", spoken_at)
         elif cmd == "broker_start":
             self._handle_broker_start()
         elif cmd == "broker_stop":

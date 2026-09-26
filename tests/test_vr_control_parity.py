@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from player_core.genau_controls import VERBS as GENAU_VERBS
@@ -31,6 +32,7 @@ from fun_time.bridge_records import BridgeConfig, Op
 from fun_time.command_dispatch import dispatch_command
 from fun_time.command_reference import build_reference_sections
 from fun_time.config import load_config
+from fun_time.dashboard_actions import BROWSE_LIBRARY_CLOSE, HELP_REFERENCE_COMMANDS
 from fun_time.manifest import LaunchManifest, write_manifest_data
 from fun_time.mode_plan import MAIN_MODES, MAIN_VIDEO_MODE
 from fun_time.modes import PLAYLIST_PORTRAIT, build_playlist_file_path
@@ -39,7 +41,10 @@ from fun_time.satellites_mode import ORIGENERATOR_MODE
 from fun_time.satellites_mode import VIDEO_MODE as SATELLITE_VIDEO_MODE
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import VOICE_COMMANDS
-from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
+from fun_time.windows_bridge_dispatch_loop import (
+    HANDOFF_COMMANDS,
+    build_bridge_config_from_manifest,
+)
 from fun_time_vr import roles
 from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.roles import UNIMPLEMENTED_MAIN_PLAYER_VERBS, MainRole
@@ -50,6 +55,7 @@ from satellite.session import SatelliteSession
 from tests.origenerator_contract import answers
 from tests.satellite_fakes import FakeSatellitePlayer
 from tests.test_vr_roles import FakeDriver, FakePlayer
+from tests.test_windows_bridge_dispatch_loop import make_runner
 
 # The channels a dispatch writes to.  The paused flags and the broker mailbox
 # carry no vocabulary of their own — the VR player and the broker read them
@@ -428,6 +434,37 @@ class TestTheHostedOrigenerator:
     def test_every_exception_says_why(self):
         for said, reason in _UNANSWERED_BY_THE_HOSTED_APP.items():
             assert reason.strip(), f"{said} is excepted with no reason"
+
+
+# What the loop in front of the dispatch answers itself, all of it about the
+# room as a whole: its end and its crossing, its pause, its windows and panels,
+# the broker and the microphone.
+_THE_LOOPS_OWN = frozenset({
+    "quit", *HANDOFF_COMMANDS, *HELP_REFERENCE_COMMANDS,
+    "omniminimize", "omnirestore", "omnipause_toggle", "enter_omnipause",
+    "relief_omnipause", "pause", "play", "browse_library", BROWSE_LIBRARY_CLOSE,
+    "broker_panel", "broker_start", "broker_stop", "voice_off", "voice_toggle",
+})
+
+
+class TestTheLoopInFrontOfTheDispatch:
+    def test_every_other_command_reaches_the_dispatch_as_it_was_said(self, tmp_path):
+        """The sweep walks the dispatch, so a command the loop rewrites on its
+        way there is sent as something the sweep never saw.  The spoken "lock"
+        and "unlock" were turned into the key's flip by the session's own idea
+        of whether a player was locked, which in Origenerator mode no show's
+        lock ever reached: said twice, "lock" let go, and "unlock" did nothing.
+        """
+        runner = make_runner(tmp_path)
+        rewritten = {}
+        for command in every_command():
+            if command in _THE_LOOPS_OWN:
+                continue
+            with patch.object(runner, "_dispatch") as dispatched:
+                runner._handle_command(command)
+            if [call.args for call in dispatched.call_args_list] != [(command, None)]:
+                rewritten[command] = [call.args for call in dispatched.call_args_list]
+        assert not rewritten, f"the loop hands the dispatch these as something else: {rewritten}"
 
 
 class TestWhatAHeadsetDoesNotHost:
