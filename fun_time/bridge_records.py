@@ -179,6 +179,7 @@ class Op(StrEnum):
     SAVE_CLIP = "save_clip"
     MAIN_PLAYER_ANSWERS = "main_player_answers"
     TAKE_BACK_PLAYERS = "take_back_players"
+    HAND_OVER_THE_MAIN_SLOT = "hand_over_the_main_slot"
     FOLLOW_GENAUS_LOCK = "follow_genaus_lock"
 
 

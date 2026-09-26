@@ -47,11 +47,11 @@ from .windows_bridge_startup import (
 logger = logging.getLogger(__name__)
 
 
-# How long the outgoing main-slot player keeps its window before it is
-# minimized, so the DISPLAY_OFF it was sent in the same breath is on screen
-# first (see :meth:`WindowRoles.hide_after_settle`).  Generous next to the two
-# frames the player needs to read the verb and present the black — time nobody
-# can see, and being early is the failure it exists to avoid.
+# How long a mode switch gives a main-slot player to act on its display verb: the
+# outgoing one keeps its window that long before it is minimized (see
+# :meth:`WindowRoles.hide_after_settle`), and Genau stays opaque that long over the
+# incoming main player (see ``MainSlotHandover``).  Generous next to the two
+# frames a player needs; being early is the failure it exists to avoid.
 MAIN_BLANK_SETTLE_S = 0.25
 
 
@@ -88,7 +88,7 @@ class WindowRoles:
         # The settle a mode switch's outgoing player waits out is the one thing
         # here that is about elapsed time.  Injectable so a test can let it run
         # out rather than reach in and back-date the deadline.
-        self._clock = clock
+        self.clock = clock
         # Main-slot windows waiting out MAIN_BLANK_SETTLE_S before they are
         # minimized, by role -> the time they are due.
         self._pending_hides: dict[str, float] = {}
@@ -195,26 +195,26 @@ class WindowRoles:
     def hide_after_settle(self, role: str) -> None:
         """Park the main-slot player a mode switch is leaving — after a beat.
 
-        Only that pair is ever hidden (see ``_main_slot_ops``), and only they
+        Only that pair is ever hidden (see ``MainSlotHandover``), and only they
         need the beat.  Minimizing is what FREEZES a window's Alt-Tab thumbnail:
         Windows stops compositing a minimized window, so whatever it last drew is
-        what the thumbnail keeps showing until it is restored.  The same switch
+        what the thumbnail keeps showing until it is restored.  The handover
         has just told this player to go dark (DISPLAY_OFF), and reading that verb
         and presenting the black costs it a frame or two — minimize inside that
         gap and the thumbnail keeps the video frame the player was sitting on,
         which is the exact thing the blanking exists to prevent.
 
-        Nothing shows during the wait: the incoming player has already been
-        restored, activated and promoted over the same rect, and this one has
-        been demoted out of the topmost band (see :meth:`restack_main_slot`).
+        Nothing shows during the wait: the incoming player already covers the
+        same rect, and this one has been demoted out of the topmost band (see
+        :meth:`restack_main_slot`).
         """
-        self._pending_hides[role] = self._clock() + MAIN_BLANK_SETTLE_S
+        self._pending_hides[role] = self.clock() + MAIN_BLANK_SETTLE_S
 
     def flush_pending_hides(self) -> None:
         """Park each main-slot window whose settle time has run out."""
         if not self._pending_hides:
             return
-        now = self._clock()
+        now = self.clock()
         for role in [r for r, due in self._pending_hides.items() if now >= due]:
             del self._pending_hides[role]
             self.minimize(role)

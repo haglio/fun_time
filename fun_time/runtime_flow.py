@@ -99,10 +99,10 @@ def apply_mode_switch(
     if plan.is_transition:
         if plan.main_player_should_play is not None:
             write_flag_file(main_player_paused_file, not plan.main_player_should_play)
-        for cmd in (plan.genau_cmd, plan.hud_cmd):
+        for cmd_file, cmd in ((genau_cmd_file, plan.genau_cmd), (genau_cmd_file, plan.hud_cmd),
+                              (main_player_cmd_file, plan.main_player_display_cmd)):
             if cmd is not None:
-                append_command(Path(genau_cmd_file), cmd)
-        append_command(Path(main_player_cmd_file), plan.main_player_display_cmd)
+                append_command(Path(cmd_file), cmd)
     return ModeSwitchFlowResult(
         next_mode=plan.target_mode,
         is_transition=plan.is_transition,

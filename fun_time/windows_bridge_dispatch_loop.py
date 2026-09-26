@@ -16,7 +16,7 @@ from pathlib import Path
 
 from app_support.file_channel import consume_command_file, read_flag, write_flag
 from player_core.file_channel import append_command
-from player_core.modes import NoticeLevel, read_mode
+from player_core.modes import MainMode, NoticeLevel, read_mode
 from player_core.player_verbs import LOCK_OFF, LOCK_ON, play_file
 
 from .bridge_records import BridgeConfig, Op, WindowOp
@@ -45,6 +45,7 @@ from .gallery_follows_genau import GalleryFollowsGenau
 from .hud_feed import HudFeed
 from .hud_transport import HudPublisher
 from .library_browser import browse_library
+from .main_slot_handover import MainSlotHandover
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .modes import scripted_item
 from .player_handover import PanelStamp, hand_back, let_go_since, panel_stamp
@@ -308,6 +309,12 @@ class DispatchLoopRunner:
             genau_status_file=config.genau_status_file,
             origenerator_cmd_file=config.origenerator_cmd_file,
         )
+        self.main_slot_handover = MainSlotHandover(
+            windows=windows,
+            genau_cmd_file=config.genau_cmd_file,
+            main_player_cmd_file=config.main_player_cmd_file,
+            genau_status_file=config.genau_status_file,
+        )
 
     def _the_satellite_modes_this_session_can_be_in(self, state: BridgeState) -> BridgeState:
         """*state* with the satellite mode axis corrected to what is on offer,
@@ -355,10 +362,7 @@ class DispatchLoopRunner:
             write_shared_state(self.shared_state_file, self.state)
 
         # Hand the OSR2 to the current video's funscript (or back to the Robot
-        # Hand).  Runs before the command loop so a mode switch that also writes
-        # genau_cmd (RESUME + HUD_ON on entering video mode) is never clobbered
-        # by the handoff in the same tick — the handoff instead lands next tick,
-        # once that entry is on the current, now-video mode.
+        # Hand).
         self.arbiter.sync(self.state.main_mode, paused=self.state.omni_paused,
                           control=self.state.osr2_control)
 
@@ -392,6 +396,7 @@ class DispatchLoopRunner:
                 self._update_dashboard()
         self.bring_the_players_home(now=now)
         self.gallery_follows_genau.sync()
+        self.main_slot_handover.sync(self.state.main_mode, paused=self.state.omni_paused)
         self.watch.sample_due(now=now, paused=self.state.omni_paused,
                               satellites=not hosting_origenerator(self.state, self.config))
         self.hud.publish_due(self.state, now=now)
@@ -995,6 +1000,10 @@ def _run_follow_genaus_lock(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner.gallery_follows_genau.expect_a_lock()
 
 
+def _run_hand_over_the_main_slot(runner: DispatchLoopRunner, op: WindowOp) -> None:
+    runner.main_slot_handover.begin(MainMode(op.key))
+
+
 def _run_ahk_passthrough(runner: DispatchLoopRunner, op: WindowOp) -> None:
     if op.op == Op.UNSUSPEND_HOTKEYS and runner.env.integration:
         return
@@ -1019,6 +1028,7 @@ _OP_HANDLERS = {
     Op.MAIN_PLAYER_ANSWERS: _run_main_player_answers,
     Op.TAKE_BACK_PLAYERS: _run_take_back_players,
     Op.FOLLOW_GENAUS_LOCK: _run_follow_genaus_lock,
+    Op.HAND_OVER_THE_MAIN_SLOT: _run_hand_over_the_main_slot,
 }
 assert set(_OP_HANDLERS) == set(Op), "every window op needs a handler"
 

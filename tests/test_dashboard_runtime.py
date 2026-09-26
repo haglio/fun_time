@@ -141,6 +141,18 @@ def test_read_genau_status_parses_the_learned_motion(tmp_path: Path):
     assert read_genau_status(tmp_path / "missing.txt").learned_active is False
 
 
+def test_read_genau_status_says_whether_genau_is_the_hud_and_only_when_genau_said(tmp_path: Path):
+    status_file = tmp_path / "genau_status.txt"
+
+    status_file.write_text("hud=1\n", encoding="utf-8")
+    assert read_genau_status(status_file).hud_on is True
+    status_file.write_text("hud=0\n", encoding="utf-8")
+    assert read_genau_status(status_file).hud_on is False
+    status_file.write_text("cruise=0\n", encoding="utf-8")
+    assert read_genau_status(status_file).hud_on is None
+    assert read_genau_status(tmp_path / "missing.txt").hud_on is None
+
+
 def test_read_genau_status_parses_the_clip_lock(tmp_path: Path):
     status_file = tmp_path / "genau_status.txt"
     status_file.write_text("locked=0\n", encoding="utf-8")

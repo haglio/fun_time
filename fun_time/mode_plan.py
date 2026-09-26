@@ -73,8 +73,9 @@ def build_mode_switch_plan(
         target_mode=target_mode,
         is_transition=True,
         genau_cmd=None if omni_paused else "RESUME",
-        hud_cmd=hud_verb(target_mode),
+        hud_cmd=None if main_player_displays(target_mode) else hud_verb(target_mode),
         main_player_should_play=None if omni_paused else main_player_displays(target_mode),
-        main_player_display_cmd=main_player_display_verb(target_mode),
+        main_player_display_cmd=(main_player_display_verb(target_mode)
+                                 if main_player_displays(target_mode) else None),
         log_message=f"Switched to {target_mode} mode",
     )

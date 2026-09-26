@@ -86,10 +86,12 @@ _OPS_WITH_NO_WINDOWS = frozenset({
 # is a subprocess of its own, an RFB tab is skipped rather than misdelivered
 # (a session with no browser window of its own opens none), and taking the
 # players back from a hosted app is file work on the players' own channels, as
-# is sending the hosted gallery to the clip Genau's role says it has locked.
+# is sending the hosted gallery to the clip Genau's role says it has locked, and
+# handing the main slot between Genau and the main player (the headset's roles
+# trade the slot on the same HUD and display verbs).
 _OPS_THAT_STILL_ACT = frozenset({
     Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS, Op.SAVE_CLIP, Op.OPEN_RFB_TAB,
-    Op.TAKE_BACK_PLAYERS, Op.FOLLOW_GENAUS_LOCK,
+    Op.TAKE_BACK_PLAYERS, Op.FOLLOW_GENAUS_LOCK, Op.HAND_OVER_THE_MAIN_SLOT,
 })
 
 _OPS_A_HEADSET_NEVER_RAISES = frozenset({Op.MAIN_PLAYER_ANSWERS})
