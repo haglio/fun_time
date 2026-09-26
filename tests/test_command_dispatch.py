@@ -2951,6 +2951,17 @@ class TestTakingTheOsr2:
         assert after.omni_paused is False
         assert not config.genau_cmd_file.exists()
 
+    def test_the_bare_nudge_speeds_the_side_player_whose_script_has_the_osr2(self, tmp_path: Path):
+        config = _make_config(tmp_path)
+        config.portrait_status_file.write_text("has_funscript=1\nfunscript_resting=0\n",
+                                               encoding="utf-8")
+
+        dispatch_command("speed_up", _make_state(main_mode=MainMode.GENAU,
+                                                 osr2_player=Player.PORTRAIT), config)
+
+        assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+        assert not config.genau_cmd_file.exists()
+
     def test_the_bare_nudge_speeds_the_robot_hand_while_a_side_player_has_it(self, tmp_path: Path):
         config = _make_config(tmp_path)
         _set_main_player_driving(config, driving=True)
