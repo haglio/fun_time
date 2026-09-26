@@ -6,7 +6,6 @@ dispatch directly in Python instead of spawning subprocesses.
 from __future__ import annotations
 
 import logging
-import socket
 import subprocess
 import threading
 import time
@@ -44,6 +43,7 @@ from .gallery_follows_genau import GalleryFollowsGenau
 from .hud_feed import HudFeed
 from .hud_transport import HudPublisher
 from .library_browser import browse_library
+from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
 from .main_slot_handover import MainSlotHandover
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .modes import scripted_item
@@ -264,9 +264,6 @@ class DispatchLoopRunner:
         # cannot join the startup children the teardown list kills; this holds it
         # instead, and stop() is where quitting takes it with the session.
         self._browser_process: subprocess.Popen | None = None
-        self._press_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._press_port: int | None = None
-        self._press_port_file = config.state_dir / "dashboard_press_port.txt"
         # RFB tabs opened by locks are buffered and opened in one Chrome launch
         # per poll batch: "lock both" locks two videos in one tick, and two
         # rapid chrome.exe launches race Chrome's singleton and drop a tab.
@@ -661,16 +658,8 @@ class DispatchLoopRunner:
         logger.info("Opened RFB tab(s): %s", ", ".join(urls))
 
     def _send_press(self, action: str) -> None:
-        if not self.dashboard_enabled:
-            return
-        try:
-            if self._press_port is None:
-                if self._press_port_file.exists():
-                    self._press_port = int(self._press_port_file.read_text(encoding="utf-8").strip())
-            if self._press_port is not None:
-                self._press_socket.sendto(action.encode("utf-8"), ("127.0.0.1", self._press_port))
-        except (OSError, ValueError) as exc:
-            logger.debug("press hint for %r not sent: %s", action, exc)
+        if self.dashboard_enabled:
+            post_to_inbox(self.config.state_dir / PRESS_PORT_FILENAME, action)
 
     def _update_dashboard(self) -> None:
         """Write the dashboard's snapshot; only the disk may fail quietly.
@@ -910,7 +899,6 @@ class DispatchLoopRunner:
         browsing = self._browser_process
         if browsing is not None:
             browsing.terminate()
-        self._press_socket.close()
 
 
 # --- the window-op interpreter ----------------------------------------------

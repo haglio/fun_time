@@ -1485,10 +1485,9 @@ def test_the_dashboard_records_which_checkout_it_ran_from(tmp_path: Path):
     assert (source_checkout() / "fun_time" / "dashboard_app.py").exists()
 
 
-def test_the_two_collaborators_that_claim_to_be_qt_free_are():
-    """`press_channel` and `loading_reveal` say so in their docstrings, and a
-    docstring is not a fact until something checks it.  `notice_feed` makes no
-    such claim: it reads `notice_overlay`, whose widget half imports PyQt6."""
+def test_the_inbox_and_the_reveal_leave_telling_the_gui_thread_to_the_window():
+    """`notice_feed` is not held to this: it reads `notice_overlay`, whose
+    widget half imports PyQt6."""
     def loads_qt(module: str) -> bool:
         result = subprocess.run(
             [sys.executable, "-c",
@@ -1500,7 +1499,7 @@ def test_the_two_collaborators_that_claim_to_be_qt_free_are():
         assert result.returncode == 0, result.stderr
         return result.stdout.strip() == "True"
 
-    assert not loads_qt("fun_time.press_channel")
+    assert not loads_qt("fun_time.loopback_inbox")
     assert not loads_qt("fun_time.loading_reveal")
 
 

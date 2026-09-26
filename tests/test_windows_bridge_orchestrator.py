@@ -23,6 +23,7 @@ from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FIL
 from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
 from fun_time.loading_cover import open_the_cover
 from fun_time.loading_screen import STALE_TIMEOUT_S
+from fun_time.loopback_inbox import PRESS_PORT_FILENAME
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
@@ -41,7 +42,6 @@ from fun_time.overlay_progress import (
     parse_progress,
     ready_file_for,
 )
-from fun_time.press_channel import PRESS_PORT_FILENAME
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
 from fun_time.session_handoff import (
