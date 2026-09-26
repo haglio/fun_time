@@ -32,6 +32,7 @@ from fun_time.voice_commands import (
 logger = logging.getLogger(__name__)
 
 WORKING_ON_IT = "Figuring out what you said..."
+DID_NOT_CATCH_IT = "couldn't catch what you said"
 
 
 def _source_for_command(command: str, active_player: int | None = None) -> str:
@@ -227,6 +228,11 @@ class VoiceController:
         elif recognition.unrecognized_text:
             self._report(f"unrecognized voice command: {recognition.unrecognized_text}",
                          heard_text=recognition.unrecognized_text)
+        elif heard.words_formed and recognition.silent_reading:
+            self._report(f"too quiet to act on: {recognition.silent_reading}",
+                         heard_text=recognition.silent_reading)
+        elif heard.words_formed:
+            self._report(DID_NOT_CATCH_IT, heard_text="")
 
     def _dispatch(self, phrase: str, *, spoken_at: float) -> None:
         command = VOICE_COMMANDS[phrase]

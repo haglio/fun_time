@@ -6,6 +6,7 @@ floor, the microphone, the kept clips -- is voice_core's and is tested there.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -270,6 +271,25 @@ class TestHandleHeard:
 
         assert seen == []
         assert not (tmp_path / "cmd.txt").exists()
+
+    @pytest.mark.parametrize("recognition, report", [
+        (Recognition(silent_reading="landscape half"), ("too quiet to act on: landscape half",
+                                                        "landscape")),
+        (Recognition(), ("couldn't catch what you said", "system")),
+        (Recognition(unrecognized_text="", heard=""), ("couldn't catch what you said",
+                                                       "system")),
+    ])
+    def test_an_utterance_it_said_it_was_figuring_out_always_ends_saying_what_it_heard(
+        self, tmp_path, monkeypatch, recognition, report,
+    ):
+        vc = self._controller(tmp_path)
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
+
+        vc.handle_heard(replace(_heard(recognition), words_formed=True))
+
+        assert seen == [(*report, logging.WARNING)]
 
 
 class TestTheListenerItRuns:
