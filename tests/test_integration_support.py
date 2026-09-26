@@ -621,3 +621,14 @@ class TestPostingADashboardCommand:
 
         assert session.dashboard_cmd_file.read_text(encoding="utf-8").split() == [
             "main_video_activate"]
+
+
+def test_a_wait_that_runs_out_describes_how_things_stood_when_it_gave_up(session):
+    stood = {"then": "as it began"}
+
+    def not_yet() -> bool:
+        stood["then"] = "as it gave up"
+        return False
+
+    with pytest.raises(AssertionError, match="as it gave up"):
+        session.wait_until(not_yet, timeout=0.01, description=lambda: stood["then"])
