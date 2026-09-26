@@ -64,6 +64,7 @@ from fun_time.windows_bridge_orchestrator import (
     SETTLE_PASSES,
     SETTLE_WAIT_S,
     ChildProcess,
+    _AppendOnWriteHandler,
     _close_origenerator_gracefully,
     _fix_post_loading_windows,
     _log_window_obstruction,
@@ -2526,6 +2527,25 @@ class TestOpenEventLog:
             listener_logger.handlers[:] = original[1]
             package_logger.setLevel(original[2])
             listener_logger.setLevel(original[3])
+
+
+    def test_an_error_logged_with_its_exception_keeps_its_traceback_in_the_bridge_log(
+            self, tmp_path):
+        failing = logging.getLogger("tests.bridge_log_traceback")
+        failing.propagate = False
+        handler = _AppendOnWriteHandler(tmp_path / "bridge.log")
+        failing.addHandler(handler)
+        try:
+            try:
+                raise ValueError("a stand-in failure")
+            except ValueError:
+                failing.exception("Dispatch loop error")
+        finally:
+            failing.removeHandler(handler)
+
+        text = (tmp_path / "bridge.log").read_text(encoding="utf-8")
+        assert "Dispatch loop error" in text
+        assert "ValueError: a stand-in failure" in text
 
 
 class TestOrigeneratorGracefulClose:
