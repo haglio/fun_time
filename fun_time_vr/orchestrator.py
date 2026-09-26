@@ -695,7 +695,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         ended_by = _wait_for_session_end(ahk_proc, player, state_dir=state_dir)
         asked = ended_by == "asked"
         if ended_by == "player":
-            logger.info("VR player exited -- ending the session")
+            logger.info("VR player exited with code %s -- ending the session", player.returncode)
             ahk_proc.terminate()
             ahk_proc.wait()
             exit_code = 0
