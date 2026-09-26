@@ -40,7 +40,7 @@ from .lettering import REGULAR_FACE, WORDMARK_FACE, load_font
 
 logger = logging.getLogger(__name__)
 
-# Shorter than the desktop's: no browser, no Origenerator, no windows.
+# Shorter than the desktop's: no browser and no windows.
 VR_STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("companions", "Launching companions...", 0.6),
