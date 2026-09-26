@@ -58,9 +58,20 @@ def test_a_takeover_lands_whole_under_its_own_name(tmp_path):
         encoding="utf-8")) == {"pid": 4321, "args": ["--fun-time", "--x", "0"]}
 
 
+def _claim_in(checkout):
+    return (checkout / "state" / "fun_time_session.txt").read_text(encoding="utf-8")
+
+
 def test_a_session_claims_the_osr2_by_its_own_process(tmp_path):
     claim_the_osr2(tmp_path)
 
-    assert (tmp_path / "state" / "fun_time_session.txt").read_text(
-        encoding="utf-8").split() == [
-            str(os.getpid()), str(get_process_creation_time(os.getpid()))]
+    assert _claim_in(tmp_path) == _this_process()
+
+
+def test_a_session_hosting_a_worktree_claims_the_osr2_in_its_primary_checkout_too(tmp_path):
+    primary = tmp_path / "origenerator"
+    worktree = primary / ".claude" / "worktrees" / "my-branch"
+
+    claim_the_osr2(worktree)
+
+    assert (_claim_in(worktree), _claim_in(primary)) == (_this_process(), _this_process())

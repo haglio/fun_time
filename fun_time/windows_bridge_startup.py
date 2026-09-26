@@ -23,7 +23,7 @@ from satellite.contract import SatelliteChannels, WindowPlacement
 from . import broker_contract
 from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
-from .checkout_overrides import genau_project_kwargs
+from .checkout_overrides import genau_project_kwargs, is_a_worktree, primary_of
 from .child_launch import no_child_log, open_child_log
 from .config import load_config
 from .content import load_web_providers
@@ -643,15 +643,8 @@ def origenerator_launch_command(*, python_exe: str | Path, **contract) -> list[s
             *origenerator_session_args(**contract)]
 
 
-def is_a_worktree(checkout: Path) -> bool:
-    return checkout.parent.name == "worktrees" and checkout.parent.parent.name == ".claude"
-
-
 def origenerator_interpreter(origenerator_dir: str | Path) -> Path:
-    """A worktree has no install of its own and runs from the primary's."""
-    checkout = Path(origenerator_dir)
-    repo = checkout.parents[2] if is_a_worktree(checkout) else checkout
-    return repo / ".venv" / "Scripts" / "python.exe"
+    return primary_of(Path(origenerator_dir)) / ".venv" / "Scripts" / "python.exe"
 
 
 def origenerator_launch_kwargs(
