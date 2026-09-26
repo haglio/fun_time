@@ -55,9 +55,9 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 
 `windows_bridge_hotkeys.ahk` runs under `#SingleInstance Force`. Startup checks, integration runs, and AHK launch validations must be executed sequentially — parallel launches can evict each other.
 
-## Integration test fidelity
+## Test fidelity
 
-- **Test configuration must derive from production code.** Integration tests may test individual components (not only end-to-end), but their configuration (launch commands, flags, init sequences) must come from the same production functions that real sessions use. Never hand-craft config that duplicates production logic — if the test builds its own satellite command line instead of calling `_build_satellite_launch_command`, it can pass while production is broken.
+- **Test configuration must derive from production code — in every test that stands in for a session, unit tests included.** A test's launch commands, flags, init sequences and session configs come from the same production functions real sessions use, never hand-crafted: if the test builds its own satellite command line instead of calling `_build_satellite_launch_command`, it can pass while production is broken. A hand-built copy is also where a production decision changes without any test noticing: `tests/test_vr_control_parity.py` built its headset config by hand with Origenerator off, and went on passing for five days after `build_bridge_config_from_manifest` started hosting Origenerator in the headset.
 - **Integration tests must randomize video selection.** Use `random.sample()` or `random.choice()` — never `sorted()[:n]` or other deterministic selection. The same videos playing every run masks bugs that only surface with different media files.
 
 ## The shared repos
