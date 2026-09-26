@@ -15,11 +15,13 @@ imports startup, so the file's shape has to sit under both.
 from __future__ import annotations
 
 import configparser
+import io
 from dataclasses import MISSING, dataclass, field, fields, replace
 from enum import Enum
 from pathlib import Path
 
 from player_core.console import OSR2_DRIVING
+from player_core.file_channel import publish_whole
 from player_core.modes import MainMode, SatellitesMode, read_mode
 
 from .audio_volume import MAX_VOLUME
@@ -166,11 +168,13 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
         **{f.name: _written(getattr(state, f.name)) for f in _session_fields()},
         **_written_satellites(state),
     }
-    state_file.parent.mkdir(parents=True, exist_ok=True)
-    tmp = state_file.with_suffix(".tmp")
-    with tmp.open("w", encoding="utf-8") as fp:
-        parser.write(fp)
-    tmp.replace(state_file)
+    _publish(state_file, parser)
+
+
+def _publish(state_file: Path, parser: configparser.ConfigParser) -> None:
+    text = io.StringIO()
+    parser.write(text)
+    publish_whole(state_file, text.getvalue())
 
 
 def _read_satellite(section, player: Player) -> SatelliteState:
@@ -228,10 +232,7 @@ def migrate_shared_state(state_file: Path) -> bool:
     for old in old_keys:
         section.setdefault(_LAST_SESSIONS_KEYS[old], section[old])
         del section[old]
-    tmp = state_file.with_suffix(".tmp")
-    with tmp.open("w", encoding="utf-8") as fp:
-        parser.write(fp)
-    tmp.replace(state_file)
+    _publish(state_file, parser)
     return True
 
 

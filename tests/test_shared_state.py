@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import configparser
+import os
 import subprocess
 import sys
 from dataclasses import fields, replace
@@ -31,6 +32,25 @@ def test_the_state_file_is_named_off_the_state_dir(tmp_path: Path):
     """Four processes open this file by path, so they resolve it one way."""
     assert shared_state_path(tmp_path) == tmp_path / SHARED_STATE_FILENAME
 
+
+
+def test_a_write_that_meets_a_reader_holding_the_file_open_still_lands(tmp_path: Path, monkeypatch):
+    state_file = tmp_path / SHARED_STATE_FILENAME
+    real_replace = os.replace
+    refused: list[str] = []
+
+    def replace_refused_once(src, dst):
+        if not refused:
+            refused.append(str(dst))
+            raise PermissionError(
+                32, "The process cannot access the file because it is being used by another process")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", replace_refused_once)
+    write_shared_state(state_file, BridgeState(omni_paused=True))
+
+    assert refused
+    assert read_shared_state(state_file).omni_paused is True
 
 def _shifted(value):
     """Any value of the same type that is not *value* — so a field which fails to
