@@ -8,7 +8,7 @@ from pathlib import Path
 
 PRESS_PORT_FILENAME = "dashboard_press_port.txt"
 
-_MAX_DATAGRAM = 4096
+_MAX_DATAGRAM = 65536
 
 
 class LoopbackInbox:

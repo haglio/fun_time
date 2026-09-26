@@ -17,6 +17,7 @@ from fun_time.event_log import EVENT_LOG_FILENAME, is_announcement, read_events
 from fun_time.notice_placement import PlayerRects, notice_target_rect
 from fun_time.overlay_progress import loading_cover_is_up
 from fun_time.shared_state import read_shared_state
+from fun_time.unlogged_notices import UnloggedNotices
 from fun_time.window_layout import ScreenLayout, screen_layout, secondary_monitor_rects
 
 
@@ -63,6 +64,7 @@ class NoticeFeed:
         self._shared_state_file = shared_state_file
         self._screens = _screens(layout)
         self.overlay = make_overlay() if self._screens is not None else None
+        self._unlogged = UnloggedNotices(event_log_dir) if self.overlay is not None else None
 
     @property
     def offset(self) -> int:
@@ -90,7 +92,8 @@ class NoticeFeed:
             self._held = False
         records, self._offset = read_events(
             self._event_log_dir / EVENT_LOG_FILENAME, self._offset)
-        announcements = [record for record in records if is_announcement(record)]
+        announcements = sorted([*filter(is_announcement, records), *self._unlogged.take_all()],
+                               key=lambda record: record.ts)
         if not announcements:
             return
         rects = self.player_rects
@@ -99,6 +102,8 @@ class NoticeFeed:
 
     def shutdown(self) -> None:
         """Put the overlay down; nothing flashes after this."""
+        if self._unlogged is not None:
+            self._unlogged.stop()
         if self.overlay is not None:
             self.overlay.shutdown()
             self.overlay = None

@@ -12,6 +12,7 @@ from fun_time.event_log import (
     SOURCES,
     EventLogHandler,
     event_log_path,
+    is_announcement,
     notice,
     read_events,
     start_event_log,
@@ -88,6 +89,16 @@ class TestNotice:
         assert payload["level"] == NOTICE
         assert payload["source"] == "main"
         assert payload["msg"] == "Clip saved"
+
+    def test_a_notice_flashed_by_other_means_is_listed_but_not_announced(self, log_path: Path):
+        logger = _logger(log_path, "test.event_log.flashed_elsewhere")
+
+        notice(logger, "unrecognized voice command (3 words)", source="main",
+               level=logging.WARNING, flashes=False)
+
+        [record], _offset = read_events(log_path)
+        assert record.message == "unrecognized voice command (3 words)"
+        assert not is_announcement(record)
 
 
 class TestReadEvents:

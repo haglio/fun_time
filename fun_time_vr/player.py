@@ -82,6 +82,7 @@ from fun_time.session_handoff import (
     headset_hold_stops_the_runtime,
     report_the_headset_held,
 )
+from fun_time.unlogged_notices import UnloggedNotices
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from main_player.play_points import PlayPoints, play_points_filename
 from satellite.contract import SatelliteChannels
@@ -2062,7 +2063,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     _raise_the_cover(session, renderer, cover)
     # One read of the event log per tick, pumped before anything that shows a
     # notice off it: the console's strip and every screen's own banner.
-    notices = NoticeBoard(event_log_path(state_dir))
+    notices = NoticeBoard(event_log_path(state_dir), unlogged=UnloggedNotices(state_dir))
     genau = _GenauUnit(manifest, vr, stop, remembered=remembered.placements)
     _present_the_cover(session, renderer, cover)
     main_unit = _MainUnit(manifest, vr, contexts, remembered=remembered,

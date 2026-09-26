@@ -129,8 +129,6 @@ class TestHandleHeard:
         assert seen == []
 
     @pytest.mark.parametrize("recognition, report", [
-        (Recognition(unrecognized_text="full length please"),
-         "unrecognized voice command: full length please"),
         (Recognition(refused_phrase="skip"), "not sure enough of: skip"),
         (Recognition(unconfirmed_phrase="go now"), "not sure enough of: genau"),
     ])
@@ -163,11 +161,31 @@ class TestHandleHeard:
         vc = self._controller(tmp_path)
         seen = []
         monkeypatch.setattr(voice_control, "notice",
-                            lambda _log, msg, *, source, level=25: seen.append((msg, source)))
+                            lambda _log, _msg, *, source, level, flashes: seen.append(source))
+        monkeypatch.setattr(voice_control, "flash_unlogged",
+                            lambda _dir, _msg, *, source, level: seen.append(source))
 
         vc.handle_heard(_heard(Recognition(unrecognized_text=heard)))
 
-        assert seen == [(f"unrecognized voice command: {heard}", source)]
+        assert seen == [source, source]
+
+    def test_speech_that_is_no_command_flashes_its_words_and_logs_only_how_many(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        vc = self._controller(tmp_path)
+        flashed = []
+        monkeypatch.setattr(voice_control, "flash_unlogged",
+                            lambda state_dir, message, *, source, level:
+                            flashed.append((state_dir, message, source, level)))
+
+        with caplog.at_level(logging.DEBUG):
+            vc.handle_heard(_heard(Recognition(unrecognized_text="landscape alpha beta gamma")))
+
+        assert flashed == [(tmp_path, "unrecognized voice command: landscape alpha beta gamma",
+                            "landscape", logging.WARNING)]
+        assert [(record.getMessage(), record.levelno, record.source, record.flashes)
+                for record in caplog.records] == [
+            ("unrecognized voice command (4 words)", logging.WARNING, "landscape", False)]
 
     def test_a_player_word_inside_a_longer_word_does_not_claim_the_report(self):
         """The player has to be *named* — matched whole, not as a fragment."""
@@ -178,6 +196,7 @@ class TestHandleHeard:
         vc.mute()
         seen = []
         monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
+        monkeypatch.setattr(voice_control, "flash_unlogged", lambda *a, **k: seen.append(a))
 
         vc.handle_heard(_heard(Recognition(unrecognized_text="full length please")))
 

@@ -12,6 +12,7 @@ from fun_time.event_log import (
     is_announcement,
     read_events,
 )
+from fun_time.unlogged_notices import UnloggedNotices
 
 from .layout import MAIN
 
@@ -48,10 +49,12 @@ class NoticeBoard:
     the console's strip, and one banner per screen.  Both fade on the CALLER's
     clock, so a wall-clock stamp and a monotonic pump are never subtracted."""
 
-    def __init__(self, event_log: Path | str, *, seconds: float = NOTICE_SECONDS,
-                 kept: int = KEPT, banner_seconds: float = BANNER_SECONDS,
+    def __init__(self, event_log: Path | str, *, unlogged: UnloggedNotices | None = None,
+                 seconds: float = NOTICE_SECONDS, kept: int = KEPT,
+                 banner_seconds: float = BANNER_SECONDS,
                  kept_records: int = KEPT_RECORDS) -> None:
         self._path = Path(event_log)
+        self._unlogged = unlogged
         self._seconds = seconds
         self._kept = kept
         self._banner_seconds = banner_seconds
@@ -65,9 +68,9 @@ class NoticeBoard:
         records, self._offset = read_events(self._path, self._offset)
         # The dash filters the whole stream itself, so everything is kept.
         self._records = (self._records + records)[-self._kept_records:]
-        for record in records:
-            if not is_announcement(record):
-                continue
+        unlogged = self._unlogged.take_all() if self._unlogged is not None else []
+        for record in sorted([*filter(is_announcement, records), *unlogged],
+                             key=lambda record: record.ts):
             notice = Notice(record.message, record.level, screen_for(record.source), now)
             self._lines.append(notice)
             self._banners[notice.screen] = notice  # the newest wins its screen
@@ -89,5 +92,6 @@ class NoticeBoard:
     def records(self) -> tuple:  # the whole stream, unfiltered, oldest first
         return tuple(self._records)
 
-    def close(self) -> None:  # the teardown closes all it pumps; a board holds nothing open
-        pass
+    def close(self) -> None:
+        if self._unlogged is not None:
+            self._unlogged.stop()

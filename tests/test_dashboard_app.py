@@ -19,6 +19,8 @@ from PyQt6.QtWidgets import QTextBrowser, QWidget
 from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import BUTTON_MARK_INSET, BUTTON_RADIUS_HUD
+from voice_core.commands import Recognition
+from voice_core.listening import Heard
 
 from fun_time import load_config
 from fun_time.crown import Crown
@@ -58,11 +60,19 @@ from fun_time.dashboard_layout import (
     dashboard_window_height,
 )
 from fun_time.dashboard_runtime import DashboardSnapshot
-from fun_time.event_log import EVENT_LOG_FILENAME, NOTICE, SOURCE_DASH
+from fun_time.event_log import (
+    EVENT_LOG_FILENAME,
+    NOTICE,
+    SOURCE_DASH,
+    EventLogHandler,
+    event_log_path,
+)
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
+from fun_time.unlogged_notices import flash_unlogged
+from fun_time.voice_control import VoiceController
 from fun_time.window_layout import (
     compute_main_media_rect,
     compute_window_layout,
@@ -1471,6 +1481,53 @@ def test_an_event_that_is_not_an_announcement_is_read_past_not_flashed(
         assert window._notices.offset > 0
     finally:
         window.close()
+
+
+def test_words_flashed_with_no_log_line_land_over_the_player_they_name(dashboard_app_config):
+    window = _notice_window(dashboard_app_config, held=False)
+    try:
+        flash_unlogged(dashboard_app_config.state_dir, "unrecognized voice command: alpha beta",
+                       source="portrait", level=logging.WARNING)
+        deadline = time.monotonic() + 5.0
+        while not window._notices.overlay.flashed and time.monotonic() < deadline:
+            window._notices.poll()
+            time.sleep(0.02)
+
+        [(message, target)] = window._notices.overlay.flashed
+        assert message == "unrecognized voice command: alpha beta"
+        assert target == window._notices.player_rects.portrait
+    finally:
+        window.close()
+
+
+def test_speech_that_is_no_command_is_flashed_in_its_words_and_listed_without_them(
+        dashboard_app_config):
+    state_dir = dashboard_app_config.state_dir
+    window = _notice_window(dashboard_app_config, held=False)
+    voice_log = logging.getLogger("fun_time.voice_control")
+    written = EventLogHandler(event_log_path(state_dir))
+    voice_log.addHandler(written)
+    try:
+        VoiceController(cmd_file=dashboard_app_config.dashboard_cmd_file,
+                        model_path="unused").handle_heard(Heard(
+            Recognition(unrecognized_text="put the kettle on"),
+            spoken_at=1.0, peak=2000, audio=b"", candidates={}))
+        deadline = time.monotonic() + 5.0
+        while not window._notices.overlay.flashed and time.monotonic() < deadline:
+            window._notices.poll()
+            time.sleep(0.02)
+        window._log_widget._poll()
+        listed = [window._log_widget._list.item(row).text()
+                  for row in range(window._log_widget._list.count())]
+        flashed = [message for message, _target in window._notices.overlay.flashed]
+    finally:
+        voice_log.removeHandler(written)
+        window.close()
+
+    assert flashed == ["unrecognized voice command: put the kettle on"]
+    [line] = [line for line in listed if "unrecognized" in line]
+    assert line.endswith("unrecognized voice command (4 words)")
+    assert "kettle" not in event_log_path(state_dir).read_text(encoding="utf-8")
 
 
 def test_the_dashboard_records_which_checkout_it_ran_from(tmp_path: Path):
