@@ -1409,6 +1409,16 @@ class TestOpeningAVrSession:
 
         assert offered == ["Press Esc to cancel closing Fun Time VR"]
 
+    def test_a_player_that_dies_mid_session_leaves_its_exit_code_in_the_log(self, config, caplog):
+        died = MagicMock(pid=202, returncode=3221225477)
+        died.poll.return_value = None
+
+        with caplog.at_level(logging.INFO, logger="fun_time_vr.orchestrator"):
+            _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "player",
+                              launch_vr_player=MagicMock(return_value=died))
+
+        assert "3221225477" in caplog.text
+
     def test_a_session_crossing_to_fun_time_says_esc_cancels_exiting_vr(self, config):
         def asked_to_cross(*_args, **_kwargs):
             request_handoff(config.paths.state_dir, DESKTOP)
