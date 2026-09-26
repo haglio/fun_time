@@ -5,11 +5,19 @@ green either way, only slower or dirtier.  So each of them gets a test.
 """
 from __future__ import annotations
 
+import subprocess
+import sys
 import time
 
 import pytest
 
-from fun_time import win32, windows_bridge_orchestrator
+from fun_time import (
+    closing_screen,
+    loading_screen,
+    transition_screen,
+    win32,
+    windows_bridge_orchestrator,
+)
 
 # Read before the first fixture runs, so these are the numbers a session spends.
 REAL_STARTUP_TIMEOUTS = {
@@ -62,3 +70,16 @@ def test_the_waits_are_stubbed_per_test_and_not_edited_out_of_the_module():
     assert windows_bridge_orchestrator.wait_for_window_by_title is (
         win32.wait_for_window_by_title
     )
+
+
+@pytest.mark.parametrize("screen", [loading_screen, transition_screen, closing_screen],
+                         ids=lambda screen: screen.__name__)
+def test_a_unit_test_that_starts_a_screen_over_every_monitor_fails_instead(screen):
+    """Twice on 2026-09-26 a unit test ran the orchestrator with its screens
+    on, and the loading screen it started stood over every monitor until he
+    restarted the machine.  This command names a screen and runs nothing."""
+    names_a_screen_and_runs_nothing = [sys.executable, "-c", "pass", "-m", screen.__name__]
+
+    with pytest.raises(pytest.fail.Exception, match=screen.__name__):
+        subprocess.run(names_a_screen_and_runs_nothing, check=False, timeout=60,
+                       creationflags=subprocess.CREATE_NO_WINDOW)

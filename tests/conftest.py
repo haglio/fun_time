@@ -1,8 +1,10 @@
 """Shared pytest fixtures for Fun Time tests."""
 from __future__ import annotations
 
+import _winapi
 import json
 import os
+import re
 from pathlib import Path
 
 # Render Qt offscreen for the whole unit suite. Agents run these GUI tests on every
@@ -33,9 +35,12 @@ from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
 apply_genau_dirs_to_sys_path()
 
 from fun_time import (
+    closing_screen,
     loading_cover,
+    loading_screen,
     orchestrator,
     session_handoff,
+    transition_screen,
     win32,
     windows_bridge_orchestrator,
 )
@@ -136,6 +141,30 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
         monkeypatch.setattr(module, "wait_for_window_by_title", lambda _title, **_kwargs: 0)
     monkeypatch.setattr(windows_bridge_orchestrator, "CLOSING_SCREEN_READY_TIMEOUT_S", 0)
     monkeypatch.setattr(windows_bridge_orchestrator, "POST_LOADING_RESOLVE_TIMEOUT_S", 0)
+
+
+_SCREENS_OVER_EVERY_MONITOR = (loading_screen, transition_screen, closing_screen)
+_STARTS_A_SCREEN = re.compile(
+    r"-m\s+(" + "|".join(re.escape(screen.__name__) for screen in _SCREENS_OVER_EVERY_MONITOR)
+    + r")\b")
+
+
+@pytest.fixture(autouse=True)
+def _never_start_a_real_cover(monkeypatch):
+    """Refuse the loading, transition and closing screens at the process
+    start, which a test's mocked Popen never reaches.  Each is a real window
+    over every monitor of whoever runs the suite, and one whose progress file
+    went with its test's scratch folder stood there until he restarted the
+    machine.  The integration suite overrides this: its screens are real on
+    purpose, on a desktop nobody sees."""
+    create_process = _winapi.CreateProcess
+
+    def refuse_a_screen(application_name, command_line, *rest):
+        if _STARTS_A_SCREEN.search(command_line or ""):
+            pytest.fail(f"a unit test started a real screen over every monitor: {command_line}")
+        return create_process(application_name, command_line, *rest)
+
+    monkeypatch.setattr(_winapi, "CreateProcess", refuse_a_screen)
 
 
 @pytest.fixture(autouse=True)

@@ -127,6 +127,13 @@ def _never_mutate_a_real_window():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _never_start_a_real_cover():
+    """Override the unit suite's refusal of the screens over every monitor:
+    the tests here start them for real, on the hidden desktop."""
+    yield
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _release_the_runs_udp_sinks():
     """Hand back the ports this run bound to catch its own T-Code.
