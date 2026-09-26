@@ -25,6 +25,19 @@ def _heard(recognition: Recognition) -> Heard:
     return Heard(recognition, spoken_at=1.0, peak=SPOKEN, audio=b"", candidates={})
 
 
+def _formed(recognition: Recognition) -> Heard:
+    return replace(_heard(recognition), words_formed=True)
+
+
+MISSES = [
+    Recognition(refused_phrase="skip"),
+    Recognition(unconfirmed_phrase="go now"),
+    Recognition(unrecognized_text="alpha beta"),
+    Recognition(silent_reading="half"),
+    Recognition(),
+]
+
+
 class TestCommandRules:
     def test_every_spoken_phrase_is_one_the_listener_is_told_to_hear(self):
         rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
@@ -128,23 +141,32 @@ class TestHandleHeard:
         assert not (tmp_path / "cmd.txt").exists()
         assert seen == []
 
-    @pytest.mark.parametrize("recognition, report", [
-        (Recognition(refused_phrase="skip"), "not sure enough of: skip"),
-        (Recognition(unconfirmed_phrase="go now"), "not sure enough of: genau"),
+    @pytest.mark.parametrize("recognition, logged, shown, source", [
+        (Recognition(refused_phrase="skip"),
+         "not sure enough of a command (1 word)", "not sure enough of: skip", "system"),
+        (Recognition(unconfirmed_phrase="go now"),
+         "not sure enough of a command (1 word)", "not sure enough of: genau", "system"),
+        (Recognition(unrecognized_text="landscape alpha beta gamma"),
+         "unrecognized voice command (4 words)",
+         "unrecognized voice command: landscape alpha beta gamma", "landscape"),
+        (Recognition(silent_reading="landscape half"),
+         "too quiet to act on (2 words)", "too quiet to act on: landscape half", "landscape"),
     ])
-    def test_speech_it_could_not_act_on_is_reported_as_a_warning(
-        self, tmp_path, monkeypatch, recognition, report,
+    def test_what_it_heard_and_did_not_act_on_is_flashed_in_its_words_and_logged_by_count(
+        self, tmp_path, monkeypatch, caplog, recognition, logged, shown, source,
     ):
-        """Nothing failed: the room was heard, just not well enough to act on,
-        so the report reads yellow and red is kept for errors."""
         vc = self._controller(tmp_path)
-        seen = []
-        monkeypatch.setattr(voice_control, "notice",
-                            lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
+        flashed = []
+        monkeypatch.setattr(voice_control, "flash_unlogged",
+                            lambda state_dir, message, *, source, level:
+                            flashed.append((state_dir, message, source, level)))
 
-        vc.handle_heard(_heard(recognition))
+        with caplog.at_level(logging.DEBUG):
+            vc.handle_heard(_formed(recognition))
 
-        assert seen == [(report, "system", logging.WARNING)]
+        assert flashed == [(tmp_path, shown, source, logging.WARNING)]
+        assert [(record.getMessage(), record.levelno, record.source, record.flashes)
+                for record in caplog.records] == [(logged, logging.WARNING, source, False)]
 
     @pytest.mark.parametrize("heard, source", [
         ("portrait full length please", "portrait"),
@@ -165,27 +187,9 @@ class TestHandleHeard:
         monkeypatch.setattr(voice_control, "flash_unlogged",
                             lambda _dir, _msg, *, source, level: seen.append(source))
 
-        vc.handle_heard(_heard(Recognition(unrecognized_text=heard)))
+        vc.handle_heard(_formed(Recognition(unrecognized_text=heard)))
 
         assert seen == [source, source]
-
-    def test_speech_that_is_no_command_flashes_its_words_and_logs_only_how_many(
-        self, tmp_path, monkeypatch, caplog,
-    ):
-        vc = self._controller(tmp_path)
-        flashed = []
-        monkeypatch.setattr(voice_control, "flash_unlogged",
-                            lambda state_dir, message, *, source, level:
-                            flashed.append((state_dir, message, source, level)))
-
-        with caplog.at_level(logging.DEBUG):
-            vc.handle_heard(_heard(Recognition(unrecognized_text="landscape alpha beta gamma")))
-
-        assert flashed == [(tmp_path, "unrecognized voice command: landscape alpha beta gamma",
-                            "landscape", logging.WARNING)]
-        assert [(record.getMessage(), record.levelno, record.source, record.flashes)
-                for record in caplog.records] == [
-            ("unrecognized voice command (4 words)", logging.WARNING, "landscape", False)]
 
     def test_a_player_word_inside_a_longer_word_does_not_claim_the_report(self):
         """The player has to be *named* — matched whole, not as a fragment."""
@@ -198,39 +202,50 @@ class TestHandleHeard:
         monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
         monkeypatch.setattr(voice_control, "flash_unlogged", lambda *a, **k: seen.append(a))
 
-        vc.handle_heard(_heard(Recognition(unrecognized_text="full length please")))
+        vc.handle_heard(_formed(Recognition(unrecognized_text="full length please")))
 
         assert seen == []
 
-    def test_a_reading_out_of_silence_or_an_empty_utterance_says_nothing(self, tmp_path, monkeypatch):
+    @pytest.mark.parametrize("recognition", MISSES)
+    def test_an_utterance_it_said_it_was_figuring_out_ends_in_exactly_one_line(
+        self, tmp_path, monkeypatch, caplog, recognition,
+    ):
         vc = self._controller(tmp_path)
-        seen = []
-        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
+        monkeypatch.setattr(voice_control, "flash_unlogged", lambda *a, **k: True)
 
-        vc.handle_heard(_heard(Recognition(silent_reading="half")))
-        vc.handle_heard(_heard(Recognition()))
+        with caplog.at_level(logging.DEBUG):
+            vc.handle_heard(_formed(recognition))
 
-        assert seen == []
+        assert len(caplog.records) == 1
+
+    @pytest.mark.parametrize("recognition", MISSES)
+    def test_an_utterance_it_never_said_it_was_figuring_out_says_nothing(
+        self, tmp_path, monkeypatch, caplog, recognition,
+    ):
+        vc = self._controller(tmp_path)
+        flashed = []
+        monkeypatch.setattr(voice_control, "flash_unlogged", lambda *a, **k: flashed.append(a))
+
+        with caplog.at_level(logging.DEBUG):
+            vc.handle_heard(_heard(recognition))
+
+        assert (caplog.records, flashed) == ([], [])
         assert not (tmp_path / "cmd.txt").exists()
 
-    @pytest.mark.parametrize("recognition, report", [
-        (Recognition(silent_reading="landscape half"), ("too quiet to act on: landscape half",
-                                                        "landscape")),
-        (Recognition(), ("couldn't catch what you said", "system")),
-        (Recognition(unrecognized_text="", heard=""), ("couldn't catch what you said",
-                                                       "system")),
+    @pytest.mark.parametrize("recognition", [
+        Recognition(), Recognition(unrecognized_text="", heard=""),
     ])
-    def test_an_utterance_it_said_it_was_figuring_out_always_ends_saying_what_it_heard(
-        self, tmp_path, monkeypatch, recognition, report,
+    def test_an_utterance_with_nothing_to_read_says_it_could_not_catch_it(
+        self, tmp_path, monkeypatch, recognition,
     ):
         vc = self._controller(tmp_path)
         seen = []
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
 
-        vc.handle_heard(replace(_heard(recognition), words_formed=True))
+        vc.handle_heard(_formed(recognition))
 
-        assert seen == [(*report, logging.WARNING)]
+        assert seen == [("couldn't catch what you said", "system", logging.WARNING)]
 
 
 class TestTheListenerItRuns:

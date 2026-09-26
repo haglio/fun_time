@@ -201,7 +201,7 @@ class TestWordsFlashedWithNoLogLine:
             VoiceController(cmd_file=tmp_path / "dashboard_cmd.txt",
                             model_path="unused").handle_heard(Heard(
                 Recognition(unrecognized_text="put the kettle on"),
-                spoken_at=1.0, peak=2000, audio=b"", candidates={}))
+                spoken_at=1.0, peak=2000, audio=b"", candidates={}, words_formed=True))
             deadline = time.monotonic() + 5.0
             while not board.lines and time.monotonic() < deadline:
                 board.pump(None, now=1.0)

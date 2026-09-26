@@ -1511,7 +1511,7 @@ def test_speech_that_is_no_command_is_flashed_in_its_words_and_listed_without_th
         VoiceController(cmd_file=dashboard_app_config.dashboard_cmd_file,
                         model_path="unused").handle_heard(Heard(
             Recognition(unrecognized_text="put the kettle on"),
-            spoken_at=1.0, peak=2000, audio=b"", candidates={}))
+            spoken_at=1.0, peak=2000, audio=b"", candidates={}, words_formed=True))
         deadline = time.monotonic() + 5.0
         while not window._notices.overlay.flashed and time.monotonic() < deadline:
             window._notices.poll()
