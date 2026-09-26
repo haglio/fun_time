@@ -377,15 +377,6 @@ class TestGenau:
 _UNANSWERED_BY_THE_HOSTED_APP: dict[str, str] = {
     "wrong_action": "a show's picture carries no act label to strike, and the app "
                     "refuses the strike on purpose",
-    "lock_action": "the app narrows a show to an act only when told the act's name",
-    "lock_on": 'the spoken "lock" asks for a state, and the app answers only the '
-               "toggle the key sends",
-    "lock_off": 'the spoken "unlock" asks for a state, and the app answers only the '
-                "toggle the key sends",
-    "fmode_on": 'the spoken "f mode on" asks for a state, and the app answers only '
-                "the toggle",
-    "fmode_off": 'the spoken "f mode off" asks for a state, and the app answers only '
-                 "the toggle",
 }
 
 
