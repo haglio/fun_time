@@ -38,6 +38,7 @@ class FakePlayer(RefusesSeeks):
         self.volumes: list[int] = []
         self.paces: list[float] = []
         self.showing_picture = False
+        self.source_dims = (0, 0)
         self.closed = False
 
     def set_pace(self, seconds: float) -> None:
@@ -136,6 +137,20 @@ class TestPictures:
         player.showing_picture = True
 
         assert session.showing_picture is True
+
+
+class TestShape:
+    def test_a_video_taller_than_it_is_wide_is_portrait(self, tmp_path):
+        session, player, _ = _make_session(tmp_path, scripted=False)
+
+        player.source_dims = (1080, 1920)
+
+        assert session.portrait is True
+
+    def test_a_video_not_measured_yet_has_no_shape(self, tmp_path):
+        session, _player, _ = _make_session(tmp_path, scripted=False)
+
+        assert session.portrait is None
 
 
 def _watch_to(session, player, position_ms):

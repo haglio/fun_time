@@ -9,6 +9,8 @@ from player_core.hud_marks import FMODE_ICON, MINIMIZE_ICON, shared_mark
 from player_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL
 from player_core.modes import SatellitesMode
 
+from .crown import CROWN_ICON, Crown
+
 # The same groups, in the same order, the console's rows are cut into.
 CONTROL_GROUPS = (
     ("prev", "next"),
@@ -63,7 +65,8 @@ def player_rows(player: str, *, locked: bool = False, favorites_filter: bool = F
                 origenerator_ready: bool = True,
                 nothing_to_reset: bool = False,
                 has_other_versions: bool = False,
-                in_vr: bool = False) -> tuple[tuple[Button, ...], ...]:
+                in_vr: bool = False,
+                crowned: bool = False) -> tuple[tuple[Button, ...], ...]:
     names = [name for group in CONTROL_GROUPS for name in group]
     if latest is None:
         names = [name for name in names if name not in _ORDER_CONTROLS]
@@ -72,26 +75,39 @@ def player_rows(player: str, *, locked: bool = False, favorites_filter: bool = F
         names.remove("minimize")
     if satellites_mode is not None:
         rows.append(mode_row(player, satellites_mode=satellites_mode,
-                             origenerator_ready=origenerator_ready, in_vr=in_vr))
+                             origenerator_ready=origenerator_ready, in_vr=in_vr,
+                             crowned=crowned))
     lit = {"lock": locked, "fmode": favorites_filter, "latest": bool(latest), "shuffle": latest is False}
     dim = {"reset": nothing_to_reset, "cycle_version": not has_other_versions}
-    rows.append(tuple(
-        _control(player, name, lit=lit.get(name, False), dim=dim.get(name, False),
-                 group_break=index > 0 and _GROUP_OF[name] != _GROUP_OF[names[index - 1]])
-        for index, name in enumerate(names)
+    rows.append((
+        *(_control(player, name, lit=lit.get(name, False), dim=dim.get(name, False),
+                   group_break=index > 0 and _GROUP_OF[name] != _GROUP_OF[names[index - 1]])
+          for index, name in enumerate(names)),
+        *(_crown(player, crowned) if "minimize" in names else ()),
     ))
     return tuple(rows)
 
 
 def mode_row(player: str, *, satellites_mode: SatellitesMode,
-             origenerator_ready: bool = True, in_vr: bool = False) -> tuple[Button, ...]:
+             origenerator_ready: bool = True, in_vr: bool = False,
+             crowned: bool = False) -> tuple[Button, ...]:
     """The session's own row over a player: the mode pair, and minimize outside the headset."""
     return (
         *(_mode_button(command, label, lit=satellites_mode is lit_mode,
                        dim=command == "origenerator_activate" and not origenerator_ready)
           for command, label, lit_mode in MODE_BUTTONS),
-        *(() if in_vr else (_control(player, "minimize", group_break=True),)),
+        *(() if in_vr else (_control(player, "minimize", group_break=True),
+                            *_crown(player, crowned))),
     )
+
+
+def _crown(player: str, crowned: bool) -> tuple[Button, ...]:
+    if player != Crown.PORTRAIT:
+        return ()
+    return (Button(Crown.PORTRAIT.command, CROWN_ICON,
+                   "Crowned — this player keeps most of the secondary monitor" if crowned
+                   else "Give this player the crown — it keeps most of the secondary "
+                   "monitor, whatever the main player shows", lit=crowned),)
 
 
 def _mode_button(command: str, label: str, *, lit: bool, dim: bool) -> Button:

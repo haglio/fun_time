@@ -23,6 +23,7 @@ from player_core.console import OSR2_DRIVING
 from player_core.modes import MainMode, SatellitesMode, read_mode
 
 from .audio_volume import MAX_VOLUME
+from .crown import Crown
 from .mode_plan import STARTUP_MAIN_MODE
 from .players import Player
 from .satellites_mode import STARTUP_SATELLITES_MODE
@@ -108,6 +109,7 @@ class BridgeState:
     volume: int = MAX_VOLUME
     muted: bool = False
     osr2_control: str = OSR2_DRIVING  # the console's four-button group sets it
+    crowned: Crown = Crown.MAIN
 
     def satellite(self, player: Player) -> SatelliteState:
         """The slice of this state one satellite carries."""

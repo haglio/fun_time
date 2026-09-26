@@ -153,6 +153,11 @@ class PlayerSession:
         return self._player.showing_picture
 
     @property
+    def portrait(self) -> bool | None:
+        width, height = self._player.source_dims
+        return height > width if width and height else None
+
+    @property
     def loop_state(self) -> LoopState:
         return self._loops.state
 

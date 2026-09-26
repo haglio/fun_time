@@ -19,6 +19,7 @@ from types import MappingProxyType
 from fun_time.filter_vocab import filter_voice_commands
 
 from .content import load_content
+from .crown import Crown
 
 # A spoken command carries when the *utterance began*, appended after " @".  A
 # phrase is only recognized once the speaker stops, by which time an
@@ -252,6 +253,7 @@ def build_voice_commands(
     if clip_flip_phrases is None:
         clip_flip_phrases = tuple(load_content()["clip_flip_phrases"])
     commands.update(dict.fromkeys(clip_flip_phrases, "genau_flip_ends"))
+    commands.update({f"crown {crown}": crown.command for crown in Crown})
 
     # The hotkeys & voice reference popup toggles from several spoken names, and
     # closes from any of them prefixed with "close".

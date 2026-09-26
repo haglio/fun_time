@@ -541,24 +541,37 @@ class TestLayout:
     def test_the_mode_row_leads_so_it_holds_its_place_across_modes(self):
         for mode in MainMode:
             first = console_rows(MainSlot(main_mode=mode))[0]
-            assert [b.command for b in first][:3] == [
-                "main_video_activate", "genau_activate", "main_minimize"]
+            assert [b.command for b in first][:4] == [
+                "main_video_activate", "genau_activate", "main_minimize", "main_crown"]
 
     def test_the_file_actions_ride_the_mode_row_where_there_is_a_video(self):
         video = [b.command for b in console_rows(MainSlot(main_mode=MainMode.VIDEO))[0]]
         genau = [b.command for b in console_rows(MainSlot(main_mode=MainMode.GENAU))[0]]
 
-        assert video[3:] == ["browse_library", "main_player_record_tap", "clipper_save"]
-        assert genau[3:] == []
+        assert video[4:] == ["browse_library", "main_player_record_tap", "clipper_save"]
+        assert genau[4:] == []
 
-    def test_the_file_actions_stand_apart_from_minimize_and_from_each_other(self):
+    def test_the_file_actions_stand_apart_from_the_crown_and_from_each_other(self):
         by_action = _placed(MainSlot(main_mode=MainMode.VIDEO))
-        minimize, browse = by_action["main_minimize"], by_action["browse_library"]
+        crown, browse = by_action["main_crown"], by_action["browse_library"]
         record, save = by_action["main_player_record_tap"], by_action["clipper_save"]
 
-        assert browse[0] - (minimize[0] + minimize[2]) == GROUP_GAP
+        assert browse[0] - (crown[0] + crown[2]) == GROUP_GAP
         assert record[0] - (browse[0] + browse[2]) == GROUP_GAP
         assert save[0] - (record[0] + record[2]) == GAP
+
+    def test_the_crown_is_lit_while_the_main_player_holds_it(self):
+        held = _button(MainSlot(crowned=True), "main_crown")
+        given_away = _button(MainSlot(crowned=False), "main_crown")
+
+        assert (held.lit, given_away.lit) == (True, False)
+        assert held.tooltip.startswith("Crowned")
+
+    def test_the_crown_sits_beside_minimize(self):
+        by_action = _placed(MainSlot(main_mode=MainMode.VIDEO))
+        minimize, crown = by_action["main_minimize"], by_action["main_crown"]
+
+        assert crown[0] - (minimize[0] + minimize[2]) == GAP
 
     def test_minimize_rides_the_row_that_never_changes(self):
         video, genau = _placed(MainSlot(main_mode=MainMode.VIDEO)), _placed(MainSlot(main_mode=MainMode.GENAU))

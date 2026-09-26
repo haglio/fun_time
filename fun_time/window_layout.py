@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fun_time.config import LayoutConfig
+from fun_time.crown import Crown
 from fun_time.dashboard_layout import Rect, dashboard_window_height
 from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 
@@ -56,14 +57,6 @@ def compute_window_layout(
     layout_config: LayoutConfig,
 ) -> WindowLayoutPlan:
     dashboard_height = dashboard_window_height()
-    portrait_height = int(secondary_monitor.height * clamp01(layout_config.main_top_ratio))
-
-    portrait = WindowRect(
-        x=secondary_monitor.x,
-        y=secondary_monitor.y,
-        width=secondary_monitor.width,
-        height=portrait_height,
-    )
 
     landscape_width = int(primary_monitor.width * clamp01(layout_config.landscape_width_ratio))
     landscape = WindowRect(
@@ -93,10 +86,29 @@ def compute_window_layout(
     )
 
     return WindowLayoutPlan(
-        portrait=portrait,
+        portrait=secondary_monitor_rects(
+            secondary_monitor, layout_config, majority=Crown.PORTRAIT).portrait,
         landscape=landscape,
         dashboard=dashboard,
         random_favs_browser=random_favs_browser,
+    )
+
+
+@dataclass(frozen=True)
+class SecondaryMonitorRects:
+    portrait: WindowRect
+    main: WindowRect
+
+
+def secondary_monitor_rects(
+    secondary_monitor: MonitorRect, layout_config: LayoutConfig, *, majority: Crown,
+) -> SecondaryMonitorRects:
+    most = int(secondary_monitor.height * clamp01(layout_config.main_top_ratio))
+    top = most if majority is Crown.PORTRAIT else secondary_monitor.height - most
+    x, y, width = secondary_monitor.x, secondary_monitor.y, secondary_monitor.width
+    return SecondaryMonitorRects(
+        portrait=WindowRect(x, y, width, top),
+        main=WindowRect(x, y + top, width, secondary_monitor.height - top),
     )
 
 
@@ -105,17 +117,5 @@ def compute_main_media_rect(
     secondary_monitor: MonitorRect,
     layout_config: LayoutConfig,
 ) -> WindowRect:
-    """The slot on the secondary monitor the main player and Genau share.
-
-    The portrait satellite takes the top ``main_top_ratio`` of the secondary
-    monitor; the main player fills the rest below it.  Startup positions the main player
-    and Genau here, and the notice overlay flashes main-player notices here, so both
-    derive it from this one function.
-    """
-    portrait_height = int(secondary_monitor.height * clamp01(layout_config.main_top_ratio))
-    return WindowRect(
-        x=secondary_monitor.x,
-        y=secondary_monitor.y + portrait_height,
-        width=secondary_monitor.width,
-        height=secondary_monitor.height - portrait_height,
-    )
+    return secondary_monitor_rects(
+        secondary_monitor, layout_config, majority=Crown.PORTRAIT).main

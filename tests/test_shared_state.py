@@ -416,6 +416,7 @@ _EXPECTED_STATE_KEYS = {
     "portrait_nav_anchor": "", "landscape_nav_anchor": "",
     "volume": "100", "muted": "0",
     "osr2_control": "driving",
+    "crowned": "main",
 }
 
 

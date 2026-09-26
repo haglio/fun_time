@@ -23,6 +23,7 @@ from player_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL
 from player_core.modes import LengthMode, LoopState, MainMode
 from shared_ui.spacing import BUTTON_WORD_W
 
+from .crown import CROWN_ICON, Crown
 from .mode_plan import main_player_displays
 
 
@@ -55,6 +56,7 @@ class MainSlot:
     # nothing to put back -- the button is drawn faded and takes no press.
     nothing_to_reset: bool = False
     flipped: bool = False
+    crowned: bool = True
 
 
 # The glyphs this console types, as against the family's marks it names below.
@@ -105,6 +107,11 @@ def console_rows(slot: MainSlot, *, in_vr: bool = False) -> tuple[tuple[Button, 
                 Button("main_minimize", MINIMIZE_ICON,
                        "Minimize this player — bring it back from the taskbar",
                        group_break=True),
+                Button(Crown.MAIN.command, CROWN_ICON,
+                       "Crowned — a portrait video here takes most of the secondary "
+                       "monitor" if slot.crowned else
+                       "Give this player the crown — its portrait videos take "
+                       "most of the secondary monitor", lit=slot.crowned),
             )),
             *_file_controls(slot),
         ),

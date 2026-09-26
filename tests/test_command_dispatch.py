@@ -29,6 +29,7 @@ from fun_time.command_dispatch import (
     routes_to_origenerator,
 )
 from fun_time.content import WebProvider, load_content, load_web_providers
+from fun_time.crown import Crown
 from fun_time.event_log import FAVORITE, NOTICE
 from fun_time.lock_hud import hud_map_cells
 from fun_time.loopback_server import omnipause_url
@@ -1036,6 +1037,31 @@ def test_nudge_and_mode_commands_leave_active_player_unchanged(tmp_path: Path):
     for command in ("main_nudge_next", "main_nudge_prev", "main_video_activate"):
         new_state, _ops = dispatch_command(command, _make_state(active_player=3), config)
         assert new_state.active_player == 3, command
+
+
+# --- the crown ---
+
+
+def test_crowning_the_portrait_player_takes_the_crown_from_the_main_player(tmp_path: Path):
+    new_state, ops = dispatch_command(
+        "portrait_crown", _make_state(crowned=Crown.MAIN), _make_config(tmp_path))
+
+    assert new_state.crowned is Crown.PORTRAIT
+    assert ops == []
+
+
+def test_crowning_the_main_player_takes_the_crown_back_from_the_portrait_player(tmp_path: Path):
+    new_state, _ops = dispatch_command(
+        "main_crown", _make_state(crowned=Crown.PORTRAIT), _make_config(tmp_path))
+
+    assert new_state.crowned is Crown.MAIN
+
+
+def test_crowning_the_portrait_player_leaves_bare_commands_where_they_were(tmp_path: Path):
+    new_state, _ops = dispatch_command(
+        "portrait_crown", _make_state(active_player=Player.MAIN), _make_config(tmp_path))
+
+    assert new_state.active_player == Player.MAIN
 
 
 # --- the HUD's own minimize button ---

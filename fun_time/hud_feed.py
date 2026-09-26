@@ -15,6 +15,7 @@ from player_core.satellite_hud import HudModel, hud_text, parse_hud
 
 from .bridge_records import BridgeConfig
 from .command_dispatch import main_player_at_defaults, satellite_at_defaults
+from .crown import Crown
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SatelliteInputs, build_panels
 from .main_player_console import MainSlotInputs, console_model
@@ -95,7 +96,8 @@ class HudFeed:
                     player.label, self._hosted_panel(player),
                     active=state.active_player == player,
                     origenerator_ready=state.origenerator_ready,
-                    in_vr=self.config.vr_main_player)))
+                    in_vr=self.config.vr_main_player,
+                    crowned=state.crowned == player.label)))
         else:
             portrait, landscape = build_panels(
                 satellite("portrait", 2, sources=self.config.portrait_sources,
@@ -110,6 +112,7 @@ class HudFeed:
                                  if self.config.origenerator_enabled else None),
                 origenerator_ready=state.origenerator_ready,
                 in_vr=self.config.vr_main_player,
+                crowned=state.crowned,
             )
             self.publisher.publish("portrait", portrait)
             self.publisher.publish("landscape", landscape)
@@ -138,6 +141,7 @@ class HudFeed:
             genau_pace_s=self._genau_pace_s(),
             nothing_to_reset=main_player_at_defaults(state, self.config, main_player),
             in_vr=self.config.vr_main_player,
+            crowned=state.crowned is Crown.MAIN,
         ))))
 
     def _hosted_panel(self, player: Player) -> HudModel | None:
