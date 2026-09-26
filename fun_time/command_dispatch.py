@@ -232,6 +232,15 @@ def _parse_numeric_command(command: str) -> str | None:
     return None
 
 
+def _lock_as_said(
+    player: Player, locked: bool, state: BridgeState, config: BridgeConfig,
+    target_path: str = "",
+) -> tuple[BridgeState, list[WindowOp]]:
+    if state.satellite(player).locked == locked:
+        return state, []
+    return _toggle_lock(player, state, config, target_path)
+
+
 def _toggle_lock(
     player: Player, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -370,6 +379,12 @@ _LOOP_COMMANDS: dict[str, tuple[Player, str]] = {
 _LOCK_ACTION_SIDES: dict[str, Player] = {
     "portrait_lock_action": Player.PORTRAIT,
     "landscape_lock_action": Player.LANDSCAPE,
+}
+
+_LOCK_STATE_COMMANDS: dict[str, tuple[Player, bool]] = {
+    f"{player.label}_lock_{'on' if locked else 'off'}": (player, locked)
+    for player in Player.SATELLITES
+    for locked in (True, False)
 }
 
 # "reset" clears a satellite's filter and reshuffles it back to the default
@@ -1611,6 +1626,8 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, (player, verb) in _SATELLITE_SPEEDS.items()})
     handlers["portrait_lock"] = partial(_toggle_lock, Player.PORTRAIT)
     handlers["landscape_lock"] = partial(_toggle_lock, Player.LANDSCAPE)
+    handlers.update({cmd: partial(_lock_as_said, player, locked)
+                     for cmd, (player, locked) in _LOCK_STATE_COMMANDS.items()})
     handlers["portrait_trash"] = partial(_discard, Player.PORTRAIT)
     handlers["landscape_trash"] = partial(_discard, Player.LANDSCAPE)
     handlers.update({cmd: partial(cycle_variant, player, kind)

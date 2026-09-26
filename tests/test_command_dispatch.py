@@ -342,6 +342,53 @@ def test_landscape_lock_toggles_lock_on(tmp_path: Path):
     assert _cmds(config, 3) == ["LOCK_ON"]
 
 
+# --- the spoken "lock" and "unlock": the state asked for, not a flip ---
+
+
+@pytest.mark.parametrize(("command", "player"), [
+    ("portrait_lock_on", Player.PORTRAIT), ("landscape_lock_on", Player.LANDSCAPE)])
+def test_a_spoken_lock_locks_an_unlocked_satellite(command, player, tmp_path: Path):
+    config = _make_config(tmp_path)
+    _set_current(config, player, "C:\\clips\\scene one.mp4")
+
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
+        new_state, _ops = dispatch_command(command, _make_state(), config)
+
+    assert new_state.satellite(player).locked is True
+    assert _cmds(config, player) == ["LOCK_ON"]
+
+
+@pytest.mark.parametrize(("command", "player"), [
+    ("portrait_lock_off", Player.PORTRAIT), ("landscape_lock_off", Player.LANDSCAPE)])
+def test_a_spoken_unlock_unlocks_a_locked_satellite(command, player, tmp_path: Path):
+    config = _make_config(tmp_path)
+    _set_current(config, player, "C:\\clips\\scene one.mp4")
+    locked = SatelliteState(locked=True)
+
+    new_state, _ops = dispatch_command(
+        command, _make_state(portrait=locked, landscape=locked), config)
+
+    assert new_state.satellite(player).locked is False
+    assert _cmds(config, player) == ["LOCK_OFF", "NEXT"]
+
+
+@pytest.mark.parametrize(("command", "locked"), [
+    ("portrait_lock_on", True), ("portrait_lock_off", False),
+    ("landscape_lock_on", True), ("landscape_lock_off", False)])
+def test_a_spoken_lock_or_unlock_leaves_a_satellite_already_that_way_alone(
+        command, locked, tmp_path: Path):
+    """Said twice, "lock" stays locked where the key's flip would let go."""
+    config = _make_config(tmp_path)
+    state = _make_state(portrait=SatelliteState(locked=locked),
+                        landscape=SatelliteState(locked=locked))
+
+    new_state, ops = dispatch_command(command, state, config)
+
+    assert [new_state.satellite(side).locked for side in Player.SATELLITES] == [locked] * 2
+    assert ops == []
+    assert _cmds(config, Player.PORTRAIT) == _cmds(config, Player.LANDSCAPE) == []
+
+
 # --- back-dating a spoken command to the video it was meant for ---
 
 
