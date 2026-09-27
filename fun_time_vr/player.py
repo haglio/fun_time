@@ -49,6 +49,7 @@ from player_core.drive_gate import DriveGate
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
 from player_core.funscript import Funscript
 from player_core.genau_notifier import GenauNotifier
+from player_core.hud_placement import HudEdge
 from player_core.player_verbs import play_file
 from player_core.playhead import (
     PlayheadHud,
@@ -98,11 +99,10 @@ from . import room, vr_runtime
 from .bringup import open_vr_session
 from .console_panel import (
     DEG_PER_PX,
-    NOTICE_STRIP_HEIGHT,
-    PANEL_WIDTH_DEG,
     PANEL_WIDTH_PX,
     PanelPointer,
     paint_panel,
+    panel_hangs_from,
     panel_hud,
     panel_painter,
 )
@@ -215,6 +215,7 @@ from .scene import (
     MAIN_WIDTH_DEG,
     Placement,
     attached_below,
+    attached_to,
     quad_layer_placement,
     surface_vertices,
     widened,
@@ -756,6 +757,7 @@ class _SatelliteUnit(_VideoUnit):
             player=self.hud_surface,
             drive_file=channels.drive,
             drive_gate=self.drive_gate,
+            over_the_video=False,
         )
         self.hud_texture = FrameTexture()
         self.hud_screen = _HangingScreen(self.screen.placement)
@@ -827,8 +829,8 @@ class _SatelliteUnit(_VideoUnit):
             if rgba is not None:
                 self.hud_texture.upload(rgba)
         if self._hud_shown and self.target.ready:
-            self.hud_screen.placement = attached_below(
-                self.shown, aspect=self.target.aspect,
+            self.hud_screen.placement = attached_to(
+                self.hud.edge, self.shown, aspect=self.target.aspect,
                 width_deg=self.hud_texture.width * DEG_PER_PX,
                 hanging_aspect=self.hud_texture.aspect, gap_deg=HUD_GAP_DEG,
             )
@@ -1070,12 +1072,11 @@ class _PanelUnit:
 
     def __init__(
         self, main_unit: _MainUnit, genau: _GenauUnit, dash, *,
-        dashboard_cmd_file: Path, notices: NoticeBoard,
+        dashboard_cmd_file: Path,
     ) -> None:
         self._main_unit = main_unit
         self._genau = genau
         self._dash = dash
-        self._notices = notices
         self._painter = panel_painter()
         self._row_painter = VolumeHudPainter()
         self._readout_painter = PlayheadHudPainter()
@@ -1092,6 +1093,7 @@ class _PanelUnit:
         self._lock = threading.Lock()
         self._image = None
         self._key = self._row_key = None
+        self._edge = HudEdge.LOWER
         self._row = None
         self._scrubber = Scrubber()
         self._uploaded = None
@@ -1172,9 +1174,9 @@ class _PanelUnit:
         )
         hovered = self._presses.hover
         hover = self._pointer.tooltip_anchor(hovered[1] if hovered is not None else None)
-        lines = None if slot is not None else self._notices.lines  # no strip under the dash
+        self._edge = hud.console.hud_edge
         # A clip's bar crossing a pixel must not redraw the console's text:
-        key, row_key = (hud, hover, lines), self._row_state()
+        key, row_key = (hud, hover), self._row_state()
         if (key, row_key) == (self._key, self._row_key):
             return
         if row_key != self._row_key:
@@ -1184,9 +1186,8 @@ class _PanelUnit:
                                     record_in_ms=self._controls.record_in_ms),
                 self._controls.playhead, self._controls.hud, _WRAPPED_ROW_SIZE,
                 volume_painter=self._row_painter, readout_painter=self._readout_painter)
-        image = paint_panel(self._painter, hud, hover=hover, notices=lines, row=self._row)
-        self._pointer.painted(
-            image.size, strip_height=0 if slot is not None else NOTICE_STRIP_HEIGHT)
+        image = paint_panel(self._painter, hud, hover=hover, row=self._row)
+        self._pointer.painted(image.size)
         with self._lock:
             self._image = image
         self._key, self._row_key = key, row_key
@@ -1211,8 +1212,9 @@ class _PanelUnit:
             (self._dash.screen.placement, self._dash.texture.aspect, 0.0) if wrapped else
             (shown_at(MAIN, self._main_unit.screen.placement, slot_aspect), slot_aspect,
              HUD_GAP_DEG))
-        self.screen.placement = attached_below(
-            under, aspect=aspect, width_deg=PANEL_WIDTH_DEG,
+        self.screen.placement = attached_to(
+            panel_hangs_from(self._edge, wrapped=wrapped),
+            under, aspect=aspect, width_deg=self.texture.width * DEG_PER_PX,
             hanging_aspect=self.texture.aspect, gap_deg=gap,
         )
         self.screen.rehang(self.texture.aspect)
@@ -2105,7 +2107,6 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     panel = _PanelUnit(
         main_unit, genau, dash,
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
-        notices=notices,
     )
     reference = _ReferenceUnit(dash, panel, flag=reference_flag)
     library = _LibraryUnit(

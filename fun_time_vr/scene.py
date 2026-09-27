@@ -10,6 +10,7 @@ import math
 from dataclasses import dataclass, replace
 
 import numpy as np
+from player_core.hud_placement import HudEdge
 
 # The view matrix is rotation-only (no head translation reaches the scene), so
 # the radius sets apparent scale only.
@@ -122,9 +123,28 @@ def attached_below(
     gap_deg: float = 0.0,
     radius: float = RADIUS,
 ) -> Placement:
-    lower = center_height(placement, radius) - half_width(placement.width_deg, radius) / aspect
-    center = (lower - radius * math.radians(gap_deg)
-              - half_width(width_deg, radius) / hanging_aspect)
+    return attached_to(HudEdge.LOWER, placement, aspect=aspect, width_deg=width_deg,
+                       hanging_aspect=hanging_aspect, gap_deg=gap_deg, radius=radius)
+
+
+def attached_to(
+    edge: HudEdge,
+    placement: Placement,
+    *,
+    aspect: float,
+    width_deg: float,
+    hanging_aspect: float,
+    gap_deg: float = 0.0,
+    radius: float = RADIUS,
+) -> Placement:
+    if edge in (HudEdge.LEFT, HudEdge.RIGHT):
+        step = placement.width_deg / 2 + gap_deg + width_deg / 2
+        azimuth = placement.azimuth_deg + (step if edge is HudEdge.RIGHT else -step)
+        return Placement(azimuth, placement.elevation_deg, width_deg)
+    reach = (half_width(placement.width_deg, radius) / aspect
+             + radius * math.radians(gap_deg)
+             + half_width(width_deg, radius) / hanging_aspect)
+    center = center_height(placement, radius) + (reach if edge is HudEdge.UPPER else -reach)
     return Placement(placement.azimuth_deg, elevation_at(center, radius), width_deg)
 
 

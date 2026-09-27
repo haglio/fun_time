@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import ast
 import inspect
-import json
-import logging
 import threading
 from dataclasses import replace
 from pathlib import Path
@@ -68,7 +66,6 @@ from fun_time.overlay_progress import (
 )
 from fun_time_vr import player, room
 from fun_time_vr.console_panel import (
-    NOTICE_STRIP_HEIGHT,
     PANEL_WIDTH_DEG,
     PANEL_WIDTH_PX,
 )
@@ -852,6 +849,7 @@ class _FakePanelTexture:
 
     ready = True
     aspect = 280 / 120
+    width = PANEL_WIDTH_PX
 
     def upload(self, pixels):
         self.uploaded = pixels
@@ -920,7 +918,7 @@ class TestThePanelUnderThePointer:
                                screen=SimpleNamespace(placement=SPOTS[PANEL]))
         with patch("fun_time_vr.player.FrameTexture", _FakePanelTexture):
             unit = _PanelUnit(main_unit, genau, dash,
-                              dashboard_cmd_file=command_file, notices=notices)
+                              dashboard_cmd_file=command_file)
         return SimpleNamespace(unit=unit, command_file=command_file, seeks=seeks,
                                event_log=event_log, notices=notices, main_unit=main_unit,
                                genau=genau, dash=dash)
@@ -930,13 +928,13 @@ class TestThePanelUnderThePointer:
         width, height = unit._image.size
         return (x + 0.5) / width, 1 - (y + 0.5) / height
 
-    def _uv_of(self, unit, action: str, *, strip=NOTICE_STRIP_HEIGHT) -> tuple[float, float]:
+    def _uv_of(self, unit, action: str) -> tuple[float, float]:
         """A button's middle in the PANEL's pixels: the painter places its buttons
         in the console's, which the announcement strip above pushes down -- and
         that strip is left off while the dashboard sits over the console."""
         (x, y, w, h), _button = next(
             (rect, button) for rect, button in unit._painter.buttons if button.command == action)
-        return self._uv(unit, x + w // 2, y + h // 2 + strip)
+        return self._uv(unit, x + w // 2, y + h // 2)
 
     def _row_uv(self, unit, x: float, y: float) -> tuple[float, float]:
         """A point in the ROW's own pixels, as a point on the panel."""
@@ -946,22 +944,6 @@ class TestThePanelUnderThePointer:
         console.unit.point(Frame(events=(
             PressEvent(PRESS, PANEL, *uv), PressEvent(RELEASE, PANEL))))
         console.unit.pump(threading.Event(), 0.0)
-
-    def test_a_notice_the_session_raised_reaches_the_panel(self, tmp_path):
-        """A VR session launches no dashboard, so this strip is the whole of what
-        the headset is told — the voice controller's reports among it."""
-        p = self._unit(tmp_path)
-        p.notices.pump(None, 0.0)
-        p.unit.pump(threading.Event(), 0.0)
-        quiet = np.asarray(p.unit._image).copy()
-
-        p.event_log.write_text(json.dumps(
-            {"ts": 1.0, "level": logging.WARNING, "source": "system",
-             "msg": "unrecognized voice command: portrait net"}) + "\n", encoding="utf-8")
-        p.notices.pump(None, 1.0)
-        p.unit.pump(threading.Event(), 1.0)
-
-        assert not np.array_equal(np.asarray(p.unit._image), quiet)
 
     def test_a_press_the_render_thread_hands_over_posts_on_the_worker(self, tmp_path):
         p = self._unit(tmp_path)
@@ -1124,7 +1106,7 @@ class TestThePanelUnderThePointer:
         p = self._unit(tmp_path, wrapped=True)
         p.unit.pump(threading.Event(), 0.0)
 
-        self._press(p, self._uv_of(p.unit, "main_lock", strip=0))
+        self._press(p, self._uv_of(p.unit, "main_lock"))
 
         assert p.command_file.read_text(encoding="utf-8").split() == ["main_lock"]
 
@@ -1168,15 +1150,15 @@ class TestThePanelUnderThePointer:
         over = surface_vertices(p.dash.screen.placement, aspect=p.dash.texture.aspect)
         assert console[:, 1].max() == pytest.approx(over[:, 1].min(), abs=1e-6)
 
-    def test_the_strip_goes_while_it_is_docked_there_and_comes_back_after(self, tmp_path):
-        """Console and row and no strip against console and strip and no row."""
+    def test_a_wrapped_videos_row_is_all_that_joins_the_console(self, tmp_path):
+        """The panel is the console itself, and a wrapped video's row the one
+        thing that ever rides with it."""
         flat, wrapped = self._unit(tmp_path), self._unit(tmp_path, wrapped=True)
 
         flat.unit.pump(threading.Event(), 0.0)
         wrapped.unit.pump(threading.Event(), 0.0)
 
-        assert wrapped.unit._image.height == (
-            flat.unit._image.height - NOTICE_STRIP_HEIGHT + _WRAPPED_ROW_H)
+        assert wrapped.unit._image.height == flat.unit._image.height + _WRAPPED_ROW_H
 
 
 # --- The cover the roles arrive and leave under ---------------------------

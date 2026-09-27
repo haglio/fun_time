@@ -1,7 +1,6 @@
 """The console hanging in the headset: what goes on it, and how it is composed."""
 from __future__ import annotations
 
-import logging
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -10,21 +9,19 @@ from player_core.console import ConsoleModel, _row_width
 from player_core.console_hud import _PAD, ConsoleHud, ConsolePainter, ModeHud
 from player_core.drive_layout import SPEED
 from player_core.drive_readout import DriveHud
+from player_core.hud_placement import HudEdge
 from player_core.hud_status import F_MODE_LABEL
 from player_core.modes import MainMode, Osr2State
 
 from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
-from fun_time.event_log import FAVORITE, NOTICE
 from fun_time_vr.console_panel import (
-    NOTICE_STRIP_HEIGHT,
     PANEL_WIDTH_PX,
     PanelPointer,
-    paint_notices,
     paint_panel,
+    panel_hangs_from,
     panel_hud,
     panel_painter,
 )
-from fun_time_vr.notices import KEPT, MAIN, Notice
 
 
 def _drive(**over) -> DriveHud:
@@ -216,20 +213,16 @@ def _paint(mode="video", *, title="feature"):
 
 
 class TestHowItIsComposed:
-    def test_the_console_sits_under_the_announcement_strip(self):
+    def test_the_panel_is_the_console_itself(self):
+        """Nothing rides above it: what the room heard is read on the dashboard,
+        which is the one place in the headset that keeps the log."""
         painted = _paint()
         console_rgba, (console_w, console_h) = panel_painter().rgba(_hud(_engine_console("video")))
 
-        assert painted.size == (console_w, NOTICE_STRIP_HEIGHT + console_h)
-        under = np.asarray(painted)[NOTICE_STRIP_HEIGHT:]
+        assert painted.size == (console_w, console_h)
         assert np.array_equal(
-            under, np.frombuffer(console_rgba, dtype=np.uint8).reshape(console_h, console_w, 4))
-
-    def test_the_panel_is_that_and_nothing_else(self):
-        """Every player draws its own scrubber and volume slider over its own
-        picture, Genau's clip included, so none of that is repeated here."""
-        assert _paint().height == NOTICE_STRIP_HEIGHT + panel_painter().rgba(
-            _hud(_engine_console("video")))[1][1]
+            np.asarray(painted),
+            np.frombuffer(console_rgba, dtype=np.uint8).reshape(console_h, console_w, 4))
 
 
 def test_the_held_width_covers_the_widest_row_the_console_can_build():
@@ -249,74 +242,11 @@ def test_the_held_width_covers_the_widest_row_the_console_can_build():
     assert widest + 2 * _PAD <= PANEL_WIDTH_PX
 
 
-class TestTheAnnouncementStrip:
-    """The desktop flashes a notice over the player and lists it in the log
-    panel; both live in the dashboard, which a VR session never launches, so
-    this is the only place the headset is told what it was heard to say."""
-
-    _NOW = 100.0
-
-    def _notices(self, *messages, level=NOTICE):
-        return tuple(
-            Notice(message, level, MAIN, self._NOW) for message in messages)
-
-    def test_it_keeps_its_height_with_nothing_to_say(self):
-        """A strip that grew and shrank would rehang the console a little lower
-        every time a command landed."""
-        empty = paint_notices((), PANEL_WIDTH_PX)
-
-        assert empty.size == (PANEL_WIDTH_PX, NOTICE_STRIP_HEIGHT)
-        assert np.asarray(empty)[:, :, 3].max() == 0
-
-    def test_a_notice_draws_on_it(self):
-        painted = paint_notices(self._notices("landscape next"), PANEL_WIDTH_PX)
-
-        assert painted.size == (PANEL_WIDTH_PX, NOTICE_STRIP_HEIGHT)
-        assert np.asarray(painted)[:, :, 3].max() > 0
-
-    def test_the_newest_is_lowest_nearest_the_console(self):
-        one = np.asarray(paint_notices(self._notices("first"), PANEL_WIDTH_PX))
-        two = np.asarray(paint_notices(self._notices("first", "second"), PANEL_WIDTH_PX))
-
-        assert one[: NOTICE_STRIP_HEIGHT // 2, :, 3].max() == 0
-        assert two[: NOTICE_STRIP_HEIGHT // 2, :, 3].max() > 0
-
-    def test_a_louder_line_reads_a_different_color(self):
-        """The log panel's own mapping: an ordinary announcement is white and an
-        error red, so a line means the same thing in the headset as on the desk."""
-        plain = np.asarray(paint_notices(self._notices("landscape next"), PANEL_WIDTH_PX))
-        loud = np.asarray(
-            paint_notices(self._notices("landscape next", level=logging.ERROR), PANEL_WIDTH_PX))
-
-        assert not np.array_equal(plain, loud)
-
-    def test_the_family_green_is_kept_for_its_own_family(self):
-        plain = np.asarray(paint_notices(self._notices("clip locked"), PANEL_WIDTH_PX))
-        favorite = np.asarray(
-            paint_notices(self._notices("clip locked", level=FAVORITE), PANEL_WIDTH_PX))
-
-        assert not np.array_equal(plain, favorite)
-
-    def test_only_the_last_few_fit(self):
-        many = self._notices(*[f"command {index}" for index in range(KEPT + 2)])
-
-        assert paint_notices(many, PANEL_WIDTH_PX).size == (PANEL_WIDTH_PX, NOTICE_STRIP_HEIGHT)
-
 
 class TestItKeepsItsSize:
     """He saw the panel change size between the modes: the console sized itself
     to its rows, and the genau-mode ones are narrower.  A screen in a scene that
     changes size is a screen that moves."""
-
-    def test_a_notice_does_not_resize_the_panel(self):
-        quiet = _paint()
-        speaking = paint_panel(
-            panel_painter(), _hud(_engine_console("video")),
-            notices=(Notice("landscape next", NOTICE, MAIN, 100.0),),
-        )
-
-        assert speaking.size == quiet.size
-        assert not np.array_equal(np.asarray(speaking), np.asarray(quiet))
 
     def test_the_two_modes_paint_the_same_size(self):
         video, genau = _paint("video"), _paint("genau")
@@ -363,11 +293,11 @@ class TestAPressOnThePanel:
         return (px + 0.5) / width, 1 - (py + 0.5) / height
 
     def _button_uv(self, p, action: str) -> tuple[float, float]:
-        """A button's middle, in the PANEL's pixels: the painter places its
-        buttons in the console's, which the strip above pushes down."""
+        """A button's middle, in the panel's pixels -- the console's own, the
+        panel being the console."""
         (x, y, w, h), _button = next(
             (rect, button) for rect, button in p.painter.buttons if button.command == action)
-        return self._uv(p.size, x + w // 2, y + h // 2 + NOTICE_STRIP_HEIGHT)
+        return self._uv(p.size, x + w // 2, y + h // 2)
 
     def test_a_button_posts_its_command(self):
         p = self._pointer()
@@ -391,7 +321,6 @@ class TestAPressOnThePanel:
         p = self._pointer()
         speed = next(track for track in p.painter.tracks if track.axis == SPEED)
         x, y, w, h = speed.rect
-        y += NOTICE_STRIP_HEIGHT  # the track is placed in the console's pixels
 
         p.pointer.press(*self._uv(p.size, x + w * 0.25, y + h / 2))
         p.pointer.drag(*self._uv(p.size, x + w * 0.25, y + h / 2))
@@ -415,3 +344,17 @@ class TestAPressOnThePanel:
         assert p.pointer.tooltip_anchor(self._button_uv(p, "main_next")) != anchor
         assert p.pointer.tooltip_anchor((0.5, -0.5)) is None
         assert p.pointer.tooltip_anchor(None) is None
+
+
+class TestWhichSideTheConsoleHangsOn:
+    """The keys move this panel round the sides of the main player.  A video that
+    wraps the viewer leaves no picture edge to hang against, so there it hangs
+    under the dashboard as it always has."""
+
+    def test_it_takes_the_side_its_keys_named(self):
+        for edge in HudEdge:
+            assert panel_hangs_from(edge, wrapped=False) is edge
+
+    def test_a_wrapped_video_leaves_it_under_the_dashboard(self):
+        for edge in HudEdge:
+            assert panel_hangs_from(edge, wrapped=True) is HudEdge.LOWER
