@@ -379,7 +379,6 @@ def start_core_session(
     dashboard_cmd_file: str | Path | None = None,
     regen_metadata_root: Path | None = None,
     project_dirs: str | None = None,
-    crossing: bool = False,
 ) -> str:
     """Launch the session's media stack, returning the mode its main slot
     opens in — which the caller needs because parking the main player/Genau pair to match
@@ -473,13 +472,12 @@ def start_core_session(
     ])
     # The main player's loop is the same kind of thing, and queued the same way.
     resume_main_loop(Path(main_player_cmd_file), main_player_status, main_player_playlist)
-    if crossing:
-        resume_what_lives_in_a_player(
-            main_player=(Path(main_player_cmd_file), main_player_status),
-            satellites=[(Path(portrait.channels.command), portrait_status),
-                        (Path(landscape.channels.command), landscape_status)],
-            genau_cmd_file=Path(genau_cmd_file), state_dir=state_path,
-        )
+    resume_what_lives_in_a_player(
+        main_player=(Path(main_player_cmd_file), main_player_status),
+        satellites=[(Path(portrait.channels.command), portrait_status),
+                    (Path(landscape.channels.command), landscape_status)],
+        genau_cmd_file=Path(genau_cmd_file), state_dir=state_path,
+    )
     launch_core_apps(
         python_exe=satellite_python_exe,
         satellite_module=satellite_module,

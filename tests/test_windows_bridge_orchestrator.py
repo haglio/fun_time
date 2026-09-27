@@ -2811,11 +2811,11 @@ class TestTheSessionEndsOnItsMarker:
         assert told_to_exit()
 
 
-class TestTheMicACrossingOpensWith:
-    """The mute lives in the controller a crossing replaces, so the arriving
-    session starts its own muted or not by what the last one wrote down."""
+class TestTheMicASessionOpensWith:
+    """The mute lives in the controller each session builds afresh, so a session
+    starts its own muted or not by what the last one wrote down."""
 
-    def _muted_at_the_voice_start(self, cfg_factory, tmp_path, *, crossing: bool) -> bool:
+    def _muted_at_the_voice_start(self, cfg_factory, tmp_path) -> bool:
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
@@ -2850,16 +2850,12 @@ class TestTheMicACrossingOpensWith:
             _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
-                env=SessionEnvironment(integration=True, show_overlays=False,
-                                       crossing=crossing),
+                env=SessionEnvironment(integration=True, show_overlays=False),
             )
         return asked == [True]
 
-    def test_a_crossing_from_a_room_that_said_mic_off_opens_muted(self, cfg_factory, tmp_path):
-        assert self._muted_at_the_voice_start(cfg_factory, tmp_path, crossing=True)
-
-    def test_a_launch_of_its_own_opens_listening(self, cfg_factory, tmp_path):
-        assert not self._muted_at_the_voice_start(cfg_factory, tmp_path, crossing=False)
+    def test_a_session_after_a_room_that_said_mic_off_opens_muted(self, cfg_factory, tmp_path):
+        assert self._muted_at_the_voice_start(cfg_factory, tmp_path)
 
 
 class TestStartingVoice:

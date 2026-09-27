@@ -181,8 +181,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--check", action="store_true", help="Validate config and exit.")
     parser.add_argument("--no-cancel", action="store_true",
                         help="The way back from a crossing Esc called off: offer no Esc.")
-    parser.add_argument("--crossing", action="store_true",
-                        help="Started by the relay: carry on the session that just ended.")
     return parser
 
 
@@ -589,13 +587,12 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             (Path(commands.landscape_cmd_file), carried.satellite(Player.LANDSCAPE).locked),
         ])
         resume_genau_shapes(Path(commands.genau_cmd_file), genau_clip_shapes(carried, bridge_config))
-        if env.crossing:
-            resume_what_lives_in_a_player(
-                main_player=(Path(commands.main_player_cmd_file), main_player_status),
-                satellites=[(Path(commands.portrait_cmd_file), portrait_status),
-                            (Path(commands.landscape_cmd_file), landscape_status)],
-                genau_cmd_file=Path(commands.genau_cmd_file), state_dir=state_dir,
-            )
+        resume_what_lives_in_a_player(
+            main_player=(Path(commands.main_player_cmd_file), main_player_status),
+            satellites=[(Path(commands.portrait_cmd_file), portrait_status),
+                        (Path(commands.landscape_cmd_file), landscape_status)],
+            genau_cmd_file=Path(commands.genau_cmd_file), state_dir=state_dir,
+        )
         stock_the_playlists(
             manifest,
             state_dir=state_dir,
@@ -715,7 +712,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             prepared_voice,
             dashboard_cmd_file=dashboard_cmd_file,
             dispatch_runner=dispatch_runner,
-            muted=take_whether_the_mic_was_off(state_dir) and env.crossing,
+            muted=take_whether_the_mic_was_off(state_dir),
         )
     except BaseException:
         logger.info("The session failed while opening; tearing down %d launched child(ren)",
@@ -831,7 +828,7 @@ def set_up_logging(config) -> logging.Logger:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    env = SessionEnvironment.from_environ(os.environ, crossing=args.crossing)
+    env = SessionEnvironment.from_environ(os.environ)
     config = load_config(args.config)
     set_up_logging(config)
 

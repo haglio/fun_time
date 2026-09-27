@@ -336,7 +336,6 @@ def _launch_the_satellites(
     state_dir: Path,
     project_dirs: str,
     launched: _LaunchedChildren,
-    crossing: bool,
 ) -> tuple[str, int, int]:
     """The core session: both satellite players, and the mode it resumed into.
 
@@ -395,7 +394,6 @@ def _launch_the_satellites(
         # they quietly ran the venv's primary while everything else ran the
         # branch.
         project_dirs=project_dirs,
-        crossing=crossing,
     )
     core_pids = _read_result_pids(core_result_file)
     portrait_pid = core_pids["portrait_pid"]
@@ -514,7 +512,6 @@ def _launch_core_media(
     layout: ScreenLayout,
     state_dir: Path,
     launched: _LaunchedChildren,
-    crossing: bool,
 ) -> _CoreSession:
     """Phase 1: the hosted app, then the two satellites, then Genau and the main player.
 
@@ -531,7 +528,7 @@ def _launch_core_media(
         m, plan=layout.plan, project_dirs=project_dirs, launched=launched)
     main_mode, portrait_pid, landscape_pid = _launch_the_satellites(
         m, plan=layout.plan, state_dir=state_dir, project_dirs=project_dirs,
-        launched=launched, crossing=crossing)
+        launched=launched)
     genau_pid, main_player_pid, main_player_status_file = _launch_the_main_slot_players(
         m, layout=layout, state_dir=state_dir, project_dirs=project_dirs,
         launched=launched)
@@ -749,8 +746,7 @@ def _run_startup_phases(
 
     # --- Phase 1: Launch core media stack ---
     progress.advance("services")
-    core = _launch_core_media(m, layout=layout, state_dir=state_dir, launched=launched,
-                              crossing=env.crossing)
+    core = _launch_core_media(m, layout=layout, state_dir=state_dir, launched=launched)
 
     # --- Phase 2: Position windows (layout computed up front) ---
     role_hwnds: dict[str, int] = {}

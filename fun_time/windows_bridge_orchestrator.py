@@ -1231,7 +1231,7 @@ def run_session(
             prepared_voice,
             dashboard_cmd_file=dashboard_cmd_file,
             dispatch_runner=dispatch_runner,
-            muted=take_whether_the_mic_was_off(state_dir) and env.crossing,
+            muted=take_whether_the_mic_was_off(state_dir),
         )
     except BaseException:
         _take_down_the_startup(

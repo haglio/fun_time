@@ -662,34 +662,6 @@ class _CancelOnAdvance:
         pass
 
 
-class TestWhatTheCoreSessionIsToldAboutTheLaunch:
-    def _core_kwargs(self, cfg_factory, tmp_path, env: SessionEnvironment) -> dict:
-        manifest_path = write_windows_bridge_manifest(
-            load_config(cfg_factory({})), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME,
-        )
-        called: dict = {}
-
-        def capture_core(**kwargs):
-            called.update(kwargs)
-            _write_result(kwargs["result_file"], CORE_PIDS)
-
-        with _sequencer_stubs(start_core_session=dict(side_effect=capture_core)):
-            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, env=env)
-        return called
-
-    def test_a_session_the_relay_started_says_it_carries_on_a_crossing(
-        self, cfg_factory, tmp_path,
-    ):
-        called = self._core_kwargs(cfg_factory, tmp_path, SessionEnvironment(crossing=True))
-
-        assert called["crossing"] is True
-
-    def test_a_launch_of_its_own_says_it_does_not(self, cfg_factory, tmp_path):
-        called = self._core_kwargs(cfg_factory, tmp_path, SessionEnvironment())
-
-        assert called["crossing"] is False
-
-
 class TestTheOrderInsideTheStartupPhases:
     """The sequence is the design, not an accident of how it was written.
 
