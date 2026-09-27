@@ -46,6 +46,7 @@ from .player_status import (
 )
 from .players import Player
 from .process_identity import NAMER
+from .process_sweep import sweep_processes
 from .project_paths import PROJECT_ICON
 from .random_favs_browser import build_manifest, write_manifest
 from .rfb_tab_page import tabs_dir, write_tab_pages
@@ -115,11 +116,7 @@ def stop_broker_processes(broker_tray_launcher: Path | str | None) -> None:
         "}; "
         "$targets | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
     )
-    subprocess.run(
-        ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_command],
-        check=False,
-        **subprocess_window_kwargs(),
-    )
+    sweep_processes(ps_command)
 
 
 def reap_orphaned_satellites(
@@ -127,18 +124,11 @@ def reap_orphaned_satellites(
 ) -> None:
     """Kill satellite players stranded on the state files this session is claiming.
 
-    Normal shutdown kills the two satellites the orchestrator tracked, but a hard
-    crash or an unclean close can strand them alive.  A stranded pair keeps reading
-    the same ``state/*_cmd.txt`` / ``*_status.txt`` files this session's pair will
-    use, so on reopen four players race two files — stalled video and crossed
-    controls.  Reaped once at startup, before the new pair launches.
-
-    *status_files* is what bounds the reap, and it must: every satellite on the
-    machine runs ``-m <satellite_module>``, so matching the module alone made this
-    a machine-wide sweep — an integration run, whose state dir is somewhere else
-    entirely, killed both players in the user's live session on its way up.  Only a
-    player already bound to one of *our* files can be stranded on it, and nothing
-    else can be.  No files means nothing to claim and so nothing to reap.
+    A hard crash leaves the pair alive on the files the new pair is about to use,
+    so on reopen four players race two of each.  *status_files* is what keeps the
+    reap inside this session: every satellite on the machine runs
+    ``-m <satellite_module>``, and only a player already bound to one of our files
+    can be stranded on it.
     """
     if not status_files:
         return
@@ -154,11 +144,7 @@ def reap_orphaned_satellites(
         "($claimed | Where-Object { $p.CommandLine.Contains($_) }) "
         "} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
     )
-    subprocess.run(
-        ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_command],
-        check=False,
-        **subprocess_window_kwargs(),
-    )
+    sweep_processes(ps_command)
 
 
 def launch_broker_tray(broker_tray_launcher: Path | None) -> None:
@@ -206,9 +192,7 @@ def broker_source_mtime(broker_tray_launcher: Path | None) -> float | None:
 def broker_process_started_at(broker_tray_launcher: Path | str | None) -> float | None:
     """When the running broker started, in Unix seconds — None if none is up.
 
-    Matched off the same published contract :func:`stop_broker_processes`
-    sweeps by, minus the tray -- a live tray is not a live broker.  The oldest
-    is the one reported, because that is the one at risk of being stale.
+    The oldest is the one reported: that is the one at risk of being stale.
     """
     contract = broker_contract.read(broker_tray_launcher)
     if contract is None:
@@ -221,13 +205,9 @@ def broker_process_started_at(broker_tray_launcher: Path | str | None) -> float 
         "[int64]($_.CreationDate.ToUniversalTime() - [datetime]'1970-01-01').TotalSeconds "
         "} | Sort-Object | Select-Object -First 1"
     )
-    result = subprocess.run(
-        ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_command],
-        check=False, capture_output=True, text=True, **subprocess_window_kwargs(),
-    )
     try:
-        return float(result.stdout.strip())
-    except (AttributeError, ValueError):
+        return float(sweep_processes(ps_command, read_output=True).strip())
+    except ValueError:
         return None
 
 
