@@ -50,6 +50,17 @@ class TestWhatTheCoverSaysBeforeTheScreenIsUp:
         assert not parse_progress(cover.progress_file.read_text(encoding="utf-8")).done
 
 
+def test_the_loading_screen_goes_the_moment_the_fun_time_that_raised_it_does(tmp_path: Path):
+    """His answer when asked whether a crashed Fun Time's loading screen
+    should wait out its minute: no, it goes at once."""
+    screen = MagicMock()
+
+    with patch("fun_time.loading_cover.tie_to_this_process") as tie:
+        _opened_cover(tmp_path, popen=MagicMock(return_value=screen))
+
+    tie.assert_called_once_with(screen)
+
+
 class TestTakingTheCoverDown:
     def test_the_screen_is_told_and_then_waited_for(self, tmp_path: Path):
         cover = _opened_cover(tmp_path)

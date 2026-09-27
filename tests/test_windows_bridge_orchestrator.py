@@ -30,6 +30,7 @@ from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCELING,
     PROGRESS_FILENAME,
+    SHUTDOWN_PHASES,
     SHUTDOWN_PROGRESS_FILENAME,
     NullProgress,
     PhaseProgress,
@@ -1433,6 +1434,32 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
 class TestClosingScreenLifecycle:
     """The session's windows go out under a cover, the way they came in under
     one: raised before the first kill, dropped after the last."""
+
+    def test_the_closing_screen_goes_the_moment_the_fun_time_that_raised_it_does(
+            self, cfg_factory, tmp_path):
+        with patch("fun_time.windows_bridge_orchestrator.tie_to_this_process") as tie:
+            _run_a_session(cfg_factory, tmp_path, events=[])
+
+        assert tie.call_count == 1
+
+    def test_the_closing_screens_first_look_finds_the_teardowns_first_phase(
+            self, cfg_factory, tmp_path):
+        seen_at_launch: list[str] = []
+
+        def read_the_line():
+            seen_at_launch.append(
+                (tmp_path / "state" / SHUTDOWN_PROGRESS_FILENAME).read_text(encoding="utf-8"))
+
+        _run_a_session(cfg_factory, tmp_path, events=[], at_cover_up=read_the_line)
+
+        assert parse_progress(seen_at_launch[0]).message == SHUTDOWN_PHASES[0].message
+
+    def test_the_screen_a_crossing_leaves_standing_goes_on_without_it(self, cfg_factory, tmp_path):
+        """It is raised by the session leaving and taken down by the one arriving."""
+        with patch("fun_time.windows_bridge_orchestrator.tie_to_this_process") as tie:
+            _run_a_session(cfg_factory, tmp_path, events=[], crossing=VR)
+
+        tie.assert_not_called()
 
     def test_the_cover_is_up_before_the_first_window_goes(self, cfg_factory, tmp_path):
         events: list[str] = []
