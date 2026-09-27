@@ -4,16 +4,14 @@ import threading
 from pathlib import Path
 
 import pytest
-from player_core.modes import LoopState
 from player_core.playback_rate import MAX_RATE, MIN_RATE, RATE_STEP
 
 from main_player.controls import SEEK_STEP_MS, VERBS, MainPlayerControls, apply_command
 
 
 class SpySession:
-    def __init__(self, loop_state: str = "normal") -> None:
+    def __init__(self) -> None:
         self.calls: list[tuple] = []
-        self.loop_state = loop_state
 
     def step(self, delta: int) -> None:
         self.calls.append(("step", delta))
@@ -26,6 +24,9 @@ class SpySession:
 
     def record_up(self) -> None:
         self.calls.append(("record_up",))
+
+    def record_tap(self) -> None:
+        self.calls.append(("record_tap",))
 
     def loop_cancel(self) -> None:
         self.calls.append(("loop_cancel",))
@@ -335,18 +336,20 @@ class TestApplyCommand:
             ("toggle_lock",), ("set_locked", True), ("set_locked", False),
         ]
 
-    def test_record_tap_cycles_by_state(self):
-        normal = SpySession(loop_state=LoopState.NORMAL)
-        apply_command("RECORD_TAP", MainPlayerControls(normal))
-        assert normal.calls == [("record_down",)]
+    def test_the_record_gesture_reaches_the_session_whole(self):
+        """Which of the three the tap is depends on where the loop machine is,
+        and it answers that itself (`test_main_player_loop_machine.py`) -- both
+        main players tap the same one rather than each reading its state here."""
+        session = SpySession()
 
-        recording = SpySession(loop_state=LoopState.RECORDING)
-        apply_command("RECORD_TAP", MainPlayerControls(recording))
-        assert recording.calls == [("record_up",)]
+        apply_command("RECORD_DOWN", MainPlayerControls(session))
+        apply_command("RECORD_UP", MainPlayerControls(session))
+        apply_command("RECORD_TAP", MainPlayerControls(session))
+        apply_command("LOOP_CANCEL", MainPlayerControls(session))
 
-        looping = SpySession(loop_state=LoopState.LOOPING)
-        apply_command("RECORD_TAP", MainPlayerControls(looping))
-        assert looping.calls == [("loop_cancel",)]
+        assert session.calls == [
+            ("record_down",), ("record_up",), ("record_tap",), ("loop_cancel",),
+        ]
 
     def test_play_file_with_funscript(self):
         session = SpySession()

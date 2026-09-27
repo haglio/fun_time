@@ -15,12 +15,13 @@ from player_core.playlist import PlaylistItem, read_playlist, write_playlist
 from player_core.robot_hand import RobotHandState, WaveformShape
 from player_core.status import PlayerStatus
 
+from main_player.loop_verbs import SET_LOOP
+
 from .media_metadata import normalize_path_key
 from .modes import rotated_onto, source_roots
 from .player_handover import take_back_the_list
 from .player_status import MainPlayerStatus, read_genau_status
 from .players import Player
-from .runtime_flow import SET_LOOP_CMD
 from .shared_state import (
     BridgeState,
     SatelliteState,
@@ -209,7 +210,7 @@ def resume_what_lives_in_a_player(
 def resume_main_loop(main_player_cmd_file: Path, bounds: tuple[int, int] | None) -> None:
     """Queue SET_LOOP for the loop the main player was left running."""
     if bounds is not None:
-        append_command(Path(main_player_cmd_file), f"{SET_LOOP_CMD} {bounds[0]} {bounds[1]}")
+        append_command(Path(main_player_cmd_file), f"{SET_LOOP} {bounds[0]} {bounds[1]}")
 
 
 def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:

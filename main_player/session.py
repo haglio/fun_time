@@ -171,6 +171,9 @@ class PlayerSession:
     def record_up(self) -> None:
         self._loops.record_up(int(self._player.position_ms))
 
+    def record_tap(self) -> None:
+        self._loops.record_tap(int(self._player.position_ms))
+
     def restore_loop(self, in_ms: int, out_ms: int) -> None:
         self._loops.restore(in_ms, out_ms)
 

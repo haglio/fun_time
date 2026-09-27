@@ -32,12 +32,6 @@ from .player_handover import keep_aside
 from .players import Player
 from .satellites_mode import CLOSE_SHOWS, OPEN_SHOWS, VIDEO_MODE
 
-# Puts the main player back into an A/B loop it was left running, bounds and all.  The only
-# piece of the main player's state a restart has to hand back rather than rebuild: a
-# loop is a range inside one video, so it dies with the player process while
-# everything else rides in on the playlist or a seeded flag.
-SET_LOOP_CMD = "SET_LOOP"
-
 
 def read_flag_file(path: str | Path, default: bool) -> bool:
     try:

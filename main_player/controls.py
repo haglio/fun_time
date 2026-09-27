@@ -51,6 +51,8 @@ from player_core.player_verbs import (
 )
 from player_core.playlist import item_from_line
 
+from .loop_verbs import LOOP_CANCEL, RECORD_DOWN, RECORD_TAP, RECORD_UP, SET_LOOP
+
 __all__ = [
     "SEEK_STEP_MS",
     "VERBS",
@@ -127,14 +129,7 @@ def _record_up(controls: MainPlayerControls, _value: str) -> bool:
 
 
 def _record_tap(controls: MainPlayerControls, _value: str) -> bool:
-    """One-button record cycle: start marking -> finish loop -> cancel."""
-    state = controls.session.loop_state
-    if state == "normal":
-        controls.session.record_down()
-    elif state == "recording":
-        controls.session.record_up()
-    else:
-        controls.session.loop_cancel()
+    controls.session.record_tap()
     return True
 
 
@@ -144,14 +139,10 @@ def _loop_cancel(controls: MainPlayerControls, _value: str) -> bool:
 
 
 def _set_loop(controls: MainPlayerControls, value: str) -> bool:
-    """``SET_LOOP <in_ms> <out_ms>`` — a loop this player was left running.
-
-    The one piece of the main player's state an orchestrator has to hand back rather than
-    rebuild: a loop is a range inside one video, so it dies with the process
-    while everything else rides in on the playlist or a flag file.  The bounds
-    come straight off the status file this player published, already snapped, so
-    they are asserted rather than marked.  False on anything it cannot read as
-    two numbers, which :func:`apply_command` turns into the log line.
+    """The bounds come straight off the status file this player published,
+    already snapped, so they are asserted rather than marked.  False on anything
+    it cannot read as two numbers, which :func:`apply_command` turns into the
+    log line; what the verb is for is :mod:`main_player.loop_verbs`.
     """
     in_part, _, out_part = value.partition(" ")
     try:
@@ -326,17 +317,14 @@ CONTROLS: tuple[Control, ...] = (
             Verb(SET_SPEED, _set_speed, takes_a_value=True),
         ),
     ),
-    # Held rather than tapped, then tapped as well: pressing marks the loop's in
-    # point and letting go marks its out point, and RECORD_TAP is the one-button
-    # spelling of the same gesture for a speaker or a dashboard button.
     Control(
         name="loop",
         verbs=(
-            Verb("RECORD_DOWN", _record_down),
-            Verb("RECORD_UP", _record_up),
-            Verb("RECORD_TAP", _record_tap),
-            Verb("LOOP_CANCEL", _loop_cancel),
-            Verb("SET_LOOP", _set_loop, takes_a_value=True),
+            Verb(RECORD_DOWN, _record_down),
+            Verb(RECORD_UP, _record_up),
+            Verb(RECORD_TAP, _record_tap),
+            Verb(LOOP_CANCEL, _loop_cancel),
+            Verb(SET_LOOP, _set_loop, takes_a_value=True),
         ),
     ),
     Control(
