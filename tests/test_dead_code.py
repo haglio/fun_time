@@ -255,7 +255,11 @@ def test_no_module_reaches_into_another_ones_privates():
 # comment saying why it is written before the launch went.
 # 7682 the same day: the dispatch loop's close is a method of its own, tested
 # for the browse and the press socket it ends, so the notes in stop went.
-MAX_PROSE_LINES = 7682
+# 7662 the same day: the bar's press channel became an inbox any session
+# process can open, so the paragraphs describing its two ends went, and so did
+# the dispatch loop's note on a press that finds no bar listening, which the
+# inbox drops the way its tests say.
+MAX_PROSE_LINES = 7662
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
