@@ -16,6 +16,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -38,6 +39,7 @@ from tests.integration.hidden_desktop import (
     create_run_job,
     main,
 )
+from tests.integration.session_lock import SingleInstanceLock, Waiting, hold_integration_lock
 
 
 def _run_in_a_run_job(probe: str) -> None:
@@ -179,8 +181,13 @@ def test_the_flake_gate_runs_from_an_install_of_its_own_made_before_the_queue(tm
 
 @contextlib.contextmanager
 def _runs_launched_into(launched: list[tuple[str, str]], *, changed_files=(), exit_codes=(),
-                        ceilings: list[float] | None = None):
+                        ceilings: list[float] | None = None, places: list[dict] | None = None):
     codes = iter(exit_codes)
+
+    def hold(**place):
+        if places is not None:
+            places.append(place)
+        return contextlib.nullcontext()
 
     def launch(cmdline, desktop, cwd, job, environment=None):
         launched.append((cmdline, str(environment["__PYVENV_LAUNCHER__"])))
@@ -191,7 +198,7 @@ def _runs_launched_into(launched: list[tuple[str, str]], *, changed_files=(), ex
             ceilings.append(ceiling_s)
         return next(codes, 0)
 
-    with (patch.object(hidden_desktop, "hold_integration_lock", lambda **_kw: contextlib.nullcontext()),
+    with (patch.object(hidden_desktop, "hold_integration_lock", hold),
           patch.object(hidden_desktop, "flake_gate_python", lambda state_dir: "gate-python"),
           patch.object(hidden_desktop, "files_with_a_changed_test", lambda *args: list(changed_files)),
           patch.object(hidden_desktop, "_launch_on_desktop", launch),
@@ -199,6 +206,19 @@ def _runs_launched_into(launched: list[tuple[str, str]], *, changed_files=(), ex
           patch.object(hidden_desktop, "_wait_for_the_run", wait),
           patch.object(hidden_desktop, "HIDDEN_DESKTOP_NAME", f"FunTimeIntegrationUnit{os.getpid()}")):
         yield
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+@pytest.mark.parametrize("args, short", [
+    (["-k", "test_x"], True), (["-ktest_x"], True), (["tests/integration/test_x.py"], True),
+    (["--repeat-changed"], True), ([], False), (["-x", "--maxfail", "1"], False),
+    (["--deselect", "tests/integration/test_x.py::test_y"], False)])
+def test_a_run_narrowed_below_the_whole_suite_waits_in_line_as_a_short_run(args, short):
+    places: list[dict] = []
+    with _runs_launched_into([], places=places):
+        hidden_desktop.run_on_hidden_desktop(args)
+
+    assert [place["short"] for place in places] == [short]
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
@@ -277,6 +297,41 @@ def test_the_files_run_whole_are_the_integration_files_holding_a_test_the_branch
 
     assert hidden_desktop.files_with_a_changed_test(sys.executable, "main~1", repo) == [
         "tests/integration/test_b.py", "tests/integration/test_c.py"]
+
+
+def test_the_waiting_message_says_whether_the_run_is_short_or_full(capsys):
+    hidden_desktop._announce_waiting(True, Waiting(12.0))
+    hidden_desktop._announce_waiting(False, Waiting(30.0))
+    hidden_desktop._announce_waiting(False, Waiting(40.0, goes_next=True))
+
+    short, full, full_going_next = capsys.readouterr().err.splitlines()
+    assert "this short run waits for it, ahead of any full run (12s elapsed)" in short
+    assert "lets short runs go first until they have held the line for 20 minutes (30s elapsed)" in full
+    assert "this full run waits for it, and short runs now wait for this one (40s elapsed)" in full_going_next
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 named mutexes")
+def test_the_waiting_message_reads_what_the_line_reports():
+    name = rf"Global\fun_time_test_lock_{uuid.uuid4().hex}"
+    blocker = SingleInstanceLock(name)
+    assert blocker.acquire(timeout=1.0)
+    announced = threading.Event()
+
+    def announce(waiting: Waiting) -> None:
+        hidden_desktop._announce_waiting(False, waiting)
+        announced.set()
+
+    def wait_in_line() -> None:
+        with hold_integration_lock(name=name, notify_every_s=0.05, notify=announce):
+            pass
+
+    waiter = threading.Thread(target=wait_in_line, daemon=True)
+    waiter.start()
+    try:
+        assert announced.wait(timeout=10)
+    finally:
+        blocker.close()
+        waiter.join(timeout=10)
 
 
 def test_the_queue_is_waited_out_before_pytest_is_started():

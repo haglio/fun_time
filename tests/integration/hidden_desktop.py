@@ -47,6 +47,8 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable, Mapping
+from contextlib import AbstractContextManager
+from functools import partial
 from pathlib import Path
 from time import monotonic
 
@@ -54,7 +56,12 @@ from fun_time.win32_job import a_job_whose_processes_end_with_it
 from fun_time.win32_loader import load_dll, win_functype
 
 from .flake_gate_install import flake_gate_python
-from .session_lock import INTEGRATION_LOCK_NAME, hold_integration_lock
+from .session_lock import (
+    FULL_RUN_GIVES_WAY_S,
+    INTEGRATION_LOCK_NAME,
+    Waiting,
+    hold_integration_lock,
+)
 
 HIDDEN_DESKTOP_NAME = "FunTimeIntegration"
 INTEGRATION_DIR = "tests/integration/"
@@ -422,10 +429,16 @@ def _exit_code(process: int) -> int:
     return int(code.value)
 
 
-def _announce_waiting(seconds: float) -> None:
+def _announce_waiting(short: bool, waiting: Waiting) -> None:
+    if short:
+        place = "this short run waits for it, ahead of any full run"
+    elif waiting.goes_next:
+        place = "this full run waits for it, and short runs now wait for this one"
+    else:
+        place = (f"this full run waits for it, and lets short runs go first until they "
+                 f"have held the line for {FULL_RUN_GIVES_WAY_S / 60:g} minutes")
     print(f"[integration] another integration run holds {INTEGRATION_LOCK_NAME!r}; "
-          f"waiting for it to finish ({seconds:.0f}s elapsed)",
-          file=sys.stderr, flush=True)
+          f"{place} ({waiting.seconds:.0f}s elapsed)", file=sys.stderr, flush=True)
 
 
 def run_on_hidden_desktop(extra_args: list[str]) -> int:
@@ -441,14 +454,22 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
     os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
     if _is_a_repeat(extra_args):
         return _repeat_what_changed(_base_of(extra_args))
-    with hold_integration_lock(notify=_announce_waiting):
+    with _a_place_in_line(short=_is_short(extra_args)):
         return _run_the_suite(build_run_argv(extra_args), sys.executable, RUN_CEILING_S)
+
+
+def _is_short(extra_args: list[str]) -> bool:
+    return _names_its_tests(extra_args) or any(arg.startswith("-k") for arg in extra_args)
+
+
+def _a_place_in_line(*, short: bool) -> AbstractContextManager:
+    return hold_integration_lock(short=short, notify=partial(_announce_waiting, short))
 
 
 def _repeat_what_changed(base: str) -> int:
     gate_python = flake_gate_python(_repo_root() / "state")
     files = files_with_a_changed_test(gate_python, base, _repo_root())
-    with hold_integration_lock(notify=_announce_waiting):
+    with _a_place_in_line(short=True):
         minutes_left = REPEAT_BUDGET_MINUTES
         if files:
             started = monotonic()

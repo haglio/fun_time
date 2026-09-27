@@ -233,3 +233,157 @@ def test_hold_integration_lock_queues_until_free_then_releases():
         assert after.acquire(timeout=1.0) is True
     finally:
         after.close()
+
+
+def _start_run(name: str, order: list[str], label: str, *, once=lambda _state: True,
+               **kind) -> tuple[threading.Thread, threading.Event]:
+    waiting = threading.Event()
+
+    def tell(state) -> None:
+        if once(state):
+            waiting.set()
+
+    def run() -> None:
+        with hold_integration_lock(name=name, notify_every_s=0.05, notify=tell, **kind):
+            order.append(label)
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    return thread, waiting
+
+
+def _held_by_the_test(name: str) -> SingleInstanceLock:
+    blocker = SingleInstanceLock(name)
+    assert blocker.acquire(timeout=1.0)
+    return blocker
+
+
+def test_a_full_run_lets_a_short_run_that_came_after_it_go_first():
+    name = _unique_name()
+    blocker = _held_by_the_test(name)
+    order: list[str] = []
+    full, full_waiting = _start_run(name, order, "full")
+    assert full_waiting.wait(timeout=10)
+    short, short_waiting = _start_run(name, order, "short", short=True)
+    assert short_waiting.wait(timeout=10)
+
+    blocker.close()
+    for run in (full, short):
+        run.join(timeout=10)
+
+    assert order == ["short", "full"]
+
+
+def test_short_runs_get_the_lock_in_the_order_they_started_waiting():
+    name = _unique_name()
+    blocker = _held_by_the_test(name)
+    order: list[str] = []
+    runs = []
+    for number in range(4):
+        run, waiting = _start_run(name, order, f"short {number}", short=True)
+        assert waiting.wait(timeout=10)
+        runs.append(run)
+
+    blocker.close()
+    for run in runs:
+        run.join(timeout=10)
+
+    assert order == [f"short {number}" for number in range(4)]
+
+
+def test_a_full_run_goes_first_once_short_runs_have_held_the_lock_as_long_as_it_gives_way():
+    name = _unique_name()
+    first_short_in, first_short_may_leave = threading.Event(), threading.Event()
+
+    def first_short() -> None:
+        with hold_integration_lock(name=name, short=True, notify_every_s=0.05):
+            first_short_in.set()
+            first_short_may_leave.wait(timeout=10)
+
+    holder = threading.Thread(target=first_short, daemon=True)
+    holder.start()
+    assert first_short_in.wait(timeout=10)
+    order: list[str] = []
+    full, full_goes_next = _start_run(name, order, "full", full_run_gives_way_s=0.2,
+                                      once=lambda state: state.goes_next)
+    assert full_goes_next.wait(timeout=10)
+    short, short_waiting = _start_run(name, order, "second short", short=True)
+    assert short_waiting.wait(timeout=10)
+
+    first_short_may_leave.set()
+    for run in (holder, full, short):
+        run.join(timeout=10)
+
+    assert order == ["full", "second short"]
+
+
+def test_a_full_run_counts_toward_giving_way_only_the_time_short_runs_hold_the_lock():
+    name = _unique_name()
+    another_full_run = _held_by_the_test(name)
+    order: list[str] = []
+    full, full_waited_long = _start_run(name, order, "full", full_run_gives_way_s=0.2,
+                                        once=lambda state: state.seconds > 1.0)
+    assert full_waited_long.wait(timeout=10)
+    short, short_waiting = _start_run(name, order, "short", short=True)
+    assert short_waiting.wait(timeout=10)
+
+    another_full_run.close()
+    for run in (full, short):
+        run.join(timeout=10)
+
+    assert order == ["short", "full"]
+
+
+def test_only_the_full_run_next_in_line_makes_short_runs_wait_for_it():
+    name = _unique_name()
+    blocker = _held_by_the_test(name)
+    order: list[str] = []
+    first_full, first_full_waiting = _start_run(name, order, "first full")
+    assert first_full_waiting.wait(timeout=10)
+    second_full, second_full_waiting = _start_run(name, order, "second full", full_run_gives_way_s=0)
+    assert second_full_waiting.wait(timeout=10)
+    short, short_waiting = _start_run(name, order, "short", short=True)
+    assert short_waiting.wait(timeout=10)
+
+    blocker.close()
+    for run in (first_full, second_full, short):
+        run.join(timeout=10)
+
+    assert order == ["short", "first full", "second full"]
+
+
+_WAIT_IN_LINE = """
+import pathlib, sys
+sys.path.insert(0, {root!r})
+from tests.integration.session_lock import hold_integration_lock
+def waiting(state):
+    if state.seconds >= 0.15 and (state.goes_next or {short!r}):
+        pathlib.Path({sentinel!r}).write_text("waiting")
+with hold_integration_lock(name={name!r}, short={short!r}, notify_every_s=0.05,
+                           full_run_gives_way_s=0, notify=waiting):
+    pass
+"""
+
+
+@pytest.mark.parametrize("dies, waits", [("short", "full"), ("full", "short"), ("full", "full")])
+def test_a_run_that_dies_waiting_holds_no_other_run_back(tmp_path, dies, waits):
+    name = _unique_name()
+    blocker = _held_by_the_test(name)
+    sentinel = tmp_path / "waiting.flag"
+    root = str(Path(__file__).resolve().parents[1])
+    code = _WAIT_IN_LINE.format(root=root, name=name, short=dies == "short", sentinel=str(sentinel))
+    dying = subprocess.Popen([sys.executable, "-c", code], cwd=root,
+                             creationflags=subprocess.CREATE_NO_WINDOW)
+    try:
+        wait_until(sentinel.exists, timeout=60.0)
+    finally:
+        dying.kill()
+        dying.wait(timeout=10)
+    order: list[str] = []
+    survivor, survivor_waiting = _start_run(name, order, waits, short=waits == "short")
+    assert survivor_waiting.wait(timeout=10)
+
+    blocker.close()
+    survivor.join(timeout=10)
+
+    assert order == [waits]
