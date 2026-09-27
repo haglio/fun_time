@@ -881,6 +881,54 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
         second.stop()
 
 
+def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
+    """Close Fun Time with the room playing fast and unheld, and it comes back
+    that way.
+
+    A player's rate and its hold live in the player process and in nothing the
+    next one reads, so the only record of either is what each player publishes to
+    its status file every tick.  The reopened session re-sends both, and only a
+    real session proves that: they have to survive the force-kill that ends one
+    and arrive as verbs the new player obeys.
+    """
+    temp_root = build_integration_temp_root()
+    config_path = build_integration_config(temp_root)
+
+    first = FunTimeIntegrationSession(config_path)
+    try:
+        first.start()
+        first.write_dashboard_command("main_video_activate")
+        first.write_dashboard_command("play")
+        first.wait_until(
+            lambda: _loaded_and_playing(first.read_main_player_status()),
+            timeout=COMMAND_BUDGET_S,
+            description="the main player to be playing",
+        )
+        first.write_dashboard_command("main_player_speed_150")
+        first.write_dashboard_command("main_player_lock")
+        first.wait_until(
+            lambda: (first.read_main_player_status().speed == 1.5
+                     and not first.read_main_player_status().locked),
+            timeout=COMMAND_BUDGET_S,
+            description="the main player to take one and a half speed and let its video go",
+        )
+        first.quit_gracefully()
+    finally:
+        first.stop()
+
+    second = FunTimeIntegrationSession(config_path)
+    try:
+        second.start()
+        second.wait_until(
+            lambda: (second.read_main_player_status().speed == 1.5
+                     and not second.read_main_player_status().locked),
+            timeout=COMMAND_BUDGET_S,
+            description="the reopened main player to come back fast and still unheld",
+        )
+    finally:
+        second.stop()
+
+
 def test_fun_time_quit_cleans_up_processes():
     """The real quit path (AHK exit → orchestrator cleanup) must kill all child processes."""
     temp_root = build_integration_temp_root()
