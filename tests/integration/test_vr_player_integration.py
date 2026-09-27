@@ -39,6 +39,7 @@ from fun_time_vr.layout import (
     LANDSCAPE,
     LAYOUT_FILENAME,
     PORTRAIT,
+    Layout,
     read_layout,
 )
 from fun_time_vr.orchestrator import build_vr_manifest
@@ -150,7 +151,8 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     main = vrp._MainUnit(manifest, vr, contexts, remembered=remembered,
                          genau_role=SimpleNamespace(showing=False))
     satellites = [
-        vrp._SatelliteUnit(side, manifest, contexts, vr=vr, remembered=remembered)
+        vrp._SatelliteUnit(side, manifest, contexts, vr=vr,
+                           remembered=remembered.placements)
         for side in (PORTRAIT, LANDSCAPE)
     ]
     units = [main, *satellites]
@@ -409,7 +411,7 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
     window = hidden_gl_window("vr-play-test")
     glfw.make_context_current(window)
 
-    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered={},
+    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered=Layout(),
                          genau_role=SimpleNamespace(showing=False))
     stop = threading.Event()
     pump = threading.Thread(

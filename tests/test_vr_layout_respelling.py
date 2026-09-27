@@ -14,6 +14,7 @@ from fun_time_vr.layout import (
     LAYOUT_FILENAME,
     MAIN,
     PORTRAIT,
+    Layout,
     migrate_layout,
     read_layout,
     write_layout,
@@ -36,7 +37,7 @@ class TestTheHeadsetLayoutFile:
 
         assert migrate_layout(path) is True
 
-        assert read_layout(path)[MAIN] == Placement(6.5, -14.9, 82.1)
+        assert read_layout(path).placements[MAIN] == Placement(6.5, -14.9, 82.1)
         raw = json.loads(path.read_text(encoding="utf-8"))
         assert "primary" not in raw
         assert raw["main"] == moved
@@ -44,8 +45,8 @@ class TestTheHeadsetLayoutFile:
 
     def test_a_file_already_in_todays_spelling_is_left_alone(self, tmp_path: Path):
         path = tmp_path / LAYOUT_FILENAME
-        write_layout(path, {MAIN: Placement(6.5, -14.9, 82.1),
-                            PORTRAIT: Placement(47.6, -21.7, 41.6)})
+        write_layout(path, Layout({MAIN: Placement(6.5, -14.9, 82.1),
+                                   PORTRAIT: Placement(47.6, -21.7, 41.6)}))
         before = path.read_text(encoding="utf-8")
 
         assert migrate_layout(path) is False

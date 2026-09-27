@@ -125,7 +125,7 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             _Row(
                 "VR reset — the main player, both satellites and the dashboard back "
-                "to their default spots and sizes in the headset",
+                "to their default spots and sizes in the headset, and level again",
                 (),
                 ("vr_reset",),
             ),

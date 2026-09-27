@@ -5,14 +5,15 @@ import json
 import logging
 import math
 from collections.abc import Mapping
-from dataclasses import fields, replace
+from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 
 from .scene import Placement, turn_deg, widened
 
 logger = logging.getLogger(__name__)
 
-_FIELDS = tuple(field.name for field in fields(Placement))
+_FIELDS = tuple(part.name for part in fields(Placement))
+_TILT_FIELD = "tilt_deg"
 
 MAIN = "main"
 PORTRAIT = "portrait"
@@ -31,6 +32,13 @@ AZIMUTH_LIMIT_DEG = 150.0
 ELEVATION_LIMIT_DEG = 75.0
 MIN_WIDTH_DEG = 10.0
 MAX_WIDTH_DEG = 120.0
+TILT_LIMIT_DEG = 90.0
+
+
+@dataclass(frozen=True)
+class Layout:
+    placements: dict[str, Placement] = field(default_factory=dict)
+    tilt_deg: float = 0.0
 
 
 def clamp_width(width_deg: float) -> float:
@@ -39,6 +47,10 @@ def clamp_width(width_deg: float) -> float:
 
 def clamp_elevation(elevation_deg: float) -> float:
     return max(-ELEVATION_LIMIT_DEG, min(ELEVATION_LIMIT_DEG, elevation_deg))
+
+
+def clamp_tilt(tilt_deg: float) -> float:
+    return max(-TILT_LIMIT_DEG, min(TILT_LIMIT_DEG, tilt_deg))
 
 
 def clamp_placement(placement: Placement) -> Placement:
@@ -135,31 +147,42 @@ def migrate_layout(path: Path) -> bool:
     return True
 
 
-def read_layout(path: Path) -> dict[str, Placement]:
-    """Only where the last session was left holding each screen."""
+def _remembered_tilt(written: object, path: Path) -> float:
+    try:
+        return clamp_tilt(float(written))
+    except (TypeError, ValueError):
+        logger.warning("Ignoring the remembered tilt in %s", path)
+        return 0.0
+
+
+def read_layout(path: Path) -> Layout:
+    """Only where the last session was left holding each screen, and its tilt."""
     try:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {}
+        return Layout()
     if not isinstance(raw, dict):
-        return {}
+        return Layout()
+    spots = dict(raw)
+    tilt_deg = _remembered_tilt(spots.pop(_TILT_FIELD, 0.0), path)
     remembered: dict[str, Placement] = {}
-    for name, spot in raw.items():
+    for name, spot in spots.items():
         if not isinstance(spot, dict):
             continue
         try:
             remembered[name] = clamp_placement(
-                Placement(**{field: float(spot[field]) for field in _FIELDS}))
+                Placement(**{part: float(spot[part]) for part in _FIELDS}))
         except (KeyError, TypeError, ValueError):
             logger.warning("Ignoring the remembered %s placement in %s", name, path)
-    return remembered
+    return Layout(placements=remembered, tilt_deg=tilt_deg)
 
 
-def write_layout(path: Path, layout: dict[str, Placement]) -> bool:
-    payload = {
-        name: {field: getattr(placement, field) for field in _FIELDS}
-        for name, placement in layout.items()
+def write_layout(path: Path, layout: Layout) -> bool:
+    payload: dict[str, object] = {
+        name: {part: getattr(placement, part) for part in _FIELDS}
+        for name, placement in layout.placements.items()
     }
+    payload[_TILT_FIELD] = layout.tilt_deg
     try:
         Path(path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     except OSError:

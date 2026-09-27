@@ -48,6 +48,7 @@ from fun_time.media_metadata import load_metadata, metadata_path_for, video_titl
 from main_player.play_points import PlayPoints
 from main_player.seeking import OwedSeek, seek_if_taken
 
+from .layout import clamp_tilt
 from .projection import next_projection, resolve_projection, save_projection
 from .video_scenes import scene_starts_ms
 
@@ -60,7 +61,6 @@ SCENE_JUST_BEGUN_MS = 3_000
 SCENE_JUMP_LANDS_WITHIN_MS = 500
 
 TILT_STEP_DEG = 5.0
-TILT_LIMIT_DEG = 90.0
 
 # The headset's own verbs: a projection to walk, a heading to re-zero onto, a
 # tilt, a scene to jump to.  Spelled here, beside the registry that answers them,
@@ -125,6 +125,7 @@ class MainRole:
         metadata_root: Path | None,
         vr_dirs: Sequence[Path],
         start_paused: bool = False,
+        tilt_deg: float = 0.0,
         play_points: PlayPoints | None = None,
     ) -> None:
         self._player = player
@@ -156,7 +157,7 @@ class MainRole:
         self._audio_live = False
         self.recenter = HostRequest()
         self.layout_reset = HostRequest()
-        self._tilt_deg = 0.0  # state, not a request; both inputs write here
+        self._tilt_deg = clamp_tilt(tilt_deg)
         # Whether this player is what the headset shows: DISPLAY_OFF rides every
         # switch into genau mode, where the clip takes the scene instead.
         self.displayed = True
@@ -258,6 +259,10 @@ class MainRole:
     def reset_tilt(self) -> None:
         self._tilt_deg = 0.0
 
+    def reset_layout(self) -> None:
+        self.reset_tilt()
+        self.layout_reset.ask()
+
     def set_tcode_enabled_from(self, value: str) -> bool:
         enabled = value.strip() != "0"
         # Re-enabling is a takeover — the device is wherever Genau's motion
@@ -328,7 +333,7 @@ class MainRole:
             self._player, max(0.0, min(self._player.duration_ms, position_ms)))
 
     def nudge_tilt(self, degrees: float) -> None:
-        self._tilt_deg = max(-TILT_LIMIT_DEG, min(TILT_LIMIT_DEG, self._tilt_deg + degrees))
+        self._tilt_deg = clamp_tilt(self._tilt_deg + degrees)
 
     def status_fields(self, handoff_touch_ms: int | None) -> dict[str, str]:
         """The desktop main player's status contract, read by the dispatch loop the same way.
@@ -575,7 +580,7 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(name="projection", verbs=(Verb(CYCLE_PROJECTION, _moves(MainRole.cycle_projection)),)),
     Control(name="heading", verbs=(Verb(RECENTER, _moves(lambda role: role.recenter.ask())),)),
-    Control(name="layout", verbs=(Verb(LAYOUT_RESET, _moves(lambda role: role.layout_reset.ask())),)),
+    Control(name="layout", verbs=(Verb(LAYOUT_RESET, _moves(MainRole.reset_layout)),)),
     Control(
         name="scene",
         verbs=(Verb(NEXT_SCENE, _moves(MainRole.next_scene)),
