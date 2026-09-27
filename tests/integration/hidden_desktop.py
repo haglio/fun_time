@@ -49,6 +49,7 @@ import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
+from fun_time.win32_job import a_job_whose_processes_end_with_it
 from fun_time.win32_loader import load_dll, win_functype
 
 from .flake_gate_install import flake_gate_python
@@ -116,14 +117,8 @@ CREATE_SUSPENDED = 0x00000004
 CREATE_UNICODE_ENVIRONMENT = 0x00000400
 WAIT_TIMEOUT = 0x00000102
 STILL_ACTIVE = 259
-
-# Destroying the job terminates every process still in it.  The run's whole
-# process tree — pytest, the orchestrator, the satellites, the main player, Genau, AHK — is in it,
-# because a process created by a process in a job joins that job.
-JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x00000800
-JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
 JOB_OBJECT_LIMIT_PRIORITY_CLASS = 0x00000020
-_JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x00000800
 
 
 class _STARTUPINFOW(ctypes.Structure):
@@ -143,36 +138,6 @@ class _PROCESS_INFORMATION(ctypes.Structure):
                 ("dwProcessId", wt.DWORD), ("dwThreadId", wt.DWORD)]
 
 
-class _IO_COUNTERS(ctypes.Structure):
-    _fields_ = [("ReadOperationCount", ctypes.c_ulonglong),
-                ("WriteOperationCount", ctypes.c_ulonglong),
-                ("OtherOperationCount", ctypes.c_ulonglong),
-                ("ReadTransferCount", ctypes.c_ulonglong),
-                ("WriteTransferCount", ctypes.c_ulonglong),
-                ("OtherTransferCount", ctypes.c_ulonglong)]
-
-
-class _JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
-    _fields_ = [("PerProcessUserTimeLimit", ctypes.c_longlong),
-                ("PerJobUserTimeLimit", ctypes.c_longlong),
-                ("LimitFlags", wt.DWORD),
-                ("MinimumWorkingSetSize", ctypes.c_size_t),
-                ("MaximumWorkingSetSize", ctypes.c_size_t),
-                ("ActiveProcessLimit", wt.DWORD),
-                ("Affinity", ctypes.POINTER(ctypes.c_ulong)),
-                ("PriorityClass", wt.DWORD),
-                ("SchedulingClass", wt.DWORD)]
-
-
-class _JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
-    _fields_ = [("BasicLimitInformation", _JOBOBJECT_BASIC_LIMIT_INFORMATION),
-                ("IoInfo", _IO_COUNTERS),
-                ("ProcessMemoryLimit", ctypes.c_size_t),
-                ("JobMemoryLimit", ctypes.c_size_t),
-                ("PeakProcessMemoryUsed", ctypes.c_size_t),
-                ("PeakJobMemoryUsed", ctypes.c_size_t)]
-
-
 _user32.CreateDesktopW.argtypes = [wt.LPCWSTR, wt.LPCWSTR, wt.LPVOID, wt.DWORD, wt.DWORD, wt.LPVOID]
 _user32.CreateDesktopW.restype = wt.HANDLE
 _user32.CloseDesktop.argtypes = [wt.HANDLE]
@@ -189,10 +154,6 @@ _kernel32.GetExitCodeProcess.argtypes = [wt.HANDLE, ctypes.POINTER(wt.DWORD)]
 _kernel32.GetExitCodeProcess.restype = wt.BOOL
 _kernel32.CloseHandle.argtypes = [wt.HANDLE]
 _kernel32.CloseHandle.restype = wt.BOOL
-_kernel32.CreateJobObjectW.argtypes = [wt.LPVOID, wt.LPCWSTR]
-_kernel32.CreateJobObjectW.restype = wt.HANDLE
-_kernel32.SetInformationJobObject.argtypes = [wt.HANDLE, ctypes.c_int, wt.LPVOID, wt.DWORD]
-_kernel32.SetInformationJobObject.restype = wt.BOOL
 _kernel32.AssignProcessToJobObject.argtypes = [wt.HANDLE, wt.HANDLE]
 _kernel32.AssignProcessToJobObject.restype = wt.BOOL
 _kernel32.ResumeThread.argtypes = [wt.HANDLE]
@@ -300,22 +261,10 @@ def create_run_job() -> int:
     CREATE_BREAKAWAY_FROM_JOB: it is a service that outlives the session that
     starts it, so it must not be swept up with the run.
     """
-    job = _kernel32.CreateJobObjectW(None, None)
-    if not job:
-        raise ctypes.WinError(ctypes.get_last_error())
-    info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
-    info.BasicLimitInformation.LimitFlags = (
-        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK
-        | JOB_OBJECT_LIMIT_PRIORITY_CLASS
+    return a_job_whose_processes_end_with_it(
+        more_limits=JOB_OBJECT_LIMIT_BREAKAWAY_OK | JOB_OBJECT_LIMIT_PRIORITY_CLASS,
+        priority_class=subprocess.BELOW_NORMAL_PRIORITY_CLASS,
     )
-    info.BasicLimitInformation.PriorityClass = subprocess.BELOW_NORMAL_PRIORITY_CLASS
-    if not _kernel32.SetInformationJobObject(
-        job, _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION, ctypes.byref(info), ctypes.sizeof(info)
-    ):
-        error = ctypes.get_last_error()
-        _kernel32.CloseHandle(job)
-        raise ctypes.WinError(error)
-    return job
 
 
 def close_run_job(job: int) -> None:

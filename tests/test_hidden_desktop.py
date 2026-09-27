@@ -24,6 +24,7 @@ import pytest
 
 from fun_time.win32_loader import load_dll
 from fun_time.win32_process import is_process_alive
+from tests.child_reports import A_STARVED_CHILDS_START_S, pid_written_to
 from tests.integration import hidden_desktop
 from tests.integration.hidden_desktop import (
     _child_environment,
@@ -36,15 +37,13 @@ from tests.integration.hidden_desktop import (
     main,
 )
 
-A_STARVED_PROBES_CEILING_S = 120
-
 
 def _run_in_a_run_job(probe: str) -> None:
     job = create_run_job()
     pi = _launch_on_desktop(subprocess.list2cmdline([sys.executable, "-c", probe]),
                             None, str(_repo_root()), job)
     try:
-        hidden_desktop._wait_for_the_run(pi.hProcess, ceiling_s=A_STARVED_PROBES_CEILING_S)
+        hidden_desktop._wait_for_the_run(pi.hProcess, ceiling_s=A_STARVED_CHILDS_START_S)
     finally:
         _close_process_handles(pi)
         close_run_job(job)
@@ -332,18 +331,6 @@ def _held_in_its_exit(pid: int, release: Path):
         _kernel32.DebugActiveProcessStop(pid)
 
 
-STARVED_CHILD_BUDGET_S = 120.0
-
-
-def _pid_written_to(path: Path, timeout: float = STARVED_CHILD_BUDGET_S) -> int:
-    deadline = time.monotonic() + timeout
-    while not (path.exists() and path.read_text()):
-        if time.monotonic() > deadline:
-            raise TimeoutError(f"nothing wrote a pid to {path} within {timeout:g}s")
-        time.sleep(0.05)
-    return int(path.read_text())
-
-
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 debugging")
 def test_a_run_ends_on_the_code_pytest_decided_though_windows_never_finishes_taking_it_down(
         tmp_path, capsys):
@@ -363,7 +350,7 @@ def test_a_run_ends_on_the_code_pytest_decided_though_windows_never_finishes_tak
                                daemon=True)
         run.start()
         try:
-            with _held_in_its_exit(_pid_written_to(pid_file), release):
+            with _held_in_its_exit(pid_written_to(pid_file), release):
                 run.join(timeout=30)
                 assert ended == [3]
         finally:
@@ -426,7 +413,7 @@ def test_the_broker_a_run_starts_survives_that_runs_job(tmp_path):
     cmdline = subprocess.list2cmdline([sys.executable, "-c", spawn_broker])
     pi = _launch_on_desktop(cmdline, None, str(_repo_root()), job)
     try:
-        broker_pid = _pid_written_to(pid_file)
+        broker_pid = pid_written_to(pid_file)
     finally:
         _close_process_handles(pi)
         close_run_job(job)
