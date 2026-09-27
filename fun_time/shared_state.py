@@ -22,6 +22,7 @@ from pathlib import Path
 
 from player_core.console import OSR2_DRIVING
 from player_core.file_channel import publish_whole
+from player_core.hud_placement import HudCorner, HudEdge
 from player_core.modes import MainMode, SatellitesMode, read_mode
 
 from .audio_volume import MAX_VOLUME
@@ -38,6 +39,9 @@ class SatelliteState:
     writes one back, and every default is its field's own empty value."""
 
     locked: bool = False
+    hud_corner: HudCorner = HudCorner.UPPER_LEFT
+    hud_edge: HudEdge = HudEdge.LOWER
+    hud_minimized: bool = False
     # This satellite's metadata filter query ("" = none), honored by later rebuilds.
     filter: str = ""
     # Per player, because each HUD carries its own F button; here it keeps the favorites.
@@ -87,6 +91,9 @@ class BridgeState:
     # The main player's own F-mode -- its playlist narrowed to the scripted
     # videos -- and browse order; the satellites' are theirs.
     main_scripted_filter: bool = False
+    main_hud_corner: HudCorner = HudCorner.UPPER_LEFT
+    main_hud_edge: HudEdge = HudEdge.LOWER
+    main_hud_minimized: bool = False
     omni_paused: bool = False
     main_latest: bool = False
     # Which shapes of video the main player's browse may reach: VR masters, flat

@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from player_core.hud_placement import HudCorner, HudEdge
 from player_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL, looping_label, status_line
 from player_core.modes import SatellitesMode
 
@@ -71,6 +72,9 @@ class HudPanel:
     current: str
     seed_siblings: list[str]
     action_siblings: list[str]
+    hud_corner: HudCorner = HudCorner.UPPER_LEFT
+    hud_edge: HudEdge = HudEdge.LOWER
+    hud_minimized: bool = False
     # Whether the clip on screen is one of the favorites — the star the HUD
     # marks at the head of the line naming that very clip.
     is_favorite: bool = False
@@ -280,6 +284,9 @@ class SatelliteInputs:
     sources: str = ""
     current: str = ""
     locked: bool = False
+    hud_corner: HudCorner = HudCorner.UPPER_LEFT
+    hud_edge: HudEdge = HudEdge.LOWER
+    hud_minimized: bool = False
     filter_query: str = ""
     loop_axis: str = ""
     map_anchor: str = ""
@@ -469,6 +476,9 @@ def build_hud_panel(
     return HudPanel(
         player=inputs.player,
         locked=inputs.locked,
+        hud_corner=inputs.hud_corner,
+        hud_edge=inputs.hud_edge,
+        hud_minimized=inputs.hud_minimized,
         lock_label=_status_label(inputs.locked, hold.active_loop, inputs.latest, inputs.filter_query, inputs.favorites_filter),
         is_favorite=inputs.is_favorite,
         favorites_filter=inputs.favorites_filter,

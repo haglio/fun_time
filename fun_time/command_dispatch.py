@@ -447,6 +447,61 @@ _MINIMIZE_ROLES: dict[str, str] = {
 MAIN_MINIMIZE = "main_minimize"
 
 
+_HUD_MOVES = {f"{player.label}_hud_{direction}": (player, direction)
+              for player in Player.SATELLITES
+              for direction in ("left", "right", "up", "down")}
+MAIN_HUD_TURNS = {"main_hud_clockwise": True, "main_hud_counterclockwise": False}
+
+
+_HUD_COLLAPSES = {f"{player.label}_hud_{verb}": (player, verb == "minimize")
+                  for player in (*Player.SATELLITES, Player.MAIN)
+                  for verb in ("minimize", "restore")}
+
+
+def _collapsed_hud(command: str, state: BridgeState,
+                   config: BridgeConfig) -> BridgeState | None:
+    collapse = _HUD_COLLAPSES.get(command)
+    if collapse is None:
+        return None
+    player, minimized = collapse
+    if player is Player.MAIN:
+        return replace(state, main_hud_minimized=minimized)
+    _tell_the_hosted_app(player, f"hud_minimized|{1 if minimized else 0}", state, config)
+    return state.with_satellite(player, hud_minimized=minimized)
+
+
+def _moved_hud(command: str, state: BridgeState,
+               config: BridgeConfig) -> BridgeState | None:
+    moved = _HUD_MOVES.get(command)
+    if moved is not None:
+        player, direction = moved
+        return _satellite_hud_moved(player, state, config, direction=direction)
+    if command in MAIN_HUD_TURNS:
+        clockwise = MAIN_HUD_TURNS[command]
+        if config.vr_main_player:
+            return replace(state, main_hud_edge=state.main_hud_edge.turned(
+                clockwise=clockwise))
+        return replace(state, main_hud_corner=state.main_hud_corner.turned(
+            clockwise=clockwise))
+    return None
+
+
+def _satellite_hud_moved(player: Player, state: BridgeState, config: BridgeConfig, *,
+                         direction: str) -> BridgeState:
+    side = state.satellite(player)
+    if config.vr_main_player:
+        return state.with_satellite(player, hud_edge=side.hud_edge.toward(direction))
+    corner = side.hud_corner.toward(direction)
+    _tell_the_hosted_app(player, f"hud_corner|{corner}", state, config)
+    return state.with_satellite(player, hud_corner=corner)
+
+
+def _tell_the_hosted_app(player: Player, action: str, state: BridgeState,
+                         config: BridgeConfig) -> None:
+    if hosting_origenerator(state, config):
+        append_command(config.origenerator_cmd_file, f"{player.label}_{action}")
+
+
 def _minimize_ops(command: str, main_mode: str) -> list[WindowOp] | None:
     """The windows *command* asks to have parked, or None when it asks for none.
 
@@ -633,6 +688,10 @@ def dispatch_command(
     minimize_ops = _minimize_ops(command, state.main_mode)
     if minimize_ops is not None:
         return state, minimize_ops
+
+    moved = _moved_hud(command, state, config) or _collapsed_hud(command, state, config)
+    if moved is not None:
+        return moved, []
 
     # Any command naming a player (voice or keyboard nav) makes it the active
     # player, so a later player-agnostic "active_*" command knows which to drive.

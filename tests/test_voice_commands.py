@@ -665,3 +665,23 @@ class TestBuildVoiceCommands:
 def test_the_crown_is_given_by_naming_the_player_after_the_word_crown():
     assert (VOICE_COMMANDS["crown portrait"], VOICE_COMMANDS["crown main"]) == (
         "portrait_crown", "main_crown")
+
+
+class TestMinimizingAHudBySpeech:
+    """"minimize landscape HUD" and its way back, for each player and for
+    whichever one was addressed last."""
+
+    def test_each_player_can_be_told_to_minimize_its_hud(self):
+        for side, player in (("portrait", "portrait"), ("landscape", "landscape"),
+                             ("main", "main")):
+            assert VOICE_COMMANDS[f"minimize {side} hud"] == f"{player}_hud_minimize"
+            assert VOICE_COMMANDS[f"un minimize {side} hud"] == f"{player}_hud_restore"
+            assert VOICE_COMMANDS[f"restore {side} hud"] == f"{player}_hud_restore"
+
+    def test_a_bare_minimize_hud_reaches_the_player_addressed_last(self):
+        assert VOICE_COMMANDS["minimize hud"] == "active_hud_minimize"
+        assert VOICE_COMMANDS["un minimize hud"] == "active_hud_restore"
+        assert VOICE_COMMANDS["restore hud"] == "active_hud_restore"
+
+    def test_the_reference_shows_the_joined_up_word(self):
+        assert friendly_voice("un minimize landscape hud") == "unminimize landscape hud"

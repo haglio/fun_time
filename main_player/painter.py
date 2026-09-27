@@ -22,7 +22,7 @@ without a window and libmpv, so neither had a test.
 """
 from __future__ import annotations
 
-from player_core.console_hud import ConsoleHud, hud_xy, with_playback_speed
+from player_core.console_hud import ConsoleHud, with_playback_speed
 from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
 from player_core.timeline import bar_track_x
 from player_core.volume import VolumeHudPainter, chip_xy
@@ -60,6 +60,9 @@ class ConsolePanel:
         self._drive_gate = drive_gate
         self._console_hud = console_hud
         self._modes = modes
+
+    def place(self, *, window: tuple[int, int], lower_edge: int) -> tuple[int, int]:
+        return self._console_hud.place(window=window, lower_edge=lower_edge)
 
     def bgra(self, *, hover):
         """This frame's panel.  Reads the room first, then asks the gate what of
@@ -102,7 +105,7 @@ class Painter:
         is the one thing drawn here that the mouse owns rather than the player."""
         self._timeline(win_w, win_h)
         self._readout(win_w, win_h)
-        self._panel(hover)
+        self._panel(win_w, win_h, hover)
         self._chip(win_w, win_h)
         self._loop_frames(win_w, win_h)
 
@@ -132,9 +135,11 @@ class Painter:
                           timeline_h=timeline_height(self._heatmap))
         self._player.overlay(_OV_READOUT, x, y, pill)
 
-    def _panel(self, hover) -> None:
-        left, top = hud_xy()
-        self._player.overlay(_OV_CONSOLE, left, top, self._console.bgra(hover=hover))
+    def _panel(self, win_w: int, win_h: int, hover) -> None:
+        bgra = self._console.bgra(hover=hover)
+        left, top = self._console.place(window=(win_w, win_h),
+                                       lower_edge=timeline_height(self._heatmap))
+        self._player.overlay(_OV_CONSOLE, left, top, bgra)
 
     def _chip(self, win_w: int, win_h: int) -> None:
         """The volume control, at the right-hand end of the row above the

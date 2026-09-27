@@ -15,6 +15,7 @@ import pytest
 from player_core.console import OSR2_CONTROL_OFF
 from player_core.drive_readout import DriveHud, publish_drive
 from player_core.hud_button import Button
+from player_core.hud_placement import HudCorner
 from player_core.modes import MainMode, Osr2State
 from player_core.satellite_hud import HudCell, HudModel, hud_text, parse_hud
 
@@ -677,3 +678,38 @@ def test_the_portrait_panels_crown_is_lit_once_the_room_gives_it_the_crown(tmp_p
     crown = next(button for row in panel(tmp_path, "portrait")["rows"] for button in row
                  if button["command"] == "portrait_crown")
     assert crown.get("lit")
+
+
+class TestWhatThePanelSaysAboutWhereItSits:
+    """Where a HUD sits and whether it is collapsed travel with the panel: the
+    player draws them, and only the session knows what the keys did."""
+
+    def test_each_panel_carries_its_own_corner_and_collapse(self, tmp_path):
+        feed = make_feed(tmp_path)
+        state = replace(
+            BridgeState(),
+            portrait=SatelliteState(hud_corner=HudCorner.LOWER_RIGHT, hud_minimized=True),
+            main_hud_corner=HudCorner.UPPER_RIGHT, main_hud_minimized=True)
+
+        feed.publish(state)
+
+        assert panel(tmp_path, "portrait")["hud_corner"] == HudCorner.LOWER_RIGHT
+        assert panel(tmp_path, "portrait")["hud_minimized"] is True
+        assert panel(tmp_path, "landscape")["hud_corner"] == HudCorner.UPPER_LEFT
+        assert panel(tmp_path, "landscape")["hud_minimized"] is False
+        assert console(tmp_path)["hud_corner"] == HudCorner.UPPER_RIGHT
+        assert console(tmp_path)["hud_minimized"] is True
+
+    def test_a_side_the_hosted_app_holds_wears_the_sessions_own_corner(self, tmp_path):
+        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        hosted = hud_text(HudModel(player="portrait", lock_label="Slideshow",
+                                   corner=HudCell(path="C:/p/one.png")))
+        (tmp_path / "origenerator_portrait_hud.json").write_text(hosted, encoding="utf-8")
+        state = replace(
+            BridgeState(satellites_mode="origenerator", origenerator_ready=True),
+            portrait=SatelliteState(hud_corner=HudCorner.LOWER_LEFT, hud_minimized=True))
+
+        feed.publish(state)
+
+        assert panel(tmp_path, "portrait")["hud_corner"] == HudCorner.LOWER_LEFT
+        assert panel(tmp_path, "portrait")["hud_minimized"] is True

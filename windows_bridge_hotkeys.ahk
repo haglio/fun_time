@@ -152,6 +152,25 @@ e::QueueCommand("landscape_loop")
 +Down::QueueCommand("portrait_nav_down")
 +w::QueueCommand("landscape_nav_up")
 +s::QueueCommand("landscape_nav_down")
+; Where each player's HUD sits.  Ctrl and the side's own step keys move that
+; player's HUD: round the four corners of its picture on the desktop, against a
+; side of its player in the headset.  The main player has one pair of keys
+; rather than a cluster, so its HUD walks the ring: Ctrl+[ against the clock,
+; Ctrl+] with it.  The bracket scancodes are bound beside the characters for the
+; same reason the step keys are.
+^Left::QueueCommand("portrait_hud_left")
+^Right::QueueCommand("portrait_hud_right")
+^Up::QueueCommand("portrait_hud_up")
+^Down::QueueCommand("portrait_hud_down")
+^a::QueueCommand("landscape_hud_left")
+^d::QueueCommand("landscape_hud_right")
+^w::QueueCommand("landscape_hud_up")
+^s::QueueCommand("landscape_hud_down")
+^[::QueueCommand("main_hud_counterclockwise")
+^SC01A::QueueCommand("main_hud_counterclockwise")
+^]::QueueCommand("main_hud_clockwise")
+^SC01B::QueueCommand("main_hud_clockwise")
+
 ; The video's lock, while the video is on the main slot: it holds instead of
 ; walking the playlist.  Genau's clip has a lock key of its own in Genau's
 ; cluster below, so each key holds the player whose keys sit around it.  The

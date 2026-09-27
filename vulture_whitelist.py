@@ -52,3 +52,4 @@ report_the_headset_held
 headset_is_held
 CANCEL_OPENING_FUN_TIME_VR  # overlay_progress; the VR orchestrator's launch cover says it
 CANCEL_CLOSING_FUN_TIME_VR  # overlay_progress; the VR orchestrator's closing cover says it
+_.edge  # satellite.hud_overlay; the headset reads it to hang the panel, a scan of its own

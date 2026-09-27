@@ -379,6 +379,18 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("Shift+[", "Shift+]", "V"),
                 ("main_player_cycle_version_back", "main_player_cycle_version"),
             ),
+            _Row(
+                "Move this player's panel — one key each way round the corners "
+                "of the picture, or round the sides of the player in the headset",
+                ("Ctrl+[", "Ctrl+]"),
+                ("main_hud_counterclockwise", "main_hud_clockwise"),
+            ),
+            _Row(
+                "Minimize this player's panel — it collapses to a square with a "
+                "plus on it, and the plus brings it back",
+                (),
+                ("main_hud_minimize", "main_hud_restore"),
+            ),
             _Row("Latest main — reload it newest-first", (), ("main_latest",)),
             _Row(
                 "Shape of what plays in the headset, the video here and Genau's "
@@ -486,6 +498,25 @@ _SECTIONS: tuple[_Section, ...] = (
                     "landscape_nav_up", "landscape_nav_down",
                 ),
                 hotkeys_alt=("Shift+W", "Shift+S"),
+            ),
+            _Row(
+                "Move this player's HUD — round the corners of its picture, or "
+                "against a side of its player in the headset",
+                ("Ctrl+Left", "Ctrl+Right", "Ctrl+Up", "Ctrl+Down"),
+                ("portrait_hud_left", "portrait_hud_right",
+                 "portrait_hud_up", "portrait_hud_down",
+                 "landscape_hud_left", "landscape_hud_right",
+                 "landscape_hud_up", "landscape_hud_down"),
+                hotkeys_alt=("Ctrl+A", "Ctrl+D", "Ctrl+W", "Ctrl+S"),
+            ),
+            _Row(
+                "Minimize this player's HUD — it collapses to a square with a "
+                "plus on it, and the plus brings it back",
+                (),
+                ("portrait_hud_minimize", "portrait_hud_restore",
+                 "landscape_hud_minimize", "landscape_hud_restore",
+                 "both_hud_minimize", "both_hud_restore",
+                 "active_hud_minimize", "active_hud_restore"),
             ),
             _Row("More seeds — widen to same-scene near-matches", (), _sided("more_seeds")),
             _Row("Loop the subject's actions — repeat that group", (), _sided("action_loop")),
