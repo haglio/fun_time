@@ -31,6 +31,7 @@ from .integration_support import (
     close_udp_sinks,
     keep_every_sessions_logs,
 )
+from .throwaway_chrome import ThrowawayChrome
 
 # Only on the desktop this suite is allowed to run on.  Importing this file is not
 # the same thing as running it: a unit run that merely *recurses* into this
@@ -145,3 +146,11 @@ def _release_the_runs_udp_sinks():
     close_udp_sinks()
 
 
+@pytest.fixture
+def chrome(tmp_path: Path):
+    """A Chrome of the test's own, closed and its profile taken away when it ends."""
+    browser = ThrowawayChrome(tmp_path)
+    try:
+        yield browser
+    finally:
+        browser.close()
