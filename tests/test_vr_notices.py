@@ -22,7 +22,7 @@ from fun_time.event_log import (
 )
 from fun_time.unlogged_notices import UnloggedNotices
 from fun_time.voice_control import VoiceController
-from fun_time_vr.notices import KEPT, MAIN, NoticeBoard, screen_for
+from fun_time_vr.notices import MAIN, NoticeBoard, screen_for
 
 
 def _write(path: Path, message: str, level: int = NOTICE, source: str = SOURCE_SYSTEM,
@@ -63,14 +63,14 @@ class TestWhichScreenALineBelongsTo:
 
 
 class TestWhatItPicksUp:
-    def test_an_announcement_written_after_it_started_is_held(self, tmp_path):
+    def test_an_announcement_written_after_it_started_flashes(self, tmp_path):
         path = _log(tmp_path)
         board = NoticeBoard(path)
         _write(path, "landscape next")
 
         board.pump(None, now=1.0)
 
-        assert [line.message for line in board.lines] == ["landscape next"]
+        assert board.banner(MAIN).message == "landscape next"
 
     def test_the_backlog_it_opened_on_is_not_news(self, tmp_path):
         """The session's history is not what a person is told the moment they
@@ -81,7 +81,7 @@ class TestWhatItPicksUp:
         board = NoticeBoard(path)
         board.pump(None, now=1.0)
 
-        assert board.lines == ()
+        assert board.banner(MAIN) is None
 
     def test_the_diagnostic_chatter_under_a_notice_is_not_shown(self, tmp_path):
         """The same bar the desktop's notices flash on — a notice, or louder —
@@ -93,7 +93,7 @@ class TestWhatItPicksUp:
 
         board.pump(None, now=1.0)
 
-        assert [line.message for line in board.lines] == ["No clip that way"]
+        assert board.banner(MAIN).message == "unrecognized voice command: portrait net"
 
     def test_the_level_rides_along_for_the_color(self, tmp_path):
         path = _log(tmp_path)
@@ -102,7 +102,7 @@ class TestWhatItPicksUp:
 
         board.pump(None, now=1.0)
 
-        assert [line.level for line in board.lines] == [FAVORITE]
+        assert board.banner(MAIN).level == FAVORITE
 
 
 class TestTheBannerOverEachPlayer:
@@ -140,28 +140,28 @@ class TestTheBannerOverEachPlayer:
         assert board.banner(SOURCE_PORTRAIT).message == "portrait next"
         assert board.banner(MAIN).message == "skip"
 
-    def test_a_banner_clears_sooner_than_the_strip_keeps_it(self, tmp_path):
-        """It sits over the picture, so it goes while the strip beside the
-        console still has it."""
+
+class TestWhatItDrops:
+    def test_a_banner_fades_after_its_seconds(self, tmp_path):
         path = _log(tmp_path)
-        board = NoticeBoard(path, seconds=8.0, banner_seconds=2.0)
+        board = NoticeBoard(path, banner_seconds=2.0)
         _write(path, "skip", source=SOURCE_MAIN)
         board.pump(None, now=100.0)
 
-        board.pump(None, now=102.5)
+        board.pump(None, now=101.9)
+        assert board.banner(MAIN).message == "skip"
 
+        board.pump(None, now=102.1)
         assert board.banner(MAIN) is None
-        assert [line.message for line in board.lines] == ["skip"]
 
 
 class TestWordsFlashedWithNoLogLine:
-    def test_they_go_on_the_strip_and_over_the_player_they_name(self, tmp_path):
+    def test_they_flash_over_the_player_they_name(self, tmp_path):
         board = NoticeBoard(_log(tmp_path), unlogged=_Unlogged(EventRecord(
             2.0, logging.WARNING, SOURCE_PORTRAIT, "unrecognized voice command: alpha beta")))
 
         board.pump(None, now=1.0)
 
-        assert [line.message for line in board.lines] == ["unrecognized voice command: alpha beta"]
         assert board.banner(SOURCE_PORTRAIT).message == "unrecognized voice command: alpha beta"
 
     def test_they_never_join_what_the_dash_lists(self, tmp_path):
@@ -181,7 +181,6 @@ class TestWordsFlashedWithNoLogLine:
 
         assert [record.message for record in board.records] == [
             "unrecognized voice command (2 words)"]
-        assert board.lines == ()
         assert board.banner(MAIN) is None
 
     def test_closing_the_board_closes_their_inbox(self, tmp_path):
@@ -203,62 +202,36 @@ class TestWordsFlashedWithNoLogLine:
                 Recognition(unrecognized_text="put the kettle on"),
                 spoken_at=1.0, peak=2000, audio=b"", candidates={}, words_formed=True))
             deadline = time.monotonic() + 5.0
-            while not board.lines and time.monotonic() < deadline:
+            while board.banner(MAIN) is None and time.monotonic() < deadline:
                 board.pump(None, now=1.0)
                 time.sleep(0.02)
         finally:
             voice_log.removeHandler(written)
             board.close()
 
-        assert [line.message for line in board.lines] == [
-            "unrecognized voice command: put the kettle on"]
         assert board.banner(MAIN).message == "unrecognized voice command: put the kettle on"
         assert [record.message for record in board.records] == [
             "unrecognized voice command (4 words)"]
 
 
 class TestWhatItDrops:
-    def test_a_line_fades_after_its_seconds(self, tmp_path):
-        path = _log(tmp_path)
-        board = NoticeBoard(path, seconds=5.0)
-        _write(path, "landscape next")
-        board.pump(None, now=100.0)
-
-        board.pump(None, now=104.9)
-        assert len(board.lines) == 1
-
-        board.pump(None, now=105.1)
-        assert board.lines == ()
-
-    def test_a_line_is_timed_from_when_the_board_saw_it(self, tmp_path):
+    def test_a_banner_is_timed_from_when_the_board_saw_it(self, tmp_path):
         """The writer stamps wall time and the pump runs on a monotonic clock, so
         a board that faded a line against the record's own timestamp would drop
         it by the difference between the two — which on this machine is days."""
         path = _log(tmp_path)
-        board = NoticeBoard(path, seconds=5.0)
+        board = NoticeBoard(path, banner_seconds=5.0)
         _write(path, "landscape next")
 
         board.pump(None, now=9_999.0)
 
-        assert len(board.lines) == 1
-
-    def test_only_the_last_few_are_kept(self, tmp_path):
-        path = _log(tmp_path)
-        board = NoticeBoard(path)
-        for index in range(KEPT + 3):
-            _write(path, f"command {index}")
-
-        board.pump(None, now=1.0)
-
-        assert [line.message for line in board.lines] == [
-            f"command {index}" for index in range(3, KEPT + 3)]
+        assert board.banner(MAIN) is not None
 
     def test_a_missing_log_is_simply_nothing_to_say(self, tmp_path):
         board = NoticeBoard(tmp_path / "never-written.jsonl")
 
         board.pump(None, now=1.0)
 
-        assert board.lines == ()
         assert board.banner(MAIN) is None
 
 

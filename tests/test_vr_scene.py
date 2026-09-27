@@ -4,6 +4,7 @@ import math
 
 import numpy as np
 import pytest
+from player_core.hud_placement import HudEdge
 
 from fun_time_vr.matrices import pitch_rotation_matrix, yaw_rotation_matrix
 from fun_time_vr.scene import (
@@ -11,6 +12,7 @@ from fun_time_vr.scene import (
     RADIUS,
     Placement,
     attached_below,
+    attached_to,
     encloses,
     quad_layer_placement,
     surface_vertices,
@@ -206,6 +208,54 @@ class TestAttachedBelow:
         spaced_top = surface_vertices(spaced, aspect=2.0)[:, 1].max()
 
         assert flush_top - spaced_top == pytest.approx(RADIUS * math.radians(1.0), abs=1e-6)
+
+
+class TestAttachedAgainstASide:
+    """The same strip against the other three sides of a screen: what the Ctrl
+    keys ask for in the headset, where a HUD hangs beside its player rather than
+    over its picture."""
+
+    _PICTURE = Placement(azimuth_deg=0.0, elevation_deg=10.0, width_deg=28.0)
+
+    def _hanging(self, edge, **extra):
+        return attached_to(edge, self._PICTURE, aspect=9 / 16, width_deg=20.0,
+                           hanging_aspect=2.0, **extra)
+
+    def test_the_lower_side_is_where_it_hung_before(self):
+        assert self._hanging(HudEdge.LOWER) == attached_below(
+            self._PICTURE, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
+
+    def test_against_the_upper_side_its_lower_edge_meets_the_screens_top(self):
+        hanging = self._hanging(HudEdge.UPPER)
+        picture = surface_vertices(self._PICTURE, aspect=9 / 16)
+        strip = surface_vertices(hanging, aspect=2.0)
+
+        assert hanging.azimuth_deg == self._PICTURE.azimuth_deg
+        assert strip[:, 1].min() == pytest.approx(picture[:, 1].max(), abs=1e-6)
+
+    def test_against_a_left_or_right_side_it_keeps_the_screens_elevation(self):
+        for edge in (HudEdge.LEFT, HudEdge.RIGHT):
+            hanging = self._hanging(edge)
+            assert hanging.elevation_deg == self._PICTURE.elevation_deg
+            assert hanging.width_deg == 20.0
+
+    def test_against_the_right_side_it_starts_where_the_screen_ends(self):
+        hanging = self._hanging(HudEdge.RIGHT)
+
+        assert hanging.azimuth_deg == pytest.approx(
+            self._PICTURE.azimuth_deg + 28.0 / 2 + 20.0 / 2)
+
+    def test_against_the_left_side_it_ends_where_the_screen_starts(self):
+        hanging = self._hanging(HudEdge.LEFT)
+
+        assert hanging.azimuth_deg == pytest.approx(
+            self._PICTURE.azimuth_deg - 28.0 / 2 - 20.0 / 2)
+
+    def test_a_gap_holds_it_off_whichever_side_it_hangs_against(self):
+        assert self._hanging(HudEdge.RIGHT, gap_deg=1.0).azimuth_deg == pytest.approx(
+            self._hanging(HudEdge.RIGHT).azimuth_deg + 1.0)
+        assert self._hanging(HudEdge.LEFT, gap_deg=1.0).azimuth_deg == pytest.approx(
+            self._hanging(HudEdge.LEFT).azimuth_deg - 1.0)
 
 
 class TestOneScreenInsideAnother:

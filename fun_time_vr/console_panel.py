@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import replace
 
-from PIL import Image, ImageDraw
+from PIL import Image
 from player_core.console import tooltip_at
 from player_core.console_hud import (
     ConsoleHud,
@@ -14,13 +14,12 @@ from player_core.console_hud import (
     hud_xy,
     with_playback_speed,
 )
-from shared_ui.palette import AMBER, BG_PRIMARY, GREEN, RED, TEXT_MUTED, TEXT_PRIMARY
+from player_core.hud_placement import HudEdge
+from shared_ui.palette import AMBER, GREEN, RED, TEXT_MUTED, TEXT_PRIMARY
 
 from fun_time.event_log import FAVORITE, NOTICE
 from fun_time.mode_plan import main_player_displays
 
-from .lettering import fit_text, load_font
-from .notices import KEPT, Notice
 from .pointer import surface_pixel
 
 # Pixels across, held: the screen keeps one size between the modes (the genau
@@ -28,14 +27,6 @@ from .pointer import surface_pixel
 PANEL_WIDTH_PX = 380
 PANEL_WIDTH_DEG = 32.6
 DEG_PER_PX = PANEL_WIDTH_DEG / PANEL_WIDTH_PX  # every control in the scene, one size
-
-# Segoe UI Bold, the face every HUD here is read at a glance in, at 9pt.
-_NOTICE_FONT_PX = 12
-_NOTICE_ROW_H = 15
-_NOTICE_PAD = 4
-
-# Held: one height whether or not anything is on it, so the panel never resizes.
-NOTICE_STRIP_HEIGHT = KEPT * _NOTICE_ROW_H + _NOTICE_PAD
 
 # fun_time.log_panel's own mapping.
 _LEVEL_COLORS: dict[int, tuple[int, int, int]] = {
@@ -54,32 +45,13 @@ def level_color(level: int) -> tuple[int, int, int]:
     return TEXT_MUTED
 
 
-def paint_notices(notices: Sequence[Notice], width: int) -> Image.Image:
-    """The strip above the console, newest lowest -- always NOTICE_STRIP_HEIGHT
-    tall and transparent where there is nothing to say."""
-    strip = Image.new("RGBA", (width, NOTICE_STRIP_HEIGHT), (0, 0, 0, 0))
-    if not notices:
-        return strip
-    font = load_font(_NOTICE_FONT_PX)
-    draw = ImageDraw.Draw(strip)
-    inner = width - 2 * _NOTICE_PAD
-    rows = list(notices)[-KEPT:]
-    top = NOTICE_STRIP_HEIGHT - _NOTICE_PAD - len(rows) * _NOTICE_ROW_H
-    for index, one in enumerate(rows):
-        y = top + index * _NOTICE_ROW_H
-        draw.rounded_rectangle(
-            (0, y, width - 1, y + _NOTICE_ROW_H - 1), radius=4, fill=(*BG_PRIMARY, 224),
-        )
-        draw.text(
-            (_NOTICE_PAD, y + 1), fit_text(font, one.message, inner),
-            font=font, fill=(*level_color(one.level), 255),
-        )
-    return strip
-
-
 def panel_painter() -> ConsolePainter:
     """The desktop's console painter, held to the panel's one width."""
     return ConsolePainter(width=PANEL_WIDTH_PX)
+
+
+def panel_hangs_from(edge: HudEdge, *, wrapped: bool) -> HudEdge:
+    return HudEdge.LOWER if wrapped else edge
 
 
 def panel_hud(
@@ -126,22 +98,15 @@ def paint_panel(
     hud: ConsoleHud,
     *,
     hover: tuple[int, int] | None = None,
-    notices: Sequence[Notice] | None = (),
     row=None,
 ) -> Image.Image:
-    # Strip over the console, *row* under it, ``notices=None`` for no strip at all --
-    # which an empty one is not: it holds its height, and reads there as a gap.
     console_rgba, console_size = painter.rgba(hud, hover=hover)
     console = Image.frombytes("RGBA", console_size, console_rgba)
-    strip = None if notices is None else paint_notices(notices, console.width)
-    top = 0 if strip is None else strip.height
-    tall = top + console.height + (0 if row is None else row.shape[0])
-    panel = Image.new("RGBA", (console.width, tall), (0, 0, 0, 0))
-    if strip is not None:
-        panel.alpha_composite(strip, (0, 0))
-    panel.alpha_composite(console, (0, top))
-    if row is not None:
-        panel.alpha_composite(Image.fromarray(row, "RGBA"), (0, top + console.height))
+    if row is None:
+        return console
+    panel = Image.new("RGBA", (console.width, console.height + row.shape[0]), (0, 0, 0, 0))
+    panel.alpha_composite(console, (0, 0))
+    panel.alpha_composite(Image.fromarray(row, "RGBA"), (0, console.height))
     return panel
 
 
@@ -150,24 +115,17 @@ class PanelPointer:
         self._painter = painter
         self._post = post
         self._size = (1, 1)
-        self._strip = NOTICE_STRIP_HEIGHT
         self._tip: tuple[str, tuple[int, int]] | None = None
 
-    def painted(self, size: tuple[int, int], *, strip_height: int = NOTICE_STRIP_HEIGHT
-                ) -> None:
-        self._size, self._strip = size, strip_height
+    def painted(self, size: tuple[int, int]) -> None:
+        self._size = size
 
     def _pixel(self, u: float, v: float) -> tuple[int, int]:
         return surface_pixel(u, v, self._size)
 
-    def _console_pixel(self, u: float, v: float) -> tuple[int, int]:
-        """The same point in the CONSOLE's pixels, which the strip pushed down."""
-        px, py = self._pixel(u, v)
-        return px, py - self._strip
-
     def press(self, u: float, v: float) -> None:
         self.release()
-        px, py = self._console_pixel(u, v)
+        px, py = self._pixel(u, v)
         left, top = hud_xy()
         command = self._painter.press_at(px + left, py + top)
         if command:
@@ -177,7 +135,7 @@ class PanelPointer:
         if self._painter.holding:
             px, py = self._pixel(u, v)
             left, top = hud_xy()
-            _, cy = self._console_pixel(u, v)
+            _, cy = self._pixel(u, v)
             command = self._painter.drag_to(px + left, cy + top)
             if command:
                 self._post(command)
@@ -186,10 +144,9 @@ class PanelPointer:
         self._painter.release()
 
     def tooltip_anchor(self, uv: tuple[float, float] | None) -> tuple[int, int] | None:
-        """The tooltip's anchor, in the CONSOLE's pixels -- where its buttons are."""
         tip = ""
         if uv is not None and 0.0 <= uv[0] <= 1.0 and 0.0 <= uv[1] <= 1.0:
-            px, py = self._console_pixel(*uv)
+            px, py = self._pixel(*uv)
             tip = tooltip_at(self._painter.buttons, px, py)
         if not tip:
             self._tip = None
