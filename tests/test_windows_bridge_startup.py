@@ -39,6 +39,7 @@ from fun_time.windows_bridge_startup import (
     HandedPlayer,
     _build_satellite_launch_command,
     ensure_broker,
+    genau_launch_command,
     launch_audio_companion,
     launch_broker_tray,
     launch_core_apps,
@@ -1217,6 +1218,21 @@ def test_launch_genau_names_no_clip_for_a_session_with_none_to_resume():
         )
 
     assert "--start-clip" not in popen.call_args.args[0]
+
+
+def test_the_launch_names_latest_only_for_a_session_left_browsing_it():
+    """Genau's order comes back on its launch line, beside the clip: left off,
+    Genau's config decides, which is the shuffled order a session that was not
+    on Latest wants."""
+    def launch(latest: bool) -> list[str]:
+        return genau_launch_command(
+            python_exe="python.exe", genau_module="genau", config_path="cfg.json",
+            clips_folder="clips", genau_x=0, genau_y=0, genau_width=1, genau_height=1,
+            start_clip="", latest=latest, **GENAU_SESSION_FILES,
+        )
+
+    assert "--latest" in launch(True)
+    assert "--latest" not in launch(False)
 
 
 def test_launch_main_player_is_told_the_state_dir_it_remembers_in(tmp_path: Path):

@@ -65,6 +65,7 @@ class GenauRole:
         tcode_sink,
         stop_event: threading.Event,
         start_clip: Path | None = None,
+        latest: bool = False,
         status_file: Path | None = None,
         decode: Callable[[Path], list] | None = None,
         start_thread=start_daemon_thread,
@@ -83,7 +84,7 @@ class GenauRole:
         self._volume = 100
         self._muted = False
         self._projection_of: tuple[Path | None, str] = (None, "")
-        self._recent = False
+        self._recent = latest
         self._shapes = (True, True)
 
         self._sequence = ClipSequenceController(self._scan(), start_at=start_clip)

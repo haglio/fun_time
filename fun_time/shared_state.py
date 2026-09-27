@@ -104,8 +104,6 @@ class BridgeState:
     # share the main slot: ``main_latest`` describes the playlist file we built
     # for the main player, and a Genau reorder rewrites nothing of the main player's.  One flag for both
     # would light "Latest" on the main player's console over a playlist nobody reordered.
-    # It alone does not resume (fun_time.session_resume.NOT_RESUMED): Genau
-    # reshuffles its clips folder at every launch.
     genau_latest: bool = False
     genau_plays_vr: bool = True
     genau_plays_flat: bool = True

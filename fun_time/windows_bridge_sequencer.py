@@ -33,6 +33,7 @@ from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
+from .shared_state import read_shared_state, shared_state_path
 from .shortcuts import resolve_shortcut
 from .win32 import (
     ANSWER_TIMEOUT_MS,
@@ -434,11 +435,12 @@ def _launch_the_main_slot_players(
     # into the Genau repo, while the main player was told to read it out of Fun Time's — so
     # Video mode showed a console with the Genau half missing.
     genau_drive_file = Path(m.commands.genau_drive_file)
-    # Genau's own resume: it rescans its clips folder every launch and opens at
-    # the top of it, so the clip the last session was left showing survives only
-    # in the status file it published — read here, before this session's Genau
-    # starts writing over it.
+    # Genau's own resume, read before this session's Genau writes over its
+    # status file: the clip it was left showing, and whether it was browsing
+    # Latest off the state the core session just resumed.
     genau_clip = read_genau_status(Path(m.commands.genau_status_file)).clip
+    state = read_shared_state(shared_state_path(state_dir))
+    genau_latest = False if state is None else state.genau_latest
     # project_dirs: which checkout of ../genau these two are run out of.  Empty
     # in an ordinary session — they resolve through their venv's editable
     # install, which is the primary — and a worktree of that repo while a branch
@@ -459,6 +461,7 @@ def _launch_the_main_slot_players(
         status_file=m.commands.genau_status_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
         start_clip=genau_clip,
+        latest=genau_latest,
         project_dirs=project_dirs,
     )
     # The main player's status file is how startup learns the main player has finished loading, and it

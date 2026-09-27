@@ -83,6 +83,7 @@ from fun_time.session_handoff import (
     headset_hold_stops_the_runtime,
     report_the_headset_held,
 )
+from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.unlogged_notices import UnloggedNotices
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from main_player.play_points import PlayPoints, play_points_filename
@@ -898,6 +899,7 @@ class _GenauUnit:
         if not vr.clips_dirs:
             raise RuntimeError("the launch manifest names no clips folder for Genau's role")
         commands = manifest.commands
+        resumed = read_shared_state(shared_state_path(Path(commands.state_dir)))
         self.role = GenauRole(
             clips_dirs=vr.clips_dirs,
             vr_dirs=vr.vr_clip_dirs,
@@ -911,8 +913,8 @@ class _GenauUnit:
                 UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "genau",
             ),
             stop_event=stop,
-            # Genau's own resume: the clip it was left showing, off its last status.
             start_clip=read_genau_status(Path(commands.genau_status_file)).clip or None,
+            latest=False if resumed is None else resumed.genau_latest,
         )
         self.texture = FrameTexture()
         self.screen = _HangingScreen(remembered.get(MAIN, self.SPOTS[MAIN]))

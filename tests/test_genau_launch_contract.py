@@ -40,6 +40,7 @@ def _the_real_command() -> list[str]:
         status_file="a-state-dir/genau_status.txt",
         dashboard_cmd_file="a-state-dir/dashboard_cmd.txt",
         start_clip="a-clip.mp4",
+        latest=True,
     )
 
 
