@@ -40,13 +40,9 @@ _IDLE_LOOK_S = 0.1
 
 
 class HeadsetBrowse:
-    """The browser window, served to the headset -- built without its library.
-
-    Reading the library took minutes on a syncing drive and happened before this
-    process answered anything, so the headset's presses -- its close among them --
-    piled up unread (2026-09-20).  The library arrives later instead, through
-    :meth:`take_the_library`.
-    """
+    """The browser window, served to the headset -- built without its library,
+    which used to leave its presses piled up unread until the read finished;
+    the library arrives later instead, through :meth:`take_the_library`."""
 
     def __init__(
         self, *, thumbnail_cache: Path, frames: FrameWriter, say: Callable[[str], None],
