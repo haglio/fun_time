@@ -124,6 +124,15 @@ class LoopMachine:
             return
         self.finish_at(position_ms)
 
+    def record_tap(self, position_ms: int) -> None:
+        """The one-button gesture: start marking, then close the loop, then drop it."""
+        if self.marking:
+            self.record_up(position_ms)
+        elif self.running:
+            self.cancel()
+        else:
+            self.record_down(position_ms)
+
     def finish_at(self, out_ms: int) -> None:
         """Close the marked loop at *out_ms* and start mpv's native A/B loop."""
         self._ctrl.on_record_up(out_ms)

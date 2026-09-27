@@ -119,6 +119,36 @@ class TestTheRecordGesture:
         assert loops.marked_in_ms is None, "looping now, not marking"
 
 
+class TestTheOneButtonGesture:
+    """A speaker and the console's record button have no press and release to
+    give, so one verb walks the three states in turn."""
+
+    def test_the_first_tap_opens_a_mark(self):
+        loops, _player, _seeks, _takeovers = _loops()
+
+        loops.record_tap(2500)
+
+        assert (loops.marking, loops.marked_in_ms) == (True, 2500)
+
+    def test_the_second_closes_the_loop_and_starts_it(self):
+        loops, player, seeks, _takeovers = _loops()
+        loops.record_tap(2500)
+
+        loops.record_tap(3500)
+
+        assert (loops.running, player.ab_loop, seeks[-1]) == (True, (2000, 4000), 2000)
+
+    def test_the_third_drops_it(self):
+        loops, player, _seeks, takeovers = _loops()
+        loops.record_tap(2500)
+        loops.record_tap(3500)
+        takeovers.clear()
+
+        loops.record_tap(3000)
+
+        assert (loops.idle, player.ab_loop, takeovers) == (True, None, [1])
+
+
 class TestTheBoundsItPublishes:
     def test_nothing_while_no_loop_is_running(self):
         loops, _player, _seeks, _takeovers = _loops()
