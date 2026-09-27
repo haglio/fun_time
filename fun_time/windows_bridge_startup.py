@@ -55,7 +55,6 @@ from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot, for_player
 from .session_resume import (
     playlist_fits_sources,
-    playlist_opens_on,
     resume_main_loop,
     resume_main_video,
     resume_playlists,
@@ -472,15 +471,8 @@ def start_core_session(
         (Path(portrait.channels.command), carried.satellite(Player.PORTRAIT).locked),
         (Path(landscape.channels.command), carried.satellite(Player.LANDSCAPE).locked),
     ])
-    # The main player's loop is the same kind of thing, and queued the same way —
-    # but only if the main player really did come back onto the video the loop was
-    # cut from.  A rebuild above, or a clip deleted since, leaves some other
-    # video leading, and those bounds would then mark out a stretch of a video
-    # nobody chose.
-    resume_main_loop(
-        Path(main_player_cmd_file),
-        main_player_status.loop_bounds if playlist_opens_on(main_player_playlist, main_player_status.video) else None,
-    )
+    # The main player's loop is the same kind of thing, and queued the same way.
+    resume_main_loop(Path(main_player_cmd_file), main_player_status, main_player_playlist)
     if crossing:
         resume_what_lives_in_a_player(
             main_player=(Path(main_player_cmd_file), main_player_status),

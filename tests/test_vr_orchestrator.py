@@ -413,6 +413,24 @@ class TestTheModeASessionComesBackIn:
         assert (given["main_plays_vr"], given["main_plays_flat"]) == (
             "carried.main_plays_vr", "carried.main_plays_flat")
 
+    def test_the_loop_the_main_player_was_running_is_queued_for_it(self):
+        """A loop lives nowhere but in the player holding it, so entering VR used
+        to drop one even though the clip it was cut from came across."""
+        (resume,) = self._calls("run_vr_bridge", "resume_main_loop")
+
+        assert [ast.unparse(arg) for arg in resume.args] == [
+            "Path(commands.main_player_cmd_file)",
+            "main_player_status",
+            "main_player_playlist",
+        ]
+
+    def test_it_is_queued_after_the_playlists_are_stocked(self):
+        """The rebuild and its rotation are what decide whether the clip the loop
+        was cut from is the one this session opens on."""
+        source = inspect.getsource(orchestrator.run_vr_bridge)
+
+        assert source.index("stock_the_playlists(") < source.index("resume_main_loop(")
+
     def test_the_reveal_releases_the_players_the_mode_puts_to_work(self):
         """The desktop's own reveal: the video in video mode, Genau's hand and its
         music in genau mode -- rather than unpausing the video whatever the mode."""

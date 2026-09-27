@@ -107,6 +107,7 @@ from fun_time.session_handoff import (
     say_the_crossing_is_cancelled,
 )
 from fun_time.session_resume import (
+    resume_main_loop,
     resume_main_video,
     resume_playlists,
     resume_satellite_locks,
@@ -606,6 +607,8 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             main_plays_flat=carried.main_plays_flat,
             main_video=main_player_status.video,
         )
+        resume_main_loop(Path(commands.main_player_cmd_file), main_player_status,
+                         main_player_playlist)
 
         # --- The children: the audio companion, then the VR player ---
         # The companion first, as on the desktop, so it is listening when Genau's
