@@ -29,6 +29,8 @@ from .projection import (
     EQUIRECT_360,
     FISHEYE_180_SBS,
     FISHEYE_190_SBS,
+    FISHEYE_200_EQUISOLID_SBS,
+    FISHEYE_200_STEREOGRAPHIC_SBS,
     FISHEYE_220_SBS,
     MKX200_SBS,
 )
@@ -97,11 +99,18 @@ void main() {
 
 _EQUIRECT_180_MODE, _FISHEYE_MODE, _EQUIRECT_360_MODE = 1, 2, 3
 
+# How a fisheye's radius grows with its ray's off-axis angle -- the shape a
+# lens's own optics draw, distinct from how wide its field of view is.  Most
+# fisheye lenses are equidistant; a lens sold as low-distortion at a wide
+# field of view is typically closer to one of the other two.
+_CURVE_EQUIDISTANT, _CURVE_STEREOGRAPHIC, _CURVE_EQUISOLID = 0, 1, 2
+
 
 @dataclass(frozen=True)
 class Wrap:
     mode: int
     fisheye_fov_deg: float = 0.0
+    fisheye_curve: int = _CURVE_EQUIDISTANT
 
 
 # FLAT is absent because a flat video draws as a screen, not an immersive wrap.
@@ -111,6 +120,8 @@ _WRAPS = {
     FISHEYE_190_SBS: Wrap(_FISHEYE_MODE, 190.0),
     MKX200_SBS: Wrap(_FISHEYE_MODE, 200.0),
     FISHEYE_220_SBS: Wrap(_FISHEYE_MODE, 220.0),
+    FISHEYE_200_STEREOGRAPHIC_SBS: Wrap(_FISHEYE_MODE, 200.0, _CURVE_STEREOGRAPHIC),
+    FISHEYE_200_EQUISOLID_SBS: Wrap(_FISHEYE_MODE, 200.0, _CURVE_EQUISOLID),
     EQUIRECT_360: Wrap(_EQUIRECT_360_MODE),
 }
 
@@ -124,6 +135,7 @@ uniform mat4 inv_view_proj;
 uniform int eye;   // 0=left, 1=right
 uniform int mode;  // a Wrap's, written in from the mode ids below
 uniform float fisheye_half_fov;  // radians; a fisheye Wrap's, unread by the rest
+uniform int fisheye_curve;  // a fisheye Wrap's, unread by the rest
 
 const float PI = 3.14159265359;
 
@@ -146,13 +158,22 @@ void main() {{
         float u = theta / PI + 0.5;
         uv = vec2(u * 0.5 + float(eye) * 0.5, phi / PI + 0.5);
     }} else {{
-        // Fisheye, side-by-side stereo, equidistant mapping: the ray's
-        // off-axis angle sets the radius from each eye-image's center.
+        // Fisheye, side-by-side stereo: the ray's off-axis angle sets the
+        // radius from each eye-image's center, by the Wrap's own curve --
+        // each normalized so the fisheye's edge still lands at radius 1.
         float off_axis = acos(clamp(-dir.z, -1.0, 1.0));
         if (off_axis > fisheye_half_fov) {{ frag_color = vec4(0.0, 0.0, 0.0, 1.0); return; }}
+        float r;
+        if (fisheye_curve == {_CURVE_STEREOGRAPHIC}) {{
+            r = tan(off_axis * 0.5) / tan(fisheye_half_fov * 0.5);
+        }} else if (fisheye_curve == {_CURVE_EQUISOLID}) {{
+            r = sin(off_axis * 0.5) / sin(fisheye_half_fov * 0.5);
+        }} else {{
+            r = off_axis / fisheye_half_fov;
+        }}
         float planar_len = length(dir.xy);
         vec2 planar = planar_len > 0.0 ? dir.xy / planar_len : vec2(0.0);
-        vec2 local = vec2(0.5) + (off_axis / fisheye_half_fov * 0.5) * planar;
+        vec2 local = vec2(0.5) + (r * 0.5) * planar;
         uv = vec2(local.x * 0.5 + float(eye) * 0.5, local.y);
     }}
     frag_color = texture(video_tex, uv);
@@ -374,6 +395,8 @@ class SceneRenderer:
         self._imm_mode = GL.glGetUniformLocation(self._immersive_program, "mode")
         self._imm_fisheye_half_fov = GL.glGetUniformLocation(
             self._immersive_program, "fisheye_half_fov")
+        self._imm_fisheye_curve = GL.glGetUniformLocation(
+            self._immersive_program, "fisheye_curve")
         self._imm_tex = GL.glGetUniformLocation(self._immersive_program, "video_tex")
         self._copy_program = _compile_program(_FULLSCREEN_VERTEX_SHADER, _COPY_FRAGMENT_SHADER)
         self._copy_tex = GL.glGetUniformLocation(self._copy_program, "video_tex")
@@ -400,6 +423,7 @@ class SceneRenderer:
         GL.glUniform1i(self._imm_eye, eye)
         GL.glUniform1i(self._imm_mode, wrap.mode)
         GL.glUniform1f(self._imm_fisheye_half_fov, math.radians(wrap.fisheye_fov_deg) / 2)
+        GL.glUniform1i(self._imm_fisheye_curve, wrap.fisheye_curve)
         GL.glUniform1i(self._imm_tex, 0)
         GL.glUniformMatrix4fv(self._imm_inv_view_proj, 1, GL.GL_TRUE, inv_view_proj)
         GL.glActiveTexture(GL.GL_TEXTURE0)

@@ -16,14 +16,24 @@ from fun_time_vr.projection import (
     EQUIRECT_360,
     FISHEYE_180_SBS,
     FISHEYE_190_SBS,
+    FISHEYE_200_EQUISOLID_SBS,
+    FISHEYE_200_STEREOGRAPHIC_SBS,
     FISHEYE_220_SBS,
     FLAT,
     MKX200_SBS,
     PROJECTIONS,
 )
-from fun_time_vr.render import _FISHEYE_MODE, _IMMERSIVE_FRAGMENT_SHADER, immersive_wrap
+from fun_time_vr.render import (
+    _CURVE_EQUIDISTANT,
+    _CURVE_EQUISOLID,
+    _CURVE_STEREOGRAPHIC,
+    _FISHEYE_MODE,
+    _IMMERSIVE_FRAGMENT_SHADER,
+    immersive_wrap,
+)
 
-_FISHEYES = (FISHEYE_180_SBS, FISHEYE_190_SBS, MKX200_SBS, FISHEYE_220_SBS)
+_FISHEYES = (FISHEYE_180_SBS, FISHEYE_190_SBS, MKX200_SBS, FISHEYE_220_SBS,
+             FISHEYE_200_STEREOGRAPHIC_SBS, FISHEYE_200_EQUISOLID_SBS)
 
 
 def test_every_projection_but_flat_wraps_the_viewer_its_own_way():
@@ -89,6 +99,32 @@ class TestTheShaderAndTheTableAreOneSource:
             if isinstance(part, ast.Constant))
 
         # Every brace that survived as text; the interpolations are the mode
-        # ids, none of which carries one.
-        assert literal.count("{") == literal.count("}") == 6
-        assert render._IMMERSIVE_FRAGMENT_SHADER.count("{") == 6
+        # and curve ids, none of which carries one.
+        assert literal.count("{") == literal.count("}") == 9
+        assert render._IMMERSIVE_FRAGMENT_SHADER.count("{") == 9
+
+
+class TestTheFisheyeCurvesBesideTheAngle:
+    """iZugar markets the MKX200/220 as APO-corrected against the plain
+    equidistant mapping every other fisheye entry here draws with, and the
+    tools that master this footage list equidistant, equisolid and
+    stereographic as different curves, not different fields of view.  Cycling
+    the existing entries only changes degrees, so a video mastered on either
+    of the other two curves stays pinched at its edge whatever degree is tried."""
+
+    def test_the_new_curves_hold_mkx200s_own_angle(self):
+        for projection in (FISHEYE_200_STEREOGRAPHIC_SBS, FISHEYE_200_EQUISOLID_SBS):
+            assert (immersive_wrap(projection).fisheye_fov_deg
+                    == immersive_wrap(MKX200_SBS).fisheye_fov_deg)
+
+    def test_each_entry_is_marked_for_the_curve_it_draws(self):
+        assert immersive_wrap(MKX200_SBS).fisheye_curve == _CURVE_EQUIDISTANT
+        assert immersive_wrap(FISHEYE_200_STEREOGRAPHIC_SBS).fisheye_curve == _CURVE_STEREOGRAPHIC
+        assert immersive_wrap(FISHEYE_200_EQUISOLID_SBS).fisheye_curve == _CURVE_EQUISOLID
+
+    def test_the_shader_computes_the_curves_the_optics_define(self):
+        assert "uniform int fisheye_curve;" in _IMMERSIVE_FRAGMENT_SHADER
+        assert f"fisheye_curve == {_CURVE_STEREOGRAPHIC}" in _IMMERSIVE_FRAGMENT_SHADER
+        assert f"fisheye_curve == {_CURVE_EQUISOLID}" in _IMMERSIVE_FRAGMENT_SHADER
+        assert "tan(off_axis" in _IMMERSIVE_FRAGMENT_SHADER
+        assert "sin(off_axis" in _IMMERSIVE_FRAGMENT_SHADER
