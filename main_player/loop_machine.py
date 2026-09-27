@@ -80,6 +80,13 @@ class LoopMachine:
             return None
         return self._ctrl.in_ms, self._ctrl.out_ms
 
+    def repeating(self, *, locked: bool) -> tuple[int, int] | None:
+        """The stretch the video is going round, for a script to be looped over: the
+        A/B range while one runs, else the whole file while it is held, else none."""
+        if self.bounds is not None:
+            return self.bounds
+        return (0, round(self._player.duration_ms)) if locked else None
+
     @property
     def marked_in_ms(self) -> int | None:
         """In point of the loop being marked — None unless recording."""

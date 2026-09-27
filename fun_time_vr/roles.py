@@ -204,9 +204,10 @@ class MainRole:
 
     @property
     def funscript_as_played(self) -> Funscript | None:
-        if self._funscript is None or not self._locked:
+        repeating = self._loops.repeating(locked=self._locked)
+        if self._funscript is None or repeating is None:
             return self._funscript
-        return self._funscript.looped(0, round(self._player.duration_ms))
+        return self._funscript.looped(*repeating)
 
     @property
     def speed(self) -> float:

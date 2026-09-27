@@ -262,7 +262,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 7656 the same day: every sweep of the machine's processes runs through one
 # bounded function, so the satellite reap's account of the day it killed his own
 # pair went to the test that already tells that story.
-MAX_PROSE_LINES = 7656
+# 7655 the same day: both main players read one loop machine, so the paragraphs
+# the desktop session kept about the clock and the range went with it.
+MAX_PROSE_LINES = 7655
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
