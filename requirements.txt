@@ -17,6 +17,7 @@ glfw
 
 # Windows only (pyproject [project.optional-dependencies].windows)
 pywin32 ; sys_platform == 'win32'
+comtypes ; sys_platform == 'win32'
 
 # Voice control (pyproject [project.optional-dependencies].voice)
 faster-whisper

@@ -1111,3 +1111,45 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
         assert ex_style & win32.WS_EX_TOPMOST
         assert ex_style & win32.WS_EX_NOACTIVATE
         assert not style & 0x10000000  # WS_VISIBLE
+
+
+class TestWhatHeIsUsing:
+    def test_the_foreground_window_is_the_one_windows_names(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetForegroundWindow.return_value = 4242
+            assert win32.foreground_window() == 4242
+            mock.GetForegroundWindow.return_value = None
+            assert win32.foreground_window() == 0
+
+    def test_the_window_under_the_cursor_is_the_whole_window_not_the_part_of_it(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetCursorPos.return_value = 1
+            mock.WindowFromPoint.return_value = 5151
+            mock.GetAncestor.side_effect = lambda hwnd, how: {5151: 4242}[hwnd] if how == win32.GA_ROOT else 0
+            assert win32.window_under_cursor() == 4242
+
+    def test_no_cursor_to_read_is_no_window(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetCursorPos.return_value = 0
+            assert win32.window_under_cursor() == 0
+        mock.WindowFromPoint.assert_not_called()
+
+    def test_idle_time_is_counted_from_his_last_key_or_mouse_move(self):
+        def last_input(info_byref):
+            info_byref._obj.dwTime = 7_500
+            return 1
+
+        with patch("fun_time.win32._user32") as user32, patch("fun_time.win32._kernel32") as kernel32:
+            user32.GetLastInputInfo.side_effect = last_input
+            kernel32.GetTickCount.return_value = 10_000
+            assert win32.seconds_since_input() == 2.5
+
+    def test_idle_time_survives_the_tick_count_rolling_over_after_49_days(self):
+        def last_input(info_byref):
+            info_byref._obj.dwTime = 2**32 - 1_000
+            return 1
+
+        with patch("fun_time.win32._user32") as user32, patch("fun_time.win32._kernel32") as kernel32:
+            user32.GetLastInputInfo.side_effect = last_input
+            kernel32.GetTickCount.return_value = 1_000
+            assert win32.seconds_since_input() == 2.0

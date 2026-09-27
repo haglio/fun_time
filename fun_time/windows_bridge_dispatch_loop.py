@@ -55,6 +55,7 @@ from .player_status import (
     read_main_player_status,
 )
 from .players import Player
+from .rfb_slideshow import RfbSlideshow
 from .role_windows import WindowRoles
 from .satellite_speeds import SatelliteSpeeds
 from .satellites_mode import VIDEO_MODE, origenerator_shows
@@ -230,6 +231,7 @@ class DispatchLoopRunner:
         manifest_path: Path | None = None,
         hud_publisher: HudPublisher | None = None,
         rfb_shortcut: Shortcut | None = None,
+        rfb_slideshow: RfbSlideshow | None = None,
         sync_interval_ms: int = 200,
         origenerator_already_open: bool = False,
         secondary_rects: Callable[..., SecondaryMonitorRects] | None = None,
@@ -254,6 +256,7 @@ class DispatchLoopRunner:
         # filters, loops) and already ticks, so it is what feeds them.
         self.hud = HudFeed(config=config, publisher=hud_publisher)
         self.rfb_shortcut = rfb_shortcut or Shortcut()
+        self.rfb_slideshow = rfb_slideshow
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0
@@ -276,8 +279,6 @@ class DispatchLoopRunner:
         )[0]
         self.voice_controller: VoiceController | None = None
         self._answers = 0
-        # Watch tracking ("breeding"): every player's current clip, sampled and
-        # classified into completions and skips for the stats file.
         # Satellites on their way back from the hosted app: by when they land,
         # and which of their hosted panels was up when they were sent for.
         self._coming_home: dict[Player, tuple[float, PanelStamp]] = {}
@@ -401,6 +402,9 @@ class DispatchLoopRunner:
         self.watch.sample_due(now=now, paused=self.state.omni_paused,
                               satellites=not hosting_origenerator(self.state, self.config))
         self.hud.publish_due(self.state, now=now)
+        if self.rfb_slideshow is not None:
+            self.rfb_slideshow.tick(now=now, held=self.state.omni_paused
+                                    or origenerator_shows(self.state.satellites_mode))
 
     def _seat_the_secondary_monitor(self) -> None:
         if self.secondary_rects is None:
@@ -656,6 +660,8 @@ class DispatchLoopRunner:
             logger.info("RFB window did not take the foreground before the tab handoff")
         open_rfb_tab(urls=urls, shortcut=self.rfb_shortcut)
         logger.info("Opened RFB tab(s): %s", ", ".join(urls))
+        if self.rfb_slideshow is not None:
+            self.rfb_slideshow.restart(now=time.monotonic())
 
     def _send_press(self, action: str) -> None:
         if self.dashboard_enabled:
@@ -897,6 +903,8 @@ class DispatchLoopRunner:
         self._stop.set()
 
     def close(self) -> None:
+        if self.rfb_slideshow is not None:
+            self.rfb_slideshow.stop()
         browsing = self._browser_process
         if browsing is not None:
             browsing.terminate()

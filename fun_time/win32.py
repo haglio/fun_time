@@ -518,6 +518,10 @@ def window_exists(hwnd: int) -> bool:
     return bool(hwnd) and bool(_user32.IsWindow(hwnd))
 
 
+def foreground_window() -> int:
+    return int(_user32.GetForegroundWindow() or 0)
+
+
 def force_foreground_window(hwnd: int) -> bool:
     """Take the foreground for *hwnd* from a process that does not hold it.
 
@@ -532,7 +536,7 @@ def force_foreground_window(hwnd: int) -> bool:
     """
     if not window_exists(hwnd):
         return False
-    foreground = _user32.GetForegroundWindow()
+    foreground = foreground_window()
     this_thread = _kernel32.GetCurrentThreadId()
     other_thread = _user32.GetWindowThreadProcessId(foreground or hwnd, None)
     attached = bool(
@@ -548,7 +552,38 @@ def force_foreground_window(hwnd: int) -> bool:
     finally:
         if attached:
             _user32.AttachThreadInput(other_thread, this_thread, False)
-    return int(_user32.GetForegroundWindow() or 0) == hwnd
+    return foreground_window() == hwnd
+
+
+GA_ROOT = 2
+_user32.GetCursorPos.argtypes = [ctypes.POINTER(ctypes.wintypes.POINT)]
+_user32.GetCursorPos.restype = ctypes.wintypes.BOOL
+_user32.WindowFromPoint.argtypes = [ctypes.wintypes.POINT]
+_user32.WindowFromPoint.restype = ctypes.wintypes.HWND
+_user32.GetAncestor.argtypes = [ctypes.wintypes.HWND, ctypes.wintypes.UINT]
+_user32.GetAncestor.restype = ctypes.wintypes.HWND
+
+
+def window_under_cursor() -> int:
+    cursor = ctypes.wintypes.POINT()
+    if not _user32.GetCursorPos(ctypes.byref(cursor)):
+        return 0
+    return int(_user32.GetAncestor(_user32.WindowFromPoint(cursor), GA_ROOT) or 0)
+
+
+class _LastInputInfo(ctypes.Structure):
+    _fields_ = [("cbSize", ctypes.wintypes.UINT), ("dwTime", ctypes.wintypes.DWORD)]
+
+
+_user32.GetLastInputInfo.argtypes = [ctypes.POINTER(_LastInputInfo)]
+_user32.GetLastInputInfo.restype = ctypes.wintypes.BOOL
+_kernel32.GetTickCount.restype = ctypes.wintypes.DWORD
+
+
+def seconds_since_input() -> float:
+    last_input = _LastInputInfo(cbSize=ctypes.sizeof(_LastInputInfo))
+    _user32.GetLastInputInfo(ctypes.byref(last_input))
+    return ((_kernel32.GetTickCount() - last_input.dwTime) % 2**32) / 1000
 
 
 # argtypes matter on 64-bit: without them ctypes marshals the HWND as a 32-bit
