@@ -88,6 +88,7 @@ from fun_time_vr.layout import (
     PANEL,
     PORTRAIT,
     REFERENCE,
+    Layout,
     clamp_placement,
     read_layout,
     shown_at,
@@ -255,10 +256,26 @@ def test_the_main_slot_opens_where_the_last_session_left_it(tmp_path, faked_coll
         audio_device="", compositor_layers=False,
     )
 
-    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, remembered={MAIN: moved},
+    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, remembered=Layout({MAIN: moved}),
                      genau_role=SimpleNamespace(showing=False))
 
     assert unit.screen.placement == moved
+
+
+def test_the_main_slot_opens_at_the_tilt_the_last_session_left_it_at(
+        tmp_path, faked_collaborators):
+    """The tilt is the whole arrangement's, and this unit is the one that carries
+    it, so a session that opened level would stand every screen up again."""
+    vr = VrSettings(
+        tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
+        audio_device="", compositor_layers=False,
+    )
+
+    _MainUnit(_manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS,
+              remembered=Layout(tilt_deg=-17.5),
+              genau_role=SimpleNamespace(showing=False))
+
+    assert faked_collaborators["MainRole"].call_args.kwargs["tilt_deg"] == -17.5
 
 
 def test_genau_opens_in_the_same_slot_the_last_session_left_it(tmp_path):
@@ -291,7 +308,7 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
         audio_device="Example Headset", compositor_layers=False,
     )
 
-    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, remembered={},
+    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, remembered=Layout(),
                      genau_role=SimpleNamespace(showing=False))
 
     commands = manifest.commands
@@ -507,7 +524,7 @@ def test_the_main_player_paints_its_videos_script_into_its_scrubber(
     vr = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
                     audio_device="", compositor_layers=False)
     unit = _MainUnit(_manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS,
-                     remembered={}, genau_role=SimpleNamespace(showing=False))
+                     remembered=Layout(), genau_role=SimpleNamespace(showing=False))
     unit.player = _OverlayPlayer()
     unit.player.frame_rate = 30.0
     unit.target = SimpleNamespace(ready=True, width=640, height=360, aspect=16 / 9)
@@ -678,7 +695,7 @@ def test_a_satellite_the_layout_says_nothing_about_hangs_in_its_own_spot(
 class TestTheLayoutKeeper:
     def test_what_the_controllers_settled_is_written_once_on_the_worker(self, tmp_path):
         path = tmp_path / "vr_layout.json"
-        keeper = _LayoutKeeper(path, {})
+        keeper = _LayoutKeeper(path, Layout())
         moved = Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0)
 
         keeper.pump(threading.Event(), 0.0)
@@ -689,37 +706,87 @@ class TestTheLayoutKeeper:
 
         keeper.settle()
         keeper.pump(threading.Event(), 0.0)
-        assert read_layout(path)[PORTRAIT] == moved
+        assert read_layout(path).placements[PORTRAIT] == moved
 
         written = path.stat().st_mtime_ns
         keeper.pump(threading.Event(), 0.0)
         assert path.stat().st_mtime_ns == written
 
+    def test_the_tilt_the_room_was_left_at_is_written_beside_the_screens(self, tmp_path):
+        path = tmp_path / "vr_layout.json"
+        keeper = _LayoutKeeper(path, Layout())
+        moved = Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0)
+
+        keeper.place(PORTRAIT, moved)
+        keeper.tilt(12.5, carried=False)
+        keeper.settle()
+        keeper.pump(threading.Event(), 0.0)
+
+        assert read_layout(path) == Layout({PORTRAIT: moved}, 12.5)
+
+    def test_being_told_the_tilt_it_already_holds_is_not_worth_a_file(self, tmp_path):
+        """Every frame says what the tilt is, so only a change may owe a write."""
+        path = tmp_path / "vr_layout.json"
+        keeper = _LayoutKeeper(path, Layout(tilt_deg=12.5))
+
+        keeper.tilt(12.5, carried=False)
+        keeper.close()
+
+        assert not path.exists()
+
+    def test_a_tilt_off_a_keypress_is_finished_the_moment_it_lands(self, tmp_path):
+        """PgUp is a whole act, not the middle of one, so it does not wait for a
+        release that never comes."""
+        path = tmp_path / "vr_layout.json"
+        keeper = _LayoutKeeper(path, Layout())
+
+        keeper.tilt(5.0, carried=False)
+        keeper.pump(threading.Event(), 0.0)
+
+        assert read_layout(path).tilt_deg == 5.0
+
+    def test_a_tilt_a_hand_is_still_lifting_waits_for_the_release(self, tmp_path):
+        """The same reason a screen mid-drag is not worth a file: the gesture
+        writes once, where it was let go, not once a frame."""
+        path = tmp_path / "vr_layout.json"
+        keeper = _LayoutKeeper(path, Layout())
+
+        keeper.tilt(5.0, carried=True)
+        keeper.pump(threading.Event(), 0.0)
+        assert not path.exists()
+
+        keeper.settle()
+        keeper.pump(threading.Event(), 0.0)
+
+        assert read_layout(path).tilt_deg == 5.0
+
     def test_a_session_ending_mid_drag_still_keeps_the_screen_where_it_was_left(self, tmp_path):
         path = tmp_path / "vr_layout.json"
-        keeper = _LayoutKeeper(path, {})
+        keeper = _LayoutKeeper(path, Layout())
         moved = Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0)
 
         keeper.place(PORTRAIT, moved)
         keeper.close()
 
-        assert read_layout(path)[PORTRAIT] == moved
+        assert read_layout(path).placements[PORTRAIT] == moved
 
     def test_putting_the_room_back_leaves_the_session_remembering_nothing(self, tmp_path):
-        """The file is only where he moved a screen TO, so a room put back has
-        nothing to say -- and each screen then opens in its own unit's spot."""
+        """The file is only where he moved a screen TO and the tilt he left it at,
+        so a room put back has nothing to say -- and each screen then opens in its
+        own unit's spot, level."""
         path = tmp_path / "vr_layout.json"
-        keeper = _LayoutKeeper(path, {})
+        keeper = _LayoutKeeper(path, Layout())
         keeper.place(PORTRAIT, Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0))
+        keeper.tilt(-20.0, carried=False)
         keeper.settle()
         keeper.pump(threading.Event(), 0.0)
-        assert read_layout(path)
+        assert read_layout(path) != Layout()
 
         keeper.forget()
         keeper.settle()
         keeper.pump(threading.Event(), 0.0)
 
-        assert read_layout(path) == {}
+        assert read_layout(path) == Layout()
 
 
 class TestWhatTheControllersPost:

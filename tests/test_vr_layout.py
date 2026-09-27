@@ -19,6 +19,8 @@ from fun_time_vr.layout import (
     MAX_WIDTH_DEG,
     MIN_WIDTH_DEG,
     PORTRAIT,
+    TILT_LIMIT_DEG,
+    Layout,
     clamp_width,
     grown,
     nearer,
@@ -32,11 +34,12 @@ from fun_time_vr.scene import MAIN_WIDTH_DEG, RADIUS, Placement, surface_vertice
 
 class TestTheRememberedLayout:
     def test_no_file_yet_remembers_nothing(self, tmp_path):
-        assert read_layout(tmp_path / "vr_layout.json") == {}
+        assert read_layout(tmp_path / "vr_layout.json") == Layout()
 
     def test_what_was_written_reads_back(self, tmp_path):
         path = tmp_path / "vr_layout.json"
-        moved = {LANDSCAPE: Placement(azimuth_deg=-20.0, elevation_deg=25.5, width_deg=30.0)}
+        moved = Layout(
+            {LANDSCAPE: Placement(azimuth_deg=-20.0, elevation_deg=25.5, width_deg=30.0)})
 
         assert write_layout(path, moved)
 
@@ -46,7 +49,7 @@ class TestTheRememberedLayout:
         path = tmp_path / "vr_layout.json"
         path.write_text("{not json", encoding="utf-8")
 
-        assert read_layout(path) == {}
+        assert read_layout(path) == Layout()
 
     def test_a_screen_the_file_names_badly_is_remembered_no_better_than_one_it_leaves_out(
             self, tmp_path):
@@ -60,25 +63,62 @@ class TestTheRememberedLayout:
 
         layout = read_layout(path)
 
-        assert layout == {LANDSCAPE: Placement(5.0, 20.0, 24.0)}
+        assert layout.placements == {LANDSCAPE: Placement(5.0, 20.0, 24.0)}
+
+    def test_the_tilt_the_room_was_left_at_comes_back_next_session(self, tmp_path):
+        path = tmp_path / "vr_layout.json"
+        left = Layout(placements={MAIN: Placement(0.0, 0.0, 72.0)}, tilt_deg=12.5)
+
+        assert write_layout(path, left)
+
+        assert read_layout(path) == left
 
     def test_a_zoomed_and_moved_main_screen_comes_back_next_session(self, tmp_path):
         path = tmp_path / "vr_layout.json"
         zoomed = Placement(azimuth_deg=-12.0, elevation_deg=-4.0, width_deg=110.0)
 
-        assert write_layout(path, {MAIN: zoomed})
+        assert write_layout(path, Layout({MAIN: zoomed}))
 
-        assert read_layout(path)[MAIN] == zoomed
+        assert read_layout(path).placements[MAIN] == zoomed
 
     def test_remembering_nothing_at_all_reads_back_as_nothing(self, tmp_path):
-        """What a reset writes: the file says the session moved no screen, so
-        every one of them opens where its unit says it does."""
+        """What a reset writes: the file says the session moved no screen and
+        left them level, so every one of them opens where its unit says it does."""
         path = tmp_path / "vr_layout.json"
-        assert write_layout(path, {MAIN: Placement(-12.0, -4.0, 110.0)})
+        assert write_layout(path, Layout({MAIN: Placement(-12.0, -4.0, 110.0)}, 20.0))
 
-        assert write_layout(path, {})
+        assert write_layout(path, Layout())
 
-        assert read_layout(path) == {}
+        assert read_layout(path) == Layout()
+
+    def test_a_file_written_before_the_tilt_was_remembered_opens_level_with_its_screens(
+            self, tmp_path):
+        """What his own file says today: screens and no tilt at all."""
+        path = tmp_path / "vr_layout.json"
+        path.write_text(json.dumps({
+            MAIN: {"azimuth_deg": 6.5, "elevation_deg": -14.9, "width_deg": 82.1},
+        }), encoding="utf-8")
+
+        assert read_layout(path) == Layout({MAIN: Placement(6.5, -14.9, 82.1)}, 0.0)
+
+    def test_a_tilt_the_file_names_badly_leaves_the_room_level_and_the_screens_alone(
+            self, tmp_path):
+        path = tmp_path / "vr_layout.json"
+        path.write_text(json.dumps({
+            LANDSCAPE: {"azimuth_deg": 5.0, "elevation_deg": 20.0, "width_deg": 24.0},
+            "tilt_deg": "uphill",
+        }), encoding="utf-8")
+
+        layout = read_layout(path)
+
+        assert layout.tilt_deg == 0.0
+        assert layout.placements == {LANDSCAPE: Placement(5.0, 20.0, 24.0)}
+
+    def test_a_hand_edited_tilt_is_held_to_the_scene(self, tmp_path):
+        path = tmp_path / "vr_layout.json"
+        path.write_text(json.dumps({"tilt_deg": 400.0}), encoding="utf-8")
+
+        assert read_layout(path).tilt_deg == TILT_LIMIT_DEG
 
     def test_a_remembered_placement_is_held_within_the_scene(self, tmp_path):
         """A hand-edited file cannot hang a screen at the viewer's back, at the
@@ -91,9 +131,9 @@ class TestTheRememberedLayout:
 
         layout = read_layout(path)
 
-        assert layout[LANDSCAPE] == Placement(
+        assert layout.placements[LANDSCAPE] == Placement(
             AZIMUTH_LIMIT_DEG, ELEVATION_LIMIT_DEG, MIN_WIDTH_DEG)
-        assert layout[PORTRAIT] == Placement(
+        assert layout.placements[PORTRAIT] == Placement(
             -AZIMUTH_LIMIT_DEG, -ELEVATION_LIMIT_DEG, MAX_WIDTH_DEG)
 
 

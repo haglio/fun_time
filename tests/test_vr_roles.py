@@ -11,8 +11,9 @@ from player_core.playback_rate import MAX_RATE, MIN_RATE
 
 from fun_time.event_log import NOTICE, SOURCE_MAIN
 from fun_time.player_status import read_main_player_status
+from fun_time_vr.layout import TILT_LIMIT_DEG
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
-from fun_time_vr.roles import TILT_LIMIT_DEG, TILT_STEP_DEG, MainRole
+from fun_time_vr.roles import TILT_STEP_DEG, MainRole
 from main_player.play_points import PlayPoints
 from tests.mpv_refusals import RefusesSeeks
 
@@ -363,8 +364,31 @@ class TestLayoutReset:
         assert role.layout_reset.take() is True
         assert role.layout_reset.take() is False
 
+    def test_putting_the_screens_back_levels_them_too(self, role_parts):
+        """One arrangement: the spots and the tilt go back together."""
+        role = role_parts.role
+        role.apply_command("TILT_DOWN", on_quit=_never_quits)
+        assert role.tilt_deg != 0.0
+
+        assert role.apply_command("LAYOUT_RESET", on_quit=_never_quits) is True
+
+        assert role.tilt_deg == 0.0
+        assert role.layout_reset.take() is True
+
 
 class TestTilt:
+    def _opened_at(self, tmp_path, tilt_deg):
+        playlist = tmp_path / "main_player_playlist.tsv"
+        playlist.write_text(f"{tmp_path / 'feature.mp4'}\t\n", encoding="utf-8")
+        return MainRole(player=FakePlayer(), driver=FakeDriver(), playlist_file=playlist,
+                        metadata_root=None, vr_dirs=(), tilt_deg=tilt_deg)
+
+    def test_the_room_opens_at_the_tilt_the_last_session_was_left_at(self, tmp_path):
+        assert self._opened_at(tmp_path, -20.0).tilt_deg == pytest.approx(-20.0)
+
+    def test_a_tilt_it_is_opened_at_is_held_to_the_travel(self, tmp_path):
+        assert self._opened_at(tmp_path, 400.0).tilt_deg == pytest.approx(TILT_LIMIT_DEG)
+
     def test_the_verbs_walk_the_tilt_up_and_down_in_steps(self, role_parts):
         role = role_parts.role
         assert role.tilt_deg == 0.0

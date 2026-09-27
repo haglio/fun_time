@@ -141,6 +141,7 @@ from .layout import (
     PLAYERS,
     PORTRAIT,
     REFERENCE,
+    Layout,
     migrate_layout,
     read_layout,
     rearranged,
@@ -521,7 +522,7 @@ class _MainUnit(_VideoUnit):
 
     def __init__(
         self, manifest: LaunchManifest, vr: VrSettings, contexts, *,
-        remembered: Mapping[str, Placement], genau_role, notices=None, perf=None,
+        remembered: Layout, genau_role, notices=None, perf=None,
     ) -> None:
         # Muted at birth: the headset's sink cannot be trusted until the
         # compositor is presenting (see route_audio).
@@ -532,7 +533,7 @@ class _MainUnit(_VideoUnit):
                     contexts.get_proc_address, muted=True, loop_file=True),
                 MAIN_VIDEO_CAP_PX, name="main-video", perf=perf,
             ),
-            remembered.get(MAIN, self.SPOTS[MAIN]),
+            remembered.placements.get(MAIN, self.SPOTS[MAIN]),
         )
         commands = manifest.commands
         self.cmd_file = Path(commands.main_player_cmd_file)
@@ -549,6 +550,7 @@ class _MainUnit(_VideoUnit):
                 vr.library_dirs
             ),
             start_paused=read_paused_state(self.paused_file, logger=logger),
+            tilt_deg=remembered.tilt_deg,
             play_points=PlayPoints(
                 Path(commands.state_dir) / play_points_filename("main_player")),
         )
@@ -1583,21 +1585,31 @@ class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
 
 
 class _LayoutKeeper:
-    def __init__(self, path: Path, remembered: dict[str, Placement]) -> None:
+    def __init__(self, path: Path, remembered: Layout) -> None:
         self._path = path
-        self._remembered = remembered
+        self._placements = dict(remembered.placements)
+        self._tilt_deg = remembered.tilt_deg
         self._lock = threading.Lock()
         self._unsaved = False
         self._settled = False
 
     def place(self, name: str, placement: Placement) -> None:
         with self._lock:
-            self._remembered[name] = placement
+            self._placements[name] = placement
             self._unsaved = True
+
+    def tilt(self, degrees: float, *, carried: bool) -> None:
+        with self._lock:
+            if degrees == self._tilt_deg:
+                return
+            self._tilt_deg = degrees
+            self._unsaved = True
+            self._settled = self._settled or not carried
 
     def forget(self) -> None:
         with self._lock:
-            self._remembered.clear()
+            self._placements.clear()
+            self._tilt_deg = 0.0
             self._unsaved = True
 
     def settle(self) -> None:
@@ -1608,7 +1620,7 @@ class _LayoutKeeper:
         with self._lock:
             if not (self._settled or (self._unsaved and not settled_only)):
                 return
-            snapshot = dict(self._remembered)
+            snapshot = Layout(dict(self._placements), self._tilt_deg)
             self._settled = self._unsaved = False
         write_layout(self._path, snapshot)
 
@@ -2051,13 +2063,13 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     # One read of the event log per tick, pumped before anything that shows a
     # notice off it: the console's strip and every screen's own banner.
     notices = NoticeBoard(event_log_path(state_dir))
-    genau = _GenauUnit(manifest, vr, stop, remembered=remembered)
+    genau = _GenauUnit(manifest, vr, stop, remembered=remembered.placements)
     _present_the_cover(session, renderer, cover)
     main_unit = _MainUnit(manifest, vr, contexts, remembered=remembered,
                           genau_role=genau.role, notices=notices, perf=perf)
     _present_the_cover(session, renderer, cover)
     satellites = [
-        _SatelliteUnit(player, manifest, contexts, vr=vr, remembered=remembered,
+        _SatelliteUnit(player, manifest, contexts, vr=vr, remembered=remembered.placements,
                        notices=notices, perf=perf)
         for player in (PORTRAIT, LANDSCAPE)
     ]
@@ -2065,7 +2077,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     reference_flag = Path(state_dir) / REFERENCE_OPEN_FILENAME
     dash = _DashUnit(
         main_unit, genau,
-        remembered=remembered,
+        remembered=remembered.placements,
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
         notices=notices,
         dashboard_state_file=Path(commands.dashboard_state_file),
@@ -2078,7 +2090,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     )
     reference = _ReferenceUnit(dash, panel, flag=reference_flag)
     library = _LibraryUnit(
-        remembered=remembered,
+        remembered=remembered.placements,
         flag=Path(state_dir) / LIBRARY_OPEN_FILENAME,
         host=LibraryHost(manifest_path=manifest_path, state_dir=Path(state_dir)),
         main_player_cmd_file=Path(commands.main_player_cmd_file),
@@ -2209,6 +2221,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                 for name, placement in moved.items():
                     where[name].put(placement)  # its own spot, of however many
                     keeper.place(where[name].spot(name), placement)
+                keeper.tilt(scene_pitch_deg, carried=bool(lift_deg))
                 if reset:
                     for unit in units:
                         unit.put_back()
