@@ -18,6 +18,7 @@ RELEASE = "RELEASE"
 class OpenOrigenerator(NamedTuple):
     pid: int
     starting: bool
+    checkout: Path
 
 
 def _state_dir(origenerator_dir: str | Path) -> Path:
@@ -25,8 +26,14 @@ def _state_dir(origenerator_dir: str | Path) -> Path:
 
 
 def the_open_origenerator(origenerator_dir: str | Path) -> OpenOrigenerator | None:
+    checkout = Path(origenerator_dir)
+    looked_in = dict.fromkeys((checkout, primary_of(checkout)))
+    return next(filter(None, map(_offered_in, looked_in)), None)
+
+
+def _offered_in(checkout: Path) -> OpenOrigenerator | None:
     try:
-        pid, created_at, *still = (_state_dir(origenerator_dir) / OFFER_NAME).read_text(
+        pid, created_at, *still = (_state_dir(checkout) / OFFER_NAME).read_text(
             encoding="utf-8").split()
         pid, created_at = int(pid), int(created_at)
     except (OSError, ValueError):
@@ -35,7 +42,7 @@ def the_open_origenerator(origenerator_dir: str | Path) -> OpenOrigenerator | No
         return None
     if get_process_creation_time(pid) != created_at:
         return None
-    return OpenOrigenerator(pid, starting=bool(still))
+    return OpenOrigenerator(pid, starting=bool(still), checkout=checkout)
 
 
 def take_it_over(origenerator_dir: str | Path, *, pid: int, args: list[str]) -> None:
