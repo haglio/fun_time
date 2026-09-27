@@ -2840,7 +2840,7 @@ class TestBrowserOutlivesNothing:
 
     It is launched mid-session rather than at startup, so it cannot join the
     _CHILD_GROUPS teardown list the way the players and companions do; the
-    dispatch loop owns it instead, and its stop is where the browse dies.
+    dispatch loop owns it instead, and its close is where the browse dies.
     """
 
     def test_quitting_the_session_kills_a_browser_still_open(self, tmp_path):
@@ -2861,17 +2861,17 @@ class TestBrowserOutlivesNothing:
             browsing = threading.Thread(target=runner._run_browser, args=(["python"],))
             browsing.start()
             assert opened.wait(2.0), "the browser never started"
-            runner.stop()
+            runner.close()
             browsing.join(timeout=2.0)
 
         mock_popen.assert_called_once()
         process.terminate.assert_called_once()
         assert runner._browser_process is None, "the finished browse is not still held"
 
-    def test_stopping_with_no_browse_open_terminates_nothing(self, tmp_path):
+    def test_closing_with_no_browse_open_terminates_nothing(self, tmp_path):
         runner = make_runner(tmp_path)
 
-        runner.stop()
+        runner.close()
 
         assert runner._browser_process is None
 
@@ -3030,13 +3030,13 @@ class TestOrigeneratorWatchGuard:
         note.assert_called_once_with("portrait_next")
 
 
-def test_stop_closes_the_press_socket(tmp_path):
+def test_close_closes_the_press_socket(tmp_path):
     """The socket the loop hints the dashboard's presses through is the loop's
     for its lifetime, and nothing closed it -- a session's end left it to the
     interpreter's exit to reap (bug 87)."""
     runner = make_runner(tmp_path)
 
-    runner.stop()
+    runner.close()
 
     assert runner._press_socket.fileno() == -1
 

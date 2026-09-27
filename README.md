@@ -408,6 +408,8 @@ The player keeps running under it — its lock, loop and playlist are untouched,
 
 There is no window of a session you can close on its own. Every player answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, under the closing cover, exactly like the dashboard's Quit button, `Ctrl+Alt+Q` or a spoken "quit".
 
+However a session ends — any of those, or a crossing into or out of the headset — the room stops before the closing cover goes up: every player pauses, the Robot Hand stops, and the OSR2 parks, the way entering OmniPause parks it, or stays at the far end if Relief Omnipause or Retract had sent it there. From then on nothing said or pressed reaches the room; Esc on the cover still calls the quit off.
+
 The alternative was worse than it sounds: a player that closed itself left the sequencer's layout with a gap nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the players out one press at a time while the dashboard and the audio companion carried on. Launched by hand, outside a session, a satellite or the main player still closes on its own close, because then that is the whole application; Genau runs only inside a session. See `player_core.session_quit`.
 
 ### F-Mode

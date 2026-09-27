@@ -253,7 +253,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # comments that walked through their poll went.
 # 7688 the next hour: the closing screen's first line is a test now, so the
 # comment saying why it is written before the launch went.
-MAX_PROSE_LINES = 7688
+# 7682 the same day: the dispatch loop's close is a method of its own, tested
+# for the browse and the press socket it ends, so the notes in stop went.
+MAX_PROSE_LINES = 7682
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

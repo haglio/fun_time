@@ -1181,12 +1181,12 @@ class TestTheClosingCover:
         assert kills[-1] == "kill_recorded_child(children['vr_player_pid'])"
         assert "kill_recorded_child(children['audio_pid'])" in kills
 
-    def test_every_sound_is_paused_before_either_cover_goes_up(self):
+    def test_everything_stops_and_the_osr2_is_held_before_either_cover_goes_up(self):
         calls = _call_lines_in_run_vr_bridge()
 
-        assert "silence_the_players" in calls, "the teardown never pauses the players"
-        assert calls["silence_the_players"] < calls["launch_crossing_cover"]
-        assert calls["silence_the_players"] < calls["_closing_cover"]
+        assert "stop_everything" in calls, "the teardown never stops the room"
+        assert calls["stop_everything"] < calls["launch_crossing_cover"]
+        assert calls["stop_everything"] < calls["_closing_cover"]
 
 
 class TestWaitingForTheRoom:
@@ -1408,6 +1408,12 @@ class TestOpeningAVrSession:
         offered = _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "asked")
 
         assert offered == ["Press Esc to cancel closing Fun Time VR"]
+
+    def test_a_session_he_quit_stops_the_robot_hand_and_parks_the_osr2(self, config):
+        _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "asked")
+
+        assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines()[-1] == "PAUSE"
+        assert config.broker_cmd_file.read_text(encoding="utf-8") == "PARK"
 
     def test_a_player_that_dies_mid_session_leaves_its_exit_code_in_the_log(self, config, caplog):
         died = MagicMock(pid=202, returncode=3221225477)
