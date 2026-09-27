@@ -2,15 +2,16 @@
 
 `main_player.loop_controller` decides where the bounds go; its own tests cover that and
 are not repeated here.  These are about the half that has a player: the range
-mpv is handed, the playhead landing on its start, the range cleared again, and
-the device taken back whenever a loop moves the clock.
+mpv is handed, the playhead landing on its start, the range cleared again, the
+device taken back whenever a loop moves the clock, and what each tick of the
+playhead does to a mark that is still open.
 """
 from __future__ import annotations
 
 from player_core.funscript import Funscript
 from player_core.modes import LoopState
 
-from main_player.session_loops import SessionLoops
+from main_player.loop_machine import LoopMachine
 
 
 def _funscript() -> Funscript:
@@ -25,6 +26,7 @@ class FakePlayer:
     def __init__(self) -> None:
         self.ab_loop: tuple[float, float] | None = None
         self.clears = 0
+        self.duration_ms = 60_000.0
 
     def set_ab_loop(self, in_ms: float, out_ms: float) -> None:
         self.ab_loop = (in_ms, out_ms)
@@ -35,11 +37,11 @@ class FakePlayer:
 
 
 def _loops(*, scripted: bool = True):
-    """A `SessionLoops` over a fake player, plus what it asked of the session."""
+    """A `LoopMachine` over a fake player, plus what it asked of its owner."""
     player = FakePlayer()
     seeks: list[float] = []
     takeovers: list[int] = []
-    loops = SessionLoops(
+    loops = LoopMachine(
         player,
         seek_to=seeks.append,
         take_the_device_over=lambda: takeovers.append(1),
@@ -186,3 +188,71 @@ class TestLeavingALoop:
 
         assert (loops.idle, takeovers) == (True, [])
         assert player.clears == clears_before, "no range to clear"
+
+
+class TestWhatEachTickOfThePlayheadDoes:
+    """`observe` is the half of a loop no gesture can say: a mark that ran to the
+    end of the file, and a clock that jumped."""
+
+    def test_a_tick_while_nothing_is_marked_or_running_asks_for_nothing(self):
+        loops, _player, _seeks, takeovers = _loops()
+
+        assert loops.observe(1000) is False
+        assert loops.observe(2000) is False
+        assert takeovers == []
+
+    def test_a_mark_that_reaches_the_end_of_the_file_closes_and_starts_there(self):
+        """Closed just short of the file end, before loop-file wraps the whole
+        video and flashes its opening frames; the tick is over, because the
+        playhead has just moved to the loop's start."""
+        loops, player, seeks, _takeovers = _loops(scripted=False)
+        player.duration_ms = 10_000.0
+        loops.record_down(9_000)
+
+        assert loops.observe(9_950) is True
+        assert (loops.running, player.ab_loop, seeks[-1]) == (True, (9_000, 9_950), 9_000)
+
+    def test_a_mark_the_wrap_beat_closes_where_the_playhead_last_was(self):
+        """The fallback for a tick that lands only after loop-file rewound the
+        clock: the out point is the last position seen, never the ~zero the
+        playhead is at now."""
+        loops, player, seeks, _takeovers = _loops(scripted=False)
+        player.duration_ms = 10_000.0
+        loops.record_down(9_000)
+        loops.observe(9_800)
+
+        assert loops.observe(20) is True
+        assert (player.ab_loop, seeks[-1]) == ((9_000, 9_800), 9_000)
+
+    def test_a_backward_seek_mid_mark_goes_on_marking(self):
+        """It rewinds the clock too, but lands nowhere near the start of the
+        file, so it must not be read as the end of one."""
+        loops, player, _seeks, _takeovers = _loops(scripted=False)
+        loops.record_down(30_000)
+        loops.observe(40_000)
+
+        assert loops.observe(20_000) is False
+        assert (loops.marking, player.ab_loop) == (True, None)
+
+    def test_a_rewound_clock_takes_the_device_back_over(self):
+        """The three wraps a video can make -- a running loop going B->A, a held
+        video restarting, a backward seek -- all leave the device somewhere the
+        script did not put it."""
+        loops, _player, _seeks, takeovers = _loops()
+        loops.restore(2000, 4000)
+        loops.observe(3900)
+        takeovers.clear()
+
+        assert loops.observe(2000) is False
+        assert takeovers == [1]
+
+    def test_a_video_that_was_near_its_end_leaves_no_rewind_for_the_next_one(self):
+        """Opening a video resets the reading, so its first tick is not a jump
+        back from wherever the last one had got to."""
+        loops, _player, _seeks, takeovers = _loops()
+        loops.observe(50_000)
+
+        loops.open(None)
+
+        assert loops.observe(0) is False
+        assert takeovers == []
