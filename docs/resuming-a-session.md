@@ -114,18 +114,17 @@ video it was cut from. A rebuilt playlist, or a clip deleted since, leaves some
 other video leading, and those bounds would then mark out a stretch of a video
 nobody chose — which is what `playlist_opens_on` is asked before the queue.
 
-## What a crossing re-sends and a reopen does not
+## What a reopen re-sends because it lives in a player
 
-Three more things live only in a player process: each player's playback rate,
-the main player's hold on the video it is playing, and Genau's dials, shape,
-clip seconds and three switches. A session that is CROSSING re-sends all of
-them off the status and drive files the last one published, so the room the
-headset opens is the room the monitors were showing
-([entering-vr.md](entering-vr.md)); a session opened any other way does not, and
-every player opens where a fresh one opens. The mic goes the same way: the mute
-lives in the controller this session runs, so the dispatch loop writes it down
-whenever it moves and a crossing starts its own controller muted. The arriving
-orchestrator knows which it is from `--crossing`, which only the relay passes.
+Three more things live only in a player process, so they are gone the moment a
+session ends: each player's playback rate, the main player's hold on the video it
+is playing, and Genau's dials, shape, clip seconds and three switches. Every
+session re-sends all of them off the status and drive files the last one
+published, so the room that opens is the room the last one was showing, whether
+it was left by a crossing ([entering-vr.md](entering-vr.md)) or by quitting. The
+mic goes the same way: the mute lives in the controller this session runs, so the
+dispatch loop writes it down whenever it moves and the next session starts its own
+controller muted.
 
 ## Two rules that are easy to lose
 

@@ -28,21 +28,19 @@ in either orchestrator:
 | The main slot's mode (video / Genau) | yes |
 | The main player's clip | yes, when the arriving session can play it |
 | The main player's A/B loop | yes, when the clip carried — re-queued on the command file |
-| Every player's playback rate | yes, re-queued on its command file — a crossing only |
+| Every player's playback rate | yes, re-queued on its command file |
 | The main player's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, clip seconds, cruise, learned motion and hold | yes, same |
-| The mic being off | yes, off the flag the last session wrote — a crossing only |
+| The mic being off | yes, off the flag the last session wrote |
 | The satellites' mode (video / Origenerator) | no — every room opens in video mode |
 | OmniPause | no — a session never opens paused |
 
-The rows marked "a crossing only" are carried by a session that is crossing and
-by no other, which is what `--crossing` on the arriving orchestrator's command
-line says: the relay is the only thing that starts a session carrying on from one
-that just ended, so an ordinary launch opens every player where a fresh one opens
-and listening (`SessionEnvironment.crossing`,
-`session_resume.resume_what_lives_in_a_player`, and
-`voice_control.take_whether_the_mic_was_off`). Everything else in the table is
-carried by any reopen ([resuming-a-session.md](resuming-a-session.md)).
+Every row of that table is carried by any reopen, a crossing included
+([resuming-a-session.md](resuming-a-session.md)): the rate, the hold and Genau's
+dials are re-sent from the status and drive files the last session published
+(`session_resume.resume_what_lives_in_a_player`), and the mic from the flag the
+dispatch loop writes whenever the mute moves
+(`voice_control.take_whether_the_mic_was_off`).
 
 The main player is the one that needed work, and it is why this note exists.
 Each app refuses the other's main playlist: the desktop must never put a

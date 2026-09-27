@@ -806,19 +806,6 @@ class TestTheWayBackIntoVr:
 
         assert run_bridge.call_args.kwargs["cancelable"] is False
 
-    def test_a_session_the_relay_started_knows_it_carries_on_a_crossing(self, config):
-        with patch.object(orchestrator, "load_config", return_value=config), \
-             patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
-             patch.object(orchestrator, "install_exception_logging"), \
-             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
-             patch("fun_time.session_handoff.subprocess.Popen"), \
-             patch.object(orchestrator, "engine_missing_abort", return_value=False), \
-             patch.object(orchestrator, "ensure_engine_vendored"), \
-             patch.object(orchestrator, "run_vr_bridge", return_value=0) as run_bridge:
-            orchestrator.main(["--crossing"])
-
-        assert run_bridge.call_args.args[1].crossing is True
-
     def test_a_player_left_holding_the_headset_is_gone_before_the_new_one_starts(
         self, config,
     ):
@@ -890,11 +877,11 @@ def _left_playing_at(config, *, main: float, portrait: float, landscape: float) 
         status_file.write_text(f"video=\nspeed={speed:g}\n", encoding="utf-8")
 
 
-class TestWhatACrossingCarriesIntoTheHeadset:
+class TestWhatAReopenCarriesIntoTheHeadset:
     def test_each_player_is_handed_the_rate_it_was_playing_at(self, config):
         _left_playing_at(config, main=0.25, portrait=0.5, landscape=1.0)
 
-        queued = _queued_when_the_player_launches(config, SessionEnvironment(crossing=True))
+        queued = _queued_when_the_player_launches(config, SessionEnvironment())
 
         assert "SET_SPEED 0.25" in queued["main"]
         assert "SET_SPEED 0.5" in queued["portrait"]
@@ -904,7 +891,7 @@ class TestWhatACrossingCarriesIntoTheHeadset:
         config.paths.state_dir.mkdir(parents=True, exist_ok=True)
         config.main_player_status_file.write_text("video=\nlocked=0\n", encoding="utf-8")
 
-        queued = _queued_when_the_player_launches(config, SessionEnvironment(crossing=True))
+        queued = _queued_when_the_player_launches(config, SessionEnvironment())
 
         assert "LOCK_OFF" in queued["main"]
 
@@ -916,19 +903,10 @@ class TestWhatACrossingCarriesIntoTheHeadset:
             encoding="utf-8")
         (state_dir / GENAU_STATUS).write_text("cruise=1\n", encoding="utf-8")
 
-        queued = _queued_when_the_player_launches(config, SessionEnvironment(crossing=True))
+        queued = _queued_when_the_player_launches(config, SessionEnvironment())
 
         assert queued["genau"][0] == "PAUSE", "the fresh session's reset must still lead"
         assert queued["genau"][-2:] == ["SPEED 76", "CRUISE_ON"]
-
-    def test_a_launch_of_its_own_opens_every_player_at_normal_speed(self, config):
-        _left_playing_at(config, main=0.25, portrait=0.5, landscape=1.5)
-
-        queued = _queued_when_the_player_launches(config, SessionEnvironment())
-
-        assert not any(verb.startswith("SET_SPEED")
-                       for verbs in queued.values() for verb in verbs)
-
 
 class TestHandingTheHeadsetOver:
     """The wait is the point: the arriving desktop session claims the very
@@ -1822,6 +1800,6 @@ class TestOpeningAVrSession:
         ), patch.object(orchestrator.vr_runtime, "runtime_was_running",
                         return_value=True), \
              patch("fun_time_vr.orchestrator.subprocess.Popen"):
-            orchestrator.run_vr_bridge(config, SessionEnvironment(crossing=True))
+            orchestrator.run_vr_bridge(config, SessionEnvironment())
 
         assert start_voice.call_args.kwargs["muted"] is True

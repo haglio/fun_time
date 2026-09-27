@@ -197,7 +197,7 @@ def resume_what_lives_in_a_player(
     genau_cmd_file: Path,
     state_dir: Path,
 ) -> None:
-    """What a crossing re-sends and an ordinary reopen does not: ``docs/entering-vr.md``."""
+    """What any reopen re-sends because it lives in a player: ``docs/entering-vr.md``."""
     main_player_cmd_file, main_player_status = main_player
     resume_rates([
         (main_player_cmd_file, main_player_status.speed),
