@@ -236,9 +236,9 @@ def test_no_audio_leaves_the_chip_a_read_only_indicator(tmp_path):
     assert player.muted is True
 
 
-def test_each_pass_creeps_a_little_further_into_the_picture(tmp_path):
+def test_each_pass_carries_a_still_s_move_a_little_further(tmp_path):
     """A still does not simply sit there while it holds the screen — the loop
-    asks the player to push into it every frame, the way it repaints the
+    asks the player to carry its move on every frame, the way it repaints the
     overlays every frame."""
     clips = _clips(tmp_path, "v0")
     args = _loop_args(tmp_path, clips)

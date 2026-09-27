@@ -145,9 +145,9 @@ def role_parts(tmp_path):
     )
 
 
-class TestTheCreepIntoAPicture:
+class TestAStillsMove:
     """A still does not simply sit there while it holds the headset's screen:
-    every turn of the pump asks the player to creep a little further into it,
+    every turn of the pump asks the player to carry its move a little further,
     the way the desktop players' loops do."""
 
     def test_every_turn_of_the_pump_carries_it_on(self, role_parts):
@@ -156,7 +156,7 @@ class TestTheCreepIntoAPicture:
         assert role_parts.player.pushes == 1
 
     def test_a_frozen_room_asks_for_it_too(self, role_parts):
-        """Frozen, the push holds where it had got to rather than stopping being
+        """Frozen, the move holds where it had got to rather than stopping being
         asked for -- the hold is the player's to keep, and a tick that returned
         before asking would leave the picture wherever the last frame left it."""
         role_parts.role.set_paused(True)
