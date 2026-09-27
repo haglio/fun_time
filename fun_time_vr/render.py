@@ -196,6 +196,7 @@ class RenderTarget:
         self.width = 0
         self.height = 0
         self.painted = False  # ``ready`` is only sized; this is drawn-into
+        self.video: str | None = None
         self.texture = int(GL.glGenTextures(1))
         self.fbo = int(GL.glGenFramebuffers(1))
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture)

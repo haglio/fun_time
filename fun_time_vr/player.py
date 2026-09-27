@@ -343,10 +343,6 @@ class _HangingScreen:
             self.mesh.close()
 
 
-def _wraps_the_viewer(role) -> bool:
-    return immersive_mode(role.projection) is not None  # a shader: no edge for a row
-
-
 @dataclass(frozen=True)
 class _SlotControls:  # what the row shows and does, said by the player in the slot
     position: float
@@ -599,7 +595,11 @@ class _MainUnit(_VideoUnit):
     def hangings(self) -> tuple[Hanging, ...]:
         if not (self.owns_the_slot and self.target.ready and self.role.displayed):
             return ()
-        return _in_the_slot(self.screen, self.target, self.role.projection)
+        return _in_the_slot(self.screen, self.target, self.role.projection_of(self.target.video))
+
+    @property
+    def wraps_the_viewer(self) -> bool:
+        return immersive_mode(self.role.projection_of(self.target.video)) is not None
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {MAIN: Hangs((self.screen,))}
@@ -642,7 +642,7 @@ class _MainUnit(_VideoUnit):
         self._watch_progress(now)
         self._status_writer.write(self.role)
         self._take_presses()
-        if _wraps_the_viewer(self.role):
+        if self.wraps_the_viewer:
             self.clear_furniture()
         else:
             controls = self.controls
@@ -950,10 +950,14 @@ class _GenauUnit:
             seek=self.role.seek, scrub_duration_ms=1.0,
         )
 
+    @property
+    def wraps_the_viewer(self) -> bool:
+        return immersive_mode(self.role.projection) is not None
+
     def render_latest_frame(self) -> None:
         frame = self.role.take_frame()
         if frame is not None:
-            self.texture.upload(frame if _wraps_the_viewer(self.role) else self._furnished(frame))
+            self.texture.upload(frame if self.wraps_the_viewer else self._furnished(frame))
         if self.texture.ready:
             self.screen.rehang_at(self.shown, self.texture.aspect)
 
@@ -2239,7 +2243,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                     # taken -- and a picture wrapping the view is never taken.
                     for index, unit in enumerate([main_unit, *satellites]):
                         if unit is main_unit and (
-                                _wraps_the_viewer(main_unit.role) or genau.role.showing):
+                                main_unit.wraps_the_viewer or genau.role.showing):
                             continue
                         quad = _update_quad_layer(
                             session, renderer, index, unit,
