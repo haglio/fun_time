@@ -353,6 +353,9 @@ class _SlotControls:  # what the row shows and does, said by the player in the s
     scrub_duration_ms: float  # 1.0 for Genau, which counts frames and seeks by fraction
     video: Path | None = None
     funscript: Funscript | None = None
+    # The main player's A/B loop; no other player in the room has one.
+    loop_bounds: tuple[int, int] | None = None
+    record_in_ms: int | None = None
 
 
 class _VideoUnit:
@@ -411,6 +414,7 @@ class _VideoUnit:
     def overlay_furniture(
         self, position_ms: float, duration_ms: float, volume_hud, painter, *,
         video: Path | None = None, funscript: Funscript | None = None,
+        loop_bounds: tuple[int, int] | None = None, record_in_ms: int | None = None,
     ) -> None:
         """The desktop's own scrubber and volume chip, painted small and blown up to
         the video's pixels: one angular size on every screen, however far it zooms."""
@@ -420,13 +424,17 @@ class _VideoUnit:
         factor = self.target.width / width
         scrubber = (_NO_TIMELINE if self.player.showing_picture
                     else self._scrubber.state((width, height), position_ms, duration_ms,
-                                              video=video, funscript=funscript))
+                                              video=video, funscript=funscript,
+                                              loop_bounds=loop_bounds,
+                                              record_in_ms=record_in_ms))
         if scrubber != self._scrubber_shown:
             self._scrubber_shown = scrubber
             if scrubber is _NO_TIMELINE:
                 self.player.remove_overlay(_OV_SCRUBBER)
             else:
-                bar = scaled(self._scrubber.bgra(position_ms, width), factor)
+                bar = scaled(self._scrubber.bgra(position_ms, width,
+                                                 loop_bounds=loop_bounds,
+                                                 record_in_ms=record_in_ms), factor)
                 self.player.overlay(_OV_SCRUBBER, 0, self.target.height - bar.shape[0], bar)
         chip = chip_state(width, height, volume_hud)
         if chip != self._chip_shown:
@@ -586,6 +594,7 @@ class _MainUnit(_VideoUnit):
             hud=VolumeHud(volume=self.role.volume, muted=self.role.muted),
             seek=self.role.seek_to, scrub_duration_ms=self.role.duration_ms,
             video=self.role.current_video, funscript=self.role.current_funscript,
+            loop_bounds=self.role.loop_bounds, record_in_ms=self.role.record_in_ms,
         )
 
     @property
@@ -649,6 +658,7 @@ class _MainUnit(_VideoUnit):
             self.overlay_furniture(
                 controls.position, controls.duration, controls.hud, self._volume_painter,
                 video=controls.video, funscript=controls.funscript,
+                loop_bounds=controls.loop_bounds, record_in_ms=controls.record_in_ms,
             )
             self.overlay_readout(controls.playhead)
         if self._notices is not None:
@@ -1169,7 +1179,9 @@ class _PanelUnit:
             return
         if row_key != self._row_key:
             self._row = None if row_key is None else paint_row(
-                self._scrubber.bgra(self._controls.position, _WRAPPED_ROW_SIZE[0]),
+                self._scrubber.bgra(self._controls.position, _WRAPPED_ROW_SIZE[0],
+                                    loop_bounds=self._controls.loop_bounds,
+                                    record_in_ms=self._controls.record_in_ms),
                 self._controls.playhead, self._controls.hud, _WRAPPED_ROW_SIZE,
                 volume_painter=self._row_painter, readout_painter=self._readout_painter)
         image = paint_panel(self._painter, hud, hover=hover, notices=lines, row=self._row)
@@ -1185,7 +1197,9 @@ class _PanelUnit:
             return None
         size = _WRAPPED_ROW_SIZE
         return (self._scrubber.state(size, controls.position, controls.duration,
-                                     video=controls.video, funscript=controls.funscript),
+                                     video=controls.video, funscript=controls.funscript,
+                                     loop_bounds=controls.loop_bounds,
+                                     record_in_ms=controls.record_in_ms),
                 controls.playhead, chip_state(*size, controls.hud))
 
     def render_latest_frame(self) -> None:

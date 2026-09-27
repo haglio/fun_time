@@ -506,6 +506,18 @@ def test_the_furniture_is_painted_once_and_not_per_tick():
 _STROKES = Funscript(actions=[(0, 0), (500, 100), (1_000, 0), (6_000, 100), (9_000, 0)])
 
 
+def _a_main_role_reporting(loop: SimpleNamespace) -> SimpleNamespace:
+    """The main role as the unit reads it, with *loop* saying what its A/B loop
+    is doing (nothing, unless the test says otherwise)."""
+    return SimpleNamespace(
+        set_paused=lambda _paused: None, tick=lambda _now: None, seek_to=lambda _ms: True,
+        position_ms=1_000.0, duration_ms=10_000.0, paused=False,
+        projection_of=lambda _video: FLAT,
+        volume=70, muted=False, current_video=Path("v0.mp4"), current_funscript=_STROKES,
+        loop_bounds=getattr(loop, "loop_bounds", None),
+        record_in_ms=getattr(loop, "record_in_ms", None))
+
+
 def test_a_scripted_videos_scrubber_is_the_desktop_heatmap_strip_blown_up():
     unit, player = _unit_with_pixels()
 
@@ -529,11 +541,7 @@ def test_the_main_player_paints_its_videos_script_into_its_scrubber(
     unit.player.frame_rate = 30.0
     unit.target = SimpleNamespace(ready=True, width=640, height=360, aspect=16 / 9, video=None)
     unit._volume_painter = VolumeHudPainter()
-    unit.role = SimpleNamespace(
-        set_paused=lambda _paused: None, tick=lambda _now: None, seek_to=lambda _ms: True,
-        position_ms=1_000.0, duration_ms=10_000.0, paused=False,
-        projection_of=lambda _video: FLAT,
-        volume=70, muted=False, current_video=Path("v0.mp4"), current_funscript=_STROKES)
+    unit.role = _a_main_role_reporting(SimpleNamespace())
 
     unit.pump(threading.Event(), 0.0)
 
@@ -542,6 +550,29 @@ def test_the_main_player_paints_its_videos_script_into_its_scrubber(
     desktop.update(Path("v0.mp4"), _STROKES, 10_000.0, width)
     assert np.array_equal(unit.player.bitmaps[_OV_SCRUBBER], scaled(
         timeline_bgra(desktop, 1_000.0, None, width), 640 / width))
+
+
+def test_the_main_player_paints_the_loop_it_is_running_onto_its_scrubber(
+        tmp_path, faked_collaborators):
+    """The desktop main player shades a running loop on its own bar; the headset
+    draws the same bar, so a loop marked in there shows the same way."""
+    vr = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
+                    audio_device="", compositor_layers=False)
+    unit = _MainUnit(_manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS,
+                     remembered=Layout(), genau_role=SimpleNamespace(showing=False))
+    unit.player = _OverlayPlayer()
+    unit.player.frame_rate = 30.0
+    unit.target = SimpleNamespace(ready=True, width=640, height=360, aspect=16 / 9, video=None)
+    unit._volume_painter = VolumeHudPainter()
+    unit.role = _a_main_role_reporting(SimpleNamespace(loop_bounds=(2_000, 6_000)))
+
+    unit.pump(threading.Event(), 0.0)
+
+    width, _height = unit.control_size()
+    desktop = HeatmapStrip()
+    desktop.update(Path("v0.mp4"), _STROKES, 10_000.0, width)
+    assert np.array_equal(unit.player.bitmaps[_OV_SCRUBBER], scaled(
+        timeline_bgra(desktop, 1_000.0, (2_000, 6_000), width), 640 / width))
 
 
 def test_a_side_screen_paints_its_clips_script_into_its_scrubber(
@@ -834,7 +865,8 @@ class TestThePanelUnderThePointer:
     slot and pressed there, and -- while the video wraps the viewer and there is
     nothing to dock to -- carrying that video's row and moved by a handle of its own."""
 
-    def _unit(self, tmp_path, *, wrapped=False, showing=False, funscript=None):
+    def _unit(self, tmp_path, *, wrapped=False, showing=False, funscript=None,
+              loop_bounds=None):
         projection = EQUIRECT_180_SBS if wrapped else FLAT
         seeks: list[float] = []
         main_unit = _like(_MainUnit, SimpleNamespace(
@@ -854,7 +886,8 @@ class TestThePanelUnderThePointer:
                 playhead=video_playhead(1_000.0, 600_000.0, 30.0),
                 hud=VolumeHud(volume=70, muted=False),
                 seek=seeks.append, scrub_duration_ms=600_000.0,
-                video=Path("feature.mp4"), funscript=funscript),
+                video=Path("feature.mp4"), funscript=funscript,
+                loop_bounds=loop_bounds),
         ))
         genau = _like(_GenauUnit, SimpleNamespace(
             owns_the_slot=showing,
@@ -1014,6 +1047,20 @@ class TestThePanelUnderThePointer:
         desktop = HeatmapStrip()
         desktop.update(Path("feature.mp4"), _STROKES, 600_000.0, PANEL_WIDTH_PX)
         strip = timeline_bgra(desktop, 1_000.0, None, PANEL_WIDTH_PX)
+        x0, x1 = bar_track_x(PANEL_WIDTH_PX)
+        assert np.array_equal(p.unit._row[-strip.shape[0]:, x0:x1],
+                              strip[:, x0:x1][:, :, [2, 1, 0, 3]])
+
+    def test_a_wrapped_videos_row_shades_the_loop_it_is_running(self, tmp_path):
+        """A wrapped video has no bar of its own -- the row is the only place the
+        loop can show, so it shows there."""
+        p = self._unit(tmp_path, wrapped=True, loop_bounds=(60_000, 120_000))
+
+        p.unit.pump(threading.Event(), 0.0)
+
+        desktop = HeatmapStrip()
+        desktop.update(Path("feature.mp4"), None, 600_000.0, PANEL_WIDTH_PX)
+        strip = timeline_bgra(desktop, 1_000.0, (60_000, 120_000), PANEL_WIDTH_PX)
         x0, x1 = bar_track_x(PANEL_WIDTH_PX)
         assert np.array_equal(p.unit._row[-strip.shape[0]:, x0:x1],
                               strip[:, x0:x1][:, :, [2, 1, 0, 3]])

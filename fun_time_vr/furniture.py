@@ -158,18 +158,27 @@ class FurniturePointer:
 
 
 class Scrubber:
+    """The bar under a picture: a running A/B loop shades its range and an open
+    mark shows where it started, which only the main player ever has."""
+
     def __init__(self) -> None:
         self._strip = HeatmapStrip()
 
     def state(
         self, size: tuple[int, int], position_ms: float, duration_ms: float, *,
         video: Path | None = None, funscript: Funscript | None = None,
+        loop_bounds: tuple[int, int] | None = None, record_in_ms: int | None = None,
     ) -> tuple:
         self._strip.update(video, funscript, duration_ms, size[0])
-        return size, self._strip.colors, timeline_x(self._strip, position_ms, size[0])
+        return (size, self._strip.colors, timeline_x(self._strip, position_ms, size[0]),
+                loop_bounds, record_in_ms)
 
-    def bgra(self, position_ms: float, width: int) -> np.ndarray:
-        return timeline_bgra(self._strip, position_ms, None, width)
+    def bgra(
+        self, position_ms: float, width: int, *,
+        loop_bounds: tuple[int, int] | None = None, record_in_ms: int | None = None,
+    ) -> np.ndarray:
+        return timeline_bgra(self._strip, position_ms, loop_bounds, width,
+                             record_in_ms=record_in_ms)
 
 
 def chip_state(width: int, height: int, hud: VolumeHud) -> tuple[int, int, VolumeHud]:
