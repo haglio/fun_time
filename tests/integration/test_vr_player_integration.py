@@ -486,7 +486,7 @@ def test_the_main_player_marks_and_runs_an_ab_loop_in_the_headset():
     window = hidden_gl_window("vr-loop-test")
     glfw.make_context_current(window)
 
-    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered={},
+    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered=Layout(),
                          genau_role=SimpleNamespace(showing=False))
     stop = threading.Event()
     pump = threading.Thread(
