@@ -22,7 +22,7 @@ from unittest.mock import patch
 
 import pytest
 from player_core.file_channel import append_command
-from player_core.player_verbs import LOCK_ON, QUIT
+from player_core.player_verbs import LOCK_ON, QUIT, play_file
 from player_core.playlist import read_playlist
 
 from fun_time.bridge_records import BridgeConfig
@@ -196,22 +196,27 @@ def test_prev_inverts_next(satellite):
 
 
 def test_navigation_wraps_around(satellite):
-    videos = [v.strip() for v in satellite.playlist.read_text(encoding="utf-8").splitlines() if v.strip()]
     start = satellite.video()
     current = start
-    for _ in range(len(videos)):
+    for _ in range(len(read_playlist(satellite.playlist))):
         satellite.send("NEXT")
         current = satellite.wait_for_video(other_than=current)
     assert current == start, f"stepping the whole list should wrap to {start!r}, got {current!r}"
 
 
 def test_play_file_switches_to_a_specific_clip(satellite):
-    videos = [v.strip() for v in satellite.playlist.read_text(encoding="utf-8").splitlines() if v.strip()]
+    """A line of the playlist is a video and, where it has one, a TAB and its
+    funscript, and ``PLAY_FILE`` carries that whole line -- so what the player
+    then reports playing is the video half of it."""
     start = satellite.video()
-    target = next(v for v in videos if v != start)
-    satellite.send(f"PLAY_FILE {target}")
+    target = next(item for item in read_playlist(satellite.playlist)
+                  if str(item.path) != start)
+
+    satellite.send(play_file(target))
+
     after = satellite.wait_for_video(other_than=start)
-    assert after == target, f"PLAY_FILE should jump to {target!r}, got {after!r}"
+    assert after == str(target.path), (
+        f"PLAY_FILE should jump to {target.path}, got {after!r}")
 
 
 def test_trash_advances_off_the_discarded_clip(satellite):
