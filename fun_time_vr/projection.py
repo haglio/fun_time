@@ -28,10 +28,16 @@ FISHEYE_180_SBS = "fisheye_180_sbs"
 FISHEYE_190_SBS = "fisheye_190_sbs"
 MKX200_SBS = "mkx200_sbs"
 FISHEYE_220_SBS = "fisheye_220_sbs"
+FISHEYE_200_STEREOGRAPHIC_SBS = "fisheye_200_stereographic_sbs"
+FISHEYE_200_EQUISOLID_SBS = "fisheye_200_equisolid_sbs"
 EQUIRECT_360 = "equirect_360"
 
 # The cycle order: the P key / "projection" walks this ring.  Flat first, so a
 # mis-detected 2D video is one press away from every VR video's landing spot.
+# The four plain fisheye entries share one curve (equidistant); the last two
+# hold MKX200's own angle but read it with the curves a lens APO-corrected
+# against that one is actually built on -- an equidistant read pinches a video
+# mastered on either exactly at the frame's outer edge, whatever degree is tried.
 PROJECTIONS: tuple[str, ...] = (
     FLAT,
     EQUIRECT_180_SBS,
@@ -39,6 +45,8 @@ PROJECTIONS: tuple[str, ...] = (
     FISHEYE_190_SBS,
     MKX200_SBS,
     FISHEYE_220_SBS,
+    FISHEYE_200_STEREOGRAPHIC_SBS,
+    FISHEYE_200_EQUISOLID_SBS,
     EQUIRECT_360,
 )
 
