@@ -42,6 +42,7 @@ from fun_time.overlay_progress import (
     parse_progress,
     ready_file_for,
 )
+from fun_time.player_deaths import LaunchedPlayer, PlayerDied
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
 from fun_time.session_handoff import (
@@ -1879,6 +1880,44 @@ def _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, *, word, popen=None
             state_dir=state_dir, project_dir=tmp_path,
         )
     return state_dir
+
+
+class TestAPlayerThatDiedWhileTheRoomCameUp:
+    """The launch ends and says which player went and what it said, instead of
+    revealing a room with a player missing: his previews waited out every window and
+    status timeout and opened on the browser alone, and Ctrl+Alt+Q was the only way
+    out (2026-09-22)."""
+
+    def test_the_half_built_room_is_torn_down_and_the_reason_goes_on_screen(
+        self, cfg_factory, tmp_path,
+    ):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        state_dir = tmp_path / "state"
+        killed: list[int] = []
+        shown: list[str] = []
+
+        def a_player_died(**_kwargs):
+            raise PlayerDied(
+                LaunchedPlayer("the Main player", 25),
+                "OSError: The engine (libmpv) could not be loaded.",
+                launched_pids=[300, 400])
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   side_effect=a_player_died),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   return_value=MagicMock(wait=MagicMock(return_value=0))),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
+                   side_effect=killed.append),              patch("fun_time.windows_bridge_orchestrator.close_window"),              patch("fun_time.windows_bridge_orchestrator.show_player_died_alert",
+                   side_effect=shown.append):
+            code = _a_session(
+                manifest_path=manifest_path, ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk", state_dir=state_dir, project_dir=tmp_path)
+
+        assert code == 1
+        assert {300, 400} <= set(killed)
+        assert "the Main player" in shown[0]
+        assert "The engine (libmpv) could not be loaded." in shown[0]
+        assert not (state_dir / "bridge_pids.ini").exists()
 
 
 class TestStartupCancellation:

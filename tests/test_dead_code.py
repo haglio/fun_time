@@ -266,11 +266,11 @@ def test_no_module_reaches_into_another_ones_privates():
 # the desktop session kept about the clock and the range went with it.
 # 7654 on 2026-09-27: a note on watch tracking that had drifted off the line it
 # described went, for the RFB slideshow's one line on how Chrome answers.
-# 7651 the same day: the engine check and the engine self-heal became one
+# 7638 the same day: the engine check and the engine self-heal became one
 # module, and every paragraph of the two they replaced, and of the watch on a
 # player that dies while the room comes up, is a test in test_player_engine.py
 # or test_player_deaths.py.
-MAX_PROSE_LINES = 7651
+MAX_PROSE_LINES = 7638
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

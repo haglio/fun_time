@@ -231,10 +231,17 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   `state/fun_time_branch_config.json` records what his last launch actually
   ran.
 
-- **A player_core worktree named on that chain needs `vendor/libmpv-2.dll`
-  copied in from the primary's `vendor/`.** The DLL is fetched, not tracked, so
-  a fresh worktree lacks it and every mpv-backed player in the session — and in
-  the integration suite pointed at that worktree — dies on import.
+- **A player_core worktree named on that chain needs nothing copied in, and a
+  launch proves that before it opens a window.** The DLL is fetched rather than
+  tracked, so a worktree of that repo has no `vendor/` of its own; every launch
+  asks each player's own interpreter, with the PYTHONPATH that player is launched
+  with, whether it can load the engine, puts the shared copy
+  (`%USERPROFILE%\.haglio\libmpv`) where a player that cannot looks first, and
+  refuses to open the room — saying which player and what it said — if one still
+  cannot (`fun_time/player_engine.py`). A worktree pinned at a player_core from
+  before v0.1.331 still looks under `AppData`, which is private to the app an
+  agent's shell runs inside and empty for anything he launches; that is the case
+  the copy exists for.
 
 Everything else in the global CLAUDE.md — work in a worktree, green tests before
 you push, clean handoff — still applies.

@@ -24,6 +24,7 @@ from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, main_player_displays
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
+from .player_deaths import LaunchedPlayer, PlayerDied, raise_if_a_player_died
 from .player_status import (
     read_genau_status,
     read_main_player_status,
@@ -227,6 +228,7 @@ class _LaunchedChildren:
     """
 
     pids: list[int] = field(default_factory=list)
+    players: list[LaunchedPlayer] = field(default_factory=list)
     rfb_hwnd: int = 0
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
@@ -299,10 +301,10 @@ def run_startup_sequence(
             launched=launched,
             env=env,
         )
-    except StartupCancelled as cancelled:
-        cancelled.launched_pids = launched.pids
-        cancelled.rfb_hwnd = launched.rfb_hwnd
-        cancelled.origenerator_taken_over = launched.origenerator_taken_over
+    except (StartupCancelled, PlayerDied) as stopped:
+        stopped.launched_pids = launched.pids
+        stopped.rfb_hwnd = launched.rfb_hwnd
+        stopped.origenerator_taken_over = launched.origenerator_taken_over
         raise
 
 
@@ -400,6 +402,10 @@ def _launch_the_satellites(
     portrait_pid = core_pids["portrait_pid"]
     landscape_pid = core_pids["landscape_pid"]
     launched.pids.extend([portrait_pid, landscape_pid])
+    launched.players.extend([
+        LaunchedPlayer("the Portrait player", portrait_pid, portrait_slot.log_file),
+        LaunchedPlayer("the Landscape player", landscape_pid, landscape_slot.log_file),
+    ])
     logger.info(
         "Core session launched: portrait=%d landscape=%d",
         portrait_pid, landscape_pid,
@@ -471,6 +477,7 @@ def _launch_the_main_slot_players(
     # one.  See _wait_for_main_player_loaded.
     main_player_status_file = Path(m.commands.main_player_status_file)
     main_player_status_file.unlink(missing_ok=True)
+    main_player_log = state_dir / "main_player.log"
     main_player_pid = launch_main_player(
         python_exe=m.executables.genau_python_exe,
         main_player_module=m.modules.main_player_module,
@@ -482,7 +489,7 @@ def _launch_the_main_slot_players(
         console_file=m.commands.main_player_console_file,
         drive_file=genau_drive_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
-        log_file=state_dir / "main_player.log",
+        log_file=main_player_log,
         state_dir=state_dir,
         main_player_x=main_media_rect.x,
         main_player_y=main_media_rect.y,
@@ -493,6 +500,10 @@ def _launch_the_main_slot_players(
         project_dirs=project_dirs,
     )
     launched.pids.extend([genau_pid, main_player_pid])
+    launched.players.extend([
+        LaunchedPlayer("Genau", genau_pid),
+        LaunchedPlayer("the Main player", main_player_pid, main_player_log),
+    ])
     return genau_pid, main_player_pid, main_player_status_file
 
 
@@ -626,6 +637,7 @@ def _wait_for_the_room_to_be_drawing(
     *,
     main_player_status_file: Path,
     progress: ProgressReporter,
+    players: list[LaunchedPlayer] = (),
 ) -> None:
     """Hold the cover until every player has a picture under it.
 
@@ -640,7 +652,7 @@ def _wait_for_the_room_to_be_drawing(
     Neither wait gets to keep the desktop: a player that never arrives is
     revealed over anyway, and the log says which one.
     """
-    if not _wait_for_main_player_loaded(main_player_status_file, progress):
+    if not _wait_for_main_player_loaded(main_player_status_file, progress, players=players):
         logger.warning(
             "the main player reported no video within %.0fs; revealing over whatever it "
             "still has on screen", MAIN_PLAYER_LOAD_TIMEOUT_S,
@@ -649,6 +661,7 @@ def _wait_for_the_room_to_be_drawing(
         (m.commands.portrait_status_file,
          m.commands.landscape_status_file),
         progress,
+        players=players,
     ):
         logger.warning(
             "A satellite reported no frames within %.0fs; revealing anyway",
@@ -706,6 +719,7 @@ def _settle_the_room_under_the_cover(
     rfb_hwnd: int,
     dashboard_pid: int,
     progress: ProgressReporter,
+    players: list[LaunchedPlayer],
 ) -> dict[str, int]:
     """Phase 4, on the path with a loading screen: everything at once, unseen."""
     # Named for the wait it is: until the players open their own windows there
@@ -715,7 +729,8 @@ def _settle_the_room_under_the_cover(
     # nothing to start here — only resolve and position each under the overlay.
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
     _wait_for_the_room_to_be_drawing(
-        m, main_player_status_file=core.main_player_status_file, progress=progress)
+        m, main_player_status_file=core.main_player_status_file, progress=progress,
+        players=players)
 
     progress.advance("windows")
     role_hwnds = _place_and_park_under_the_cover(
@@ -751,6 +766,8 @@ def _run_startup_phases(
     progress.advance("services")
     core = _launch_core_media(m, layout=layout, state_dir=state_dir, launched=launched)
 
+    raise_if_a_player_died(launched.players)
+
     # --- Phase 2: Position windows (layout computed up front) ---
     role_hwnds: dict[str, int] = {}
     if not hide_windows:
@@ -767,11 +784,14 @@ def _run_startup_phases(
     ui_pids = _launch_the_companions(
         m, plan=plan, state_dir=state_dir, manifest_path=manifest_path, launched=launched)
 
+    raise_if_a_player_died(launched.players)
+
     # --- Phase 4 (loading screen only): batch-position everything at once ---
     if hide_windows:
         role_hwnds = _settle_the_room_under_the_cover(
             m, core=core, plan=plan, rfb_hwnd=rfb_hwnd,
-            dashboard_pid=ui_pids["dashboard_pid"], progress=progress)
+            dashboard_pid=ui_pids["dashboard_pid"], progress=progress,
+            players=launched.players)
 
     # A session with nothing to hide under starts playing as soon as it is
     # built.  One with a cover does NOT: the orchestrator calls this once the
@@ -855,7 +875,8 @@ _PLAY_POLL_S = 0.1
 
 
 def _wait_for_players_drawing(status_files, progress: ProgressReporter,
-                              timeout_s: float = SATELLITE_PLAY_TIMEOUT_S) -> bool:
+                              timeout_s: float = SATELLITE_PLAY_TIMEOUT_S,
+                              *, players: list[LaunchedPlayer] = ()) -> bool:
     """Wait until every satellite is DRAWING, returning whether they all got there.
 
     The window existing is not the signal, and neither is the process running:
@@ -877,6 +898,7 @@ def _wait_for_players_drawing(status_files, progress: ProgressReporter,
     for _ in range(max(1, int(timeout_s / _PLAY_POLL_S))):
         if progress.cancelled:
             raise StartupCancelled()
+        raise_if_a_player_died(players)
         if all(read_satellite_status(path).position_ms > 0 for path in files):
             return True
         time.sleep(_PLAY_POLL_S)
@@ -887,6 +909,8 @@ def _wait_for_main_player_loaded(
     status_file: Path,
     progress: ProgressReporter,
     timeout_s: float = MAIN_PLAYER_LOAD_TIMEOUT_S,
+    *,
+    players: list[LaunchedPlayer] = (),
 ) -> bool:
     """Wait until the main player has a video on screen, returning whether it got there.
 
@@ -910,6 +934,7 @@ def _wait_for_main_player_loaded(
     while time.monotonic() < deadline:
         if progress.cancelled:
             raise StartupCancelled()
+        raise_if_a_player_died(players)
         if read_main_player_status(status_file).video:
             return True
         time.sleep(0.1)
