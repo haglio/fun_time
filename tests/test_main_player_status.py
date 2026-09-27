@@ -58,7 +58,7 @@ class TestStatusFields:
         # said ten and nothing noticed.
         assert list(status_fields(StubSession(), None)) == [
             "video", "position_ms", "duration_ms", "paused", "locked", "speed", "picture",
-            "has_funscript", "funscript_resting", "loop_state",
+            "read_at", "has_funscript", "funscript_resting", "loop_state",
             "loop_in_ms", "loop_out_ms", "handoff_touch_ms",
             "length_mode", "compilation", "has_compilation", "has_other_versions", "jump_to",
             "portrait",
