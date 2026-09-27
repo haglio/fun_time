@@ -64,6 +64,7 @@ from fun_time.overlay_progress import (
     SHUTDOWN_READY_FILENAME,
     PhaseProgress,
 )
+from fun_time.shared_state import BridgeState, shared_state_path
 from fun_time_vr import player, room
 from fun_time_vr.console_panel import (
     PANEL_WIDTH_DEG,
@@ -286,12 +287,35 @@ def test_genau_opens_in_the_same_slot_the_last_session_left_it(tmp_path):
 
     with patch.multiple("fun_time_vr.player", GenauRole=DEFAULT, GenauNotifier=DEFAULT,
                         FrameTexture=DEFAULT, UdpTCodeSink=DEFAULT, VolumeHudPainter=DEFAULT,
-                        PlayheadHudPainter=DEFAULT),             patch("fun_time_vr.player.read_genau_status",
-                  return_value=SimpleNamespace(clip="")):
+                        PlayheadHudPainter=DEFAULT), \
+            patch("fun_time_vr.player.read_genau_status", return_value=SimpleNamespace(clip="")), \
+            patch("fun_time_vr.player.read_shared_state", return_value=None):
         unit = _GenauUnit(_manifest_for_a_vr_session(tmp_path), vr, threading.Event(),
                           remembered={MAIN: moved})
 
     assert unit.screen.placement == moved
+
+
+def test_genau_opens_in_the_order_the_last_session_left_it_browsing(tmp_path):
+    """Latest is handed to the role beside the clip, off the state the
+    orchestrator just resumed into the session's state dir: as a verb once the
+    role is up, LATEST would browse the new order from its top, over that clip."""
+    manifest = _manifest_for_a_vr_session(tmp_path)
+    vr = VrSettings(
+        tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
+        audio_device="", compositor_layers=False, clips_dirs=(tmp_path,),
+    )
+
+    with patch.multiple("fun_time_vr.player", GenauRole=DEFAULT, GenauNotifier=DEFAULT,
+                        FrameTexture=DEFAULT, UdpTCodeSink=DEFAULT, VolumeHudPainter=DEFAULT,
+                        PlayheadHudPainter=DEFAULT) as fakes, \
+            patch("fun_time_vr.player.read_genau_status", return_value=SimpleNamespace(clip="")), \
+            patch("fun_time_vr.player.read_shared_state",
+                  return_value=BridgeState(genau_latest=True)) as read_state:
+        _GenauUnit(manifest, vr, threading.Event(), remembered={})
+
+    assert read_state.call_args.args == (shared_state_path(Path(manifest.commands.state_dir)),)
+    assert fakes["GenauRole"].call_args.kwargs["latest"] is True
 
 
 def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(

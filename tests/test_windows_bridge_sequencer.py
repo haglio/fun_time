@@ -513,6 +513,18 @@ class TestRunStartupSequence:
 
         assert launch.call_args.kwargs["start_clip"] == "C:\\clips\\alpha.mp4"
 
+    def test_genau_is_launched_in_the_order_it_was_left_browsing(self, cfg_factory, tmp_path):
+        """Whether Genau was on Latest is in the state the core session just
+        resumed, and it has to go on the launch beside the clip: the LATEST verb
+        browses the new order from its top, over the clip just resumed."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        write_shared_state(shared_state_path(tmp_path), BridgeState(genau_latest=True))
+
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert stubs.launch_genau.call_args.kwargs["latest"] is True
+
     def test_a_genau_session_parks_main_player_and_gives_genau_the_slot(self, cfg_factory, tmp_path):
         """Reopening in genau mode: the session is still BUILT in video mode — the main player loads
         the main player's playlist and the overlay waits on it — but what is revealed

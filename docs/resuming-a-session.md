@@ -37,8 +37,8 @@ clips are in them, Latest fixes their order, and a group loop *is* the group
 written out as the playlist, with the map anchored (and the seed row widened) on
 the clip it started from. The rest is what the session was simply *left* in —
 the sound level, each side's lock, whether the OSR2 was let go of or held at one
-end — and there is no more reason for those to reset overnight than for the clip
-on screen to.
+end, whether Genau was browsing Latest — and there is no more reason for those
+to reset overnight than for the clip on screen to.
 
 Five of them have a live counterpart to re-assert, since none lives in a file a
 new process reads:
@@ -53,6 +53,11 @@ new process reads:
   nothing is sent to it,
 - the main slot's mode is what startup seeds the two main-slot players and their
   windows for (`fun_time.windows_bridge_startup.seed_startup_states`),
+- Genau's order goes on its launch line (`--latest`), beside the clip it opens
+  on. Genau has no playlist file — it rescans its folder every launch, in the
+  config's order unless told otherwise — and the LATEST verb is no way to tell
+  it, since that browses the new order from its top and would throw away the
+  clip just resumed. The headset's Genau is handed the same two at construction,
 - the OSR2's control state is carried out by the device arbiter
   (`fun_time.device_arbiter`) on the new session's first tick and every tick
   after, exactly as it is after a press. Startup sends the device home first,

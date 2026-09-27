@@ -78,12 +78,14 @@ class Genau:
     the VR clips, and the desktop's flat ones deeper down."""
 
     def __init__(self, tmp_path: Path, *, clips=("alpha_180.mp4", "beta_180.mp4", "gamma.mp4"),
-                 flat_clips=(), decode=None, start_clip=None, settings=None, console_file=None,
-                 start_thread=_run_now):
+                 flat_clips=(), decode=None, start_clip=None, latest=False, settings=None,
+                 console_file=None, start_thread=_run_now):
         self.clips_dir = tmp_path / "vr_clips"
         self.clips_dir.mkdir()
-        for name in clips:
-            (self.clips_dir / name).write_bytes(b"clip")
+        for arrived, name in enumerate(clips, start=1):  # first named is the oldest
+            clip = self.clips_dir / name
+            clip.write_bytes(b"clip")
+            os.utime(clip, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
         self.flat_dir = tmp_path / "desktop" / "clips"
         self.flat_dir.mkdir(parents=True)
         for name in flat_clips:
@@ -108,6 +110,7 @@ class Genau:
             tcode_sink=self.sink,
             stop_event=self.stop,
             start_clip=start_clip,
+            latest=latest,
             decode=decode or (lambda _path: _frames()),
             start_thread=start_thread,
             clock=self.clock,
@@ -138,6 +141,16 @@ class TestTheClipOnScreen:
         genau = Genau(tmp_path, start_clip=tmp_path / "vr_clips" / "gamma.mp4")
 
         assert genau.role.current_clip == genau.clips_dir / "gamma.mp4"
+
+    def test_it_opens_in_the_order_an_orchestrator_names_and_still_on_its_clip(self, tmp_path):
+        """Latest arrives with the clip, at construction: as the verb afterwards
+        it would browse the new order from its top, over the clip the session
+        was being resumed onto.  Newest-first here is gamma, beta, alpha."""
+        genau = Genau(tmp_path, latest=True, start_clip=tmp_path / "vr_clips" / "beta_180.mp4")
+
+        assert genau.role.current_clip == genau.clips_dir / "beta_180.mp4"
+        genau.send("NEXT")
+        assert genau.role.current_clip == genau.clips_dir / "alpha_180.mp4"
 
     def test_next_and_prev_walk_the_folder(self, tmp_path):
         genau = Genau(tmp_path)

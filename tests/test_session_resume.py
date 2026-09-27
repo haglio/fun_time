@@ -241,6 +241,18 @@ class TestResumeSharedState:
 
         assert state.main_latest is True
 
+    def test_carries_genau_s_order(self, tmp_path: Path):
+        """Genau rescans its folder every launch, so its order has no file to
+        ride back in on; it is named on the launch instead, off this flag.
+        Dropped, the session opened shuffled under a console that also said so,
+        having been left browsing Latest."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(genau_latest=True))
+
+        state = resume_shared_state(state_file, resumed=True)
+
+        assert state.genau_latest is True
+
     def test_carries_the_sound_level_and_each_side_s_lock(self, tmp_path: Path):
         """Neither is a thing that should reset overnight, so both come back —
         and each has its world put back with it, the level seeded to both audio

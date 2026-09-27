@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import json
+import os
 import re
+import shutil
+import subprocess
 import sys
 import time
 from contextlib import contextmanager
@@ -8,6 +12,7 @@ from pathlib import Path
 
 import pytest
 from app_support.funscript import document, write
+from app_support.subprocess_utils import hidden_subprocess_kwargs
 from player_core.file_channel import append_command
 from player_core.modes import LoopState
 from player_core.player_verbs import RELOAD_PLAYLIST, SET_SPEED, play_file
@@ -15,11 +20,12 @@ from player_core.playlist import PlaylistItem
 
 from fun_time.config import SatelliteFiles
 from fun_time.media_actions import remove_from_favs
-from fun_time.player_status import MainPlayerStatus, read_main_player_status
+from fun_time.player_status import MainPlayerStatus, read_genau_status, read_main_player_status
 from fun_time.players import Player
 from fun_time.role_windows import MAIN_BLANK_SETTLE_S
 from fun_time.runtime_flow import write_flag_file
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
+from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.win32 import (
     find_window_by_title,
     is_window_minimized,
@@ -31,6 +37,8 @@ from main_player.controls import SEEK_STEP_MS
 
 from .integration_support import (
     COMMAND_BUDGET_S,
+    QUIT_BUDGET_S,
+    START_BUDGET_S,
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
@@ -413,20 +421,20 @@ def test_fun_time_omnipause_freezes_the_satellites(
     s.write_dashboard_command("play")  # idempotent leave-omnipause; a no-op if live
     s.wait_until(
         lambda: not read_satellite_status(portrait_status).paused,
-        timeout=10,
+        timeout=COMMAND_BUDGET_S,
         description="Portrait satellite to be playing before OmniPause",
     )
 
     s.write_dashboard_command("omnipause_toggle")
-    s.wait_for_new_log("OmniPause: entering", timeout=12)
+    s.wait_for_new_log("OmniPause: entering", timeout=COMMAND_BUDGET_S)
     s.wait_until(
         lambda: read_satellite_status(portrait_status).paused,
-        timeout=10,
+        timeout=COMMAND_BUDGET_S,
         description="Portrait satellite to report paused under OmniPause",
     )
     s.wait_until(
         lambda: read_satellite_status(landscape_status).paused,
-        timeout=10,
+        timeout=COMMAND_BUDGET_S,
         description="Landscape satellite to report paused under OmniPause",
     )
     # The playhead must not advance while paused.
@@ -925,6 +933,100 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
             timeout=COMMAND_BUDGET_S,
             description="the reopened main player to come back fast and still unheld",
         )
+    finally:
+        second.stop()
+
+
+def _clips_oldest_to_newest(folder: Path, *names: str) -> list[Path]:
+    """*names* as two-second test patterns in *folder*, the first the oldest arrival."""
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        pytest.fail("ffmpeg is what makes this test's clips, and it is not on PATH")
+    clips = []
+    for arrived, name in enumerate(names, start=1):
+        clip = folder / name
+        subprocess.run(
+            [ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=160x120:rate=30",
+             "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)],
+            check=True, timeout=60, **hidden_subprocess_kwargs())
+        os.utime(clip, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
+        clips.append(clip)
+    return clips
+
+
+def _config_whose_genau_browses_in_folder_order(temp_root: Path, clip_folder: Path) -> Path:
+    """Genau on *clip_folder*, unshuffled, so the order it reopens in can be
+    told from the order it was left in."""
+    config_path = build_integration_config(temp_root)
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["paths"]["clips_dir"] = str(clip_folder)
+    genau_config_path = Path(config["paths"]["genau_config_path"])
+    genau_config = json.loads(genau_config_path.read_text(encoding="utf-8"))
+    genau_config["genau"]["shuffle_on_load"] = False
+    genau_config_path.write_text(json.dumps(genau_config), encoding="utf-8")
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    return config_path
+
+
+def _wait_for_genau_on(session: FunTimeIntegrationSession, clip: Path, waiting_for: str) -> None:
+    """Genau publishes a clip once it is decoded, and a starved decode of sixty
+    frames has taken half a minute on a machine carrying other runs."""
+    def showing() -> bool:
+        published = read_genau_status(session.config.genau_status_file).clip
+        return bool(published) and Path(published).resolve() == clip.resolve()
+
+    session.wait_until(showing, timeout=COMMAND_BUDGET_S, description=waiting_for)
+
+
+# Two session starts, a quit and four command waits, each at the family's budget:
+# on a loaded machine the two starts alone have taken the suite's whole 240s.
+TWO_SESSIONS_BUDGET_S = 2 * START_BUDGET_S + QUIT_BUDGET_S + 4 * COMMAND_BUDGET_S
+
+
+@pytest.mark.timeout(TWO_SESSIONS_BUDGET_S)
+def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing():
+    """Close Fun Time with Genau browsing Latest and it comes back browsing
+    Latest, on the clip it was on.
+
+    Genau has no playlist file to resume from: it rescans its folder every
+    launch, so its order and its clip are both named on its launch line, off
+    the state and the status the last session published.  Only a real session
+    proves the two arrive together -- the LATEST verb sent after the launch
+    browses the new order from its top and loses the clip.
+
+    Three clips, oldest to newest: alpha, beta, gamma.  Latest is gamma, beta,
+    alpha, and the session closes on beta -- so a reopen that kept the order
+    steps from beta to alpha, where the folder's order would step to gamma.
+    """
+    temp_root = build_integration_temp_root()
+    clip_folder = temp_root / "genau_clips"
+    clip_folder.mkdir()
+    alpha, beta, gamma = _clips_oldest_to_newest(clip_folder, "alpha.mp4", "beta.mp4", "gamma.mp4")
+    config_path = _config_whose_genau_browses_in_folder_order(temp_root, clip_folder)
+
+    first = FunTimeIntegrationSession(config_path)
+    try:
+        first.start()
+        first.write_dashboard_command("genau_activate")
+        first.wait_for_new_log("Switched to genau mode", timeout=COMMAND_BUDGET_S)
+        first.write_dashboard_command("main_latest")
+        _wait_for_genau_on(first, gamma, "Latest to put the newest clip on screen")
+        first.write_dashboard_command("genau_next_clip")
+        _wait_for_genau_on(first, beta, "Genau to step on to the next-newest clip")
+        first.quit_gracefully()
+    finally:
+        first.stop()
+
+    second = FunTimeIntegrationSession(config_path)
+    try:
+        second.start()
+        _wait_for_genau_on(
+            second, beta, "Genau to come back up on the clip the last session ended on")
+        assert read_shared_state(shared_state_path(second.config.paths.state_dir)).genau_latest, (
+            "the reopened session must still say Genau is browsing Latest")
+        second.write_dashboard_command("genau_next_clip")
+        _wait_for_genau_on(
+            second, alpha, "the reopened Genau to step on in the order the last session left")
     finally:
         second.stop()
 
