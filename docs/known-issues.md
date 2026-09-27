@@ -42,7 +42,7 @@
     it boots parked and nothing in a VR session restores it, so the gallery and
     its tabs are the monitors' half of the mode and reachable only from a
     desktop session. A session hosting none is still a config naming none.
-  - The main player verbs the VR main role does not implement: loop recording, version cycling,
+  - The main player verbs the VR main role does not implement: version cycling,
     clip jumps, funscript jumps, length modes, compilations. They report unhandled,
     and the player logs each once rather than crashing. The list with a reason
     per verb is `fun_time_vr.roles.UNIMPLEMENTED_MAIN_PLAYER_VERBS`, and the only
