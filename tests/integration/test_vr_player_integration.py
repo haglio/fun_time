@@ -27,6 +27,7 @@ import numpy as np
 import pytest
 from OpenGL import GL
 from player_core.file_channel import append_command
+from player_core.modes import LoopState
 
 import fun_time_vr.player as vrp
 from fun_time.config import load_config
@@ -45,6 +46,7 @@ from fun_time_vr.layout import (
 from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.render import SceneRenderer, immersive_mode
 from fun_time_vr.scheduling import ahead_of_background_work
+from main_player.loop_verbs import LOOP_CANCEL, RECORD_TAP, SET_LOOP
 
 from .integration_support import (
     build_integration_config,
@@ -449,6 +451,100 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
         )
         assert position > 0
         assert main.role.displayed, "DISPLAY_ON rides the switch into video mode"
+    finally:
+        stop.set()
+        pump.join(timeout=5.0)
+        main.close()
+        glfw.terminate()
+def test_the_main_player_marks_and_runs_an_ab_loop_in_the_headset():
+    """The record gesture round-trips through the headset's main player the way
+    `test_fun_time_integration`'s does through the desktop's: record -> looping
+    -> cancel, over real libmpv, read back off the status file a crossing hands
+    the loop over on.
+
+    Marked with the video held still, so where the two presses land is a spot the
+    test knows rather than wherever the clock had reached between them.
+    """
+    temp_root = build_integration_temp_root()
+    config = load_config(build_integration_config(temp_root))
+    manifest_path = write_manifest_data(
+        build_vr_manifest(config), config.paths.state_dir / "windows_bridge_launch.ini"
+    )
+    manifest = LaunchManifest.read(manifest_path)
+    vr = vrp.VrSettings.read(manifest_path)
+    commands = manifest.commands
+    Path(commands.main_player_playlist_file).write_text(
+        "".join(f"{video}\n" for video in _sample_library_videos(
+            config.paths.main_player_library_dirs, 2)),
+        encoding="utf-8",
+    )
+    Path(commands.main_player_paused_file).write_text("0", encoding="utf-8")
+    status_file = Path(commands.main_player_status_file)
+    cmd_file = Path(commands.main_player_cmd_file)
+
+    assert glfw.init(), "glfw failed to initialize"
+    window = hidden_gl_window("vr-loop-test")
+    glfw.make_context_current(window)
+
+    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered={},
+                         genau_role=SimpleNamespace(showing=False))
+    stop = threading.Event()
+    pump = threading.Thread(
+        target=vrp._pump_channels, args=([main], stop, vrp.FramePerf(logger=vrp.logger)),
+        daemon=True, name="file-channels",
+    )
+
+    def run_frames(count: int) -> None:
+        for _ in range(count):
+            main.render_latest_frame()
+            glfw.poll_events()
+            time.sleep(FRAME_BUDGET_MS / 1e3)
+
+    def published():
+        return read_main_player_status(status_file)
+
+    def after_frames(answer):
+        """*answer*, asked only once the loop has turned over: every verb here is
+        drained on the worker thread and acted on between frames."""
+        return lambda: (run_frames(9) or answer())
+
+    try:
+        pump.start()
+        _wait(after_frames(lambda: published().position_ms),
+              timeout=30, desc="the video to start playing")
+        Path(commands.main_player_paused_file).write_text("1", encoding="utf-8")
+        held_at = _wait(after_frames(lambda: published().paused and published().position_ms),
+                        timeout=20, desc="the video to hold where it had got to")
+        assert published().loop_state is LoopState.NORMAL
+
+        append_command(cmd_file, RECORD_TAP)
+        _wait(after_frames(lambda: published().loop_state is LoopState.RECORDING),
+              timeout=20, desc="the mark to open")
+        assert published().loop_bounds is None, (
+            "a mark still open is not a loop the next session could be handed"
+        )
+
+        append_command(cmd_file, RECORD_TAP)
+        _wait(after_frames(lambda: published().loop_state is LoopState.LOOPING),
+              timeout=20, desc="the loop to close and start")
+        bounds = published().loop_bounds
+        assert bounds is not None
+        assert bounds[0] == held_at, "the loop starts where the mark was made"
+        assert bounds[1] > bounds[0], "and runs long enough for mpv to loop it"
+
+        append_command(cmd_file, LOOP_CANCEL)
+        _wait(after_frames(lambda: published().loop_state is LoopState.NORMAL),
+              timeout=20, desc="the loop to be dropped")
+        assert published().loop_bounds is None
+
+        # And the crossing's own leg: a loop the last session published, sent
+        # back whole rather than gestured out again (session_resume.resume_main_loop).
+        append_command(cmd_file, f"{SET_LOOP} {held_at} {held_at + 2_000}")
+        _wait(after_frames(lambda: published().loop_state is LoopState.LOOPING),
+              timeout=20, desc="the loop the crossing handed over to start")
+        assert published().loop_bounds == (held_at, held_at + 2_000), (
+            "finished bounds are asserted, not snapped again"
+        )
     finally:
         stop.set()
         pump.join(timeout=5.0)

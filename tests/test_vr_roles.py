@@ -730,6 +730,20 @@ class TestTheLoop:
         role.apply_command("RECORD_TAP", on_quit=_never_quits)
         assert (role.loop_state, player.ab_loop) == (LoopState.NORMAL, None)
 
+    def test_pressing_record_again_on_a_running_loop_drops_it(self, role_parts):
+        """R is held to mark and released to loop, and pressing it again is how
+        the loop is left -- so RECORD_DOWN on a running loop cancels, in the
+        headset as on the desktop."""
+        role, player = self._on_an_unscripted_video(role_parts), role_parts.player
+        player.position_ms = 20_000.0
+        role.apply_command("RECORD_DOWN", on_quit=_never_quits)
+        player.position_ms = 25_000.0
+        role.apply_command("RECORD_UP", on_quit=_never_quits)
+
+        role.apply_command("RECORD_DOWN", on_quit=_never_quits)
+
+        assert (role.loop_state, player.ab_loop) == (LoopState.NORMAL, None)
+
     def test_dropping_the_loop_takes_the_device_back_over(self, role_parts):
         """The playhead is about to carry on past the out point it was being held
         inside, which the OSR2 knows nothing about."""
