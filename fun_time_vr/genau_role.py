@@ -76,8 +76,8 @@ class GenauRole:
         self._settings = settings
         self._log = log
         self._lock = threading.Lock()
-        self._frame = None
-        self._frame_taken = True
+        self._frame_waiting: tuple[object, Path | None] | None = None
+        self._clip_on_screen: Path | None = None
         self._loading: str | None = None
         self._console_hud = None
         self._volume = 100
@@ -178,7 +178,7 @@ class GenauRole:
     @property
     def projection(self) -> str:
         """How the clip on screen is watched: by its name, else by whether it lives in a VR folder."""
-        clip = self.current_clip
+        clip = self._clip_on_screen
         cached_for, projection = self._projection_of
         if clip is None:
             return ""
@@ -227,10 +227,11 @@ class GenauRole:
     def take_frame(self):
         """The frame the engine chose since last asked, or None; the render thread's one read."""
         with self._lock:
-            if self._frame_taken:
+            if self._frame_waiting is None:
                 return None
-            self._frame_taken = True
-            return self._frame
+            frame, self._clip_on_screen = self._frame_waiting
+            self._frame_waiting = None
+            return frame
 
     def close(self) -> None:
         self._driver.close()
@@ -239,8 +240,7 @@ class GenauRole:
 
     def _take_from_engine(self, frame) -> None:
         with self._lock:
-            self._frame = frame
-            self._frame_taken = False
+            self._frame_waiting = (frame, self._renderer.current_clip_path)
 
     def _set_loading(self, text: str | None) -> None:
         self._loading = text
