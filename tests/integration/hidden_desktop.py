@@ -72,10 +72,11 @@ REPEAT_BUDGET_MINUTES = 45
 
 
 def build_run_argv(extra_args: list[str]) -> list[str]:
-    """The command the hidden desktop runs: pytest over the whole integration dir,
-    with caller *extra_args* appended last so they win -- or, for
-    ``--repeat-changed [BASE]``, the flake gate over the integration tests changed
-    since BASE."""
+    """The command the hidden desktop runs: pytest over the integration tests
+    *extra_args* name, or over the whole integration dir when they name none --
+    pytest runs every file of a directory it is handed, whatever else it is
+    handed beside it -- or, for ``--repeat-changed [BASE]``, the flake gate over
+    the integration tests changed since BASE."""
     if _is_a_repeat(extra_args):
         base = extra_args[1] if len(extra_args) > 1 else "origin/main"
         return [sys._base_executable, "-m", "app_support.flake_gate",
@@ -83,13 +84,26 @@ def build_run_argv(extra_args: list[str]) -> list[str]:
                 "--budget-minutes", str(REPEAT_BUDGET_MINUTES),
                 "--python", sys.executable]
     return [
-        sys._base_executable, "-m", "pytest", INTEGRATION_DIR,
+        sys._base_executable, "-m", "pytest",
+        *([] if _names_its_tests(extra_args) else [INTEGRATION_DIR]),
         *extra_args,
     ]
 
 
 def _is_a_repeat(extra_args: list[str]) -> bool:
     return extra_args[:1] == [REPEAT_CHANGED]
+
+
+_LEAVES_OUT_THE_TEST_IT_NAMES = frozenset({"--deselect", "--ignore", "--ignore-glob"})
+
+
+def _names_its_tests(extra_args: list[str]) -> bool:
+    return any(_is_in_the_suite(arg) and option not in _LEAVES_OUT_THE_TEST_IT_NAMES
+               for option, arg in zip(["", *extra_args], extra_args))
+
+
+def _is_in_the_suite(arg: str) -> bool:
+    return _repo_root() / INTEGRATION_DIR in (_repo_root() / arg.partition("::")[0]).parents
 
 
 def _venv_environment(venv_python: str | Path) -> dict[str, str]:

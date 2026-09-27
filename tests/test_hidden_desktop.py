@@ -107,6 +107,25 @@ def test_argv_appends_caller_args_after_the_defaults():
     assert argv[-3:] == ["-k", "smoke", "-x"]
 
 
+def test_a_run_naming_a_test_file_runs_that_file_alone():
+    argv = build_run_argv(["tests/integration/test_x.py", "-x"])
+
+    assert argv[1:] == ["-m", "pytest", "tests/integration/test_x.py", "-x"]
+
+
+@pytest.mark.parametrize("spelled", [str(_repo_root() / "tests" / "integration" / "test_x.py"),
+                                     "tests\\integration\\test_x.py::test_y"])
+def test_a_test_named_by_any_path_to_it_is_run_alone(spelled):
+    assert "tests/integration/" not in build_run_argv([spelled])
+
+
+@pytest.mark.parametrize("leave_out", ["--deselect", "--ignore", "--ignore-glob"])
+def test_a_test_named_only_to_be_left_out_leaves_the_rest_of_the_suite_to_run(leave_out):
+    argv = build_run_argv([leave_out, "tests/integration/test_x.py"])
+
+    assert argv[1:] == ["-m", "pytest", "tests/integration/", leave_out, "tests/integration/test_x.py"]
+
+
 def test_a_repeat_run_hands_the_integration_dir_to_the_flake_gate():
     argv = build_run_argv(["--repeat-changed", "origin/main"])
 
