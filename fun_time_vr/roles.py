@@ -450,8 +450,7 @@ class MainRole:
         self._scene_starts = scene_starts_ms(recorded)
 
     def look_with(self, look) -> None:
-        """Take what reads the picture on screen, and set it on this video -- handed
-        in, since only the host holds a player whose picture can be asked for."""
+        """Handed in, since only the host holds a player to read a picture off."""
         self._look = look
         self._look_at_the_picture(self.current_video)
 
