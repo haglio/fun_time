@@ -1437,9 +1437,9 @@ class TestOrigeneratorLaunch:
         assert result.origenerator_pid == 0
 
     def _checkout_with_an_open_app(self, cfg_factory, tmp_path, *, created_at=None,
-                                   starting=False):
+                                   starting=False, hosting=None):
         checkout = tmp_path / "origenerator"
-        cfg = load_config(cfg_factory({"paths": {"origenerator_dir": str(checkout)}}))
+        cfg = load_config(cfg_factory({"paths": {"origenerator_dir": str(hosting or checkout)}}))
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
@@ -1463,6 +1463,22 @@ class TestOrigeneratorLaunch:
         stubs.launch_origenerator.assert_not_called()
         assert result.origenerator_pid == open_app
         assert json.loads((checkout / "state" / "fun_time_takeover.json").read_text(
+            encoding="utf-8"))["pid"] == open_app
+
+    def test_a_session_hosting_a_worktree_takes_over_the_everyday_copy_open_on_its_library(
+        self, cfg_factory, tmp_path
+    ):
+        worktree = tmp_path / "origenerator" / ".claude" / "worktrees" / "some-branch"
+        worktree.mkdir(parents=True)
+        _cfg, manifest_path, everyday, open_app = self._checkout_with_an_open_app(
+            cfg_factory, tmp_path, hosting=worktree)
+
+        with _sequencer_stubs(launch_origenerator=dict()) as stubs:
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        stubs.launch_origenerator.assert_not_called()
+        assert result.origenerator_pid == open_app
+        assert json.loads((everyday / "state" / "fun_time_takeover.json").read_text(
             encoding="utf-8"))["pid"] == open_app
 
     def test_a_room_that_took_over_an_app_still_starting_has_to_hear_from_it(

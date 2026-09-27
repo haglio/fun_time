@@ -33,13 +33,15 @@ def test_an_offer_that_names_no_process_is_no_open_app(tmp_path, offer):
 def test_an_open_app_is_the_process_its_offer_names(tmp_path):
     _offer(tmp_path, _this_process())
 
-    assert the_open_origenerator(tmp_path) == OpenOrigenerator(os.getpid(), starting=False)
+    assert the_open_origenerator(tmp_path) == OpenOrigenerator(
+        os.getpid(), starting=False, checkout=tmp_path)
 
 
 def test_an_app_still_starting_says_so_in_its_offer(tmp_path):
     _offer(tmp_path, f"{_this_process()} starting")
 
-    assert the_open_origenerator(tmp_path) == OpenOrigenerator(os.getpid(), starting=True)
+    assert the_open_origenerator(tmp_path) == OpenOrigenerator(
+        os.getpid(), starting=True, checkout=tmp_path)
 
 
 def test_an_offer_with_a_word_this_session_does_not_know_is_no_open_app(tmp_path):
