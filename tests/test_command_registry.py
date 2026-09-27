@@ -61,6 +61,12 @@ _NAV_IDS = frozenset(
     for direction in ("left", "right", "up", "down")
 )
 
+#: Where each HUD sits, and whether it is collapsed: read off the dispatch's own
+#: tables, so a side or a verb added there needs nothing added here.
+_HUD_PLACE_IDS = (frozenset(command_dispatch._HUD_MOVES)
+                  | frozenset(command_dispatch.MAIN_HUD_TURNS)
+                  | frozenset(command_dispatch._HUD_COLLAPSES))
+
 
 def _handler_ids() -> frozenset[str]:
     return frozenset(command_dispatch._HANDLERS)
@@ -208,7 +214,8 @@ def test_every_verb_a_satellite_hud_posts_lands_on_a_handler():
 def test_every_spoken_phrase_lands_on_a_handler():
     """Surface 1 → 5: a phrase mapped to an id nothing handles is a dead phrase."""
     targets, _ = _voice_resolutions()
-    handled = _handler_ids() | _loop_branch_ids() | _families() | _NAV_IDS
+    handled = (_handler_ids() | _loop_branch_ids() | _families() | _NAV_IDS
+               | _HUD_PLACE_IDS)
     dead = targets - handled
     assert not dead, f"spoken commands with no handler: {sorted(dead)}"
 
@@ -227,7 +234,7 @@ def test_the_unresolvable_active_forms_are_exactly_the_satellite_only_actions():
 
 def test_every_ahk_binding_lands_on_a_handler():
     """Surface 2 → 4/5: a key queued to a misspelled id is a dead key."""
-    handled = _handler_ids() | _loop_branch_ids() | _NAV_IDS
+    handled = _handler_ids() | _loop_branch_ids() | _NAV_IDS | _HUD_PLACE_IDS
     dead = _ahk_ids() - handled
     assert not dead, f"AHK bindings with no handler: {sorted(dead)}"
 
@@ -276,6 +283,7 @@ def test_the_reference_and_the_handlers_agree():
         | _loop_branch_ids()
         | _families()
         | _NAV_IDS
+        | _HUD_PLACE_IDS
         # The reference documents the side-agnostic and group forms as such.
         | frozenset(c for c in reference
                     if c.startswith(("active_", *windows_bridge_dispatch_loop._PLAYER_GROUPS)))

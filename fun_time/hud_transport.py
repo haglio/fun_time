@@ -18,6 +18,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from player_core.file_channel import publish_whole
+from player_core.hud_placement import HudCorner, HudEdge
 from player_core.satellite_hud import HudCell, HudModel, hud_text
 
 from .lock_hud import ACTION_LIMIT, SEED_LIMIT, HudPanel, locate_cell, panel_thumbnails
@@ -97,6 +98,9 @@ def hud_model(panel: HudPanel, cache_dir: Path,
     ) or ("corner", 0)
     return HudModel(
         player=panel.player,
+        hud_corner=panel.hud_corner,
+        hud_edge=panel.hud_edge,
+        hud_minimized=panel.hud_minimized,
         locked=panel.locked,
         lock_label=panel.lock_label,
         active=panel.active,
@@ -123,13 +127,18 @@ def hud_model(panel: HudPanel, cache_dir: Path,
 
 def hosted_model(player: str, hosted: HudModel | None, *, active: bool,
                  origenerator_ready: bool, in_vr: bool, crowned: bool = False,
-                 device: DeviceBlock | None = None) -> HudModel:
+                 device: DeviceBlock | None = None,
+                 hud_corner: HudCorner = HudCorner.UPPER_LEFT,
+                 hud_edge: HudEdge = HudEdge.LOWER,
+                 hud_minimized: bool = False) -> HudModel:
     """What *player* wears while the hosted app holds its player: that app's own
     panel, or the mode's name while it has none, under the session's row."""
     panel = hosted or HudModel(player=player, lock_label=ORIGENERATOR_MODE_LABEL)
     row = mode_row(player, satellites_mode=ORIGENERATOR_MODE,
                    origenerator_ready=origenerator_ready, in_vr=in_vr, crowned=crowned)
-    model = replace(panel, player=player, active=active, rows=(row, *panel.rows))
+    model = replace(panel, player=player, active=active, hud_corner=hud_corner,
+                    hud_edge=hud_edge, hud_minimized=hud_minimized,
+                    rows=(row, *panel.rows))
     return model if device is None else device.worn_by(model)
 
 

@@ -154,6 +154,8 @@ _MAIN_EQUIVALENTS = {
     # shuffled, and the main player is no exception now that Genau answers them too.
     "latest": "main_latest",
     "shuffle": "main_shuffle",
+    "hud_minimize": "main_hud_minimize",
+    "hud_restore": "main_hud_restore",
 }
 
 

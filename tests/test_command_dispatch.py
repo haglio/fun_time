@@ -16,6 +16,7 @@ from player_core.console import (
     OSR2_PARKED,
     OSR2_RETRACTED,
 )
+from player_core.hud_placement import HudCorner, HudEdge
 from player_core.modes import MainMode
 
 from fun_time import clipper_save
@@ -41,6 +42,7 @@ from fun_time.satellite_groups import _satellite_group_index, cancel_lock
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
 from fun_time.watch_stats import load_watch_stats
+from fun_time.windows_bridge_dispatch_loop import resolve_active_player_command
 
 
 def _publish_drive(config: BridgeConfig, *, amplitude: int) -> None:
@@ -4857,3 +4859,71 @@ class TestASessionThatHostsNoOrigenerator:
 
         assert _origenerator_cmds(config) == []
         assert _cmds(config, 2) == ["NEXT"]
+
+
+class TestWhereEachHudSits:
+    """The Ctrl keys move a player's HUD: round the corners of its picture on the
+    desktop, against a side of its player in the headset."""
+
+    def test_a_side_key_moves_that_players_hud_to_that_corner(self, tmp_path):
+        config = _make_config(tmp_path)
+
+        state, _ops = dispatch_command("portrait_hud_right", BridgeState(), config)
+        state, _ops = dispatch_command("portrait_hud_down", state, config)
+
+        assert state.satellite(Player.PORTRAIT).hud_corner is HudCorner.LOWER_RIGHT
+        assert state.satellite(Player.LANDSCAPE).hud_corner is HudCorner.UPPER_LEFT
+
+    def test_the_main_players_pair_of_keys_walks_its_hud_round(self, tmp_path):
+        config = _make_config(tmp_path)
+
+        state, _ops = dispatch_command("main_hud_clockwise", BridgeState(), config)
+        assert state.main_hud_corner is HudCorner.UPPER_RIGHT
+
+        state, _ops = dispatch_command("main_hud_counterclockwise", state, config)
+        assert state.main_hud_corner is HudCorner.UPPER_LEFT
+
+    def test_in_the_headset_the_same_keys_put_the_hud_against_a_side(self, tmp_path):
+        config = _make_config(tmp_path, vr_main_player=True)
+
+        state, _ops = dispatch_command("landscape_hud_up", BridgeState(), config)
+        state, _ops = dispatch_command("main_hud_clockwise", state, config)
+
+        assert state.satellite(Player.LANDSCAPE).hud_edge is HudEdge.UPPER
+        assert state.main_hud_edge is HudEdge.LEFT
+        assert state.satellite(Player.LANDSCAPE).hud_corner is HudCorner.UPPER_LEFT
+        assert state.main_hud_corner is HudCorner.UPPER_LEFT
+
+    def test_a_hud_starts_against_the_lower_side_in_the_headset(self):
+        assert BridgeState().main_hud_edge is HudEdge.LOWER
+        assert BridgeState().satellite(Player.PORTRAIT).hud_edge is HudEdge.LOWER
+
+
+class TestMinimizingAHud:
+    """The minus on a HUD collapses it to a square with a plus; the plus brings
+    the panel back.  Said as well as pressed, and kept across a mode switch."""
+
+    def test_a_players_minus_collapses_its_hud_and_its_plus_brings_it_back(self, tmp_path):
+        config = _make_config(tmp_path)
+
+        state, _ops = dispatch_command("landscape_hud_minimize", BridgeState(), config)
+        assert state.satellite(Player.LANDSCAPE).hud_minimized is True
+        assert state.satellite(Player.PORTRAIT).hud_minimized is False
+
+        state, _ops = dispatch_command("landscape_hud_restore", state, config)
+        assert state.satellite(Player.LANDSCAPE).hud_minimized is False
+
+    def test_the_main_players_panel_collapses_the_same_way(self, tmp_path):
+        config = _make_config(tmp_path)
+
+        state, _ops = dispatch_command("main_hud_minimize", BridgeState(), config)
+        assert state.main_hud_minimized is True
+
+        state, _ops = dispatch_command("main_hud_restore", state, config)
+        assert state.main_hud_minimized is False
+
+    def test_a_bare_minimize_hud_reaches_whichever_player_was_addressed_last(self):
+        assert resolve_active_player_command("active_hud_minimize", 1) == "main_hud_minimize"
+        assert resolve_active_player_command("active_hud_restore", 1) == "main_hud_restore"
+        assert (resolve_active_player_command("active_hud_minimize", 3)
+                == "landscape_hud_minimize")

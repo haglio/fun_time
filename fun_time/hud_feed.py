@@ -101,6 +101,8 @@ class HudFeed:
             values = state.satellite(player)
             return SatelliteInputs(
                 player=name, sources=sources, current=current, locked=values.locked,
+                hud_corner=values.hud_corner, hud_edge=values.hud_edge,
+                hud_minimized=values.hud_minimized,
                 filter_query=values.filter,
                 loop_axis=values.loop,
                 map_anchor=values.map_anchor,
@@ -120,7 +122,10 @@ class HudFeed:
                     active=state.active_player == player,
                     origenerator_ready=state.origenerator_ready,
                     in_vr=self.config.vr_main_player,
-                    crowned=state.crowned == player.label, device=device(player))))
+                    crowned=state.crowned == player.label, device=device(player),
+                    hud_corner=state.satellite(player).hud_corner,
+                    hud_edge=state.satellite(player).hud_edge,
+                    hud_minimized=state.satellite(player).hud_minimized)))
         else:
             portrait, landscape = build_panels(
                 satellite("portrait", 2, sources=self.config.portrait_sources,
@@ -147,6 +152,9 @@ class HudFeed:
         genau_shapes = genau_clip_shapes(state, self.config)
         self.publisher.publish_text("main_player", console_text(console_model(MainSlotInputs(
             main_mode=state.main_mode,
+            hud_corner=state.main_hud_corner,
+            hud_edge=state.main_hud_edge,
+            hud_minimized=state.main_hud_minimized,
             active=state.active_player == Player.MAIN,
             scripted_filter=state.main_scripted_filter,
             latest=state.main_latest,

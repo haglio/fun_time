@@ -14,9 +14,10 @@ from __future__ import annotations
 
 import numpy as np
 from player_core.console import ConsoleModel
-from player_core.console_hud import ConsolePainter, ModeHud
+from player_core.console_hud import _MARGIN, ConsolePainter, ModeHud
 from player_core.drive_readout import DriveHud
 from player_core.funscript import Funscript
+from player_core.hud_placement import HudCorner
 from player_core.modes import LengthMode, LoopState, Osr2State
 from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
@@ -24,7 +25,7 @@ from player_core.volume import VolumeHud
 
 from main_player.display import _OVERLAY_ID
 from main_player.overlay import HeatmapStrip, LoopThumbCapture
-from main_player.painter import HUD_OVERLAYS, ConsolePanel, Painter
+from main_player.painter import _OV_CONSOLE, HUD_OVERLAYS, ConsolePanel, Painter
 
 WIN_W, WIN_H = 1000, 600
 TRACK_W = bar_track_x(WIN_W)[1] - bar_track_x(WIN_W)[0]
@@ -327,3 +328,39 @@ class TestTheReadout:
         _paint(painter)
 
         assert ("remove", 1) in player.calls
+
+
+class TestWhereTheConsoleIsDrawn:
+    """The room moves this panel round the corners of the picture, and a press
+    has to reach the panel where it was drawn."""
+
+    @staticmethod
+    def _painted(corner):
+        session = FakeSession()
+        player, log = SpyPlayer(), []
+        room = SpyRoom(log)
+        room.console = ConsoleModel(osr2=Osr2State.ROBOT_HAND, hud_corner=corner)
+        console_hud = ConsolePainter()
+        painter = Painter(
+            player, session,
+            ConsolePanel(session, room=room, drive_gate=SpyGate(log),
+                         console_hud=console_hud, modes=FakeModes()),
+            heatmap=HeatmapStrip(), volume=FakeVolume(), loop_thumbs=LoopThumbCapture())
+        painter.paint(WIN_W, WIN_H, hover=None)
+        return console_hud, player
+
+    def test_the_panel_is_drawn_in_the_corner_the_room_moved_it_to(self):
+        console_hud, player = self._painted(HudCorner.LOWER_RIGHT)
+        panel_w, panel_h = console_hud._image.size
+        placed = [call for call in player.calls if call[:2] == ("overlay", _OV_CONSOLE)]
+
+        assert placed == [("overlay", _OV_CONSOLE,
+                           WIN_W - _MARGIN - panel_w,
+                           WIN_H - TIMELINE_HEIGHT - _MARGIN - panel_h)]
+
+    def test_a_press_lands_on_the_panel_where_it_was_drawn(self):
+        console_hud, _player = self._painted(HudCorner.LOWER_RIGHT)
+        left, top = console_hud.place(window=(WIN_W, WIN_H), lower_edge=TIMELINE_HEIGHT)
+        (x, y, w, h), button = console_hud.buttons[0]
+
+        assert console_hud.press_at(left + x + w // 2, top + y + h // 2) == button.command

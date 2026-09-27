@@ -17,7 +17,9 @@ from pathlib import Path
 
 from player_core.drive_readout import DriveHud, read_drive
 from player_core.file_channel import append_command
+from player_core.hud_placement import HudCorner, HudEdge, hud_origin
 from player_core.modes import Osr2State
+from player_core.playhead import lower_edge_height
 from player_core.satellite_hud import (
     MARGIN,
     HudClicks,
@@ -28,6 +30,7 @@ from player_core.satellite_hud import (
     parse_hud,
 )
 from player_core.satellite_hud_paint import HudRenderer
+from player_core.timeline import TIMELINE_HEIGHT
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +53,7 @@ class HudOverlay:
         clock=time.monotonic,
         drive_file: Path | None = None,
         drive_gate=None,
+        over_the_video: bool = True,
     ) -> None:
         self._hud_file = Path(hud_file)
         self._drive_file = None if drive_file is None else Path(drive_file)
@@ -60,6 +64,7 @@ class HudOverlay:
         self._player = player
         self.overlay_id = overlay_id
         self._clock = clock
+        self._over_the_video = over_the_video
         # Which side this is (and so the panel's shape and the command prefix)
         # comes from the first published panel — the panel is the authority on
         # what it is, so the player needs no second way to be told.
@@ -73,8 +78,14 @@ class HudOverlay:
         self._hover_tip = ""
         self._hover_pos = (0, 0)
         self._shown = False
+        self._window: tuple[int, int] | None = None
+        self._origin = (MARGIN, MARGIN)
         self._panel_size: tuple[int, int] | None = None  # the slab's, while it shows
         self.targets: HudTargets = _EMPTY_TARGETS
+
+    @property
+    def edge(self) -> HudEdge:
+        return self._model.hud_edge if self._model is not None else HudEdge.LOWER
 
     @property
     def active_loop(self) -> str:
@@ -82,7 +93,8 @@ class HudOverlay:
         authoritative from the next published panel."""
         return self._clicks.active_loop if self._clicks is not None else ""
 
-    def tick(self, video: str = "", playback_speed: float | None = None) -> None:
+    def tick(self, video: str = "", playback_speed: float | None = None,
+             window: tuple[int, int] | None = None) -> None:
         """Re-read the published panel, redraw if it or the clip on screen moved,
         and post a due click.
 
@@ -93,9 +105,11 @@ class HudOverlay:
         alone would sit on a clip that had already rolled past.
         """
         text = self._read()
-        redraw = video != self._video or playback_speed != self._playback_speed
+        redraw = (video != self._video or playback_speed != self._playback_speed
+                  or window != self._window)
         self._video = video
         self._playback_speed = playback_speed
+        self._window = window
         if text is not None and text != self._published:
             self._published = text
             model = parse_hud(text) if text else None
@@ -164,13 +178,20 @@ class HudOverlay:
     def _covers(self, x: int, y: int) -> bool:
         if self._panel_size is None:
             return False
+        left, top = self._origin
         width, height = self._panel_size
-        return MARGIN <= x < MARGIN + width and MARGIN <= y < MARGIN + height
+        return left <= x < left + width and top <= y < top + height
 
     def _local(self, x: int, y: int) -> tuple[int, int]:
-        """Window coordinates as panel-local ones — the HUD sits at a fixed inset
-        from the player window's top-left corner."""
-        return x - MARGIN, y - MARGIN
+        left, top = self._origin
+        return x - left, y - top
+
+    def _place(self, corner: HudCorner, size: tuple[int, int]) -> tuple[int, int]:
+        if self._window is None:
+            return MARGIN, MARGIN
+        width, _height = self._window
+        return hud_origin(corner, panel=size, window=self._window, margin=MARGIN,
+                          lower_edge=lower_edge_height(width, timeline_h=TIMELINE_HEIGHT))
 
     def _read(self) -> str | None:
         """The published panel: its text, ``""`` when there is none to show, or
@@ -203,16 +224,18 @@ class HudOverlay:
             self.targets = _EMPTY_TARGETS
             self.close()
             return
+        corner = self._model.hud_corner if self._over_the_video else HudCorner.UPPER_LEFT
         rendered = self._renderer.render(
             replace(self._model, playback_speed=self._playback_speed, drive=self._drive,
-                    drive_composed=self._drive_gate is not None),
+                    drive_composed=self._drive_gate is not None, hud_corner=corner),
             video=self._video, hover_loop=self._hover_loop,
             hover_tip=self._hover_tip, hover_pos=self._hover_pos,
         )
         self.targets = rendered.targets
         height, width = rendered.bgra.shape[:2]
         self._panel_size = (width, height)
-        self._player.overlay(self.overlay_id, MARGIN, MARGIN, rendered.bgra)
+        self._origin = self._place(corner, self._panel_size)
+        self._player.overlay(self.overlay_id, *self._origin, rendered.bgra)
         self._shown = True
 
     def _post(self, command: str) -> None:

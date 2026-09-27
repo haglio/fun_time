@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from player_core.console import OSR2_DRIVING, ConsoleModel
+from player_core.hud_placement import HudCorner, HudEdge
 from player_core.modes import MainMode, Osr2State
 
 from .console_buttons import MainSlot, console_rows, osr2_controls
@@ -53,6 +54,9 @@ class MainSlotInputs:
     osr2_mode: str
     broker: bool
     osr2_control: str = OSR2_DRIVING
+    hud_corner: HudCorner = HudCorner.UPPER_LEFT
+    hud_edge: HudEdge = HudEdge.LOWER
+    hud_minimized: bool = False
     genau_pace_s: int = 0
     scripted_filter: bool = False
     latest: bool = False
@@ -97,6 +101,9 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
     )
     return ConsoleModel(
         main_mode=inputs.main_mode,
+        hud_corner=inputs.hud_corner,
+        hud_edge=inputs.hud_edge,
+        hud_minimized=inputs.hud_minimized,
         active=inputs.active,
         osr2=osr2_state(main_mode=inputs.main_mode, osr2_mode=inputs.osr2_mode,
                         funscript_driving=main_player.funscript_driving),

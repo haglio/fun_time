@@ -8,7 +8,11 @@ from pathlib import Path
 import pytest
 from PIL import Image
 from player_core.drive_readout import DriveHud, publish_drive
-from player_core.satellite_hud import MARGIN
+from player_core.hud_placement import HudEdge
+from player_core.playhead import lower_edge_height
+from player_core.satellite_hud import MARGIN, PAD
+from player_core.timeline import TIMELINE_HEIGHT
+from shared_ui.spacing import BUTTON_SIZE_HUD
 
 from satellite.hud_overlay import HudOverlay
 from tests.satellite_fakes import FakeSatellitePlayer
@@ -402,3 +406,73 @@ class TestAPanelWithTheOsr2ItsOwnPlayerScripts:
         ((published, drives_itself),) = gate.asked
         assert published.amplitude == 80 and drives_itself is False
         assert overlay.targets.tracks
+def _panel_at(tmp_path: Path, panel_path: Path, player, **panel_changes):
+    """The overlay after one tick in a 1200x800 window, with *panel_changes*
+    written into the published panel first."""
+    published = json.loads(panel_path.read_text(encoding="utf-8"))
+    published.update(panel_changes)
+    panel_path.write_text(json.dumps(published), encoding="utf-8")
+    overlay = _overlay(tmp_path, panel_path, player)
+    overlay.tick(window=(1200, 800))
+    return overlay
+
+
+def test_the_panel_is_composited_in_the_corner_the_session_moved_it_to(
+        tmp_path: Path, panel: Path):
+    player = FakeSatellitePlayer()
+
+    _panel_at(tmp_path, panel, player, hud_corner="lower_right")
+
+    (x, y, bgra), = player.overlays.values()
+    height, width = bgra.shape[:2]
+    assert x == 1200 - MARGIN - width
+    assert y == 800 - lower_edge_height(1200, timeline_h=TIMELINE_HEIGHT) - MARGIN - height
+
+
+def test_a_press_in_a_lower_corner_reaches_the_button_drawn_there(
+        tmp_path: Path, panel: Path):
+    player = FakeSatellitePlayer()
+    overlay = _panel_at(tmp_path, panel, player, hud_corner="lower_right",
+                        rows=[[{"command": "portrait_next", "glyph": "N",
+                                "tooltip": "Next", "width": 18}]])
+    (left, top, _bgra), = player.overlays.values()
+    (bx, by, bw, bh), button = next(
+        (rect, b) for rect, b in overlay.targets.buttons if b.command == "portrait_next")
+
+    assert overlay.press(left + bx + bw // 2, top + by + bh // 2) is True
+    assert _commands(tmp_path) == ["portrait_next"]
+
+
+def test_a_minimized_panel_is_the_plus_button_in_that_corner(tmp_path: Path, panel: Path):
+    player = FakeSatellitePlayer()
+    overlay = _panel_at(tmp_path, panel, player, hud_minimized=True,
+                        hud_corner="upper_right")
+    (x, y, bgra), = player.overlays.values()
+    height, width = bgra.shape[:2]
+
+    assert (width, height) == (BUTTON_SIZE_HUD, BUTTON_SIZE_HUD)
+    assert (x, y) == (1200 - MARGIN - width, MARGIN)
+    assert [b.command for _rect, b in overlay.targets.buttons] == ["portrait_hud_restore"]
+
+
+def test_a_panel_hanging_on_its_own_screen_keeps_its_default_justification(
+        tmp_path: Path, panel: Path):
+    """In the headset the panel is a screen of its own rather than a slab over a
+    corner of the picture, so the corner the session moved it to says which side
+    of the player it hangs against and nothing about how it is laid out."""
+    player = FakeSatellitePlayer()
+    published = json.loads(panel.read_text(encoding="utf-8"))
+    published.update(hud_corner="lower_right", hud_edge="right",
+                     rows=[[{"command": "portrait_next", "glyph": "N",
+                             "tooltip": "Next", "width": 18}]])
+    panel.write_text(json.dumps(published), encoding="utf-8")
+    overlay = HudOverlay(
+        hud_file=panel, command_file=tmp_path / "dashboard_cmd.txt",
+        player=player, clock=lambda: 0.0, over_the_video=False)
+
+    overlay.tick(window=(1200, 800))
+
+    assert overlay.edge is HudEdge.RIGHT
+    assert min(rect[0] for rect, _b in overlay.targets.buttons) == PAD
+    (x, y, _bgra), = player.overlays.values()
+    assert (x, y) == (MARGIN, MARGIN)

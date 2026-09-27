@@ -279,7 +279,8 @@ def _run(args, playlist: list[PlaylistItem]) -> int:
             # playlist walks on by itself between publishes — so the HUD is told what
             # is decoding, the same way the main player names its file from its own session.
             runtime.hud.tick(video=runtime.session.name_on_screen,
-                             playback_speed=runtime.session.speed)
+                             playback_speed=runtime.session.speed,
+                             window=(win_w, win_h))
 
         _paint_overlays(runtime, win_w, win_h)
         clock.tick(60)
