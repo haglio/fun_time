@@ -259,7 +259,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # process can open, so the paragraphs describing its two ends went, and so did
 # the dispatch loop's note on a press that finds no bar listening, which the
 # inbox drops the way its tests say.
-MAX_PROSE_LINES = 7662
+# 7656 the same day: every sweep of the machine's processes runs through one
+# bounded function, so the satellite reap's account of the day it killed his own
+# pair went to the test that already tells that story.
+MAX_PROSE_LINES = 7656
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

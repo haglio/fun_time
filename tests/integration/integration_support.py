@@ -33,6 +33,7 @@ from fun_time.player_status import (
     read_main_player_status,
 )
 from fun_time.process_identity import NAMER
+from fun_time.process_sweep import sweep_processes
 from fun_time.win32_process import get_process_creation_time, get_process_image_name
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
@@ -159,11 +160,7 @@ def _kill_leftover_hosted_apps(window_pids) -> None:
         "$_.CommandLine -match '-m +origenerator' } | "
         "ForEach-Object { $_.ProcessId }"
     )
-    result = subprocess.run(
-        ["powershell.exe", "-NoProfile", "-Command", ps],
-        capture_output=True, text=True, check=False,
-    )
-    for line in result.stdout.split():
+    for line in sweep_processes(ps, read_output=True).split():
         try:
             kill_process_tree(int(line))
         except ValueError:
@@ -524,11 +521,9 @@ class FunTimeIntegrationSession:
         )
         deadline = time.time() + timeout
         while time.time() < deadline:
-            result = subprocess.run(
-                ["powershell.exe", "-NoProfile", "-Command", ps],
-                capture_output=True, text=True, check=False,
-            )
-            if result.stdout.strip() == "0":
+            still_up = sweep_processes(
+                ps, read_output=True, budget_s=max(1.0, deadline - time.time()))
+            if still_up.strip() == "0":
                 return
             time.sleep(0.5)
 
