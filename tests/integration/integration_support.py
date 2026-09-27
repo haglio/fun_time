@@ -571,8 +571,12 @@ def _sink_udp_port() -> int:
     return sink.getsockname()[1]
 
 
+def the_runs_tcode_sink(port: int) -> socket.socket:
+    return next(sink for sink in _udp_sinks if sink.getsockname()[1] == port)
+
+
 def tcode_heard(port: int, *, seconds: float) -> list[tuple[float, int, float]]:
-    sink = next(sink for sink in _udp_sinks if sink.getsockname()[1] == port)
+    sink = the_runs_tcode_sink(port)
     sink.setblocking(False)
     while True:
         try:
