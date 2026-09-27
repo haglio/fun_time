@@ -207,8 +207,17 @@ def resume_what_lives_in_a_player(
     resume_genau(genau_cmd_file, state_dir)
 
 
-def resume_main_loop(main_player_cmd_file: Path, bounds: tuple[int, int] | None) -> None:
-    """Queue SET_LOOP for the loop the main player was left running."""
+def resume_main_loop(main_player_cmd_file: Path, status: MainPlayerStatus,
+                     playlist_file: Path) -> None:
+    """Queue SET_LOOP for the loop *status* was left running.
+
+    Only when *playlist_file* really does lead with the clip that loop was cut
+    from: a rebuild, or a clip deleted since, leaves another video leading, and
+    those bounds would then mark out a stretch of a video nobody chose.
+    """
+    if not playlist_opens_on(playlist_file, status.video):
+        return
+    bounds = status.loop_bounds
     if bounds is not None:
         append_command(Path(main_player_cmd_file), f"{SET_LOOP} {bounds[0]} {bounds[1]}")
 

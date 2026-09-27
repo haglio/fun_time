@@ -9,12 +9,13 @@ from player_core.clip_advance import ClipAdvanceState
 from player_core.console import OSR2_CONTROL_OFF, OSR2_RETRACTED
 from player_core.drive_readout import DriveHud, drive_text
 from player_core.genau_controls import VERBS as GENAU_VERBS
-from player_core.modes import MainMode
+from player_core.modes import LoopState, MainMode
 from player_core.robot_hand import RobotHandState
 
 from fun_time.bridge_records import SatelliteChannel
 from fun_time.crown import Crown
 from fun_time.player_handover import hand_back, keep_aside
+from fun_time.player_status import MainPlayerStatus
 from fun_time.players import Player
 from fun_time.session_resume import (
     CLIP_SECONDS,
@@ -387,12 +388,25 @@ class TestResumeSatelliteLocks:
 class TestResumeMainLoop:
     """The main player's A/B loop is a range inside one video, held in a player
     process that is about to be replaced — so like a satellite's lock it cannot
-    ride back in on a file the new player reads, and has to be re-sent."""
+    ride back in on a file the new player reads, and has to be re-sent.  Either
+    orchestrator asks for it, so the whole decision is here rather than at each
+    of them: a desktop session and a headset one part company over which clips
+    they can play, not over what a loop is."""
+
+    def _playlist(self, tmp_path: Path, *videos: str) -> Path:
+        playlist = tmp_path / "main_player_playlist.tsv"
+        _write_playlist(playlist, list(_clips(tmp_path, *videos)))
+        return playlist
+
+    def _looping(self, tmp_path: Path, video: str) -> MainPlayerStatus:
+        return MainPlayerStatus(video=str(tmp_path / video), loop_state=LoopState.LOOPING,
+                                loop_in_ms=2000, loop_out_ms=4000)
 
     def test_queues_the_range_the_primary_was_looping(self, tmp_path: Path):
         main_player_cmd = tmp_path / "main_player_cmd.txt"
+        playlist = self._playlist(tmp_path, "a.mp4", "b.mp4")
 
-        resume_main_loop(main_player_cmd, (2000, 4000))
+        resume_main_loop(main_player_cmd, self._looping(tmp_path, "a.mp4"), playlist)
 
         assert main_player_cmd.read_text(encoding="utf-8").splitlines() == ["SET_LOOP 2000 4000"]
 
@@ -400,8 +414,22 @@ class TestResumeMainLoop:
         """A main player that was not looping must be sent nothing at all: playing
         the video through is already what no loop means."""
         main_player_cmd = tmp_path / "main_player_cmd.txt"
+        playlist = self._playlist(tmp_path, "a.mp4")
 
-        resume_main_loop(main_player_cmd, None)
+        resume_main_loop(main_player_cmd, MainPlayerStatus(video=str(tmp_path / "a.mp4")),
+                         playlist)
+
+        assert not main_player_cmd.exists()
+
+    def test_queues_nothing_when_another_video_leads_the_playlist(self, tmp_path: Path):
+        """A rebuilt playlist, or a clip trashed since, leaves some other video at
+        the top -- and these bounds would mark out a stretch of a video nobody
+        chose.  This is the crossing between the two apps: each refuses the
+        other's primary playlist and rebuilds its own."""
+        main_player_cmd = tmp_path / "main_player_cmd.txt"
+        playlist = self._playlist(tmp_path, "b.mp4")
+
+        resume_main_loop(main_player_cmd, self._looping(tmp_path, "a.mp4"), playlist)
 
         assert not main_player_cmd.exists()
 
@@ -410,13 +438,13 @@ class TestResumeMainLoop:
         F-mode flag, and the main player has drained none of it yet."""
         main_player_cmd = tmp_path / "main_player_cmd.txt"
         main_player_cmd.write_text("SET_VOLUME 40 0\n", encoding="utf-8")
+        playlist = self._playlist(tmp_path, "a.mp4")
 
-        resume_main_loop(main_player_cmd, (2000, 4000))
+        resume_main_loop(main_player_cmd, self._looping(tmp_path, "a.mp4"), playlist)
 
         assert main_player_cmd.read_text(encoding="utf-8").splitlines() == [
             "SET_VOLUME 40 0", "SET_LOOP 2000 4000",
         ]
-
 
 class TestResumeRates:
     def test_queues_the_rate_each_player_was_playing_at(self, tmp_path: Path):
