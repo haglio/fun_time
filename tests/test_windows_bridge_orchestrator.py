@@ -5,6 +5,7 @@ import logging
 import os
 import subprocess
 import threading
+import time
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,9 +13,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support.file_channel import read_flag, write_flag
+from player_core.console import OSR2_RETRACTED
 from player_core.modes import MainMode
 
-from fun_time import windows_bridge_orchestrator
+from fun_time import device_arbiter, windows_bridge_orchestrator
 from fun_time.config import load_config
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
@@ -78,6 +80,7 @@ from fun_time.windows_bridge_orchestrator import (
     run_session,
     seat_the_secondary_monitor,
     silence_the_players,
+    stop_everything,
     write_pids_file,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
@@ -1495,6 +1498,58 @@ class TestClosingScreenLifecycle:
             "origenerator_paused.txt": "1",
         }
 
+    @pytest.mark.parametrize("crossing", [None, VR], ids=["quit", "crossing"])
+    def test_the_robot_hand_stops_and_the_osr2_parks_before_the_cover_goes_up(
+        self, cfg_factory, tmp_path, crossing,
+    ):
+        last_word_at_cover_up: dict[str, str] = {}
+
+        def read_the_device_channels():
+            commands = LaunchManifest.read(tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands
+            for name, channel in (("genau", commands.genau_cmd_file),
+                                  ("broker", commands.broker_cmd_file)):
+                lines = (Path(channel).read_text(encoding="utf-8").splitlines()
+                         if Path(channel).exists() else ["unwritten"])
+                last_word_at_cover_up[name] = lines[-1].strip()
+
+        _run_a_session(cfg_factory, tmp_path, events=[], crossing=crossing,
+                       at_cover_up=read_the_device_channels)
+
+        assert last_word_at_cover_up == {"genau": "PAUSE", "broker": "PARK"}
+
+    def test_a_session_ended_with_the_osr2_retracted_leaves_it_retracted(
+        self, cfg_factory, tmp_path,
+    ):
+        state_dir = tmp_path / "state"
+        state_dir.mkdir(parents=True)
+        write_shared_state(shared_state_path(state_dir), BridgeState(osr2_control=OSR2_RETRACTED))
+        broker_at_cover_up: list[str] = []
+
+        def read_the_broker_channel():
+            commands = LaunchManifest.read(tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands
+            broker_at_cover_up.append(
+                Path(commands.broker_cmd_file).read_text(encoding="utf-8").strip())
+
+        _run_a_session(cfg_factory, tmp_path, events=[], at_cover_up=read_the_broker_channel)
+
+        assert broker_at_cover_up == ["RETRACT"]
+
+    def test_nothing_the_session_still_runs_can_set_the_robot_hand_going_again(
+        self, cfg_factory, tmp_path, monkeypatch,
+    ):
+        monkeypatch.setattr(device_arbiter, "REASSERT_S", 0.0)
+        genau_under_the_cover: list[str] = []
+
+        def let_five_dispatch_ticks_pass():
+            commands = LaunchManifest.read(tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands
+            time.sleep(0.25)
+            genau_under_the_cover.append(
+                Path(commands.genau_cmd_file).read_text(encoding="utf-8").splitlines()[-1])
+
+        _run_a_session(cfg_factory, tmp_path, events=[], at_cover_up=let_five_dispatch_ticks_pass)
+
+        assert genau_under_the_cover == ["PAUSE"]
+
     def test_a_manifest_without_an_origenerator_flag_still_silences_the_rest(
         self, cfg_factory, tmp_path,
     ):
@@ -1509,6 +1564,22 @@ class TestClosingScreenLifecycle:
             commands.main_player_paused_file, commands.audio_paused_file,
             commands.portrait_paused_file, commands.landscape_paused_file,
         )] == ["1", "1", "1", "1"]
+
+    def test_a_dispatch_loop_still_busy_stops_nothing_late_and_is_logged(
+        self, cfg_factory, tmp_path, caplog,
+    ):
+        manifest_path = write_windows_bridge_manifest(
+            load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        commands = LaunchManifest.read(manifest_path).commands
+        still_busy = MagicMock(**{"is_alive.return_value": True})
+
+        with caplog.at_level(logging.WARNING, logger=windows_bridge_orchestrator.__name__):
+            stop_everything(commands, (MagicMock(), still_busy))
+
+        assert Path(commands.main_player_paused_file).read_text(encoding="utf-8") == "1"
+        assert Path(commands.broker_cmd_file).read_text(encoding="utf-8") == "PARK"
+        assert [r.getMessage() for r in caplog.records] == [
+            "The dispatch loop was still busy 1.0s after the session ended"]
 
     def test_nothing_is_killed_until_the_cover_says_it_is_painted(self, cfg_factory, tmp_path):
         """A tkinter process needs a moment to boot, and a cover that is not on

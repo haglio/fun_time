@@ -20,7 +20,6 @@ from player_core.modes import MainMode, NoticeLevel, read_mode
 from player_core.player_verbs import LOCK_OFF, LOCK_ON, play_file
 
 from .bridge_records import BridgeConfig, Op, WindowOp
-from .broker_control import PARK_CMD, write_broker_command
 from .child_launch import no_child_log
 from .clipper_save import save_clip_session
 from .command_dispatch import (
@@ -590,8 +589,6 @@ class DispatchLoopRunner:
                         level=logging.WARNING)
             return
         logger.info("Handing this session over to %s", target.app_name)
-        if self.config.broker_cmd_file is not None:
-            write_broker_command(self.config.broker_cmd_file, PARK_CMD)  # 2s sooner
         request_handoff(self.config.state_dir, target)
         mark_session_end(
             self.config.state_dir, f"a crossing to {target.app_name}")
@@ -908,15 +905,11 @@ class DispatchLoopRunner:
 
     def stop(self) -> None:
         self._stop.set()
-        # A browse still on screen is the session's window, so it goes with the
-        # session — otherwise quitting Fun Time leaves the grid up over an empty
-        # desktop, owned by nothing that is still running.
+
+    def close(self) -> None:
         browsing = self._browser_process
         if browsing is not None:
             browsing.terminate()
-        # The press hints went out through a socket of the loop's own.  A hint
-        # racing this close is dropped the way one to a dashboard that has not
-        # published its port is.
         self._press_socket.close()
 
 

@@ -128,9 +128,9 @@ from fun_time.windows_bridge_orchestrator import (
     let_go_of_a_kept_origenerator,
     prepare_voice_control,
     see_the_hosted_app_out,
-    silence_the_players,
     start_hud_priming,
     start_voice_control,
+    stop_everything,
     stop_hotkey_script,
     write_pids_file,
 )
@@ -710,7 +710,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         logger.info("Interrupted -- shutting down")
         exit_code = 1
     finally:
-        silence_the_players(commands)
+        stop_everything(commands, (dispatch_runner, dispatch_thread))
         # This teardown's cover hangs in the headset (docs/entering-vr.md).
         held = back_to_vr = False
         if (crossing := pending_handoff(state_dir)) is not None:
@@ -730,8 +730,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
                 voice_controller.stop()
             if voice_thread is not None:
                 voice_thread.join(timeout=2.0)
-            dispatch_runner.stop()
-            dispatch_thread.join(timeout=2.0)
+            dispatch_runner.close()
             shutdown.advance("companions")
             kill_recorded_child(children["audio_pid"])
             shutdown.advance("players")

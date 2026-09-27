@@ -28,6 +28,7 @@ from voice_core.listener import why_unavailable
 from voice_core.whisper_reader import WhisperReader
 
 from .append_only import append_line
+from .broker_control import HOLD_VERB, PARK_CMD, write_broker_command
 from .checkout_overrides import genau_project_kwargs
 from .child_launch import no_child_log, no_console_window
 from .config import VoiceControlConfig, load_config
@@ -78,7 +79,7 @@ from .session_handoff import (
     release_the_headset,
     request_handoff,
 )
-from .shared_state import read_shared_state, shared_state_path
+from .shared_state import BridgeState, read_shared_state, shared_state_path
 from .shortcuts import Shortcut, resolve_shortcut
 from .standalone_origenerator import RELEASE
 from .state_file_names import take_up_the_retired_state_file_names
@@ -981,6 +982,27 @@ def silence_the_players(commands: CommandFiles) -> None:
             write_flag_file(paused_file, True)
 
 
+DISPATCH_LOOP_STOP_S = 1.0
+
+
+def stop_everything(commands: CommandFiles,
+                    dispatch: tuple[DispatchLoopRunner, threading.Thread]) -> None:
+    runner, loop = dispatch
+    runner.stop()
+    loop.join(timeout=DISPATCH_LOOP_STOP_S)
+    if loop.is_alive():
+        logger.warning("The dispatch loop was still busy %.1fs after the session ended",
+                       DISPATCH_LOOP_STOP_S)
+    silence_the_players(commands)
+    hold_the_osr2(commands)
+
+
+def hold_the_osr2(commands: CommandFiles) -> None:
+    ending = read_shared_state(shared_state_path(Path(commands.state_dir))) or BridgeState()
+    append_command(Path(commands.genau_cmd_file), "PAUSE")
+    write_broker_command(commands.broker_cmd_file, HOLD_VERB.get(ending.osr2_control, PARK_CMD))
+
+
 def _wait_for_the_session_to_end(
     ahk_proc: subprocess.Popen, state_dir: Path, *, poll_s: float = 0.1,
 ) -> int:
@@ -1015,7 +1037,7 @@ def _run_until_the_hotkeys_exit(
     because an interrupt has to bring the children down exactly as a quit does.
     """
     voice_controller, voice_thread = voice
-    dispatch_runner, dispatch_thread = dispatch
+    dispatch_runner, _loop = dispatch
     asked = False
     try:
         exit_code = _wait_for_the_session_to_end(ahk_proc, state_dir)
@@ -1033,7 +1055,7 @@ def _run_until_the_hotkeys_exit(
         logger.info("Interrupted — shutting down")
         exit_code = 1
     finally:
-        silence_the_players(commands)
+        stop_everything(commands, dispatch)
         crossing = pending_handoff(state_dir)
         esc_cancels = (CANCEL_CLOSING_FUN_TIME
                        if asked and show_overlays and crossing is None else "")
@@ -1046,8 +1068,7 @@ def _run_until_the_hotkeys_exit(
                 voice_controller.stop()
             if voice_thread is not None:
                 voice_thread.join(timeout=2.0)
-            dispatch_runner.stop()
-            dispatch_thread.join(timeout=2.0)
+            dispatch_runner.close()
             if loopback_server is not None:
                 # shutdown() blocks until serve_forever returns, so it belongs
                 # here under the cover rather than out in the open — and the
