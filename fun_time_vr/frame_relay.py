@@ -21,6 +21,7 @@ class Picture:
     width: int
     height: int
     number: int
+    video: str
 
 
 class FrameRelay:
@@ -35,10 +36,10 @@ class FrameRelay:
             spoken_for = {self._copying, None if self._newest is None else self._newest.slot}
         return next(slot for slot in range(SLOTS) if slot not in spoken_for)
 
-    def painted(self, slot: int, *, texture: int, width: int, height: int) -> None:
+    def painted(self, slot: int, *, texture: int, width: int, height: int, video: str) -> None:
         with self._lock:
             number = 1 if self._newest is None else self._newest.number + 1
-            self._newest = Picture(slot, texture, width, height, number)
+            self._newest = Picture(slot, texture, width, height, number, video)
 
     def take(self) -> Picture | None:
         with self._lock:

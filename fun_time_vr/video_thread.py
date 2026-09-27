@@ -70,6 +70,7 @@ class VideoThread:
         if self._copy is None:
             self._copy = GpuMark()
         target.ensure(picture.width, picture.height)
+        target.video = picture.video
         GL.glCopyImageSubData(
             picture.texture, GL.GL_TEXTURE_2D, 0, 0, 0, 0,
             target.texture, GL.GL_TEXTURE_2D, 0, 0, 0, 0,
@@ -119,15 +120,16 @@ class VideoThread:
 
     def _paint(self, targets: list[RenderTarget]) -> None:
         mark = GpuMark()
-        drawn: tuple[int, int, int, int] | None = None
+        drawn: tuple[int, int, int, int, str] | None = None
         try:
             while not self._stop.is_set():
                 if drawn is not None:
                     if not mark.reached:
                         self._stop.wait(PAINT_POLL_S)
                         continue
-                    slot, texture, width, height = drawn
-                    self._relay.painted(slot, texture=texture, width=width, height=height)
+                    slot, texture, width, height, video = drawn
+                    self._relay.painted(
+                        slot, texture=texture, width=width, height=height, video=video)
                 drawn = self._draw_next(targets, mark)
                 if drawn is None:
                     self._stop.wait(PAINT_POLL_S)
@@ -135,9 +137,10 @@ class VideoThread:
             mark.close()
 
     def _draw_next(self, targets: list[RenderTarget], mark: GpuMark):
-        fresh = self.player.has_new_frame
+        if not self.player.has_picture_to_draw:
+            return None
         size = capped_size(self.player.video_dims, self._cap_px)
-        if not fresh or size is None:
+        if size is None:
             return None
         started = time.perf_counter()
         slot = self._relay.slot_to_paint()
@@ -145,8 +148,10 @@ class VideoThread:
         target.ensure(*size)
         # flip_y: mpv renders top-left-origin; the scene samples GL lower-left
         # convention (verified against a top-half-white clip).
-        self.player.render(target.fbo, target.width, target.height, flip_y=True)
+        video = self.player.render(target.fbo, target.width, target.height, flip_y=True)
         mark.set()
         if self._perf is not None:
             self._perf.note("paint", (time.perf_counter() - started) * 1e3)
-        return slot, target.texture, target.width, target.height
+        if video is None:
+            return None
+        return slot, target.texture, target.width, target.height, video

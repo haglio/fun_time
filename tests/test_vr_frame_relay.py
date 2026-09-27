@@ -8,18 +8,21 @@ from __future__ import annotations
 
 from fun_time_vr.frame_relay import FrameRelay, capped_size
 
+WIDE = "C:/videos/wide.mp4"
+
 
 def test_there_is_nothing_to_show_before_the_first_picture():
     assert FrameRelay().take() is None
 
 
-def test_a_painted_picture_is_shown_once_and_carries_the_size_it_was_painted_at():
+def test_a_painted_picture_is_shown_once_with_its_size_and_the_video_it_shows():
     relay = FrameRelay()
 
-    relay.painted(0, texture=7, width=1920, height=1080)
+    relay.painted(0, texture=7, width=1920, height=1080, video=WIDE)
 
     picture = relay.take()
     assert (picture.slot, picture.texture, picture.width, picture.height) == (0, 7, 1920, 1080)
+    assert picture.video == WIDE
     assert relay.take() is None
 
 
@@ -27,10 +30,10 @@ def test_a_newer_picture_waits_until_the_one_being_copied_is_let_go():
     """The frame loop's copy runs on the graphics card after the call returns, so
     the texture it copies out of is off limits until the card says it is done."""
     relay = FrameRelay()
-    relay.painted(0, texture=7, width=640, height=480)
+    relay.painted(0, texture=7, width=640, height=480, video=WIDE)
     relay.take()
 
-    relay.painted(1, texture=8, width=640, height=480)
+    relay.painted(1, texture=8, width=640, height=480, video=WIDE)
     assert relay.take() is None
 
     relay.copied()
@@ -39,9 +42,9 @@ def test_a_newer_picture_waits_until_the_one_being_copied_is_let_go():
 
 def test_the_video_never_paints_over_the_picture_the_loop_is_copying():
     relay = FrameRelay()
-    relay.painted(0, texture=7, width=640, height=480)
+    relay.painted(0, texture=7, width=640, height=480, video=WIDE)
     relay.take()
-    relay.painted(1, texture=8, width=640, height=480)
+    relay.painted(1, texture=8, width=640, height=480, video=WIDE)
 
     assert relay.slot_to_paint() == 2
 
@@ -53,7 +56,7 @@ def test_there_is_always_somewhere_to_paint_the_next_picture():
     relay = FrameRelay()
     for number in range(20):
         slot = relay.slot_to_paint()
-        relay.painted(slot, texture=slot, width=640, height=480)
+        relay.painted(slot, texture=slot, width=640, height=480, video=WIDE)
         if number % 3 == 0:
             relay.take()
         if number % 3 == 2:

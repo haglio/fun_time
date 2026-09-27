@@ -147,7 +147,7 @@ class MainRole:
         self._stepped_at_eof = False
         self._scripted_filter = False
         self._funscript: Funscript | None = None
-        self._projection = ""
+        self._projections: dict[str, str] = {}
         self._title = ""
         self._scene_starts: tuple[float, ...] = ()
         self._volume = 100
@@ -176,7 +176,10 @@ class MainRole:
 
     @property
     def projection(self) -> str:
-        return self._projection
+        return self.projection_of(str(self.current_video))
+
+    def projection_of(self, video: str | None) -> str:
+        return self._projections.get(video, "")
 
     @property
     def tilt_deg(self) -> float:
@@ -373,7 +376,8 @@ class MainRole:
         self._player.set_speed(self._speed)
         self._funscript = self._load_funscript(item.funscript)
         self._driver.reset()
-        self._projection = resolve_projection(str(item.path), self._metadata_root, self._vr_dirs)
+        self._projections[str(item.path)] = resolve_projection(
+            str(item.path), self._metadata_root, self._vr_dirs)
         self._title = video_title(_recorded_for(item.path, self._metadata_root), item.path)
         self._resume.owe(self._play_points.point_for(item.path) or None)
         self._scene_starts = self._read_scene_starts(item.path)
@@ -499,9 +503,10 @@ class MainRole:
             self._resume.pay(self._player, self.seek_to)
 
     def cycle_projection(self) -> None:
-        self._projection = next_projection(self._projection)
-        save_projection(str(self.current_video), self._metadata_root, self._projection)
-        logger.info("Projection: %s (%s)", self._projection, self.current_video.name)
+        projection = next_projection(self.projection)
+        self._projections[str(self.current_video)] = projection
+        save_projection(str(self.current_video), self._metadata_root, projection)
+        logger.info("Projection: %s (%s)", projection, self.current_video.name)
 
 
 @dataclass(frozen=True)

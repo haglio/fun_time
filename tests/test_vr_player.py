@@ -527,11 +527,12 @@ def test_the_main_player_paints_its_videos_script_into_its_scrubber(
                      remembered=Layout(), genau_role=SimpleNamespace(showing=False))
     unit.player = _OverlayPlayer()
     unit.player.frame_rate = 30.0
-    unit.target = SimpleNamespace(ready=True, width=640, height=360, aspect=16 / 9)
+    unit.target = SimpleNamespace(ready=True, width=640, height=360, aspect=16 / 9, video=None)
     unit._volume_painter = VolumeHudPainter()
     unit.role = SimpleNamespace(
         set_paused=lambda _paused: None, tick=lambda _now: None, seek_to=lambda _ms: True,
-        position_ms=1_000.0, duration_ms=10_000.0, paused=False, projection=FLAT,
+        position_ms=1_000.0, duration_ms=10_000.0, paused=False,
+        projection_of=lambda _video: FLAT,
         volume=70, muted=False, current_video=Path("v0.mp4"), current_funscript=_STROKES)
 
     unit.pump(threading.Event(), 0.0)
@@ -842,11 +843,11 @@ class TestThePanelUnderThePointer:
                 current_video=Path("feature.mp4"), title="Jane Doe - Alpha Study",
                 position_ms=1_000.0, duration_ms=600_000.0,
                 volume=70, muted=False, seek_to=seeks.append, scripted_filter=False,
-                speed=1.25, displayed=True, projection=projection,
+                speed=1.25, displayed=True, projection_of=lambda _video: projection,
             ),
             drive_gate=SimpleNamespace(
                 readout=lambda published, device_drives_itself=False: published),
-            target=SimpleNamespace(ready=True, aspect=16 / 9),
+            target=SimpleNamespace(ready=True, aspect=16 / 9, video=None),
             screen=SimpleNamespace(placement=SPOTS[MAIN]),
             controls=_SlotControls(
                 position=1_000.0, duration=600_000.0,
@@ -1537,6 +1538,25 @@ def _like(kind, stand_in):
     return stand_in
 
 
+class TestTheMainPlayersPictureIsWrappedAsItsOwnVideo:
+    """The last video's picture stays up while the next video opens, so it is
+    wrapped the way its own video is, not the way the next one will be."""
+
+    def test_a_vr_videos_picture_stays_round_the_viewer_while_a_flat_one_opens(self):
+        wide, flat = "C:/videos/wide.mp4", "C:/videos/flat.mp4"
+        main_unit = _like(_MainUnit, SimpleNamespace(
+            target=SimpleNamespace(ready=True, aspect=2.0, video=wide),
+            role=SimpleNamespace(displayed=True,
+                                 projection_of={wide: EQUIRECT_180_SBS, flat: FLAT}.get),
+            screen=SimpleNamespace(placement=SPOTS[MAIN]),
+            owns_the_slot=True,
+        ))
+
+        (hanging,) = main_unit.hangings()
+
+        assert hanging.wrap == immersive_mode(EQUIRECT_180_SBS)
+
+
 class TestTheMainSlotUnderThePointer:
     """The main player moves and zooms by the same handles the satellites do, so
     it is one of the screens the pointer is handed — but only while what fills
@@ -1548,9 +1568,10 @@ class TestTheMainSlotUnderThePointer:
             showing=False, clip=True, clip_projection=FLAT,
         ) | overrides
         main_unit = _like(_MainUnit, SimpleNamespace(
-            target=SimpleNamespace(ready=settings["picture"], aspect=16 / 9),
+            target=SimpleNamespace(ready=settings["picture"], aspect=16 / 9, video=None),
             role=SimpleNamespace(
-                displayed=settings["displayed"], projection=settings["projection"]),
+                displayed=settings["displayed"],
+                projection_of=lambda _video: settings["projection"]),
             screen=SimpleNamespace(placement=SPOTS[MAIN]),
             owns_the_slot=not settings["showing"],
         ))
@@ -1884,9 +1905,10 @@ class TestEveryHangingScreenIsDrawn:
         session = SimpleNamespace(
             bind_eye_framebuffer=lambda _i: None, release_eye_framebuffer=lambda _i: None)
         main_unit = _like(_MainUnit, SimpleNamespace(
-            target=SimpleNamespace(ready=projection is not None, texture=object(), aspect=16 / 9),
+            target=SimpleNamespace(ready=projection is not None, texture=object(), aspect=16 / 9,
+                                   video=None),
             screen=SimpleNamespace(ready=True, mesh=MAIN, placement=SPOTS[MAIN]),
-            role=SimpleNamespace(displayed=True, projection=projection or FLAT),
+            role=SimpleNamespace(displayed=True, projection_of=lambda _video: projection or FLAT),
             owns_the_slot=True,
         ))
         genau = _like(_GenauUnit, SimpleNamespace(
@@ -2008,8 +2030,8 @@ def _slot(*, wrapped=False):
     """The two players sharing the main slot, as the dashboard reads them."""
     projection = EQUIRECT_180_SBS if wrapped else FLAT
     main_unit = _like(_MainUnit, SimpleNamespace(
-        target=SimpleNamespace(ready=True, aspect=16 / 9),
-        role=SimpleNamespace(displayed=True, projection=projection),
+        target=SimpleNamespace(ready=True, aspect=16 / 9, video=None),
+        role=SimpleNamespace(displayed=True, projection_of=lambda _video: projection),
         screen=SimpleNamespace(placement=SPOTS[MAIN]),
         owns_the_slot=True,
     ))

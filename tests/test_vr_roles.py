@@ -319,6 +319,19 @@ class TestPlaybackVerbs:
         assert role.apply_command("RECORD_DOWN", on_quit=_never_quits) is False
 
 
+class TestTheProjectionAPictureIsWrappedIn:
+    """The headset keeps a video's last picture up while the next one opens, and
+    that picture goes on being wrapped the way its own video is."""
+
+    def test_the_video_before_keeps_its_projection_once_the_next_is_up(self, role_parts):
+        role, (one, two, *_) = role_parts.role, role_parts.files
+
+        role.apply_command("NEXT", on_quit=_never_quits)
+
+        assert role.projection_of(str(one)) == EQUIRECT_180_SBS
+        assert role.projection_of(str(two)) == FLAT
+
+
 class TestProjectionCycling:
     def test_cycle_advances_and_persists_to_the_sidecar(self, role_parts):
         role, metadata, files = role_parts.role, role_parts.metadata, role_parts.files
