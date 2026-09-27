@@ -1,10 +1,6 @@
-"""The last listing of the library, kept so the next browse opens on it at once.
-
-Listing the folders is instant on a local disk and minutes on one that is
-syncing, and the browse shows nothing until it is done -- while what it answers
-barely changes from one browse to the next.  Only the file paths are kept, which
-is the part that costs the wait.
-"""
+"""The last listing of the library, kept so the next browse opens on it at
+once -- listing folders is instant locally and minutes while syncing, and the
+browse waits on it although the answer barely changes browse to browse."""
 from __future__ import annotations
 
 import json
@@ -23,8 +19,7 @@ def remembered_listing(
     """The videos to browse: what was kept, else what *read* finds now.
 
     *afresh* reads past whatever was kept, which is how it catches up with a
-    library that has changed.  A read finding nothing is never kept over a
-    listing that had something -- a drive that is not answering lists as empty.
+    library that has changed.
     """
     if not afresh:
         videos = _kept(kept)

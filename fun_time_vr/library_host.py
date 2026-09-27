@@ -159,13 +159,9 @@ def serve_once(
 
 
 def read_the_library(config, kept: Path, *, afresh: bool = False) -> list[LibraryHandle]:
-    """Everything the browse can show, read off the disks it lives on.
-
-    Minutes of work while a drive is syncing, so it runs on a worker while the
-    window it will fill is already being served.  Listing the folders is what
-    costs that wait, so the last listing is kept (*kept*) and answers the next
-    browse at once; *afresh* brings it up to date, once the browse is up.
-    """
+    """Everything the browse can show, read off the disks it lives on -- on a
+    worker, while the window it will fill is already being served; *kept* is
+    :mod:`fun_time_vr.library_listing_cache`, and *afresh* its own argument."""
     try:
         return handles_by_shape(
             config.sources, config.vr_sources, config.metadata_root,
@@ -178,8 +174,7 @@ def read_the_library(config, kept: Path, *, afresh: bool = False) -> list[Librar
 
 
 def _listing_key(sources: str) -> str:
-    """Which folders a listing was of, as a filename -- so no shelf answers
-    another's browse, and a repointed library answers none of them."""
+    """Which folders a listing was of, as a filename -- so no shelf answers another's browse."""
     return hashlib.sha256(sources.encode("utf-8")).hexdigest()[:12]
 
 

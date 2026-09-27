@@ -17,10 +17,8 @@ _LOOKS_TO_BELIEVE = {FISHEYE_CIRCLE: 2, FULL_FRAME: 3}
 
 
 class PictureLook:
-    """What a VR video's own picture shows, read from the thread that paints it
-    (:mod:`fun_time_vr.video_thread`) -- mpv's render context is thread-bound,
-    so a screenshot asked from elsewhere is refused, not answered.
-    """
+    """What a VR video's own picture shows, off :class:`VideoThread`'s own
+    still -- see its ``_paint_a_still`` for why nowhere else can ask."""
 
     def __init__(self, video, *, start_thread=start_daemon_thread,
                  sleep: Callable[[float], None] = time.sleep) -> None:
