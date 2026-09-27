@@ -25,12 +25,14 @@ import pytest
 from fun_time.win32_loader import load_dll
 from fun_time.win32_process import is_process_alive
 from tests.child_reports import A_STARVED_CHILDS_START_S, pid_written_to
+from tests.git_repo import git
 from tests.integration import hidden_desktop
 from tests.integration.hidden_desktop import (
     _child_environment,
     _close_process_handles,
     _launch_on_desktop,
     _repo_root,
+    build_gate_argv,
     build_run_argv,
     close_run_job,
     create_run_job,
@@ -127,7 +129,7 @@ def test_a_test_named_only_to_be_left_out_leaves_the_rest_of_the_suite_to_run(le
 
 
 def test_a_repeat_run_hands_the_integration_dir_to_the_flake_gate():
-    argv = build_run_argv(["--repeat-changed", "origin/main"])
+    argv = build_gate_argv("origin/main", 45)
 
     assert argv[1:] == ["-m", "app_support.flake_gate", "--base", "origin/main",
                         "--only", "tests/integration/", "--runs", "10",
@@ -153,12 +155,17 @@ def test_the_flake_gate_runs_from_an_install_of_its_own_made_before_the_queue(tm
         events.append("install")
         return gate_python
 
+    def list_changed(python, base, root):
+        events.append(f"list with {python}")
+        return []
+
     def launch(*args, environment=None, **kwargs):
         events.append(environment["__PYVENV_LAUNCHER__"])
         return SimpleNamespace(hProcess=None)
 
     with (patch.object(hidden_desktop, "hold_integration_lock", lambda **_kw: _Lock()),
           patch.object(hidden_desktop, "flake_gate_python", install),
+          patch.object(hidden_desktop, "files_with_a_changed_test", list_changed),
           patch.object(hidden_desktop, "_launch_on_desktop", launch),
           patch.object(hidden_desktop, "_close_process_handles", lambda pi: None),
           patch.object(hidden_desktop, "_wait_for_the_run", lambda process, ceiling_s: 0),
@@ -166,40 +173,110 @@ def test_the_flake_gate_runs_from_an_install_of_its_own_made_before_the_queue(tm
         hidden_desktop.run_on_hidden_desktop(["--repeat-changed"])
         hidden_desktop.run_on_hidden_desktop([])
 
-    assert events == ["install", "lock", str(gate_python), "unlock",
+    assert events == ["install", f"list with {gate_python}", "lock", str(gate_python), "unlock",
                       "lock", sys.executable, "unlock"]
 
 
-def test_a_repeat_run_is_capped_so_what_it_cannot_reach_comes_back_named():
-    argv = build_run_argv(["--repeat-changed"])
+@contextlib.contextmanager
+def _runs_launched_into(launched: list[tuple[str, str]], *, changed_files=(), exit_codes=(),
+                        ceilings: list[float] | None = None):
+    codes = iter(exit_codes)
 
-    assert argv[argv.index("--budget-minutes") + 1] == str(hidden_desktop.REPEAT_BUDGET_MINUTES)
-
-
-def test_a_repeat_run_compares_with_origin_main_unless_told_otherwise():
-    argv = build_run_argv(["--repeat-changed"])
-
-    assert argv[argv.index("--base") + 1] == "origin/main"
-
-
-@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
-def test_a_repeat_counts_as_wedged_only_past_its_budget_and_a_suite_more():
-    waited = []
+    def launch(cmdline, desktop, cwd, job, environment=None):
+        launched.append((cmdline, str(environment["__PYVENV_LAUNCHER__"])))
+        return SimpleNamespace(hProcess=None)
 
     def wait(process, ceiling_s):
-        waited.append(ceiling_s)
-        return 0
+        if ceilings is not None:
+            ceilings.append(ceiling_s)
+        return next(codes, 0)
 
-    launched = SimpleNamespace(hProcess=None)
-    with (patch.object(hidden_desktop, "_launch_on_desktop", lambda *args, **kwargs: launched),
+    with (patch.object(hidden_desktop, "hold_integration_lock", lambda **_kw: contextlib.nullcontext()),
+          patch.object(hidden_desktop, "flake_gate_python", lambda state_dir: "gate-python"),
+          patch.object(hidden_desktop, "files_with_a_changed_test", lambda *args: list(changed_files)),
+          patch.object(hidden_desktop, "_launch_on_desktop", launch),
           patch.object(hidden_desktop, "_close_process_handles", lambda pi: None),
           patch.object(hidden_desktop, "_wait_for_the_run", wait),
           patch.object(hidden_desktop, "HIDDEN_DESKTOP_NAME", f"FunTimeIntegrationUnit{os.getpid()}")):
-        hidden_desktop._run_the_suite(["--repeat-changed", "origin/main"], sys.executable)
-        hidden_desktop._run_the_suite([], sys.executable)
+        yield
 
-    assert waited == [hidden_desktop.REPEAT_BUDGET_MINUTES * 60 + hidden_desktop.RUN_CEILING_S,
-                      hidden_desktop.RUN_CEILING_S]
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_a_repeat_first_runs_each_file_holding_a_changed_test_whole_in_this_venv():
+    files = ["tests/integration/test_a.py", "tests/integration/test_b.py"]
+    launched: list[tuple[str, str]] = []
+    with _runs_launched_into(launched, changed_files=files):
+        hidden_desktop.run_on_hidden_desktop(["--repeat-changed"])
+
+    assert launched[0] == (subprocess.list2cmdline(build_run_argv(files)), sys.executable)
+    assert "app_support.flake_gate" in launched[1][0]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_a_changed_test_that_fails_beside_the_rest_of_its_file_ends_the_repeat_there():
+    launched: list[tuple[str, str]] = []
+    with _runs_launched_into(launched, changed_files=["tests/integration/test_a.py"], exit_codes=[1]):
+        code = hidden_desktop.run_on_hidden_desktop(["--repeat-changed"])
+
+    assert (code, len(launched)) == (1, 1)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_a_repeat_names_the_files_it_runs_whole_and_says_when_it_stops_at_them(capsys):
+    with _runs_launched_into([], changed_files=["tests/integration/test_a.py"], exit_codes=[1]):
+        hidden_desktop.run_on_hidden_desktop(["--repeat-changed"])
+
+    said = capsys.readouterr().err
+    assert "whole, once: tests/integration/test_a.py" in said
+    assert "so the repeats were not started" in said
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_the_repeats_get_what_running_the_files_whole_left_of_the_budget():
+    minutes_into_the_repeat = iter([0.0, 10.0])
+    launched: list[tuple[str, str]] = []
+    ceilings: list[float] = []
+    with (_runs_launched_into(launched, changed_files=["tests/integration/test_a.py"], ceilings=ceilings),
+          patch.object(hidden_desktop, "monotonic", lambda: 60 * next(minutes_into_the_repeat))):
+        hidden_desktop.run_on_hidden_desktop(["--repeat-changed"])
+
+    gate = launched[1][0].split()
+    left = hidden_desktop.REPEAT_BUDGET_MINUTES - 10
+    assert gate[gate.index("--budget-minutes") + 1] == str(left)
+    assert ceilings == [hidden_desktop.RUN_CEILING_S, left * 60 + hidden_desktop.RUN_CEILING_S]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_with_no_file_to_run_whole_the_repeats_against_origin_main_get_the_whole_budget():
+    launched: list[tuple[str, str]] = []
+    ceilings: list[float] = []
+    with _runs_launched_into(launched, ceilings=ceilings):
+        hidden_desktop.run_on_hidden_desktop(["--repeat-changed"])
+
+    budget = hidden_desktop.REPEAT_BUDGET_MINUTES
+    assert launched == [(subprocess.list2cmdline(build_gate_argv("origin/main", budget)), "gate-python")]
+    assert ceilings == [budget * 60 + hidden_desktop.RUN_CEILING_S]
+
+
+def test_the_files_run_whole_are_the_integration_files_holding_a_test_the_branch_changed(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "tests" / "integration").mkdir(parents=True)
+    git(repo, "-c", "init.defaultBranch=main", "init")
+    tests = {"tests/integration/test_a.py": "def test_one():\n    assert True\n",
+             "tests/integration/test_b.py": "def test_two():\n    assert True\n\n\ndef test_three():\n    assert True\n",
+             "tests/test_unit.py": "def test_four():\n    assert True\n"}
+    for path, source in tests.items():
+        (repo / path).write_text(source, encoding="utf-8")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "Before")
+    for path in ("tests/integration/test_b.py", "tests/test_unit.py"):
+        (repo / path).write_text(tests[path].replace("True", "1"), encoding="utf-8")
+    (repo / "tests/integration/test_c.py").write_text("def test_five():\n    assert True\n", encoding="utf-8")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "After")
+
+    assert hidden_desktop.files_with_a_changed_test(sys.executable, "main~1", repo) == [
+        "tests/integration/test_b.py", "tests/integration/test_c.py"]
 
 
 def test_the_queue_is_waited_out_before_pytest_is_started():
@@ -239,9 +316,9 @@ class _StopTheRun(Exception):
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 process creation")
 def test_a_run_that_never_decides_an_exit_code_is_ended_at_the_ceiling_with_its_children():
-    with _the_run_runs("-c", "import time; time.sleep(60)") as launched, \
-         patch.object(hidden_desktop, "RUN_CEILING_S", 1):
-        assert hidden_desktop._run_the_suite([], sys.executable) == hidden_desktop.WEDGED_EXIT_CODE
+    with _launches_recorded() as launched:
+        assert hidden_desktop._run_the_suite(_python("-c", "import time; time.sleep(60)"),
+                                             sys.executable, 1) == hidden_desktop.WEDGED_EXIT_CODE
 
     assert _wait_until_dead(launched[0])
 
@@ -253,9 +330,12 @@ def test_the_ceiling_leaves_a_green_suite_room_to_finish():
     assert hidden_desktop.RUN_CEILING_S >= 30 * 60
 
 
+def _python(*python_args: str) -> list[str]:
+    return [build_run_argv([])[0], *python_args]
+
+
 @contextlib.contextmanager
-def _the_run_runs(*python_args: str):
-    interpreter = build_run_argv([])[0]
+def _launches_recorded():
     launched: list[int] = []
 
     def launch_and_record(*args, **kwargs):
@@ -263,8 +343,7 @@ def _the_run_runs(*python_args: str):
         launched.append(pi.dwProcessId)
         return pi
 
-    with patch.object(hidden_desktop, "build_run_argv", lambda _extra: [interpreter, *python_args]), \
-         patch.object(hidden_desktop, "HIDDEN_DESKTOP_NAME", f"FunTimeIntegrationUnit{os.getpid()}"), \
+    with patch.object(hidden_desktop, "HIDDEN_DESKTOP_NAME", f"FunTimeIntegrationUnit{os.getpid()}"), \
          patch.object(hidden_desktop, "_launch_on_desktop", launch_and_record):
         yield launched
 
@@ -274,8 +353,9 @@ def test_the_process_a_run_waits_on_is_the_interpreter_itself_running_in_this_ve
     report = tmp_path / "interpreter.json"
     probe = (f"import json, os, pathlib, sys; pathlib.Path({str(report)!r})"
              ".write_text(json.dumps([os.getpid(), sys.prefix]))")
-    with _the_run_runs("-c", probe) as launched:
-        assert hidden_desktop._run_the_suite([], sys.executable) == 0
+    with _launches_recorded() as launched:
+        assert hidden_desktop._run_the_suite(_python("-c", probe), sys.executable,
+                                             hidden_desktop.RUN_CEILING_S) == 0
 
     assert json.loads(report.read_text()) == [launched[0], sys.prefix]
 
@@ -364,9 +444,9 @@ def test_a_run_ends_on_the_code_pytest_decided_though_windows_never_finishes_tak
         encoding="utf-8",
     )
     ended: list[int] = []
-    with _the_run_runs(str(stand_in)):
-        run = threading.Thread(target=lambda: ended.append(hidden_desktop._run_the_suite([], sys.executable)),
-                               daemon=True)
+    with _launches_recorded():
+        run = threading.Thread(target=lambda: ended.append(hidden_desktop._run_the_suite(
+            _python(str(stand_in)), sys.executable, hidden_desktop.RUN_CEILING_S)), daemon=True)
         run.start()
         try:
             with _held_in_its_exit(pid_written_to(pid_file), release):

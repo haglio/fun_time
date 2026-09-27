@@ -36,7 +36,8 @@ Usage (default integration command):
 
     .venv/Scripts/python.exe -m tests.integration.hidden_desktop
     .venv/Scripts/python.exe -m tests.integration.hidden_desktop -k main_player   # extra args pass through
-    .venv/Scripts/python.exe -m tests.integration.hidden_desktop --repeat-changed   # ten runs of what the branch changed
+    .venv/Scripts/python.exe -m tests.integration.hidden_desktop tests/integration/test_x.py   # that file alone
+    .venv/Scripts/python.exe -m tests.integration.hidden_desktop --repeat-changed   # each changed file whole, then ten runs of each changed test
 """
 from __future__ import annotations
 
@@ -45,9 +46,9 @@ import ctypes.wintypes as wt
 import os
 import subprocess
 import sys
-import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
+from time import monotonic
 
 from fun_time.win32_job import a_job_whose_processes_end_with_it
 from fun_time.win32_loader import load_dll, win_functype
@@ -65,24 +66,17 @@ REFUSED_EXIT_CODE = 4
 
 REPEAT_CHANGED = "--repeat-changed"
 REPEAT_RUNS = 10
-# What a repeat may spend on runs. A branch that renames a file changes every
-# test in it, and ten runs of each would outlast the day; past this the gate
-# stops starting runs and names what it left, which a killed run cannot.
+# What a repeat may spend on runs, the whole-file runs before its repeats
+# included. A branch that renames a file changes every test in it, and ten runs
+# of each would outlast the day; past this the gate stops starting runs and
+# names what it left, which a killed run cannot.
 REPEAT_BUDGET_MINUTES = 45
 
 
 def build_run_argv(extra_args: list[str]) -> list[str]:
-    """The command the hidden desktop runs: pytest over the integration tests
-    *extra_args* name, or over the whole integration dir when they name none --
-    pytest runs every file of a directory it is handed, whatever else it is
-    handed beside it -- or, for ``--repeat-changed [BASE]``, the flake gate over
-    the integration tests changed since BASE."""
-    if _is_a_repeat(extra_args):
-        base = extra_args[1] if len(extra_args) > 1 else "origin/main"
-        return [sys._base_executable, "-m", "app_support.flake_gate",
-                "--base", base, "--only", INTEGRATION_DIR, "--runs", str(REPEAT_RUNS),
-                "--budget-minutes", str(REPEAT_BUDGET_MINUTES),
-                "--python", sys.executable]
+    """pytest over the integration tests *extra_args* name, or over the whole
+    integration dir when they name none -- pytest runs every file of a directory
+    it is handed, whatever else it is handed beside it."""
     return [
         sys._base_executable, "-m", "pytest",
         *([] if _names_its_tests(extra_args) else [INTEGRATION_DIR]),
@@ -90,8 +84,18 @@ def build_run_argv(extra_args: list[str]) -> list[str]:
     ]
 
 
+def build_gate_argv(base: str, budget_minutes: float) -> list[str]:
+    return [sys._base_executable, "-m", "app_support.flake_gate",
+            "--base", base, "--only", INTEGRATION_DIR, "--runs", str(REPEAT_RUNS),
+            "--budget-minutes", f"{budget_minutes:g}", "--python", sys.executable]
+
+
 def _is_a_repeat(extra_args: list[str]) -> bool:
     return extra_args[:1] == [REPEAT_CHANGED]
+
+
+def _base_of(repeat_args: list[str]) -> str:
+    return repeat_args[1] if len(repeat_args) > 1 else "origin/main"
 
 
 _LEAVES_OUT_THE_TEST_IT_NAMES = frozenset({"--deselect", "--ignore", "--ignore-glob"})
@@ -396,9 +400,9 @@ def _wait_for_the_run(process: int, ceiling_s: float) -> int:
 
     A process can have exited and never be gone: Windows records its exit code,
     then may never finish taking it down, and a handle to it never signals."""
-    deadline = time.monotonic() + ceiling_s
+    deadline = monotonic() + ceiling_s
     while (code := _exit_code(process)) == STILL_ACTIVE:
-        if time.monotonic() >= deadline:
+        if monotonic() >= deadline:
             print(f"[hidden-desktop] the run passed {ceiling_s / 60:g} minutes "
                   "without finishing, so it is being ended here; the job object "
                   "takes its children with it and the queue moves again",
@@ -435,32 +439,63 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
     run that was merely queued reported a test timeout.
     """
     os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
-    venv_python = (flake_gate_python(_repo_root() / "state") if _is_a_repeat(extra_args)
-                   else sys.executable)
-    with hold_integration_lock(notify=_announce_waiting):
-        return _run_the_suite(extra_args, venv_python)
-
-
-def _ceiling_for(extra_args: list[str]) -> int:
     if _is_a_repeat(extra_args):
-        return REPEAT_BUDGET_MINUTES * 60 + RUN_CEILING_S
-    return RUN_CEILING_S
+        return _repeat_what_changed(_base_of(extra_args))
+    with hold_integration_lock(notify=_announce_waiting):
+        return _run_the_suite(build_run_argv(extra_args), sys.executable, RUN_CEILING_S)
 
 
-def _run_the_suite(extra_args: list[str], venv_python: str | Path) -> int:
+def _repeat_what_changed(base: str) -> int:
+    gate_python = flake_gate_python(_repo_root() / "state")
+    files = files_with_a_changed_test(gate_python, base, _repo_root())
+    with hold_integration_lock(notify=_announce_waiting):
+        minutes_left = REPEAT_BUDGET_MINUTES
+        if files:
+            started = monotonic()
+            if code := _run_each_file_whole(files):
+                return code
+            minutes_left = max(0.0, minutes_left - (monotonic() - started) / 60)
+        return _run_the_suite(build_gate_argv(base, minutes_left), gate_python,
+                              minutes_left * 60 + RUN_CEILING_S)
+
+
+def _run_each_file_whole(files: list[str]) -> int:
+    print(f"[hidden-desktop] before repeating the new and changed tests, running each "
+          f"file that holds one whole, once: {', '.join(files)}", file=sys.stderr, flush=True)
+    code = _run_the_suite(build_run_argv(files), sys.executable, RUN_CEILING_S)
+    if code:
+        print("[hidden-desktop] a test failed with its whole file running, so the "
+              "repeats were not started", file=sys.stderr, flush=True)
+    return code
+
+
+_LIST_THE_CHANGED_TESTS = ("import sys; from pathlib import Path; "
+                           "from app_support.changed_tests import changed_test_ids; "
+                           "print('\\n'.join(changed_test_ids(Path.cwd(), sys.argv[1])))")
+
+
+def files_with_a_changed_test(gate_python: str | Path, base: str, root: Path) -> list[str]:
+    listed = subprocess.run([str(gate_python), "-c", _LIST_THE_CHANGED_TESTS, base], cwd=root,
+                            stdout=subprocess.PIPE, encoding="utf-8", check=True,
+                            creationflags=subprocess.CREATE_NO_WINDOW)
+    return sorted({test.partition("::")[0] for test in listed.stdout.splitlines()
+                   if test.startswith(INTEGRATION_DIR)})
+
+
+def _run_the_suite(argv: list[str], venv_python: str | Path, ceiling_s: float) -> int:
     hdesk = _user32.CreateDesktopW(HIDDEN_DESKTOP_NAME, None, None, 0, GENERIC_ALL, None)
     if not hdesk:
         raise ctypes.WinError(ctypes.get_last_error())
     print(f"[hidden-desktop] running the integration suite on '{HIDDEN_DESKTOP_NAME}' "
           f"(off-screen, focus-safe)…", file=sys.stderr, flush=True)
     try:
-        cmdline = subprocess.list2cmdline(build_run_argv(extra_args))
+        cmdline = subprocess.list2cmdline(argv)
         job = create_run_job()
         try:
             pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job,
                                     environment=_venv_environment(venv_python))
             try:
-                return _wait_for_the_run(pi.hProcess, _ceiling_for(extra_args))
+                return _wait_for_the_run(pi.hProcess, ceiling_s)
             finally:
                 _close_process_handles(pi)
         finally:

@@ -12,7 +12,6 @@ the machine's real files.
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -27,6 +26,7 @@ from fun_time import branch_session
 from fun_time.config import ProjectConfig, load_config
 from fun_time.shortcuts import Shortcut, read_shortcuts, write_shortcut
 from fun_time.single_instance import MUTEX_ORCHESTRATOR
+from tests.git_repo import git
 
 
 def _shortcut_at(primary, path) -> Shortcut:
@@ -345,36 +345,22 @@ def test_the_private_overlays_follow_the_session_into_the_worktree(checkouts):
     ).read_text(encoding="utf-8") == "// autofill"
 
 
-def _git(repo: Path, *args: str, when: str | None = None) -> None:
-    env = {
-        **os.environ,
-        "GIT_AUTHOR_NAME": "Example Agent",
-        "GIT_AUTHOR_EMAIL": "agent@example.com",
-        "GIT_COMMITTER_NAME": "Example Agent",
-        "GIT_COMMITTER_EMAIL": "agent@example.com",
-    }
-    if when:
-        env["GIT_AUTHOR_DATE"] = when
-        env["GIT_COMMITTER_DATE"] = when
-    subprocess.run(["git", *args], cwd=str(repo), env=env, check=True, capture_output=True)
-
-
 @pytest.fixture
 def repo_with_worktrees(tmp_path: Path) -> SimpleNamespace:
     """A throwaway repo with two worktrees, committed at known times."""
     primary = tmp_path / "primary"
     primary.mkdir()
-    _git(primary, "-c", "init.defaultBranch=main", "init")
+    git(primary, "-c", "init.defaultBranch=main", "init")
     (primary / "readme.txt").write_text("example", encoding="utf-8")
-    _git(primary, "add", "readme.txt")
-    _git(primary, "commit", "-m", "First commit", when="2026-01-01T12:00:00")
+    git(primary, "add", "readme.txt")
+    git(primary, "commit", "-m", "First commit", when="2026-01-01T12:00:00")
 
     older = tmp_path / "older"
     newer = tmp_path / "newer"
-    _git(primary, "worktree", "add", "-b", "example/older", str(older))
-    _git(older, "commit", "--allow-empty", "-m", "Older work", when="2026-02-01T12:00:00")
-    _git(primary, "worktree", "add", "-b", "example/newer", str(newer))
-    _git(newer, "commit", "--allow-empty", "-m", "Newer work", when="2026-03-01T12:00:00")
+    git(primary, "worktree", "add", "-b", "example/older", str(older))
+    git(older, "commit", "--allow-empty", "-m", "Older work", when="2026-02-01T12:00:00")
+    git(primary, "worktree", "add", "-b", "example/newer", str(newer))
+    git(newer, "commit", "--allow-empty", "-m", "Newer work", when="2026-03-01T12:00:00")
     return SimpleNamespace(primary=primary, older=older, newer=newer)
 
 
@@ -553,7 +539,7 @@ def test_a_shortcut_is_refused_before_the_launcher_has_landed(repo_with_worktree
 
 
 def test_a_shortcut_is_refused_for_a_worktree_missing_work_the_primary_has(primary_with_launcher):
-    _git(primary_with_launcher.primary, "commit", "--allow-empty", "-m",
+    git(primary_with_launcher.primary, "commit", "--allow-empty", "-m",
          "Work that landed after the branch was cut", when="2026-04-01T12:00:00")
 
     with pytest.raises(branch_session.OutOfDateWorktree, match=r"missing 1 commit\b"):
@@ -731,7 +717,7 @@ def _sessions_exit_with(monkeypatch, returncode: int) -> None:
 
 
 def _land_work_on_the_primary(checkouts) -> None:
-    _git(checkouts.primary, "commit", "--allow-empty", "-m",
+    git(checkouts.primary, "commit", "--allow-empty", "-m",
          "Work that landed after the branch was cut", when="2026-04-01T12:00:00")
 
 
