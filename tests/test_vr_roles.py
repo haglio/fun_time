@@ -961,6 +961,16 @@ class TestTheScriptAsItPlays:
 
         assert role.funscript_as_played is role.current_funscript
 
+    def test_a_running_loop_plays_its_stretch_again_and_again(self, role_parts):
+        """The OSR2 keeps to the stretch on screen: without this it drove straight
+        past the loop's out point and on through the rest of the video's script."""
+        role = role_parts.role
+        role.set_locked(False)
+
+        role.apply_command("SET_LOOP 400 800", on_quit=_never_quits)
+
+        assert role.funscript_as_played.position_at(1_200) == 100
+
     def test_the_device_is_driven_as_it_plays(self, role_parts):
         role, player, driver = role_parts.role, role_parts.player, role_parts.driver
         player.position_ms = 5_000

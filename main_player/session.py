@@ -110,17 +110,10 @@ class PlayerSession:
 
     @property
     def funscript_as_played(self):
-        repeating = self._repeating()
+        repeating = self._loops.repeating(locked=self._locked)
         if self._funscript is None or repeating is None:
             return self._funscript
         return self._funscript.looped(*repeating)
-
-    def _repeating(self) -> tuple[int, int] | None:
-        if self._loops.bounds is not None:
-            return self._loops.bounds
-        if self._locked:
-            return 0, round(self._player.duration_ms)
-        return None
 
     @property
     def funscript_resting(self) -> bool:
