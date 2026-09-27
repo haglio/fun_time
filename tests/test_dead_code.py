@@ -251,7 +251,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # each session's paragraphs on its own driving went.
 # 7690 the same day: the screens' give-up wait is named and tested, so the
 # comments that walked through their poll went.
-MAX_PROSE_LINES = 7690
+# 7688 the next hour: the closing screen's first line is a test now, so the
+# comment saying why it is written before the launch went.
+MAX_PROSE_LINES = 7688
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

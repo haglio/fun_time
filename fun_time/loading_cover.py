@@ -34,6 +34,7 @@ from .session_handoff import (
     returning_from_a_crossing,
 )
 from .win32 import wait_for_window_by_title
+from .win32_job import tie_to_this_process
 
 # A child of the orchestrator's own logger: the cover is up before the session
 # has handlers of its own, and the launch's log is where its timing is read back.
@@ -96,6 +97,7 @@ def open_the_cover(state_dir: Path, *, show_overlays: bool, project_dirs: str,
         **no_console_window(),
         **genau_project_kwargs(project_dirs),
     )
+    tie_to_this_process(loading_proc)
     logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
     overlay_hwnd = wait_for_window_by_title(
         WINDOW_TITLE, timeout_s=WINDOW_WAIT_S, exact=True, include_hidden=True,

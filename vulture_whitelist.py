@@ -18,6 +18,8 @@ _.resizable  # pygame's Window property, set so SDL takes a resize from outside
 # --- Win32 struct fields written for an API call, never read back ---
 _.cbSize
 dwSize  # PROCESSENTRY32, for Toolhelp32
+_.LimitFlags  # JOBOBJECT_BASIC_LIMIT_INFORMATION, for a job's limits
+_.PriorityClass  # JOBOBJECT_BASIC_LIMIT_INFORMATION, for the integration run's job
 
 # CommandFiles reaches these by side, through player_file: a satellite's
 # channels are read as a group now (satellite.contract), so no module

@@ -94,6 +94,7 @@ from .win32 import (
     wait_for_window_by_title,
     windows_obscuring,
 )
+from .win32_job import tie_to_this_process
 from .win32_process import get_process_creation_time
 from .window_layout import SecondaryMonitorRects, screen_layout, secondary_monitor_rects
 from .window_roles import GENAU_TITLE
@@ -398,13 +399,12 @@ def _closing_screen(
         proc = launch_crossing_cover(state_dir, crossing, project_dirs=project_dirs)
     else:
         progress = PhaseProgress(progress_file, phases=SHUTDOWN_PHASES, hint=esc_cancels)
-        # Written before the screen is launched so it has something to read from
-        # its first poll, and so its staleness clock starts here, not never.
         progress.advance("controls")
         proc = subprocess.Popen([
             NAMER.named_exe(sys.executable, "ClosingScreen"),
             "-m", "fun_time.closing_screen", str(progress_file),
         ], **no_child_log(), **no_console_window(), **genau_project_kwargs(project_dirs))
+        tie_to_this_process(proc)
     logger.info("Teardown cover launched (pid=%d)", proc.pid)
     _wait_for_closing_screen(ready_file, proc)
     try:
