@@ -20,8 +20,10 @@ is needed; the kernel provides recovery for free.
 """
 from __future__ import annotations
 
+import _winapi
 import contextlib
 import ctypes
+import threading
 from collections.abc import Callable, Iterator
 from ctypes import wintypes
 
@@ -36,7 +38,7 @@ INTEGRATION_LOCK_NAME = r"Global\fun_time_integration_run"
 _WAIT_OBJECT_0 = 0x00000000
 # The previous owner died without releasing; the OS grants us ownership anyway.
 _WAIT_ABANDONED = 0x00000080
-_WAIT_TIMEOUT = 0x00000102
+_WAIT_FAILED = 0xFFFFFFFF
 _INFINITE = 0xFFFFFFFF
 
 _kernel32 = load_dll("kernel32", use_last_error=True)
@@ -77,17 +79,16 @@ class SingleInstanceLock:
         Returns ``False`` if the timeout elapses before the lock is acquired.
         """
         handle = self._ensure_handle()
-        millis = _INFINITE if timeout is None else max(0, int(timeout * 1000))
-        result = _kernel32.WaitForSingleObject(handle, millis)
-        last_error = ctypes.get_last_error()
+        if timeout is None:
+            result = _winapi.WaitForMultipleObjects([handle], False, _INFINITE)
+        else:
+            result = _kernel32.WaitForSingleObject(handle, max(0, int(timeout * 1000)))
+            if result == _WAIT_FAILED:
+                raise ctypes.WinError(ctypes.get_last_error())
         # WAIT_ABANDONED means a prior holder crashed without releasing; the OS
         # still hands us ownership, so it is a successful (recovering) acquire.
-        if result in (_WAIT_OBJECT_0, _WAIT_ABANDONED):
-            self._held = True
-            return True
-        if result == _WAIT_TIMEOUT:
-            return False
-        raise ctypes.WinError(last_error)
+        self._held = result in (_WAIT_OBJECT_0, _WAIT_ABANDONED)
+        return self._held
 
     def release(self) -> None:
         """Relinquish ownership so a waiting caller can acquire the lock."""
@@ -114,23 +115,42 @@ class SingleInstanceLock:
 def hold_integration_lock(
     *,
     name: str = INTEGRATION_LOCK_NAME,
-    poll_seconds: float = 2.0,
+    notify_every_s: float = 2.0,
     notify: Callable[[float], None] | None = None,
 ) -> Iterator[SingleInstanceLock]:
     """Hold the machine-wide integration lock for the duration of the block.
 
-    Blocks until the lock is free — other runs queue here instead of clobbering
-    — then releases it on exit even if the block raises.  While waiting, calls
-    ``notify(total_seconds_waited)`` after each poll interval so a queuing run
-    can surface that it is waiting rather than hanging silently.
+    Blocks until the lock is free — other runs queue here, in the order they
+    arrived, instead of clobbering — then releases it on exit even if the block
+    raises.  While waiting, calls ``notify(total_seconds_waited)`` every
+    *notify_every_s* so a queuing run can surface that it is waiting rather
+    than hanging silently.
     """
     lock = SingleInstanceLock(name)
-    waited = 0.0
-    while not lock.acquire(timeout=poll_seconds):
-        waited += poll_seconds
-        if notify is not None:
-            notify(waited)
+    if not lock.acquire(timeout=0):
+        with _saying_it_waits(notify, notify_every_s):
+            lock.acquire()
     try:
         yield lock
     finally:
         lock.close()
+
+
+@contextlib.contextmanager
+def _saying_it_waits(notify: Callable[[float], None] | None, every_s: float) -> Iterator[None]:
+    stop = threading.Event()
+
+    def say() -> None:
+        waited = 0.0
+        while not stop.wait(every_s):
+            waited += every_s
+            if notify is not None:
+                notify(waited)
+
+    sayer = threading.Thread(target=say, name="integration-queue-notice", daemon=True)
+    sayer.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        sayer.join()
