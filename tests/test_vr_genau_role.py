@@ -78,7 +78,8 @@ class Genau:
     the VR clips, and the desktop's flat ones deeper down."""
 
     def __init__(self, tmp_path: Path, *, clips=("alpha_180.mp4", "beta_180.mp4", "gamma.mp4"),
-                 flat_clips=(), decode=None, start_clip=None, settings=None, console_file=None):
+                 flat_clips=(), decode=None, start_clip=None, settings=None, console_file=None,
+                 start_thread=_run_now):
         self.clips_dir = tmp_path / "vr_clips"
         self.clips_dir.mkdir()
         for name in clips:
@@ -108,7 +109,7 @@ class Genau:
             stop_event=self.stop,
             start_clip=start_clip,
             decode=decode or (lambda _path: _frames()),
-            start_thread=_run_now,
+            start_thread=start_thread,
             clock=self.clock,
             log=logging.getLogger("test.genau_role"),
         )
@@ -285,20 +286,71 @@ class TestWhatTheHeadsetIsToldToShow:
 
     def test_a_clip_named_for_its_projection_is_watched_in_it(self, tmp_path):
         genau = Genau(tmp_path, clips=("scene_fisheye.mp4",))
+        genau.role.refresh()
+
+        genau.role.take_frame()
 
         assert genau.role.projection == FISHEYE_190_SBS
 
     def test_a_clip_in_the_vr_folder_is_a_vr180_master_by_convention(self, tmp_path):
         genau = Genau(tmp_path, clips=("scene one.mp4",))
+        genau.role.refresh()
+
+        genau.role.take_frame()
 
         assert genau.role.projection == EQUIRECT_180_SBS
 
     def test_the_projection_follows_the_clip(self, tmp_path):
         genau = Genau(tmp_path, clips=("one_fisheye.mp4", "two.mp4"))
+        genau.role.refresh()
+        genau.role.take_frame()
 
         genau.send("NEXT")
+        genau.role.take_frame()
 
         assert genau.role.projection == EQUIRECT_180_SBS
+
+
+class HeldDecodes:
+    """A thread starter that runs a decode on the spot until told to hold them,
+    for a clip whose frames are still coming while another's are on screen."""
+
+    def __init__(self):
+        self.holding = False
+        self._held = []
+
+    def __call__(self, *, target, args=(), name=""):
+        if name == "genau-udp":
+            return
+        if self.holding:
+            self._held.append((target, args))
+            return
+        target(*args)
+
+    def release(self):
+        self.holding = False
+        for target, args in self._held:
+            target(*args)
+        self._held.clear()
+
+
+class TestTheWrapFollowsThePictureOnScreen:
+    def test_a_vr_clip_keeps_its_wrap_until_the_flat_clip_after_it_is_up(self, tmp_path):
+        decodes = HeldDecodes()
+        genau = Genau(tmp_path, flat_clips=("delta.mp4",), start_thread=decodes)
+        genau.role.refresh()
+        genau.role.take_frame()
+
+        decodes.holding = True
+        genau.send("SHAPES flat")
+        assert genau.role.current_clip == genau.flat_dir / "delta.mp4"
+        assert genau.role.take_frame() is None
+        assert genau.role.projection == EQUIRECT_180_SBS
+
+        decodes.release()
+        genau.role.refresh()
+        assert genau.role.take_frame() is not None
+        assert genau.role.projection == FLAT
 
 
 class TestWhatItPublishes:
@@ -422,7 +474,11 @@ class TestTheDesktopsClipsAreBrowsedToo:
 
     def test_a_desktop_clip_is_watched_flat(self, tmp_path):
         genau = self._both(tmp_path)
+        genau.role.refresh()
+        genau.role.take_frame()
         genau.send("NEXT")
+
+        genau.role.take_frame()
 
         assert genau.role.projection == FLAT
 
