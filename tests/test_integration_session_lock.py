@@ -134,6 +134,71 @@ def test_dead_holder_does_not_deadlock_the_queue(tmp_path):
             holder_proc.wait(timeout=10)
 
 
+def test_a_run_waiting_its_turn_gets_the_lock_when_the_run_holding_it_dies(tmp_path):
+    name = _unique_name()
+    sentinel = tmp_path / "held.flag"
+    root = str(Path(__file__).resolve().parents[1])
+    holder_proc = subprocess.Popen(
+        [sys.executable, "-c",
+         _HOLD_UNTIL_KILLED.format(root=root, name=name, sentinel=str(sentinel))],
+        cwd=root)
+    entered = threading.Event()
+    noticed = threading.Event()
+
+    def run() -> None:
+        with hold_integration_lock(name=name, notify_every_s=0.05,
+                                   notify=lambda _waited: noticed.set()):
+            entered.set()
+
+    waiter = threading.Thread(target=run)
+    try:
+        wait_until(sentinel.exists, timeout=30.0)
+        waiter.start()
+        assert noticed.wait(timeout=10.0)
+
+        holder_proc.kill()
+        holder_proc.wait(timeout=10)
+
+        assert entered.wait(timeout=10.0)
+    finally:
+        if holder_proc.poll() is None:
+            holder_proc.kill()
+            holder_proc.wait(timeout=10)
+        waiter.join(timeout=10)
+
+
+def test_runs_waiting_for_the_lock_get_it_in_the_order_they_started_waiting():
+    """On 2026-09-26 a run waited five and a half hours while about twenty
+    others that queued after it went first: each waiter asked again every two
+    seconds, so whichever asked at the right moment won."""
+    name = _unique_name()
+    blocker = SingleInstanceLock(name)
+    assert blocker.acquire(timeout=1.0) is True
+    entered: list[int] = []
+    waiting: list[threading.Event] = []
+
+    def run(number: int, noticed: threading.Event) -> None:
+        with hold_integration_lock(name=name, notify_every_s=0.05,
+                                   notify=lambda _waited: noticed.set()):
+            entered.append(number)
+
+    threads = []
+    for number in range(6):
+        noticed = threading.Event()
+        waiting.append(noticed)
+        threads.append(threading.Thread(target=run, args=(number, noticed)))
+        threads[-1].start()
+        assert noticed.wait(timeout=10.0), f"run {number} never started waiting"
+        time.sleep(0.1)
+
+    blocker.release()
+    blocker.close()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert entered == list(range(6))
+
+
 def test_hold_integration_lock_queues_until_free_then_releases():
     """The context manager blocks (reporting the wait) until the lock frees,
     enters once it holds it, and releases on exit so the next caller proceeds."""
@@ -145,7 +210,7 @@ def test_hold_integration_lock_queues_until_free_then_releases():
     entered = threading.Event()
 
     def contender() -> None:
-        with hold_integration_lock(name=name, poll_seconds=0.1, notify=notifications.append):
+        with hold_integration_lock(name=name, notify_every_s=0.1, notify=notifications.append):
             entered.set()
 
     thread = threading.Thread(target=contender)
