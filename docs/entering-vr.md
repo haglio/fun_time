@@ -27,7 +27,7 @@ in either orchestrator:
 | Sound level and mute | yes |
 | The main slot's mode (video / Genau) | yes |
 | The main player's clip | yes, when the arriving session can play it |
-| The main player's A/B loop | only when the clip carried and the arriving app has A/B loops |
+| The main player's A/B loop | yes, when the clip carried — re-queued on the command file |
 | Every player's playback rate | yes, re-queued on its command file — a crossing only |
 | The main player's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, clip seconds, cruise, learned motion and hold | yes, same |
@@ -62,9 +62,13 @@ It cannot always be kept. A VR master on the way back to the desktop is not in
 the desktop's rebuild, because the desktop cannot play it; that crossing opens
 on the rebuild's own first clip. The log line says which of the two happened.
 
-The A/B loop follows the clip, and only on the desktop: the VR main role does
-not implement `SET_LOOP` (see [known-issues.md](known-issues.md)), so a loop
-does not survive a stay in the headset.
+The A/B loop follows the clip, in both directions. It is a range inside one
+video and lives nowhere but in the player holding it, so each session publishes
+it and the arriving one is sent it back on the command file — and only when the
+clip it was cut from is what the rebuilt playlist leads with, since otherwise
+those bounds would mark out a stretch of a video nobody chose. Both
+orchestrators ask `session_resume.resume_main_loop` for it, which decides that
+for both.
 
 ## How the crossing runs
 
