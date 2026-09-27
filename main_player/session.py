@@ -17,24 +17,12 @@ from player_core.modes import LoopState
 from player_core.playback_rate import clamp_rate
 from player_core.playlist import PlaylistItem
 
+from .loop_machine import LoopMachine
 from .play_points import PlayPoints
-from .scripted_device import REWIND_MS, ScriptedDevice
+from .scripted_device import ScriptedDevice
 from .seeking import OwedSeek, seek_if_taken
-from .session_loops import SessionLoops
 
 logger = logging.getLogger(__name__)
-
-# A backward jump larger than this (ms) means the playback clock rewound rather
-# than merely ticking forward.  A rewind that also lands within
-# _EOF_WRAP_START_MS of zero is the file wrapping at EOF (mpv loop-file=inf
-# restarts at 0), as opposed to a user seeking backward to some interior point.
-_EOF_WRAP_START_MS = 250
-
-# While marking a loop, close it once the playhead comes within this of the
-# file end — proactively, so mpv's A/B loop takes over before loop-file wraps
-# the whole video to the start and flashes the opening frames.  Wide enough that
-# a tick reliably lands inside it at 60 fps, small enough to still feel instant.
-_EOF_MARGIN_MS = 100
 
 MIN_VOLUME = 0
 MAX_VOLUME = 100
@@ -68,12 +56,11 @@ class PlayerSession:
         self._volume = MAX_VOLUME
         self._index = 0
         self._funscript = None
-        self._loops = SessionLoops(
+        self._loops = LoopMachine(
             player,
             seek_to=self.seek_to,
             take_the_device_over=self._take_the_device_over,
         )
-        self._last_pos_ms = 0.0
         self._owed_seek = OwedSeek()
         self._stepped_at_eof = False
         self._switching_versions = False
@@ -185,7 +172,6 @@ class PlayerSession:
         self._loops.record_up(int(self._player.position_ms))
 
     def restore_loop(self, in_ms: int, out_ms: int) -> None:
-        self._owed_seek.owe(None)
         self._loops.restore(in_ms, out_ms)
 
     def loop_cancel(self) -> None:
@@ -383,49 +369,12 @@ class PlayerSession:
             return
 
         pos_ms = self._player.position_ms
-        rewound = pos_ms + REWIND_MS < self._last_pos_ms
-        prev_pos_ms, self._last_pos_ms = self._last_pos_ms, pos_ms
         self._play_points.observe(self.current_video, pos_ms, self._player.duration_ms)
 
-        if self._advance_loop_state(pos_ms, prev_pos_ms, rewound):
+        if self._loops.observe(pos_ms):
             return
         self._device.drive(pos_ms, self.funscript_as_played, speed=self._speed)
         self._advance_at_eof()
-
-    def _advance_loop_state(
-        self, pos_ms: float, prev_pos_ms: float, rewound: bool,
-    ) -> bool:
-        """What the loop machine makes of this tick; True when the tick is over.
-
-        A recording that reached the end of the file closes there and starts,
-        which moves the playhead — so nothing else in the tick is owed the old
-        position and the caller stops.  The other two are wraps, and a wrap is a
-        clock jump like any other.
-        """
-        if self._loops.marking:
-            duration_ms = self._player.duration_ms
-            near_end = (
-                duration_ms > 0 and pos_ms >= duration_ms - _EOF_MARGIN_MS
-            )
-            wrapped = rewound and pos_ms < _EOF_WRAP_START_MS
-            if near_end or wrapped:
-                # Recording ran to the end of the file: close the loop at the
-                # end and start it now.  near_end fires just before loop-file
-                # (inf) wraps the whole video to the start, so the A/B loop
-                # takes over without the opening frames flashing; wrapped is
-                # the fallback if a tick only lands after the wrap.  Either
-                # way the out point stays just short of the file end, which
-                # mpv loops cleanly.
-                self._loops.finish_at(int(pos_ms if near_end else prev_pos_ms))
-                return True
-        elif self._loops.running and rewound:
-            # mpv's A/B loop wraps B->A by rewinding the clock.
-            self._take_the_device_over()
-        elif rewound:
-            # The plain locked wrap (loop-file): a seek to the start in all but
-            # name.
-            self._take_the_device_over()
-        return False
 
     def _advance_at_eof(self) -> None:
         """The end of the file, with nothing holding it: step to the next entry,
@@ -465,7 +414,6 @@ class PlayerSession:
         self._player.load(item.path)
         self._player.set_paused(self._paused)
         self._take_the_device_over()
-        self._last_pos_ms = 0.0
         point_ms = self._play_points.point_for(item.path)
         if point_ms:
             self.seek_to(point_ms)

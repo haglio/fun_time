@@ -230,7 +230,7 @@ class TestTheLoopUnderTheSession:
     """The session's share of a loop: reading the playhead off the player,
     passing the three readings back out, and the seek that survives a file
     still opening.  What the loop asks OF the player is
-    `test_main_player_session_loops.py`; where the bounds go is
+    `test_main_player_loop_machine.py`; where the bounds go is
     `test_main_player_loop_controller.py`.
     """
 

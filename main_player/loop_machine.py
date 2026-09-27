@@ -3,13 +3,16 @@
 :class:`main_player.loop_controller.LoopController` is the pure half — where the bounds
 go, and which of the three states a gesture leaves the machine in.  This is the
 half that has a player: it hands a settled range to mpv, which loops it natively
-rather than by seeking, drops the playhead on its start, and clears the range
-again when the loop is left.
+rather than by seeking, drops the playhead on its start, clears the range again
+when the loop is left, and reads the clock each tick to catch the two things a
+gesture cannot say — a mark that ran to the end of the file, and a wrap.
 
-It lives apart from :class:`main_player.session.PlayerSession` because ten of that
-class's methods were this and nothing else, while the class's other three
-subjects — where the playlist is, how fast and how loud it plays, and who has
-the device — never read a loop bound.
+Both main players own one: :class:`main_player.session.PlayerSession` on the
+desktop and :class:`fun_time_vr.roles.MainRole` in the headset, which is why it
+lives here rather than inside either of them.  On the desktop it is also what
+kept ten of ``PlayerSession``'s methods from being this and nothing else, while
+that class's other three subjects — where the playlist is, how fast and how loud
+it plays, and who has the device — never read a loop bound.
 """
 from __future__ import annotations
 
@@ -18,14 +21,25 @@ from collections.abc import Callable
 from player_core.modes import LoopState
 
 from .loop_controller import LoopController
+from .scripted_device import REWIND_MS
+
+# A rewind that lands within this of zero is the file wrapping at EOF (mpv
+# loop-file=inf restarts at 0), as opposed to a seek back to some interior point.
+_EOF_WRAP_START_MS = 250
+
+# While marking a loop, close it once the playhead comes within this of the
+# file end — proactively, so mpv's A/B loop takes over before loop-file wraps
+# the whole video to the start and flashes the opening frames.  Wide enough that
+# a tick reliably lands inside it at 60 fps, small enough to still feel instant.
+_EOF_MARGIN_MS = 100
 
 
-class SessionLoops:
+class LoopMachine:
     def __init__(
         self,
         player,
         *,
-        seek_to: Callable[[float], None],
+        seek_to: Callable[[float], object],
         take_the_device_over: Callable[[], None],
     ) -> None:
         self._player = player
@@ -35,10 +49,12 @@ class SessionLoops:
         # one -- clips can be recorded without a funscript, and only the snapping
         # is funscript-gated -- so this is never None again.
         self._ctrl = LoopController(None)
+        self._last_pos_ms = 0.0
 
     def open(self, funscript) -> None:
         """A new video: nothing marked, nothing running, mpv's range cleared."""
         self._ctrl = LoopController(funscript)
+        self._last_pos_ms = 0.0
         self._player.clear_ab_loop()
 
     @property
@@ -70,6 +86,32 @@ class SessionLoops:
         if not self.marking:
             return None
         return self._ctrl.in_ms
+
+    def observe(self, position_ms: float) -> bool:
+        """What this tick's playhead does to the loop; True when the tick is over.
+
+        A mark that reached the end of the file closes there and starts, which
+        moves the playhead — so nothing else in the tick is owed the old position
+        and the caller stops.  Otherwise a rewound clock is a jump the device
+        knows nothing about, whichever of the three wraps it: mpv's A/B loop
+        going B->A, loop-file restarting a held video, or a backward seek.
+        """
+        previous_ms, self._last_pos_ms = self._last_pos_ms, position_ms
+        rewound = position_ms + REWIND_MS < previous_ms
+        if self.marking:
+            duration_ms = self._player.duration_ms
+            near_end = duration_ms > 0 and position_ms >= duration_ms - _EOF_MARGIN_MS
+            # near_end fires just before loop-file (inf) wraps the whole video to
+            # the start, so the A/B loop takes over without the opening frames
+            # flashing; the wrap below is the fallback if a tick only lands after
+            # it.  Either way the out point stays just short of the file end,
+            # which mpv loops cleanly.
+            if near_end or (rewound and position_ms < _EOF_WRAP_START_MS):
+                self.finish_at(int(position_ms if near_end else previous_ms))
+                return True
+        elif rewound:
+            self._take_the_device_over()
+        return False
 
     def record_down(self, position_ms: int) -> None:
         was_running = self.running
@@ -116,7 +158,7 @@ class SessionLoops:
         """Hand the settled loop to mpv and drop the playhead on its start.
 
         mpv loops the A/B range natively (smooth, no seek stutter).  The jump
-        goes through the session's seek so it survives a file that is still
+        goes through the player's seek so it survives a file that is still
         opening, which is the case for a loop restored the moment a session
         launches.
         """
