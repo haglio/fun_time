@@ -214,6 +214,21 @@ class TestNarrowingToAShape:
         genau.send("NEXT")
         assert genau.role.current_clip == genau.clips_dir / "alpha_180.mp4"
 
+    def test_a_clip_decoding_ahead_when_its_shape_is_kept_goes_up_once_decoded(self, tmp_path):
+        decodes = HeldDecodes()
+        genau = Genau(tmp_path, clips=("alpha_180.mp4",), flat_clips=("delta.mp4",),
+                      start_thread=decodes)
+        decodes.holding = True
+        genau.role.refresh()
+        genau.role.take_frame()
+
+        genau.send("SHAPES flat")
+        decodes.release()
+        genau.role.refresh()
+
+        assert genau.role.current_clip == genau.flat_dir / "delta.mp4"
+        assert genau.role.take_frame() is not None
+
     def test_a_reorder_rescans_under_the_shape_kept(self, tmp_path):
         genau = Genau(tmp_path, flat_clips=("delta.mp4",))
         genau.send("SHAPES flat")
