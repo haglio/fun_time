@@ -765,7 +765,6 @@ class TestTheCrossingBackToTheDesktop:
              patch("app_support.win32.try_acquire_mutex", return_value=object()), \
              patch("fun_time.session_handoff.subprocess.Popen") as popen, \
              patch.object(orchestrator, "engine_missing_abort", return_value=False), \
-             patch.object(orchestrator, "ensure_engine_vendored"), \
              patch.object(orchestrator, "run_vr_bridge",
                           side_effect=lambda *_a, **_k: (during_session(), 0)[1]):
             return orchestrator.main([]), popen
@@ -800,7 +799,6 @@ class TestTheWayBackIntoVr:
              patch("app_support.win32.try_acquire_mutex", return_value=object()), \
              patch("fun_time.session_handoff.subprocess.Popen"), \
              patch.object(orchestrator, "engine_missing_abort", return_value=False), \
-             patch.object(orchestrator, "ensure_engine_vendored"), \
              patch.object(orchestrator, "run_vr_bridge", return_value=0) as run_bridge:
             orchestrator.main(["--no-cancel"])
 

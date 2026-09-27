@@ -42,8 +42,6 @@ from fun_time.broker_control import PARK_CMD, write_broker_command
 from fun_time.child_launch import no_child_log, no_console_window, open_child_log
 from fun_time.command_dispatch import genau_clip_shapes
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
-from fun_time.engine_preflight import engine_missing_abort
-from fun_time.engine_vendoring import ensure_engine_vendored
 from fun_time.event_log import open_event_log
 from fun_time.hosted_origenerator import bring_up_the_hosted_app
 from fun_time.manifest import (
@@ -83,6 +81,7 @@ from fun_time.overlay_progress import (
     ready_file_for,
     what_the_flag_asks,
 )
+from fun_time.player_engine import engine_missing_abort
 from fun_time.player_status import read_main_player_status
 from fun_time.players import Player
 from fun_time.role_windows import ChildPids, WindowRoles
@@ -861,7 +860,6 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Config validation succeeded")
         return 0
 
-    ensure_engine_vendored(config)
     if engine_missing_abort(config, log=logger.error):
         signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)
         return 1

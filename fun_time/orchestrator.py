@@ -17,8 +17,7 @@ from .checkout_overrides import (
     apply_origenerator_dir_override,
 )
 from .config import DEFAULT_CONFIG_PATH, load_config
-from .engine_preflight import engine_missing_abort
-from .engine_vendoring import ensure_engine_vendored
+from .player_engine import engine_missing_abort
 
 # Before the bridge imports: a worktree's genau_project_dirs override reaches
 # Genau and the main player as subprocess PYTHONPATH, but THIS process -- and
@@ -216,7 +215,6 @@ def main(argv: list[str] | None = None) -> int:
             stamp_shortcut_aumid()
 
         cover.progress.announce("engine")
-        ensure_engine_vendored(config)
         if engine_missing_abort(config, log=logger.error, uncover=cover.take_it_down):
             signal_startup_resolved(config)
             return 1
