@@ -58,6 +58,7 @@ from .overlay_progress import (
     ready_file_for,
     what_the_flag_asks,
 )
+from .player_deaths import PlayerDied, player_died_message, show_player_died_alert
 from .players import Player
 from .process_identity import NAMER
 from .rfb_slideshow import rfb_slideshow_on
@@ -1180,6 +1181,18 @@ def run_session(
             release_origenerator_via=(bridge_config.origenerator_cmd_file
                                       if cancelled.origenerator_taken_over else None),
         )
+    except PlayerDied as died:
+        said = player_died_message(died.player, died.said)
+        logger.error(said)
+        _take_down_the_startup(
+            str(died), pids=died.launched_pids,
+            rfb_hwnd=died.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
+            project_dirs=manifest.runtime.genau_project_dirs,
+            release_origenerator_via=(bridge_config.origenerator_cmd_file
+                                      if died.origenerator_taken_over else None),
+        )
+        show_player_died_alert(said)  # after the teardown: the cover is down by now
+        return 1
 
     launched = [getattr(result, key) for key in _CHILD_PID_KEYS
                 if not (key == "origenerator_pid" and result.origenerator_taken_over)]

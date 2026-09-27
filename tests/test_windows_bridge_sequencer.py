@@ -24,6 +24,7 @@ from fun_time.manifest import (
 )
 from fun_time.monitors import MonitorInfo
 from fun_time.overlay_progress import ROOM_PHASES, NullProgress, StartupCancelled
+from fun_time.player_deaths import PlayerDied
 from fun_time.player_status import (
     read_main_player_status,
 )
@@ -144,7 +145,8 @@ def _run_revealing_sequence(manifest_path, tmp_path, mode: str) -> None:
 SEQUENCER = "fun_time.windows_bridge_sequencer"
 
 #: Collaborators the sequencer reaches through another module, patched there.
-_STUB_MODULES = {"launch_origenerator": "fun_time.hosted_origenerator"}
+_STUB_MODULES = {"launch_origenerator": "fun_time.hosted_origenerator",
+                 "is_process_alive": "fun_time.player_deaths"}
 
 
 @contextlib.contextmanager
@@ -171,6 +173,9 @@ def _sequencer_stubs(**overrides):
         "set_always_on_top": {},
         "minimize_window": {},
         "disable_window_transitions": {},
+        # Every player launched here is a made-up pid, so the room is running
+        # unless a test says one of them died.
+        "is_process_alive": dict(return_value=True),
     }
     spec.update(overrides)
     with contextlib.ExitStack() as stack:
@@ -789,6 +794,48 @@ class TestRunStartupSequenceCancellation:
         exc = excinfo.value
         assert set(exc.launched_pids) == {30, 40, GENAU_PID, MAIN_PLAYER_PID, 50, 70}
         assert exc.rfb_hwnd == 7777
+
+
+class TestAPlayerThatDiesWhileTheRoomComesUp:
+    """Every wait here is bounded and reveals anyway when it runs out, which is right
+    for a player that is merely slow and wrong for one that is gone: his previews
+    spent every window and status timeout in turn and then opened on a room with no
+    players in it, with Ctrl+Alt+Q the only way out (2026-09-22)."""
+
+    def test_the_startup_ends_naming_the_player_and_what_it_said(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        (tmp_path / "main_player.log").write_text(
+            "OSError: The engine (libmpv) could not be loaded. Looked in: "
+            "C:\\player_core\\vendor (no libmpv-2.dll in it)\n", encoding="utf-8")
+
+        with _sequencer_stubs(
+                is_process_alive=dict(side_effect=lambda pid: pid != MAIN_PLAYER_PID)):
+            with pytest.raises(PlayerDied) as died:
+                run_startup_sequence(
+                    manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
+
+        assert died.value.player.name == "the Main player"
+        assert "no libmpv-2.dll in it" in died.value.said
+
+    def test_what_was_launched_comes_back_with_it_to_be_torn_down(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        with _sequencer_stubs(
+                is_process_alive=dict(side_effect=lambda pid: pid != MAIN_PLAYER_PID)):
+            with pytest.raises(PlayerDied) as died:
+                run_startup_sequence(
+                    manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
+
+        assert set(died.value.launched_pids) >= {30, 40, GENAU_PID, MAIN_PLAYER_PID}
+
+    def test_a_room_whose_players_are_all_running_is_not_stopped(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        with _sequencer_stubs():
+            result = run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
+
+        assert result.main_player_pid == MAIN_PLAYER_PID
 
 
 class TestNoActivateWindowDuringIntegration:
