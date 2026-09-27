@@ -21,7 +21,7 @@ from fun_time_vr.projection import (
     MKX200_SBS,
     PROJECTIONS,
 )
-from fun_time_vr.render import immersive_wrap
+from fun_time_vr.render import _FISHEYE_MODE, _IMMERSIVE_FRAGMENT_SHADER, immersive_wrap
 
 _FISHEYES = (FISHEYE_180_SBS, FISHEYE_190_SBS, MKX200_SBS, FISHEYE_220_SBS)
 
@@ -51,8 +51,6 @@ class TestTheShaderAndTheTableAreOneSource:
     from the id, so renumbering the table silently changed what it drew."""
 
     def test_every_mode_id_but_the_else_arms_reaches_the_shader(self):
-        from fun_time_vr.render import _FISHEYE_MODE, _IMMERSIVE_FRAGMENT_SHADER
-
         modes = {immersive_wrap(projection).mode
                  for projection in PROJECTIONS if projection != FLAT}
         for mode in modes - {_FISHEYE_MODE}:
@@ -72,8 +70,6 @@ class TestTheShaderAndTheTableAreOneSource:
         assert not immersive_wrap(EQUIRECT_360).fisheye_fov_deg
 
     def test_the_shader_is_handed_the_angle_and_holds_none_of_its_own(self):
-        from fun_time_vr.render import _IMMERSIVE_FRAGMENT_SHADER
-
         assert "uniform float fisheye_half_fov;" in _IMMERSIVE_FRAGMENT_SHADER
         for projection in _FISHEYES:
             assert str(immersive_wrap(projection).fisheye_fov_deg) not in _IMMERSIVE_FRAGMENT_SHADER
