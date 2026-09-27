@@ -16,6 +16,7 @@ from pathlib import Path
 from player_core.control_registry import Control, Verb, bind, look_up
 from player_core.funscript import Funscript
 from player_core.funscript import load as load_funscript
+from player_core.modes import LoopState
 from player_core.playback_rate import RATE_STEP, clamp_rate, parse_rate
 from player_core.player_verbs import (
     DISPLAY_OFF,
@@ -45,6 +46,14 @@ from player_core.status import status_fields as player_status_fields
 
 from fun_time.event_log import SOURCE_MAIN, notice
 from fun_time.media_metadata import load_metadata, metadata_path_for, video_title
+from main_player.loop_machine import LoopMachine
+from main_player.loop_verbs import (
+    LOOP_CANCEL,
+    RECORD_DOWN,
+    RECORD_TAP,
+    RECORD_UP,
+    SET_LOOP,
+)
 from main_player.play_points import PlayPoints
 from main_player.seeking import OwedSeek, seek_if_taken
 
@@ -77,11 +86,6 @@ PREV_SCENE = "PREV_SCENE"
 #: The only place a control may be left dead in VR: the parity suite holds every
 #: key and every phrase to this list or to a role that answers it.
 UNIMPLEMENTED_MAIN_PLAYER_VERBS: dict[str, str] = {
-    "RECORD_DOWN": "loop recording needs the main player's loop machine",
-    "RECORD_UP": "loop recording needs the main player's loop machine",
-    "RECORD_TAP": "loop recording needs the main player's loop machine",
-    "LOOP_CANCEL": "there is no A/B loop here to cancel",
-    "SET_LOOP": "there is no A/B loop here to restore",
     "CYCLE_VERSION": "version cycling needs the main player's same-content index",
     "CYCLE_VERSION_BACK": "version cycling needs the main player's same-content index",
     "TOGGLE_LENGTH_MODE": "the length modes need the main player's duration cache",
@@ -135,6 +139,11 @@ class MainRole:
         self._vr_dirs = tuple(vr_dirs)
         self._play_points = play_points or PlayPoints(None)
         self._resume = OwedSeek()
+        self._loops = LoopMachine(
+            player,
+            seek_to=self._seek_when_mpv_will,
+            take_the_device_over=self._take_the_device_over,
+        )
         self._entries = read_playlist(self._playlist_file)
         if not self._entries:
             raise ValueError(f"primary playlist is empty: {playlist_file}")
@@ -229,6 +238,18 @@ class MainRole:
         return self._locked
 
     @property
+    def loop_state(self) -> LoopState:
+        return self._loops.state
+
+    @property
+    def loop_bounds(self) -> tuple[int, int] | None:
+        return self._loops.bounds
+
+    @property
+    def record_in_ms(self) -> int | None:
+        return self._loops.marked_in_ms
+
+    @property
     def scripted_filter(self) -> bool:
         """A narrowed playlist looks like any other, so the panel is told."""
         return self._scripted_filter
@@ -251,6 +272,28 @@ class MainRole:
 
     def adjust_speed(self, delta: float) -> None:
         self._set_speed(self._speed + delta)
+
+    def record_down(self) -> None:
+        self._loops.record_down(int(self._player.position_ms))
+
+    def record_up(self) -> None:
+        self._loops.record_up(int(self._player.position_ms))
+
+    def record_tap(self) -> None:
+        self._loops.record_tap(int(self._player.position_ms))
+
+    def loop_cancel(self) -> None:
+        self._loops.cancel()
+
+    def restore_loop_from(self, value: str) -> bool:
+        """``SET_LOOP <in_ms> <out_ms>``; False on anything but two numbers."""
+        in_part, _, out_part = value.partition(" ")
+        try:
+            in_ms, out_ms = int(in_part), int(out_part)
+        except ValueError:
+            return False
+        self._loops.restore(in_ms, out_ms)
+        return True
 
     def toggle_lock(self) -> None:
         self.set_locked(not self._locked)
@@ -307,8 +350,11 @@ class MainRole:
         self._step_at_eof()
         if self._paused:
             return
+        position_ms = self._player.position_ms
         self._play_points.observe(
-            self.current_video, self._player.position_ms, self._player.duration_ms)
+            self.current_video, position_ms, self._player.duration_ms)
+        if self._loops.observe(position_ms):
+            return
         if not self._tcode_enabled:
             return
         if not self._the_screen_has_resumed():
@@ -326,14 +372,27 @@ class MainRole:
             return
         if not self._player.eof:
             self._stepped_at_eof = False
-        elif not self._stepped_at_eof:
+        elif not self._stepped_at_eof and self._loops.idle:
             self._stepped_at_eof = True
             self._play_points.ended()
             self._load(self._index + 1)
 
     def seek_to(self, position_ms: float) -> bool:
-        return seek_if_taken(
-            self._player, max(0.0, min(self._player.duration_ms, position_ms)))
+        floor = 0.0 if self.record_in_ms is None else float(self.record_in_ms)
+        target = max(floor, min(self._player.duration_ms, position_ms))
+        if not seek_if_taken(self._player, target):
+            return False
+        self._take_the_device_over()
+        return True
+
+    def _seek_when_mpv_will(self, position_ms: float) -> None:
+        """A loop put back at startup lands on a file mpv is still opening, which
+        refuses a seek -- so this one is owed and asked for again each tick."""
+        self._resume.owe(position_ms)
+        self._resume.pay(self._player, self.seek_to)
+
+    def _take_the_device_over(self) -> None:
+        self._driver.reset()
 
     def nudge_tilt(self, degrees: float) -> None:
         self._tilt_deg = clamp_tilt(self._tilt_deg + degrees)
@@ -342,6 +401,7 @@ class MainRole:
         """The desktop main player's status contract, read by the dispatch loop the same way.
         *handoff_touch_ms* is where the console panel drew Genau's turn ending
         (None for none, published empty: zero is a real media time)."""
+        loop_in_ms, loop_out_ms = self.loop_bounds or (0, 0)
         return {
             **player_status_fields(PlayerStatus(
                 video=str(self.current_video),
@@ -354,9 +414,10 @@ class MainRole:
             )),
             "has_funscript": "1" if self.has_funscript else "0",
             "funscript_resting": "1" if self._funscript_resting() else "0",
-            "state": "normal",
+            "loop_state": str(self.loop_state),
+            "loop_in_ms": str(loop_in_ms),
+            "loop_out_ms": str(loop_out_ms),
             "handoff_touch_ms": "" if handoff_touch_ms is None else str(int(handoff_touch_ms)),
-            "speed": str(self._speed),
         }
 
     def close(self) -> None:
@@ -375,6 +436,7 @@ class MainRole:
         self._player.set_paused(self._paused)
         self._player.set_speed(self._speed)
         self._funscript = self._load_funscript(item.funscript)
+        self._loops.open(self._funscript)
         self._driver.reset()
         self._projections[str(item.path)] = resolve_projection(
             str(item.path), self._metadata_root, self._vr_dirs)
@@ -573,6 +635,14 @@ CONTROLS: tuple[Control, ...] = (
         verbs=(Verb(PLAY_FILE, _reads(MainRole.play_file_from), takes_a_value=True),),
     ),
     Control(name="playlist", verbs=(Verb(RELOAD_PLAYLIST, _moves(MainRole.reload_playlist)),)),
+    Control(
+        name="loop",
+        verbs=(Verb(RECORD_DOWN, _moves(MainRole.record_down)),
+               Verb(RECORD_UP, _moves(MainRole.record_up)),
+               Verb(RECORD_TAP, _moves(MainRole.record_tap)),
+               Verb(LOOP_CANCEL, _moves(MainRole.loop_cancel)),
+               Verb(SET_LOOP, _reads(MainRole.restore_loop_from), takes_a_value=True)),
+    ),
     Control(
         name="lock",
         verbs=(Verb(TOGGLE_LOCK, _moves(MainRole.toggle_lock)),

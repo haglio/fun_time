@@ -114,6 +114,48 @@ class TestTheScrubber:
         assert scrubber.state((1920, 1080), 0.0, 0.0) == scrubber.state((1920, 1080), 0.0, 0.0)
 
 
+class TestTheLoopOnTheBar:
+    """A marked loop is drawn on the bar the same way the desktop main player
+    draws it -- the range shaded, and the in point marked while the gesture is
+    still open -- so pressing record in the headset shows something."""
+
+    def test_a_running_loops_range_is_shaded(self):
+        scrubber = Scrubber()
+        scrubber.state(_SIZE, 1_000.0, 10_000.0, video=Path("v0.mp4"), loop_bounds=(2_000, 6_000))
+
+        assert np.array_equal(
+            scrubber.bgra(1_000.0, _SIZE[0], loop_bounds=(2_000, 6_000)),
+            progress_bar_bgra(1_000.0, 10_000.0, (2_000, 6_000), _SIZE[0]))
+
+    def test_a_mark_still_open_shows_where_it_started(self):
+        scrubber = Scrubber()
+        scrubber.state(_SIZE, 3_000.0, 10_000.0, video=Path("v0.mp4"), record_in_ms=2_000)
+
+        assert np.array_equal(
+            scrubber.bgra(3_000.0, _SIZE[0], record_in_ms=2_000),
+            progress_bar_bgra(3_000.0, 10_000.0, None, _SIZE[0], record_in_ms=2_000))
+
+    def test_its_state_moves_when_a_loop_is_marked_and_again_when_it_is_dropped(self):
+        scrubber = Scrubber()
+
+        def state(**loop):
+            return scrubber.state(_SIZE, 1_000.0, 10_000.0, video=Path("v0.mp4"), **loop)
+
+        idle = state()
+        marking = state(record_in_ms=2_000)
+        looping = state(loop_bounds=(2_000, 6_000))
+
+        assert idle != marking != looping != idle, "each has a bar of its own to draw"
+
+    def test_a_player_with_no_loop_of_its_own_draws_the_bar_it_always_did(self):
+        """Genau's clips and the satellites' have no A/B loop to show."""
+        scrubber = Scrubber()
+        scrubber.state(_SIZE, 1_000.0, 10_000.0, video=Path("v0.mp4"))
+
+        assert np.array_equal(scrubber.bgra(1_000.0, _SIZE[0]),
+                              progress_bar_bgra(1_000.0, 10_000.0, None, _SIZE[0]))
+
+
 class TestChipState:
     def test_holds_still_while_the_level_does(self):
         assert chip_state(1920, 1080, VolumeHud(volume=70, muted=False)) == chip_state(

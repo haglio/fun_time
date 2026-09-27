@@ -39,6 +39,7 @@ class FakePlayer(RefusesSeeks):
         # The main player opens locked on either display, which is mpv's own
         # loop_file — the option the real one is constructed with.
         self.loop_file = True
+        self.ab_loop: tuple[float, float] | None = None
         self.eof = False
         self.paces: list[float] = []
         self.showing_picture = False
@@ -70,6 +71,12 @@ class FakePlayer(RefusesSeeks):
 
     def set_loop_file(self, loop: bool) -> None:
         self.loop_file = loop
+
+    def set_ab_loop(self, in_ms: float, out_ms: float) -> None:
+        self.ab_loop = (in_ms, out_ms)
+
+    def clear_ab_loop(self) -> None:
+        self.ab_loop = None
 
     def seek_ms(self, ms: float) -> None:
         self.refuse_if_asked()
@@ -315,8 +322,11 @@ class TestPlaybackVerbs:
         assert fired == [True]
 
     def test_unknown_verb_reports_unhandled(self, role_parts):
+        """One the role really does not answer, named in
+        `UNIMPLEMENTED_MAIN_PLAYER_VERBS` and held to that by
+        `test_vr_control_parity.py`."""
         role = role_parts.role
-        assert role.apply_command("RECORD_DOWN", on_quit=_never_quits) is False
+        assert role.apply_command("CYCLE_VERSION", on_quit=_never_quits) is False
 
 
 class TestTheProjectionAPictureIsWrappedIn:
@@ -680,6 +690,178 @@ class TestFMode:
         assert role.scripted_filter is False
 
 
+class TestTheLoop:
+    """The headset marks and runs an A/B loop inside one video, as the desktop
+    main player does: `main_player.loop_machine` is the machine both drive, and
+    what it does with a range is `test_main_player_loop_machine.py`.  These are
+    about the role -- the clock each verb reads, and the tick that watches it."""
+
+    def _on_an_unscripted_video(self, role_parts):
+        """The second entry, so a marked range is the raw one rather than the
+        one the first video's funscript snaps it out to."""
+        role_parts.role.apply_command("NEXT", on_quit=_never_quits)
+        return role_parts.role
+
+    def test_pressing_and_letting_go_marks_the_loop_the_playhead_was_at(self, role_parts):
+        role, player = self._on_an_unscripted_video(role_parts), role_parts.player
+
+        player.position_ms = 20_000.0
+        role.apply_command("RECORD_DOWN", on_quit=_never_quits)
+        assert role.loop_state is LoopState.RECORDING
+
+        player.position_ms = 25_000.0
+        role.apply_command("RECORD_UP", on_quit=_never_quits)
+
+        assert role.loop_state is LoopState.LOOPING
+        assert player.ab_loop == (20_000, 25_000), "mpv loops the range natively"
+        assert player.seeks[-1] == 20_000, "the playhead lands on the loop's start"
+
+    def test_a_tap_walks_the_three_states_for_a_speaker_or_a_button(self, role_parts):
+        role, player = self._on_an_unscripted_video(role_parts), role_parts.player
+
+        player.position_ms = 20_000.0
+        role.apply_command("RECORD_TAP", on_quit=_never_quits)
+        assert role.loop_state is LoopState.RECORDING
+
+        player.position_ms = 25_000.0
+        role.apply_command("RECORD_TAP", on_quit=_never_quits)
+        assert (role.loop_state, player.ab_loop) == (LoopState.LOOPING, (20_000, 25_000))
+
+        role.apply_command("RECORD_TAP", on_quit=_never_quits)
+        assert (role.loop_state, player.ab_loop) == (LoopState.NORMAL, None)
+
+    def test_dropping_the_loop_takes_the_device_back_over(self, role_parts):
+        """The playhead is about to carry on past the out point it was being held
+        inside, which the OSR2 knows nothing about."""
+        role, player = self._on_an_unscripted_video(role_parts), role_parts.player
+        player.position_ms = 20_000.0
+        role.apply_command("RECORD_DOWN", on_quit=_never_quits)
+        player.position_ms = 25_000.0
+        role.apply_command("RECORD_UP", on_quit=_never_quits)
+        resets_before = role_parts.driver.resets
+
+        role.apply_command("LOOP_CANCEL", on_quit=_never_quits)
+
+        assert (role.loop_state, player.ab_loop) == (LoopState.NORMAL, None)
+        assert role_parts.driver.resets > resets_before
+
+    def test_a_loop_the_last_session_was_left_running_is_put_back(self, role_parts):
+        """The orchestrator reads the bounds off the status file and sends them
+        over the video the resume put at the top of the playlist; they are
+        finished bounds, so no gesture is replayed and nothing is snapped again."""
+        role, player = role_parts.role, role_parts.player
+
+        assert role.apply_command("SET_LOOP 2000 4000", on_quit=_never_quits) is True
+
+        assert (role.loop_state, role.loop_bounds) == (LoopState.LOOPING, (2000, 4000))
+        assert player.ab_loop == (2000, 4000)
+        assert player.seeks[-1] == 2000
+
+    def test_a_restored_loop_waits_for_a_file_that_is_still_opening(self, role_parts):
+        """A crossing queues this before mpv has the file, and mpv reports no
+        duration for a tick or two -- a seek taken then would be clamped against
+        a zero-length video and land back at the top."""
+        role, player = role_parts.role, role_parts.player
+        player.duration_ms = 0.0
+        player.seeks.clear()
+
+        role.apply_command("SET_LOOP 2000 4000", on_quit=_never_quits)
+
+        assert player.ab_loop == (2000, 4000), "mpv takes the range whenever it is set"
+        assert player.seeks == []
+
+        player.duration_ms = 60_000.0
+        role.tick(now=0.0)
+
+        assert player.seeks[-1] == 2000
+
+    def test_an_empty_range_is_no_loop_to_put_back(self, role_parts):
+        """What the status file says when nothing is looping."""
+        role = role_parts.role
+
+        role.apply_command("SET_LOOP 0 0", on_quit=_never_quits)
+
+        assert role.loop_state is LoopState.NORMAL
+        assert role_parts.player.ab_loop is None
+
+    def test_a_set_loop_it_cannot_read_as_two_numbers_is_refused(self, role_parts):
+        role = role_parts.role
+
+        for value in ("", "2000", "2000 later"):
+            assert role.apply_command(f"SET_LOOP {value}", on_quit=_never_quits) is False
+
+        assert role.loop_state is LoopState.NORMAL
+
+    def test_the_next_video_comes_up_with_no_loop(self, role_parts):
+        role, player = role_parts.role, role_parts.player
+        role.apply_command("SET_LOOP 2000 4000", on_quit=_never_quits)
+
+        role.apply_command("NEXT", on_quit=_never_quits)
+
+        assert role.loop_state is LoopState.NORMAL
+        assert player.ab_loop is None
+
+
+class TestTheLoopAcrossATick:
+    """What the pump makes of a loop: the two things no gesture can say."""
+
+    def _marking_near_the_end(self, role_parts):
+        role, player = role_parts.role, role_parts.player
+        role.apply_command("NEXT", on_quit=_never_quits)  # unscripted, so no snapping
+        player.duration_ms = 30_000.0
+        player.position_ms = 28_000.0
+        role.apply_command("RECORD_DOWN", on_quit=_never_quits)
+        return role, player
+
+    def test_a_mark_that_runs_to_the_end_of_the_file_closes_and_starts_there(self, role_parts):
+        """Before loop-file wraps the whole video back to the start, which would
+        flash its opening frames."""
+        role, player = self._marking_near_the_end(role_parts)
+
+        player.position_ms = 29_950.0
+        role.tick(now=0.0)
+
+        assert role.loop_state is LoopState.LOOPING
+        assert player.ab_loop == (28_000, 29_950)
+        assert player.seeks[-1] == 28_000
+
+    def test_a_running_loops_wrap_takes_the_device_back_over(self, role_parts):
+        """mpv wraps the A/B range B->A by rewinding the clock, and the OSR2 was
+        told nothing about it."""
+        role, player = role_parts.role, role_parts.player
+        role.apply_command("SET_LOOP 20000 25000", on_quit=_never_quits)
+        player.position_ms = 24_900.0
+        role.tick(now=0.0)
+        resets_before = role_parts.driver.resets
+
+        player.position_ms = 20_000.0
+        role.tick(now=0.0)
+
+        assert role_parts.driver.resets == resets_before + 1
+
+    def test_the_end_of_the_file_does_not_step_off_a_running_loop(self, role_parts):
+        """The A/B range owns the end of the video while a loop is running."""
+        role, player = role_parts.role, role_parts.player
+        role.apply_command("LOCK_OFF", on_quit=_never_quits)
+        role.apply_command("SET_LOOP 20000 25000", on_quit=_never_quits)
+        loaded_before = len(player.loaded)
+        player.eof = True
+
+        role.tick(now=0.0)
+
+        assert len(player.loaded) == loaded_before, "still on the video it was looping"
+
+    def test_the_end_of_the_file_does_not_step_off_a_mark_in_progress(self, role_parts):
+        role, player = self._marking_near_the_end(role_parts)
+        role.apply_command("LOCK_OFF", on_quit=_never_quits)
+        loaded_before = len(player.loaded)
+        player.eof = True
+
+        role.tick(now=0.0)
+
+        assert len(player.loaded) == loaded_before
+
+
 class TestStatus:
     def test_status_fields_read_back_through_the_orchestrators_own_parser(self, role_parts, tmp_path):
         role, player = role_parts.role, role_parts.player
@@ -694,6 +876,7 @@ class TestStatus:
         assert status.has_funscript is True
         assert status.paused is False
         assert status.loop_state is LoopState.NORMAL
+        assert status.loop_bounds is None
         # position 1s sits inside the fabricated script's dense cluster
         assert status.funscript_resting is False
         assert status.funscript_driving is True
@@ -712,6 +895,35 @@ class TestStatus:
         status_file.write_text("".join(f"{k}={v}\n" for k, v in fields.items()), encoding="utf-8")
 
         assert read_main_player_status(status_file).handoff_touch_ms == 3_600
+
+    def test_the_loop_it_is_running_is_published_for_the_next_session(self, role_parts,
+                                                                     tmp_path):
+        """A loop is a range inside one video and lives nowhere but in the player
+        holding it, so a session that never published it could never be handed it
+        back on the way out of the headset."""
+        role = role_parts.role
+        role.apply_command("SET_LOOP 2000 4000", on_quit=_never_quits)
+        status_file = tmp_path / "main_player_status.txt"
+
+        fields = role.status_fields(None)
+        status_file.write_text("".join(f"{k}={v}\n" for k, v in fields.items()),
+                               encoding="utf-8")
+        status = read_main_player_status(status_file)
+
+        assert status.loop_state is LoopState.LOOPING
+        assert status.loop_bounds == (2000, 4000)
+
+    def test_a_mark_still_open_publishes_no_bounds(self, role_parts):
+        """A range nothing is looping yet would hand the next session a loop it
+        cannot play."""
+        role, player = role_parts.role, role_parts.player
+        player.position_ms = 300.0
+        role.apply_command("RECORD_DOWN", on_quit=_never_quits)
+
+        fields = role.status_fields(None)
+
+        assert fields["loop_state"] == "recording"
+        assert (fields["loop_in_ms"], fields["loop_out_ms"]) == ("0", "0")
 
     def test_no_touch_publishes_an_empty_field_rather_than_a_zero(self, role_parts):
         assert role_parts.role.status_fields(None)["handoff_touch_ms"] == ""
