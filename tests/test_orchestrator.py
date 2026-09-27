@@ -54,7 +54,6 @@ def _a_launch(**overrides):
         "open_event_log": MagicMock(),
         "open_the_cover": MagicMock(return_value=_a_cover()),
         "stamp_shortcut_aumid": MagicMock(),
-        "ensure_engine_vendored": MagicMock(),
         "engine_missing_abort": MagicMock(return_value=False),
         "prepare_orchestrator_launcher": MagicMock(),
         "run_windows_bridge": MagicMock(return_value=0),
@@ -551,7 +550,6 @@ class TestTheCoverGoesUpFirst:
         cover = _a_cover()
         with _a_launch(
             open_the_cover=MagicMock(side_effect=lambda *_a, **_k: order.append("cover") or cover),
-            ensure_engine_vendored=MagicMock(side_effect=lambda *_a: order.append("engine")),
             engine_missing_abort=MagicMock(
                 side_effect=lambda *_a, **_k: order.append("engine") or False),
             run_windows_bridge=MagicMock(side_effect=lambda *_a: order.append("session") or 0),
@@ -574,7 +572,8 @@ class TestTheCoverGoesUpFirst:
 
         with _a_launch(
             open_the_cover=MagicMock(return_value=cover),
-            ensure_engine_vendored=MagicMock(side_effect=lambda *_a: said.append("probed")),
+            engine_missing_abort=MagicMock(
+                side_effect=lambda *_a, **_k: said.append("probed") or False),
         ):
             main(["--config", str(cfg_path)])
 
@@ -588,8 +587,8 @@ class TestTheCoverGoesUpFirst:
 
         with _a_launch(
             open_the_cover=MagicMock(return_value=cover),
-            ensure_engine_vendored=MagicMock(side_effect=OSError("vendoring failed")),
-        ), pytest.raises(OSError, match="vendoring failed"):
+            engine_missing_abort=MagicMock(side_effect=OSError("the engine check failed")),
+        ), pytest.raises(OSError, match="the engine check failed"):
             main(["--config", str(cfg_path)])
 
         cover.take_it_down.assert_called_once()
