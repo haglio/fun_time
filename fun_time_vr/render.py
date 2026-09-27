@@ -99,10 +99,9 @@ void main() {
 
 _EQUIRECT_180_MODE, _FISHEYE_MODE, _EQUIRECT_360_MODE = 1, 2, 3
 
-# How a fisheye's radius grows with its ray's off-axis angle -- the shape a
-# lens's own optics draw, distinct from how wide its field of view is.  Most
-# fisheye lenses are equidistant; a lens sold as low-distortion at a wide
-# field of view is typically closer to one of the other two.
+# How a fisheye's radius grows with its off-axis angle: most lenses are
+# equidistant, but one marketed as low-distortion at a wide field of view
+# typically is not.
 _CURVE_EQUIDISTANT, _CURVE_STEREOGRAPHIC, _CURVE_EQUISOLID = 0, 1, 2
 
 
