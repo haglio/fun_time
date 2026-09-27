@@ -60,6 +60,7 @@ from .overlay_progress import (
 )
 from .players import Player
 from .process_identity import NAMER
+from .rfb_slideshow import rfb_slideshow_on
 from .role_windows import ChildPids, WindowRoles
 from .runtime_flow import write_flag_file
 from .satellites_mode import CLOSE_SHOWS
@@ -966,6 +967,7 @@ def _start_the_dispatch_loop(
         env=env,
         hud_publisher=hud_publisher,
         rfb_shortcut=rfb_shortcut,
+        rfb_slideshow=rfb_slideshow_on(result.rfb_hwnd) if result.rfb_hwnd else None,
         origenerator_already_open=result.origenerator_already_open,
         secondary_rects=secondary_rects(manifest),
     )

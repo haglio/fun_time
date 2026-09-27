@@ -60,10 +60,12 @@ voice = [
 # The windows bridge reads .lnk files through win32com, and this was installed
 # by a bare `pip install pywin32` line in the merge gate and declared nowhere --
 # invisible to the import gate, which exempts an import inside a try, and that
-# import sits in one. A marker rather than a plain dependency: the package is
-# Windows-only and this pyproject is read on other platforms.
+# import sits in one. The RFB slideshow reaches Chrome's tabs through comtypes.
+# Markers rather than plain dependencies: both packages are Windows-only and this
+# pyproject is read on other platforms.
 windows = [
     "pywin32>=312,<313 ; sys_platform == 'win32'",
+    "comtypes>=1.4.17,<2 ; sys_platform == 'win32'",
 ]
 
 # The family checkouts this one is installed beside. None is published, so none

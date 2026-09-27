@@ -264,7 +264,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # pair went to the test that already tells that story.
 # 7655 the same day: both main players read one loop machine, so the paragraphs
 # the desktop session kept about the clock and the range went with it.
-MAX_PROSE_LINES = 7655
+# 7654 on 2026-09-27: a note on watch tracking that had drifted off the line it
+# described went, for the RFB slideshow's one line on how Chrome answers.
+MAX_PROSE_LINES = 7654
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

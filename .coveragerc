@@ -6,6 +6,8 @@ omit =
     tests/*
     # names that quiet the dead-code scan, not code that runs
     vulture_whitelist.py
+    # reaches a real Chrome's tabs: needs a browser
+    fun_time/chrome_accessibility.py
     # a player's shell: needs the playback engine's library
     satellite/app.py
     # needs a graphics context

@@ -31,6 +31,7 @@ from fun_time.manifest import (
 from fun_time.media_metadata import normalize_path_key
 from fun_time.player_handover import keep_aside
 from fun_time.players import Player
+from fun_time.rfb_slideshow import RfbSlideshow
 from fun_time.role_windows import (
     MAIN_BLANK_SETTLE_S,
     ChildPids,
@@ -1671,6 +1672,61 @@ class TestOpenRfbTab:
                     arguments='--profile-directory="Profile 2"'),
             }),
         ]
+
+
+class TestTheRfbSlideshow:
+    def test_each_tick_moves_the_slideshow_on_while_the_room_plays(self, tmp_path):
+        slideshow = Mock(spec=RfbSlideshow)
+        runner = make_runner(tmp_path, rfb_slideshow=slideshow)
+
+        runner.tick()
+
+        assert slideshow.tick.call_args.kwargs["held"] is False
+
+    def test_omnipause_holds_the_slideshow(self, tmp_path):
+        slideshow = Mock(spec=RfbSlideshow)
+        runner = make_runner(tmp_path, rfb_slideshow=slideshow)
+        write_shared_state(tmp_path / "shared_state.ini", BridgeState(omni_paused=True))
+
+        runner.tick()
+
+        assert slideshow.tick.call_args.kwargs["held"] is True
+
+    def test_origenerator_mode_holds_the_slideshow_while_its_window_covers_the_rfb(self, tmp_path):
+        slideshow = Mock(spec=RfbSlideshow)
+        config = make_config(tmp_path, origenerator_enabled=True,
+                             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
+                             origenerator_paused_file=tmp_path / "origenerator_paused.txt")
+        runner = make_runner(tmp_path, config=config, origenerator_pid=700,
+                             origenerator_already_open=True, rfb_slideshow=slideshow)
+        write_shared_state(tmp_path / "shared_state.ini", BridgeState(satellites_mode="origenerator"))
+
+        runner.tick()
+
+        assert slideshow.tick.call_args.kwargs["held"] is True
+
+    def test_a_tab_a_lock_opened_gets_the_slideshows_full_interval(self, tmp_path):
+        slideshow = Mock(spec=RfbSlideshow)
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, rfb_slideshow=slideshow,
+                             rfb_shortcut=Shortcut(target="chrome.exe", work_dir="", arguments=""))
+        runner._pending_rfb_urls = ["file:///tab.html"]
+
+        with (
+            patch("fun_time.windows_bridge_dispatch_loop.window_exists", return_value=True),
+            patch("fun_time.windows_bridge_dispatch_loop.force_foreground_window", return_value=True),
+            patch("fun_time.windows_bridge_dispatch_loop.open_rfb_tab"),
+        ):
+            runner._flush_rfb_tabs()
+
+        slideshow.restart.assert_called_once()
+
+    def test_the_slideshow_ends_with_the_session(self, tmp_path):
+        slideshow = Mock(spec=RfbSlideshow)
+        runner = make_runner(tmp_path, rfb_slideshow=slideshow)
+
+        runner.close()
+
+        slideshow.stop.assert_called_once()
 
 
 class TestModeSwitchVisibility:

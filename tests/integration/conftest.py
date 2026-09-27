@@ -135,6 +135,13 @@ def _never_start_a_real_cover():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _never_switch_a_real_browsers_tabs():
+    """Override the unit suite's browser guard: the slideshow's test drives a
+    throwaway Chrome on the hidden desktop, never the user's."""
+    yield
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _release_the_runs_udp_sinks():
     """Hand back the ports this run bound to catch its own T-Code.

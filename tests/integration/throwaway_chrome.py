@@ -88,6 +88,10 @@ class ThrowawayChrome:
         self._windows.append(hwnd)
         return hwnd
 
+    def hand_over(self, marker: str) -> int:
+        self._launch(self.page_for(marker))
+        return await_window(marker, TAB_TIMEOUT_S)
+
     def close(self) -> None:
         for hwnd in self._windows:
             close_window(hwnd)

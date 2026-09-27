@@ -35,6 +35,7 @@ from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
 apply_genau_dirs_to_sys_path()
 
 from fun_time import (
+    chrome_accessibility,
     closing_screen,
     loading_cover,
     loading_screen,
@@ -94,6 +95,18 @@ def _never_mutate_a_real_window(monkeypatch):
 
     for name in _MUTATING_USER32_CALLS:
         monkeypatch.setattr(win32._user32, name, _inert)
+
+
+@pytest.fixture(autouse=True)
+def _never_switch_a_real_browsers_tabs(monkeypatch):
+    """The RFB slideshow presses Chrome's tabs through Windows' accessibility
+    interface, and the Chrome on this machine is the user's own: a unit test that
+    reached it would change which tab he is looking at.  The integration suite
+    overrides this, because it drives a throwaway Chrome of its own."""
+    def _refuse():
+        raise RuntimeError("a unit test tried to reach a real browser's tabs")
+
+    monkeypatch.setattr(chrome_accessibility, "_Automation", _refuse)
 
 
 @pytest.fixture(autouse=True)
