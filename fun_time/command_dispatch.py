@@ -75,7 +75,7 @@ from .runtime_flow import (
     apply_satellite_filter,
     apply_satellites_switch,
 )
-from .satellite_control import read_satellite_status
+from .satellite_control import SatelliteStatus, read_satellite_status
 from .satellite_groups import (
     cancel_lock,
     clear_side_grouping,
@@ -640,11 +640,13 @@ _MAIN_LOCK_COMMANDS = {
     "main_lock_off": LOCK_OFF,
 }
 
+_NORMAL_SPEED = f"{SET_SPEED} 1"
+
 _MAIN_PLAYER_RESET_VERBS = (
     _MAIN_PLAYER_CMD_MAP["main_player_length_mixed"],
     _MAIN_PLAYER_CMD_MAP["main_player_loop_cancel"],
     _MAIN_LOCK_COMMANDS["main_lock_off"],
-    _percent_rate("main_player_speed_100", "main_player_speed_"),
+    _NORMAL_SPEED,
 )
 
 # What makes the main player the one a later bare command reaches: navigating it,
@@ -1214,14 +1216,21 @@ def _dispatch_reorder(
     return state, [WindowOp(op="notice", key=label, source=satellite_source(player))]
 
 
-def satellite_at_defaults(side: SatelliteState) -> bool:
+def _browse_at_defaults(side: SatelliteState) -> bool:
     return replace(side, nav_anchor="") == SatelliteState()
+
+
+def satellite_at_defaults(side: SatelliteState, status: SatelliteStatus) -> bool:
+    return _browse_at_defaults(side) and status.speed == 1.0
 
 
 def room_at_defaults(state: BridgeState, config: BridgeConfig, status: MainPlayerStatus) -> bool:
     return (main_player_at_defaults(state, config, status)
             and not hosting_origenerator(state, config)
-            and all(satellite_at_defaults(state.satellite(player)) for player in Player.SATELLITES))
+            and all(satellite_at_defaults(
+                        state.satellite(player),
+                        read_satellite_status(config.satellite(player).status_file))
+                    for player in Player.SATELLITES))
 
 
 def _dispatch_reset(
@@ -1253,15 +1262,18 @@ def _dispatch_reset(
         # reset clears cannot be one this test forgets.  (The nav anchor is
         # already gone: every side command that is not itself a nav step clears
         # it on the way in, so no reset has ever seen one set.)
-        if satellite_at_defaults(state.satellite(player)):
+        if satellite_at_defaults(state.satellite(player),
+                                 read_satellite_status(config.satellite(player).status_file)):
             logger.info("Reset %s: already at its defaults", satellite_source(player))
             continue
-        state = cancel_lock(player, state, config)
-        state = state.with_satellite(
-            player, latest=False, filter="", favorites_filter=False, nav_anchor="")
-        state = clear_side_grouping(state, player)
-        result = _rebuild_satellite(player, "", state, config, start_at_top=True)
-        logger.info("Reset %s: %s", satellite_source(player), result.log_message)
+        if not _browse_at_defaults(state.satellite(player)):
+            state = cancel_lock(player, state, config)
+            state = state.with_satellite(
+                player, latest=False, filter="", favorites_filter=False, nav_anchor="")
+            state = clear_side_grouping(state, player)
+            result = _rebuild_satellite(player, "", state, config, start_at_top=True)
+            logger.info("Reset %s: %s", satellite_source(player), result.log_message)
+        send_satellite(config, player, _NORMAL_SPEED)
         ops.append(WindowOp(op="notice", key="Reset", source=satellite_source(player)))
     return state, ops
 

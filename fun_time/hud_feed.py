@@ -36,7 +36,7 @@ from .player_status import (
 )
 from .players import Player
 from .runtime_flow import read_flag_file
-from .satellite_control import read_satellite_status
+from .satellite_control import SatelliteStatus, read_satellite_status
 from .satellites_mode import origenerator_shows
 from .shared_state import BridgeState
 
@@ -58,9 +58,7 @@ class HudFeed:
         # _favs_content) — every publish asks whether the clip on screen is on it.
         self._favs_text = ""
         self._favs_stamp: tuple[int, int] | None = None
-        # The clip each satellite last named, so a status read that loses the
-        # race with the player's own republish does not blank its map.
-        self._last_satellite_clip: dict[str, str] = {}
+        self._last_satellite_status: dict[str, SatelliteStatus] = {}
         self._hosted_panels: dict[Player, HudModel | None] = {}
 
     def publish_due(self, state: BridgeState, *, now: float) -> None:
@@ -98,7 +96,8 @@ class HudFeed:
                 max_intensity=state.max_intensity)
 
         def satellite(name: str, player: Player, *, sources: str, status_file: Path) -> SatelliteInputs:
-            current = self._satellite_clip(name, status_file)
+            status = self._satellite_status(name, status_file)
+            current = status.video
             values = state.satellite(player)
             return SatelliteInputs(
                 player=name, sources=sources, current=current, locked=values.locked,
@@ -112,7 +111,7 @@ class HudFeed:
                 latest=values.latest,
                 favorites_filter=values.favorites_filter,
                 is_favorite=is_favorite_path(current, favs),
-                nothing_to_reset=satellite_at_defaults(values),
+                nothing_to_reset=satellite_at_defaults(values, status),
                 has_other_versions=bool(renditions(current, self.config.regen_media_root)),
             )
 
@@ -216,9 +215,9 @@ class HudFeed:
             self._favs_text = read_favs_content(self.config.favs_file)
         return self._favs_text
 
-    def _satellite_clip(self, player: str, status_file: Path) -> str:
-        """The clip *player* is showing, holding the last one it named if the read
-        comes back blank.
+    def _satellite_status(self, player: str, status_file: Path) -> SatelliteStatus:
+        """What *player* last said about itself, held over a read that comes back
+        blank.
 
         A satellite always has a clip — it cannot discard its way to an empty
         playlist — so once one has named a clip, a blank status means the read
@@ -228,11 +227,11 @@ class HudFeed:
         satellite's first status there is nothing to hold, and an empty map is
         the truth.
         """
-        video = read_satellite_status(status_file).video
-        if video:
-            self._last_satellite_clip[player] = video
-            return video
-        return self._last_satellite_clip.get(player, "")
+        status = read_satellite_status(status_file)
+        if status.video:
+            self._last_satellite_status[player] = status
+            return status
+        return self._last_satellite_status.get(player, status)
 
     def osr2_mode(self) -> str:
         """What the device is doing: "off" when nothing is on the wire at all,

@@ -1844,6 +1844,40 @@ def test_reset_still_fires_for_any_one_thing_left_narrowing_the_side(
     assert [op.key for op in ops] == ["Reset"]
 
 
+def _publish_speed(config: BridgeConfig, player: Player, speed: float) -> None:
+    status_file = config.satellite(player).status_file
+    status_file.parent.mkdir(parents=True, exist_ok=True)
+    status_file.write_text(f"video=C:/v/a.mp4\nspeed={speed}\n", encoding="utf-8")
+
+
+def test_reset_puts_the_sides_speed_back_to_normal_as_the_main_players_does(tmp_path: Path):
+    config = _make_config(tmp_path)
+    _publish_speed(config, Player.PORTRAIT, 1.0)
+    state = _make_state(portrait=SatelliteState(locked=True))
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(count=10)
+        dispatch_command("portrait_reset", state, config)
+
+    assert _cmds(config, Player.PORTRAIT)[-1] == "SET_SPEED 1"
+
+
+def test_a_side_whose_speed_alone_is_off_resets_it_without_reshuffling(tmp_path: Path):
+    """The browse is already the one a reset would build, so rebuilding it would
+    only move the clip on screen -- the main player's reset leaves its browse
+    alone for the same reason."""
+    config = _make_config(tmp_path)
+    _publish_speed(config, Player.PORTRAIT, 1.5)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(count=10)
+        _state, ops = dispatch_command("portrait_reset", _make_state(), config)
+
+    assert mock_filter.call_count == 0
+    assert _cmds(config, Player.PORTRAIT) == ["SET_SPEED 1"]
+    assert [op.key for op in ops] == ["Reset"]
+
+
 def test_reset_skips_only_the_side_that_has_nothing_to_put_back(tmp_path: Path):
     """Each player is judged on its own, so "both reset" with one player narrowed
     rebuilds that one and leaves the other's browse where it is."""

@@ -36,7 +36,7 @@ CONTROL_TOOLTIPS = {
     "lock": "Lock / unlock this clip",
     "trash": "Unfavorite it — or mark weird when it is not a favorite",
     "fmode": "F-Mode — browse only the favorites on this player",
-    "reset": "Reset — no filter, no lock, no loop, no F-Mode, shuffled from the top",
+    "reset": "Reset — no filter, no lock, no loop, no F-Mode, normal speed, shuffled from the top",
     "shuffle": f"{SHUFFLE_LABEL} — reshuffle this player's browse",
     "latest": f"{LATEST_LABEL} — reload this player's browse newest-first",
     "cycle_version": "Another version of this clip — the upscale or the original it was made from",

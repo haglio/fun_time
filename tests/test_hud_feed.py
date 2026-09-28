@@ -79,10 +79,11 @@ def make_feed(tmp_path, *, config=None) -> HudFeed:
     return HudFeed(config=config or make_config(tmp_path), publisher=publisher)
 
 
-def publish_satellite_status(path: Path, video, *, fraction: float = 0.1) -> None:
+def publish_satellite_status(path: Path, video, *, fraction: float = 0.1,
+                             speed: float = 1.0) -> None:
     path.write_text(
         f"video={video}\nposition_ms={round(fraction * 1000)}\nduration_ms=1000\n"
-        "paused=0\nlocked=0\n",
+        f"paused=0\nlocked=0\nspeed={speed}\n",
         encoding="utf-8",
     )
 
@@ -309,6 +310,17 @@ class TestHudPublishing:
             publish_satellite_status(tmp_path / f"{side}_status.txt", f"C:/v/{side}.mp4")
 
         feed.publish(replace(BridgeState(), portrait=SatelliteState(locked=True)))
+
+        assert not reset_button(panel(tmp_path, "portrait")).get("dim")
+        assert reset_button(panel(tmp_path, "landscape"))["dim"] is True
+
+    def test_a_side_playing_off_normal_speed_has_a_reset_to_offer(self, tmp_path):
+        feed = make_feed(tmp_path)
+        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4",
+                                 speed=1.5)
+        publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/landscape.mp4")
+
+        feed.publish(BridgeState())
 
         assert not reset_button(panel(tmp_path, "portrait")).get("dim")
         assert reset_button(panel(tmp_path, "landscape"))["dim"] is True
@@ -559,6 +571,17 @@ class TestHudPublishing:
 
         portrait = panel(tmp_path, "portrait")
         assert portrait["corner"]["path"] == "C:/v/p.mp4"
+
+    def test_a_status_that_cannot_be_read_keeps_the_speed_it_last_named(self, tmp_path):
+        feed, state = make_feed(tmp_path), BridgeState()
+        status = tmp_path / "portrait_status.txt"
+        publish_satellite_status(status, "C:/v/p.mp4", speed=1.5)
+        feed.publish(state)
+
+        status.write_text("", encoding="utf-8")  # caught mid-republish
+        feed.publish(state)
+
+        assert not reset_button(panel(tmp_path, "portrait")).get("dim")
 
     def test_a_satellite_that_has_not_started_yet_publishes_an_empty_panel(self, tmp_path):
         # The other player of it: before a satellite's first status there is no
