@@ -32,6 +32,7 @@ from fun_time.player_status import (
     MainPlayerStatus,
     read_main_player_status,
 )
+from fun_time.players import Player
 from fun_time.process_identity import NAMER
 from fun_time.process_sweep import sweep_processes
 from fun_time.win32_process import get_process_creation_time, get_process_image_name
@@ -183,6 +184,13 @@ START_BUDGET_S = 120.0
 # sessions' normal-priority work held every core, the dispatch loop went 66
 # seconds between two passes and every command still landed afterwards.
 COMMAND_BUDGET_S = 120.0
+
+
+def _published_ago(status_file: Path, now: float) -> str:
+    try:
+        return f"{now - status_file.stat().st_mtime:.0f}s ago"
+    except OSError:
+        return "never"
 
 
 class FunTimeIntegrationSession:
@@ -366,7 +374,7 @@ class FunTimeIntegrationSession:
         records, _offset = read_events(event_log_path(self.config.paths.state_dir))
         return [record for record in records if is_announcement(record)]
 
-    def wait_until(self, predicate, *, timeout: float = 10.0,
+    def wait_until(self, predicate, *, timeout: float = COMMAND_BUDGET_S,
                    description: str | Callable[[], str] = "condition") -> None:
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -378,7 +386,7 @@ class FunTimeIntegrationSession:
             f"Timed out waiting for {described}\n{self._log_tail()}"
         )
 
-    def wait_for_log(self, needle: str, timeout: float = 10.0) -> str:
+    def wait_for_log(self, needle: str, timeout: float = COMMAND_BUDGET_S) -> str:
         deadline = time.time() + timeout
         while time.time() < deadline:
             text = self._read_windows_bridge_log()
@@ -389,7 +397,7 @@ class FunTimeIntegrationSession:
             f"Did not find log line containing {needle!r}\n{self._log_tail()}"
         )
 
-    def wait_for_new_log(self, needle: str, timeout: float = 10.0) -> str:
+    def wait_for_new_log(self, needle: str, timeout: float = COMMAND_BUDGET_S) -> str:
         deadline = time.time() + timeout
         while time.time() < deadline:
             chunk = self._read_windows_bridge_log_chunk()
@@ -400,7 +408,7 @@ class FunTimeIntegrationSession:
             f"Did not find new log line containing {needle!r}\n{self._log_tail()}"
         )
 
-    def wait_for_any_log(self, needles: list[str], timeout: float = 10.0) -> str:
+    def wait_for_any_log(self, needles: list[str], timeout: float = COMMAND_BUDGET_S) -> str:
         deadline = time.time() + timeout
         while time.time() < deadline:
             text = self._read_windows_bridge_log()
@@ -413,7 +421,7 @@ class FunTimeIntegrationSession:
         )
 
     def _log_tail(self, lines: int = 30) -> str:
-        parts: list[str] = []
+        parts: list[str] = [f"--- last published: {self._last_published()} ---"]
         text = self._read_windows_bridge_log()
         if text:
             tail = "\n".join(text.splitlines()[-lines:])
@@ -429,6 +437,15 @@ class FunTimeIntegrationSession:
             tail = "\n".join(stderr_text.splitlines()[-lines:])
             parts.append(f"--- stderr (last {lines}) ---\n{tail}\n--- end ---")
         return "\n".join(parts)
+
+    def _last_published(self) -> str:
+        now = time.time()
+        return "; ".join(
+            f"{name} {_published_ago(status_file, now)}"
+            for name, status_file in (
+                ("main player", self.config.main_player_status_file),
+                ("portrait", self.config.satellite(Player.PORTRAIT).status_file),
+                ("landscape", self.config.satellite(Player.LANDSCAPE).status_file)))
 
     def _read_log_file(self, path: Path | None) -> str:
         if path is None or not path.exists():
