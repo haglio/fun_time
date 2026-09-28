@@ -11,6 +11,7 @@ from app_support import state_files
 from .config import RegenConfig
 from .event_log import NOTICE, SOURCE_SYSTEM
 from .loopback_server import LOOPBACK_PORT
+from .main_list_builds import BUILDS_HERE, MainListBuilds
 from .players import Player
 
 
@@ -90,6 +91,7 @@ class BridgeConfig:
     regen_metadata_root: Path | None = None
     regen_generate_video_url: str = RegenConfig.generate_video_url
     regen_generate_image_url: str = RegenConfig.generate_image_url
+    main_list_builds: MainListBuilds = BUILDS_HERE
 
     def satellite(self, player: Player) -> SatelliteChannel:
         """Satellite *player*'s file quartet and sources."""

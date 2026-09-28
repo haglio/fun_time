@@ -8,19 +8,18 @@ from pathlib import Path
 from app_support.file_channel import write_flag
 from player_core.console import OSR2_DRIVING
 from player_core.file_channel import append_command
-from player_core.player_verbs import LOCK_OFF, RELOAD_PLAYLIST, SET_F_MODE, play_file
+from player_core.player_verbs import LOCK_OFF, RELOAD_PLAYLIST, play_file
 
 logger = logging.getLogger(__name__)
 
 from .bridge_records import SatelliteChannel
 from .broker_control import write_broker_command
+from .main_list_builds import BUILDS_HERE, MainListBuild, MainListBuilds
 from .mode_plan import build_mode_switch_plan
 from .modes import (
     PLAYLIST_LANDSCAPE,
-    PLAYLIST_MAIN_PLAYER,
     PLAYLIST_PORTRAIT,
     VideoShapes,
-    build_main_playlist_paths,
     build_one_satellite_playlist,
     build_playlist_file_path,
     build_satellite_playlist_paths,
@@ -114,6 +113,7 @@ def apply_main_fmode(
     start_at_top: bool = False,
     shapes: VideoShapes | None = None,
     metadata_root: Path | None = None,
+    builds: MainListBuilds = BUILDS_HERE,
 ) -> None:
     """Rebuild the main player's playlist under *enabled* and hand it to the main player.
 
@@ -128,20 +128,13 @@ def apply_main_fmode(
     satellite: the main player keeps the video on screen across a reload whenever the new list
     still holds it — which a reorder's always does — so a newest-first rebuild
     would otherwise apply only after it, and the new arrivals never come up.
+    *builds* is where — see :class:`fun_time.main_list_builds.MainListBuilds`.
     """
-    paths = build_main_playlist_paths(main_sources, enabled, recent=recent, shapes=shapes,
-                                      metadata_root=metadata_root)
-    write_playlist_file(build_playlist_file_path(Path(state_dir), PLAYLIST_MAIN_PLAYER), paths,
-                        metadata_root=metadata_root)
-    # Queued in order — the reload first, the flag with it, the jump last so it
-    # lands on the list the reload has just taken.  The main player's HUD has no other way
-    # to know the flag: the playlist it is handed has already been narrowed,
-    # and a list of scripted videos looks like any other.
-    verbs = [RELOAD_PLAYLIST, f"{SET_F_MODE} {int(enabled)}"]
-    if start_at_top and paths:
-        verbs.append(play_file(scripted_item(paths[0], metadata_root)))
-    for verb in verbs:
-        append_command(Path(main_player_cmd_file), verb)
+    builds.build(MainListBuild(
+        scripted_filter=enabled, main_sources=main_sources, state_dir=Path(state_dir),
+        main_player_cmd_file=Path(main_player_cmd_file), recent=recent,
+        start_at_top=start_at_top, shapes=shapes, metadata_root=metadata_root,
+    ))
 
 
 def apply_satellite_fmode(
@@ -194,6 +187,7 @@ def apply_fmode(
     main_recent: bool = False,
     main_shapes: VideoShapes | None = None,
     main_player_cmd_file: str | Path,
+    main_builds: MainListBuilds = BUILDS_HERE,
     satellites: Mapping[Player, SatelliteFmodeInputs],
     regen_metadata_root: Path | None = None,
 ) -> FModeFlowResult:
@@ -214,6 +208,7 @@ def apply_fmode(
             main_player_cmd_file=main_player_cmd_file,
             shapes=main_shapes,
             metadata_root=regen_metadata_root,
+            builds=main_builds,
         )
     for player in Player.SATELLITES:
         if player in named:

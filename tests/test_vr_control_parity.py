@@ -158,6 +158,7 @@ def every_command() -> list[str]:
 
 def _drain(config: BridgeConfig) -> dict[str, list[str]]:
     """What each channel was sent since the last drain, emptying them."""
+    config.main_list_builds.settle()
     written: dict[str, list[str]] = {}
     for name in _CHANNELS:
         path = getattr(config, name, None)
