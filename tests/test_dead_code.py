@@ -270,6 +270,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # module, and every paragraph of the two they replaced, and of the watch on a
 # player that dies while the room comes up, is a test in test_player_engine.py
 # or test_player_deaths.py.
+# 7651 the same day: the picture look, the still it asks the paint thread for and
+# the headset's browse each said why mpv's render context is thread-bound or a
+# drive is slow to list; each now says it once, in the module that owns it, and
+# the cached listing's empty-read guard is its test, not a second paragraph.
 MAX_PROSE_LINES = 7638
 
 # What the count was against at the last ratchet, so the norm the audit

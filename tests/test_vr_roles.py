@@ -14,7 +14,7 @@ from fun_time.event_log import NOTICE, SOURCE_MAIN
 from fun_time.player_status import read_main_player_status
 from fun_time_vr.layout import TILT_LIMIT_DEG
 from fun_time_vr.picture_shape import FISHEYE_CIRCLE
-from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_180_SBS, FISHEYE_190_SBS, FLAT
+from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_180_SBS, FLAT
 from fun_time_vr.roles import TILT_STEP_DEG, MainRole
 from main_player.play_points import PlayPoints
 from tests.mpv_refusals import RefusesSeeks
