@@ -30,23 +30,30 @@ from fun_time.console_buttons import (
     MainSlot,
     console_rows,
     osr2_controls,
+    osr2_rows,
 )
+from fun_time.osr2_section import take_osr2_button
 from fun_time.player_buttons import LATEST_ICON
+from fun_time.players import Player
 from tests.symbol_face import typed_in_the_symbol_face
 
 _MINUS, _PLUS = "−", "+"
 
 
+def _every_row(slot: MainSlot) -> tuple[tuple[Button, ...], ...]:
+    return (*console_rows(slot), *osr2_rows(slot))
+
+
 def _actions(slot: MainSlot) -> list[str]:
-    return [b.command for row in console_rows(slot) for b in row if b.command]
+    return [b.command for row in _every_row(slot) for b in row if b.command]
 
 
 def _button(slot: MainSlot, action: str) -> Button:
-    return next(b for row in console_rows(slot) for b in row if b.command == action)
+    return next(b for row in _every_row(slot) for b in row if b.command == action)
 
 
 def _placed(slot: MainSlot) -> dict[str, tuple]:
-    return {b.command: rect for rect, b in place_rows(console_rows(slot), x=0, y=0)}
+    return {b.command: rect for rect, b in place_rows(_every_row(slot), x=0, y=0)}
 
 
 _EVERY_FACE_SLOTS = (
@@ -58,7 +65,7 @@ _EVERY_FACE_SLOTS = (
 
 
 def _every_button() -> list[Button]:
-    declared = [b for slot in _EVERY_FACE_SLOTS for row in console_rows(slot) for b in row]
+    declared = [b for slot in _EVERY_FACE_SLOTS for row in _every_row(slot) for b in row]
     return declared + list(osr2_controls(broker=True))
 
 
@@ -578,6 +585,20 @@ class TestDriveControls:
         assert _button(slot, "robot_hand_cycle_shape").tooltip == "Waveform: Square"
 
 
+class TestTheRowsThatAimTheDevice:
+    def test_ride_with_the_device_rather_than_among_the_rows_above_its_line(self):
+        slot = MainSlot(main_mode=MainMode.VIDEO)
+
+        assert "robot_hand_park" in [b.command for row in osr2_rows(slot) for b in row]
+        assert "robot_hand_park" not in [b.command for row in console_rows(slot) for b in row]
+
+    def test_a_console_that_gave_the_osr2_away_offers_it_back_there(self):
+        slot = MainSlot(main_mode=MainMode.VIDEO, has_osr2=False)
+
+        assert osr2_rows(slot) == ((take_osr2_button(Player.MAIN),),)
+        assert take_osr2_button(Player.MAIN) not in [b for row in console_rows(slot) for b in row]
+
+
 class TestState:
     def test_the_mode_you_are_in_is_lit_and_the_others_are_not(self):
         slot = MainSlot(main_mode=MainMode.KINO)
@@ -586,7 +607,7 @@ class TestState:
         assert _button(slot, "genau_activate").lit is False
 
     def test_nothing_but_the_recording_and_its_loop_takes_a_color_of_its_own(self):
-        colored = [b.command for row in console_rows(MainSlot(main_mode=MainMode.GENAU, cruise=True, locked=True))
+        colored = [b.command for row in _every_row(MainSlot(main_mode=MainMode.GENAU, cruise=True, locked=True))
                    for b in row if b.warn or b.hold]
 
         assert colored == []

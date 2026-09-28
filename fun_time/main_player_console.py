@@ -14,7 +14,7 @@ from player_core.robot_hand import FULL_INTENSITY
 
 from main_player.controls import longer_than_a_step
 
-from .console_buttons import MainSlot, console_rows, osr2_controls
+from .console_buttons import MainSlot, console_rows, osr2_controls, osr2_rows
 from .mode_plan import main_player_displays
 from .player_status import GenauStatus, MainPlayerStatus
 
@@ -116,6 +116,7 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         locked=slot.locked,
         latest=slot.latest,
         rows=console_rows(slot, in_vr=inputs.in_vr),
+        osr2_rows=osr2_rows(slot),
         osr2_controls=osr2_controls(broker=inputs.broker) if inputs.has_osr2 else (),
         has_osr2=inputs.has_osr2,
         max_intensity=inputs.max_intensity,
