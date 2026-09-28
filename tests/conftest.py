@@ -21,6 +21,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ["FUN_TIME_MUTE_AUDIO"] = "1"
 
+from tests.git_isolation import forget_the_enclosing_repository
+
+forget_the_enclosing_repository(os.environ)
+
 import pytest
 from PyQt6.QtWidgets import QApplication
 
