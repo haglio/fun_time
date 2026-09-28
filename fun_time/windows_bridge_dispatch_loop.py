@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
-from app_support.file_channel import consume_command_file, read_flag, write_flag
+from app_support.file_channel import consume_command_file, read_flag
 from player_core.file_channel import append_command
 from player_core.modes import MainMode, NoticeLevel, read_mode
 from player_core.player_verbs import LOCK_OFF, LOCK_ON, play_file
@@ -58,6 +58,7 @@ from .player_status import (
 from .players import Player
 from .rfb_slideshow import RfbSlideshow
 from .role_windows import WindowRoles
+from .runtime_flow import write_flag_file
 from .satellite_speeds import SatelliteSpeeds
 from .satellites_mode import VIDEO_MODE, origenerator_shows
 from .session_end import mark_session_end, session_end_asked
@@ -720,7 +721,7 @@ class DispatchLoopRunner:
 
     def _publish_panel(self, filename: str, *, toggling: bool) -> None:
         path = Path(self.config.state_dir) / filename
-        write_flag(path, toggling and not read_flag(path, default=False))
+        write_flag_file(path, toggling and not read_flag(path, default=False))
 
     def _handle_voice_toggle(self, cmd: str) -> None:
         """Mute or toggle voice control, then refresh the dashboard."""

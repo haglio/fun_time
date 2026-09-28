@@ -42,8 +42,17 @@ def read_flag_file(path: str | Path, default: bool) -> bool:
         return default
 
 
+FLAG_WRITE_BUDGET_S = 1.0
+_FLAG_WRITE_SPACING_S = 0.005
+
+
 def write_flag_file(path: str | Path, value: bool) -> None:
-    write_flag(Path(path), value)
+    flag = Path(path)
+    if not write_flag(flag, value,
+                      attempts=round(FLAG_WRITE_BUDGET_S / _FLAG_WRITE_SPACING_S),
+                      delay_s=_FLAG_WRITE_SPACING_S):
+        logger.warning("Could not set %s to %d: another process kept it open for %gs",
+                       flag.name, value, FLAG_WRITE_BUDGET_S)
 
 
 @dataclass(frozen=True)
