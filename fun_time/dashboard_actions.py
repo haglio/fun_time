@@ -21,10 +21,8 @@ EXIT_VR = "exit_vr"
 VR_RESET = "vr_reset"
 HELP_REFERENCE_CLOSE = "help_reference_close"
 # The pair that drives only the dashboard's own reference popup: they open and
-# dismiss a help window and reach no player, no shared state.  That is why the
-# dispatch loop echoes them as a press and stops there.  It is NOT why omnipause
-# would let them through — under a pause they are frozen with everything else
-# (see SUSPEND_EXEMPT_COMMANDS in voice_control).
+# dismiss a help window and reach no player, no shared state, which is why the
+# dispatch loop echoes them as a press and stops there.
 HELP_REFERENCE_COMMANDS = frozenset({HELP_REFERENCE, HELP_REFERENCE_CLOSE})
 
 # Whether each panel is up, for a surface with no window to be told about.
