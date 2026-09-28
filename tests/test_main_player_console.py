@@ -27,11 +27,11 @@ def _payload(**overrides) -> ConsoleModel:
 
 
 def _button(model: ConsoleModel, action: str) -> Button:
-    return next(b for row in model.rows for b in row if b.command == action)
+    return next(b for row in (*model.rows, *model.osr2_rows) for b in row if b.command == action)
 
 
 def _actions(model: ConsoleModel) -> list[str]:
-    return [b.command for row in model.rows for b in row if b.command]
+    return [b.command for row in (*model.rows, *model.osr2_rows) for b in row if b.command]
 
 
 def test_the_panel_carries_what_the_room_does_to_the_osr2():
@@ -44,6 +44,13 @@ def test_the_panel_carries_what_the_room_does_to_the_osr2():
 
 def test_the_panel_carries_the_max_intensity_the_session_holds_for_its_slider():
     assert _payload(max_intensity=35).max_intensity == 35
+
+
+def test_the_rows_that_aim_the_device_ride_with_the_device():
+    payload = _payload()
+
+    assert "robot_hand_park" in [b.command for row in payload.osr2_rows for b in row]
+    assert "robot_hand_park" not in [b.command for row in payload.rows for b in row]
 
 
 class TestOsr2State:

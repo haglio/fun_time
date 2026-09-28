@@ -644,8 +644,8 @@ def _osr2_commands(model: HudModel) -> list[str]:
     return [button.command for row in model.osr2_rows for button in row]
 
 
-def _console_commands(tmp_path) -> list[str]:
-    return [button.get("command", "") for row in console(tmp_path)["rows"] for button in row]
+def _console_osr2_commands(tmp_path) -> list[str]:
+    return [button.get("command", "") for row in console(tmp_path)["osr2_rows"] for button in row]
 
 
 class TestTheOsr2SectionIsOnThePlayerThatHasTheOsr2:
@@ -653,7 +653,7 @@ class TestTheOsr2SectionIsOnThePlayerThatHasTheOsr2:
         make_feed(tmp_path).publish(BridgeState())
 
         assert console(tmp_path)["has_osr2"] is True
-        assert "robot_hand_park" in _console_commands(tmp_path)
+        assert "robot_hand_park" in _console_osr2_commands(tmp_path)
         for player in ("portrait", "landscape"):
             assert _osr2_commands(_published(tmp_path, player)) == [f"{player}_take_osr2"]
             assert _published(tmp_path, player).osr2 == ""
@@ -678,8 +678,7 @@ class TestTheOsr2SectionIsOnThePlayerThatHasTheOsr2:
         make_feed(tmp_path).publish(BridgeState(osr2_player=2))
 
         assert console(tmp_path)["has_osr2"] is False
-        assert "robot_hand_park" not in _console_commands(tmp_path)
-        assert "main_take_osr2" in _console_commands(tmp_path)
+        assert _console_osr2_commands(tmp_path) == ["main_take_osr2"]
         assert _osr2_commands(_published(tmp_path, "landscape")) == ["landscape_take_osr2"]
 
     def test_a_side_player_whose_clip_is_scripted_says_its_funscript_has_the_osr2(self, tmp_path):

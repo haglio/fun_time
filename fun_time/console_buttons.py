@@ -105,7 +105,7 @@ MODE_BUTTONS = (
 
 def console_rows(slot: MainSlot, *, in_vr: bool = False) -> tuple[tuple[Button, ...], ...]:
     """The mode row (with minimize outside the headset, and the file controls riding
-    it), the transport, the pace of what it steps, and the Robot Hand's hands-free row."""
+    it), the transport, and the pace of what it steps."""
     return (
         (
             *(
@@ -125,8 +125,11 @@ def console_rows(slot: MainSlot, *, in_vr: bool = False) -> tuple[tuple[Button, 
         ),
         _transport_row(slot),
         _playback_speed_row() if main_player_displays(slot.main_mode) else _clip_seconds_row(),
-        _control_row(slot) if slot.has_osr2 else (take_osr2_button(Player.MAIN),),
     )
+
+
+def osr2_rows(slot: MainSlot) -> tuple[tuple[Button, ...], ...]:
+    return (_control_row(slot) if slot.has_osr2 else (take_osr2_button(Player.MAIN),),)
 
 
 def osr2_controls(*, broker: bool) -> tuple[Button, ...]:
