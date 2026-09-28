@@ -270,16 +270,12 @@ def test_no_module_reaches_into_another_ones_privates():
 # module, and every paragraph of the two they replaced, and of the watch on a
 # player that dies while the room comes up, is a test in test_player_engine.py
 # or test_player_deaths.py.
-# 7651 the same day: the picture look, the still it asks the paint thread for and
+# 7629 on 2026-09-28: the picture look, the still it asks the paint thread for and
 # the headset's browse each said why mpv's render context is thread-bound or a
-# drive is slow to list; each now says it once, in the module that owns it, and
-# the cached listing's empty-read guard is its test, not a second paragraph.
-# 7648 the same day: the projection ring's order and its restart on an unknown
-# name are tests, so the comments that said them went.
-# 7633 the same day: the stops the voice command's comment listed were the
-# reference row's to say, and the HUD rework on main took its own lines out.
-# 7632 on 2026-09-28: the projection ring's stepping lost its last note.
-MAX_PROSE_LINES = 7632
+# drive is slow to list, and each now says it once; the projection ring's order,
+# its restart on an unknown name and the stops the voice command listed are
+# tests and the reference row's line, so their comments went.
+MAX_PROSE_LINES = 7629
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.
