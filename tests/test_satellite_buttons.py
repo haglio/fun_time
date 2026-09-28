@@ -9,7 +9,7 @@ from player_core.hud_marks import FMODE_ICON, MINIMIZE_ICON, SHARED_MARK, shared
 from player_core.modes import SatellitesMode
 from shared_ui.icon_geometry import glyph_names
 
-from fun_time.satellite_buttons import CONTROL_FACES, player_rows
+from fun_time.satellite_buttons import player_rows
 from tests.symbol_face import typed_in_the_symbol_face
 
 
@@ -19,6 +19,11 @@ def _band(**fields) -> tuple[Button, ...]:
 
 def _names(buttons: tuple[Button, ...]) -> list[str]:
     return [button.command.removeprefix("portrait_") for button in buttons]
+
+
+def _faces() -> dict[str, str]:
+    band = _band(latest=False)
+    return dict(zip(_names(band), (button.glyph for button in band)))
 
 
 def test_the_band_is_the_players_own_controls_in_the_consoles_order():
@@ -136,13 +141,14 @@ def test_the_faces_are_the_familys_marks_where_it_has_them():
     """The bin is the bin Origenerator's toolbar wears, reset the gear with the
     circular arrow, F-mode its magenta badge; the transport and the padlock stay
     typed, since the family draws neither."""
-    named = {name: shared_mark_name(face) for name, face in CONTROL_FACES.items()
+    faces = _faces()
+    named = {name: shared_mark_name(face) for name, face in faces.items()
              if face.startswith(SHARED_MARK)}
 
     assert named["trash"] == "trash" and named["reset"] == "reset"
     assert not set(named.values()) - set(glyph_names())
-    assert CONTROL_FACES["fmode"] == FMODE_ICON
-    assert all(not CONTROL_FACES[name].startswith(SHARED_MARK)
+    assert faces["fmode"] == FMODE_ICON
+    assert all(not faces[name].startswith(SHARED_MARK)
                for name in ("prev", "nudge_prev", "nudge_next", "next", "lock"))
 
 
@@ -154,7 +160,7 @@ def test_the_gaps_fall_between_groups_and_nowhere_else():
 
 
 def test_the_typed_faces_are_in_the_painters_symbol_face():
-    typed = {face for face in CONTROL_FACES.values() if len(face) == 1 and not face.isalnum()}
+    typed = {face for face in _faces().values() if len(face) == 1 and not face.isalnum()}
 
     assert typed
     for face in typed:
@@ -169,7 +175,7 @@ def test_the_versions_button_is_dim_where_the_clip_has_only_itself():
 
     assert alone.dim and "none for this one" in alone.tooltip
     assert not paired.dim and "none" not in paired.tooltip
-    assert shared_mark_name(CONTROL_FACES["cycle_version"]) == "versions"
+    assert shared_mark_name(_faces()["cycle_version"]) == "versions"
 
 
 def test_the_portrait_players_crown_is_lit_while_it_holds_the_crown():

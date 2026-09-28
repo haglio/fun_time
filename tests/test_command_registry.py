@@ -16,12 +16,14 @@ any of them fails by name.
 from __future__ import annotations
 
 import ast
+import itertools
 from pathlib import Path
 
-from player_core.modes import SatellitesMode
+from player_core.modes import LengthMode, MainMode, SatellitesMode
 
 from fun_time import command_dispatch, dashboard_actions, windows_bridge_dispatch_loop
 from fun_time.command_reference import build_reference_sections
+from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
 from fun_time.satellite_buttons import player_rows
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import (
@@ -148,28 +150,25 @@ def _families() -> frozenset[str]:
 
 
 def _console_verbs() -> frozenset[str]:
-    """Every verb a console button Fun Time declares can post, read off the
-    source of the declaration.  Not only a bare literal: a button whose verb
-    depends on what it is showing picks among them there -- a lit length button
-    asks for mixed, a dark one for its own length -- and the projection pair,
-    with four states to reach, nests the choice."""
-    source = (_REPO_ROOT / "fun_time" / "console_buttons.py").read_text(encoding="utf-8")
-
-    def literals(node):
-        if isinstance(node, ast.IfExp):
-            return literals(node.body) | literals(node.orelse)
-        if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value:
-            return {node.value}
-        return set()
-
-    posted: set[str] = set()
-    for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "Button" and node.args:
-            posted.update(literals(node.args[0]))
-        if isinstance(node, ast.Assign) and any(
-                getattr(t, "id", "") == "MODE_BUTTONS" for t in node.targets):
-            posted.update(entry.elts[0].value for entry in node.value.elts)
-    return frozenset(posted)
+    """Every verb a console button Fun Time declares can post, over every state
+    that picks among them: a lit length button asks for mixed where a dark one
+    asks for its own length, and the projection pair has four states to reach."""
+    declared = (
+        button.command
+        for mode, plays_vr, plays_flat, length_mode, compilation, jump_to, has_osr2, in_vr
+        in itertools.product(MainMode, (False, True), (False, True), LengthMode,
+                             ("", "Volume One"), ("", "scene", "clip"), (False, True),
+                             (False, True))
+        for row in console_rows(
+            MainSlot(main_mode=mode, latest=False, plays_vr=plays_vr, plays_flat=plays_flat,
+                     length_mode=length_mode, compilation=compilation, has_compilation=True,
+                     jump_to=jump_to, favorites_filter=False, enhanced_filter=False,
+                     has_osr2=has_osr2),
+            in_vr=in_vr)
+        for button in row
+    )
+    brokers = (button.command for broker in (False, True) for button in osr2_controls(broker=broker))
+    return frozenset(command for command in (*declared, *brokers) if command)
 
 
 def _satellite_verbs() -> frozenset[str]:

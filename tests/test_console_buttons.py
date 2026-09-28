@@ -25,13 +25,13 @@ from shared_ui.icon_geometry import RENAMED_MARKS, glyph_names
 from fun_time.console_buttons import (
     FLAT_ICON,
     FULL_LENGTH_ICON,
-    LATEST_ICON,
     SHORTS_ICON,
     VR_ICON,
     MainSlot,
     console_rows,
     osr2_controls,
 )
+from fun_time.player_buttons import LATEST_ICON
 from tests.symbol_face import typed_in_the_symbol_face
 
 _MINUS, _PLUS = "−", "+"
