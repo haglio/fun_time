@@ -42,7 +42,7 @@ class _ALook:
         looked_at, on_shape = self._asked
         on_shape(video or looked_at, shape)
 
-    def close(self) -> None:
+    def stop_looking(self) -> None:
         self._asked = None
         self.ended = True
 
@@ -394,6 +394,16 @@ class TestLookingAtWhatIsOnScreen:
         role_parts.role.apply_command("NEXT", on_quit=_never_quits)  # scene two, a flat video
 
         assert looked == []
+
+    def test_a_video_that_needs_no_look_stops_the_look_the_last_one_was_getting(self, role_parts):
+        """The look reads whatever is on screen, which from now on is the new video."""
+        look = _ALook([])
+        role_parts.role.look_with(look)
+        assert not look.ended
+
+        role_parts.role.apply_command("NEXT", on_quit=_never_quits)  # scene two, a flat video
+
+        assert look.ended
 
     def test_a_circle_found_in_the_picture_is_what_it_opens_in_from_then_on(self, role_parts):
         role, files = role_parts.role, role_parts.files

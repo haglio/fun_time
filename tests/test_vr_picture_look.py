@@ -141,10 +141,12 @@ def test_a_video_that_never_shows_its_shape_is_given_up_on():
     assert len(player.frames) == 3
 
 
-def test_a_session_closing_ends_the_look():
+def test_a_look_stopped_while_it_looks_says_nothing_of_the_video_it_was_on():
+    """Stopped by the session closing, or by a video opening that needs no look:
+    the picture on screen is that video's from then on."""
     said: list[tuple[Path, str]] = []
     player = _Player([_bgra(CIRCLE), _bgra(CIRCLE)])
-    look = PictureLook(player, start_thread=_run_now, sleep=lambda _seconds: look.close())
+    look = PictureLook(player, start_thread=_run_now, sleep=lambda _seconds: look.stop_looking())
 
     look.look_at(VIDEO, lambda video, shape: said.append((video, shape)))
 

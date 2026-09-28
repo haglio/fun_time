@@ -458,7 +458,7 @@ class MainRole:
     def close(self) -> None:
         self._play_points.leave()
         if self._look is not None:
-            self._look.close()  # before the player: its looks read a picture from one
+            self._look.stop_looking()  # before the player: its looks read a picture from one
         self._driver.close()
         self._player.close()
 
@@ -516,8 +516,12 @@ class MainRole:
         self._look_at_the_picture(self.current_video)
 
     def _look_at_the_picture(self, video: Path) -> None:
-        if self._look is not None and self._remembered.wants_a_look(str(video)):
+        if self._look is None:
+            return
+        if self._remembered.wants_a_look(str(video)):
             self._look.look_at(video, self._shape_found)
+        else:
+            self._look.stop_looking()
 
     def _shape_found(self, video: Path, shape: str) -> None:
         """What the picture turned out to be -- from the look's own thread."""
