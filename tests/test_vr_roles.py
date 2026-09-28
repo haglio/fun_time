@@ -14,7 +14,7 @@ from fun_time.event_log import NOTICE, SOURCE_MAIN
 from fun_time.player_status import read_main_player_status
 from fun_time_vr.layout import TILT_LIMIT_DEG
 from fun_time_vr.picture_shape import FISHEYE_CIRCLE
-from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_180_SBS, FLAT
+from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_180_SBS, FLAT, ProjectionMemory
 from fun_time_vr.roles import TILT_STEP_DEG, MainRole
 from main_player.play_points import PlayPoints
 from tests.mpv_refusals import RefusesSeeks
@@ -482,6 +482,73 @@ class TestProjectionCycling:
         assert role.projection == FLAT
         sidecar = metadata / "VR" / "finished" / "scene one.json"
         assert json.loads(sidecar.read_text(encoding="utf-8"))["vr"]["projection"] == "flat"
+
+
+class TestDialingAWrappedPicture:
+    def test_a_video_nobody_has_dialed_has_neither_a_field_of_view_nor_a_height(self, role_parts):
+        role, (one, *_) = role_parts.role, role_parts.files
+
+        assert role.fov_of(str(one)) is None
+        assert role.height_of(str(one)) is None
+
+    def test_what_is_dialed_belongs_to_the_video_playing_and_no_other(self, role_parts):
+        role, (one, two, *_) = role_parts.role, role_parts.files
+
+        role.set_fov(143.0)
+        role.set_height(1.25)
+
+        assert (role.fov_of(str(one)), role.height_of(str(one))) == (143.0, 1.25)
+        assert (role.fov_of(str(two)), role.height_of(str(two))) == (None, None)
+
+    def test_it_is_written_beside_the_projection_once_the_hand_lets_go(self, role_parts):
+        role, metadata = role_parts.role, role_parts.metadata
+        role.apply_command("CYCLE_PROJECTION", on_quit=_never_quits)
+        role.set_fov(143.0)
+        role.set_height(1.25)
+
+        role.remember_fov_and_height()
+
+        sidecar = metadata / "VR" / "finished" / "scene one.json"
+        assert json.loads(sidecar.read_text(encoding="utf-8"))["vr"] == {
+            "projection": "fisheye_180_sbs", "fov": 143.0, "height": 1.25}
+
+    def test_letting_go_with_nothing_dialed_writes_and_says_nothing(self, role_parts, caplog):
+        role, metadata = role_parts.role, role_parts.metadata
+
+        with caplog.at_level(logging.INFO):
+            role.remember_fov_and_height()
+
+        assert not (metadata / "VR" / "finished" / "scene one.json").exists()
+        assert "field of view" not in caplog.text
+
+    def test_it_is_not_written_while_the_hand_is_still_on_the_stick(self, role_parts):
+        role, metadata = role_parts.role, role_parts.metadata
+
+        role.set_fov(143.0)
+
+        assert not (metadata / "VR" / "finished" / "scene one.json").exists()
+
+    def test_it_holds_when_the_video_comes_back(self, role_parts):
+        role, (one, *_) = role_parts.role, role_parts.files
+        role.set_fov(143.0)
+        role.set_height(1.25)
+        role.remember_fov_and_height()
+
+        role.apply_command("NEXT", on_quit=_never_quits)
+        role.apply_command("PREV", on_quit=_never_quits)
+
+        assert (role.fov_of(str(one)), role.height_of(str(one))) == (143.0, 1.25)
+
+    def test_a_video_opens_at_what_an_earlier_session_kept_for_it(self, role_parts):
+        role, metadata, (_, _, three, _) = role_parts.role, role_parts.metadata, role_parts.files
+        memory = ProjectionMemory(metadata, (three.parent,))
+        memory.save_fov(str(three), 151.0)
+        memory.save_height(str(three), 0.8)
+
+        role.apply_command("NEXT", on_quit=_never_quits)
+        role.apply_command("NEXT", on_quit=_never_quits)
+
+        assert (role.fov_of(str(three)), role.height_of(str(three))) == (151.0, 0.8)
 
 
 class TestRecenter:

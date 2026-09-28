@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import ctypes
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 from OpenGL import GL
@@ -33,6 +33,7 @@ from .projection import (
     FISHEYE_200_STEREOGRAPHIC_SBS,
     FISHEYE_220_SBS,
     MKX200_SBS,
+    RECTILINEAR_SBS,
 )
 
 _QUAD_VERTEX_SHADER = """
@@ -97,7 +98,11 @@ void main() {
 }
 """
 
-_EQUIRECT_180_MODE, _FISHEYE_MODE, _EQUIRECT_360_MODE = 1, 2, 3
+_EQUIRECT_MODE, _FISHEYE_MODE, _EQUIRECT_360_MODE, _RECTILINEAR_MODE = 1, 2, 3, 4
+
+MIN_FOV_DEG = 40.0
+_MAX_FOV_DEG = {_EQUIRECT_MODE: 180.0, _FISHEYE_MODE: 240.0, _RECTILINEAR_MODE: 170.0}
+MIN_HEIGHT, MAX_HEIGHT = 0.5, 2.0
 
 # How a fisheye's radius grows with its off-axis angle: most lenses are
 # equidistant, but one marketed as low-distortion at a wide field of view
@@ -110,17 +115,19 @@ class Wrap:
     mode: int
     fov_deg: float = 0.0
     curve: int = _CURVE_EQUIDISTANT
+    height: float = 1.0
 
 
 # FLAT is absent because a flat video draws as a screen, not an immersive wrap.
 _WRAPS = {
-    EQUIRECT_180_SBS: Wrap(_EQUIRECT_180_MODE),
+    EQUIRECT_180_SBS: Wrap(_EQUIRECT_MODE, 180.0),
     FISHEYE_180_SBS: Wrap(_FISHEYE_MODE, 180.0),
     FISHEYE_190_SBS: Wrap(_FISHEYE_MODE, 190.0),
     MKX200_SBS: Wrap(_FISHEYE_MODE, 200.0),
     FISHEYE_220_SBS: Wrap(_FISHEYE_MODE, 220.0),
     FISHEYE_200_STEREOGRAPHIC_SBS: Wrap(_FISHEYE_MODE, 200.0, _CURVE_STEREOGRAPHIC),
     FISHEYE_200_EQUISOLID_SBS: Wrap(_FISHEYE_MODE, 200.0, _CURVE_EQUISOLID),
+    RECTILINEAR_SBS: Wrap(_RECTILINEAR_MODE, 120.0),
     EQUIRECT_360: Wrap(_EQUIRECT_360_MODE),
 }
 
@@ -135,33 +142,32 @@ uniform int eye;   // 0=left, 1=right
 uniform int mode;  // a Wrap's, written in from the mode ids below
 uniform float fov_half;  // radians; a Wrap's, unread by the 360
 uniform int curve;  // a fisheye Wrap's, unread by the rest
+uniform float height;  // a Wrap's, unread by the 360
 
 const float PI = 3.14159265359;
 
 void main() {{
-    // Reconstruct this pixel's world-space ray direction.
     vec4 world_dir = inv_view_proj * vec4(screen_pos, -1.0, 1.0);
     vec3 dir = normalize(world_dir.xyz);
 
-    // Spherical coordinates (OpenGL: +X right, +Y up, -Z forward).
+    // OpenGL: +X right, +Y up, -Z forward.
     float theta = atan(dir.x, -dir.z);
     float phi = asin(clamp(dir.y, -1.0, 1.0));
 
-    vec2 uv;
     if (mode == {_EQUIRECT_360_MODE}) {{
-        // Equirect 360, mono: the full sphere across the whole texture.
-        uv = vec2(theta / (2.0 * PI) + 0.5, phi / PI + 0.5);
-    }} else if (mode == {_EQUIRECT_180_MODE}) {{
-        // Equirect 180, side-by-side stereo: black outside the front hemisphere.
-        if (abs(theta) > PI * 0.5) {{ frag_color = vec4(0.0, 0.0, 0.0, 1.0); return; }}
-        float u = theta / PI + 0.5;
-        uv = vec2(u * 0.5 + float(eye) * 0.5, phi / PI + 0.5);
+        frag_color = texture(video_tex, vec2(theta / (2.0 * PI) + 0.5, phi / PI + 0.5));
+        return;
+    }}
+
+    // Where in one eye's image this ray lands, 0 to 1 each way.
+    vec2 local;
+    if (mode == {_EQUIRECT_MODE}) {{
+        local = vec2(theta, phi) / (2.0 * fov_half) + 0.5;
+    }} else if (mode == {_RECTILINEAR_MODE}) {{
+        if (dir.z >= 0.0) {{ frag_color = vec4(0.0, 0.0, 0.0, 1.0); return; }}
+        local = dir.xy / (-dir.z * tan(fov_half)) * 0.5 + 0.5;
     }} else {{
-        // Fisheye, side-by-side stereo: the ray's off-axis angle sets the
-        // radius from each eye-image's center, by the Wrap's own curve --
-        // each normalized so the fisheye's edge still lands at radius 1.
         float off_axis = acos(clamp(-dir.z, -1.0, 1.0));
-        if (off_axis > fov_half) {{ frag_color = vec4(0.0, 0.0, 0.0, 1.0); return; }}
         float r;
         if (curve == {_CURVE_STEREOGRAPHIC}) {{
             r = tan(off_axis * 0.5) / tan(fov_half * 0.5);
@@ -170,18 +176,33 @@ void main() {{
         }} else {{
             r = off_axis / fov_half;
         }}
+        if (!(r >= 0.0 && r <= 1.4143)) {{ frag_color = vec4(0.0, 0.0, 0.0, 1.0); return; }}
         float planar_len = length(dir.xy);
         vec2 planar = planar_len > 0.0 ? dir.xy / planar_len : vec2(0.0);
-        vec2 local = vec2(0.5) + (r * 0.5) * planar;
-        uv = vec2(local.x * 0.5 + float(eye) * 0.5, local.y);
+        local = vec2(0.5) + (r * 0.5) * planar;
     }}
-    frag_color = texture(video_tex, uv);
+    local.y = 0.5 + (local.y - 0.5) / height;
+    if (!(local.x >= 0.0 && local.x <= 1.0 && local.y >= 0.0 && local.y <= 1.0)) {{
+        frag_color = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }}
+    frag_color = texture(video_tex, vec2(local.x * 0.5 + float(eye) * 0.5, local.y));
 }}
 """
 
-def immersive_wrap(projection: str) -> Wrap | None:
+def immersive_wrap(
+    projection: str, *, fov_deg: float | None = None, height: float | None = None,
+) -> Wrap | None:
     """How *projection* wraps the viewer, or None when it draws as a screen."""
-    return _WRAPS.get(projection)
+    wrap = _WRAPS.get(projection)
+    if wrap is None or wrap.mode == _EQUIRECT_360_MODE:
+        return wrap
+    return replace(
+        wrap,
+        fov_deg=wrap.fov_deg if fov_deg is None else min(
+            max(fov_deg, MIN_FOV_DEG), _MAX_FOV_DEG[wrap.mode]),
+        height=wrap.height if height is None else min(max(height, MIN_HEIGHT), MAX_HEIGHT),
+    )
 
 
 def _compile_shader(source: str, shader_type: int) -> int:
@@ -394,6 +415,7 @@ class SceneRenderer:
         self._imm_mode = GL.glGetUniformLocation(self._immersive_program, "mode")
         self._imm_fov_half = GL.glGetUniformLocation(self._immersive_program, "fov_half")
         self._imm_curve = GL.glGetUniformLocation(self._immersive_program, "curve")
+        self._imm_height = GL.glGetUniformLocation(self._immersive_program, "height")
         self._imm_tex = GL.glGetUniformLocation(self._immersive_program, "video_tex")
         self._copy_program = _compile_program(_FULLSCREEN_VERTEX_SHADER, _COPY_FRAGMENT_SHADER)
         self._copy_tex = GL.glGetUniformLocation(self._copy_program, "video_tex")
@@ -421,6 +443,7 @@ class SceneRenderer:
         GL.glUniform1i(self._imm_mode, wrap.mode)
         GL.glUniform1f(self._imm_fov_half, math.radians(wrap.fov_deg) / 2)
         GL.glUniform1i(self._imm_curve, wrap.curve)
+        GL.glUniform1f(self._imm_height, wrap.height)
         GL.glUniform1i(self._imm_tex, 0)
         GL.glUniformMatrix4fv(self._imm_inv_view_proj, 1, GL.GL_TRUE, inv_view_proj)
         GL.glActiveTexture(GL.GL_TEXTURE0)

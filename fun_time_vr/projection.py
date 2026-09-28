@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,22 +31,19 @@ MKX200_SBS = "mkx200_sbs"
 FISHEYE_220_SBS = "fisheye_220_sbs"
 FISHEYE_200_STEREOGRAPHIC_SBS = "fisheye_200_stereographic_sbs"
 FISHEYE_200_EQUISOLID_SBS = "fisheye_200_equisolid_sbs"
+RECTILINEAR_SBS = "rectilinear_sbs"
 EQUIRECT_360 = "equirect_360"
 
-# The cycle order: the P key / "projection" walks this ring.  Flat first, so a
-# mis-detected 2D video is one press away from every VR video's landing spot;
-# see render.Wrap.fisheye_curve for why the last two share MKX200's own angle.
 PROJECTIONS: tuple[str, ...] = (
     FLAT,
     EQUIRECT_180_SBS,
     FISHEYE_180_SBS,
-    FISHEYE_190_SBS,
-    MKX200_SBS,
-    FISHEYE_220_SBS,
     FISHEYE_200_STEREOGRAPHIC_SBS,
     FISHEYE_200_EQUISOLID_SBS,
+    RECTILINEAR_SBS,
     EQUIRECT_360,
 )
+NAMED_PROJECTIONS: tuple[str, ...] = (*PROJECTIONS, FISHEYE_190_SBS, MKX200_SBS, FISHEYE_220_SBS)
 
 # Which projection each of the tokens that name one stands for, read in the
 # order they are listed there.  The tokens themselves live beside the predicate
@@ -66,6 +64,14 @@ _FILENAME_HINTS: tuple[tuple[str, str], ...] = tuple(
 _SIDECAR_BLOCK = "vr"
 _PROJECTION_FIELD = "projection"
 _PICTURE_FIELD = "picture"
+_FOV_FIELD = "fov"
+_HEIGHT_FIELD = "height"
+
+
+def _positive_number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value) if math.isfinite(value) and value > 0 else None
 
 
 def default_projection(video_path: str, vr_dirs: Sequence[Path | str]) -> str:
@@ -89,7 +95,7 @@ def _stepped(current: str, step: int) -> str:
     try:
         position = PROJECTIONS.index(current)
     except ValueError:
-        return PROJECTIONS[0]  # a retired or unknown value restarts the ring
+        return PROJECTIONS[0]
     return PROJECTIONS[(position + step) % len(PROJECTIONS)]
 
 
@@ -117,10 +123,22 @@ class ProjectionMemory:
 
     def saved(self, video_path: str) -> str | None:
         value = self._kept(video_path, _PROJECTION_FIELD)
-        return value if value in PROJECTIONS else None  # a retired one reads as unset
+        return value if value in NAMED_PROJECTIONS else None
 
     def save(self, video_path: str, projection: str) -> bool:
         return self._keep(video_path, _PROJECTION_FIELD, projection)
+
+    def saved_fov(self, video_path: str) -> float | None:
+        return _positive_number(self._kept(video_path, _FOV_FIELD))
+
+    def save_fov(self, video_path: str, degrees: float) -> bool:
+        return self._keep(video_path, _FOV_FIELD, degrees)
+
+    def saved_height(self, video_path: str) -> float | None:
+        return _positive_number(self._kept(video_path, _HEIGHT_FIELD))
+
+    def save_height(self, video_path: str, height: float) -> bool:
+        return self._keep(video_path, _HEIGHT_FIELD, height)
 
     def note_shape(self, video_path: str, shape: str) -> bool:
         return self._keep(video_path, _PICTURE_FIELD, shape)
@@ -130,14 +148,14 @@ class ProjectionMemory:
                 and not self.saved(video_path)
                 and not self._kept(video_path, _PICTURE_FIELD))
 
-    def _kept(self, video_path: str, field: str) -> str | None:
+    def _kept(self, video_path: str, field: str) -> object:
         sidecar = self._sidecar(video_path)
         if sidecar is None or not sidecar.is_file():
             return None
         block = load_metadata(sidecar).get(_SIDECAR_BLOCK)
         return block.get(field) if isinstance(block, dict) else None
 
-    def _keep(self, video_path: str, field: str, value: str) -> bool:
+    def _keep(self, video_path: str, field: str, value: str | float) -> bool:
         sidecar = self._sidecar(video_path)
         if sidecar is None:
             logger.info("No sidecar path for %s; its %s is not remembered", video_path, field)

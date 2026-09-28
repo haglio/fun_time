@@ -3,7 +3,13 @@ from __future__ import annotations
 import pytest
 
 from fun_time_vr.pointer import LEFT, RIGHT, HandInput
-from fun_time_vr.thumbs import CONTROLLER_DEADZONE, DOUBLINGS_PER_S, Thumbs, strongest
+from fun_time_vr.thumbs import (
+    CONTROLLER_DEADZONE,
+    DIALING_SHARE,
+    DOUBLINGS_PER_S,
+    Thumbs,
+    strongest,
+)
 
 
 class _Squeeze:
@@ -141,6 +147,72 @@ def test_the_stick_coming_back_to_rest_settles_what_it_moved_once():
     assert not pushing.settled
     assert let_go.settled
     assert not resting.settled
+
+
+class TestDialingAWrappedPicture:
+    def test_the_left_stick_zooms_the_picture_and_sizes_no_player(self):
+        thumb = Thumbs().frame(
+            _hands(left=HandInput(stick_y=-1.0)), _Squeeze(), elapsed_s=0.5, dialing=True)
+
+        assert thumb.zoom == pytest.approx(2.0 ** (0.5 * DOUBLINGS_PER_S * DIALING_SHARE))
+        assert (thumb.grow, thumb.stretch) == (1.0, 1.0)
+
+    def test_the_right_stick_stretches_the_picture_and_sizes_no_player(self):
+        thumb = Thumbs().frame(
+            _hands(right=HandInput(stick_y=-1.0)), _Squeeze(), elapsed_s=0.5, dialing=True)
+
+        assert thumb.stretch == pytest.approx(2.0 ** (0.5 * DOUBLINGS_PER_S * DIALING_SHARE))
+        assert (thumb.grow, thumb.zoom) == (1.0, 1.0)
+
+    def test_pushing_away_narrows_and_shortens_where_pulling_back_widens_and_stretches(self):
+        away = Thumbs().frame(
+            _hands(left=HandInput(stick_y=1.0), right=HandInput(stick_y=1.0)), _Squeeze(),
+            elapsed_s=0.5, dialing=True)
+
+        assert away.zoom < 1.0
+        assert away.stretch < 1.0
+
+    def test_a_stick_drifting_inside_its_deadzone_dials_nothing(self):
+        drifting = _hands(left=HandInput(stick_y=-CONTROLLER_DEADZONE / 2),
+                          right=HandInput(stick_y=-1.0))
+
+        thumb = Thumbs().frame(drifting, _Squeeze(), elapsed_s=1.0, dialing=True)
+
+        assert thumb.zoom == 1.0
+        assert thumb.stretch > 1.0
+
+    def test_with_the_trigger_held_the_stick_still_brings_the_players_nearer(self):
+        held = _Squeeze(squeezing=True)
+
+        thumb = Thumbs().frame(
+            _hands(left=HandInput(stick_y=-1.0)), held, elapsed_s=0.5, dialing=True)
+
+        assert (thumb.zoom, thumb.stretch) == (1.0, 1.0)
+        assert thumb.nearer == pytest.approx(2.0 ** (0.5 * DOUBLINGS_PER_S))
+
+    def test_a_push_mostly_sideways_dials_nothing_and_still_steps_the_projection(self):
+        leaning = _hands(left=HandInput(stick_x=0.9, stick_y=-0.4))
+
+        thumb = Thumbs().frame(leaning, _Squeeze(), elapsed_s=0.5, dialing=True)
+
+        assert thumb.commands == ("projection_cycle",)
+        assert (thumb.zoom, thumb.stretch) == (1.0, 1.0)
+
+    def test_the_sticks_coming_back_to_rest_settle_the_dial_once(self):
+        thumbs = Thumbs()
+
+        pushing = thumbs.frame(
+            _hands(left=HandInput(stick_y=-0.8)), _Squeeze(), elapsed_s=0.01, dialing=True)
+        let_go = thumbs.frame(_hands(), _Squeeze(), elapsed_s=0.01, dialing=True)
+        resting = thumbs.frame(_hands(), _Squeeze(), elapsed_s=0.01, dialing=True)
+
+        assert (pushing.settled, let_go.settled, resting.settled) == (False, True, False)
+
+    def test_without_a_wrapped_picture_either_stick_sizes_a_player_as_before(self):
+        thumb = Thumbs().frame(_hands(left=HandInput(stick_y=-1.0)), _Squeeze(), elapsed_s=0.5)
+
+        assert thumb.grow == pytest.approx(2.0 ** (0.5 * DOUBLINGS_PER_S))
+        assert (thumb.zoom, thumb.stretch) == (1.0, 1.0)
 
 
 class TestWhichHandsStickCounts:

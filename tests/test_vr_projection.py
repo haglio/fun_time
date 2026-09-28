@@ -10,10 +10,13 @@ from fun_time_vr.projection import (
     EQUIRECT_360,
     FISHEYE_180_SBS,
     FISHEYE_190_SBS,
+    FISHEYE_200_EQUISOLID_SBS,
+    FISHEYE_200_STEREOGRAPHIC_SBS,
     FISHEYE_220_SBS,
     FLAT,
     MKX200_SBS,
     PROJECTIONS,
+    RECTILINEAR_SBS,
     ProjectionMemory,
     default_projection,
     next_projection,
@@ -78,6 +81,11 @@ class TestDefaults:
 
 
 class TestCycle:
+    def test_the_stops_are_the_mappings_and_the_angle_is_dialed_on_each(self):
+        assert PROJECTIONS == (
+            FLAT, EQUIRECT_180_SBS, FISHEYE_180_SBS, FISHEYE_200_STEREOGRAPHIC_SBS,
+            FISHEYE_200_EQUISOLID_SBS, RECTILINEAR_SBS, EQUIRECT_360)
+
     def test_cycles_through_every_projection_and_wraps(self):
         seen = [FLAT]
         while True:
@@ -242,6 +250,55 @@ class TestWhatThePictureShowed:
         assert json.loads(sidecar.read_text(encoding="utf-8")) == {
             "vr": {"projection": "mkx200_sbs", "picture": "fisheye_circle"}
         }
+
+
+class TestTheFieldOfViewAndHeightDialedForAVideo:
+    def test_a_video_nobody_has_dialed_has_neither(self, library):
+        videos, metadata = library
+        video = videos / "VR" / "finished" / "scene one.mp4"
+
+        memory = ProjectionMemory(metadata)
+
+        assert memory.saved_fov(str(video)) is None
+        assert memory.saved_height(str(video)) is None
+
+    def test_both_read_back(self, library):
+        videos, metadata = library
+        video = videos / "VR" / "finished" / "scene one.mp4"
+        memory = ProjectionMemory(metadata)
+
+        assert memory.save_fov(str(video), 143.0) is True
+        assert memory.save_height(str(video), 1.25) is True
+
+        assert memory.saved_fov(str(video)) == 143.0
+        assert memory.saved_height(str(video)) == 1.25
+
+    def test_they_share_the_one_record_with_the_projection(self, library):
+        videos, metadata = library
+        video = videos / "VR" / "finished" / "scene one.mp4"
+        memory = ProjectionMemory(metadata, (videos / "VR",))
+
+        memory.save(str(video), FISHEYE_180_SBS)
+        memory.save_fov(str(video), 143.0)
+        memory.save_height(str(video), 1.25)
+
+        sidecar = metadata / "VR" / "finished" / "scene one.json"
+        assert json.loads(sidecar.read_text(encoding="utf-8")) == {
+            "vr": {"projection": "fisheye_180_sbs", "fov": 143.0, "height": 1.25}
+        }
+
+    def test_what_is_not_a_positive_number_reads_as_unset(self, library):
+        videos, metadata = library
+        video = videos / "VR" / "finished" / "scene one.mp4"
+        sidecar = metadata / "VR" / "finished" / "scene one.json"
+        sidecar.parent.mkdir(parents=True)
+        for kept in ("wide", -3, 0, True, None, float("inf")):
+            sidecar.write_text(json.dumps({"vr": {"fov": kept, "height": kept}}), encoding="utf-8")
+
+            memory = ProjectionMemory(metadata)
+
+            assert memory.saved_fov(str(video)) is None, kept
+            assert memory.saved_height(str(video)) is None, kept
 
 
 class TestWhichVideosAreWorthALook:

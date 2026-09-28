@@ -274,6 +274,8 @@ def test_no_module_reaches_into_another_ones_privates():
 # the headset's browse each said why mpv's render context is thread-bound or a
 # drive is slow to list; each now says it once, in the module that owns it, and
 # the cached listing's empty-read guard is its test, not a second paragraph.
+# 7648 the same day: the projection ring's order and its restart on an unknown
+# name are tests, so the comments that said them went.
 MAX_PROSE_LINES = 7638
 
 # What the count was against at the last ratchet, so the norm the audit

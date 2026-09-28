@@ -197,7 +197,7 @@ from .reference_panel import (
     paint_reference,
     reference_height,
 )
-from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, immersive_wrap
+from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, Wrap, immersive_wrap
 from .roles import UNIMPLEMENTED_MAIN_PLAYER_VERBS, MainRole
 from .room import Hanging, Hangs
 from .satellite_hud import (
@@ -495,9 +495,13 @@ class _VideoUnit:
         self.screen.close()
 
 
-def _in_the_slot(screen, picture, projection) -> tuple[Hanging, ...]:
+def _wrap_of(role, video: str | None) -> Wrap | None:
+    return immersive_wrap(
+        role.projection_of(video), fov_deg=role.fov_of(video), height=role.height_of(video))
+
+
+def _in_the_slot(screen, picture, wrap: Wrap | None) -> tuple[Hanging, ...]:
     """Round the viewer rather than on a screen leaves no rectangle to aim at."""
-    wrap = immersive_wrap(projection)
     if wrap is not None:
         return (Hanging(Screen(MAIN, screen.placement, picture.aspect,
                                pressable=True, immersive=True),
@@ -604,11 +608,23 @@ class _MainUnit(_VideoUnit):
     def hangings(self) -> tuple[Hanging, ...]:
         if not (self.owns_the_slot and self.target.ready and self.role.displayed):
             return ()
-        return _in_the_slot(self.screen, self.target, self.role.projection_of(self.target.video))
+        return _in_the_slot(self.screen, self.target, _wrap_of(self.role, self.target.video))
 
     @property
     def wraps_the_viewer(self) -> bool:
-        return immersive_wrap(self.role.projection_of(self.target.video)) is not None
+        return _wrap_of(self.role, self.target.video) is not None
+
+    @property
+    def is_dialed_by_the_sticks(self) -> bool:
+        wrap = _wrap_of(self.role, str(self.role.current_video))
+        return self.owns_the_slot and wrap is not None and wrap.fov_deg > 0
+
+    def dial_the_wrap(self, *, zoom: float, stretch: float) -> None:
+        wrap = _wrap_of(self.role, str(self.role.current_video))
+        if zoom != 1.0:
+            self.role.set_fov(wrap.fov_deg * zoom)
+        if stretch != 1.0:
+            self.role.set_height(wrap.height * stretch)
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {MAIN: Hangs((self.screen,))}
@@ -940,7 +956,7 @@ class _GenauUnit:
     def hangings(self) -> tuple[Hanging, ...]:
         if not (self.owns_the_slot and self.texture.ready):
             return ()
-        return _in_the_slot(self.screen, self.texture, self.role.projection)
+        return _in_the_slot(self.screen, self.texture, immersive_wrap(self.role.projection))
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {MAIN: Hangs((self.screen,))}
@@ -2229,9 +2245,15 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                     session.hands, head=head, scene_rotation=scene_rotation, screens=screens)
                 if frame.taken is not None:
                     stacking.take(frame.taken)
-                thumb = thumbs.frame(_hands_for_the_players(
-                    library, session.hands, elapsed_s=frame_dt), pointer, elapsed_s=frame_dt)
+                dialing = main_unit.is_dialed_by_the_sticks
+                thumb = thumbs.frame(
+                    _hands_for_the_players(library, session.hands, elapsed_s=frame_dt),
+                    pointer, elapsed_s=frame_dt, dialing=dialing)
                 posts.post(thumb.commands)
+                if dialing:
+                    main_unit.dial_the_wrap(zoom=thumb.zoom, stretch=thumb.stretch)
+                    if thumb.settled:
+                        main_unit.role.remember_fov_and_height()
                 scene_yaw, lift_deg = carried_heading(scene_yaw, frame.carried)
                 main_unit.role.nudge_tilt(lift_deg)
                 scene_pitch_deg = main_unit.role.tilt_deg
