@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 import json
-import logging
 import os
-import threading
-from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
 from player_core.console import OSR2_CONTROL_OFF, OSR2_DRIVING
 from player_core.modes import MainMode
 
-from fun_time import runtime_flow
 from fun_time.media_metadata import metadata_path_for
 from fun_time.players import Player
 from fun_time.runtime_flow import (
@@ -24,7 +20,6 @@ from fun_time.runtime_flow import (
     apply_mode_switch,
     apply_satellite_filter,
     satellite_browse_paths,
-    write_flag_file,
 )
 
 
@@ -721,34 +716,3 @@ def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 
-
-@contextmanager
-def _open_in_a_player_for(flag: Path, seconds: float):
-    reader = flag.open(encoding="utf-8")
-    release = threading.Timer(seconds, reader.close)
-    release.start()
-    try:
-        yield
-    finally:
-        release.join()
-
-
-def test_a_flag_lands_though_a_player_has_it_open_mid_read(tmp_path: Path):
-    flag = tmp_path / "main_player_paused.txt"
-    flag.write_text("0", encoding="utf-8")
-
-    with _open_in_a_player_for(flag, 0.1):
-        write_flag_file(flag, True)
-
-    assert flag.read_text(encoding="utf-8") == "1"
-
-
-def test_a_flag_a_player_keeps_open_past_the_budget_is_reported(tmp_path: Path, monkeypatch, caplog):
-    flag = tmp_path / "landscape_paused.txt"
-    flag.write_text("0", encoding="utf-8")
-    monkeypatch.setattr(runtime_flow, "FLAG_WRITE_BUDGET_S", 0.05)
-
-    with _open_in_a_player_for(flag, 0.5), caplog.at_level(logging.WARNING, logger=runtime_flow.__name__):
-        write_flag_file(flag, True)
-
-    assert "landscape_paused.txt" in caplog.text

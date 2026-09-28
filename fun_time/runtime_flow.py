@@ -5,7 +5,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from app_support.file_channel import write_flag
 from player_core.console import OSR2_DRIVING
 from player_core.file_channel import append_command
 from player_core.player_verbs import LOCK_OFF, RELOAD_PLAYLIST, play_file
@@ -27,6 +26,7 @@ from .modes import (
     write_playlist_file,
 )
 from .omnipause import build_omnipause_plan
+from .player_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .player_handover import keep_aside
 from .players import Player
 from .satellites_mode import CLOSE_SHOWS, OPEN_SHOWS, VIDEO_MODE
@@ -42,17 +42,11 @@ def read_flag_file(path: str | Path, default: bool) -> bool:
         return default
 
 
-FLAG_WRITE_BUDGET_S = 1.0
-_FLAG_WRITE_SPACING_S = 0.005
-
-
 def write_flag_file(path: str | Path, value: bool) -> None:
     flag = Path(path)
-    if not write_flag(flag, value,
-                      attempts=round(FLAG_WRITE_BUDGET_S / _FLAG_WRITE_SPACING_S),
-                      delay_s=_FLAG_WRITE_SPACING_S):
+    if not replace_despite_readers(flag, "1" if value else "0"):
         logger.warning("Could not set %s to %d: another process kept it open for %gs",
-                       flag.name, value, FLAG_WRITE_BUDGET_S)
+                       flag.name, value, READER_HOLD_BUDGET_S)
 
 
 @dataclass(frozen=True)

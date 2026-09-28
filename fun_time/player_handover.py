@@ -10,10 +10,11 @@ from pathlib import Path
 
 from player_core.file_channel import append_command
 from player_core.player_verbs import RELOAD_PLAYLIST
-from player_core.playlist import read_playlist, write_playlist
+from player_core.playlist import read_playlist
 
 from .bridge_records import SatelliteChannel
 from .modes import rotated_onto
+from .player_files import write_playlist_items
 from .satellite_control import read_satellite_status
 
 PanelStamp = tuple[int, int] | None
@@ -62,7 +63,7 @@ def keep_aside(channel: SatelliteChannel) -> None:
     if not entries:
         return
     video = read_satellite_status(channel.status_file).video
-    write_playlist(kept, rotated_onto(entries, video))
+    write_playlist_items(kept, rotated_onto(entries, video))
 
 
 def take_back_the_list(playlist_file: Path) -> bool:
@@ -75,7 +76,7 @@ def take_back_the_list(playlist_file: Path) -> bool:
     entries = read_playlist(kept)
     if not entries:
         return False
-    write_playlist(playlist_file, entries)
+    write_playlist_items(playlist_file, entries)
     kept.unlink(missing_ok=True)
     return True
 

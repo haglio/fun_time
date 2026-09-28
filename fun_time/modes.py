@@ -6,10 +6,11 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from player_core.playlist import PlaylistItem, write_playlist
+from player_core.playlist import PlaylistItem
 
 from .folder_listings import FolderListings
 from .media_metadata import GroupIndex, build_group_index, normalize_path_key, path_matches_query
+from .player_files import write_playlist_items
 from .vr_videos import keep_shapes
 from .watch_stats import passes_inclusion, weighted_shuffle
 
@@ -358,7 +359,7 @@ def rotated_onto(entries: list[PlaylistItem], last_video: str) -> list[PlaylistI
 
 def write_playlist_file(path: Path, video_paths: list[str], *,
                         metadata_root: Path | None = None) -> None:
-    write_playlist(path, [scripted_item(video_path, metadata_root) for video_path in video_paths])
+    write_playlist_items(path, [scripted_item(video_path, metadata_root) for video_path in video_paths])
 
 
 def scripted_item(video_path: str, metadata_root: Path | None = None) -> PlaylistItem:
