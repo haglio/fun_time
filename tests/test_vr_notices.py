@@ -63,6 +63,17 @@ class TestWhichScreenALineBelongsTo:
 
 
 class TestWhatItPicksUp:
+    def test_a_flash_from_inside_the_process_shows_at_once_and_fades_like_the_rest(self, tmp_path):
+        board = NoticeBoard(_log(tmp_path), banner_seconds=2.0)
+
+        board.flash("Fisheye · 158° · height 1.20", level=NOTICE, screen=MAIN, now=1.0)
+
+        assert board.banner(MAIN).message == "Fisheye · 158° · height 1.20"
+        board.pump(None, now=2.5)
+        assert board.banner(MAIN).message == "Fisheye · 158° · height 1.20"
+        board.pump(None, now=3.1)
+        assert board.banner(MAIN) is None
+
     def test_an_announcement_written_after_it_started_flashes(self, tmp_path):
         path = _log(tmp_path)
         board = NoticeBoard(path)

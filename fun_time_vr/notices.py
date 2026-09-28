@@ -3,6 +3,7 @@ surfaces for a notice both live in the dashboard process, which a VR session
 does not launch."""
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -52,6 +53,7 @@ class NoticeBoard:
         self._banner_seconds = banner_seconds
         self._kept_records = kept_records
         self._banners: dict[str, Notice] = {}
+        self._lock = threading.Lock()
         self._records: list = []
         _, self._offset = read_events(self._path, 0)
 
@@ -60,17 +62,23 @@ class NoticeBoard:
         # The dash filters the whole stream itself, so everything is kept.
         self._records = (self._records + records)[-self._kept_records:]
         unlogged = self._unlogged.take_all() if self._unlogged is not None else []
-        for record in sorted([*filter(is_announcement, records), *unlogged],
-                             key=lambda record: record.ts):
-            notice = Notice(record.message, record.level, screen_for(record.source), now)
-            self._banners[notice.screen] = notice  # the newest wins its screen
-        self._banners = {
-            screen: banner for screen, banner in self._banners.items()
-            if now - banner.seen_at < self._banner_seconds
-        }
+        with self._lock:
+            for record in sorted([*filter(is_announcement, records), *unlogged],
+                                 key=lambda record: record.ts):
+                notice = Notice(record.message, record.level, screen_for(record.source), now)
+                self._banners[notice.screen] = notice  # the newest wins its screen
+            self._banners = {
+                screen: banner for screen, banner in self._banners.items()
+                if now - banner.seen_at < self._banner_seconds
+            }
+
+    def flash(self, message: str, *, level: int, screen: str, now: float) -> None:
+        with self._lock:
+            self._banners[screen] = Notice(message, level, screen, now)
 
     def banner(self, screen: str) -> Notice | None:  # what is flashing over it
-        return self._banners.get(screen)
+        with self._lock:
+            return self._banners.get(screen)
 
     @property
     def records(self) -> tuple:  # the whole stream, unfiltered, oldest first

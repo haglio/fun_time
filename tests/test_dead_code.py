@@ -278,7 +278,8 @@ def test_no_module_reaches_into_another_ones_privates():
 # name are tests, so the comments that said them went.
 # 7633 the same day: the stops the voice command's comment listed were the
 # reference row's to say, and the HUD rework on main took its own lines out.
-MAX_PROSE_LINES = 7633
+# 7632 on 2026-09-28: the projection ring's stepping lost its last note.
+MAX_PROSE_LINES = 7632
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

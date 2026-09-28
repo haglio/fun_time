@@ -130,6 +130,7 @@ from .furniture import (
 from .genau_role import GenauRole, run_ticks
 from .genau_settings import GenauSettings
 from .layout import (
+    BANNER,
     DASH,
     LANDSCAPE,
     LAYOUT_FILENAME,
@@ -167,7 +168,7 @@ from .matrices import (
     yaw_of_orientation,
     yaw_rotation_matrix,
 )
-from .notice_banner import banner_bgra
+from .notice_banner import banner_bgra, paint_banner
 from .notices import NoticeBoard
 from .perf import FramePerf
 from .picture_look import PictureLook
@@ -222,6 +223,7 @@ from .scheduling import ahead_of_background_work
 from .stacking import Stacking
 from .thumbs import Thumbs, strongest
 from .video_thread import VideoThread
+from .wrap_readout import WrapReadout, readout
 
 logger = logging.getLogger(__name__)
 
@@ -573,6 +575,7 @@ class _MainUnit(_VideoUnit):
             lambda role: role.status_fields(self.drive_gate.handoff_touch()),
         )
         self._volume_painter = VolumeHudPainter()
+        self._readout = WrapReadout()
         self._notices = notices
         self._watch = PlaybackWatch()
         self._unhandled: set[str] = set()
@@ -618,6 +621,25 @@ class _MainUnit(_VideoUnit):
     def can_dial_the_wrap(self) -> bool:
         wrap = _wrap_of(self.role, str(self.role.current_video))
         return self.owns_the_slot and wrap is not None and wrap.fov_deg > 0
+
+    @property
+    def wrap_readout(self) -> str | None:
+        if not self.owns_the_slot:
+            return None
+        video = str(self.role.current_video)
+        return readout(self.role.projection_of(video), _wrap_of(self.role, video))
+
+    def banner_into_the_picture(self):
+        """A banner drawn into a picture wrapped round the viewer lands on the seam
+        between its two eyes; the floating one carries it instead."""
+        if self._notices is None or self.wraps_the_viewer:
+            return None
+        return self._notices.banner(self.screen_name)
+
+    def flash_the_readout(self, now: float) -> None:
+        said = self._readout.frame(self.wrap_readout, now=now)
+        if said is not None and self._notices is not None:
+            self._notices.flash(said, level=NOTICE, screen=self.screen_name, now=now)
 
     def dial_the_wrap(self, *, zoom: float, stretch: float) -> None:
         wrap = _wrap_of(self.role, str(self.role.current_video))
@@ -677,7 +699,7 @@ class _MainUnit(_VideoUnit):
             )
             self.overlay_readout(controls.playhead)
         if self._notices is not None:
-            self.overlay_banner(self._notices.banner(self.screen_name))
+            self.overlay_banner(self.banner_into_the_picture())
 
     def _watch_progress(self, now: float) -> None:
         """Say it out loud when the video stops advancing, and reopen it once:
@@ -1528,6 +1550,66 @@ class _LibraryUnit:
         self.screen.close()
 
 
+BANNER_ELEVATION_DEG = 24.0
+BANNER_FONT_PX = 44
+BANNER_MAX_WIDTH_PX = 1600
+BANNER_PX_PER_DEG = 40.0
+
+
+class _BannerUnit:
+    """The main screen's banner, floating in front of a picture wrapped round the viewer."""
+
+    SPOTS: dict[str, Placement] = {}
+
+    def __init__(self, main_unit, notices) -> None:
+        self._main_unit = main_unit
+        self._notices = notices
+        self._lock = threading.Lock()
+        self._image = None
+        self._uploaded = None
+        self._painted: tuple[str, int] | None = None
+        self.texture = FrameTexture()
+        self.screen = _HangingScreen(Placement(0.0, BANNER_ELEVATION_DEG, 1.0))
+
+    def hangings(self) -> tuple[Hanging, ...]:
+        if self._painted is None or not (self._main_unit.wraps_the_viewer and self.texture.ready):
+            return ()
+        return (Hanging(
+            Screen(BANNER, self.screen.placement, self.texture.aspect),
+            mesh=self.screen, picture=self.texture, blend=True, in_front=True),)
+
+    def hangs_by(self) -> dict[str, Hangs]:
+        return {}
+
+    def put_back(self) -> None:
+        pass
+
+    def point(self, frame: Frame) -> None:
+        pass
+
+    def pump(self, stop: threading.Event, now: float) -> None:
+        notice = self._notices.banner(MAIN) if self._main_unit.wraps_the_viewer else None
+        painted = None if notice is None else (notice.message, notice.level)
+        if painted == self._painted:
+            return
+        if painted is not None:
+            image = paint_banner(
+                notice.message, notice.level, max_width=BANNER_MAX_WIDTH_PX, size=BANNER_FONT_PX)
+            self.screen.placement = Placement(
+                0.0, BANNER_ELEVATION_DEG, image.width / BANNER_PX_PER_DEG)
+            with self._lock:
+                self._image = image
+        self._painted = painted
+
+    def render_latest_frame(self) -> None:
+        if _upload(self):
+            self.screen.rehang(self.texture.aspect)
+
+    def close(self) -> None:
+        self.texture.close()
+        self.screen.close()
+
+
 class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
     SPOTS: dict[str, Placement] = {}
 
@@ -2136,13 +2218,14 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
         metadata_root=_metadata_root(manifest),
     )
+    banner = _BannerUnit(main_unit, notices)
     keeper = _LayoutKeeper(layout_path, remembered)
     scene_ready = SceneReady(scene_ready_file(state_dir))
     cover_seen = CoverSeen()
     posts = _ControllerPosts(Path(commands.dashboard_cmd_file))
     # The room, each thing saying for itself what it hangs there.  Dash before
     # panel: the console hangs off where the dashboard ended up.
-    units = [main_unit, genau, *satellites, dash, panel, reference, library, cover]
+    units = [main_unit, genau, *satellites, dash, panel, reference, library, banner, cover]
     pumped = [notices, *units, keeper, posts]
     where = room.where_they_hang(units)
     pointer = Pointer(on_its_controls=on_its_controls)
@@ -2253,6 +2336,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                 zoom = main_unit.role.angle_asked.take()
                 if dialing:
                     main_unit.dial_the_wrap(zoom=zoom, stretch=thumb.stretch)
+                main_unit.flash_the_readout(now)
                 scene_yaw, lift_deg = carried_heading(scene_yaw, frame.carried)
                 main_unit.role.nudge_tilt(lift_deg)
                 scene_pitch_deg = main_unit.role.tilt_deg
