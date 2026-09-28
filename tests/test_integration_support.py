@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import socket
 import time
 from pathlib import Path
@@ -25,6 +26,7 @@ from fun_time.player_status import MainPlayerStatus
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from tests.integration import integration_support
 from tests.integration.integration_support import (
+    COMMAND_BUDGET_S,
     INTEGRATION_CONFIG_NAME,
     FunTimeIntegrationSession,
     close_udp_sinks,
@@ -166,6 +168,46 @@ def test_stop_survives_missing_bridge_pids(session):
         session.stop()  # no bridge_pids.ini on disk
 
     assert killed == []
+
+
+def test_a_timed_out_wait_says_when_each_player_last_published(session):
+    main_player_status = session.config.main_player_status_file
+    main_player_status.parent.mkdir(parents=True, exist_ok=True)
+    main_player_status.write_text("paused=0\n", encoding="utf-8")
+    two_minutes_ago = time.time() - 120
+    os.utime(main_player_status, (two_minutes_ago, two_minutes_ago))
+
+    with pytest.raises(AssertionError) as timed_out:
+        session.wait_until(lambda: False, timeout=0, description="the main player to hold still")
+
+    assert "main player 120s ago; portrait never; landscape never" in str(timed_out.value)
+
+
+class _Clock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def time(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+
+@pytest.mark.parametrize("wait", [
+    lambda session: session.wait_until(lambda: False),
+    lambda session: session.wait_for_log("never logged"),
+    lambda session: session.wait_for_new_log("never logged"),
+    lambda session: session.wait_for_any_log(["never logged"]),
+], ids=["wait_until", "wait_for_log", "wait_for_new_log", "wait_for_any_log"])
+def test_a_wait_named_without_a_budget_is_given_the_familys_command_budget(session, monkeypatch, wait):
+    clock = _Clock()
+    monkeypatch.setattr(integration_support, "time", clock)
+
+    with pytest.raises(AssertionError):
+        wait(session)
+
+    assert COMMAND_BUDGET_S <= clock.now < COMMAND_BUDGET_S + 1
 
 
 def test_a_launched_child_is_named_by_its_pid_and_the_moment_it_was_born():
