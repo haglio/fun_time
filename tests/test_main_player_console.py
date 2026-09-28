@@ -292,9 +292,8 @@ class TestTheReadoutTheWordLeaves:
             assert painter.press_at(*self._center(rect, origin)) == action
 
         for track in self._readouts_own(painter):
-            posted = painter.press_at(*self._center(track.rect, origin))
-            assert posted.startswith(f"robot_hand_{track.axis}_"), (
-                f"the {track.axis} band refused a press: {posted!r}")
+            painter.press_at(*self._center(track.rect, origin))
+            assert painter.holding, f"the {track.axis} band at {track.rect} refused a press"
 
     def test_a_funscripts_own_turn_still_refuses_the_readout(self, tmp_path):
         """The other half of the rule, and the reason for it: in kino mode the two
@@ -305,6 +304,7 @@ class TestTheReadoutTheWordLeaves:
 
         for track in self._readouts_own(painter):
             assert painter.press_at(*self._center(track.rect, origin)) == ""
+            assert not painter.holding
         for rect, button in painter.buttons:
             if button.command.startswith(("genau_amplitude", "robot_hand_center")):
                 assert painter.press_at(*self._center(rect, origin)) == ""
