@@ -12,10 +12,10 @@ from .thumbs import CONTROLLER_DEADZONE
 FRAME_FILENAME = "origenerator_frame.bin"
 INPUT_FILENAME = "origenerator_input.txt"
 
-# The app's own words; the launch test holds them to its contract file.
-PRESS = "press"
+# The words this module says by itself; a press, drag or right-click travels as
+# the event's own kind, so pointer's names for those are the app's words too.
+# The launch test holds all of them to the app's contract file.
 HOSTED_RELEASE = "release"
-DRAG = "drag"
 HOVER = "hover"
 SCROLL = "scroll"
 

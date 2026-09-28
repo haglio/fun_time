@@ -16,7 +16,7 @@ from fun_time_vr.gallery_panel import (
     scroll_from_stick,
     scroll_line,
 )
-from fun_time_vr.pointer import DRAG, PRESS, RELEASE, PressEvent
+from fun_time_vr.pointer import DRAG, PRESS, RELEASE, RIGHT_CLICK, PressEvent
 
 
 def _pixels(width: int, height: int, value: int) -> bytes:
@@ -49,6 +49,14 @@ class TestWhereAPressLanded:
         event = PressEvent(kind=DRAG, screen="gallery", u=1.0, v=0.0)
 
         assert event_line(event, (800, 600)) == f"{DRAG} 799 599"
+
+    def test_a_right_click_is_placed_like_a_press(self):
+        """A controller has one trigger, so the room sends the stick pushed in
+        with it as a right-click -- at the pixel it was aimed at, like any
+        other press."""
+        event = PressEvent(kind=RIGHT_CLICK, screen="gallery", u=0.5, v=0.5)
+
+        assert event_line(event, (800, 600)) == f"{RIGHT_CLICK} 400 300"
 
 
 class TestTheChannelThePictureArrivesThrough:

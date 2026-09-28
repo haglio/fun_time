@@ -1556,7 +1556,7 @@ class _GalleryUnit:  # the hosted app's window, shown in origenerator mode
             return ()
         return (Hanging(
             Screen(GALLERY, self.screen.placement, self.texture.aspect,
-                   movable=True, pressable=True),
+                   movable=True, resizable=True, pressable=True, right_clicks=True),
             mesh=self.screen, picture=self.texture, blend=True),)
 
     def hangs_by(self) -> dict[str, Hangs]:

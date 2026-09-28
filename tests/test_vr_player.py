@@ -2690,6 +2690,34 @@ class TestTheSpotEachScreenStartsIn:
             assert clamp_placement(spot) == spot, name
 
 
+class TestTheHostedAppsScreenTakesTheSameHandlesAsAPlayer:
+    def _hanging(self):
+        unit = _like(_GalleryUnit, SimpleNamespace(
+            showing=True,
+            screen=SimpleNamespace(placement=_GalleryUnit.SPOTS[GALLERY]),
+            texture=SimpleNamespace(ready=True, aspect=0.7)))
+        (hanging,) = unit.hangings()
+        return hanging.screen
+
+    def test_it_is_dragged_and_pressed_like_the_players(self):
+        screen = self._hanging()
+
+        assert screen.movable and screen.pressable
+
+    def test_it_is_resized_by_the_squares_in_its_lower_corners(self):
+        """The room draws those on any screen that says it can be resized, and
+        the players have had them all along.  There is no monitor's worth of
+        room to fit here: a whole desktop window hangs on it, so how big it
+        should be is his to say."""
+        assert self._hanging().resizable
+
+    def test_it_is_the_one_screen_that_takes_a_right_click(self):
+        """A controller has one trigger, so the room sends the stick pushed in
+        with it as a right-click -- and this is the only screen with a menu to
+        open on one."""
+        assert self._hanging().right_clicks
+
+
 class TestPuttingTheRoomBack:
     """One press puts every screen back: each unit hangs its own in the spot it
     keeps, and the session is left remembering nothing -- which is what makes

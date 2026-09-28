@@ -22,6 +22,7 @@ from fun_time_vr.vr_session import (
     BACK,
     CONTROLLER_BINDINGS,
     FORWARD,
+    STICK_CLICK,
     STICK_X,
     STICK_Y,
     TRIGGER,
@@ -146,8 +147,10 @@ def test_a_session_that_comes_back_is_ready_again(monkeypatch):
 def test_each_hand_reads_both_axes_of_its_stick_and_both_skip_buttons(monkeypatch):
     session = VRSession.__new__(VRSession)
     session._session = object()
-    session._actions = {name: name for name in (AIM, TRIGGER, STICK_X, STICK_Y, FORWARD, BACK)}
-    readings = {TRIGGER: 0.2, STICK_X: 0.4, STICK_Y: -0.7, FORWARD: True, BACK: False}
+    session._actions = {name: name for name in
+                        (AIM, TRIGGER, STICK_X, STICK_Y, STICK_CLICK, FORWARD, BACK)}
+    readings = {TRIGGER: 0.2, STICK_X: 0.4, STICK_Y: -0.7, STICK_CLICK: True,
+                FORWARD: True, BACK: False}
 
     def state(_session, get_info):
         return SimpleNamespace(is_active=True, current_state=readings[get_info.action])
@@ -160,7 +163,8 @@ def test_each_hand_reads_both_axes_of_its_stick_and_both_skip_buttons(monkeypatc
     monkeypatch.setattr(xr, "get_action_state_boolean", state)
 
     assert session._hand_input(RIGHT, object(), 0) == HandInput(
-        trigger=0.2, stick_x=0.4, stick_y=-0.7, forward=True, back=False)
+        trigger=0.2, stick_x=0.4, stick_y=-0.7, stick_pressed=True,
+        forward=True, back=False)
 
 
 class TestControllerBindings:
@@ -172,6 +176,16 @@ class TestControllerBindings:
         for paths in sticks:
             assert {path.split("/")[3] for path in paths} == {LEFT, RIGHT}
             assert all(path.endswith(axis) for path in paths)
+
+    def test_a_controller_with_a_stick_also_reads_it_pushed_in(self):
+        """That is the room's second button: held while the trigger is pulled,
+        it sends a right-click to the hosted app's window."""
+        for profile, bindings in CONTROLLER_BINDINGS.items():
+            if STICK not in bindings:
+                continue
+            paths = bindings[STICK_CLICK]
+            assert {path.split("/")[3] for path in paths} == {LEFT, RIGHT}, profile
+            assert all(path.endswith("/click") for path in paths), profile
 
     def test_every_profile_points_and_squeezes_with_either_hand(self):
         for profile, bindings in CONTROLLER_BINDINGS.items():

@@ -40,7 +40,8 @@ from fun_time.windows_bridge_startup import (
     origenerator_launch_command,
     origenerator_launch_kwargs,
 )
-from fun_time_vr.gallery_panel import DRAG, HOSTED_RELEASE, HOVER, PRESS, SCROLL
+from fun_time_vr.gallery_panel import HOSTED_RELEASE, HOVER, SCROLL
+from fun_time_vr.pointer import DRAG, PRESS, RIGHT_CLICK
 from tests.integration.integration_support import checkout_project_dirs
 from tests.origenerator_contract import CONTRACT_FILE, named_checkout, published_by
 
@@ -233,7 +234,7 @@ def test_a_headset_session_sends_the_pair_and_the_words_it_declares(tmp_path):
 
     assert set(published["headset_flags"]) <= written
     assert set(published["headset_words"]) == {
-        PRESS, HOSTED_RELEASE, DRAG, HOVER, SCROLL}
+        PRESS, HOSTED_RELEASE, DRAG, HOVER, SCROLL, RIGHT_CLICK}
     # And the two a session adopting a kept app says which room it is with,
     # among the lines the app says its command file answers.
     assert TAKE_BACK in published["command_lines"]
