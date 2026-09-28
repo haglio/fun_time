@@ -7,9 +7,8 @@ SLOTS = 3
 
 
 class StillAsked:
-    """A one-frame copy asked for by another thread, painted by the one that owns
-    the GL context -- the picture check's way in, since mpv's own screenshot needs
-    that context and refuses from anywhere else."""
+    """A one-frame copy asked for by another thread, painted by the one that
+    owns the GL context -- see :meth:`VideoThread._paint_a_still`."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
