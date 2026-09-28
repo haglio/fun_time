@@ -8,10 +8,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from player_core.hud_overlay import HudOverlay
-from player_core.pointer import time_at
 from player_core.satellite_hud import MARGIN, hud_text
 from player_core.timeline import TIMELINE_HEIGHT
-from player_core.volume import CHIP_H, SPEAKER_W, VolumeHud, chip_xy
 
 from fun_time.hud_transport import hud_model
 from fun_time.lock_hud import HudPanel
@@ -86,92 +84,63 @@ _HUD_SIZE = (200, 100)
 
 
 class TestAPressOnASatellite:
-    def _pointer(self, *, on_a_picture=False):
-        hud, seeks, levels, asked = _FakeHud(), [], [], []
-        volume = VolumeHud(volume=70, muted=True)
-        pointer = SatellitePointer(
-            hud=hud, seek=seeks.append, duration_ms=lambda: 10_000.0,
-            volume=lambda: volume, mute=lambda muted: levels.append(("mute", muted)),
-            set_volume=lambda level: levels.append(("level", level)),
-            picture=lambda: asked.append("omnipause_toggle"),
-            picture_on_screen=lambda: on_a_picture,
-        )
-        return SimpleNamespace(pointer=pointer, hud=hud, seeks=seeks, levels=levels,
-                               asked=asked)
+    """Two places a squeeze can land: the panel this screen hangs, and the
+    picture under it.  The track, the time and the volume are a block of that
+    panel and it places a squeeze on them itself, so the picture has nothing on
+    it to hit (player_core's tests/test_hud_overlay.py)."""
 
-    def test_under_a_picture_a_squeeze_on_the_scrubber_row_is_the_pictures(self):
-        p = self._pointer(on_a_picture=True)
-        v = 1 - (_PICTURE_SIZE[1] - TIMELINE_HEIGHT // 2) / _PICTURE_SIZE[1]
+    def _pointer(self):
+        hud, asked = _FakeHud(), []
+        pointer = SatellitePointer(hud=hud, picture=lambda: asked.append("omnipause_toggle"))
+        return SimpleNamespace(pointer=pointer, hud=hud, asked=asked)
 
-        p.pointer.press(PICTURE, 0.5, v, size=_PICTURE_SIZE)
-
-        assert p.seeks == []
-        assert p.asked == ["omnipause_toggle"]
-
-    def test_a_press_on_the_hud_reaches_its_map_at_the_inset_the_desktop_draws_it_at(self):
+    def test_a_squeeze_on_the_panel_reaches_its_map_at_the_inset_the_desktop_draws_it_at(self):
         p = self._pointer()
 
         p.pointer.press(HUD, 0.25, 0.5, size=_HUD_SIZE)
 
         assert p.hud.presses == [(50 + MARGIN, 50 + MARGIN)]
-        assert p.seeks == []
+        assert p.asked == []
 
-    def test_a_press_on_the_pictures_scrubber_seeks_the_clip(self):
-        p = self._pointer()
-        width, height = _PICTURE_SIZE
-        v = 1 - (height - TIMELINE_HEIGHT // 2) / height
-
-        p.pointer.press(PICTURE, 0.5, v, size=_PICTURE_SIZE)
-
-        assert p.seeks == [pytest.approx(time_at(320, win_w=width, duration_ms=10_000.0))]
-        assert p.hud.presses == []
-
-    def test_a_press_on_the_chip_reaches_the_satellites_own_volume(self):
-        """It has sound of its own in VR now, as it does on the desktop, and the
-        speaker is told the state the player is actually in."""
-        p = self._pointer()
-        x, y = chip_xy(win_w=_PICTURE_SIZE[0], win_h=_PICTURE_SIZE[1],
-                       timeline_h=TIMELINE_HEIGHT)
-        speaker = ((x + SPEAKER_W // 2 + 0.5) / _PICTURE_SIZE[0],
-                   1 - (y + CHIP_H // 2 + 0.5) / _PICTURE_SIZE[1])
-
-        p.pointer.press(PICTURE, *speaker, size=_PICTURE_SIZE)
-
-        assert p.levels == [("mute", True)]
-        assert p.seeks == []
-
-    def test_a_press_on_the_picture_itself_asks_the_room_to_pause(self):
-        """The map hangs as a screen of its own here, so the picture is only the
-        controls along its edges and, everywhere else, the room's own pause."""
+    def test_a_squeeze_on_the_picture_asks_the_room_to_pause(self):
         p = self._pointer()
 
         p.pointer.press(PICTURE, 0.5, 0.5, size=_PICTURE_SIZE)
 
-        assert p.seeks == [] and p.hud.presses == [] and p.levels == []
+        assert p.hud.presses == []
         assert p.asked == ["omnipause_toggle"]
 
-    def test_hovering_the_hud_names_the_button_under_the_pointer(self):
+    def test_the_lower_edge_of_the_picture_is_the_picture_too(self):
+        """The track used to span it; nothing is drawn there now."""
+        p = self._pointer()
+        v = 1 - (_PICTURE_SIZE[1] - TIMELINE_HEIGHT // 2) / _PICTURE_SIZE[1]
+
+        p.pointer.press(PICTURE, 0.5, v, size=_PICTURE_SIZE)
+
+        assert p.asked == ["omnipause_toggle"]
+
+    def test_hovering_the_panel_names_the_button_under_the_pointer(self):
         p = self._pointer()
 
         p.pointer.hover(HUD, (0.25, 0.5), size=_HUD_SIZE)
 
         assert p.hud.motions == [(50 + MARGIN, 50 + MARGIN)]
 
-    def test_a_drag_on_the_hud_reaches_it_at_the_inset_the_desktop_draws_it_at(self):
+    def test_a_drag_on_the_panel_reaches_it_at_the_inset_the_desktop_draws_it_at(self):
         p = self._pointer()
 
         p.pointer.drag(HUD, 0.25, 0.5, size=_HUD_SIZE)
 
         assert p.hud.drags == [(50 + MARGIN, 50 + MARGIN)]
 
-    def test_letting_go_lets_go_of_whatever_the_hud_held(self):
+    def test_letting_go_lets_go_of_whatever_the_panel_held(self):
         p = self._pointer()
 
         p.pointer.release()
 
         assert p.hud.released == 1
 
-    def test_a_pointer_off_the_hud_leaves_no_tooltip(self):
+    def test_a_pointer_off_the_panel_leaves_no_tooltip(self):
         p = self._pointer()
 
         p.pointer.hover(HUD, None, size=_HUD_SIZE)
@@ -201,11 +170,7 @@ class TestThePressReachesTheDesktopsOwnMap:
         surface = HudSurface()
         hud = HudOverlay(hud_file=hud_file, command_file=command_file, player=surface)
         hud.tick(video="scene one")
-        pointer = SatellitePointer(
-            hud=hud, seek=lambda _ms: None, duration_ms=lambda: 1.0,
-            volume=VolumeHud, mute=lambda _muted: None,
-            set_volume=lambda _level: None,
-        )
+        pointer = SatellitePointer(hud=hud)
         return hud, surface, pointer, command_file
 
     @staticmethod

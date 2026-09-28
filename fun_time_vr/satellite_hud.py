@@ -7,7 +7,6 @@ from collections.abc import Callable
 import numpy as np
 from player_core.satellite_hud import MARGIN
 
-from .furniture import FurniturePointer
 from .pointer import surface_pixel
 
 PICTURE = "picture"
@@ -54,37 +53,29 @@ class HudSurface:
 
 
 class SatellitePointer:
-    def __init__(
-        self, *, hud, seek: Callable[[float], None], duration_ms: Callable[[], float],
-        volume, mute: Callable[[bool], None], set_volume: Callable[[int], None],
-        picture: Callable[[], None] | None = None,
-        picture_on_screen: Callable[[], bool] = lambda: False,
-    ) -> None:
+    """A squeeze on one of the headset's side screens: the panel it hangs, which
+    places a squeeze on its own controls, or the picture under it, which has
+    nothing on it to hit and so asks the room to pause.
+    """
+
+    def __init__(self, *, hud, picture: Callable[[], None] | None = None) -> None:
         self._hud = hud
-        self._duration_ms = duration_ms
-        self._volume = volume
-        self._furniture = FurniturePointer(
-            seek=seek, mute=mute, set_volume=set_volume, picture=picture,
-            picture_on_screen=picture_on_screen)
+        self._picture = picture
 
     def press(self, kind: str, u: float, v: float, *, size: tuple[int, int]) -> None:
         if kind == HUD:
             px, py = surface_pixel(u, v, size)
             self._hud.press(px + MARGIN, py + MARGIN)
-        else:
-            self._furniture.press(
-                u, v, size=size, duration_ms=self._duration_ms(), muted=self._volume().muted)
+        elif self._picture is not None:
+            self._picture()
 
     def drag(self, kind: str, u: float, v: float, *, size: tuple[int, int]) -> None:
         if kind == HUD:
             px, py = surface_pixel(u, v, size)
             self._hud.drag_to(px + MARGIN, py + MARGIN)
-        else:
-            self._furniture.drag(u, v, size=size, duration_ms=self._duration_ms())
 
     def release(self) -> None:
         self._hud.release()
-        self._furniture.release()
 
     def hover(self, kind: str, uv: tuple[float, float] | None, *, size: tuple[int, int]) -> None:
         if kind == HUD and uv is not None:
