@@ -41,6 +41,7 @@ class FakeSatellitePlayer(RefusesSeeks):
         # in player_core, and this only counts the asking.
         self.pushes = 0
         self.tiled_to: list[tuple[int, int]] = []
+        self.swapped: list[Path] = []
 
     def tile_to_fill(self, window_width: int, window_height: int) -> None:
         self.tiled_to.append((window_width, window_height))
@@ -51,6 +52,10 @@ class FakeSatellitePlayer(RefusesSeeks):
         self.playlist = [path]
         self.playlist_pos = 0
         self.position_ms = 0.0
+
+    def swap_still(self, path: Path) -> None:
+        self.swapped.append(path)
+        self.playlist[self.playlist_pos] = path
 
     def stage_next(self, path: Path) -> None:
         del self.playlist[self.playlist_pos + 1:]

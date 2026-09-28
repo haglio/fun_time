@@ -667,3 +667,46 @@ class TestWhereAClipWasLeft:
         session.close()
 
         assert PlayPoints(file).point_for(tmp_path / "v0.mp4") == 2_048
+
+
+class TestAFrameInThePicturesPlace:
+    def test_a_frame_goes_up_on_the_player_in_place_of_the_picture(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=2)
+
+        session.show_frame(tmp_path / "frame one.png")
+
+        assert player.swapped == [tmp_path / "frame one.png"]
+
+    def test_clearing_the_frame_puts_the_picture_itself_back(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=2)
+        session.show_frame(tmp_path / "frame one.png")
+
+        session.clear_frame()
+
+        assert player.swapped == [tmp_path / "frame one.png", tmp_path / "v0.mp4"]
+
+    def test_clearing_with_no_frame_up_leaves_the_picture_alone(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=2)
+
+        session.clear_frame()
+
+        assert player.swapped == []
+
+    def test_a_frame_is_over_once_the_player_is_stepped_to_another_item(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=2)
+        session.show_frame(tmp_path / "frame.png")
+
+        session.step(1)
+        session.clear_frame()
+
+        assert player.swapped == [tmp_path / "frame.png"]
+
+    def test_a_frame_is_over_once_the_picture_has_run_out_onto_the_next(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=2)
+        session.show_frame(tmp_path / "frame.png")
+
+        player.simulate_eof_advance()
+        session.advance()
+        session.clear_frame()
+
+        assert player.swapped == [tmp_path / "frame.png"]
