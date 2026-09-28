@@ -33,7 +33,6 @@ from fun_time_vr.furniture import (
     furniture_at,
     on_its_controls,
     paint_row,
-    with_furniture,
 )
 from fun_time_vr.layout import MIN_WIDTH_DEG
 from fun_time_vr.pointer import Screen
@@ -450,46 +449,3 @@ class TestASqueezeOnAVideosOwnControls:
 
         assert p.posted == []
         assert len(p.seeks) == 1
-
-
-class TestBlendingControlsIntoAPicture:
-    """For a player handed finished pictures rather than decoding its own, this
-    is where its controls go on -- there is no video player under them."""
-
-    def test_the_picture_it_was_given_is_left_as_it_was(self):
-        picture = np.zeros((10, 20, 3), dtype=np.uint8)
-        opaque = np.full((4, 6, 4), 255, dtype=np.uint8)
-
-        out = with_furniture(picture, [(opaque, 0, 0)])
-
-        assert picture.max() == 0
-        assert out[0, 0].tolist() == [255, 255, 255]
-
-    def test_it_lands_where_it_is_put_and_the_bitmap_is_read_as_bgra(self):
-        picture = np.zeros((10, 20, 3), dtype=np.uint8)
-        blue = np.zeros((2, 2, 4), dtype=np.uint8)
-        blue[:, :, 0] = 200
-        blue[:, :, 3] = 255
-
-        out = with_furniture(picture, [(blue, 5, 6)])
-
-        assert out[6, 5].tolist() == [0, 0, 200]
-        assert out[0, 0].max() == 0
-
-    def test_what_is_transparent_leaves_the_picture_showing(self):
-        picture = np.full((4, 4, 3), 100, dtype=np.uint8)
-        clear = np.zeros((2, 2, 4), dtype=np.uint8)
-        half = np.full((2, 2, 4), 255, dtype=np.uint8)
-        half[:, :, 3] = 128
-
-        assert with_furniture(picture, [(clear, 0, 0)])[0, 0].tolist() == [100, 100, 100]
-        assert 150 < with_furniture(picture, [(half, 0, 0)])[0, 0][0] < 190
-
-    def test_a_piece_hanging_off_the_edge_is_clipped_rather_than_wrapped(self):
-        picture = np.zeros((4, 4, 3), dtype=np.uint8)
-        opaque = np.full((3, 3, 4), 255, dtype=np.uint8)
-
-        out = with_furniture(picture, [(opaque, 3, 3)])
-
-        assert out[3, 3].tolist() == [255, 255, 255]
-        assert out[0, 0].max() == 0

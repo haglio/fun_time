@@ -1,9 +1,8 @@
-"""The controls drawn over a video: how big, what a squeeze does, when to repaint.
+"""The row the panel under the main slot draws: how big, what a squeeze does, when to repaint.
 
 One angular size for every control in the scene, in the console's own pixels: in
-the video's own a scrubber was a fifth of a degree tall on a satellite, too small
-for a controller ray, and a fat bar on a zoomed main player.  They repaint only
-when what they show moves; one per unit per pump tick cost the pump its time.
+the video's own a scrubber was a fifth of a degree tall, too small for a
+controller ray.  It repaints only when what it shows moves.
 """
 from __future__ import annotations
 
@@ -33,31 +32,6 @@ _CHIP_PARTS = {"mute": MUTE, "track": VOLUME}
 def control_size(width_deg: float, aspect: float) -> tuple[int, int]:
     width = max(1, round(width_deg / DEG_PER_PX))  # the screen in console pixels
     return width, max(1, round(width / aspect))
-
-
-def scaled(bgra: np.ndarray, factor: float) -> np.ndarray:
-    height, width = bgra.shape[:2]  # NEAREST: these are UI bitmaps, not photographs
-    image = Image.fromarray(np.ascontiguousarray(bgra), "RGBA").resize(
-        (max(1, round(width * factor)), max(1, round(height * factor))), Image.NEAREST)
-    return np.ascontiguousarray(np.asarray(image))
-
-
-def with_furniture(frame: np.ndarray, pieces) -> np.ndarray:
-    """*frame* with each ``(bitmap, x, y)`` blended over it, top-left origin -- a
-    copy, since the engine reuses the one it handed over."""
-    out = frame.copy()
-    for bgra, x, y in pieces:
-        height, width = bgra.shape[:2]
-        x0, y0 = max(0, x), max(0, y)
-        x1, y1 = min(out.shape[1], x + width), min(out.shape[0], y + height)
-        if x1 <= x0 or y1 <= y0:
-            continue
-        patch = bgra[y0 - y:y1 - y, x0 - x:x1 - x]
-        alpha = patch[:, :, 3:4].astype(np.uint16)
-        over = patch[:, :, 2::-1].astype(np.uint16)  # the bitmaps are BGRA
-        under = out[y0:y1, x0:x1, :3].astype(np.uint16)
-        out[y0:y1, x0:x1, :3] = ((over * alpha + under * (255 - alpha)) // 255).astype(np.uint8)
-    return out
 
 
 def paint_row(
@@ -105,9 +79,8 @@ def volume_slid_to(u: float, v: float, *, size: tuple[int, int]) -> int:
 
 
 class FurniturePointer:
-    """What a squeeze on a video's own controls does: the scrubber seeks and keeps
-    seeking as the hand moves, the speaker mutes, and the slider sets the level.
-    A squeeze on none of them is a squeeze on the picture, which is *picture*'s."""
+    """The scrubber seeks and keeps seeking as the hand moves, the speaker mutes,
+    the slider sets the level, and a squeeze on none of them is *picture*'s."""
 
     def __init__(
         self, *, seek: Callable[[float], None], mute: Callable[[bool], None] | None = None,

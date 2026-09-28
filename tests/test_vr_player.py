@@ -22,7 +22,6 @@ from player_core.console import ConsoleModel
 from player_core.console_hud import ConsoleHud
 from player_core.drive_readout import DriveHud
 from player_core.funscript import Funscript
-from player_core.funscript import load as load_funscript
 from player_core.modes import MainMode
 from player_core.play_points import play_points_filename
 from player_core.playback import Playback
@@ -42,7 +41,6 @@ from player_core.volume import (
     PAD,
     SPEAKER_W,
     VolumeHud,
-    VolumeHudPainter,
     chip_xy,
 )
 from shared_ui.palette import BLUE
@@ -81,7 +79,6 @@ from fun_time_vr.cover import (
     CoverWatcher,
 )
 from fun_time_vr.dash_panel import DASH_WIDTH_PX, dash_actions, dash_height
-from fun_time_vr.furniture import Scrubber, control_size, scaled
 from fun_time_vr.layout import (
     BANNER,
     DASH,
@@ -100,7 +97,6 @@ from fun_time_vr.library_panel import LIBRARY_SIZE_PX, scroll_from_stick, scroll
 from fun_time_vr.notices import NoticeBoard
 from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.player import (
-    _OV_SCRUBBER,
     VrSettings,
     _BannerUnit,
     _ControllerPosts,
@@ -434,118 +430,7 @@ class _OverlayPlayer:
         self.removed.append(ident)
 
 
-def _unit_with_pixels(width=640, height=480, kind=_VideoUnit) -> tuple[_VideoUnit, _OverlayPlayer]:
-    player = _OverlayPlayer()
-    unit = kind.__new__(kind)
-    unit.screen_name = MAIN
-    unit.player = player
-    unit._scrubber_shown = None
-    unit._chip_shown = None
-    unit._readout_shown = None
-    unit._readout_painter = PlayheadHudPainter()
-    unit._scrubber = Scrubber()
-    # A target that already holds pixels; the GL half is the integration
-    # suite's, and overlay_furniture reads only these three fields of it.
-    unit.target = SimpleNamespace(ready=True, width=width, height=height,
-                                 aspect=width / height)
-    unit.screen = SimpleNamespace(placement=SPOTS[MAIN])
-    return unit, player
-
-
-def test_a_picture_has_no_timeline_so_its_scrubber_comes_off_once_and_the_chip_stays():
-    unit, player = _unit_with_pixels()
-    player.showing_picture = True
-
-    unit.overlay_furniture(0.0, 0.0, VolumeHud(), VolumeHudPainter())
-    unit.overlay_furniture(0.0, 0.0, VolumeHud(), VolumeHudPainter())
-
-    assert len(player.overlays) == 1  # the chip alone
-    assert len(player.removed) == 1  # the bar, taken off once
-
-
-def test_a_side_player_keeps_the_scrubber_off_a_picture_its_session_put_up():
-    unit, player = _unit_with_pixels(kind=_SatelliteUnit)
-    unit.session = SimpleNamespace(showing_picture=True)
-    player.showing_picture = False
-
-    unit.overlay_furniture(1_000.0, 600_000.0, VolumeHud(), VolumeHudPainter())
-
-    assert len(player.overlays) == 1  # the chip alone
-
-
-def test_the_readout_goes_up_beside_the_scrubber_at_the_controls_own_size():
-    unit, player = _unit_with_pixels()
-    playhead = video_playhead(1_000.0, 600_000.0, 30.0)
-
-    unit.overlay_readout(playhead)
-
-    width, height = unit.control_size()
-    pill = PlayheadHudPainter().bgra(playhead)
-    x, y = readout_xy(pill.shape[1], win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
-    factor = unit.target.width / width
-    assert any((ox, oy) == (round(x * factor), round(y * factor))
-               for _ident, ox, oy in player.overlays)
-
-
-def test_a_readout_that_has_not_moved_is_not_put_up_again():
-    """The pump asks every tick, and a paused video's readout holds still."""
-    unit, player = _unit_with_pixels()
-    playhead = video_playhead(1_000.0, 600_000.0, 30.0)
-
-    unit.overlay_readout(playhead)
-    unit.overlay_readout(playhead)
-
-    assert len(player.overlays) == 1
-
-
-def test_a_video_that_wraps_the_viewer_takes_its_readout_off_with_the_row():
-    unit, player = _unit_with_pixels()
-    unit.overlay_furniture(1_000.0, 600_000.0, VolumeHud(), VolumeHudPainter())
-    unit.overlay_readout(video_playhead(1_000.0, 600_000.0, 30.0))
-
-    unit.clear_furniture()
-
-    assert set(player.removed) == {ident for ident, _x, _y in player.overlays}
-
-
-def test_the_row_comes_off_the_frame_of_a_video_that_wraps_the_viewer():
-    """Painted into a wrapped picture it rides round the nadir with it, a ring
-    nothing can read or hit; the console carries it there instead."""
-    unit, player = _unit_with_pixels()
-    unit.overlay_furniture(1_000.0, 600_000.0, VolumeHud(), VolumeHudPainter())
-
-    unit.clear_furniture()
-    assert set(player.removed) == {ident for ident, _x, _y in player.overlays}
-
-    unit.clear_furniture()
-    assert len(player.removed) == 2  # taken off once, not every turn of the pump
-
-    unit.overlay_furniture(1_000.0, 600_000.0, VolumeHud(), VolumeHudPainter())
-    assert len(player.overlays) == 4  # and it repaints when the video is flat again
-
-
-def test_the_furniture_is_painted_once_and_not_per_tick():
-    """The pump calls this every frame; the scrubber and chip must repaint
-    only when what they SHOW moves, not sixty times a second."""
-    unit, player = _unit_with_pixels()
-    hud = VolumeHud(volume=80, muted=True)
-    painter = VolumeHudPainter()
-
-    unit.overlay_furniture(1_000.0, 600_000.0, hud, painter)
-    assert len(player.overlays) == 2  # the scrubber and the chip, once each
-
-    # A playhead move too small to cross a track pixel: byte-identical bar.
-    unit.overlay_furniture(1_001.0, 600_000.0, hud, painter)
-    assert len(player.overlays) == 2
-
-    # A move that lands the cursor on another pixel repaints the scrubber
-    # alone; the chip shows the same volume and stays.
-    unit.overlay_furniture(300_000.0, 600_000.0, hud, painter)
-    assert len(player.overlays) == 3
-
-
 _STROKES = Funscript(actions=[(0, 0), (500, 100), (1_000, 0), (6_000, 100), (9_000, 0)])
-
 _NEVER_DIALED = {"fov_of": lambda _video: None, "height_of": lambda _video: None}
 
 
@@ -561,21 +446,11 @@ def _a_main_role_reporting(loop: SimpleNamespace) -> SimpleNamespace:
         record_in_ms=getattr(loop, "record_in_ms", None))
 
 
-def test_a_scripted_videos_scrubber_is_the_desktop_heatmap_strip_blown_up():
-    unit, player = _unit_with_pixels()
-
-    unit.overlay_furniture(1_000.0, 10_000.0, VolumeHud(), VolumeHudPainter(),
-                           video=Path("v0.mp4"), funscript=_STROKES)
-
-    width, _height = unit.control_size()
-    desktop = HeatmapStrip()
-    desktop.update(Path("v0.mp4"), _STROKES, 10_000.0, width)
-    assert np.array_equal(player.bitmaps[_OV_SCRUBBER], scaled(
-        timeline_bgra(desktop, 1_000.0, None, width), unit.target.width / width))
-
-
-def test_the_main_player_paints_its_videos_script_into_its_scrubber(
+def test_the_main_screen_blends_nothing_into_its_picture(
         tmp_path, faked_collaborators):
+    """The track, the time and the volume are on the panel hanging under the
+    slot (TestThePanelUnderThePointer), wrapped or flat, so the picture itself
+    comes through untouched."""
     vr = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
                     audio_device="", compositor_layers=False)
     unit = _MainUnit(_manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS,
@@ -583,43 +458,18 @@ def test_the_main_player_paints_its_videos_script_into_its_scrubber(
     unit.player = _OverlayPlayer()
     unit.player.frame_rate = 30.0
     unit.target = SimpleNamespace(ready=True, width=640, height=360, aspect=16 / 9, video=None)
-    unit._volume_painter = VolumeHudPainter()
     unit.role = _a_main_role_reporting(SimpleNamespace())
 
     unit.pump(threading.Event(), 0.0)
 
-    width, _height = unit.control_size()
-    desktop = HeatmapStrip()
-    desktop.update(Path("v0.mp4"), _STROKES, 10_000.0, width)
-    assert np.array_equal(unit.player.bitmaps[_OV_SCRUBBER], scaled(
-        timeline_bgra(desktop, 1_000.0, None, width), 640 / width))
+    assert unit.player.bitmaps == {}
 
 
-def test_the_main_player_paints_the_loop_it_is_running_onto_its_scrubber(
+def test_a_side_screen_fills_its_panels_track_with_its_clips_colors(
         tmp_path, faked_collaborators):
-    """The desktop main player shades a running loop on its own bar; the headset
-    draws the same bar, so a loop marked in there shows the same way."""
-    vr = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-                    audio_device="", compositor_layers=False)
-    unit = _MainUnit(_manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS,
-                     remembered=Layout(), genau_role=SimpleNamespace(showing=False))
-    unit.player = _OverlayPlayer()
-    unit.player.frame_rate = 30.0
-    unit.target = SimpleNamespace(ready=True, width=640, height=360, aspect=16 / 9, video=None)
-    unit._volume_painter = VolumeHudPainter()
-    unit.role = _a_main_role_reporting(SimpleNamespace(loop_bounds=(2_000, 6_000)))
-
-    unit.pump(threading.Event(), 0.0)
-
-    width, _height = unit.control_size()
-    desktop = HeatmapStrip()
-    desktop.update(Path("v0.mp4"), _STROKES, 10_000.0, width)
-    assert np.array_equal(unit.player.bitmaps[_OV_SCRUBBER], scaled(
-        timeline_bgra(desktop, 1_000.0, (2_000, 6_000), width), 640 / width))
-
-
-def test_a_side_screen_paints_its_clips_script_into_its_scrubber(
-        tmp_path, faked_collaborators):
+    """A panel is as wide as what is on it, so the screen measures the track the
+    panel drew and builds the script's colors across it; the panel fills the
+    next one (player_core's tests/test_hud_overlay.py)."""
     vr = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
                     audio_device="", compositor_layers=False)
     unit = _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
@@ -636,24 +486,14 @@ def test_a_side_screen_paints_its_clips_script_into_its_scrubber(
     unit.player.push_still = lambda: None
     unit.target = SimpleNamespace(ready=True, width=640, height=360, aspect=16 / 9)
     unit.volume = SimpleNamespace(hud=VolumeHud())
-    unit._volume_painter = VolumeHudPainter()
+    unit.hud.row_rect = (0, 0, PANEL_WIDTH_PX, TIMELINE_HEIGHT)
 
     unit.pump(threading.Event(), 0.0)
+    unit.pump(threading.Event(), 0.0)
 
-    width, _height = unit.control_size()
-    desktop = HeatmapStrip()
-    desktop.update(clip, load_funscript(script), 10_000.0, width)
-    assert np.array_equal(unit.player.bitmaps[_OV_SCRUBBER], scaled(
-        timeline_bgra(desktop, 0.0, None, width), 640 / width))
-
-
-def test_no_furniture_lands_before_the_target_holds_pixels():
-    unit, player = _unit_with_pixels()
-    unit.target = SimpleNamespace(ready=False, width=0, height=0)
-
-    unit.overlay_furniture(1_000.0, 600_000.0, VolumeHud(), VolumeHudPainter())
-
-    assert player.overlays == []
+    x0, x1 = bar_track_x(PANEL_WIDTH_PX)
+    assert len(unit.hud.tick.call_args.kwargs["heatmap"]) == x1 - x0
+    assert unit.hud.tick.call_args.kwargs["clip_row"].duration_ms == 10_000.0
 
 
 # Every class that goes on the file-channel worker's list, which the frame
@@ -1987,20 +1827,15 @@ class TestWhichSlotAsksForARow:
 
 
 class TestTheClipsOwnControls:
-    """Genau is handed finished pictures rather than decoding its own, so its
-    scrubber and volume slider are blended into the picture -- same places, same
-    size, as every player that has an mpv underneath to paint them into."""
+    """Genau is handed finished pictures rather than decoding its own, and the
+    track, the time and the volume it used to have blended into them are on the
+    panel hanging under the slot now (TestThePanelUnderThePointer)."""
 
     def _unit(self, *, played=5, of=20, volume=70, muted=False, showing=True):
         unit = _GenauUnit.__new__(_GenauUnit)
-        unit.role = SimpleNamespace(playhead=(played, of), volume=volume, muted=muted, showing=showing)
+        unit.role = SimpleNamespace(playhead=(played, of), volume=volume, muted=muted,
+                                    showing=showing)
         unit.screen = SimpleNamespace(placement=SPOTS[MAIN])
-        unit._volume_painter = VolumeHudPainter()
-        unit._readout_painter = PlayheadHudPainter()
-        unit._control_size = None
-        unit._scrubber = Scrubber()
-        unit._scrubber_shown = unit._chip_shown = unit._readout_shown = None
-        unit._bar = unit._chip = unit._readout = None
         return unit
 
     def _uploading(self, projection):
@@ -2014,143 +1849,17 @@ class TestTheClipsOwnControls:
         unit.render_latest_frame()
         return clip, unit.texture.uploads[-1]
 
-    def test_a_wrapped_clip_is_uploaded_with_no_controls_blended_into_it(self):
-        """Blended in they ride round the nadir with the picture; the console
-        carries them there instead."""
+    def test_a_wrapped_clip_is_uploaded_untouched(self):
         clip, uploaded = self._uploading(EQUIRECT_180_SBS)
 
         assert uploaded is clip
 
-    def test_a_clip_on_a_screen_still_carries_them(self):
+    def test_a_clip_on_a_screen_is_uploaded_untouched_too(self):
+        """It used to come back with a bar along its lower edge; the panel
+        carries that now, so the two slots upload the same way."""
         clip, uploaded = self._uploading(FLAT)
 
-        assert uploaded is not clip
-        assert uploaded[-2].max() > 0
-
-    def test_the_clip_comes_back_with_its_controls_on_it(self):
-        unit = self._unit()
-        clip = np.zeros((360, 640, 3), dtype=np.uint8)
-
-        furnished = unit._furnished(clip)
-
-        assert clip.max() == 0  # the engine's own picture, untouched
-        assert furnished[-2].max() > 0  # a scrubber along the lower edge
-        assert furnished[:200].max() == 0  # and nothing over the picture itself
-
-    def test_the_bitmaps_are_repainted_only_when_what_they_show_moves(self):
-        unit = self._unit()
-        clip = np.zeros((360, 640, 3), dtype=np.uint8)
-
-        unit._furnished(clip)
-        bar, chip = unit._bar, unit._chip
-        unit._furnished(clip)
-
-        assert unit._bar is bar and unit._chip is chip
-
-        unit.role = SimpleNamespace(playhead=(19, 20), volume=70, muted=False)
-        unit._furnished(clip)
-
-        assert unit._bar is not bar
-        assert unit._chip is chip
-
-    def test_the_press_coordinates_are_the_ones_it_drew_at(self):
-        unit = self._unit()
-
-        unit._furnished(np.zeros((360, 640, 3), dtype=np.uint8))
-
-        assert unit._control_size == control_size(SPOTS[MAIN].width_deg, 640 / 360)
-
-    def test_a_tall_clips_controls_are_painted_for_the_width_it_hangs_at(self):
-        unit = self._unit()
-
-        unit._furnished(np.zeros((640, 360, 3), dtype=np.uint8))
-
-        tall = 360 / 640
-        assert unit._control_size == control_size(
-            shown_at(MAIN, SPOTS[MAIN], tall).width_deg, tall)
-
-    def test_the_clip_says_which_frame_is_up_beside_its_bar(self):
-        unit = self._unit()
-
-        furnished = unit._furnished(np.zeros((360, 640, 3), dtype=np.uint8))
-
-        width, height = unit._control_size
-        factor = 640 / width
-        pill = PlayheadHudPainter().bgra(clip_playhead(5, 20))
-        x, y = readout_xy(pill.shape[1], win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
-        middle = (round((y + pill.shape[0] / 2) * factor), round((x + pill.shape[1] / 2) * factor))
-        assert furnished[middle].max() > 0
-
-    def test_nothing_is_blended_or_uploaded_while_the_main_slot_shows_something_else(self):
-        """Genau's engine free-runs on its own thread, driving the OSR2 off a
-        clip whether or not its picture is the one on screen -- so blending and
-        uploading a frame nobody draws used to cost every VR frame the room ran,
-        seconds a minute against a Topaz-upscaled clip, however the main slot
-        was actually spent."""
-        unit = self._unit(showing=False)
-        unit.role.take_frame = lambda: (_ for _ in ()).throw(
-            AssertionError("asked for a frame while hidden"))
-
-        unit.render_latest_frame()
-
-    def test_the_clip_is_still_taken_the_instant_genau_is_shown_again(self):
-        unit = self._unit(showing=True)
-        clip = np.zeros((360, 640, 3), dtype=np.uint8)
-        unit.role.take_frame = lambda: clip
-        unit.role.projection = FLAT
-        unit.texture = _FakeTexture()
-        unit.screen = SimpleNamespace(placement=SPOTS[MAIN], rehang_at=lambda _placement, _aspect: None)
-
-        unit.render_latest_frame()
-
-        assert unit.texture.uploads
-
-
-def test_a_frozen_clips_picture_goes_where_its_handle_drags_it():
-    unit = TestTheClipsOwnControls()._unit()
-    handed_once = iter([np.zeros((360, 640, 3), dtype=np.uint8)])
-    unit.role.take_frame = lambda: next(handed_once, None)
-    unit.role.projection = FLAT
-    unit.texture = _FakeTexture()
-    unit.screen = _HangingScreen(SPOTS[MAIN])
-    dragged = Placement(azimuth_deg=-30.0, elevation_deg=8.0, width_deg=70.0)
-
-    with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
-        unit.render_latest_frame()
-        unit.screen.placement = dragged
-        unit.render_latest_frame()
-
-    aspect = unit.texture.aspect
-    assert np.array_equal(unit.screen.mesh.uploads[-1],
-                          surface_vertices(shown_at(MAIN, dragged, aspect), aspect=aspect))
-
-
-def _area(corners) -> float:
-    upper_left, lower_left, upper_right = corners[0, :3], corners[1, :3], corners[2, :3]
-    return float(np.linalg.norm(upper_right - upper_left)
-                 * np.linalg.norm(upper_left - lower_left))
-
-
-def test_a_clip_taller_than_it_is_wide_hangs_over_the_area_a_widescreen_clip_does():
-    unit = TestTheClipsOwnControls()._unit()
-    unit.role.take_frame = lambda: np.zeros((640, 360, 3), dtype=np.uint8)
-    unit.role.projection = FLAT
-    unit.texture = SimpleNamespace(ready=True, aspect=360 / 640, upload=lambda _pixels: None)
-    unit.screen = _HangingScreen(SPOTS[MAIN])
-
-    with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
-        unit.render_latest_frame()
-
-    assert _area(unit.screen.mesh.uploads[-1]) == pytest.approx(
-        _area(surface_vertices(SPOTS[MAIN], aspect=16 / 9)))
-
-
-def test_a_satellite_offers_a_picture_of_another_shape_over_the_area_its_usual_one_covers():
-    (picture,) = _a_satellite(PORTRAIT).hangings()
-
-    assert _area(surface_vertices(picture.screen.placement, aspect=picture.screen.aspect)) == (
-        pytest.approx(_area(surface_vertices(SPOTS[PORTRAIT], aspect=9 / 16))))
-
+        assert uploaded is clip
 
 class _FakeRenderer:
     """Records which meshes were drawn, so a screen nobody draws is visible."""

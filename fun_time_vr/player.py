@@ -50,6 +50,7 @@ from player_core.funscript import Funscript
 from player_core.genau_notifier import GenauNotifier
 from player_core.hud_overlay import HudOverlay
 from player_core.hud_placement import HudEdge
+from player_core.hud_row import RowHud
 from player_core.play_points import PlayPoints, play_points_filename
 from player_core.playback import Playback, funscripts_of
 from player_core.player_verbs import play_file
@@ -58,17 +59,17 @@ from player_core.playhead import (
     PlayheadHudPainter,
     clip_playhead,
     lower_edge_height,
-    readout_xy,
     video_playhead,
 )
 from player_core.playlist import PlaylistItem, read_playlist
 from player_core.pointer import OMNIPAUSE_TOGGLE
 from player_core.render_player import MpvRenderPlayer
+from player_core.scrubber import HeatmapStrip
 from player_core.status import StatusWriter
 from player_core.tcode import UdpTCodeSink
 from player_core.tcode_driver import FunscriptTCodeDriver
 from player_core.timeline import TIMELINE_HEIGHT
-from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
+from player_core.volume import VolumeHud, VolumeHudPainter
 from player_core.volume_control import VolumeControl
 
 from fun_time import preview_marker
@@ -124,8 +125,6 @@ from .furniture import (
     control_size,
     on_its_controls,
     paint_row,
-    scaled,
-    with_furniture,
 )
 from .genau_role import GenauRole, run_ticks
 from .genau_settings import GenauSettings
@@ -229,12 +228,8 @@ from .wrap_readout import WrapReadout, readout
 logger = logging.getLogger(__name__)
 
 # Overlay ids shared with the desktop satellite (10 is its lock HUD).
-_OV_SCRUBBER = 11
-_OV_VOLUME = 12
 _OV_NOTICE_BANNER = 13
-_OV_READOUT = 14
 
-_NO_TIMELINE = object()
 
 # Longest texture side each video gets: near-native for the main player, and for
 # a satellite's 28° of view well above what the headset resolves there.
@@ -376,12 +371,7 @@ class _VideoUnit:
         self.layer_dirty = False
         self.layer_rect: tuple[int, int] | None = None
         # Furniture last painted, pump-thread-owned.
-        self._scrubber_shown: tuple | None = None
-        self._chip_shown: tuple | None = None
         self._banner_shown: tuple | None = None
-        self._readout_shown: tuple | None = None
-        self._readout_painter = PlayheadHudPainter()
-        self._scrubber = Scrubber()
 
     def render_latest_frame(self) -> None:
         sized = (self.target.width, self.target.height)
@@ -412,41 +402,9 @@ class _VideoUnit:
     def control_size(self) -> tuple[int, int]:  # see :mod:`fun_time_vr.furniture`
         return control_size(self.shown.width_deg, self.target.aspect)
 
-    def overlay_furniture(
-        self, position_ms: float, duration_ms: float, volume_hud, painter, *,
-        video: Path | None = None, funscript: Funscript | None = None,
-        loop_bounds: tuple[int, int] | None = None, record_in_ms: int | None = None,
-    ) -> None:
-        """The desktop's own scrubber and volume chip, painted small and blown up to
-        the video's pixels: one angular size on every screen, however far it zooms."""
-        if not self.target.ready:
-            return
-        width, height = self.control_size()
-        factor = self.target.width / width
-        scrubber = (_NO_TIMELINE if self.picture_on_screen()
-                    else self._scrubber.state((width, height), position_ms, duration_ms,
-                                              video=video, funscript=funscript,
-                                              loop_bounds=loop_bounds,
-                                              record_in_ms=record_in_ms))
-        if scrubber != self._scrubber_shown:
-            self._scrubber_shown = scrubber
-            if scrubber is _NO_TIMELINE:
-                self.player.remove_overlay(_OV_SCRUBBER)
-            else:
-                bar = scaled(self._scrubber.bgra(position_ms, width,
-                                                 loop_bounds=loop_bounds,
-                                                 record_in_ms=record_in_ms), factor)
-                self.player.overlay(_OV_SCRUBBER, 0, self.target.height - bar.shape[0], bar)
-        chip = chip_state(width, height, volume_hud)
-        if chip != self._chip_shown:
-            self._chip_shown = chip
-            x, y = chip_xy(win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
-            self.player.overlay(_OV_VOLUME, round(x * factor), round(y * factor),
-                                scaled(painter.bgra(volume_hud), factor))
-
     def overlay_banner(self, notice) -> None:
-        """Flash *notice* over this picture, or clear what was flashing --
-        repainted only when it changes, as the furniture is."""
+        """Flash *notice* over this picture, or clear what was flashing,
+        repainted only when it changes."""
         if not self.target.ready:
             return
         width, height = self.target.width, self.target.height
@@ -462,31 +420,6 @@ class _VideoUnit:
             return
         x, y, bgra = placed
         self.player.overlay(_OV_NOTICE_BANNER, x, y, bgra)
-
-    def overlay_readout(self, playhead) -> None:
-        if not self.target.ready:
-            return
-        width, height = self.control_size()
-        shown = None if playhead is None else (playhead, width, height, self.target.width)
-        if shown == self._readout_shown:
-            return
-        self._readout_shown = shown
-        if shown is None:
-            self.player.remove_overlay(_OV_READOUT)
-            return
-        factor = self.target.width / width
-        pill = self._readout_painter.bgra(playhead)
-        x, y = readout_xy(pill.shape[1], win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
-        self.player.overlay(_OV_READOUT, round(x * factor), round(y * factor),
-                            scaled(pill, factor))
-
-    def clear_furniture(self) -> None:
-        if self._scrubber_shown is None and self._chip_shown is None:
-            return
-        self._scrubber_shown = self._chip_shown = None  # on a wrap it rides round the nadir
-        self.player.remove_overlay(_OV_SCRUBBER)
-        self.player.remove_overlay(_OV_VOLUME)
-        self.overlay_readout(None)
 
     def pump(self, stop: threading.Event, now: float) -> None:
         """One turn of the file-channel worker — what every unit owes it."""
@@ -577,7 +510,6 @@ class _MainUnit(_VideoUnit):
             Path(commands.main_player_status_file),
             lambda role: role.status_fields(self.drive_gate.handoff_touch()),
         )
-        self._volume_painter = VolumeHudPainter()
         self._readout = WrapReadout()
         self._notices = notices
         self._watch = PlaybackWatch()
@@ -691,16 +623,6 @@ class _MainUnit(_VideoUnit):
         self._watch_progress(now)
         self._status_writer.write(self.role)
         self._take_presses()
-        if self.wraps_the_viewer:
-            self.clear_furniture()
-        else:
-            controls = self.controls
-            self.overlay_furniture(
-                controls.position, controls.duration, controls.hud, self._volume_painter,
-                video=controls.video, funscript=controls.funscript,
-                loop_bounds=controls.loop_bounds, record_in_ms=controls.record_in_ms,
-            )
-            self.overlay_readout(controls.playhead)
         if self._notices is not None:
             self.overlay_banner(self.banner_into_the_picture())
 
@@ -797,9 +719,13 @@ class _SatelliteUnit(_VideoUnit):
             drive_file=channels.drive,
             drive_gate=self.drive_gate,
             over_the_video=False,
+            seek=self.session.seek_to,
+            set_volume=self._set_volume,
+            toggle_mute=lambda: self._toggle_mute(self.volume.hud.muted),
         )
         self.hud_texture = FrameTexture()
         self.hud_screen = _HangingScreen(self.screen.placement)
+        self._strip = HeatmapStrip()
         self._hud_version = -1
         self._hud_shown = False
         self.volume = VolumeControl(self.player)
@@ -808,14 +734,8 @@ class _SatelliteUnit(_VideoUnit):
         self._presses = _Presses(player, hud_screen_name(player))
         self._dashboard_cmd_file = channels.dashboard_cmd
         self._pointer = SatellitePointer(
-            hud=self.hud, seek=self.session.seek_to,
-            duration_ms=lambda: self.session.duration_ms,
-            volume=lambda: self.volume.hud,
-            mute=self._toggle_mute, set_volume=self._set_volume,
-            picture=lambda: self._post(OMNIPAUSE_TOGGLE),
-            picture_on_screen=self.picture_on_screen,
+            hud=self.hud, picture=lambda: self._post(OMNIPAUSE_TOGGLE),
         )
-        self._volume_painter = VolumeHudPainter()
 
     def _post(self, command: str) -> None:
         append_command(self._dashboard_cmd_file, command)
@@ -834,6 +754,27 @@ class _SatelliteUnit(_VideoUnit):
     def _set_volume(self, level: int) -> None:
         if self._audio_routed:
             self.volume.set_level(level)
+
+    def _track_width(self) -> int:
+        """How wide the panel drew the track last frame, which is what the
+        colors have to cover -- 0 until one has been drawn, which leaves that
+        first row plain."""
+        rect = self.hud.row_rect
+        return 0 if rect is None else rect[2]
+
+    def clip_row(self) -> RowHud | None:
+        """Where this screen's clip has got to, how long it runs and how loud
+        it is -- the row the panel it hangs carries, or None on a picture."""
+        if self.picture_on_screen():
+            return None
+        session = self.session
+        return RowHud(
+            position_ms=session.position_ms,
+            duration_ms=session.duration_ms,
+            volume=self.volume.hud,
+            playhead=video_playhead(session.position_ms, session.duration_ms,
+                                    self.player.frame_rate),
+        )
 
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
@@ -892,7 +833,11 @@ class _SatelliteUnit(_VideoUnit):
         self.session.advance()
         self.player.push_still()
         self._status_writer.write(self.session)
-        self.hud.tick(video=self.session.name_on_screen, playback_speed=self.session.speed)
+        row = self.clip_row()
+        self._strip.update(self.session.showing, self.session.current_funscript,
+                           self.session.duration_ms, self._track_width())
+        self.hud.tick(video=self.session.name_on_screen, playback_speed=self.session.speed,
+                      clip_row=row, heatmap=self._strip.colors if row else None)
         for event in self._presses.drain():
             kind = screen_kind(event.screen)
             if event.kind == PRESS:
@@ -905,13 +850,6 @@ class _SatelliteUnit(_VideoUnit):
         kind = screen_kind(hover[0]) if hover is not None else PICTURE
         self._pointer.hover(
             kind, hover[1] if hover is not None else None, size=self._surface_size(kind))
-        self.overlay_furniture(
-            self.session.position_ms, self.session.duration_ms,
-            self.volume.hud, self._volume_painter,
-            video=self.session.current_video, funscript=self.session.current_funscript,
-        )
-        self.overlay_readout(video_playhead(
-            self.session.position_ms, self.session.duration_ms, self.player.frame_rate))
         if self._notices is not None:
             self.overlay_banner(self._notices.banner(self.screen_name))
 
@@ -927,9 +865,8 @@ class _SatelliteUnit(_VideoUnit):
 
 
 class _GenauUnit:
-    """Genau's surface: the frame its engine chose, on the main player's screen or
-    wrapped round the viewer by the clip's projection.  Its scrubber and volume
-    slider are blended into that frame -- there is no mpv under it to paint."""
+    """Genau's surface: the frame its engine chose, on the main player's screen
+    or wrapped round the viewer by the clip's projection, uploaded untouched."""
 
     SPOTS = _MainUnit.SPOTS  # the same slot, which the two take turns in
 
@@ -967,12 +904,6 @@ class _GenauUnit:
             set_volume=lambda level: self._post(f"audio_set_volume|{level}"),
             picture=lambda: self._post(OMNIPAUSE_TOGGLE),
         )
-        self._volume_painter = VolumeHudPainter()
-        self._readout_painter = PlayheadHudPainter()
-        self._control_size: tuple[int, int] | None = None
-        self._scrubber = Scrubber()
-        self._scrubber_shown = self._chip_shown = self._readout_shown = None
-        self._bar = self._chip = self._readout = None
 
     def _post(self, command: str) -> None:
         append_command(self._dashboard_cmd_file, command)
@@ -1016,46 +947,13 @@ class _GenauUnit:
             return
         frame = self.role.take_frame()
         if frame is not None:
-            self.texture.upload(frame if self.wraps_the_viewer else self._furnished(frame))
+            self.texture.upload(frame)
         if self.texture.ready:
             self.screen.rehang_at(self.shown, self.texture.aspect)
 
     @property
     def shown(self) -> Placement:
         return shown_at(MAIN, self.screen.placement, self.texture.aspect)
-
-    def _furnished(self, frame):
-        """The clip with its controls on it, where every other player draws them."""
-        height, width = frame.shape[:2]
-        aspect = width / height
-        size = control_size(shown_at(MAIN, self.screen.placement, aspect).width_deg, aspect)
-        self._control_size = size
-        factor = width / size[0]
-        played, of = self.role.playhead
-        scrubber = self._scrubber.state(size, played, of)
-        if scrubber != self._scrubber_shown:
-            self._scrubber_shown = scrubber
-            self._bar = scaled(self._scrubber.bgra(played, size[0]), factor)
-        hud = VolumeHud(volume=self.role.volume, muted=self.role.muted)
-        chip = chip_state(*size, hud)
-        if chip != self._chip_shown:
-            self._chip_shown = chip
-            self._chip = scaled(self._volume_painter.bgra(hud), factor)
-        x, y = chip_xy(win_w=size[0], win_h=size[1], timeline_h=TIMELINE_HEIGHT)
-        pieces = [
-            (self._bar, 0, height - self._bar.shape[0]),
-            (self._chip, round(x * factor), round(y * factor)),
-        ]
-        playhead = clip_playhead(played, of)
-        if playhead is not None:
-            pill = self._readout_painter.bgra(playhead)
-            if (playhead, size, factor) != self._readout_shown:
-                self._readout_shown = (playhead, size, factor)
-                self._readout = scaled(pill, factor)
-            rx, ry = readout_xy(pill.shape[1], win_w=size[0], win_h=size[1],
-                                timeline_h=TIMELINE_HEIGHT)
-            pieces.append((self._readout, round(rx * factor), round(ry * factor)))
-        return with_furniture(frame, pieces)
 
     def pump(self, stop: threading.Event, now: float) -> None:
         """The presses only: the engine turns its channels on its own thread."""
