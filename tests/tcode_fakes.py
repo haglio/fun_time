@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 from player_core.funscript import Funscript
+from player_core.robot_hand import FULL_INTENSITY
 
 
 class FakeTCode:
     def __init__(self) -> None:
         self.updates: list[tuple[int, Funscript, float]] = []
+        self.max_intensities: list[int] = []
         self.parks = 0
         self.resets = 0
         self.closed = False
 
-    def update(self, position_ms: int, fs: Funscript, *, speed: float = 1.0) -> None:
+    def update(self, position_ms: int, fs: Funscript, *, speed: float = 1.0,
+               max_intensity: int = FULL_INTENSITY) -> None:
         self.updates.append((position_ms, fs, speed))
+        self.max_intensities.append(max_intensity)
 
     def park(self) -> None:
         self.parks += 1

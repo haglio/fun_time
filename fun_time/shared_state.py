@@ -24,6 +24,7 @@ from player_core.console import OSR2_DRIVING
 from player_core.file_channel import publish_whole
 from player_core.hud_placement import HudCorner, HudEdge
 from player_core.modes import MainMode, SatellitesMode, read_mode
+from player_core.robot_hand import FULL_INTENSITY
 
 from .audio_volume import MAX_VOLUME
 from .crown import Crown
@@ -117,6 +118,7 @@ class BridgeState:
     # mute leaves the level alone so a second "mute" restores what was set.
     volume: int = MAX_VOLUME
     muted: bool = False
+    max_intensity: int = FULL_INTENSITY
     osr2_control: str = OSR2_DRIVING  # the console's four-button group sets it
     crowned: Crown = Crown.MAIN
     majority: Crown = Crown.PORTRAIT

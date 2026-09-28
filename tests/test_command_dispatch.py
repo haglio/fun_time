@@ -2746,6 +2746,27 @@ def test_setting_the_volume_clamps_and_ignores_nonsense(tmp_path: Path):
     assert unchanged.volume == 70
 
 
+def test_the_max_intensity_slider_reaches_every_player_that_can_drive_the_device(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    new_state, ops = dispatch_command("max_intensity_35", _make_state(), config)
+
+    assert new_state.max_intensity == 35
+    for command_file in (config.genau_cmd_file, config.main_player_cmd_file,
+                         config.portrait_cmd_file, config.landscape_cmd_file):
+        assert command_file.read_text(encoding="utf-8").strip() == "SET_MAX_INTENSITY 35"
+    assert ops == [WindowOp(op="notice", key="Max intensity 35%", source="main")]
+
+
+def test_the_max_intensity_clamps_and_ignores_nonsense(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    assert dispatch_command("max_intensity_400", _make_state(), config)[0].max_intensity == 100
+    assert dispatch_command("max_intensity_-5", _make_state(), config)[0].max_intensity == 0
+    unchanged, _ops = dispatch_command("max_intensity_loud", _make_state(max_intensity=70), config)
+    assert unchanged.max_intensity == 70
+
+
 def test_mute_silences_both_sinks_and_remembers_the_level(tmp_path: Path):
     config = _make_config(tmp_path)
 

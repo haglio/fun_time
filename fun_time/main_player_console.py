@@ -10,6 +10,7 @@ from pathlib import Path
 from player_core.console import OSR2_DRIVING, ConsoleModel
 from player_core.hud_placement import HudCorner, HudEdge
 from player_core.modes import MainMode, Osr2State
+from player_core.robot_hand import FULL_INTENSITY
 
 from .console_buttons import MainSlot, console_rows, osr2_controls
 from .mode_plan import main_player_displays
@@ -69,6 +70,7 @@ class MainSlotInputs:
     in_vr: bool = False
     crowned: bool = True
     has_osr2: bool = True
+    max_intensity: int = FULL_INTENSITY
 
 
 def console_model(inputs: MainSlotInputs) -> ConsoleModel:
@@ -113,6 +115,7 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         rows=console_rows(slot, in_vr=inputs.in_vr),
         osr2_controls=osr2_controls(broker=inputs.broker) if inputs.has_osr2 else (),
         has_osr2=inputs.has_osr2,
+        max_intensity=inputs.max_intensity,
     )
 
 

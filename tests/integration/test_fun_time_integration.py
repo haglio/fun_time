@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
+from app_support.file_channel import read_key_values
 from app_support.funscript import document, write
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from player_core.file_channel import append_command
@@ -152,6 +153,91 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
     # Genau runs on in video mode — its HUD over the video, the Robot Hand
     # under it for the funscript's gaps — so its flag never flips back.
     assert s.config.genau_paused_file.read_text(encoding="utf-8") == "0"
+
+
+def _osr2_still(heights: list[float]) -> bool:
+    return bool(heights) and max(heights) - min(heights) < 0.02
+
+
+def _osr2_swinging(heights: list[float]) -> bool:
+    return bool(heights) and max(heights) - min(heights) > 0.3
+
+
+def _osr2_heights(sink: int, *, seconds: float) -> list[float]:
+    return [height for _at, _sender, height in tcode_heard(sink, seconds=seconds)]
+
+
+def _osr2_heard_until(sink: int, shows) -> list[float]:
+    deadline = time.monotonic() + COMMAND_BUDGET_S
+    heard = _osr2_heights(sink, seconds=3)
+    while not shows(heard) and time.monotonic() < deadline:
+        heard = _osr2_heights(sink, seconds=3)
+    return heard
+
+
+def _wait_for_genau_to_say(session: FunTimeIntegrationSession, **fields: int) -> None:
+    wanted = {key: str(value) for key, value in fields.items()}
+
+    def saying() -> bool:
+        try:
+            said = read_key_values(session.config.genau_status_file)
+        except (OSError, ValueError):
+            return False
+        return all(said.get(key, "").strip() == value for key, value in wanted.items())
+
+    session.wait_until(saying, timeout=COMMAND_BUDGET_S,
+                       description=f"Genau's status to say {wanted}")
+
+
+def test_fun_time_the_max_intensity_pushes_the_robot_hand_down_and_leaves_it_there(
+    shared_integration_session: FunTimeIntegrationSession,
+):
+    s = shared_integration_session
+    sink = s.config.main_player_tcode.port
+    s.write_dashboard_command("genau_activate")
+    s.wait_for_new_log("Switched to genau mode", timeout=COMMAND_BUDGET_S)
+    try:
+        for command in ("play", "robot_hand_amp_100", "robot_hand_speed_50"):
+            s.write_dashboard_command(command)
+        swinging = _osr2_heard_until(sink, _osr2_swinging)
+        s.write_dashboard_command("max_intensity_0")
+        held = _osr2_heard_until(sink, _osr2_still)
+        _wait_for_genau_to_say(s, max_intensity=0)
+        s.write_dashboard_command("max_intensity_100")
+        _wait_for_genau_to_say(s, max_intensity=100)
+        left_where_it_pushed = _osr2_heights(sink, seconds=3)
+        for command in ("robot_hand_amp_100", "robot_hand_speed_50"):
+            s.write_dashboard_command(command)
+        free = _osr2_heard_until(sink, _osr2_swinging)
+    finally:
+        s.write_dashboard_command("max_intensity_100")
+        s.write_dashboard_command("main_video_activate")
+        s.wait_for_new_log("Switched to video mode", timeout=COMMAND_BUDGET_S)
+
+    assert _osr2_swinging(swinging), swinging
+    assert _osr2_still(held), held
+    assert _osr2_still(left_where_it_pushed), left_where_it_pushed
+    assert _osr2_swinging(free), free
+
+
+def test_fun_time_the_max_intensity_holds_a_funscript_down_through_its_gaps_too(
+    shared_integration_session: FunTimeIntegrationSession,
+):
+    s = shared_integration_session
+    sink = s.config.main_player_tcode.port
+    s.write_dashboard_command("main_video_activate")
+    s.write_dashboard_command("play")
+    try:
+        free = _osr2_heard_until(sink, _osr2_swinging)
+        s.write_dashboard_command("max_intensity_0")
+        held = _osr2_heard_until(sink, _osr2_still)
+        still_after = _osr2_heights(sink, seconds=10)
+    finally:
+        s.write_dashboard_command("max_intensity_100")
+
+    assert _osr2_swinging(free), free
+    assert _osr2_still(held), held
+    assert _osr2_still(still_after), still_after
 
 
 def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integration_session: FunTimeIntegrationSession):
@@ -627,17 +713,13 @@ def _script_that_starts_in_ten_hours(path: Path) -> Path:
     return path
 
 
-def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
-    shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
-):
-    s = shared_integration_session
+@contextmanager
+def _the_portrait_player_driving_the_osr2(s: FunTimeIntegrationSession, tmp_path: Path):
     portrait = s.config.satellite(Player.PORTRAIT)
     s.wait_until(lambda: bool(read_satellite_status(portrait.status_file).video)
                  and not read_satellite_status(portrait.status_file).paused,
                  timeout=30, description="the portrait player playing a video")
     video = Path(read_satellite_status(portrait.status_file).video)
-    sink = s.config.main_player_tcode.port
-    before = senders(tcode_heard(sink, seconds=2))
     try:
         s.write_dashboard_command("portrait_take_osr2")
         append_command(portrait.cmd_file,
@@ -646,6 +728,22 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
         s.wait_for_new_log("Locked portrait satellite", timeout=12)
         s.wait_until(lambda: read_satellite_status(portrait.status_file).funscript_driving,
                      timeout=30, description="the portrait player's funscript to be driving")
+        yield portrait, video
+    finally:
+        s.write_dashboard_command("main_take_osr2")
+        if read_satellite_status(portrait.status_file).locked:
+            s.write_dashboard_command("portrait_lock")
+            s.wait_for_new_log("Unlocked portrait satellite", timeout=12)
+        append_command(portrait.cmd_file, RELOAD_PLAYLIST)
+
+
+def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
+    shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
+):
+    s = shared_integration_session
+    sink = s.config.main_player_tcode.port
+    before = senders(tcode_heard(sink, seconds=2))
+    with _the_portrait_player_driving_the_osr2(s, tmp_path) as (portrait, video):
         time.sleep(1.0)
         scripted = senders(tcode_heard(sink, seconds=4))
         assert len(scripted) == 1, (before, scripted)
@@ -664,12 +762,23 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
         time.sleep(2.0)
         resting = senders(tcode_heard(sink, seconds=4))
         assert resting and portraits_line not in resting, (portraits_line, resting)
-    finally:
-        s.write_dashboard_command("main_take_osr2")
-        if read_satellite_status(portrait.status_file).locked:
-            s.write_dashboard_command("portrait_lock")
-            s.wait_for_new_log("Unlocked portrait satellite", timeout=12)
-        append_command(portrait.cmd_file, RELOAD_PLAYLIST)
+
+
+def test_fun_time_the_max_intensity_holds_a_side_players_funscript_down_too(
+    shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
+):
+    s = shared_integration_session
+    sink = s.config.main_player_tcode.port
+    with _the_portrait_player_driving_the_osr2(s, tmp_path):
+        try:
+            free = _osr2_heard_until(sink, _osr2_swinging)
+            s.write_dashboard_command("max_intensity_0")
+            held = _osr2_heard_until(sink, _osr2_still)
+        finally:
+            s.write_dashboard_command("max_intensity_100")
+
+    assert _osr2_swinging(free), free
+    assert _osr2_still(held), held
 
 
 def _held_still(session: FunTimeIntegrationSession, side: SatelliteFiles) -> SatelliteStatus:
@@ -1029,6 +1138,46 @@ def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing():
             second, alpha, "the reopened Genau to step on in the order the last session left")
     finally:
         second.stop()
+
+
+@pytest.mark.timeout(TWO_SESSIONS_BUDGET_S + COMMAND_BUDGET_S)
+def test_fun_time_reopens_holding_the_osr2_to_the_max_intensity_it_was_closed_at():
+    temp_root = build_integration_temp_root()
+    config_path = build_integration_config(temp_root)
+
+    first = FunTimeIntegrationSession(config_path)
+    state_file = shared_state_path(first.config.paths.state_dir)
+    try:
+        first.start()
+        first.write_dashboard_command("max_intensity_0")
+        first.wait_until(
+            lambda: getattr(read_shared_state(state_file), "max_intensity", None) == 0,
+            timeout=COMMAND_BUDGET_S,
+            description="the session to hold the max intensity at zero",
+        )
+        first.quit_gracefully()
+    finally:
+        first.stop()
+
+    second = FunTimeIntegrationSession(config_path)
+    sink = second.config.main_player_tcode.port
+    try:
+        second.start()
+        came_back_at = getattr(read_shared_state(state_file), "max_intensity", None)
+        second.write_dashboard_command("genau_activate")
+        second.wait_for_new_log("Switched to genau mode", timeout=COMMAND_BUDGET_S)
+        second.write_dashboard_command("play")
+        _wait_for_genau_to_say(second, playing=1, max_intensity=0)
+        held = _osr2_heard_until(sink, _osr2_still)
+        for command in ("max_intensity_100", "robot_hand_amp_100", "robot_hand_speed_50"):
+            second.write_dashboard_command(command)
+        free = _osr2_heard_until(sink, _osr2_swinging)
+    finally:
+        second.stop()
+
+    assert came_back_at == 0
+    assert _osr2_still(held), held
+    assert _osr2_swinging(free), free
 
 
 def test_fun_time_quit_cleans_up_processes():

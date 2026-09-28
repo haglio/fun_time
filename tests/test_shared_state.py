@@ -446,7 +446,7 @@ _EXPECTED_STATE_KEYS = {
     "portrait_map_anchor": "", "landscape_map_anchor": "",
     "portrait_widen_clip": "", "landscape_widen_clip": "",
     "portrait_nav_anchor": "", "landscape_nav_anchor": "",
-    "volume": "100", "muted": "0",
+    "volume": "100", "muted": "0", "max_intensity": "100",
     "osr2_control": "driving",
     "crowned": "main", "majority": "portrait",
     "osr2_player": "1",

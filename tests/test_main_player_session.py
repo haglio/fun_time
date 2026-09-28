@@ -1068,6 +1068,26 @@ class TestSpeed:
         assert tcode.updates[-1] == (1500, session.funscript_as_played, 2.0)
 
 
+class TestTheMaxIntensity:
+    def test_the_script_is_driven_under_the_max_intensity_the_session_was_told(self, tmp_path):
+        session, player, tcode = _make_session(tmp_path)
+        session.set_max_intensity(30)
+        player.position_ms = 1500
+
+        session.advance()
+
+        assert tcode.max_intensities[-1] == 30
+        assert session.max_intensity == 30
+
+    @pytest.mark.parametrize(("asked", "kept"), [(400, 100), (-5, 0)])
+    def test_a_max_intensity_out_of_range_is_kept_within_zero_and_full(self, tmp_path, asked, kept):
+        session, _player, _tcode = _make_session(tmp_path)
+
+        session.set_max_intensity(asked)
+
+        assert session.max_intensity == kept
+
+
 class TestTakingTheDeviceBack:
     """Every path that jumps the playback clock, or takes the device from
     whoever had it, resets the T-Code driver -- so the next waypoint glides

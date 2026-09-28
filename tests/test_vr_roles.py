@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 from player_core.modes import LoopState
 from player_core.playback_rate import MAX_RATE, MIN_RATE
+from player_core.robot_hand import FULL_INTENSITY
 
 from fun_time.event_log import NOTICE, SOURCE_MAIN
 from fun_time.player_status import read_main_player_status
@@ -91,13 +92,15 @@ class FakeDriver:
     def __init__(self):
         self.updates: list[tuple[int, float]] = []
         self.scripts: list = []
+        self.max_intensities: list[int] = []
         self.parks = 0
         self.resets = 0
         self.closed = False
 
-    def update(self, position_ms, fs, *, now=None, speed=1.0):
+    def update(self, position_ms, fs, *, now=None, speed=1.0, max_intensity=FULL_INTENSITY):
         self.updates.append((position_ms, speed))
         self.scripts.append(fs)
+        self.max_intensities.append(max_intensity)
 
     def park(self, *, now=None):
         self.parks += 1
@@ -464,6 +467,16 @@ class TestTCode:
         role.tick(now=1.0)
 
         assert driver.updates == [(5_000, 1.5)]
+
+    def test_a_scripted_video_is_driven_under_the_max_intensity_fun_time_says(self, role_parts):
+        role, player, driver = role_parts.role, role_parts.player, role_parts.driver
+        player.position_ms = 5_000
+        role.apply_command("SET_MAX_INTENSITY 30", on_quit=_never_quits)
+
+        role.tick(now=1.0)
+
+        assert driver.max_intensities == [30]
+        assert role.max_intensity == 30
 
     def test_unscripted_video_parks(self, role_parts):
         role, driver = role_parts.role, role_parts.driver

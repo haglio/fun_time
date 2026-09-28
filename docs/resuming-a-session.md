@@ -36,15 +36,17 @@ were just resumed: each player's own F-mode and each side's filter decide which
 clips are in them, Latest fixes their order, and a group loop *is* the group
 written out as the playlist, with the map anchored (and the seed row widened) on
 the clip it started from. The rest is what the session was simply *left* in —
-the sound level, each side's lock, whether the OSR2 was let go of or held at one
-end, whether Genau was browsing Latest — and there is no more reason for those
-to reset overnight than for the clip on screen to.
+the sound level, the OSR2's max intensity, each side's lock, whether the OSR2
+was let go of or held at one end, whether Genau was browsing Latest — and there
+is no more reason for those to reset overnight than for the clip on screen to.
 
-Five of them have a live counterpart to re-assert, since none lives in a file a
-new process reads:
+Some of them have a live counterpart to re-assert, since none of those lives in
+a file a new process reads:
 
 - the sound level is seeded to both audio sinks at startup
   (`fun_time.audio_volume.publish_audio_level`),
+- the OSR2's max intensity, held below full, is seeded at startup to every
+  player that can drive the OSR2 (`fun_time.max_intensity.publish_max_intensity`),
 - each satellite lock is queued back on that satellite's command file
   (`resume_satellite_locks`),
 - Genau's choice between its VR and flat clips is queued back on Genau's

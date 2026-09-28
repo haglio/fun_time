@@ -382,6 +382,12 @@ A press there posts to the dashboard command file (`audio_set_volume|<0-100>`, `
 
 The mute reaches the two sinks differently, which is why `SET_VOLUME` carries two numbers. The audio companion only has to be quiet, so it gets a plain zero. The main player also has to *draw* the level, and a zero cannot say whether you are muted or merely turned all the way down, nor what unmuting should return to — so it gets `SET_VOLUME <level> <muted>` and works the audible loudness out itself. That is why a muted control still shows its fill.
 
+### Max intensity
+
+The OSR2 line carries a **Max intensity** slider, a blue bar with its number beside it: how hard the OSR2 may work, whoever is driving it. All the way up puts no limit on it. Lower, it pushes the Robot Hand's Amp and Speed down together, and its Center toward home, far enough that the motion fits, and they stay where it pushed them when it goes back up. Amp and Speed then stop at the most it allows, one against the other: the stretch of each bar they can no longer reach is etched in red, and a drag stops where the etching starts. A funscript's motion gets shallower toward home instead, the way it already does when a video plays faster than the OSR2 can follow. All the way down, nothing moves. The slider is dimmed while the OSR2 runs its own auto mode, which nothing sent from here reaches.
+
+A press posts `max_intensity_<0-100>` to the dashboard command file; the bridge keeps the level with the rest of the session, tells Genau and the main player `SET_MAX_INTENSITY <0-100>`, and seeds it again when the session comes back.
+
 ### OmniPause
 
 - `Esc` toggles OmniPause; `Space` enters it.
@@ -552,6 +558,7 @@ Commands (the full set `main_player/controls.py` answers to). The verbs every pl
 - `PLAY_COMPILATION` / `END_COMPILATION` / `PLAY_FULL_VID` / `PLAY_CLIP_JUMP`
 - `JUMP_TO_FUNSCRIPT` / `NEXT_FUNSCRIPTED` — funscript navigation: seek past this video's quiet stretch to where its scripting starts up again, or leave for the next scripted video in the playlist, landing where its action begins. The main player alone can answer either, holding both the playlist's funscript column and the parsed script of what is playing
 - `SET_TCODE_ENABLED 0|1`
+- `SET_MAX_INTENSITY <0-100>` — how far the OSR2 may travel in a second; the main player shallows its script under it (see "Max intensity")
 - `SET_F_MODE 0|1` / `SET_ACTIVE 0|1` — state only the orchestrator holds and the main player cannot work out for itself; both drive what its HUD shows
 - `DISPLAY_ON` / `DISPLAY_OFF` — whether the main player owns the main slot's rect, which is not whether it is playing: the idle main-slot player is minimized rather than closed (it keeps its taskbar button), so in Genau mode the main player blanks instead of sitting on the frame it was paused on. The same pair Genau gets, for the same reason
 - `QUIT`

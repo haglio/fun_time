@@ -107,6 +107,13 @@ class SatelliteSession:
         self._device.set_enabled(enabled)
 
     @property
+    def max_intensity(self) -> int:
+        return self._device.max_intensity
+
+    def set_max_intensity(self, max_intensity: int) -> None:
+        self._device.set_max_intensity(max_intensity)
+
+    @property
     def showing(self) -> Path:
         """The file on screen: the clip's own, unless a version was stepped to."""
         return self._versions.get(self.current_video, self.current_video)

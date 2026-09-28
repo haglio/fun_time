@@ -152,6 +152,13 @@ class TestHudPublishing:
 
         assert console(tmp_path)["osr2_control"] == OSR2_CONTROL_OFF
 
+    def test_the_console_is_told_the_max_intensity_the_session_holds(self, tmp_path):
+        feed = make_feed(tmp_path)
+
+        feed.publish(replace(BridgeState(), max_intensity=35))
+
+        assert console(tmp_path)["max_intensity"] == 35
+
     def test_a_side_the_hosted_app_has_wears_that_apps_own_panel(self, tmp_path):
         """The hosted app publishes the player's map, line and buttons; the
         session puts its own row over them -- the way back to its videos, and
@@ -591,6 +598,12 @@ class TestTheOsr2SectionIsOnThePlayerThatHasTheOsr2:
         assert portrait.osr2 == Osr2State.OFF
         assert portrait.osr2_control == OSR2_CONTROL_OFF
         assert [button.command for button in portrait.osr2_controls] == ["broker_panel"]
+
+    def test_the_side_player_that_has_it_carries_the_max_intensity_on_its_line(self, tmp_path):
+        make_feed(tmp_path).publish(BridgeState(osr2_player=2, max_intensity=35))
+
+        assert _published(tmp_path, "portrait").max_intensity == 35
+        assert _published(tmp_path, "landscape").max_intensity is None
 
     def test_the_players_it_left_carry_the_button_that_takes_it(self, tmp_path):
         make_feed(tmp_path).publish(BridgeState(osr2_player=2))

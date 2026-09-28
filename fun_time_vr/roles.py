@@ -31,6 +31,7 @@ from player_core.player_verbs import (
     SEEK_BACK,
     SEEK_FWD,
     SET_F_MODE,
+    SET_MAX_INTENSITY,
     SET_PACE,
     SET_SPEED,
     SET_TCODE_ENABLED,
@@ -41,6 +42,7 @@ from player_core.player_verbs import (
     pace_seconds,
 )
 from player_core.playlist import item_from_line, read_playlist
+from player_core.robot_hand import FULL_INTENSITY
 from player_core.status import PlayerStatus
 from player_core.status import status_fields as player_status_fields
 
@@ -161,6 +163,7 @@ class MainRole:
         self._scene_starts: tuple[float, ...] = ()
         self._volume = 100
         self._muted = False
+        self._max_intensity = FULL_INTENSITY
         # Until the host says the sound is live, a SET_VOLUME records the level
         # without unmuting (see :meth:`sound_goes_live`).
         self._audio_live = False
@@ -362,7 +365,8 @@ class MainRole:
             return
         script = self.funscript_as_played
         if script is not None:
-            self._driver.update(int(self._player.position_ms), script, now=now, speed=self._speed)
+            self._driver.update(int(self._player.position_ms), script, now=now,
+                                speed=self._speed, max_intensity=self._max_intensity)
         else:
             self._driver.park(now=now)
 
@@ -512,6 +516,17 @@ class MainRole:
         self._player.set_volume(self._volume)
         self._player.set_muted(self._muted)
 
+    @property
+    def max_intensity(self) -> int:
+        return self._max_intensity
+
+    def set_max_intensity_from(self, value: str) -> bool:
+        try:
+            self._max_intensity = max(0, min(FULL_INTENSITY, int(value)))
+        except ValueError:
+            return False
+        return True
+
     def set_volume_from(self, value: str) -> bool:
         """``SET_VOLUME <0-100> [muted]``; False on a level it cannot read."""
         parts = value.split()
@@ -626,6 +641,11 @@ CONTROLS: tuple[Control, ...] = (
     Control(
         name="volume",
         verbs=(Verb(SET_VOLUME, _reads(MainRole.set_volume_from), takes_a_value=True),),
+    ),
+    Control(
+        name="max_intensity",
+        verbs=(Verb(SET_MAX_INTENSITY, _reads(MainRole.set_max_intensity_from),
+                    takes_a_value=True),),
     ),
     Control(
         name="pace",
