@@ -2081,8 +2081,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     # Before the players and refreshed between them: each opens media.
     cover = _CoverUnit(state_dir)
     _raise_the_cover(session, renderer, cover)
-    # One read of the event log per tick, pumped before anything that shows a
-    # notice off it: the console's strip and every screen's own banner.
+    # One read of the event log per tick, pumped before every screen's banner.
     notices = NoticeBoard(event_log_path(state_dir), unlogged=UnloggedNotices(state_dir))
     genau = _GenauUnit(manifest, vr, stop, remembered=remembered.placements)
     _present_the_cover(session, renderer, cover)

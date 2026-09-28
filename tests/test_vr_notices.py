@@ -93,7 +93,7 @@ class TestWhatItPicksUp:
 
         board.pump(None, now=1.0)
 
-        assert board.banner(MAIN).message == "unrecognized voice command: portrait net"
+        assert board.banner(MAIN).message == "No clip that way"
 
     def test_the_level_rides_along_for_the_color(self, tmp_path):
         path = _log(tmp_path)
@@ -214,7 +214,6 @@ class TestWordsFlashedWithNoLogLine:
             "unrecognized voice command (4 words)"]
 
 
-class TestWhatItDrops:
     def test_a_banner_is_timed_from_when_the_board_saw_it(self, tmp_path):
         """The writer stamps wall time and the pump runs on a monotonic clock, so
         a board that faded a line against the record's own timestamp would drop
