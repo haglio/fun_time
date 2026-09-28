@@ -190,6 +190,15 @@ class SatelliteSession:
     def set_pace(self, seconds: float) -> None:
         self._player.set_pace(seconds)
 
+    def show_frame(self, frame: Path) -> None:
+        self._frame_up = True
+        self._player.swap_still(frame)
+
+    def clear_frame(self) -> None:
+        if self._frame_up:
+            self._frame_up = False
+            self._player.swap_still(self.showing)
+
     def set_locked(self, locked: bool) -> None:
         """Lock the satellite onto its current clip (repeat-one) or release it.
 
@@ -222,6 +231,7 @@ class SatelliteSession:
             return
         if not self._locked and self._player.advanced_to_next:
             self._play_points.ended()
+            self._frame_up = False
             self._index = (self._index + 1) % len(self._playlist)
             self._player.drop_consumed()
             self._stage_next()
@@ -285,6 +295,7 @@ class SatelliteSession:
     def load(self, index: int) -> None:
         self._play_points.leave()
         self._switching_versions = False
+        self._frame_up = False
         self._index = index % len(self._playlist)
         clip = self._playlist[self._index]
         video = self._versions.get(clip, clip)
