@@ -465,6 +465,7 @@ class MainRole:
     # ---------------------------------------------------------------- helpers
 
     def _load(self, index: int) -> None:
+        self._remember_the_dial_before_leaving()
         self._play_points.leave()
         self._index = index % len(self._entries)
         item = self._entries[self._index]
@@ -490,15 +491,23 @@ class MainRole:
             self._fovs[video] = fov
         if (height := self._remembered.saved_height(video)) is not None:
             self._heights[video] = height
-        self._dial_seen, self._dial_changed_at = (self._fovs.get(video), self._heights.get(video)), None
+        self._dial_seen, self._dial_changed_at = self._dial(), None
+
+    def _dial(self) -> tuple[float | None, float | None]:
+        video = str(self.current_video)
+        return self._fovs.get(video), self._heights.get(video)
 
     def _remember_the_dial_once_still(self, now: float) -> None:
-        video = str(self.current_video)
-        dial = (self._fovs.get(video), self._heights.get(video))
+        dial = self._dial()
         if dial != self._dial_seen:
             self._dial_seen, self._dial_changed_at = dial, now
         elif self._dial_changed_at is not None and now - self._dial_changed_at >= DIAL_STILL_S:
             self._dial_changed_at = None
+            self._remember_fov_and_height()
+
+    def _remember_the_dial_before_leaving(self) -> None:
+        if self._dial_changed_at is not None or self._dial() != self._dial_seen:
+            self._dial_seen, self._dial_changed_at = self._dial(), None
             self._remember_fov_and_height()
 
     def look_with(self, look) -> None:
