@@ -22,6 +22,7 @@ from fun_time_vr.projection import (
     FLAT,
     MKX200_SBS,
     PROJECTIONS,
+    RECTILINEAR_SBS,
 )
 from fun_time_vr.render import (
     _CURVE_EQUIDISTANT,
@@ -55,6 +56,44 @@ def test_an_unknown_projection_falls_back_to_the_screen():
     assert immersive_wrap("someday_projection") is None
 
 
+class TestAWrapDrawnAtAFieldOfViewAndHeightOfItsOwn:
+    def test_a_field_of_view_replaces_the_one_a_projection_carries(self):
+        assert immersive_wrap(FISHEYE_180_SBS, fov_deg=140.0).fov_deg == 140.0
+        assert immersive_wrap(EQUIRECT_180_SBS, fov_deg=130.0).fov_deg == 130.0
+
+    def test_a_field_of_view_leaves_the_mapping_and_the_curve_as_they_were(self):
+        for projection in (EQUIRECT_180_SBS, FISHEYE_200_STEREOGRAPHIC_SBS,
+                           FISHEYE_200_EQUISOLID_SBS):
+            narrowed, original = immersive_wrap(projection, fov_deg=120.0), immersive_wrap(projection)
+            assert (narrowed.mode, narrowed.curve) == (original.mode, original.curve)
+
+    def test_the_360_and_the_screen_take_neither_a_field_of_view_nor_a_height(self):
+        assert immersive_wrap(EQUIRECT_360, fov_deg=100.0, height=1.5) == immersive_wrap(EQUIRECT_360)
+        assert immersive_wrap(FLAT, fov_deg=100.0, height=1.5) is None
+
+    def test_a_fisheye_is_drawn_between_forty_and_two_hundred_forty_degrees(self):
+        assert immersive_wrap(FISHEYE_180_SBS, fov_deg=1.0).fov_deg == 40.0
+        assert immersive_wrap(FISHEYE_180_SBS, fov_deg=1000.0).fov_deg == 240.0
+
+    def test_an_equirect_is_never_wider_than_the_half_sphere_it_wraps(self):
+        assert immersive_wrap(EQUIRECT_180_SBS, fov_deg=1000.0).fov_deg == 180.0
+
+    def test_a_height_is_held_between_half_and_twice_the_mastered_height(self):
+        assert immersive_wrap(FISHEYE_180_SBS, height=0.1).height == 0.5
+        assert immersive_wrap(FISHEYE_180_SBS, height=10.0).height == 2.0
+
+    def test_a_projection_is_drawn_at_its_mastered_height_until_given_one(self):
+        assert immersive_wrap(FISHEYE_180_SBS).height == 1.0
+
+    def test_a_rectilinear_window_opens_at_a_hundred_twenty_and_stays_under_a_hundred_eighty(self):
+        assert immersive_wrap(RECTILINEAR_SBS).fov_deg == 120.0
+        assert immersive_wrap(RECTILINEAR_SBS, fov_deg=1000.0).fov_deg == 170.0
+
+    def test_the_shader_stretches_every_wrap_but_the_360_by_its_height(self):
+        assert "uniform float height;" in _IMMERSIVE_FRAGMENT_SHADER
+        assert "(local.y - 0.5) / height" in _IMMERSIVE_FRAGMENT_SHADER
+
+
 class TestTheShaderAndTheTableAreOneSource:
     """The shader used to branch on the mode ids as literals, linked to the
     Python table only by a comment — and to derive each fisheye's field of view
@@ -71,12 +110,10 @@ class TestTheShaderAndTheTableAreOneSource:
             degrees = immersive_wrap(projection).fov_deg
             assert str(int(degrees)) in projection, projection
 
-    def test_the_fisheyes_are_exactly_the_projections_that_have_a_field_of_view(self):
-        with_one = {projection for projection in PROJECTIONS
-                    if projection != FLAT and immersive_wrap(projection).fov_deg}
-
-        assert with_one == set(_FISHEYES)
-        assert not immersive_wrap(EQUIRECT_180_SBS).fov_deg
+    def test_every_wrap_but_the_360_has_a_field_of_view(self):
+        for projection in PROJECTIONS:
+            if projection not in (FLAT, EQUIRECT_360):
+                assert immersive_wrap(projection).fov_deg, projection
         assert not immersive_wrap(EQUIRECT_360).fov_deg
 
     def test_the_shader_is_handed_the_angle_and_holds_none_of_its_own(self):
@@ -100,8 +137,8 @@ class TestTheShaderAndTheTableAreOneSource:
 
         # Every brace that survived as text; the interpolations are the mode
         # and curve ids, none of which carries one.
-        assert literal.count("{") == literal.count("}") == 9
-        assert render._IMMERSIVE_FRAGMENT_SHADER.count("{") == 9
+        assert literal.count("{") == literal.count("}") == 11
+        assert render._IMMERSIVE_FRAGMENT_SHADER.count("{") == 11
 
 
 class TestTheFisheyeCurvesBesideTheAngle:

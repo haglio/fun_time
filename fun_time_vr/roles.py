@@ -156,6 +156,8 @@ class MainRole:
         self._scripted_filter = False
         self._funscript: Funscript | None = None
         self._projections: dict[str, str] = {}
+        self._fovs: dict[str, float] = {}
+        self._heights: dict[str, float] = {}
         self._title = ""
         self._scene_starts: tuple[float, ...] = ()
         self._volume = 100
@@ -189,6 +191,12 @@ class MainRole:
 
     def projection_of(self, video: str | None) -> str:
         return self._projections.get(video, "")
+
+    def fov_of(self, video: str | None) -> float | None:
+        return self._fovs.get(video)
+
+    def height_of(self, video: str | None) -> float | None:
+        return self._heights.get(video)
 
     @property
     def tilt_deg(self) -> float:
@@ -443,11 +451,20 @@ class MainRole:
         self._loops.open(self._funscript)
         self._driver.reset()
         self._projections[str(item.path)] = self._remembered.resolve(str(item.path))
+        self._restore_fov_and_height(str(item.path))
         self._look_at_the_picture(item.path)
         recorded = self._recorded_for(item.path)
         self._title = video_title(recorded, item.path)
         self._resume.owe(self._play_points.point_for(item.path) or None)
         self._scene_starts = scene_starts_ms(recorded)
+
+    def _restore_fov_and_height(self, video: str) -> None:
+        self._fovs.pop(video, None)
+        self._heights.pop(video, None)
+        if (fov := self._remembered.saved_fov(video)) is not None:
+            self._fovs[video] = fov
+        if (height := self._remembered.saved_height(video)) is not None:
+            self._heights[video] = height
 
     def look_with(self, look) -> None:
         """Handed in, since only the host holds a player to read a picture off."""
@@ -606,6 +623,26 @@ class MainRole:
         self._projections[str(self.current_video)] = projection
         self._remembered.save(str(self.current_video), projection)
         logger.info("Projection: %s (%s)", projection, self.current_video.name)
+
+    def set_fov(self, degrees: float) -> None:
+        self._fovs[str(self.current_video)] = degrees
+
+    def set_height(self, height: float) -> None:
+        self._heights[str(self.current_video)] = height
+
+    def remember_fov_and_height(self) -> None:
+        video = str(self.current_video)
+        fov, height = self._fovs.get(video), self._heights.get(video)
+        if fov is None and height is None:
+            return
+        if fov is not None:
+            self._remembered.save_fov(video, round(fov, 1))
+        if height is not None:
+            self._remembered.save_height(video, round(height, 2))
+        logger.info(
+            "Projection: %s (%s) field of view %s, height %s", self.projection,
+            self.current_video.name, "as mastered" if fov is None else f"{fov:.0f} degrees",
+            "as mastered" if height is None else f"{height:.2f}")
 
 
 @dataclass(frozen=True)

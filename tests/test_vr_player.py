@@ -129,7 +129,13 @@ from fun_time_vr.pointer import (
     PressEvent,
     Ray,
 )
-from fun_time_vr.projection import EQUIRECT_180_SBS, FLAT
+from fun_time_vr.projection import (
+    EQUIRECT_180_SBS,
+    EQUIRECT_360,
+    FISHEYE_180_SBS,
+    FLAT,
+    RECTILINEAR_SBS,
+)
 from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
 from fun_time_vr.render import immersive_wrap
 from fun_time_vr.satellite_hud import HUD_GAP_DEG, hud_screen_name
@@ -526,6 +532,8 @@ def test_the_furniture_is_painted_once_and_not_per_tick():
 
 _STROKES = Funscript(actions=[(0, 0), (500, 100), (1_000, 0), (6_000, 100), (9_000, 0)])
 
+_NEVER_DIALED = {"fov_of": lambda _video: None, "height_of": lambda _video: None}
+
 
 def _a_main_role_reporting(loop: SimpleNamespace) -> SimpleNamespace:
     """The main role as the unit reads it, with *loop* saying what its A/B loop
@@ -533,7 +541,7 @@ def _a_main_role_reporting(loop: SimpleNamespace) -> SimpleNamespace:
     return SimpleNamespace(
         set_paused=lambda _paused: None, tick=lambda _now: None, seek_to=lambda _ms: True,
         position_ms=1_000.0, duration_ms=10_000.0, paused=False,
-        projection_of=lambda _video: FLAT,
+        projection_of=lambda _video: FLAT, **_NEVER_DIALED,
         volume=70, muted=False, current_video=Path("v0.mp4"), current_funscript=_STROKES,
         loop_bounds=getattr(loop, "loop_bounds", None),
         record_in_ms=getattr(loop, "record_in_ms", None))
@@ -898,6 +906,7 @@ class TestThePanelUnderThePointer:
                 position_ms=1_000.0, duration_ms=600_000.0,
                 volume=70, muted=False, seek_to=seeks.append, scripted_filter=False,
                 speed=1.25, displayed=True, projection_of=lambda _video: projection,
+                **_NEVER_DIALED,
             ),
             drive_gate=SimpleNamespace(
                 readout=lambda published, device_drives_itself=False: published),
@@ -1601,7 +1610,7 @@ class TestTheMainPlayersPictureIsWrappedAsItsOwnVideo:
         return _like(_MainUnit, SimpleNamespace(
             target=SimpleNamespace(ready=True, aspect=2.0, video=video),
             role=SimpleNamespace(displayed=True, projection_of={
-                self.WIDE: EQUIRECT_180_SBS, self.FLAT_VIDEO: FLAT}.get),
+                self.WIDE: EQUIRECT_180_SBS, self.FLAT_VIDEO: FLAT}.get, **_NEVER_DIALED),
             screen=SimpleNamespace(placement=SPOTS[MAIN]),
             owns_the_slot=True,
         ))
@@ -1615,6 +1624,74 @@ class TestTheMainPlayersPictureIsWrappedAsItsOwnVideo:
         (hanging,) = self._showing(self.FLAT_VIDEO).hangings()
 
         assert hanging.wrap is None
+
+
+class TestTheMainPlayersWrapIsDialedByTheSticks:
+    VIDEO = "C:/videos/wide.mp4"
+
+    def _main_unit(self, *, projection=FISHEYE_180_SBS, fov=None, height=None, showing=False):
+        dialed = {}
+        role = SimpleNamespace(
+            displayed=True, current_video=Path(self.VIDEO),
+            projection_of=lambda _video: projection,
+            fov_of=lambda _video: dialed.get("fov", fov),
+            height_of=lambda _video: dialed.get("height", height),
+            set_fov=lambda degrees: dialed.update(fov=degrees),
+            set_height=lambda value: dialed.update(height=value),
+        )
+        main_unit = _like(_MainUnit, SimpleNamespace(
+            target=SimpleNamespace(ready=True, aspect=1.0, video=self.VIDEO), role=role,
+            screen=SimpleNamespace(placement=SPOTS[MAIN]), owns_the_slot=not showing,
+        ))
+        main_unit.dial_the_wrap = lambda **dials: _MainUnit.dial_the_wrap(main_unit, **dials)
+        return main_unit, dialed
+
+    def test_a_picture_is_drawn_at_the_field_of_view_and_height_dialed_for_its_video(self):
+        main_unit, _ = self._main_unit(fov=140.0, height=1.2)
+
+        (hanging,) = main_unit.hangings()
+
+        assert hanging.wrap == immersive_wrap(FISHEYE_180_SBS, fov_deg=140.0, height=1.2)
+
+    def test_the_sticks_dial_a_wrapped_picture_but_never_a_flat_one_or_the_360(self):
+        for projection, dialed in ((FISHEYE_180_SBS, True), (EQUIRECT_180_SBS, True),
+                                   (RECTILINEAR_SBS, True), (EQUIRECT_360, False), (FLAT, False)):
+            main_unit, _ = self._main_unit(projection=projection)
+
+            assert _MainUnit.is_dialed_by_the_sticks.fget(main_unit) is dialed, projection
+
+    def test_the_sticks_leave_the_picture_alone_while_a_clip_holds_the_slot(self):
+        main_unit, _ = self._main_unit(showing=True)
+
+        assert _MainUnit.is_dialed_by_the_sticks.fget(main_unit) is False
+
+    def test_a_zoom_scales_the_field_of_view_it_has_now_and_a_stretch_the_height(self):
+        main_unit, dialed = self._main_unit(fov=100.0, height=1.5)
+
+        main_unit.dial_the_wrap(zoom=1.1, stretch=0.8)
+
+        assert dialed == {"fov": pytest.approx(110.0), "height": pytest.approx(1.2)}
+
+    def test_a_video_never_dialed_starts_from_what_its_projection_carries(self):
+        main_unit, dialed = self._main_unit()
+
+        main_unit.dial_the_wrap(zoom=0.5, stretch=2.0)
+
+        assert dialed == {"fov": pytest.approx(90.0), "height": pytest.approx(2.0)}
+
+    def test_a_frame_that_zooms_nothing_and_stretches_nothing_dials_nothing(self):
+        main_unit, dialed = self._main_unit()
+
+        main_unit.dial_the_wrap(zoom=1.0, stretch=1.0)
+
+        assert dialed == {}
+
+    def test_the_frame_loop_hands_the_sticks_to_the_wrap_and_writes_it_when_they_let_go(self):
+        loop = inspect.getsource(player._run)
+
+        assert "dialing=dialing" in loop
+        assert "main_unit.dial_the_wrap(zoom=thumb.zoom, stretch=thumb.stretch)" in loop
+        assert "main_unit.role.remember_fov_and_height()" in loop
 
 
 class TestTheMainSlotUnderThePointer:
@@ -1631,7 +1708,7 @@ class TestTheMainSlotUnderThePointer:
             target=SimpleNamespace(ready=settings["picture"], aspect=16 / 9, video=None),
             role=SimpleNamespace(
                 displayed=settings["displayed"],
-                projection_of=lambda _video: settings["projection"]),
+                projection_of=lambda _video: settings["projection"], **_NEVER_DIALED),
             screen=SimpleNamespace(placement=SPOTS[MAIN]),
             owns_the_slot=not settings["showing"],
         ))
@@ -1992,7 +2069,8 @@ class TestEveryHangingScreenIsDrawn:
             target=SimpleNamespace(ready=projection is not None, texture=object(), aspect=16 / 9,
                                    video=None),
             screen=SimpleNamespace(ready=True, mesh=MAIN, placement=SPOTS[MAIN]),
-            role=SimpleNamespace(displayed=True, projection_of=lambda _video: projection or FLAT),
+            role=SimpleNamespace(
+                displayed=True, projection_of=lambda _video: projection or FLAT, **_NEVER_DIALED),
             owns_the_slot=True,
         ))
         genau = _like(_GenauUnit, SimpleNamespace(
@@ -2115,7 +2193,8 @@ def _slot(*, wrapped=False):
     projection = EQUIRECT_180_SBS if wrapped else FLAT
     main_unit = _like(_MainUnit, SimpleNamespace(
         target=SimpleNamespace(ready=True, aspect=16 / 9, video=None),
-        role=SimpleNamespace(displayed=True, projection_of=lambda _video: projection),
+        role=SimpleNamespace(
+            displayed=True, projection_of=lambda _video: projection, **_NEVER_DIALED),
         screen=SimpleNamespace(placement=SPOTS[MAIN]),
         owns_the_slot=True,
     ))
