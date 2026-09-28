@@ -547,6 +547,28 @@ class TestDialingAWrappedPicture:
         assert not (metadata / "VR" / "finished" / "scene one.json").exists()
         assert "field of view" not in caplog.text
 
+    def test_a_dial_still_moving_when_the_next_video_opens_is_written_before_it_goes(
+            self, role_parts):
+        role, metadata, (one, *_) = role_parts.role, role_parts.metadata, role_parts.files
+        role.set_fov(143.0)
+        role.tick(now=0.0)
+
+        role.apply_command("NEXT", on_quit=_never_quits)
+
+        sidecar = metadata / "VR" / "finished" / "scene one.json"
+        assert json.loads(sidecar.read_text(encoding="utf-8"))["vr"]["fov"] == 143.0
+        role.apply_command("PREV", on_quit=_never_quits)
+        assert role.fov_of(str(one)) == 143.0
+
+    def test_a_dial_the_pump_never_saw_is_written_before_the_video_goes_too(self, role_parts):
+        role, metadata = role_parts.role, role_parts.metadata
+        role.set_height(1.25)
+
+        role.apply_command("NEXT", on_quit=_never_quits)
+
+        sidecar = metadata / "VR" / "finished" / "scene one.json"
+        assert json.loads(sidecar.read_text(encoding="utf-8"))["vr"]["height"] == 1.25
+
     def test_it_holds_when_the_video_comes_back(self, role_parts):
         role, (one, *_) = role_parts.role, role_parts.files
         role.set_fov(143.0)
