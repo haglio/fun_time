@@ -11,11 +11,13 @@ import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from player_core.control_registry import Control, Verb, bind, look_up
 from player_core.playback_rate import RATE_STEP, parse_rate
 from player_core.player_verbs import (
+    CLEAR_FRAME,
     LOCK_OFF,
     LOCK_ON,
     NEXT,
@@ -27,6 +29,7 @@ from player_core.player_verbs import (
     SET_PACE,
     SET_SPEED,
     SET_TCODE_ENABLED,
+    SHOW_FRAME,
     SPEED_DOWN,
     SPEED_UP,
     TRASH,
@@ -140,6 +143,19 @@ def _set_pace(controls: SatelliteControls, value: str) -> bool:
     return True
 
 
+
+def _show_frame(controls: SatelliteControls, value: str) -> bool:
+    if not value.strip():
+        return False
+    controls.session.show_frame(Path(value.strip()))
+    return True
+
+
+def _clear_frame(controls: SatelliteControls, _value: str) -> bool:
+    controls.session.clear_frame()
+    return True
+
+
 CONTROLS: tuple[Control, ...] = (
     Control(
         name="playlist_position",
@@ -170,6 +186,11 @@ CONTROLS: tuple[Control, ...] = (
         verbs=(Verb(PLAY_FILE, _play_file, takes_a_value=True),),
     ),
     Control(name="pace", verbs=(Verb(SET_PACE, _set_pace, takes_a_value=True),)),
+    Control(
+        name="frame",
+        verbs=(Verb(SHOW_FRAME, _show_frame, takes_a_value=True),
+               Verb(CLEAR_FRAME, _clear_frame)),
+    ),
     Control(
         name="device",
         verbs=(Verb(SET_TCODE_ENABLED, _set_tcode_enabled, takes_a_value=True),
