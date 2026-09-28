@@ -18,14 +18,26 @@ from player_core.console import (
     shape_label,
 )
 from player_core.hud_button import Button
-from player_core.hud_marks import BROKER_ICON, FMODE_ICON, MINIMIZE_ICON, shared_mark
-from player_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL
+from player_core.hud_marks import BROKER_ICON, FMODE_ICON, shared_mark
 from player_core.modes import LengthMode, LoopState, MainMode
 from shared_ui.spacing import BUTTON_WORD_W
 
 from .crown import CROWN_ICON, Crown
 from .mode_plan import main_player_displays
 from .osr2_section import take_osr2_button
+from .player_buttons import (
+    LOCK_FACE,
+    NEXT_FACE,
+    PREV_FACE,
+    TRASH_ICON,
+    browse_order_buttons,
+    lit_or_remembered,
+    lock_button,
+    minimize_button,
+    reset_button,
+    transport,
+    versions_button,
+)
 from .players import Player
 
 
@@ -64,20 +76,13 @@ class MainSlot:
 
 # The glyphs this console types, as against the family's marks it names below.
 _GLYPHS = {
-    "prev": "⏮", "next": "⏭", "back": "⏪", "fwd": "⏩",
-    "open": "📂", "record": "⏺", "save": "💾",
-    "lock": "🔒", "minus": "−", "plus": "+",
+    "open": "📂", "record": "⏺", "save": "💾", "minus": "−", "plus": "+",
 }
-TRASH_ICON = shared_mark("trash")
-RESET_ICON = shared_mark("reset")
 ENHANCE_FILTER_ICON = shared_mark("enhance_filter")
-SHUFFLE_ICON = shared_mark("shuffle")
-LATEST_ICON = shared_mark("latest")
 FULL_LENGTH_ICON = shared_mark("full_length")
 SHORTS_ICON = shared_mark("shorts")
 VR_ICON = shared_mark("vr_hemisphere")
 FLAT_ICON = shared_mark("flat_2d")
-VERSIONS_ICON = shared_mark("versions")
 COMPILATION_ICON = shared_mark("compilation")
 CLIP_TO_SCENE_ICON = shared_mark("clip_to_scene")
 SCENE_TO_CLIP_ICON = shared_mark("scene_to_clip")
@@ -94,6 +99,7 @@ MODE_BUTTONS = (
     ("main_kino_activate", "Kino", MainMode.KINO),
     ("genau_activate", "Genau", MainMode.GENAU),
 )
+_VIDEO = "video"
 
 
 def console_rows(slot: MainSlot, *, in_vr: bool = False) -> tuple[tuple[Button, ...], ...]:
@@ -107,9 +113,7 @@ def console_rows(slot: MainSlot, *, in_vr: bool = False) -> tuple[tuple[Button, 
                 for command, label, main_mode in MODE_BUTTONS
             ),
             *(() if in_vr else (
-                Button("main_minimize", MINIMIZE_ICON,
-                       "Minimize this player — bring it back from the taskbar",
-                       group_break=True),
+                minimize_button("main"),
                 Button(Crown.MAIN.command, CROWN_ICON,
                        "Crowned — a portrait video here takes most of the secondary "
                        "monitor" if slot.crowned else
@@ -149,26 +153,11 @@ def _file_controls(slot: MainSlot) -> tuple[Button, ...]:
     )
 
 
-def _lit_or_remembered(on: bool, remembered: bool) -> dict:
-    return {"lit": on and not remembered, "remembered": on and remembered}
-
-
-def _browse_order_buttons(slot: MainSlot, *, remembered: bool = False) -> tuple[Button, ...]:
-    if slot.latest is None:
-        return ()
-    return (
-        Button("main_shuffle", SHUFFLE_ICON, f"{SHUFFLE_LABEL} — reshuffle what plays",
-               group_break=True, **_lit_or_remembered(not slot.latest, remembered)),
-        Button("main_latest", LATEST_ICON, f"{LATEST_LABEL} — reload it newest-first",
-               **_lit_or_remembered(bool(slot.latest), remembered)),
-    )
-
-
 def _inclusion_button(command: str, mark: str, kind: str, *, on: bool,
                       remembered: bool, group_break: bool = False) -> Button:
     tooltip = f"Including {kind}" if on else f"Not including {kind}"
     return Button(command, mark, tooltip, group_break=group_break,
-                  **_lit_or_remembered(on, remembered))
+                  **lit_or_remembered(on, remembered))
 
 
 def _projection_buttons(slot: MainSlot, *, remembered: bool, things: str) -> tuple[Button, ...]:
@@ -234,37 +223,24 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
     if main_player_displays(slot.main_mode):
         remembered = bool(slot.compilation)
         return (
-            Button("main_prev", _GLYPHS["prev"], "Previous video"),
-            Button("main_nudge_prev", _GLYPHS["back"], "Back 10s"),
-            Button("main_nudge_next", _GLYPHS["fwd"], "Forward 10s"),
-            Button("main_next", _GLYPHS["next"], "Next video"),
-            Button("main_lock", _GLYPHS["lock"],
-                   "Locked — this video repeats; press to play on through the "
-                   "playlist" if slot.locked
-                   else "Unlocked — plays on through the playlist; press to hold "
-                        "this video",
-                   lit=slot.locked, favorite=True, group_break=True),
+            *transport("main", noun=_VIDEO),
+            lock_button("main", locked=slot.locked, noun=_VIDEO),
             Button("main_fmode", FMODE_ICON,
                    "F-Mode — play only the videos that have a funscript",
                    lit=slot.scripted_filter, favorite=True),
-            Button("main_reset", RESET_ICON,
-                   "Reset — no filter, no lock, no loop, no F-Mode, normal speed, "
-                   "shuffled from the top",
-                   dim=slot.nothing_to_reset, group_break=True),
-            *_browse_order_buttons(slot, remembered=remembered),
+            reset_button("main", nothing_to_reset=slot.nothing_to_reset),
+            *browse_order_buttons("main", latest=slot.latest, remembered=remembered),
             *_projection_buttons(slot, remembered=remembered, things="videos"),
             *_length_buttons(slot, remembered=remembered),
             _compilation_button(slot),
             _clip_scene_button(slot),
-            Button("main_player_cycle_version", VERSIONS_ICON,
-                   "Another version of this video"
-                   + ("" if slot.has_other_versions else " (none for this one)"),
-                   dim=not slot.has_other_versions, group_break=True),
+            versions_button("main_player_cycle_version", noun=_VIDEO,
+                            has_other_versions=slot.has_other_versions),
         )
     return (
-        Button("genau_prev_clip", _GLYPHS["prev"], "Previous clip"),
-        Button("genau_next_clip", _GLYPHS["next"], "Next clip"),
-        Button("main_lock", _GLYPHS["lock"],
+        Button("genau_prev_clip", PREV_FACE, "Previous clip"),
+        Button("genau_next_clip", NEXT_FACE, "Next clip"),
+        Button("main_lock", LOCK_FACE,
                "Locked — this clip repeats; press to move on every "
                f"{slot.pace_s}s" if slot.locked
                else "Unlocked — moving on every "
@@ -289,7 +265,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
                else "Flip this clip, for a picture running opposite the OSR2 — it stays flipped",
                lit=slot.flipped, group_break=True),
         Button("genau_weird_clip", TRASH_ICON, "Mark weird — move it out", danger=True),
-        *_browse_order_buttons(slot),
+        *browse_order_buttons("main", latest=slot.latest),
         *_projection_buttons(slot, remembered=False, things="clips"),
     )
 
