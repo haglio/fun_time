@@ -13,8 +13,7 @@ FRAME_FILENAME = "origenerator_frame.bin"
 INPUT_FILENAME = "origenerator_input.txt"
 
 # The words this module says by itself; a press, drag or right-click travels as
-# the event's own kind, so pointer's names for those are the app's words too.
-# The launch test holds all of them to the app's contract file.
+# the event's own kind, so pointer's names are the app's words too.
 HOSTED_RELEASE = "release"
 HOVER = "hover"
 SCROLL = "scroll"
@@ -23,6 +22,9 @@ WHEEL_NOTCH = 120  # one notch, in the eighths of a degree Qt counts them in
 _NOTCHES_PER_S = 8.0
 
 TOKEN = 0  # this window is never re-opened, so it needs no token of its own
+
+#: Longer than the idle look the app takes when nothing is happening to it.
+QUIET_S = 5.0
 
 
 def event_line(event: PressEvent, size: tuple[int, int]) -> str:
@@ -53,16 +55,39 @@ class GalleryPanel:
         self._input = Path(state_dir) / INPUT_FILENAME
         self._frames = FrameReader(Path(state_dir) / FRAME_FILENAME)
         self._size: tuple[int, int] | None = None
+        self._answered_at: float | None = None
+        self._said_it_went_quiet = False
 
     @property
     def size(self) -> tuple[int, int] | None:
         return self._size
 
-    def frame(self) -> tuple[int, int, bytes] | None:
+    def frame(self, now: float | None = None) -> tuple[int, int, bytes] | None:
         picture = self._frames.latest(TOKEN)
         if picture is not None:
             self._size = (picture[0], picture[1])
+            if now is not None:
+                self._answered_at = now
+                self._said_it_went_quiet = False
         return picture
+
+    def went_quiet(self, now: float) -> str | None:
+        """One line to log when the app has stopped answering, or None: a
+        hosted app whose own thread has stopped cannot report that itself."""
+        waiting = self._lines_waiting()
+        if (self._answered_at is None or self._said_it_went_quiet
+                or not waiting or now - self._answered_at < QUIET_S):
+            return None
+        self._said_it_went_quiet = True
+        return (f"The hosted app has gone quiet: no new picture for "
+                f"{now - self._answered_at:.0f}s and {waiting} lines of the room's "
+                f"presses unread in {self._input}")
+
+    def _lines_waiting(self) -> int:
+        try:
+            return len(self._input.read_text(encoding="utf-8").split())
+        except OSError:
+            return 0
 
     def send(self, line: str) -> None:
         append_command(self._input, line)

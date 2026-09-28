@@ -74,9 +74,10 @@ def bring_up_the_hosted_app(
     claim_the_osr2(origenerator_dir)
     kept = _adopt_a_kept_origenerator(m)
     if kept is not None:
-        append_command(Path(m.commands.origenerator_cmd_file), (
-            f"{HAND_OVER}|{m.commands.origenerator_frames_file}"
-            f"|{m.commands.origenerator_input_file}") if in_a_headset else TAKE_BACK)
+        crossing = (f"{HAND_OVER}|{m.commands.origenerator_frames_file}"
+                    f"|{m.commands.origenerator_input_file}") if in_a_headset else TAKE_BACK
+        append_command(Path(m.commands.origenerator_cmd_file), crossing)
+        logger.info("Told the adopted app which room this is: %s", crossing)
         return kept
     # Both read on the app's first tick, and a room never opens paused.
     write_flag_file(m.commands.origenerator_paused_file, False)

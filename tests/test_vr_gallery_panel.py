@@ -8,6 +8,7 @@ from fun_time_vr.gallery_panel import (
     FRAME_FILENAME,
     HOSTED_RELEASE,
     INPUT_FILENAME,
+    QUIET_S,
     TOKEN,
     WHEEL_NOTCH,
     GalleryPanel,
@@ -101,6 +102,46 @@ class TestTheChannelThePictureArrivesThrough:
             panel.close()
 
         assert consume_command_file(tmp_path / INPUT_FILENAME, uppercase=False) == []
+
+
+class TestSayingWhenTheAppHasGoneQuiet:
+    """The room is the healthy side of this boundary: when the hosted app stops
+    publishing and stops reading, the room is the only party that can still say
+    so.  He met that silence as a window showing a picture from four hours
+    earlier that answered no press, and nothing anywhere wrote a line about it.
+    """
+
+    def _panel(self, tmp_path):
+        panel = GalleryPanel(tmp_path)
+        writer = FrameWriter(tmp_path / FRAME_FILENAME, max_pixels=4)
+        writer.write(TOKEN, 2, 2, _pixels(2, 2, 7))
+        assert panel.frame(now=0.0) is not None
+        return panel, writer
+
+    def test_nothing_is_said_while_it_keeps_answering(self, tmp_path):
+        panel, writer = self._panel(tmp_path)
+        panel.send(hover_line(1, 1))
+
+        writer.write(TOKEN, 2, 2, _pixels(2, 2, 9))
+        panel.frame(now=QUIET_S * 2)
+
+        assert panel.went_quiet(now=QUIET_S * 2) is None
+
+    def test_a_silence_with_presses_waiting_is_said_once(self, tmp_path):
+        panel, _writer = self._panel(tmp_path)
+        panel.send(hover_line(1, 1))
+
+        said = panel.went_quiet(now=QUIET_S + 1)
+
+        assert said is not None and "1" in said
+        assert panel.went_quiet(now=QUIET_S + 2) is None, "it said the same thing twice"
+
+    def test_a_silence_with_nothing_waiting_is_not_a_silence(self, tmp_path):
+        """A room nobody is pointing at sends nothing, and an app with nothing
+        to answer publishes nothing: that pair is a quiet room, not a fault."""
+        panel, _writer = self._panel(tmp_path)
+
+        assert panel.went_quiet(now=QUIET_S + 1) is None
 
 
 class TestTheOtherWaysTheRoomReachesIt:

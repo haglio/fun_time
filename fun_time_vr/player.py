@@ -1583,7 +1583,10 @@ class _GalleryUnit:  # the hosted app's window, shown in origenerator mode
         for event in events:
             self._panel.press(event)
         self._send_the_pointer()
-        frame = self._panel.frame()
+        frame = self._panel.frame(now)
+        gone_quiet = self._panel.went_quiet(now)
+        if gone_quiet is not None:
+            logger.warning("%s", gone_quiet)
         if frame is None:
             return
         width, height, pixels = frame
