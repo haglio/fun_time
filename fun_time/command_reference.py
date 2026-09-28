@@ -333,9 +333,11 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Volume down / up, in tenths — the video's sound", (), ("audio_volume_down", "audio_volume_up")),
             _Row(
                 "Cycle the video's VR projection — flat screen, 180° SBS, "
-                "fisheye 190, MKX200, 360 — remembered per video; a controller's "
-                "stick pushed right or left steps forward or back through them "
-                "(FunTimeVR)",
+                "fisheye, stereographic, equisolid, rectilinear, 360 — remembered per "
+                "video; a controller's stick pushed right or left steps forward or "
+                "back through them, and while the picture wraps the view the left "
+                "stick's up and down narrows or widens its angle and the right "
+                "stick's shortens or stretches it, remembered too (FunTimeVR)",
                 ("P",),
                 ("projection_cycle", "projection_cycle_back"),
             ),

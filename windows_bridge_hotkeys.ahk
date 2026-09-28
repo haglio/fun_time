@@ -207,8 +207,7 @@ v::QueueCommand("main_player_cycle_version")
 ; The main player: cycle the length of what plays — mixed (everything) / shorts / full-length.
 t::QueueCommand("main_player_toggle_length")
 
-; FunTimeVR: cycle the main player's video's projection (flat / 180 / fisheye /
-; MKX200 / 360), remembered per video.  Desktop main player ignores the verb.
+; FunTimeVR: cycle the main player's video's projection.  Desktop main player ignores the verb.
 p::QueueCommand("projection_cycle")
 
 ; FunTimeVR: re-zero the scene onto wherever the headset is facing now (the
