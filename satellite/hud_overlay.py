@@ -230,6 +230,7 @@ class HudOverlay:
                     drive_composed=self._drive_gate is not None, hud_corner=corner),
             video=self._video, hover_loop=self._hover_loop,
             hover_tip=self._hover_tip, hover_pos=self._hover_pos,
+            may_grow_on_hover=self._over_the_video,
         )
         self.targets = rendered.targets
         height, width = rendered.bgra.shape[:2]

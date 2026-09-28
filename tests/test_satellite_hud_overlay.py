@@ -443,6 +443,42 @@ def test_a_press_in_a_lower_corner_reaches_the_button_drawn_there(
     assert _commands(tmp_path) == ["portrait_next"]
 
 
+def test_the_plus_names_itself_where_the_panel_floats_over_a_picture(
+        tmp_path: Path, panel: Path):
+    """The panel takes the tooltip's room only while the pointer is on the plus,
+    so a press beside a collapsed HUD still reaches the video under it."""
+    player = FakeSatellitePlayer()
+    overlay = _panel_at(tmp_path, panel, player, hud_minimized=True,
+                        hud_corner="upper_left")
+    (_x, _y, resting), = [(x, y, bgra) for x, y, bgra in player.overlays.values()]
+
+    overlay.motion(MARGIN + BUTTON_SIZE_HUD // 2, MARGIN + BUTTON_SIZE_HUD // 2)
+    (x, y, hovered), = [(x, y, bgra) for x, y, bgra in player.overlays.values()]
+
+    assert resting.shape[:2] == (BUTTON_SIZE_HUD, BUTTON_SIZE_HUD)
+    assert hovered.shape[1] > BUTTON_SIZE_HUD
+    assert (x, y) == (MARGIN, MARGIN)
+
+
+def test_a_panel_on_its_own_screen_holds_the_tooltips_room_from_the_start(
+        tmp_path: Path, panel: Path):
+    """In the headset the panel IS a screen, sized from its own bitmap and
+    centered on the side it hangs against, so a panel that grew under the
+    pointer would carry the plus out from under it and the tooltip would
+    flicker as the pointer lost and found it.  The room is there all along."""
+    player = FakeSatellitePlayer()
+    published = json.loads(panel.read_text(encoding="utf-8"))
+    published.update(hud_minimized=True)
+    panel.write_text(json.dumps(published), encoding="utf-8")
+    overlay = HudOverlay(hud_file=panel, command_file=tmp_path / "dashboard_cmd.txt",
+                         player=player, clock=lambda: 0.0, over_the_video=False)
+
+    overlay.tick()
+
+    (_x, _y, bgra), = player.overlays.values()
+    assert bgra.shape[1] > BUTTON_SIZE_HUD
+
+
 def test_a_minimized_panel_is_the_plus_button_in_that_corner(tmp_path: Path, panel: Path):
     player = FakeSatellitePlayer()
     overlay = _panel_at(tmp_path, panel, player, hud_minimized=True,
