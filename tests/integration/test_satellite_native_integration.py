@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 from player_core.file_channel import append_command
-from player_core.player_verbs import LOCK_ON, NEXT, QUIT, SET_PACE, SET_SPEED
+from player_core.player_verbs import LOCK_ON, NEXT, QUIT, SET_PACE, SET_SPEED, SHOW_FRAME
 
 from fun_time.config import load_config
 from fun_time.filter_vocab import load_camera_words
@@ -302,6 +302,54 @@ def test_a_satellite_holds_a_picture_for_the_pace_it_is_sent_and_under_a_lock(tm
         time.sleep(3.0)
         assert published_status(read_satellite_status, status).video == held, (
             "a locked picture moved on at a one-second pace")
+    finally:
+        append_command(cmd, QUIT)
+        time.sleep(1.0)
+        end_satellite(satellite_process, tmp_path / "portrait_satellite.log")
+
+
+def test_a_frame_put_up_over_a_picture_moves_on_when_the_picture_would_have(tmp_path):
+    cfg = load_config(real_config_path())
+    pictures = _pictures(tmp_path / "pictures", 3)
+    frames = _pictures(tmp_path / "frames", 2)
+    playlist = tmp_path / "portrait_playlist.tsv"
+    playlist.write_text("".join(f"{picture}\n" for picture in pictures), encoding="utf-8")
+    cmd = tmp_path / "portrait_cmd.txt"
+    status = tmp_path / "portrait_status.txt"
+    append_command(cmd, f"{SET_PACE} 4")
+
+    pid = launch_satellite(
+        python_exe=str(cfg.paths.python_exe),
+        satellite_module="satellite",
+        channels=SatelliteChannels(
+            playlist=playlist,
+            command=cmd,
+            paused=tmp_path / "portrait_paused.txt",
+            status=status,
+            play_points=tmp_path / "portrait_play_points.json"),
+        placement=WindowPlacement(x=0, y=0, width=480, height=640,
+                                  title="Portrait AI Player"),
+        role="Portrait",
+        log_file=tmp_path / "portrait_satellite.log",
+        project_dirs=checkout_project_dirs(),
+    )
+    satellite_process = identify_child(pid)
+    try:
+        first = _wait(
+            lambda: (lambda s: s.video if s.picture else None)(read_satellite_status(status)),
+            timeout=30, desc="the satellite to show a picture",
+        )
+        second = _wait(lambda: (lambda v: v if v not in ("", first) else None)(
+            read_satellite_status(status).video), timeout=15, desc="the next picture")
+        append_command(cmd, f"{SHOW_FRAME} {frames[0]}")
+        time.sleep(1.0)
+        append_command(cmd, f"{SHOW_FRAME} {frames[1]}")
+        time.sleep(0.5)
+        assert published_status(read_satellite_status, status).video == second, (
+            "a picture with frames put up over it moved on at the first frame")
+
+        _wait(lambda: read_satellite_status(status).video not in ("", second),
+              timeout=15, desc="the picture under the frames to move on at its pace")
     finally:
         append_command(cmd, QUIT)
         time.sleep(1.0)
