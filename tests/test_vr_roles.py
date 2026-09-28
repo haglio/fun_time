@@ -15,7 +15,7 @@ from fun_time.player_status import read_main_player_status
 from fun_time_vr.layout import TILT_LIMIT_DEG
 from fun_time_vr.picture_shape import FISHEYE_CIRCLE
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_180_SBS, FLAT, ProjectionMemory
-from fun_time_vr.roles import TILT_STEP_DEG, MainRole
+from fun_time_vr.roles import ANGLE_STEP, DIAL_STILL_S, TILT_STEP_DEG, MainRole
 from main_player.play_points import PlayPoints
 from tests.mpv_refusals import RefusesSeeks
 
@@ -500,39 +500,59 @@ class TestDialingAWrappedPicture:
         assert (role.fov_of(str(one)), role.height_of(str(one))) == (143.0, 1.25)
         assert (role.fov_of(str(two)), role.height_of(str(two))) == (None, None)
 
-    def test_it_is_written_beside_the_projection_once_the_hand_lets_go(self, role_parts):
+    def test_it_is_written_beside_the_projection_once_the_dial_has_been_still_for_a_moment(
+            self, role_parts):
         role, metadata = role_parts.role, role_parts.metadata
         role.apply_command("CYCLE_PROJECTION", on_quit=_never_quits)
         role.set_fov(143.0)
         role.set_height(1.25)
 
-        role.remember_fov_and_height()
+        role.tick(now=0.0)
+        role.tick(now=DIAL_STILL_S + 0.1)
 
         sidecar = metadata / "VR" / "finished" / "scene one.json"
         assert json.loads(sidecar.read_text(encoding="utf-8"))["vr"] == {
             "projection": "fisheye_180_sbs", "fov": 143.0, "height": 1.25}
 
-    def test_letting_go_with_nothing_dialed_writes_and_says_nothing(self, role_parts, caplog):
+    def test_it_is_not_written_while_it_keeps_changing(self, role_parts):
+        role, metadata = role_parts.role, role_parts.metadata
+
+        role.set_fov(140.0)
+        role.tick(now=0.0)
+        role.set_fov(141.0)
+        role.tick(now=DIAL_STILL_S * 0.9)
+        role.set_fov(142.0)
+        role.tick(now=DIAL_STILL_S * 1.8)
+
+        assert not (metadata / "VR" / "finished" / "scene one.json").exists()
+
+    def test_it_is_written_and_said_once_however_long_it_then_stays_still(self, role_parts, caplog):
+        role = role_parts.role
+        role.set_fov(143.0)
+        role.tick(now=0.0)
+
+        with caplog.at_level(logging.INFO):
+            for now in (DIAL_STILL_S + 0.1, DIAL_STILL_S * 3, DIAL_STILL_S * 5):
+                role.tick(now=now)
+
+        assert caplog.text.count("field of view 143 degrees") == 1
+
+    def test_a_video_nobody_dialed_is_never_written_or_talked_about(self, role_parts, caplog):
         role, metadata = role_parts.role, role_parts.metadata
 
         with caplog.at_level(logging.INFO):
-            role.remember_fov_and_height()
+            for now in (0.0, DIAL_STILL_S * 2, DIAL_STILL_S * 4):
+                role.tick(now=now)
 
         assert not (metadata / "VR" / "finished" / "scene one.json").exists()
         assert "field of view" not in caplog.text
-
-    def test_it_is_not_written_while_the_hand_is_still_on_the_stick(self, role_parts):
-        role, metadata = role_parts.role, role_parts.metadata
-
-        role.set_fov(143.0)
-
-        assert not (metadata / "VR" / "finished" / "scene one.json").exists()
 
     def test_it_holds_when_the_video_comes_back(self, role_parts):
         role, (one, *_) = role_parts.role, role_parts.files
         role.set_fov(143.0)
         role.set_height(1.25)
-        role.remember_fov_and_height()
+        role.tick(now=0.0)
+        role.tick(now=DIAL_STILL_S + 0.1)
 
         role.apply_command("NEXT", on_quit=_never_quits)
         role.apply_command("PREV", on_quit=_never_quits)
@@ -549,6 +569,44 @@ class TestDialingAWrappedPicture:
         role.apply_command("NEXT", on_quit=_never_quits)
 
         assert (role.fov_of(str(three)), role.height_of(str(three))) == (151.0, 0.8)
+
+    def test_what_a_video_opened_with_is_not_written_back_or_talked_about(self, role_parts, caplog):
+        role, metadata, (_, _, three, _) = role_parts.role, role_parts.metadata, role_parts.files
+        ProjectionMemory(metadata, (three.parent,)).save_fov(str(three), 151.0)
+        role.apply_command("NEXT", on_quit=_never_quits)
+        role.apply_command("NEXT", on_quit=_never_quits)
+
+        with caplog.at_level(logging.INFO):
+            for now in (0.0, DIAL_STILL_S * 2, DIAL_STILL_S * 4):
+                role.tick(now=now)
+
+        assert "field of view" not in caplog.text
+
+
+class TestTheKeyboardWidensOrNarrowsTheAngle:
+    def test_a_press_asks_the_host_for_a_slightly_wider_angle_once(self, role_parts):
+        role = role_parts.role
+
+        assert role.apply_command("WIDEN_PROJECTION", on_quit=_never_quits) is True
+
+        assert role.angle_asked.take() == pytest.approx(ANGLE_STEP)
+        assert role.angle_asked.take() == 1.0
+
+    def test_a_press_asks_for_a_slightly_narrower_one(self, role_parts):
+        role = role_parts.role
+
+        assert role.apply_command("NARROW_PROJECTION", on_quit=_never_quits) is True
+
+        assert role.angle_asked.take() == pytest.approx(1 / ANGLE_STEP)
+
+    def test_presses_before_the_host_looks_add_up(self, role_parts):
+        role = role_parts.role
+
+        for _ in range(3):
+            role.apply_command("WIDEN_PROJECTION", on_quit=_never_quits)
+        role.apply_command("NARROW_PROJECTION", on_quit=_never_quits)
+
+        assert role.angle_asked.take() == pytest.approx(ANGLE_STEP ** 2)
 
 
 class TestRecenter:

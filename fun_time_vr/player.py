@@ -615,7 +615,7 @@ class _MainUnit(_VideoUnit):
         return _wrap_of(self.role, self.target.video) is not None
 
     @property
-    def is_dialed_by_the_sticks(self) -> bool:
+    def can_dial_the_wrap(self) -> bool:
         wrap = _wrap_of(self.role, str(self.role.current_video))
         return self.owns_the_slot and wrap is not None and wrap.fov_deg > 0
 
@@ -2245,15 +2245,14 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                     session.hands, head=head, scene_rotation=scene_rotation, screens=screens)
                 if frame.taken is not None:
                     stacking.take(frame.taken)
-                dialing = main_unit.is_dialed_by_the_sticks
+                dialing = main_unit.can_dial_the_wrap
                 thumb = thumbs.frame(
                     _hands_for_the_players(library, session.hands, elapsed_s=frame_dt),
                     pointer, elapsed_s=frame_dt, dialing=dialing)
                 posts.post(thumb.commands)
+                zoom = main_unit.role.angle_asked.take()
                 if dialing:
-                    main_unit.dial_the_wrap(zoom=thumb.zoom, stretch=thumb.stretch)
-                    if thumb.settled:
-                        main_unit.role.remember_fov_and_height()
+                    main_unit.dial_the_wrap(zoom=zoom, stretch=thumb.stretch)
                 scene_yaw, lift_deg = carried_heading(scene_yaw, frame.carried)
                 main_unit.role.nudge_tilt(lift_deg)
                 scene_pitch_deg = main_unit.role.tilt_deg

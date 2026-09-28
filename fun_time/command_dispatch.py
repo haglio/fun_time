@@ -1778,6 +1778,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["projection_cycle"] = partial(_forward_to_the_vr_main_player, "CYCLE_PROJECTION")
     handlers["projection_cycle_back"] = partial(
         _forward_to_the_vr_main_player, "CYCLE_PROJECTION_BACK")
+    handlers["projection_wider"] = partial(_forward_to_the_vr_main_player, "WIDEN_PROJECTION")
+    handlers["projection_narrower"] = partial(_forward_to_the_vr_main_player, "NARROW_PROJECTION")
     handlers["recenter_view"] = partial(_forward_to_the_vr_main_player, "RECENTER")
     handlers["tilt_up"] = partial(_forward_to_the_vr_main_player, "TILT_UP")
     handlers["tilt_down"] = partial(_forward_to_the_vr_main_player, "TILT_DOWN")
