@@ -31,7 +31,7 @@ class PictureLook:
         self._latest_look = look = object()
         self._start_thread(target=self._look, args=(look, video, on_shape), name="picture-look")
 
-    def close(self) -> None:
+    def stop_looking(self) -> None:
         self._latest_look = None
 
     def _look(self, look: object, video: Path, on_shape: Callable[[Path, str], None]) -> None:

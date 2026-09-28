@@ -9,6 +9,15 @@ from app_support.threading_utils import start_daemon_thread
 from OpenGL import GL
 
 from .frame_relay import SLOTS, FrameRelay, StillAsked, capped_size
+from .paint_watch import (
+    FLUSH,
+    FLUSH_AFTER_S,
+    GIVE_UP,
+    GIVE_UP_AFTER_S,
+    WAIT,
+    GpuWait,
+    PictureWatch,
+)
 from .render import RenderTarget
 from .scheduling import scheduled_as_a_game
 
@@ -52,6 +61,7 @@ class VideoThread:
         self._built = threading.Event()
         self._fault: BaseException | None = None
         self._copy: GpuMark | None = None
+        self._copy_wait = GpuWait()
         self._copying = False
         self.player = None
         self._window = contexts.open(name)
@@ -78,7 +88,7 @@ class VideoThread:
 
     def show_newest(self, target: RenderTarget) -> bool:
         if self._copying:
-            if not self._copy.reached:
+            if not self._finished_on_the_gpu(self._copy_wait, self._copy, "copy"):
                 return False
             self._copying = False
             self._relay.copied()
@@ -95,6 +105,7 @@ class VideoThread:
             picture.width, picture.height, 1,
         )
         self._copy.set()
+        GL.glFlush()
         self._copying = True
         target.painted = True
         return True
@@ -142,11 +153,12 @@ class VideoThread:
 
     def _paint(self, targets: list[RenderTarget], still: RenderTarget | None) -> None:
         mark = GpuMark()
+        wait, watch = GpuWait(), PictureWatch()
         drawn: tuple[int, int, int, int, str] | None = None
         try:
             while not self._stop.is_set():
                 if drawn is not None:
-                    if not mark.reached:
+                    if not self._finished_on_the_gpu(wait, mark, "picture"):
                         self._stop.wait(PAINT_POLL_S)
                         continue
                     slot, texture, width, height, video = drawn
@@ -155,10 +167,29 @@ class VideoThread:
                     if still is not None and self._still.wanted:
                         self._still.leave(self._paint_a_still(still))
                 drawn = self._draw_next(targets, mark)
-                if drawn is None:
-                    self._stop.wait(PAINT_POLL_S)
+                if drawn is not None:
+                    watch.drew()
+                    continue
+                now = time.monotonic()
+                if watch.wants_a_reading(now):
+                    gone = watch.read(position_ms=self.player.position_ms, now=now)
+                    if gone is not None:
+                        logger.warning("The %s video has drawn nothing for %.0fs while it played on",
+                                       self._name, gone)
+                self._stop.wait(PAINT_POLL_S)
         finally:
             mark.close()
+
+    def _finished_on_the_gpu(self, wait: GpuWait, mark: GpuMark, what: str) -> bool:
+        verdict = wait.judge(reached=mark.reached, now=time.monotonic())
+        if verdict == FLUSH:
+            logger.warning("The %s video's %s has waited %.0fs for the GPU; flushing",
+                           self._name, what, FLUSH_AFTER_S)
+            GL.glFlush()
+        elif verdict == GIVE_UP:
+            logger.error("The %s video's %s never finished on the GPU in %.0fs; showing it anyway",
+                         self._name, what, GIVE_UP_AFTER_S)
+        return verdict not in (WAIT, FLUSH)
 
     def _paint_a_still(self, still: RenderTarget):
         """The frame on screen, small, as RGBA rows top-first.
@@ -188,6 +219,7 @@ class VideoThread:
         # convention (verified against a top-half-white clip).
         video = self.player.render(target.fbo, target.width, target.height, flip_y=True)
         mark.set()
+        GL.glFlush()
         if self._perf is not None:
             self._perf.note("paint", (time.perf_counter() - started) * 1e3)
         if video is None:
