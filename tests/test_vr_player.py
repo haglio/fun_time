@@ -1595,19 +1595,26 @@ class TestTheMainPlayersPictureIsWrappedAsItsOwnVideo:
     """The last video's picture stays up while the next video opens, so it is
     wrapped the way its own video is, not the way the next one will be."""
 
-    def test_a_vr_videos_picture_stays_round_the_viewer_while_a_flat_one_opens(self):
-        wide, flat = "C:/videos/wide.mp4", "C:/videos/flat.mp4"
-        main_unit = _like(_MainUnit, SimpleNamespace(
-            target=SimpleNamespace(ready=True, aspect=2.0, video=wide),
-            role=SimpleNamespace(displayed=True,
-                                 projection_of={wide: EQUIRECT_180_SBS, flat: FLAT}.get),
+    WIDE, FLAT_VIDEO = "C:/videos/wide.mp4", "C:/videos/flat.mp4"
+
+    def _showing(self, video):
+        return _like(_MainUnit, SimpleNamespace(
+            target=SimpleNamespace(ready=True, aspect=2.0, video=video),
+            role=SimpleNamespace(displayed=True, projection_of={
+                self.WIDE: EQUIRECT_180_SBS, self.FLAT_VIDEO: FLAT}.get),
             screen=SimpleNamespace(placement=SPOTS[MAIN]),
             owns_the_slot=True,
         ))
 
-        (hanging,) = main_unit.hangings()
+    def test_a_vr_videos_picture_stays_round_the_viewer_while_a_flat_one_opens(self):
+        (hanging,) = self._showing(self.WIDE).hangings()
 
         assert hanging.wrap == immersive_wrap(EQUIRECT_180_SBS)
+
+    def test_a_flat_videos_picture_stays_on_its_screen_while_a_vr_one_opens(self):
+        (hanging,) = self._showing(self.FLAT_VIDEO).hangings()
+
+        assert hanging.wrap is None
 
 
 class TestTheMainSlotUnderThePointer:
