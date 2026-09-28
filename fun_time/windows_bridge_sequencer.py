@@ -748,7 +748,7 @@ def _settle_the_room_under_the_cover(
         players=players)
 
     progress.advance("windows")
-    role_hwnds = _place_and_park_under_the_cover(
+    return _place_and_park_under_the_cover(
         plan=plan,
         main_mode=core.main_mode,
         portrait_hwnd=portrait_hwnd,
@@ -757,8 +757,6 @@ def _settle_the_room_under_the_cover(
         dashboard_pid=dashboard_pid,
         progress=progress,
     )
-    progress.advance("finalizing")
-    return role_hwnds
 
 
 def _run_startup_phases(

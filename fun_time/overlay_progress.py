@@ -137,9 +137,7 @@ class Phase:
 # Startup as the loading screen sees it, in order.  The bar advances by TIME
 # rather than step count: an equal share per step parked it at 83% through the
 # one phase that waits on other processes.  The last is weightless so the bar
-# reads full while the room is settled under the cover.  There is no phase for
-# the hosted Origenerator: it boots out of sight, and waiting on it would be
-# nine parts against the others' four and a half.
+# reads full while the room is settled under the cover.
 #
 # First, the launch's own work, before there is a room to report on.  The screen
 # opens on this one's words: anything else reads as a flicker on its first poll.
@@ -148,13 +146,19 @@ LAUNCH_PHASES: tuple[Phase, ...] = (
     Phase("engine", "Checking the video engine...", 1.0),
 )
 
-# The sequencer's own, as it builds the room.
+COMING_BACK_TO_ORIGENERATOR_MODE = "origenerator"
+
+COMING_BACK_TO_THE_MODE: Phase = Phase(
+    COMING_BACK_TO_ORIGENERATOR_MODE, "Coming back to Origenerator mode...", 0.5)
+
+# The room as it is built, that wait among the steps rather than after the last.
 ROOM_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("browser", "Launching browser...", 0.4),
     Phase("companions", "Launching companions...", 1.3),
     Phase("players", "Waiting for players...", 0.5),
     Phase("windows", "Positioning windows...", 0.5),
+    COMING_BACK_TO_THE_MODE,
     Phase("finalizing", "Finalizing...", 0.0),
 )
 

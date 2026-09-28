@@ -3318,12 +3318,10 @@ def _the_hosted_app_answers(tmp_path):
 
 
 class TestOrigeneratorModeOpensWhenTheAppDoes:
-    """Startup stops holding the room up for the hosted app, so every session
-    that launches one spends its first half-minute with it still booting.
-    Over that stretch the mode cannot be entered at all, and the loop is what
-    knows: it reads the app's status file each tick, publishes the answer onto
-    the state both HUDs draw from, and refuses the switch until it is yes.
-    """
+    """Over the stretch where the hosted app is still booting the mode cannot be
+    entered at all, and the loop is what knows: it reads the app's status file
+    each tick, publishes the answer onto the state both HUDs draw from, and
+    refuses the switch until it is yes."""
 
     def test_the_mode_is_closed_until_the_app_publishes_a_status(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
@@ -3379,31 +3377,75 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
         runner.tick()
         assert read_shared_state(state_file).origenerator_ready is True
 
-    def test_it_never_switches_the_mode_of_its_own_accord(self, tmp_path):
-        """The app arriving opens the mode up; it does not enter it.  A session
-        that put itself into origenerator mode the moment that app was ready
-        would rearrange both sides under whatever he had started doing in video
-        mode, which is why the satellite mode is not remembered at all
-        (``session_resume.NOT_RESUMED``)."""
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+
+class TestComingBackToTheModeTheLastSessionLeft:
+    """Startup hands the loop the wait under the room's cover, and the loop takes
+    the mode up through the switch's own command once the hosted app answers."""
+
+    @staticmethod
+    def _the_app_answers(has_answered):
+        return has_answered()
+
+    def test_it_enters_the_mode_the_last_session_was_left_in(self, tmp_path):
         write_shared_state(tmp_path / "shared_state.ini",
                            BridgeState(satellites_mode="origenerator"))
-
-        runner.tick()
-        _the_hosted_app_answers(tmp_path)
-        runner.tick()
-
-        assert runner.state.origenerator_ready is True
-        assert not (tmp_path / "origenerator_cmd.txt").exists()
-
-    def test_a_session_left_in_kino_mode_is_switched_to_nothing(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
 
+        runner.come_back_to_the_mode_the_last_session_left(
+            wait_for_the_app=self._the_app_answers)
+
+        assert runner.state.satellites_mode == "origenerator"
+        assert "OPEN_SHOWS" in (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8")
+
+    def test_a_room_left_in_kino_mode_holds_its_cover_up_for_nothing(self, tmp_path):
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        _the_hosted_app_answers(tmp_path)
+        waits: list[bool] = []
+
+        def wait_for_the_app(has_answered):
+            waits.append(True)
+            return has_answered()
+
+        runner.come_back_to_the_mode_the_last_session_left(wait_for_the_app=wait_for_the_app)
+
+        assert not waits, "an ordinary room was held under its cover for the hosted app"
+        assert runner.state.satellites_mode == "kino"
+        assert not (tmp_path / "origenerator_cmd.txt").exists()
+
+    def test_an_app_the_wait_gave_up_on_leaves_the_room_in_kino_mode_for_good(self, tmp_path):
+        """The room the cover came off is the room he is using: the ticks after it
+        switch nothing, even once the app turns up, and the file says kino too --
+        the mode it records is the mode both HUDs draw and the switch acts on."""
+        state_file = tmp_path / "shared_state.ini"
+        write_shared_state(state_file, BridgeState(satellites_mode="origenerator"))
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+
+        runner.come_back_to_the_mode_the_last_session_left(wait_for_the_app=lambda _: False)
+        assert read_shared_state(state_file).satellites_mode == "kino"
+
+        _the_hosted_app_answers(tmp_path)
+        runner.tick()
         runner.tick()
 
         assert runner.state.satellites_mode == "kino"
         assert not (tmp_path / "origenerator_cmd.txt").exists()
+
+    def test_it_comes_back_once_and_never_again(self, tmp_path):
+        """A second OPEN_SHOWS restarts both shows on a mode already open."""
+        write_shared_state(tmp_path / "shared_state.ini",
+                           BridgeState(satellites_mode="origenerator"))
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        _the_hosted_app_answers(tmp_path)
+        runner.come_back_to_the_mode_the_last_session_left(
+            wait_for_the_app=self._the_app_answers)
+        sent = (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8")
+
+        runner.come_back_to_the_mode_the_last_session_left(
+            wait_for_the_app=self._the_app_answers)
+
+        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == sent
+
 
 
 class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:

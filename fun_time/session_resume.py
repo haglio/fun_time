@@ -46,7 +46,6 @@ LEARNED_ON = "LEARNED_ON"
 NOT_RESUMED = frozenset({
     "omni_paused",
     "active_player",
-    "satellites_mode",
     "origenerator_ready",
     "majority",
 })

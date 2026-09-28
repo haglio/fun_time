@@ -50,6 +50,7 @@ from .overlay_progress import (
     CANCEL_CLOSING_FUN_TIME,
     CANCEL_FILENAME,
     CANCEL_WORD,
+    COMING_BACK_TO_ORIGENERATOR_MODE,
     SHUTDOWN_PHASES,
     SHUTDOWN_PROGRESS_FILENAME,
     NullProgress,
@@ -807,6 +808,7 @@ def _reveal_the_room(
     cover: LoadingCover,
     hud_publisher,
     hud_primed,
+    before_the_cover_goes: Callable[[], None] = lambda: None,
 ) -> None:
     """Take the curtain down on a session that is finished under it.
 
@@ -822,6 +824,11 @@ def _reveal_the_room(
     # bands off (each promotion inserts above the overlay), so nothing of the
     # session is topmost yet: revealing here would show players sitting under
     # whatever was on those monitors, climbing over it a second later.
+    before_the_cover_goes()
+    # Before the pass below, which waits for the window the dashboard shows
+    # itself in when this line fills the bar.
+    cover.progress.advance("finalizing")
+
     role_hwnds = _fix_post_loading_windows(result, overlay_hwnd=cover.hwnd)
     seat_the_secondary_monitor(manifest, role_hwnds)
 
@@ -927,7 +934,35 @@ def start_voice_control(
     return voice_controller, voice_thread
 
 
-def _start_the_dispatch_loop(
+# Bounded: an app that died on its way up would hold the room's cover shut.
+ORIGENERATOR_BOOT_BUDGET_S = 120.0
+ORIGENERATOR_BOOT_POLL_S = 0.5
+
+
+def come_back_to_the_mode_the_last_session_left(
+    runner: DispatchLoopRunner,
+    *,
+    progress: ProgressReporter,
+) -> None:
+    if not runner.opens_in_the_mode_the_last_session_left:
+        return
+    started = time.monotonic()
+
+    def wait_for_the_app(has_answered: Callable[[], bool]) -> bool:
+        while not has_answered():
+            waited = time.monotonic() - started
+            if waited >= ORIGENERATOR_BOOT_BUDGET_S:
+                return False
+            # Written again: a cover takes itself down on an untouched file.
+            progress.announce(COMING_BACK_TO_ORIGENERATOR_MODE)
+            time.sleep(ORIGENERATOR_BOOT_POLL_S)
+        return True
+
+    progress.announce(COMING_BACK_TO_ORIGENERATOR_MODE)
+    runner.come_back_to_the_mode_the_last_session_left(wait_for_the_app=wait_for_the_app)
+
+
+def _build_the_dispatch_loop(
     result: StartupResult,
     *,
     manifest: LaunchManifest,
@@ -951,7 +986,7 @@ def _start_the_dispatch_loop(
     if manifest.random_favs_browser.enabled:
         rfb_shortcut = resolve_shortcut(manifest.random_favs_browser.shortcut_path)
 
-    dispatch_runner = DispatchLoopRunner(
+    return DispatchLoopRunner(
         config=bridge_config,
         dashboard_cmd_file=dashboard_cmd_file,
         manifest_path=manifest_path,
@@ -976,11 +1011,13 @@ def _start_the_dispatch_loop(
         origenerator_already_open=result.origenerator_already_open,
         secondary_rects=secondary_rects(manifest),
     )
+
+
+def _start_the_dispatch_loop(dispatch_runner: DispatchLoopRunner) -> threading.Thread:
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
     dispatch_thread.start()
     logger.info("Background dispatch loop started")
-
-    return dispatch_runner, dispatch_thread
+    return dispatch_thread
 
 
 def silence_the_players(commands: CommandFiles) -> None:
@@ -1221,19 +1258,7 @@ def run_session(
     )
 
     try:
-        # The sequencer already positioned all windows in Phase 4 (the reveal).
-        if env.show_overlays:
-            _reveal_the_room(result, manifest=manifest, cover=cover,
-                             hud_publisher=hud_publisher, hud_primed=hud_primed)
-
-        # The session is up and its windows are placed.  Writing this file records
-        # the children for teardown and, by appearing, hands the keyboard over: the
-        # hotkey script watches for it and takes its startup hold off, so the keys
-        # go live exactly when there is a session for them to drive.
-        children = identify_children(result)
-        write_pids_file(pids_file, children)
-
-        dispatch_runner, dispatch_thread = _start_the_dispatch_loop(
+        dispatch_runner = _build_the_dispatch_loop(
             result,
             manifest=manifest,
             manifest_path=manifest_path,
@@ -1245,6 +1270,25 @@ def run_session(
             hud_publisher=hud_publisher,
             env=env,
         )
+        come_back_to_the_mode = partial(
+            come_back_to_the_mode_the_last_session_left, dispatch_runner, progress=progress)
+
+        # The sequencer already positioned all windows in Phase 4 (the reveal).
+        if env.show_overlays:
+            _reveal_the_room(result, manifest=manifest, cover=cover,
+                             hud_publisher=hud_publisher, hud_primed=hud_primed,
+                             before_the_cover_goes=come_back_to_the_mode)
+        else:
+            come_back_to_the_mode()
+
+        # The session is up and its windows are placed.  Writing this file records
+        # the children for teardown and, by appearing, hands the keyboard over: the
+        # hotkey script watches for it and takes its startup hold off, so the keys
+        # go live exactly when there is a session for them to drive.
+        children = identify_children(result)
+        write_pids_file(pids_file, children)
+
+        dispatch_thread = _start_the_dispatch_loop(dispatch_runner)
         loopback_server = _serve_loopback(manifest.loopback_port, dispatch_runner)
         voice_controller, voice_thread = start_voice_control(
             prepared_voice,

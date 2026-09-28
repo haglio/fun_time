@@ -101,10 +101,10 @@ from .satellite_groups import (
     wrong_action,
 )
 from .satellites_mode import (
-    KINO_MODE,
+    MODE_BY_COMMAND,
     ORIGENERATOR_MODE,
+    mode_a_command_settles_on,
     origenerator_shows,
-    toggled_satellites_mode,
 )
 from .shared_state import BridgeState, SatelliteState
 from .voice_commands import ORIGENERATOR_PHRASES
@@ -1445,9 +1445,6 @@ def _satellites_slot_ops(satellites_mode: str) -> list[WindowOp]:
     ]
 
 
-_SATELLITES_SWITCHES = ("origenerator_activate", "satellites_kino_activate", "satellites_toggle")
-
-
 def _dispatch_satellites_switch(
     command: str, state: BridgeState, config: BridgeConfig, ops: list[WindowOp]
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -1462,14 +1459,9 @@ def _dispatch_satellites_switch(
         return state, [WindowOp(
             op="notice", key="Origenerator is still starting",
             level=logging.WARNING)]
-    target = {
-        "origenerator_activate": ORIGENERATOR_MODE,
-        "satellites_kino_activate": KINO_MODE,
-        "satellites_toggle": toggled_satellites_mode(state.satellites_mode),
-    }[command]
     result = apply_satellites_switch(
         current_mode=state.satellites_mode,
-        target_mode=target,
+        target_mode=mode_a_command_settles_on(command, state.satellites_mode),
         origenerator_cmd_file=config.origenerator_cmd_file,
         channels=[config.satellite(player) for player in Player.SATELLITES],
     )
@@ -1867,7 +1859,7 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, players in _NO_FILTER_SIDES.items()})
     handlers.update({cmd: partial(_mode_switch, target)
                      for cmd, target in _MODE_SWITCH_COMMANDS.items()})
-    handlers.update({cmd: partial(_satellites_switch, cmd) for cmd in _SATELLITES_SWITCHES})
+    handlers.update({cmd: partial(_satellites_switch, cmd) for cmd in MODE_BY_COMMAND})
     handlers["kino_activate"] = _kino_activate
     handlers.update({command: partial(_crown, crown) for command, crown in CROWNS.items()})
     handlers.update({cmd: partial(_speed, verb, verb, True)

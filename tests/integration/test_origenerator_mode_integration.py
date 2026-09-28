@@ -20,6 +20,7 @@ import subprocess
 import sys
 import textwrap
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -34,6 +35,7 @@ from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import (
     read_shared_state,
     shared_state_path,
+    write_shared_state,
 )
 from fun_time.win32 import (
     find_window_for_process,
@@ -44,7 +46,11 @@ from fun_time.win32 import (
     wait_for_window_by_title,
     windows_obscuring,
 )
-from fun_time.windows_bridge_orchestrator import _fix_post_loading_windows, kill_process_tree
+from fun_time.windows_bridge_orchestrator import (
+    ORIGENERATOR_BOOT_BUDGET_S,
+    _fix_post_loading_windows,
+    kill_process_tree,
+)
 from fun_time.windows_bridge_sequencer import StartupResult
 from fun_time.windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
@@ -52,6 +58,7 @@ from fun_time.windows_bridge_startup import (
 )
 
 from .integration_support import (
+    COMMAND_BUDGET_S,
     START_BUDGET_S,
     FunTimeIntegrationSession,
     build_integration_config,
@@ -94,7 +101,11 @@ _STUB_MAIN = textwrap.dedent(
     from ctypes import wintypes
     from pathlib import Path
 
-    from player_core.file_channel import append_command, publish_whole
+    from player_core.file_channel import (
+        append_command,
+        consume_command_file,
+        publish_whole,
+    )
     from player_core.playlist import PlaylistItem, write_playlist
     from player_core.satellite_hud import HudModel, hud_text
 
@@ -205,13 +216,22 @@ _STUB_MAIN = textwrap.dedent(
         root.deiconify()
         offer_itself()
 
+    def note(line):
+        # In the session's own state dir, which a failed run keeps: a dropped
+        # verb or a refused write shows in no other file.
+        where = Path(args.status_file).parent if args.status_file else state_dir
+        where.mkdir(parents=True, exist_ok=True)
+        with (where / "origenerator_stub.log").open("a", encoding="utf-8") as handle:
+            print(f"{time.time():.3f} {line}", file=handle)
+
     def open_shows():
         for side in SIDES:
             playlist = handed(side, "playlist")
             if side in held or playlist is None:
                 continue
             write_playlist(playlist, [PlaylistItem(PICTURES / f"{side}.png")])
-            append_command(handed(side, "cmd_file"), "RELOAD_PLAYLIST")
+            queued = append_command(handed(side, "cmd_file"), "RELOAD_PLAYLIST")
+            note(f"{side}: list written, reload queued={queued}")
             publish_whole(handed(side, "hud_file"), hud_text(
                 HudModel(player=side, lock_label=f"Stub {side} show")))
             held.add(side)
@@ -235,13 +255,11 @@ _STUB_MAIN = textwrap.dedent(
     def poll():
         answer_a_takeover()
         command_file = Path(args.command_file) if args.command_file else None
-        if command_file is not None and command_file.exists():
-            try:
-                text = command_file.read_text(encoding="utf-8")
-                command_file.unlink()
-            except OSError:
-                text = ""
-            verbs = text.upper()
+        if command_file is not None:
+            # Claimed by rename, like every player's: read-then-unlink destroys
+            # a verb the session appends between the two, and an OPEN_SHOWS lost
+            # that way reads as a player that never took the app's list.
+            verbs = " ".join(consume_command_file(command_file))
             if "QUIT" in verbs:
                 root.destroy()
                 return
@@ -260,6 +278,16 @@ _STUB_MAIN = textwrap.dedent(
 )
 
 _PLAYERS = (Player.PORTRAIT, Player.LANDSCAPE)
+_A_START_WITH_EVERY_CORE_BUSY_S = 2 * START_BUDGET_S
+# The session that comes back to the mode holds its own startup open for the
+# hosted app, so its start is that much longer than any other test's.
+_A_START_THAT_WAITS_FOR_THE_APP_S = (
+    _A_START_WITH_EVERY_CORE_BUSY_S + ORIGENERATOR_BOOT_BUDGET_S)
+# Every wait the two-session check makes, at its own budget: both starts and
+# both players' pictures in the second one.
+_TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S = (
+    _A_START_WITH_EVERY_CORE_BUSY_S + _A_START_THAT_WAITS_FOR_THE_APP_S
+    + 2 * COMMAND_BUDGET_S)
 _PLAYER_TITLES = (SATELLITE_PORTRAIT_TITLE, SATELLITE_LANDSCAPE_TITLE)
 
 
@@ -556,6 +584,44 @@ def _panel_of(hud_file: Path, player: Player):
         return None
     panel = parse_hud(hud_file.read_text(encoding="utf-8"))
     return panel if panel is not None and panel.lock_label == f"Stub {player.label} show" else None
+
+
+@pytest.mark.timeout(_TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S)
+def test_a_room_left_in_the_mode_opens_in_it():
+    """A room left in origenerator mode opens in it, with no switch pressed: the
+    session holds its own cover up for the hosted app and takes the mode up under
+    it, so it is already in the mode when the room is shown.
+
+    A real session runs first because the state file and the playlists the next
+    one reads are what that session leaves on disk -- a session opening on a state
+    dir with neither builds fresh ones and carries nothing.  The mode goes into
+    that file the way a session left in the mode leaves it; pressing the switch to
+    get it there costs an app boot and a wait on it, and the test above is what
+    covers the press.  That first session is ended the way a crash ends one, so it
+    hands its Origenerator to nobody: handed back, the app goes standalone and the
+    next session takes it over, which is the slowest way it can come up.
+    """
+    temp_root = build_integration_temp_root()
+    stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
+    config_path = build_integration_config(temp_root)
+    _host_stub(config_path, stub_root)
+
+    first = FunTimeIntegrationSession(config_path)
+    try:
+        first.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S)
+    finally:
+        first.stop()
+    state_file = shared_state_path(first.config.paths.state_dir)
+    write_shared_state(state_file, replace(read_shared_state(state_file),
+                                           satellites_mode="origenerator"))
+
+    second = FunTimeIntegrationSession(config_path)
+    try:
+        second.start(wait_seconds=_A_START_THAT_WAITS_FOR_THE_APP_S)
+        _wait_for_the_shows(second)
+        assert read_shared_state(state_file).satellites_mode == "origenerator"
+    finally:
+        second.stop()
 
 
 def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doubled():

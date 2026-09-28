@@ -32,6 +32,7 @@ from fun_time.overlay_progress import (
 )
 from fun_time.players import Player
 from fun_time.project_paths import PROJECT_DIR
+from fun_time.satellites_mode import OPEN_SHOWS, ORIGENERATOR_MODE
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import (
@@ -45,7 +46,12 @@ from fun_time.session_handoff import (
     request_handoff,
     take_handoff_request,
 )
-from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
+from fun_time.shared_state import (
+    BridgeState,
+    read_shared_state,
+    shared_state_path,
+    write_shared_state,
+)
 from fun_time.voice_control import say_the_mic_is_off
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
@@ -251,8 +257,8 @@ class TestOrigeneratorInVr:
 
     def test_the_session_brings_the_app_up_before_the_player(self):
         """Its boot is the slowest thing a session waits on and nothing waits on
-        it, so it goes first here as it does on the desktop; the room opens in
-        kino mode and the mode opens once the app has answered."""
+        it, so it goes first here as it does on the desktop; a room left in the
+        mode then has the least of it left to wait out under its cover."""
         calls = _call_lines_in_run_vr_bridge()
 
         assert calls["bring_up_the_hosted_app"] < calls["launch_vr_player"]
@@ -275,6 +281,46 @@ class TestOrigeneratorInVr:
             LaunchManifest.read(path), vr_main_player=True)
 
         assert bridge.origenerator_enabled is False
+
+    def test_a_room_left_in_the_mode_asks_for_the_shows_as_it_opens(self, hosted, tmp_path):
+        """The desktop's own comeback, in the headset: the room holds its cover up
+        for the hosted app and opens with the shows on the players."""
+        state_dir = hosted.paths.state_dir
+        state_dir.mkdir(parents=True, exist_ok=True)
+        write_shared_state(shared_state_path(state_dir),
+                           BridgeState(satellites_mode=ORIGENERATOR_MODE))
+        manifest = LaunchManifest.read(
+            write_manifest_data(build_vr_manifest(hosted), tmp_path / "launch.ini"))
+        Path(manifest.commands.origenerator_status_file).write_text(
+            "paused = 0\n", encoding="utf-8")
+        verbs: list[str] = []
+
+        with patch("fun_time.runtime_flow.append_command",
+                   side_effect=lambda _path, verb: verbs.append(verb)):
+            _end_a_vr_session(
+                orchestrator, hosted, ended_by=lambda *_a, **_k: "asked",
+                bring_up_the_hosted_app=MagicMock(return_value=None),
+                resume_playlists=MagicMock(return_value=True),
+                DispatchLoopRunner=orchestrator.DispatchLoopRunner,
+            )
+
+        assert OPEN_SHOWS in verbs, "the headset's room opened in kino mode"
+
+    def test_the_wait_is_named_on_the_cover_before_the_line_that_fills_the_bar(self):
+        """Put after it, the wait read as a step past "Finalizing..." with the
+        bar already full."""
+        calls = _call_lines_in_run_vr_bridge()
+
+        assert (calls["come_back_to_the_mode_the_last_session_left"]
+                < calls["progress.advance"])
+
+    def test_the_mode_is_taken_up_before_the_room_is_shown(self):
+        """The headset's cover comes down on the DONE, so a comeback after it would
+        rearrange both players under a room he is already using."""
+        calls = _call_lines_in_run_vr_bridge()
+
+        assert (calls["come_back_to_the_mode_the_last_session_left"]
+                < calls["progress.finish"])
 
 
 class _FakeProc:
