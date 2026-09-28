@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
-from app_support.file_channel import read_key_values
+from app_support.file_channel import read_key_values, write_flag
 from app_support.funscript import document, write
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from player_core.file_channel import append_command
@@ -24,7 +24,6 @@ from fun_time.media_actions import remove_from_favs
 from fun_time.player_status import MainPlayerStatus, read_genau_status, read_main_player_status
 from fun_time.players import Player
 from fun_time.role_windows import MAIN_BLANK_SETTLE_S
-from fun_time.runtime_flow import write_flag_file
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.win32 import (
@@ -85,69 +84,62 @@ def test_fun_time_startup_runtime_smoke(shared_integration_session: FunTimeInteg
 
 def test_fun_time_portrait_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Locked portrait satellite", timeout=12)
+    shared_integration_session.wait_for_new_log("Locked portrait satellite")
 
     shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Unlocked portrait satellite", timeout=12)
+    shared_integration_session.wait_for_new_log("Unlocked portrait satellite")
 
 
 def test_fun_time_omnipause_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("omnipause_toggle")
-    shared_integration_session.wait_for_new_log("OmniPause: entering", timeout=12)
+    shared_integration_session.wait_for_new_log("OmniPause: entering")
 
     shared_integration_session.write_dashboard_command("omnipause_toggle")
-    shared_integration_session.wait_for_new_log("OmniPause: leaving", timeout=12)
+    shared_integration_session.wait_for_new_log("OmniPause: leaving")
 
 
 def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
     """The bare command still narrows every player at once, and lifts it again."""
     shared_integration_session.write_dashboard_command("fmode_toggle")
-    shared_integration_session.wait_for_new_log(
-        "F-mode enabled: main, portrait, landscape", timeout=12)
+    shared_integration_session.wait_for_new_log("F-mode enabled: main, portrait, landscape")
 
     shared_integration_session.write_dashboard_command("fmode_toggle")
-    shared_integration_session.wait_for_new_log(
-        "F-mode disabled: main, portrait, landscape", timeout=12)
+    shared_integration_session.wait_for_new_log("F-mode disabled: main, portrait, landscape")
 
 
 def test_fun_time_sided_fmode_flow(shared_integration_session: FunTimeIntegrationSession):
     """What a satellite's own F button posts: that player alone goes into F-mode,
     and the whole-room command afterwards finishes the job rather than undoing it."""
     shared_integration_session.write_dashboard_command("portrait_fmode")
-    shared_integration_session.wait_for_new_log("F-mode enabled: portrait", timeout=12)
+    shared_integration_session.wait_for_new_log("F-mode enabled: portrait")
 
     shared_integration_session.write_dashboard_command("fmode_toggle")
-    shared_integration_session.wait_for_new_log(
-        "F-mode enabled: main, landscape", timeout=12)
+    shared_integration_session.wait_for_new_log("F-mode enabled: main, landscape")
 
     shared_integration_session.write_dashboard_command("fmode_off")
-    shared_integration_session.wait_for_new_log(
-        "F-mode disabled: main, portrait, landscape", timeout=12)
+    shared_integration_session.wait_for_new_log("F-mode disabled: main, portrait, landscape")
 
 
 def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
     """Pressing 'g' (genau_activate) then 'h' (main_video_activate) switches modes."""
     s = shared_integration_session
     s.write_dashboard_command("genau_activate")
-    s.wait_for_new_log("Switched to genau mode", timeout=12)
+    s.wait_for_new_log("Switched to genau mode")
 
     s.wait_until(
         lambda: s.config.genau_paused_file.read_text(encoding="utf-8") == "0",
-        timeout=12,
         description="Genau paused file to flip off (active)",
     )
     s.wait_until(
         lambda: s.config.main_player_paused_file.read_text(encoding="utf-8") == "1",
-        timeout=12,
         description="the main player paused file to flip on (inactive)",
     )
 
     s.write_dashboard_command("main_video_activate")
-    s.wait_for_new_log("Switched to video mode", timeout=12)
+    s.wait_for_new_log("Switched to video mode")
 
     s.wait_until(
         lambda: s.config.main_player_paused_file.read_text(encoding="utf-8") == "0",
-        timeout=12,
         description="the main player paused file to flip back off (active)",
     )
     # Genau runs on in video mode — its HUD over the video, the Robot Hand
@@ -185,8 +177,7 @@ def _wait_for_genau_to_say(session: FunTimeIntegrationSession, **fields: int) ->
             return False
         return all(said.get(key, "").strip() == value for key, value in wanted.items())
 
-    session.wait_until(saying, timeout=COMMAND_BUDGET_S,
-                       description=f"Genau's status to say {wanted}")
+    session.wait_until(saying, description=f"Genau's status to say {wanted}")
 
 
 def test_fun_time_the_max_intensity_pushes_the_robot_hand_down_and_leaves_it_there(
@@ -195,7 +186,7 @@ def test_fun_time_the_max_intensity_pushes_the_robot_hand_down_and_leaves_it_the
     s = shared_integration_session
     sink = s.config.main_player_tcode.port
     s.write_dashboard_command("genau_activate")
-    s.wait_for_new_log("Switched to genau mode", timeout=COMMAND_BUDGET_S)
+    s.wait_for_new_log("Switched to genau mode")
     try:
         for command in ("play", "robot_hand_amp_100", "robot_hand_speed_50"):
             s.write_dashboard_command(command)
@@ -212,7 +203,7 @@ def test_fun_time_the_max_intensity_pushes_the_robot_hand_down_and_leaves_it_the
     finally:
         s.write_dashboard_command("max_intensity_100")
         s.write_dashboard_command("main_video_activate")
-        s.wait_for_new_log("Switched to video mode", timeout=COMMAND_BUDGET_S)
+        s.wait_for_new_log("Switched to video mode")
 
     assert _osr2_swinging(swinging), swinging
     assert _osr2_still(held), held
@@ -253,33 +244,28 @@ def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integr
     # the video.  Exact, so a caption merely containing the name cannot answer.
     s.wait_until(
         lambda: find_window_by_title("Main Player", exact=True) != 0,
-        timeout=12,
         description="the main player window to exist in video mode",
     )
     main_player_hwnd = find_window_by_title("Main Player", exact=True)
     s.wait_until(
         lambda: is_window_topmost(main_player_hwnd) and not is_window_minimized(main_player_hwnd),
-        timeout=5,
         description="the main player to be restored and topmost in video mode",
     )
     s.wait_until(
         lambda: (not is_window_minimized(find_window_by_title("Genau"))
                  and is_window_topmost(find_window_by_title("Genau"))),
-        timeout=12,
         description="Genau's HUD to be restored and topmost in video mode, above the main player",
     )
 
     s.write_dashboard_command("genau_activate")
-    s.wait_for_new_log("Switched to genau mode", timeout=12)
+    s.wait_for_new_log("Switched to genau mode")
 
     s.wait_until(
         lambda: is_window_minimized(find_window_by_title("Main Player", exact=True)),
-        timeout=12,
         description="the main player window to minimize when Genau mode activates",
     )
     s.wait_until(
         lambda: not is_window_minimized(find_window_by_title("Genau")),
-        timeout=12,
         description="Genau window to stay up as the display in genau mode",
     )
 
@@ -287,22 +273,19 @@ def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integr
     # stays up as the HUD above it — BOTH in the topmost band, leaving the
     # session where it started.
     s.write_dashboard_command("main_video_activate")
-    s.wait_for_new_log("Switched to video mode", timeout=12)
+    s.wait_for_new_log("Switched to video mode")
 
     s.wait_until(
         lambda: not is_window_minimized(find_window_by_title("Main Player", exact=True)),
-        timeout=12,
         description="the main player window to restore in video mode",
     )
     s.wait_until(
         lambda: is_window_topmost(find_window_by_title("Main Player", exact=True)),
-        timeout=5,
         description="the main player to float topmost in video mode (video above the desktop)",
     )
     s.wait_until(
         lambda: (not is_window_minimized(find_window_by_title("Genau"))
                  and is_window_topmost(find_window_by_title("Genau"))),
-        timeout=5,
         description="Genau's HUD to be topmost in video mode, stacked above the main player",
     )
 
@@ -321,7 +304,6 @@ def test_fun_time_leaving_player_stays_up_long_enough_to_go_dark(
     s.write_dashboard_command("main_video_activate")
     s.wait_until(
         lambda: not is_window_minimized(find_window_by_title("Main Player", exact=True)),
-        timeout=12,
         description="the main player restored, so the switch away from it has something to hold",
     )
 
@@ -329,7 +311,7 @@ def test_fun_time_leaving_player_stays_up_long_enough_to_go_dark(
     s.write_dashboard_command("genau_activate")
     # Sampled rather than waited on: how LONG the main player stays up is the assertion, and
     # a log line read at 200 ms cannot see a 250 ms window.
-    while time.monotonic() - started < 12:
+    while time.monotonic() - started < COMMAND_BUDGET_S:
         if is_window_minimized(find_window_by_title("Main Player", exact=True)):
             break
         time.sleep(0.01)
@@ -342,67 +324,65 @@ def test_fun_time_leaving_player_stays_up_long_enough_to_go_dark(
         f"{MAIN_BLANK_SETTLE_S}s it is given to paint its black"
     )
     s.write_dashboard_command("main_video_activate")
-    s.wait_for_new_log("Switched to video mode", timeout=12)
+    s.wait_for_new_log("Switched to video mode")
 
 
 def test_fun_time_landscape_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Locked landscape satellite", timeout=12)
+    shared_integration_session.wait_for_new_log("Locked landscape satellite")
 
     shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Unlocked landscape satellite", timeout=12)
+    shared_integration_session.wait_for_new_log("Unlocked landscape satellite")
 
 
 def test_fun_time_portrait_next_cancels_lock(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Locked portrait satellite", timeout=12)
+    shared_integration_session.wait_for_new_log("Locked portrait satellite")
 
     shared_integration_session.write_dashboard_command("portrait_next")
     time.sleep(1.5)
 
     shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Locked portrait satellite", timeout=12)
+    shared_integration_session.wait_for_new_log("Locked portrait satellite")
 
     shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Unlocked portrait satellite", timeout=12)
+    shared_integration_session.wait_for_new_log("Unlocked portrait satellite")
 
 
 def test_fun_time_landscape_next_cancels_lock(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Locked landscape satellite", timeout=12)
+    shared_integration_session.wait_for_new_log("Locked landscape satellite")
 
     shared_integration_session.write_dashboard_command("landscape_next")
     time.sleep(1.5)
 
     shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Locked landscape satellite", timeout=12)
+    shared_integration_session.wait_for_new_log("Locked landscape satellite")
 
     shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Unlocked landscape satellite", timeout=12)
+    shared_integration_session.wait_for_new_log("Unlocked landscape satellite")
 
 
 def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("genau_activate")
-    shared_integration_session.wait_for_new_log("Switched to genau mode", timeout=12)
+    shared_integration_session.wait_for_new_log("Switched to genau mode")
 
     shared_integration_session.write_dashboard_command("omnipause_toggle")
-    shared_integration_session.wait_for_new_log("OmniPause: entering", timeout=12)
+    shared_integration_session.wait_for_new_log("OmniPause: entering")
     shared_integration_session.wait_until(
         lambda: shared_integration_session.config.genau_paused_file.read_text(encoding="utf-8") == "1",
-        timeout=12,
         description="Genau paused file to flip on",
     )
 
     shared_integration_session.write_dashboard_command("omnipause_toggle")
-    shared_integration_session.wait_for_new_log("OmniPause: leaving", timeout=12)
+    shared_integration_session.wait_for_new_log("OmniPause: leaving")
     shared_integration_session.wait_until(
         lambda: shared_integration_session.config.genau_paused_file.read_text(encoding="utf-8") == "0",
-        timeout=12,
         description="Genau paused file to flip off",
     )
 
     shared_integration_session.write_dashboard_command("main_video_activate")
-    shared_integration_session.wait_for_new_log("Switched to video mode", timeout=12)
+    shared_integration_session.wait_for_new_log("Switched to video mode")
 
 
 def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunTimeIntegrationSession):
@@ -420,13 +400,12 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
     assert is_process_alive(rh_pid), "Genau should be alive before test"
 
     s.write_dashboard_command("genau_activate")
-    s.wait_for_new_log("Switched to genau mode", timeout=12)
+    s.wait_for_new_log("Switched to genau mode")
 
     s.write_dashboard_command("omnipause_toggle")
-    s.wait_for_new_log("OmniPause: entering", timeout=12)
+    s.wait_for_new_log("OmniPause: entering")
     s.wait_until(
         lambda: s.config.genau_paused_file.read_text(encoding="utf-8") == "1",
-        timeout=12,
         description="Genau paused file to flip on",
     )
 
@@ -437,12 +416,12 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
     )
 
     s.write_dashboard_command("omnipause_toggle")
-    s.wait_for_new_log("OmniPause: leaving", timeout=12)
+    s.wait_for_new_log("OmniPause: leaving")
 
     assert is_process_alive(rh_pid), "Genau should survive leaving omnipause"
 
     s.write_dashboard_command("main_video_activate")
-    s.wait_for_new_log("Switched to video mode", timeout=12)
+    s.wait_for_new_log("Switched to video mode")
 
 
 def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_session: FunTimeIntegrationSession):
@@ -467,27 +446,24 @@ def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_ses
     # Satellites float topmost while the desktop is live.
     s.wait_until(
         lambda: is_window_topmost(portrait_hwnd) and is_window_topmost(landscape_hwnd),
-        timeout=8,
         description="Portrait + Landscape satellites to be topmost before OmniPause",
     )
 
     # Enter OmniPause — every managed window must drop out of the topmost band.
     s.write_dashboard_command("omnipause_toggle")
-    s.wait_for_new_log("OmniPause: entering", timeout=12)
+    s.wait_for_new_log("OmniPause: entering")
     s.wait_until(
         lambda: not is_window_topmost(portrait_hwnd),
-        timeout=8,
         description="Portrait satellite to leave the topmost band on OmniPause enter",
     )
     s.wait_until(
         lambda: not is_window_topmost(landscape_hwnd),
-        timeout=8,
         description="Landscape satellite to leave the topmost band on OmniPause enter",
     )
 
     # Restore the shared session.
     s.write_dashboard_command("omnipause_toggle")
-    s.wait_for_new_log("OmniPause: leaving", timeout=12)
+    s.wait_for_new_log("OmniPause: leaving")
 
 
 def test_fun_time_omnipause_freezes_the_satellites(
@@ -507,20 +483,17 @@ def test_fun_time_omnipause_freezes_the_satellites(
     s.write_dashboard_command("play")  # idempotent leave-omnipause; a no-op if live
     s.wait_until(
         lambda: not read_satellite_status(portrait_status).paused,
-        timeout=COMMAND_BUDGET_S,
         description="Portrait satellite to be playing before OmniPause",
     )
 
     s.write_dashboard_command("omnipause_toggle")
-    s.wait_for_new_log("OmniPause: entering", timeout=COMMAND_BUDGET_S)
+    s.wait_for_new_log("OmniPause: entering")
     s.wait_until(
         lambda: read_satellite_status(portrait_status).paused,
-        timeout=COMMAND_BUDGET_S,
         description="Portrait satellite to report paused under OmniPause",
     )
     s.wait_until(
         lambda: read_satellite_status(landscape_status).paused,
-        timeout=COMMAND_BUDGET_S,
         description="Landscape satellite to report paused under OmniPause",
     )
     # The playhead must not advance while paused.
@@ -531,7 +504,7 @@ def test_fun_time_omnipause_freezes_the_satellites(
 
     # Restore the shared session.
     s.write_dashboard_command("omnipause_toggle")
-    s.wait_for_new_log("OmniPause: leaving", timeout=12)
+    s.wait_for_new_log("OmniPause: leaving")
 
 
 def test_fun_time_the_satellites_take_the_main_players_playback_speed(
@@ -544,21 +517,18 @@ def test_fun_time_the_satellites_take_the_main_players_playback_speed(
     s.write_dashboard_command("play")
     s.wait_until(
         lambda: s.read_main_player_status().video != "" and s.read_main_player_status().speed == 1.0,
-        timeout=COMMAND_BUDGET_S,
         description="the main player to be playing at normal speed",
     )
 
     s.write_dashboard_command("main_player_speed_150")
     s.wait_until(
         lambda: all(read_satellite_status(status).speed == 1.5 for status in statuses),
-        timeout=COMMAND_BUDGET_S,
         description="both satellites to take the main player's one and a half speed",
     )
 
     s.write_dashboard_command("main_player_speed_100")
     s.wait_until(
         lambda: all(read_satellite_status(status).speed == 1.0 for status in statuses),
-        timeout=COMMAND_BUDGET_S,
         description="both satellites back at normal speed with the main player",
     )
 
@@ -577,23 +547,22 @@ def _main_player_playing_in_video_mode(session: FunTimeIntegrationSession) -> No
     session.write_dashboard_command("play")
     session.wait_until(
         lambda: _loaded_and_playing(session.read_main_player_status()),
-        timeout=COMMAND_BUDGET_S,
         description="the main player to be playing a loaded video in video mode",
     )
 
 
 @contextmanager
 def _main_player_held_still(session: FunTimeIntegrationSession):
-    write_flag_file(session.config.main_player_paused_file, True)
+    paused_file = session.config.main_player_paused_file
     try:
         session.wait_until(
-            lambda: session.read_main_player_status().paused,
-            timeout=COMMAND_BUDGET_S,
+            lambda: write_flag(paused_file, True) and session.read_main_player_status().paused,
             description="the main player to hold still",
         )
         yield
     finally:
-        write_flag_file(session.config.main_player_paused_file, False)
+        session.wait_until(lambda: write_flag(paused_file, False),
+                           description="the main player's paused flag to be lifted")
 
 
 def _a_different_video_loaded(status: MainPlayerStatus, than: str) -> bool:
@@ -608,7 +577,6 @@ def _step_to_a_video_long_enough_to_nudge(session: FunTimeIntegrationSession) ->
         session.write_dashboard_command("main_next")
         session.wait_until(
             lambda than=shown.video: _a_different_video_loaded(session.read_main_player_status(), than),
-            timeout=COMMAND_BUDGET_S,
             description="the main player to load the next video",
         )
     raise AssertionError(f"no sampled video runs {LONG_ENOUGH_TO_NUDGE_MS} ms, to nudge each way")
@@ -620,7 +588,6 @@ def _nudge(session: FunTimeIntegrationSession, command: str, *, by_ms: int) -> N
     session.write_dashboard_command(command)
     session.wait_until(
         lambda: abs(session.read_main_player_status().position_ms - aim) <= NUDGE_SLACK_MS,
-        timeout=COMMAND_BUDGET_S,
         description=lambda: (f"{command} to move the held main player from {before.position_ms} ms "
                              f"to {aim} ms; it reads {session.read_main_player_status().position_ms}"),
     )
@@ -650,21 +617,18 @@ def test_fun_time_main_player_record_loop_cancel_cycle(shared_integration_sessio
         s.write_dashboard_command("main_player_record_tap")
         s.wait_until(
             lambda: s.read_main_player_status().loop_state is LoopState.RECORDING,
-            timeout=COMMAND_BUDGET_S,
             description="the main player to enter recording state",
         )
 
         s.write_dashboard_command("main_player_record_tap")
         s.wait_until(
             lambda: s.read_main_player_status().loop_state is LoopState.LOOPING,
-            timeout=COMMAND_BUDGET_S,
             description="the main player to enter looping state",
         )
 
         s.write_dashboard_command("main_player_loop_cancel")
         s.wait_until(
             lambda: s.read_main_player_status().loop_state is LoopState.NORMAL,
-            timeout=COMMAND_BUDGET_S,
             description="the main player to return to normal state",
         )
 
@@ -686,20 +650,19 @@ def test_fun_time_video_mode_comes_back_to_the_video_main_player_was_showing(sha
     assert main_player_video_before, "expected the main player to be playing before switching to genau"
 
     s.write_dashboard_command("genau_activate")
-    s.wait_for_new_log("Switched to genau mode", timeout=12)
+    s.wait_for_new_log("Switched to genau mode")
     s.write_dashboard_command("main_video_activate")
-    s.wait_for_new_log("Switched to video mode", timeout=12)
+    s.wait_for_new_log("Switched to video mode")
 
     # The main player is the display again and keeps playing its current video — no handoff.
     s.wait_until(
         lambda: s.read_main_player_status().video == main_player_video_before,
-        timeout=12,
         description="the main player to come back on the video it was showing",
     )
 
     # A nudge in video mode reaches the normal dispatch path.
     s.write_dashboard_command("main_nudge_next")
-    s.wait_for_new_log("Dispatching command: main_nudge_next", timeout=10)
+    s.wait_for_new_log("Dispatching command: main_nudge_next")
 
 
 def _swinging_script(path: Path) -> Path:
@@ -718,22 +681,22 @@ def _the_portrait_player_driving_the_osr2(s: FunTimeIntegrationSession, tmp_path
     portrait = s.config.satellite(Player.PORTRAIT)
     s.wait_until(lambda: bool(read_satellite_status(portrait.status_file).video)
                  and not read_satellite_status(portrait.status_file).paused,
-                 timeout=30, description="the portrait player playing a video")
+                 description="the portrait player playing a video")
     video = Path(read_satellite_status(portrait.status_file).video)
     try:
         s.write_dashboard_command("portrait_take_osr2")
         append_command(portrait.cmd_file,
                        play_file(PlaylistItem(video, _swinging_script(tmp_path / "swings.funscript"))))
         s.write_dashboard_command("portrait_lock")
-        s.wait_for_new_log("Locked portrait satellite", timeout=12)
+        s.wait_for_new_log("Locked portrait satellite")
         s.wait_until(lambda: read_satellite_status(portrait.status_file).funscript_driving,
-                     timeout=30, description="the portrait player's funscript to be driving")
+                     description="the portrait player's funscript to be driving")
         yield portrait, video
     finally:
         s.write_dashboard_command("main_take_osr2")
         if read_satellite_status(portrait.status_file).locked:
             s.write_dashboard_command("portrait_lock")
-            s.wait_for_new_log("Unlocked portrait satellite", timeout=12)
+            s.wait_for_new_log("Unlocked portrait satellite")
         append_command(portrait.cmd_file, RELOAD_PLAYLIST)
 
 
@@ -751,14 +714,14 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
         assert highest - lowest > 0.5, scripted
 
         s.write_dashboard_command("speed_up")
-        s.wait_until(lambda: read_satellite_status(portrait.status_file).speed > 1.0, timeout=10,
+        s.wait_until(lambda: read_satellite_status(portrait.status_file).speed > 1.0,
                      description="the speed nudge to reach the portrait player")
         append_command(portrait.cmd_file, f"{SET_SPEED} 1")
 
         append_command(portrait.cmd_file, play_file(PlaylistItem(
             video, _script_that_starts_in_ten_hours(tmp_path / "later.funscript"))))
         s.wait_until(lambda: read_satellite_status(portrait.status_file).funscript_resting,
-                     timeout=30, description="the portrait player to reach a stretch with no funscript")
+                     description="the portrait player to reach a stretch with no funscript")
         time.sleep(2.0)
         resting = senders(tcode_heard(sink, seconds=4))
         assert resting and portraits_line not in resting, (portraits_line, resting)
@@ -784,13 +747,10 @@ def test_fun_time_the_max_intensity_holds_a_side_players_funscript_down_too(
 def _held_still(session: FunTimeIntegrationSession, side: SatelliteFiles) -> SatelliteStatus:
     session.wait_until(
         lambda: bool(read_satellite_status(side.status_file).video),
-        timeout=30,
         description="the player to name the clip it opened on",
     )
-    write_flag_file(side.paused_file, True)
     session.wait_until(
-        lambda: read_satellite_status(side.status_file).paused,
-        timeout=12,
+        lambda: write_flag(side.paused_file, True) and read_satellite_status(side.status_file).paused,
         description="the player to hold its clip",
     )
     return published_status(read_satellite_status, side.status_file)
@@ -812,7 +772,7 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     held = _held_still(s, landscape)
 
     s.write_dashboard_command("landscape_trash")
-    chunk = s.wait_for_new_log("Removed from favorites on player 3:", timeout=12)
+    chunk = s.wait_for_new_log("Removed from favorites on player 3:")
     match = re.search(r"Removed from favorites on player 3:\s*(.+)", chunk)
     assert match, "Expected the unfavorite log chunk to include the landscape path"
     demoted_path = Path(match.group(1).strip()).resolve()
@@ -820,7 +780,6 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
 
     s.wait_until(
         lambda: not s.favs_contains(demoted_path),
-        timeout=12,
         description="landscape sample to be removed from integration favs.csv",
     )
     assert demoted_path.exists(), "A demoted favorite must stay where it is"
@@ -828,13 +787,11 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
 
     s.wait_until(
         lambda: any(n.message == "Unfavorited" and n.source == "landscape" for n in s.notices()),
-        timeout=12,
         description="an \"Unfavorited\" notice over the landscape player",
     )
 
     s.wait_until(
         lambda: _showing(landscape) != demoted_path,
-        timeout=12,
         description="the landscape player to move on from the demoted clip",
     )
     assert read_satellite_status(landscape.status_file).playlist_length == held.playlist_length, (
@@ -843,7 +800,6 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     s.write_dashboard_command("landscape_prev")
     s.wait_until(
         lambda: _showing(landscape) == demoted_path,
-        timeout=12,
         description="landscape prev to land back on the demoted clip, still in the rotation",
     )
 
@@ -856,7 +812,6 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
     status_file = isolated_integration_session.config.paths.state_dir / "portrait_status.txt"
     isolated_integration_session.wait_until(
         lambda: bool(read_satellite_status(status_file).video),
-        timeout=12,
         description="portrait satellite to publish the clip it is playing",
     )
     # Hold the clip before reading which one it is.  These are a few seconds long,
@@ -865,26 +820,24 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
     # it is unfavorited instead of condemned and the weird-dir wait times out on a
     # file that was never going there.  A lock is repeat-one, which closes that.
     isolated_integration_session.write_dashboard_command("portrait_lock_on")
-    isolated_integration_session.wait_for_new_log("Locked portrait satellite", timeout=12)
+    isolated_integration_session.wait_for_new_log("Locked portrait satellite")
     held = published_status(read_satellite_status, status_file).video
     # Take the clip out of the favorites the way the app does, so the discard
     # below meets an ordinary library file rather than a favorite.
     remove_from_favs(isolated_integration_session.favs_file, held)
 
     isolated_integration_session.write_dashboard_command("portrait_trash")
-    chunk = isolated_integration_session.wait_for_new_log("Discarding from player 2:", timeout=12)
+    chunk = isolated_integration_session.wait_for_new_log("Discarding from player 2:")
     match = re.search(r"Discarding from player 2:\s*(.+)", chunk)
     assert match, "Expected discard log chunk to include the discarded portrait path"
     trashed_path = Path(match.group(1).strip()).resolve()
 
     isolated_integration_session.wait_until(
         lambda: not isolated_integration_session.favs_contains(trashed_path),
-        timeout=12,
         description="portrait sample to be removed from integration favs.csv",
     )
     isolated_integration_session.wait_until(
         lambda: any(p.name == trashed_path.name for p in isolated_integration_session.weird_dir.iterdir()),
-        timeout=12,
         description="portrait sample to be moved into the integration weird dir",
     )
     isolated_integration_session.wait_until(
@@ -892,7 +845,6 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
             n.message == "Marked weird" and n.source == "portrait"
             for n in isolated_integration_session.notices()
         ),
-        timeout=12,
         description='a "Marked weird" notice over the portrait player',
     )
 
@@ -906,11 +858,10 @@ def test_fun_time_reset_all_leaves_every_player_unlocked(
     satellite_statuses = [state_dir / f"{side}_status.txt" for side in ("portrait", "landscape")]
     for side in ("portrait", "landscape"):
         session.write_dashboard_command(f"{side}_lock_on")
-        session.wait_for_new_log(f"Locked {side} satellite", timeout=12)
+        session.wait_for_new_log(f"Locked {side} satellite")
     session.wait_until(
         lambda: read_main_player_status(main_player_status).locked and all(
             read_satellite_status(path).locked for path in satellite_statuses),
-        timeout=12,
         description="all three players to report themselves locked",
     )
 
@@ -921,7 +872,6 @@ def test_fun_time_reset_all_leaves_every_player_unlocked(
         and not read_main_player_status(main_player_status).locked and all(
             read_satellite_status(path).video and not read_satellite_status(path).locked
             for path in satellite_statuses),
-        timeout=12,
         description="Reset All to leave all three players unlocked",
     )
 
@@ -934,6 +884,12 @@ def _videos(playlist: Path) -> list[str]:
     ]
 
 
+# Two session starts, a quit and up to five command waits, each at the family's budget:
+# on a loaded machine the two starts alone have taken the suite's whole 240s.
+TWO_SESSIONS_BUDGET_S = 2 * START_BUDGET_S + QUIT_BUDGET_S + 5 * COMMAND_BUDGET_S
+
+
+@pytest.mark.timeout(TWO_SESSIONS_BUDGET_S)
 def test_fun_time_reopens_on_the_video_it_was_closed_on():
     """Close Fun Time on one video and it comes back on that one.
 
@@ -959,7 +915,6 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
         first.write_dashboard_command("main_next")
         first.wait_until(
             lambda: first.read_main_player_status().video not in ("", opened_with[0]),
-            timeout=20,
             description="the main player to navigate off the first video",
         )
         # Then freeze the session before closing it. Some of the main player library
@@ -968,7 +923,6 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
         first.write_dashboard_command("omnipause_toggle")
         first.wait_until(
             lambda: first.read_main_player_status().paused,
-            timeout=20,
             description="the main player to freeze under OmniPause",
         )
         left_on = first.read_main_player_status().video
@@ -991,13 +945,13 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
         )
         second.wait_until(
             lambda: second.read_main_player_status().video == left_on,
-            timeout=20,
             description="the main player to come back up on the video the last session ended on",
         )
     finally:
         second.stop()
 
 
+@pytest.mark.timeout(TWO_SESSIONS_BUDGET_S)
 def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
     """Close Fun Time with the room playing fast and unheld, and it comes back
     that way.
@@ -1018,7 +972,6 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
         first.write_dashboard_command("play")
         first.wait_until(
             lambda: _loaded_and_playing(first.read_main_player_status()),
-            timeout=COMMAND_BUDGET_S,
             description="the main player to be playing",
         )
         first.write_dashboard_command("main_player_speed_150")
@@ -1026,7 +979,6 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
         first.wait_until(
             lambda: (first.read_main_player_status().speed == 1.5
                      and not first.read_main_player_status().locked),
-            timeout=COMMAND_BUDGET_S,
             description="the main player to take one and a half speed and let its video go",
         )
         first.quit_gracefully()
@@ -1039,7 +991,6 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
         second.wait_until(
             lambda: (second.read_main_player_status().speed == 1.5
                      and not second.read_main_player_status().locked),
-            timeout=COMMAND_BUDGET_S,
             description="the reopened main player to come back fast and still unheld",
         )
     finally:
@@ -1078,18 +1029,11 @@ def _config_whose_genau_browses_in_folder_order(temp_root: Path, clip_folder: Pa
 
 
 def _wait_for_genau_on(session: FunTimeIntegrationSession, clip: Path, waiting_for: str) -> None:
-    """Genau publishes a clip once it is decoded, and a starved decode of sixty
-    frames has taken half a minute on a machine carrying other runs."""
     def showing() -> bool:
         published = read_genau_status(session.config.genau_status_file).clip
         return bool(published) and Path(published).resolve() == clip.resolve()
 
-    session.wait_until(showing, timeout=COMMAND_BUDGET_S, description=waiting_for)
-
-
-# Two session starts, a quit and four command waits, each at the family's budget:
-# on a loaded machine the two starts alone have taken the suite's whole 240s.
-TWO_SESSIONS_BUDGET_S = 2 * START_BUDGET_S + QUIT_BUDGET_S + 4 * COMMAND_BUDGET_S
+    session.wait_until(showing, description=waiting_for)
 
 
 @pytest.mark.timeout(TWO_SESSIONS_BUDGET_S)
@@ -1117,7 +1061,7 @@ def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing():
     try:
         first.start()
         first.write_dashboard_command("genau_activate")
-        first.wait_for_new_log("Switched to genau mode", timeout=COMMAND_BUDGET_S)
+        first.wait_for_new_log("Switched to genau mode")
         first.write_dashboard_command("main_latest")
         _wait_for_genau_on(first, gamma, "Latest to put the newest clip on screen")
         first.write_dashboard_command("genau_next_clip")
@@ -1140,7 +1084,7 @@ def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing():
         second.stop()
 
 
-@pytest.mark.timeout(TWO_SESSIONS_BUDGET_S + COMMAND_BUDGET_S)
+@pytest.mark.timeout(TWO_SESSIONS_BUDGET_S)
 def test_fun_time_reopens_holding_the_osr2_to_the_max_intensity_it_was_closed_at():
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
@@ -1152,7 +1096,6 @@ def test_fun_time_reopens_holding_the_osr2_to_the_max_intensity_it_was_closed_at
         first.write_dashboard_command("max_intensity_0")
         first.wait_until(
             lambda: getattr(read_shared_state(state_file), "max_intensity", None) == 0,
-            timeout=COMMAND_BUDGET_S,
             description="the session to hold the max intensity at zero",
         )
         first.quit_gracefully()
@@ -1165,7 +1108,7 @@ def test_fun_time_reopens_holding_the_osr2_to_the_max_intensity_it_was_closed_at
         second.start()
         came_back_at = getattr(read_shared_state(state_file), "max_intensity", None)
         second.write_dashboard_command("genau_activate")
-        second.wait_for_new_log("Switched to genau mode", timeout=COMMAND_BUDGET_S)
+        second.wait_for_new_log("Switched to genau mode")
         second.write_dashboard_command("play")
         _wait_for_genau_to_say(second, playing=1, max_intensity=0)
         held = _osr2_heard_until(sink, _osr2_still)
@@ -1196,14 +1139,14 @@ def test_fun_time_quit_cleans_up_processes():
 
         assert session._proc.poll() is not None, "Orchestrator should have exited"
 
-        deadline = time.time() + 5.0
-        while time.time() < deadline:
-            still_alive = {name: pid for name, pid in live_pids.items() if is_process_alive(pid)}
-            if not still_alive:
-                break
-            time.sleep(0.5)
-        assert not still_alive, (
-            f"Quit path failed to clean up processes: {still_alive}\n{session._log_tail()}"
+        def still_alive() -> dict[str, int]:
+            return {name: pid for name, pid in live_pids.items() if is_process_alive(pid)}
+
+        session.wait_until(
+            lambda: not still_alive(),
+            timeout=QUIT_BUDGET_S,
+            description=lambda: f"the quit path to end every child it launched; still running: "
+                                f"{still_alive()}",
         )
     finally:
         session.stop()
