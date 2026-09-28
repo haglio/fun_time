@@ -9,6 +9,7 @@ what UNIMPLEMENTED_MAIN_PLAYER_VERBS refuses.
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -73,11 +74,16 @@ SCENE_JUMP_LANDS_WITHIN_MS = 500
 
 TILT_STEP_DEG = 5.0
 
+ANGLE_STEP = 1.01
+DIAL_STILL_S = 0.6
+
 # The headset's own verbs: a projection to walk, a heading to re-zero onto, a
 # tilt, a scene to jump to.  Spelled here, beside the registry that answers them,
 # the way a player's own verbs are everywhere in this family.
 CYCLE_PROJECTION = "CYCLE_PROJECTION"
 CYCLE_PROJECTION_BACK = "CYCLE_PROJECTION_BACK"
+WIDEN_PROJECTION = "WIDEN_PROJECTION"
+NARROW_PROJECTION = "NARROW_PROJECTION"
 RECENTER = "RECENTER"
 LAYOUT_RESET = "LAYOUT_RESET"
 TILT_UP = "TILT_UP"
@@ -114,6 +120,21 @@ class HostRequest:
             return False
         self._asked = False
         return True
+
+
+class AngleRequest:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._factor = 1.0
+
+    def ask(self, factor: float) -> None:
+        with self._lock:
+            self._factor *= factor
+
+    def take(self) -> float:
+        with self._lock:
+            factor, self._factor = self._factor, 1.0
+        return factor
 
 
 class MainRole:
@@ -158,6 +179,8 @@ class MainRole:
         self._projections: dict[str, str] = {}
         self._fovs: dict[str, float] = {}
         self._heights: dict[str, float] = {}
+        self._dial_seen: tuple[float | None, float | None] = (None, None)
+        self._dial_changed_at: float | None = None
         self._title = ""
         self._scene_starts: tuple[float, ...] = ()
         self._volume = 100
@@ -167,6 +190,7 @@ class MainRole:
         # without unmuting (see :meth:`sound_goes_live`).
         self._audio_live = False
         self.recenter = HostRequest()
+        self.angle_asked = AngleRequest()
         self.layout_reset = HostRequest()
         self._tilt_deg = clamp_tilt(tilt_deg)
         # Whether this player is what the headset shows: DISPLAY_OFF rides every
@@ -355,6 +379,7 @@ class MainRole:
         waypoints while scripted, parked while unscripted, silent while paused
         or handed to the Robot Hand."""
         self._player.push_still()
+        self._remember_the_dial_once_still(now)
         self._resume.pay(self._player, self.seek_to)
         self._step_at_eof()
         if self._paused:
@@ -465,6 +490,16 @@ class MainRole:
             self._fovs[video] = fov
         if (height := self._remembered.saved_height(video)) is not None:
             self._heights[video] = height
+        self._dial_seen, self._dial_changed_at = (self._fovs.get(video), self._heights.get(video)), None
+
+    def _remember_the_dial_once_still(self, now: float) -> None:
+        video = str(self.current_video)
+        dial = (self._fovs.get(video), self._heights.get(video))
+        if dial != self._dial_seen:
+            self._dial_seen, self._dial_changed_at = dial, now
+        elif self._dial_changed_at is not None and now - self._dial_changed_at >= DIAL_STILL_S:
+            self._dial_changed_at = None
+            self._remember_fov_and_height()
 
     def look_with(self, look) -> None:
         """Handed in, since only the host holds a player to read a picture off."""
@@ -630,11 +665,9 @@ class MainRole:
     def set_height(self, height: float) -> None:
         self._heights[str(self.current_video)] = height
 
-    def remember_fov_and_height(self) -> None:
+    def _remember_fov_and_height(self) -> None:
         video = str(self.current_video)
         fov, height = self._fovs.get(video), self._heights.get(video)
-        if fov is None and height is None:
-            return
         if fov is not None:
             self._remembered.save_fov(video, round(fov, 1))
         if height is not None:
@@ -736,6 +769,11 @@ CONTROLS: tuple[Control, ...] = (
         name="projection",
         verbs=(Verb(CYCLE_PROJECTION, _moves(MainRole.cycle_projection)),
                Verb(CYCLE_PROJECTION_BACK, _moves(MainRole.cycle_projection_back))),
+    ),
+    Control(
+        name="projection_angle",
+        verbs=(Verb(WIDEN_PROJECTION, _moves(lambda role: role.angle_asked.ask(ANGLE_STEP))),
+               Verb(NARROW_PROJECTION, _moves(lambda role: role.angle_asked.ask(1 / ANGLE_STEP)))),
     ),
     Control(name="heading", verbs=(Verb(RECENTER, _moves(lambda role: role.recenter.ask())),)),
     Control(name="layout", verbs=(Verb(LAYOUT_RESET, _moves(MainRole.reset_layout)),)),

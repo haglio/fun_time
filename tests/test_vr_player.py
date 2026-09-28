@@ -1626,7 +1626,7 @@ class TestTheMainPlayersPictureIsWrappedAsItsOwnVideo:
         assert hanging.wrap is None
 
 
-class TestTheMainPlayersWrapIsDialedByTheSticks:
+class TestDialingTheMainPlayersWrap:
     VIDEO = "C:/videos/wide.mp4"
 
     def _main_unit(self, *, projection=FISHEYE_180_SBS, fov=None, height=None, showing=False):
@@ -1653,17 +1653,17 @@ class TestTheMainPlayersWrapIsDialedByTheSticks:
 
         assert hanging.wrap == immersive_wrap(FISHEYE_180_SBS, fov_deg=140.0, height=1.2)
 
-    def test_the_sticks_dial_a_wrapped_picture_but_never_a_flat_one_or_the_360(self):
+    def test_a_wrapped_picture_can_be_dialed_but_never_a_flat_one_or_the_360(self):
         for projection, dialed in ((FISHEYE_180_SBS, True), (EQUIRECT_180_SBS, True),
                                    (RECTILINEAR_SBS, True), (EQUIRECT_360, False), (FLAT, False)):
             main_unit, _ = self._main_unit(projection=projection)
 
-            assert _MainUnit.is_dialed_by_the_sticks.fget(main_unit) is dialed, projection
+            assert _MainUnit.can_dial_the_wrap.fget(main_unit) is dialed, projection
 
-    def test_the_sticks_leave_the_picture_alone_while_a_clip_holds_the_slot(self):
+    def test_the_picture_is_left_alone_while_a_clip_holds_the_slot(self):
         main_unit, _ = self._main_unit(showing=True)
 
-        assert _MainUnit.is_dialed_by_the_sticks.fget(main_unit) is False
+        assert _MainUnit.can_dial_the_wrap.fget(main_unit) is False
 
     def test_a_zoom_scales_the_field_of_view_it_has_now_and_a_stretch_the_height(self):
         main_unit, dialed = self._main_unit(fov=100.0, height=1.5)
@@ -1686,12 +1686,12 @@ class TestTheMainPlayersWrapIsDialedByTheSticks:
 
         assert dialed == {}
 
-    def test_the_frame_loop_hands_the_sticks_to_the_wrap_and_writes_it_when_they_let_go(self):
+    def test_the_frame_loop_hands_the_sticks_and_the_keyboard_to_the_wrap(self):
         loop = inspect.getsource(player._run)
 
         assert "dialing=dialing" in loop
-        assert "main_unit.dial_the_wrap(zoom=thumb.zoom, stretch=thumb.stretch)" in loop
-        assert "main_unit.role.remember_fov_and_height()" in loop
+        assert "zoom = main_unit.role.angle_asked.take()" in loop
+        assert "main_unit.dial_the_wrap(zoom=zoom, stretch=thumb.stretch)" in loop
 
 
 class TestTheMainSlotUnderThePointer:

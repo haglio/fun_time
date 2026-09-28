@@ -209,6 +209,8 @@ t::QueueCommand("main_player_toggle_length")
 
 ; FunTimeVR: cycle the main player's video's projection.  Desktop main player ignores the verb.
 p::QueueCommand("projection_cycle")
+!Left::QueueCommand("projection_narrower")
+!Right::QueueCommand("projection_wider")
 
 ; FunTimeVR: re-zero the scene onto wherever the headset is facing now (the
 ; runtime's own recenter menu doesn't reach this app).  Desktop main player ignores it.

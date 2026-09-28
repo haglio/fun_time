@@ -647,6 +647,8 @@ def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(
 @pytest.mark.parametrize("command, verb", [
     ("projection_cycle", "CYCLE_PROJECTION"),
     ("projection_cycle_back", "CYCLE_PROJECTION_BACK"),
+    ("projection_wider", "WIDEN_PROJECTION"),
+    ("projection_narrower", "NARROW_PROJECTION"),
     ("recenter_view", "RECENTER"),
     ("tilt_up", "TILT_UP"),
     ("tilt_down", "TILT_DOWN"),
@@ -667,8 +669,9 @@ def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path
 
 @pytest.mark.parametrize(
     "command",
-    ["projection_cycle", "projection_cycle_back", "recenter_view", "tilt_up", "tilt_down",
-     "tilt_reset", "main_scene_prev", "main_scene_next", "vr_reset"],
+    ["projection_cycle", "projection_cycle_back", "projection_wider", "projection_narrower",
+     "recenter_view", "tilt_up", "tilt_down", "tilt_reset", "main_scene_prev",
+     "main_scene_next", "vr_reset"],
 )
 @pytest.mark.parametrize("main_mode", ["video", "genau"])
 def test_a_vr_only_verb_is_not_sent_in_a_desktop_session(command, main_mode, tmp_path: Path):
