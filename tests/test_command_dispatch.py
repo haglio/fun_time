@@ -34,6 +34,7 @@ from fun_time.crown import Crown
 from fun_time.event_log import FAVORITE, NOTICE
 from fun_time.lock_hud import hud_map_cells
 from fun_time.loopback_server import omnipause_url
+from fun_time.main_list_builds import MainListBuild
 from fun_time.media_actions import ensure_in_favs, make_web_url_from_path
 from fun_time.media_metadata import load_metadata, metadata_path_for, normalize_path_key
 from fun_time.modes import write_playlist_file
@@ -4062,6 +4063,33 @@ def test_the_clipper_sibling_falls_back_to_this_checkout_without_git():
         clipper_save._clipper_project_dir.cache_clear()
 
     assert resolved == Path(clipper_save.__file__).resolve().parents[1].parent / "clipper"
+
+
+class _BuildsRecorded:
+    def __init__(self) -> None:
+        self.asked: list[MainListBuild] = []
+
+    def build(self, build: MainListBuild) -> None:
+        self.asked.append(build)
+
+
+@pytest.mark.parametrize(("command", "state", "asked"), [
+    ("main_latest", BridgeState(), dict(recent=True, start_at_top=True)),
+    ("main_shuffle", BridgeState(main_latest=True), dict(recent=False, start_at_top=True)),
+    ("main_projection_vr", BridgeState(), dict(start_at_top=False)),
+    ("main_reset", BridgeState(main_latest=True), dict(recent=False, start_at_top=True)),
+    ("main_fmode_on", BridgeState(), dict(scripted_filter=True)),
+])
+def test_every_main_list_rebuild_is_handed_to_the_sessions_builder(tmp_path, command, state, asked):
+    builds = _BuildsRecorded()
+    config = replace(_make_config(tmp_path), vr_library_dirs=str(tmp_path / "vr"),
+                     main_list_builds=builds)
+
+    dispatch_command(command, state, config)
+
+    assert len(builds.asked) == 1
+    assert {field: getattr(builds.asked[0], field) for field in asked} == asked
+    assert not (config.state_dir / "main_player_playlist.tsv").exists()
 
 
 def test_main_latest_reloads_the_main_player_newest_first(tmp_path, monkeypatch):

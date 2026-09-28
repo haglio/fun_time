@@ -44,6 +44,7 @@ from .hud_feed import HudFeed
 from .hud_transport import HudPublisher
 from .library_browser import browse_library
 from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
+from .main_list_builds import BuildsOffTheLoop
 from .main_slot_handover import MainSlotHandover
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .modes import scripted_item
@@ -1044,6 +1045,7 @@ def build_bridge_config_from_manifest(
     commands = manifest.commands
     return BridgeConfig(
         vr_main_player=vr_main_player,
+        main_list_builds=BuildsOffTheLoop(),
         portrait_cmd_file=Path(commands.portrait_cmd_file),
         portrait_paused_file=Path(commands.portrait_paused_file),
         portrait_status_file=Path(commands.portrait_status_file),

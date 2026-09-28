@@ -971,6 +971,7 @@ def _dispatch_fmode(
         favs_file=config.favs_file,
         state_dir=config.state_dir,
         main_player_cmd_file=config.main_player_cmd_file,
+        main_builds=config.main_list_builds,
         satellites={
             player: SatelliteFmodeInputs(
                 sources=config.satellite(player).sources,
@@ -1040,6 +1041,7 @@ def _dispatch_main_reorder(
             start_at_top=True,
             shapes=main_video_shapes(state, config),
             metadata_root=config.regen_metadata_root,
+            builds=config.main_list_builds,
         )
     else:
         state = replace(state, genau_latest=recent)
@@ -1107,6 +1109,7 @@ def _narrow_the_main_player(
         main_player_cmd_file=config.main_player_cmd_file,
         shapes=main_video_shapes(state, config),
         metadata_root=config.regen_metadata_root,
+        builds=config.main_list_builds,
     )
     return state, []
 
@@ -1152,6 +1155,7 @@ def _dispatch_main_reset(
             start_at_top=True,
             shapes=main_video_shapes(state, config),
             metadata_root=config.regen_metadata_root,
+            builds=config.main_list_builds,
         )
     if main_player_displays(state.main_mode):
         for verb in _MAIN_PLAYER_RESET_VERBS:
