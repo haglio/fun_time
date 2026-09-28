@@ -53,6 +53,7 @@ from fun_time.dashboard_actions import (
     QUIT_BUTTON,
     REFERENCE_OPEN_FILENAME,
 )
+from fun_time.event_log import NOTICE
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
@@ -79,6 +80,7 @@ from fun_time_vr.cover import (
 from fun_time_vr.dash_panel import DASH_WIDTH_PX, dash_actions, dash_height
 from fun_time_vr.furniture import Scrubber, control_size, scaled
 from fun_time_vr.layout import (
+    BANNER,
     DASH,
     LANDSCAPE,
     LIBRARY,
@@ -97,6 +99,7 @@ from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.player import (
     _OV_SCRUBBER,
     VrSettings,
+    _BannerUnit,
     _ControllerPosts,
     _CoverUnit,
     _DashUnit,
@@ -149,6 +152,7 @@ from fun_time_vr.scene import (
 )
 from fun_time_vr.stacking import Stacking
 from fun_time_vr.video_thread import VideoThread
+from fun_time_vr.wrap_readout import WrapReadout
 from main_player.overlay import HeatmapStrip, timeline_bgra
 from main_player.play_points import play_points_filename
 from satellite.session import SatelliteSession
@@ -1692,6 +1696,94 @@ class TestDialingTheMainPlayersWrap:
         assert "dialing=dialing" in loop
         assert "zoom = main_unit.role.angle_asked.take()" in loop
         assert "main_unit.dial_the_wrap(zoom=zoom, stretch=thumb.stretch)" in loop
+
+
+class TestTheReadoutOfAWrappedPicture:
+    VIDEO = "C:/videos/wide.mp4"
+
+    def _main_unit(self, *, projection=FISHEYE_180_SBS, fov=None, height=None, showing=False):
+        return SimpleNamespace(
+            owns_the_slot=not showing,
+            role=SimpleNamespace(
+                current_video=Path(self.VIDEO), projection_of=lambda _video: projection,
+                fov_of=lambda _video: fov, height_of=lambda _video: height))
+
+    def test_the_main_player_reads_its_own_wrap(self):
+        unit = self._main_unit(fov=158.4, height=1.2)
+
+        assert _MainUnit.wrap_readout.fget(unit) == "Fisheye · 158° · height 1.20"
+
+    def test_it_reads_nothing_while_a_clip_holds_the_slot(self):
+        assert _MainUnit.wrap_readout.fget(self._main_unit(showing=True)) is None
+
+    def test_each_new_reading_flashes_over_the_main_screen_and_a_repeat_does_not(self):
+        flashed = []
+        unit = SimpleNamespace(
+            _readout=WrapReadout(), screen_name=MAIN, wrap_readout="Fisheye · 158° · height 1.20",
+            _notices=SimpleNamespace(flash=lambda said, **how: flashed.append((said, how))))
+
+        _MainUnit.flash_the_readout(unit, 1.0)
+        _MainUnit.flash_the_readout(unit, 2.0)
+
+        assert flashed == [("Fisheye · 158° · height 1.20",
+                            {"level": NOTICE, "screen": MAIN, "now": 1.0})]
+
+    def test_the_frame_loop_asks_the_main_player_for_its_reading_every_frame(self):
+        assert "main_unit.flash_the_readout(now)" in inspect.getsource(player._run)
+
+
+class TestTheBannerOverAWrappedPicture:
+    def _main_unit(self, *, wraps):
+        return SimpleNamespace(
+            _notices=SimpleNamespace(banner=lambda _screen: "a banner"), wraps_the_viewer=wraps,
+            screen_name=MAIN)
+
+    def test_a_flat_picture_takes_its_banner_into_itself(self):
+        assert _MainUnit.banner_into_the_picture(self._main_unit(wraps=False)) == "a banner"
+
+    def test_a_wrapped_picture_takes_none_into_itself(self):
+        assert _MainUnit.banner_into_the_picture(self._main_unit(wraps=True)) is None
+
+    def _floating(self, *, wraps, banner):
+        unit = SimpleNamespace(
+            _main_unit=SimpleNamespace(wraps_the_viewer=wraps),
+            _notices=SimpleNamespace(banner=lambda _screen: banner),
+            _lock=threading.Lock(), _image=None, _uploaded=None, _painted=None,
+            texture=SimpleNamespace(ready=True, texture=object(), aspect=6.0),
+            screen=SimpleNamespace(placement=Placement(0.0, 24.0, 1.0)),
+        )
+        _BannerUnit.pump(unit, None, now=0.0)
+        return unit
+
+    def test_it_floats_the_banner_in_front_while_the_picture_wraps_the_viewer(self):
+        notice = SimpleNamespace(message="Fisheye · 158° · height 1.20", level=NOTICE)
+
+        unit = self._floating(wraps=True, banner=notice)
+
+        (hanging,) = _BannerUnit.hangings(unit)
+        assert hanging.in_front and hanging.blend
+        assert hanging.screen.name == BANNER
+        assert not hanging.screen.pressable and not hanging.screen.movable
+        assert unit._image is not None
+        assert unit.screen.placement.width_deg == pytest.approx(
+            unit._image.width / player.BANNER_PX_PER_DEG)
+
+    def test_it_hangs_nothing_over_a_flat_picture_which_draws_its_own(self):
+        notice = SimpleNamespace(message="Flat", level=NOTICE)
+
+        assert _BannerUnit.hangings(self._floating(wraps=False, banner=notice)) == ()
+
+    def test_it_hangs_nothing_once_the_banner_has_faded(self):
+        unit = self._floating(wraps=True, banner=SimpleNamespace(message="Flat", level=NOTICE))
+
+        unit._notices = SimpleNamespace(banner=lambda _screen: None)
+        _BannerUnit.pump(unit, None, now=3.0)
+
+        assert _BannerUnit.hangings(unit) == ()
+
+    def test_the_banner_is_one_of_the_room(self):
+        assert "banner = _BannerUnit(main_unit, notices)" in inspect.getsource(player._run)
+        assert "library, banner, cover]" in inspect.getsource(player._run)
 
 
 class TestTheMainSlotUnderThePointer:
