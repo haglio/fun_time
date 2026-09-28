@@ -2676,6 +2676,17 @@ class TestIdempotentVoiceCommands:
         runner._update_dashboard()
         assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is False
 
+    def test_a_satellite_off_normal_speed_leaves_the_room_something_to_reset(self, tmp_path):
+        runner = make_runner(tmp_path, dashboard_enabled=True)
+        runner.config.main_player_status_file.write_text(
+            "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
+        runner.config.landscape_status_file.write_text(
+            "video=C:/v/l.mp4\nspeed=0.5\n", encoding="utf-8")
+
+        runner._update_dashboard()
+
+        assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is False
+
     def test_a_room_hosting_origenerator_never_says_it_has_nothing_to_reset(self, tmp_path):
         runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(
             tmp_path, origenerator_enabled=True,

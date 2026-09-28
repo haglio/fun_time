@@ -569,7 +569,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 voice_display=("min speed", "max speed", "half speed", "double speed",
                                "reset speed", "speed one point five ex"),
             ),
-            _Row("Reset — back to every default: no filter, no lock, no loop, no F-Mode, shuffled from the top", (), _sided("reset")),
+            _Row("Reset — back to every default: no filter, no lock, no loop, no F-Mode, normal speed, shuffled from the top", (), _sided("reset")),
         ),
         key_headers=("Portrait", "Landscape"),
         note="Alone, a phrase reaches whatever you last navigated — a side, or "
