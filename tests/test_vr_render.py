@@ -68,21 +68,21 @@ class TestTheShaderAndTheTableAreOneSource:
 
     def test_each_fisheye_is_drawn_at_the_angle_its_name_gives(self):
         for projection in _FISHEYES:
-            degrees = immersive_wrap(projection).fisheye_fov_deg
+            degrees = immersive_wrap(projection).fov_deg
             assert str(int(degrees)) in projection, projection
 
     def test_the_fisheyes_are_exactly_the_projections_that_have_a_field_of_view(self):
         with_one = {projection for projection in PROJECTIONS
-                    if projection != FLAT and immersive_wrap(projection).fisheye_fov_deg}
+                    if projection != FLAT and immersive_wrap(projection).fov_deg}
 
         assert with_one == set(_FISHEYES)
-        assert not immersive_wrap(EQUIRECT_180_SBS).fisheye_fov_deg
-        assert not immersive_wrap(EQUIRECT_360).fisheye_fov_deg
+        assert not immersive_wrap(EQUIRECT_180_SBS).fov_deg
+        assert not immersive_wrap(EQUIRECT_360).fov_deg
 
     def test_the_shader_is_handed_the_angle_and_holds_none_of_its_own(self):
-        assert "uniform float fisheye_half_fov;" in _IMMERSIVE_FRAGMENT_SHADER
+        assert "uniform float fov_half;" in _IMMERSIVE_FRAGMENT_SHADER
         for projection in _FISHEYES:
-            assert str(immersive_wrap(projection).fisheye_fov_deg) not in _IMMERSIVE_FRAGMENT_SHADER
+            assert str(immersive_wrap(projection).fov_deg) not in _IMMERSIVE_FRAGMENT_SHADER
 
     def test_every_glsl_brace_is_doubled_in_the_source(self):
         """It is an f-string, so a GLSL brace left single is an interpolation:
@@ -114,17 +114,17 @@ class TestTheFisheyeCurvesBesideTheAngle:
 
     def test_the_new_curves_hold_mkx200s_own_angle(self):
         for projection in (FISHEYE_200_STEREOGRAPHIC_SBS, FISHEYE_200_EQUISOLID_SBS):
-            assert (immersive_wrap(projection).fisheye_fov_deg
-                    == immersive_wrap(MKX200_SBS).fisheye_fov_deg)
+            assert (immersive_wrap(projection).fov_deg
+                    == immersive_wrap(MKX200_SBS).fov_deg)
 
     def test_each_entry_is_marked_for_the_curve_it_draws(self):
-        assert immersive_wrap(MKX200_SBS).fisheye_curve == _CURVE_EQUIDISTANT
-        assert immersive_wrap(FISHEYE_200_STEREOGRAPHIC_SBS).fisheye_curve == _CURVE_STEREOGRAPHIC
-        assert immersive_wrap(FISHEYE_200_EQUISOLID_SBS).fisheye_curve == _CURVE_EQUISOLID
+        assert immersive_wrap(MKX200_SBS).curve == _CURVE_EQUIDISTANT
+        assert immersive_wrap(FISHEYE_200_STEREOGRAPHIC_SBS).curve == _CURVE_STEREOGRAPHIC
+        assert immersive_wrap(FISHEYE_200_EQUISOLID_SBS).curve == _CURVE_EQUISOLID
 
     def test_the_shader_computes_the_curves_the_optics_define(self):
-        assert "uniform int fisheye_curve;" in _IMMERSIVE_FRAGMENT_SHADER
-        assert f"fisheye_curve == {_CURVE_STEREOGRAPHIC}" in _IMMERSIVE_FRAGMENT_SHADER
-        assert f"fisheye_curve == {_CURVE_EQUISOLID}" in _IMMERSIVE_FRAGMENT_SHADER
+        assert "uniform int curve;" in _IMMERSIVE_FRAGMENT_SHADER
+        assert f"curve == {_CURVE_STEREOGRAPHIC}" in _IMMERSIVE_FRAGMENT_SHADER
+        assert f"curve == {_CURVE_EQUISOLID}" in _IMMERSIVE_FRAGMENT_SHADER
         assert "tan(off_axis" in _IMMERSIVE_FRAGMENT_SHADER
         assert "sin(off_axis" in _IMMERSIVE_FRAGMENT_SHADER
