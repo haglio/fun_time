@@ -276,7 +276,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # the cached listing's empty-read guard is its test, not a second paragraph.
 # 7648 the same day: the projection ring's order and its restart on an unknown
 # name are tests, so the comments that said them went.
-MAX_PROSE_LINES = 7638
+# 7633 the same day: the stops the voice command's comment listed were the
+# reference row's to say, and the HUD rework on main took its own lines out.
+MAX_PROSE_LINES = 7633
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

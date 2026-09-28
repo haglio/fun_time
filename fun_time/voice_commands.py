@@ -155,8 +155,6 @@ def build_voice_commands(
         # below (the main player joins the active-side feature for navigation).
         "skip": "main_nudge_next",
         "back": "main_nudge_prev",
-        # FunTimeVR: walk the main player's video's projection (flat / 180 / fisheye /
-        # MKX200 / 360); the pick is remembered per video in its sidecar.
         "projection": "projection_cycle",
         # FunTimeVR: re-zero the scene onto wherever the headset is facing now —
         # the in-app recenter, since the runtime's own menu doesn't reach the app.
