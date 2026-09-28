@@ -17,6 +17,7 @@ from PyQt6.QtCore import QPoint, QRect
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QTextBrowser, QWidget
 from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY
+from shared_ui.icon_geometry import GLYPHS, tooltip_for
 from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import BUTTON_MARK_INSET, BUTTON_RADIUS_HUD
 from voice_core.commands import Recognition
@@ -291,6 +292,14 @@ def test_every_control_names_itself_on_hover():
 
     assert {rect for rect, _text in scene.hover_texts} == {rect for _a, rect in scene.actions}
     assert all(text for _rect, text in scene.hover_texts)
+
+
+def test_a_control_whose_mark_this_version_lacks_says_why_on_hover(monkeypatch):
+    monkeypatch.delitem(GLYPHS, "power")
+
+    hover = dict(_scene().hover_texts)[compute_dashboard_bar_layout().quit_button]
+
+    assert hover == tooltip_for("power", "Quit")
 
 
 def test_a_pressed_control_lightens_while_the_press_shows():

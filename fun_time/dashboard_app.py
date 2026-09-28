@@ -21,6 +21,7 @@ from shared_ui.colors import (
     hovered,
 )
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
+from shared_ui.icon_geometry import tooltip_for
 from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import BUTTON_RADIUS_HUD
 
@@ -283,7 +284,7 @@ def build_dashboard_scene(
         images=images,
         actions=tuple((control.action, control.rect)
                       for control in controls if not control.dim),
-        hover_texts=tuple((control.rect, tooltips[control.action])
+        hover_texts=tuple((control.rect, tooltip_for(control.mark, tooltips[control.action]))
                           for control in controls),
     )
 
