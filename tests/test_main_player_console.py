@@ -10,6 +10,7 @@ from player_core.console import (
     read_console,
 )
 from player_core.console_hud import ConsoleHud, ConsolePainter, hud_xy
+from player_core.drive_layout import MAX_INTENSITY
 from player_core.drive_readout import DriveHud
 from player_core.hud_button import Button
 from player_core.modes import LengthMode, LoopState, MainMode, Osr2State
@@ -39,6 +40,10 @@ def test_the_panel_carries_what_the_room_does_to_the_osr2():
     assert _payload().osr2_control == OSR2_DRIVING
     assert _payload(osr2_control=OSR2_CONTROL_OFF).osr2_control == OSR2_CONTROL_OFF
     assert _button(_payload(osr2_control=OSR2_CONTROL_OFF), "osr2_control_off").warn
+
+
+def test_the_panel_carries_the_max_intensity_the_session_holds_for_its_slider():
+    assert _payload(max_intensity=35).max_intensity == 35
 
 
 class TestOsr2State:
@@ -256,6 +261,10 @@ class TestTheReadoutTheWordLeaves:
         return painter, hud_xy()
 
     @staticmethod
+    def _readouts_own(painter):
+        return [track for track in painter.tracks if track.axis != MAX_INTENSITY]
+
+    @staticmethod
     def _center(rect, origin):
         left, top = origin
         x, y, w, h = rect
@@ -275,7 +284,7 @@ class TestTheReadoutTheWordLeaves:
         for action, rect in marks.items():
             assert painter.press_at(*self._center(rect, origin)) == action
 
-        for track in painter.tracks:
+        for track in self._readouts_own(painter):
             posted = painter.press_at(*self._center(track.rect, origin))
             assert posted.startswith(f"robot_hand_{track.axis}_"), (
                 f"the {track.axis} band refused a press: {posted!r}")
@@ -287,11 +296,20 @@ class TestTheReadoutTheWordLeaves:
         painter, origin = self._readout(
             _payload(main_mode=MainMode.VIDEO, main_player=MainPlayerStatus(has_funscript=True)), tmp_path)
 
-        for track in painter.tracks:
+        for track in self._readouts_own(painter):
             assert painter.press_at(*self._center(track.rect, origin)) == ""
         for rect, button in painter.buttons:
             if button.command.startswith(("genau_amplitude", "robot_hand_center")):
                 assert painter.press_at(*self._center(rect, origin)) == ""
+
+    def test_the_max_intensity_holds_a_funscripts_turn_down_too_so_it_stays_pressable(
+            self, tmp_path):
+        painter, origin = self._readout(
+            _payload(main_mode=MainMode.VIDEO, main_player=MainPlayerStatus(has_funscript=True),
+                     max_intensity=50), tmp_path)
+        (max_intensity,) = [track for track in painter.tracks if track.axis == MAX_INTENSITY]
+
+        assert painter.press_at(*self._center(max_intensity.rect, origin)).startswith("max_intensity_")
 
     def test_the_declared_rows_are_what_the_player_presses(self, tmp_path):
         """The whole way round: a button declared here, published, read back and

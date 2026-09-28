@@ -17,6 +17,7 @@ from pathlib import Path
 from player_core.file_channel import append_command
 from player_core.modes import MainMode
 from player_core.player_verbs import SET_F_MODE
+from player_core.robot_hand import FULL_INTENSITY
 
 from satellite.contract import SatelliteChannels, WindowPlacement
 
@@ -27,6 +28,7 @@ from .checkout_overrides import genau_project_kwargs, is_a_worktree, primary_of
 from .child_launch import no_child_log, open_child_log
 from .config import load_config
 from .content import load_web_providers
+from .max_intensity import publish_max_intensity
 from .mode_plan import STARTUP_MAIN_MODE, hud_verb, main_player_display_verb
 from .modes import (
     PLAYLIST_MAIN_PLAYER,
@@ -278,6 +280,8 @@ def seed_startup_states(
     main_player_cmd_file: str | Path,
     volume: int = MAX_VOLUME,
     muted: bool = False,
+    max_intensity: int = FULL_INTENSITY,
+    satellite_cmd_files: tuple[str | Path, ...] = (),
     scripted_filter: bool = False,
     mode: MainMode = STARTUP_MAIN_MODE,
 ) -> None:
@@ -335,6 +339,11 @@ def seed_startup_states(
         muted=muted,
     )
     append_command(Path(main_player_cmd_file), f"{SET_F_MODE} {int(scripted_filter)}")
+    if max_intensity < FULL_INTENSITY:
+        publish_max_intensity(
+            (Path(command_file) for command_file in
+             (genau_cmd_file, main_player_cmd_file, *satellite_cmd_files)),
+            max_intensity=max_intensity)
 
 
 def reset_satellite_paused_states(
@@ -429,8 +438,9 @@ def start_core_session(
     seed_startup_states(
         genau_paused_file, audio_paused_file, main_player_paused_file, audio_volume_file,
         genau_cmd_file, main_player_cmd_file=main_player_cmd_file,
-        volume=carried.volume, muted=carried.muted, scripted_filter=carried.main_scripted_filter,
-        mode=carried.main_mode,
+        volume=carried.volume, muted=carried.muted, max_intensity=carried.max_intensity,
+        satellite_cmd_files=(portrait.channels.command, landscape.channels.command),
+        scripted_filter=carried.main_scripted_filter, mode=carried.main_mode,
     )
     # seed_startup_states does not touch the satellite paused files.
     reset_satellite_paused_states(portrait.channels.paused, landscape.channels.paused)

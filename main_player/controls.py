@@ -40,6 +40,7 @@ from player_core.player_verbs import (
     SEEK_BACK,
     SEEK_FWD,
     SET_F_MODE,
+    SET_MAX_INTENSITY,
     SET_PACE,
     SET_SPEED,
     SET_TCODE_ENABLED,
@@ -187,6 +188,15 @@ def _play_file(controls: MainPlayerControls, value: str) -> bool:
 
 def _set_tcode_enabled(controls: MainPlayerControls, value: str) -> bool:
     controls.session.set_tcode_enabled(value != "0")
+    return True
+
+
+def _set_max_intensity(controls: MainPlayerControls, value: str) -> bool:
+    try:
+        max_intensity = int(value)
+    except ValueError:
+        return False
+    controls.session.set_max_intensity(max_intensity)
     return True
 
 
@@ -354,6 +364,10 @@ CONTROLS: tuple[Control, ...] = (
         name="volume",
         needs=("set_volume_hud",),
         verbs=(Verb(SET_VOLUME, _set_volume, takes_a_value=True),),
+    ),
+    Control(
+        name="max_intensity",
+        verbs=(Verb(SET_MAX_INTENSITY, _set_max_intensity, takes_a_value=True),),
     ),
     # Fun Time owns the playlist file and rewrites it whenever the room's
     # selection changes; this is how it says so.

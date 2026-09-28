@@ -16,6 +16,7 @@ from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
 from player_core.drive_readout import DriveHud, drive_text
 from player_core.modes import MainMode
 from player_core.playlist import PlaylistItem, write_playlist
+from player_core.robot_hand import FULL_INTENSITY
 
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
@@ -467,6 +468,17 @@ def test_seed_startup_states_tells_genau_the_level_too(tmp_path: Path):
     assert verbs[-1] == _main_player_verbs(tmp_path)[-2], "the two players are told the same"
 
 
+def test_seed_startup_states_holds_every_player_that_can_drive_the_osr2_to_its_max_intensity(
+        tmp_path: Path):
+    sides = (tmp_path / "portrait_cmd.txt", tmp_path / "landscape_cmd.txt")
+
+    _seed_startup_states(tmp_path, max_intensity=30, satellite_cmd_files=sides)
+
+    assert "SET_MAX_INTENSITY 30" in _main_player_verbs(tmp_path)
+    for command_file in (tmp_path / "genau_cmd.txt", *sides):
+        assert "SET_MAX_INTENSITY 30" in command_file.read_text(encoding="utf-8").splitlines()
+
+
 def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Path):
     """The companion is only asked to be quiet, so a mute reaches it as zero;
     The main player also draws the control, so it gets the level and the flag and can say
@@ -549,8 +561,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     )
     # Startup leaves a live broker alone, only starting one when none answers.
     ensure.assert_called_once_with(state_dir / "broker_heartbeat.txt", None)
-    # Seeded at what this session opens on — full volume, F-mode off, on the main player,
-    # with no session to come back to.
+    # Seeded at what this session opens on — full volume for the sound, no cap on
+    # the OSR2, F-mode off, on the main player, with no session to come back to.
     seed.assert_called_once_with(
         tmp_path / "genau_paused.txt",
         tmp_path / "audio_paused.txt",
@@ -560,6 +572,9 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         main_player_cmd_file=state_dir / "main_player_cmd.txt",
         volume=MAX_VOLUME,
         muted=False,
+        max_intensity=FULL_INTENSITY,
+        satellite_cmd_files=(kwargs["portrait"].channels.command,
+                             kwargs["landscape"].channels.command),
         scripted_filter=False,
         mode="video",
     )

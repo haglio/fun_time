@@ -230,6 +230,13 @@ class PlayerSession:
         self._volume = max(MIN_VOLUME, min(MAX_VOLUME, volume))
         self._player.set_volume(self._volume)
 
+    @property
+    def max_intensity(self) -> int:
+        return self._device.max_intensity
+
+    def set_max_intensity(self, max_intensity: int) -> None:
+        self._device.set_max_intensity(max_intensity)
+
     def set_tcode_enabled(self, enabled: bool) -> None:
         """Gate funscript T-Code output (the SET_TCODE_ENABLED command).
 

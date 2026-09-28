@@ -29,6 +29,7 @@ from player_core.player_verbs import (
     TOGGLE_LOCK,
     TRASH,
 )
+from player_core.robot_hand import FULL_INTENSITY
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import BridgeConfig, WindowOp
@@ -45,6 +46,11 @@ from .event_log import (
 )
 from .filter_vocab import decode_filter_command, set_command
 from .lock import build_discard_plan, build_lock_toggle_plan
+from .max_intensity import (
+    MAX_INTENSITY_COMMAND,
+    players_that_can_drive_the_osr2,
+    publish_max_intensity,
+)
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .media_metadata import forget_indexed_clip
 from .mode_plan import MAIN_GENAU_MODE, MAIN_VIDEO_MODE, main_player_displays
@@ -1875,6 +1881,20 @@ def _parsed_set_volume(command: str, state: BridgeState, config: BridgeConfig,
     return _dispatch_set_volume(command.partition("|")[2], state, config)
 
 
+def _parsed_max_intensity(command: str, state: BridgeState, config: BridgeConfig,
+                        _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
+    if not command.startswith(MAX_INTENSITY_COMMAND):
+        return None
+    try:
+        asked = int(command[len(MAX_INTENSITY_COMMAND):])
+    except ValueError:
+        return state, []
+    max_intensity = max(0, min(FULL_INTENSITY, asked))
+    publish_max_intensity(players_that_can_drive_the_osr2(config), max_intensity=max_intensity)
+    return (replace(state, max_intensity=max_intensity),
+            [WindowOp(op="notice", key=f"Max intensity {max_intensity}%", source=SOURCE_MAIN)])
+
+
 def _parsed_filter(command: str, state: BridgeState, config: BridgeConfig,
                    _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
     filter_target = decode_filter_command(command)
@@ -1926,6 +1946,7 @@ _PARSED_FORMS = (
     _parsed_play_video,
     _parsed_lock_video,
     _parsed_set_volume,
+    _parsed_max_intensity,
     _parsed_filter,
     _parsed_main_player_speed,
     _parsed_satellite_speed,

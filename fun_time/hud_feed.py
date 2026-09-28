@@ -94,7 +94,8 @@ class HudFeed:
                               shape=genau.shape, control=state.osr2_control),),
                 osr2=device_word(osr2_mode, scripted.funscript_driving),
                 control=state.osr2_control,
-                controls=osr2_controls(broker=broker))
+                controls=osr2_controls(broker=broker),
+                max_intensity=state.max_intensity)
 
         def satellite(name: str, player: Player, *, sources: str, status_file: Path) -> SatelliteInputs:
             current = self._satellite_clip(name, status_file)
@@ -175,6 +176,7 @@ class HudFeed:
             in_vr=self.config.vr_main_player,
             crowned=state.crowned is Crown.MAIN,
             has_osr2=with_the_osr2 is Player.MAIN,
+            max_intensity=state.max_intensity,
         ))))
 
     def _hosted_panel(self, player: Player) -> HudModel | None:

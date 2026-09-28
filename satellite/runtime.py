@@ -23,6 +23,7 @@ from player_core.player_verbs import (
     PREV,
     QUIT,
     RELOAD_PLAYLIST,
+    SET_MAX_INTENSITY,
     SET_PACE,
     SET_SPEED,
     SET_TCODE_ENABLED,
@@ -123,6 +124,14 @@ def _set_tcode_enabled(controls: SatelliteControls, value: str) -> bool:
     return True
 
 
+def _set_max_intensity(controls: SatelliteControls, value: str) -> bool:
+    try:
+        controls.session.set_max_intensity(int(value))
+    except ValueError:
+        return False
+    return True
+
+
 def _set_pace(controls: SatelliteControls, value: str) -> bool:
     seconds = pace_seconds(value)
     if seconds is None:
@@ -163,7 +172,8 @@ CONTROLS: tuple[Control, ...] = (
     Control(name="pace", verbs=(Verb(SET_PACE, _set_pace, takes_a_value=True),)),
     Control(
         name="device",
-        verbs=(Verb(SET_TCODE_ENABLED, _set_tcode_enabled, takes_a_value=True),),
+        verbs=(Verb(SET_TCODE_ENABLED, _set_tcode_enabled, takes_a_value=True),
+               Verb(SET_MAX_INTENSITY, _set_max_intensity, takes_a_value=True)),
     ),
     Control(
         name="playlist",

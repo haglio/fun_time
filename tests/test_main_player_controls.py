@@ -58,6 +58,9 @@ class SpySession:
     def set_volume(self, volume: int) -> None:
         self.calls.append(("set_volume", volume))
 
+    def set_max_intensity(self, max_intensity: int) -> None:
+        self.calls.append(("set_max_intensity", max_intensity))
+
     def set_pace(self, seconds: float) -> None:
         self.calls.append(("set_pace", seconds))
 
@@ -404,6 +407,20 @@ class TestApplyCommand:
 
         assert session.calls == []
 
+    def test_the_max_intensity_is_the_scripts_to_keep_under(self):
+        session = SpySession()
+
+        apply_command("SET_MAX_INTENSITY 35", MainPlayerControls(session))
+
+        assert session.calls == [("set_max_intensity", 35)]
+
+    def test_a_max_intensity_that_is_not_a_number_moves_nothing(self):
+        session = SpySession()
+
+        apply_command("SET_MAX_INTENSITY loud", MainPlayerControls(session))
+
+        assert session.calls == []
+
     def test_reload_playlist_asks_for_the_playlist_again(self):
         """Fun Time owns the playlist file and rewrites it whenever the room's
         selection changes; this is how it says so."""
@@ -561,7 +578,7 @@ ACCEPTED_COMMANDS = [
     "RELOAD_PLAYLIST", "TOGGLE_LENGTH_MODE", "SET_LENGTH_MODE shorts",
     "PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP",
     "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED", "END_COMPILATION",
-    "SET_TCODE_ENABLED 1", "SET_F_MODE 1", "SET_PACE 2.5", "SET_PACE 0",
+    "SET_TCODE_ENABLED 1", "SET_MAX_INTENSITY 40", "SET_F_MODE 1", "SET_PACE 2.5", "SET_PACE 0",
     "DISPLAY_ON", "DISPLAY_OFF",
     "QUIT",
 ]

@@ -431,6 +431,12 @@ class TestTheModeASessionComesBackIn:
 
         assert source.index("stock_the_playlists(") < source.index("resume_main_loop(")
 
+    def test_the_headset_comes_back_as_quiet_as_the_osr2_was_left(self):
+        (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
+        given = {kw.arg: ast.unparse(kw.value) for kw in seed.keywords}
+
+        assert given["max_intensity"] == "carried.max_intensity"
+
     def test_the_reveal_releases_the_players_the_mode_puts_to_work(self):
         """The desktop's own reveal: the video in video mode, Genau's hand and its
         music in genau mode -- rather than unpausing the video whatever the mode."""

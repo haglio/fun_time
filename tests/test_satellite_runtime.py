@@ -12,6 +12,7 @@ from player_core.player_verbs import (
     PREV,
     QUIT,
     RELOAD_PLAYLIST,
+    SET_MAX_INTENSITY,
     SET_PACE,
     SET_SPEED,
     SET_TCODE_ENABLED,
@@ -181,6 +182,24 @@ class TestApplyCommand:
 
         assert len(tcode.updates) == 1
 
+    def test_the_room_holds_its_script_under_the_max_intensity(self, tmp_path):
+        tcode = FakeTCode()
+        session, _player = make_satellite_session(
+            tmp_path, funscripts={0: _one_stroke(tmp_path / "v0.funscript")}, tcode=tcode)
+        controls = SatelliteControls(session, reload_playlist=_never_reloads)
+
+        assert apply_command(f"{SET_MAX_INTENSITY} 30", controls) is True
+        apply_command(f"{SET_TCODE_ENABLED} 1", controls)
+        session.advance()
+
+        assert (tcode.max_intensities, session.max_intensity) == ([30], 30)
+
+    def test_a_max_intensity_that_is_not_a_number_is_refused_and_moves_nothing(self, tmp_path):
+        controls = _controls(tmp_path)
+
+        assert apply_command(f"{SET_MAX_INTENSITY} loud", controls) is False
+        assert controls.session.max_intensity == 100
+
 
 def _one_stroke(path):
     path.write_text('{"actions": [{"at": 0, "pos": 0}, {"at": 500, "pos": 90}]}',
@@ -197,7 +216,7 @@ def test_every_verb_the_satellite_answers_is_the_familys_or_its_own():
     its_own = {NEXT_VERSION, PREV_VERSION}
     assert set(VERBS) == its_own | {
         NEXT, PREV, LOCK_ON, LOCK_OFF, TRASH, SPEED_UP, SPEED_DOWN, SET_SPEED,
-        PLAY_FILE, RELOAD_PLAYLIST, SET_PACE, QUIT, SET_TCODE_ENABLED,
+        PLAY_FILE, RELOAD_PLAYLIST, SET_PACE, QUIT, SET_TCODE_ENABLED, SET_MAX_INTENSITY,
     }
     assert all(getattr(player_verbs, verb) == verb for verb in set(VERBS) - its_own)
     assert not [verb for verb in its_own if hasattr(player_verbs, verb)]
