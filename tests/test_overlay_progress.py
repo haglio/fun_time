@@ -8,6 +8,7 @@ from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCEL_OPENING_FUN_TIME,
     CANCEL_WORD,
+    COMING_BACK_TO_ORIGENERATOR_MODE,
     LAUNCH_PHASES,
     PROGRESS_FILENAME,
     QUIT_WORD,
@@ -173,18 +174,30 @@ class TestStartupPhases:
         keys = [phase.key for phase in STARTUP_PHASES]
         assert len(keys) == len(set(keys))
 
+    def test_the_wait_for_the_mode_runs_before_the_line_that_fills_the_bar(self):
+        """A room left in origenerator mode waits out that app under the cover.
+        Put after the last line, that wait read as a step past "Finalizing..."
+        with the bar already full -- finished, and still working."""
+        keys = [phase.key for phase in STARTUP_PHASES]
+        coming_back = keys.index(COMING_BACK_TO_ORIGENERATOR_MODE)
+
+        assert coming_back == keys.index("finalizing") - 1
+        assert STARTUP_PHASES[coming_back].weight > 0, "the bar would be full while it waits"
+
     def test_the_launch_names_its_own_work_before_the_room_arrives(self):
         """Loading itself and checking the players' engine took seconds off an
         uncovered desktop; they run under the cover, so the cover says so."""
         assert (*LAUNCH_PHASES, *ROOM_PHASES) == STARTUP_PHASES
         assert [phase.key for phase in LAUNCH_PHASES] == ["starting", "engine"]
 
-    def test_the_last_phase_is_the_one_the_companions_wait_for(self):
-        # Entering the last phase must land the bar on the total, which happens
-        # only if that phase claims no time of its own.  That full bar is what
-        # tells a companion window to show itself while the cover is still up.
-        assert STARTUP_PHASES[-1].weight == 0.0
-        assert all(phase.weight > 0 for phase in STARTUP_PHASES[:-1])
+    def test_only_the_last_phase_claims_no_time(self):
+        """It has to land the bar on the total, which is what tells a companion
+        window to show itself while the cover is still up -- and nothing may be
+        reported after it, or the bar would read full with work still to do."""
+        weights = [phase.weight for phase in STARTUP_PHASES]
+
+        assert weights[-1] == 0.0
+        assert all(weight > 0 for weight in weights[:-1])
 
 
 class TestShutdownPhases:
@@ -324,15 +337,18 @@ class TestStartupStillBuilding:
         cover_may_close = lambda: parse_progress(  # noqa: E731
             progress_file.read_text(encoding="utf-8")).done
 
-        for phase in STARTUP_PHASES[:-1]:
+        carries_time = [phase for phase in STARTUP_PHASES if phase.weight > 0]
+        for phase in carries_time:
             progress.advance(phase.key)
             assert startup_still_building(tmp_path) is True
             assert cover_may_close() is False
 
-        progress.advance(STARTUP_PHASES[-1].key)
-        # The companions show themselves here — and the cover is still up.
-        assert startup_still_building(tmp_path) is False
-        assert cover_may_close() is False
+        for phase in STARTUP_PHASES[len(carries_time):]:
+            progress.advance(phase.key)
+            # The companions show themselves at the first of these — and the cover
+            # is still up, through a wait for the hosted Origenerator as well.
+            assert startup_still_building(tmp_path) is False
+            assert cover_may_close() is False
 
         progress.finish()
         assert cover_may_close() is True

@@ -754,17 +754,15 @@ class TestResumeMainVideo:
         assert playlist_opens_on(playlist, b) is True
 
 
-def test_the_satellite_mode_is_not_something_a_session_comes_back_in(tmp_path):
-    """The one thing a resume deliberately drops rather than carries.
+def test_a_room_comes_back_in_the_satellite_mode_it_was_left_in(tmp_path):
+    """A room left in origenerator mode opens in origenerator mode.
 
-    Every room is BUILT in kino mode: the hosted Origenerator is still booting
-    when the room opens and nothing waits for it, so the mode cannot be entered
-    at that moment.  Coming back to it LATER was tried and is worse -- the two
-    sides would rearrange themselves under whatever he had started doing in
-    kino mode -- so being in origenerator mode is simply not something Fun Time
-    remembers from one session to the next.
+    The room does not wait out the hosted app's boot and nothing rearranges
+    itself later either: the mode is what the room is in from its first tick,
+    and the app arrives into a mode already set rather than switching the sides
+    under whatever was on them.
     """
     state_file = tmp_path / "shared_state.ini"
     write_shared_state(state_file, BridgeState(satellites_mode="origenerator"))
 
-    assert resume_shared_state(state_file, resumed=True).satellites_mode == "kino"
+    assert resume_shared_state(state_file, resumed=True).satellites_mode == "origenerator"

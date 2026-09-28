@@ -35,7 +35,11 @@ from fun_time.player_status import (
 from fun_time.players import Player
 from fun_time.process_identity import NAMER
 from fun_time.process_sweep import sweep_processes
-from fun_time.win32_process import get_process_creation_time, get_process_image_name
+from fun_time.win32_process import (
+    get_process_creation_time,
+    get_process_image_name,
+    is_process_alive,
+)
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
     kill_process_tree,
@@ -181,6 +185,9 @@ QUIT_BUDGET_S = 60.0
 START_BUDGET_S = 120.0
 
 STARTUP_STOPPED = "Fun Time stopped starting up"
+
+# Long enough for Windows to reap a force-killed player under a loaded run.
+CHILDREN_GONE_TIMEOUT_S = 20.0
 
 # How long a command is given to show in what a player publishes.  When other
 # sessions' normal-priority work held every core, the dispatch loop went 66
@@ -519,6 +526,24 @@ class FunTimeIntegrationSession:
             return
         for child in children.values():
             kill_recorded_child(child)
+        self._wait_for_the_children_to_be_gone(children.values())
+
+    def _wait_for_the_children_to_be_gone(
+        self, children, timeout_s: float = CHILDREN_GONE_TIMEOUT_S,
+    ) -> None:
+        """Hold until the killed children are off the machine, or *timeout_s*.
+
+        A test that opens a second session over this state dir hands it a player
+        still publishing: the dying one holds the temp name its own status file is
+        written through, and the new player's first write of it raises the sharing
+        violation, which takes that startup down.
+        """
+        deadline = time.time() + timeout_s
+        for child in children:
+            if not child.pid:
+                continue
+            while time.time() < deadline and is_process_alive(child.pid):
+                time.sleep(0.2)
 
     def _reap_leftover_runtime_processes(self) -> None:
         _kill_leftover_app_processes()

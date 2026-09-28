@@ -30,9 +30,6 @@ MODE_TOOLTIPS = {
     "origenerator_activate":
         "Origenerator mode — Origenerator over the browser, its shows over the players",
 }
-# The hover a dim Origenerator button gives instead: the room opens without
-# waiting out that app's boot, and a hover over a button that cannot be pressed
-# has to say why.
 STILL_STARTING_TOOLTIP = "Origenerator is still starting — this lights up when it is ready"
 
 

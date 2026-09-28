@@ -133,6 +133,7 @@ from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
     add_dispatch_file_handler,
     clear_last_sessions_leftovers,
+    come_back_to_the_mode_the_last_session_left,
     kill_recorded_child,
     let_go_of_a_kept_origenerator,
     prepare_voice_control,
@@ -655,7 +656,6 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             return 1
         _wait_for_the_room(room_ready_file, player, progress)
 
-        progress.advance("finalizing")
         hud_publisher, _hud_primed = start_hud_priming(bridge_config, manifest, enabled=True)
         # Esc can land after the last checkpoint, the launch finished but the
         # flag set: do not reveal a session the user asked to abort.
@@ -671,6 +671,22 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         )
 
     try:
+        dispatch_runner = DispatchLoopRunner(
+            config=bridge_config,
+            dashboard_cmd_file=dashboard_cmd_file,
+            shared_state_file=shared_state_path(state_dir),
+            ahk_cmd_file=ahk_cmd_file,
+            # Every role pid stays 0: the roles are surfaces of the VR player, and
+            # unresolved HWNDs are what make the window ops no-ops.
+            windows=WindowRoles(pids=ChildPids()),
+            # There IS a dashboard now, hanging in the scene; this publishes what
+            # its bar reads.
+            dashboard_enabled=True,
+            hud_publisher=hud_publisher,
+        )
+        come_back_to_the_mode_the_last_session_left(dispatch_runner, progress=progress)
+        progress.advance("finalizing")  # the last line, after any wait under the cover
+
         # --- The reveal ---
         # DONE first, then the players: released before it, the first seconds of a
         # video play under a panel nobody can see through (release_the_players).
@@ -685,19 +701,6 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         cover.clear()
         room_ready_file.unlink(missing_ok=True)
 
-        dispatch_runner = DispatchLoopRunner(
-            config=bridge_config,
-            dashboard_cmd_file=dashboard_cmd_file,
-            shared_state_file=shared_state_path(state_dir),
-            ahk_cmd_file=ahk_cmd_file,
-            # Every role pid stays 0: the roles are surfaces of the VR player, and
-            # unresolved HWNDs are what make the window ops no-ops.
-            windows=WindowRoles(pids=ChildPids()),
-            # There IS a dashboard now, hanging in the scene; this publishes what
-            # its bar reads.
-            dashboard_enabled=True,
-            hud_publisher=hud_publisher,
-        )
         dispatch_thread = threading.Thread(
             target=dispatch_runner.run, daemon=True, name="dispatch-loop")
         dispatch_thread.start()

@@ -32,7 +32,7 @@ in either orchestrator:
 | The main player's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, clip seconds, cruise, learned motion and hold | yes, same |
 | The mic being off | yes, off the flag the last session wrote |
-| The satellites' mode (Kino / Origenerator) | no — every room opens in Kino mode |
+| The satellites' mode (Kino / Origenerator) | yes, entered under the cover before the room is shown |
 | OmniPause | no — a session never opens paused |
 
 Every row of that table is carried by any reopen, a crossing included
@@ -232,11 +232,13 @@ crosses like any other mode — the shows are the satellite players' own
 playlists, and the headset's satellites are players
 ([known-issues.md](known-issues.md) has what the headset still cannot show of
 it: the app's own window).
-The curtain no longer waits for it — every room opens in Kino mode and the
-dispatch loop opens that mode up once the app publishes a status — but a boot
-still costs a minute of a session with no Origenerator mode in it, and a
-crossing used to pay that twice, the desktop session closing it on the way out
-and the session coming back launching a new one.
+The curtain waits for it only where the last session left the room in that mode:
+such a room holds its cover up until the app publishes a status, takes the mode
+up under it and opens already in it ([resuming-a-session.md](resuming-a-session.md)),
+while a room left in Kino mode waits for nothing. A boot still costs a minute of
+a session with no Origenerator mode in it, and a crossing used to pay that twice,
+the desktop session closing it on the way out and the session coming back
+launching a new one.
 
 So a crossing keeps it. The teardown sends `CLOSE_SHOWS`, hides its window and
 records `(pid, created_at, taken over)` in `origenerator_kept.txt` instead of

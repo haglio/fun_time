@@ -15,7 +15,7 @@ from pathlib import Path
 
 from app_support.file_channel import consume_command_file, read_flag
 from player_core.file_channel import append_command
-from player_core.modes import MainMode, NoticeLevel, read_mode
+from player_core.modes import MainMode, NoticeLevel, SatellitesMode, read_mode
 from player_core.player_verbs import LOCK_OFF, LOCK_ON, play_file
 from player_core.playlist import PlaylistItem
 
@@ -307,6 +307,7 @@ class DispatchLoopRunner:
         # Latched: the hosted app runs for the whole session, so this is a few
         # reads at the start of one and nothing after.
         self._origenerator_is_up = origenerator_already_open
+        self._the_mode_the_last_session_left = self._the_mode_the_room_was_left_in()
         # The Robot Hand and a funscript both feed the broker's one T-Code inlet,
         # so in kino mode something has to hand the device between them.
         self.arbiter = DeviceArbiter(
@@ -334,24 +335,47 @@ class DispatchLoopRunner:
         )
 
     def _the_satellite_modes_this_session_can_be_in(self, state: BridgeState) -> BridgeState:
-        """*state* with the satellite mode axis corrected to what is on offer,
-        and the hosted app's readiness read onto it.
-
-        Two ways the mode is not on offer: a session hosting no Origenerator,
-        and one whose app has not finished booting, the room opening without
-        waiting a launched app out.
-        """
+        """*state* corrected to the room this session is really in -- never
+        origenerator mode while no hosted app has answered -- and that read onto it."""
         state = replace(state, origenerator_ready=self._the_hosted_app_has_answered())
         offered = self.config.origenerator_enabled and state.origenerator_ready
         if offered or not origenerator_shows(state.satellites_mode):
             return state
         return replace(state, satellites_mode=KINO_MODE)
 
-    def _the_hosted_app_has_answered(self) -> bool:
-        """Whether the hosted Origenerator is up.
+    def _the_mode_the_room_was_left_in(self) -> SatellitesMode | None:
+        """The satellites' mode this session has to take up, or None.  Read before
+        anything is dispatched, so a switch later is where the room IS."""
+        if not self.config.origenerator_enabled:
+            return None
+        left_in = read_shared_state(self.shared_state_file)
+        if left_in is None or not origenerator_shows(left_in.satellites_mode):
+            return None
+        return left_in.satellites_mode
 
-        Only that it has published: a session entering the mode sends
-        OPEN_SHOWS, so an app answering at all can take the switch.
+    @property
+    def opens_in_the_mode_the_last_session_left(self) -> bool:
+        return self._the_mode_the_last_session_left is not None
+
+    def come_back_to_the_mode_the_last_session_left(self, *, wait_for_the_app) -> None:
+        """Through the switch's own command, while *wait_for_the_app* holds the room
+        under its cover for that app, and given up on if it never answers."""
+        if self._the_mode_the_last_session_left is None:
+            return
+        self._the_mode_the_last_session_left = None
+        if not wait_for_the_app(self._the_hosted_app_has_answered):
+            logger.info("Origenerator did not finish starting, so the room opens in kino mode")
+            left_in = read_shared_state(self.shared_state_file)
+            if left_in is not None:
+                write_shared_state(self.shared_state_file,
+                                   replace(left_in, satellites_mode=KINO_MODE))
+            return
+        self.state = self._the_satellite_modes_this_session_can_be_in(self.state)
+        self._dispatch("origenerator_activate")
+
+    def _the_hosted_app_has_answered(self) -> bool:
+        """Whether the hosted Origenerator has published a status: a session
+        entering the mode sends OPEN_SHOWS, which an app answering at all takes.
         """
         if self._origenerator_is_up:
             return True
@@ -372,9 +396,11 @@ class DispatchLoopRunner:
             self.state = shared
         # File or no file: this corrects a reading of the room, not the file.
         self.state = self._the_satellite_modes_this_session_can_be_in(self.state)
-        if shared is not None and shared.origenerator_ready != self.state.origenerator_ready:
-            # Back to the file: nothing else writes it until a command is
-            # dispatched, which on a session nobody is touching may be never.
+        if shared is not None and (
+                shared.origenerator_ready != self.state.origenerator_ready
+                or shared.satellites_mode != self.state.satellites_mode):
+            # Nothing else writes the file until a command is dispatched, which on
+            # a session nobody is touching may be never.
             write_shared_state(self.shared_state_file, self.state)
 
         # Hand the OSR2 to the current video's funscript (or back to the Robot

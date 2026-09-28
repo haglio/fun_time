@@ -26,6 +26,7 @@ from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCEL_WORD,
     CANCELING,
+    COMING_BACK_TO_THE_MODE,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     Phase,
@@ -46,6 +47,7 @@ VR_STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("companions", "Launching companions...", 0.6),
     Phase("players", "Waiting for players...", 9.0),
+    COMING_BACK_TO_THE_MODE,
     Phase("finalizing", "Finalizing...", 0.0),  # weightless: the bar reads full
 )
 

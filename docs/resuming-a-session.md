@@ -77,22 +77,29 @@ windows where they always open, and the session's first ticks seat them from
 the crown, which does come back, and the shape of what the main player shows,
 whether that is a video or one of Genau's clips.
 
-The satellite side's mode is dropped on purpose rather than for want of a way
-to carry it. Every room is built in Kino mode, because the hosted Origenerator
-that origenerator mode is made of is still booting when the room opens and
-nothing waits for it any more. Coming back to the mode LATER, once that app
-answered, was tried and is worse: the two sides would rearrange themselves under
-whatever had been started in Kino mode. So being in Origenerator mode is simply
-not something a session remembers — and until the app is up the mode cannot be
-entered at all: the switch answers "Origenerator is still starting", and both
-satellite HUDs draw that button dim. An Origenerator that was already open when
-the session began — one he opened himself and the session took over, or one a
-crossing kept — has no boot left to wait out, so its mode is open from the start.
-One he opened that is still starting when the session begins offers itself as
-starting, and is taken over rather than joined by a second copy; its mode waits
-for it exactly as a launched one's does.
+The satellite side's mode comes back, and it comes back UNDER THE COVER. Every
+room is built in Kino mode — the players are built as players and the browser has
+the slot — so a room left in origenerator mode has to be switched into it, and
+switching it once the room is already his is what this must never do: both sides
+would rearrange themselves under whatever he had started in Kino mode, which was
+tried and rejected. So the loading screen stays up instead. The phase before its
+last, read on the cover as "Coming back to Origenerator mode...", comes after the
+room is built and banded and waits for the hosted Origenerator to publish its
+status — re-written while it waits, since a cover takes itself down on a progress
+file nothing has touched for a minute (`overlay_progress`). The moment the app
+answers, the very command the switch sends is sent, and only then does the cover
+come down — on a room already in the mode, with a slideshow on each side. The room
+he left in Kino mode waits for nothing.
 
-Dropping the mode means putting back what the mode took. While the hosted app
+The wait is given up on after `ORIGENERATOR_BOOT_BUDGET_S`, because an app that
+died on its way up would otherwise hold the room shut; a room that gave up opens
+in Kino mode and stays there for the session, and the state file is corrected to
+say so, since that mode is what both satellite HUDs draw and what the switch acts
+on. An Origenerator that was already open when the session began — one he opened
+himself and the session took over, or one a crossing kept — has no boot to wait
+out, so its mode is there as the cover lifts.
+
+Coming back to the mode means putting back what the mode took. While the hosted app
 has a satellite, that player's playlist file holds the app's pictures and the
 session's own list waits beside it (`fun_time.player_handover`). A session quit
 there, or killed there, never brings the player home — so `resume_playlists`

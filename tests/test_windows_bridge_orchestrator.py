@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import inspect
 import logging
 import os
 import subprocess
@@ -43,6 +44,7 @@ from fun_time.overlay_progress import (
     ready_file_for,
 )
 from fun_time.player_deaths import LaunchedPlayer, PlayerDied
+from fun_time.satellites_mode import ORIGENERATOR_MODE
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
 from fun_time.session_handoff import (
@@ -2878,6 +2880,88 @@ class TestThePlayersStartWhenTheCoverIsGone:
         assert events.index("cover gone") < events.index("players released"), (
             "the players were started while the cover was still up"
         )
+
+
+class TestARoomLeftInOrigeneratorMode:
+    """It opens already in that mode: the cover stays up while the hosted app
+    finishes starting, and the switch happens under it."""
+
+    def _run(self, cfg_factory, tmp_path, *, the_app_answers: bool) -> list[str]:
+        (tmp_path / "origenerator").mkdir(exist_ok=True)
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator"),
+            "origenerator_python_exe": str(tmp_path / "python.exe"),
+        }}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        manifest = LaunchManifest.read(manifest_path)
+        state_dir = tmp_path / "state"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        write_shared_state(shared_state_path(state_dir),
+                           BridgeState(satellites_mode=ORIGENERATOR_MODE))
+        if the_app_answers:
+            status = Path(manifest.commands.origenerator_status_file)
+            status.parent.mkdir(parents=True, exist_ok=True)
+            status.write_text("paused = 0\n", encoding="utf-8")
+
+        events: list[str] = []
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        fake_loading_proc = MagicMock()
+        fake_loading_proc.wait.side_effect = lambda **_kw: events.append("cover gone")
+
+        def fake_popen(cmd, **kwargs):
+            return fake_loading_proc if "loading_screen" in str(cmd) else fake_ahk_proc
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator._fix_post_loading_windows",
+                   return_value={}), \
+             patch("fun_time.windows_bridge_orchestrator.release_the_players"), \
+             patch("fun_time.runtime_flow.append_command",
+                   side_effect=lambda _path, verb: events.append(verb)), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+            _a_session(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=state_dir,
+                project_dir=tmp_path,
+            )
+        return events
+
+    def test_the_shows_are_asked_for_before_the_cover_comes_down(self, cfg_factory, tmp_path):
+        events = self._run(cfg_factory, tmp_path, the_app_answers=True)
+
+        assert "OPEN_SHOWS" in events, "the room never came back to origenerator mode"
+        assert events.index("OPEN_SHOWS") < events.index("cover gone"), (
+            "the mode was taken up after the room was already his"
+        )
+
+    def test_the_wait_is_named_on_the_cover_before_the_line_that_fills_the_bar(self):
+        """So the bar is still filling while the room waits, and "Finalizing..."
+        is the last thing it says before the room is shown."""
+        source = inspect.getsource(windows_bridge_orchestrator._reveal_the_room)
+
+        assert source.index("before_the_cover_goes()") < source.index('advance("finalizing")')
+        assert (source.index('advance("finalizing")')
+                < source.index("_fix_post_loading_windows")), (
+            "the dashboard shows itself on the full bar, and the pass waits for its window"
+        )
+
+    def test_an_app_that_never_answers_opens_the_room_in_kino_mode(self, cfg_factory, tmp_path):
+        with patch.object(windows_bridge_orchestrator, "ORIGENERATOR_BOOT_BUDGET_S", 0.05), \
+             patch.object(windows_bridge_orchestrator, "ORIGENERATOR_BOOT_POLL_S", 0.01):
+            events = self._run(cfg_factory, tmp_path, the_app_answers=False)
+
+        assert "cover gone" in events, "the room never opened"
+        assert "OPEN_SHOWS" not in events, "the shows were asked for with no app to show them"
+
+    def test_the_wait_writes_the_cover_progress_more_often_than_its_staleness_guard(self):
+        assert windows_bridge_orchestrator.ORIGENERATOR_BOOT_POLL_S < STALE_TIMEOUT_S
 
 
 class TestTheSessionEndsOnItsMarker:

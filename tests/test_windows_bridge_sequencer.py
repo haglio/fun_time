@@ -23,7 +23,12 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.monitors import MonitorInfo
-from fun_time.overlay_progress import ROOM_PHASES, NullProgress, StartupCancelled
+from fun_time.overlay_progress import (
+    COMING_BACK_TO_ORIGENERATOR_MODE,
+    ROOM_PHASES,
+    NullProgress,
+    StartupCancelled,
+)
 from fun_time.player_deaths import PlayerDied
 from fun_time.player_status import (
     read_main_player_status,
@@ -970,7 +975,11 @@ class TestProgressReporting:
                 hide_windows=True,
             )
 
-        assert progress.phases == [phase.key for phase in ROOM_PHASES]
+        # The wait for a mode's app and the line after it are the orchestrator's,
+        # announced once the room this builds is standing.
+        assert progress.phases == [
+            phase.key for phase in ROOM_PHASES
+            if phase.key not in (COMING_BACK_TO_ORIGENERATOR_MODE, "finalizing")]
 
     def test_null_progress_accepted_silently(self, cfg_factory, tmp_path):
         """NullProgress should work as a no-op."""
@@ -1226,7 +1235,6 @@ class TestMainPlayerGatesTheReveal:
             "players",
             f"wait-for-main_player:{cfg.main_player_status_file}",
             "windows",
-            "finalizing",
         ]
 
     def test_the_stale_status_is_read_for_the_resume_and_only_then_dropped(

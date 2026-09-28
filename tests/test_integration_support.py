@@ -14,6 +14,7 @@ import ast
 import json
 import os
 import socket
+import textwrap
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -147,6 +148,41 @@ def test_stop_taskkills_every_recorded_child(session):
     # Every recorded child with a real PID is killed by that exact PID; the
     # zero placeholder (disabled dashboard) is skipped.
     assert sorted(killed) == [201, 202, 203, 205, 206]
+
+
+def test_stop_waits_for_every_child_it_killed_to_be_gone(session):
+    """A test that opens a second session over the same state dir hands it a
+    player still publishing: the one dying holds its own status file's temp name,
+    and the new player's first write of it dies on the sharing violation, which
+    takes the whole startup down (seen on run 4 of a flake gate, 2026-10-06)."""
+    _write_bridge_pids(session, {"main_player_pid": ChildProcess(201, 2010)})
+    alive = [True, True, False]
+    asked: list[int] = []
+
+    def is_alive(pid: int) -> bool:
+        asked.append(pid)
+        return alive.pop(0)
+
+    with patch.object(windows_bridge_orchestrator, "get_process_creation_time",
+                      side_effect=lambda pid: pid * 10), \
+         patch.object(windows_bridge_orchestrator, "kill_process_tree", lambda _pid: None), \
+         patch.object(integration_support, "is_process_alive", side_effect=is_alive), \
+         patch.object(integration_support.time, "sleep", lambda _s: None):
+        session.stop()
+
+    assert asked == [201, 201, 201], "stop returned with a killed child still alive"
+
+
+def test_stop_gives_up_on_a_child_that_never_goes(session):
+    """Bounded: a pid Windows will not reap must not hold the suite for good."""
+    _write_bridge_pids(session, {"main_player_pid": ChildProcess(201, 2010)})
+
+    with patch.object(windows_bridge_orchestrator, "get_process_creation_time",
+                      side_effect=lambda pid: pid * 10), \
+         patch.object(windows_bridge_orchestrator, "kill_process_tree", lambda _pid: None), \
+         patch.object(integration_support, "is_process_alive", return_value=True), \
+         patch.object(integration_support.time, "sleep", lambda _s: None):
+        session.stop()  # returns rather than looping for good
 
 
 def test_stop_does_not_kill_a_recorded_pid_windows_recycled(session):
@@ -753,3 +789,28 @@ def test_a_modules_shared_session_is_done_with_before_a_test_starts_one_of_its_o
     for module in sorted((Path(__file__).parent / "integration").glob("test_*.py")):
         assert _tests_left_to_a_reaped_shared_session(
             module.read_text(encoding="utf-8")) == [], module.name
+
+
+def test_every_app_a_run_stands_in_for_is_python_that_parses():
+    """A stub app is Python inside a string, so nothing compiles it until a real
+    run launches it -- and a stub that dies on import reads as the session waiting
+    out an app that never answers, which is a slow run each time.  One escape too
+    few, in a string holding a string, cost two of them (2026-10-06).
+    """
+    sources = []
+    for path in sorted((Path(__file__).resolve().parent / "integration").glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            named = getattr(node.targets[0], "id", "")
+            if not named.endswith("_MAIN"):
+                continue
+            value = node.value
+            literal = ast.literal_eval(
+                value.args[0] if isinstance(value, ast.Call) else value)
+            sources.append((f"{path.name}:{named}", textwrap.dedent(literal)))
+
+    assert sources, "no stub app sources found to check"
+    for where, source in sources:
+        compile(source, where, "exec")

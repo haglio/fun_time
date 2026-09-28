@@ -17,6 +17,7 @@ import pytest
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCELING,
+    COMING_BACK_TO_THE_MODE,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     SHUTDOWN_READY_FILENAME,
@@ -96,7 +97,17 @@ class TestThePhases:
     def test_every_startup_phase_the_orchestrator_reports_exists(self):
         reported = self._advanced_keys(r'\bprogress\.advance\("([a-z_]+)"\)')
 
-        assert reported == {phase.key for phase in VR_STARTUP_PHASES}
+        assert reported == {phase.key for phase in VR_STARTUP_PHASES} - {
+            COMING_BACK_TO_THE_MODE.key}
+
+    def test_it_carries_the_wait_the_shared_comeback_announces(self):
+        """The comeback to the mode the last session left is the desktop's own
+        helper, announcing its wait on this cover too -- and like the desktop it
+        is a step before the last line rather than one after it."""
+        keys = [phase.key for phase in VR_STARTUP_PHASES]
+
+        assert keys.index(COMING_BACK_TO_THE_MODE.key) == keys.index("finalizing") - 1
+        assert COMING_BACK_TO_THE_MODE.weight > 0, "the bar would be full while it waits"
 
     def test_every_shutdown_phase_the_orchestrator_reports_exists(self):
         reported = self._advanced_keys(r'\bshutdown\.advance\("([a-z_]+)"\)')
@@ -105,11 +116,13 @@ class TestThePhases:
         # the other two run in, so it is not among the body's calls.
         assert reported | {"controls"} == {phase.key for phase in VR_SHUTDOWN_PHASES}
 
-    def test_the_last_startup_phase_is_weightless(self):
-        """So the bar reads full while the last of the launch runs under the
-        cover -- the desktop's final phase is weightless for the same reason."""
-        assert VR_STARTUP_PHASES[-1].weight == 0.0
-        assert all(phase.weight > 0 for phase in VR_STARTUP_PHASES[:-1])
+    def test_only_the_last_phase_claims_no_time(self):
+        """So the bar reads full as the room is shown and not a moment before --
+        the desktop's own list claims no time there for the same reason."""
+        weights = [phase.weight for phase in VR_STARTUP_PHASES]
+
+        assert weights[-1] == 0.0
+        assert all(weight > 0 for weight in weights[:-1])
 
     def test_the_player_is_the_last_thing_teardown_reports(self):
         """It is the thing wearing the cover, so its phase has to be last or the
