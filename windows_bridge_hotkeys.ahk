@@ -68,11 +68,12 @@ global EndingPhase := false
 ; taken: a suspended hotkey passes its key through to whatever does have the
 ; focus, and during a launch that may well be an app of the user's own.  Esc and
 ; the quit chord are #SuspendExempt, which is what still lets them call the
-; launch off.  The flag records that this hold is ours to release — once anything
-; else has set the suspend state (an integration run's pre-write, or OmniPause),
-; the handover must not undo their decision.
+; launch off.  The startup's hold is one of three, and the keys stay suspended
+; while any of them holds (ApplyHolds).
 Suspend true
 global StartupSuspended := true
+global PauseHold := false
+global HeadsetOff := false
 
 SetTimer(ProcessAhkCommand, 150)
 SetTimer(WatchStartup, 150)
@@ -307,7 +308,7 @@ EndTheSession() {
     try FileDelete(STARTUP_CANCEL_FILE)
     EndingPhase := true
     StartupSuspended := false
-    Suspend true
+    ApplyHolds()
     SetTimer(WatchEnding, 500)
 }
 
@@ -370,10 +371,8 @@ WatchStartup() {
     if !FileExist(PIDS_FILE_PATH)
         return
     StartupPhase := false
-    if (StartupSuspended) {
-        StartupSuspended := false
-        Suspend false
-    }
+    StartupSuspended := false
+    ApplyHolds()
     SetTimer(WatchStartup, 0)
     Log("Session up; startup hold released")
 }
@@ -424,31 +423,45 @@ AppendWithRetry(text, path, attempts := 5, delayMs := 5, access := "exclusive") 
 }
 
 ProcessAhkCommand() {
-    global AHK_CMD_FILE, StartupSuspended, StartupPhase, EndingPhase
+    global AHK_CMD_FILE, PauseHold, HeadsetOff, StartupPhase, EndingPhase
     if !FileExist(AHK_CMD_FILE)
         return
+    taken := AHK_CMD_FILE . ".taken"
     try {
-        action := Trim(FileRead(AHK_CMD_FILE, "UTF-8"))
-        FileDelete(AHK_CMD_FILE)
+        FileMove(AHK_CMD_FILE, taken, 1)
+        actions := FileRead(taken, "UTF-8")
+        FileDelete(taken)
     } catch {
         return
     }
-    if (action = "")
-        return
-    if (action = "suspend_hotkeys") {
-        Suspend true
-        StartupSuspended := false
-    } else if (action = "unsuspend_hotkeys") {
-        Suspend false
-        StartupSuspended := false
-    } else if (action = "end_session") {
-        KeepOrMarkSessionEnd("an end asked on the AHK command channel")
-        EndTheSession()
-    } else if (action = "exit") {
-        if (!StartupPhase && !EndingPhase)
-            KeepOrMarkSessionEnd("an exit on the AHK command channel")
-        ExitApp()
+    Loop Parse, actions, "`n", "`r `t" {
+        action := A_LoopField
+        if (action = "suspend_hotkeys") {
+            PauseHold := true
+        } else if (action = "unsuspend_hotkeys") {
+            PauseHold := false
+        } else if (action = "headset_off") {
+            HeadsetOff := true
+        } else if (action = "headset_on") {
+            HeadsetOff := false
+        } else if (action = "end_session") {
+            KeepOrMarkSessionEnd("an end asked on the AHK command channel")
+            EndTheSession()
+        } else if (action = "exit") {
+            if (!StartupPhase && !EndingPhase)
+                KeepOrMarkSessionEnd("an exit on the AHK command channel")
+            ExitApp()
+        }
     }
+    ApplyHolds()
+}
+
+ApplyHolds() {
+    global StartupSuspended, PauseHold, HeadsetOff, EndingPhase
+    Suspend(StartupSuspended || PauseHold || HeadsetOff || EndingPhase)
+    ways_out := (HeadsetOff && !EndingPhase) ? "Off" : "On"
+    Hotkey("Esc", ways_out)
+    Hotkey("+Esc", ways_out)
 }
 
 Heartbeat() {

@@ -133,6 +133,7 @@ from .furniture import (
 )
 from .genau_role import GenauRole, run_ticks
 from .genau_settings import GenauSettings
+from .headset_wear import HeadsetWear
 from .layout import (
     DASH,
     LANDSCAPE,
@@ -2123,6 +2124,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     scene_ready = SceneReady(scene_ready_file(state_dir))
     cover_seen = CoverSeen()
     posts = _ControllerPosts(Path(commands.dashboard_cmd_file))
+    wear = HeadsetWear()
     # The room, each thing saying for itself what it hangs there.  Dash before
     # panel: the console hangs off where the dashboard ended up.
     units = [main_unit, genau, *satellites, dash, panel, reference, library, cover]
@@ -2155,6 +2157,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     try:
         while session.running and not stop.is_set():
             session.poll_events()
+            posts.post(wear.said(session.focused, now=time.monotonic()))
             if session.window_close_requested():
                 break
             if cover.holding:

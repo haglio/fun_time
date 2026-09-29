@@ -20,7 +20,7 @@ from player_core.playlist import PlaylistItem, write_playlist
 from fun_time import load_config
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.crown import Crown
-from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME
+from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.manifest import (
     LaunchManifest,
@@ -177,6 +177,10 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
     # test that is ABOUT the sync moves _last_sync back into the past itself.
     runner._last_sync = float("inf")
     return runner
+
+
+def _mailbox(runner: DispatchLoopRunner) -> list[str]:
+    return runner.ahk_cmd_file.read_text(encoding="utf-8").split()
 
 
 def test_the_bridge_config_carries_the_port_the_session_serves_on(cfg_factory, tmp_path):
@@ -655,14 +659,13 @@ class TestDispatchLoopRunner:
 
     def test_dispatch_forwards_remaining_ops_to_ahk(self, tmp_path):
         runner = make_runner(tmp_path)
-        ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
         suspend_op = WindowOp(op="suspend_hotkeys")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [suspend_op])
             runner._dispatch("some_command")
 
-        assert ahk_cmd_file.read_text(encoding="utf-8") == "suspend_hotkeys"
+        assert _mailbox(runner) == ["suspend_hotkeys"]
 
     def test_dispatch_suppresses_unsuspend_during_integration(self, tmp_path):
         """Told by the record it was built with, not by the environment."""
@@ -678,14 +681,13 @@ class TestDispatchLoopRunner:
 
     def test_dispatch_allows_unsuspend_outside_integration(self, tmp_path):
         runner = make_runner(tmp_path)
-        ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
         unsuspend_op = WindowOp(op="unsuspend_hotkeys")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [unsuspend_op])
             runner._dispatch("some_command")
 
-        assert ahk_cmd_file.read_text(encoding="utf-8") == "unsuspend_hotkeys"
+        assert _mailbox(runner) == ["unsuspend_hotkeys"]
 
     def test_dispatch_sends_a_notice_to_the_event_log_not_to_ahk(self, tmp_path):
         """A notice is a message for the person watching; it goes to the log
@@ -1357,6 +1359,12 @@ class TestWhatASpokenCommandFlashes:
         spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
 
         assert self._flashed(tmp_path, spoken) == [("landscape next", "landscape", 25)]
+
+    def test_a_command_heard_with_the_headset_off_says_it_was_ignored(self, tmp_path):
+        spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
+
+        assert self._flashed(tmp_path, f"{HEADSET_OFF}\n{spoken}") == [
+            ("ignored with the headset off: landscape next", "landscape", logging.WARNING)]
 
     @pytest.mark.parametrize(("active_player", "source"), [(2, "portrait"), (1, "main")])
     def test_a_bare_command_flashes_over_the_player_it_reached(
@@ -2078,11 +2086,11 @@ class TestBrowseLibrary:
              patch("fun_time.role_windows.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library",
                    side_effect=lambda *a, **kw: suspends.append(
-                       runner.ahk_cmd_file.read_text(encoding="utf-8"))):
+                       _mailbox(runner))):
             runner._handle_browse_library()
 
-        assert suspends == ["suspend_hotkeys"]
-        assert runner.ahk_cmd_file.read_text(encoding="utf-8") == "unsuspend_hotkeys"
+        assert suspends == [["suspend_hotkeys"]]
+        assert _mailbox(runner) == ["suspend_hotkeys", "unsuspend_hotkeys"]
 
     def test_leaves_the_suspended_hotkeys_alone_when_already_paused(self, tmp_path):
         """Under OmniPause the hotkeys are already suspended and must stay that
@@ -2310,6 +2318,77 @@ class TestOmnipauseVoiceFreeze:
             mock_dispatch.return_value = (runner.state, [])
             runner._handle_command("landscape_next", spoken_at=123.0)
         assert mock_dispatch.call_args[0][0] == "landscape_next"
+
+
+class TestWithTheHeadsetOff:
+    def test_the_headset_coming_off_holds_the_keys(self, tmp_path):
+        runner = make_runner(tmp_path)
+
+        runner._handle_command(HEADSET_OFF)
+
+        assert _mailbox(runner) == ["headset_off"]
+
+    def test_the_headset_going_back_on_lets_them_go(self, tmp_path):
+        runner = make_runner(tmp_path)
+
+        runner._handle_command(HEADSET_OFF)
+        runner._handle_command(HEADSET_ON)
+
+        assert _mailbox(runner) == ["headset_off", "headset_on"]
+
+    def test_the_headset_saying_it_again_changes_nothing(self, tmp_path):
+        runner = make_runner(tmp_path)
+
+        runner._handle_command(HEADSET_OFF)
+        runner._handle_command(HEADSET_OFF)
+
+        assert _mailbox(runner) == ["headset_off"]
+
+    def test_what_the_headset_says_is_never_dispatched_as_a_command(self, tmp_path):
+        runner = make_runner(tmp_path)
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+            runner._handle_command(HEADSET_OFF)
+            runner._handle_command(HEADSET_ON)
+        mock_dispatch.assert_not_called()
+
+    @pytest.mark.parametrize("command", ["genau_weird_clip", "play", "relief_omnipause"])
+    def test_nothing_spoken_with_the_headset_off_is_acted_on_but_quit(self, tmp_path, command):
+        runner = make_runner(tmp_path)
+        runner._handle_command(HEADSET_OFF)
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
+             patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
+            mock_dispatch.return_value = (runner.state, [])
+            runner._handle_command(command, spoken_at=123.0)
+        mock_dispatch.assert_not_called()
+        mock_toggle.assert_not_called()
+
+    def test_a_spoken_quit_with_the_headset_off_still_quits(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner._handle_command(HEADSET_OFF)
+
+        runner._handle_command("quit", spoken_at=123.0)
+
+        assert _mailbox(runner)[-1] == "end_session"
+
+    def test_back_on_a_spoken_command_is_acted_on_again(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner._handle_command(HEADSET_OFF)
+        runner._handle_command(HEADSET_ON)
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+            mock_dispatch.return_value = (runner.state, [])
+            runner._handle_command("landscape_next", spoken_at=123.0)
+        assert mock_dispatch.call_args[0][0] == "landscape_next"
+
+    def test_the_microphone_hears_only_the_ways_out_while_the_headset_is_off(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner._last_watch_sample = float("inf")
+        vc_cmd = tmp_path / "vc_cmd.txt"
+        runner.voice_controller = VoiceController(cmd_file=vc_cmd, model_path="unused")
+
+        runner._handle_command(HEADSET_OFF)
+        runner.voice_controller._write_spoken("landscape next", spoken_at=1.0)
+
+        assert not vc_cmd.exists()
 
 
 # ---------------------------------------------------------------------------

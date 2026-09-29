@@ -31,6 +31,8 @@ from .command_dispatch import (
 from .crown import majority_now
 from .dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
+    HEADSET_OFF,
+    HEADSET_SIGNALS,
     HELP_REFERENCE,
     HELP_REFERENCE_COMMANDS,
     LIBRARY_OPEN_FILENAME,
@@ -65,7 +67,12 @@ from .session_handoff import DESKTOP, VR, HandoffTarget, request_handoff, this_s
 from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .shortcuts import Shortcut
 from .voice_commands import CommandLine, parse_command_line
-from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController, say_the_mic_is_off
+from .voice_control import (
+    HEARD_WITH_THE_HEADSET_OFF,
+    SUSPEND_EXEMPT_COMMANDS,
+    VoiceController,
+    say_the_mic_is_off,
+)
 from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
 from .win32 import (
@@ -280,6 +287,7 @@ class DispatchLoopRunner:
             getattr(config, "main_player_notice_file", None) or Path("main_player_notice.txt")
         )[0]
         self.voice_controller: VoiceController | None = None
+        self.headset_off = False
         self._answers = 0
         # Satellites on their way back from the hosted app: by when they land,
         # and which of their hosted panels was up when they were sent for.
@@ -452,7 +460,7 @@ class DispatchLoopRunner:
         """
         if self.voice_controller is None:
             return
-        if self.state.omni_paused:
+        if self.state.omni_paused or self.headset_off:
             self.voice_controller.suspend()
         else:
             self.voice_controller.unsuspend()
@@ -487,7 +495,8 @@ class DispatchLoopRunner:
         if not line.said:
             return
         if frozen:
-            self._flash(f"ignored during OmniPause: {line.said}", source=source,
+            held_by = "with the headset off" if self.headset_off else "during OmniPause"
+            self._flash(f"ignored {held_by}: {line.said}", source=source,
                         level=logging.WARNING)
         elif self._answers == answers_before:
             self._flash(line.said, source=source)
@@ -497,7 +506,20 @@ class DispatchLoopRunner:
         notice(logger, message, source=source, level=level)
 
     def _frozen(self, cmd: str, spoken_at: float | None) -> bool:
-        return self.state.omni_paused and spoken_at is not None and cmd not in SUSPEND_EXEMPT_COMMANDS
+        if spoken_at is None:
+            return False
+        if self.headset_off:
+            return cmd not in HEARD_WITH_THE_HEADSET_OFF
+        return self.state.omni_paused and cmd not in SUSPEND_EXEMPT_COMMANDS
+
+    def _headset(self, signal: str) -> None:
+        off = signal == HEADSET_OFF
+        if off == self.headset_off:
+            return
+        self.headset_off = off
+        logger.info("The headset is %s", "off: only quit is heard" if off else "back on")
+        append_command(self.ahk_cmd_file, signal)
+        self._sync_voice_suspension()
 
     def _handle_command(self, cmd: str, spoken_at: float | None = None) -> None:
         """Route one polled command (already expanded from any ``both_*``).
@@ -505,6 +527,9 @@ class DispatchLoopRunner:
         ``spoken_at`` is when a voice command's utterance began, and None for
         the instantaneous hotkey and dashboard presses.
         """
+        if cmd in HEADSET_SIGNALS:
+            self._headset(cmd)
+            return
         if self._frozen(cmd, spoken_at):
             # Freeze SPOKEN commands while paused — ``spoken_at`` marks a voice
             # line, and the deliberate mouse stays live because a click is not an
@@ -848,7 +873,7 @@ class DispatchLoopRunner:
 
         if manage_session:
             self.windows.remove_all_topmost()
-            self.ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
+            append_command(self.ahk_cmd_file, Op.SUSPEND_HOTKEYS)
 
         try:
             # Over the main player's own rect: the pick plays there, so the browse stands
@@ -867,7 +892,7 @@ class DispatchLoopRunner:
             if manage_session:
                 self.windows.restore_all_topmost(
             self.state.main_mode, self.state.satellites_mode)
-                self.ahk_cmd_file.write_text("unsuspend_hotkeys", encoding="utf-8")
+                append_command(self.ahk_cmd_file, Op.UNSUSPEND_HOTKEYS)
 
     def run(self) -> None:
         """Main loop — call from a background thread."""
@@ -1004,7 +1029,7 @@ def _run_hand_over_the_main_slot(runner: DispatchLoopRunner, op: WindowOp) -> No
 def _run_ahk_passthrough(runner: DispatchLoopRunner, op: WindowOp) -> None:
     if op.op == Op.UNSUSPEND_HOTKEYS and runner.env.integration:
         return
-    runner.ahk_cmd_file.write_text(op.op, encoding="utf-8")
+    append_command(runner.ahk_cmd_file, op.op)
 
 
 _OP_HANDLERS = {
