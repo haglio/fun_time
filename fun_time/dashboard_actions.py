@@ -19,7 +19,6 @@ RESET_ALL = "all_reset"
 ENTER_VR = "enter_vr"
 EXIT_VR = "exit_vr"
 VR_RESET = "vr_reset"
-# What the headset says about whether someone is wearing it.
 HEADSET_ON = "headset_on"
 HEADSET_OFF = "headset_off"
 HEADSET_SIGNALS = frozenset({HEADSET_ON, HEADSET_OFF})

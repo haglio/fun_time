@@ -3054,8 +3054,6 @@ def test_every_genau_command_does_nothing_with_video_in_the_main_player(
 ])
 def test_the_robot_hands_commands_still_reach_it_with_video_in_the_main_player(
         tmp_path: Path, command: str, verb: str):
-    """With a video on the main player the hand drives the OSR2 wherever the
-    video has no funscript, so its motion is still its commands' to tune."""
     config = _make_config(tmp_path)
 
     dispatch_command(command, _make_state(main_mode=MainMode.VIDEO), config)

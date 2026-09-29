@@ -677,15 +677,9 @@ def notice_source(command: str, active_player: int | None) -> str:
     return _PLAYER_NOTICE_SOURCE.get(player, SOURCE_SYSTEM)
 
 
-def _answered_before_the_bookkeeping(
+def _answered_without_making_a_player_active(
     command: str, state: BridgeState, config: BridgeConfig,
 ) -> tuple[BridgeState, list[WindowOp]] | None:
-    """A command settled before the active-side bookkeeping, or None.
-
-    A player just taken off the screen, or a Genau command with the video on
-    the main player, must not become the one a bare "lock" or "next" reaches —
-    that would send the next spoken word to a window nobody can see.
-    """
     if _about_genaus_clip(command) and main_player_displays(state.main_mode):
         return state, []
     minimize_ops = _minimize_ops(command, state.main_mode)
@@ -715,7 +709,7 @@ def dispatch_command(
     ignore it.  Empty means "whatever is playing now", which is how every
     keyboard and dashboard command arrives.
     """
-    answered = _answered_before_the_bookkeeping(command, state, config)
+    answered = _answered_without_making_a_player_active(command, state, config)
     if answered is not None:
         return answered
 

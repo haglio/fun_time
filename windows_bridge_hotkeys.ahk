@@ -68,8 +68,7 @@ global EndingPhase := false
 ; taken: a suspended hotkey passes its key through to whatever does have the
 ; focus, and during a launch that may well be an app of the user's own.  Esc and
 ; the quit chord are #SuspendExempt, which is what still lets them call the
-; launch off.  The startup's hold is one of three, and the keys stay suspended
-; while any of them holds (ApplyHolds).
+; launch off.
 Suspend true
 global StartupSuspended := true
 global PauseHold := false
