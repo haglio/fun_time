@@ -198,10 +198,8 @@ class TestStartupPhase:
         )
 
     def test_the_hold_lifts_when_the_session_is_up(self):
-        """The orchestrator writes the pids file once every window is placed.
-        Polled rather than announced down the command mailbox: that mailbox is
-        one slot with several writers, and a handover lost there would leave
-        every hotkey dead for the rest of the session."""
+        """The orchestrator writes the pids file once every window is placed,
+        and the script polls for it rather than waiting to be told."""
         body = function_source("WatchStartup")
         assert "FileExist(PIDS_FILE_PATH)" in body
         assert "StartupPhase := false" in body
@@ -214,11 +212,45 @@ class TestStartupPhase:
         assert "\nSuspend true\n" in script_text(), (
             "the script does not start suspended, so it eats keys during a launch"
         )
-        assert "Suspend false" in function_source("WatchStartup")
+        assert "StartupSuspended := false" in function_source("WatchStartup")
+        assert "ApplyHolds()" in function_source("WatchStartup")
 
     def test_a_suspend_anything_else_set_survives_the_handover(self):
         """An integration run pre-writes suspend_hotkeys and OmniPause suspends
-        mid-session.  Releasing the startup hold must not undo either — the flag
-        is what says the hold is still ours to let go of."""
-        assert "StartupSuspended := false" in function_source("ProcessAhkCommand")
-        assert "if (StartupSuspended)" in function_source("WatchStartup")
+        mid-session.  Releasing the startup hold must not undo either, so each
+        is a hold of its own and the keys are suspended while any one holds."""
+        assert "Suspend(StartupSuspended || PauseHold || HeadsetOff || EndingPhase)" in (
+            function_source("ApplyHolds"))
+
+
+class TestWithTheHeadsetOff:
+    def test_the_mailbox_takes_every_line_it_was_sent(self):
+        body = function_source("ProcessAhkCommand")
+        assert "Loop Parse" in body
+        assert "ApplyHolds()" in body
+
+    def test_the_headset_coming_off_and_going_back_on_are_a_hold_of_their_own(self):
+        body = function_source("ProcessAhkCommand")
+        off = body[body.index('(action = "headset_off")'):]
+        on = body[body.index('(action = "headset_on")'):]
+        assert off.index("HeadsetOff := true") < off.index("}")
+        assert on.index("HeadsetOff := false") < on.index("}")
+
+    def test_the_pauses_own_let_go_leaves_the_headsets_hold_alone(self):
+        body = function_source("ProcessAhkCommand")
+        let_go = body[body.index('(action = "unsuspend_hotkeys")'):]
+        assert let_go.index("PauseHold := false") < let_go.index("}")
+        assert "Suspend false" not in body
+
+    def test_with_the_headset_off_the_only_key_left_is_the_quit(self):
+        """Esc and Shift+Esc live through a pause, so the pause's suspend
+        cannot take them; the headset's hold turns them off by name."""
+        body = function_source("ApplyHolds")
+        assert 'Hotkey("Esc", ' in body
+        assert 'Hotkey("+Esc", ' in body
+        assert "^!q" not in body
+
+    def test_over_the_closing_cover_esc_calls_a_quit_off_whatever_the_headset_said(self):
+        body = function_source("ApplyHolds")
+        assert "HeadsetOff && !EndingPhase" in body
+        assert "ApplyHolds()" in function_source("EndTheSession")
