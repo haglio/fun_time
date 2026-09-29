@@ -22,7 +22,14 @@ from player_core.satellite_hud import HudModel
 from player_core.satellite_hud_paint import HudRenderer
 from shared_ui.icon_geometry import RENAMED_MARKS, glyph_names
 
-from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
+from fun_time.console_buttons import (
+    FLAT_ICON,
+    LATEST_ICON,
+    VR_ICON,
+    MainSlot,
+    console_rows,
+    osr2_controls,
+)
 from tests.symbol_face import typed_in_the_symbol_face
 
 _MINUS, _PLUS = "−", "+"
@@ -269,43 +276,55 @@ class TestBrowseOrder:
 
 
 class TestProjectionPair:
-    """VR and flat, as the two shapes of video each button includes."""
+    """Flat and VR, as the two shapes of video each button includes."""
 
-    def _pair(self, plays_vr, plays_flat, **over):
+    def _flat_and_vr(self, *, flat, vr, **over) -> tuple[Button, ...]:
         rows = console_rows(MainSlot(main_mode=MainMode.VIDEO, latest=False, length_mode=LengthMode.MIXED,
-                                     plays_vr=plays_vr, plays_flat=plays_flat, **over))
-        return [b for row in rows for b in row if b.command.startswith("main_projection")]
+                                     plays_flat=flat, plays_vr=vr, **over))
+        by_face = {b.glyph: b for row in rows for b in row if b.command.startswith("main_projection")}
+        return tuple(by_face[face] for face in (FLAT_ICON, VR_ICON) if face in by_face)
 
     def test_both_shapes_is_both_of_them_lit(self):
-        assert [b.lit for b in self._pair(True, True)] == [True, True]
+        assert [b.lit for b in self._flat_and_vr(flat=True, vr=True)] == [True, True]
 
     def test_dropping_one_from_both_asks_for_the_other_alone(self):
-        assert [b.command for b in self._pair(True, True)] == [
-            "main_projection_flat", "main_projection_vr"]
+        flat, vr = self._flat_and_vr(flat=True, vr=True)
+
+        assert (flat.command, vr.command) == ("main_projection_vr", "main_projection_flat")
 
     def test_putting_the_dark_one_back_asks_for_both(self):
-        pair = self._pair(True, False)
+        flat, vr = self._flat_and_vr(flat=False, vr=True)
 
-        assert [b.lit for b in pair] == [True, False]
-        assert pair[1].command == "main_projection_both"
+        assert (flat.lit, vr.lit) == (False, True)
+        assert flat.command == "main_projection_both"
 
     def test_the_last_lit_one_can_still_be_turned_off(self):
-        pair = self._pair(False, True)
+        flat, vr = self._flat_and_vr(flat=True, vr=False)
 
-        assert [b.dim for b in pair] == [False, False]
-        assert pair[1].command == "main_projection_none"
+        assert (flat.dim, vr.dim) == (False, False)
+        assert flat.command == "main_projection_none"
 
     def test_neither_lit_offers_each_shape_back(self):
-        assert [b.command for b in self._pair(False, False)] == [
-            "main_projection_vr", "main_projection_flat"]
+        flat, vr = self._flat_and_vr(flat=False, vr=False)
+
+        assert (flat.command, vr.command) == ("main_projection_flat", "main_projection_vr")
+
+    def test_flat_leads_vr_in_a_group_of_their_own(self):
+        placed = place_rows(console_rows(MainSlot(main_mode=MainMode.VIDEO, latest=False,
+                                                  plays_flat=True, plays_vr=True)), x=0, y=0)
+        rect_of = {b.glyph: rect for rect, b in placed}
+        latest, flat, vr = rect_of[LATEST_ICON], rect_of[FLAT_ICON], rect_of[VR_ICON]
+
+        assert flat[0] - (latest[0] + latest[2]) == GROUP_GAP
+        assert vr[0] - (flat[0] + flat[2]) == GAP
 
     def test_no_pair_at_all_where_the_library_holds_one_shape(self):
-        assert self._pair(None, None) == []
+        assert self._flat_and_vr(flat=None, vr=None) == ()
 
     def test_inside_a_compilation_the_shapes_read_as_held(self):
-        pair = self._pair(True, True, compilation="Volume 6")
+        pair = self._flat_and_vr(flat=True, vr=True, compilation="Volume 6")
 
-        assert all(b.remembered and not b.lit for b in pair)
+        assert pair and all(b.remembered and not b.lit for b in pair)
 
 
 class TestGenausProjectionPair:
@@ -316,21 +335,23 @@ class TestGenausProjectionPair:
                                      plays_vr=plays_vr, plays_flat=plays_flat))
         return [b for row in rows for b in row if b.command.startswith("main_projection")]
 
-    def test_it_follows_the_browse_order_as_it_does_under_a_video(self):
-        actions = _actions(MainSlot(main_mode=MainMode.GENAU, latest=False,
-                                    plays_vr=True, plays_flat=True))
+    def _faces_after_latest(self, main_mode: MainMode) -> list[str]:
+        faces = [b.glyph for row in console_rows(MainSlot(main_mode=main_mode, latest=False,
+                                                           plays_vr=True, plays_flat=True))
+                 for b in row]
+        return faces[faces.index(LATEST_ICON) + 1:][:2]
 
-        assert actions[actions.index("main_latest") + 1:][:2] == [
-            "main_projection_flat", "main_projection_vr"]
+    def test_it_follows_the_browse_order_as_it_does_under_a_video(self):
+        assert self._faces_after_latest(MainMode.GENAU) == self._faces_after_latest(MainMode.VIDEO) != []
 
     def test_it_says_clips_where_the_video_pair_says_videos(self):
-        tips = [b.tooltip for plays in ((True, True), (True, False), (False, False))
-                for b in self._pair(*plays)]
+        tips = [{b.tooltip for b in self._pair(*plays)}
+                for plays in ((True, True), (True, False), (False, False))]
 
         assert tips == [
-            "Drop the VR clips", "Drop the flat clips",
-            "Only the VR clips are playing", "Put the flat clips back",
-            "Put the VR clips back", "Put the flat clips back",
+            {"Drop the VR clips", "Drop the flat clips"},
+            {"Only the VR clips are playing", "Put the flat clips back"},
+            {"Put the VR clips back", "Put the flat clips back"},
         ]
 
 
