@@ -131,16 +131,21 @@ _GENAU_CMD_MAP = {
     "genau_clip_seconds_up": "CLIP_SECONDS_UP",
     "genau_prev_clip": PREV,
     "genau_next_clip": NEXT,
+    "genau_flip_ends": "FLIP_ENDS",
     # The motion's rate as the console's own ± marks beside the wave send it —
     # Genau's alone; the unqualified pair is _SPEED_BY_DRIVER below.
     "robot_hand_speed_down": "SPEED_DOWN",
     "robot_hand_speed_up": "SPEED_UP",
 }
 
-_GENAUS_CLIP_ON_SCREEN = {
-    "genau_weird_clip": ("WEIRD", MARKED_WEIRD),
-    "genau_flip_ends": ("FLIP_ENDS", ""),
-}
+_GENAUS_CLIP_SECONDS = "genau_clip_seconds_"
+_GENAUS_CLIP_COMMANDS = frozenset({
+    "genau_prev_clip", "genau_next_clip", "genau_weird_clip", "genau_lock", "genau_flip_ends",
+})
+
+
+def _about_genaus_clip(command: str) -> bool:
+    return command in _GENAUS_CLIP_COMMANDS or command.startswith(_GENAUS_CLIP_SECONDS)
 
 
 # Speed control splits by which control said it: the console's ± marks move the
@@ -239,7 +244,7 @@ _NUMERIC_PREFIXES = {
     "robot_hand_center_": "CENTER",
     "robot_hand_speed_": "SPEED",
     # Seconds a clip holds the screen, unlike the 0-100 axes above.
-    "genau_clip_seconds_": "CLIP_SECONDS",
+    _GENAUS_CLIP_SECONDS: "CLIP_SECONDS",
 }
 
 
@@ -672,6 +677,26 @@ def notice_source(command: str, active_player: int | None) -> str:
     return _PLAYER_NOTICE_SOURCE.get(player, SOURCE_SYSTEM)
 
 
+def _answered_before_the_bookkeeping(
+    command: str, state: BridgeState, config: BridgeConfig,
+) -> tuple[BridgeState, list[WindowOp]] | None:
+    """A command settled before the active-side bookkeeping, or None.
+
+    A player just taken off the screen, or a Genau command with the video on
+    the main player, must not become the one a bare "lock" or "next" reaches —
+    that would send the next spoken word to a window nobody can see.
+    """
+    if _about_genaus_clip(command) and main_player_displays(state.main_mode):
+        return state, []
+    minimize_ops = _minimize_ops(command, state.main_mode)
+    if minimize_ops is not None:
+        return state, minimize_ops
+    moved = _moved_hud(command, state, config) or _collapsed_hud(command, state, config)
+    if moved is not None:
+        return moved, []
+    return None
+
+
 def dispatch_command(
     command: str,
     state: BridgeState,
@@ -690,17 +715,9 @@ def dispatch_command(
     ignore it.  Empty means "whatever is playing now", which is how every
     keyboard and dashboard command arrives.
     """
-    # Parking a player, before the active-side bookkeeping below: this is the one
-    # side command that is not about that side's video, and a player just taken
-    # off the screen must not become the one a bare "lock" or "next" reaches —
-    # that would send the next spoken word to a window nobody can see.
-    minimize_ops = _minimize_ops(command, state.main_mode)
-    if minimize_ops is not None:
-        return state, minimize_ops
-
-    moved = _moved_hud(command, state, config) or _collapsed_hud(command, state, config)
-    if moved is not None:
-        return moved, []
+    answered = _answered_before_the_bookkeeping(command, state, config)
+    if answered is not None:
+        return answered
 
     # Any command naming a player (voice or keyboard nav) makes it the active
     # player, so a later player-agnostic "active_*" command knows which to drive.
@@ -1564,13 +1581,6 @@ def _main_lock(verb: str, state: BridgeState, config: BridgeConfig,
     return _lock_genau(verb, state, config)
 
 
-def _genau_lock_on_screen(verb: str, state: BridgeState, config: BridgeConfig,
-                          _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if main_player_displays(state.main_mode):
-        return state, []
-    return _lock_genau(verb, state, config)
-
-
 def _lock_genau(verb: str, state: BridgeState,
                 config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
     append_command(config.genau_cmd_file, verb)
@@ -1708,14 +1718,10 @@ def _speed(main_player_cmd: str | None, genau_cmd: str | None, by_driver: bool,
     return state, []
 
 
-def _to_genaus_clip_on_screen(verb: str, notice_message: str, state: BridgeState,
-                              config: BridgeConfig, _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if main_player_displays(state.main_mode):
-        return state, []
-    append_command(config.genau_cmd_file, verb)
-    if not notice_message:
-        return state, []
-    return state, [WindowOp(op="notice", key=notice_message, source=SOURCE_MAIN)]
+def _mark_genaus_clip_weird(state: BridgeState, config: BridgeConfig,
+                            _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    append_command(config.genau_cmd_file, "WEIRD")
+    return state, [WindowOp(op="notice", key=MARKED_WEIRD, source=SOURCE_MAIN)]
 
 
 def _save_clip(state: BridgeState, _config: BridgeConfig,
@@ -1779,7 +1785,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["main_nudge_next"] = partial(_forward_to_main_player, "SEEK_FWD")
     handlers.update({cmd: partial(_main_lock, verb)
                      for cmd, verb in _MAIN_LOCK_COMMANDS.items()})
-    handlers["genau_lock"] = partial(_genau_lock_on_screen, TOGGLE_LOCK)
+    handlers["genau_lock"] = partial(_main_lock, TOGGLE_LOCK)
     handlers["main_player_lock"] = partial(_forward_to_main_player_on_screen, TOGGLE_LOCK)
     handlers["projection_cycle"] = partial(_forward_to_the_vr_main_player, "CYCLE_PROJECTION")
     handlers["projection_cycle_back"] = partial(
@@ -1833,8 +1839,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_take_the_osr2, player)
                      for cmd, player in TAKE_OSR2_COMMANDS.items()})
     handlers["clipper_save"] = _save_clip
-    handlers.update({cmd: partial(_to_genaus_clip_on_screen, verb, notice_message)
-                     for cmd, (verb, notice_message) in _GENAUS_CLIP_ON_SCREEN.items()})
+    handlers["genau_weird_clip"] = _mark_genaus_clip_weird
     handlers["genau_filter_enhanced"] = _filter_the_shows_enhanced
     handlers.update({cmd: _words_for_a_show_that_is_not_up
                      for cmd in _ORIGENERATOR_SPEECH if cmd not in handlers})

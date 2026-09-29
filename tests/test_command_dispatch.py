@@ -3024,15 +3024,43 @@ def test_marking_genaus_clip_weird_flashes_marked_weird_over_the_main_slot(tmp_p
     assert [(op.op, op.key, op.source) for op in ops] == [("notice", "Marked weird", "main")]
 
 
-@pytest.mark.parametrize("command", ["genau_flip_ends", "genau_weird_clip"])
-def test_a_command_about_genaus_clip_said_over_a_video_leaves_the_hidden_clip_alone(
+@pytest.mark.parametrize("command", [
+    "genau_prev_clip",
+    "genau_next_clip",
+    "genau_weird_clip",
+    "genau_lock",
+    "genau_flip_ends",
+    "genau_clip_seconds_down",
+    "genau_clip_seconds_up",
+    "genau_clip_seconds_30",
+])
+def test_every_genau_command_does_nothing_with_video_in_the_main_player(
         tmp_path: Path, command: str):
     config = _make_config(tmp_path)
+    state = _make_state(main_mode=MainMode.VIDEO, active_player=2)
 
-    new_state, ops = dispatch_command(command, _make_state(main_mode=MainMode.VIDEO), config)
+    new_state, ops = dispatch_command(command, state, config)
 
     assert not config.genau_cmd_file.exists()
-    assert (new_state, ops) == (_make_state(main_mode=MainMode.VIDEO), [])
+    assert (new_state, ops) == (state, [])
+
+
+@pytest.mark.parametrize(("command", "verb"), [
+    ("robot_hand_center_up", "CENTER_UP"),
+    ("robot_hand_amplitude_down", "AMPLITUDE_DOWN"),
+    ("robot_hand_cycle_shape", "CYCLE_SHAPE"),
+    ("robot_hand_toggle_cruise", "TOGGLE_CRUISE"),
+    ("robot_hand_center_50", "CENTER 50"),
+])
+def test_the_robot_hands_commands_still_reach_it_with_video_in_the_main_player(
+        tmp_path: Path, command: str, verb: str):
+    """With a video on the main player the hand drives the OSR2 wherever the
+    video has no funscript, so its motion is still its commands' to tune."""
+    config = _make_config(tmp_path)
+
+    dispatch_command(command, _make_state(main_mode=MainMode.VIDEO), config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == verb + "\n"
 
 
 def test_genau_clip_seconds_writes_a_numeric_cmd(tmp_path: Path):
