@@ -164,7 +164,7 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   really runs, so what it shows may not be what he uses (his call, 2026-09-12).
   A branch that changes FunTimeVR gets the same desktop launcher. Then hand him that `.lnk` as a **claunch launch link**
   (the global CLAUDE.md's launcher law), the path percent-encoded —
-  `[▶ Launch Verify my-branch](http://127.0.0.1:41777/launch?t=a780245a4cdcfcb2a2e3b365&p=C%3A%5CUsers%5C<you>%5Cworkspace%5Chaglio%5Cfun_time%5CVerify%20my-branch.lnk)`
+  `[▶ Launch the Fun Time preview](http://127.0.0.1:41777/launch?t=a780245a4cdcfcb2a2e3b365&p=C%3A%5CUsers%5C<you>%5Cworkspace%5Chaglio%5Cfun_time%5C.claude%5Cworktrees%5Cmy-branch%5CVerify%20my-branch.lnk)`
   (the `--shortcut` run prints the real path — encode that, not this shape)
   — so one click launches it. A `file:///` link only previews the file in the
   app's viewer, so it launches nothing (2026-09-06); linking the folder and naming the file
