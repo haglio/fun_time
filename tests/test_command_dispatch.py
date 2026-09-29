@@ -3006,7 +3006,6 @@ def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
     for command, verb in (
         ("genau_clip_seconds_down", "CLIP_SECONDS_DOWN"),
         ("genau_clip_seconds_up", "CLIP_SECONDS_UP"),
-        ("genau_weird_clip", "WEIRD"),
         ("genau_flip_ends", "FLIP_ENDS"),
     ):
         config = _make_config(tmp_path / command)
@@ -3016,10 +3015,21 @@ def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
         assert ops == []
 
 
-def test_a_flip_said_over_a_video_leaves_genaus_hidden_clip_alone(tmp_path: Path):
+def test_marking_genaus_clip_weird_flashes_marked_weird_over_the_main_slot(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    new_state, ops = dispatch_command("genau_flip_ends", _make_state(main_mode=MainMode.VIDEO), config)
+    _, ops = dispatch_command("genau_weird_clip", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "WEIRD\n"
+    assert [(op.op, op.key, op.source) for op in ops] == [("notice", "Marked weird", "main")]
+
+
+@pytest.mark.parametrize("command", ["genau_flip_ends", "genau_weird_clip"])
+def test_a_command_about_genaus_clip_said_over_a_video_leaves_the_hidden_clip_alone(
+        tmp_path: Path, command: str):
+    config = _make_config(tmp_path)
+
+    new_state, ops = dispatch_command(command, _make_state(main_mode=MainMode.VIDEO), config)
 
     assert not config.genau_cmd_file.exists()
     assert (new_state, ops) == (_make_state(main_mode=MainMode.VIDEO), [])

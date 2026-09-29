@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from .players import Player
 
+MARKED_WEIRD = "Marked weird"
+
 
 @dataclass(frozen=True)
 class LockActionPlan:
@@ -80,7 +82,7 @@ class LockActionPlan:
             move_to_weird=True,
             open_rfb_tab=False,
             log_message=f"Discarding from player {player}: {current_path}",
-            notice_message="Marked weird",
+            notice_message=MARKED_WEIRD,
         )
 
 
