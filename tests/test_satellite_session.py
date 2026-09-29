@@ -710,3 +710,14 @@ class TestAFrameInThePicturesPlace:
         session.clear_frame()
 
         assert player.swapped == [tmp_path / "frame.png"]
+
+    def test_a_reloaded_list_naming_the_picture_put_up_keeps_it_on_its_move(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=2)
+        finished = tmp_path / "v0 finished.png"
+        session.show_frame(finished)
+        opened_before = list(player.opened)
+
+        session.replace_playlist([finished, tmp_path / "v1.mp4"])
+
+        assert session.current_video == finished
+        assert player.opened == opened_before
