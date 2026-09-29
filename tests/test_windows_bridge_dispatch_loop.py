@@ -1364,7 +1364,7 @@ class TestWhatASpokenCommandFlashes:
         spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
 
         assert self._flashed(tmp_path, f"{HEADSET_OFF}\n{spoken}") == [
-            ("ignored with the headset off: landscape next", "landscape", logging.WARNING)]
+            ("ignored while not wearing headset: landscape next", "landscape", logging.WARNING)]
 
     @pytest.mark.parametrize(("active_player", "source"), [(2, "portrait"), (1, "main")])
     def test_a_bare_command_flashes_over_the_player_it_reached(

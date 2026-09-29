@@ -70,9 +70,10 @@ from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .shortcuts import Shortcut
 from .voice_commands import CommandLine, parse_command_line
 from .voice_control import (
-    HEARD_WITH_THE_HEADSET_OFF,
-    SUSPEND_EXEMPT_COMMANDS,
+    DURING_OMNIPAUSE,
+    WHILE_NOT_WEARING_HEADSET,
     VoiceController,
+    VoiceHold,
     say_the_mic_is_off,
 )
 from .watch_sampling import WatchSampler
@@ -461,10 +462,18 @@ class DispatchLoopRunner:
         """
         if self.voice_controller is None:
             return
-        if self.state.omni_paused or self.headset_off:
-            self.voice_controller.suspend()
-        else:
+        hold = self._voice_hold()
+        if hold is None:
             self.voice_controller.unsuspend()
+        else:
+            self.voice_controller.suspend(hold)
+
+    def _voice_hold(self) -> VoiceHold | None:
+        if self.headset_off:
+            return WHILE_NOT_WEARING_HEADSET
+        if self.state.omni_paused:
+            return DURING_OMNIPAUSE
+        return None
 
     def _flash_main_player_notice(self) -> None:
         """Surface anything the main player has raised since the last tick, once.
@@ -496,8 +505,7 @@ class DispatchLoopRunner:
         if not line.said:
             return
         if frozen:
-            held_by = "with the headset off" if self.headset_off else "during OmniPause"
-            self._flash(f"ignored {held_by}: {line.said}", source=source,
+            self._flash(f"ignored {self._voice_hold().ignored_while}: {line.said}", source=source,
                         level=logging.WARNING)
         elif self._answers == answers_before:
             self._flash(line.said, source=source)
@@ -507,11 +515,8 @@ class DispatchLoopRunner:
         notice(logger, message, source=source, level=level)
 
     def _frozen(self, cmd: str, spoken_at: float | None) -> bool:
-        if spoken_at is None:
-            return False
-        if self.headset_off:
-            return cmd not in HEARD_WITH_THE_HEADSET_OFF
-        return self.state.omni_paused and cmd not in SUSPEND_EXEMPT_COMMANDS
+        hold = self._voice_hold()
+        return spoken_at is not None and hold is not None and cmd not in hold.heard
 
     def _headset(self, signal: str) -> None:
         off = signal == HEADSET_OFF

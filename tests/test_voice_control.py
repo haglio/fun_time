@@ -16,7 +16,7 @@ from voice_core.listening import Heard
 from fun_time import voice_control
 from fun_time.filter_vocab import filter_voice_commands
 from fun_time.voice_commands import VOICE_COMMANDS, parse_command_line
-from fun_time.voice_control import VoiceController, command_rules
+from fun_time.voice_control import WHILE_NOT_WEARING_HEADSET, VoiceController, command_rules
 
 SPOKEN = 2000  # a peak that is unmistakably speech
 
@@ -118,6 +118,28 @@ class TestHandleHeard:
 
         assert not (tmp_path / "cmd.txt").exists()
         assert seen == [("ignored during OmniPause: landscape next", "landscape", logging.WARNING)]
+
+    def test_a_command_heard_with_the_headset_off_says_that_was_why(self, tmp_path, monkeypatch):
+        vc = self._controller(tmp_path)
+        vc.suspend(WHILE_NOT_WEARING_HEADSET)
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
+
+        vc.handle_heard(_heard(Recognition(phrase="pause")))
+
+        assert not (tmp_path / "cmd.txt").exists()
+        assert [msg for msg, _source, _level in seen] == ["ignored while not wearing headset: pause"]
+
+    def test_with_the_headset_off_quit_is_the_one_command_heard(self, tmp_path):
+        vc = self._controller(tmp_path)
+        vc.suspend(WHILE_NOT_WEARING_HEADSET)
+
+        for phrase in ("play", "quit"):
+            vc.handle_heard(_heard(Recognition(phrase=phrase)))
+
+        written = (tmp_path / "cmd.txt").read_text(encoding="utf-8").splitlines()
+        assert [parse_command_line(line).command for line in written] == ["quit"]
 
     def test_a_muted_room_stays_silent_while_omnipaused_too(self, tmp_path, monkeypatch):
         vc = self._controller(tmp_path)

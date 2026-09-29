@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.file_channel import read_flag, write_flag
@@ -89,7 +90,16 @@ def _source_for_heard_text(text: str) -> str:
 # room says reaches the dispatch loop.  Widening this set is the owner's call --
 # see CLAUDE.md, "Standing rules", and the test that pins the whole frozenset.
 SUSPEND_EXEMPT_COMMANDS: frozenset[str] = frozenset({"play", "quit", "relief_omnipause"})
-HEARD_WITH_THE_HEADSET_OFF: frozenset[str] = frozenset({"quit"})
+
+
+@dataclass(frozen=True)
+class VoiceHold:
+    heard: frozenset[str]
+    ignored_while: str
+
+
+DURING_OMNIPAUSE = VoiceHold(SUSPEND_EXEMPT_COMMANDS, "during OmniPause")
+WHILE_NOT_WEARING_HEADSET = VoiceHold(frozenset({"quit"}), "while not wearing headset")
 
 
 def _holds_or_ends_the_room(command: str) -> bool:
@@ -146,7 +156,7 @@ class VoiceController:
     ) -> None:
         self.cmd_file = Path(cmd_file)
         self._muted = threading.Event()
-        self._suspended = threading.Event()
+        self._hold: VoiceHold | None = None
         self._words_forming = False
         self.active_player: Callable[[], int | None] = lambda: None
         self.listener_settings = ListenerSettings(
@@ -179,7 +189,7 @@ class VoiceController:
         A muted or omnipaused room's talk is discarded, so it is not captioned
         either.
         """
-        return not self._muted.is_set() and not self._suspended.is_set()
+        return not self._muted.is_set() and self._hold is None
 
     def mute(self) -> None:
         """Suppress command output (voice still listens but discards)."""
@@ -189,26 +199,25 @@ class VoiceController:
         """Resume command output."""
         self._muted.clear()
 
-    def suspend(self) -> None:
-        """Freeze voice for the duration of omnipause, save the exempt commands."""
-        self._suspended.set()
+    def suspend(self, hold: VoiceHold = DURING_OMNIPAUSE) -> None:
+        self._hold = hold
 
     def unsuspend(self) -> None:
-        """Thaw voice when omnipause lifts."""
-        self._suspended.clear()
+        self._hold = None
 
     def _write_spoken(self, phrase: str, *, spoken_at: float) -> bool:
         """Append the phrase's command to the dashboard command file; return whether it was.
 
-        No-op (returns False) when muted, and — while suspended by omnipause —
-        for everything but the exempt commands.  The line carries *spoken_at*, so
+        No-op (returns False) when muted, and — while held — for everything the
+        hold does not hear.  The line carries *spoken_at*, so
         the dispatcher acts on the video that was on screen when the user started
         talking rather than whatever replaced it during recognition.
         """
         command = VOICE_COMMANDS[phrase]
         if self._muted.is_set():
             return False
-        if self._suspended.is_set() and command not in SUSPEND_EXEMPT_COMMANDS:
+        hold = self._hold
+        if hold is not None and command not in hold.heard:
             return False
         return append_command(self.cmd_file, format_spoken_command(
             command, spoken_at=spoken_at, said=friendly_voice(phrase)))
@@ -235,8 +244,9 @@ class VoiceController:
 
     def _hand_on(self, phrase: str, *, spoken_at: float) -> None:
         written = self._write_spoken(phrase, spoken_at=spoken_at)
-        if not written and self._suspended.is_set() and not self._muted.is_set():
-            notice(logger, f"ignored during OmniPause: {friendly_voice(phrase)}",
+        hold = self._hold
+        if not written and hold is not None and not self._muted.is_set():
+            notice(logger, f"ignored {hold.ignored_while}: {friendly_voice(phrase)}",
                    source=notice_source(VOICE_COMMANDS[phrase], self.active_player()),
                    level=logging.WARNING)
 
