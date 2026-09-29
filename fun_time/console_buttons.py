@@ -149,42 +149,44 @@ def _file_controls(slot: MainSlot) -> tuple[Button, ...]:
     )
 
 
+def _lit_or_remembered(on: bool, remembered: bool) -> dict:
+    return {"lit": on and not remembered, "remembered": on and remembered}
+
+
 def _browse_order_buttons(slot: MainSlot, *, remembered: bool = False) -> tuple[Button, ...]:
     if slot.latest is None:
         return ()
-    on = (not slot.latest, bool(slot.latest))
     return (
         Button("main_shuffle", SHUFFLE_ICON, f"{SHUFFLE_LABEL} — reshuffle what plays",
-               lit=on[0] and not remembered, remembered=on[0] and remembered,
-               group_break=True),
+               group_break=True, **_lit_or_remembered(not slot.latest, remembered)),
         Button("main_latest", LATEST_ICON, f"{LATEST_LABEL} — reload it newest-first",
-               lit=on[1] and not remembered, remembered=on[1] and remembered),
+               **_lit_or_remembered(bool(slot.latest), remembered)),
     )
+
+
+def _inclusion_button(command: str, mark: str, kind: str, *, on: bool, other_on: bool,
+                      remembered: bool, group_break: bool = False) -> Button:
+    tooltip = (f"Only the {kind} are playing" if on and not other_on
+               else f"Drop the {kind}" if on
+               else f"Put the {kind} back")
+    return Button(command, mark, tooltip, group_break=group_break,
+                  **_lit_or_remembered(on, remembered))
 
 
 def _projection_buttons(slot: MainSlot, *, remembered: bool, things: str) -> tuple[Button, ...]:
     if slot.plays_vr is None or slot.plays_flat is None:
         return ()
-    vr, flat = bool(slot.plays_vr), bool(slot.plays_flat)
-
-    def state(on: bool) -> dict:
-        return {"lit": on and not remembered, "remembered": on and remembered}
-
+    flat, vr = bool(slot.plays_flat), bool(slot.plays_vr)
     return (
-        Button(
-            ("main_projection_flat" if flat else "main_projection_none") if vr
-            else ("main_projection_both" if flat else "main_projection_vr"),
-            VR_ICON,
-            f"Only the VR {things} are playing" if vr and not flat
-            else f"Drop the VR {things}" if vr
-            else f"Put the VR {things} back", group_break=True, **state(vr)),
-        Button(
+        _inclusion_button(
             ("main_projection_vr" if vr else "main_projection_none") if flat
             else ("main_projection_both" if vr else "main_projection_flat"),
-            FLAT_ICON,
-            f"Only the flat {things} are playing" if flat and not vr
-            else f"Drop the flat {things}" if flat
-            else f"Put the flat {things} back", **state(flat)),
+            FLAT_ICON, f"flat {things}", on=flat, other_on=vr, remembered=remembered,
+            group_break=True),
+        _inclusion_button(
+            ("main_projection_flat" if flat else "main_projection_none") if vr
+            else ("main_projection_both" if flat else "main_projection_vr"),
+            VR_ICON, f"VR {things}", on=vr, other_on=flat, remembered=remembered),
     )
 
 
@@ -194,25 +196,16 @@ def _length_buttons(slot: MainSlot, *, remembered: bool) -> tuple[Button, ...]:
     mixed = slot.length_mode is LengthMode.MIXED
     full = mixed or slot.length_mode is LengthMode.FULL
     shorts = mixed or slot.length_mode is LengthMode.SHORTS
-
-    def state(on: bool) -> dict:
-        return {"lit": on and not remembered, "remembered": on and remembered}
-
     return (
-        Button(
+        _inclusion_button(
             ("main_player_length_shorts" if shorts else "main_player_length_none") if full
             else ("main_player_length_mixed" if shorts else "main_player_length_full"),
-            FULL_LENGTH_ICON,
-            "Only the full-length scenes are playing" if full and not shorts
-            else "Drop the full-length scenes" if full
-            else "Put the full-length scenes back", group_break=True, **state(full)),
-        Button(
+            FULL_LENGTH_ICON, "full-length scenes", on=full, other_on=shorts,
+            remembered=remembered, group_break=True),
+        _inclusion_button(
             ("main_player_length_full" if full else "main_player_length_none") if shorts
             else ("main_player_length_mixed" if full else "main_player_length_shorts"),
-            SHORTS_ICON,
-            "Only the shorts are playing" if shorts and not full
-            else "Drop the shorts" if shorts
-            else "Put the shorts back", **state(shorts)),
+            SHORTS_ICON, "shorts", on=shorts, other_on=full, remembered=remembered),
     )
 
 
