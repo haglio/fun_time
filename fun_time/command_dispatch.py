@@ -45,7 +45,7 @@ from .event_log import (
     SOURCE_SYSTEM,
 )
 from .filter_vocab import decode_filter_command, set_command
-from .lock import build_discard_plan, build_lock_toggle_plan
+from .lock import MARKED_WEIRD, build_discard_plan, build_lock_toggle_plan
 from .max_intensity import (
     MAX_INTENSITY_COMMAND,
     players_that_can_drive_the_osr2,
@@ -129,14 +129,17 @@ _GENAU_CMD_MAP = {
     # time; the padlock (_MAIN_LOCK_COMMANDS) is the switch, this is its pace.
     "genau_clip_seconds_down": "CLIP_SECONDS_DOWN",
     "genau_clip_seconds_up": "CLIP_SECONDS_UP",
-    # Condemning a clip outright — Genau's counterpart of a satellite's weird.
-    "genau_weird_clip": "WEIRD",
     "genau_prev_clip": PREV,
     "genau_next_clip": NEXT,
     # The motion's rate as the console's own ± marks beside the wave send it —
     # Genau's alone; the unqualified pair is _SPEED_BY_DRIVER below.
     "robot_hand_speed_down": "SPEED_DOWN",
     "robot_hand_speed_up": "SPEED_UP",
+}
+
+_GENAUS_CLIP_ON_SCREEN = {
+    "genau_weird_clip": ("WEIRD", MARKED_WEIRD),
+    "genau_flip_ends": ("FLIP_ENDS", ""),
 }
 
 
@@ -1708,11 +1711,14 @@ def _speed(main_player_cmd: str | None, genau_cmd: str | None, by_driver: bool,
     return state, []
 
 
-def _flip_genaus_clip_on_screen(state: BridgeState, config: BridgeConfig,
-                                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+def _to_genaus_clip_on_screen(verb: str, notice_message: str, state: BridgeState,
+                              config: BridgeConfig, _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if main_player_displays(state.main_mode):
         return state, []
-    return _forward_to_genau("FLIP_ENDS", state, config, _target_path)
+    append_command(config.genau_cmd_file, verb)
+    if not notice_message:
+        return state, []
+    return state, [WindowOp(op="notice", key=notice_message, source=SOURCE_MAIN)]
 
 
 def _save_clip(state: BridgeState, _config: BridgeConfig,
@@ -1826,7 +1832,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_take_the_osr2, player)
                      for cmd, player in TAKE_OSR2_COMMANDS.items()})
     handlers["clipper_save"] = _save_clip
-    handlers["genau_flip_ends"] = _flip_genaus_clip_on_screen
+    handlers.update({cmd: partial(_to_genaus_clip_on_screen, verb, notice_message)
+                     for cmd, (verb, notice_message) in _GENAUS_CLIP_ON_SCREEN.items()})
     handlers["genau_filter_enhanced"] = _filter_the_shows_enhanced
     handlers.update({cmd: _words_for_a_show_that_is_not_up
                      for cmd in _ORIGENERATOR_SPEECH if cmd not in handlers})
