@@ -191,12 +191,12 @@ class SatelliteSession:
         self._player.set_pace(seconds)
 
     def show_frame(self, frame: Path) -> None:
-        self._frame_up = True
+        self._frame_on_screen = frame
         self._player.swap_still(frame)
 
     def clear_frame(self) -> None:
-        if self._frame_up:
-            self._frame_up = False
+        if self._frame_on_screen is not None:
+            self._frame_on_screen = None
             self._player.swap_still(self.showing)
 
     def set_locked(self, locked: bool) -> None:
@@ -231,7 +231,7 @@ class SatelliteSession:
             return
         if not self._locked and self._player.advanced_to_next:
             self._play_points.ended()
-            self._frame_up = False
+            self._frame_on_screen = None
             self._index = (self._index + 1) % len(self._playlist)
             self._player.drop_consumed()
             self._stage_next()
@@ -289,13 +289,19 @@ class SatelliteSession:
                 self._index = i
                 self._stage_next()
                 return
+        if self._frame_on_screen in self._playlist:
+            self._index = self._playlist.index(self._frame_on_screen)
+            self._frame_on_screen = None
+            self._versions = {}
+            self._stage_next()
+            return
         self._versions = {}
         self.load(0)
 
     def load(self, index: int) -> None:
         self._play_points.leave()
         self._switching_versions = False
-        self._frame_up = False
+        self._frame_on_screen = None
         self._index = index % len(self._playlist)
         clip = self._playlist[self._index]
         video = self._versions.get(clip, clip)
