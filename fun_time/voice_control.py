@@ -89,6 +89,7 @@ def _source_for_heard_text(text: str) -> str:
 # room says reaches the dispatch loop.  Widening this set is the owner's call --
 # see CLAUDE.md, "Standing rules", and the test that pins the whole frozenset.
 SUSPEND_EXEMPT_COMMANDS: frozenset[str] = frozenset({"play", "quit", "relief_omnipause"})
+HEARD_WITH_THE_HEADSET_OFF: frozenset[str] = frozenset({"quit"})
 
 
 def _holds_or_ends_the_room(command: str) -> bool:

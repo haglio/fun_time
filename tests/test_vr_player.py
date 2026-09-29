@@ -1536,18 +1536,28 @@ def test_the_cover_is_told_it_is_waiting_on_him_only_once_the_room_is_up():
     )
 
 
+def _posted(tree) -> list[str]:
+    return [ast.unparse(node) for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and ast.unparse(node.func) == "posts.post"]
+
+
 def test_the_controllers_reach_the_pictures_own_controls_and_the_worker():
     tree = ast.parse(inspect.getsource(player._run))
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
     (made,) = [call for call in calls if ast.unparse(call.func) == "Pointer"]
-    (posted,) = [call for call in calls if ast.unparse(call.func) == "posts.post"]
     (pumped,) = [node for node in ast.walk(tree)
                  if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "pumped"]
 
     assert [ast.unparse(keyword) for keyword in made.keywords] == [
         "on_its_controls=on_its_controls"]
-    assert ast.unparse(posted) == "posts.post(thumb.commands)"
+    assert "posts.post(thumb.commands)" in _posted(tree)
     assert "posts" in ast.unparse(pumped.value)
+
+
+def test_the_room_hears_from_the_headset_whether_anyone_is_wearing_it():
+    tree = ast.parse(inspect.getsource(player._run))
+
+    assert "posts.post(wear.said(session.focused, now=time.monotonic()))" in _posted(tree)
 
 
 def test_a_carry_turns_the_room_whatever_the_main_player_is_showing():
