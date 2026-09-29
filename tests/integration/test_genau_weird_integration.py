@@ -1,5 +1,3 @@
-"""Genau's mark-weird key on a real session, over a clips folder made for the
-run: it acts on Genau's clip only while Genau is on screen, and says so."""
 from __future__ import annotations
 
 import json
