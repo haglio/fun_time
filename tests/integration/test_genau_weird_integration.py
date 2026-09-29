@@ -12,6 +12,7 @@ import pytest
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.lock import MARKED_WEIRD
+from fun_time.player_status import read_genau_status
 
 from .integration_support import (
     FunTimeIntegrationSession,
@@ -27,6 +28,7 @@ pytestmark = [
 ]
 
 GENAU_TAKES_A_VERB_WITHIN_S = 2.0
+GENAUS_KEYS = ("genau_next_clip", "genau_prev_clip", "genau_lock", "genau_weird_clip")
 
 
 def _test_pattern(folder: Path, name: str) -> None:
@@ -51,7 +53,11 @@ def _condemned(weird: Path) -> list[Path]:
     return list(weird.iterdir()) if weird.is_dir() else []
 
 
-def test_genaus_mark_weird_takes_only_the_clip_on_screen_and_says_so():
+def _genaus_clip(session: FunTimeIntegrationSession) -> str:
+    return read_genau_status(session.config.genau_status_file).clip
+
+
+def test_genaus_keys_do_nothing_with_video_on_the_main_player_and_mark_weird_says_so_in_genau_mode():
     clips = build_integration_temp_root() / "genau" / "clips"
     clips.mkdir(parents=True)
     for name in ("alpha one.mp4", "beta two.mp4", "gamma three.mp4"):
@@ -60,7 +66,16 @@ def test_genaus_mark_weird_takes_only_the_clip_on_screen_and_says_so():
     session = _session_whose_genau_plays(clips)
     try:
         session.start()
-        session.write_dashboard_command("genau_weird_clip")
+        session.wait_until(lambda: _genaus_clip(session), timeout=15,
+                           description="Genau publishing the clip it opened on")
+        clip_before = _genaus_clip(session)
+        for command in GENAUS_KEYS:
+            session.write_dashboard_command(command)
+        time.sleep(GENAU_TAKES_A_VERB_WITHIN_S)
+
+        genau = read_genau_status(session.config.genau_status_file)
+        assert (genau.clip, genau.locked, _condemned(weird)) == (clip_before, True, [])
+
         session.write_dashboard_command("genau_activate")
         session.wait_for_new_log("Switched to genau mode", timeout=12)
         session.write_dashboard_command("genau_weird_clip")
