@@ -223,18 +223,15 @@ def test_each_side_reads_the_hosted_panel_where_the_manifest_names_it(cfg_factor
             config.satellite(player).origenerator_hud_file)
 
 
-def _wait_for_the_browse(mock_browse) -> None:
-    """Hold the caller's patch until the browse thread has actually taken it.
+def _join_the_browse_threads() -> None:
+    for thread in threading.enumerate():
+        if thread.name == "library-browser":
+            thread.join(timeout=10.0)
 
-    ``browse_library`` runs on a daemon thread the tick starts, and the press
-    these tests assert on goes out *before* that thread does. So leaving the
-    patch as soon as the press lands releases it under a thread that has not
-    called yet, and the browse reaches the real library browser -- which opens
-    a real window on the machine the family is used from. The fixed 0.15 s nap
-    that used to sit here was covering exactly that, by hoping rather than by
-    waiting for it.
-    """
+
+def _wait_until_the_browse_thread_ends(mock_browse) -> None:
     wait_until(lambda: mock_browse.call_count >= 1, timeout=10.0)
+    _join_the_browse_threads()
 
 
 @contextlib.contextmanager
@@ -648,7 +645,7 @@ class TestDispatchLoopRunner:
                 runner.tick()
 
                 messages = _presses_until(recv_sock, "browse_library")
-                _wait_for_the_browse(mock_browse)
+                _wait_until_the_browse_thread_ends(mock_browse)
 
         assert "browse_library" in messages
         # Browsing must NOT enter OmniPause: the old flow paused the whole
@@ -2216,9 +2213,7 @@ class TestBrowsingFromTheHeadset:
                    return_value=None) as desktop:
             for command in commands:
                 runner._handle_command(command)
-            for thread in threading.enumerate():
-                if thread.name == "library-browser":
-                    thread.join(timeout=10.0)
+            _join_the_browse_threads()
         return desktop
 
     def test_a_headset_browse_opens_the_panel_the_player_hangs(self, tmp_path):
