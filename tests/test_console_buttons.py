@@ -20,7 +20,7 @@ from player_core.hud_marks import BROKER_ICON, MINIMIZE_ICON, SHARED_MARK, share
 from player_core.modes import LengthMode, LoopState, MainMode
 from player_core.satellite_hud import HudModel
 from player_core.satellite_hud_paint import HudRenderer
-from shared_ui.icon_geometry import glyph_names
+from shared_ui.icon_geometry import RENAMED_MARKS, glyph_names
 
 from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
 from tests.symbol_face import typed_in_the_symbol_face
@@ -653,6 +653,12 @@ class TestFaces:
 
         assert {"trash", "reset", "wave"} <= named
         assert not named - set(glyph_names())
+
+    def test_no_button_asks_for_a_mark_by_a_name_the_family_has_retired(self):
+        named = {shared_mark_name(b.glyph) for b in _every_button()
+                 if b.glyph.startswith(SHARED_MARK)}
+
+        assert not named & set(RENAMED_MARKS)
 
     def test_the_bin_takes_something_away(self):
         assert _button(MainSlot(main_mode=MainMode.GENAU), "genau_weird_clip").danger is True
