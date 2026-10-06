@@ -277,10 +277,6 @@ def test_no_module_reaches_into_another_ones_privates():
 # tests and the reference row's line, so their comments went.
 MAX_PROSE_LINES = 7619
 
-# What the count was against at the last ratchet, so the norm the audit
-# measured stays readable. Reported on failure; not asserted.
-_PROSE_RATIO_AT_RATCHET = 0.4553
-
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
     """(prose lines, code lines) in one module.
