@@ -164,11 +164,9 @@ def _browse_order_buttons(slot: MainSlot, *, remembered: bool = False) -> tuple[
     )
 
 
-def _inclusion_button(command: str, mark: str, kind: str, *, on: bool, other_on: bool,
+def _inclusion_button(command: str, mark: str, kind: str, *, on: bool,
                       remembered: bool, group_break: bool = False) -> Button:
-    tooltip = (f"Only the {kind} are playing" if on and not other_on
-               else f"Drop the {kind}" if on
-               else f"Put the {kind} back")
+    tooltip = f"Including {kind}" if on else f"Not including {kind}"
     return Button(command, mark, tooltip, group_break=group_break,
                   **_lit_or_remembered(on, remembered))
 
@@ -181,12 +179,11 @@ def _projection_buttons(slot: MainSlot, *, remembered: bool, things: str) -> tup
         _inclusion_button(
             ("main_projection_vr" if vr else "main_projection_none") if flat
             else ("main_projection_both" if vr else "main_projection_flat"),
-            FLAT_ICON, f"flat {things}", on=flat, other_on=vr, remembered=remembered,
-            group_break=True),
+            FLAT_ICON, f"2D {things}", on=flat, remembered=remembered, group_break=True),
         _inclusion_button(
             ("main_projection_flat" if flat else "main_projection_none") if vr
             else ("main_projection_both" if flat else "main_projection_vr"),
-            VR_ICON, f"VR {things}", on=vr, other_on=flat, remembered=remembered),
+            VR_ICON, f"VR {things}", on=vr, remembered=remembered),
     )
 
 
@@ -194,18 +191,17 @@ def _length_buttons(slot: MainSlot, *, remembered: bool) -> tuple[Button, ...]:
     if slot.length_mode is None:
         return ()
     mixed = slot.length_mode is LengthMode.MIXED
-    full = mixed or slot.length_mode is LengthMode.FULL
     shorts = mixed or slot.length_mode is LengthMode.SHORTS
+    full = mixed or slot.length_mode is LengthMode.FULL
     return (
-        _inclusion_button(
-            ("main_player_length_shorts" if shorts else "main_player_length_none") if full
-            else ("main_player_length_mixed" if shorts else "main_player_length_full"),
-            FULL_LENGTH_ICON, "full-length scenes", on=full, other_on=shorts,
-            remembered=remembered, group_break=True),
         _inclusion_button(
             ("main_player_length_full" if full else "main_player_length_none") if shorts
             else ("main_player_length_mixed" if full else "main_player_length_shorts"),
-            SHORTS_ICON, "shorts", on=shorts, other_on=full, remembered=remembered),
+            SHORTS_ICON, "shorts", on=shorts, remembered=remembered, group_break=True),
+        _inclusion_button(
+            ("main_player_length_shorts" if shorts else "main_player_length_none") if full
+            else ("main_player_length_mixed" if shorts else "main_player_length_full"),
+            FULL_LENGTH_ICON, "full-length scenes", on=full, remembered=remembered),
     )
 
 

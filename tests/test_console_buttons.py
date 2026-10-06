@@ -24,7 +24,9 @@ from shared_ui.icon_geometry import RENAMED_MARKS, glyph_names
 
 from fun_time.console_buttons import (
     FLAT_ICON,
+    FULL_LENGTH_ICON,
     LATEST_ICON,
+    SHORTS_ICON,
     VR_ICON,
     MainSlot,
     console_rows,
@@ -349,47 +351,65 @@ class TestGenausProjectionPair:
                 for plays in ((True, True), (True, False), (False, False))]
 
         assert tips == [
-            {"Drop the VR clips", "Drop the flat clips"},
-            {"Only the VR clips are playing", "Put the flat clips back"},
-            {"Put the VR clips back", "Put the flat clips back"},
+            {"Including VR clips", "Including 2D clips"},
+            {"Including VR clips", "Not including 2D clips"},
+            {"Not including VR clips", "Not including 2D clips"},
         ]
 
 
 class TestLengthPair:
-    """Full length and shorts, as the two lengths each button includes."""
+    """Shorts and full length, as the two lengths each button includes."""
 
-    def _pair(self, length_mode: LengthMode | None, **over):
+    def _shorts_and_full(self, length_mode: LengthMode | None, **over) -> tuple[Button, ...]:
         rows = console_rows(MainSlot(main_mode=MainMode.VIDEO, latest=False, length_mode=length_mode, **over))
-        return [b for row in rows for b in row if b.command.startswith("main_player_length")]
+        by_face = {b.glyph: b for row in rows for b in row if b.command.startswith("main_player_length")}
+        return tuple(by_face[face] for face in (SHORTS_ICON, FULL_LENGTH_ICON) if face in by_face)
 
     def test_mixed_is_both_of_them_lit(self):
-        assert [b.lit for b in self._pair(LengthMode.MIXED)] == [True, True]
+        assert [b.lit for b in self._shorts_and_full(LengthMode.MIXED)] == [True, True]
 
     def test_one_length_is_that_one_lit_and_the_other_dark(self):
-        assert [b.lit for b in self._pair(LengthMode.FULL)] == [True, False]
-        assert [b.lit for b in self._pair(LengthMode.SHORTS)] == [False, True]
+        assert [b.lit for b in self._shorts_and_full(LengthMode.SHORTS)] == [True, False]
+        assert [b.lit for b in self._shorts_and_full(LengthMode.FULL)] == [False, True]
 
     def test_dropping_one_from_mixed_asks_for_the_other_alone(self):
-        assert [b.command for b in self._pair(LengthMode.MIXED)] == [
-            "main_player_length_shorts", "main_player_length_full"]
+        shorts, full = self._shorts_and_full(LengthMode.MIXED)
+
+        assert (shorts.command, full.command) == ("main_player_length_full", "main_player_length_shorts")
 
     def test_putting_the_dark_one_back_asks_for_mixed(self):
-        assert self._pair(LengthMode.FULL)[1].command == "main_player_length_mixed"
+        shorts, _full = self._shorts_and_full(LengthMode.FULL)
+
+        assert shorts.command == "main_player_length_mixed"
 
     def test_the_last_lit_one_can_still_be_turned_off(self):
-        pair = self._pair(LengthMode.FULL)
+        shorts, full = self._shorts_and_full(LengthMode.FULL)
 
-        assert [b.dim for b in pair] == [False, False]
-        assert pair[0].command == "main_player_length_none"
+        assert (shorts.dim, full.dim) == (False, False)
+        assert full.command == "main_player_length_none"
 
     def test_neither_lit_offers_each_length_back(self):
-        pair = self._pair(LengthMode.NONE)
+        shorts, full = self._shorts_and_full(LengthMode.NONE)
 
-        assert [b.lit for b in pair] == [False, False]
-        assert [b.command for b in pair] == ["main_player_length_full", "main_player_length_shorts"]
+        assert (shorts.lit, full.lit) == (False, False)
+        assert (shorts.command, full.command) == ("main_player_length_shorts", "main_player_length_full")
+
+    def test_shorts_lead_full_length_in_a_group_of_their_own(self):
+        placed = place_rows(console_rows(MainSlot(main_mode=MainMode.VIDEO, latest=False,
+                                                  length_mode=LengthMode.MIXED)), x=0, y=0)
+        rect_of = {b.glyph: rect for rect, b in placed}
+        latest, shorts, full = rect_of[LATEST_ICON], rect_of[SHORTS_ICON], rect_of[FULL_LENGTH_ICON]
+
+        assert shorts[0] - (latest[0] + latest[2]) == GROUP_GAP
+        assert full[0] - (shorts[0] + shorts[2]) == GAP
+
+    def test_each_says_whether_its_length_is_included(self):
+        shorts, full = self._shorts_and_full(LengthMode.SHORTS)
+
+        assert (shorts.tooltip, full.tooltip) == ("Including shorts", "Not including full-length scenes")
 
     def test_no_pair_at_all_without_a_library_to_filter(self):
-        assert self._pair(None) == []
+        assert self._shorts_and_full(None) == ()
 
 
 class TestCompilationAndJumps:
