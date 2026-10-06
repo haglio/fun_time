@@ -899,7 +899,7 @@ class TestWhatAReopenCarriesIntoTheHeadset:
 
         assert "LOCK_OFF" in queued["main"]
 
-    def test_genau_is_handed_back_the_dials_it_was_left_at(self, config):
+    def test_genau_is_handed_back_the_robot_hand_it_was_left_with(self, config):
         state_dir = config.paths.state_dir
         state_dir.mkdir(parents=True, exist_ok=True)
         (state_dir / GENAU_DRIVE).write_text(

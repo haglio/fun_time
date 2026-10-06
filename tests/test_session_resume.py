@@ -496,7 +496,7 @@ class TestResumeMainLock:
 
 
 class TestResumeGenau:
-    """Genau's dials, its shape and its three switches live in the engine that
+    """Genau's Amp, Speed and Center bars, its shape and its three switches live in the engine that
     just died, and its own launch opens them at the family's defaults."""
 
     @staticmethod
@@ -506,15 +506,15 @@ class TestResumeGenau:
         return tmp_path / "genau_cmd.txt"
 
     @staticmethod
-    def _drive(**dials: object) -> str:
+    def _drive(**bars: object) -> str:
         """A readout of a hand left where a fresh one opens, bar what a test moves."""
         hand, advance = RobotHandState(), ClipAdvanceState()
         return drive_text(DriveHud(**{
             "speed": hand.speed, "amplitude": hand.amplitude, "center": hand.center,
-            "shape": hand.shape.value, "advance_interval": advance.interval, **dials,
+            "shape": hand.shape.value, "advance_interval": advance.interval, **bars,
         }))
 
-    def test_queues_the_dials_the_hand_was_left_at(self, tmp_path: Path):
+    def test_queues_the_bars_the_hand_was_left_at(self, tmp_path: Path):
         genau_cmd = self._left_genau(
             tmp_path, drive=self._drive(speed=76, amplitude=60, center=30, advance_interval=25))
 

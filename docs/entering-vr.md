@@ -37,7 +37,7 @@ in either orchestrator:
 
 Every row of that table is carried by any reopen, a crossing included
 ([resuming-a-session.md](resuming-a-session.md)): the rate, the hold and Genau's
-dials are re-sent from the status and drive files the last session published
+Amp, Speed and Center bars are re-sent from the status and drive files the last session published
 (`session_resume.resume_what_lives_in_a_player`), and the mic from the flag the
 dispatch loop writes whenever the mute moves
 (`voice_control.take_whether_the_mic_was_off`).
