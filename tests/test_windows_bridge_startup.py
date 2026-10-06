@@ -793,7 +793,7 @@ def test_a_reopen_hands_the_main_player_back_the_unlock_it_was_left_in(tmp_path:
     assert "LOCK_OFF" in _queued(kwargs["main_player_cmd_file"])
 
 
-def test_a_reopen_hands_genau_back_the_dials_it_was_left_at(tmp_path: Path):
+def test_a_reopen_hands_genau_back_the_robot_hand_it_was_left_with(tmp_path: Path):
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     state_dir = Path(kwargs["state_dir"])

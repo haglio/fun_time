@@ -120,7 +120,7 @@ class BridgeConfig:
 
     @property
     def genau_drive_file(self) -> Path:
-        """Genau's live dials, as it publishes them for the drive readout."""
+        """Genau's live Amp, Speed and Center bars, as it publishes them for the drive readout."""
         return self.state_dir / state_files.GENAU_DRIVE
 
     @property

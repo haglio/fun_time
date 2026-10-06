@@ -250,8 +250,8 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Enable / disable cruise control (varies the motion)", ("C",), ("robot_hand_toggle_cruise", "robot_hand_cruise_on", "robot_hand_cruise_off")),
             _Row(
                 "Enable / disable human-inspired motion — plays phrases from real "
-                "hand-made scripts in place of the waveform, inside the amplitude "
-                "and center dials, at the speed dial's pace; switches cruise off",
+                "hand-made scripts in place of the waveform, inside the Amp and "
+                "Center bars, at the Speed bar's pace; switches cruise off",
                 ("Y",),
                 ("robot_hand_toggle_learned", "robot_hand_learned_on", "robot_hand_learned_off"),
             ),

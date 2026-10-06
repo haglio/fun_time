@@ -2086,7 +2086,7 @@ def test_portrait_cycle_seed_notices_without_seed_siblings(tmp_path: Path):
 
 
 def _scene_meta(*, image_seed: str, quality: str) -> dict:
-    """Same beach scene as its kin, but a render dial (image quality) set — so
+    """Same beach scene as its kin, but a render setting (image quality) set — so
     two such metas are near-matches yet split into separate seed families."""
     return {
         "video": {"prompt": "beach", "action": "Alpha", "seed": "5"},
@@ -2909,7 +2909,7 @@ class TestOsr2ControlState:
         send it: letting go leaves the device somewhere known rather than
         partway along its travel.  The broker is told once, by the press;
         keeping it there is the arbiter's, which re-states its pair every tick --
-        a dial verb fired here would be undone by its very next assertion."""
+        a bar verb fired here would be undone by its very next assertion."""
         config = _make_config(tmp_path)
         _publish_drive(config, amplitude=50)
 
