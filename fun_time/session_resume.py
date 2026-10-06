@@ -11,7 +11,7 @@ from player_core.clip_advance import ClipAdvanceState
 from player_core.drive_readout import read_drive
 from player_core.file_channel import append_command
 from player_core.player_verbs import LOCK_OFF, LOCK_ON, SET_SPEED
-from player_core.playlist import PlaylistItem, read_playlist
+from player_core.playlist import PlaylistItem, read_playlist, write_playlist
 from player_core.robot_hand import RobotHandState, WaveformShape
 from player_core.status import PlayerStatus
 
@@ -22,7 +22,6 @@ from .modes import rotated_onto, source_roots
 from .player_handover import take_back_the_list
 from .player_status import MainPlayerStatus, read_genau_status
 from .players import Player
-from .polled_files import write_playlist_items
 from .shared_state import (
     BridgeState,
     SatelliteState,
@@ -125,7 +124,7 @@ def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
             return False
         rotated.append((playlist_file, rotated_onto(entries, last_video)))
     for playlist_file, entries in rotated:
-        write_playlist_items(playlist_file, entries)
+        write_playlist(playlist_file, entries)
     return True
 
 
@@ -136,7 +135,7 @@ def resume_main_video(playlist_file: Path, video: str) -> bool:
     rotated = rotated_onto(entries, video)
     if not playlist_leads_with(rotated, video):
         return False
-    write_playlist_items(playlist_file, rotated)
+    write_playlist(playlist_file, rotated)
     return True
 
 
