@@ -370,6 +370,17 @@ HUD maps paint from — and warmed in the background at startup, one per handle,
 taken off the *smallest* rendition: a 2.7 GB upscale and the original it came
 from make the same picture, and only one of them is cheap to open.
 
+In Genau mode the same key, word and button browse **Genau's clips** instead,
+under a header that starts at **Genau**: one tile per clip, named for its file,
+over Genau's own window, opening on the clip Genau has up. The desktop's Genau
+plays only flat clips, so a desktop browse opens straight on them; a headset
+session has both kinds, so its browse opens on `VR` and `2D`, the way the
+headset's video browse does. A clip picked goes up in Genau at once and Genau
+carries on from it in the order it was browsing; one that arrived after Genau
+last read its folders is put in after the clip that was up. The clips are read
+afresh at every browse, so a clip Evolver delivered a minute ago is there, and
+their stills are warmed at startup with the library's.
+
 ### Loop recording (video mode)
 
 Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the loop to funscript base positions and start looping (amber loop icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows the main player's play/pause/record/loop state. Voice equivalents: "record", "loop", "cancel".

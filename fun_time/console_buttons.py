@@ -135,7 +135,7 @@ def osr2_controls(*, broker: bool) -> tuple[Button, ...]:
 
 def _file_controls(slot: MainSlot) -> tuple[Button, ...]:
     if not main_player_displays(slot.main_mode):
-        return ()
+        return (Button("browse_library", _GLYPHS["open"], "Browse the clips", group_break=True),)
     return (
         Button("browse_library", _GLYPHS["open"], "Browse the library", group_break=True),
         Button("main_player_record_tap", _GLYPHS["record"],

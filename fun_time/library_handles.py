@@ -322,3 +322,7 @@ def handles_by_shape(
         for name, handles in shelves
         for handle in handles
     ]
+
+
+def genau_clip_sources(flat_clips: str, vr_clips: str) -> str:
+    return "|".join(folder for folder in (vr_clips, flat_clips) if folder)

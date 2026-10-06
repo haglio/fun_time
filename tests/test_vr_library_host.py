@@ -10,7 +10,7 @@ import pytest
 from PyQt6.QtCore import QPoint
 
 from fun_time import library_browser
-from fun_time.library_browser import TOP_LEVEL_NAME
+from fun_time.library_browser import CLIPS_TOP_LEVEL_NAME, TOP_LEVEL_NAME
 from fun_time.library_handles import LibraryHandle
 from fun_time_vr.frame_channel import FrameReader, FrameWriter
 from fun_time_vr.library_host import (
@@ -38,11 +38,18 @@ def _no_still_is_cut_from_the_made_up_videos(monkeypatch):
 
 
 @pytest.fixture
-def headset(tmp_path):
+def clips_on_disk() -> list[LibraryHandle]:
+    return [_handle("Loop One", "VR"), _handle("Loop Two", "2D/AI"),
+            _handle("Scene Cut", "2D/non_AI")]
+
+
+@pytest.fixture
+def headset(tmp_path, clips_on_disk):
     frames = FrameWriter(tmp_path / "frame.bin", max_pixels=LIBRARY_SIZE_PX[0] * LIBRARY_SIZE_PX[1])
     reader = FrameReader(tmp_path / "frame.bin")
     said: list[str] = []
-    browse = HeadsetBrowse(thumbnail_cache=tmp_path / "stills", frames=frames, say=said.append)
+    browse = HeadsetBrowse(thumbnail_cache=tmp_path / "stills", frames=frames, say=said.append,
+                           clips=lambda: list(clips_on_disk))
     browse.take_the_library(_LIBRARY)
     yield browse, reader, said
     browse.window.close()
@@ -207,6 +214,64 @@ class TestScrolling:
         assert bar.value() > 0
 
 
+class TestBrowsingGenausClips:
+    def test_it_opens_on_the_folder_of_the_clip_genau_has_up_under_genaus_name(self, headset):
+        browse, _reader, _said = headset
+
+        browse.apply("clips 2 C:/videos/Loop Two.mp4")
+
+        grid = browse.window.grid
+        assert browse.window.isVisible()
+        assert browse.window.header.text().endswith("AI")
+        assert CLIPS_TOP_LEVEL_NAME in browse.window.header.text()
+        assert grid.rows[grid.currentRow()].title == "Loop Two"
+
+    def test_with_no_clip_up_it_opens_on_the_vr_and_2d_folders(self, headset):
+        browse, _reader, _said = headset
+
+        browse.apply("clips 2")
+
+        assert _names(browse) == ["VR", "2D"]
+
+    def test_the_2d_folder_keeps_the_ai_clips_apart_from_the_rest(self, headset):
+        browse, _reader, _said = headset
+        browse.apply("clips 2")
+
+        _press(browse, _tile(browse, "2D"))
+
+        assert _names(browse) == ["AI", "non_AI"]
+
+    def test_a_clip_that_arrived_since_the_last_browse_is_there_the_next_time(
+        self, headset, clips_on_disk,
+    ):
+        browse, _reader, _said = headset
+        browse.apply("clips 1")
+        clips_on_disk.append(_handle("Loop Three", "2D/AI"))
+
+        browse.apply("clips 2 C:/videos/Loop Three.mp4")
+
+        grid = browse.window.grid
+        assert grid.rows[grid.currentRow()].title == "Loop Three"
+
+    def test_a_clip_pressed_says_which_like_a_video(self, headset):
+        browse, _reader, said = headset
+        browse.apply("clips 1 C:/videos/Loop Two.mp4")
+
+        _press(browse, _tile(browse, "Loop Two"))
+
+        assert said == ["picked C:/videos/Loop Two.mp4"]
+        assert not browse.window.isVisible()
+
+    def test_the_library_opened_after_the_clips_is_the_library_again(self, headset):
+        browse, _reader, _said = headset
+        browse.apply("clips 1")
+
+        browse.apply("open 2 C:/videos/Alpha Scene.mp4")
+
+        assert "Alpha Scene" in _names(browse)
+        assert TOP_LEVEL_NAME in browse.window.header.text()
+
+
 class TestServing:
     def test_what_was_asked_while_the_library_was_being_read_is_done_once_it_is(
         self, headset, tmp_path: Path,
@@ -237,7 +302,7 @@ class TestWhileTheLibraryIsStillBeingRead:
                              max_pixels=LIBRARY_SIZE_PX[0] * LIBRARY_SIZE_PX[1])
         said: list[str] = []
         browse = HeadsetBrowse(thumbnail_cache=tmp_path / "stills", frames=frames,
-                               say=said.append)
+                               say=said.append, clips=lambda: [_handle("Loop One", "VR")])
         yield browse, said
         if browse.window is not None:
             browse.window.close()
@@ -277,6 +342,25 @@ class TestWhileTheLibraryIsStillBeingRead:
         browse.publish(0.0)
 
         assert reader.latest(7) is not None
+        reader.close()
+
+    def test_genaus_clips_open_without_waiting_for_the_library(self, waiting):
+        browse, _said = waiting
+
+        browse.apply("clips 1")
+
+        assert browse.window.isVisible()
+        assert CLIPS_TOP_LEVEL_NAME in browse.window.header.text()
+
+    def test_the_library_asked_for_after_the_clips_waits_for_its_read(self, waiting, tmp_path):
+        browse, _said = waiting
+        reader = FrameReader(tmp_path / "frame.bin")
+        browse.apply("clips 1")
+        browse.apply("open 2")
+
+        browse.publish(0.0)
+
+        assert reader.latest(2) is None
         reader.close()
 
     def test_nothing_is_published_before_the_read_lands(self, waiting, tmp_path):

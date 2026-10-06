@@ -62,7 +62,7 @@ from shared_ui.mark_button import fill_square_with_mark
 from shared_ui.spacing import BUTTON_RADIUS, MARGIN_STANDARD
 
 from .folder_listings import FolderListings
-from .library_handles import LibraryHandle, handle_for, handles_by_shape
+from .library_handles import LibraryHandle, genau_clip_sources, handle_for, handles_by_shape
 from .library_tree import Folder, SubFolder, folder_at, folder_of
 from .process_identity import NAMER
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
@@ -71,6 +71,8 @@ from .win32_taskbar import APP_USER_MODEL_ID
 
 WINDOW_TITLE = "Fun Time Library"
 TOP_LEVEL_NAME = "Library"
+CLIPS_TOP_LEVEL_NAME = "Genau"
+GENAU_FLAG = "--genau"
 
 # Tile size. Wide enough for a 16:9 still at the thumbnail cache's own longest
 # edge, tall enough to carry two lines of title under it — library titles run
@@ -468,6 +470,7 @@ class LibraryBrowserWindow(QWidget):
         playing: str | None = None,
         activate_on_click: bool = False,
         on_dismiss: Callable[[], None] | None = None,
+        top_level_name: str = TOP_LEVEL_NAME,
     ) -> None:
         super().__init__(None)
         # A Tool window, which on Windows means no taskbar button: a browse is
@@ -479,6 +482,7 @@ class LibraryBrowserWindow(QWidget):
         self._handles = tuple(handles)
         self._on_pick = on_pick
         self._on_close = on_close
+        self._top_level_name = top_level_name
         self._path: tuple[str, ...] = ()
 
         self.grid = LibraryGrid(
@@ -537,7 +541,7 @@ class LibraryBrowserWindow(QWidget):
         """Show *path* in both halves: its folder tiles, or the videos it holds."""
         folder = folder_at(self._handles, path)
         self._path = folder.path
-        self.header.setText(breadcrumbs(folder.path))
+        self.header.setText(breadcrumbs(self._top_level_name, folder.path))
         self.grid.show_folder(folder)
         self.index.show_rows(self.grid.rows)
 
@@ -627,8 +631,8 @@ def alphabetical_index(rows: Sequence[object]) -> list[IndexLine]:
     return lines
 
 
-def breadcrumbs(path: Sequence[str]) -> str:
-    steps = [html.escape(step) for step in (TOP_LEVEL_NAME, *path)]
+def breadcrumbs(top_level_name: str, path: Sequence[str]) -> str:
+    steps = [html.escape(step) for step in (top_level_name, *path)]
     link_style = f"color: {BLUE_LIGHT.name()}; text-decoration: none;"
     links = [
         f'<a href="{depth}" style="{link_style}">{step}</a>'
@@ -753,6 +757,7 @@ def browse_library(
     *,
     over: tuple[int, int, int, int] | None = None,
     playing: str | None = None,
+    clips: bool = False,
     runner: Callable[..., object] = subprocess.run,
 ) -> str | None:
     """Browse the library and return the video picked, or None if none was.
@@ -775,6 +780,8 @@ def browse_library(
         command += ["--x", str(x), "--y", str(y), "--width", str(width), "--height", str(height)]
     if playing:
         command += ["--playing", playing]
+    if clips:
+        command.append(GENAU_FLAG)
     runner(command, **hidden_subprocess_kwargs())
 
     try:
@@ -791,6 +798,17 @@ class BrowserConfig:
     vr_sources: str
     metadata_root: Path | None
     thumbnail_cache: Path
+    top_level_name: str = TOP_LEVEL_NAME
+
+    def handles(self) -> list[LibraryHandle]:
+        return handles_by_shape(self.sources, self.vr_sources, self.metadata_root)
+
+
+def _read_manifest(manifest_path: str | Path) -> configparser.ConfigParser:
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    parser.read(manifest_path, encoding="utf-8")
+    return parser
 
 
 def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
@@ -799,15 +817,26 @@ def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
     The same manifest every other child process reads, so the browser can never
     disagree with the session about which folders are the main library.
     """
-    parser = configparser.ConfigParser()
-    parser.optionxform = str
-    parser.read(manifest_path, encoding="utf-8")
+    parser = _read_manifest(manifest_path)
     metadata_root = parser.get("regen", "metadata_root", fallback="")
     return BrowserConfig(
         sources=parser.get("media", "main_player_library_sources", fallback=""),
         vr_sources=parser.get("media", "vr_library_dirs", fallback=""),
         metadata_root=Path(metadata_root) if metadata_root else None,
         thumbnail_cache=Path(manifest_path).parent / THUMBNAIL_CACHE_DIRNAME,
+    )
+
+
+def load_clip_browser_config(manifest_path: str | Path) -> BrowserConfig:
+    parser = _read_manifest(manifest_path)
+    vr_clips = parser.get("media", "genau_vr_clips", fallback="")
+    flat_clips = parser.get("media", "genau_clips", fallback="")
+    return BrowserConfig(
+        sources=genau_clip_sources(flat_clips, vr_clips),
+        vr_sources=vr_clips,
+        metadata_root=None,
+        thumbnail_cache=Path(manifest_path).parent / THUMBNAIL_CACHE_DIRNAME,
+        top_level_name=CLIPS_TOP_LEVEL_NAME,
     )
 
 
@@ -820,6 +849,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--width", type=int)
     parser.add_argument("--height", type=int)
     parser.add_argument("--playing", help="What the main player has up — the browse opens there")
+    parser.add_argument(GENAU_FLAG, action="store_true", help="Browse Genau's clips instead")
     return parser.parse_args(argv)
 
 
@@ -842,14 +872,15 @@ def main(argv: list[str] | None = None) -> int:
     # and only a sheet set here reaches it.
     app.setStyleSheet(family_stylesheet())
 
-    config = load_browser_config(args.manifest_path)
+    config = (load_clip_browser_config if args.genau else load_browser_config)(args.manifest_path)
     result_file = Path(args.result_file)
     window = LibraryBrowserWindow(
-        handles_by_shape(config.sources, config.vr_sources, config.metadata_root),
+        config.handles(),
         thumbnail_cache=config.thumbnail_cache,
         on_pick=lambda video: result_file.write_text(video, encoding="utf-8"),
         on_close=app.quit,
         playing=args.playing,
+        top_level_name=config.top_level_name,
     )
     if None not in {args.x, args.y, args.width, args.height}:
         window.setGeometry(args.x, args.y, args.width, args.height)

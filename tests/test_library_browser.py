@@ -27,6 +27,7 @@ from fun_time.library_browser import (
     bring_the_browse_forward,
     browse_library,
     load_browser_config,
+    load_clip_browser_config,
     main,
     name_of,
     pick_file_for,
@@ -443,6 +444,20 @@ def test_the_top_level_is_named_as_the_library(browser, tmp_path: Path):
     )
 
     assert _header_words(window) == TOP_LEVEL_NAME
+
+
+def test_a_browse_of_genaus_clips_is_named_for_genau_from_the_top_down(browser, tmp_path: Path):
+    window = browser(
+        [_handle("scene one", section="VR")],
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+        top_level_name="Genau",
+    )
+    at_the_top = _header_words(window)
+
+    window.open_folder(("VR",))
+
+    assert (at_the_top, _header_words(window)) == ("Genau", "Genau / VR")
 
 
 def test_the_folder_you_are_in_is_named_but_not_a_link(browser, tmp_path: Path):
@@ -913,6 +928,23 @@ def test_the_browser_reads_which_of_its_library_is_vr_from_the_session_manifest(
     assert load_browser_config(headset).vr_sources == "D:/vr_one|D:/vr_two"
 
 
+def test_the_clip_browser_reads_genaus_folders_from_the_session_manifest(tmp_path: Path, cfg_factory):
+    config = load_config(cfg_factory({}))
+    manifest = write_windows_bridge_manifest(config)
+    headset = tmp_path / "headset" / "windows_bridge_launch.ini"
+    headset.parent.mkdir()
+    headset.write_text("[media]\ngenau_clips = D:/clips\ngenau_vr_clips = D:/vr_clips\n",
+                       encoding="utf-8")
+
+    desktop_clips = load_clip_browser_config(manifest)
+    headset_clips = load_clip_browser_config(headset)
+
+    assert (desktop_clips.sources, desktop_clips.vr_sources) == (str(config.paths.clips_dir), "")
+    assert (headset_clips.sources, headset_clips.vr_sources) == ("D:/vr_clips|D:/clips", "D:/vr_clips")
+    assert (desktop_clips.top_level_name, desktop_clips.metadata_root) == ("Genau", None)
+    assert desktop_clips.thumbnail_cache == load_browser_config(manifest).thumbnail_cache
+
+
 def test_browsing_runs_the_browser_and_plays_what_was_picked(tmp_path: Path):
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text("", encoding="utf-8")
@@ -944,6 +976,36 @@ def test_the_browser_is_told_what_the_session_has_up(tmp_path: Path):
     )
 
     assert commands[0][-2:] == ["--playing", r"C:\videos\beta.mp4"]
+
+
+def test_a_browse_of_genaus_clips_says_so_to_the_browser(tmp_path: Path):
+    manifest = tmp_path / "windows_bridge_launch.ini"
+    manifest.write_text("", encoding="utf-8")
+    commands: list[list[str]] = []
+
+    browse_library(manifest, r"C:\python.exe", clips=True,
+                   runner=lambda command, **_k: commands.append(command))
+    browse_library(manifest, r"C:\python.exe",
+                   runner=lambda command, **_k: commands.append(command))
+
+    assert ["--genau" in command for command in commands] == [True, False]
+
+
+def test_the_browser_told_to_browse_genaus_clips_shows_them_under_genaus_name(
+    tmp_path: Path, cfg_factory,
+):
+    config = load_config(cfg_factory({}))
+    clip = config.paths.clips_dir / "scene one.mp4"
+    clip.touch()
+    manifest = write_windows_bridge_manifest(config)
+
+    with patch("fun_time.library_browser.LibraryBrowserWindow.show"), \
+         patch("fun_time.library_browser.bring_the_browse_forward") as forward, \
+         patch.object(QApplication, "exec", return_value=0):
+        main([str(manifest), str(tmp_path / "pick.txt"), "--genau"])
+
+    shown = forward.call_args.args[0]
+    assert (_header_words(shown), _labels(shown.grid)) == ("Genau", ["scene one"])
 
 
 def test_a_browse_with_nothing_up_names_no_video(tmp_path: Path):
