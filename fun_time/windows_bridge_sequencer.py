@@ -468,6 +468,7 @@ def _launch_the_main_slot_players(
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
         start_clip=genau_clip,
         latest=genau_latest,
+        metadata_dir=regen_metadata_raw or None,
         project_dirs=project_dirs,
     )
     # The main player's status file is how startup learns the main player has finished loading, and it

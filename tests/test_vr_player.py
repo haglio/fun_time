@@ -1466,6 +1466,18 @@ def test_the_cover_goes_up_before_the_players_are_built():
     assert calls["_raise_the_cover"] < calls["_PanelUnit"]
 
 
+def _keyword_given(source_of, call: str, keyword: str) -> str:
+    tree = ast.parse(inspect.getsource(source_of).lstrip())
+    (built,) = [node for node in ast.walk(tree)
+                if isinstance(node, ast.Call) and ast.unparse(node.func) == call]
+    return next(ast.unparse(given.value) for given in built.keywords if given.arg == keyword)
+
+
+def test_the_headsets_genau_keeps_its_flips_where_the_library_keeps_its_records():
+    assert _keyword_given(player._GenauUnit.__init__, "GenauRole", "metadata_root") == (
+        "_metadata_root(manifest)")
+
+
 @pytest.mark.parametrize("screen", ["dash", "library"])
 def test_every_screen_is_registered_in_the_room(screen):
     """Out of the room a screen is never painted, pumped, pointed at, drawn or
