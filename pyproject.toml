@@ -23,12 +23,12 @@ requires-python = ">=3.14"
 # other half had not landed turned all of them red at once. Moving to a newer
 # one is this repo's own commit, with its own suite to answer for it.
 dependencies = [
-    "app-support @ git+https://github.com/haglio/app_support@v0.1.156",
-    "player-core @ git+https://github.com/haglio/player_core@v0.1.363",
-    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.142",
+    "app-support @ git+https://github.com/haglio/app_support@v0.1.174",
+    "player-core @ git+https://github.com/haglio/player_core@v0.1.365",
+    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.145",
     # The family's listener: it brings vosk and sounddevice, and hears for this
     # app, Evolver's backfill tool and Origenerator alike.
-    "voice-core @ git+https://github.com/haglio/voice_core@v0.1.29",
+    "voice-core @ git+https://github.com/haglio/voice_core@v0.1.30",
     "numpy>=2.4,<3",
     "opencv-python>=4.8,<5",
     "pillow>=12,<13",
