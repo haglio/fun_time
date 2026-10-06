@@ -16,12 +16,12 @@ from __future__ import annotations
 
 import configparser
 import io
+import logging
 from dataclasses import MISSING, dataclass, field, fields, replace
 from enum import Enum
 from pathlib import Path
 
 from player_core.console import OSR2_DRIVING
-from player_core.file_channel import publish_whole
 from player_core.hud_placement import HudCorner, HudEdge
 from player_core.modes import MainMode, SatellitesMode, read_mode
 from player_core.robot_hand import FULL_INTENSITY
@@ -30,7 +30,10 @@ from .audio_volume import MAX_VOLUME
 from .crown import Crown
 from .mode_plan import STARTUP_MAIN_MODE
 from .players import Player
+from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .satellites_mode import STARTUP_SATELLITES_MODE
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -184,7 +187,9 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
 def _publish(state_file: Path, parser: configparser.ConfigParser) -> None:
     text = io.StringIO()
     parser.write(text)
-    publish_whole(state_file, text.getvalue())
+    if not replace_despite_readers(state_file, text.getvalue()):
+        logger.warning("Could not write %s: another process kept it open for %gs",
+                       state_file.name, READER_HOLD_BUDGET_S)
 
 
 def _read_satellite(section, player: Player) -> SatelliteState:

@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .mode_plan import main_player_displays
-from .player_status import read_genau_status, read_main_player_status
 
 if TYPE_CHECKING:
     from .shared_state import BridgeState
@@ -34,6 +33,7 @@ def majority(crowned: Crown, *, main_portrait: bool | None, held: Crown) -> Crow
 
 
 def majority_now(state: BridgeState, main_player_status_file: Path, genau_status_file: Path) -> Crown:
+    from .player_status import read_genau_status, read_main_player_status  # noqa: PLC0415
     if main_player_displays(state.main_mode):
         main_portrait = read_main_player_status(main_player_status_file).portrait
     else:

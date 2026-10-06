@@ -26,9 +26,9 @@ from .modes import (
     write_playlist_file,
 )
 from .omnipause import build_omnipause_plan
-from .player_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .player_handover import keep_aside
 from .players import Player
+from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .satellites_mode import CLOSE_SHOWS, OPEN_SHOWS, VIDEO_MODE
 
 

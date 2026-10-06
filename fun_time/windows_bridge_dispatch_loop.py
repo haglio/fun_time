@@ -355,7 +355,6 @@ class DispatchLoopRunner:
         """Run one iteration: poll dashboard, maybe sync genau."""
         self._flash_main_player_notice()
 
-        # Sync state from shared file — AHK hotkey dispatches update it directly.
         shared = read_shared_state(self.shared_state_file)
         if shared is not None:
             self.state = shared
