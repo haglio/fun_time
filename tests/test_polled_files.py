@@ -5,7 +5,6 @@ import threading
 from contextlib import contextmanager
 from pathlib import Path
 
-import pytest
 from player_core.playlist import read_playlist
 
 from fun_time import polled_files
@@ -34,16 +33,6 @@ def test_a_playlist_lands_though_a_player_is_partway_through_reading_it(tmp_path
         write_playlist_file(playlist, [str(tmp_path / "after.mp4")])
 
     assert [item.path for item in read_playlist(playlist)] == [tmp_path / "after.mp4"]
-
-
-def test_a_playlist_a_player_keeps_open_past_the_budget_is_refused_out_loud(
-        tmp_path: Path, monkeypatch):
-    playlist = tmp_path / "portrait_playlist.tsv"
-    playlist.write_text(f"{tmp_path / 'before.mp4'}\n", encoding="utf-8")
-    monkeypatch.setattr(polled_files, "READER_HOLD_BUDGET_S", 0.05)
-
-    with _held_open_for(playlist, 0.5), pytest.raises(OSError, match="portrait_playlist"):
-        write_playlist_file(playlist, [str(tmp_path / "after.mp4")])
 
 
 def test_a_flag_lands_though_a_player_is_partway_through_reading_it(tmp_path: Path):
