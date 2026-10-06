@@ -10,7 +10,7 @@ from player_core.playlist import PlaylistItem
 
 from .folder_listings import FolderListings
 from .media_metadata import GroupIndex, build_group_index, normalize_path_key, path_matches_query
-from .player_files import write_playlist_items
+from .polled_files import write_playlist_items
 from .vr_videos import keep_shapes
 from .watch_stats import passes_inclusion, weighted_shuffle
 

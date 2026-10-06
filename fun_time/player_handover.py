@@ -14,7 +14,7 @@ from player_core.playlist import read_playlist
 
 from .bridge_records import SatelliteChannel
 from .modes import rotated_onto
-from .player_files import write_playlist_items
+from .polled_files import write_playlist_items
 from .satellite_control import read_satellite_status
 
 PanelStamp = tuple[int, int] | None
