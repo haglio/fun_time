@@ -60,6 +60,19 @@ def test_a_takeover_lands_whole_under_its_own_name(tmp_path):
         encoding="utf-8")) == {"pid": 4321, "args": ["--fun-time", "--x", "0"]}
 
 
+def test_a_session_hosting_a_worktree_finds_the_everyday_copy_on_its_library(tmp_path):
+    """One copy runs on a library at a time, so a session hosting a worktree
+    takes over the everyday copy rather than opening a second (his call,
+    2026-09-25, in origenerator's CLAUDE.md)."""
+    everyday = tmp_path / "origenerator"
+    worktree = everyday / ".claude" / "worktrees" / "my-branch"
+    worktree.mkdir(parents=True)
+    _offer(everyday, _this_process())
+
+    assert the_open_origenerator(worktree) == OpenOrigenerator(
+        os.getpid(), starting=False, checkout=everyday)
+
+
 def _claim_in(checkout):
     return (checkout / "state" / "fun_time_session.txt").read_text(encoding="utf-8")
 

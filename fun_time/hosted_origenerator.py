@@ -2,16 +2,23 @@
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import NamedTuple
 
 from player_core.file_channel import append_command
 
 from .manifest import LaunchManifest
+from .player_status import origenerator_has_published
 from .players import Player
 from .runtime_flow import write_flag_file
 from .session_handoff import forget_the_kept_origenerator, kept_origenerator
-from .standalone_origenerator import claim_the_osr2, take_it_over, the_open_origenerator
+from .standalone_origenerator import (
+    OpenOrigenerator,
+    claim_the_osr2,
+    take_it_over,
+    the_open_origenerator,
+)
 from .win32_process import get_process_creation_time
 from .window_layout import WindowLayoutPlan, screen_layout
 from .windows_bridge_startup import (
@@ -26,6 +33,10 @@ logger = logging.getLogger(__name__)
 # Said by a session adopting a kept app, which was started for the one it left.
 HAND_OVER = "HAND_OVER"
 TAKE_BACK = "TAKE_BACK"
+
+ANSWER_BUDGET_S = 20.0
+BOOTING_ANSWER_BUDGET_S = 90.0
+_PUBLISH_POLL_S = 0.25
 
 
 class HostedApp(NamedTuple):
@@ -44,6 +55,20 @@ def _adopt_a_kept_origenerator(m: LaunchManifest) -> HostedApp | None:
     Path(m.commands.origenerator_cmd_file).write_text("", encoding="utf-8")
     logger.info("Adopted the hosted Origenerator left running (pid %d)", kept.pid)
     return HostedApp(kept.pid, already_open=True, taken_over=kept.taken_over)
+
+
+def _budget_for(open_app: OpenOrigenerator) -> float:
+    return BOOTING_ANSWER_BUDGET_S if open_app.starting else ANSWER_BUDGET_S
+
+
+def _it_answered_the_takeover(status_file: Path, open_app: OpenOrigenerator) -> bool:
+    give_up_at = time.monotonic() + _budget_for(open_app)
+    while True:
+        if origenerator_has_published(status_file):
+            return True
+        if time.monotonic() >= give_up_at:
+            return False
+        time.sleep(_PUBLISH_POLL_S)
 
 
 def _the_players_it_is_handed(m: LaunchManifest) -> dict[str, HandedPlayer]:
@@ -105,7 +130,12 @@ def bring_up_the_hosted_app(
         logger.info("Took over the Origenerator %s from %s (pid %d)",
                     "still starting" if open_app.starting else "already open",
                     open_app.checkout, open_app.pid)
-        return HostedApp(open_app.pid, already_open=not open_app.starting, taken_over=True)
+        if _it_answered_the_takeover(Path(m.commands.origenerator_status_file), open_app):
+            return HostedApp(open_app.pid, already_open=not open_app.starting,
+                             taken_over=True)
+        logger.warning("The Origenerator we took over (pid %d) published nothing in "
+                       "%.0fs; launching ours instead", open_app.pid,
+                       _budget_for(open_app))
     origenerator_pid = launch_origenerator(
         python_exe=(m.executables.origenerator_python_exe.strip()
                     or origenerator_interpreter(origenerator_dir)),

@@ -16,6 +16,7 @@ from fun_time.hosted_origenerator import (
 from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo
 from fun_time.session_handoff import keep_the_origenerator, kept_origenerator
+from fun_time.standalone_origenerator import OpenOrigenerator
 from fun_time.window_layout import WindowLayoutPlan, WindowRect, screen_layout
 from fun_time.windows_bridge_startup import launch_origenerator, origenerator_session_args
 
@@ -211,3 +212,53 @@ class TestAdoptingAKeptOrigenerator:
 
         assert status.read_text(encoding="utf-8") == "ready\n"
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
+
+
+class TestWhenTheAppWeTookOverNeverAnswers:
+    """A takeover is a file left for the open window to read, and a window that
+    cannot read it leaves no trace at all.  On 2026-09-28 one was handed to a
+    process that had stopped answering: the session reported it hosted, the app
+    never published, and the room sat for five minutes with the Origenerator
+    mode button grey and nothing anywhere saying why.
+    """
+
+    def _bring_up(self, cfg_factory, tmp_path, *, it_publishes):
+        origenerator = tmp_path / "origenerator"
+        (origenerator / "state").mkdir(parents=True)
+        config, manifest = _manifest_for(
+            cfg_factory, tmp_path, {"paths": {"origenerator_dir": str(origenerator)}})
+        status = Path(manifest.commands.origenerator_status_file)
+        launched = {}
+
+        def answer(*_args, **_kw):
+            if it_publishes:
+                status.parent.mkdir(parents=True, exist_ok=True)
+                status.write_text("portrait_item=1\n", encoding="utf-8")
+
+        monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
+        with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors), \
+             patch("fun_time.hosted_origenerator.ANSWER_BUDGET_S", 0.05), \
+             patch("fun_time.hosted_origenerator.BOOTING_ANSWER_BUDGET_S", 0.05), \
+             patch("fun_time.hosted_origenerator.the_open_origenerator",
+                   return_value=OpenOrigenerator(6060, starting=False,
+                                                 checkout=origenerator)), \
+             patch("fun_time.hosted_origenerator.take_it_over", side_effect=answer), \
+             patch("fun_time.hosted_origenerator.launch_origenerator",
+                   side_effect=lambda **kw: launched.update(kw) or 91):
+            app = bring_up_the_hosted_app(manifest, project_dirs="")
+        return config, app, launched
+
+    def test_one_is_launched_instead(self, cfg_factory, tmp_path, caplog):
+        _config, app, launched = self._bring_up(
+            cfg_factory, tmp_path, it_publishes=False)
+
+        assert app is not None and app.pid == 91 and not app.taken_over
+        assert launched, "the room was left with no Origenerator at all"
+        assert "published nothing" in caplog.text
+
+    def test_one_that_answers_is_the_app_this_session_hosts(self, cfg_factory, tmp_path):
+        _config, app, launched = self._bring_up(
+            cfg_factory, tmp_path, it_publishes=True)
+
+        assert not launched, "a second copy was launched beside the one we took over"
+        assert app is not None and app.taken_over and app.pid == 6060
