@@ -4,12 +4,7 @@ from __future__ import annotations
 
 from fun_time.overlay_progress import CANCEL_FILENAME
 from fun_time.session_handoff import COVER_STALE_S, CROSSING_PROGRESS_NAME
-from tests.ahk_script import function_source, script_text
-
-
-def _suspend_exempt_block() -> str:
-    text = script_text()
-    return text.split("#SuspendExempt true", 1)[1].split("#SuspendExempt false", 1)[0]
+from tests.ahk_script import function_source, script_text, suspend_exempt_block
 
 
 def test_script_suppresses_the_tray_icon():
@@ -60,9 +55,22 @@ def test_the_way_out_survives_omnipause():
     to be closable — so the quit is inside the exempt block, with Esc and the
     sensation emergency.  Suspended, the chord would reach whatever window had
     focus instead, and a session could be paused into having no way out."""
-    assert "^!q::EndSession()" in _suspend_exempt_block(), (
+    assert "^!q::EndSession()" in suspend_exempt_block(), (
         "the quit is suspendable — OmniPause can trap a session"
     )
+
+
+def test_the_pause_leaves_exactly_three_keys_live():
+    """His ruling, 2026-09-28: "not hotkeys or voice commands, other than the
+    obvious exceptions we already have".  The spoken side of that is pinned as a
+    whole frozenset in test_command_reference; without this the keyboard side was
+    prose alone, and a fourth exempt key could go in unnoticed.  Esc resumes,
+    Ctrl+Alt+Q quits, Shift+Esc retracts the OSR2 from a room that may still have
+    it on him."""
+    bound = {line.split("::", 1)[0]
+             for line in suspend_exempt_block().splitlines() if "::" in line}
+
+    assert bound == {"Esc", "^!q", "+Esc"}
 
 
 def test_the_hotkeys_stay_live_whichever_window_has_the_keyboard():
@@ -162,7 +170,7 @@ class TestStartupPhase:
         only works while the overlay holds the focus — which is exactly what a
         launch cannot guarantee, since something else taking it mid-launch is
         what left a launch uncancellable."""
-        assert "Esc::PauseOrCancelStartup()" in _suspend_exempt_block()
+        assert "Esc::PauseOrCancelStartup()" in suspend_exempt_block()
 
         body = function_source("PauseOrCancelStartup")
         assert 'RequestStartupCancel("cancel")' in body

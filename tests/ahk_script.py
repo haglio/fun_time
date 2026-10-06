@@ -17,6 +17,16 @@ def script_text() -> str:
     return SCRIPT.read_text(encoding="utf-8")
 
 
+def suspend_exempt_block() -> str:
+    """The stretch of hotkeys the script marks exempt from its own suspension.
+
+    Two things read it: what keys a paused room still answers, and whether a
+    command's key is one of them.
+    """
+    text = script_text()
+    return text.split("#SuspendExempt true", 1)[1].split("#SuspendExempt false", 1)[0]
+
+
 def function_source(name: str) -> str:
     """One AHK function's whole definition, braces included.
 

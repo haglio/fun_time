@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 from fun_time.command_reference import (
     _SECTIONS,
@@ -17,25 +16,21 @@ from fun_time.command_reference import (
 from fun_time.filter_vocab import display_forms, filter_voice_commands, load_acts
 from fun_time.voice_commands import VOICE_COMMANDS, friendly_voice
 from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
+from tests.ahk_script import script_text, suspend_exempt_block
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
 _NUMERIC_RE = re.compile(r"^(robot_hand_(amp|center|speed)|genau_clip_seconds)_\d+$")
 _QUEUED_RE = re.compile(r'QueueCommand\("([^"]+)"\)')
 
 
-def _ahk_script() -> str:
-    return (_REPO_ROOT / "windows_bridge_hotkeys.ahk").read_text(encoding="utf-8")
-
-
 def _ahk_hotkey_commands() -> set[str]:
     """Every command bound to a key via QueueCommand() in the AHK hotkey script."""
-    return set(_QUEUED_RE.findall(_ahk_script()))
+    return set(_QUEUED_RE.findall(script_text()))
 
 
 def _ahk_binding_for(command: str) -> str | None:
     """The key the AHK script binds to ``command``, as the script spells it."""
     match = re.search(
-        rf'^(\S+)::QueueCommand\("{re.escape(command)}"\)', _ahk_script(), re.MULTILINE
+        rf'^(\S+)::QueueCommand\("{re.escape(command)}"\)', script_text(), re.MULTILINE
     )
     return match.group(1) if match else None
 
@@ -46,8 +41,7 @@ def _ahk_suspend_exempt_commands() -> set[str]:
     Omnipause suspends the hotkeys wholesale, so these are the only keys that
     still reach Python while the session is paused.
     """
-    block = _ahk_script().split("#SuspendExempt true", 1)[1].split("#SuspendExempt false", 1)[0]
-    return set(_QUEUED_RE.findall(block))
+    return set(_QUEUED_RE.findall(suspend_exempt_block()))
 
 
 def _keys(row: CommandRef) -> tuple[str, ...]:
