@@ -1916,7 +1916,7 @@ class TestBrowseLibrary:
 
         mock_browse.assert_called_once_with(
             tmp_path / "launch.ini", r"C:\python.exe", over=(0, 400, 1080, 1520),
-            playing="", runner=runner._run_browser,
+            playing="", clips=False, runner=runner._run_browser,
         )
 
     def test_browses_from_the_folder_the_main_player_is_playing_in(self, tmp_path):
@@ -2012,6 +2012,41 @@ class TestBrowseLibrary:
 
         assert runner.config.main_player_cmd_file.read_text(
             encoding="utf-8") == "PLAY_FILE C:\\videos\\movie.mp4\n"
+
+    def test_genau_browses_its_clips_over_its_own_window_from_the_clip_it_has_up(self, tmp_path):
+        config = make_config(tmp_path, python_exe=r"C:\python.exe")
+        runner = make_runner(tmp_path, config=config, manifest_path=tmp_path / "launch.ini")
+        runner.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
+        runner.config.genau_status_file.write_text(
+            "clip=C:/library/genau/clips/Scene One.mp4\n", encoding="utf-8")
+
+        with patch.object(runner.windows, "remove_all_topmost"), \
+             patch.object(runner.windows, "restore_all_topmost"), \
+             patch.object(runner.windows, "hwnd", side_effect=lambda role: {"genau": GENAU_HWND}.get(role, 0)), \
+             patch("fun_time.windows_bridge_dispatch_loop.window_rect",
+                   side_effect=lambda hwnd: (0, 400, 1080, 1520) if hwnd == GENAU_HWND else None), \
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
+            runner._handle_browse_library()
+
+        mock_browse.assert_called_once_with(
+            tmp_path / "launch.ini", r"C:\python.exe", over=(0, 400, 1080, 1520),
+            playing="C:/library/genau/clips/Scene One.mp4", clips=True, runner=runner._run_browser,
+        )
+
+    def test_a_clip_picked_in_genau_mode_goes_to_genau_not_the_main_player(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
+
+        with patch.object(runner.windows, "remove_all_topmost"), \
+             patch.object(runner.windows, "restore_all_topmost"), \
+             patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library",
+                   return_value=r"C:\library\genau\clips\Scene One.mp4"):
+            runner._handle_browse_library()
+
+        assert runner.config.genau_cmd_file.read_text(
+            encoding="utf-8") == "PLAY_FILE C:\\library\\genau\\clips\\Scene One.mp4\n"
+        assert not runner.config.main_player_cmd_file.exists()
 
     def test_does_not_play_anything_on_cancel(self, tmp_path):
         """When the user cancels the dialog, nothing is sent to the main player."""

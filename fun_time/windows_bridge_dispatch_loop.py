@@ -17,6 +17,7 @@ from app_support.file_channel import consume_command_file, read_flag
 from player_core.file_channel import append_command
 from player_core.modes import MainMode, NoticeLevel, read_mode
 from player_core.player_verbs import LOCK_OFF, LOCK_ON, play_file
+from player_core.playlist import PlaylistItem
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log
@@ -49,12 +50,14 @@ from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
 from .main_list_builds import BuildsOffTheLoop
 from .main_slot_handover import MainSlotHandover
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
+from .mode_plan import main_player_displays
 from .modes import scripted_item
 from .osr2_section import player_with_the_osr2
 from .player_handover import PanelStamp, hand_back, let_go_since, panel_stamp
 from .player_status import (
     is_broker_heartbeat_fresh,
     origenerator_has_published,
+    read_genau_status,
     read_main_player_status,
 )
 from .players import Player
@@ -882,17 +885,22 @@ class DispatchLoopRunner:
             append_command(self.ahk_cmd_file, Op.SUSPEND_HOTKEYS)
 
         try:
-            # Over the main player's own rect: the pick plays there, so the browse stands
-            # where the video will, and covers nothing else on either monitor.
-            main_player_hwnd = self.windows.hwnd("main_player")
+            # Over the rect of whichever player has the main slot: the pick plays there, so
+            # the browse stands where it will, and covers nothing else on either monitor.
+            genau = not main_player_displays(self.state.main_mode)
+            player_hwnd = self.windows.hwnd("genau" if genau else "main_player")
             selected = browse_library(
                 self.manifest_path,
                 self.config.python_exe,
-                over=window_rect(main_player_hwnd) if main_player_hwnd else None,
-                playing=read_main_player_status(self.config.main_player_status_file).video,
+                over=window_rect(player_hwnd) if player_hwnd else None,
+                playing=(read_genau_status(self.config.genau_status_file).clip if genau
+                         else read_main_player_status(self.config.main_player_status_file).video),
+                clips=genau,
                 runner=self._run_browser,
             )
-            if selected:
+            if selected and genau:
+                append_command(self.config.genau_cmd_file, play_file(PlaylistItem(Path(selected))))
+            elif selected:
                 append_command(self.config.main_player_cmd_file, play_file(scripted_item(selected, self.config.regen_metadata_root)))
         finally:
             if manage_session:

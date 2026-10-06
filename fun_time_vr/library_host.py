@@ -15,7 +15,13 @@ from PyQt6.QtGui import QImage, QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import QApplication, QWidget
 from shared_ui.chrome import family_stylesheet
 
-from fun_time.library_browser import LibraryBrowserWindow, load_browser_config
+from fun_time.library_browser import (
+    CLIPS_TOP_LEVEL_NAME,
+    TOP_LEVEL_NAME,
+    LibraryBrowserWindow,
+    load_browser_config,
+    load_clip_browser_config,
+)
 from fun_time.library_handles import LibraryHandle, handles_by_shape
 from fun_time.modes import collect_video_files
 from fun_time.win32_process import is_process_alive
@@ -27,6 +33,7 @@ from .library_panel import (
     HOVER,
     LIBRARY_SIZE_PX,
     OPEN,
+    OPEN_CLIPS,
     SCROLL,
     picked_line,
 )
@@ -46,9 +53,13 @@ class HeadsetBrowse:
 
     def __init__(
         self, *, thumbnail_cache: Path, frames: FrameWriter, say: Callable[[str], None],
+        clips: Callable[[], Sequence[LibraryHandle]] = tuple,
     ) -> None:
         self._thumbnail_cache = thumbnail_cache
         self._say = say
+        self._read_clips = clips
+        self._library: LibraryBrowserWindow | None = None
+        self._clips: LibraryBrowserWindow | None = None
         self.window: LibraryBrowserWindow | None = None
         self._frames = frames
         self._token = 0
@@ -62,16 +73,34 @@ class HeadsetBrowse:
     def take_the_library(self, handles: Sequence[LibraryHandle]) -> None:
         """The read has landed: build the window, on the thread that serves it --
         a Qt widget belongs to the thread that made it, and the read is a worker's."""
-        self.window = LibraryBrowserWindow(
+        self._library = self._browser(handles, TOP_LEVEL_NAME)
+        if self.window is None:
+            self.window = self._library
+        if self._open_when_it_lands is not None:
+            self._open(self._token, self._open_when_it_lands)
+            self._open_when_it_lands = None
+
+    def _browser(self, handles: Sequence[LibraryHandle], top_level_name: str) -> LibraryBrowserWindow:
+        window = LibraryBrowserWindow(
             handles, thumbnail_cache=self._thumbnail_cache,
             on_pick=lambda video: self._say(picked_line(video)),
             on_dismiss=lambda: self._say(DISMISSED),
             activate_on_click=True,
+            top_level_name=top_level_name,
         )
-        self.window.resize(*LIBRARY_SIZE_PX)
-        if self._open_when_it_lands is not None:
-            self._open(self._token, self._open_when_it_lands)
-            self._open_when_it_lands = None
+        window.resize(*LIBRARY_SIZE_PX)
+        return window
+
+    def _browse_clips_afresh(self) -> LibraryBrowserWindow:
+        if self._clips is not None:
+            self._clips.deleteLater()
+        self._clips = self._browser(self._read_clips(), CLIPS_TOP_LEVEL_NAME)
+        return self._clips
+
+    def _put_away(self) -> None:
+        if self.window is not None:
+            self.window.hide()
+        self.window = None
 
     def apply(self, line: str) -> None:
         self._asked = True
@@ -79,10 +108,18 @@ class HeadsetBrowse:
         if kind == OPEN:
             token, _, video = rest.partition(" ")
             self._token = int(token)
-            if self.window is None:
+            self._put_away()
+            if self._library is None:
                 self._open_when_it_lands = video
                 return
+            self.window = self._library
             self._open(int(token), video)
+        elif kind == OPEN_CLIPS:
+            token, _, clip = rest.partition(" ")
+            self._open_when_it_lands = None
+            self._put_away()
+            self.window = self._browse_clips_afresh()
+            self._open(int(token), clip)
         elif self.window is None:
             return  # nothing to aim at yet; the headset draws its own reading panel
         elif kind in (PRESS, DRAG, HOVER):
@@ -173,6 +210,13 @@ def read_the_library(config, kept: Path, *, afresh: bool = False) -> list[Librar
         return []
 
 
+def read_the_clips(config) -> list[LibraryHandle]:
+    try:
+        return config.handles()
+    except OSError:
+        return []
+
+
 def _listing_key(sources: str) -> str:
     """Which folders a listing was of, as a filename -- so no shelf answers another's browse."""
     return hashlib.sha256(sources.encode("utf-8")).hexdigest()[:12]
@@ -198,11 +242,13 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication([sys.argv[0], "-platform", "offscreen"])
     app.setStyleSheet(family_stylesheet())
     config = load_browser_config(args.manifest_path)
+    clips = load_clip_browser_config(args.manifest_path)
     width, height = LIBRARY_SIZE_PX
     frames = FrameWriter(args.frames, max_pixels=width * height)
     browse = HeadsetBrowse(
         thumbnail_cache=config.thumbnail_cache, frames=frames,
         say=lambda line: append_command(args.output, line),
+        clips=lambda: read_the_clips(clips),
     )
     kept = args.input.with_name(LISTING_FILENAME)
     landed: list[Sequence[LibraryHandle]] = []

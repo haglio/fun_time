@@ -159,12 +159,19 @@ class TestTransport:
         assert "genau_flip_ends" not in _actions(MainSlot(main_mode=MainMode.VIDEO))
 
     def test_genau_offers_no_video_only_actions(self):
-        """Nudge, open, clip and record act on a video; Genau's clips are not one."""
+        """Nudge, clip and record act on a video; Genau's clips are not one."""
         actions = _actions(MainSlot(main_mode=MainMode.GENAU))
 
-        for action in ("main_nudge_prev", "browse_library", "clipper_save",
+        for action in ("main_nudge_prev", "clipper_save",
                        "main_player_record_tap", "main_fmode"):
             assert action not in actions
+
+    def test_genau_browses_its_clips_from_the_same_button_video_browses_its_library(self):
+        video = _button(MainSlot(main_mode=MainMode.VIDEO), "browse_library")
+        genau = _button(MainSlot(main_mode=MainMode.GENAU), "browse_library")
+
+        assert (video.glyph, video.tooltip) == (genau.glyph, "Browse the library")
+        assert genau.tooltip == "Browse the clips"
 
 
 class TestFavoritesFilter:
@@ -611,12 +618,12 @@ class TestLayout:
             assert [b.command for b in first][:4] == [
                 "main_video_activate", "genau_activate", "main_minimize", "main_crown"]
 
-    def test_the_file_actions_ride_the_mode_row_where_there_is_a_video(self):
+    def test_the_browse_rides_the_mode_row_in_both_modes_and_the_rest_only_over_a_video(self):
         video = [b.command for b in console_rows(MainSlot(main_mode=MainMode.VIDEO))[0]]
         genau = [b.command for b in console_rows(MainSlot(main_mode=MainMode.GENAU))[0]]
 
         assert video[4:] == ["browse_library", "main_player_record_tap", "clipper_save"]
-        assert genau[4:] == []
+        assert genau[4:] == ["browse_library"]
 
     def test_the_file_actions_stand_apart_from_the_crown_and_from_each_other(self):
         by_action = _placed(MainSlot(main_mode=MainMode.VIDEO))
@@ -659,7 +666,7 @@ class TestLayout:
 
         assert video == ["main_video_activate", "genau_activate",
                          "browse_library", "main_player_record_tap", "clipper_save"]
-        assert genau == ["main_video_activate", "genau_activate"]
+        assert genau == ["main_video_activate", "genau_activate", "browse_library"]
 
     def test_minimize_asks_for_a_drawn_bar_rather_than_a_font_glyph(self):
         button = _button(MainSlot(main_mode=MainMode.GENAU), "main_minimize")

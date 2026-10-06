@@ -3095,6 +3095,28 @@ class TestTheHudPublisherASessionStarts:
 
         assert publisher.call_args.args[2] == ("Side", "XYZ")
 
+    def test_genaus_clips_are_warmed_for_its_browser_as_the_library_is_for_the_videos(
+        self, cfg_factory, tmp_path: Path,
+    ):
+        config = load_config(cfg_factory({}))
+        clip = config.paths.clips_dir / "scene one.mp4"
+        clip.touch()
+        manifest = LaunchManifest.read(write_windows_bridge_manifest(
+            config, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME))
+        bridge_config = SimpleNamespace(portrait_sources="", landscape_sources="", main_sources="",
+                                        regen_metadata_root=None, state_dir=tmp_path)
+        warmed: list[str] = []
+
+        with patch("fun_time.windows_bridge_orchestrator.HudPublisher"), \
+             patch("fun_time.windows_bridge_orchestrator.prime_group_indexes"), \
+             patch("fun_time.windows_bridge_orchestrator.prewarm_thumbnails",
+                   side_effect=lambda videos, _cache: warmed.extend(videos)), \
+             patch("fun_time.windows_bridge_orchestrator.threading.Thread") as thread:
+            windows_bridge_orchestrator.start_hud_priming(bridge_config, manifest, enabled=True)
+            thread.call_args.kwargs["target"]()
+
+        assert str(clip) in warmed
+
 
 def test_the_reveal_seats_the_secondary_monitor_for_the_crown_the_room_came_back_with(
         cfg_factory, tmp_path, monkeypatch):

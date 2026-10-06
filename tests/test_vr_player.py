@@ -1488,6 +1488,11 @@ def test_the_headsets_genau_keeps_its_flips_where_the_library_keeps_its_records(
         "_metadata_root(manifest)")
 
 
+def test_the_headsets_browse_asks_genau_whether_it_has_the_main_slot():
+    assert _keyword_given(player._run, "_LibraryUnit", "genau_has_the_slot") == (
+        "lambda: genau.owns_the_slot")
+
+
 @pytest.mark.parametrize("screen", ["dash", "library"])
 def test_every_screen_is_registered_in_the_room(screen):
     """Out of the room a screen is never painted, pumped, pointed at, drawn or
@@ -2409,7 +2414,7 @@ class _FakeLibraryHost:
         self.closed = True
 
 
-def _a_library(tmp_path, host, remembered=None, metadata_root=None):
+def _a_library(tmp_path, host, remembered=None, metadata_root=None, genau_has_the_slot=False):
     with patch("fun_time_vr.player.FrameTexture"):
         return _LibraryUnit(
             remembered=remembered or {},
@@ -2417,6 +2422,9 @@ def _a_library(tmp_path, host, remembered=None, metadata_root=None):
             host=host,
             main_player_cmd_file=tmp_path / "main_player_cmd.txt",
             main_player_status_file=tmp_path / "main_player_status.txt",
+            genau_cmd_file=tmp_path / "genau_cmd.txt",
+            genau_status_file=tmp_path / "genau_status.txt",
+            genau_has_the_slot=lambda: genau_has_the_slot,
             dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
             metadata_root=metadata_root,
         )
@@ -2479,6 +2487,31 @@ class TestTheLibraryUnderThePointer:
             f"PLAY_FILE {Path('C:/videos/Scene One.mp4')}")
         assert (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8").strip() == (
             BROWSE_LIBRARY_CLOSE)
+        assert not unit.showing
+
+    def test_with_genau_in_the_main_slot_it_opens_genaus_clips_on_the_clip_up(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host, genau_has_the_slot=True)
+        (tmp_path / "genau_status.txt").write_text(
+            "clip=C:/clips/Loop One.mp4\n", encoding="utf-8")
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+
+        unit.pump(threading.Event(), 0.0)
+
+        assert host.sent == ["clips 1 C:/clips/Loop One.mp4"]
+
+    def test_a_clip_picked_plays_on_genau_and_puts_the_browse_away(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host, genau_has_the_slot=True)
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+
+        host.said.append("picked C:/clips/Loop Two.mp4")
+        unit.pump(threading.Event(), 0.0)
+
+        assert (tmp_path / "genau_cmd.txt").read_text(encoding="utf-8").strip() == (
+            f"PLAY_FILE {Path('C:/clips/Loop Two.mp4')}")
+        assert not (tmp_path / "main_player_cmd.txt").exists()
         assert not unit.showing
 
     def test_a_vr_video_picked_plays_with_the_script_in_the_librarys_own_tree(self, tmp_path):

@@ -55,7 +55,7 @@ from player_core.playhead import (
     readout_xy,
     video_playhead,
 )
-from player_core.playlist import read_playlist
+from player_core.playlist import PlaylistItem, read_playlist
 from player_core.render_player import MpvRenderPlayer
 from player_core.status import StatusWriter
 from player_core.tcode import UdpTCodeSink
@@ -1450,6 +1450,7 @@ class _LibraryUnit:
     def __init__(
         self, *, remembered: Mapping[str, Placement], flag: Path, host,
         main_player_cmd_file: Path, main_player_status_file: Path,
+        genau_cmd_file: Path, genau_status_file: Path, genau_has_the_slot: Callable[[], bool],
         dashboard_cmd_file: Path, metadata_root: Path | None,
     ) -> None:
         self._flag = flag
@@ -1457,6 +1458,10 @@ class _LibraryUnit:
         self._main_player_cmd_file = main_player_cmd_file
         self._metadata_root = metadata_root
         self._main_player_status_file = main_player_status_file
+        self._genau_cmd_file = genau_cmd_file
+        self._genau_status_file = genau_status_file
+        self._genau_has_the_slot = genau_has_the_slot
+        self._browsing_clips = False
         self._dashboard_cmd_file = dashboard_cmd_file
         self._shown = ShownWhileAsked()
         self._presses = _Presses(LIBRARY)
@@ -1503,7 +1508,9 @@ class _LibraryUnit:
     def pump(self, stop: threading.Event, now: float) -> None:
         for answer in self._host.answers():
             said, _, video = answer.partition(" ")
-            if said == PICKED:
+            if said == PICKED and self._browsing_clips:
+                append_command(self._genau_cmd_file, play_file(PlaylistItem(Path(video))))
+            elif said == PICKED:
                 append_command(self._main_player_cmd_file,
                                play_file(scripted_item(video, self._metadata_root)))
             if said in (PICKED, DISMISSED):
@@ -1513,8 +1520,10 @@ class _LibraryUnit:
             self._token += 1
             self._opened_at = now
             self._drawn = False
-            playing = read_main_player_status(self._main_player_status_file).video
-            self._host.send(open_line(self._token, playing))
+            self._browsing_clips = self._genau_has_the_slot()
+            playing = (read_genau_status(self._genau_status_file).clip if self._browsing_clips
+                       else read_main_player_status(self._main_player_status_file).video)
+            self._host.send(open_line(self._token, playing, clips=self._browsing_clips))
         events = list(self._presses.drain())
         if not self._shown.showing:
             return
@@ -2223,6 +2232,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
         host=LibraryHost(manifest_path=manifest_path, state_dir=Path(state_dir)),
         main_player_cmd_file=Path(commands.main_player_cmd_file),
         main_player_status_file=Path(commands.main_player_status_file),
+        genau_cmd_file=Path(commands.genau_cmd_file),
+        genau_status_file=Path(commands.genau_status_file),
+        genau_has_the_slot=lambda: genau.owns_the_slot,
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
         metadata_root=_metadata_root(manifest),
     )

@@ -37,7 +37,7 @@ from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from .event_log import THE_LISTENERS_LOGGERS
 from .filter_vocab import load_camera_words
 from .hud_transport import HudPublisher
-from .library_handles import build_library_handles
+from .library_handles import build_library_handles, genau_clip_sources
 from .loading_cover import LoadingCover
 from .lock_hud import prime_group_indexes
 from .loopback_inbox import PRESS_PORT_FILENAME
@@ -745,6 +745,8 @@ def start_hud_priming(
             if source:
                 prewarm_thumbnails(collect_video_files(source), cache_dir)
         prewarm_thumbnails(_main_browse_stills(bridge_config), cache_dir)
+        prewarm_thumbnails(collect_video_files(genau_clip_sources(
+            manifest.media.genau_clips, manifest.media.genau_vr_clips)), cache_dir)
 
     threading.Thread(target=_warm, daemon=True, name="hud-warm").start()
     return publisher, primed
