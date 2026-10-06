@@ -39,6 +39,7 @@ from tests.integration.integration_support import (
     readable_at_speed,
     sample_library_clips,
     stall_per_transition,
+    wait_for,
     window_is_quiet,
 )
 
@@ -190,6 +191,8 @@ class _Clock:
     def time(self) -> float:
         return self.now
 
+    monotonic = time
+
     def sleep(self, seconds: float) -> None:
         self.now += seconds
 
@@ -199,7 +202,8 @@ class _Clock:
     lambda session: session.wait_for_log("never logged"),
     lambda session: session.wait_for_new_log("never logged"),
     lambda session: session.wait_for_any_log(["never logged"]),
-], ids=["wait_until", "wait_for_log", "wait_for_new_log", "wait_for_any_log"])
+    lambda session: wait_for(lambda: None, desc="something that never comes"),
+], ids=["wait_until", "wait_for_log", "wait_for_new_log", "wait_for_any_log", "wait_for"])
 def test_a_wait_named_without_a_budget_is_given_the_familys_command_budget(session, monkeypatch, wait):
     clock = _Clock()
     monkeypatch.setattr(integration_support, "time", clock)
@@ -208,6 +212,20 @@ def test_a_wait_named_without_a_budget_is_given_the_familys_command_budget(sessi
         wait(session)
 
     assert COMMAND_BUDGET_S <= clock.now < COMMAND_BUDGET_S + 1
+
+
+def test_a_wait_hands_back_what_it_found(monkeypatch):
+    monkeypatch.setattr(integration_support, "time", _Clock())
+    answers = iter([None, "", "the clip"])
+
+    assert wait_for(lambda: next(answers), desc="a clip") == "the clip"
+
+
+def test_a_wait_that_runs_out_says_what_it_waited_for_and_what_it_last_saw(monkeypatch):
+    monkeypatch.setattr(integration_support, "time", _Clock())
+
+    with pytest.raises(AssertionError, match=r"the satellite to lock \(last=0\)"):
+        wait_for(lambda: 0, desc="the satellite to lock")
 
 
 def test_a_launched_child_is_named_by_its_pid_and_the_moment_it_was_born():

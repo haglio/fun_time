@@ -52,9 +52,11 @@ from fun_time.windows_bridge_startup import (
 )
 
 from .integration_support import (
+    START_BUDGET_S,
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
+    wait_for,
 )
 
 pytestmark = [
@@ -321,17 +323,6 @@ def hosted_session():
         session.stop()
 
 
-def _wait(predicate, *, timeout: float, desc: str):
-    deadline = time.monotonic() + timeout
-    last = None
-    while time.monotonic() < deadline:
-        last = predicate()
-        if last:
-            return last
-        time.sleep(0.2)
-    pytest.fail(f"timed out waiting for {desc} (last={last!r})")
-
-
 def _playing(session, player: Player) -> str:
     return read_satellite_status(session.config.satellite(player).status_file).video
 
@@ -351,12 +342,11 @@ def _own_clips(session, player: Player) -> list[Path]:
     return []
 
 
-def _wait_for_the_shows(session, *, timeout: float = 20) -> None:
+def _wait_for_the_shows(session) -> None:
     """Wait for the hosted app to have put its picture on both players."""
     for player in _PLAYERS:
-        _wait(lambda player=player: _shows_the_stub(session, player),
-              timeout=timeout,
-              desc=f"the {player.label} player to show the hosted app's picture")
+        wait_for(lambda player=player: _shows_the_stub(session, player),
+                 desc=f"the {player.label} player to show the hosted app's picture")
 
 
 def _leave_the_mode(session) -> None:
@@ -371,9 +361,9 @@ def _leave_the_mode(session) -> None:
     _wait_for_the_shows(session)
     session.write_dashboard_command("satellites_video_activate")
     for player in _PLAYERS:
-        _wait(lambda player=player: _own_clips(session, player)
-              and not _shows_the_stub(session, player),
-              timeout=20, desc=f"the {player.label} player to play its own clips again")
+        wait_for(lambda player=player: _own_clips(session, player)
+                 and not _shows_the_stub(session, player),
+                 desc=f"the {player.label} player to play its own clips again")
 
 
 def _enter_the_mode(session) -> None:
@@ -382,11 +372,11 @@ def _enter_the_mode(session) -> None:
     # The room opens in video mode and the hosted app boots on out of sight,
     # so the switch has to wait for it — pressed any earlier it is refused,
     # which is the whole point of the button being dim until then.
-    _wait(lambda: read_shared_state(state_file).origenerator_ready,
-          timeout=90, desc="the hosted app to publish a status")
+    wait_for(lambda: read_shared_state(state_file).origenerator_ready,
+             timeout=START_BUDGET_S, desc="the hosted app to publish a status")
     session.write_dashboard_command("origenerator_activate")
-    _wait(lambda: read_shared_state(state_file).satellites_mode == "origenerator",
-          timeout=30, desc="the session to enter origenerator mode")
+    wait_for(lambda: read_shared_state(state_file).satellites_mode == "origenerator",
+             desc="the session to enter origenerator mode")
 
 
 def test_the_switch_raises_the_parked_window_and_the_way_back_parks_it(hosted_session):
@@ -406,15 +396,15 @@ def test_the_switch_raises_the_parked_window_and_the_way_back_parks_it(hosted_se
 
     _enter_the_mode(session)
     session.wait_for_log("Satellites switched to origenerator mode")
-    _wait(lambda: not is_window_minimized(hwnd),
-          timeout=10, desc="the hosted window to be restored")
-    _wait(lambda: is_window_topmost(hwnd),
-          timeout=10, desc="the hosted window to join the topmost band")
+    wait_for(lambda: not is_window_minimized(hwnd),
+             desc="the hosted window to be restored")
+    wait_for(lambda: is_window_topmost(hwnd),
+             desc="the hosted window to join the topmost band")
 
     _leave_the_mode(session)
     session.wait_for_log("Satellites switched to video mode")
-    _wait(lambda: is_window_minimized(hwnd),
-          timeout=10, desc="the hosted window to park again")
+    wait_for(lambda: is_window_minimized(hwnd),
+             desc="the hosted window to park again")
 
 
 def test_the_players_play_the_hosted_apps_shows_and_come_back_to_their_own(hosted_session):
@@ -437,15 +427,15 @@ def test_a_switch_clicked_while_paused_hands_the_players_over_and_the_resume_ban
         hosted_session):
     session, hwnd = hosted_session
     session.write_dashboard_command("omnipause_toggle")
-    session.wait_for_new_log("OmniPause: entering", timeout=12)
+    session.wait_for_new_log("OmniPause: entering")
 
     _enter_the_mode(session)
     _wait_for_the_shows(session)
 
     session.write_dashboard_command("omnipause_toggle")
-    session.wait_for_new_log("OmniPause: leaving", timeout=12)
-    _wait(lambda: is_window_topmost(hwnd),
-          timeout=10, desc="the hosted window to join the topmost band once the pause lifts")
+    session.wait_for_new_log("OmniPause: leaving")
+    wait_for(lambda: is_window_topmost(hwnd),
+             desc="the hosted window to join the topmost band once the pause lifts")
 
     _leave_the_mode(session)
 
@@ -471,8 +461,8 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
     set_always_on_top(portrait, False)
     set_always_on_top(landscape, False)
     for player, hwnd in (("portrait", portrait), ("landscape", landscape)):
-        _wait(lambda hwnd=hwnd: not is_window_topmost(hwnd), timeout=10,
-              desc=f"the {player} player to leave the topmost band")
+        wait_for(lambda hwnd=hwnd: not is_window_topmost(hwnd),
+                 desc=f"the {player} player to leave the topmost band")
 
     _fix_post_loading_windows(StartupResult(
         main_player_pid=pids["main_player_pid"],
@@ -485,8 +475,8 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
     ))
 
     for player, hwnd in (("portrait", portrait), ("landscape", landscape)):
-        _wait(lambda hwnd=hwnd: is_window_topmost(hwnd), timeout=10,
-              desc=f"the {player} player to be put back in the topmost band")
+        wait_for(lambda hwnd=hwnd: is_window_topmost(hwnd),
+                 desc=f"the {player} player to be put back in the topmost band")
 
 
 def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
@@ -525,12 +515,12 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
             "the reveal and the settle pass live"
         )
 
-        _wait_for_the_shows(session, timeout=30)
+        _wait_for_the_shows(session)
         for player in _PLAYERS:
             hud_file = session.config.satellite(player).hud_file
-            worn = _wait(
+            worn = wait_for(
                 lambda hud_file=hud_file, player=player: _panel_of(hud_file, player),
-                timeout=10, desc=f"the {player.label} player to wear the hosted app's panel")
+                desc=f"the {player.label} player to wear the hosted app's panel")
             assert [button.command for button in worn.rows[0]][:2] == [
                 "satellites_video_activate", "origenerator_activate"]
             assert worn.rows[0][1].lit
@@ -582,34 +572,34 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
         offer = stub_root / "state" / "fun_time_offer.txt"
         # The pid the app names for itself, not the Popen's: a venv's python.exe
         # is a launcher, and the app is the interpreter it starts.
-        offered_pid = int(_wait(lambda: offer.exists() and offer.read_text(
-            encoding="utf-8").split(), timeout=20, desc="the open app to offer itself")[0])
+        offered_pid = int(wait_for(lambda: offer.exists() and offer.read_text(
+            encoding="utf-8").split(), desc="the open app to offer itself")[0])
         session.start()
 
         assert session.read_child_pids().get("origenerator_pid") == offered_pid
         state_file = shared_state_path(session.config.paths.state_dir)
-        _wait(lambda: read_shared_state(state_file).origenerator_ready, timeout=5,
-              desc="the mode to open without waiting to hear from the app")
-        hwnd = _wait(lambda: _parked_main_window(offered_pid),
-                     timeout=20, desc="the open app's window to be parked by the takeover")
+        wait_for(lambda: read_shared_state(state_file).origenerator_ready, timeout=5,
+                 desc="the mode to open without waiting to hear from the app")
+        hwnd = wait_for(lambda: _parked_main_window(offered_pid),
+                        desc="the open app's window to be parked by the takeover")
         session.write_dashboard_command("origenerator_activate")
         session.wait_for_log("Satellites switched to origenerator mode")
-        _wait(lambda: not is_window_minimized(hwnd),
-              timeout=10, desc="the taken-over window to be restored")
-        _wait(lambda: is_window_topmost(hwnd),
-              timeout=10, desc="the taken-over window to join the topmost band")
+        wait_for(lambda: not is_window_minimized(hwnd),
+                 desc="the taken-over window to be restored")
+        wait_for(lambda: is_window_topmost(hwnd),
+                 desc="the taken-over window to join the topmost band")
 
         session.quit_gracefully()
 
-        _wait(offer.exists, timeout=10, desc="the handed-back app to offer itself again")
+        wait_for(offer.exists, desc="the handed-back app to offer itself again")
         assert open_app.poll() is None, "the session closed the app it was meant to hand back"
         # Waited for, not read once: the app offers itself again as it comes
         # back, and the window manager takes it out of the band and out of the
         # taskbar in its own time after that.
-        _wait(lambda: not is_window_minimized(hwnd), timeout=10,
-              desc="the handed-back window to stand open again")
-        _wait(lambda: not is_window_topmost(hwnd), timeout=10,
-              desc="the handed-back window to leave the topmost band")
+        wait_for(lambda: not is_window_minimized(hwnd),
+                 desc="the handed-back window to stand open again")
+        wait_for(lambda: not is_window_topmost(hwnd),
+                 desc="the handed-back window to leave the topmost band")
     finally:
         session.stop()
         kill_process_tree(open_app.pid)

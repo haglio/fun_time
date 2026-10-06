@@ -99,7 +99,7 @@ def test_a_branch_session_runs_the_branch_checkouts_code(branch_checkout_session
     """
     session, branch_checkout = branch_checkout_session
 
-    logged = session.wait_for_log("Launching AHK hotkey script", timeout=20)
+    logged = session.wait_for_log("Launching AHK hotkey script")
 
     assert str(branch_checkout / "windows_bridge_hotkeys.ahk") in logged
 

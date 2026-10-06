@@ -76,11 +76,10 @@ def _seated(hwnd: int, rect: WindowRect) -> bool:
             and _client_size(hwnd) == (rect.width, rect.height))
 
 
-def _wait_until_seated(session: FunTimeIntegrationSession, *, timeout: float,
+def _wait_until_seated(session: FunTimeIntegrationSession,
                        **seats: tuple[int, WindowRect]) -> None:
     session.wait_until(
         lambda: all(_seated(hwnd, rect) for hwnd, rect in seats.values()),
-        timeout=timeout,
         description=lambda: "; ".join(
             f"{name} on {rect}, which is on {window_rect(hwnd)} drawing {_client_size(hwnd)}"
             for name, (hwnd, rect) in seats.items()))
@@ -98,12 +97,12 @@ def test_a_portrait_video_on_the_crowned_main_player_trades_places_with_the_port
 
         append_command(session.config.main_player_cmd_file, play_file(PlaylistItem(tall_clip)))
         crowned = rects(majority=Crown.MAIN)
-        _wait_until_seated(session, timeout=20, main_player=(main, crowned.main),
+        _wait_until_seated(session, main_player=(main, crowned.main),
                            portrait_player=(portrait, crowned.portrait))
 
         session.write_dashboard_command(Crown.PORTRAIT.command)
         usual = rects(majority=Crown.PORTRAIT)
-        _wait_until_seated(session, timeout=20, main_player=(main, usual.main),
+        _wait_until_seated(session, main_player=(main, usual.main),
                            portrait_player=(portrait, usual.portrait))
     finally:
         session.stop()
@@ -121,15 +120,15 @@ def test_a_portrait_genau_clip_on_the_crowned_main_player_trades_places_with_the
         rects = partial(secondary_monitor_rects, SECONDARY_MONITOR, session.config.layout)
 
         session.write_dashboard_command("genau_activate")
-        session.wait_for_new_log("Switched to genau mode", timeout=12)
+        session.wait_for_new_log("Switched to genau mode")
         genau = wait_for_window_by_title(GENAU_TITLE, timeout_s=10, exact=True)
         crowned = rects(majority=Crown.MAIN)
-        _wait_until_seated(session, timeout=30, genau=(genau, crowned.main),
+        _wait_until_seated(session, genau=(genau, crowned.main),
                            portrait_player=(portrait, crowned.portrait))
 
         session.write_dashboard_command(Crown.PORTRAIT.command)
         usual = rects(majority=Crown.PORTRAIT)
-        _wait_until_seated(session, timeout=20, genau=(genau, usual.main),
+        _wait_until_seated(session, genau=(genau, usual.main),
                            portrait_player=(portrait, usual.portrait))
     finally:
         session.stop()
