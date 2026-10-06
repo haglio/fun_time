@@ -335,12 +335,12 @@ def test_a_frame_put_up_over_a_picture_moves_on_when_the_picture_would_have(tmp_
     )
     satellite_process = identify_child(pid)
     try:
-        first = _wait(
+        first = wait_for(
             lambda: (lambda s: s.video if s.picture else None)(read_satellite_status(status)),
-            timeout=30, desc="the satellite to show a picture",
+            desc="the satellite to show a picture",
         )
-        second = _wait(lambda: (lambda v: v if v not in ("", first) else None)(
-            read_satellite_status(status).video), timeout=15, desc="the next picture")
+        second = wait_for(lambda: (lambda v: v if v not in ("", first) else None)(
+            read_satellite_status(status).video), desc="the next picture")
         append_command(cmd, f"{SHOW_FRAME} {frames[0]}")
         time.sleep(1.0)
         append_command(cmd, f"{SHOW_FRAME} {frames[1]}")
@@ -348,8 +348,8 @@ def test_a_frame_put_up_over_a_picture_moves_on_when_the_picture_would_have(tmp_
         assert published_status(read_satellite_status, status).video == second, (
             "a picture with frames put up over it moved on at the first frame")
 
-        _wait(lambda: read_satellite_status(status).video not in ("", second),
-              timeout=15, desc="the picture under the frames to move on at its pace")
+        wait_for(lambda: read_satellite_status(status).video not in ("", second),
+                 desc="the picture under the frames to move on at its pace")
     finally:
         append_command(cmd, QUIT)
         time.sleep(1.0)
