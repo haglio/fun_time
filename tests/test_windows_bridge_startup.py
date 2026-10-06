@@ -1250,6 +1250,20 @@ def test_the_launch_names_latest_only_for_a_session_left_browsing_it():
     assert "--latest" not in launch(False)
 
 
+def test_genau_is_told_where_the_librarys_records_are_so_it_can_keep_a_flip():
+    def launch(metadata_dir) -> list[str]:
+        return genau_launch_command(
+            python_exe="python.exe", genau_module="genau", config_path="cfg.json",
+            clips_folder="clips", genau_x=0, genau_y=0, genau_width=1, genau_height=1,
+            metadata_dir=metadata_dir, **GENAU_SESSION_FILES,
+        )
+
+    told = launch("C:/library/videos/metadata")
+
+    assert told[told.index("--metadata-dir") + 1] == "C:/library/videos/metadata"
+    assert "--metadata-dir" not in launch(None)
+
+
 def test_launch_main_player_is_told_the_state_dir_it_remembers_in(tmp_path: Path):
     """Without it the player falls back beside its config, which is the primary
     checkout's root: the mode it was last in and the point each video was left at

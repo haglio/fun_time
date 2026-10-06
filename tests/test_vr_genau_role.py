@@ -8,6 +8,7 @@ the panel should draw.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import threading
@@ -79,7 +80,7 @@ class Genau:
 
     def __init__(self, tmp_path: Path, *, clips=("alpha_180.mp4", "beta_180.mp4", "gamma.mp4"),
                  flat_clips=(), decode=None, start_clip=None, latest=False, settings=None,
-                 console_file=None, start_thread=_run_now):
+                 console_file=None, start_thread=_run_now, metadata_root=None):
         self.clips_dir = tmp_path / "vr_clips"
         self.clips_dir.mkdir()
         for arrived, name in enumerate(clips, start=1):  # first named is the oldest
@@ -111,6 +112,7 @@ class Genau:
             stop_event=self.stop,
             start_clip=start_clip,
             latest=latest,
+            metadata_root=metadata_root,
             decode=decode or (lambda _path: _frames()),
             start_thread=start_thread,
             clock=self.clock,
@@ -159,6 +161,26 @@ class TestTheClipOnScreen:
         assert genau.role.current_clip == genau.clips_dir / "beta_180.mp4"
         genau.send("PREV")
         assert genau.role.current_clip == genau.clips_dir / "alpha_180.mp4"
+
+    def test_a_clip_picked_in_the_browser_goes_up_and_the_order_goes_on_from_it(self, tmp_path):
+        genau = Genau(tmp_path, flat_clips=("Delta Loop.mp4",))
+
+        genau.send(f"PLAY_FILE {genau.flat_dir / 'Delta Loop.mp4'}")
+        picked = genau.role.current_clip
+        genau.send("NEXT")
+
+        assert picked == genau.flat_dir / "Delta Loop.mp4"
+        assert genau.role.current_clip == genau.clips_dir / "alpha_180.mp4"
+
+    def test_a_flip_is_kept_in_the_clips_record_in_the_metadata_folder(self, tmp_path):
+        library = tmp_path / "videos"
+        (library / "genau").mkdir(parents=True)
+        genau = Genau(library / "genau", metadata_root=library / "metadata")
+
+        genau.send("FLIP_ENDS")
+
+        record = library / "metadata" / "genau" / "vr_clips" / "alpha_180.json"
+        assert json.loads(record.read_text(encoding="utf-8")) == {"genau": {"flipped": True}}
 
     def test_weird_moves_the_clip_to_the_pile_beside_the_folder(self, tmp_path):
         genau = Genau(tmp_path)

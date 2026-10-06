@@ -19,8 +19,8 @@ from player_core.broker_feed import BrokerFeed, udp_reader
 from player_core.clip_advance import ClipAdvanceState
 from player_core.clip_cache import ClipCacheStore, DecodeRequestState
 from player_core.clip_decode import load_clip_frames
+from player_core.clip_flip import ClipFlip
 from player_core.clip_folder import (
-    cache_dir_for_clips_folder,
     move_clip_to_weird,
     scan_clips,
     weird_dir_for_clips_folder,
@@ -67,7 +67,8 @@ class GenauRole:
         start_clip: Path | None = None,
         latest: bool = False,
         status_file: Path | None = None,
-        decode: Callable[[Path], list] | None = None,
+        metadata_root: Path | None = None,
+        decode: Callable[[Path], list] = load_clip_frames,
         start_thread=start_daemon_thread,
         clock: Callable[[], float] = time.monotonic,
         log: logging.Logger = logger,
@@ -88,8 +89,6 @@ class GenauRole:
         self._shapes = (True, True)
 
         self._sequence = ClipSequenceController(self._scan(), start_at=start_clip)
-        decode = decode or (
-            lambda path: load_clip_frames(path, cache_dir_for_clips_folder(path.parent)))
 
         clip_store = ClipCacheStore(limit=settings.clip_cache_size)
         self._renderer = ClipRenderController(clip_store=clip_store, blit_frame=self._take_from_engine)
@@ -140,6 +139,8 @@ class GenauRole:
             set_volume=self._set_volume,
             reorder_clips=self._reorder,
             keep_shapes=self._keep_shapes,
+            play_file=self._selection.play,
+            clip_flip=ClipFlip(metadata_root),
         )
         self._controller = GenauRefreshController(
             controls=self._controls,

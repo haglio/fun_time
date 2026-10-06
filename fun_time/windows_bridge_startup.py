@@ -515,6 +515,7 @@ def genau_launch_command(
     dashboard_cmd_file: str | Path,
     start_clip: str = "",
     latest: bool = False,
+    metadata_dir: str | Path | None = None,
 ) -> list[str]:
     """The argv a session launches Genau with, which
     ``tests/test_genau_launch_contract`` holds against Genau's own published
@@ -549,13 +550,15 @@ def genau_launch_command(
     cmd.extend(["--drive-file", str(drive_file)])
     cmd.extend(["--status-file", str(status_file)])
     cmd.extend(["--dashboard-cmd-file", str(dashboard_cmd_file)])
-    # Both on the command line rather than the command channel: that channel
-    # upper-cases every line, which no path survives, and the order as a verb
-    # would browse the new order from its top, over the clip just resumed.
+    # Both on the command line rather than the command channel: the first clip is
+    # decoding before the channel is first read, and the order as a verb would
+    # browse the new order from its top, over the clip just resumed.
     if start_clip:
         cmd.extend(["--start-clip", start_clip])
     if latest:
         cmd.append("--latest")
+    if metadata_dir:
+        cmd.extend(["--metadata-dir", str(metadata_dir)])
     return cmd
 
 

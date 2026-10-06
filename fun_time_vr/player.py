@@ -951,6 +951,7 @@ class _GenauUnit:
             stop_event=stop,
             start_clip=read_genau_status(Path(commands.genau_status_file)).clip or None,
             latest=False if resumed is None else resumed.genau_latest,
+            metadata_root=_metadata_root(manifest),
         )
         self.texture = FrameTexture()
         self.screen = _HangingScreen(remembered.get(MAIN, self.SPOTS[MAIN]))

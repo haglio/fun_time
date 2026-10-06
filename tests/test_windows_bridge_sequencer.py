@@ -530,6 +530,16 @@ class TestRunStartupSequence:
 
         assert stubs.launch_genau.call_args.kwargs["latest"] is True
 
+    def test_genau_is_launched_knowing_where_the_librarys_records_are(self, cfg_factory, tmp_path):
+        records = tmp_path / "library" / "videos" / "metadata"
+        cfg = load_config(cfg_factory({"regen": {"metadata_root": str(records)}}))
+        manifest_path = write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert Path(stubs.launch_genau.call_args.kwargs["metadata_dir"]) == records
+
     def test_a_genau_session_parks_main_player_and_gives_genau_the_slot(self, cfg_factory, tmp_path):
         """Reopening in genau mode: the session is still BUILT in video mode — the main player loads
         the main player's playlist and the overlay waits on it — but what is revealed
