@@ -36,6 +36,7 @@ from .integration_support import (
     published_status,
     real_config_path,
     sample_library_clips,
+    wait_for,
 )
 
 pytestmark = [
@@ -44,17 +45,6 @@ pytestmark = [
     pytest.mark.skipif(os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1",
                        reason="Set FUN_TIME_RUN_INTEGRATION=1 to run"),
 ]
-
-
-def _wait(predicate, *, timeout, desc):
-    deadline = time.monotonic() + timeout
-    last = None
-    while time.monotonic() < deadline:
-        last = predicate()
-        if last:
-            return last
-        time.sleep(0.2)
-    pytest.fail(f"timed out waiting for {desc} (last={last!r})")
 
 
 def _sample_videos(count: int) -> list[str]:
@@ -94,24 +84,24 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
     )
     satellite_process = identify_child(pid)
     try:
-        first = _wait(
+        first = wait_for(
             lambda: (lambda s: s.video if s.duration_ms > 0 and s.position_ms > 0 else None)(
                 read_satellite_status(status)),
-            timeout=30, desc="the satellite to start playing",
+            desc="the satellite to start playing",
         )
         # Lock (stops auto-advance) so NEXT's effect on the clip is unambiguous.
         append_command(cmd, LOCK_ON)
-        _wait(lambda: read_satellite_status(status).locked, timeout=10, desc="the satellite to lock")
+        wait_for(lambda: read_satellite_status(status).locked, desc="the satellite to lock")
         locked_clip = published_status(read_satellite_status, status).video
         append_command(cmd, NEXT)
-        _wait(lambda: read_satellite_status(status).video not in ("", locked_clip),
-              timeout=15, desc="NEXT to change the clip while locked")
+        wait_for(lambda: read_satellite_status(status).video not in ("", locked_clip),
+                 desc="NEXT to change the clip while locked")
         append_command(cmd, f"{SET_SPEED} 2")
-        _wait(lambda: read_satellite_status(status).speed == 2.0,
-              timeout=10, desc="the satellite to report double speed")
+        wait_for(lambda: read_satellite_status(status).speed == 2.0,
+                 desc="the satellite to report double speed")
         # The paused flag freezes playback.
         paused.write_text("1", encoding="utf-8")
-        _wait(lambda: read_satellite_status(status).paused, timeout=10, desc="the satellite to report paused")
+        wait_for(lambda: read_satellite_status(status).paused, desc="the satellite to report paused")
         pos_a = published_status(read_satellite_status, status).position_ms
         time.sleep(1.2)
         pos_b = published_status(read_satellite_status, status).position_ms
@@ -160,8 +150,8 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone(tmp_path):
     )
     satellite_process = identify_child(pid)
     try:
-        _wait(lambda: read_satellite_status(status).position_ms > 0,
-              timeout=30, desc="the satellite to start playing")
+        wait_for(lambda: read_satellite_status(status).position_ms > 0,
+                 desc="the satellite to start playing")
 
         # A session whose state dir is somewhere else entirely comes up.
         elsewhere = tmp_path / "some_other_session"
@@ -175,8 +165,8 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone(tmp_path):
 
         # ...and the reap still does its own job, on its own files.
         reap_orphaned_satellites("satellite", [status])
-        _wait(lambda: get_process_creation_time(pid) is None,
-              timeout=10, desc="our own reap to clear a satellite stranded on our files")
+        wait_for(lambda: get_process_creation_time(pid) is None,
+                 desc="our own reap to clear a satellite stranded on our files")
     finally:
         end_satellite(satellite_process, tmp_path / "portrait_satellite.log")
 
@@ -239,9 +229,9 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
     )
     satellite_process = identify_child(pid)
     try:
-        _wait(
+        wait_for(
             lambda: read_satellite_status(status).position_ms > 0,
-            timeout=30, desc="the satellite to start playing with a HUD",
+            desc="the satellite to start playing with a HUD",
         )
         # Republish a changed panel: the player must re-render and composite it
         # without disturbing playback.
@@ -292,9 +282,9 @@ def test_a_satellite_holds_a_picture_for_the_pace_it_is_sent_and_under_a_lock(tm
     )
     satellite_process = identify_child(pid)
     try:
-        first = _wait(
+        first = wait_for(
             lambda: (lambda s: s.video if s.picture else None)(read_satellite_status(status)),
-            timeout=30, desc="the satellite to show a picture",
+            desc="the satellite to show a picture",
         )
         # Past the four seconds a player opens at, so only the nought can be holding it.
         time.sleep(6.0)
@@ -302,12 +292,12 @@ def test_a_satellite_holds_a_picture_for_the_pace_it_is_sent_and_under_a_lock(tm
             "a picture held at a pace of nought moved on")
 
         append_command(cmd, f"{SET_PACE} 1")
-        _wait(lambda: read_satellite_status(status).video not in ("", first),
-              timeout=10, desc="the picture to move on at a one-second pace")
+        wait_for(lambda: read_satellite_status(status).video not in ("", first),
+                 desc="the picture to move on at a one-second pace")
 
         append_command(cmd, LOCK_ON)
-        _wait(lambda: read_satellite_status(status).locked, timeout=10,
-              desc="the satellite to lock")
+        wait_for(lambda: read_satellite_status(status).locked,
+                 desc="the satellite to lock")
         held = published_status(read_satellite_status, status).video
         time.sleep(3.0)
         assert published_status(read_satellite_status, status).video == held, (

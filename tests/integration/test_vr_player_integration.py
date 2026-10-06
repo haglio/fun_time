@@ -56,6 +56,7 @@ from .integration_support import (
     readable_at_speed,
     sample_library_clips,
     stall_per_transition,
+    wait_for,
     window_is_quiet,
 )
 
@@ -86,17 +87,6 @@ MEDIAN_BUDGET_MS = FRAME_BUDGET_MS * 1.5
 # seconds of it, and every window it spends is one the sample does not have to
 # distrust.
 SETTLE_WINDOWS = 12
-
-
-def _wait(predicate, *, timeout, desc):
-    deadline = time.monotonic() + timeout
-    last = None
-    while time.monotonic() < deadline:
-        last = predicate()
-        if last:
-            return last
-        time.sleep(0.2)
-    pytest.fail(f"timed out waiting for {desc} (last={last!r})")
 
 
 def _sample_library_videos(dirs, count: int) -> list[str]:
@@ -211,21 +201,21 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
 
         # Status flows from the worker before any frame renders — the
         # orchestrator's startup gate reads this exact file.
-        _wait(
+        wait_for(
             lambda: read_main_player_status(Path(commands.main_player_status_file)).video,
-            timeout=30, desc="the main player's first status write",
+            desc="the main player's first status write",
         )
 
         # All three players decode into their textures.
         run_frames(240, measure=False)  # warm-up: files open, targets allocate
         for unit, name in ((main, "main"), (satellites[0], "portrait"), (satellites[1], "landscape")):
-            _wait(
+            wait_for(
                 lambda u=unit: (run_frames(9, measure=False) or u.target.ready),
-                timeout=30, desc=f"{name} target allocation",
+                desc=f"{name} target allocation",
             )
-        _wait(
+        wait_for(
             lambda: (run_frames(9, measure=False) or any(has_picture(unit) for unit in units)),
-            timeout=20, desc="a unit to render a non-black frame",
+            desc="a unit to render a non-black frame",
         )
 
         # Hold the measurement until the machine has settled: in a full suite
@@ -268,10 +258,10 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         first_video = published_status(
             read_main_player_status, Path(commands.main_player_status_file)).video
         append_command(Path(commands.main_player_cmd_file), "NEXT")
-        _wait(
+        wait_for(
             lambda: read_main_player_status(Path(commands.main_player_status_file)).video
             not in ("", first_video),
-            timeout=20, desc="NEXT to advance the main player",
+            desc="NEXT to advance the main player",
         )
 
         # Clip transitions must not stall the frame loop, and must reach the
@@ -295,15 +285,15 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
                 elapsed = time.perf_counter() - started
                 transitions[-1].append(elapsed * 1e3)
                 time.sleep(max(0.0, period - elapsed))
-            _wait(
+            wait_for(
                 lambda was=leaving: read_satellite_status(landscape_status).video
                 not in ("", was),
-                timeout=20, desc="the landscape satellite to move off its clip",
+                desc="the landscape satellite to move off its clip",
             )
             satellites[1].layer_dirty = False
-            _wait(
+            wait_for(
                 lambda: run_frames(9, measure=False) or satellites[1].layer_dirty,
-                timeout=20, desc="a picture of the clip the landscape satellite moved to",
+                desc="a picture of the clip the landscape satellite moved to",
             )
         transition_ms = sorted(ms for one in transitions for ms in one)
         transition_median = transition_ms[len(transition_ms) // 2]
@@ -327,9 +317,9 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
 
         # The paused flag freezes a satellite where it stands.
         Path(commands.portrait_paused_file).write_text("1", encoding="utf-8")
-        _wait(
+        wait_for(
             lambda: read_satellite_status(Path(commands.portrait_status_file)).paused,
-            timeout=10, desc="the portrait satellite to report paused",
+            desc="the portrait satellite to report paused",
         )
         position_before = published_status(
             read_satellite_status, Path(commands.portrait_status_file)).position_ms
@@ -427,8 +417,8 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
 
     try:
         pump.start()
-        _wait(lambda: read_main_player_status(Path(commands.main_player_status_file)).duration_ms,
-              timeout=30, desc="the main player to open its video")
+        wait_for(lambda: read_main_player_status(Path(commands.main_player_status_file)).duration_ms,
+                 desc="the main player to open its video")
         run_frames(120)
         assert published_status(
             read_main_player_status, Path(commands.main_player_status_file)).paused, (
@@ -442,9 +432,8 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
             main_player_cmd_file=commands.main_player_cmd_file,
         )
 
-        position = _wait(
+        position = wait_for(
             lambda: (run_frames(9) or read_main_player_status(Path(commands.main_player_status_file)).position_ms),
-            timeout=30,
             desc="the main player's position to advance once video mode unpaused it",
         )
         assert position > 0
@@ -508,38 +497,38 @@ def test_the_main_player_marks_and_runs_an_ab_loop_in_the_headset():
 
     try:
         pump.start()
-        _wait(after_frames(lambda: published().position_ms),
-              timeout=30, desc="the video to start playing")
+        wait_for(after_frames(lambda: published().position_ms),
+                 desc="the video to start playing")
         Path(commands.main_player_paused_file).write_text("1", encoding="utf-8")
-        held_at = _wait(after_frames(lambda: published().paused and published().position_ms),
-                        timeout=20, desc="the video to hold where it had got to")
+        held_at = wait_for(after_frames(lambda: published().paused and published().position_ms),
+                           desc="the video to hold where it had got to")
         assert published().loop_state is LoopState.NORMAL
 
         append_command(cmd_file, RECORD_TAP)
-        _wait(after_frames(lambda: published().loop_state is LoopState.RECORDING),
-              timeout=20, desc="the mark to open")
+        wait_for(after_frames(lambda: published().loop_state is LoopState.RECORDING),
+                 desc="the mark to open")
         assert published().loop_bounds is None, (
             "a mark still open is not a loop the next session could be handed"
         )
 
         append_command(cmd_file, RECORD_TAP)
-        _wait(after_frames(lambda: published().loop_state is LoopState.LOOPING),
-              timeout=20, desc="the loop to close and start")
+        wait_for(after_frames(lambda: published().loop_state is LoopState.LOOPING),
+                 desc="the loop to close and start")
         bounds = published().loop_bounds
         assert bounds is not None
         assert bounds[0] == held_at, "the loop starts where the mark was made"
         assert bounds[1] > bounds[0], "and runs long enough for mpv to loop it"
 
         append_command(cmd_file, LOOP_CANCEL)
-        _wait(after_frames(lambda: published().loop_state is LoopState.NORMAL),
-              timeout=20, desc="the loop to be dropped")
+        wait_for(after_frames(lambda: published().loop_state is LoopState.NORMAL),
+                 desc="the loop to be dropped")
         assert published().loop_bounds is None
 
         # And the crossing's own leg: a loop the last session published, sent
         # back whole rather than gestured out again (session_resume.resume_main_loop).
         append_command(cmd_file, f"{SET_LOOP} {held_at} {held_at + 2_000}")
-        _wait(after_frames(lambda: published().loop_state is LoopState.LOOPING),
-              timeout=20, desc="the loop the crossing handed over to start")
+        wait_for(after_frames(lambda: published().loop_state is LoopState.LOOPING),
+                 desc="the loop the crossing handed over to start")
         assert published().loop_bounds == (held_at, held_at + 2_000), (
             "finished bounds are asserted, not snapped again"
         )

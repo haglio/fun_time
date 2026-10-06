@@ -45,6 +45,7 @@ from .integration_support import (
     published_status,
     real_config_path,
     sample_library_clips,
+    wait_for,
 )
 
 pytestmark = [
@@ -55,17 +56,6 @@ pytestmark = [
     ),
 ]
 
-
-
-def _wait(predicate, *, timeout, desc):
-    deadline = time.monotonic() + timeout
-    last = None
-    while time.monotonic() < deadline:
-        last = predicate()
-        if last:
-            return last
-        time.sleep(0.15)
-    pytest.fail(f"timed out waiting for {desc} (last={last!r})")
 
 
 class _Satellite:
@@ -100,10 +90,10 @@ class _Satellite:
     def video(self) -> str:
         return published_status(read_satellite_status, self.status).video
 
-    def wait_for_video(self, *, other_than: str = "", timeout: float = 15.0) -> str:
-        return _wait(
+    def wait_for_video(self, *, other_than: str = "") -> str:
+        return wait_for(
             lambda: (lambda v: v if v and v != other_than else None)(self.video()),
-            timeout=timeout, desc=f"the satellite's clip to settle (not {other_than!r})",
+            desc=f"the satellite's clip to settle (not {other_than!r})",
         )
 
 
@@ -152,10 +142,10 @@ def launched(tmp_path: Path, videos: list[str], *, width: int, height: int):
     satellite_process = identify_child(pid)
     sat = _Satellite(pid, cmd, paused, status, playlist, hud, log)
     try:
-        _wait(
+        wait_for(
             lambda: (lambda s: True if s.duration_ms > 0 and s.position_ms > 0 else None)(
                 read_satellite_status(status)),
-            timeout=30, desc="the satellite to start playing",
+            desc="the satellite to start playing",
         )
         yield sat
     finally:
@@ -172,8 +162,8 @@ def satellite(tmp_path):
         # navigation's effect unambiguous.  A locked satellite still obeys NEXT/PREV
         # (they load a new clip); it just does not walk on its own.
         sat.send(LOCK_ON)
-        _wait(lambda: read_satellite_status(sat.status).locked, timeout=10,
-              desc="the satellite to lock")
+        wait_for(lambda: read_satellite_status(sat.status).locked,
+                 desc="the satellite to lock")
         yield sat
 
 
@@ -307,7 +297,7 @@ def _drained(satellite: _Satellite) -> None:
         except PermissionError:
             return False  # claimed this instant; ask again next poll
 
-    _wait(empty, timeout=10, desc="the player to drain its command file")
+    wait_for(empty, desc="the player to drain its command file")
 
 
 def test_latest_puts_the_newest_clip_on_screen(satellite, tmp_path):
@@ -333,14 +323,14 @@ def test_latest_puts_the_newest_clip_on_screen(satellite, tmp_path):
     # Start on the oldest, which the rebuilt list still holds: without the jump to
     # the head, the reload would simply keep playing it.
     satellite.send(f"PLAY_FILE {oldest}")
-    _wait(lambda: Path(satellite.video()) == Path(oldest), timeout=15, desc="the oldest clip")
+    wait_for(lambda: Path(satellite.video()) == Path(oldest), desc="the oldest clip")
 
     config = replace(_bridge_config(satellite, tmp_path), portrait_sources=str(source))
     dispatch_command("portrait_latest", BridgeState(), config)
 
     _drained(satellite)
-    _wait(lambda: Path(satellite.video()) == Path(newest),
-          timeout=15, desc="the newest clip to come up")
+    wait_for(lambda: Path(satellite.video()) == Path(newest),
+             desc="the newest clip to come up")
 
 
 def test_no_loop_keeps_the_clip_on_screen_playing(satellite, tmp_path):
@@ -374,8 +364,8 @@ def test_next_leaves_a_loop_down_to_one_clip_for_another_clip(satellite, tmp_pat
     browse = [v for v in _playlist_videos(satellite) if v != playing]
     write_playlist_file(satellite.playlist, [playing])
     satellite.send("RELOAD_PLAYLIST")
-    _wait(lambda: read_satellite_status(satellite.status).playlist_length == 1,
-          timeout=10, desc="the loop to hold only the clip on screen")
+    wait_for(lambda: read_satellite_status(satellite.status).playlist_length == 1,
+             desc="the loop to hold only the clip on screen")
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_next", BridgeState(portrait=SatelliteState(loop="seed", locked=True)), config)
@@ -413,8 +403,8 @@ def test_more_seeds_leaves_the_player_decoding(tmp_path):
     videos = library_videos("landscape", 8)
     with launched(tmp_path, videos[:3], width=1706, height=1410) as satellite:
         satellite.send(LOCK_ON)
-        _wait(lambda: read_satellite_status(satellite.status).locked, timeout=10,
-              desc="the satellite to lock")
+        wait_for(lambda: read_satellite_status(satellite.status).locked,
+                 desc="the satellite to lock")
         config = _bridge_config(satellite, tmp_path)
         playing = satellite.video()
         others = [v for v in videos if v != playing]

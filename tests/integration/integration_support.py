@@ -186,6 +186,17 @@ START_BUDGET_S = 120.0
 COMMAND_BUDGET_S = 120.0
 
 
+def wait_for(predicate, *, desc: str, timeout: float = COMMAND_BUDGET_S):
+    deadline = time.monotonic() + timeout
+    last = None
+    while time.monotonic() < deadline:
+        last = predicate()
+        if last:
+            return last
+        time.sleep(0.2)
+    raise AssertionError(f"Timed out waiting for {desc} (last={last!r})")
+
+
 def _published_ago(status_file: Path, now: float) -> str:
     try:
         return f"{now - status_file.stat().st_mtime:.0f}s ago"

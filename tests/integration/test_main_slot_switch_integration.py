@@ -60,25 +60,23 @@ def test_a_switch_to_video_while_paused_keeps_the_video_directly_under_genaus_hu
     s = shared_integration_session
     main_player, genau = _main_player_and_genau(s)
     s.write_dashboard_command("omnipause_toggle")
-    s.wait_for_new_log("Topmost [post-enter]", timeout=12)
+    s.wait_for_new_log("Topmost [post-enter]")
     s.write_dashboard_command("genau_activate")
-    s.wait_for_new_log("Switched to genau mode", timeout=12)
+    s.wait_for_new_log("Switched to genau mode")
     s.wait_until(
         lambda: is_window_minimized(main_player),
-        timeout=30,
         description="the main player to go down for genau mode",
     )
 
     s.write_dashboard_command("main_video_activate")
-    s.wait_for_new_log("Switched to video mode", timeout=12)
+    s.wait_for_new_log("Switched to video mode")
     s.wait_until(
         lambda: _directly_beneath(main_player, genau),
-        timeout=30,
         description="the main player to sit directly under Genau's HUD while paused",
     )
 
     s.write_dashboard_command("omnipause_toggle")
-    s.wait_for_new_log("Topmost [post-leave]", timeout=12)
+    s.wait_for_new_log("Topmost [post-leave]")
 
 
 _user32 = ctypes.WinDLL("user32")
@@ -135,7 +133,7 @@ def test_a_switch_either_way_never_shows_anything_but_the_main_player_through_ge
     for paused in (True, False):
         if paused:
             s.write_dashboard_command("omnipause_toggle")
-            s.wait_for_new_log("Topmost [post-enter]", timeout=12)
+            s.wait_for_new_log("Topmost [post-enter]")
         to_genau = _switch_watching_genaus_hud(
             s, "genau_activate", genau=genau, main_player=main_player,
             done=lambda _looks: is_window_minimized(main_player) and _title(genau) == GENAU_TITLE)
@@ -151,4 +149,4 @@ def test_a_switch_either_way_never_shows_anything_but_the_main_player_through_ge
             f"looks: {dict(uncovered)}")
         if paused:
             s.write_dashboard_command("omnipause_toggle")
-            s.wait_for_new_log("Topmost [post-leave]", timeout=12)
+            s.wait_for_new_log("Topmost [post-leave]")
