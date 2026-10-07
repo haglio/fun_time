@@ -38,7 +38,7 @@ from .modes import Modes, reload_playlist
 from .notice import NoticeWriter
 from .overlay import HeatmapStrip, LoopThumbCapture
 from .painter import HUD_OVERLAYS, ConsolePanel, Painter
-from .player_window import take_outside_resizes
+from .player_window import take_outside_resizes, wear_the_icon
 from .pointer import Pointer
 from .published import Published
 from .session import PlayerSession
@@ -46,22 +46,6 @@ from .status import status_fields
 from .volume_control import VolumeControl
 
 logger = logging.getLogger(__name__)
-
-def _load_icon_surface(icon_path: Path | None):
-    """The window icon Fun Time handed over as a pygame surface, or None."""
-    if icon_path is None or not icon_path.exists():
-        return None
-    try:
-        from PIL import Image  # noqa: PLC0415  (optional: no Pillow, no icon)
-        img = Image.open(icon_path).convert("RGBA")
-        return pygame.image.fromstring(img.tobytes(), img.size, "RGBA")
-    except Exception:
-        # Broad, because a window without its icon is still a window -- but
-        # said, because a permanently missing icon otherwise reads in the log
-        # exactly like one that loaded.
-        logger.debug("No window icon: %s could not be read", icon_path,
-                     exc_info=True)
-        return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -110,9 +94,7 @@ def _open_window(args):
     pygame.init()
     if args.x is not None and args.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y}"
-    icon = _load_icon_surface(args.icon)
-    if icon is not None:
-        pygame.display.set_icon(icon)  # must precede set_mode to take effect
+    wear_the_icon(pygame, args.icon)
     screen = pygame.display.set_mode((args.width, args.height), pygame.NOFRAME)
     take_outside_resizes(pygame)
     pygame.display.set_caption("Main Player")

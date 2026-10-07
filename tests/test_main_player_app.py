@@ -12,6 +12,7 @@ import ast
 import logging
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from player_core.modes import LengthMode
@@ -20,6 +21,7 @@ from main_player import app
 from main_player.app import _controls, _status_writer
 from main_player.cli import build_parser
 from main_player.controls import apply_command
+from main_player.player_window import wear_the_icon
 from main_player.status import LibraryStatus, status_fields
 
 
@@ -275,16 +277,16 @@ class TestWhenSomethingCosmeticFails:
     indistinguishable in the log from one that works.
     """
 
-    def test_an_icon_it_cannot_read_is_said_rather_than_swallowed(
-        self, tmp_path, caplog, monkeypatch,
-    ):
+    def test_an_icon_it_cannot_read_is_said_rather_than_swallowed(self, tmp_path, caplog):
         not_an_icon = tmp_path / "icon.ico"
         not_an_icon.write_text("this is not an icon", encoding="utf-8")
+        worn = []
 
-        with caplog.at_level(logging.DEBUG, logger="main_player.app"):
-            surface = app._load_icon_surface(not_an_icon)
+        with caplog.at_level(logging.DEBUG, logger="main_player.player_window"):
+            wear_the_icon(SimpleNamespace(display=SimpleNamespace(set_icon=worn.append)),
+                          not_an_icon)
 
-        assert surface is None
+        assert worn == []
         assert "icon" in caplog.records[0].getMessage().lower()
 
 
