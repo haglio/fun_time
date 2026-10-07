@@ -77,8 +77,8 @@ MAIN_PLAYER_PID = 25
 PRIMARY_MEDIA_RECT = {"x": 2560, "y": 2500, "width": 1440, "height": 940}
 
 
-def _make_manifest(cfg_factory, tmp_path):
-    cfg = load_config(cfg_factory())
+def _make_manifest(cfg_factory, tmp_path, overrides: dict | None = None):
+    cfg = load_config(cfg_factory(overrides))
     manifest_path = write_windows_bridge_manifest(
         cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
     )
@@ -850,6 +850,31 @@ class TestAPlayerThatDiesWhileTheRoomComesUp:
 
         assert died.value.player.name == "Genau"
         assert "cannot import name 'a_made_up_name'" in died.value.said
+
+    def test_genau_that_dies_once_its_own_log_is_open_ends_the_startup_with_what_that_said(
+            self, cfg_factory, tmp_path):
+        genau_config = tmp_path / "genau_config.json"
+        genau_config.write_text(json.dumps({"state_dir": "genau_state"}), encoding="utf-8")
+        cfg, manifest_path = _make_manifest(
+            cfg_factory, tmp_path, {"paths": {"genau_config_path": str(genau_config)}})
+        genau_state = tmp_path / "genau_state"
+
+        def a_genau_whose_port_is_taken(**_kwargs):
+            genau_state.mkdir()
+            (genau_state / "genau_listener.log").write_text(
+                "2026-10-07 13:18:09 CRITICAL genau: Genau crashed in main\n"
+                "OSError: [WinError 10048] Only one usage of each socket address "
+                "is normally permitted\n", encoding="utf-8")
+            return GENAU_PID
+
+        with _sequencer_stubs(
+                launch_genau=dict(side_effect=a_genau_whose_port_is_taken),
+                is_process_alive=dict(side_effect=lambda pid: pid != GENAU_PID)):
+            with pytest.raises(PlayerDied) as died:
+                run_startup_sequence(
+                    manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
+
+        assert "[WinError 10048] Only one usage of each socket address" in died.value.said
 
     def test_what_was_launched_comes_back_with_it_to_be_torn_down(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
