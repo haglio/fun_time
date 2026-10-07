@@ -282,9 +282,6 @@ class DispatchLoopRunner:
         # cannot join the startup children the teardown list kills; this holds it
         # instead, and stop() is where quitting takes it with the session.
         self._browser_process: subprocess.Popen | None = None
-        # RFB tabs opened by locks are buffered and opened in one Chrome launch
-        # per poll batch: "lock both" locks two videos in one tick, and two
-        # rapid chrome.exe launches race Chrome's singleton and drop a tab.
         self._pending_rfb_urls: list[str] = []
         self._batching_rfb = False
         # Latch whatever is already on disk, so a notice left over from a
@@ -386,9 +383,7 @@ class DispatchLoopRunner:
         # Dashboard commands, several at once under rapid hotkey presses.  Each
         # raw line yields a command plus, for a spoken one, when the utterance
         # began; an "active_*" command then resolves onto the player most
-        # recently addressed and a "both_*" one expands into its pair.  RFB opens
-        # are buffered across the batch so a "both" lock's two tabs open in one
-        # Chrome launch (see _flush_rfb_tabs).
+        # recently addressed and a "both_*" one expands into its pair.
         self._batching_rfb = True
         try:
             for line in poll_dashboard_commands(self.dashboard_cmd_file):
@@ -652,8 +647,6 @@ class DispatchLoopRunner:
             handler(self, op)
         keep_a_browse_on_top(self._browser_process)
         write_shared_state(self.shared_state_file, self.state)
-        # Outside a poll batch (e.g. a lone lock) there is nothing to coalesce
-        # with, so open immediately; within a batch the tick flushes once.
         if not self._batching_rfb:
             self._flush_rfb_tabs()
         if self.dashboard_enabled:
