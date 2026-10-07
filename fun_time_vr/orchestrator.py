@@ -38,6 +38,7 @@ from player_core.clip_folder import vr_clips_in
 from player_core.file_channel import append_command
 from player_core.playlist import read_playlist
 
+from fun_time.branch_session import describe_the_session_on_the_taskbar
 from fun_time.broker_control import PARK_CMD, write_broker_command
 from fun_time.child_launch import no_child_log, no_console_window, open_child_log
 from fun_time.command_dispatch import genau_clip_shapes
@@ -84,6 +85,7 @@ from fun_time.overlay_progress import (
 from fun_time.player_engine import engine_missing_abort
 from fun_time.player_status import read_main_player_status
 from fun_time.players import Player
+from fun_time.project_paths import PROJECT_DIR
 from fun_time.role_windows import ChildPids, WindowRoles
 from fun_time.satellite_control import read_satellite_status
 from fun_time.session_end import session_end_marker_path
@@ -848,6 +850,7 @@ def main(argv: list[str] | None = None) -> int:
     # the installed config relabels the pin -- the desktop's rule.
     if config.config_path == DEFAULT_CONFIG_PATH:
         stamp_shortcut_aumid()
+    describe_the_session_on_the_taskbar(PROJECT_DIR)
 
     if args.check:
         logger.info("Config validation succeeded")

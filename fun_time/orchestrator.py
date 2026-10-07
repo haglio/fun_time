@@ -30,10 +30,12 @@ apply_genau_dirs_to_sys_path()
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.win32 import mutex_name, stamp_pinned_shortcuts
 
+from .branch_session import describe_the_session_on_the_taskbar
 from .event_log import open_event_log
 from .loading_cover import LoadingCover, open_the_cover
 from .manifest import write_windows_bridge_manifest
 from .process_identity import prepare_orchestrator_launcher
+from .project_paths import PROJECT_DIR
 from .session_environment import SessionEnvironment
 from .session_handoff import (
     clear_handoff_request,
@@ -213,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
         # other config would be relabelling a shortcut that launches neither.
         if config.config_path == DEFAULT_CONFIG_PATH:
             stamp_shortcut_aumid()
+        describe_the_session_on_the_taskbar(PROJECT_DIR)
 
         cover.progress.announce("engine")
         if engine_missing_abort(config, log=logger.error, uncover=cover.take_it_down):

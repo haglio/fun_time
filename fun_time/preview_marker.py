@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
+from app_support.win32 import described_taskbar_app, dress_window
 from shared_ui.palette import PREVIEW_INK, as_hex
 from shared_ui.preview import Preview, preview_of, taskbar_identity, window_title
-from shared_ui.preview_icon_pil import write_in_preview_ink
+from shared_ui.preview_icon_pil import icon_file as inked_icon_file
 
 from fun_time.checkout_overrides import STATE_DIRNAME
 from fun_time.cover_palette import WORDMARK_MAGENTA
 from fun_time.project_paths import PROJECT_DIR
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
+
+logger = logging.getLogger(__name__)
 
 FLAG = "FUN_TIME_BRANCH_SESSION"
 APP_TITLE = "Fun Time"
@@ -30,13 +34,15 @@ def session_identity(shown: Preview | None) -> str:
 
 
 def icon_file(source: Path, shown: Preview | None) -> Path:
-    if shown is None:
-        return source
-    inked = INKED_ICON_FOLDER / f"preview_{source.name}"
-    if not inked.exists() or inked.stat().st_mtime < source.stat().st_mtime:
-        inked.parent.mkdir(parents=True, exist_ok=True)
-        write_in_preview_ink(source, inked)
-    return inked
+    return inked_icon_file(source, shown, INKED_ICON_FOLDER)
+
+
+def dress_the_window(hwnd: int) -> None:
+    identity = session_identity(shown_as())
+    try:
+        dress_window(hwnd, identity, described_taskbar_app(identity))
+    except OSError:
+        logger.info("The taskbar keeps its own idea of window %s", hwnd, exc_info=True)
 
 
 def wordmark_ink(shown: Preview | None) -> str:

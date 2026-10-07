@@ -22,11 +22,13 @@ from types import SimpleNamespace
 
 import pytest
 from app_support.win32 import mutex_name
+from shared_ui.preview import Preview
 
 from fun_time import branch_session, preview_marker
 from fun_time.config import ProjectConfig, load_config
 from fun_time.shortcuts import Shortcut, read_shortcuts, write_shortcut
 from fun_time.single_instance import MUTEX_ORCHESTRATOR
+from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from tests.git_repo import git
 
 
@@ -763,3 +765,40 @@ def test_a_session_that_ends_normally_leaves_no_note(repo_with_worktrees, monkey
     branch_session.launch(repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
 
     assert not _note_left_in(repo_with_worktrees.newer).exists()
+
+
+class TestTheSessionOnTheTaskbar:
+    """A branch session's button has no pinned shortcut to take its letter, its
+    name and its relaunch from, so the session says them itself, once, for every
+    window that joins the button -- its own and an app it hosts."""
+
+    def _described(self, monkeypatch, tmp_path, *, branch_session_flag: bool) -> dict:
+        if branch_session_flag:
+            monkeypatch.setenv(preview_marker.FLAG, "1")
+        else:
+            monkeypatch.delenv(preview_marker.FLAG, raising=False)
+        monkeypatch.setattr(preview_marker, "preview_of", lambda checkout: Preview(feature="a feature"))
+        monkeypatch.setattr(preview_marker, "INKED_ICON_FOLDER", tmp_path / "inked")
+        described: dict = {}
+        monkeypatch.setattr(branch_session, "describe_taskbar_app",
+                            lambda app_id, app: described.update({app_id: app}))
+        branch_session.describe_the_session_on_the_taskbar(
+            tmp_path / "fun_time" / ".claude" / "worktrees" / "a-feature")
+        return described
+
+    def test_a_branch_session_names_its_button_and_inks_its_letter(self, monkeypatch, tmp_path):
+        (app_id, app), = self._described(monkeypatch, tmp_path, branch_session_flag=True).items()
+
+        assert app_id == f"{APP_USER_MODEL_ID}.Preview"
+        assert app.name == "Fun Time \u2014 preview of a feature"
+        assert app.icon.parent == tmp_path / "inked"
+
+    def test_its_button_starts_the_same_branch_again(self, monkeypatch, tmp_path):
+        (app,) = self._described(monkeypatch, tmp_path, branch_session_flag=True).values()
+
+        assert app.relaunch == subprocess.list2cmdline([
+            "wscript.exe", str(tmp_path / "fun_time" / "launch_branch.vbs"),
+            str(tmp_path / "fun_time" / ".claude" / "worktrees" / "a-feature")])
+
+    def test_the_live_session_leaves_its_button_to_the_pinned_shortcut(self, monkeypatch, tmp_path):
+        assert self._described(monkeypatch, tmp_path, branch_session_flag=False) == {}

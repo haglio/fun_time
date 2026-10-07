@@ -183,6 +183,7 @@ class VRSession:
         glfw.make_context_current(self._window)
         hwnd = glfw.get_win32_window(self._window)
         set_window_icon(hwnd, preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as()))
+        preview_marker.dress_the_window(hwnd)
         draw_nothing_at_all(hwnd)
         minimize_window(hwnd, activate=False)
 

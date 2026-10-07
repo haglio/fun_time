@@ -26,6 +26,7 @@ from fun_time.orchestrator import (
     startup_marker_path,
     validate_config,
 )
+from fun_time.project_paths import PROJECT_DIR
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import VR, request_handoff
 
@@ -54,6 +55,7 @@ def _a_launch(**overrides):
         "open_event_log": MagicMock(),
         "open_the_cover": MagicMock(return_value=_a_cover()),
         "stamp_shortcut_aumid": MagicMock(),
+        "describe_the_session_on_the_taskbar": MagicMock(),
         "engine_missing_abort": MagicMock(return_value=False),
         "prepare_orchestrator_launcher": MagicMock(),
         "run_windows_bridge": MagicMock(return_value=0),
@@ -491,6 +493,14 @@ class TestTheCrossingIntoTheOtherSession:
         _code, popen = self._main(cfg_path)
 
         popen.assert_not_called()
+
+
+class TestMainDescribesTheSessionsTaskbarButton:
+    def test_a_session_describes_the_button_of_the_checkout_it_runs_from(self, cfg_path: Path):
+        with _a_launch() as launch:
+            main(["--config", str(cfg_path)])
+
+        launch.describe_the_session_on_the_taskbar.assert_called_once_with(PROJECT_DIR)
 
 
 class TestMainStampsOnlyTheMachinesOwnShortcut:

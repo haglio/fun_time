@@ -7,6 +7,9 @@ both decide whether anything reaches the headset at all.
 """
 from __future__ import annotations
 
+import ast
+import inspect
+import textwrap
 from types import SimpleNamespace
 
 import pytest
@@ -201,3 +204,14 @@ class TestControllerBindings:
         assert any("oculus" in p for p in profiles)
         assert any("valve/index" in p for p in profiles)
         assert any("htc/vive" in p for p in profiles)
+
+
+def test_the_scene_window_wears_the_sessions_button_before_it_reaches_the_taskbar():
+    """Its thread is off bringing up OpenXR the moment it is shown, too busy to
+    tell the taskbar its icon -- so what the button shows has to be on the
+    window already, read off it rather than asked of it."""
+    calls = {ast.unparse(node.func): node.lineno
+             for node in ast.walk(ast.parse(textwrap.dedent(inspect.getsource(VRSession._init_glfw))))
+             if isinstance(node, ast.Call)}
+
+    assert calls["preview_marker.dress_the_window"] < calls["minimize_window"]

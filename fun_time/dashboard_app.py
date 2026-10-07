@@ -641,6 +641,7 @@ class DashboardWindow(QMainWindow):
         # LoadingReveal shows it once the cover goes.
         _hwnd = int(self.winId())
         self._dash_hwnd = _hwnd
+        preview_marker.dress_the_window(_hwnd)
         self._reveal.attach(_hwnd, self)
         set_taskbar_window_styles(_hwnd)
 
