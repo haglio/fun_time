@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
-from player_core.clip_folder import SUPPORTED_VIDEO_EXTS
+from player_core.clip_folder import SUPPORTED_VIDEO_EXTS, flat_clips_in
 from player_core.modes import LengthMode
 from player_core.playlist import PlaylistItem
 
@@ -127,7 +127,7 @@ class LibrarySource:
 
 
 def discover_genau_clips(clips_dir: Path | None) -> list[LibraryEntry]:
-    """The loops Genau plays, discovered in its own delivery folder.
+    """The 2D clips Genau plays, found anywhere under its clips folder's 2D folder.
 
     Unscripted, and shorts by where they came from however long they run.
     Named for Genau because "clip" means something else two modules over: a
@@ -138,7 +138,7 @@ def discover_genau_clips(clips_dir: Path | None) -> list[LibraryEntry]:
         return []
 
     clips: list[LibraryEntry] = []
-    for path in sorted(clips_dir.iterdir()):
+    for path in sorted(flat_clips_in(clips_dir).rglob("*")):
         if path.is_file() and path.suffix.lower() in SUPPORTED_VIDEO_EXTS:
             clips.append(LibraryEntry(video=path, funscript=None, size=path.stat().st_size))
     return clips

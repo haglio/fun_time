@@ -123,16 +123,13 @@ class VrConfig:
     """What FunTimeVR needs beyond the desktop session's own config.
 
     ``library_dirs`` joins the main rotation alongside ``main_player_library_dirs``;
-    ``clips_dir`` is the VR180 clips genau mode browses in the headset, together
-    with the desktop's flat ``paths.clips_dir``; ``audio_device`` routes the main
-    player's sound to the headset by substring match; the T-Code endpoint is the
-    broker's UDP inlet.  ``compositor_layers`` hands flat screens to the runtime
+    ``audio_device`` routes the main player's sound to the headset by substring
+    match; the T-Code endpoint is the broker's UDP inlet.  ``compositor_layers`` hands flat screens to the runtime
     as quad layers — off by default because the bundled "Pimax OpenXR 0.1.0"
     accepts them in xrEndFrame and then never composites them.
     """
 
     library_dirs: tuple[Path, ...] = ()
-    clips_dir: Path | None = None
     audio_device: str | None = None
     tcode_udp_host: str = "127.0.0.1"
     tcode_udp_port: int = ports.TCODE_UDP
@@ -412,10 +409,8 @@ def _load_vr_config(raw: dict[str, Any] | None, project_dir: Path) -> VrConfig:
     if not isinstance(library_dirs_raw, list):
         raise TypeError("vr.library_dirs must be a list of folder paths")
     audio_device = values.get("audio_device")
-    clips_dir = values.get("clips_dir")
     return VrConfig(
         library_dirs=tuple(resolve_path(project_dir, str(value)) for value in library_dirs_raw),
-        clips_dir=resolve_path(project_dir, str(clips_dir)) if clips_dir else None,
         audio_device=str(audio_device) if audio_device else None,
         tcode_udp_host=str(values.get("tcode_udp_host", "127.0.0.1")),
         tcode_udp_port=int(values.get("tcode_udp_port", ports.TCODE_UDP)),

@@ -1053,8 +1053,9 @@ def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing():
     """
     temp_root = build_integration_temp_root()
     clip_folder = temp_root / "genau_clips"
-    clip_folder.mkdir()
-    alpha, beta, gamma = _clips_oldest_to_newest(clip_folder, "alpha.mp4", "beta.mp4", "gamma.mp4")
+    (clip_folder / "2D" / "AI").mkdir(parents=True)
+    alpha, beta, gamma = _clips_oldest_to_newest(clip_folder / "2D" / "AI",
+                                                 "alpha.mp4", "beta.mp4", "gamma.mp4")
     config_path = _config_whose_genau_browses_in_folder_order(temp_root, clip_folder)
 
     first = FunTimeIntegrationSession(config_path)

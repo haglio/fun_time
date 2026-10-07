@@ -111,8 +111,8 @@ def test_a_portrait_video_on_the_crowned_main_player_trades_places_with_the_port
 def test_a_portrait_genau_clip_on_the_crowned_main_player_trades_places_with_the_portrait_player():
     temp_root = build_integration_temp_root()
     clip_folder = temp_root / "genau_clips"
-    clip_folder.mkdir()
-    _tall_test_pattern(clip_folder, seconds=2)
+    (clip_folder / "2D" / "AI").mkdir(parents=True)
+    _tall_test_pattern(clip_folder / "2D" / "AI", seconds=2)
     session = FunTimeIntegrationSession(_config_whose_genau_plays(temp_root, clip_folder))
     try:
         session.start(env_overrides={"FUN_TIME_FAKE_MONITORS": FAKE_MONITORS})

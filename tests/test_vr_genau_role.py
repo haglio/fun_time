@@ -75,19 +75,20 @@ def _run_now(*, target, args=(), name=""):
 
 
 class Genau:
-    """A role wired the way the VR player wires it, over two fabricated folders:
-    the VR clips, and the desktop's flat ones deeper down."""
+    """A role wired the way the VR player wires it, over a fabricated clips
+    folder: its VR clips, and its 2D ones a folder deeper."""
 
     def __init__(self, tmp_path: Path, *, clips=("alpha_180.mp4", "beta_180.mp4", "gamma.mp4"),
                  flat_clips=(), decode=None, start_clip=None, latest=False, settings=None,
                  console_file=None, start_thread=_run_now, metadata_root=None):
-        self.clips_dir = tmp_path / "vr_clips"
-        self.clips_dir.mkdir()
+        self.clips_folder = tmp_path / "clips"
+        self.clips_dir = self.clips_folder / "VR"
+        self.clips_dir.mkdir(parents=True)
         for arrived, name in enumerate(clips, start=1):  # first named is the oldest
             clip = self.clips_dir / name
             clip.write_bytes(b"clip")
             os.utime(clip, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
-        self.flat_dir = tmp_path / "desktop" / "clips"
+        self.flat_dir = self.clips_folder / "2D" / "AI"
         self.flat_dir.mkdir(parents=True)
         for name in flat_clips:
             (self.flat_dir / name).write_bytes(b"clip")
@@ -100,8 +101,7 @@ class Genau:
         self.stop = threading.Event()
         self.clock = Clock()
         self.role = GenauRole(
-            clips_dirs=(self.clips_dir, self.flat_dir),
-            vr_dirs=(self.clips_dir,),
+            clips_folder=self.clips_folder,
             settings=settings or GenauSettings(shuffle_on_load=False),
             command_file=self.command_file,
             paused_file=self.paused_file,
@@ -140,7 +140,7 @@ class TestTheClipOnScreen:
         assert genau.notifier.clips == [genau.clips_dir / "alpha_180.mp4"]
 
     def test_it_opens_on_the_clip_an_orchestrator_names(self, tmp_path):
-        genau = Genau(tmp_path, start_clip=tmp_path / "vr_clips" / "gamma.mp4")
+        genau = Genau(tmp_path, start_clip=tmp_path / "clips" / "VR" / "gamma.mp4")
 
         assert genau.role.current_clip == genau.clips_dir / "gamma.mp4"
 
@@ -148,7 +148,7 @@ class TestTheClipOnScreen:
         """Latest arrives with the clip, at construction: as the verb afterwards
         it would browse the new order from its top, over the clip the session
         was being resumed onto.  Newest-first here is gamma, beta, alpha."""
-        genau = Genau(tmp_path, latest=True, start_clip=tmp_path / "vr_clips" / "beta_180.mp4")
+        genau = Genau(tmp_path, latest=True, start_clip=tmp_path / "clips" / "VR" / "beta_180.mp4")
 
         assert genau.role.current_clip == genau.clips_dir / "beta_180.mp4"
         genau.send("NEXT")
@@ -179,15 +179,15 @@ class TestTheClipOnScreen:
 
         genau.send("FLIP_ENDS")
 
-        record = library / "metadata" / "genau" / "vr_clips" / "alpha_180.json"
+        record = library / "metadata" / "genau" / "clips" / "VR" / "alpha_180.json"
         assert json.loads(record.read_text(encoding="utf-8")) == {"genau": {"flipped": True}}
 
-    def test_weird_moves_the_clip_to_the_pile_beside_the_folder(self, tmp_path):
+    def test_weird_moves_the_clip_to_its_own_place_in_the_pile_beside_the_folder(self, tmp_path):
         genau = Genau(tmp_path)
 
         genau.send("WEIRD")
 
-        assert (tmp_path / "weird" / "alpha_180.mp4").is_file()
+        assert (tmp_path / "weird" / "VR" / "alpha_180.mp4").is_file()
         assert not (genau.clips_dir / "alpha_180.mp4").exists()
         assert genau.role.current_clip == genau.clips_dir / "beta_180.mp4"
 
@@ -238,7 +238,7 @@ class TestNarrowingToAShape:
 
     def test_a_clip_on_screen_of_the_shape_kept_stays_up(self, tmp_path):
         genau = Genau(tmp_path, flat_clips=("delta.mp4",),
-                      start_clip=tmp_path / "vr_clips" / "beta_180.mp4")
+                      start_clip=tmp_path / "clips" / "VR" / "beta_180.mp4")
         up_before = list(genau.notifier.clips)
 
         genau.send("SHAPES vr")
@@ -532,13 +532,13 @@ class TestTheDesktopsClipsAreBrowsedToo:
 
         assert genau.role.projection == FLAT
 
-    def test_weird_moves_a_desktop_clip_to_the_pile_beside_its_own_folder(self, tmp_path):
+    def test_weird_moves_a_2d_clip_to_its_own_place_in_the_pile(self, tmp_path):
         genau = self._both(tmp_path)
         genau.send("NEXT")
 
         genau.send("WEIRD")
 
-        assert (tmp_path / "desktop" / "weird" / "scene one.mp4").is_file()
+        assert (tmp_path / "weird" / "2D" / "AI" / "scene one.mp4").is_file()
         assert not (tmp_path / "weird" / "scene one.mp4").exists()
 
 

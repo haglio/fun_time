@@ -292,7 +292,7 @@ def test_genau_opens_in_the_same_slot_the_last_session_left_it(tmp_path):
     moved = Placement(azimuth_deg=18.0, elevation_deg=-6.0, width_deg=95.0)
     vr = VrSettings(
         tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-        audio_device="", compositor_layers=False, clips_dirs=(tmp_path,),
+        audio_device="", compositor_layers=False, clips_folder=tmp_path,
     )
 
     with patch.multiple("fun_time_vr.player", GenauRole=DEFAULT, GenauNotifier=DEFAULT,
@@ -313,7 +313,7 @@ def test_genau_opens_in_the_order_the_last_session_left_it_browsing(tmp_path):
     manifest = _manifest_for_a_vr_session(tmp_path)
     vr = VrSettings(
         tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-        audio_device="", compositor_layers=False, clips_dirs=(tmp_path,),
+        audio_device="", compositor_layers=False, clips_folder=tmp_path,
     )
 
     with patch.multiple("fun_time_vr.player", GenauRole=DEFAULT, GenauNotifier=DEFAULT,

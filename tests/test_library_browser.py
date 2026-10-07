@@ -933,14 +933,16 @@ def test_the_clip_browser_reads_genaus_folders_from_the_session_manifest(tmp_pat
     manifest = write_windows_bridge_manifest(config)
     headset = tmp_path / "headset" / "windows_bridge_launch.ini"
     headset.parent.mkdir()
-    headset.write_text("[media]\ngenau_clips = D:/clips\ngenau_vr_clips = D:/vr_clips\n",
+    headset.write_text("[media]\ngenau_clips = D:/clips\ngenau_vr_clips = D:/clips/VR\n",
                        encoding="utf-8")
 
     desktop_clips = load_clip_browser_config(manifest)
     headset_clips = load_clip_browser_config(headset)
 
-    assert (desktop_clips.sources, desktop_clips.vr_sources) == (str(config.paths.clips_dir), "")
-    assert (headset_clips.sources, headset_clips.vr_sources) == ("D:/vr_clips|D:/clips", "D:/vr_clips")
+    assert (desktop_clips.sources, desktop_clips.vr_sources) == (
+        str(config.paths.clips_dir / "2D"), "")
+    assert (headset_clips.sources, headset_clips.vr_sources) == (
+        f"D:/clips/VR|{Path('D:/clips') / '2D'}", "D:/clips/VR")
     assert (desktop_clips.top_level_name, desktop_clips.metadata_root) == ("Genau", None)
     assert desktop_clips.thumbnail_cache == load_browser_config(manifest).thumbnail_cache
 
@@ -991,12 +993,16 @@ def test_a_browse_of_genaus_clips_says_so_to_the_browser(tmp_path: Path):
     assert ["--genau" in command for command in commands] == [True, False]
 
 
-def test_the_browser_told_to_browse_genaus_clips_shows_them_under_genaus_name(
+def test_the_browser_told_to_browse_genaus_clips_keeps_the_ai_ones_apart_under_genaus_name(
     tmp_path: Path, cfg_factory,
 ):
+    """The desktop's Genau plays only the 2D clips, so its browse opens on the
+    2D folder's own two: the loops Origenerator made, and the clips cut from
+    real videos."""
     config = load_config(cfg_factory({}))
-    clip = config.paths.clips_dir / "scene one.mp4"
-    clip.touch()
+    for place in ("2D/AI/loop one.mp4", "2D/non_AI/scene one.mp4", "VR/scene two_180.mp4"):
+        (config.paths.clips_dir / place).parent.mkdir(parents=True, exist_ok=True)
+        (config.paths.clips_dir / place).touch()
     manifest = write_windows_bridge_manifest(config)
 
     with patch("fun_time.library_browser.LibraryBrowserWindow.show"), \
@@ -1005,7 +1011,7 @@ def test_the_browser_told_to_browse_genaus_clips_shows_them_under_genaus_name(
         main([str(manifest), str(tmp_path / "pick.txt"), "--genau"])
 
     shown = forward.call_args.args[0]
-    assert (_header_words(shown), _labels(shown.grid)) == ("Genau", ["scene one"])
+    assert (_header_words(shown), _labels(shown.grid)) == ("Genau", ["AI  (1)", "non_AI  (1)"])
 
 
 def test_a_browse_with_nothing_up_names_no_video(tmp_path: Path):
