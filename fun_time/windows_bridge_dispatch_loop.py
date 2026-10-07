@@ -74,6 +74,7 @@ from .shortcuts import Shortcut
 from .voice_commands import CommandLine, parse_command_line
 from .voice_control import (
     DURING_OMNIPAUSE,
+    NOTHING_TO_ACCEPT,
     WHILE_NOT_WEARING_HEADSET,
     VoiceController,
     VoiceHold,
@@ -606,6 +607,8 @@ class DispatchLoopRunner:
             self._handle_broker_stop()
         elif cmd in ("voice_off", "voice_toggle"):
             self._handle_voice_toggle(cmd)
+        elif cmd == "voice_accept":
+            self._accept_what_voice_was_not_sure_of()
         else:
             self._dispatch(cmd, spoken_at)
 
@@ -761,6 +764,11 @@ class DispatchLoopRunner:
         say_the_mic_is_off(Path(self.config.state_dir), off=self.voice_controller.is_muted)
         if self.dashboard_enabled:
             self._update_dashboard()
+
+    def _accept_what_voice_was_not_sure_of(self) -> None:
+        if (self.voice_controller is None
+                or not self.voice_controller.accept_what_it_was_not_sure_of()):
+            self._flash(NOTHING_TO_ACCEPT, source=SOURCE_SYSTEM, level=logging.WARNING)
 
     def _handle_clipper_save(self) -> None:
         """Run the clipper save and flash its notice — from the clipper-save thread."""

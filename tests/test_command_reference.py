@@ -115,6 +115,15 @@ def test_voice_toggle_is_not_key_bound():
         assert _keys(row) == (), f"{row.description!r} must show no hotkey"
 
 
+def test_either_enter_key_accepts_what_voice_was_not_sure_of():
+    bound = re.findall(r'^(\S+)::QueueCommand\("voice_accept"\)', script_text(), re.MULTILINE)
+    [row] = [r for r in _all_rows() if "voice_accept" in r.commands]
+
+    assert sorted(bound) == ["Enter", "NumpadEnter"]
+    assert _keys(row) == ("Enter",)
+    assert "voice_accept" not in _ahk_suspend_exempt_commands()
+
+
 def test_cycle_action_and_seed_are_spoken_only():
     """Cycling a clip's action or seed is a spoken command on both sides.
 
@@ -626,10 +635,6 @@ def test_relief_survives_the_omnipause_suspension_on_both_input_paths():
     where the device may still be on the user — so Shift+Esc sits in the AHK
     #SuspendExempt block and its command is exempt from the voice freeze too.
     Either half missing leaves the emergency dead in the one state it is for."""
-    # Imported here, not at module scope: this file is otherwise free of the
-    # voice runtime module, the same property its subprocess test pins for the
-    # production reference.
-
     assert "relief_omnipause" in _ahk_suspend_exempt_commands()
     # The whole set, not one item: what a paused room may be heard to do is
     # the owner's call, so widening it has to fail here rather than depend on

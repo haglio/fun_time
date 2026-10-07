@@ -16,6 +16,8 @@ from app_support.threading_utils import wait_until
 from player_core.file_channel import publish_whole
 from player_core.modes import MainMode
 from player_core.playlist import PlaylistItem, write_playlist
+from voice_core.commands import Recognition
+from voice_core.listening import Heard
 
 from fun_time import load_config
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
@@ -1317,7 +1319,6 @@ class TestDispatchLoopRunner:
         """Omnipause freezes voice the way it freezes the AHK hotkeys: of what a
         paused room says, only the exempt commands reach the dispatch loop."""
         runner = make_runner(tmp_path)
-        runner._last_watch_sample = float("inf")
         vc_cmd = tmp_path / "vc_cmd.txt"
         vc = VoiceController(cmd_file=vc_cmd, model_path="unused")
         runner.voice_controller = vc
@@ -1332,7 +1333,6 @@ class TestDispatchLoopRunner:
 
     def test_leaving_omnipause_unsuspends_the_voice_controller(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner._last_watch_sample = float("inf")
         vc_cmd = tmp_path / "vc_cmd.txt"
         vc = VoiceController(cmd_file=vc_cmd, model_path="unused")
         vc.suspend()
@@ -1345,12 +1345,45 @@ class TestDispatchLoopRunner:
         written = vc_cmd.read_text(encoding="utf-8").splitlines()
         assert [parse_command_line(line).command for line in written] == ["landscape_next"]
 
+    def test_enter_carries_out_the_command_voice_was_not_sure_of(self, tmp_path):
+        runner = make_runner(tmp_path)
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        runner.voice_controller = VoiceController(cmd_file=cmd_file, model_path="unused")
+        runner.voice_controller.handle_heard(Heard(
+            Recognition(unconfirmed_phrase="landscape next"),
+            spoken_at=1.0, peak=2000, audio=b"", candidates={}, words_formed=True))
+        cmd_file.write_text("voice_accept", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
+                   return_value=(runner.state, [])) as dispatched:
+            runner.tick()
+            runner.tick()
+
+        assert [call.args[0] for call in dispatched.call_args_list] == ["landscape_next"]
+
+    @pytest.mark.parametrize("listening", [True, False])
+    def test_enter_with_nothing_voice_was_not_sure_of_says_there_is_nothing_to_accept(
+        self, tmp_path, listening,
+    ):
+        runner = make_runner(tmp_path)
+        if listening:
+            runner.voice_controller = VoiceController(
+                cmd_file=tmp_path / "dashboard_cmd.txt", model_path="unused")
+        (tmp_path / "dashboard_cmd.txt").write_text("voice_accept", encoding="utf-8")
+        flashed = []
+
+        with patch("fun_time.windows_bridge_dispatch_loop.notice",
+                   side_effect=lambda _log, msg, *, source, level=25: flashed.append(
+                       (msg, source, level))):
+            runner.tick()
+
+        assert flashed == [("Nothing to accept", "system", logging.WARNING)]
+
 
 class TestWhatASpokenCommandFlashes:
     @staticmethod
     def _flashed(tmp_path, line, ops=(), **state):
         runner = make_runner(tmp_path)
-        runner._last_watch_sample = float("inf")
         runner.state = replace(runner.state, **state)
         (tmp_path / "dashboard_cmd.txt").write_text(line, encoding="utf-8")
         flashed = []
@@ -1396,7 +1429,6 @@ class TestWhatASpokenCommandFlashes:
     @staticmethod
     def _run_for_real(tmp_path, command, said, *, config=None, **state):
         runner = make_runner(tmp_path, config=config)
-        runner._last_watch_sample = float("inf")
         runner.state = replace(runner.state, **state)
         (tmp_path / "dashboard_cmd.txt").write_text(
             format_spoken_command(command, spoken_at=1.0, said=said), encoding="utf-8")
@@ -1501,7 +1533,6 @@ class TestWhatASpokenCommandFlashes:
         _the_hosted_app_answers(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", BridgeState(
             satellites_mode="origenerator", active_player=3))
-        runner._last_watch_sample = float("inf")
         (tmp_path / "dashboard_cmd.txt").write_text(
             format_spoken_command(command, spoken_at=1.0, said=said), encoding="utf-8")
         flashed = []

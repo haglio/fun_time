@@ -37,6 +37,8 @@ logger = logging.getLogger(__name__)
 WORKING_ON_IT = "Figuring out what you said..."
 DID_NOT_CATCH_IT = "couldn't catch what you said"
 NO_COMMAND = "unrecognized voice command"
+NOTHING_TO_ACCEPT = "Nothing to accept"
+PRESS_ENTER_TO_ACCEPT = "(press Enter to accept)"
 
 
 def _how_many(words: str) -> str:
@@ -146,6 +148,12 @@ def command_rules(*, confidence_threshold: float, confirm_commands: bool) -> Com
     )
 
 
+@dataclass(frozen=True)
+class _NotSureOf:
+    phrase: str
+    spoken_at: float
+
+
 class VoiceController:
     """Listens for voice commands and writes them to the dashboard command file."""
 
@@ -163,6 +171,8 @@ class VoiceController:
         self.cmd_file = Path(cmd_file)
         self._muted = threading.Event()
         self._hold: VoiceHold | None = None
+        self._not_sure_of: _NotSureOf | None = None
+        self._not_sure_of_lock = threading.Lock()
         self._words_forming = False
         self.active_player: Callable[[], int | None] = lambda: None
         self.listener_settings = ListenerSettings(
@@ -201,6 +211,8 @@ class VoiceController:
     def mute(self) -> None:
         """Suppress command output (voice still listens but discards)."""
         self._muted.set()
+        with self._not_sure_of_lock:
+            self._not_sure_of = None
 
     def unmute(self) -> None:
         """Resume command output."""
@@ -234,20 +246,31 @@ class VoiceController:
         if recognition.phrase:
             self._hand_on(recognition.phrase, spoken_at=heard.spoken_at)
             return
-        if not heard.words_formed:
+        if not heard.words_formed or not self._is_listening():
             return
         doubted = recognition.refused_phrase or recognition.unconfirmed_phrase
         if doubted:
+            with self._not_sure_of_lock:
+                self._not_sure_of = _NotSureOf(doubted, heard.spoken_at)
             self._report_words("not sure enough of a command", "not sure enough of",
-                               friendly_voice(doubted), heard_text=doubted)
+                               friendly_voice(doubted), heard_text=doubted,
+                               then=PRESS_ENTER_TO_ACCEPT)
         elif recognition.unrecognized_text:
             self._report_words(NO_COMMAND, NO_COMMAND, recognition.unrecognized_text,
                                heard_text=recognition.unrecognized_text)
         elif recognition.silent_reading:
             self._report_words("too quiet to act on", "too quiet to act on",
                                recognition.silent_reading, heard_text=recognition.silent_reading)
-        elif self._is_listening():
+        else:
             notice(logger, DID_NOT_CATCH_IT, source=SOURCE_SYSTEM, level=logging.WARNING)
+
+    def accept_what_it_was_not_sure_of(self) -> bool:
+        with self._not_sure_of_lock:
+            not_sure_of, self._not_sure_of = self._not_sure_of, None
+        if not_sure_of is None:
+            return False
+        self._hand_on(not_sure_of.phrase, spoken_at=not_sure_of.spoken_at)
+        return True
 
     def _hand_on(self, phrase: str, *, spoken_at: float) -> None:
         written = self._write_spoken(phrase, spoken_at=spoken_at)
@@ -257,13 +280,13 @@ class VoiceController:
                    source=notice_source(VOICE_COMMANDS[phrase], self.active_player()),
                    level=logging.WARNING)
 
-    def _report_words(self, logged: str, shown: str, words: str, *, heard_text: str) -> None:
-        if not self._is_listening():
-            return
+    def _report_words(self, logged: str, shown: str, words: str, *, heard_text: str,
+                      then: str = "") -> None:
         source = _source_for_heard_text(heard_text)
-        notice(logger, f"{logged} ({_how_many(words)})", source=source,
+        after = f" {then}" if then else ""
+        notice(logger, f"{logged} ({_how_many(words)}){after}", source=source,
                level=logging.WARNING, flashes=False)
-        flash_unlogged(self.cmd_file.parent, f"{shown}: {words}", source=source,
+        flash_unlogged(self.cmd_file.parent, f"{shown}: {words}{after}", source=source,
                        level=logging.WARNING)
 
     def _say_it_is_being_worked_on(self, forming: str) -> None:

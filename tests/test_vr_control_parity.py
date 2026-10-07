@@ -465,6 +465,7 @@ _THE_LOOPS_OWN = frozenset({
     "omniminimize", "omnirestore", "omnipause_toggle", "enter_omnipause",
     "relief_omnipause", "pause", "play", "browse_library", BROWSE_LIBRARY_CLOSE,
     "broker_panel", "broker_start", "broker_stop", "voice_off", "voice_toggle",
+    "voice_accept",
 })
 
 

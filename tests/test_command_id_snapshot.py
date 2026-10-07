@@ -332,6 +332,7 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "tilt_down",
     "tilt_reset",
     "tilt_up",
+    "voice_accept",
     "voice_off",
     "voice_toggle",
     "vr_reset",
