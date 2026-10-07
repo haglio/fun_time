@@ -26,3 +26,15 @@ def fit_text(font, text: str, width: int) -> str:
     while kept and font.getlength(kept + "…") > width:
         kept = kept[:-1]
     return kept + "…"
+
+
+def wrap_text(font, text: str, width: int, *, max_lines: int) -> list[str]:
+    lines: list[str] = []
+    for word in text.split():
+        if lines and font.getlength(f"{lines[-1]} {word}") <= width:
+            lines[-1] = f"{lines[-1]} {word}"
+        else:
+            lines.append(word)
+    if len(lines) > max_lines:
+        lines[max_lines - 1:] = [" ".join(lines[max_lines - 1:])]
+    return [fit_text(font, line, width) for line in lines]

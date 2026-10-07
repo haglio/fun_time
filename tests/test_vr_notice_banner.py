@@ -42,6 +42,14 @@ class TestTheBanner:
 
         assert wide.width <= 400
 
+    def test_a_notice_too_wide_for_one_line_goes_on_to_another_rather_than_lose_its_end(self):
+        one_line = _banner("not sure enough of: portrait next", max_width=4000)
+        wrapped = _banner("not sure enough of: portrait next (press Enter to accept)",
+                          max_width=900)
+
+        assert wrapped.width <= 900
+        assert wrapped.height > one_line.height
+
 
 class TestItIsSizedToThePictureItGoesOn:
     """A player decodes to 2048 or 4096 pixels, not to the size of a window, so
