@@ -157,7 +157,7 @@ class SatelliteSession:
 
     @property
     def showing_picture(self) -> bool:
-        return self._player.showing_picture
+        return self._picture_put_up or self._player.showing_picture
 
     def step(self, delta: int) -> None:
         """Navigate *delta* items (next = +1, prev = -1), wrapping the playlist."""
@@ -192,6 +192,7 @@ class SatelliteSession:
 
     def show_frame(self, frame: Path) -> None:
         self._frame_on_screen = frame
+        self._picture_put_up = True
         self._player.swap_still(frame)
 
     def clear_frame(self) -> None:
@@ -232,6 +233,7 @@ class SatelliteSession:
         if not self._locked and self._player.advanced_to_next:
             self._play_points.ended()
             self._frame_on_screen = None
+            self._picture_put_up = False
             self._index = (self._index + 1) % len(self._playlist)
             self._player.drop_consumed()
             self._stage_next()
@@ -302,6 +304,7 @@ class SatelliteSession:
         self._play_points.leave()
         self._switching_versions = False
         self._frame_on_screen = None
+        self._picture_put_up = False
         self._index = index % len(self._playlist)
         clip = self._playlist[self._index]
         video = self._versions.get(clip, clip)

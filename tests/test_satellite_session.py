@@ -711,6 +711,43 @@ class TestAFrameInThePicturesPlace:
 
         assert player.swapped == [tmp_path / "frame.png"]
 
+    def test_a_frame_going_up_is_a_picture_while_the_player_opens_it(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=2)
+        player.showing_picture = True
+
+        session.show_frame(tmp_path / "frame.png")
+        player.showing_picture = False
+
+        assert session.showing_picture is True
+
+    def test_the_picture_put_back_from_under_a_frame_is_a_picture_while_the_player_opens_it(
+            self, tmp_path):
+        session, player = _make_session(tmp_path, entries=2)
+        session.show_frame(tmp_path / "frame.png")
+
+        session.clear_frame()
+        player.showing_picture = False
+
+        assert session.showing_picture is True
+
+    def test_a_clip_the_picture_runs_out_onto_after_a_frame_is_what_the_player_says(
+            self, tmp_path):
+        session, player = _make_session(tmp_path, entries=2)
+        session.show_frame(tmp_path / "frame.png")
+
+        player.simulate_eof_advance()
+        session.advance()
+
+        assert session.showing_picture is False
+
+    def test_a_clip_stepped_to_after_a_frame_is_what_the_player_says(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=2)
+        session.show_frame(tmp_path / "frame.png")
+
+        session.step(1)
+
+        assert session.showing_picture is False
+
     def test_a_reloaded_list_naming_the_picture_put_up_keeps_it_on_its_move(self, tmp_path):
         session, player = _make_session(tmp_path, entries=2)
         finished = tmp_path / "v0 finished.png"
