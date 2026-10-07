@@ -10,12 +10,14 @@ satellite decodes to 2048px and the main player to 4096, so the desktop's own
 """
 from __future__ import annotations
 
+import math
+
 import numpy as np
 from PIL import Image, ImageDraw
 from shared_ui.palette import BG_SECONDARY
 
 from .console_panel import level_color
-from .lettering import fit_text, load_font
+from .lettering import load_font, wrap_text
 
 # The type as a fraction of the height, never under the desktop's own; the rest
 # of the shape is in multiples of it (the desktop's 16/8 padding, 1px border and
@@ -31,6 +33,8 @@ _RADIUS = 4 / 19
 TOP_MARGIN_FRACTION = 0.028
 
 WIDTH_FRACTION = 0.9  # most of the picture's width, never all of it
+MAX_LINES = 3
+_LINE_GAP = 0.25
 
 
 def font_px(height: int) -> int:  # the type size for a picture this tall
@@ -41,10 +45,14 @@ def paint_banner(message: str, level: int, *, max_width: int, size: int) -> Imag
     """The banner, sized to what it says and to the picture it goes on."""
     font = load_font(size)
     pad_x, pad_y = round(size * _PAD_X), round(size * _PAD_Y)
-    text = fit_text(font, message, max(1, max_width - 2 * pad_x))
+    text = "\n".join(wrap_text(font, message, max(1, max_width - 2 * pad_x),
+                               max_lines=MAX_LINES))
+    spacing = round(size * _LINE_GAP)
     ink = level_color(level)
     probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
-    x0, y0, x1, y1 = probe.textbbox((0, 0), text, font=font)
+    x0, y0, x1, y1 = probe.multiline_textbbox((0, 0), text, font=font, spacing=spacing,
+                                              align="center")
+    x0, y0, x1, y1 = math.floor(x0), math.floor(y0), math.ceil(x1), math.ceil(y1)
     banner = Image.new(
         "RGBA", (x1 - x0 + 2 * pad_x, y1 - y0 + 2 * pad_y), (*BG_SECONDARY, 235),
     )
@@ -54,7 +62,8 @@ def paint_banner(message: str, level: int, *, max_width: int, size: int) -> Imag
         radius=max(2, round(size * _RADIUS)), outline=(*ink, 255),
         width=max(1, round(size * _BORDER)),
     )
-    draw.text((pad_x - x0, pad_y - y0), text, font=font, fill=(*ink, 255))
+    draw.multiline_text((pad_x - x0, pad_y - y0), text, font=font, fill=(*ink, 255),
+                        spacing=spacing, align="center")
     return banner
 
 
