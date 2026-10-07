@@ -15,6 +15,7 @@ from __future__ import annotations
 import inspect
 import os
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -51,13 +52,26 @@ def test_a_slow_crossing_keeps_its_own_cover_up():
         progress.write_text("1/2|Changing over...", encoding="utf-8")
         os.utime(progress, (0, 0))
 
-        keep_the_crossing_cover(state_dir)
-        deadline = time.time() + 5
-        while progress.stat().st_mtime < time.time() - 60 and time.time() < deadline:
-            time.sleep(0.05)
+        stop = keep_the_crossing_cover(state_dir)
+        try:
+            deadline = time.time() + 5
+            while progress.stat().st_mtime < time.time() - 60 and time.time() < deadline:
+                time.sleep(0.05)
+        finally:
+            stop()
 
         assert progress.stat().st_mtime > time.time() - 60
         assert progress.read_text(encoding="utf-8") == "1/2|Changing over..."
+
+
+def test_a_heartbeat_that_is_stopped_is_gone():
+    before = set(threading.enumerate())
+    with tempfile.TemporaryDirectory() as state_dir:
+        stop = keep_the_crossing_cover(state_dir)
+
+        stop()
+
+    assert set(threading.enumerate()) <= before
 
 
 def test_a_crossing_has_no_process_that_forgets_to_say_so():
@@ -88,10 +102,13 @@ def test_a_crossing_file_nobody_tidied_is_not_a_crossing():
 
         # Nor does the session that handed over keep the leak looking alive.
         drop_crossing_cover(state_dir)
-        keep_the_crossing_cover(state_dir)
-        time.sleep(0.3)
-        os.utime(progress, (time.time() - COVER_STALE_S - 1,) * 2)
-        time.sleep(0.3)
+        stop = keep_the_crossing_cover(state_dir)
+        try:
+            time.sleep(0.3)
+            os.utime(progress, (time.time() - COVER_STALE_S - 1,) * 2)
+            time.sleep(0.3)
+        finally:
+            stop()
         assert not returning_from_a_crossing(state_dir)
 
 
