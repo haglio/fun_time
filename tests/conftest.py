@@ -5,6 +5,7 @@ import _winapi
 import json
 import os
 import re
+import sys
 from pathlib import Path
 
 # Render Qt offscreen for the whole unit suite. Agents run these GUI tests on every
@@ -245,6 +246,26 @@ def _logging_is_given_back():
 def _no_thread_outlives_its_test():
     with no_thread_outlives_this():
         yield
+
+
+_THE_RUN = pytest.StashKey[pytest.Session]()
+
+
+def pytest_sessionstart(session):
+    session.config.stash[_THE_RUN] = session
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_unconfigure(config):
+    yield
+    if (run := config.stash.get(_THE_RUN, None)) is not None:
+        _end_the_process_before_its_libraries_clean_up(int(run.exitstatus))
+
+
+def _end_the_process_before_its_libraries_clean_up(exit_code: int) -> None:
+    sys.stdout.flush()
+    sys.stderr.flush()
+    _winapi.TerminateProcess(_winapi.GetCurrentProcess(), exit_code)
 
 
 TMP_ROOT = Path(
