@@ -92,6 +92,16 @@ def test_settling_with_nothing_ever_asked_for_returns_at_once():
     BuildsOffTheLoop().settle()
 
 
+def test_no_thread_is_left_running_once_every_build_has_run():
+    before = set(threading.enumerate())
+    builds = BuildsOffTheLoop()
+    builds.build(_Build("only", []))
+
+    builds.settle()
+
+    wait_until(lambda: set(threading.enumerate()) <= before, timeout=SETTLE_S)
+
+
 def test_settle_waits_for_a_build_already_running():
     ran: list[str] = []
     gate = threading.Event()
