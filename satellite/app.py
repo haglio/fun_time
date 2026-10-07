@@ -38,7 +38,7 @@ from player_core.volume import VolumeHudPainter, chip_xy
 
 from main_player.overlay import HeatmapStrip, timeline_bgra
 from main_player.play_points import PlayPoints
-from main_player.player_window import take_outside_resizes
+from main_player.player_window import take_outside_resizes, wear_the_icon
 
 from .cli import audio_muted, build_parser, resolve_playlist
 from .contract import SatelliteChannels, WindowPlacement
@@ -55,29 +55,6 @@ logger = logging.getLogger(__name__)
 _OV_SCRUBBER = 11
 _OV_VOLUME = 12
 _OV_READOUT = 13
-
-# Fun Time's own icon, so a satellite's Alt-Tab entry and taskbar button say
-# which application it belongs to.  Without one, pygame supplies its own logo and
-# these windows read as some unrelated program.  Kept here rather than taken from
-# `fun_time.project_paths`: this package imports nothing from fun_time at all.
-ICON_PATH = Path(__file__).resolve().parent.parent / "icon.ico"
-
-
-def _load_icon_surface():
-    """Fun Time's icon as a pygame surface, or None if it cannot be read.
-
-    Must be set before ``set_mode``: SDL takes the icon from the display at
-    window creation, so a later call has nothing to apply it to.
-    """
-    if not ICON_PATH.exists():
-        return None
-    try:
-        from PIL import Image  # noqa: PLC0415  (optional: no Pillow, no icon)
-
-        image = Image.open(ICON_PATH).convert("RGBA")
-        return pygame.image.frombytes(image.tobytes(), image.size, "RGBA")
-    except Exception:
-        return None
 
 
 def set_up_logging() -> logging.Logger:
@@ -119,9 +96,7 @@ def _open_window(args) -> int:
     pygame.init()
     if placement.x is not None and placement.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{placement.x},{placement.y}"
-    icon = _load_icon_surface()
-    if icon is not None:
-        pygame.display.set_icon(icon)  # must precede set_mode to take effect
+    wear_the_icon(pygame, placement.icon)
     # Borderless, so the client area IS the slot: mpv paints into this window via
     # its HWND (the pygame surface is never blitted) and the sequencer sizes it to
     # the portrait/landscape rect.

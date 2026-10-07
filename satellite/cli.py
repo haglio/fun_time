@@ -61,6 +61,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "button; the orchestrator passes its own AppUserModelID. "
                         "Without one the window falls under whatever the interpreter's "
                         "path is registered to, which is some other program entirely")
+    p.add_argument("--icon", type=Path, default=None,
+                   help="The window icon Fun Time hands over, so an Alt-Tab entry "
+                        "and a taskbar thumbnail show which session it belongs to")
     return p
 
 

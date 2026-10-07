@@ -14,7 +14,6 @@ from fun_time.config import ProjectConfig, load_config
 from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.players import Player
 from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
-from satellite.app import ICON_PATH
 
 # ---------------------------------------------------------------------------
 # load_config
@@ -454,10 +453,9 @@ class TestTheProjectsOwnPaths:
         assert CONFIG_ROOT is PROJECT_DIR
 
     def test_every_module_that_wants_the_icon_asks_for_that_one(self):
-        """`satellite.app` keeps its own, and its comment says why.  Read from
-        the source, because some are uses rather than bindings and an alias
-        would not show them.  FunTimeVR's window asks for the other constant --
-        still project_paths', still not a path it spells itself."""
+        """Read from the source, because some are uses rather than bindings and
+        an alias would not show them.  FunTimeVR's window asks for the other
+        constant -- still project_paths', still not a path it spells itself."""
         wants = {
             "fun_time/process_identity.py": "PROJECT_ICON",
             "fun_time_vr/vr_session.py": "PROJECT_VR_ICON",
@@ -474,10 +472,11 @@ class TestTheProjectsOwnPaths:
                 if isinstance(n, ast.Constant) and n.value in ("icon.ico", "vr_icon.ico")]
             assert recomputed == [], f"{name} still spells the path itself"
 
-    def test_and_the_one_that_keeps_its_own_really_imports_nothing_from_fun_time(self):
-        """`satellite/` imports nothing from `fun_time`, and one constant is
-        not worth inverting that."""
-        assert ICON_PATH == PROJECT_DIR / "icon.ico"
+    def test_a_satellite_spells_no_icon_path_and_imports_nothing_from_fun_time(self):
+        """The session hands a satellite its icon, so `satellite/` needs no path
+        of its own and still imports nothing from `fun_time`."""
+        source = (PROJECT_DIR / "satellite" / "app.py").read_text(encoding="utf-8")
+        assert "icon.ico" not in source
         tree = ast.parse((PROJECT_DIR / "satellite" / "app.py").read_text(encoding="utf-8"))
         imported = [
             name

@@ -1506,6 +1506,26 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
         assert Path(command[command.index("--icon") + 1]).parent == tmp_path / "inked"
 
 
+    def test_a_branch_sessions_satellites_wear_its_amber_letter(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv(preview_marker.FLAG, "1")
+        monkeypatch.setattr(preview_marker, "preview_of", lambda checkout: Preview(feature=None))
+        monkeypatch.setattr(preview_marker, "INKED_ICON_FOLDER", tmp_path / "inked")
+        state_dir = tmp_path / "state"
+        rect = WindowRect(x=0, y=0, width=100, height=100)
+
+        with patch("fun_time.windows_bridge_startup.launch_satellite",
+                   side_effect=[202, 303]) as launched:
+            launch_core_apps(
+                python_exe="python.exe", satellite_module="satellite",
+                portrait=_slot(Player.PORTRAIT, str(tmp_path / "p"), state_dir, rect),
+                landscape=_slot(Player.LANDSCAPE, str(tmp_path / "l"), state_dir, rect),
+                result_file=tmp_path / "core_apps.ini",
+            )
+
+        icons = [call.kwargs["placement"].icon for call in launched.call_args_list]
+        assert [icon.parent for icon in icons] == [tmp_path / "inked"] * 2
+
+
 class TestGenauCheckout:
     """Which checkouts Genau and the main player are run out of.
 

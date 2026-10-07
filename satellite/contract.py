@@ -30,6 +30,7 @@ PLACEMENT = (
     ("height", "--height"),
     ("title", "--title"),
     ("taskbar_identity", "--taskbar-identity"),
+    ("icon", "--icon"),
     ("tiles", "--tile"),
 )
 
@@ -96,8 +97,8 @@ class SatelliteChannels:
 
 @dataclass(frozen=True)
 class WindowPlacement:
-    """Where a satellite's window opens, what it is called, whose it is, and whether
-    it tiles a portrait picture across it."""
+    """Where a satellite's window opens, what it is called, whose it is, the icon
+    it wears, and whether it tiles a portrait picture across it."""
 
     x: int | None = None
     y: int | None = None
@@ -105,13 +106,14 @@ class WindowPlacement:
     height: int = 900
     title: str = "Satellite"
     taskbar_identity: str | None = None
+    icon: Path | None = None
     tiles: bool = False
 
     @classmethod
     def from_args(cls, args) -> WindowPlacement:
         return cls(x=args.x, y=args.y, width=args.width, height=args.height,
                    title=args.title, taskbar_identity=args.taskbar_identity,
-                   tiles=args.tile)
+                   icon=args.icon, tiles=args.tile)
 
     def to_argv(self) -> list[str]:
         return _argv(self, PLACEMENT)

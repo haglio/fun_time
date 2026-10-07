@@ -923,6 +923,7 @@ def launch_core_apps(
                 # One of Fun Time's windows rather than an application of its
                 # own -- see taskbar_identity_args.
                 taskbar_identity=taskbar_identity_args()[1],
+                icon=Path(_the_session_icon()),
                 tiles=tiles),
             role=role,
             log_file=slot.log_file,

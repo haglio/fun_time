@@ -12,16 +12,19 @@ number of passes instead of an event loop the test would have to break into.
 """
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
+import pygame
 from player_core.funscript import load as load_funscript
 from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, progress_bar_bgra
 from player_core.volume import chip_xy
 
+from fun_time.project_paths import PROJECT_ICON
 from main_player.heatmap import build_heatmap
 from satellite.app import _run
 from satellite.cli import build_parser, resolve_playlist
@@ -97,10 +100,24 @@ def _run_loop(tmp_path: Path, args, *, fake=None) -> tuple[int, FakeSatellitePla
     player = FakeSatellitePlayer()
     with patch("satellite.app.pygame", fake), \
          patch("satellite.app.deliver_the_focusing_click"), \
-         patch("satellite.app._load_icon_surface", return_value=None), \
          patch("satellite.app.MpvPlayer", return_value=player):
         code = _run(args, playlist=resolve_playlist(args))
     return code, player, fake
+
+
+def test_a_satellite_wears_the_icon_the_session_hands_it(tmp_path):
+    handed = tmp_path / "preview_icon.ico"
+    shutil.copyfile(PROJECT_ICON, handed)
+    args = _loop_args(tmp_path, _clips(tmp_path, "v0"), icon=str(handed))
+    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+    fake = _FakePygame()
+    worn = []
+    fake.display.set_icon = worn.append
+    fake.image = pygame.image
+
+    _run_loop(tmp_path, args, fake=fake)
+
+    assert len(worn) == 1
 
 
 def test_one_pass_plays_publishes_and_paints_then_quit_ends_it_cleanly(tmp_path):
