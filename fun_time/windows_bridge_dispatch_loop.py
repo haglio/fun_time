@@ -686,16 +686,14 @@ class DispatchLoopRunner:
             return
         if not window_exists(self.windows.rfb_hwnd):
             logger.warning(
-                "RFB tab(s) skipped: no Random Favs Browser window to open into: %s",
-                ", ".join(urls),
-            )
+                "%d RFB tab(s) skipped: no Random Favs Browser window to open into", len(urls))
             return
         if not force_foreground_window(self.windows.rfb_hwnd):
             # Not fatal, and expected on the integration suite's hidden desktop,
             # which has no foreground window to become.
             logger.info("RFB window did not take the foreground before the tab handoff")
         open_rfb_tab(urls=urls, shortcut=self.rfb_shortcut)
-        logger.info("Opened RFB tab(s): %s", ", ".join(urls))
+        logger.info("Opened %d RFB tab(s)", len(urls))
         if self.rfb_slideshow is not None:
             self.rfb_slideshow.restart(now=time.monotonic())
 
