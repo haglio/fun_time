@@ -434,9 +434,9 @@ class _OverlayPlayer:
         self.removed.append(ident)
 
 
-def _unit_with_pixels(width=640, height=480) -> tuple[_VideoUnit, _OverlayPlayer]:
+def _unit_with_pixels(width=640, height=480, kind=_VideoUnit) -> tuple[_VideoUnit, _OverlayPlayer]:
     player = _OverlayPlayer()
-    unit = _VideoUnit.__new__(_VideoUnit)
+    unit = kind.__new__(kind)
     unit.screen_name = MAIN
     unit.player = player
     unit._scrubber_shown = None
@@ -461,6 +461,16 @@ def test_a_picture_has_no_timeline_so_its_scrubber_comes_off_once_and_the_chip_s
 
     assert len(player.overlays) == 1  # the chip alone
     assert len(player.removed) == 1  # the bar, taken off once
+
+
+def test_a_side_player_keeps_the_scrubber_off_a_picture_its_session_put_up():
+    unit, player = _unit_with_pixels(kind=_SatelliteUnit)
+    unit.session = SimpleNamespace(showing_picture=True)
+    player.showing_picture = False
+
+    unit.overlay_furniture(1_000.0, 600_000.0, VolumeHud(), VolumeHudPainter())
+
+    assert len(player.overlays) == 1  # the chip alone
 
 
 def test_the_readout_goes_up_beside_the_scrubber_at_the_controls_own_size():
