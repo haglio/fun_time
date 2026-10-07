@@ -566,15 +566,12 @@ def genau_launch_command(
     return cmd
 
 
-def launch_genau(*, project_dirs: str | None = None, **contract) -> int:
-    """Launch Genau subprocess, returning its PID.
-
-    *contract* is :func:`genau_launch_command`'s; *project_dirs* is which
-    checkout of the genau repo to run — see :func:`genau_project_kwargs`.
-    """
-    proc = subprocess.Popen(
-        genau_launch_command(**contract), **no_child_log(),
-        **genau_project_kwargs(project_dirs), **subprocess_window_kwargs())
+def launch_genau(*, log_file: str | Path, project_dirs: str | None = None, **contract) -> int:
+    cmd = genau_launch_command(**contract)
+    with open_child_log(log_file, cmd) as log:
+        proc = subprocess.Popen(
+            cmd, stdout=log, stderr=log,
+            **genau_project_kwargs(project_dirs), **subprocess_window_kwargs())
     return proc.pid
 
 

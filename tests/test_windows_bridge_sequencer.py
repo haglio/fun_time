@@ -814,11 +814,15 @@ class TestAPlayerThatDiesWhileTheRoomComesUp:
 
     def test_the_startup_ends_naming_the_player_and_what_it_said(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        (tmp_path / "main_player.log").write_text(
-            "OSError: The engine (libmpv) could not be loaded. Looked in: "
-            "C:\\player_core\\vendor (no libmpv-2.dll in it)\n", encoding="utf-8")
+
+        def a_main_player_that_cannot_load_its_engine(**kwargs):
+            with Path(kwargs["log_file"]).open("a", encoding="utf-8") as log:
+                log.write("OSError: The engine (libmpv) could not be loaded. Looked in: "
+                          "C:\\player_core\\vendor (no libmpv-2.dll in it)\n")
+            return MAIN_PLAYER_PID
 
         with _sequencer_stubs(
+                launch_main_player=dict(side_effect=a_main_player_that_cannot_load_its_engine),
                 is_process_alive=dict(side_effect=lambda pid: pid != MAIN_PLAYER_PID)):
             with pytest.raises(PlayerDied) as died:
                 run_startup_sequence(
@@ -826,6 +830,26 @@ class TestAPlayerThatDiesWhileTheRoomComesUp:
 
         assert died.value.player.name == "the Main player"
         assert "no libmpv-2.dll in it" in died.value.said
+
+    def test_genau_that_dies_importing_ends_the_startup_with_what_it_said(
+            self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        def a_genau_that_dies_importing(**kwargs):
+            with Path(kwargs["log_file"]).open("a", encoding="utf-8") as log:
+                log.write("ImportError: cannot import name 'a_made_up_name' "
+                          "from 'player_core.clip_folder'\n")
+            return GENAU_PID
+
+        with _sequencer_stubs(
+                launch_genau=dict(side_effect=a_genau_that_dies_importing),
+                is_process_alive=dict(side_effect=lambda pid: pid != GENAU_PID)):
+            with pytest.raises(PlayerDied) as died:
+                run_startup_sequence(
+                    manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
+
+        assert died.value.player.name == "Genau"
+        assert "cannot import name 'a_made_up_name'" in died.value.said
 
     def test_what_was_launched_comes_back_with_it_to_be_torn_down(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
