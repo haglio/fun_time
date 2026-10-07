@@ -25,7 +25,12 @@ from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, main_player_displays
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
-from .player_deaths import LaunchedPlayer, PlayerDied, raise_if_a_player_died
+from .player_deaths import (
+    LaunchedPlayer,
+    PlayerDied,
+    logs_as_they_stand,
+    raise_if_a_player_died,
+)
 from .player_status import (
     read_genau_status,
     read_main_player_status,
@@ -370,6 +375,8 @@ def _launch_the_satellites(
                           PLAYLIST_PORTRAIT, plan.portrait)
     landscape_slot = _slot(Player.LANDSCAPE, "landscape", m.media.landscape_dirs,
                            PLAYLIST_LANDSCAPE, plan.landscape)
+    portrait_logs = logs_as_they_stand(portrait_slot.log_file)
+    landscape_logs = logs_as_they_stand(landscape_slot.log_file)
     main_mode = start_core_session(
         config_path=m.runtime.config_path,
         broker_cmd_file=m.commands.broker_cmd_file,
@@ -404,8 +411,8 @@ def _launch_the_satellites(
     landscape_pid = core_pids["landscape_pid"]
     launched.pids.extend([portrait_pid, landscape_pid])
     launched.players.extend([
-        LaunchedPlayer("the Portrait player", portrait_pid, portrait_slot.log_file),
-        LaunchedPlayer("the Landscape player", landscape_pid, landscape_slot.log_file),
+        LaunchedPlayer("the Portrait player", portrait_pid, portrait_logs),
+        LaunchedPlayer("the Landscape player", landscape_pid, landscape_logs),
     ])
     logger.info(
         "Core session launched: portrait=%d landscape=%d",
@@ -448,6 +455,8 @@ def _launch_the_main_slot_players(
     genau_clip = read_genau_status(Path(m.commands.genau_status_file)).clip
     state = read_shared_state(shared_state_path(state_dir))
     genau_latest = False if state is None else state.genau_latest
+    genau_log = state_dir / "genau.log"
+    genau_logs = logs_as_they_stand(genau_log)
     # project_dirs: which checkout of ../genau these two are run out of.  Empty
     # in an ordinary session — they resolve through their venv's editable
     # install, which is the primary — and a worktree of that repo while a branch
@@ -470,6 +479,7 @@ def _launch_the_main_slot_players(
         start_clip=genau_clip,
         latest=genau_latest,
         metadata_dir=regen_metadata_raw or None,
+        log_file=genau_log,
         project_dirs=project_dirs,
     )
     # The main player's status file is how startup learns the main player has finished loading, and it
@@ -480,6 +490,7 @@ def _launch_the_main_slot_players(
     main_player_status_file = Path(m.commands.main_player_status_file)
     main_player_status_file.unlink(missing_ok=True)
     main_player_log = state_dir / "main_player.log"
+    main_player_logs = logs_as_they_stand(main_player_log)
     main_player_pid = launch_main_player(
         python_exe=m.executables.genau_python_exe,
         main_player_module=m.modules.main_player_module,
@@ -503,8 +514,8 @@ def _launch_the_main_slot_players(
     )
     launched.pids.extend([genau_pid, main_player_pid])
     launched.players.extend([
-        LaunchedPlayer("Genau", genau_pid),
-        LaunchedPlayer("the Main player", main_player_pid, main_player_log),
+        LaunchedPlayer("Genau", genau_pid, genau_logs),
+        LaunchedPlayer("the Main player", main_player_pid, main_player_logs),
     ])
     return genau_pid, main_player_pid, main_player_status_file
 

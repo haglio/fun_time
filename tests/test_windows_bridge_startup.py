@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -12,6 +13,7 @@ from unittest.mock import patch
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 
+import pytest
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
 from player_core.drive_readout import DriveHud, drive_text
 from player_core.modes import MainMode
@@ -25,7 +27,15 @@ from fun_time.broker_control import PARK_CMD
 from fun_time.child_launch import no_child_log
 from fun_time.loopback_server import omnipause_url
 from fun_time.modes import SatelliteBuild
+from fun_time.player_deaths import (
+    LaunchedPlayer,
+    PlayerDied,
+    logs_as_they_stand,
+    player_died_message,
+    raise_if_a_player_died,
+)
 from fun_time.players import Player
+from fun_time.process_identity import NAMER
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.satellite_slot import SatelliteSlot
 from fun_time.shared_state import (
@@ -1134,7 +1144,7 @@ GENAU_SESSION_FILES = dict(
 )
 
 
-def test_launching_genau_starts_it_and_says_which_process_it_is():
+def test_launching_genau_starts_it_and_says_which_process_it_is(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1151,6 +1161,7 @@ def test_launching_genau_starts_it_and_says_which_process_it_is():
             genau_y=200,
             genau_width=300,
             genau_height=400,
+            log_file=tmp_path / "genau.log",
             **GENAU_SESSION_FILES,
         )
 
@@ -1161,7 +1172,7 @@ def test_launching_genau_starts_it_and_says_which_process_it_is():
     assert "--clips-folder" in command
 
 
-def test_launch_genau_forwards_command_and_paused_files():
+def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1178,6 +1189,7 @@ def test_launch_genau_forwards_command_and_paused_files():
             genau_y=200,
             genau_width=300,
             genau_height=400,
+            log_file=tmp_path / "genau.log",
             **{**GENAU_SESSION_FILES,
                "command_file": "state/genau_cmd.txt",
                "paused_file": "state/genau_paused.txt",
@@ -1199,7 +1211,7 @@ def test_launch_genau_forwards_command_and_paused_files():
     assert command[idx + 1] == "state/genau_drive.txt"
 
 
-def test_launch_genau_opens_on_the_clip_it_was_left_showing():
+def test_launch_genau_opens_on_the_clip_it_was_left_showing(tmp_path: Path):
     """Genau rescans its clips folder every launch and starts at the top of it,
     so the clip a session was left on comes back only by being named — on the
     command line, since it has to be in hand before the first clip decodes."""
@@ -1212,14 +1224,15 @@ def test_launch_genau_opens_on_the_clip_it_was_left_showing():
         launch_genau(
             python_exe="python.exe", genau_module="genau", config_path="cfg.json",
             clips_folder="clips", genau_x=0, genau_y=0, genau_width=1, genau_height=1,
-            start_clip="C:/clips/alpha.mp4", **GENAU_SESSION_FILES,
+            start_clip="C:/clips/alpha.mp4", log_file=tmp_path / "genau.log",
+            **GENAU_SESSION_FILES,
         )
 
     command = popen.call_args.args[0]
     assert command[command.index("--start-clip") + 1] == "C:/clips/alpha.mp4"
 
 
-def test_launch_genau_names_no_clip_for_a_session_with_none_to_resume():
+def test_launch_genau_names_no_clip_for_a_session_with_none_to_resume(tmp_path: Path):
     """A first run, or a Genau that published nothing: the flag is left off
     rather than passed empty, so Genau opens where its own scan starts."""
     class FakeProc:
@@ -1231,10 +1244,40 @@ def test_launch_genau_names_no_clip_for_a_session_with_none_to_resume():
         launch_genau(
             python_exe="python.exe", genau_module="genau", config_path="cfg.json",
             clips_folder="clips", genau_x=0, genau_y=0, genau_width=1, genau_height=1,
-            start_clip="", **GENAU_SESSION_FILES,
+            start_clip="", log_file=tmp_path / "genau.log", **GENAU_SESSION_FILES,
         )
 
     assert "--start-clip" not in popen.call_args.args[0]
+
+
+def test_what_genau_says_as_it_dies_importing_is_what_the_alert_quotes(tmp_path: Path):
+    checkout = tmp_path / "a-genau-checkout"
+    checkout.mkdir()
+    (checkout / "a_genau_that_dies_importing.py").write_text(
+        "from player_core.clip_folder import a_name_player_core_never_had\n", encoding="utf-8")
+    log = tmp_path / "state" / "genau.log"
+    logs = logs_as_they_stand(log)
+    real_popen = subprocess.Popen
+    started: list[subprocess.Popen] = []
+
+    def started_and_kept(*args, **kwargs) -> subprocess.Popen:
+        started.append(real_popen(*args, **kwargs))
+        return started[-1]
+
+    with patch.object(NAMER, "named_exe", side_effect=lambda exe, _role: str(exe)), \
+         patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=started_and_kept):
+        pid = launch_genau(
+            python_exe=sys.executable, genau_module="a_genau_that_dies_importing",
+            config_path="cfg.json", clips_folder="clips",
+            genau_x=0, genau_y=0, genau_width=1, genau_height=1,
+            log_file=log, project_dirs=str(checkout), **GENAU_SESSION_FILES)
+    started[0].wait(timeout=60)
+
+    with pytest.raises(PlayerDied) as died:
+        raise_if_a_player_died([LaunchedPlayer("Genau", pid, logs)])
+
+    assert ("cannot import name 'a_name_player_core_never_had' from 'player_core.clip_folder'"
+            in player_died_message(died.value.player, died.value.said))
 
 
 def test_the_launch_names_latest_only_for_a_session_left_browsing_it():
@@ -1400,7 +1443,7 @@ def test_launch_main_player_hands_it_fun_times_icon(tmp_path: Path):
     assert command[command.index("--icon") + 1] == str(PROJECT_ICON)
 
 
-def test_launch_genau_hands_it_fun_times_icon():
+def test_launch_genau_hands_it_fun_times_icon(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1417,6 +1460,7 @@ def test_launch_genau_hands_it_fun_times_icon():
             genau_y=0,
             genau_width=800,
             genau_height=600,
+            log_file=tmp_path / "genau.log",
             **GENAU_SESSION_FILES,
         )
 
@@ -1472,12 +1516,12 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
 
         assert self._identity(command) == APP_USER_MODEL_ID
 
-    def test_genau_is_told_who_it_belongs_to(self):
+    def test_genau_is_told_who_it_belongs_to(self, tmp_path: Path):
         command = self._launched(
             launch_genau,
             python_exe="python.exe", genau_module="genau.app", config_path="cfg.json",
             clips_folder="clips", genau_x=0, genau_y=0, genau_width=800, genau_height=600,
-            **GENAU_SESSION_FILES,
+            log_file=tmp_path / "genau.log", **GENAU_SESSION_FILES,
         )
 
         assert self._identity(command) == APP_USER_MODEL_ID
@@ -1544,11 +1588,11 @@ class TestGenauCheckout:
                      return_value=self._Proc())
 
     @staticmethod
-    def _genau(**overrides):
+    def _genau(tmp_path: Path, **overrides):
         return dict(python_exe="python.exe", genau_module="genau",
                     config_path="cfg.json", clips_folder="clips",
                     genau_x=0, genau_y=0, genau_width=800, genau_height=600,
-                    **GENAU_SESSION_FILES, **overrides)
+                    log_file=tmp_path / "genau.log", **GENAU_SESSION_FILES, **overrides)
 
     @staticmethod
     def _main_player(tmp_path: Path, **overrides):
@@ -1569,7 +1613,7 @@ class TestGenauCheckout:
 
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_genau(**self._genau(project_dirs=str(checkout)))
+            launch_genau(**self._genau(tmp_path, project_dirs=str(checkout)))
 
         assert self._path(popen)[0] == str(checkout)
 
@@ -1596,16 +1640,16 @@ class TestGenauCheckout:
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
             launch_genau(**self._genau(
-                project_dirs=os.pathsep.join([str(genau), str(core)])))
+                tmp_path, project_dirs=os.pathsep.join([str(genau), str(core)])))
 
         assert self._path(popen)[:2] == [str(genau), str(core)]
 
-    def test_naming_none_leaves_them_to_their_venv(self):
+    def test_naming_none_leaves_them_to_their_venv(self, tmp_path: Path):
         """What every session did before this, and what an ordinary one still
         does: nothing said about the path, so the editable installs answer."""
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_genau(**self._genau())
+            launch_genau(**self._genau(tmp_path))
 
         assert "env" not in popen.call_args.kwargs
 
@@ -1614,7 +1658,7 @@ class TestGenauCheckout:
         session must still start rather than die on its way up."""
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_genau(**self._genau(project_dirs=str(tmp_path / "removed")))
+            launch_genau(**self._genau(tmp_path, project_dirs=str(tmp_path / "removed")))
 
         assert "env" not in popen.call_args.kwargs
 
@@ -2151,6 +2195,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
                 config_path=tmp_path / "genau.json",
                 clips_folder=tmp_path / "clips",
                 genau_x=0, genau_y=0, genau_width=1, genau_height=1,
+                log_file=tmp_path / "genau.log",
                 **GENAU_SESSION_FILES,
             )
         assert self._launched_exe(popen) == "FunTime-Genau.exe"

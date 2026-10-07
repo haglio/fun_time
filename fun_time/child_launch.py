@@ -15,6 +15,8 @@ from typing import IO
 # megabyte spans days of sessions — matching the cap the app's own logs use.
 CHILD_LOG_MAX_BYTES = 1_000_000
 
+_LAUNCH_MARK = "===== "
+
 
 def no_child_log() -> dict:
     # For a child that keeps a log of its own, or has no output worth keeping.
@@ -50,10 +52,14 @@ def open_child_log(
         handle = path.open("ab")
     except OSError:  # locked or full: raising killed the relay mid-crossing
         return open(os.devnull, "ab")  # noqa: SIM115 - the caller owns the handle
-    banner = f"===== {time.strftime('%Y-%m-%d %H:%M:%S')} launch: {' '.join(str(a) for a in argv)}\n"
+    banner = f"{_LAUNCH_MARK}{time.strftime('%Y-%m-%d %H:%M:%S')} launch: {' '.join(str(a) for a in argv)}\n"
     handle.write(banner.encode("utf-8", errors="replace"))
     handle.flush()
     return handle
+
+
+def marks_a_launch(line: str) -> bool:
+    return line.startswith(_LAUNCH_MARK)
 
 
 def _roll_oversize_log(path: Path, max_bytes: int) -> None:
