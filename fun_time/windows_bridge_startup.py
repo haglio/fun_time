@@ -566,13 +566,17 @@ def genau_launch_command(
     return cmd
 
 
-def launch_genau(*, log_file: str | Path, project_dirs: str | None = None, **contract) -> int:
-    cmd = genau_launch_command(**contract)
+def _start_a_player(cmd: list[str], *, log_file: str | Path, project_dirs: str | None) -> int:
     with open_child_log(log_file, cmd) as log:
         proc = subprocess.Popen(
             cmd, stdout=log, stderr=log,
             **genau_project_kwargs(project_dirs), **subprocess_window_kwargs())
     return proc.pid
+
+
+def launch_genau(*, log_file: str | Path, project_dirs: str | None = None, **contract) -> int:
+    return _start_a_player(genau_launch_command(**contract),
+                           log_file=log_file, project_dirs=project_dirs)
 
 
 @dataclass(frozen=True)
@@ -776,11 +780,7 @@ def launch_main_player(
     # than guessing from clip names.
     if metadata_dir:
         cmd += ["--metadata-dir", str(metadata_dir)]
-    with open_child_log(log_file, cmd) as log:
-        proc = subprocess.Popen(
-            cmd, stdout=log, stderr=log,
-            **genau_project_kwargs(project_dirs), **subprocess_window_kwargs())
-    return proc.pid
+    return _start_a_player(cmd, log_file=log_file, project_dirs=project_dirs)
 
 
 def launch_audio_companion(
@@ -987,8 +987,4 @@ def launch_satellite(
     cmd = _build_satellite_launch_command(
         NAMER.named_exe(python_exe, role), satellite_module,
         channels=channels, placement=placement)
-    with open_child_log(log_file, cmd) as log:
-        proc = subprocess.Popen(cmd, stdout=log, stderr=log,
-                                **genau_project_kwargs(project_dirs),
-                                **subprocess_window_kwargs())
-    return proc.pid
+    return _start_a_player(cmd, log_file=log_file, project_dirs=project_dirs)
