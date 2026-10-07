@@ -275,7 +275,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # drive is slow to list, and each now says it once; the projection ring's order,
 # its restart on an unknown name and the stops the voice command listed are
 # tests and the reference row's line, so their comments went.
-MAX_PROSE_LINES = 7619
+MAX_PROSE_LINES = 7609
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
