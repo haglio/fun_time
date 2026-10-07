@@ -41,6 +41,7 @@ def _the_real_command() -> list[str]:
         dashboard_cmd_file="a-state-dir/dashboard_cmd.txt",
         start_clip="a-clip.mp4",
         latest=True,
+        metadata_dir="a-library/metadata",
     )
 
 
