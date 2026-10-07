@@ -929,23 +929,24 @@ def test_the_browser_reads_which_of_its_library_is_vr_from_the_session_manifest(
     assert load_browser_config(headset).vr_sources == "D:/vr_one|D:/vr_two"
 
 
-def test_the_clip_browser_reads_genaus_folders_from_the_session_manifest(tmp_path: Path, cfg_factory):
+def test_the_clip_browser_offers_the_vr_clips_in_either_room(tmp_path: Path, cfg_factory):
     config = load_config(cfg_factory({}))
-    manifest = write_windows_bridge_manifest(config)
+    desktop = write_windows_bridge_manifest(config)
     headset = tmp_path / "headset" / "windows_bridge_launch.ini"
     headset.parent.mkdir()
     headset.write_text("[media]\ngenau_clips = D:/clips\ngenau_vr_clips = D:/clips/VR\n",
                        encoding="utf-8")
 
-    desktop_clips = load_clip_browser_config(manifest)
+    desktop_clips = load_clip_browser_config(desktop)
     headset_clips = load_clip_browser_config(headset)
 
+    clips = config.paths.clips_dir
     assert (desktop_clips.sources, desktop_clips.vr_sources) == (
-        str(config.paths.clips_dir / "2D"), "")
+        f"{clips / 'VR'}|{clips / '2D'}", str(clips / "VR"))
     assert (headset_clips.sources, headset_clips.vr_sources) == (
-        f"D:/clips/VR|{Path('D:/clips') / '2D'}", "D:/clips/VR")
+        f"{Path('D:/clips') / 'VR'}|{Path('D:/clips') / '2D'}", str(Path("D:/clips") / "VR"))
     assert (desktop_clips.top_level_name, desktop_clips.metadata_root) == ("Genau", None)
-    assert desktop_clips.thumbnail_cache == load_browser_config(manifest).thumbnail_cache
+    assert desktop_clips.thumbnail_cache == load_browser_config(desktop).thumbnail_cache
 
 
 def test_browsing_runs_the_browser_and_plays_what_was_picked(tmp_path: Path):
@@ -1009,12 +1010,9 @@ def test_a_browse_runs_on_the_checkouts_the_session_runs(tmp_path: Path):
     assert launched[0]["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
 
 
-def test_the_browser_told_to_browse_genaus_clips_keeps_the_ai_ones_apart_under_genaus_name(
+def test_the_desktops_genau_browse_forks_into_vr_and_2d_with_the_ai_clips_apart_in_2d(
     tmp_path: Path, cfg_factory,
 ):
-    """The desktop's Genau plays only the 2D clips, so its browse opens on the
-    2D folder's own two: the loops Origenerator made, and the clips cut from
-    real videos."""
     config = load_config(cfg_factory({}))
     for place in ("2D/AI/loop one.mp4", "2D/non_AI/scene one.mp4", "VR/scene two_180.mp4"):
         (config.paths.clips_dir / place).parent.mkdir(parents=True, exist_ok=True)
@@ -1027,7 +1025,9 @@ def test_the_browser_told_to_browse_genaus_clips_keeps_the_ai_ones_apart_under_g
         main([str(manifest), str(tmp_path / "pick.txt"), "--genau"])
 
     shown = forward.call_args.args[0]
-    assert (_header_words(shown), _labels(shown.grid)) == ("Genau", ["AI  (1)", "non_AI  (1)"])
+    assert (_header_words(shown), _labels(shown.grid)) == ("Genau", ["VR  (1)", "2D  (2)"])
+    shown.open_folder(("2D",))
+    assert _labels(shown.grid)[1:] == ["AI  (1)", "non_AI  (1)"]
 
 
 def test_a_browse_with_nothing_up_names_no_video(tmp_path: Path):

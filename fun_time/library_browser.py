@@ -63,7 +63,13 @@ from shared_ui.spacing import BUTTON_RADIUS, MARGIN_STANDARD
 
 from .checkout_overrides import genau_project_kwargs
 from .folder_listings import FolderListings
-from .library_handles import LibraryHandle, genau_clip_sources, handle_for, handles_by_shape
+from .library_handles import (
+    LibraryHandle,
+    genau_clip_sources,
+    genau_vr_clips,
+    handle_for,
+    handles_by_shape,
+)
 from .library_tree import Folder, SubFolder, folder_at, folder_of
 from .process_identity import NAMER
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
@@ -831,12 +837,10 @@ def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
 
 
 def load_clip_browser_config(manifest_path: str | Path) -> BrowserConfig:
-    parser = _read_manifest(manifest_path)
-    vr_clips = parser.get("media", "genau_vr_clips", fallback="")
-    clips_folder = parser.get("media", "genau_clips", fallback="")
+    clips_folder = _read_manifest(manifest_path).get("media", "genau_clips", fallback="")
     return BrowserConfig(
-        sources=genau_clip_sources(clips_folder, vr_clips),
-        vr_sources=vr_clips,
+        sources=genau_clip_sources(clips_folder),
+        vr_sources=genau_vr_clips(clips_folder),
         metadata_root=None,
         thumbnail_cache=Path(manifest_path).parent / THUMBNAIL_CACHE_DIRNAME,
         top_level_name=CLIPS_TOP_LEVEL_NAME,

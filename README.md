@@ -376,11 +376,13 @@ over Genau's own window, opening on the clip Genau has up, the way the video
 browse opens on the video playing. Genau's clips folder (`paths.clips_dir`) is
 laid out as the library's videos are: a `2D` folder split into `AI` (the loops
 Origenerator makes) and `non_AI` (the clips Clipper cuts), and a `VR` folder.
-The desktop's Genau plays only the 2D clips, so a desktop browse holds `AI` and
-`non_AI`; a headset session plays both kinds, so its browse holds `VR` and
-`2D`, the way the headset's video browse does. A clip picked goes up in Genau at once and Genau
-carries on from it in the order it was browsing; one that arrived after Genau
-last read its folders is put in after the clip that was up. The clips are read
+Either room's browse holds `VR` and `2D`, the way the headset's video browse
+does. The desktop's Genau cycles through the 2D clips alone, and a VR clip
+picked on the desktop plays there as it is, both eyes side by side. A clip
+picked goes up in Genau at once and Genau carries on from it in the order it
+was browsing; one that is not in that order, a VR clip on the desktop or one
+that arrived after Genau last read its folders, is put in after the clip that
+was up. The clips are read
 afresh at every browse, so a clip Evolver delivered a minute ago is there, and
 their stills are warmed at startup with the library's.
 
