@@ -61,6 +61,7 @@ from shared_ui.icons import glyph_icon
 from shared_ui.mark_button import fill_square_with_mark
 from shared_ui.spacing import BUTTON_RADIUS, MARGIN_STANDARD
 
+from .checkout_overrides import genau_project_kwargs
 from .folder_listings import FolderListings
 from .library_handles import LibraryHandle, genau_clip_sources, handle_for, handles_by_shape
 from .library_tree import Folder, SubFolder, folder_at, folder_of
@@ -782,7 +783,9 @@ def browse_library(
         command += ["--playing", playing]
     if clips:
         command.append(GENAU_FLAG)
-    runner(command, **hidden_subprocess_kwargs())
+    session_checkouts = _read_manifest(manifest_path).get(
+        "runtime", "genau_project_dirs", fallback="")
+    runner(command, **hidden_subprocess_kwargs(), **genau_project_kwargs(session_checkouts))
 
     try:
         return pick_file.read_text(encoding="utf-8").strip() or None

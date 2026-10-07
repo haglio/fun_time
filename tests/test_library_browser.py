@@ -1,6 +1,7 @@
 """The main library browser — folder tiles you walk, then the videos inside."""
 from __future__ import annotations
 
+import os
 import re
 import string
 import threading
@@ -991,6 +992,21 @@ def test_a_browse_of_genaus_clips_says_so_to_the_browser(tmp_path: Path):
                    runner=lambda command, **_k: commands.append(command))
 
     assert ["--genau" in command for command in commands] == [True, False]
+
+
+def test_a_browse_runs_on_the_checkouts_the_session_runs(tmp_path: Path):
+    """A preview's session names its own checkouts of the shared packages; a
+    browse it opens runs on them, as every other window of the session does."""
+    checkout = tmp_path / "a-player-core-checkout"
+    checkout.mkdir()
+    manifest = tmp_path / "windows_bridge_launch.ini"
+    manifest.write_text(f"[runtime]\ngenau_project_dirs = {checkout}\n", encoding="utf-8")
+    launched: list[dict] = []
+
+    browse_library(manifest, r"C:\python.exe",
+                   runner=lambda _command, **kwargs: launched.append(kwargs))
+
+    assert launched[0]["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
 
 
 def test_the_browser_told_to_browse_genaus_clips_keeps_the_ai_ones_apart_under_genaus_name(
