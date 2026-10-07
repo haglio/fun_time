@@ -830,9 +830,9 @@ def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
 def load_clip_browser_config(manifest_path: str | Path) -> BrowserConfig:
     parser = _read_manifest(manifest_path)
     vr_clips = parser.get("media", "genau_vr_clips", fallback="")
-    flat_clips = parser.get("media", "genau_clips", fallback="")
+    clips_folder = parser.get("media", "genau_clips", fallback="")
     return BrowserConfig(
-        sources=genau_clip_sources(flat_clips, vr_clips),
+        sources=genau_clip_sources(clips_folder, vr_clips),
         vr_sources=vr_clips,
         metadata_root=None,
         thumbnail_cache=Path(manifest_path).parent / THUMBNAIL_CACHE_DIRNAME,

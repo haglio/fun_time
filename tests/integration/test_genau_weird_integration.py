@@ -50,7 +50,7 @@ def _session_whose_genau_plays(clips: Path) -> FunTimeIntegrationSession:
 
 
 def _condemned(weird: Path) -> list[Path]:
-    return list(weird.iterdir()) if weird.is_dir() else []
+    return [path for path in weird.rglob("*") if path.is_file()] if weird.is_dir() else []
 
 
 def _genaus_clip(session: FunTimeIntegrationSession) -> str:
@@ -59,9 +59,9 @@ def _genaus_clip(session: FunTimeIntegrationSession) -> str:
 
 def test_genaus_keys_do_nothing_with_video_on_the_main_player_and_mark_weird_says_so_in_genau_mode():
     clips = build_integration_temp_root() / "genau" / "clips"
-    clips.mkdir(parents=True)
+    (clips / "2D" / "non_AI").mkdir(parents=True)
     for name in ("alpha one.mp4", "beta two.mp4", "gamma three.mp4"):
-        _test_pattern(clips, name)
+        _test_pattern(clips / "2D" / "non_AI", name)
     weird = clips.parent / "weird"
     session = _session_whose_genau_plays(clips)
     try:

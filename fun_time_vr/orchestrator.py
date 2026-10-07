@@ -34,6 +34,7 @@ from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path, genau_proj
 apply_genau_dirs_to_sys_path()
 
 from app_support.win32 import mutex_name
+from player_core.clip_folder import vr_clips_in
 from player_core.file_channel import append_command
 from player_core.playlist import read_playlist
 
@@ -188,12 +189,6 @@ def vr_main_sources(config) -> str:
     return "|".join(str(path) for path in dirs)
 
 
-def genau_clip_folders(config) -> tuple[Path, ...]:
-    """Genau mode's folders in the headset: the VR clips, then the desktop's flat ones."""
-    vr = (config.vr.clips_dir,) if config.vr.clips_dir else ()
-    return (*vr, config.paths.clips_dir)
-
-
 def main_playlist_has_vr(playlist_file: Path, vr_dirs: Sequence[Path]) -> bool:
     """Whether the main playlist holds any VR-mastered video: a desktop session's
     never does, and resumed into a headset it gives nothing but flat screens.
@@ -216,7 +211,7 @@ def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, di
     # browse can be narrowed to one shape or the other.
     manifest["media"]["vr_library_dirs"] = "|".join(
         str(path) for path in config.vr.library_dirs)
-    manifest["media"]["genau_vr_clips"] = str(config.vr.clips_dir or "")
+    manifest["media"]["genau_vr_clips"] = str(vr_clips_in(config.paths.clips_dir))
     manifest["vr"] = {
         "player_module": VR_PLAYER_MODULE,
         "library_dirs": "|".join(str(path) for path in config.vr.library_dirs),
@@ -224,10 +219,9 @@ def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, di
         "tcode_udp_port": str(config.vr.tcode_udp_port),
         "audio_device": config.vr.audio_device or "",
         "compositor_layers": "1" if config.vr.compositor_layers else "0",
-        # Genau's role: its folders and which of them hold VR masters, its
-        # companion's address, and its engine's numbers off Genau's own config.
-        "clips_dirs": "|".join(str(folder) for folder in genau_clip_folders(config)),
-        "vr_clip_dirs": str(config.vr.clips_dir or ""),
+        # Genau's role: its clips folder, its companion's address, and its
+        # engine's numbers off Genau's own config.
+        "clips_folder": str(config.paths.clips_dir),
         "notify_host": config.audio_companion.host,
         "notify_port": str(config.audio_companion.port),
         **GenauSettings.read(config.paths.genau_config_path).manifest_fields(),

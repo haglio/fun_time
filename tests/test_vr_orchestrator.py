@@ -976,49 +976,24 @@ def test_a_session_leaves_a_vr_runtime_that_was_already_the_users(monkeypatch):
     assert calls == []
 
 
-class TestTheVrClipsFolder:
-    """Genau's engine browses a folder of VR180 masters in the headset, where
-    the desktop's clips folder holds flat ones."""
-
-    def test_it_is_read_from_the_vr_section(self, config, tmp_path):
-        raw = json.loads((tmp_path / "fun_time_config.json").read_text(encoding="utf-8"))
-        raw["vr"]["clips_dir"] = str(tmp_path / "vr_clips").replace("\\", "/")
-        named = tmp_path / "named_config.json"
-        named.write_text(json.dumps(raw), encoding="utf-8")
-
-        assert load_config(named).vr.clips_dir == tmp_path / "vr_clips"
-
-    def test_unset_it_is_none_and_the_desktops_clips_are_browsed_alone(self, config):
-        assert config.vr.clips_dir is None
-
-
 class TestGenausRoleInTheManifest:
     """What the VR player needs to run Genau's engine, carried in the one file
     it reads: the folder, the companion's address, and the engine's numbers."""
 
-    def test_the_vr_clips_folder_rides_when_named(self, config, tmp_path):
-        named = replace(config, vr=replace(config.vr, clips_dir=tmp_path / "vr_clips"))
-
-        vr = build_vr_manifest(named)["vr"]
-        assert vr["clips_dirs"] == f"{tmp_path / 'vr_clips'}|{config.paths.clips_dir}"
-        assert vr["vr_clip_dirs"] == str(tmp_path / "vr_clips")
-
-    def test_the_desktop_clips_are_browsed_alone_when_no_vr_folder_is_named(self, config):
+    def test_genaus_clips_folder_rides_whole(self, config):
+        """The headset plays its VR folder and its 2D folder both, and keeps a
+        condemned clip's place in the weird pile beside it."""
         vr = build_vr_manifest(config)["vr"]
 
-        assert vr["clips_dirs"] == str(config.paths.clips_dir)
-        assert vr["vr_clip_dirs"] == ""
+        assert vr["clips_folder"] == str(config.paths.clips_dir)
 
     def test_the_dispatch_loop_is_told_which_folder_holds_the_vr_clips(self, config, tmp_path):
         """Where it decides whether the console offers Genau the VR and flat pair."""
-        named = replace(config, vr=replace(config.vr, clips_dir=tmp_path / "vr_clips"))
-
         def bridge_config(session_config):
             path = write_manifest_data(build_vr_manifest(session_config), tmp_path / "launch.ini")
             return build_bridge_config_from_manifest(LaunchManifest.read(path), vr_main_player=True)
 
-        assert bridge_config(named).genau_vr_clips == str(tmp_path / "vr_clips")
-        assert bridge_config(config).genau_vr_clips == ""
+        assert bridge_config(config).genau_vr_clips == str(config.paths.clips_dir / "VR")
 
     def test_the_companions_address_is_fun_times_own(self, config):
         vr = build_vr_manifest(config)["vr"]
@@ -1042,8 +1017,7 @@ class TestGenausRoleInTheManifest:
 
         settings = VrSettings.read(path)
 
-        assert settings.clips_dirs == (config.paths.clips_dir,)
-        assert settings.vr_clip_dirs == ()
+        assert settings.clips_folder == config.paths.clips_dir
         assert (settings.notify_host, settings.notify_port) == ("127.0.0.1", 50556)
         assert settings.genau == GenauSettings()
 

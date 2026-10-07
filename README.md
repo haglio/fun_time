@@ -372,10 +372,13 @@ from make the same picture, and only one of them is cheap to open.
 
 In Genau mode the same key, word and button browse **Genau's clips** instead,
 under a header that starts at **Genau**: one tile per clip, named for its file,
-over Genau's own window, opening on the clip Genau has up. The desktop's Genau
-plays only flat clips, so a desktop browse opens straight on them; a headset
-session has both kinds, so its browse opens on `VR` and `2D`, the way the
-headset's video browse does. A clip picked goes up in Genau at once and Genau
+over Genau's own window, opening on the clip Genau has up, the way the video
+browse opens on the video playing. Genau's clips folder (`paths.clips_dir`) is
+laid out as the library's videos are: a `2D` folder split into `AI` (the loops
+Origenerator makes) and `non_AI` (the clips Clipper cuts), and a `VR` folder.
+The desktop's Genau plays only the 2D clips, so a desktop browse holds `AI` and
+`non_AI`; a headset session plays both kinds, so its browse holds `VR` and
+`2D`, the way the headset's video browse does. A clip picked goes up in Genau at once and Genau
 carries on from it in the order it was browsing; one that arrived after Genau
 last read its folders is put in after the clip that was up. The clips are read
 afresh at every browse, so a clip Evolver delivered a minute ago is there, and
@@ -549,8 +552,9 @@ the auto-advance that spends it, because that is the word the reference shows
 and the phrase a speaker says ("clip seconds thirty"). The interval keeps
 counting while the room is paused, so OmniPause leaves the clip on screen where
 the user left it. `TOGGLE_LOCK` (the `,` key) pins the current clip while the
-interval runs on around it; `WEIRD` condemns the clip, moving the file to
-`videos/genau/weird/` and taking up its successor.
+interval runs on around it; `WEIRD` condemns the clip, moving the file to the
+same place in `videos/genau/weird/` that it had in the clips folder (a
+`2D/AI` loop to `weird/2D/AI`) and taking up its successor.
 
 Genau (the `../genau` project) consumes and clears this file.
 
@@ -729,7 +733,7 @@ Check:
 
 - `state/broker_mode.txt` is `1`
 - `state/genau_cmd.txt` is being written
-- clip files exist in the configured Genau clips folder (`paths.clips_dir`)
+- clip files exist in the `2D` folder of the configured Genau clips folder (`paths.clips_dir`)
 - `state/windows_bridge.log` shows the hotkey write
 - Genau's log (in `../genau`) shows command-file consumption errors
 

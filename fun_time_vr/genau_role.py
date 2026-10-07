@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
@@ -21,9 +21,11 @@ from player_core.clip_cache import ClipCacheStore, DecodeRequestState
 from player_core.clip_decode import load_clip_frames
 from player_core.clip_flip import ClipFlip
 from player_core.clip_folder import (
+    flat_clips_in,
     move_clip_to_weird,
     scan_clips,
-    weird_dir_for_clips_folder,
+    vr_clips_in,
+    weird_folder_for,
 )
 from player_core.clip_loader import ClipLoadController
 from player_core.clip_renderer import ClipRenderController
@@ -54,9 +56,8 @@ class GenauRole:
     def __init__(
         self,
         *,
-        clips_dirs: Sequence[Path],
+        clips_folder: Path,
         settings: GenauSettings,
-        vr_dirs: Sequence[Path] = (),
         command_file: Path,
         paused_file: Path,
         drive_file: Path,
@@ -73,8 +74,9 @@ class GenauRole:
         clock: Callable[[], float] = time.monotonic,
         log: logging.Logger = logger,
     ) -> None:
-        self._clips_dirs = tuple(Path(folder) for folder in clips_dirs)
-        self._vr_dirs = tuple(Path(folder) for folder in vr_dirs)
+        self._clips_folder = Path(clips_folder)
+        self._vr_dirs = (vr_clips_in(self._clips_folder),)
+        self._clips_dirs = (*self._vr_dirs, flat_clips_in(self._clips_folder))
         self._settings = settings
         self._log = log
         self._lock = threading.Lock()
@@ -108,7 +110,7 @@ class GenauRole:
             loader=loader,
             renderer=self._renderer,
             notifier=notifier,
-            condemn_clip=lambda path: self._condemn(path, weird_dir_for_clips_folder(path.parent)),
+            condemn_clip=lambda path: self._condemn(path, weird_folder_for(path, self._clips_folder)),
         )
 
         # The same hand, cruise stack, learned motion, clip advance and driver the desktop builds.

@@ -88,9 +88,9 @@ class TestBuildLibrarySource:
         clips = tmp_path / "clips"
         vids.mkdir()
         scripts.mkdir()
-        clips.mkdir()
+        (clips / "2D" / "AI").mkdir(parents=True)
         long_vid = _make_video(vids / "long-1080p.mp4")
-        clip = _make_video(clips / "saved.mp4")
+        clip = _make_video(clips / "2D" / "AI" / "saved.mp4")
         durations = {long_vid: 300.0}
 
         source = build_library_source(
@@ -123,9 +123,9 @@ class TestBuildLibrarySource:
         clips = tmp_path / "clips"
         vids.mkdir()
         scripts.mkdir()
-        clips.mkdir()
+        (clips / "2D").mkdir(parents=True)
         long_vid = _make_video(vids / "long-1080p.mp4")
-        clip = _make_video(clips / "saved.mp4")
+        clip = _make_video(clips / "2D" / "saved.mp4")
         durations = {long_vid: 300.0}
 
         source = build_library_source(
@@ -252,6 +252,19 @@ class TestBuildProgress:
 
 
 class TestDiscoverClips:
+    def test_finds_every_2d_clip_whatever_folder_it_is_in_and_no_vr_clip(self, tmp_path):
+        """The main player plays flat: the clips cut from real videos and the
+        loops Origenerator made sit in folders of their own under 2D."""
+        clips = tmp_path / "clips"
+        for place in ("2D/AI/loop one.mp4", "2D/non_AI/scene one.mp4", "VR/scene two_180.mp4"):
+            (clips / place).parent.mkdir(parents=True, exist_ok=True)
+            (clips / place).write_text("body")
+
+        found = sorted(clip.video for clip in discover_genau_clips(clips))
+
+        assert found == [clips / "2D" / "AI" / "loop one.mp4",
+                         clips / "2D" / "non_AI" / "scene one.mp4"]
+
     def test_absent_dir_is_empty(self, tmp_path):
         assert discover_genau_clips(tmp_path / "nope") == []
 
@@ -260,14 +273,14 @@ class TestDiscoverClips:
 
     def test_lists_clip_videos_with_size(self, tmp_path):
         clips = tmp_path / "clips"
-        clips.mkdir()
-        (clips / "a.mp4").write_text("body")
-        (clips / "notes.txt").write_text("ignore me")
+        (clips / "2D").mkdir(parents=True)
+        (clips / "2D" / "a.mp4").write_text("body")
+        (clips / "2D" / "notes.txt").write_text("ignore me")
 
         result = discover_genau_clips(clips)
 
         assert len(result) == 1
-        assert result[0].video == clips / "a.mp4"
+        assert result[0].video == clips / "2D" / "a.mp4"
         assert result[0].funscript is None
         assert result[0].size == len("body")
 

@@ -287,9 +287,8 @@ class VrSettings:
     library_dirs: tuple[Path, ...]
     audio_device: str
     compositor_layers: bool
-    # Genau's role: its folder, its companion's address, its engine's numbers.
-    clips_dirs: tuple[Path, ...] = ()
-    vr_clip_dirs: tuple[Path, ...] = ()
+    # Genau's role: its clips folder, its companion's address, its engine's numbers.
+    clips_folder: Path | None = None
     notify_host: str = "127.0.0.1"
     notify_port: int = ports.AUDIO_COMPANION
     genau: GenauSettings = field(default_factory=GenauSettings)
@@ -307,8 +306,7 @@ class VrSettings:
             audio_device=parser.get("vr", "audio_device", fallback=""),
             compositor_layers=parser.get(
                 "vr", "compositor_layers", fallback="0").strip() == "1",
-            clips_dirs=_folders(vr.get("clips_dirs", "")),
-            vr_clip_dirs=_folders(vr.get("vr_clip_dirs", "")),
+            clips_folder=Path(vr["clips_folder"]) if vr.get("clips_folder") else None,
             notify_host=vr.get("notify_host", "127.0.0.1"),
             notify_port=int(vr.get("notify_port", ports.AUDIO_COMPANION)),
             genau=GenauSettings.from_manifest(vr),
@@ -938,13 +936,12 @@ class _GenauUnit:
         self, manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *,
         remembered: Mapping[str, Placement],
     ) -> None:
-        if not vr.clips_dirs:
+        if vr.clips_folder is None:
             raise RuntimeError("the launch manifest names no clips folder for Genau's role")
         commands = manifest.commands
         resumed = read_shared_state(shared_state_path(Path(commands.state_dir)))
         self.role = GenauRole(
-            clips_dirs=vr.clips_dirs,
-            vr_dirs=vr.vr_clip_dirs,
+            clips_folder=vr.clips_folder,
             settings=vr.genau,
             command_file=Path(commands.genau_cmd_file),
             paused_file=Path(commands.genau_paused_file),

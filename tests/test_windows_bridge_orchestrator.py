@@ -3099,7 +3099,8 @@ class TestTheHudPublisherASessionStarts:
         self, cfg_factory, tmp_path: Path,
     ):
         config = load_config(cfg_factory({}))
-        clip = config.paths.clips_dir / "scene one.mp4"
+        clip = config.paths.clips_dir / "2D" / "non_AI" / "scene one.mp4"
+        clip.parent.mkdir(parents=True)
         clip.touch()
         manifest = LaunchManifest.read(write_windows_bridge_manifest(
             config, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME))
