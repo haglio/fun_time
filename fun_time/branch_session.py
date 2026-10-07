@@ -33,6 +33,7 @@ import sys
 from pathlib import Path
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+from app_support.win32 import TaskbarApp, describe_taskbar_app
 
 # PROJECT_DIR names whichever checkout imported the package, and this module is
 # the one place that has to tell two checkouts apart — so it is read through the
@@ -45,9 +46,11 @@ from .checkout_overrides import (
     ORIGENERATOR_DIR_OVERRIDE_NAME,
     STATE_DIRNAME,
     override_lines,
+    primary_of,
 )
 from .child_launch import no_console_window
 from .config import DEFAULT_CONFIG_PATH, ProjectConfig, load_config
+from .project_paths import PROJECT_ICON
 from .shortcuts import read_shortcuts, write_shortcut
 
 # Written into the worktree's own state dir, which is git-ignored — this file
@@ -265,6 +268,18 @@ def build_branch_config(
 
 
 ORCHESTRATOR_MODULES = {False: "fun_time.orchestrator", True: "fun_time_vr.orchestrator"}
+
+
+def describe_the_session_on_the_taskbar(worktree: Path) -> None:
+    shown = preview_marker.shown_as()
+    if shown is None:
+        return
+    describe_taskbar_app(preview_marker.session_identity(shown), TaskbarApp(
+        name=preview_marker.app_title(shown),
+        icon=preview_marker.icon_file(PROJECT_ICON, shown),
+        relaunch=subprocess.list2cmdline(
+            ["wscript.exe", str(primary_of(worktree) / LAUNCHER_NAME), str(worktree)]),
+    ))
 
 
 def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,

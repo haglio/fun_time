@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from app_support.win32 import TaskbarApp
 from PIL import Image
 from shared_ui.palette import PREVIEW_INK
 from shared_ui.preview import Preview
@@ -62,3 +65,32 @@ def test_a_branch_session_writes_its_wordmark_in_the_preview_ink():
 
 def test_the_live_session_writes_its_wordmark_in_its_own_tone():
     assert preview_marker.wordmark_ink(None) == "#e94560"
+
+
+_DESCRIBED = TaskbarApp(name="Fun Time - preview of the new reference popup",
+                        icon=Path("C:/example/preview_icon.ico"),
+                        relaunch='wscript.exe "C:/example/session.vbs"')
+
+
+def _dressed(monkeypatch, *, branch_session: bool) -> list:
+    if branch_session:
+        monkeypatch.setenv(preview_marker.FLAG, "1")
+    else:
+        monkeypatch.delenv(preview_marker.FLAG, raising=False)
+    monkeypatch.setattr(preview_marker, "preview_of", lambda checkout: _A_PREVIEW)
+    monkeypatch.setattr(preview_marker, "described_taskbar_app",
+                        {f"{APP_USER_MODEL_ID}.Preview": _DESCRIBED}.get)
+    worn: list = []
+    monkeypatch.setattr(preview_marker, "dress_window",
+                        lambda hwnd, app_id, app: worn.append((hwnd, app_id, app)))
+    preview_marker.dress_the_window(4242)
+    return worn
+
+
+def test_a_branch_sessions_window_wears_the_button_the_session_described(monkeypatch):
+    assert _dressed(monkeypatch, branch_session=True) == [
+        (4242, f"{APP_USER_MODEL_ID}.Preview", _DESCRIBED)]
+
+
+def test_a_live_sessions_window_leaves_its_button_to_the_pinned_shortcut(monkeypatch):
+    assert _dressed(monkeypatch, branch_session=False) == [(4242, APP_USER_MODEL_ID, None)]

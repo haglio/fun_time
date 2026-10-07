@@ -31,6 +31,7 @@ from fun_time.overlay_progress import (
     parse_progress,
 )
 from fun_time.players import Player
+from fun_time.project_paths import PROJECT_DIR
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import (
@@ -1044,6 +1045,15 @@ class TestTheOnePin:
         window opened in the headset could still be given a button of its own."""
         assert not [name for name in vars(win32_taskbar) if name.endswith("APP_USER_MODEL_ID")
                     and name != "APP_USER_MODEL_ID"]
+
+    def test_a_session_describes_the_button_of_the_checkout_it_runs_from(self, config):
+        with patch.object(orchestrator, "load_config", return_value=config), \
+             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+             patch.object(orchestrator, "install_exception_logging"), \
+             patch.object(orchestrator, "describe_the_session_on_the_taskbar") as describe:
+            orchestrator.main(["--check"])
+
+        describe.assert_called_once_with(PROJECT_DIR)
 
     def test_a_session_on_another_config_leaves_the_pin_alone(self, config):
         with patch.object(orchestrator, "load_config", return_value=config), \

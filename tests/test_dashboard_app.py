@@ -13,9 +13,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support import file_channel
-from PyQt6.QtCore import QPoint, QRect
+from PyQt6.QtCore import QPoint, QRect, Qt
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QTextBrowser, QWidget
+from PyQt6.QtWidgets import QApplication, QTextBrowser, QWidget
 from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.icon_geometry import GLYPHS, tooltip_for
 from shared_ui.icons import glyph_pixmap
@@ -119,6 +119,28 @@ def dashboard_window(dashboard_app_config):
     )
     try:
         yield window
+    finally:
+        window.close()
+
+
+def test_the_dashboard_window_wears_the_sessions_button_before_it_is_shown(
+        dashboard_app_config, monkeypatch):
+    shown_when_dressed = {}
+
+    def dress(hwnd):
+        window, = (top for top in QApplication.topLevelWidgets()
+                   if top.testAttribute(Qt.WidgetAttribute.WA_WState_Created)
+                   and int(top.winId()) == hwnd)
+        shown_when_dressed[hwnd] = window.isVisible()
+
+    monkeypatch.setattr("fun_time.preview_marker.dress_the_window", dress)
+
+    window = build_dashboard_window(
+        dashboard_app_config,
+        launch_geometry=DashboardLaunchGeometry(x=100, y=200, width=300, height=400),
+    )
+    try:
+        assert shown_when_dressed == {int(window.winId()): False}
     finally:
         window.close()
 
