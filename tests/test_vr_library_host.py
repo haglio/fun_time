@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from PyQt6.QtCore import QPoint
 
+from fun_time import library_browser
 from fun_time.library_browser import TOP_LEVEL_NAME
 from fun_time.library_handles import LibraryHandle
 from fun_time_vr.frame_channel import FrameReader, FrameWriter
@@ -29,6 +30,11 @@ _LIBRARY = (
     [_handle(f"Scene {index:02d}", "VR") for index in range(40)]
     + [_handle("Alpha Scene", "2D/batch_one"), _handle("Beta Scene", "2D/batch_two")]
 )
+
+
+@pytest.fixture(autouse=True)
+def _no_still_is_cut_from_the_made_up_videos(monkeypatch):
+    monkeypatch.setattr(library_browser, "thumbnail_for", lambda *_args, **_kwargs: None)
 
 
 @pytest.fixture
