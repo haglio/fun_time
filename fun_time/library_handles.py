@@ -19,7 +19,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from player_core.clip_folder import flat_clips_in
+from player_core.clip_folder import flat_clips_in, vr_clips_in
 
 from .folder_listings import FolderListings
 from .media_metadata import (
@@ -326,6 +326,11 @@ def handles_by_shape(
     ]
 
 
-def genau_clip_sources(clips_folder: str, vr_clips: str) -> str:
-    flat_clips = str(flat_clips_in(Path(clips_folder))) if clips_folder else ""
-    return "|".join(folder for folder in (vr_clips, flat_clips) if folder)
+def genau_vr_clips(clips_folder: str) -> str:
+    return str(vr_clips_in(Path(clips_folder))) if clips_folder else ""
+
+
+def genau_clip_sources(clips_folder: str) -> str:
+    if not clips_folder:
+        return ""
+    return "|".join((genau_vr_clips(clips_folder), str(flat_clips_in(Path(clips_folder)))))

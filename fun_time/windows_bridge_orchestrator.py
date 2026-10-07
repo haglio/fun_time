@@ -745,8 +745,8 @@ def start_hud_priming(
             if source:
                 prewarm_thumbnails(collect_video_files(source), cache_dir)
         prewarm_thumbnails(_main_browse_stills(bridge_config), cache_dir)
-        prewarm_thumbnails(collect_video_files(genau_clip_sources(
-            manifest.media.genau_clips, manifest.media.genau_vr_clips)), cache_dir)
+        prewarm_thumbnails(collect_video_files(genau_clip_sources(manifest.media.genau_clips)),
+                           cache_dir)
 
     threading.Thread(target=_warm, daemon=True, name="hud-warm").start()
     return publisher, primed
