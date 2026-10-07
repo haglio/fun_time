@@ -19,6 +19,7 @@ from player_core.modes import MainMode
 from main_player.play_points import play_points_filename
 from satellite.contract import SatelliteChannels
 
+from . import preview_marker
 from .hosted_origenerator import HostedApp, bring_up_the_hosted_app
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, main_player_displays
@@ -694,7 +695,8 @@ def _place_and_park_under_the_cover(
 
     dash_hwnd = (
         wait_for_window_by_title(
-            "Fun Time", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True, include_hidden=True,
+            preview_marker.app_title(preview_marker.shown_as()),
+            timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True, include_hidden=True,
         )
         if dashboard_pid
         else 0

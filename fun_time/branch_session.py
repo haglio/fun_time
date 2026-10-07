@@ -38,6 +38,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 # the one place that has to tell two checkouts apart — so it is read through the
 # module at call time rather than bound once at import.
 from . import config as config_module
+from . import preview_marker
 from .branch_seeding import mirror_private_overlays, seed_derived_caches
 from .checkout_overrides import (
     GENAU_DIRS_OVERRIDE_NAME,
@@ -286,7 +287,8 @@ def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
     command = [sys.executable, "-m", ORCHESTRATOR_MODULES[vr], "--config", str(config_path)]
     print(f"Running {subprocess.list2cmdline(command)}\n  in {worktree}", flush=True)
     returncode = subprocess.run(
-        command, cwd=str(worktree), check=False, **no_console_window()).returncode
+        command, cwd=str(worktree), check=False, env={**os.environ, preview_marker.FLAG: "1"},
+        **no_console_window()).returncode
     if returncode:
         _leave_out_of_date_note(worktree, primary or primary_checkout())
     return returncode

@@ -46,7 +46,6 @@ from fun_time.session_handoff import (
 )
 from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
 from fun_time.voice_control import say_the_mic_is_off
-from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from fun_time_vr import orchestrator, player
@@ -1033,13 +1032,12 @@ class TestTheOnePin:
         what every window of the session ends up grouped under."""
         source = inspect.getsource(player.main)
         claimed = [
-            node.args[0].id
+            ast.unparse(node.args[0])
             for node in ast.walk(ast.parse(source.lstrip()))
             if isinstance(node, ast.Call)
             and getattr(node.func, "id", "") == "set_app_user_model_id"
         ]
-        assert claimed == ["APP_USER_MODEL_ID"]
-        assert player.APP_USER_MODEL_ID == APP_USER_MODEL_ID
+        assert claimed == ["preview_marker.session_identity(preview_marker.shown_as())"]
 
     def test_there_is_no_second_identity_left_to_claim(self):
         """The VR id is gone rather than merely unused: left defined, the next

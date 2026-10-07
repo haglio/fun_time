@@ -14,6 +14,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from fun_time import preview_marker
 from fun_time.cover_palette import (
     BG,
     HINT_DIM,
@@ -339,7 +340,7 @@ COVER_CLEAR = _clear_color(BG)
 
 def _icon_image() -> Image.Image | None:
     try:
-        icon = Image.open(PROJECT_VR_ICON)
+        icon = Image.open(preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as()))
         return icon.resize((_ICON_PX, _ICON_PX), Image.LANCZOS).convert("RGBA")
     except (OSError, ValueError):
         return None  # not there, or not an image: plain
@@ -373,7 +374,8 @@ def paint_cover(cover: Cover, *, size: tuple[int, int] = COVER_SIZE_PX) -> Image
     if icon is not None:
         image.alpha_composite(icon, (center - _ICON_PX // 2, y))
         y += rows[0] + _GAPS[0]
-    _centered(draw, center, y, _WORDMARK, wordmark_font, WORDMARK_MAGENTA)
+    _centered(draw, center, y, _WORDMARK, wordmark_font,
+              preview_marker.wordmark_ink(preview_marker.shown_as()))
     y += rows[1] + _GAPS[1]
     _centered(draw, center, y, cover.status, status_font, TEXT_DIM)
     y += rows[2] + _GAPS[2]

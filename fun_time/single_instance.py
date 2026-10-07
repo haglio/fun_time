@@ -4,6 +4,7 @@ from __future__ import annotations
 import ctypes
 from ctypes import wintypes
 
+from fun_time import preview_marker
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.win32_loader import load_dll
 
@@ -49,9 +50,11 @@ def let_the_session_go(handle: int | None) -> None:
     dll.CloseHandle(ctypes.c_void_p(handle))
 
 
-def show_already_running_message(text: str, title: str = "Fun Time") -> None:
+def show_already_running_message(text: str, title: str | None = None) -> None:
     """Say another instance holds the mutex, in Fun Time's own colors."""
     # Qt loads only for this: asking whether we may run draws nothing.
     from shared_ui.alert import Level, show_alert  # noqa: PLC0415
 
-    show_alert(title, text, level=Level.INFO, icon=PROJECT_ICON)
+    shown = preview_marker.shown_as()
+    show_alert(title or preview_marker.app_title(shown), text, level=Level.INFO,
+               icon=preview_marker.icon_file(PROJECT_ICON, shown))

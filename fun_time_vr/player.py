@@ -63,6 +63,7 @@ from player_core.tcode_driver import FunscriptTCodeDriver
 from player_core.timeline import TIMELINE_HEIGHT
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
 
+from fun_time import preview_marker
 from fun_time.dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
     LIBRARY_OPEN_FILENAME,
@@ -81,7 +82,6 @@ from fun_time.session_handoff import (
 )
 from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.unlogged_notices import UnloggedNotices
-from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from main_player.play_points import PlayPoints, play_points_filename
 from satellite.contract import SatelliteChannels
 from satellite.hud_overlay import HudOverlay
@@ -263,7 +263,8 @@ def _show_error_popup(message: str) -> None:
     # Qt loads only for this: a headset session draws through OpenXR.
     from shared_ui.alert import show_alert  # noqa: PLC0415
 
-    show_alert("FunTimeVR", message, icon=PROJECT_VR_ICON)
+    show_alert("FunTimeVR", message,
+               icon=preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as()))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1292,6 +1293,7 @@ class _DashUnit:
         self._wrapped = remembered.get(PANEL, self.SPOTS[PANEL])
         self._pointer = DashPointer(
             post=lambda command: append_command(dashboard_cmd_file, command))
+        self._shown_as = preview_marker.shown_as()
         self._presses = _Presses(DASH)
         self._lock = threading.Lock()
         self._image = None
@@ -1358,7 +1360,7 @@ class _DashUnit:
         key = (self._pointer.state, records, hover)
         if key == self._key:
             return
-        image = paint_dash(self._pointer.state, records, hover)
+        image = paint_dash(self._pointer.state, records, hover, shown_as=self._shown_as)
         with self._lock:
             self._image = image
         self._key = key
@@ -1853,7 +1855,7 @@ def main(argv: list[str] | None = None) -> int:
     vr = VrSettings.read(args.manifest)
     # Before any window exists: one app, one pinned button (win32_taskbar).
     try:
-        set_app_user_model_id(APP_USER_MODEL_ID)
+        set_app_user_model_id(preview_marker.session_identity(preview_marker.shown_as()))
     except OSError:
         logger.debug("Could not claim the taskbar identity", exc_info=True)
 

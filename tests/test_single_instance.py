@@ -10,8 +10,9 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from shared_ui.alert import Level
+from shared_ui.preview import Preview
 
-from fun_time import single_instance
+from fun_time import preview_marker, single_instance
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.single_instance import (
     MUTEX_ORCHESTRATOR,
@@ -157,3 +158,14 @@ class TestShowAlreadyRunningMessage:
         ]
 
         assert not [name for name in at_the_top if name and name.startswith("shared_ui")]
+
+
+def test_a_branch_sessions_already_running_message_is_marked_as_the_preview(monkeypatch, tmp_path):
+    monkeypatch.setenv(preview_marker.FLAG, "1")
+    monkeypatch.setattr(preview_marker, "preview_of", lambda checkout: Preview(feature="the new crossing"))
+    monkeypatch.setattr(preview_marker, "INKED_ICON_FOLDER", tmp_path)
+    with patch("shared_ui.alert.show_alert") as show_alert:
+        show_already_running_message("Some message")
+
+    assert show_alert.call_args.args[0] == "Fun Time \u2014 preview of the new crossing"
+    assert show_alert.call_args.kwargs["icon"].parent == tmp_path

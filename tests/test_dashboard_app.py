@@ -19,11 +19,14 @@ from PyQt6.QtWidgets import QTextBrowser, QWidget
 from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.icon_geometry import GLYPHS, tooltip_for
 from shared_ui.icons import glyph_pixmap
+from shared_ui.palette import PREVIEW_INK, as_hex
+from shared_ui.preview import Preview
 from shared_ui.spacing import BUTTON_MARK_INSET, BUTTON_RADIUS_HUD
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
-from fun_time import load_config
+from fun_time import load_config, preview_marker
+from fun_time.cover_palette import WORDMARK_MAGENTA
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import (
     ENTER_VR,
@@ -36,7 +39,6 @@ from fun_time.dashboard_actions import (
 )
 from fun_time.dashboard_app import (
     _BUTTON_RADIUS,
-    COLOR_APP_TITLE,
     COLOR_PANEL,
     OMNIPAUSE_RESUME_TOOLTIP,
     SOURCE_CHECKOUT_FILENAME,
@@ -229,8 +231,23 @@ def test_the_app_names_itself_at_the_head_of_the_bar():
 
     title = next(item for item in scene.texts if item.text == "Fun Time")
     assert title.rect == layout.app_title
-    assert title.color == COLOR_APP_TITLE
+    assert title.color == QColor(WORDMARK_MAGENTA)
     assert any(item.rect == layout.app_icon for item in scene.images)
+    assert all(rect != layout.app_title for rect, _text in scene.hover_texts)
+
+
+def test_a_branch_session_names_itself_in_the_preview_ink_and_says_what_it_demos(
+        monkeypatch, tmp_path):
+    monkeypatch.setattr(preview_marker, "INKED_ICON_FOLDER", tmp_path)
+    scene = _scene(shown_as=Preview(feature="the new reference popup"))
+    layout = compute_dashboard_bar_layout()
+
+    title = next(item for item in scene.texts if item.text == "Fun Time")
+    assert title.color == QColor(as_hex(PREVIEW_INK))
+    assert (layout.app_title, "Fun Time \u2014 preview of the new reference popup") in scene.hover_texts
+    mark = next(item for item in scene.images if item.rect == layout.app_icon)
+    middle = mark.pixmap.toImage().pixelColor(mark.pixmap.width() // 2, mark.pixmap.height() // 2)
+    assert (middle.red(), middle.green(), middle.blue()) == PREVIEW_INK
 
 
 def test_the_pause_button_says_which_way_it_will_go():

@@ -61,6 +61,7 @@ from shared_ui.icons import glyph_icon
 from shared_ui.mark_button import fill_square_with_mark
 from shared_ui.spacing import BUTTON_RADIUS, MARGIN_STANDARD
 
+from . import preview_marker
 from .checkout_overrides import genau_project_kwargs
 from .folder_listings import FolderListings
 from .library_handles import (
@@ -74,7 +75,6 @@ from .library_tree import Folder, SubFolder, folder_at, folder_of
 from .process_identity import NAMER
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
 from .win32 import force_foreground_window
-from .win32_taskbar import APP_USER_MODEL_ID
 
 WINDOW_TITLE = "Fun Time Library"
 TOP_LEVEL_NAME = "Library"
@@ -870,7 +870,7 @@ def main(argv: list[str] | None = None) -> int:
     # Claim Fun Time's identity before any window exists, so the browse is never
     # mistaken for an unrelated app's window (see the Tool flag above).
     try:
-        set_app_user_model_id(APP_USER_MODEL_ID)
+        set_app_user_model_id(preview_marker.session_identity(preview_marker.shown_as()))
     except OSError:
         pass  # Non-fatal — taskbar identity just falls back to the default
 

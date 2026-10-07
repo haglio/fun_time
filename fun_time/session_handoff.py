@@ -18,6 +18,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import mutex_name
 
+from fun_time import preview_marker
 from fun_time.checkout_overrides import genau_project_kwargs
 from fun_time.child_launch import no_child_log, no_console_window, open_child_log
 from fun_time.config import load_config
@@ -414,7 +415,9 @@ def report_a_failed_crossing(reason: str, log_file: Path) -> None:
     if tail:
         message = f"{message}\n\nLast lines of the log:\n{tail}"
     logger.error("%s", reason)
-    show_alert("Fun Time", message, level=Level.ERROR, icon=PROJECT_ICON)
+    shown = preview_marker.shown_as()
+    show_alert(preview_marker.app_title(shown), message, level=Level.ERROR,
+               icon=preview_marker.icon_file(PROJECT_ICON, shown))
 
 
 def _uncover_what_was_waiting(state_dir: Path, origenerator_cmd_file) -> None:

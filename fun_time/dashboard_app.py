@@ -23,11 +23,13 @@ from shared_ui.colors import (
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
 from shared_ui.icon_geometry import tooltip_for
 from shared_ui.icons import glyph_pixmap
+from shared_ui.preview import Preview
+from shared_ui.preview_icon import app_icon
 from shared_ui.spacing import BUTTON_RADIUS_HUD
 
+from fun_time import preview_marker
 from fun_time.command_reference import render_reference_html
 from fun_time.config import LayoutConfig
-from fun_time.cover_palette import WORDMARK_MAGENTA
 from fun_time.dashboard_actions import (
     ENTER_VR,
     EXIT_VR,
@@ -64,7 +66,6 @@ from fun_time.project_paths import PROJECT_ICON
 from fun_time.session_end import mark_session_end
 from fun_time.shared_state import shared_state_path
 from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
-from fun_time.win32_taskbar import APP_USER_MODEL_ID
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,6 @@ COLOR_BG = BG_PRIMARY
 COLOR_PANEL = BG_BUTTON
 COLOR_TEXT = TEXT_PRIMARY
 # A hue of its own, deliberately not the family icon's ink.
-COLOR_APP_TITLE = QColor(WORDMARK_MAGENTA)
 
 
 def lighten_color(color: QColor, amount: int = 50) -> QColor:
@@ -226,6 +226,7 @@ def build_dashboard_scene(
     marks: MarkCache,
     pressed_actions: frozenset[str] = frozenset(),
     reference_open: bool = False,
+    shown_as: Preview | None = None,
 ) -> DashboardScene:
     """The control bar: the app's mark, the session's four, then the three that
     reach past it.  Nothing here stands for one player."""
@@ -264,11 +265,12 @@ def build_dashboard_scene(
     # Only the app's own name is set in type now; every control wears a drawn
     # mark, so the bar carries one weight across it.
     texts = (
-        DashboardTextItem("Fun Time", layout.app_title, color=COLOR_APP_TITLE,
-                          anchor="w", font=_font_app),
+        DashboardTextItem(preview_marker.APP_TITLE, layout.app_title,
+                          color=QColor(preview_marker.wordmark_ink(shown_as)), anchor="w", font=_font_app),
     )
     images = (
-        DashboardImageItem(marks.icon(PROJECT_ICON, layout.app_icon.height), layout.app_icon),
+        DashboardImageItem(marks.icon(preview_marker.icon_file(PROJECT_ICON, shown_as),
+                                      layout.app_icon.height), layout.app_icon),
         *(DashboardImageItem(marks.mark(control.mark, control.rect, QColor(*control.ink)),
                              control.rect)
           for control in controls),
@@ -284,8 +286,11 @@ def build_dashboard_scene(
         images=images,
         actions=tuple((control.action, control.rect)
                       for control in controls if not control.dim),
-        hover_texts=tuple((control.rect, tooltip_for(control.mark, tooltips[control.action]))
-                          for control in controls),
+        hover_texts=(
+            *((control.rect, tooltip_for(control.mark, tooltips[control.action]))
+              for control in controls),
+            *(() if shown_as is None else ((layout.app_title, preview_marker.app_title(shown_as)),)),
+        ),
     )
 
 
@@ -419,8 +424,7 @@ class ReferenceDialog(QDialog):
             | Qt.WindowType.WindowTitleHint
             | Qt.WindowType.WindowCloseButtonHint
         )
-        if PROJECT_ICON.exists():
-            self.setWindowIcon(QIcon(str(PROJECT_ICON)))
+        self.setWindowIcon(app_icon(PROJECT_ICON, preview_marker.shown_as()))
         browser = QTextBrowser(self)
         browser.setOpenExternalLinks(False)
         browser.setHtml(render_reference_html())
@@ -560,7 +564,6 @@ PRESS_FLASH_S = 0.2
 
 from app_support.win32 import set_app_user_model_id
 from PyQt6.QtCore import QTimer
-from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
 
@@ -589,9 +592,9 @@ class DashboardWindow(QMainWindow):
         self._pressed: dict[str, float] = {}
         self._last_snapshot: DashboardSnapshot | None = None
 
-        self.setWindowTitle("Fun Time")
-        if PROJECT_ICON.exists():
-            self.setWindowIcon(QIcon(str(PROJECT_ICON)))
+        self._shown_as = preview_marker.shown_as()
+        self.setWindowTitle(preview_marker.app_title(self._shown_as))
+        self.setWindowIcon(app_icon(PROJECT_ICON, self._shown_as))
         self.setWindowFlags(
             Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.CustomizeWindowHint
@@ -768,6 +771,7 @@ class DashboardWindow(QMainWindow):
             marks=self._widget.marks,
             pressed_actions=pressed_actions,
             reference_open=self._reference.is_open,
+            shown_as=self._shown_as,
         )
 
     def _repaint_bar(self) -> None:
@@ -880,7 +884,7 @@ def main(argv: list[str] | None = None) -> int:
     # this process's windows with the pinned "Fun Time" shortcut.
 
     try:
-        set_app_user_model_id(APP_USER_MODEL_ID)
+        set_app_user_model_id(preview_marker.session_identity(preview_marker.shown_as()))
     except OSError:
         pass  # Non-fatal — taskbar grouping just won't work
 

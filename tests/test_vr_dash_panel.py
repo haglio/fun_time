@@ -6,7 +6,16 @@ from itertools import pairwise
 
 import numpy as np
 from PIL import Image, ImageDraw
-from shared_ui.palette import BG_BUTTON, BG_PRIMARY, BG_TERTIARY, BLUE, MAGENTA, TEXT_MUTED
+from shared_ui.palette import (
+    BG_BUTTON,
+    BG_PRIMARY,
+    BG_TERTIARY,
+    BLUE,
+    MAGENTA,
+    PREVIEW_INK,
+    TEXT_MUTED,
+)
+from shared_ui.preview import Preview
 from shared_ui.spacing import (
     BUTTON_GAP,
     BUTTON_GROUP_GAP,
@@ -15,6 +24,7 @@ from shared_ui.spacing import (
     BUTTON_SIZE_HUD,
 )
 
+from fun_time import preview_marker
 from fun_time.cover_palette import WORDMARK_MAGENTA
 from fun_time.dashboard_actions import (
     EXIT_VR,
@@ -56,6 +66,8 @@ from fun_time_vr.dash_panel import (
     verbosity_name,
 )
 from fun_time_vr.lettering import BOLD_FACE, WORDMARK_FACE, load_font
+
+_A_PREVIEW = Preview(feature="the new reference popup")
 
 
 def _record(message: str, *, level: int = NOTICE, source: str = SOURCE_SYSTEM) -> EventRecord:
@@ -117,6 +129,28 @@ class TestItIsTheDesktopsBar:
 
         assert _app_name_mask(panel).sum() > 0
         assert not (np.abs(band - np.asarray(MAGENTA)).sum(axis=2) < 60).any()
+
+    def test_a_branch_sessions_mark_and_name_are_in_the_preview_ink(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(preview_marker, "INKED_ICON_FOLDER", tmp_path)
+        bar = compute_dashboard_bar_layout()
+        panel = np.asarray(paint_dash(DashState(), [], shown_as=_A_PREVIEW)).astype(int)
+
+        for rect in (bar.app_icon, bar.app_title):
+            region = panel[rect.y:rect.y + rect.height, rect.x:rect.x + rect.width, :3]
+            assert (np.abs(region - np.asarray(PREVIEW_INK)).sum(axis=2) < 60).any()
+            assert not (np.abs(region - np.asarray(MAGENTA)).sum(axis=2) < 60).any()
+
+    def test_pointing_at_a_branch_sessions_name_says_what_it_demos(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(preview_marker, "INKED_ICON_FOLDER", tmp_path)
+        title = compute_dashboard_bar_layout().app_title
+        on_the_name = (title.x + title.width // 2, title.y + title.height // 2)
+        just_below = (title.x + 2, title.y + title.height + 6)
+
+        pointed = paint_dash(DashState(), [], hover=on_the_name, shown_as=_A_PREVIEW)
+        live = paint_dash(DashState(), [], hover=on_the_name)
+
+        assert pointed.getpixel(just_below)[:3] == BG_TERTIARY
+        assert live.getpixel(just_below)[:3] != BG_TERTIARY
 
     def test_the_apps_name_leans_the_way_the_covers_write_it(self):
         """Set in the same bold italic, so the headset's copy is that
