@@ -1,10 +1,10 @@
 # Mirrors pyproject.toml — keep both in sync (tests/test_requirements_in_sync.py).
 
 # Runtime (pyproject [project.dependencies])
-app-support @ git+https://github.com/haglio/app_support@v0.1.174
-shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.154
-player-core @ git+https://github.com/haglio/player_core@v0.1.371
-voice-core @ git+https://github.com/haglio/voice_core@v0.1.30
+app-support @ git+https://github.com/haglio/app_support@v0.1.182
+shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.157
+player-core @ git+https://github.com/haglio/player_core@v0.1.376
+voice-core @ git+https://github.com/haglio/voice_core@v0.1.33
 numpy
 opencv-python
 pillow
