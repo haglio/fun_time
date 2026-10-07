@@ -31,6 +31,7 @@ from fun_time.manifest import (
 from fun_time.media_metadata import normalize_path_key
 from fun_time.player_handover import keep_aside
 from fun_time.players import Player
+from fun_time.regen import build_regen_url
 from fun_time.rfb_slideshow import RfbSlideshow
 from fun_time.role_windows import (
     MAIN_BLANK_SETTLE_S,
@@ -76,6 +77,11 @@ from tests.role_window_fakes import (
 # A browse's process and window, fabricated: nothing of this machine's.
 BROWSE_PID = 424242
 BROWSE_HWND = 909090
+
+LINK_CARRYING_A_PROMPT = build_regen_url(
+    {"video": {"prompt": "a made-up prompt"}},
+    video_url="https://example.com/video", image_url="https://example.com/create",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -1677,6 +1683,24 @@ class TestOpenRfbTab:
                     arguments='--profile-directory="Profile 2"'),
             }),
         ]
+
+    @pytest.mark.parametrize("window_alive, line", [
+        (True, "Opened 2 RFB tab(s)"),
+        (False, "2 RFB tab(s) skipped: no Random Favs Browser window to open into"),
+    ])
+    def test_the_log_counts_a_locks_tabs_and_never_names_their_links(
+            self, tmp_path, caplog, window_alive, line):
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND,
+                             rfb_shortcut=Shortcut(target="chrome.exe", work_dir="", arguments=""))
+        runner._pending_rfb_urls = [LINK_CARRYING_A_PROMPT, LINK_CARRYING_A_PROMPT]
+
+        exists, activate, open_tab = self._rfb_patches([], alive=window_alive)
+        with exists, activate, open_tab, \
+             caplog.at_level(logging.DEBUG, logger="fun_time.windows_bridge_dispatch_loop"):
+            runner._flush_rfb_tabs()
+
+        assert line in caplog.messages
+        assert not [message for message in caplog.messages if "#ft=" in message]
 
 
 class TestTheRfbSlideshow:
