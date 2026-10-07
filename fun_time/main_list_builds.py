@@ -74,36 +74,29 @@ BUILDS_HERE = BuildsHere()
 class BuildsOffTheLoop:
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._asked = threading.Event()
         self._waiting: MainListBuild | None = None
-        self._worker: threading.Thread | None = None
         self._idle = threading.Event()
         self._idle.set()
 
     def build(self, build: MainListBuild) -> None:
         with self._lock:
             self._waiting = build if self._waiting is None else build.replacing(self._waiting)
-            self._idle.clear()
-            if self._worker is None:
-                self._worker = start_daemon_thread(target=self._build_as_asked,
-                                                   name="main-list-builds")
-        self._asked.set()
+            if self._idle.is_set():
+                self._idle.clear()
+                start_daemon_thread(target=self._build_until_none_wait, name="main-list-builds")
 
     def settle(self) -> None:
         """Block until every build asked for so far has actually run."""
         self._idle.wait()
 
-    def _build_as_asked(self) -> None:
+    def _build_until_none_wait(self) -> None:
         while True:
-            self._asked.wait()
             with self._lock:
                 build, self._waiting = self._waiting, None
-                self._asked.clear()
-            if build is not None:
-                try:
-                    build.run()
-                except Exception:
-                    logger.exception("The main player's list could not be rebuilt")
-            with self._lock:
-                if self._waiting is None:
+                if build is None:
                     self._idle.set()
+                    return
+            try:
+                build.run()
+            except Exception:
+                logger.exception("The main player's list could not be rebuilt")
