@@ -407,6 +407,9 @@ class _VideoUnit:
             scene_yaw_deg=scene_yaw_deg, scene_pitch_deg=scene_pitch_deg,
         )
 
+    def picture_on_screen(self) -> bool:
+        return self.player.showing_picture
+
     def control_size(self) -> tuple[int, int]:  # see :mod:`fun_time_vr.furniture`
         return control_size(self.shown.width_deg, self.target.aspect)
 
@@ -421,7 +424,7 @@ class _VideoUnit:
             return
         width, height = self.control_size()
         factor = self.target.width / width
-        scrubber = (_NO_TIMELINE if self.player.showing_picture
+        scrubber = (_NO_TIMELINE if self.picture_on_screen()
                     else self._scrubber.state((width, height), position_ms, duration_ms,
                                               video=video, funscript=funscript,
                                               loop_bounds=loop_bounds,
@@ -587,7 +590,7 @@ class _MainUnit(_VideoUnit):
             mute=lambda muted: self._post("audio_unmute" if muted else "audio_mute"),
             set_volume=lambda level: self._post(f"audio_set_volume|{level}"),
             picture=lambda: self._post(OMNIPAUSE_TOGGLE),
-            picture_on_screen=lambda: self.player.showing_picture,
+            picture_on_screen=self.picture_on_screen,
         )
 
     def _post(self, command: str) -> None:
@@ -811,7 +814,7 @@ class _SatelliteUnit(_VideoUnit):
             volume=lambda: self.volume.hud,
             mute=self._toggle_mute, set_volume=self._set_volume,
             picture=lambda: self._post(OMNIPAUSE_TOGGLE),
-            picture_on_screen=lambda: self.session.showing_picture,
+            picture_on_screen=self.picture_on_screen,
         )
         self._volume_painter = VolumeHudPainter()
 
@@ -912,6 +915,9 @@ class _SatelliteUnit(_VideoUnit):
             self.session.position_ms, self.session.duration_ms, self.player.frame_rate))
         if self._notices is not None:
             self.overlay_banner(self._notices.banner(self.screen_name))
+
+    def picture_on_screen(self) -> bool:
+        return self.session.showing_picture
 
     def close(self) -> None:
         self.video.close()  # frees mpv on the thread whose context it renders in
