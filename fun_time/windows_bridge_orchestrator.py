@@ -27,6 +27,7 @@ from player_core.modes import MainMode
 from voice_core.listener import why_unavailable
 from voice_core.whisper_reader import WhisperReader
 
+from . import preview_marker
 from .append_only import append_line
 from .broker_control import HOLD_VERB, PARK_CMD, write_broker_command
 from .checkout_overrides import genau_project_kwargs
@@ -598,7 +599,8 @@ def _fix_post_loading_windows(result: StartupResult, *,
             # does, so resolving it here is what stops the cover leaving without
             # it.  A dashboard that never arrives costs the wait and no more.
             dash_hwnd = wait_for_window_by_title(
-                "Fun Time", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True)
+                preview_marker.app_title(preview_marker.shown_as()),
+                timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True)
 
     main_player_hwnd = find_window_by_pid(result.main_player_pid) or wait_for_window_by_title(
         "Main Player", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True

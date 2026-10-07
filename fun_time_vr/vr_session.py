@@ -16,6 +16,7 @@ import glfw
 import xr
 from OpenGL import GL, WGL
 
+from fun_time import preview_marker
 from fun_time.project_paths import PROJECT_VR_ICON
 from fun_time.win32 import draw_nothing_at_all, minimize_window, set_window_icon
 
@@ -181,7 +182,7 @@ class VRSession:
             raise
         glfw.make_context_current(self._window)
         hwnd = glfw.get_win32_window(self._window)
-        set_window_icon(hwnd, PROJECT_VR_ICON)
+        set_window_icon(hwnd, preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as()))
         draw_nothing_at_all(hwnd)
         minimize_window(hwnd, activate=False)
 

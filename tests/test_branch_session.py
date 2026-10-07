@@ -12,6 +12,7 @@ the machine's real files.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -22,7 +23,7 @@ from types import SimpleNamespace
 import pytest
 from app_support.win32 import mutex_name
 
-from fun_time import branch_session
+from fun_time import branch_session, preview_marker
 from fun_time.config import ProjectConfig, load_config
 from fun_time.shortcuts import Shortcut, read_shortcuts, write_shortcut
 from fun_time.single_instance import MUTEX_ORCHESTRATOR
@@ -691,6 +692,13 @@ def test_a_branch_session_runs_the_desktop_orchestrator(monkeypatch, tmp_path: P
     assert "fun_time.orchestrator" in recorded.command
     assert recorded.cwd == str(tmp_path.resolve())
     assert recorded.kwargs["creationflags"] & subprocess.CREATE_NO_WINDOW
+
+
+def test_every_process_of_a_branch_session_is_told_it_is_one(monkeypatch, tmp_path: Path):
+    recorded = _launch_recorded(monkeypatch, tmp_path)
+
+    assert recorded.kwargs["env"][preview_marker.FLAG] == "1"
+    assert recorded.kwargs["env"]["PATH"] == os.environ["PATH"]
 
 
 def test_a_vr_branch_session_runs_the_vr_orchestrator(monkeypatch, tmp_path: Path):

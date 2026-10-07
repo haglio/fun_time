@@ -13,6 +13,7 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
+from . import preview_marker
 from .mode_plan import main_player_displays
 from .satellites_mode import origenerator_shows
 from .win32 import (
@@ -161,7 +162,8 @@ class WindowRoles:
         same way it does for the SDL players above."""
         hwnd = find_window_by_pid(self.pids.dashboard) if self.pids.dashboard else 0
         if not hwnd:
-            hwnd = find_window_by_title("Fun Time", exact=True)
+            hwnd = find_window_by_title(
+                preview_marker.app_title(preview_marker.shown_as()), exact=True)
             if hwnd:
                 logger.info(
                     "Dashboard found by title (hwnd=%d) but NOT by pid %d",

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from tkinter import ttk
 
+from . import preview_marker
 from .cover_palette import (
     BG,
     FACE,
@@ -83,7 +84,8 @@ def _build_content(root: tk.Tk, *, origin: tuple[int, int], status: str) -> _Con
         anchor=tk.CENTER,
     )
 
-    icon_img = load_icon_image(PROJECT_ICON, ICON_DISPLAY_SIZE)
+    shown = preview_marker.shown_as()
+    icon_img = load_icon_image(preview_marker.icon_file(PROJECT_ICON, shown), ICON_DISPLAY_SIZE)
     if icon_img is not None:
         try:
             from PIL import ImageTk  # noqa: PLC0415  (optional: no Pillow, no icon)
@@ -96,8 +98,8 @@ def _build_content(root: tk.Tk, *, origin: tuple[int, int], status: str) -> _Con
         except (ImportError, tk.TclError):
             pass  # no Tk extension, or a Tk that refuses it: come up plain
 
-    tk.Label(frame, text="Fun Time", font=(FACE, 18, "bold italic"),
-             fg=WORDMARK_MAGENTA, bg=BG).pack(pady=(0, 10))
+    tk.Label(frame, text=preview_marker.APP_TITLE, font=(FACE, 18, "bold italic"),
+             fg=preview_marker.wordmark_ink(shown), bg=BG).pack(pady=(0, 10))
 
     status_label = tk.Label(frame, text=status, font=(FACE, 10), fg=TEXT_DIM, bg=BG)
     status_label.pack(pady=(0, 10))

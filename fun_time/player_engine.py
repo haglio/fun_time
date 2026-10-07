@@ -7,6 +7,7 @@ from pathlib import Path
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
+from fun_time import preview_marker
 from fun_time.checkout_overrides import genau_project_kwargs
 from fun_time.project_paths import PROJECT_ICON
 
@@ -92,7 +93,9 @@ def show_engine_alert(text: str) -> None:
     # Qt loads only for this: the check itself runs before any window.
     from shared_ui.alert import Level, show_alert  # noqa: PLC0415
 
-    show_alert("Fun Time", text, level=Level.ERROR, icon=PROJECT_ICON)
+    shown = preview_marker.shown_as()
+    show_alert(preview_marker.app_title(shown), text, level=Level.ERROR,
+               icon=preview_marker.icon_file(PROJECT_ICON, shown))
 
 
 def engine_missing_abort(

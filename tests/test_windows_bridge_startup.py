@@ -17,7 +17,9 @@ from player_core.drive_readout import DriveHud, drive_text
 from player_core.modes import MainMode
 from player_core.playlist import PlaylistItem, write_playlist
 from player_core.robot_hand import FULL_INTENSITY
+from shared_ui.preview import Preview
 
+from fun_time import preview_marker
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
 from fun_time.child_launch import no_child_log
@@ -36,7 +38,6 @@ from fun_time.shared_state import (
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.windows_bridge_startup import (
-    TASKBAR_IDENTITY_ARGS,
     HandedPlayer,
     _build_satellite_launch_command,
     ensure_broker,
@@ -54,6 +55,7 @@ from fun_time.windows_bridge_startup import (
     reap_orphaned_satellites,
     seed_startup_states,
     start_core_session,
+    taskbar_identity_args,
 )
 from satellite.contract import SatelliteChannels, WindowPlacement
 
@@ -1483,7 +1485,25 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
     def test_it_is_the_identity_the_pinned_shortcut_is_stamped_with(self):
         """The icon and the name come off that shortcut, so a second spelling here
         would group these windows under a button with no icon at all."""
-        assert TASKBAR_IDENTITY_ARGS == ("--taskbar-identity", APP_USER_MODEL_ID)
+        assert taskbar_identity_args() == ("--taskbar-identity", APP_USER_MODEL_ID)
+
+    def test_a_branch_sessions_players_join_its_own_button_wearing_its_amber_letter(
+            self, tmp_path: Path, monkeypatch):
+        monkeypatch.setenv(preview_marker.FLAG, "1")
+        monkeypatch.setattr(preview_marker, "preview_of", lambda checkout: Preview(feature=None))
+        monkeypatch.setattr(preview_marker, "INKED_ICON_FOLDER", tmp_path / "inked")
+        command = self._launched(
+            launch_main_player,
+            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
+            status_file="status", console_file="console.json",
+            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
+            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+        )
+
+        assert self._identity(command) == f"{APP_USER_MODEL_ID}.Preview"
+        assert Path(command[command.index("--icon") + 1]).parent == tmp_path / "inked"
 
 
 class TestGenauCheckout:
@@ -1672,7 +1692,7 @@ def test_launching_the_main_player_starts_it_and_says_which_process_it_is(tmp_pa
         "400",
         "--icon",
         str(PROJECT_ICON),
-        *TASKBAR_IDENTITY_ARGS,
+        *taskbar_identity_args(),
     ]
 
 

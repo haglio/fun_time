@@ -4,6 +4,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from fun_time import preview_marker
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.win32_process import is_process_alive
 
@@ -61,4 +62,6 @@ def player_died_message(player: LaunchedPlayer, said: str) -> str:
 def show_player_died_alert(text: str) -> None:
     from shared_ui.alert import Level, show_alert  # noqa: PLC0415
 
-    show_alert("Fun Time", text, level=Level.ERROR, icon=PROJECT_ICON)
+    shown = preview_marker.shown_as()
+    show_alert(preview_marker.app_title(shown), text, level=Level.ERROR,
+               icon=preview_marker.icon_file(PROJECT_ICON, shown))

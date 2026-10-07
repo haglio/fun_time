@@ -24,6 +24,7 @@ from shared_ui.palette import (
     WHITE,
     hovered,
 )
+from shared_ui.preview import Preview
 from shared_ui.spacing import (
     BUTTON_GAP,
     BUTTON_GROUP_GAP,
@@ -32,7 +33,7 @@ from shared_ui.spacing import (
     BUTTON_SIZE_HUD,
 )
 
-from fun_time.cover_palette import WORDMARK_MAGENTA
+from fun_time import preview_marker
 from fun_time.dashboard_controls import BarControl, bar_controls, mark_side
 from fun_time.dashboard_layout import PAD, Rect, compute_dashboard_bar_layout
 from fun_time.event_log import (
@@ -175,8 +176,19 @@ def _label(draw, rect: Rect, text: str, font, ink, *, left: bool = False) -> Non
 
 
 @cache
-def _app_mark(size: int) -> Image.Image | None:
-    return load_icon_image(PROJECT_ICON, size)
+def _app_mark(size: int, shown_as: Preview | None) -> Image.Image | None:
+    return load_icon_image(preview_marker.icon_file(PROJECT_ICON, shown_as), size)
+
+
+_TIP_PAD = 4
+
+
+def _paint_tip(draw, under: Rect, text: str, font) -> None:
+    tip = Rect(under.x, under.y + under.height + 2,
+               round(font.getlength(text)) + 2 * _TIP_PAD, _ROW_H + _TIP_PAD)
+    _slab(draw, tip, BG_TERTIARY, BORDER_SUBTLE)
+    draw.text((tip.x + _TIP_PAD, tip.y + _TIP_PAD // 2), text, font=font,
+              fill=(*TEXT_PRIMARY, 255))
 
 
 def _arrow_down(size: int) -> Image.Image:
@@ -230,18 +242,19 @@ def _on(rect: Rect, point: tuple[int, int] | None) -> bool:  # is the ray on it
 
 
 def paint_dash(state: DashState, records,
-               hover: tuple[int, int] | None = None) -> Image.Image:
+               hover: tuple[int, int] | None = None,
+               shown_as: Preview | None = None) -> Image.Image:
     """The bar, the filter row, the log rows, the dial; *hover* lights one."""
     panel = Image.new("RGBA", (DASH_WIDTH_PX, dash_height()), (*BG_PRIMARY, 235))
     draw = ImageDraw.Draw(panel)
     bar = compute_dashboard_bar_layout()
     wordmark, small = load_font(_FONT_PX, WORDMARK_FACE), load_font(_SMALL_PX)
 
-    mark = _app_mark(bar.app_icon.height)
+    mark = _app_mark(bar.app_icon.height, shown_as)
     if mark is not None:
         panel.alpha_composite(mark, (bar.app_icon.x, bar.app_icon.y))
-    draw.text((bar.app_title.x, bar.app_title.y + 4), "Fun Time",
-              font=wordmark, fill=WORDMARK_MAGENTA)
+    draw.text((bar.app_title.x, bar.app_title.y + 4), preview_marker.APP_TITLE,
+              font=wordmark, fill=preview_marker.wordmark_ink(shown_as))
     for control in state.controls():
         rect = control.rect
         _button(draw, rect, control.lit or BG_BUTTON, None if control.dim else hover)
@@ -263,6 +276,8 @@ def paint_dash(state: DashState, records,
 
     if state.dial_open:
         _paint_open_list(draw, state, small)
+    if shown_as is not None and _on(bar.app_title, hover):
+        _paint_tip(draw, bar.app_title, preview_marker.app_title(shown_as), small)
     return panel
 
 

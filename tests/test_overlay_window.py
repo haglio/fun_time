@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import os
 import subprocess
 import sys
@@ -8,10 +9,8 @@ import tkinter as tk
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
-from PyQt6.QtGui import QColor
-
+from fun_time import overlay_window, preview_marker
 from fun_time.cover_palette import WORDMARK_MAGENTA
-from fun_time.dashboard_app import COLOR_APP_TITLE
 from fun_time.overlay_progress import (
     Progress,
     cancel_file_for,
@@ -165,11 +164,19 @@ class TestTheCoverComesDown:
         assert window._root.destroyed
 
 
-def test_the_two_wordmarks_are_one_magenta():
-    """The panel's "Fun Time" and the cover's are the same tone.  They were two
-    hex literals in two files kept in step by a comment, in a repo where one of
-    the files cannot import Qt and the other cannot import tkinter."""
-    assert QColor(WORDMARK_MAGENTA) == COLOR_APP_TITLE
+def test_the_two_wordmarks_take_their_tone_from_one_place():
+    """The panel's "Fun Time" and the cover's are the same tone, a preview's
+    included.  They were two hex literals in two files kept in step by a
+    comment, in a repo where one of the files cannot import Qt and the other
+    cannot import tkinter."""
+    cover = ast.parse(Path(overlay_window.__file__).read_text(encoding="utf-8"))
+    wordmark = next(node for node in ast.walk(cover)
+                    if isinstance(node, ast.Call) and ast.unparse(node.func) == "tk.Label"
+                    and "APP_TITLE" in ast.unparse(node))
+    fg = next(keyword.value for keyword in wordmark.keywords if keyword.arg == "fg")
+
+    assert ast.unparse(fg) == "preview_marker.wordmark_ink(shown)"
+    assert preview_marker.wordmark_ink(None) == WORDMARK_MAGENTA
 
 
 def test_a_cover_process_loads_no_qt():

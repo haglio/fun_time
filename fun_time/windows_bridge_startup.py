@@ -21,7 +21,7 @@ from player_core.robot_hand import FULL_INTENSITY
 
 from satellite.contract import SatelliteChannels, WindowPlacement
 
-from . import broker_contract
+from . import broker_contract, preview_marker
 from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
 from .checkout_overrides import genau_project_kwargs, is_a_worktree, primary_of
@@ -65,7 +65,6 @@ from .session_resume import (
     resume_what_lives_in_a_player,
 )
 from .shared_state import shared_state_path
-from .win32_taskbar import APP_USER_MODEL_ID
 from .window_roles import GENAU_TITLE, GENAU_VIDEO_TITLE
 
 logger = logging.getLogger(__name__)
@@ -83,7 +82,12 @@ SATELLITE_LANDSCAPE_TITLE = "Landscape AI Player"
 # of its own, so each takes Fun Time's taskbar identity rather than claiming
 # one; without this the bar showed four apps.  Passed rather than shared as a
 # constant -- those apps are another repo's and must not know this one's name.
-TASKBAR_IDENTITY_ARGS = ("--taskbar-identity", APP_USER_MODEL_ID)
+def taskbar_identity_args() -> tuple[str, str]:
+    return ("--taskbar-identity", preview_marker.session_identity(preview_marker.shown_as()))
+
+
+def _the_session_icon() -> str:
+    return str(preview_marker.icon_file(PROJECT_ICON, preview_marker.shown_as()))
 
 
 def _write_result_file(result_file: str | Path, values: dict[str, int | str]) -> None:
@@ -539,8 +543,8 @@ def genau_launch_command(
         "--height",
         str(genau_height),
     ]
-    cmd.extend(["--icon", str(PROJECT_ICON)])
-    cmd.extend(TASKBAR_IDENTITY_ARGS)
+    cmd.extend(["--icon", _the_session_icon()])
+    cmd.extend(taskbar_identity_args())
     # Both captions, for the same reason each satellite is handed its own: the
     # window is one of this session's, and this session resolves it by them.
     cmd.extend(["--title", GENAU_TITLE, "--video-title", GENAU_VIDEO_TITLE])
@@ -613,7 +617,7 @@ def origenerator_session_args(
             f"--{side}-status-file", str(player.status_file),
             f"--{side}-hud-file", str(player.hud_file),
         ])
-    args.extend(TASKBAR_IDENTITY_ARGS)
+    args.extend(taskbar_identity_args())
     args.extend([
         "--command-file", str(command_file),
         "--paused-file", str(paused_file),
@@ -764,10 +768,10 @@ def launch_main_player(
         "--height",
         str(main_player_height),
         # This window is one of ours, not an application of its own: see
-        # TASKBAR_IDENTITY_ARGS — and it wears Fun Time's icon.
+        # taskbar_identity_args — and it wears Fun Time's icon.
         "--icon",
-        str(PROJECT_ICON),
-        *TASKBAR_IDENTITY_ARGS,
+        _the_session_icon(),
+        *taskbar_identity_args(),
     ]
     if clips_dir:
         cmd += ["--clips-dir", str(clips_dir)]
@@ -917,8 +921,8 @@ def launch_core_apps(
                 width=slot.rect.width, height=slot.rect.height,
                 title=title,
                 # One of Fun Time's windows rather than an application of its
-                # own -- see TASKBAR_IDENTITY_ARGS.
-                taskbar_identity=TASKBAR_IDENTITY_ARGS[1],
+                # own -- see taskbar_identity_args.
+                taskbar_identity=taskbar_identity_args()[1],
                 tiles=tiles),
             role=role,
             log_file=slot.log_file,
