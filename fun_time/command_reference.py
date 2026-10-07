@@ -217,6 +217,8 @@ _SECTIONS: tuple[_Section, ...] = (
             # sit with the main player's other playback controls.
             _Row("Mute / unmute the main player", (), ("audio_mute", "audio_unmute")),
             _Row("Disable voice control", (), ("voice_toggle", "voice_off")),
+            _Row("Accept the last command voice was not sure enough of", ("Enter",),
+                 ("voice_accept",)),
             _Row("Start / stop broker", ("B",), ("broker_panel", "broker_start", "broker_stop")),
             _Row(
                 "Open / close this hotkeys & voice reference",

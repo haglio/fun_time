@@ -186,9 +186,11 @@ class TestHandleHeard:
 
     @pytest.mark.parametrize("recognition, logged, shown, source", [
         (Recognition(refused_phrase="skip"),
-         "not sure enough of a command (1 word)", "not sure enough of: skip", "system"),
+         "not sure enough of a command (1 word) (press Enter to accept)",
+         "not sure enough of: skip (press Enter to accept)", "system"),
         (Recognition(unconfirmed_phrase="go now"),
-         "not sure enough of a command (1 word)", "not sure enough of: genau", "system"),
+         "not sure enough of a command (1 word) (press Enter to accept)",
+         "not sure enough of: genau (press Enter to accept)", "system"),
         (Recognition(unrecognized_text="landscape alpha beta gamma"),
          "unrecognized voice command (4 words)",
          "unrecognized voice command: landscape alpha beta gamma", "landscape"),
@@ -289,6 +291,66 @@ class TestHandleHeard:
         vc.handle_heard(_formed(recognition))
 
         assert seen == [("couldn't catch what you said", "system", logging.WARNING)]
+
+
+class TestAcceptingWhatItWasNotSureOf:
+    @pytest.fixture
+    def vc(self, tmp_path, monkeypatch) -> VoiceController:
+        monkeypatch.setattr(voice_control, "flash_unlogged", lambda *a, **k: True)
+        return VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+
+    @pytest.mark.parametrize("recognition", [
+        Recognition(refused_phrase="landscape next"),
+        Recognition(unconfirmed_phrase="landscape next"),
+    ])
+    def test_accepting_hands_the_command_on_as_it_was_said_and_when(
+        self, vc, tmp_path, recognition,
+    ):
+        vc.handle_heard(_formed(recognition))
+
+        assert vc.accept_what_it_was_not_sure_of() is True
+        assert (tmp_path / "cmd.txt").read_text(encoding="utf-8") == (
+            "landscape_next @1.000\tlandscape next\n")
+
+    def test_with_nothing_it_was_not_sure_of_there_is_nothing_to_accept(self, vc, tmp_path):
+        assert vc.accept_what_it_was_not_sure_of() is False
+        assert not (tmp_path / "cmd.txt").exists()
+
+    def test_a_command_is_accepted_once(self, vc, tmp_path):
+        vc.handle_heard(_formed(Recognition(unconfirmed_phrase="landscape next")))
+        vc.accept_what_it_was_not_sure_of()
+
+        assert vc.accept_what_it_was_not_sure_of() is False
+        assert len((tmp_path / "cmd.txt").read_text(encoding="utf-8").splitlines()) == 1
+
+    def test_what_is_accepted_is_the_last_command_it_was_not_sure_of(self, vc, tmp_path):
+        vc.handle_heard(_formed(Recognition(unconfirmed_phrase="landscape next")))
+        vc.handle_heard(_formed(Recognition(refused_phrase="portrait next")))
+
+        vc.accept_what_it_was_not_sure_of()
+
+        assert [parse_command_line(line).command for line in
+                (tmp_path / "cmd.txt").read_text(encoding="utf-8").splitlines()] == [
+            "portrait_next"]
+
+    def test_turning_voice_off_leaves_nothing_to_accept(self, vc, tmp_path):
+        vc.handle_heard(_formed(Recognition(unconfirmed_phrase="landscape next")))
+        vc.mute()
+        vc.unmute()
+
+        assert vc.accept_what_it_was_not_sure_of() is False
+        assert not (tmp_path / "cmd.txt").exists()
+
+    @pytest.mark.parametrize("quieted, undone", [("mute", "unmute"), ("suspend", "unsuspend")])
+    def test_what_it_was_not_sure_of_while_nobody_was_told_is_not_there_to_accept(
+        self, vc, tmp_path, quieted, undone,
+    ):
+        getattr(vc, quieted)()
+        vc.handle_heard(_formed(Recognition(unconfirmed_phrase="landscape next")))
+        getattr(vc, undone)()
+
+        assert vc.accept_what_it_was_not_sure_of() is False
+        assert not (tmp_path / "cmd.txt").exists()
 
 
 class TestTheListenerItRuns:

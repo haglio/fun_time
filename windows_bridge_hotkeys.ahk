@@ -101,6 +101,8 @@ Esc::PauseOrCancelStartup()
 #SuspendExempt false
 
 Space::QueueCommand("enter_omnipause")
+Enter::QueueCommand("voice_accept")
+NumpadEnter::QueueCommand("voice_accept")
 [::QueueCommand("main_prev")
 SC01A::QueueCommand("main_prev")
 ]::QueueCommand("main_next")
@@ -146,8 +148,7 @@ e::QueueCommand("landscape_loop")
 ; portrait map's action column and Shift + W/S down the landscape map's, each
 ; switching the satellite to the selected clip (like a thumbnail click).  These
 ; are distinct from the unshifted nav keys above, and are suspended under
-; OmniPause like the rest.  Enter used to lock the selection and re-home the map
-; on it; the side's own lock key does both, so the extra key was retired.
+; OmniPause like the rest.
 +Up::QueueCommand("portrait_nav_up")
 +Down::QueueCommand("portrait_nav_down")
 +w::QueueCommand("landscape_nav_up")
