@@ -142,6 +142,15 @@ def _never_switch_a_real_browsers_tabs():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _no_thread_outlives_its_test():
+    """Override the unit suite's thread guard: a sample clip's first read is
+    left on a thread it may never return from, a cold one on the cloud drive
+    being minutes long, so that a slow drive costs the budget and no more
+    (``integration_support.readable_at_speed``)."""
+    yield
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _release_the_runs_udp_sinks():
     """Hand back the ports this run bound to catch its own T-Code.

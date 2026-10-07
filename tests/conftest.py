@@ -54,6 +54,7 @@ from fun_time.media_metadata import reset_group_index_cache
 from fun_time_vr import orchestrator as vr_orchestrator
 from tests.logging_state import logging_given_back
 from tests.scratch import scratch_dir
+from tests.thread_state import no_thread_outlives_this
 
 # test_real_config_launchable is a check on THIS MACHINE's state — the
 # git-ignored real config — not on the code.  Off the machine (CI, public
@@ -237,6 +238,12 @@ def unmuted(monkeypatch):
 @pytest.fixture(autouse=True)
 def _logging_is_given_back():
     with logging_given_back():
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _no_thread_outlives_its_test():
+    with no_thread_outlives_this():
         yield
 
 
