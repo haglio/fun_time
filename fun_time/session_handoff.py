@@ -6,7 +6,9 @@ import logging
 import os
 import subprocess
 import sys
+import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
@@ -239,11 +241,12 @@ def returning_from_a_crossing(state_dir: str | Path) -> bool:
         return False
 
 
-def keep_the_crossing_cover(state_dir: str | Path) -> None:
-    """Say the crossing is still under way, once a second, for this process's
-    life.  The cover takes ITSELF down when this stops -- its one way out that
-    needs nobody else alive -- and a crossing outlasts that timeout."""
+def keep_the_crossing_cover(state_dir: str | Path) -> Callable[[], None]:
+    """Say the crossing is still under way, once a second, until it is
+    stopped.  The cover takes ITSELF down when this stops -- its one way out
+    that needs nobody else alive -- and a crossing outlasts that timeout."""
     path = crossing_progress_path(state_dir)
+    stopped = threading.Event()
 
     def beat() -> None:
         while True:
@@ -252,9 +255,16 @@ def keep_the_crossing_cover(state_dir: str | Path) -> None:
                     os.utime(path, None)
             except OSError:
                 pass  # no crossing under way
-            time.sleep(COVER_HEARTBEAT_S)
+            if stopped.wait(COVER_HEARTBEAT_S):
+                return
 
-    start_daemon_thread(target=beat, name="crossing-cover")
+    heartbeat = start_daemon_thread(target=beat, name="crossing-cover")
+
+    def stop() -> None:
+        stopped.set()
+        heartbeat.join()
+
+    return stop
 
 
 _CANCELED_LINE = f"1/2|{CANCELING}\n"
