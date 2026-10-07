@@ -6,11 +6,12 @@ player in the launch manifest's ``[vr]`` section.
 """
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
 from app_support import ports
+
+from fun_time.genau_config import read_genau_config
 
 
 @dataclass(frozen=True)
@@ -27,15 +28,7 @@ class GenauSettings:
 
     @classmethod
     def read(cls, genau_config_path: Path | None) -> GenauSettings:
-        """The ``genau`` section over the defaults, and the defaults alone for a
-        config that is not there: a session never fails to start over a number."""
-        if genau_config_path is None:
-            return cls()
-        try:
-            raw = json.loads(Path(genau_config_path).read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return cls()
-        section = raw.get("genau") if isinstance(raw, dict) else None
+        section = read_genau_config(genau_config_path).get("genau")
         if not isinstance(section, dict):
             return cls()
         defaults = cls()

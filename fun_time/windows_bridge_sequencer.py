@@ -20,6 +20,7 @@ from main_player.play_points import play_points_filename
 from satellite.contract import SatelliteChannels
 
 from . import preview_marker
+from .genau_config import genaus_own_logs
 from .hosted_origenerator import HostedApp, bring_up_the_hosted_app
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, main_player_displays
@@ -456,7 +457,7 @@ def _launch_the_main_slot_players(
     state = read_shared_state(shared_state_path(state_dir))
     genau_latest = False if state is None else state.genau_latest
     genau_log = state_dir / "genau.log"
-    genau_logs = logs_as_they_stand(genau_log)
+    genau_logs = logs_as_they_stand(genau_log, *genaus_own_logs(m.runtime.genau_config_path))
     # project_dirs: which checkout of ../genau these two are run out of.  Empty
     # in an ordinary session — they resolve through their venv's editable
     # install, which is the primary — and a worktree of that repo while a branch
