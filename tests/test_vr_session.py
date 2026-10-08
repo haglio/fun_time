@@ -181,7 +181,7 @@ class TestControllerBindings:
         """That is the room's second button: held while the trigger is pulled,
         it sends a right-click to the hosted app's window."""
         for profile, bindings in CONTROLLER_BINDINGS.items():
-            if STICK not in bindings:
+            if STICK_Y not in bindings:
                 continue
             paths = bindings[STICK_CLICK]
             assert {path.split("/")[3] for path in paths} == {LEFT, RIGHT}, profile

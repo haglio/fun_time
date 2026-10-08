@@ -1663,7 +1663,7 @@ class TestTheBannerOverAWrappedPicture:
 
     def test_the_banner_is_one_of_the_room(self):
         assert "banner = _BannerUnit(main_unit, notices)" in inspect.getsource(player._run)
-        assert "library, banner, cover]" in inspect.getsource(player._run)
+        assert "banner, gallery, cover]" in inspect.getsource(player._run)
 
 
 class TestTheMainSlotUnderThePointer:
