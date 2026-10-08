@@ -3289,28 +3289,33 @@ def test_leaving_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
 # --- main-player nudge ---
 
 
-def test_primary_nudge_in_kino_mode_writes_main_player_seek(tmp_path: Path):
-    """Kino mode displays the main player, so nudges seek the main player just like in kino mode."""
+@pytest.mark.parametrize("main_mode", list(MainMode))
+def test_the_main_players_nudge_pair_seeks_the_main_player_in_either_mode(
+        tmp_path: Path, main_mode: MainMode):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.KINO)
+    state = _make_state(main_mode=main_mode)
 
-    new_state, ops = dispatch_command("main_nudge_prev", state, config)
+    _state, back_ops = dispatch_command("main_nudge_prev", state, config)
+    _state, forward_ops = dispatch_command("main_nudge_next", state, config)
 
-    assert ops == []
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\n"
+    assert back_ops == forward_ops == []
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\nSEEK_FWD\n"
 
 
-def test_primary_nudge_in_main_player_mode_writes_main_player_seek(tmp_path: Path):
+def test_a_satellites_nudge_pair_seeks_that_satellite_and_leaves_its_lock_alone(
+        tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.KINO)
+    state = _make_state(portrait=SatelliteState(locked=True))
 
-    new_state, ops = dispatch_command("main_nudge_prev", state, config)
-    assert ops == []
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\n"
+    state, forward_ops = dispatch_command("portrait_nudge_next", state, config)
+    state, back_ops = dispatch_command("portrait_nudge_prev", state, config)
+    dispatch_command("landscape_nudge_next", state, config)
 
-    dispatch_command("main_nudge_next", state, config)
-    assert config.main_player_cmd_file.read_text(
-        encoding="utf-8") == "SEEK_BACK\nSEEK_FWD\n"
+    assert forward_ops == back_ops == []
+    assert _cmds(config, Player.PORTRAIT) == ["SEEK_FWD", "SEEK_BACK"]
+    assert _cmds(config, Player.LANDSCAPE) == ["SEEK_FWD"]
+    assert state.satellite(Player.PORTRAIT).locked is True
+    assert not config.main_player_cmd_file.exists()
 
 
 # --- main_player record commands ---

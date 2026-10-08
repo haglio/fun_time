@@ -465,6 +465,8 @@ _SECTIONS: tuple[_Section, ...] = (
         (
             _Row("Previous clip", ("Left",), _sided("prev"), hotkeys_alt=("A",)),
             _Row("Next clip", ("Right",), _sided("next"), hotkeys_alt=("D",)),
+            _Row("Nudge back 10 seconds", (), _sided("nudge_prev")),
+            _Row("Nudge forward 10 seconds", (), _sided("nudge_next")),
             _Row(
                 "Unfavorite the clip — or mark it weird when it is not a favorite",
                 ("Up",),

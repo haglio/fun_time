@@ -153,8 +153,6 @@ def build_voice_commands(
         "stop broker": "broker_stop",
         # "main next" / "next main" are generated with the satellite grid
         # below (the main player joins the active-side feature for navigation).
-        "skip": "main_nudge_next",
-        "back": "main_nudge_prev",
         "projection": "projection_cycle",
         # FunTimeVR: re-zero the scene onto wherever the headset is facing now —
         # the in-app recenter, since the runtime's own menu doesn't reach the app.
@@ -270,6 +268,8 @@ def build_voice_commands(
         "unlock": "lock_off",
         "next": "next",
         "previous": "prev",
+        "skip": "nudge_next",
+        "back": "nudge_prev",
         "weird": "trash",
         # The clip is fine; what its metadata says it shows is not.  Strikes the act
         # out of the sidecar, which puts the clip back in front of Evolver's backfill
@@ -378,6 +378,7 @@ def build_voice_commands(
     # they mean on a satellite — hold what is on screen, and drop whatever is
     # narrowing the browse.
     _MAIN_ACTIONS = {"next": "next", "previous": "prev",
+                     "skip": "nudge_next", "back": "nudge_prev",
                      "lock": "lock_on", "unlock": "lock_off",
                      # Its own command rather than a bare "length mixed" forward:
                      # F-mode is half of what narrows the main player, and that flag
