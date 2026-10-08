@@ -4,12 +4,11 @@ Startup, omnipause and mode switches all read this ONE policy, so they can
 never disagree about a window's topmost band, which is the drift that leaves
 the main player stranded on top after entering omnipause.
 
-The satellite / dashboard / RFB windows each own a screen rect and never
-overlap, so they are unconditionally topmost.  The main player and Genau are the exception:
-they SHARE one rect, so they float above the desktop AND stack against each
-other -- in kino mode Genau's HUD sits just above the main player's video, an order
-``role_windows.WindowRoles.restack_main_slot`` enforces rather than these flags;
-in genau mode Genau owns the display and the main player is hidden.
+The satellite and dashboard windows each own a screen rect and never overlap,
+so they are unconditionally topmost.  Two pairs SHARE a rect and stack against
+each other: the main player under Genau's HUD
+(``role_windows.WindowRoles.restack_main_slot``), and the Random Favs Browser
+under the hosted Origenerator's window (``restack_rfb_slot``).
 """
 from __future__ import annotations
 
@@ -19,15 +18,16 @@ from .satellites_mode import KINO_MODE, origenerator_shows
 # Windows with their own screen rect — always topmost; order among them is
 # irrelevant because they never overlap.  The log stream is a child widget of the
 # dashboard window, not a role of its own, so it rides the dashboard's band.
-FIXED_TOPMOST_ROLES: tuple[str, ...] = ("rfb", "portrait", "landscape", "dashboard")
+FIXED_TOPMOST_ROLES: tuple[str, ...] = ("portrait", "landscape", "dashboard")
 
-# The hosted Origenerator's one window: it SHARES the RFB's rect, so like the
-# main-slot pair it is mode-dependent — in the band only while the satellites
-# are in origenerator mode.  Listed AFTER the fixed roles because HWND_TOPMOST
-# inserts at the top of the band: promoted later means stacked above the window
-# it covers.  Its shows play on the satellite players, not in windows of its
-# own (fun_time.player_handover).
+# The hosted Origenerator's one window.  Its shows play on the satellite
+# players, not in windows of its own (fun_time.player_handover).
 ORIGENERATOR_ROLE = "origenerator"
+
+# The browser and the hosted app's window share the RFB's rect.  In
+# origenerator mode the hosted window covers it and the browser leaves the band,
+# so no promotion, however late it lands, can stack the browser back over it.
+RFB_SLOT_ROLES: tuple[str, ...] = ("rfb", ORIGENERATOR_ROLE)
 
 # The caption that window wears, resolved together with the app's PID: by
 # title alone a standalone Origenerator of his would match.
@@ -46,7 +46,7 @@ MAIN_SLOT_ROLES: tuple[str, ...] = ("main_player", "genau")
 
 # Every window role the bridge manages, in promotion order.
 MANAGED_ROLES: tuple[str, ...] = (
-    FIXED_TOPMOST_ROLES + (ORIGENERATOR_ROLE,) + MAIN_SLOT_ROLES
+    FIXED_TOPMOST_ROLES + RFB_SLOT_ROLES + MAIN_SLOT_ROLES
 )
 
 
@@ -80,8 +80,8 @@ def role_topmost(role: str, main_mode: str, satellites_mode: str = KINO_MODE) ->
 
 def visible_roles(main_mode: str, satellites_mode: str = KINO_MODE) -> list[str]:
     """Every managed role whose window these modes keep on screen."""
-    origenerator = (ORIGENERATOR_ROLE,) if origenerator_shows(satellites_mode) else ()
-    return [*FIXED_TOPMOST_ROLES, *origenerator, *visible_main_slot_roles(main_mode)]
+    rfb_slot = RFB_SLOT_ROLES if origenerator_shows(satellites_mode) else ("rfb",)
+    return [*FIXED_TOPMOST_ROLES, *rfb_slot, *visible_main_slot_roles(main_mode)]
 
 
 def visible_main_slot_roles(main_mode: str) -> tuple[str, ...]:

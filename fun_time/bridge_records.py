@@ -173,7 +173,7 @@ class Op(StrEnum):
     MINIMIZE_ROLE = "minimize_role"
     RESTORE_PARKED = "restore_parked"
     RESTACK_MAIN = "restack_main"
-    RESTACK_ORIGENERATOR = "restack_origenerator"
+    RESTACK_RFB = "restack_rfb"
     DISABLE_ALL_TOPMOST = "disable_all_topmost"
     RESTORE_ALL_TOPMOST = "restore_all_topmost"
     SUSPEND_HOTKEYS = "suspend_hotkeys"

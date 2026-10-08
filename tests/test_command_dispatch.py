@@ -4483,7 +4483,7 @@ class TestSatellitesModeSwitch:
         assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
             ("show_role", "origenerator"),
             ("activate_role", "origenerator"),
-            ("restack_origenerator", ""),
+            ("restack_rfb", ""),
         ]
         assert _origenerator_cmds(config) == ["OPEN_SHOWS"]
         for player in Player.SATELLITES:
@@ -4506,6 +4506,7 @@ class TestSatellitesModeSwitch:
         assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
             ("hide_role", "origenerator"),
             ("take_back_players", ""),
+            ("restack_rfb", ""),
         ]
 
     def test_the_kino_press_of_an_origenerator_from_before_the_rename_still_takes_them_home(

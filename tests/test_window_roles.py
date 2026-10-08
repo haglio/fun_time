@@ -5,6 +5,7 @@ from fun_time.window_roles import (
     MAIN_SLOT_ROLES,
     MANAGED_ROLES,
     ORIGENERATOR_ROLE,
+    RFB_SLOT_ROLES,
     role_topmost,
     visible_main_slot_roles,
 )
@@ -54,10 +55,11 @@ class TestRoleTopmost:
             "rfb", "portrait", "landscape", "genau", "main_player", "dashboard",
             "origenerator",
         }
-        assert set(FIXED_TOPMOST_ROLES) == {"rfb", "portrait", "landscape", "dashboard"}
+        assert set(FIXED_TOPMOST_ROLES) == {"portrait", "landscape", "dashboard"}
+        assert set(RFB_SLOT_ROLES) == {"rfb", ORIGENERATOR_ROLE}
         assert set(MAIN_SLOT_ROLES) == {"main_player", "genau"}
         # The three groups are disjoint and together cover every managed role.
-        groups = [set(FIXED_TOPMOST_ROLES), {ORIGENERATOR_ROLE}, set(MAIN_SLOT_ROLES)]
+        groups = [set(FIXED_TOPMOST_ROLES), set(RFB_SLOT_ROLES), set(MAIN_SLOT_ROLES)]
         assert sum(len(group) for group in groups) == len(MANAGED_ROLES)
         assert set().union(*groups) == set(MANAGED_ROLES)
 

@@ -315,40 +315,26 @@ class WindowRoles:
                 set_always_on_top(hwnd, False)
 
     def restore_all_topmost(self, main_mode: str, satellites_mode: str) -> None:
-        """Re-apply the topmost bands for these modes after omnipause.
-
-        Every role is asked the shared ``role_topmost`` policy, the fixed ones
-        included.  Promoting those without asking is what flashed the Random
-        Favs Browser over Origenerator on every resume: the browser shares its
-        rect with the hosted app's main window and the policy already answers
-        "not topmost" for it in origenerator mode, but this path put it in the
-        band anyway — and ``HWND_TOPMOST`` inserts at the TOP of the band, so
-        it sat above Origenerator until :meth:`restack_origenerator`, a few
-        SetWindowPos calls later, promoted the host back over it.
-
-        The hosted window then goes up (:meth:`restack_origenerator`), and the
-        overlapping main player/Genau pair last (:meth:`restack_main_slot`), so Genau's
-        HUD sits above the main player's video in kino mode.
-        """
+        """Re-apply the topmost bands for these modes after omnipause: the
+        windows with a rect of their own, then each shared rect's pair in the
+        order that pair stacks in."""
         for role in FIXED_TOPMOST_ROLES:
-            if not role_topmost(role, main_mode, satellites_mode):
-                continue
             hwnd = self.hwnd(role)
             if hwnd:
                 set_always_on_top(hwnd, True)
-        self.restack_origenerator(main_mode, satellites_mode)
+        self.restack_rfb_slot(main_mode, satellites_mode)
         self.restack_main_slot(main_mode)
 
-    def restack_origenerator(self, main_mode: str, satellites_mode: str, *,
-                             paused: bool = False) -> None:
-        """Promote the hosted Origenerator's window above the RFB it covers.
-
-        Only in origenerator mode — the two share one rect, and
-        ``HWND_TOPMOST`` inserts at the top of the band, so promoting this one
-        after the fixed roles is what stacks it on top.  In kino mode it is
-        parked and stays out of the band.
-        """
-        if paused or not role_topmost(ORIGENERATOR_ROLE, main_mode, satellites_mode):
+    def restack_rfb_slot(self, main_mode: str, satellites_mode: str, *,
+                         paused: bool = False) -> None:
+        """Put the browser in the band only in kino mode, and in origenerator
+        mode promote the hosted Origenerator's window over it."""
+        if paused:
+            return
+        browser = self.hwnd("rfb")
+        if browser:
+            set_always_on_top(browser, role_topmost("rfb", main_mode, satellites_mode))
+        if not role_topmost(ORIGENERATOR_ROLE, main_mode, satellites_mode):
             return
         hwnd = self.hwnd(ORIGENERATOR_ROLE)
         if hwnd:
@@ -407,7 +393,7 @@ class WindowRoles:
             if minimized:
                 restore_window(hwnd, activate=False)
             if minimized or not is_window_topmost(hwnd):
-                self.restack_origenerator(main_mode, satellites_mode)
+                self.restack_rfb_slot(main_mode, satellites_mode)
         elif not minimized:
             minimize_window(hwnd, activate=False)
 
