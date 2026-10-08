@@ -1186,8 +1186,6 @@ def run_session(
                                       if cancelled.origenerator_taken_over else None),
         )
     except PlayerDied as died:
-        said = player_died_message(died.player, died.said)
-        logger.error(said)
         _take_down_the_startup(
             str(died), pids=died.launched_pids,
             rfb_hwnd=died.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
@@ -1195,6 +1193,8 @@ def run_session(
             release_origenerator_via=(bridge_config.origenerator_cmd_file
                                       if died.origenerator_taken_over else None),
         )
+        said = player_died_message(died.player, died.said)
+        logger.error(said)
         show_player_died_alert(said)  # after the teardown: the cover is down by now
         return 1
 

@@ -1919,6 +1919,45 @@ class TestAPlayerThatDiedWhileTheRoomCameUp:
         assert "The engine (libmpv) could not be loaded." in shown[0]
         assert not (state_dir / "bridge_pids.ini").exists()
 
+    def test_the_line_saying_why_is_written_once_the_half_built_room_is_down(
+        self, cfg_factory, tmp_path,
+    ):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        happened: list[str] = []
+
+        class _NoteTheLine(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                if record.getMessage().startswith("Fun Time stopped starting up"):
+                    happened.append("said why")
+
+        def genau_died(**_kwargs):
+            raise PlayerDied(LaunchedPlayer("Genau", 60), "ImportError: a made-up name",
+                             launched_pids=[300, 400])
+
+        noted = _NoteTheLine()
+        logging.getLogger(windows_bridge_orchestrator.__name__).addHandler(noted)
+        try:
+            with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                       side_effect=genau_died), \
+                 patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                       return_value=MagicMock(wait=MagicMock(return_value=0))), \
+                 patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
+                       side_effect=lambda pid: happened.append(f"ended {pid}")), \
+                 patch("fun_time.windows_bridge_orchestrator.close_window"), \
+                 patch("fun_time.windows_bridge_orchestrator.show_player_died_alert",
+                       side_effect=lambda _text: happened.append("alert")):
+                _a_session(
+                    manifest_path=manifest_path, ahk_exe="ahk.exe",
+                    hotkey_script="hotkeys.ahk", state_dir=tmp_path / "state",
+                    project_dir=tmp_path)
+        finally:
+            logging.getLogger(windows_bridge_orchestrator.__name__).removeHandler(noted)
+
+        assert happened[-2:] == ["said why", "alert"]
+        assert {"ended 300", "ended 400"} <= set(happened[:-2])
+
 
 class TestStartupCancellation:
     """Pressing Esc aborts startup: the half-built session is torn down, the
