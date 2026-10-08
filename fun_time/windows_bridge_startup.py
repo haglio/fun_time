@@ -65,7 +65,7 @@ from .session_resume import (
     resume_what_lives_in_a_player,
 )
 from .shared_state import shared_state_path
-from .window_roles import GENAU_TITLE, GENAU_VIDEO_TITLE
+from .window_roles import GENAU_KINO_TITLE, GENAU_TITLE
 
 logger = logging.getLogger(__name__)
 
@@ -314,7 +314,7 @@ def seed_startup_states(
     RESUME, though: a live switch starts its player immediately and startup must
     not, the reveal being what hands Genau its RESUME.
 
-    The defaults are a fresh session's: full, unmuted, unnarrowed, in video mode.
+    The defaults are a fresh session's: full, unmuted, unnarrowed, in kino mode.
     """
     Path(genau_cmd_file).parent.mkdir(parents=True, exist_ok=True)
     # Written whole ONCE, here, before any player is running: the fresh
@@ -547,7 +547,7 @@ def genau_launch_command(
     cmd.extend(taskbar_identity_args())
     # Both captions, for the same reason each satellite is handed its own: the
     # window is one of this session's, and this session resolves it by them.
-    cmd.extend(["--title", GENAU_TITLE, "--video-title", GENAU_VIDEO_TITLE])
+    cmd.extend(["--title", GENAU_TITLE, "--video-title", GENAU_KINO_TITLE])
     cmd.extend(["--command-file", str(command_file)])
     cmd.extend(["--paused-file", str(paused_file)])
     cmd.extend(["--console-file", str(console_file)])

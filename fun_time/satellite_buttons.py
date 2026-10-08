@@ -24,7 +24,7 @@ _GROUP_OF = {name: index for index, group in enumerate(CONTROL_GROUPS) for name 
 _ORDER_CONTROLS = ("shuffle", "latest")
 
 MODE_BUTTONS = (
-    ("satellites_video_activate", "Video", SatellitesMode.VIDEO),
+    ("satellites_kino_activate", "Kino", SatellitesMode.KINO),
     ("origenerator_activate", "Origenerator", SatellitesMode.ORIGENERATOR),
 )
 
@@ -41,7 +41,7 @@ CONTROL_TOOLTIPS = {
     "minimize": "Minimize this player — bring it back from the taskbar",
 }
 MODE_TOOLTIPS = {
-    "satellites_video_activate": "Video mode — the satellite players and the Random Favs Browser",
+    "satellites_kino_activate": "Kino mode — the satellite players and the Random Favs Browser",
     "origenerator_activate":
         "Origenerator mode — Origenerator over the browser, its shows over the players",
 }

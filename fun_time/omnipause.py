@@ -19,7 +19,7 @@ class OmniPausePlan:
     broker_command: str
     log_message: str
     # Whether leaving may resume the Robot Hand outright.  Not where the arbiter
-    # owns which of the hand and a funscript has the device -- video mode, or a
+    # owns which of the hand and a funscript has the device -- kino mode, or a
     # side player holding the OSR2: a blanket resume there started the hand
     # against a funscript still driving, two drivers on the OSR2 at once.
     resume_genau_playback: bool = False
@@ -49,7 +49,7 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str,
         return OmniPausePlan(
             action="leave",
             next_omni_paused=False,
-            # The main player owns the display in video mode, so leaving omnipause
+            # The main player owns the display in kino mode, so leaving omnipause
             # resumes its playback there (in genau mode Genau owns the display).
             resume_main_player_playback=main_player_displays(main_mode),
             resume_genau_playback=(main_mode == MAIN_GENAU_MODE

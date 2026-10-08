@@ -236,7 +236,7 @@ class TestFixPostLoadingWindows:
 
     def test_genau_over_the_main_player_is_not_a_burial(self):
         """Genau's window sits over the main player's by design in every mode —
-        the transparent layer over its video in video mode, the display itself
+        the transparent layer over its video in kino mode, the display itself
         in genau mode.  Re-promoting the player out from under it would undo
         the layering the session just built."""
         result = _fake_startup_result()
@@ -389,7 +389,7 @@ class TestFixPostLoadingWindows:
         It used to, because a session could open already in origenerator mode:
         the curtain was held for that app's boot, its window restored under the
         cover, and the shows banded here as the roles that cover the players.
-        Every room opens in video mode now -- the boot is what made a launch
+        Every room opens in kino mode now -- the boot is what made a launch
         long -- so the app is still coming up when this runs, and its three
         windows are the dispatch loop's to find and band when it has them.
         """
@@ -2526,11 +2526,11 @@ class TestMainPlayerObstructionLog:
         assert "unresolved" in caplog.text
 
     def test_quiet_when_only_the_sessions_own_genau_layer_covers_main_player(self, caplog):
-        """In video mode, Genau's window is the transparent HUD layer over the main player's
-        video — over it on purpose.  Warning on that flashed a notice on every video mode
+        """In kino mode, Genau's window is the transparent HUD layer over the main player's
+        video — over it on purpose.  Warning on that flashed a notice on every kino mode
         startup with a covering window that covers nothing visible."""
         stack = [
-            StackedWindow(hwnd=1010, title="Video Main Player+Genau", topmost=True,
+            StackedWindow(hwnd=1010, title="Kino Main Player+Genau", topmost=True,
                           rect=(2560, 2483, 1440, 930)),
             StackedWindow(hwnd=2020, title="Main Player", topmost=True, rect=(2560, 2500, 1440, 900)),
         ]
@@ -2543,7 +2543,7 @@ class TestMainPlayerObstructionLog:
     def test_a_third_window_still_warns_past_the_expected_layer(self, caplog):
         stack = [
             StackedWindow(hwnd=99, title="Claude", topmost=False, rect=(2560, 2500, 1440, 900)),
-            StackedWindow(hwnd=1010, title="Video Main Player+Genau", topmost=True,
+            StackedWindow(hwnd=1010, title="Kino Main Player+Genau", topmost=True,
                           rect=(2560, 2483, 1440, 930)),
             StackedWindow(hwnd=2020, title="Main Player", topmost=True, rect=(2560, 2500, 1440, 900)),
         ]
@@ -2552,7 +2552,7 @@ class TestMainPlayerObstructionLog:
             _log_window_obstruction("Main Player", 2020, expected_over=1010)
         assert "covered at startup" in caplog.text
         assert "Claude" in caplog.text
-        assert "Video Main Player+Genau" not in caplog.text
+        assert "Kino Main Player+Genau" not in caplog.text
 
 
 class TestVoiceControlIntegration:

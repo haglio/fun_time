@@ -100,5 +100,5 @@ def test_the_way_back_is_not_pressed_until_the_app_has_both_players(tmp_path):
 
     _leave_the_mode(room)
 
-    assert room.presses == ["satellites_video_activate"]
+    assert room.presses == ["satellites_kino_activate"]
     assert room.taken_when_pressed

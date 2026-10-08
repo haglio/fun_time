@@ -577,7 +577,7 @@ class TestDispatchLoopRunner:
 
     def test_omnipause_enter_via_tick_drops_topmost_on_all_managed_windows(self, tmp_path):
         """Entering omnipause frees the desktop: EVERY managed window leaves the
-        TOPMOST band — including the main player, which carries the topmost flag in video mode
+        TOPMOST band — including the main player, which carries the topmost flag in kino mode
         and would otherwise stay stranded above the desktop."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
@@ -596,7 +596,7 @@ class TestDispatchLoopRunner:
     def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_player(
         self, tmp_path,
     ):
-        """Leaving omnipause in video mode gives every managed window its TOPMOST
+        """Leaving omnipause in kino mode gives every managed window its TOPMOST
         bit back — the main player, which floats above the desktop again, and Genau, which
         shares the main player's rect and is promoted last, so putting it back in the band
         puts its HUD ABOVE the main player's video — and re-activates the window on top of
@@ -639,7 +639,7 @@ class TestDispatchLoopRunner:
     def test_browse_library_sends_its_press_and_browses_with_the_room_playing(self, tmp_path):
         with _press_channel(tmp_path) as recv_sock:
             runner = make_runner(tmp_path, dashboard_enabled=True)
-            runner.state = BridgeState(main_mode=MainMode.VIDEO)
+            runner.state = BridgeState(main_mode=MainMode.KINO)
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("browse_library", encoding="utf-8")
 
@@ -849,7 +849,7 @@ class TestDispatchLoopRunner:
 
     def test_omniminimize_minimizes_only_mode_visible_windows(self, tmp_path):
         """omniminimize minimizes the windows the current mode shows, without
-        stealing focus — in video mode Genau's HUD among them.  (In genau mode
+        stealing focus — in kino mode Genau's HUD among them.  (In genau mode
         the hidden slot-mate, the main player, is NOT minimized: SW_MINIMIZE would drag a
         hidden window back into view.)"""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
@@ -870,9 +870,9 @@ class TestDispatchLoopRunner:
         assert all(kw.get("activate") is False for _, kw in minimized)
 
     def test_omniminimize_in_hybrid_includes_main_player_and_genau(self, tmp_path):
-        """Video mode shows the main player under Genau's HUD (Genau drives the OSR2)."""
+        """Kino mode shows the main player under Genau's HUD (Genau drives the OSR2)."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        runner.state = BridgeState(main_mode=MainMode.VIDEO)
+        runner.state = BridgeState(main_mode=MainMode.KINO)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
 
@@ -947,7 +947,7 @@ class TestDispatchLoopRunner:
         clock = FakeClock()
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
         cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("genau_activate\nmain_video_activate", encoding="utf-8")
+        cmd_file.write_text("genau_activate\nmain_kino_activate", encoding="utf-8")
 
         minimized: list[int] = []
 
@@ -962,7 +962,7 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert MAIN_PLAYER_HWND not in minimized, "the main player owns the display again"
-        assert minimized == [], "and video mode parks nobody: both share the screen"
+        assert minimized == [], "and kino mode parks nobody: both share the screen"
 
     def test_omnirestore_restores_exactly_the_minimized_windows(self, tmp_path):
         """omnirestore un-minimizes the windows omniminimize minimized — no
@@ -1038,9 +1038,9 @@ class TestDispatchLoopRunner:
 
     def test_the_main_players_console_button_parks_the_window_holding_the_slot(self, tmp_path):
         """The main player and Genau share the main rect, so which window the console's button
-        reaches is the mode's business: Genau in genau mode, and in video mode
+        reaches is the mode's business: Genau in genau mode, and in kino mode
         both, where Genau's HUD sits over the main player's video."""
-        for mode, wanted in (("genau", [GENAU_HWND]), ("video", [MAIN_PLAYER_HWND, GENAU_HWND])):
+        for mode, wanted in (("genau", [GENAU_HWND]), ("kino", [MAIN_PLAYER_HWND, GENAU_HWND])):
             runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
             # Through the shared state file, which every tick re-reads over
             # whatever the runner is holding.
@@ -1061,7 +1061,7 @@ class TestDispatchLoopRunner:
         clock = FakeClock()
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
         write_shared_state(tmp_path / "shared_state.ini", BridgeState(main_mode=MainMode.GENAU))
-        (tmp_path / "dashboard_cmd.txt").write_text("main_video_activate", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("main_kino_activate", encoding="utf-8")
         genau_cmds = runner.config.genau_cmd_file
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
@@ -1116,7 +1116,7 @@ class TestDispatchLoopRunner:
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         write_shared_state(tmp_path / "shared_state.ini",
                            BridgeState(omni_paused=True, main_mode=MainMode.GENAU))
-        (tmp_path / "dashboard_cmd.txt").write_text("main_video_activate", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("main_kino_activate", encoding="utf-8")
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
@@ -1125,7 +1125,7 @@ class TestDispatchLoopRunner:
              patch.object(runner.windows, "restack_main_slot") as restack:
             runner.tick()
 
-        restack.assert_called_once_with(MainMode.VIDEO, paused=True)
+        restack.assert_called_once_with(MainMode.KINO, paused=True)
 
     def test_leaving_omnipause_brings_back_every_window_a_button_parked(self, tmp_path):
         """A player parked from its own HUD took that HUD down with it, so it
@@ -1442,7 +1442,7 @@ class TestWhatASpokenCommandFlashes:
     def test_a_jump_the_headsets_main_player_cannot_answer_says_what_was_heard(self, tmp_path):
         flashed = self._run_for_real(
             tmp_path, "main_player_compilation", "compilation",
-            config=make_config(tmp_path, vr_main_player=True), main_mode=MainMode.VIDEO)
+            config=make_config(tmp_path, vr_main_player=True), main_mode=MainMode.KINO)
 
         assert flashed == [("compilation", "system", 25)]
 
@@ -1452,7 +1452,7 @@ class TestWhatASpokenCommandFlashes:
     ])
     def test_a_jump_the_main_player_answers_itself_says_nothing_now(self, tmp_path, command):
         flashed = self._run_for_real(
-            tmp_path, command, "whatever was said", main_mode=MainMode.VIDEO)
+            tmp_path, command, "whatever was said", main_mode=MainMode.KINO)
 
         assert flashed == []
 
@@ -1792,13 +1792,13 @@ class TestModeSwitchVisibility:
             runner.tick()
 
         assert runner.state.main_mode == {
-            "genau_activate": "genau", "main_video_activate": "video",
+            "genau_activate": "genau", "main_kino_activate": "kino",
         }[command]
         return calls
 
     def test_genau_activate_shows_genau_before_hiding_main_player(self, tmp_path):
         calls = self._run_mode_switch(
-            tmp_path, from_mode="video", command="genau_activate",
+            tmp_path, from_mode="kino", command="genau_activate",
         )
         assert calls == [
             ("show", GENAU_HWND),
@@ -1806,9 +1806,9 @@ class TestModeSwitchVisibility:
             ("hide", MAIN_PLAYER_HWND),
         ]
 
-    def test_main_video_activate_shows_main_player_under_genaus_hud(self, tmp_path):
+    def test_main_kino_activate_shows_main_player_under_genaus_hud(self, tmp_path):
         calls = self._run_mode_switch(
-            tmp_path, from_mode="genau", command="main_video_activate",
+            tmp_path, from_mode="genau", command="main_kino_activate",
         )
         assert calls == [
             ("show", MAIN_PLAYER_HWND),
@@ -1816,12 +1816,12 @@ class TestModeSwitchVisibility:
             ("activate", GENAU_HWND),
         ]
 
-    def test_video_to_genau_hides_main_player(self, tmp_path):
-        """Video mode and Genau differ only in the main player's visibility, so the transition
+    def test_kino_to_genau_hides_main_player(self, tmp_path):
+        """Kino mode and Genau differ only in the main player's visibility, so the transition
         must still swap windows.  Regression — a guard that compared
         genau_active() instead of the mode missed this pair."""
         calls = self._run_mode_switch(
-            tmp_path, from_mode="video", command="genau_activate",
+            tmp_path, from_mode="kino", command="genau_activate",
         )
         assert calls == [
             ("show", GENAU_HWND),
@@ -1833,7 +1833,7 @@ class TestModeSwitchVisibility:
         """An integration session keeps mode switches from stealing the real
         desktop's focus; show/hide still happen."""
         calls = self._run_mode_switch(
-            tmp_path, from_mode="video", command="genau_activate",
+            tmp_path, from_mode="kino", command="genau_activate",
             integration=True,
         )
         assert calls == [
@@ -1866,7 +1866,7 @@ class TestResolveRole:
              patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
                    return_value=(runner.state, [show_op])):
             assert runner.windows.hwnd("main_player") == MAIN_PLAYER_HWND
-            runner._dispatch("main_video_activate")
+            runner._dispatch("main_kino_activate")
 
         assert shown == [MAIN_PLAYER_HWND]
 
@@ -2000,7 +2000,7 @@ class TestBrowseLibrary:
         assert on_top.call_args_list == []
 
     def test_sends_selected_file_to_main_player_by_default(self, tmp_path):
-        """In video mode (the default) a selected file becomes a main player PLAY_FILE
+        """In kino mode (the default) a selected file becomes a main player PLAY_FILE
         command, paired with its mirrored funscript when one exists."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
@@ -2021,12 +2021,12 @@ class TestBrowseLibrary:
         command = runner.config.main_player_cmd_file.read_text(encoding="utf-8")
         assert command == f"PLAY_FILE {video}\t{mirrored}\n"
 
-    def test_sends_selected_file_to_main_player_in_video_mode(self, tmp_path):
-        """Video mode displays the main player, so a selected file becomes a main player PLAY_FILE
+    def test_sends_selected_file_to_main_player_in_kino_mode(self, tmp_path):
+        """Kino mode displays the main player, so a selected file becomes a main player PLAY_FILE
         command there too (no funscript pairing when none exists)."""
         config = make_config(tmp_path, main_sources=r"C:\videos")
         runner = make_runner(tmp_path, config=config)
-        runner.state = BridgeState(omni_paused=False, main_mode=MainMode.VIDEO)
+        runner.state = BridgeState(omni_paused=False, main_mode=MainMode.KINO)
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
@@ -2599,20 +2599,20 @@ class TestIdempotentVoiceCommands:
 
     def test_genau_activate_dispatches_when_not_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode=MainMode.VIDEO)
+        runner.state = BridgeState(main_mode=MainMode.KINO)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner.tick()
         mock_d.assert_called_once_with("genau_activate", None)
 
-    def test_genau_activate_dispatches_in_video_mode(self, tmp_path):
-        """Video mode has the Robot Hand under it but is NOT genau mode: the
+    def test_genau_activate_dispatches_in_kino_mode(self, tmp_path):
+        """Kino mode has the Robot Hand under it but is NOT genau mode: the
         Genau-mode button must still switch to full Genau.  Regression — an old
-        guard asked whether Genau was active, which video mode also was, so it
+        guard asked whether Genau was active, which kino mode also was, so it
         swallowed this."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode=MainMode.VIDEO)
+        runner.state = BridgeState(main_mode=MainMode.KINO)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
@@ -2901,7 +2901,7 @@ class TestSeededRoleHwnds:
         """A genau session's startup parks the idle main-slot window (the main player)
         BEFORE the dispatch loop ever resolves it; with the pid/title lookups
         mocked to fail, the runner must answer from the hwnds the startup
-        sequencer seeded while everything was visible, or video mode could
+        sequencer seeded while everything was visible, or kino mode could
         never bring the main player back."""
         runner = make_runner(
             tmp_path,
@@ -2913,28 +2913,28 @@ class TestSeededRoleHwnds:
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0),              patch("fun_time.role_windows.find_window_by_title", return_value=0),              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)):
             assert runner.windows.hwnd("genau") == 6001
             assert runner.windows.hwnd("main_player") == 2001
-            runner._dispatch("main_video_activate")
+            runner._dispatch("main_kino_activate")
 
-        assert shown == [2001, 6001]  # video mode shows the main player then the Genau HUD
+        assert shown == [2001, 6001]  # kino mode shows the main player then the Genau HUD
 
 
-class TestVideoModeFunscriptHandoff:
+class TestKinoModeFunscriptHandoff:
     """The arbitration itself is the driver's (see tests/test_device_arbiter.py);
     what the runner owes is running it each tick against the current modes."""
 
     def test_the_tick_arbitrates_for_the_mode_the_session_is_in(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode=MainMode.VIDEO, omni_paused=True)
+        runner.state = BridgeState(main_mode=MainMode.KINO, omni_paused=True)
 
         with patch.object(runner.arbiter, "sync") as sync:
             runner.tick()
 
-        sync.assert_called_once_with("video", paused=True, control="driving",
+        sync.assert_called_once_with("kino", paused=True, control="driving",
                                      holder=Player.MAIN)
 
     def test_the_tick_tells_the_arbiter_when_a_side_player_has_the_osr2(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode=MainMode.VIDEO, osr2_player=Player.LANDSCAPE)
+        runner.state = BridgeState(main_mode=MainMode.KINO, osr2_player=Player.LANDSCAPE)
 
         with patch.object(runner.arbiter, "sync") as sync:
             runner.tick()
@@ -3038,7 +3038,7 @@ class TestHudPublishing:
 
     def test_the_tick_feeds_the_huds_the_state_it_is_holding(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SatelliteState(locked=True), main_mode=MainMode.VIDEO)
+        runner.state = BridgeState(portrait=SatelliteState(locked=True), main_mode=MainMode.KINO)
 
         with patch.object(runner.hud, "publish_due") as publish:
             runner.tick()
@@ -3179,8 +3179,8 @@ class TestAGenauLockTakesTheGalleryToTheClip:
         assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.FIRST}"]
 
     @pytest.mark.parametrize(("main_mode", "satellites_mode"), [
-        (MainMode.VIDEO, "origenerator"),   # the main player's lock, not Genau's
-        (MainMode.GENAU, "video"),          # the players showing, the gallery parked
+        (MainMode.KINO, "origenerator"),   # the main player's lock, not Genau's
+        (MainMode.GENAU, "kino"),          # the players showing, the gallery parked
     ])
     def test_a_lock_leaves_the_gallery_alone_unless_genau_and_the_gallery_are_both_up(
             self, tmp_path, main_mode, satellites_mode):
@@ -3214,13 +3214,13 @@ class TestOrigeneratorWindowConverger:
 
     def test_outside_omnipause_the_windows_object_is_asked_for_these_modes(self, tmp_path):
         runner = make_runner(tmp_path, origenerator_pid=700)
-        runner.state = replace(runner.state, main_mode=MainMode.VIDEO,
+        runner.state = replace(runner.state, main_mode=MainMode.KINO,
                                satellites_mode="origenerator")
 
         with patch.object(runner.windows, "converge_origenerator_window") as converge:
             runner._converge_origenerator_window()
 
-        converge.assert_called_once_with("video", "origenerator")
+        converge.assert_called_once_with("kino", "origenerator")
 
 
 class TestOrigeneratorWatchGuard:
@@ -3266,13 +3266,13 @@ class TestASessionThatHostsNoOrigenerator:
     Origenerator has no such mode, and reading it in sent every satellite verb
     to an app that was not there."""
 
-    def test_a_resumed_origenerator_mode_reads_as_video(self, tmp_path):
+    def test_a_resumed_origenerator_mode_reads_as_kino(self, tmp_path):
         runner = make_runner(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", BridgeState(satellites_mode="origenerator"))
 
         runner.tick()
 
-        assert runner.state.satellites_mode == "video"
+        assert runner.state.satellites_mode == "kino"
 
     def test_with_an_origenerator_that_is_up_the_mode_stands(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
@@ -3379,13 +3379,13 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
         assert runner.state.origenerator_ready is True
         assert not (tmp_path / "origenerator_cmd.txt").exists()
 
-    def test_a_session_left_in_video_mode_is_switched_to_nothing(self, tmp_path):
+    def test_a_session_left_in_kino_mode_is_switched_to_nothing(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
 
         runner.tick()
 
-        assert runner.state.satellites_mode == "video"
+        assert runner.state.satellites_mode == "kino"
         assert not (tmp_path / "origenerator_cmd.txt").exists()
 
 
@@ -3473,7 +3473,7 @@ class TestThePlayersComeHome:
         runner.bring_the_players_home(now=100.5)
 
         assert self._queued(config, Player.PORTRAIT) == []
-        runner.state = replace(runner.state, satellites_mode="video")
+        runner.state = replace(runner.state, satellites_mode="kino")
         runner.bring_the_players_home(now=100.6)
         assert self._queued(config, Player.PORTRAIT) == []     # nothing owed any more
 
@@ -3496,7 +3496,7 @@ class TestThePlayersComeHome:
                                satellites_mode="origenerator")
 
         with patch.object(runner, "expect_the_players_home") as expect:
-            runner._dispatch("satellites_video_activate")
+            runner._dispatch("satellites_kino_activate")
 
         expect.assert_called_once()
 

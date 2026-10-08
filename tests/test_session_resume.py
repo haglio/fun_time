@@ -156,7 +156,7 @@ class TestResumePlaylists:
     def test_opens_a_player_that_never_came_home_on_its_own_list(self, tmp_path: Path):
         """A session quit while the hosted Origenerator had the player leaves that
         app's pictures in the playlist file and the player's own list kept aside.
-        Every room is built in video mode, so its own list is what it opens on —
+        Every room is built in kino mode, so its own list is what it opens on —
         at the clip it was showing when it left."""
         a, b, picture = _clips(tmp_path, "a.mp4", "b.mp4", "picture.png")
         channel = _never_came_home(tmp_path, own=[a, b], showing=b, hosted=[picture])
@@ -284,7 +284,7 @@ class TestResumeSharedState:
     def test_carries_the_mode_the_primary_slot_was_left_in(self, tmp_path: Path):
         """Which player owns the big display is as much a thing you set as the
         sound level, so leaving the session showing Genau and reopening on the main player
-        is the same overnight reset.  Startup builds every session in video mode
+        is the same overnight reset.  Startup builds every session in kino mode
         and then puts the carried mode on over the top (see
         :func:`fun_time.windows_bridge_startup.seed_startup_states`)."""
         state_file = tmp_path / "shared_bridge_state.ini"
@@ -757,14 +757,14 @@ class TestResumeMainVideo:
 def test_the_satellite_mode_is_not_something_a_session_comes_back_in(tmp_path):
     """The one thing a resume deliberately drops rather than carries.
 
-    Every room is BUILT in video mode: the hosted Origenerator is still booting
+    Every room is BUILT in kino mode: the hosted Origenerator is still booting
     when the room opens and nothing waits for it, so the mode cannot be entered
     at that moment.  Coming back to it LATER was tried and is worse -- the two
     sides would rearrange themselves under whatever he had started doing in
-    video mode -- so being in origenerator mode is simply not something Fun Time
+    kino mode -- so being in origenerator mode is simply not something Fun Time
     remembers from one session to the next.
     """
     state_file = tmp_path / "shared_state.ini"
     write_shared_state(state_file, BridgeState(satellites_mode="origenerator"))
 
-    assert resume_shared_state(state_file, resumed=True).satellites_mode == "video"
+    assert resume_shared_state(state_file, resumed=True).satellites_mode == "kino"

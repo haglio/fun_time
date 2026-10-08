@@ -8,7 +8,7 @@ can be compared.
 from __future__ import annotations
 
 from fun_time.genau_config import GENAU_LOG_FILES
-from fun_time.window_roles import GENAU_TITLE, GENAU_VIDEO_TITLE
+from fun_time.window_roles import GENAU_KINO_TITLE, GENAU_TITLE
 from fun_time.windows_bridge_startup import genau_launch_command
 from tests.genau_contract import published
 
@@ -61,7 +61,7 @@ def test_the_captions_this_session_resolves_the_window_by_are_genaus_own():
     document = published()
 
     assert document["window_title"] == GENAU_TITLE
-    assert document["video_window_title"] == GENAU_VIDEO_TITLE
+    assert document["video_window_title"] == GENAU_KINO_TITLE
 
 
 def test_the_logs_read_when_genau_dies_starting_are_the_ones_genau_keeps():

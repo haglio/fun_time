@@ -307,7 +307,7 @@ class WindowRoles:
     def remove_all_topmost(self) -> None:
         """Drop EVERY managed window out of the TOPMOST band (omnipause frees
         the desktop).  Dropping unconditionally — not just the normally-topmost
-        roles — is what stops the main player from being stranded on top in video mode, where
+        roles — is what stops the main player from being stranded on top in kino mode, where
         it does carry the topmost flag."""
         for role in MANAGED_ROLES:
             hwnd = self.hwnd(role)
@@ -328,7 +328,7 @@ class WindowRoles:
 
         The hosted window then goes up (:meth:`restack_origenerator`), and the
         overlapping main player/Genau pair last (:meth:`restack_main_slot`), so Genau's
-        HUD sits above the main player's video in video mode.
+        HUD sits above the main player's video in kino mode.
         """
         for role in FIXED_TOPMOST_ROLES:
             if not role_topmost(role, main_mode, satellites_mode):
@@ -345,7 +345,7 @@ class WindowRoles:
 
         Only in origenerator mode — the two share one rect, and
         ``HWND_TOPMOST`` inserts at the top of the band, so promoting this one
-        after the fixed roles is what stacks it on top.  In video mode it is
+        after the fixed roles is what stacks it on top.  In kino mode it is
         parked and stays out of the band.
         """
         if paused or not role_topmost(ORIGENERATOR_ROLE, main_mode, satellites_mode):
@@ -357,12 +357,12 @@ class WindowRoles:
     def restack_main_slot(self, main_mode: str, *, paused: bool = False) -> None:
         """Re-establish the main player/Genau z-order for this mode.
 
-        The main player and Genau share one screen rect — in video mode Genau's transparent HUD
+        The main player and Genau share one screen rect — in kino mode Genau's transparent HUD
         overlays the main player's video — so unlike every other window they OVERLAP and need
         explicit stacking.  Demote both, then promote low-to-high so the last
         promotion lands highest:
 
-          * video mode — promote the main player, then Genau ABOVE it, so the HUD overlays
+          * kino mode — promote the main player, then Genau ABOVE it, so the HUD overlays
                          the video and both float above the desktop.
           * genau mode — promote Genau (the main player hidden).
 
@@ -387,7 +387,7 @@ class WindowRoles:
 
         The mode-switch ops restore or park it when a command fires, but the
         window arrives mid-session — the room opens without waiting the app
-        out — so this is what meets it: parked while the room is in video mode,
+        out — so this is what meets it: parked while the room is in kino mode,
         and up in the other.
 
         Judged from the WINDOW, not from a memory of what was asked: the app's

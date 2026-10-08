@@ -240,7 +240,7 @@ class PlayerSession:
     def set_tcode_enabled(self, enabled: bool) -> None:
         """Gate funscript T-Code output (the SET_TCODE_ENABLED command).
 
-        In video mode the Robot Hand drives the OSR2 through the gaps, so the main player
+        In kino mode the Robot Hand drives the OSR2 through the gaps, so the main player
         must stop emitting its own funscript-derived T-Code or the two fight over
         the broker's UDP inlet.  Muting just skips the per-tick update;
         re-enabling is a takeover, since the device is wherever the hand left it.

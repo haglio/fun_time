@@ -362,7 +362,7 @@ def test_seed_startup_states_writes_all_three_pause_flags(tmp_path: Path):
 
 
 def test_seed_startup_states_puts_genaus_hud_up_for_a_fresh_session(tmp_path: Path):
-    """A fresh session opens in video mode: Genau's window is the HUD layer over
+    """A fresh session opens in kino mode: Genau's window is the HUD layer over
     The main player's video, and it is held (PAUSE, written whole as the channel's reset)
     until the reveal.  Both players are told the mode, the main player by the mirror verb."""
     genau_cmd = tmp_path / "genau_cmd.txt"
@@ -401,7 +401,7 @@ def test_seed_startup_states_holds_every_player_for_the_reveal(tmp_path: Path):
     gone.  The switch this replays would have started Genau outright — right for
     a live switch, wrong here, where it would drive the OSR2 for the twenty
     seconds the user spends watching a progress bar."""
-    for mode in ("video", "genau"):
+    for mode in ("kino", "genau"):
         _seed_startup_states(tmp_path, mode=mode)
 
         assert (tmp_path / "genau_paused.txt").read_text(encoding="utf-8") == "1", mode
@@ -423,19 +423,19 @@ def test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal(tmp_path: P
     channel as well.  Under Fun Time Genau runs in direct control, where the
     paused flag is never read and the motion follows PAUSE/RESUME here — so the
     switch's RESUME was still queued when Genau finished loading, and a session
-    resuming into genau or video mode drove the OSR2 under the loading screen."""
-    for mode in ("video", "genau"):
+    resuming into genau or kino mode drove the OSR2 under the loading screen."""
+    for mode in ("kino", "genau"):
         _seed_startup_states(tmp_path, mode=mode)
 
         assert _genau_play_verb(tmp_path) == "PAUSE", mode
 
 
-def test_seed_startup_states_puts_genaus_hud_up_for_a_video_session(tmp_path: Path):
-    """Video mode is both players at once: Genau's transparent HUD over the main player's
+def test_seed_startup_states_puts_genaus_hud_up_for_a_kino_session(tmp_path: Path):
+    """Kino mode is both players at once: Genau's transparent HUD over the main player's
     video, which each of them has to be told about."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
-    _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="video")
+    _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="kino")
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
         "PAUSE", "HUD_ON", "SET_VOLUME 100 0",
@@ -588,7 +588,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         satellite_cmd_files=(kwargs["portrait"].channels.command,
                              kwargs["landscape"].channels.command),
         scripted_filter=False,
-        mode="video",
+        mode="kino",
     )
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
     # Every player's playlist, each built with its F-mode off — the flags default
@@ -678,7 +678,7 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
 
 def test_a_session_that_ended_hosting_resumes_its_own_clips_not_the_hosted_apps(
         tmp_path: Path):
-    """Every room is BUILT in video mode, so a room whose last session ended with
+    """Every room is BUILT in kino mode, so a room whose last session ended with
     the hosted app holding the players must not open playing that app's pictures
     — which it did, held on a still nothing would page.  The session's own list
     was waiting beside each of them the whole time."""
@@ -825,12 +825,12 @@ def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path:
     assert "SET_LOOP" not in kwargs["main_player_cmd_file"].read_text(encoding="utf-8")
 
 
-def test_start_core_session_opens_a_fresh_session_in_video_mode(tmp_path: Path):
+def test_start_core_session_opens_a_fresh_session_in_kino_mode(tmp_path: Path):
     """Nothing to resume means no mode to come back to, and the main slot's
-    own default is video mode — the same one every session is built in."""
+    own default is kino mode — the same one every session is built in."""
     kwargs = _start_core_session_kwargs(tmp_path)
 
-    assert _run_start_core_session(kwargs) == "video"
+    assert _run_start_core_session(kwargs) == "kino"
 
 
 def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built_in(
@@ -1081,7 +1081,7 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
 def test_a_session_resumed_into_origenerator_mode_still_seeds_its_players_playing(
     tmp_path: Path,
 ):
-    """Every room is BUILT in video mode: the hosted app that owns those regions
+    """Every room is BUILT in kino mode: the hosted app that owns those regions
     is still booting when the room opens, and nothing waits for it any more.  So
     both players come up playing whatever mode the last session ended in, and
     the switch into origenerator mode — which the dispatch loop makes once the
@@ -1204,7 +1204,7 @@ def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
     assert "--paused-file" in command
     idx = command.index("--paused-file")
     assert command[idx + 1] == "state/genau_paused.txt"
-    # Where Genau publishes the readout the main player draws in Video mode.  Named by us, because
+    # Where Genau publishes the readout the main player draws in Kino mode.  Named by us, because
     # Genau resolving it from its own config put it in a directory the main player never read.
     assert "--drive-file" in command
     idx = command.index("--drive-file")

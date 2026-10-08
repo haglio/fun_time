@@ -104,10 +104,10 @@ class TestVoiceCommands:
             "play": "play",
             "go now": "genau_activate",
             "go now mode": "genau_activate",
-            "video mode": "video_activate",
-            "main video mode": "main_video_activate",
-            "satellite video mode": "satellites_video_activate",
-            "satellites video mode": "satellites_video_activate",
+            "kino mode": "kino_activate",
+            "main kino mode": "main_kino_activate",
+            "satellite kino mode": "satellites_kino_activate",
+            "satellites kino mode": "satellites_kino_activate",
             "aura generator mode": "origenerator_activate",
             "start broker": "broker_start",
             "stop broker": "broker_stop",
@@ -284,11 +284,13 @@ class TestVoiceCommands:
         for phrase in ("enable genau", "disable genau"):
             assert phrase not in VOICE_COMMANDS
 
-    def test_video_mode_is_said_of_a_side_or_of_both(self):
-        assert VOICE_COMMANDS["main video mode"] == "main_video_activate"
-        assert VOICE_COMMANDS["satellite video mode"] == "satellites_video_activate"
-        assert VOICE_COMMANDS["video mode"] == "video_activate"
-        for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "v l c"):
+    def test_kino_mode_is_said_of_a_side_or_of_both(self):
+        assert VOICE_COMMANDS["main kino mode"] == "main_kino_activate"
+        assert VOICE_COMMANDS["satellite kino mode"] == "satellites_kino_activate"
+        assert VOICE_COMMANDS["kino mode"] == "kino_activate"
+        for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "v l c",
+                        "video mode", "main video mode", "satellite video mode",
+                        "satellites video mode"):
             assert retired not in VOICE_COMMANDS, retired
 
     def test_main_player_version_is_spoken_like_every_other_cycle_axis(self):
@@ -459,15 +461,17 @@ class TestVoiceCommands:
 
     def test_mode_named_navigation_both_orders(self):
         """A mode's name + next/previous (either order) navigates its player:
-        Video drives the main slot, Genau its own clip."""
+        Kino drives the main slot, Genau its own clip."""
         for base, (next_command, previous_command) in (
-                ("video", ("main_next", "main_prev")),
+                ("kino", ("main_next", "main_prev")),
                 ("genau", ("genau_next_clip", "genau_prev_clip")),
                 ("go now", ("genau_next_clip", "genau_prev_clip"))):
             assert VOICE_COMMANDS[f"{base} next"] == next_command
             assert VOICE_COMMANDS[f"next {base}"] == next_command
             assert VOICE_COMMANDS[f"{base} previous"] == previous_command
             assert VOICE_COMMANDS[f"previous {base}"] == previous_command
+        for retired in ("video next", "next video", "video previous", "previous video"):
+            assert retired not in VOICE_COMMANDS, retired
 
     def test_contains_numeric_amp_phrases(self):
         assert VOICE_COMMANDS["amp fifty"] == "robot_hand_amp_50"

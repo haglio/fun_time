@@ -15,10 +15,10 @@ from player_core.drive_readout import DriveHud, drive_text
 from main_player.published import Published
 
 GENAU_MODE = "genau"
-VIDEO_MODE = "video"
+KINO_MODE = "kino"
 
 
-def _console_file(path: Path, mode: str = VIDEO_MODE, **over) -> Path:
+def _console_file(path: Path, mode: str = KINO_MODE, **over) -> Path:
     payload = {"main_mode": mode, "active": True, "osr2": "off"}
     payload.update(over)
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -95,11 +95,11 @@ class TestReadingTheMotion:
 
         assert published.drive.position == 4_000
 
-    def test_the_motion_is_read_in_video_mode_too(self, files):
+    def test_the_motion_is_read_in_kino_mode_too(self, files):
         """The Robot Hand is driving in both modes — it takes the
-        funscript's gaps in video mode — so its readout is drawn there as well."""
+        funscript's gaps in kino mode — so its readout is drawn there as well."""
         console_file, drive_file = files
-        _console_file(console_file, VIDEO_MODE)
+        _console_file(console_file, KINO_MODE)
         _drive_file(drive_file, position=4_000)
         published = Published(console_file, drive_file)
 

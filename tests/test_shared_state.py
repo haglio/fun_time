@@ -14,9 +14,9 @@ import pytest
 from player_core.modes import MainMode
 
 from fun_time import shared_state
-from fun_time.mode_plan import MAIN_MODES, MAIN_VIDEO_MODE
+from fun_time.mode_plan import MAIN_KINO_MODE, MAIN_MODES
 from fun_time.players import Player
-from fun_time.satellites_mode import VIDEO_MODE as SATELLITES_VIDEO_MODE
+from fun_time.satellites_mode import KINO_MODE as SATELLITES_KINO_MODE
 from fun_time.shared_state import (
     _LAST_SESSIONS_KEYS,
     SHARED_STATE_FILENAME,
@@ -158,7 +158,7 @@ class TestSharedState:
     def test_roundtrip_preserves_per_satellite_filters(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(
-            main_mode=MainMode.VIDEO,
+            main_mode=MainMode.KINO,
             portrait=SatelliteState(filter="beta gamma"),
             landscape=SatelliteState(filter="alpha"),
         )
@@ -383,37 +383,23 @@ class TestTheSideLens:
             Player.LANDSCAPE)
 
 
-def test_a_state_saved_before_video_mode_comes_back_in_video_mode(tmp_path: Path):
-    """The main slot's main_player and hybrid modes became the one video mode, and the
-    satellites' player mode was renamed to match — a session that last ran
-    under the old names has to come back in a mode the room still knows."""
+def test_a_state_saved_under_an_old_name_of_the_mode_comes_back_in_kino_mode(tmp_path: Path):
+    """The main slot's main_player and hybrid modes became one mode, called video
+    until it was renamed kino, and the satellites' player mode followed it both
+    times.  A file saved under any of those words has to come back as the mode
+    they are now: an unrecognized one used to answer False to every question and
+    quietly park the players, and now build_mode_switch_plan refuses it outright,
+    so a resumed session would not switch at all."""
     state_file = tmp_path / SHARED_STATE_FILENAME
-    for saved_main, saved_satellites in (("main_player", "player"), ("hybrid", "player")):
-        write_shared_state(state_file, BridgeState())
-        text = state_file.read_text(encoding="utf-8")
-        text = text.replace("main_mode = video", f"main_mode = {saved_main}")
-        text = text.replace("satellites_mode = video", f"satellites_mode = {saved_satellites}")
-        state_file.write_text(text, encoding="utf-8")
+    for saved_main, saved_satellites in (("main_player", "player"), ("hybrid", "player"),
+                                         ("video", "video")):
+        write_shared_state(state_file, BridgeState(main_mode=saved_main,
+                                                   satellites_mode=saved_satellites))
 
         resumed = read_shared_state(state_file)
 
-        assert (resumed.main_mode, resumed.satellites_mode) == ("video", "video"), saved_main
-
-
-def test_a_state_file_from_before_the_rename_comes_back_in_a_mode_that_exists(tmp_path: Path):
-    """The main slot's main_player and hybrid modes became one video mode, and the
-    satellites' player mode was renamed to match.  A file saved then has to come
-    back as the mode those are now: an unrecognized one used to answer False to
-    every question and quietly park the players, and now build_mode_switch_plan
-    refuses it outright, so a resumed session would not switch at all.
-    """
-    state_file = tmp_path / SHARED_STATE_FILENAME
-    for saved in ("main_player", "hybrid"):
-        write_shared_state(state_file, BridgeState(main_mode=saved))
-        assert read_shared_state(state_file).main_mode == MAIN_VIDEO_MODE
-
-    write_shared_state(state_file, BridgeState(satellites_mode="player"))
-    assert read_shared_state(state_file).satellites_mode == SATELLITES_VIDEO_MODE
+        assert (resumed.main_mode, resumed.satellites_mode) == (
+            MAIN_KINO_MODE, SATELLITES_KINO_MODE), saved_main
 
 
 def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
@@ -429,7 +415,7 @@ def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
 # the way tests/test_manifest.py holds the launch manifest's inventory.
 _EXPECTED_STATE_KEYS = {
     "portrait_locked": "0", "landscape_locked": "0",
-    "main_mode": "video", "satellites_mode": "video",
+    "main_mode": "kino", "satellites_mode": "kino",
     "origenerator_ready": "0",
     "main_scripted_filter": "0", "portrait_favorites_filter": "0", "landscape_favorites_filter": "0",
     "main_hud_corner": "upper_left", "main_hud_edge": "lower", "main_hud_minimized": "0",

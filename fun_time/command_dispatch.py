@@ -53,7 +53,7 @@ from .max_intensity import (
 )
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .media_metadata import forget_indexed_clip
-from .mode_plan import MAIN_GENAU_MODE, MAIN_VIDEO_MODE, main_player_displays
+from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE, main_player_displays
 from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
 from .osr2_section import TAKE_OSR2_COMMANDS, player_with_the_osr2, take_osr2_command
@@ -96,8 +96,8 @@ from .satellite_groups import (
     wrong_action,
 )
 from .satellites_mode import (
+    KINO_MODE,
     ORIGENERATOR_MODE,
-    VIDEO_MODE,
     origenerator_shows,
     toggled_satellites_mode,
 )
@@ -185,7 +185,7 @@ def _speed_target(state: BridgeState, config: BridgeConfig, *,
                   by_driver: bool) -> Player | None:
     """Which engine a speed command drives: a player, or None for the Robot Hand.
 
-    An engine-named command goes where its name says — in video mode the video's
+    An engine-named command goes where its name says — in kino mode the video's
     rate to the main player, the one on screen; elsewhere the hand.  The
     unqualified nudge follows the OSR2: the funscript of the player that has it
     while that script is driving, in any mode, else the Robot Hand, which is
@@ -878,7 +878,7 @@ def _dispatch_leave_omnipause(
 def _main_focus_ops() -> list[WindowOp]:
     """Re-activate the window on top of the main player (omnipause leave):
     Genau's in both modes — the display in genau mode, the HUD layer over
-    The main player's video in video mode."""
+    The main player's video in kino mode."""
     return [WindowOp(op="activate_role", key="genau")]
 
 
@@ -902,7 +902,7 @@ def _main_slot_ops(main_mode: str) -> list[WindowOp]:
         WindowOp(op="show_role", key="genau"),
         WindowOp(op="activate_role", key="genau"),
         restack,
-        WindowOp(op="hand_over_the_main_slot", key=MAIN_VIDEO_MODE),
+        WindowOp(op="hand_over_the_main_slot", key=MAIN_KINO_MODE),
     ]
 
 
@@ -1422,6 +1422,9 @@ def _satellites_slot_ops(satellites_mode: str) -> list[WindowOp]:
     ]
 
 
+_SATELLITES_SWITCHES = ("origenerator_activate", "satellites_kino_activate", "satellites_toggle")
+
+
 def _dispatch_satellites_switch(
     command: str, state: BridgeState, config: BridgeConfig, ops: list[WindowOp]
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -1438,7 +1441,7 @@ def _dispatch_satellites_switch(
             level=logging.WARNING)]
     target = {
         "origenerator_activate": ORIGENERATOR_MODE,
-        "satellites_video_activate": VIDEO_MODE,
+        "satellites_kino_activate": KINO_MODE,
         "satellites_toggle": toggled_satellites_mode(state.satellites_mode),
     }[command]
     result = apply_satellites_switch(
@@ -1474,15 +1477,15 @@ def _dispatch_mode_switch(
     return state, ops
 
 
-def _video_activate(state: BridgeState, config: BridgeConfig,
-                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """"video mode", said of no side: the main slot's video AND the satellites'
+def _kino_activate(state: BridgeState, config: BridgeConfig,
+                   _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    """"kino mode", said of no side: the main slot's video AND the satellites'
     players, each through its own switch — a session hosting no Origenerator
     has only the main slot's to make."""
-    state, ops = _dispatch_mode_switch(MAIN_VIDEO_MODE, state, config, [])
+    state, ops = _dispatch_mode_switch(MAIN_KINO_MODE, state, config, [])
     if config.origenerator_enabled:
         state, ops = _dispatch_satellites_switch(
-            "satellites_video_activate", state, config, ops)
+            "satellites_kino_activate", state, config, ops)
     return state, ops
 
 
@@ -1508,7 +1511,7 @@ _TRANSPORT_COMMANDS: dict[str, tuple[Player, str]] = {
 # The main slot's two mode switches, by their target mode.
 _MODE_SWITCH_COMMANDS: dict[str, str] = {
     "genau_activate": MAIN_GENAU_MODE,
-    "main_video_activate": MAIN_VIDEO_MODE,
+    "main_kino_activate": MAIN_KINO_MODE,
 }
 
 
@@ -1541,7 +1544,7 @@ def _no_loop(player: Player, state: BridgeState, config: BridgeConfig,
 
 def _forward_to_main_player(verb: str, state: BridgeState, config: BridgeConfig,
                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """The main player owns the main slot in video mode; in genau mode the paused main player
+    """The main player owns the main slot in kino mode; in genau mode the paused main player
     still navigates in the background, and its SEEK commands apply to a live
     local clock, so rapid nudges stack naturally."""
     append_command(config.main_player_cmd_file, verb)
@@ -1551,7 +1554,7 @@ def _forward_to_main_player(verb: str, state: BridgeState, config: BridgeConfig,
 def _forward_to_main_player_on_screen(verb: str, state: BridgeState, config: BridgeConfig,
                               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """Loop recording, versions and length only make sense while the main player owns the
-    main slot — video mode, not genau."""
+    main slot — kino mode, not genau."""
     if not main_player_displays(state.main_mode):
         return state, []
     append_command(config.main_player_cmd_file, verb)
@@ -1739,7 +1742,7 @@ def _filter_the_shows_enhanced(state: BridgeState, config: BridgeConfig,
 
 def _words_for_a_show_that_is_not_up(state: BridgeState, _config: BridgeConfig,
                                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """The hosted app's phrases arrive in video mode too (its vocabulary is
+    """The hosted app's phrases arrive in kino mode too (its vocabulary is
     always in the grammar); there they reach nothing, a known dead end."""
     return state, []
 
@@ -1816,9 +1819,8 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, players in _NO_FILTER_SIDES.items()})
     handlers.update({cmd: partial(_mode_switch, target)
                      for cmd, target in _MODE_SWITCH_COMMANDS.items()})
-    handlers.update({cmd: partial(_satellites_switch, cmd)
-                     for cmd in ("origenerator_activate", "satellites_video_activate", "satellites_toggle")})
-    handlers["video_activate"] = _video_activate
+    handlers.update({cmd: partial(_satellites_switch, cmd) for cmd in _SATELLITES_SWITCHES})
+    handlers["kino_activate"] = _kino_activate
     handlers.update({command: partial(_crown, crown) for command, crown in CROWNS.items()})
     handlers.update({cmd: partial(_speed, verb, verb, True)
                      for cmd, verb in _SPEED_BY_DRIVER.items()})

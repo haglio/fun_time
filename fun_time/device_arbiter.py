@@ -84,7 +84,7 @@ class DeviceArbiter:
     def sync(self, main_mode: str, *, paused: bool,
              control: str = OSR2_DRIVING, holder: Player = Player.MAIN) -> None:
         """Route the OSR2 to *holder*'s funscript or the Robot Hand, moment to
-        moment -- a side player in every mode, the main player in video mode.
+        moment -- a side player in every mode, the main player in kino mode.
 
         *control* off, parked or retracted is nobody driving, in every mode, and
         nothing below runs: there is no device to hand over.

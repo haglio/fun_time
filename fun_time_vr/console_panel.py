@@ -66,7 +66,7 @@ def panel_hud(
 ) -> ConsoleHud:
     """The engine's console re-said for the mode: under a video, its name on top
     and the funscript folded into the readout by *drive_gate*
-    (:class:`player_core.drive_gate.DriveGate`), as the desktop's video-mode
+    (:class:`player_core.drive_gate.DriveGate`), as the desktop's kino-mode
     console draws it; in genau mode the clip's name (or the one still decoding)
     over Genau's own motion, the gate told nothing was published.  Before the
     engine's first tick there is none, and the panel still names what plays.

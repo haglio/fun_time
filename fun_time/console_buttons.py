@@ -35,7 +35,7 @@ class MainSlot:
     of the main slot, then what the main player published about its video,
     each defaulting to "cannot" until the player says otherwise."""
 
-    main_mode: MainMode = MainMode.VIDEO
+    main_mode: MainMode = MainMode.KINO
     locked: bool = True
     scripted_filter: bool = False
     latest: bool | None = None
@@ -91,7 +91,7 @@ FLIP_ENDS_ICON = shared_mark("flip_ends")
 WAVE_ICON = shared_mark("wave")
 
 MODE_BUTTONS = (
-    ("main_video_activate", "Video", MainMode.VIDEO),
+    ("main_kino_activate", "Kino", MainMode.KINO),
     ("genau_activate", "Genau", MainMode.GENAU),
 )
 

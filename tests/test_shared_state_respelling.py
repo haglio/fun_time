@@ -65,16 +65,16 @@ class TestTheSharedStateFile:
         for old in ("locked2", "locked3", "active_side", "f_mode"):
             assert old not in text, old
 
-    def test_a_mode_word_this_app_has_dropped_comes_back_as_video(self, tmp_path: Path):
-        """hybrid and player were mode words once.  The record reads a word it
-        does not know as its default, so no table of old words is kept."""
+    def test_a_mode_word_this_app_has_dropped_comes_back_as_kino(self, tmp_path: Path):
+        """hybrid, player and video were mode words once.  The record reads a word
+        it does not know as its default, so no table of old words is kept."""
         state_file = tmp_path / SHARED_STATE_FILENAME
         state_file.write_text(_LAST_SESSIONS_STATE, encoding="utf-8")
 
         migrate_shared_state(state_file)
 
         state = read_shared_state(state_file)
-        assert (state.main_mode, state.satellites_mode) == (MainMode.VIDEO, SatellitesMode.VIDEO)
+        assert (state.main_mode, state.satellites_mode) == (MainMode.KINO, SatellitesMode.KINO)
 
     def test_a_file_already_in_todays_spelling_is_left_untouched(self, tmp_path: Path):
         state_file = tmp_path / SHARED_STATE_FILENAME

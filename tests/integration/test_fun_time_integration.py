@@ -121,7 +121,7 @@ def test_fun_time_sided_fmode_flow(shared_integration_session: FunTimeIntegratio
 
 
 def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
-    """Pressing 'g' (genau_activate) then 'h' (main_video_activate) switches modes."""
+    """Pressing 'g' (genau_activate) then 'h' (main_kino_activate) switches modes."""
     s = shared_integration_session
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode")
@@ -135,14 +135,14 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
         description="the main player paused file to flip on (inactive)",
     )
 
-    s.write_dashboard_command("main_video_activate")
-    s.wait_for_new_log("Switched to video mode")
+    s.write_dashboard_command("main_kino_activate")
+    s.wait_for_new_log("Switched to kino mode")
 
     s.wait_until(
         lambda: s.config.main_player_paused_file.read_text(encoding="utf-8") == "0",
         description="the main player paused file to flip back off (active)",
     )
-    # Genau runs on in video mode — its HUD over the video, the Robot Hand
+    # Genau runs on in kino mode — its HUD over the video, the Robot Hand
     # under it for the funscript's gaps — so its flag never flips back.
     assert s.config.genau_paused_file.read_text(encoding="utf-8") == "0"
 
@@ -202,8 +202,8 @@ def test_fun_time_the_max_intensity_pushes_the_robot_hand_down_and_leaves_it_the
         free = _osr2_heard_until(sink, _osr2_swinging)
     finally:
         s.write_dashboard_command("max_intensity_100")
-        s.write_dashboard_command("main_video_activate")
-        s.wait_for_new_log("Switched to video mode")
+        s.write_dashboard_command("main_kino_activate")
+        s.wait_for_new_log("Switched to kino mode")
 
     assert _osr2_swinging(swinging), swinging
     assert _osr2_still(held), held
@@ -216,7 +216,7 @@ def test_fun_time_the_max_intensity_holds_a_funscript_down_through_its_gaps_too(
 ):
     s = shared_integration_session
     sink = s.config.main_player_tcode.port
-    s.write_dashboard_command("main_video_activate")
+    s.write_dashboard_command("main_kino_activate")
     s.write_dashboard_command("play")
     try:
         free = _osr2_heard_until(sink, _osr2_swinging)
@@ -233,28 +233,28 @@ def test_fun_time_the_max_intensity_holds_a_funscript_down_through_its_gaps_too(
 
 def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integration_session: FunTimeIntegrationSession):
     """The main-slot players share one screen rect, so a mode switch settles
-    which is on screen: in video mode both are restored — the main player's video with
+    which is on screen: in kino mode both are restored — the main player's video with
     Genau's HUD stacked above it, both topmost — and genau mode parks the main player
     (minimized, never hidden — both keep a taskbar button all session, so both
     stay findable by title; is_window_minimized tells them apart)."""
     s = shared_integration_session
 
-    # video mode: the main player restored AND topmost (its video above the desktop), and
+    # kino mode: the main player restored AND topmost (its video above the desktop), and
     # Genau restored and topmost too, promoted after the main player so the HUD lands above
     # the video.  Exact, so a caption merely containing the name cannot answer.
     s.wait_until(
         lambda: find_window_by_title("Main Player", exact=True) != 0,
-        description="the main player window to exist in video mode",
+        description="the main player window to exist in kino mode",
     )
     main_player_hwnd = find_window_by_title("Main Player", exact=True)
     s.wait_until(
         lambda: is_window_topmost(main_player_hwnd) and not is_window_minimized(main_player_hwnd),
-        description="the main player to be restored and topmost in video mode",
+        description="the main player to be restored and topmost in kino mode",
     )
     s.wait_until(
         lambda: (not is_window_minimized(find_window_by_title("Genau"))
                  and is_window_topmost(find_window_by_title("Genau"))),
-        description="Genau's HUD to be restored and topmost in video mode, above the main player",
+        description="Genau's HUD to be restored and topmost in kino mode, above the main player",
     )
 
     s.write_dashboard_command("genau_activate")
@@ -269,24 +269,24 @@ def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integr
         description="Genau window to stay up as the display in genau mode",
     )
 
-    # Back to video mode: the main player is restored and reclaims the topmost band, Genau
+    # Back to kino mode: the main player is restored and reclaims the topmost band, Genau
     # stays up as the HUD above it — BOTH in the topmost band, leaving the
     # session where it started.
-    s.write_dashboard_command("main_video_activate")
-    s.wait_for_new_log("Switched to video mode")
+    s.write_dashboard_command("main_kino_activate")
+    s.wait_for_new_log("Switched to kino mode")
 
     s.wait_until(
         lambda: not is_window_minimized(find_window_by_title("Main Player", exact=True)),
-        description="the main player window to restore in video mode",
+        description="the main player window to restore in kino mode",
     )
     s.wait_until(
         lambda: is_window_topmost(find_window_by_title("Main Player", exact=True)),
-        description="the main player to float topmost in video mode (video above the desktop)",
+        description="the main player to float topmost in kino mode (video above the desktop)",
     )
     s.wait_until(
         lambda: (not is_window_minimized(find_window_by_title("Genau"))
                  and is_window_topmost(find_window_by_title("Genau"))),
-        description="Genau's HUD to be topmost in video mode, stacked above the main player",
+        description="Genau's HUD to be topmost in kino mode, stacked above the main player",
     )
 
 
@@ -301,7 +301,7 @@ def test_fun_time_leaving_player_stays_up_long_enough_to_go_dark(
     held back (MAIN_BLANK_SETTLE_S); this measures that it really is.
     """
     s = shared_integration_session
-    s.write_dashboard_command("main_video_activate")
+    s.write_dashboard_command("main_kino_activate")
     s.wait_until(
         lambda: not is_window_minimized(find_window_by_title("Main Player", exact=True)),
         description="the main player restored, so the switch away from it has something to hold",
@@ -323,8 +323,8 @@ def test_fun_time_leaving_player_stays_up_long_enough_to_go_dark(
         f"the main player was minimized after {held:.3f}s, inside the "
         f"{MAIN_BLANK_SETTLE_S}s it is given to paint its black"
     )
-    s.write_dashboard_command("main_video_activate")
-    s.wait_for_new_log("Switched to video mode")
+    s.write_dashboard_command("main_kino_activate")
+    s.wait_for_new_log("Switched to kino mode")
 
 
 def test_fun_time_landscape_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):
@@ -381,8 +381,8 @@ def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTime
         description="Genau paused file to flip off",
     )
 
-    shared_integration_session.write_dashboard_command("main_video_activate")
-    shared_integration_session.wait_for_new_log("Switched to video mode")
+    shared_integration_session.write_dashboard_command("main_kino_activate")
+    shared_integration_session.wait_for_new_log("Switched to kino mode")
 
 
 def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunTimeIntegrationSession):
@@ -420,8 +420,8 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
 
     assert is_process_alive(rh_pid), "Genau should survive leaving omnipause"
 
-    s.write_dashboard_command("main_video_activate")
-    s.wait_for_new_log("Switched to video mode")
+    s.write_dashboard_command("main_kino_activate")
+    s.wait_for_new_log("Switched to kino mode")
 
 
 def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_session: FunTimeIntegrationSession):
@@ -429,9 +429,9 @@ def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_ses
     satellites must leave the topmost band, not stay pinned on top of the
     windows the user reaches for while paused."""
     s = shared_integration_session
-    # Known starting point: video mode, not omnipaused ("play" is an idempotent
+    # Known starting point: kino mode, not omnipaused ("play" is an idempotent
     # leave-omnipause; a no-op when already live).
-    s.write_dashboard_command("main_video_activate")
+    s.write_dashboard_command("main_kino_activate")
     s.write_dashboard_command("play")
 
     # Resolve exactly as startup does: by each satellite's DISTINCT caption
@@ -478,8 +478,8 @@ def test_fun_time_omnipause_freezes_the_satellites(
     portrait_status = s.config.paths.state_dir / "portrait_status.txt"
     landscape_status = s.config.paths.state_dir / "landscape_status.txt"
 
-    # Known starting point (video mode, live): the satellites are playing.
-    s.write_dashboard_command("main_video_activate")
+    # Known starting point (kino mode, live): the satellites are playing.
+    s.write_dashboard_command("main_kino_activate")
     s.write_dashboard_command("play")  # idempotent leave-omnipause; a no-op if live
     s.wait_until(
         lambda: not read_satellite_status(portrait_status).paused,
@@ -513,7 +513,7 @@ def test_fun_time_the_satellites_take_the_main_players_playback_speed(
     s = shared_integration_session
     statuses = [s.config.paths.state_dir / f"{side}_status.txt"
                 for side in ("portrait", "landscape")]
-    s.write_dashboard_command("main_video_activate")
+    s.write_dashboard_command("main_kino_activate")
     s.write_dashboard_command("play")
     s.wait_until(
         lambda: s.read_main_player_status().video != "" and s.read_main_player_status().speed == 1.0,
@@ -542,12 +542,12 @@ def _loaded_and_playing(status: MainPlayerStatus) -> bool:
     return status.video != "" and status.duration_ms > 0 and not status.paused
 
 
-def _main_player_playing_in_video_mode(session: FunTimeIntegrationSession) -> None:
-    session.write_dashboard_command("main_video_activate")
+def _main_player_playing_in_kino_mode(session: FunTimeIntegrationSession) -> None:
+    session.write_dashboard_command("main_kino_activate")
     session.write_dashboard_command("play")
     session.wait_until(
         lambda: _loaded_and_playing(session.read_main_player_status()),
-        description="the main player to be playing a loaded video in video mode",
+        description="the main player to be playing a loaded video in kino mode",
     )
 
 
@@ -594,10 +594,10 @@ def _nudge(session: FunTimeIntegrationSession, command: str, *, by_ms: int) -> N
 
 
 def test_fun_time_main_player_nudge_seeks_playback(shared_integration_session: FunTimeIntegrationSession):
-    """main_nudge_next/prev in video mode drive the main player's seek via its command
+    """main_nudge_next/prev in kino mode drive the main player's seek via its command
     file, observed through the main player's published status position."""
     s = shared_integration_session
-    _main_player_playing_in_video_mode(s)
+    _main_player_playing_in_kino_mode(s)
     with _main_player_held_still(s):
         duration = _step_to_a_video_long_enough_to_nudge(s)
         while s.read_main_player_status().position_ms > duration - NUDGE_HEADROOM_MS:
@@ -610,7 +610,7 @@ def test_fun_time_main_player_record_loop_cancel_cycle(shared_integration_sessio
     """The record gesture round-trips through the main player: record → looping → cancel,
     observed through the main player's published loop state."""
     s = shared_integration_session
-    _main_player_playing_in_video_mode(s)
+    _main_player_playing_in_kino_mode(s)
     with _main_player_held_still(s):
         assert s.read_main_player_status().loop_state is LoopState.NORMAL
 
@@ -633,7 +633,7 @@ def test_fun_time_main_player_record_loop_cancel_cycle(shared_integration_sessio
         )
 
 
-def test_fun_time_video_mode_comes_back_to_the_video_main_player_was_showing(shared_integration_session: FunTimeIntegrationSession):
+def test_fun_time_kino_mode_comes_back_to_the_video_main_player_was_showing(shared_integration_session: FunTimeIntegrationSession):
     """A round trip through genau mode hands the main player nothing new: the video it was
     parked on is the one it resumes, and prev/next/nudge dispatch to it again
     just as before.
@@ -651,8 +651,8 @@ def test_fun_time_video_mode_comes_back_to_the_video_main_player_was_showing(sha
 
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode")
-    s.write_dashboard_command("main_video_activate")
-    s.wait_for_new_log("Switched to video mode")
+    s.write_dashboard_command("main_kino_activate")
+    s.wait_for_new_log("Switched to kino mode")
 
     # The main player is the display again and keeps playing its current video — no handoff.
     s.wait_until(
@@ -660,7 +660,7 @@ def test_fun_time_video_mode_comes_back_to_the_video_main_player_was_showing(sha
         description="the main player to come back on the video it was showing",
     )
 
-    # A nudge in video mode reaches the normal dispatch path.
+    # A nudge in kino mode reaches the normal dispatch path.
     s.write_dashboard_command("main_nudge_next")
     s.wait_for_new_log("Dispatching command: main_nudge_next")
 
@@ -968,7 +968,7 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
     first = FunTimeIntegrationSession(config_path)
     try:
         first.start()
-        first.write_dashboard_command("main_video_activate")
+        first.write_dashboard_command("main_kino_activate")
         first.write_dashboard_command("play")
         first.wait_until(
             lambda: _loaded_and_playing(first.read_main_player_status()),

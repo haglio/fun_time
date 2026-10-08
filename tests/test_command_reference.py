@@ -272,13 +272,23 @@ def test_the_satellite_grid_carries_a_players_own_playback_speed():
             "landscape_speed_25"} <= set(rate.commands)
 
 
+def test_the_reference_calls_the_mode_kino_and_never_video():
+    rows = _all_rows()
+    said = [(row.description, phrase) for row in rows for phrase in (row.description, *row.voice)
+            if "video mode" in phrase.lower()]
+
+    assert said == []
+    assert [row.description.split(" — ")[0] for row in rows if "kino_activate" in row.commands] == [
+        "Kino mode on both sides at once"]
+
+
 def test_mode_named_nav_shows_friendly_names_in_the_legend():
-    """The Video/Genau nav rows surface the mode-named phrases under their friendly
-    names ("video next", "genau next") — never the raw vosk sound-alike ("go
+    """The Kino/Genau nav rows surface the mode-named phrases under their friendly
+    names ("kino next", "genau next") — never the raw vosk sound-alike ("go
     now")."""
     rows = _all_rows()
     main_next_row = next(r for r in rows if "main_next" in r.commands)
-    assert {"video next", "next video"} <= set(main_next_row.voice)
+    assert {"kino next", "next kino"} <= set(main_next_row.voice)
     genau_next_row = next(r for r in rows if "genau_next_clip" in r.commands)
     assert {"genau next", "next genau"} <= set(genau_next_row.voice)
     # The raw sound-alikes must never leak into any Say column.
@@ -465,7 +475,7 @@ def test_section_titles_run_global_robot_hand_genau_main_player_satellites():
 
 def test_the_backslash_key_offsets_the_hand_and_the_browser_has_its_own_key():
     """The backslash offsets the Robot Hand's motion in either mode — it used to
-    open the main player's library browser in video mode, and that browser now has the key
+    open the main player's library browser in kino mode, and that browser now has the key
     the retired mode had."""
     sections = build_reference_sections()
     by_title = {s.title: s for s in sections}
@@ -477,18 +487,18 @@ def test_the_backslash_key_offsets_the_hand_and_the_browser_has_its_own_key():
     assert "browse" in browser[0].voice
 
 
-def test_video_mode_is_spoken_as_written_of_either_side_or_of_both():
+def test_kino_mode_is_spoken_as_written_of_either_side_or_of_both():
     # Every word of these is in the vosk vocabulary, so they are heard as the
     # reference shows them.
-    assert VOICE_COMMANDS["video mode"] == "video_activate"
-    assert VOICE_COMMANDS["main video mode"] == "main_video_activate"
-    assert VOICE_COMMANDS["satellite video mode"] == "satellites_video_activate"
-    for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode"):
+    assert VOICE_COMMANDS["kino mode"] == "kino_activate"
+    assert VOICE_COMMANDS["main kino mode"] == "main_kino_activate"
+    assert VOICE_COMMANDS["satellite kino mode"] == "satellites_kino_activate"
+    for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "video mode"):
         assert retired not in VOICE_COMMANDS, retired
-    main_rows = [r for r in _all_rows() if "main_video_activate" in r.commands]
-    assert main_rows and main_rows[0].voice == ("main video mode",)
-    both_rows = [r for r in _all_rows() if "video_activate" in r.commands]
-    assert both_rows and both_rows[0].voice == ("video mode",)
+    main_rows = [r for r in _all_rows() if "main_kino_activate" in r.commands]
+    assert main_rows and main_rows[0].voice == ("main kino mode",)
+    both_rows = [r for r in _all_rows() if "kino_activate" in r.commands]
+    assert both_rows and both_rows[0].voice == ("kino mode",)
     genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
     assert genau_rows and genau_rows[0].voice == ("genau", "genau mode")
 
@@ -532,7 +542,7 @@ def test_min_max_value_live_on_their_own_consecutive_set_lines():
         ("Speed up / down", "Set speed"),
     ):
         # Matched by prefix: a row may carry an explanation after its name (speed
-        # says which engine the nudge reaches in video mode).
+        # says which engine the nudge reaches in kino mode).
         at = next(i for i, d in enumerate(descs) if d.startswith(updown))
         assert descs.index(setname) == at + 1, "Set line must follow its up/down line"
     set_amp = next(r for r in genau_rows if r.description == "Set amplitude")

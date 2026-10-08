@@ -43,20 +43,20 @@ def _genau_says(tmp_path: Path, *, hud: bool) -> None:
 def test_genau_turns_into_the_hud_only_once_the_main_player_has_settled_under_it(tmp_path):
     handover, windows = _handover(tmp_path)
 
-    handover.begin(MainMode.VIDEO)
-    handover.sync(MainMode.VIDEO, paused=False)
+    handover.begin(MainMode.KINO)
+    handover.sync(MainMode.KINO, paused=False)
     assert _lines(tmp_path / "genau_cmd.txt") == []
 
     windows.clock.advance(MAIN_BLANK_SETTLE_S)
-    handover.sync(MainMode.VIDEO, paused=False)
-    handover.sync(MainMode.VIDEO, paused=False)
+    handover.sync(MainMode.KINO, paused=False)
+    handover.sync(MainMode.KINO, paused=False)
     assert _lines(tmp_path / "genau_cmd.txt") == ["HUD_ON"]
 
 
 def test_a_switch_back_to_genau_before_the_settle_keeps_genau_the_display(tmp_path):
     handover, windows = _handover(tmp_path)
 
-    handover.begin(MainMode.VIDEO)
+    handover.begin(MainMode.KINO)
     windows.clock.advance(MAIN_BLANK_SETTLE_S)
     handover.sync(MainMode.GENAU, paused=False)
 
@@ -94,11 +94,11 @@ def test_a_genau_that_never_says_it_is_solid_gets_the_main_player_out_of_the_way
                             ("restack_main_slot", MainMode.GENAU, True)]
 
 
-def test_a_switch_back_to_video_before_genau_is_solid_leaves_the_main_player_as_it_is(tmp_path):
+def test_a_switch_back_to_kino_before_genau_is_solid_leaves_the_main_player_as_it_is(tmp_path):
     handover, windows = _handover(tmp_path)
 
     handover.begin(MainMode.GENAU)
-    handover.sync(MainMode.VIDEO, paused=False)
+    handover.sync(MainMode.KINO, paused=False)
     _genau_says(tmp_path, hud=False)
     handover.sync(MainMode.GENAU, paused=False)
 

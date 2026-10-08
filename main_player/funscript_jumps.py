@@ -7,7 +7,7 @@ through the same notice channel, because the main player is the only one that ca
 request had nowhere to go.
 
 A scripted video is mostly not scripted: a funscript's action comes in runs with
-quiet stretches between them (which is why video mode has the Robot Hand fill
+quiet stretches between them (which is why kino mode has the Robot Hand fill
 those in at all).  "Jump to funscript" skips the stretch you are in; "next funscripted"
 gives up on this video and finds one that is scripted, landing on its action
 rather than at its top.

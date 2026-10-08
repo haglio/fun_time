@@ -37,11 +37,11 @@ from fun_time.command_reference import build_reference_sections
 from fun_time.config import load_config
 from fun_time.dashboard_actions import BROWSE_LIBRARY_CLOSE, HELP_REFERENCE_COMMANDS
 from fun_time.manifest import LaunchManifest, write_manifest_data
-from fun_time.mode_plan import MAIN_MODES, MAIN_VIDEO_MODE
+from fun_time.mode_plan import MAIN_KINO_MODE, MAIN_MODES
 from fun_time.modes import PLAYLIST_PORTRAIT, build_playlist_file_path
 from fun_time.players import Player
+from fun_time.satellites_mode import KINO_MODE as SATELLITE_KINO_MODE
 from fun_time.satellites_mode import ORIGENERATOR_MODE
-from fun_time.satellites_mode import VIDEO_MODE as SATELLITE_VIDEO_MODE
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import (
@@ -207,7 +207,7 @@ def landed(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
     whole reference four times.
     """
     return _sweep(_headset_config(tmp_path_factory.mktemp("vr_parity")),
-                  (SATELLITE_VIDEO_MODE, ORIGENERATOR_MODE))
+                  (SATELLITE_KINO_MODE, ORIGENERATOR_MODE))
 
 
 @pytest.fixture(scope="module")
@@ -294,7 +294,7 @@ class TestTheMainPlayer:
         role = _main_role(tmp_path)
         role.apply_command("SPEED_DOWN", on_quit=lambda: None)
 
-        dispatch_command("main_reset", BridgeState(main_mode=MAIN_VIDEO_MODE), config)
+        dispatch_command("main_reset", BridgeState(main_mode=MAIN_KINO_MODE), config)
         for line in config.main_player_cmd_file.read_text(encoding="utf-8").splitlines():
             role.apply_command(line, on_quit=lambda: None)
 
@@ -407,7 +407,7 @@ class TestTheHostedOrigenerator:
     def test_it_is_sent_what_is_said_to_a_side_in_its_mode(self, landed):
         """The precondition, so the check below cannot pass on a channel the
         sweep never reached."""
-        assert landed["video/origenerator/portrait_next"]["origenerator_cmd_file"] == [
+        assert landed["kino/origenerator/portrait_next"]["origenerator_cmd_file"] == [
             "portrait_next"]
 
     def test_every_line_it_is_sent_is_one_it_answers(self, landed):

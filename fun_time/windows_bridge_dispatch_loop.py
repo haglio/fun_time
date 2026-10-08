@@ -65,7 +65,7 @@ from .rfb_slideshow import RfbSlideshow
 from .role_windows import WindowRoles
 from .runtime_flow import write_flag_file
 from .satellite_speeds import SatelliteSpeeds
-from .satellites_mode import VIDEO_MODE, origenerator_shows
+from .satellites_mode import KINO_MODE, origenerator_shows
 from .session_end import mark_session_end, session_end_asked
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import DESKTOP, VR, HandoffTarget, request_handoff, this_session
@@ -305,7 +305,7 @@ class DispatchLoopRunner:
         # reads at the start of one and nothing after.
         self._origenerator_is_up = origenerator_already_open
         # The Robot Hand and a funscript both feed the broker's one T-Code inlet,
-        # so in video mode something has to hand the device between them.
+        # so in kino mode something has to hand the device between them.
         self.arbiter = DeviceArbiter(
             main_player_status_file=config.main_player_status_file,
             main_player_cmd_file=config.main_player_cmd_file,
@@ -342,7 +342,7 @@ class DispatchLoopRunner:
         offered = self.config.origenerator_enabled and state.origenerator_ready
         if offered or not origenerator_shows(state.satellites_mode):
             return state
-        return replace(state, satellites_mode=VIDEO_MODE)
+        return replace(state, satellites_mode=KINO_MODE)
 
     def _the_hosted_app_has_answered(self) -> bool:
         """Whether the hosted Origenerator is up.
@@ -669,7 +669,7 @@ class DispatchLoopRunner:
 
         In origenerator mode the buffer holds instead of flushing: the RFB is
         under the hosted app's window, and opening a tab would force Chrome over
-        it.  The locks queue, and switching back to video mode flushes them.
+        it.  The locks queue, and switching back to kino mode flushes them.
         """
         if origenerator_shows(self.state.satellites_mode):
             return

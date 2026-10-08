@@ -84,7 +84,7 @@ class BridgeState:
     landscape: SatelliteState = field(default_factory=SatelliteState)
     main_mode: MainMode = STARTUP_MAIN_MODE
     # The satellite side's own mode axis (see fun_time.satellites_mode):
-    # "video" is the session as ever, "origenerator" puts the hosted
+    # "kino" is the session as ever, "origenerator" puts the hosted
     # Origenerator over the RFB and its shows over the players.
     satellites_mode: SatellitesMode = STARTUP_SATELLITES_MODE
     # Whether the hosted Origenerator is up.  Every room opens without waiting

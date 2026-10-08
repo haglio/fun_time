@@ -7,14 +7,14 @@ the main player stranded on top after entering omnipause.
 The satellite / dashboard / RFB windows each own a screen rect and never
 overlap, so they are unconditionally topmost.  The main player and Genau are the exception:
 they SHARE one rect, so they float above the desktop AND stack against each
-other -- in video mode Genau's HUD sits just above the main player's video, an order
+other -- in kino mode Genau's HUD sits just above the main player's video, an order
 ``role_windows.WindowRoles.restack_main_slot`` enforces rather than these flags;
 in genau mode Genau owns the display and the main player is hidden.
 """
 from __future__ import annotations
 
 from .mode_plan import main_player_displays
-from .satellites_mode import VIDEO_MODE, origenerator_shows
+from .satellites_mode import KINO_MODE, origenerator_shows
 
 # Windows with their own screen rect — always topmost; order among them is
 # irrelevant because they never overlap.  The log stream is a child widget of the
@@ -37,11 +37,11 @@ ORIGENERATOR_TITLE = "Origenerator"
 # player's video.  Passed to it on the launch, like each satellite's, and
 # matched EXACTLY: a substring match found both only by luck.
 GENAU_TITLE = "Genau"
-GENAU_VIDEO_TITLE = "Video Main Player+Genau"
-GENAU_TITLES = (GENAU_TITLE, GENAU_VIDEO_TITLE)
+GENAU_KINO_TITLE = "Kino Main Player+Genau"
+GENAU_TITLES = (GENAU_TITLE, GENAU_KINO_TITLE)
 
 # The two players that share the main slot's rect and therefore need
-# explicit stacking (the main player under Genau's HUD in video mode).
+# explicit stacking (the main player under Genau's HUD in kino mode).
 MAIN_SLOT_ROLES: tuple[str, ...] = ("main_player", "genau")
 
 # Every window role the bridge manages, in promotion order.
@@ -50,7 +50,7 @@ MANAGED_ROLES: tuple[str, ...] = (
 )
 
 
-def role_topmost(role: str, main_mode: str, satellites_mode: str = VIDEO_MODE) -> bool:
+def role_topmost(role: str, main_mode: str, satellites_mode: str = KINO_MODE) -> bool:
     """Whether *role*'s window belongs in the TOPMOST band in these modes.
 
     The main player is mode-dependent, sharing a rect with Genau, and so is the Random Favs
@@ -78,7 +78,7 @@ def role_topmost(role: str, main_mode: str, satellites_mode: str = VIDEO_MODE) -
     return True
 
 
-def visible_roles(main_mode: str, satellites_mode: str = VIDEO_MODE) -> list[str]:
+def visible_roles(main_mode: str, satellites_mode: str = KINO_MODE) -> list[str]:
     """Every managed role whose window these modes keep on screen."""
     origenerator = (ORIGENERATOR_ROLE,) if origenerator_shows(satellites_mode) else ()
     return [*FIXED_TOPMOST_ROLES, *origenerator, *visible_main_slot_roles(main_mode)]
@@ -86,7 +86,7 @@ def visible_roles(main_mode: str, satellites_mode: str = VIDEO_MODE) -> list[str
 
 def visible_main_slot_roles(main_mode: str) -> tuple[str, ...]:
     """Which of the two main-slot players *main_mode* has on the screen: Genau
-    in genau, and both in video mode, where Genau's HUD sits over the main player's video.
+    in genau, and both in kino mode, where Genau's HUD sits over the main player's video.
 
     Read by anything that acts on "the main player's window", because the pair
     shares one rect and the idle one is parked — minimizing a window the mode has

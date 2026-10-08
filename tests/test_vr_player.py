@@ -946,8 +946,8 @@ class TestThePanelUnderThePointer:
             role=SimpleNamespace(
                 console_hud=ConsoleHud(
                     console=ConsoleModel(
-                        main_mode=MainMode.VIDEO, locked=False,
-                        rows=console_rows(MainSlot(main_mode=MainMode.VIDEO, locked=False),
+                        main_mode=MainMode.KINO, locked=False,
+                        rows=console_rows(MainSlot(main_mode=MainMode.KINO, locked=False),
                                           in_vr=True),
                         osr2_controls=osr2_controls(broker=True)),
                     drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine",
@@ -1877,7 +1877,7 @@ class TestTheMainSlotUnderThePointer:
 
     def test_genaus_clip_is_what_the_pointer_finds_there_while_it_has_the_scene(self):
         """It hangs in the same slot, at its own shape — so the handles stay
-        under the hand through a switch into video mode and back."""
+        under the hand through a switch into kino mode and back."""
         screen = self._slot(showing=True)
 
         assert screen.name == MAIN

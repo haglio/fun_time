@@ -9,7 +9,7 @@ from fun_time.players import Player
 
 
 def test_toggle_enters_omnipause_when_not_already_paused():
-    plan = build_omnipause_plan("toggle", omni_paused=False, main_mode=MainMode.VIDEO)
+    plan = build_omnipause_plan("toggle", omni_paused=False, main_mode=MainMode.KINO)
 
     assert plan.action == "enter"
     assert plan.next_omni_paused is True
@@ -27,8 +27,8 @@ def test_toggle_leaves_omnipause_when_already_paused():
     assert plan.log_message == "OmniPause: leaving"
 
 
-def test_leave_video_mode_resumes_main_player():
-    plan = build_omnipause_plan("leave", omni_paused=True, main_mode=MainMode.VIDEO)
+def test_leave_kino_mode_resumes_main_player():
+    plan = build_omnipause_plan("leave", omni_paused=True, main_mode=MainMode.KINO)
 
     assert plan.action == "leave"
     assert plan.resume_main_player_playback is True
@@ -65,7 +65,7 @@ def test_leaving_under_a_hold_plays_the_hand_on_unheard():
 
 def test_leaving_hands_the_osr2_back_unless_a_hold_is_keeping_it():
     commands = {control: build_omnipause_plan("leave", omni_paused=True,
-                                              main_mode=MainMode.VIDEO,
+                                              main_mode=MainMode.KINO,
                                               osr2_control=control).broker_command
                 for control in (OSR2_PARKED, OSR2_RETRACTED, OSR2_CONTROL_OFF)}
 

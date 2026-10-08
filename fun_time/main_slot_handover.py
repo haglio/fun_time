@@ -32,7 +32,7 @@ class MainSlotHandover:
         self._pending: _Handover | None = None
 
     def begin(self, to: MainMode) -> None:
-        wait = MAIN_BLANK_SETTLE_S if to == MainMode.VIDEO else WAIT_FOR_GENAU_TO_TURN_SOLID_S
+        wait = MAIN_BLANK_SETTLE_S if to == MainMode.KINO else WAIT_FOR_GENAU_TO_TURN_SOLID_S
         self._pending = _Handover(to, self._windows.clock() + wait)
 
     def sync(self, main_mode: MainMode, *, paused: bool) -> None:
@@ -41,7 +41,7 @@ class MainSlotHandover:
             return
         if pending.to != main_mode:
             self._pending = None
-        elif pending.to == MainMode.VIDEO and self._is_due(pending):
+        elif pending.to == MainMode.KINO and self._is_due(pending):
             self._pending = None
             self._genau_turns_into_the_hud()
         elif pending.to == MainMode.GENAU and self._genau_is_solid():
@@ -60,7 +60,7 @@ class MainSlotHandover:
         return read_genau_status(self._genau_status_file).hud_on is False
 
     def _genau_turns_into_the_hud(self) -> None:
-        append_command(self._genau_cmd_file, hud_verb(MainMode.VIDEO))
+        append_command(self._genau_cmd_file, hud_verb(MainMode.KINO))
 
     def _main_player_steps_aside(self, *, paused: bool) -> None:
         append_command(self._main_player_cmd_file, main_player_display_verb(MainMode.GENAU))

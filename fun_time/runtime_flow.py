@@ -29,7 +29,7 @@ from .omnipause import build_omnipause_plan
 from .player_handover import keep_aside
 from .players import Player
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
-from .satellites_mode import CLOSE_SHOWS, OPEN_SHOWS, VIDEO_MODE
+from .satellites_mode import CLOSE_SHOWS, KINO_MODE, OPEN_SHOWS
 
 
 def read_flag_file(path: str | Path, default: bool) -> bool:
@@ -339,7 +339,7 @@ def apply_satellites_switch(
         return SatellitesSwitchFlowResult(
             next_mode=target_mode, is_transition=False,
             log_message=f"Satellites already in {target_mode} mode")
-    if target_mode == VIDEO_MODE:
+    if target_mode == KINO_MODE:
         if origenerator_cmd_file is not None:
             append_command(Path(origenerator_cmd_file), CLOSE_SHOWS)
     else:
@@ -347,7 +347,7 @@ def apply_satellites_switch(
             keep_aside(channel)
             append_command(Path(channel.cmd_file), LOCK_OFF)
         # Both players come up playing, the way they are playing the moment
-        # video mode is entered: a mode that opened onto two players with
+        # kino mode is entered: a mode that opened onto two players with
         # nothing new on them asked the user to go and start it.  The hosted
         # app picks the sets -- its whole library, shuffled, one shape each.
         if origenerator_cmd_file is not None:

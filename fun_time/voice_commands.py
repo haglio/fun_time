@@ -139,13 +139,13 @@ def build_voice_commands(
         # bare and sided both.
 
         **{phrase: "genau_activate" for said in GENAU_SAID for phrase in (said, f"{said} mode")},
-        # Video mode, said of a side or of neither: the bare phrase puts the
+        # Kino mode, said of a side or of neither: the bare phrase puts the
         # main slot AND the satellites on their players, each side's own phrase
         # just that side.
-        "video mode": "video_activate",
-        "main video mode": "main_video_activate",
-        "satellite video mode": "satellites_video_activate",
-        "satellites video mode": "satellites_video_activate",
+        "kino mode": "kino_activate",
+        "main kino mode": "main_kino_activate",
+        "satellite kino mode": "satellites_kino_activate",
+        "satellites kino mode": "satellites_kino_activate",
         # The satellite side's other mode, spoken as explicit modes rather than a
         # toggle, so a phrase misheard twice cannot land on the opposite.
         "aura generator mode": "origenerator_activate",
@@ -413,11 +413,11 @@ def build_voice_commands(
     commands["reset all"] = commands["all reset"] = "all_reset"
 
     # Mode-named navigation: a mode's name + next/previous (either order) navigates
-    # that mode's player.  Video drives the main slot's video; Genau steps its own
+    # that mode's player.  Kino drives the main slot's video; Genau steps its own
     # clip.
     _MODE_NAV: dict[str, tuple[str, str]] = {
         # recognizer base -> (next command, previous command)
-        "video": ("main_next", "main_prev"),
+        "kino": ("main_next", "main_prev"),
         **dict.fromkeys(GENAU_SAID, ("genau_next_clip", "genau_prev_clip")),
     }
     for _base, (_next_cmd, _prev_cmd) in _MODE_NAV.items():

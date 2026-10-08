@@ -7,7 +7,7 @@ paused player still holding the frame it stopped on.  Genau has been told
 DISPLAY_ON/DISPLAY_OFF as it enters and leaves the modes that show it for
 exactly this reason; this is the main player's half, and it arrives on the same verbs.
 
-DISPLAY_OFF is not PAUSE.  A paused main player still has a video up (video mode pauses
+DISPLAY_OFF is not PAUSE.  A paused main player still has a video up (kino mode pauses
 nothing and OmniPause freezes it while it is very much on screen), so blanking
 can only key off being told it is off screen.
 

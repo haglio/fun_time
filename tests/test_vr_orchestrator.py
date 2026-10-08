@@ -252,7 +252,7 @@ class TestOrigeneratorInVr:
     def test_the_session_brings_the_app_up_before_the_player(self):
         """Its boot is the slowest thing a session waits on and nothing waits on
         it, so it goes first here as it does on the desktop; the room opens in
-        video mode and the mode opens once the app has answered."""
+        kino mode and the mode opens once the app has answered."""
         calls = _call_lines_in_run_vr_bridge()
 
         assert calls["bring_up_the_hosted_app"] < calls["launch_vr_player"]
@@ -438,7 +438,7 @@ class TestTheModeASessionComesBackIn:
         assert given["max_intensity"] == "carried.max_intensity"
 
     def test_the_reveal_releases_the_players_the_mode_puts_to_work(self):
-        """The desktop's own reveal: the video in video mode, Genau's hand and its
+        """The desktop's own reveal: the video in kino mode, Genau's hand and its
         music in genau mode -- rather than unpausing the video whatever the mode."""
         (release,) = self._calls("run_vr_bridge", "release_the_players")
 
