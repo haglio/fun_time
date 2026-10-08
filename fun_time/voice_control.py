@@ -254,13 +254,15 @@ class VoiceController:
                 self._not_sure_of = _NotSureOf(doubted, heard.spoken_at)
             self._report_words("not sure enough of a command", "not sure enough of",
                                friendly_voice(doubted), heard_text=doubted,
-                               then=PRESS_ENTER_TO_ACCEPT)
+                               spoken_at=heard.spoken_at, then=PRESS_ENTER_TO_ACCEPT)
         elif recognition.unrecognized_text:
             self._report_words(NO_COMMAND, NO_COMMAND, recognition.unrecognized_text,
-                               heard_text=recognition.unrecognized_text)
+                               heard_text=recognition.unrecognized_text,
+                               spoken_at=heard.spoken_at)
         elif recognition.silent_reading:
             self._report_words("too quiet to act on", "too quiet to act on",
-                               recognition.silent_reading, heard_text=recognition.silent_reading)
+                               recognition.silent_reading, heard_text=recognition.silent_reading,
+                               spoken_at=heard.spoken_at)
         else:
             notice(logger, DID_NOT_CATCH_IT, source=SOURCE_SYSTEM, level=logging.WARNING)
 
@@ -281,13 +283,13 @@ class VoiceController:
                    level=logging.WARNING)
 
     def _report_words(self, logged: str, shown: str, words: str, *, heard_text: str,
-                      then: str = "") -> None:
+                      spoken_at: float, then: str = "") -> None:
         source = _source_for_heard_text(heard_text)
         after = f" {then}" if then else ""
         notice(logger, f"{logged} ({_how_many(words)}){after}", source=source,
-               level=logging.WARNING, flashes=False)
+               level=logging.WARNING, flashes=False, spoken_at=spoken_at)
         flash_unlogged(self.cmd_file.parent, f"{shown}: {words}{after}", source=source,
-                       level=logging.WARNING)
+                       level=logging.WARNING, spoken_at=spoken_at)
 
     def _say_it_is_being_worked_on(self, forming: str) -> None:
         if forming and not self._words_forming and self._is_listening():

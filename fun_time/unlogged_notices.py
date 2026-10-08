@@ -9,9 +9,11 @@ from fun_time.loopback_inbox import LoopbackInbox, post_to_inbox
 UNLOGGED_NOTICE_PORT_FILENAME = "unlogged_notice_port.txt"
 
 
-def flash_unlogged(state_dir: Path, message: str, *, source: str, level: int) -> bool:
+def flash_unlogged(state_dir: Path, message: str, *, source: str, level: int,
+                   spoken_at: float | None = None) -> bool:
     return post_to_inbox(state_dir / UNLOGGED_NOTICE_PORT_FILENAME,
-                         event_line(EventRecord(time.time(), level, source, message)))
+                         event_line(EventRecord(time.time(), level, source, message,
+                                                spoken_at=spoken_at)))
 
 
 class UnloggedNotices:

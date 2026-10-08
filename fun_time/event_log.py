@@ -78,6 +78,7 @@ class EventRecord:
     source: str
     message: str
     flashes: bool = True
+    spoken_at: float | None = None
 
 
 def event_log_path(state_dir: str | Path) -> Path:
@@ -115,6 +116,7 @@ class EventLogHandler(logging.Handler):
                 source=getattr(record, "source", SOURCE_SYSTEM),
                 message=record.getMessage(),
                 flashes=getattr(record, "flashes", True),
+                spoken_at=getattr(record, "spoken_at", None),
             ))
             with self.path.open("a", encoding="utf-8") as fh:
                 fh.write(line + "\n")
@@ -128,6 +130,8 @@ def event_line(record: EventRecord) -> str:
     }
     if not record.flashes:
         payload["flash"] = False
+    if record.spoken_at is not None:
+        payload["spoken_at"] = record.spoken_at
     return json.dumps(payload, ensure_ascii=False)
 
 
@@ -140,13 +144,14 @@ def parse_event_line(line: str | bytes) -> EventRecord | None:
             source=str(payload["source"]),
             message=str(payload["msg"]),
             flashes=payload.get("flash", True) is not False,
+            spoken_at=float(payload["spoken_at"]) if "spoken_at" in payload else None,
         )
     except (ValueError, KeyError, TypeError, AttributeError):
         return None
 
 
 def notice(logger: logging.Logger, message: str, *, source: str, level: int = NOTICE,
-           flashes: bool = True) -> None:
+           flashes: bool = True, spoken_at: float | None = None) -> None:
     """Log a message meant for the person watching the screen: "Clip saved", "No
     other seeds".  The log panel lists it, and unless *flashes* is off it flashes
     over the player *source* names (:mod:`fun_time.notice_feed`), or in the
@@ -156,7 +161,8 @@ def notice(logger: logging.Logger, message: str, *, source: str, level: int = NO
     one about the favorites or a funscript, which reads green, WARNING for a
     command that hit a dead end (yellow), or ERROR for a failure (red).
     """
-    logger.log(level, message, extra={"source": source, "flashes": flashes})
+    logger.log(level, message, extra={"source": source, "flashes": flashes,
+                                      "spoken_at": spoken_at})
 
 
 def is_announcement(record: EventRecord) -> bool:

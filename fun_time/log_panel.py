@@ -57,14 +57,17 @@ from fun_time.event_log import (
     read_events,
 )
 from fun_time.log_panel_model import (
+    MAX_RECORDS,
     LogFilter,
     LogPanelState,
     append_records,
     copy_button_position,
     format_record,
     load_ui_state,
+    remember_what_was_heard,
     save_ui_state,
     visible_records,
+    with_what_was_heard,
 )
 
 # Short labels for the source toggles so the whole control strip fits one row.
@@ -160,6 +163,7 @@ class LogPanelWidget(QWidget):
         self._ui_state_file = Path(ui_state_file)
         self._offset = 0
         self._records: list[EventRecord] = []
+        self._heard: dict[float, str] = {}
         # Where the cursor last was over the list, in viewport coordinates; None
         # once it has left.  The copy button's row is resolved from this.
         self._hover_pos: QPoint | None = None
@@ -391,13 +395,18 @@ class LogPanelWidget(QWidget):
         self._records = append_records(self._records, new)
         self._rebuild_list()
 
+    def show_what_was_heard(self, records: list[EventRecord]) -> None:
+        self._heard = remember_what_was_heard(self._heard, records, keep=MAX_RECORDS)
+        self._rebuild_list()
+
     def _rebuild_list(self) -> None:
         at_lower = (
             self._list.verticalScrollBar().value()
             >= self._list.verticalScrollBar().maximum() - 4
         )
         self._list.clear()
-        for record in visible_records(self._records, self._filter):
+        for record in visible_records(with_what_was_heard(self._records, self._heard),
+                                      self._filter):
             item = QListWidgetItem(format_record(record))
             item.setForeground(level_color(record.level))
             self._list.addItem(item)

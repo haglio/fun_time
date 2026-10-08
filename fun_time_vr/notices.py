@@ -13,6 +13,7 @@ from fun_time.event_log import (
     is_announcement,
     read_events,
 )
+from fun_time.log_panel_model import remember_what_was_heard, with_what_was_heard
 from fun_time.unlogged_notices import UnloggedNotices
 
 from .layout import MAIN
@@ -55,6 +56,7 @@ class NoticeBoard:
         self._banners: dict[str, Notice] = {}
         self._lock = threading.Lock()
         self._records: list = []
+        self._heard: dict[float, str] = {}
         _, self._offset = read_events(self._path, 0)
 
     def pump(self, _stop, now: float) -> None:  # take the new, drop the faded
@@ -62,6 +64,7 @@ class NoticeBoard:
         # The dash filters the whole stream itself, so everything is kept.
         self._records = (self._records + records)[-self._kept_records:]
         unlogged = self._unlogged.take_all() if self._unlogged is not None else []
+        self._heard = remember_what_was_heard(self._heard, unlogged, keep=self._kept_records)
         with self._lock:
             for record in sorted([*filter(is_announcement, records), *unlogged],
                                  key=lambda record: record.ts):
@@ -82,7 +85,7 @@ class NoticeBoard:
 
     @property
     def records(self) -> tuple:  # the whole stream, unfiltered, oldest first
-        return tuple(self._records)
+        return tuple(with_what_was_heard(self._records, self._heard))
 
     def close(self) -> None:
         if self._unlogged is not None:

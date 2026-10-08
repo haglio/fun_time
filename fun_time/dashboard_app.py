@@ -660,6 +660,7 @@ class DashboardWindow(QMainWindow):
             cover_dir=app_config.state_dir,
             make_overlay=NoticeOverlay,
             held=self._reveal.deferred,
+            list_what_was_heard=self._log_widget.show_what_was_heard,
             shared_state_file=shared_state_path(app_config.state_dir),
         )
         self._notice_timer = QTimer(self)
