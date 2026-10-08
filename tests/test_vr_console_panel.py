@@ -249,9 +249,9 @@ class TestItKeepsItsSize:
     changes size is a screen that moves."""
 
     def test_the_two_modes_paint_the_same_size(self):
-        video, genau = _paint("kino"), _paint("genau")
+        kino, genau = _paint("kino"), _paint("genau")
 
-        assert video.size == genau.size == (PANEL_WIDTH_PX, video.height)
+        assert kino.size == genau.size == (PANEL_WIDTH_PX, kino.height)
 
     def test_a_long_title_does_not_widen_it(self):
         long_title = "Jane Doe - scene one - " + "a long descriptor " * 6

@@ -166,11 +166,11 @@ class TestTransport:
                        "main_player_record_tap", "main_fmode"):
             assert action not in actions
 
-    def test_genau_browses_its_clips_from_the_same_button_video_browses_its_library(self):
-        video = _button(MainSlot(main_mode=MainMode.KINO), "browse_library")
+    def test_genau_browses_its_clips_from_the_same_button_kino_browses_its_library(self):
+        kino = _button(MainSlot(main_mode=MainMode.KINO), "browse_library")
         genau = _button(MainSlot(main_mode=MainMode.GENAU), "browse_library")
 
-        assert (video.glyph, video.tooltip) == (genau.glyph, "Browse the library")
+        assert (kino.glyph, kino.tooltip) == (genau.glyph, "Browse the library")
         assert genau.tooltip == "Browse the clips"
 
 
