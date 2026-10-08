@@ -186,6 +186,11 @@ def _sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[s
     into its mode is a switch rather than a notice that it is still starting.
     """
     _drain(config)
+    for status_file in (config.main_player_status_file,
+                        *(config.satellite(player).status_file for player in Player.SATELLITES)):
+        status_file.parent.mkdir(parents=True, exist_ok=True)
+        status_file.write_text("video=C:/v/scene one.mp4\nduration_ms=3600000\n",
+                               encoding="utf-8")
     sweep: dict[str, dict[str, list[str]]] = {}
     for main_mode in MAIN_MODES:
         for satellites_mode in satellites_modes:
@@ -216,6 +221,13 @@ def landed_hosting_none(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
     origenerator mode a desktop session's shared state can still carry in."""
     root = tmp_path_factory.mktemp("vr_parity_hosting_none")
     return _sweep(_headset_config(root, names_an_origenerator=False), (ORIGENERATOR_MODE,))
+
+
+def test_the_sweep_sends_every_player_its_ten_second_steps(landed):
+    """A step is refused on a video of ten seconds or shorter, so the sweep
+    plays a long one on every player; on none, it would never send a step."""
+    for channel in ("main_player_cmd_file", "portrait_cmd_file", "landscape_cmd_file"):
+        assert {"SEEK_FWD", "SEEK_BACK"} <= set(_sent_to(landed, channel)), channel
 
 
 def _sent_to(landed, channel: str) -> dict[str, str]:

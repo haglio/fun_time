@@ -28,11 +28,13 @@ def _declared(rows) -> dict:
 
 
 @pytest.mark.parametrize("state", [
-    {"locked": True, "latest": True, "nothing_to_reset": True, "has_other_versions": True},
-    {"locked": False, "latest": False, "nothing_to_reset": False, "has_other_versions": False},
+    {"locked": True, "latest": True, "nothing_to_reset": True, "has_other_versions": True,
+     "longer_than_a_step": True},
+    {"locked": False, "latest": False, "nothing_to_reset": False, "has_other_versions": False,
+     "longer_than_a_step": False},
 ])
 def test_a_control_both_huds_carry_looks_and_reads_the_same_on_each(state):
-    console = _declared(console_rows(MainSlot(main_mode=MainMode.VIDEO, **state)))
+    console = _declared(console_rows(MainSlot(main_mode=MainMode.KINO, **state)))
     satellite = _declared(player_rows("portrait", **state))
 
     for name, command in _ON_THE_CONSOLE.items():

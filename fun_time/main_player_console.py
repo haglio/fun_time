@@ -12,6 +12,8 @@ from player_core.hud_placement import HudCorner, HudEdge
 from player_core.modes import MainMode, Osr2State
 from player_core.robot_hand import FULL_INTENSITY
 
+from main_player.controls import longer_than_a_step
+
 from .console_buttons import MainSlot, console_rows, osr2_controls
 from .mode_plan import main_player_displays
 from .player_status import GenauStatus, MainPlayerStatus
@@ -94,6 +96,7 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         compilation=main_player.compilation,
         has_compilation=main_player.has_compilation,
         has_other_versions=main_player.has_other_versions,
+        longer_than_a_step=longer_than_a_step(main_player.duration_ms),
         jump_to=main_player.jump_to,
         osr2_control=inputs.osr2_control,
         nothing_to_reset=inputs.nothing_to_reset,

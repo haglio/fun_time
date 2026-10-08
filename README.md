@@ -254,7 +254,7 @@ Every player has its own playback speed: the main player's row on its console, a
 
 The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Kino** (`H`) and **Genau** (`G`). `\` offsets the Robot Hand's motion by a quarter cycle in either. `N` opens the **library browser** (see below); the chosen video plays in the main player, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
 
-The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive the main player in every mode (in Genau mode the paused main player still navigates in the background). The `;` clip-save key reads the current video/time from the main player's status file in Kino mode.
+The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive the main player in every mode (in Genau mode the paused main player still navigates in the background). A ten-second step has nothing to step through in a video of 10 seconds or shorter, so there every player's HUD draws its back and forward 10s buttons faded, and a key or a spoken "skip" or "back" does nothing but say so over that player. The `;` clip-save key reads the current video/time from the main player's status file in Kino mode.
 
 Spoken, "kino mode" puts both sides on their video players at once; "main kino mode" and "satellite kino mode" do one side, and "genau mode" or "origenerator mode" puts a side back. Genau is heard said either way, the German word or "go now"; "origenerator" is in no dictionary, so the recognizer listens for "aura generator mode".
 
