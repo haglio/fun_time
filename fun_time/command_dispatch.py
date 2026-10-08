@@ -1424,9 +1424,7 @@ def _satellites_slot_ops(satellites_mode: str) -> list[WindowOp]:
     ]
 
 
-ORIGENERATORS_KINO_PRESS_BEFORE_THE_RENAME = "satellites_video_activate"
-_SATELLITES_SWITCHES = ("origenerator_activate", "satellites_kino_activate", "satellites_toggle",
-                        ORIGENERATORS_KINO_PRESS_BEFORE_THE_RENAME)
+_SATELLITES_SWITCHES = ("origenerator_activate", "satellites_kino_activate", "satellites_toggle")
 
 
 def _dispatch_satellites_switch(
@@ -1446,7 +1444,6 @@ def _dispatch_satellites_switch(
     target = {
         "origenerator_activate": ORIGENERATOR_MODE,
         "satellites_kino_activate": KINO_MODE,
-        ORIGENERATORS_KINO_PRESS_BEFORE_THE_RENAME: KINO_MODE,
         "satellites_toggle": toggled_satellites_mode(state.satellites_mode),
     }[command]
     result = apply_satellites_switch(

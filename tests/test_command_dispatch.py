@@ -4509,17 +4509,6 @@ class TestSatellitesModeSwitch:
             ("restack_rfb", ""),
         ]
 
-    def test_the_kino_press_of_an_origenerator_from_before_the_rename_still_takes_them_home(
-            self, tmp_path):
-        config = _origenerator_config(tmp_path)
-
-        state, ops = dispatch_command(
-            "satellites_video_activate", _up(satellites_mode="origenerator"), config)
-
-        assert state.satellites_mode == "kino"
-        assert _origenerator_cmds(config) == ["CLOSE_SHOWS"]
-        assert ("take_back_players", "") in [(op.op, op.key) for op in ops]
-
     def test_satellites_toggle_flips_between_the_two(self, tmp_path):
         config = _origenerator_config(tmp_path)
         state, _ = dispatch_command("satellites_toggle", _up(), config)
