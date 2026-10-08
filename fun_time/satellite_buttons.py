@@ -13,7 +13,7 @@ from .crown import CROWN_ICON, Crown
 
 # The same groups, in the same order, the console's rows are cut into.
 CONTROL_GROUPS = (
-    ("prev", "next"),
+    ("prev", "nudge_prev", "nudge_next", "next"),
     ("lock", "trash", "fmode"),
     ("reset",),
     ("shuffle", "latest"),
@@ -30,6 +30,8 @@ MODE_BUTTONS = (
 
 CONTROL_TOOLTIPS = {
     "prev": "Previous clip",
+    "nudge_prev": "Back 10s",
+    "nudge_next": "Forward 10s",
     "next": "Next clip",
     "lock": "Lock / unlock this clip",
     "trash": "Unfavorite it — or mark weird when it is not a favorite",
@@ -50,7 +52,7 @@ MODE_TOOLTIPS = {
 # has to say why.
 STILL_STARTING_TOOLTIP = "Origenerator is still starting — this lights up when it is ready"
 CONTROL_FACES = {
-    "prev": "⏮", "next": "⏭", "lock": "🔒",
+    "prev": "⏮", "nudge_prev": "⏪", "nudge_next": "⏩", "next": "⏭", "lock": "🔒",
     "trash": shared_mark("trash"), "reset": shared_mark("reset"),
     "shuffle": shared_mark("shuffle"), "latest": shared_mark("latest"),
     "fmode": FMODE_ICON, "minimize": MINIMIZE_ICON,

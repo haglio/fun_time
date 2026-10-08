@@ -22,13 +22,14 @@ def _names(buttons: tuple[Button, ...]) -> list[str]:
 
 
 def test_the_band_is_the_players_own_controls_in_the_consoles_order():
-    """The browse pair, then the three about the clip on screen and the library it
-    came from, then the reset, then the browse order, then another rendition of
-    the clip, as the console ends its own browse controls on it, then minimize —
-    ending with the one that acts on the window rather than on anything in it."""
+    """The browse pair with the ten-second steps between them, then the three about
+    the clip on screen and the library it came from, then the reset, then the
+    browse order, then another rendition of the clip, as the console ends its own
+    browse controls on it, then minimize — ending with the one that acts on the
+    window rather than on anything in it."""
     assert _names(_band(latest=False)) == [
-        "prev", "next", "lock", "trash", "fmode", "reset", "shuffle", "latest",
-        "cycle_version", "minimize", "crown"]
+        "prev", "nudge_prev", "nudge_next", "next", "lock", "trash", "fmode", "reset",
+        "shuffle", "latest", "cycle_version", "minimize", "crown"]
 
 
 def test_every_button_posts_that_players_own_verb():
@@ -61,7 +62,8 @@ def test_the_states_light_and_nothing_else_does():
     assert lit["fmode"].lit and lit["fmode"].favorite
     assert lit["latest"].lit and not lit["shuffle"].lit
     assert not any(lit[name].lit for name in (
-        "prev", "next", "trash", "reset", "cycle_version", "minimize"))
+        "prev", "nudge_prev", "nudge_next", "next", "trash", "reset", "cycle_version",
+        "minimize"))
     shuffled = dict(zip(_names(_band(latest=False)), _band(latest=False)))
     assert shuffled["shuffle"].lit and not shuffled["latest"].lit
 
@@ -140,7 +142,8 @@ def test_the_faces_are_the_familys_marks_where_it_has_them():
     assert named["trash"] == "trash" and named["reset"] == "reset"
     assert not set(named.values()) - set(glyph_names())
     assert CONTROL_FACES["fmode"] == FMODE_ICON
-    assert all(not CONTROL_FACES[name].startswith(SHARED_MARK) for name in ("prev", "next", "lock"))
+    assert all(not CONTROL_FACES[name].startswith(SHARED_MARK)
+               for name in ("prev", "nudge_prev", "nudge_next", "next", "lock"))
 
 
 def test_the_gaps_fall_between_groups_and_nowhere_else():

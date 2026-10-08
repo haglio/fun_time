@@ -388,6 +388,10 @@ class TestGenau:
 _UNANSWERED_BY_THE_HOSTED_APP: dict[str, str] = {
     "wrong_action": "a show's picture carries no act label to strike, and the app "
                     "refuses the strike on purpose",
+    "nudge_next": "a show holds each picture or video for as long as its own pace "
+                  "says, and has no ten-second step through one",
+    "nudge_prev": "a show holds each picture or video for as long as its own pace "
+                  "says, and has no ten-second step through one",
 }
 
 

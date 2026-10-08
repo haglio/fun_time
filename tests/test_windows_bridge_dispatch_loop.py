@@ -475,6 +475,12 @@ class TestResolveActiveSideCommand:
             assert resolve_active_player_command(f"active_{order}", 2) == f"portrait_{order}"
             assert resolve_active_player_command(f"active_{order}", 3) == f"landscape_{order}"
 
+    def test_a_bare_skip_or_back_reaches_whichever_player_is_active(self):
+        for action in ("nudge_next", "nudge_prev"):
+            assert resolve_active_player_command(f"active_{action}", 1) == f"main_{action}"
+            assert resolve_active_player_command(f"active_{action}", 2) == f"portrait_{action}"
+            assert resolve_active_player_command(f"active_{action}", 3) == f"landscape_{action}"
+
     def test_a_bare_playback_speed_reaches_whichever_player_is_active(self):
         for action in ("speed_up", "speed_down", "speed_150"):
             assert resolve_active_player_command(f"active_{action}", 1) == f"main_player_{action}"

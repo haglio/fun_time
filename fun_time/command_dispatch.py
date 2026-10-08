@@ -23,6 +23,8 @@ from player_core.player_verbs import (
     LOCK_ON,
     NEXT,
     PREV,
+    SEEK_BACK,
+    SEEK_FWD,
     SET_SPEED,
     SPEED_DOWN,
     SPEED_UP,
@@ -155,6 +157,10 @@ def _about_genaus_clip(command: str) -> bool:
 _SPEED_BY_DRIVER = {
     "speed_down": SPEED_DOWN,
     "speed_up": SPEED_UP,
+}
+_PLAYHEAD_ACTS = {
+    "nudge_prev": SEEK_BACK,
+    "nudge_next": SEEK_FWD,
 }
 # A video's own playback rate, as opposed to the motion's, said of one player.
 _PLAYBACK_RATE_ACTS = {
@@ -1526,15 +1532,15 @@ def _transport(player: Player, verb: str, state: BridgeState, config: BridgeConf
     return state, []
 
 
-_SATELLITE_SPEEDS: dict[str, tuple[Player, str]] = {
+_SATELLITE_PLAYBACK: dict[str, tuple[Player, str]] = {
     f"{player.label}_{act}": (player, verb)
     for player in Player.SATELLITES
-    for act, verb in _PLAYBACK_RATE_ACTS.items()
+    for act, verb in {**_PLAYBACK_RATE_ACTS, **_PLAYHEAD_ACTS}.items()
 }
 
 
-def _satellite_speed(player: Player, verb: str, state: BridgeState, config: BridgeConfig,
-                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+def _to_the_satellite(player: Player, verb: str, state: BridgeState, config: BridgeConfig,
+                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     send_satellite(config, player, verb)
     return state, []
 
@@ -1754,8 +1760,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers: dict[str, Handler] = {}
     handlers.update({cmd: partial(_transport, player, verb)
                      for cmd, (player, verb) in _TRANSPORT_COMMANDS.items()})
-    handlers.update({cmd: partial(_satellite_speed, player, verb)
-                     for cmd, (player, verb) in _SATELLITE_SPEEDS.items()})
+    handlers.update({cmd: partial(_to_the_satellite, player, verb)
+                     for cmd, (player, verb) in _SATELLITE_PLAYBACK.items()})
     handlers["portrait_lock"] = partial(_toggle_lock, Player.PORTRAIT)
     handlers["landscape_lock"] = partial(_toggle_lock, Player.LANDSCAPE)
     handlers.update({cmd: partial(_lock_as_said, player, locked)
@@ -1780,8 +1786,8 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, player in _LOCK_ACTION_SIDES.items()})
     handlers["main_prev"] = partial(_forward_to_main_player, PREV)
     handlers["main_next"] = partial(_forward_to_main_player, NEXT)
-    handlers["main_nudge_prev"] = partial(_forward_to_main_player, "SEEK_BACK")
-    handlers["main_nudge_next"] = partial(_forward_to_main_player, "SEEK_FWD")
+    handlers.update({f"main_{act}": partial(_forward_to_main_player, verb)
+                     for act, verb in _PLAYHEAD_ACTS.items()})
     handlers.update({cmd: partial(_main_lock, verb)
                      for cmd, verb in _MAIN_LOCK_COMMANDS.items()})
     handlers["genau_lock"] = partial(_main_lock, TOGGLE_LOCK)

@@ -113,8 +113,8 @@ class TestVoiceCommands:
             "stop broker": "broker_stop",
             "next main": "main_next",
             "previous main": "main_prev",
-            "skip": "main_nudge_next",
-            "back": "main_nudge_prev",
+            "skip": "active_nudge_next",
+            "back": "active_nudge_prev",
             "record": "main_player_record_down",
             "loop": "main_player_record_up",
             # "end loop" is side-agnostic — it reaches the main player's own loop through the
@@ -557,6 +557,17 @@ def test_shuffle_joins_the_order_agnostic_satellite_grid():
     for side in ("portrait", "landscape", "both"):
         assert VOICE_COMMANDS[f"{side} shuffle"] == f"{side}_shuffle"
         assert VOICE_COMMANDS[f"shuffle {side}"] == f"{side}_shuffle"
+
+
+def test_skip_and_back_join_the_grid_for_every_player():
+    """Ten seconds either way is on every player's HUD now, so the words for it
+    are said the way every other shared action is: bare to the player last
+    addressed, or with the player named either side of them."""
+    for word, act in (("skip", "nudge_next"), ("back", "nudge_prev")):
+        assert VOICE_COMMANDS[word] == f"active_{act}"
+        for side in ("portrait", "landscape", "both", "main"):
+            assert VOICE_COMMANDS[f"{side} {word}"] == f"{side}_{act}"
+            assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
 
 
 def test_reset_joins_the_order_agnostic_satellite_grid():
