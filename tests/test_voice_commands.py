@@ -208,7 +208,8 @@ class TestVoiceCommands:
         # show can narrow to; the app hears it on its own mic, but this model
         # has no such token, so the relayed phrase is "enhanced only" (and the
         # way back out is the room's own "clear filter", routed to the show).
-        oov_words = {"genau", "origenerator", "hotkeys", "unmute", "upscales", "upscaled"}
+        oov_words = {"origenerator", "upscales", "unpause", "unpark", "unretract", "funscript",
+                     "omnipause", "omniplay", "unminimize", "osr2", "2d"}
         for phrase in VOICE_COMMANDS:
             offenders = oov_words & set(phrase.split())
             assert not offenders, f"{phrase!r} uses out-of-vocabulary {sorted(offenders)}"
@@ -255,20 +256,17 @@ class TestVoiceCommands:
         assert friendly_voice("oh es are two resume") == "OSR2 resume"
         assert VOICE_COMMANDS["resume"] == "play"
 
-    def test_unmute_is_heard_as_two_words(self):
-        """vosk has no "unmute" token but does have "un"; the recognizer listens
-        for "un mute" and the reference shows the friendly single word."""
+    def test_unmute_is_heard_as_two_words_and_shown_as_one(self):
         assert VOICE_COMMANDS["un mute"] == "audio_unmute"
-        assert "unmute" not in VOICE_COMMANDS
+        assert friendly_voice("un mute") == "unmute"
 
     def test_reference_popup_phrases_toggle_and_close_help(self):
         # Several spoken names toggle the hotkeys & voice reference popup; the
-        # same names prefixed with "close" only dismiss it.  vosk has no
-        # "hotkeys" token, so it listens for "hot keys" (two words).
+        # same names prefixed with "close" only dismiss it.
         for phrase in ("help", "reference", "hot keys", "voice commands"):
             assert VOICE_COMMANDS[phrase] == "help_reference"
             assert VOICE_COMMANDS[f"close {phrase}"] == "help_reference_close"
-        assert "hotkeys" not in VOICE_COMMANDS  # OOV single token — never a recognizer phrase
+        assert friendly_voice("close hot keys") == "close hotkeys"
 
     def test_go_now_activates_genau(self):
         # Recognizer phrase stays "go now"; the reference displays it as "genau".
