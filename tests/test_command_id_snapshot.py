@@ -33,9 +33,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # pair is Genau's console's own ± marks beside its drive readout; the enhanced
 # filter is the switch the console draws over a hosted Origenerator's shows,
 # which the room hears as "enhanced only" rather than under this id.  The two
-# scene jumps are the VR controllers' B and A with the trigger held.  The video
-# activation is the Kino button of a hosted Origenerator's own mode row, posted
-# under the mode's old name until that app's rename has shipped.
+# scene jumps are the VR controllers' B and A with the trigger held.
 HUD_ONLY_COMMAND_IDS = (
     "genau_filter_enhanced",
     "landscape_minimize",
@@ -49,7 +47,6 @@ HUD_ONLY_COMMAND_IDS = (
     "portrait_take_osr2",
     "robot_hand_speed_down",
     "robot_hand_speed_up",
-    "satellites_video_activate",
 )
 
 # The argument-carrying forms, matched by prefix rather than listed whole: the
