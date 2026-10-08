@@ -21,7 +21,6 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
-from app_support.subprocess_utils import hidden_subprocess_kwargs
 from player_core.file_channel import append_command
 from player_core.modes import MainMode
 from voice_core.listener import why_unavailable
@@ -69,6 +68,7 @@ from .player_deaths import (
 )
 from .players import Player
 from .process_identity import NAMER
+from .process_tree import kill_process_tree
 from .rfb_slideshow import rfb_slideshow_on
 from .role_windows import ChildPids, WindowRoles
 from .runtime_flow import write_flag_file
@@ -230,28 +230,6 @@ def kill_recorded_child(child: ChildProcess) -> None:
         )
         return
     kill_process_tree(child.pid)
-
-
-def kill_process_tree(pid: int) -> None:
-    """Kill *pid* and its descendants via ``taskkill /T /F``.
-
-    Unconditional.  A bare PID is evidence of nothing — Windows hands freed PIDs
-    straight back out — so the caller must first establish that *pid* is theirs
-    to kill: kill_recorded_child() checks the recorded creation time, and the
-    integration reap checks the image name of a window it found on its own
-    desktop.
-    """
-    if not pid:
-        return
-    try:
-        subprocess.run(
-            ["taskkill", "/PID", str(pid), "/T", "/F"],
-            capture_output=True,
-            check=False,
-            **hidden_subprocess_kwargs(),
-        )
-    except OSError:
-        pass
 
 
 def _close_origenerator_gracefully(child: ChildProcess | None) -> None:

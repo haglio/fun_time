@@ -31,6 +31,7 @@ from player_core.satellite_hud import parse_hud
 
 from fun_time.event_log import event_log_path
 from fun_time.players import Player
+from fun_time.process_tree import kill_process_tree
 from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import (
     read_shared_state,
@@ -49,7 +50,6 @@ from fun_time.win32 import (
 from fun_time.windows_bridge_orchestrator import (
     ORIGENERATOR_BOOT_BUDGET_S,
     _fix_post_loading_windows,
-    kill_process_tree,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
 from fun_time.windows_bridge_startup import (

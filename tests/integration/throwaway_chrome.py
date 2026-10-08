@@ -12,10 +12,10 @@ from pathlib import Path
 
 import pytest
 
+from fun_time.process_tree import kill_process_tree
 from fun_time.shortcuts import Shortcut
 from fun_time.win32 import close_window, find_window_by_title
 from fun_time.win32_process import list_child_pids
-from fun_time.windows_bridge_orchestrator import kill_process_tree
 from tests.scratch import remove_scratch
 
 _CHROME_CANDIDATES = (

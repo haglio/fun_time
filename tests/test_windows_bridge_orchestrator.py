@@ -80,7 +80,6 @@ from fun_time.windows_bridge_orchestrator import (
     add_dispatch_file_handler,
     clear_last_sessions_leftovers,
     identify_children,
-    kill_process_tree,
     kill_recorded_child,
     run_session,
     seat_the_secondary_monitor,
@@ -442,32 +441,6 @@ class TestFixPostLoadingWindows:
             resolved = _fix_post_loading_windows(result)
 
         assert resolved == {"portrait": 111, "landscape": 222}
-
-
-class TestKillProcessTree:
-    def test_taskkills_the_pid_and_its_descendants(self):
-        with patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run:
-            kill_process_tree(1234)
-
-        mock_run.assert_called_once()
-        assert mock_run.call_args[0][0] == ["taskkill", "/PID", "1234", "/T", "/F"]
-
-    def test_the_kill_opens_no_console_window_of_its_own(self):
-        """taskkill is a console program, and a session started by the crossing
-        relay runs under the windowed interpreter -- so it has no console for a
-        console child to inherit, and Windows gives that child one of its own,
-        on screen.  A teardown kills several children, which is why quitting
-        flashed a row of black windows."""
-        with patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run:
-            kill_process_tree(1234)
-
-        assert mock_run.call_args.kwargs["creationflags"] & subprocess.CREATE_NO_WINDOW
-
-    def test_ignores_the_zero_pid_of_a_child_that_was_never_launched(self):
-        with patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run:
-            kill_process_tree(0)
-
-        mock_run.assert_not_called()
 
 
 class TestKillRecordedChild:

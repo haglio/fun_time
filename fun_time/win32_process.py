@@ -99,15 +99,19 @@ def get_process_creation_time(pid: int) -> int | None:
     if not handle:
         return None
     try:
-        creation = ctypes.wintypes.FILETIME()
-        unused = (ctypes.wintypes.FILETIME(), ctypes.wintypes.FILETIME(), ctypes.wintypes.FILETIME())
-        if not _kernel32.GetProcessTimes(
-            handle, ctypes.byref(creation), *(ctypes.byref(t) for t in unused)
-        ):
-            return None
-        return (creation.dwHighDateTime << 32) | creation.dwLowDateTime
+        return creation_time_of(handle)
     finally:
         _kernel32.CloseHandle(handle)
+
+
+def creation_time_of(handle: int) -> int | None:
+    creation = ctypes.wintypes.FILETIME()
+    unused = (ctypes.wintypes.FILETIME(), ctypes.wintypes.FILETIME(), ctypes.wintypes.FILETIME())
+    if not _kernel32.GetProcessTimes(
+        handle, ctypes.byref(creation), *(ctypes.byref(t) for t in unused)
+    ):
+        return None
+    return (creation.dwHighDateTime << 32) | creation.dwLowDateTime
 
 
 def is_process_alive(pid: int) -> bool:
@@ -131,12 +135,17 @@ def is_process_alive(pid: int) -> bool:
 
 
 def list_child_pids(parent_pid: int) -> list[int]:
-    """The pids whose recorded parent is *parent_pid*, via a Toolhelp snapshot.
+    """The pids whose recorded parent is *parent_pid*.
 
     A recorded child pid is not always the pid that owns the windows: a venv's
     ``Scripts`` launcher spawns the real interpreter as a child and keeps the
     recorded pid for itself.  This is the one hop that recovers the family.
     """
+    return [pid for pid, parent in process_parents() if parent == parent_pid]
+
+
+def process_parents() -> list[tuple[int, int]]:
+    """Every running process's pid with its parent's, from one Toolhelp snapshot."""
     TH32CS_SNAPPROCESS = 0x2
     INVALID_HANDLE_VALUE = ctypes.wintypes.HANDLE(-1).value
 
@@ -164,16 +173,15 @@ def list_child_pids(parent_pid: int) -> list[int]:
     snapshot = _kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
     if snapshot == INVALID_HANDLE_VALUE:
         return []
-    children: list[int] = []
+    pairs: list[tuple[int, int]] = []
     try:
         entry = PROCESSENTRY32()
         entry.dwSize = ctypes.sizeof(PROCESSENTRY32)
         if _kernel32.Process32FirstW(snapshot, ctypes.byref(entry)):
             while True:
-                if entry.th32ParentProcessID == parent_pid:
-                    children.append(int(entry.th32ProcessID))
+                pairs.append((int(entry.th32ProcessID), int(entry.th32ParentProcessID)))
                 if not _kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
                     break
     finally:
         _kernel32.CloseHandle(snapshot)
-    return children
+    return pairs
