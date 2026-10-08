@@ -395,7 +395,7 @@ def _load_voice_control_config(voice_raw: dict[str, Any] | None) -> VoiceControl
     values = voice_raw or {}
     return VoiceControlConfig(
         enabled=bool(values.get("enabled", False)),
-        model_path=str(values.get("model_path", "vosk-model-small-en-us-0.15")),
+        model_path=str(values.get("model_path", "vosk-model-en-us-0.22-lgraph")),
         device_name=str(values["device_name"]) if values.get("device_name") is not None else None,
         sample_rate=int(values.get("sample_rate", 16000)),
         confidence_threshold=float(values.get("confidence_threshold", 0.7)),
