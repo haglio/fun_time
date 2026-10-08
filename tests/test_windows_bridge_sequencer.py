@@ -41,6 +41,7 @@ from fun_time.window_layout import (
     compute_window_layout,
     screen_layout,
 )
+from fun_time.window_roles import GENAU_TITLE
 from fun_time.windows_bridge_sequencer import (
     GENAU_ANSWER_TIMEOUT_S,
     MAIN_PLAYER_LOAD_TIMEOUT_S,
@@ -895,6 +896,26 @@ class TestAPlayerThatDiesWhileTheRoomComesUp:
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
 
         assert result.main_player_pid == MAIN_PLAYER_PID
+
+    def test_genau_that_dies_after_the_players_are_drawing_still_ends_the_startup(
+            self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        gone: set[int] = set()
+
+        def genau_dies_while_its_window_is_awaited(title, **_kwargs):
+            if title == GENAU_TITLE:
+                gone.add(GENAU_PID)
+                return 0
+            return 99999
+
+        with _sequencer_stubs(
+                wait_for_window_by_title=dict(side_effect=genau_dies_while_its_window_is_awaited),
+                is_process_alive=dict(side_effect=lambda pid: pid not in gone)):
+            with pytest.raises(PlayerDied) as died:
+                run_startup_sequence(
+                    manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
+
+        assert died.value.player.name == "Genau"
 
 
 class TestNoActivateWindowDuringIntegration:
