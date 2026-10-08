@@ -227,10 +227,8 @@ def _one_stroke(path):
 
 def test_every_verb_the_satellite_answers_is_the_familys_or_its_own():
     """Everything a satellite answers is a verb any player may be sent, bar the
-    pair about another version of the clip on screen: only this player answers
-    those and only Fun Time sends them, so they are spelled beside its registry
-    rather than in the family's vocabulary — which is where player_core's own
-    rule leaves a name until a second repo needs it."""
+    pair about another version of the clip on screen, spelled beside this
+    registry until the family's vocabulary carries them."""
     its_own = {NEXT_VERSION, PREV_VERSION}
     assert set(VERBS) == its_own | {
         NEXT, PREV, LOCK_ON, LOCK_OFF, TRASH, SPEED_UP, SPEED_DOWN, SET_SPEED,
@@ -238,4 +236,3 @@ def test_every_verb_the_satellite_answers_is_the_familys_or_its_own():
         SET_MAX_INTENSITY,
     }
     assert all(getattr(player_verbs, verb) == verb for verb in set(VERBS) - its_own)
-    assert not [verb for verb in its_own if hasattr(player_verbs, verb)]
