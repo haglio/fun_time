@@ -288,6 +288,10 @@ def test_mode_named_nav_shows_friendly_names_in_the_legend():
             assert "aura generator" not in phrase, phrase
 
 
+def test_no_row_tells_you_to_say_genau_by_its_sound_alike():
+    assert not [row.description for row in _all_rows() if '"go now' in row.description]
+
+
 def test_main_player_video_rows_show_main_nav_in_both_orders():
     """The main player prev/next rows surface "main previous"/"main next" and the
     reverse order, so the main player's navigation is visible in the
