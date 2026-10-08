@@ -180,6 +180,8 @@ QUIT_BUDGET_S = 60.0
 # alone has taken 24 to 41, and two were still starting, not stuck, at 45.
 START_BUDGET_S = 120.0
 
+STARTUP_STOPPED = "Fun Time stopped starting up"
+
 # How long a command is given to show in what a player publishes.  When other
 # sessions' normal-priority work held every core, the dispatch loop went 66
 # seconds between two passes and every command still landed afterwards.
@@ -304,6 +306,26 @@ class FunTimeIntegrationSession:
         (``FUN_TIME_INTEGRATION_OVERLAYS=1``) that integration mode otherwise
         skips.
         """
+        already_logged = self._launch(project_dir=project_dir, env_overrides=env_overrides)
+        # The hotkey script goes up with the loading screen now, ahead of every
+        # window, so its own "started" line says nothing about the session — it
+        # lands seconds before there is one.  This is the line it writes when the
+        # orchestrator's pids file appears, which is exactly when startup has
+        # finished.  (Its keys stay suspended in a run like this one; the hold
+        # this line reports is the separate startup one.)
+        self._wait_for_own_log(
+            "Session up; startup hold released", after=already_logged, timeout=wait_seconds
+        )
+        time.sleep(1.0)
+        self._log_pos = self.windows_bridge_log.stat().st_size if self.windows_bridge_log.exists() else 0
+
+    def start_one_that_stops_starting_up(self, wait_seconds: float = START_BUDGET_S,
+                                         env_overrides: dict[str, str] | None = None) -> str:
+        already_logged = self._launch(project_dir=None, env_overrides=env_overrides)
+        self._wait_for_own_log(STARTUP_STOPPED, after=already_logged, timeout=wait_seconds)
+        return self._read_windows_bridge_log()[already_logged:]
+
+    def _launch(self, *, project_dir: Path | None, env_overrides: dict[str, str] | None) -> int:
         self._reap_leftover_runtime_processes()
         env = os.environ.copy()
         env["FUN_TIME_DISABLE_DASHBOARD"] = "1"
@@ -326,17 +348,7 @@ class FunTimeIntegrationSession:
             stderr=self._stderr_fh,
             text=True,
         )
-        # The hotkey script goes up with the loading screen now, ahead of every
-        # window, so its own "started" line says nothing about the session — it
-        # lands seconds before there is one.  This is the line it writes when the
-        # orchestrator's pids file appears, which is exactly when startup has
-        # finished.  (Its keys stay suspended in a run like this one; the hold
-        # this line reports is the separate startup one.)
-        self._wait_for_own_log(
-            "Session up; startup hold released", after=already_logged, timeout=wait_seconds
-        )
-        time.sleep(1.0)
-        self._log_pos = self.windows_bridge_log.stat().st_size if self.windows_bridge_log.exists() else 0
+        return already_logged
 
     def _wait_for_own_log(self, needle: str, *, after: int, timeout: float) -> None:
         """Wait for *needle* among the log characters written past *after*."""
