@@ -56,6 +56,7 @@ class GalleryPanel:
         self._frames = FrameReader(Path(state_dir) / FRAME_FILENAME)
         self._size: tuple[int, int] | None = None
         self._answered_at: float | None = None
+        self._looked_since: float | None = None
         self._said_it_went_quiet = False
 
     @property
@@ -64,6 +65,8 @@ class GalleryPanel:
 
     def frame(self, now: float | None = None) -> tuple[int, int, bytes] | None:
         picture = self._frames.latest(TOKEN)
+        if now is not None and self._looked_since is None:
+            self._looked_since = now
         if picture is not None:
             self._size = (picture[0], picture[1])
             if now is not None:
@@ -72,11 +75,19 @@ class GalleryPanel:
         return picture
 
     def went_quiet(self, now: float) -> str | None:
-        """One line to log when the app has stopped answering, or None: a
-        hosted app whose own thread has stopped cannot report that itself."""
+        """One line to log when no picture is reaching the room, or None: a
+        hosted app that cannot draw cannot report that itself."""
+        if self._said_it_went_quiet:
+            return None
+        if self._answered_at is None:
+            if self._looked_since is None or now - self._looked_since < QUIET_S:
+                return None
+            self._said_it_went_quiet = True
+            return (f"The hosted app has published no picture at all in "
+                    f"{now - self._looked_since:.0f}s, so its screen in the room "
+                    f"is blank")
         waiting = self._lines_waiting()
-        if (self._answered_at is None or self._said_it_went_quiet
-                or not waiting or now - self._answered_at < QUIET_S):
+        if not waiting or now - self._answered_at < QUIET_S:
             return None
         self._said_it_went_quiet = True
         return (f"The hosted app has gone quiet: no new picture for "

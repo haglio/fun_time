@@ -144,6 +144,20 @@ class TestSayingWhenTheAppHasGoneQuiet:
         assert panel.went_quiet(now=QUIET_S + 1) is None
 
 
+    def test_an_app_that_has_published_nothing_at_all_is_said_once(self, tmp_path):
+        """A screen that has never had a picture is blank, which is a fault
+        whether or not anyone has pointed at it: his 2026-10-08 session showed
+        no Origenerator window in the room for four minutes and neither side
+        wrote a line about it."""
+        panel = GalleryPanel(tmp_path)
+        assert panel.frame(now=0.0) is None
+
+        said = panel.went_quiet(now=QUIET_S + 1)
+
+        assert said is not None
+        assert panel.went_quiet(now=QUIET_S + 2) is None, "it said the same thing twice"
+
+
 class TestTheOtherWaysTheRoomReachesIt:
     def test_a_hover_carries_the_pixel_the_laser_rests_on(self):
         assert hover_line(12, 34) == "hover 12 34"
