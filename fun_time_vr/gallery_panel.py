@@ -12,8 +12,7 @@ from .thumbs import CONTROLLER_DEADZONE
 FRAME_FILENAME = "origenerator_frame.bin"
 INPUT_FILENAME = "origenerator_input.txt"
 
-# The words this module says by itself; a press, drag or right-click travels as
-# the event's own kind, so pointer's names are the app's words too.
+# The words this module says by itself; the rest travel as the event's kind.
 HOSTED_RELEASE = "release"
 HOVER = "hover"
 SCROLL = "scroll"
@@ -49,7 +48,6 @@ def scroll_from_stick(axis: float, elapsed_s: float) -> float:
 
 
 class GalleryPanel:
-    """The channel pair it hands the window over through."""
 
     def __init__(self, state_dir: Path) -> None:
         self._input = Path(state_dir) / INPUT_FILENAME
@@ -75,8 +73,7 @@ class GalleryPanel:
         return picture
 
     def went_quiet(self, now: float) -> str | None:
-        """One line to log when no picture is reaching the room, or None: a
-        hosted app that cannot draw cannot report that itself."""
+        """One line when no picture is reaching the room: the app cannot say so."""
         if self._said_it_went_quiet:
             return None
         if self._answered_at is None:
