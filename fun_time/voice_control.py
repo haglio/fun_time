@@ -26,6 +26,7 @@ from fun_time.event_log import (
 )
 from fun_time.unlogged_notices import flash_unlogged
 from fun_time.voice_commands import (
+    GENAU_SAID,
     VOICE_COMMANDS,
     format_spoken_command,
     friendly_voice,
@@ -118,6 +119,10 @@ def _written(phrase: str) -> str | None:
     return friendly if friendly != phrase else None
 
 
+def _said_in(phrase: str) -> str | None:
+    return "de" if any(said in phrase for said in GENAU_SAID) else None
+
+
 # Relief is the sensation emergency: it acts on the first listener's word, where
 # every other command can wait the half second the second one takes to agree.
 _RELIEF_PHRASES = frozenset(
@@ -137,6 +142,7 @@ def command_rules(*, confidence_threshold: float, confirm_commands: bool) -> Com
         confidence_threshold=confidence_threshold,
         stands_alone=unconfirmed.__contains__,
         written=_written,
+        said_in=_said_in,
     )
 
 
@@ -172,7 +178,8 @@ class VoiceController:
             recovered=self._announce_the_microphone_is_back,
             keeps_misses=self._is_listening,
         )
-        self.engines = Engines(second_opinion=second_listener or WhisperReader())
+        self.engines = Engines(second_opinion=second_listener or WhisperReader(),
+                               second_opinion_in={"de": WhisperReader(language="de")})
         self._listener = CommandListener(
             command_rules(confidence_threshold=confidence_threshold,
                           confirm_commands=confirm_commands),

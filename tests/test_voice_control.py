@@ -80,6 +80,27 @@ class TestCommandRules:
         assert rules.written("o s r two off") == "OSR2 off"
         assert rules.written("landscape next") is None
 
+    def test_the_phrases_that_say_genau_are_said_in_german_and_no_others(self):
+        rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
+
+        assert {rules.said_in(phrase) for phrase in
+                ("go now", "go now mode", "next go now", "portrait go now")} == {"de"}
+        assert {rules.said_in(phrase) for phrase in
+                ("video mode", "clip seconds five", "weird clip", "next")} == {None}
+
+    def test_the_second_listener_is_handed_genau_whichever_spelling_the_first_heard(self):
+        rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
+        genau_phrases = [phrase for phrase, command in VOICE_COMMANDS.items()
+                         if command == "genau_activate"]
+
+        assert {rules.written(phrase) or phrase for phrase in genau_phrases} == {"genau", "genau mode"}
+
+
+def test_the_listener_is_handed_a_reader_for_the_phrases_said_in_german(tmp_path):
+    vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+
+    assert set(vc.engines.second_opinion_in) == {"de"}
+
 
 class TestHandleHeard:
     def _controller(self, tmp_path: Path) -> VoiceController:
