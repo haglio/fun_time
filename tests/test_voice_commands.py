@@ -268,12 +268,13 @@ class TestVoiceCommands:
             assert VOICE_COMMANDS[f"close {phrase}"] == "help_reference_close"
         assert friendly_voice("close hot keys") == "close hotkeys"
 
-    def test_go_now_activates_genau(self):
-        # Recognizer phrase stays "go now"; the reference displays it as "genau".
-        assert VOICE_COMMANDS["go now"] == "genau_activate"
-        # Said as a mode too, the way "video mode" is: "genau mode" is heard as
-        # "go now mode".
-        assert VOICE_COMMANDS["go now mode"] == "genau_activate"
+    def test_every_go_now_phrase_has_a_twin_that_says_genau(self):
+        go_now = {phrase: command for phrase, command in VOICE_COMMANDS.items() if "go now" in phrase}
+        twins = {phrase.replace("go now", "genau"): command.replace("go_now", "genau")
+                 for phrase, command in go_now.items()}
+
+        assert len(go_now) == 8
+        assert {phrase: VOICE_COMMANDS.get(phrase) for phrase in twins} == twins
 
     def test_aura_generator_mode_is_shown_as_origenerator_mode(self):
         assert VOICE_COMMANDS["aura generator mode"] == "origenerator_activate"
@@ -458,18 +459,15 @@ class TestVoiceCommands:
 
     def test_mode_named_navigation_both_orders(self):
         """A mode's name + next/previous (either order) navigates its player:
-        Video drives the main slot, Genau its own clip.  vosk can't hear
-        "genau", so the recognizer uses the "go now" sound-alike."""
-        for base in ("video",):
-            assert VOICE_COMMANDS[f"{base} next"] == "main_next"
-            assert VOICE_COMMANDS[f"next {base}"] == "main_next"
-            assert VOICE_COMMANDS[f"{base} previous"] == "main_prev"
-            assert VOICE_COMMANDS[f"previous {base}"] == "main_prev"
-        # Genau (recognizer "go now") steps its own clip.
-        assert VOICE_COMMANDS["go now next"] == "genau_next_clip"
-        assert VOICE_COMMANDS["next go now"] == "genau_next_clip"
-        assert VOICE_COMMANDS["go now previous"] == "genau_prev_clip"
-        assert VOICE_COMMANDS["previous go now"] == "genau_prev_clip"
+        Video drives the main slot, Genau its own clip."""
+        for base, (next_command, previous_command) in (
+                ("video", ("main_next", "main_prev")),
+                ("genau", ("genau_next_clip", "genau_prev_clip")),
+                ("go now", ("genau_next_clip", "genau_prev_clip"))):
+            assert VOICE_COMMANDS[f"{base} next"] == next_command
+            assert VOICE_COMMANDS[f"next {base}"] == next_command
+            assert VOICE_COMMANDS[f"{base} previous"] == previous_command
+            assert VOICE_COMMANDS[f"previous {base}"] == previous_command
 
     def test_contains_numeric_amp_phrases(self):
         assert VOICE_COMMANDS["amp fifty"] == "robot_hand_amp_50"

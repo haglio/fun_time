@@ -433,10 +433,8 @@ def test_voice_phrases_are_derived_from_voice_commands():
                 )
 
 
-def test_genau_row_displays_genau_but_recognizer_uses_go_now():
-    """The Genau mode row shows 'genau' while the recognizer phrase is 'go now'."""
-    assert VOICE_COMMANDS["go now"] == "genau_activate"
-    assert "genau" not in VOICE_COMMANDS  # display-only alias, not a recognizer phrase
+def test_the_genau_row_shows_each_phrase_once_though_the_recognizer_hears_two_spellings():
+    assert VOICE_COMMANDS["genau"] == VOICE_COMMANDS["go now"] == "genau_activate"
     genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
     assert genau_rows and genau_rows[0].voice == ("genau", "genau mode")
 
@@ -481,7 +479,7 @@ def test_the_backslash_key_offsets_the_hand_and_the_browser_has_its_own_key():
 
 def test_video_mode_is_spoken_as_written_of_either_side_or_of_both():
     # Every word of these is in the vosk vocabulary, so they are heard as the
-    # reference shows them — unlike "genau", which rides the "go now" sound-alike.
+    # reference shows them.
     assert VOICE_COMMANDS["video mode"] == "video_activate"
     assert VOICE_COMMANDS["main video mode"] == "main_video_activate"
     assert VOICE_COMMANDS["satellite video mode"] == "satellites_video_activate"

@@ -56,6 +56,8 @@ def parse_command_line(line: str) -> CommandLine:
         return CommandLine(line)
 
 
+GENAU_SAID: tuple[str, ...] = ("genau", "go now")
+
 # A hosted Origenerator's own vocabulary, said to one of its sides.
 #
 # The session owns the microphone for the whole room — one mic, one
@@ -75,9 +77,8 @@ ORIGENERATOR_PHRASES: tuple[str, ...] = (
     "enhanced only", "filter enhanced",
     # The show's own controls.
     "play slideshow", "start slideshow", "pause slideshow", "stop slideshow",
-    # The commands about the picture on screen: the built-in detail parts, and
-    # the sound Fun Time settled on for Genau (no recognizer here hears it).
-    "fix face", "fix hands", "fix teeth", "fix eyes", "go now",
+    # The commands about the picture on screen: the built-in detail parts, and Genau.
+    "fix face", "fix hands", "fix teeth", "fix eyes", *GENAU_SAID,
 )
 
 def build_voice_commands(
@@ -137,8 +138,7 @@ def build_voice_commands(
         # generated as an order-agnostic grid below the literal — F-mode among them,
         # bare and sided both.
 
-        "go now": "genau_activate",
-        "go now mode": "genau_activate",
+        **{phrase: "genau_activate" for said in GENAU_SAID for phrase in (said, f"{said} mode")},
         # Video mode, said of a side or of neither: the bare phrase puts the
         # main slot AND the satellites on their players, each side's own phrase
         # just that side.
@@ -418,7 +418,7 @@ def build_voice_commands(
     _MODE_NAV: dict[str, tuple[str, str]] = {
         # recognizer base -> (next command, previous command)
         "video": ("main_next", "main_prev"),
-        "go now": ("genau_next_clip", "genau_prev_clip"),
+        **dict.fromkeys(GENAU_SAID, ("genau_next_clip", "genau_prev_clip")),
     }
     for _base, (_next_cmd, _prev_cmd) in _MODE_NAV.items():
         commands[f"{_base} next"] = _next_cmd
@@ -543,9 +543,9 @@ VOICE_COMMANDS: Mapping[str, str] = build_voice_commands()
 
 
 # recognizer phrase -> what the reference and the notices show, one pair per word
-# vosk cannot hear: a mode name, a joined-up word it only has the halves of, or
-# a device name it only has the letters of.  EVERY sound-alike spelling above is
-# here and nowhere else, which is why no row up there explains its own.
+# spelled as it is heard: a name in no dictionary as the words it sounds like, a
+# joined-up word as its halves, a device name as its letters, Genau as "go now".
+# EVERY such spelling above is here and nowhere else, so no row explains its own.
 # Applied in order as plain replaces,
 # so "un pause" precedes "omni pause" and cannot be re-split by it, and each
 # rewrite reaches the derived phrases the word sits inside ("next fun scripted").
