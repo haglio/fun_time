@@ -32,7 +32,7 @@ in either orchestrator:
 | The main player's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, clip seconds, cruise, learned motion and hold | yes, same |
 | The mic being off | yes, off the flag the last session wrote |
-| The satellites' mode (video / Origenerator) | no — every room opens in video mode |
+| The satellites' mode (Kino / Origenerator) | no — every room opens in Kino mode |
 | OmniPause | no — a session never opens paused |
 
 Every row of that table is carried by any reopen, a crossing included
@@ -232,7 +232,7 @@ crosses like any other mode — the shows are the satellite players' own
 playlists, and the headset's satellites are players
 ([known-issues.md](known-issues.md) has what the headset still cannot show of
 it: the app's own window).
-The curtain no longer waits for it — every room opens in video mode and the
+The curtain no longer waits for it — every room opens in Kino mode and the
 dispatch loop opens that mode up once the app publishes a status — but a boot
 still costs a minute of a session with no Origenerator mode in it, and a
 crossing used to pay that twice, the desktop session closing it on the way out

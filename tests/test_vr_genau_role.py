@@ -324,7 +324,7 @@ class TestWhatTheHeadsetIsToldToShow:
         assert Genau(tmp_path).role.showing is True
 
     def test_hud_on_means_the_video_shows_and_the_clip_does_not(self, tmp_path):
-        """Video mode, on the desktop: Genau is the see-through layer over
+        """Kino mode, on the desktop: Genau is the see-through layer over
         The main player's video.  In the headset there is nothing to see through, so the
         clip simply steps aside."""
         genau = Genau(tmp_path)

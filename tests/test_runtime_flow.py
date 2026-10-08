@@ -84,8 +84,8 @@ def _main_player_cmds(files) -> list[str]:
     return cmd_file.read_text(encoding="utf-8").split("\n")[:-1] if cmd_file.exists() else []
 
 
-def test_video_to_genau_resumes_genau_and_pauses_the_main_player_on_its_picture(flow_files):
-    result = _mode_switch(flow_files, current="video", target="genau")
+def test_kino_to_genau_resumes_genau_and_pauses_the_main_player_on_its_picture(flow_files):
+    result = _mode_switch(flow_files, current="kino", target="genau")
 
     assert result.next_mode == "genau"
     assert result.is_transition is True
@@ -94,12 +94,12 @@ def test_video_to_genau_resumes_genau_and_pauses_the_main_player_on_its_picture(
     assert _main_player_cmds(flow_files) == []
 
 
-def test_genau_to_video_starts_main_player_under_genau(flow_files):
+def test_genau_to_kino_starts_main_player_under_genau(flow_files):
     # RESUME either way: the dispatch loop's arbiter takes the hand from here,
     # pausing it for the funscript's stretches on its next tick.
-    result = _mode_switch(flow_files, current="genau", target="video")
+    result = _mode_switch(flow_files, current="genau", target="kino")
 
-    assert result.next_mode == "video"
+    assert result.next_mode == "kino"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
     assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "0"
     assert _main_player_cmds(flow_files) == ["DISPLAY_ON"]
@@ -108,8 +108,8 @@ def test_genau_to_video_starts_main_player_under_genau(flow_files):
 def test_a_mode_switch_leaves_the_paused_flags_and_main_players_tcode_alone(flow_files):
     """Genau and its audio run in both modes (the paused flags are OmniPause's
     and the startup hold's), and the arbiter owns the main player's T-Code lever inside
-    video mode — so the switch touches neither."""
-    for current, target in (("video", "genau"), ("genau", "video")):
+    kino mode — so the switch touches neither."""
+    for current, target in (("kino", "genau"), ("genau", "kino")):
         _mode_switch(flow_files, current=current, target=target)
 
     assert not flow_files["genau_paused_file"].exists()
@@ -118,7 +118,7 @@ def test_a_mode_switch_leaves_the_paused_flags_and_main_players_tcode_alone(flow
 
 
 def test_a_mode_switch_during_omnipause_swaps_the_display_and_resumes_nothing(flow_files):
-    result = _mode_switch(flow_files, current="video", target="genau", omni_paused=True)
+    result = _mode_switch(flow_files, current="kino", target="genau", omni_paused=True)
 
     assert result.next_mode == "genau"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "HUD_OFF\n"
@@ -653,11 +653,11 @@ def _leave_omnipause(files, *, main_mode, broker=True,
     )
 
 
-def test_apply_leave_omnipause_in_video_mode_resumes_main_player_and_lifts_the_hand(flow_files):
+def test_apply_leave_omnipause_in_kino_mode_resumes_main_player_and_lifts_the_hand(flow_files):
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["main_player_paused_file"].write_text("1", encoding="utf-8")
 
-    result = _leave_omnipause(flow_files, main_mode=MainMode.VIDEO)
+    result = _leave_omnipause(flow_files, main_mode=MainMode.KINO)
 
     assert result.next_omni_paused is False
     assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "0"
@@ -672,8 +672,8 @@ def test_apply_leave_omnipause_in_video_mode_resumes_main_player_and_lifts_the_h
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 
 
-def test_apply_leave_omnipause_in_video_mode_leaves_genaus_motion_to_the_arbiter(flow_files):
-    """Video mode hands the OSR2 between the funscript and Genau per stretch, and the
+def test_apply_leave_omnipause_in_kino_mode_leaves_genaus_motion_to_the_arbiter(flow_files):
+    """Kino mode hands the OSR2 between the funscript and Genau per stretch, and the
     arbiter re-asserts that on its next tick.  Resuming Genau's motion here too
     started it against a funscript that was still driving — both on the device at
     once, which the user felt as the OSR2 fighting itself."""
@@ -681,11 +681,11 @@ def test_apply_leave_omnipause_in_video_mode_leaves_genaus_motion_to_the_arbiter
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
     flow_files["main_player_paused_file"].write_text("1", encoding="utf-8")
 
-    _leave_omnipause(flow_files, main_mode=MainMode.VIDEO)
+    _leave_omnipause(flow_files, main_mode=MainMode.KINO)
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert not flow_files["genau_cmd_file"].exists()
-    # Video mode displays the main player, so the main player resumes too (Genau just drives the OSR2).
+    # Kino mode displays the main player, so the main player resumes too (Genau just drives the OSR2).
     assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
@@ -712,7 +712,7 @@ def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
     assert not flow_files["main_player_paused_file"].exists(), "the main player pause state untouched"
-    # Both satellites are unfrozen regardless of the main video mode.
+    # Both satellites are unfrozen regardless of the main slot's mode.
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 

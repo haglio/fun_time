@@ -129,7 +129,7 @@ def _playlist(config: BridgeConfig, player: Player) -> list[str]:
 
 
 def _make_state(**overrides) -> BridgeState:
-    defaults = dict(main_mode=MainMode.VIDEO, omni_paused=False)
+    defaults = dict(main_mode=MainMode.KINO, omni_paused=False)
     defaults.update(overrides)
     return BridgeState(**defaults)
 
@@ -500,19 +500,19 @@ def test_portrait_next_queues_next(tmp_path: Path):
 # --- main_prev / main_next ---
 
 
-def test_primary_prev_in_video_mode_writes_main_player_cmd(tmp_path: Path):
-    """Video mode displays the main player, so navigation goes to the main player's command file, not a satellite's."""
+def test_primary_prev_in_kino_mode_writes_main_player_cmd(tmp_path: Path):
+    """Kino mode displays the main player, so navigation goes to the main player's command file, not a satellite's."""
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_prev", state, config)
 
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PREV\n"
 
 
-def test_primary_next_in_video_mode_writes_main_player_cmd(tmp_path: Path):
+def test_primary_next_in_kino_mode_writes_main_player_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_next", state, config)
 
@@ -521,7 +521,7 @@ def test_primary_next_in_video_mode_writes_main_player_cmd(tmp_path: Path):
 
 def test_primary_next_in_main_player_mode_writes_main_player_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_next", state, config)
 
@@ -529,7 +529,7 @@ def test_primary_next_in_main_player_mode_writes_main_player_cmd(tmp_path: Path)
 
 
 def test_primary_prev_in_genau_mode_writes_main_player_cmd(tmp_path: Path):
-    """Outside video mode, the main player is the main player — even while Genau mode is
+    """Outside kino mode, the main player is the main player — even while Genau mode is
     active, [ and ] navigate the paused main player in the background."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
@@ -546,7 +546,7 @@ def test_primary_lock_toggles_the_main_players_hold_on_the_video(tmp_path: Path)
     """The apostrophe and the console's padlock both send the toggle; the main player holds
     the state, since only it knows what its own end of file is doing."""
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_lock", state, config)
 
@@ -555,7 +555,7 @@ def test_primary_lock_toggles_the_main_players_hold_on_the_video(tmp_path: Path)
 
 def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_lock_on", state, config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
@@ -570,7 +570,7 @@ def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
 def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
     """The lock is about what is on screen, and in genau mode that is Genau's
     clip — the same split the speed controls make.  One padlock on the console
-    rather than one per player, which is what left Video mode with two."""
+    rather than one per player, which is what left Kino mode with two."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
@@ -586,7 +586,7 @@ def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
     dispatch_command("main_lock_off", _make_state(main_mode=MainMode.GENAU), config)
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "LOCK_OFF\n"
 
-    dispatch_command("main_lock_on", _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command("main_lock_on", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
 
@@ -604,14 +604,14 @@ def test_the_comma_holds_genaus_clip_while_genau_is_on_the_main_screen(tmp_path:
 def test_the_apostrophe_holds_the_video_while_the_video_is_on_the_main_screen(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    dispatch_command("main_player_lock", _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command("main_player_lock", _make_state(main_mode=MainMode.KINO), config)
 
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
     assert not config.genau_cmd_file.exists()
 
 
 @pytest.mark.parametrize(("key_command", "main_mode"), [
-    ("genau_lock", MainMode.VIDEO),
+    ("genau_lock", MainMode.KINO),
     ("main_player_lock", MainMode.GENAU),
 ])
 def test_a_lock_key_does_nothing_while_the_other_player_is_on_the_main_screen(
@@ -625,8 +625,8 @@ def test_a_lock_key_does_nothing_while_the_other_player_is_on_the_main_screen(
 
 
 @pytest.mark.parametrize(("command", "main_mode"), [
-    ("main_lock", MainMode.VIDEO),
-    ("main_player_lock", MainMode.VIDEO),
+    ("main_lock", MainMode.KINO),
+    ("main_player_lock", MainMode.KINO),
     ("genau_lock", MainMode.GENAU),
 ])
 def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(
@@ -660,7 +660,7 @@ def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(
 def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path):
     """A projection, a heading and a tilt are things only the VR player has."""
     config = _make_config(tmp_path, vr_main_player=True)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command(command, state, config)
 
@@ -673,7 +673,7 @@ def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path
      "recenter_view", "tilt_up", "tilt_down", "tilt_reset", "main_scene_prev",
      "main_scene_next", "vr_reset"],
 )
-@pytest.mark.parametrize("main_mode", ["video", "genau"])
+@pytest.mark.parametrize("main_mode", ["kino", "genau"])
 def test_a_vr_only_verb_is_not_sent_in_a_desktop_session(command, main_mode, tmp_path: Path):
     """the main player has no projection and no headset to face, in any mode.
 
@@ -694,7 +694,7 @@ def test_a_vr_only_verb_is_not_sent_in_a_desktop_session(command, main_mode, tmp
 
 def test_main_player_cycle_version_writes_main_player_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_cycle_version", state, config)
 
@@ -703,7 +703,7 @@ def test_main_player_cycle_version_writes_main_player_cmd(tmp_path: Path):
 
 def test_main_player_cycle_version_back_writes_the_other_way(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode="video")
+    state = _make_state(main_mode="kino")
 
     dispatch_command("main_player_cycle_version_back", state, config)
 
@@ -770,7 +770,7 @@ def test_a_side_version_step_says_so_when_the_clip_has_only_itself(tmp_path: Pat
 
 def test_main_player_toggle_length_writes_toggle_command(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_toggle_length", state, config)
 
@@ -779,7 +779,7 @@ def test_main_player_toggle_length_writes_toggle_command(tmp_path: Path):
 
 def test_main_player_length_shorts_writes_set_length_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_length_shorts", state, config)
 
@@ -788,7 +788,7 @@ def test_main_player_length_shorts_writes_set_length_mode(tmp_path: Path):
 
 def test_main_player_length_full_writes_set_length_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_length_full", state, config)
 
@@ -799,7 +799,7 @@ def test_end_compilation_writes_end_compilation(tmp_path: Path):
     """Out of a compilation without naming a length — the main player goes back to whichever
     mode it was in when it entered."""
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_end_compilation", state, config)
 
@@ -809,17 +809,17 @@ def test_end_compilation_writes_end_compilation(tmp_path: Path):
 def test_main_player_length_mixed_writes_set_length_mode(tmp_path: Path):
     """The unfiltered mode the main player opens in, and the way back to it from either half."""
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_length_mixed", state, config)
 
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE mixed\n"
 
 
-def test_main_player_length_mode_written_in_video_mode(tmp_path: Path):
-    """the main player owns the display in video mode too, so length/version actions apply."""
+def test_main_player_length_mode_written_in_kino_mode(tmp_path: Path):
+    """the main player owns the display in kino mode too, so length/version actions apply."""
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_length_shorts", state, config)
 
@@ -841,31 +841,31 @@ def test_main_player_length_mode_not_written_in_genau_mode(tmp_path: Path):
 
 def test_compilation_writes_play_compilation(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_compilation", _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command("main_player_compilation", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PLAY_COMPILATION\n"
 
 
 def test_full_vid_writes_play_full_vid(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_full_vid", _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command("main_player_full_vid", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PLAY_FULL_VID\n"
 
 
 def test_clip_jump_writes_play_clip_jump(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_clip_jump", _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command("main_player_clip_jump", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PLAY_CLIP_JUMP\n"
 
 
 def test_funscript_jump_writes_jump_to_funscript(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_funscript_jump", _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command("main_player_funscript_jump", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT\n"
 
 
 def test_next_funscripted_writes_next_funscripted(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_next_funscripted", _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command("main_player_next_funscripted", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "NEXT_FUNSCRIPTED\n"
 
 
@@ -1041,7 +1041,7 @@ def test_nudge_and_mode_commands_leave_active_player_unchanged(tmp_path: Path):
     commands must not disturb the remembered player."""
     config = _make_config(tmp_path)
 
-    for command in ("main_nudge_next", "main_nudge_prev", "main_video_activate"):
+    for command in ("main_nudge_next", "main_nudge_prev", "main_kino_activate"):
         new_state, _ops = dispatch_command(command, _make_state(active_player=3), config)
         assert new_state.active_player == 3, command
 
@@ -1098,11 +1098,11 @@ def test_minimize_names_each_side_its_own_window(tmp_path: Path):
 
 def test_the_main_players_button_parks_whichever_player_holds_the_slot(tmp_path: Path):
     """the main player and Genau share the main rect, so the console's button names the slot
-    rather than a window: Genau alone in genau mode, and both in video mode,
+    rather than a window: Genau alone in genau mode, and both in kino mode,
     where Genau's HUD sits over the main player's video."""
     config = _make_config(tmp_path)
 
-    for mode, roles in (("genau", ["genau"]), ("video", ["main_player", "genau"])):
+    for mode, roles in (("genau", ["genau"]), ("kino", ["main_player", "genau"])):
         _state, ops = dispatch_command(
             "main_minimize", _make_state(main_mode=mode), config)
         assert ops == [WindowOp(op="minimize_role", key=role) for role in roles], mode
@@ -2395,18 +2395,18 @@ def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
     assert kwargs["regen_metadata_root"] == config.regen_metadata_root
 
 
-# --- mode switch (genau_activate / main_video_activate / main_video_activate) ---
+# --- mode switch (genau_activate / main_kino_activate / main_kino_activate) ---
 
 
-def test_main_video_activate_raises_main_player_under_genaus_hud(tmp_path: Path):
+def test_main_kino_activate_raises_main_player_under_genaus_hud(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
-    new_state, ops = dispatch_command("main_video_activate", state, config)
+    new_state, ops = dispatch_command("main_kino_activate", state, config)
 
-    assert new_state.main_mode is MainMode.VIDEO
+    assert new_state.main_mode is MainMode.KINO
     slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
-    # Video mode shows the main player underneath Genau's transparent HUD; nothing hides.
+    # Kino mode shows the main player underneath Genau's transparent HUD; nothing hides.
     assert slot_ops == [
         ("show_role", "main_player"),
         ("show_role", "genau"),
@@ -2416,18 +2416,18 @@ def test_main_video_activate_raises_main_player_under_genaus_hud(tmp_path: Path)
     assert [op.op for op in ops if op.op == "restack_main"] == ["restack_main"]
 
 
-def test_a_switch_to_video_hands_genau_its_hud_only_after_the_main_player_is_up(tmp_path: Path):
+def test_a_switch_to_kino_hands_genau_its_hud_only_after_the_main_player_is_up(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    _state, ops = dispatch_command("main_video_activate", _make_state(main_mode=MainMode.GENAU), config)
+    _state, ops = dispatch_command("main_kino_activate", _make_state(main_mode=MainMode.GENAU), config)
 
-    assert ops[-1] == WindowOp(op="hand_over_the_main_slot", key="video")
+    assert ops[-1] == WindowOp(op="hand_over_the_main_slot", key="kino")
 
 
 def test_genau_activate_makes_genau_the_display_and_leaves_the_main_player_to_the_handover(
         tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     new_state, ops = dispatch_command("genau_activate", state, config)
 
@@ -2440,14 +2440,14 @@ def test_genau_activate_makes_genau_the_display_and_leaves_the_main_player_to_th
 
 
 def test_a_mode_switch_tells_main_player_only_whether_it_is_on_screen(tmp_path: Path):
-    """The arbiter owns the main player's T-Code lever inside video mode, and a main player parked
+    """The arbiter owns the main player's T-Code lever inside kino mode, and a main player parked
     off screen in genau mode sends nothing — so the switch says nothing of it."""
     config = _make_config(tmp_path)
 
-    dispatch_command("genau_activate", _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command("genau_activate", _make_state(main_mode=MainMode.KINO), config)
     assert not config.main_player_cmd_file.exists()
 
-    dispatch_command("main_video_activate", _make_state(main_mode=MainMode.GENAU), config)
+    dispatch_command("main_kino_activate", _make_state(main_mode=MainMode.GENAU), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8").splitlines() == ["DISPLAY_ON"]
 
 
@@ -2467,9 +2467,9 @@ def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
 
 def test_the_motion_rate_reaches_the_robot_hand_in_either_mode(tmp_path: Path):
     """The hand is at work in both modes — driving outright in genau
-    mode, filling the funscript's gaps in video mode — so its own rate keys
+    mode, filling the funscript's gaps in kino mode — so its own rate keys
     never land on the main player's video rate."""
-    for mode in ("video", "genau"):
+    for mode in ("kino", "genau"):
         config = _make_config(tmp_path / mode)
         state = _make_state(main_mode=mode)
 
@@ -2497,7 +2497,7 @@ def test_the_motion_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
     across the panel instead."""
     config = _make_config(tmp_path)
     _set_main_player_driving(config, driving=True)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("robot_hand_speed_up", state, config)
 
@@ -2505,13 +2505,13 @@ def test_the_motion_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
     assert not config.main_player_cmd_file.exists()
 
 
-def test_the_bare_nudge_routes_to_main_player_in_video_mode_while_the_funscript_drives(tmp_path: Path):
-    """Video mode, actively scripted stretch: the funscript drives the OSR2 and Genau
+def test_the_bare_nudge_routes_to_main_player_in_kino_mode_while_the_funscript_drives(tmp_path: Path):
+    """Kino mode, actively scripted stretch: the funscript drives the OSR2 and Genau
     is paused, so "speed up" tunes the main player's video — whose clock scales the script.
     Sent to Genau it moved a number on a dimmed readout and nothing else."""
     config = _make_config(tmp_path)
     _set_main_player_driving(config, driving=True)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("speed_up", state, config)
 
@@ -2519,12 +2519,12 @@ def test_the_bare_nudge_routes_to_main_player_in_video_mode_while_the_funscript_
     assert not config.genau_cmd_file.exists()
 
 
-def test_the_bare_nudge_routes_to_genau_in_video_mode_while_genau_drives(tmp_path: Path):
-    # Video mode, unscripted stretch (no funscript / lead-in / gap): Genau drives the
+def test_the_bare_nudge_routes_to_genau_in_kino_mode_while_genau_drives(tmp_path: Path):
+    # Kino mode, unscripted stretch (no funscript / lead-in / gap): Genau drives the
     # OSR2, so the bare nudge tunes Genau's motion rate.
     config = _make_config(tmp_path)
     _set_main_player_driving(config, driving=False)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("speed_down", state, config)
 
@@ -2538,7 +2538,7 @@ def test_the_bare_nudge_reaches_the_video_while_the_osr2_is_held(tmp_path: Path)
     config = _make_config(tmp_path)
 
     dispatch_command("speed_up",
-                     _make_state(main_mode=MainMode.VIDEO, osr2_control=OSR2_PARKED), config)
+                     _make_state(main_mode=MainMode.KINO, osr2_control=OSR2_PARKED), config)
 
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.genau_cmd_file.exists()
@@ -2554,7 +2554,7 @@ def test_the_bare_nudge_follows_the_only_engine_running_in_genau_mode(tmp_path: 
 
 def test_the_main_players_min_and_max_route_to_the_active_engine(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_speed_min", _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command("main_player_speed_min", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
 
     config = _make_config(tmp_path)
@@ -2564,17 +2564,17 @@ def test_the_main_players_min_and_max_route_to_the_active_engine(tmp_path: Path)
 
 def test_main_player_multiplier_sets_main_player_speed(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_speed_150", _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command("main_player_speed_150", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
 
 
 def test_main_player_speed_up_down_nudge_the_video_rate_where_main_player_is_on_screen(tmp_path: Path):
     """The console's playback-rate arrows, and spoken "playback speed up".  They
-    tune the main player's video — never the motion — so they reach the main player in video mode and
+    tune the main player's video — never the motion — so they reach the main player in kino mode and
     are a no-op in genau, where the main player is off screen and its clips have no such
     rate."""
     config = _make_config(tmp_path / "video")
-    dispatch_command("main_player_speed_up", _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command("main_player_speed_up", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.genau_cmd_file.exists()
 
@@ -2585,12 +2585,12 @@ def test_main_player_speed_up_down_nudge_the_video_rate_where_main_player_is_on_
 
 
 def test_naming_the_playback_reaches_the_video_while_genau_holds_the_osr2(tmp_path: Path):
-    """Video mode, unscripted stretch: the bare nudge goes to the motion, so naming
+    """Kino mode, unscripted stretch: the bare nudge goes to the motion, so naming
     the playback is the only way to move the video's rate — and it has to land
     there rather than follow whichever engine happens to be driving."""
     config = _make_config(tmp_path)
     _set_main_player_driving(config, driving=False)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_speed_down", state, config)
 
@@ -2607,29 +2607,29 @@ def test_main_player_multiplier_is_a_noop_when_genau_drives(tmp_path: Path):
     assert not config.main_player_cmd_file.exists()
 
 
-def test_absolute_speed_reaches_main_player_video_in_video_mode_even_when_genau_drives(tmp_path: Path):
+def test_absolute_speed_reaches_main_player_video_in_kino_mode_even_when_genau_drives(tmp_path: Path):
     # Absolute video-speed sets (multiplier, min/max) tune whatever the main player shows, so
     # they land on the main player's video even during a Genau-driven stretch — they must not
     # silently vanish the way a driver-routed command would.
     config = _make_config(tmp_path)
     _set_main_player_driving(config, driving=False)  # Genau owns the OSR2 this stretch
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_speed_150", state, config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
     assert not config.genau_cmd_file.exists()
 
 
-def test_the_main_players_max_sets_its_video_in_video_mode(tmp_path: Path):
+def test_the_main_players_max_sets_its_video_in_kino_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     _set_main_player_driving(config, driving=False)
-    dispatch_command("main_player_speed_max", _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command("main_player_speed_max", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
 
 
 def test_reset_speed_command_maps_to_normal_rate(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_speed_100", _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command("main_player_speed_100", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1\n"
 
 
@@ -2734,7 +2734,7 @@ def test_the_level_reaches_both_players_that_draw_it(tmp_path: Path):
     """
     config = _make_config(tmp_path)
 
-    dispatch_command("audio_mute", _make_state(volume=70, main_mode=MainMode.VIDEO), config)
+    dispatch_command("audio_mute", _make_state(volume=70, main_mode=MainMode.KINO), config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
     assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
@@ -3037,7 +3037,7 @@ def test_marking_genaus_clip_weird_flashes_marked_weird_over_the_main_slot(tmp_p
 def test_every_genau_command_does_nothing_with_video_in_the_main_player(
         tmp_path: Path, command: str):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO, active_player=2)
+    state = _make_state(main_mode=MainMode.KINO, active_player=2)
 
     new_state, ops = dispatch_command(command, state, config)
 
@@ -3056,7 +3056,7 @@ def test_the_robot_hands_commands_still_reach_it_with_video_in_the_main_player(
         tmp_path: Path, command: str, verb: str):
     config = _make_config(tmp_path)
 
-    dispatch_command(command, _make_state(main_mode=MainMode.VIDEO), config)
+    dispatch_command(command, _make_state(main_mode=MainMode.KINO), config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == verb + "\n"
 
@@ -3070,9 +3070,9 @@ def test_genau_clip_seconds_writes_a_numeric_cmd(tmp_path: Path):
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "CLIP_SECONDS 30\n"
 
 
-def test_robot_hand_cmd_reaches_genau_in_video_mode(tmp_path: Path):
+def test_robot_hand_cmd_reaches_genau_in_kino_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     new_state, ops = dispatch_command("robot_hand_speed_down", state, config)
 
@@ -3113,9 +3113,9 @@ def test_genau_speed_writes_numeric_cmd_file(tmp_path: Path):
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 30\n"
 
 
-def test_robot_hand_numeric_cmd_reaches_genau_in_video_mode(tmp_path: Path):
+def test_robot_hand_numeric_cmd_reaches_genau_in_kino_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     new_state, ops = dispatch_command("robot_hand_amp_50", state, config)
 
@@ -3289,10 +3289,10 @@ def test_leaving_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
 # --- main-player nudge ---
 
 
-def test_primary_nudge_in_video_mode_writes_main_player_seek(tmp_path: Path):
-    """Video mode displays the main player, so nudges seek the main player just like in video mode."""
+def test_primary_nudge_in_kino_mode_writes_main_player_seek(tmp_path: Path):
+    """Kino mode displays the main player, so nudges seek the main player just like in kino mode."""
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     new_state, ops = dispatch_command("main_nudge_prev", state, config)
 
@@ -3302,7 +3302,7 @@ def test_primary_nudge_in_video_mode_writes_main_player_seek(tmp_path: Path):
 
 def test_primary_nudge_in_main_player_mode_writes_main_player_seek(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     new_state, ops = dispatch_command("main_nudge_prev", state, config)
     assert ops == []
@@ -3318,7 +3318,7 @@ def test_primary_nudge_in_main_player_mode_writes_main_player_seek(tmp_path: Pat
 
 def test_main_player_record_commands_write_main_player_cmd_in_main_player_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     for command, expected in [
         ("main_player_record_down", "RECORD_DOWN"),
@@ -3332,10 +3332,10 @@ def test_main_player_record_commands_write_main_player_cmd_in_main_player_mode(t
         config.main_player_cmd_file.unlink()
 
 
-def test_main_player_record_commands_work_in_video_mode(tmp_path: Path):
-    """Video mode displays the main player, so loop recording works there too."""
+def test_main_player_record_commands_work_in_kino_mode(tmp_path: Path):
+    """Kino mode displays the main player, so loop recording works there too."""
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     new_state, ops = dispatch_command("main_player_record_tap", state, config)
 
@@ -3394,7 +3394,7 @@ def test_an_active_command_with_no_main_player_meaning_stays_a_quiet_no_op(tmp_p
 
 def test_a_say_command_outside_origenerator_mode_does_nothing_quietly(tmp_path: Path, caplog):
     """The hosted app's vocabulary is always in the recognizer's grammar, so its
-    phrases arrive in video mode too; they reach nothing there, and that is a
+    phrases arrive in kino mode too; they reach nothing there, and that is a
     known dead end rather than a missing handler."""
     config = _make_config(tmp_path)
 
@@ -3413,7 +3413,7 @@ def test_clipper_save_raises_a_save_clip_op_and_runs_nothing_inline(tmp_path: Pa
     for it (the loop runs it on a worker thread), so the 20 Hz tick never
     stalls on a booting interpreter."""
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.VIDEO)
+    state = _make_state(main_mode=MainMode.KINO)
 
     with patch("fun_time.clipper_save.subprocess") as mock_subprocess:
         new_state, ops = dispatch_command("clipper_save", state, config)
@@ -4191,15 +4191,15 @@ def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_pa
     assert state.genau_latest is False
 
 
-def test_a_main_reorder_in_video_mode_still_reaches_main_player(tmp_path, monkeypatch):
-    """Video mode is the main player on screen with Genau driving the OSR2, so the video being
+def test_a_main_reorder_in_kino_mode_still_reaches_main_player(tmp_path, monkeypatch):
+    """Kino mode is the main player on screen with Genau driving the OSR2, so the video being
     browsed is the main player's — Genau's clips are not what a reorder there is about."""
     calls: list[dict] = []
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
                         lambda **kwargs: calls.append(kwargs))
     config = _make_config(tmp_path)
 
-    state, _ops = dispatch_command("main_latest", _make_state(main_mode=MainMode.VIDEO), config)
+    state, _ops = dispatch_command("main_latest", _make_state(main_mode=MainMode.KINO), config)
 
     assert calls[-1]["recent"] is True
     assert state.main_latest is True
@@ -4498,8 +4498,8 @@ class TestSatellitesModeSwitch:
         takes them back (take_back_players) -- and nothing pauses on the way."""
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
-        state, ops = dispatch_command("satellites_video_activate", state, config)
-        assert state.satellites_mode == "video"
+        state, ops = dispatch_command("satellites_kino_activate", state, config)
+        assert state.satellites_mode == "kino"
         assert _origenerator_cmds(config) == ["CLOSE_SHOWS"]
         assert not config.portrait_paused_file.exists()
         assert not config.landscape_paused_file.exists()
@@ -4513,12 +4513,12 @@ class TestSatellitesModeSwitch:
         state, _ = dispatch_command("satellites_toggle", _up(), config)
         assert state.satellites_mode == "origenerator"
         state, _ = dispatch_command("satellites_toggle", state, config)
-        assert state.satellites_mode == "video"
+        assert state.satellites_mode == "kino"
 
     def test_without_an_origenerator_the_switch_reports_and_stays(self, tmp_path):
         config = _make_config(tmp_path)
         state, ops = dispatch_command("origenerator_activate", _up(), config)
-        assert state.satellites_mode == "video"
+        assert state.satellites_mode == "kino"
         assert any(op.op == "notice" and op.level == logging.WARNING for op in ops)
 
     def test_a_hosted_app_still_booting_refuses_the_switch_and_says_so(self, tmp_path):
@@ -4532,7 +4532,7 @@ class TestSatellitesModeSwitch:
 
         for command in ("origenerator_activate", "satellites_toggle"):
             state, ops = dispatch_command(command, BridgeState(), config)
-            assert state.satellites_mode == "video"
+            assert state.satellites_mode == "kino"
             assert [(op.op, op.key) for op in ops] == [
                 ("notice", "Origenerator is still starting")]
             assert _origenerator_cmds(config) == []
@@ -4649,7 +4649,7 @@ class TestOrigeneratorTransport:
     def test_no_filter_reaches_the_hosted_show_as_clear_filter(self, tmp_path):
         """"portrait no filter" drops a player's act filter; over a hosted show
         the same words drop both switches on its HUD.  One phrase, one meaning
-        per mode -- and in video mode the player keeps it."""
+        per mode -- and in kino mode the player keeps it."""
         config = _origenerator_config(tmp_path)
         state = _up(portrait=SatelliteState(filter="alpha"), satellites_mode="origenerator")
 
@@ -4688,7 +4688,7 @@ class TestOrigeneratorTransport:
         assert _origenerator_cmds(config) == ["FILTER_ENHANCED"]
 
     def test_the_enhanced_filter_is_dropped_where_no_show_is_hosted(self, tmp_path):
-        """In video mode the satellites are players, which have no enhancements
+        """In kino mode the satellites are players, which have no enhancements
         to narrow to: the verb goes nowhere rather than onto a channel nothing
         is draining."""
         config = _origenerator_config(tmp_path)
@@ -4714,7 +4714,7 @@ class TestOmniPauseWithOrigenerator:
 
     def test_leave_sets_the_players_going_again_in_origenerator_mode(self, tmp_path):
         """The players show the hosted app's slideshows through the mode, so the
-        room resuming resumes them as it does in video mode."""
+        room resuming resumes them as it does in kino mode."""
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator", omni_paused=True)
         state, _ = dispatch_command("omnipause_toggle", state, config)

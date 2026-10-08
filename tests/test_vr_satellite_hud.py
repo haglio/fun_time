@@ -186,7 +186,7 @@ def _a_panel() -> str:
     return hud_text(hud_model(HudPanel(
         player="portrait", locked=False, lock_label="Shuffle", current="",
         seed_siblings=[], action_siblings=[], active=True, latest=False,
-        satellites_mode="video", in_vr=True,
+        satellites_mode="kino", in_vr=True,
     ), Path("C:/t")))
 
 

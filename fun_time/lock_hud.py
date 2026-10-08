@@ -102,9 +102,9 @@ class HudPanel:
     # ``playing`` is just ``current`` — the corner.
     active_loop: str = ""
     playing: str = ""
-    # The satellite side's mode axis ("video" / "origenerator"), or "" for a
+    # The satellite side's mode axis ("kino" / "origenerator"), or "" for a
     # session hosting no Origenerator — what draws the mode pair, the satellite
-    # counterpart of the main console's Video/Genau row.
+    # counterpart of the main console's Kino/Genau row.
     satellites_mode: SatellitesMode | None = None
     # Whether the hosted app that mode is made of is up yet: false for a
     # session's first half-minute, over which that button is drawn dim.

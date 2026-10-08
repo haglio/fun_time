@@ -78,11 +78,11 @@ the crown, which does come back, and the shape of what the main player shows,
 whether that is a video or one of Genau's clips.
 
 The satellite side's mode is dropped on purpose rather than for want of a way
-to carry it. Every room is built in video mode, because the hosted Origenerator
+to carry it. Every room is built in Kino mode, because the hosted Origenerator
 that origenerator mode is made of is still booting when the room opens and
 nothing waits for it any more. Coming back to the mode LATER, once that app
 answered, was tried and is worse: the two sides would rearrange themselves under
-whatever had been started in video mode. So being in origenerator mode is simply
+whatever had been started in Kino mode. So being in Origenerator mode is simply
 not something a session remembers — and until the app is up the mode cannot be
 entered at all: the switch answers "Origenerator is still starting", and both
 satellite HUDs draw that button dim. An Origenerator that was already open when
@@ -98,7 +98,7 @@ session's own list waits beside it (`fun_time.player_handover`). A session quit
 there, or killed there, never brings the player home — so `resume_playlists`
 takes every kept list back before it reads anything, and a room built in video
 mode opens on video lists, at the clip each side was showing when it left.
-Without that, the session after a quit in origenerator mode opened in video mode
+Without that, the session after a quit in Origenerator mode opened in Kino mode
 on two locked pictures, each with a one-square map and nothing to step to
 (2026-09-19). The kept lists are taken back even when the resume goes on to find
 nothing to resume: one that outlived the rebuild would be dealt over it the next

@@ -371,8 +371,8 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         glfw.terminate()
 
 
-def test_the_main_player_plays_once_video_mode_unpauses_it():
-    """He put the headset on in genau mode, said "video mode", and the main
+def test_the_main_player_plays_once_kino_mode_unpauses_it():
+    """He put the headset on in genau mode, said "kino mode", and the main
     player sat on one frame for the rest of the session -- unpaused, its
     duration known, its position stuck at zero.  This walks that exact path: the
     main player comes up paused the way a genau-mode session leaves it, and the
@@ -426,7 +426,7 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
         )
 
         apply_mode_switch(
-            current_mode="genau", target_mode="video", omni_paused=False,
+            current_mode="genau", target_mode="kino", omni_paused=False,
             genau_cmd_file=commands.genau_cmd_file,
             main_player_paused_file=commands.main_player_paused_file,
             main_player_cmd_file=commands.main_player_cmd_file,
@@ -434,10 +434,10 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
 
         position = wait_for(
             lambda: (run_frames(9) or read_main_player_status(Path(commands.main_player_status_file)).position_ms),
-            desc="the main player's position to advance once video mode unpaused it",
+            desc="the main player's position to advance once kino mode unpaused it",
         )
         assert position > 0
-        assert main.role.displayed, "DISPLAY_ON rides the switch into video mode"
+        assert main.role.displayed, "DISPLAY_ON rides the switch into kino mode"
     finally:
         stop.set()
         pump.join(timeout=5.0)

@@ -16,7 +16,7 @@ from fun_time.win32 import (
     iter_zorder,
     windows_obscuring,
 )
-from fun_time.window_roles import GENAU_TITLE, GENAU_TITLES, GENAU_VIDEO_TITLE
+from fun_time.window_roles import GENAU_KINO_TITLE, GENAU_TITLE, GENAU_TITLES
 
 from .integration_support import (
     FunTimeIntegrationSession,
@@ -55,7 +55,7 @@ def _directly_beneath(lower: int, upper: int) -> bool:
     return upper in stack and lower in stack and stack.index(lower) == stack.index(upper) + 1
 
 
-def test_a_switch_to_video_while_paused_keeps_the_video_directly_under_genaus_hud(
+def test_a_switch_to_kino_while_paused_keeps_the_video_directly_under_genaus_hud(
         shared_integration_session: FunTimeIntegrationSession):
     s = shared_integration_session
     main_player, genau = _main_player_and_genau(s)
@@ -68,8 +68,8 @@ def test_a_switch_to_video_while_paused_keeps_the_video_directly_under_genaus_hu
         description="the main player to go down for genau mode",
     )
 
-    s.write_dashboard_command("main_video_activate")
-    s.wait_for_new_log("Switched to video mode")
+    s.write_dashboard_command("main_kino_activate")
+    s.wait_for_new_log("Switched to kino mode")
     s.wait_until(
         lambda: _directly_beneath(main_player, genau),
         description="the main player to sit directly under Genau's HUD while paused",
@@ -112,7 +112,7 @@ def _switch_watching_genaus_hud(s: FunTimeIntegrationSession, command: str, *, g
         assert time.monotonic() < deadline, (
             f"{command} never finished: Genau's caption reads {_title(genau)!r}, and the main "
             f"player is {'parked' if is_window_minimized(main_player) else 'up'}")
-        if _title(genau) == GENAU_VIDEO_TITLE:
+        if _title(genau) == GENAU_KINO_TITLE:
             looks.append((time.monotonic(), _what_else_shows_through_genau(genau, main_player)))
         time.sleep(0.001)
     return looks
@@ -138,7 +138,7 @@ def test_a_switch_either_way_never_shows_anything_but_the_main_player_through_ge
             s, "genau_activate", genau=genau, main_player=main_player,
             done=lambda _looks: is_window_minimized(main_player) and _title(genau) == GENAU_TITLE)
         to_video = _switch_watching_genaus_hud(
-            s, "main_video_activate", genau=genau, main_player=main_player,
+            s, "main_kino_activate", genau=genau, main_player=main_player,
             done=_hud_up_for(0.5))
 
         uncovered = Counter([("to genau", what) for what in _gaps_that_held(to_genau)]

@@ -830,7 +830,7 @@ class TestTCode:
         assert driver.resets == resets_at_start + 1
 
     def test_re_enabling_tcode_resets_the_driver_for_the_takeover(self, role_parts):
-        # SET_TCODE_ENABLED 1 is the video-mode handoff taking the device back from
+        # SET_TCODE_ENABLED 1 is the kino-mode handoff taking the device back from
         # Genau: reset like any other takeover, so the next tick sends at once
         # and with the handoff glide rather than snapping to a near waypoint.
         role, driver = role_parts.role, role_parts.driver
@@ -853,7 +853,7 @@ class TestTCode:
 
 
 class TestTheMainSlotLock:
-    """One padlock for whichever player owns the main slot, and in video mode
+    """One padlock for whichever player owns the main slot, and in kino mode
     that is this one: the apostrophe, the console's padlock and the spoken
     "main lock" all arrive here as the main player's own three verbs."""
 

@@ -148,19 +148,19 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("genau_activate",),
             ),
             _Row(
-                "Video mode on the main player — the video under Genau's HUD, "
+                "Kino mode on the main player — the video under Genau's HUD, "
                 "its funscript driving the OSR2 where it has action and the "
                 "Robot Hand the rest",
                 ("H",),
-                ("main_video_activate",),
+                ("main_kino_activate",),
             ),
             _Row(
-                "Origenerator mode / video mode — the satellite side's own "
+                "Origenerator mode / Kino mode — the satellite side's own "
                 "switch: Origenerator over the Random Favs Browser, its "
                 "slideshows over the players, and back",
                 ("X",),
-                ("satellites_toggle", "origenerator_activate", "satellites_video_activate"),
-                voice_display=("origenerator mode", "satellite video mode"),
+                ("satellites_toggle", "origenerator_activate", "satellites_kino_activate"),
+                voice_display=("origenerator mode", "satellite kino mode"),
             ),
             _Row(
                 "Crown the main player or the portrait player — while the crowned "
@@ -170,10 +170,10 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("main_crown", "portrait_crown"),
             ),
             _Row(
-                "Video mode on both sides at once — the main player's video "
+                "Kino mode on both sides at once — the main player's video "
                 "and the satellite players",
                 (),
-                ("video_activate",),
+                ("kino_activate",),
             ),
             # The hosted app's own vocabulary, said to one of its sides.  The
             # session owns the room's microphone, so these are heard here and
@@ -213,7 +213,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("all_reset",),
             ),
             # The main player's sound, in whichever mode owns it — the main player's
-            # video in video mode, Genau's clip audio in genau.  Its volume steps
+            # video in kino mode, Genau's clip audio in genau.  Its volume steps
             # sit with the main player's other playback controls.
             _Row("Mute / unmute the main player", (), ("audio_mute", "audio_unmute")),
             _Row("Disable voice control", (), ("voice_toggle", "voice_off")),
@@ -232,7 +232,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Set amplitude", (), (), ("min amp", "max amp", "amp 0–100")),
             _Row("Center up / down", ("O", "U"), ("robot_hand_center_up", "robot_hand_center_down")),
             _Row("Set center", (), (), ("min center", "max center", "center 0–100")),
-            # Neither the keys nor the words name an engine, so in video mode they
+            # Neither the keys nor the words name an engine, so in kino mode they
             # follow the OSR2's driver — a held hand has no motion to nudge, so
             # under a park or retract they reach the video; the console's own ±
             # marks, which sit on one readout or the other, stay with the engine
@@ -360,7 +360,7 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             # Named for the playback, so it reaches the video whoever holds the
             # OSR2 — the way to nudge the rate through a Robot Hand stretch in
-            # video mode, where the bare "speed up" goes to the motion instead.
+            # kino mode, where the bare "speed up" goes to the motion instead.
             _Row(
                 "Nudge the video's playback rate up / down — both satellites take "
                 "the rate it lands on",

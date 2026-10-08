@@ -13,12 +13,12 @@ from fun_time.window_roles import (
 class TestRoleTopmost:
     """The windows with their own rect are always topmost.  The two that SHARE
     the main player's rect are each topmost only while they are showing something —
-    in video mode that is both, with Genau's HUD stacked above the main player by promotion
+    in kino mode that is both, with Genau's HUD stacked above the main player by promotion
     order, which is not this flag's job."""
 
     def test_main_player_is_topmost_whenever_it_displays(self):
-        # The main player owns the display in video mode, so it floats topmost there.
-        assert role_topmost("main_player", "video") is True
+        # The main player owns the display in kino mode, so it floats topmost there.
+        assert role_topmost("main_player", "kino") is True
         # In genau mode the main player is hidden and stays out of the band.
         assert role_topmost("main_player", "genau") is False
 
@@ -27,25 +27,25 @@ class TestRoleTopmost:
         The main player — the display in genau mode, the HUD layer over the video in video
         mode."""
         assert role_topmost("genau", "genau") is True
-        assert role_topmost("genau", "video") is True
+        assert role_topmost("genau", "kino") is True
 
     def test_every_window_with_its_own_rect_is_always_topmost(self):
         for role in FIXED_TOPMOST_ROLES:
-            for mode in ("video", "genau"):
+            for mode in ("kino", "genau"):
                 assert role_topmost(role, mode) is True, (role, mode)
 
     def test_visible_main_slot_roles_names_the_players_on_that_rect(self):
         """What anything acting on "the main player's window" has to reach: the
-        mode's own player, both in video mode where Genau's HUD sits over the main player's
+        mode's own player, both in kino mode where Genau's HUD sits over the main player's
         video, and never the slot-mate the mode has parked — minimizing a hidden
         window is what drags it back into view."""
         assert visible_main_slot_roles("genau") == ("genau",)
-        assert visible_main_slot_roles("video") == ("main_player", "genau")
+        assert visible_main_slot_roles("kino") == ("main_player", "genau")
 
     def test_visible_main_slot_roles_agrees_with_the_band_policy(self):
         """Derived from role_topmost rather than listed again, so the two answers
         cannot drift: a main-slot player is in the band exactly when it shows."""
-        for mode in ("video", "genau"):
+        for mode in ("kino", "genau"):
             assert visible_main_slot_roles(mode) == tuple(
                 role for role in MAIN_SLOT_ROLES if role_topmost(role, mode)), mode
 
@@ -69,9 +69,9 @@ class TestOrigeneratorRoles:
     stacks it above the window it covers."""
 
     def test_the_hosted_window_follows_the_satellites_mode(self):
-        for main_mode in ("video", "genau"):
+        for main_mode in ("kino", "genau"):
             assert role_topmost(ORIGENERATOR_ROLE, main_mode, "origenerator") is True
-            assert role_topmost(ORIGENERATOR_ROLE, main_mode, "video") is False
+            assert role_topmost(ORIGENERATOR_ROLE, main_mode, "kino") is False
 
     def test_the_browser_leaves_the_band_while_the_hosted_window_covers_it(self):
         """The RFB shares its rect with the hosted app's main window, so it is
@@ -79,13 +79,13 @@ class TestOrigeneratorRoles:
         that is completely covered only puts it briefly ABOVE its cover —
         HWND_TOPMOST inserts at the top of the band — so every re-band flashed
         the browser over Origenerator on its way past."""
-        assert role_topmost("rfb", "video", "video") is True
-        assert role_topmost("rfb", "video", "origenerator") is False
+        assert role_topmost("rfb", "kino", "kino") is True
+        assert role_topmost("rfb", "kino", "origenerator") is False
 
     def test_the_roles_with_their_own_rects_ignore_the_satellites_mode(self):
-        for satellites_mode in ("video", "origenerator"):
-            assert role_topmost("portrait", "video", satellites_mode) is True
-            assert role_topmost("dashboard", "video", satellites_mode) is True
+        for satellites_mode in ("kino", "origenerator"):
+            assert role_topmost("portrait", "kino", satellites_mode) is True
+            assert role_topmost("dashboard", "kino", satellites_mode) is True
             assert role_topmost("main_player", "genau", satellites_mode) is False
 
     def test_the_hosted_window_is_promoted_after_the_one_it_covers(self):

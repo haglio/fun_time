@@ -296,7 +296,7 @@ def hosted_session():
     One session for the whole module: launching a session is the expensive
     half of these tests, and every extra launch is GPU and decode churn the
     suite's perf-gated tests downstream then pay for.  The tests leave the
-    session the way they found it (video mode, satellites banded).
+    session the way they found it (kino mode, satellites banded).
     """
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
@@ -359,7 +359,7 @@ def _leave_the_mode(session) -> None:
     playlist holding the app's picture (tests/test_origenerator_mode_way_back.py).
     """
     _wait_for_the_shows(session)
-    session.write_dashboard_command("satellites_video_activate")
+    session.write_dashboard_command("satellites_kino_activate")
     for player in _PLAYERS:
         wait_for(lambda player=player: _own_clips(session, player)
                  and not _shows_the_stub(session, player),
@@ -369,7 +369,7 @@ def _leave_the_mode(session) -> None:
 def _enter_the_mode(session) -> None:
     """Press the mode button, once the hosted app is up to answer it."""
     state_file = shared_state_path(session.config.paths.state_dir)
-    # The room opens in video mode and the hosted app boots on out of sight,
+    # The room opens in kino mode and the hosted app boots on out of sight,
     # so the switch has to wait for it — pressed any earlier it is refused,
     # which is the whole point of the button being dim until then.
     wait_for(lambda: read_shared_state(state_file).origenerator_ready,
@@ -382,7 +382,7 @@ def _enter_the_mode(session) -> None:
 def test_the_switch_raises_the_parked_window_and_the_way_back_parks_it(hosted_session):
     """The user-visible contract of the mode pair, on real windows: the hosted
     app boots parked; origenerator mode restores it over the RFB's rect and
-    into the topmost band; video mode parks it again.  Driven through an
+    into the topmost band; kino mode parks it again.  Driven through an
     OmniPause cycle first, because that is the sequence the demo failed in —
     the pause demotes every managed window, and the switch afterwards has to
     promote this one back itself."""
@@ -402,7 +402,7 @@ def test_the_switch_raises_the_parked_window_and_the_way_back_parks_it(hosted_se
              desc="the hosted window to join the topmost band")
 
     _leave_the_mode(session)
-    session.wait_for_log("Satellites switched to video mode")
+    session.wait_for_log("Satellites switched to kino mode")
     wait_for(lambda: is_window_minimized(hwnd),
              desc="the hosted window to park again")
 
@@ -471,7 +471,7 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
         dashboard_pid=0,
         genau_pid=pids["genau_pid"],
         audio_pid=0,
-        main_mode=MainMode.VIDEO,
+        main_mode=MainMode.KINO,
     ))
 
     for player, hwnd in (("portrait", portrait), ("landscape", landscape)):
@@ -522,7 +522,7 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
                 lambda hud_file=hud_file, player=player: _panel_of(hud_file, player),
                 desc=f"the {player.label} player to wear the hosted app's panel")
             assert [button.command for button in worn.rows[0]][:2] == [
-                "satellites_video_activate", "origenerator_activate"]
+                "satellites_kino_activate", "origenerator_activate"]
             assert worn.rows[0][1].lit
 
         players = {title: wait_for_window_by_title(title, timeout_s=10, exact=True)

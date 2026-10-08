@@ -107,7 +107,7 @@ class StartupResult:
     # Which player the main slot was revealed on — last session's, resumed.
     # Carried out because the post-overlay z-order pass runs from the
     # orchestrator and has to re-assert the same policy these phases applied.
-    # The satellite side has no such line: every room is BUILT in video mode.
+    # The satellite side has no such line: every room is BUILT in kino mode.
     main_mode: MainMode = STARTUP_MAIN_MODE
     rfb_hwnd: int = 0
     # HWNDs resolved while every window was still visible; the dispatch
@@ -158,12 +158,12 @@ def apply_topmost_bands(role_hwnds: dict[str, int], mode: str, *, beneath: int =
     they can never disagree.
 
     Only the main slot's mode is asked for: the satellite side always opens in
-    video mode, which is the policy's own default; a later switch re-bands
+    kino mode, which is the policy's own default; a later switch re-bands
     through ``role_windows``, which does pass it.
 
     Walked in ``MANAGED_ROLES`` order rather than the mapping's, because
     ``HWND_TOPMOST`` inserts at the *top* of the band: that order is what puts
-    Genau's transparent HUD above the main player's video in video mode, and the policy says so
+    Genau's transparent HUD above the main player's video in kino mode, and the policy says so
     outright ("Genau is promoted last").
 
     *beneath* is the loading overlay, when this runs under it: each promotion
@@ -181,7 +181,7 @@ def _apply_main_slot_visibility(main_player_hwnd: int, genau_hwnd: int, mode: st
     The main player and Genau share the main player's rect; the slot swaps by minimizing the idle
     one (which keeps its taskbar button) and restoring the active one.  Disable
     both windows' DWM transitions first so those minimize/restores are instant —
-    no visible animation.  The main player is the idle one in genau mode; in video mode
+    no visible animation.  The main player is the idle one in genau mode; in kino mode
     neither is, because Genau's HUD is drawn over the main player's video.
 
     Safe under the loading overlay: minimizing moves no window into the topmost
@@ -253,7 +253,7 @@ def release_the_players(m: LaunchManifest, main_mode: MainMode) -> None:
 
     Startup holds every one of them so nothing plays into a room that is still
     being built; this releases exactly the ones the mode shows — Genau (with
-    its audio) in both, the main player in video mode alone — so nothing plays into a
+    its audio) in both, the main player in kino mode alone — so nothing plays into a
     minimized window or drives the OSR2 unasked.
 
     Called by the sequencer on the path with no cover, and by the orchestrator on
@@ -444,11 +444,11 @@ def _launch_the_main_slot_players(
     main_media_rect = compute_main_media_rect(
         secondary_monitor=layout.secondary_monitor, layout_config=layout.config,
     )
-    # Genau's drive readout, which main player draws inside its console in video mode.  Named
+    # Genau's drive readout, which main player draws inside its console in kino mode.  Named
     # here and handed to BOTH players, because each resolving it for itself is how
     # it went wrong: Genau derived it from its own config's state dir and wrote it
     # into the Genau repo, while the main player was told to read it out of Fun Time's — so
-    # Video mode showed a console with the Genau half missing.
+    # Kino mode showed a console with the Genau half missing.
     genau_drive_file = Path(m.commands.genau_drive_file)
     # Genau's own resume, read before this session's Genau writes over its
     # status file: the clip it was left showing, and whether it was browsing

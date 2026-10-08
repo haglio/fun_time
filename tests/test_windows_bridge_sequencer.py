@@ -108,7 +108,7 @@ def _write_result(result_file, values):
 
 def _fake_core(**kwargs):
     _write_result(kwargs["result_file"], CORE_PIDS)
-    return "video"
+    return "kino"
 
 
 def _fake_core_in(mode: MainMode):
@@ -361,7 +361,7 @@ class TestRunStartupSequence:
         assert genau_kwargs["paused_file"] == str(cfg.genau_paused_file)
         assert genau_kwargs["clips_folder"] == str(cfg.paths.clips_dir)
         # The drive readout is a channel between the two of them, so both are told
-        # the same path.  Each resolving it for itself is how Video mode ended up with
+        # the same path.  Each resolving it for itself is how Kino mode ended up with
         # no readout at all: Genau wrote it beside its own config, the main player read ours.
         assert genau_kwargs["drive_file"] == main_player_kwargs["drive_file"]
         assert {key: genau_kwargs[key] for key in ("genau_x", "genau_y", "genau_width", "genau_height")} == {
@@ -542,7 +542,7 @@ class TestRunStartupSequence:
         assert Path(stubs.launch_genau.call_args.kwargs["metadata_dir"]) == records
 
     def test_a_genau_session_parks_main_player_and_gives_genau_the_slot(self, cfg_factory, tmp_path):
-        """Reopening in genau mode: the session is still BUILT in video mode — the main player loads
+        """Reopening in genau mode: the session is still BUILT in kino mode — the main player loads
         the main player's playlist and the overlay waits on it — but what is revealed
         is Genau, so the pair swaps which one is parked and which one floats."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -574,11 +574,11 @@ class TestRunStartupSequence:
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
-    def test_a_video_session_is_revealed_by_starting_both(self, cfg_factory, tmp_path):
-        """Video mode runs both: the main player's video with Genau's HUD over it."""
+    def test_a_kino_session_is_revealed_by_starting_both(self, cfg_factory, tmp_path):
+        """Kino mode runs both: the main player's video with Genau's HUD over it."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
-        _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "video")
+        _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "kino")
 
         assert paused["main_player_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
@@ -598,10 +598,10 @@ class TestRunStartupSequence:
 
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["RESUME"]
 
-    def test_a_video_session_leaves_the_hand_to_the_arbiter_at_the_reveal(
+    def test_a_kino_session_leaves_the_hand_to_the_arbiter_at_the_reveal(
         self, cfg_factory, tmp_path,
     ):
-        """No RESUME in video mode: the dispatch loop's arbiter picks between the
+        """No RESUME in kino mode: the dispatch loop's arbiter picks between the
         Robot Hand and the funscript on its first tick, and starting the hand
         here would put it on the device against a funscript about to take it."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -610,7 +610,7 @@ class TestRunStartupSequence:
         genau_cmd.parent.mkdir(parents=True, exist_ok=True)
         genau_cmd.write_text("", encoding="utf-8")
 
-        _run_revealing_sequence(manifest_path, tmp_path, "video")
+        _run_revealing_sequence(manifest_path, tmp_path, "kino")
 
         assert genau_cmd.read_text(encoding="utf-8") == ""
 
@@ -625,8 +625,8 @@ class TestRunStartupSequence:
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
-    def test_video_mode_stacks_genau_over_main_player_and_parks_neither(self, cfg_factory, tmp_path):
-        """Video mode is where both share the rect: Genau's transparent HUD sits
+    def test_kino_mode_stacks_genau_over_main_player_and_parks_neither(self, cfg_factory, tmp_path):
+        """Kino mode is where both share the rect: Genau's transparent HUD sits
         over the main player's video, which the topmost band expresses as promoting the main player
         first and Genau last."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -637,7 +637,7 @@ class TestRunStartupSequence:
         topmost_calls: list[tuple] = []
         minimized: list[int] = []
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(MainMode.VIDEO)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
+        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(MainMode.KINO)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert minimized == []
@@ -1099,7 +1099,7 @@ class TestPhase4Reveal:
     """Phase 4 (hide_windows only): play satellites, unpause the main player."""
 
     def _run_hidden(self, manifest_path, tmp_path, *, title_to_hwnd=None, topmost_calls=None,
-                    mode="video"):
+                    mode="kino"):
         title_map = title_to_hwnd or {"Fun Time": 5050, "Genau": 6060, "Main Player": 2525}
         # Both players reporting frames: the curtain waits for that before it
         # comes down (a satellite's window exists long before mpv has drawn
@@ -1141,12 +1141,12 @@ class TestPhase4Reveal:
 
     def test_the_release_starts_the_players_the_mode_shows(self, cfg_factory, tmp_path):
         """And what the orchestrator calls once the cover is gone does start them:
-        The main player in video mode, with Genau and its audio alongside."""
+        The main player in kino mode, with Genau and its audio alongside."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = LaunchManifest.read(manifest_path)
         _pause_every_player(m)
 
-        release_the_players(m, "video")
+        release_the_players(m, "kino")
 
         assert Path(m.commands.main_player_paused_file).read_text(encoding="utf-8").strip() == "0"
         assert Path(m.commands.genau_paused_file).read_text(encoding="utf-8").strip() == "0"
@@ -1180,8 +1180,8 @@ class TestPhase4Reveal:
         assert set(self._hide_calls) == {MAIN_PLAYER_HWND}
         assert GENAU_HWND not in self._hide_calls
 
-    def test_a_video_session_parks_nobody_under_the_overlay(self, cfg_factory, tmp_path):
-        """Both main-slot players are on screen in video mode, Genau's HUD over
+    def test_a_kino_session_parks_nobody_under_the_overlay(self, cfg_factory, tmp_path):
+        """Both main-slot players are on screen in kino mode, Genau's HUD over
         The main player's video, so there is no idle slot-mate to park."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
@@ -1808,19 +1808,19 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
     opens its mode up once it answers.
     """
 
-    def _hosted(self, cfg_factory, tmp_path, *, satellites_mode: str = "video"):
+    def _hosted(self, cfg_factory, tmp_path, *, satellites_mode: str = "kino"):
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator"),
         }}))
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
-        if satellites_mode != "video":
+        if satellites_mode != "kino":
             write_shared_state(shared_state_path(tmp_path),
                                BridgeState(satellites_mode=satellites_mode))
         return cfg, manifest_path
 
-    def test_a_session_resumed_into_origenerator_mode_still_opens_in_video_mode(
+    def test_a_session_resumed_into_origenerator_mode_still_opens_in_kino_mode(
         self, cfg_factory, tmp_path
     ):
         """And asks the hosted app for nothing on the way: none of its three

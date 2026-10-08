@@ -74,7 +74,7 @@ def _hud(engine, *, gate=None, video_title="feature", clip_title="scene one", lo
 
 class TestWhatThePanelNames:
     def test_under_a_video_the_top_line_is_the_videos_name(self):
-        assert _hud(_engine_console("video")).modes.video == "feature"
+        assert _hud(_engine_console("kino")).modes.video == "feature"
 
     def test_in_genau_mode_it_is_the_clips(self):
         assert _hud(_engine_console("genau")).modes.video == "scene one"
@@ -85,12 +85,12 @@ class TestWhatThePanelNames:
         assert hud.modes.video == "Loading scene two.mp4"
 
     def test_a_decode_does_not_rename_the_video(self):
-        hud = _hud(_engine_console("video"), loading="Loading scene two.mp4")
+        hud = _hud(_engine_console("kino"), loading="Loading scene two.mp4")
 
         assert hud.modes.video == "feature"
 
     def test_the_room_under_the_top_line_is_the_engines(self):
-        engine = _engine_console("video")
+        engine = _engine_console("kino")
 
         assert _hud(engine).console == replace(engine.console, playback_speed=1.0)
 
@@ -99,7 +99,7 @@ class TestWhatThePanelNames:
         composes is Genau's engine's, where that field never leaves its default
         -- so the primary's rate has to be folded in or the readout says 1x
         however the video is actually playing."""
-        hud = _hud(_engine_console("video"), playback_speed=1.5)
+        hud = _hud(_engine_console("kino"), playback_speed=1.5)
 
         assert hud.console.playback_speed == 1.5
 
@@ -127,7 +127,7 @@ class TestTheDeviceRunningItself:
     def test_the_gate_is_told_under_a_video(self):
         gate = FakeGate()
 
-        _hud(_engine_console("video", osr2=Osr2State.AUTO), gate=gate)
+        _hud(_engine_console("kino", osr2=Osr2State.AUTO), gate=gate)
 
         assert gate.told_the_device_drives_itself == [True]
 
@@ -143,7 +143,7 @@ class TestTheDeviceRunningItself:
     def test_every_other_state_composes_as_before(self):
         gate = FakeGate()
 
-        _hud(_engine_console("video", osr2=Osr2State.FUNSCRIPT), gate=gate)
+        _hud(_engine_console("kino", osr2=Osr2State.FUNSCRIPT), gate=gate)
 
         assert gate.told_the_device_drives_itself == [False]
 
@@ -158,10 +158,10 @@ class TestFModeOnTheStatusLine:
     """
 
     def test_the_line_says_it_under_a_video(self):
-        assert F_MODE_LABEL in _hud(_engine_console("video"), scripted_filter=True).status_line
+        assert F_MODE_LABEL in _hud(_engine_console("kino"), scripted_filter=True).status_line
 
     def test_the_line_leaves_it_out_when_it_is_off(self):
-        assert F_MODE_LABEL not in _hud(_engine_console("video"), scripted_filter=False).status_line
+        assert F_MODE_LABEL not in _hud(_engine_console("kino"), scripted_filter=False).status_line
 
     def test_it_is_the_main_players_flag_and_so_not_said_over_a_clip(self):
         """In genau mode the main player's playlist is not what is on screen,
@@ -174,9 +174,9 @@ class TestFModeOnTheStatusLine:
 
 class TestWhoseReadoutItDraws:
     def test_under_a_video_the_funscript_is_folded_into_the_engines_readout(self):
-        """What the desktop's video-mode console draws: the script's green over
+        """What the desktop's kino-mode console draws: the script's green over
         Genau's blue, by the gate that holds the picture's forecasts."""
-        engine, gate = _engine_console("video"), FakeGate()
+        engine, gate = _engine_console("kino"), FakeGate()
 
         hud = _hud(engine, gate=gate)
 
@@ -207,7 +207,7 @@ class TestWhoseReadoutItDraws:
         assert gate.asked == [None]
 
 
-def _paint(mode="video", *, title="feature"):
+def _paint(mode="kino", *, title="feature"):
     hud = _hud(_engine_console(mode), video_title=title, clip_title=title)
     return paint_panel(panel_painter(), hud)
 
@@ -217,7 +217,7 @@ class TestHowItIsComposed:
         """Nothing rides above it: what the room heard is read on the dashboard,
         which is the one place in the headset that keeps the log."""
         painted = _paint()
-        console_rgba, (console_w, console_h) = panel_painter().rgba(_hud(_engine_console("video")))
+        console_rgba, (console_w, console_h) = panel_painter().rgba(_hud(_engine_console("kino")))
 
         assert painted.size == (console_w, console_h)
         assert np.array_equal(
@@ -229,14 +229,14 @@ def test_the_held_width_covers_the_widest_row_the_console_can_build():
     """The painter widens past this constant for a row it cannot otherwise hold,
     so a constant short of the widest row makes the panel change size when the
     mode does — which is the one thing holding it fixed exists to prevent.  The
-    video-mode transport row is that row, and it grows every time the console
+    kino-mode transport row is that row, and it grows every time the console
     grows a button."""
     # The rows the headset can show: its main player publishes no length mode,
     # so the length pair is never among them, while the shapes pair always is.
     widest = max(
         _row_width(console_rows(MainSlot(main_mode=mode, latest=False,
                                          plays_vr=True, plays_flat=True), in_vr=True))
-        for mode in ("video", "genau")
+        for mode in ("kino", "genau")
     )
 
     assert widest + 2 * _PAD <= PANEL_WIDTH_PX
@@ -249,7 +249,7 @@ class TestItKeepsItsSize:
     changes size is a screen that moves."""
 
     def test_the_two_modes_paint_the_same_size(self):
-        video, genau = _paint("video"), _paint("genau")
+        video, genau = _paint("kino"), _paint("genau")
 
         assert video.size == genau.size == (PANEL_WIDTH_PX, video.height)
 
@@ -261,15 +261,15 @@ class TestItKeepsItsSize:
     def test_the_held_width_clears_the_widest_mode(self):
         """Held narrower than its rows the painter widens the panel, and the
         two modes would differ again; the constant has to clear both."""
-        for mode in ("video", "genau"):
+        for mode in ("kino", "genau"):
             assert ConsolePainter().rgba(_hud(_engine_console(mode)))[1][0] <= PANEL_WIDTH_PX
 
 
 def _live_console() -> ConsoleHud:
-    """Video mode with the Robot Hand on the device, so the readout's bars take a press."""
+    """Kino mode with the Robot Hand on the device, so the readout's bars take a press."""
     return ConsoleHud(
         modes=ModeHud(video="scene one"),
-        console=_published(MainMode.VIDEO, osr2=Osr2State.ROBOT_HAND),
+        console=_published(MainMode.KINO, osr2=Osr2State.ROBOT_HAND),
         drive=_drive(),
     )
 

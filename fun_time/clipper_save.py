@@ -41,7 +41,7 @@ def _clipper_python() -> str:
 def _current_main_media(config: BridgeConfig) -> tuple[str, float]:
     """The main player's current video path and playback time (seconds).
 
-    The main player owns the main slot in video mode and
+    The main player owns the main slot in kino mode and
     publishes both in its status file; the path is empty when nothing is playing.
     """
     status = read_main_player_status(config.main_player_status_file)

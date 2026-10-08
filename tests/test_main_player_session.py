@@ -565,7 +565,7 @@ class TestAdvance:
         assert tcode.parks == 1
 
     def test_advance_without_funscript_does_not_park_when_disabled(self, tmp_path):
-        # In video mode, SET_TCODE_ENABLED 0 hands an unscripted video to the Robot Hand; the main player
+        # In kino mode, SET_TCODE_ENABLED 0 hands an unscripted video to the Robot Hand; the main player
         # must not fight it by also parking the OSR2.
         session, player, tcode = _make_session(tmp_path, scripted=False)
         session.set_tcode_enabled(False)
@@ -586,7 +586,7 @@ class TestAdvance:
 
     def test_advance_skips_tcode_when_disabled(self, tmp_path):
         # SET_TCODE_ENABLED 0 gates output so Genau can drive the OSR2 solo in
-        # video mode without the main player's funscript T-Code double-driving the broker.
+        # kino mode without the main player's funscript T-Code double-driving the broker.
         session, player, tcode = _make_session(tmp_path)
         session.set_tcode_enabled(False)
         player.position_ms = 1500
@@ -611,7 +611,7 @@ class TestAdvance:
         assert tcode.updates and tcode.updates[-1][0] == 1600
 
     def test_re_enabling_tcode_resets_the_driver_for_the_takeover(self, tmp_path):
-        # SET_TCODE_ENABLED 1 is the video-mode handoff taking the device back from
+        # SET_TCODE_ENABLED 1 is the kino-mode handoff taking the device back from
         # Genau: the driver is reset like any other takeover, so its next tick
         # sends at once and with the handoff glide, instead of snapping the
         # device to a waypoint that may be milliseconds away.

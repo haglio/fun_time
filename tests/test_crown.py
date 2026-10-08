@@ -34,12 +34,12 @@ def test_in_genau_mode_the_crown_follows_the_shape_of_genaus_clip(tmp_path):
     assert majority_now(state, main_player_status, genau_status) is Crown.MAIN
 
 
-def test_in_video_mode_the_crown_follows_the_shape_of_the_main_players_video(tmp_path):
+def test_in_kino_mode_the_crown_follows_the_shape_of_the_main_players_video(tmp_path):
     main_player_status = tmp_path / "main_player_status.txt"
     main_player_status.write_text("portrait=1\n", encoding="utf-8")
     genau_status = tmp_path / "genau_status.txt"
     genau_status.write_text("portrait=0\n", encoding="utf-8")
-    state = BridgeState(main_mode=MainMode.VIDEO, crowned=Crown.MAIN)
+    state = BridgeState(main_mode=MainMode.KINO, crowned=Crown.MAIN)
 
     assert majority_now(state, main_player_status, genau_status) is Crown.MAIN
 
@@ -47,6 +47,6 @@ def test_in_video_mode_the_crown_follows_the_shape_of_the_main_players_video(tmp
 def test_a_status_read_mid_write_leaves_the_monitor_as_it_is(tmp_path):
     main_player_status = tmp_path / "main_player_status.txt"
     main_player_status.write_text("", encoding="utf-8")
-    state = BridgeState(main_mode=MainMode.VIDEO, crowned=Crown.MAIN, majority=Crown.MAIN)
+    state = BridgeState(main_mode=MainMode.KINO, crowned=Crown.MAIN, majority=Crown.MAIN)
 
     assert majority_now(state, main_player_status, tmp_path / "genau_status.txt") is Crown.MAIN

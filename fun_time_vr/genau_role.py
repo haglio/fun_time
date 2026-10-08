@@ -172,7 +172,7 @@ class GenauRole:
 
     @property
     def showing(self) -> bool:
-        """Whether the clip has the scene; HUD_ON is video mode."""
+        """Whether the clip has the scene; HUD_ON is kino mode."""
         return not self._hud.on
 
     @property

@@ -181,7 +181,7 @@ class TestHudPublishing:
         assert portrait.lock_label == "Unlocked · Shuffle"
         assert portrait.active is True
         assert [button.command for button in portrait.rows[0]] == [
-            "satellites_video_activate", "origenerator_activate", "portrait_minimize",
+            "satellites_kino_activate", "origenerator_activate", "portrait_minimize",
             "portrait_crown"]
         assert [button.lit for button in portrait.rows[0][:2]] == [False, True]
         assert [button.command for button in portrait.rows[1]] == ["portrait_next"]
@@ -203,11 +203,11 @@ class TestHudPublishing:
             assert published.lock_label == "Origenerator mode"
             crown = ["portrait_crown"] if player == "portrait" else []
             assert [[button.command for button in row] for row in published.rows] == [
-                ["satellites_video_activate", "origenerator_activate", f"{player}_minimize",
+                ["satellites_kino_activate", "origenerator_activate", f"{player}_minimize",
                  *crown]]
 
     @pytest.mark.parametrize(("hosting", "satellites_mode"), [
-        (False, "video"), (True, "video"), (True, "origenerator")])
+        (False, "kino"), (True, "kino"), (True, "origenerator")])
     def test_no_player_in_a_headset_session_offers_to_minimize(
         self, tmp_path, hosting, satellites_mode,
     ):
@@ -453,12 +453,12 @@ class TestHudPublishing:
 
         main_player.write_text("video=C:/v/n.mp4\nlocked=0\n", encoding="utf-8")
         genau.write_text("locked=1\n", encoding="utf-8")
-        assert published("video") is False
+        assert published("kino") is False
         assert published("genau") is True
 
         main_player.write_text("video=C:/v/n.mp4\nlocked=1\n", encoding="utf-8")
         genau.write_text("locked=0\n", encoding="utf-8")
-        assert published("video") is True
+        assert published("kino") is True
         assert published("genau") is False
 
     def test_the_console_offers_genaus_shapes_only_where_it_has_vr_clips(self, tmp_path):

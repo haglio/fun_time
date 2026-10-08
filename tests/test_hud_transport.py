@@ -129,7 +129,7 @@ def test_hud_payload_declares_the_mode_row_where_the_session_hosts_an_origenerat
         plain = hud_model(_panel(), Path("C:/t"))
 
     assert [button.command for button in hosted.rows[0]] == [
-        "satellites_video_activate", "origenerator_activate", "portrait_minimize",
+        "satellites_kino_activate", "origenerator_activate", "portrait_minimize",
         "portrait_crown"]
     assert hosted.rows[0][1].lit
     assert len(plain.rows) == 1

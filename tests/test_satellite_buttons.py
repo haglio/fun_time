@@ -80,15 +80,17 @@ def test_the_bin_takes_something_away():
 
 
 def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
-    """A row of its own above the band, like the console's Video/Genau row: the
+    """A row of its own above the band, like the console's Kino/Genau row: the
     side's current mode lit, minimize riding the row a group apart, and no such
     row at all for a session hosting no Origenerator."""
     rows = player_rows("portrait", satellites_mode=SatellitesMode.ORIGENERATOR)
 
     assert len(rows) == 2
     assert [b.command for b in rows[0]] == [
-        "satellites_video_activate", "origenerator_activate", "portrait_minimize",
+        "satellites_kino_activate", "origenerator_activate", "portrait_minimize",
         "portrait_crown"]
+    assert [b.glyph for b in rows[0][:2]] == ["Kino", "Origenerator"]
+    assert rows[0][0].tooltip == "Kino mode — the satellite players and the Random Favs Browser"
     assert [b.lit for b in rows[0]][:3] == [False, True, False]
     assert [b.width for b in rows[0][:2]] == [FIT_THE_WORD, FIT_THE_WORD]
     assert rows[0][2].group_break and rows[0][2].glyph == MINIMIZE_ICON
@@ -101,12 +103,12 @@ def test_a_player_in_the_headset_has_no_window_to_minimize():
     screen in the scene rather than a window of its own: there is nothing for
     it to park, so it is left off the band and off the session's row alike."""
     plain = player_rows("portrait", latest=False, in_vr=True)
-    hosting = player_rows("portrait", latest=False, satellites_mode=SatellitesMode.VIDEO,
+    hosting = player_rows("portrait", latest=False, satellites_mode=SatellitesMode.KINO,
                           in_vr=True)
 
     assert _names(plain[-1])[-1] == "cycle_version"
     assert [b.command for b in hosting[0]] == [
-        "satellites_video_activate", "origenerator_activate"]
+        "satellites_kino_activate", "origenerator_activate"]
     assert "minimize" not in _names(hosting[-1])
 
 
@@ -117,13 +119,13 @@ def test_the_origenerator_button_is_dim_until_that_app_is_up():
     nothing for a press on it, and still answers a hover -- with what it is
     waiting for, since knowing why it cannot be pressed is the point."""
     starting = {b.command: b for b in player_rows(
-        "portrait", satellites_mode=SatellitesMode.VIDEO, origenerator_ready=False)[0]}
+        "portrait", satellites_mode=SatellitesMode.KINO, origenerator_ready=False)[0]}
     ready = {b.command: b for b in player_rows(
-        "portrait", satellites_mode=SatellitesMode.VIDEO, origenerator_ready=True)[0]}
+        "portrait", satellites_mode=SatellitesMode.KINO, origenerator_ready=True)[0]}
 
     assert starting["origenerator_activate"].dim
     assert "starting" in starting["origenerator_activate"].tooltip
-    assert not starting["satellites_video_activate"].dim
+    assert not starting["satellites_kino_activate"].dim
     assert not ready["origenerator_activate"].dim
     assert "starting" not in ready["origenerator_activate"].tooltip
 
@@ -178,5 +180,5 @@ def test_the_portrait_players_crown_is_lit_while_it_holds_the_crown():
 def test_only_the_portrait_player_wears_a_crown():
     assert "landscape_crown" not in [
         button.command for row in player_rows("landscape", latest=False,
-                                               satellites_mode=SatellitesMode.VIDEO)
+                                               satellites_mode=SatellitesMode.KINO)
         for button in row]

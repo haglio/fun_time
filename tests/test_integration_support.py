@@ -696,11 +696,11 @@ class TestPostingADashboardCommand:
     """
 
     def test_a_press_joins_one_still_queued_rather_than_wiping_it(self, session):
-        session.write_dashboard_command("main_video_activate")
+        session.write_dashboard_command("main_kino_activate")
         session.write_dashboard_command("genau_activate")
 
         queued = session.dashboard_cmd_file.read_text(encoding="utf-8").split()
-        assert queued == ["main_video_activate", "genau_activate"]
+        assert queued == ["main_kino_activate", "genau_activate"]
 
     def test_a_press_refused_mid_drain_is_pressed_again(self, session, monkeypatch):
         """Windows refuses the open outright while the bridge rewrites the file."""
@@ -713,10 +713,10 @@ class TestPostingADashboardCommand:
             return real_open(self, *args, **kwargs)
 
         monkeypatch.setattr(Path, "open", opening)
-        session.write_dashboard_command("main_video_activate")
+        session.write_dashboard_command("main_kino_activate")
 
         assert session.dashboard_cmd_file.read_text(encoding="utf-8").split() == [
-            "main_video_activate"]
+            "main_kino_activate"]
 
 
 def test_a_wait_that_runs_out_describes_how_things_stood_when_it_gave_up(session):

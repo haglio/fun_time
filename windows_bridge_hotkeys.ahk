@@ -107,8 +107,8 @@ SC01A::QueueCommand("main_prev")
 SC01B::QueueCommand("main_next")
 ; Mode activation hotkeys: the main slot's two modes.
 g::QueueCommand("genau_activate")
-h::QueueCommand("main_video_activate")
-; The satellite side's own switch: video mode <-> Origenerator over the RFB.
+h::QueueCommand("main_kino_activate")
+; The satellite side's own switch: kino mode <-> Origenerator over the RFB.
 x::QueueCommand("satellites_toggle")
 $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")

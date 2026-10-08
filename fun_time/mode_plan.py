@@ -6,17 +6,17 @@ from player_core.modes import MainMode
 from player_core.player_verbs import DISPLAY_OFF, DISPLAY_ON
 
 # The main slot's two modes.  In both the Robot Hand is at work: in genau mode it
-# drives the OSR2 outright under Genau's clips, and in video mode the arbiter
+# drives the OSR2 outright under Genau's clips, and in kino mode the arbiter
 # hands the device between it and the video's funscript.  The axis is in the
-# name because the satellites' own "video" mode is that same string, and
+# name because the satellites' own "kino" mode is that same string, and
 # unprefixed the two were one name inside command_dispatch, which handles both.
-MAIN_VIDEO_MODE = MainMode.VIDEO
+MAIN_KINO_MODE = MainMode.KINO
 MAIN_GENAU_MODE = MainMode.GENAU
-MAIN_MODES: tuple[MainMode, ...] = (MAIN_VIDEO_MODE, MAIN_GENAU_MODE)
+MAIN_MODES: tuple[MainMode, ...] = (MAIN_KINO_MODE, MAIN_GENAU_MODE)
 
 # The mode every session is BUILT in, whatever it opens in: the defaults
 # everywhere — flag files, window bands, a fresh BridgeState — are this one's.
-STARTUP_MAIN_MODE = MAIN_VIDEO_MODE
+STARTUP_MAIN_MODE = MAIN_KINO_MODE
 
 
 @dataclass(frozen=True)
@@ -35,7 +35,7 @@ class ModeSwitchPlan:
 
 def main_player_displays(mode: MainMode) -> bool:
     """Return True if the main player owns the on-screen display (and its interaction)."""
-    return mode == MAIN_VIDEO_MODE
+    return mode == MAIN_KINO_MODE
 
 
 def hud_verb(mode: MainMode) -> str:
