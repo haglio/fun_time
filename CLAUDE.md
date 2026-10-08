@@ -234,6 +234,16 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   `state/fun_time_branch_config.json` records what his last launch actually
   ran.
 
+- **The Main Player runs out of Genau's venv, so a change here that makes
+  `main_player` import a new player_core name needs Genau's pin moved first.**
+  `FunTime-MainPlayer.exe` is `../genau/.venv`'s, and that venv holds the
+  player_core Genau's `pyproject.toml` names, not this repo's; the satellites
+  and the orchestrator run out of this venv. Moving this repo's pin alone
+  leaves the Main Player dying at import on a name its venv does not have,
+  which the hidden-desktop suite reports as every session failing to start
+  (2026-10-07: `play_points` moved to player_core, the pin moved here, and
+  the Main Player could not find it until genau took the same tag). So land
+  Genau's pin bump first, reinstall that venv, then this repo's.
 - **A player_core worktree named on that chain needs nothing copied in, and a
   launch proves that before it opens a window.** The DLL is fetched rather than
   tracked, so a worktree of that repo has no `vendor/` of its own; every launch

@@ -7,6 +7,8 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from player_core.hud_overlay import HudOverlay
+from player_core.pointer import time_at
 from player_core.satellite_hud import MARGIN, hud_text
 from player_core.timeline import TIMELINE_HEIGHT
 from player_core.volume import CHIP_H, SPEAKER_W, VolumeHud, chip_xy
@@ -22,8 +24,6 @@ from fun_time_vr.satellite_hud import (
     hud_screen_name,
     screen_kind,
 )
-from satellite.hud_overlay import HudOverlay
-from satellite.pointer import time_at
 
 
 class TestTheSurfaceTheOverlayPaintsInto:

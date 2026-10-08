@@ -24,6 +24,8 @@ from player_core.drive_readout import DriveHud
 from player_core.funscript import Funscript
 from player_core.funscript import load as load_funscript
 from player_core.modes import MainMode
+from player_core.play_points import play_points_filename
+from player_core.playback import Playback
 from player_core.playhead import (
     PlayheadHudPainter,
     clip_playhead,
@@ -154,8 +156,6 @@ from fun_time_vr.stacking import Stacking
 from fun_time_vr.video_thread import VideoThread
 from fun_time_vr.wrap_readout import WrapReadout
 from main_player.overlay import HeatmapStrip, timeline_bgra
-from main_player.play_points import play_points_filename
-from satellite.session import SatelliteSession
 from tests.satellite_fakes import FakeSatellitePlayer
 
 
@@ -222,7 +222,7 @@ def test_a_session_that_names_no_audio_device_reads_back_as_none_named(tmp_path)
 # manifest field each path comes from, not what is done with it afterwards.
 _UNIT_COLLABORATORS = (
     "MpvRenderPlayer", "VideoThread", "RenderTarget", "FrameTexture", "MainRole",
-    "SatelliteSession", "StatusWriter", "HudOverlay", "FunscriptTCodeDriver", "UdpTCodeSink",
+    "Playback", "StatusWriter", "HudOverlay", "FunscriptTCodeDriver", "UdpTCodeSink",
     "VolumeHudPainter", "DriveGate", "PlayPoints",
 )
 
@@ -368,7 +368,7 @@ def test_a_side_screen_hands_its_session_the_scripts_its_playlist_names(
         _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
                        vr=vr, remembered={})
 
-    handed = faked_collaborators["SatelliteSession"].call_args
+    handed = faked_collaborators["Playback"].call_args
     assert handed.args[0] == [clip, unscripted]
     assert handed.kwargs["funscripts"] == {clip: script}
 
@@ -382,7 +382,7 @@ def test_a_side_screen_drives_the_headsets_osr2_inlet_with_its_clips_script(
                    vr=vr, remembered={})
 
     assert faked_collaborators["UdpTCodeSink"].call_args.args == ("127.0.0.9", 8123)
-    assert (faked_collaborators["SatelliteSession"].call_args.kwargs["tcode"]
+    assert (faked_collaborators["Playback"].call_args.kwargs["tcode"]
             is faked_collaborators["FunscriptTCodeDriver"].return_value)
     assert (faked_collaborators["HudOverlay"].call_args.kwargs["drive_gate"]
             is faked_collaborators["DriveGate"].return_value)
@@ -629,7 +629,7 @@ def test_a_side_screen_paints_its_clips_script_into_its_scrubber(
     script = tmp_path / "v0.funscript"
     script.write_text('{"actions": [{"at": 0, "pos": 0}, {"at": 700, "pos": 100}, '
                       '{"at": 3000, "pos": 40}]}', encoding="utf-8")
-    unit.session = SatelliteSession(
+    unit.session = Playback(
         [clip], player=FakeSatellitePlayer(duration_ms=10_000.0), funscripts={clip: script})
     unit.player = _OverlayPlayer()
     unit.player.frame_rate = 30.0

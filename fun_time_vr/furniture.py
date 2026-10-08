@@ -14,11 +14,11 @@ import numpy as np
 from PIL import Image
 from player_core.funscript import Funscript
 from player_core.playhead import on_readout, readout_xy
+from player_core.pointer import time_at
 from player_core.timeline import TIMELINE_HEIGHT
 from player_core.volume import VolumeHud, chip_local, chip_xy, hit_part, volume_at
 
 from main_player.overlay import HeatmapStrip, timeline_bgra, timeline_x
-from satellite.pointer import time_at
 
 from .console_panel import DEG_PER_PX
 from .pointer import Screen, surface_pixel

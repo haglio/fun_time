@@ -3,16 +3,15 @@
 A satellite is one of a set the sequencer placed, so ending one alone leaves the
 session running around a gap nothing refills.  Two roads lead there and both are
 shut: the loop answers no keyboard event at all (``satellite/app.py`` used to
-have a Ctrl+Q handler and its comment says not to put it back), and the close
-every Windows window has — Alt+F4, the taskbar, the system menu — is asked of the
-session instead of answered here.
+have a Ctrl+Q handler), and the close every Windows window has — Alt+F4, the
+taskbar, the system menu — is handed to the Funestra, which asks the session.
 
 The close is the one that bit.  Opt+Cmd+Q on a Mac keyboard arrives as Alt+F4, so
 it took out the main player, then the portrait satellite, then the landscape one, a press at
 a time, while the dashboard, Genau and the audio companion carried on and the
 session had to be ended by voice.  The gesture itself is
 ``player_core.session_quit``'s, and tested there; what is here is that this
-loop routes the close to it, and that the verb it posts is the dashboard's.
+loop hands the close on, and that the verb it posts is the dashboard's.
 
 The scans read ``satellite/app.py`` off the source rather than running it: it
 needs a real window and the libmpv DLL, the same reason
@@ -81,15 +80,15 @@ def test_nothing_else_has_crept_into_the_loop_either():
     )
 
 
-def test_the_close_is_routed_to_the_session_rather_than_answered():
-    """The loop must not reach its own stop event straight from a QUIT.  That is
-    what closed one player at a time, and it is invisible standalone, where
-    stopping is exactly right."""
-    routed = any(
+def test_the_close_is_handed_to_the_funestra_rather_than_answered():
+    """The loop must not end itself straight from a QUIT.  That is what closed
+    one player at a time, and it is invisible standalone, where stopping is
+    exactly right -- the Funestra tells the two apart."""
+    handed_on = any(
         isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "quit_gesture"
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "close_requested"
         for node in ast.walk(_tree())
     )
 
-    assert routed, "satellite/app.py ends itself on a close instead of asking the session"
+    assert handed_on, "satellite/app.py ends itself on a close instead of asking the session"

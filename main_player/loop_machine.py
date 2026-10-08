@@ -19,9 +19,9 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from player_core.modes import LoopState
+from player_core.scripted_device import REWIND_MS
 
 from .loop_controller import LoopController
-from .scripted_device import REWIND_MS
 
 # A rewind that lands within this of zero is the file wrapping at EOF (mpv
 # loop-file=inf restarts at 0), as opposed to a seek back to some interior point.

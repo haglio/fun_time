@@ -1,18 +1,14 @@
-"""Shared in-memory stand-in for the mpv-backed player a satellite drives.
+"""Shared in-memory stand-in for the mpv-backed player a headset satellite drives.
 
 Models mpv's tiny lookahead playlist: a cold ``load`` resets it to just the
 current entry, ``stage_next`` appends the one prefetch entry, and
 ``simulate_eof_advance`` mimics mpv reaching end-of-file and auto-advancing onto
-that staged entry (which is what ``advanced_to_next`` then reports).  The three
-satellite test modules all drive :class:`satellite.session.SatelliteSession`
-against this same fake, so its interface is the player contract the session
-relies on.
+that staged entry (which is what ``advanced_to_next`` then reports).
 """
 from __future__ import annotations
 
 from pathlib import Path
 
-from satellite.session import SatelliteSession
 from tests.mpv_refusals import RefusesSeeks
 
 
@@ -46,7 +42,7 @@ class FakeSatellitePlayer(RefusesSeeks):
     def tile_to_fill(self, window_width: int, window_height: int) -> None:
         self.tiled_to.append((window_width, window_height))
 
-    # --- the interface SatelliteSession drives -------------------------------
+    # --- the interface the playback drives --------------------------------
     def load(self, path: Path) -> None:
         self.opened.append(path)
         self.playlist = [path]
@@ -120,25 +116,3 @@ class FakeSatellitePlayer(RefusesSeeks):
         """The clip mpv would cut to at EOF (the prefetched entry), if any."""
         tail = self.playlist[self.playlist_pos + 1:]
         return tail[0] if tail else None
-
-
-def make_satellite_session(tmp_path, *, entries=1, start_paused=False, duration_ms=5_000.0,
-                          play_points=None, funscripts=None, tcode=None):
-    """A SatelliteSession over *entries* fabricated clips and its fake player.
-
-    The one session builder for the three satellite test modules, which each
-    kept a private copy before — three places to edit when the constructor
-    moves.  Returns the player too, so a test never reaches into the
-    session's private one.
-    """
-    playlist = []
-    for i in range(entries):
-        vid = tmp_path / f"v{i}.mp4"
-        vid.write_text("fake")
-        playlist.append(vid)
-    player = FakeSatellitePlayer(duration_ms=duration_ms)
-    return SatelliteSession(
-        playlist, player=player, start_paused=start_paused, play_points=play_points,
-        funscripts={playlist[index]: script for index, script in (funscripts or {}).items()},
-        tcode=tcode,
-    ), player

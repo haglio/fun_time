@@ -25,7 +25,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from player_core.funestra_controls import FunestraControls
+from player_core.funestra_controls import apply_command as apply_satellite_command
 from player_core.genau_controls import VERBS as GENAU_VERBS
+from player_core.playback import Playback
 from player_core.playlist import read_playlist
 
 from fun_time.bridge_records import BridgeConfig, Op
@@ -49,9 +52,6 @@ from fun_time_vr import roles
 from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.roles import UNIMPLEMENTED_MAIN_PLAYER_VERBS, MainRole
 from main_player import controls as main_player_controls
-from satellite.runtime import SatelliteControls
-from satellite.runtime import apply_command as apply_satellite_command
-from satellite.session import SatelliteSession
 from tests.origenerator_contract import answers
 from tests.satellite_fakes import FakeSatellitePlayer
 from tests.test_vr_roles import FakeDriver, FakePlayer
@@ -333,10 +333,10 @@ class TestTheSatellites:
         dead: dict[str, str] = {}
         for channel in ("portrait_cmd_file", "landscape_cmd_file"):
             for verb, where in _sent_to(landed, channel).items():
-                session = SatelliteSession(list(clips), player=FakeSatellitePlayer())
+                session = Playback(list(clips), player=FakeSatellitePlayer())
                 handled = apply_satellite_command(
                     _a_satellite_line(verb, clips[0]),
-                    SatelliteControls(session, reload_playlist=lambda: None),
+                    FunestraControls(session, reload_playlist=lambda: None),
                 )
                 if not handled:
                     dead[verb] = where
@@ -347,13 +347,13 @@ class TestTheSatellites:
         clips = [tmp_path / "portrait" / f"{name}.mp4" for name in ("alpha", "beta", "gamma")]
         for clip in clips:
             clip.write_bytes(b"")
-        session = SatelliteSession(list(clips), player=FakeSatellitePlayer())
+        session = Playback(list(clips), player=FakeSatellitePlayer())
         session.set_locked(True)
         playlist = build_playlist_file_path(config.state_dir, PLAYLIST_PORTRAIT)
 
         dispatch_command(
             "portrait_reset", BridgeState(portrait=SatelliteState(locked=True, latest=True)), config)
-        controls = SatelliteControls(
+        controls = FunestraControls(
             session,
             reload_playlist=lambda: session.replace_playlist(
                 [item.path for item in read_playlist(playlist)]),

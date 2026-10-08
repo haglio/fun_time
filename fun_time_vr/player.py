@@ -43,9 +43,15 @@ from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import set_app_user_model_id
 from player_core.drive_gate import DriveGate
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
+from player_core.funestra_controls import FunestraControls
+from player_core.funestra_controls import apply_command as apply_satellite_command
+from player_core.funestra_status import status_fields as satellite_status_fields
 from player_core.funscript import Funscript
 from player_core.genau_notifier import GenauNotifier
+from player_core.hud_overlay import HudOverlay
 from player_core.hud_placement import HudEdge
+from player_core.play_points import PlayPoints, play_points_filename
+from player_core.playback import Playback, funscripts_of
 from player_core.player_verbs import play_file
 from player_core.playhead import (
     PlayheadHud,
@@ -56,12 +62,14 @@ from player_core.playhead import (
     video_playhead,
 )
 from player_core.playlist import PlaylistItem, read_playlist
+from player_core.pointer import OMNIPAUSE_TOGGLE
 from player_core.render_player import MpvRenderPlayer
 from player_core.status import StatusWriter
 from player_core.tcode import UdpTCodeSink
 from player_core.tcode_driver import FunscriptTCodeDriver
 from player_core.timeline import TIMELINE_HEIGHT
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
+from player_core.volume_control import VolumeControl
 
 from fun_time import preview_marker
 from fun_time.dashboard_actions import (
@@ -82,15 +90,7 @@ from fun_time.session_handoff import (
 )
 from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.unlogged_notices import UnloggedNotices
-from main_player.play_points import PlayPoints, play_points_filename
 from satellite.contract import SatelliteChannels
-from satellite.hud_overlay import HudOverlay
-from satellite.pointer import OMNIPAUSE_TOGGLE
-from satellite.runtime import SatelliteControls
-from satellite.runtime import apply_command as apply_satellite_command
-from satellite.session import SatelliteSession, funscripts_of
-from satellite.status import status_fields as satellite_status_fields
-from satellite.volume import SatelliteVolume
 
 from . import room, vr_runtime
 from .bringup import open_vr_session
@@ -774,7 +774,7 @@ class _SatelliteUnit(_VideoUnit):
         self.paused_file = channels.paused
         self.playlist_file = channels.playlist
         items = read_playlist(self.playlist_file)
-        self.session = SatelliteSession(
+        self.session = Playback(
             [item.path for item in items],
             player=self.player,
             start_paused=read_paused_state(self.paused_file, logger=logger),
@@ -787,8 +787,8 @@ class _SatelliteUnit(_VideoUnit):
         self._status_writer = StatusWriter(
             channels.status,
             lambda session: satellite_status_fields(session, self.drive_gate.handoff_touch()))
-        self._controls = SatelliteControls(
-            session=self.session, reload_playlist=self._reload_playlist)
+        self._controls = FunestraControls(
+            self.session, reload_playlist=self._reload_playlist)
         self.hud_surface = HudSurface()
         self.hud = HudOverlay(
             hud_file=channels.hud,
@@ -802,7 +802,7 @@ class _SatelliteUnit(_VideoUnit):
         self.hud_screen = _HangingScreen(self.screen.placement)
         self._hud_version = -1
         self._hud_shown = False
-        self.volume = SatelliteVolume(self.player)
+        self.volume = VolumeControl(self.player)
         self._audio_device = vr.audio_device.strip()
         self._audio_routed = False
         self._presses = _Presses(player, hud_screen_name(player))

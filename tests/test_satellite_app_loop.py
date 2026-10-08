@@ -1,14 +1,9 @@
-"""The satellite's run loop, actually run.
+"""Fun Time's satellite program: the window it opens, and the Funestra it runs on that window.
 
-``satellite/app.py::_run`` — the status publish, the paused poll, the command drain and the overlay painting — was
-guarded only by AST scans over its source, which hold no matter what the loop
-does.  Here the loop runs for real: pygame and mpv are the two fakes (the
-window system and the video engine, this process's true boundaries), the args
-come from the production parser, and each test reads the loop's observable
-output — the status file, the player's overlays, the session's state.
-
-Every command file ends in QUIT, which is how a run is bounded to a known
-number of passes instead of an event loop the test would have to break into.
+pygame is the one fake (the window system, this process's true boundary), the
+args come from the production parser, and what the loop hands the Funestra --
+the handle, the launch's channels and list, each pass's window size, each press
+and the close -- is read back off a fake Funestra.
 """
 from __future__ import annotations
 
@@ -17,24 +12,17 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import numpy as np
 import pygame
-from player_core.funscript import load as load_funscript
-from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
-from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, progress_bar_bgra
-from player_core.volume import chip_xy
 
 from fun_time.project_paths import PROJECT_ICON
-from main_player.heatmap import build_heatmap
 from satellite.app import _run
 from satellite.cli import build_parser, resolve_playlist
-from tests.satellite_fakes import FakeSatellitePlayer
+from satellite.contract import SatelliteChannels
+
+WINDOW = (640, 480)
 
 
 class _FakePygame:
-    """Just enough SDL for the loop: a window that exists, events that arrive
-    in scripted batches, and a clock whose tick is free."""
-
     QUIT = 256
     MOUSEBUTTONDOWN = 1025
     MOUSEMOTION = 1024
@@ -47,7 +35,7 @@ class _FakePygame:
             set_mode=lambda *_a, **_kw: None,
             set_caption=lambda *_a: None,
             get_wm_info=lambda: {"window": 4242},
-            get_window_size=lambda: (640, 480),
+            get_window_size=lambda: WINDOW,
         )
         self.event = SimpleNamespace(get=self._next_batch)
         self.time = SimpleNamespace(Clock=lambda: SimpleNamespace(tick=lambda _fps: None))
@@ -65,11 +53,48 @@ class _FakePygame:
         self.quit_called = True
 
 
+class _FakeFunestra:
+    def __init__(self, *, passes: int = 1) -> None:
+        self._passes_left = passes
+        self.ticks: list[tuple[int, int]] = []
+        self.presses: list[tuple] = []
+        self.motions: list[tuple] = []
+        self.closes_requested = 0
+        self.closed = False
+
+    @property
+    def stopped(self) -> bool:
+        return self._passes_left <= 0
+
+    def tick(self, *, window) -> None:
+        self.ticks.append(window)
+        self._passes_left -= 1
+
+    def press(self, x, y, *, window) -> None:
+        self.presses.append((x, y, window))
+
+    def motion(self, x, y, *, held, window) -> None:
+        self.motions.append((x, y, held, window))
+
+    def close_requested(self) -> None:
+        self.closes_requested += 1
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _OpensAFunestra:
+    def __init__(self, funestra: _FakeFunestra) -> None:
+        self.funestra = funestra
+        self.asked: tuple | None = None
+
+    def on_window(self, wid, **what):
+        self.asked = (wid, what)
+        return self.funestra
+
+
 def _loop_args(tmp_path: Path, playlist: list[Path], *, no_audio: bool = False,
                tile: bool = False, **extra: str):
-    """The loop's args, defaulting to how ``_build_satellite_launch_command``
-    launches one — which no longer passes ``--no-audio``, so the volume chip in
-    these runs is the live one a session gets."""
     argv = ["--playlist", str(tmp_path / "playlist.tsv"),
             "--command-file", str(tmp_path / "cmd.txt"),
             "--paused-file", str(tmp_path / "paused.txt"),
@@ -95,21 +120,20 @@ def _clips(tmp_path: Path, *names: str) -> list[Path]:
     return out
 
 
-def _run_loop(tmp_path: Path, args, *, fake=None) -> tuple[int, FakeSatellitePlayer, _FakePygame]:
+def _run_loop(tmp_path: Path, args, *, fake=None, passes: int = 1):
     fake = fake or _FakePygame()
-    player = FakeSatellitePlayer()
+    opens = _OpensAFunestra(_FakeFunestra(passes=passes))
     with patch("satellite.app.pygame", fake), \
          patch("satellite.app.deliver_the_focusing_click"), \
-         patch("satellite.app.MpvPlayer", return_value=player):
+         patch("satellite.app.Funestra", opens):
         code = _run(args, playlist=resolve_playlist(args))
-    return code, player, fake
+    return code, opens, fake
 
 
 def test_a_satellite_wears_the_icon_the_session_hands_it(tmp_path):
     handed = tmp_path / "preview_icon.ico"
     shutil.copyfile(PROJECT_ICON, handed)
     args = _loop_args(tmp_path, _clips(tmp_path, "v0"), icon=str(handed))
-    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
     fake = _FakePygame()
     worn = []
     fake.display.set_icon = worn.append
@@ -120,177 +144,79 @@ def test_a_satellite_wears_the_icon_the_session_hands_it(tmp_path):
     assert len(worn) == 1
 
 
-def test_one_pass_plays_publishes_and_paints_then_quit_ends_it_cleanly(tmp_path):
-    clips = _clips(tmp_path, "v0", "v1")
-    args = _loop_args(tmp_path, clips)
-    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+def test_the_funestra_is_opened_on_the_window_with_what_the_launch_hands_it(tmp_path, unmuted):
+    args = _loop_args(tmp_path, _clips(tmp_path, "v0", "v1"))
 
-    code, player, fake = _run_loop(tmp_path, args)
+    _code, opens, _fake = _run_loop(tmp_path, args)
 
-    assert code == 0
-    assert player.opened[0] == clips[0]                    # the first clip is up
-    status = (tmp_path / "status.txt").read_text(encoding="utf-8")
-    assert f"video={clips[0]}" in status                   # published for the loop
-    assert len(player.overlays) == 3                       # scrubber, volume chip, readout
-    assert player.closed and fake.quit_called              # a clean teardown
-
-
-def test_one_pass_puts_up_where_the_clip_is_and_how_long_it_runs(tmp_path):
-    clips = _clips(tmp_path, "v0")
-    args = _loop_args(tmp_path, clips)
-    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
-
-    _code, player, _fake = _run_loop(tmp_path, args)
-
-    pill = PlayheadHudPainter().bgra(
-        video_playhead(0.0, player.duration_ms, player.frame_rate))
-    at = readout_xy(pill.shape[1], win_w=640, win_h=480, timeline_h=TIMELINE_HEIGHT)
-    assert any((x, y) == at and np.array_equal(bgra, pill)
-               for x, y, bgra in player.overlays.values())
+    wid, what = opens.asked
+    assert wid == 4242
+    assert what == {
+        "channels": SatelliteChannels.from_args(args),
+        "playlist": resolve_playlist(args),
+        "audible": True,
+        "tiles": False,
+    }
 
 
-def test_a_scripted_clips_scrubber_is_filled_with_its_scripts_colors(tmp_path):
-    clip = _clips(tmp_path, "v0")[0]
-    script = tmp_path / "v0.funscript"
-    script.write_text('{"actions": [{"at": 0, "pos": 0}, {"at": 900, "pos": 100}, '
-                      '{"at": 2400, "pos": 10}]}', encoding="utf-8")
-    args = _loop_args(tmp_path, [f"{clip}\t{script}"])
-    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+def test_no_audio_opens_a_silent_one(tmp_path):
+    args = _loop_args(tmp_path, _clips(tmp_path, "v0"), no_audio=True)
 
-    _code, player, _fake = _run_loop(tmp_path, args)
+    _code, opens, _fake = _run_loop(tmp_path, args)
 
-    x0, x1 = bar_track_x(640)
-    _x, _y, bar = player.overlays[11]
-    assert np.array_equal(bar, progress_bar_bgra(
-        0.0, player.duration_ms, None, 640,
-        heatmap=build_heatmap(load_funscript(script), x1 - x0,
-                              start_ms=0, end_ms=player.duration_ms)))
+    assert opens.asked[1]["audible"] is False
 
 
-def test_commands_drain_and_act_before_the_frame_is_published(tmp_path):
-    clips = _clips(tmp_path, "v0", "v1")
-    args = _loop_args(tmp_path, clips)
-    (tmp_path / "cmd.txt").write_text("NEXT\nQUIT\n", encoding="utf-8")
+def test_tile_opens_one_that_tiles_its_picture(tmp_path):
+    args = _loop_args(tmp_path, _clips(tmp_path, "v0"), tile=True)
 
-    _code, player, _fake = _run_loop(tmp_path, args)
+    _code, opens, _fake = _run_loop(tmp_path, args)
 
-    status = (tmp_path / "status.txt").read_text(encoding="utf-8")
-    assert f"video={clips[1]}" in status                   # the NEXT took effect
+    assert opens.asked[1]["tiles"] is True
 
 
-def test_the_paused_flag_reaches_the_player_each_pass(tmp_path):
-    clips = _clips(tmp_path, "v0")
-    args = _loop_args(tmp_path, clips)
-    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
-    (tmp_path / "paused.txt").write_text("1", encoding="utf-8")
+def test_each_pass_hands_it_the_windows_size_until_it_stops_then_closes_it(tmp_path):
+    args = _loop_args(tmp_path, _clips(tmp_path, "v0"))
 
-    _code, player, _fake = _run_loop(tmp_path, args)
-
-    assert player.paused is True
-
-
-def test_the_window_close_asks_the_session_not_this_player(tmp_path):
-    """Alt+F4 on one satellite must not leave the session running around a
-    gap: the QUIT event posts the session-quit gesture, and only the
-    gesture's answer ends this loop."""
-    clips = _clips(tmp_path, "v0")
-    args = _loop_args(tmp_path, clips)
-    fake = _FakePygame(event_batches=[[SimpleNamespace(type=_FakePygame.QUIT)]])
-
-    with patch("satellite.app.quit_gesture", return_value=True) as gesture:
-        code, _player, _f = _run_loop(tmp_path, args, fake=fake)
+    code, opens, fake = _run_loop(tmp_path, args, passes=3)
 
     assert code == 0
-    gesture.assert_called_once_with(args.dashboard_cmd_file)
+    assert opens.funestra.ticks == [WINDOW, WINDOW, WINDOW]
+    assert opens.funestra.closed and fake.quit_called
 
 
 def _press(pos, button=1):
     return SimpleNamespace(type=_FakePygame.MOUSEBUTTONDOWN, button=button, pos=pos)
 
 
-def test_a_press_on_the_scrubber_seeks_the_clip(tmp_path):
-    """The bar is drawn full-window-width along the lower edge, so a press halfway
-    across the 640-wide window's inset track lands halfway through the clip."""
-    clips = _clips(tmp_path, "v0")
-    args = _loop_args(tmp_path, clips)
-    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
-    x0, x1 = bar_track_x(640)
-    fake = _FakePygame(event_batches=[[_press(((x0 + x1) // 2, 476))]])
-
-    _code, player, _fake = _run_loop(tmp_path, args, fake=fake)
-
-    assert len(player.seeks) == 1
-    assert abs(player.seeks[0] - player.duration_ms / 2) <= player.duration_ms / (x1 - x0)
+def _motion(pos, *, held: bool):
+    return SimpleNamespace(type=_FakePygame.MOUSEMOTION, pos=pos, buttons=(int(held), 0, 0))
 
 
-def test_a_press_on_the_volume_chip_unmutes_this_player(tmp_path, unmuted):
-    """The speaker at the left end of the chip, which is placed from the
-    window's lower-right corner — a satellite opens muted and this is the way
-    to hear one."""
-    clips = _clips(tmp_path, "v0")
-    args = _loop_args(tmp_path, clips)
-    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
-    vx, vy = chip_xy(win_w=640, win_h=480, timeline_h=TIMELINE_HEIGHT)
-    fake = _FakePygame(event_batches=[[_press((vx + 7, vy + 11))]])
+def test_a_left_press_and_a_motion_reach_it_placed_in_the_window(tmp_path):
+    args = _loop_args(tmp_path, _clips(tmp_path, "v0"))
+    fake = _FakePygame(event_batches=[[_press((10, 20)), _press((11, 21), button=3),
+                                       _motion((30, 40), held=True)]])
 
-    _code, player, _fake = _run_loop(tmp_path, args, fake=fake)
+    _code, opens, _fake = _run_loop(tmp_path, args, fake=fake)
 
-    assert player.muted is False
-    assert player.seeks == []          # the chip took it, not the row under it
+    assert opens.funestra.presses == [(10, 20, WINDOW)]
+    assert opens.funestra.motions == [(30, 40, True, WINDOW)]
 
 
-def test_no_audio_leaves_the_chip_a_read_only_indicator(tmp_path):
-    """What the hidden-desktop integration runs buy with FUN_TIME_MUTE_AUDIO:
-    silence no press can lift."""
-    clips = _clips(tmp_path, "v0")
-    args = _loop_args(tmp_path, clips, no_audio=True)
-    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
-    vx, vy = chip_xy(win_w=640, win_h=480, timeline_h=TIMELINE_HEIGHT)
-    fake = _FakePygame(event_batches=[[_press((vx + 7, vy + 11))]])
+def test_the_windows_close_is_the_funestras_to_answer_and_the_loop_goes_on(tmp_path):
+    args = _loop_args(tmp_path, _clips(tmp_path, "v0"))
+    fake = _FakePygame(event_batches=[[SimpleNamespace(type=_FakePygame.QUIT)]])
 
-    _code, player, _fake = _run_loop(tmp_path, args, fake=fake)
+    _code, opens, _fake = _run_loop(tmp_path, args, fake=fake, passes=2)
 
-    assert player.muted is True
-
-
-def test_each_pass_carries_a_still_s_move_a_little_further(tmp_path):
-    """A still does not simply sit there while it holds the screen — the loop
-    asks the player to carry its move on every frame, the way it repaints the
-    overlays every frame."""
-    clips = _clips(tmp_path, "v0")
-    args = _loop_args(tmp_path, clips)
-    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
-
-    _code, player, _fake = _run_loop(tmp_path, args)
-
-    assert player.pushes == 1
-
-
-def test_a_portrait_player_lays_its_picture_out_in_tiles_across_its_window(tmp_path):
-    clips = _clips(tmp_path, "v0")
-    args = _loop_args(tmp_path, clips, tile=True)
-    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
-
-    _code, player, _fake = _run_loop(tmp_path, args)
-
-    assert player.tiled_to == [(640, 480)]
-
-
-def test_a_landscape_player_is_never_asked_to_tile(tmp_path):
-    clips = _clips(tmp_path, "v0")
-    args = _loop_args(tmp_path, clips)
-    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
-
-    _code, player, _fake = _run_loop(tmp_path, args)
-
-    assert player.tiled_to == []
+    assert opens.funestra.closes_requested == 1
+    assert len(opens.funestra.ticks) == 2
 
 
 def test_the_window_takes_the_size_fun_time_gives_it_from_outside(tmp_path):
-    clips = _clips(tmp_path, "v0")
-    args = _loop_args(tmp_path, clips)
-    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+    args = _loop_args(tmp_path, _clips(tmp_path, "v0"))
 
-    _code, _player, fake = _run_loop(tmp_path, args)
+    _code, _opens, fake = _run_loop(tmp_path, args)
 
     assert fake.window.resizable is True

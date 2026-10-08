@@ -13,6 +13,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app_support import ports
+from player_core.play_points import PlayPoints, play_points_filename
 from player_core.playlist import PlaylistItem, read_playlist
 
 from fun_time.win32_desktop import on_hidden_desktop
@@ -21,7 +22,6 @@ from .duration_cache import DurationCache
 from .library import collapse_playlist_versions
 from .library_source import LibrarySource, build_library_source
 from .mode_memory import ModeMemory
-from .play_points import PlayPoints, play_points_filename
 
 
 def load_config(config_path: Path) -> dict:
