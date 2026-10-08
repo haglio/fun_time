@@ -52,6 +52,8 @@ from functools import partial
 from pathlib import Path
 from time import monotonic
 
+from app_support.subprocess_utils import hidden_subprocess_kwargs
+
 from fun_time.win32_job import a_job_whose_processes_end_with_it
 from fun_time.win32_loader import load_dll, win_functype
 
@@ -498,7 +500,7 @@ _LIST_THE_CHANGED_TESTS = ("import sys; from pathlib import Path; "
 def files_with_a_changed_test(gate_python: str | Path, base: str, root: Path) -> list[str]:
     listed = subprocess.run([str(gate_python), "-c", _LIST_THE_CHANGED_TESTS, base], cwd=root,
                             stdout=subprocess.PIPE, encoding="utf-8", check=True,
-                            creationflags=subprocess.CREATE_NO_WINDOW)
+                            **hidden_subprocess_kwargs())
     return sorted({test.partition("::")[0] for test in listed.stdout.splitlines()
                    if test.startswith(INTEGRATION_DIR)})
 

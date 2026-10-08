@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from app_support.subprocess_utils import hidden_subprocess_kwargs
+
 FLAKE_GATE = "app-support @ git+https://github.com/haglio/app_support@v0.1.165"
 
 
@@ -27,4 +29,4 @@ def flake_gate_python(state_dir: Path) -> Path:
 
 
 def _run(argv: list[str]) -> None:
-    subprocess.run(argv, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
+    subprocess.run(argv, check=True, **hidden_subprocess_kwargs())
