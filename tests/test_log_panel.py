@@ -16,7 +16,7 @@ from shared_ui.icons import glyph_pixmap
 from shared_ui.palette import BG_BUTTON, BLUE, TEXT_MUTED
 from shared_ui.spacing import BUTTON_GAP, BUTTON_GROUP_GAP, BUTTON_PAD_H_TIGHT, BUTTON_SIZE_HUD
 
-from fun_time.event_log import FAVORITE, NOTICE, EventRecord
+from fun_time.event_log import FAVORITE, NOTICE, EventRecord, event_line
 from fun_time.log_panel import _COPY_ICON_SIZE, LogPanelWidget, level_color
 from fun_time.log_panel_model import (
     MAX_RECORDS,
@@ -26,6 +26,7 @@ from fun_time.log_panel_model import (
     copy_button_position,
     format_record,
     load_ui_state,
+    remember_what_was_heard,
     save_ui_state,
     visible_records,
 )
@@ -257,6 +258,44 @@ class TestHoverCopyButton:
         panel._source_buttons["system"].setChecked(False)  # empties the list
 
         assert not _copy_button(panel).isVisible()
+
+
+COUNTED = "not sure enough of a command (1 word) (press Enter to accept)"
+WORDED = "not sure enough of: next (press Enter to accept)"
+
+
+def _said(message: str, *, spoken_at: float, flashes: bool = True) -> EventRecord:
+    return EventRecord(ts=0.0, level=logging.WARNING, source="system", message=message,
+                       flashes=flashes, spoken_at=spoken_at)
+
+
+class TestWhatWasHeard:
+    def test_only_as_much_is_remembered_as_there_are_lines_for_it_to_stand_in(self):
+        heard = remember_what_was_heard({1.0: "one"}, [_said("two", spoken_at=2.0),
+                                                       _said("three", spoken_at=3.0)], keep=2)
+
+        assert heard == {2.0: "two", 3.0: "three"}
+
+    def _logged_by_count(self, panel: LogPanelWidget) -> None:
+        with panel._event_log.open("a", encoding="utf-8") as fh:
+            fh.write(event_line(_said(COUNTED, spoken_at=1.0, flashes=False)) + "\n")
+        panel._poll()
+
+    @pytest.mark.parametrize("words_first", [False, True])
+    def test_a_line_about_something_said_lists_the_words_heard_in_place_of_their_count(
+        self, panel_factory, words_first,
+    ):
+        panel = panel_factory(["Clip state"])
+
+        if words_first:
+            panel.show_what_was_heard([_said(WORDED, spoken_at=1.0)])
+            self._logged_by_count(panel)
+        else:
+            self._logged_by_count(panel)
+            panel.show_what_was_heard([_said(WORDED, spoken_at=1.0)])
+
+        assert [panel._list.item(row).text().endswith(WORDED)
+                for row in range(panel._list.count())] == [False, True]
 
 
 class TestTheSavedViewState:

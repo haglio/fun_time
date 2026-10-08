@@ -26,9 +26,10 @@ from fun_time_vr.notices import MAIN, NoticeBoard, screen_for
 
 
 def _write(path: Path, message: str, level: int = NOTICE, source: str = SOURCE_SYSTEM,
-           *, flashes: bool = True) -> None:
+           *, flashes: bool = True, spoken_at: float | None = None) -> None:
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(event_line(EventRecord(1.0, level, source, message, flashes)) + "\n")
+        handle.write(event_line(EventRecord(1.0, level, source, message, flashes,
+                                            spoken_at)) + "\n")
 
 
 class _Unlogged:
@@ -194,6 +195,19 @@ class TestWordsFlashedWithNoLogLine:
             "unrecognized voice command (2 words)"]
         assert board.banner(MAIN) is None
 
+    def test_the_dash_lists_the_words_heard_in_place_of_their_count(self, tmp_path):
+        path = _log(tmp_path)
+        board = NoticeBoard(path, unlogged=_Unlogged(EventRecord(
+            2.0, logging.WARNING, SOURCE_SYSTEM, "unrecognized voice command: alpha beta",
+            spoken_at=2.0)))
+        _write(path, "unrecognized voice command (2 words)", level=logging.WARNING,
+               flashes=False, spoken_at=2.0)
+
+        board.pump(None, now=1.0)
+
+        assert [record.message for record in board.records] == [
+            "unrecognized voice command: alpha beta"]
+
     def test_closing_the_board_closes_their_inbox(self, tmp_path):
         unlogged = _Unlogged()
 
@@ -201,7 +215,8 @@ class TestWordsFlashedWithNoLogLine:
 
         assert unlogged.stopped
 
-    def test_speech_that_is_no_command_reaches_the_headset_in_its_words_alone(self, tmp_path):
+    def test_speech_that_is_no_command_reaches_the_headset_in_its_words_and_no_file_does(
+            self, tmp_path):
         path = _log(tmp_path)
         board = NoticeBoard(path, unlogged=UnloggedNotices(tmp_path))
         voice_log = logging.getLogger("fun_time.voice_control")
@@ -222,7 +237,8 @@ class TestWordsFlashedWithNoLogLine:
 
         assert board.banner(MAIN).message == "unrecognized voice command: put the kettle on"
         assert [record.message for record in board.records] == [
-            "unrecognized voice command (4 words)"]
+            "unrecognized voice command: put the kettle on"]
+        assert "kettle" not in path.read_text(encoding="utf-8")
 
 
     def test_a_banner_is_timed_from_when_the_board_saw_it(self, tmp_path):

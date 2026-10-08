@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fun_time.config import LayoutConfig
 from fun_time.crown import Crown
-from fun_time.event_log import EVENT_LOG_FILENAME, is_announcement, read_events
+from fun_time.event_log import EVENT_LOG_FILENAME, EventRecord, is_announcement, read_events
 from fun_time.notice_placement import PlayerRects, notice_target_rect
 from fun_time.overlay_progress import loading_cover_is_up
 from fun_time.shared_state import read_shared_state
@@ -55,12 +55,14 @@ class NoticeFeed:
         cover_dir: Path,
         make_overlay: Callable[[], object],
         held: bool,
+        list_what_was_heard: Callable[[list[EventRecord]], None],
         shared_state_file: Path | None = None,
     ) -> None:
         self._event_log_dir = event_log_dir
         self._cover_dir = cover_dir
         self._offset = 0
         self._held = held
+        self._list_what_was_heard = list_what_was_heard
         self._shared_state_file = shared_state_file
         self._screens = _screens(layout)
         self.overlay = make_overlay() if self._screens is not None else None
@@ -92,7 +94,10 @@ class NoticeFeed:
             self._held = False
         records, self._offset = read_events(
             self._event_log_dir / EVENT_LOG_FILENAME, self._offset)
-        announcements = sorted([*filter(is_announcement, records), *self._unlogged.take_all()],
+        unlogged = self._unlogged.take_all()
+        if unlogged:
+            self._list_what_was_heard(unlogged)
+        announcements = sorted([*filter(is_announcement, records), *unlogged],
                                key=lambda record: record.ts)
         if not announcements:
             return

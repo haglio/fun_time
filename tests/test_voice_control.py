@@ -203,15 +203,16 @@ class TestHandleHeard:
         vc = self._controller(tmp_path)
         flashed = []
         monkeypatch.setattr(voice_control, "flash_unlogged",
-                            lambda state_dir, message, *, source, level:
-                            flashed.append((state_dir, message, source, level)))
+                            lambda state_dir, message, *, source, level, spoken_at:
+                            flashed.append((state_dir, message, source, level, spoken_at)))
 
         with caplog.at_level(logging.DEBUG):
             vc.handle_heard(_formed(recognition))
 
-        assert flashed == [(tmp_path, shown, source, logging.WARNING)]
-        assert [(record.getMessage(), record.levelno, record.source, record.flashes)
-                for record in caplog.records] == [(logged, logging.WARNING, source, False)]
+        assert flashed == [(tmp_path, shown, source, logging.WARNING, 1.0)]
+        assert [(record.getMessage(), record.levelno, record.source, record.flashes,
+                 record.spoken_at)
+                for record in caplog.records] == [(logged, logging.WARNING, source, False, 1.0)]
 
     @pytest.mark.parametrize("heard, source", [
         ("portrait full length please", "portrait"),
@@ -228,9 +229,9 @@ class TestHandleHeard:
         vc = self._controller(tmp_path)
         seen = []
         monkeypatch.setattr(voice_control, "notice",
-                            lambda _log, _msg, *, source, level, flashes: seen.append(source))
+                            lambda _log, _msg, *, source, **_: seen.append(source))
         monkeypatch.setattr(voice_control, "flash_unlogged",
-                            lambda _dir, _msg, *, source, level: seen.append(source))
+                            lambda _dir, _msg, *, source, **_: seen.append(source))
 
         vc.handle_heard(_formed(Recognition(unrecognized_text=heard)))
 

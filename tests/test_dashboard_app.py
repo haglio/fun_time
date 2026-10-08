@@ -1548,7 +1548,7 @@ def test_words_flashed_with_no_log_line_land_over_the_player_they_name(dashboard
         window.close()
 
 
-def test_speech_that_is_no_command_is_flashed_in_its_words_and_listed_without_them(
+def test_speech_that_is_no_command_is_flashed_and_listed_in_its_words_and_saved_without_them(
         dashboard_app_config):
     state_dir = dashboard_app_config.state_dir
     window = _notice_window(dashboard_app_config, held=False)
@@ -1574,7 +1574,7 @@ def test_speech_that_is_no_command_is_flashed_in_its_words_and_listed_without_th
 
     assert flashed == ["unrecognized voice command: put the kettle on"]
     [line] = [line for line in listed if "unrecognized" in line]
-    assert line.endswith("unrecognized voice command (4 words)")
+    assert line.endswith("unrecognized voice command: put the kettle on")
     assert "kettle" not in event_log_path(state_dir).read_text(encoding="utf-8")
 
 

@@ -100,6 +100,15 @@ class TestNotice:
         assert record.message == "unrecognized voice command (3 words)"
         assert not is_announcement(record)
 
+    def test_a_line_about_something_said_carries_when_it_was_said(self, log_path: Path):
+        logger = _logger(log_path, "test.event_log.said")
+
+        notice(logger, "unrecognized voice command (3 words)", source="main",
+               level=logging.WARNING, flashes=False, spoken_at=12.5)
+
+        [record], _offset = read_events(log_path)
+        assert record.spoken_at == 12.5  # noqa: PLR2004
+
 
 class TestReadEvents:
     def test_reads_records_and_reports_the_new_offset(self, log_path: Path):

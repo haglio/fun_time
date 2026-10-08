@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import configparser
 import time
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from fun_time.event_log import (
@@ -39,6 +40,19 @@ def append_records(buffer: list[EventRecord], new: list[EventRecord]) -> list[Ev
     """Append *new* to *buffer*, dropping the oldest lines past the cap."""
     combined = buffer + new
     return combined[-MAX_RECORDS:]
+
+
+def remember_what_was_heard(heard: Mapping[float, str], records: Iterable[EventRecord], *,
+                            keep: int) -> dict[float, str]:
+    remembered = {**heard, **{record.spoken_at: record.message for record in records
+                              if record.spoken_at is not None}}
+    return dict(list(remembered.items())[-keep:])
+
+
+def with_what_was_heard(records: list[EventRecord],
+                        heard: Mapping[float, str]) -> list[EventRecord]:
+    return [replace(record, message=heard[record.spoken_at])
+            if record.spoken_at in heard else record for record in records]
 
 
 def format_record(record: EventRecord) -> str:
