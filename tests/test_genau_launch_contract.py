@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from fun_time.genau_config import GENAU_LOG_FILES
 from fun_time.window_roles import GENAU_TITLE, GENAU_VIDEO_TITLE
 from fun_time.windows_bridge_startup import genau_launch_command
 
@@ -74,3 +75,7 @@ def test_the_captions_this_session_resolves_the_window_by_are_genaus_own():
 
     assert document["window_title"] == GENAU_TITLE
     assert document["video_window_title"] == GENAU_VIDEO_TITLE
+
+
+def test_the_logs_read_when_genau_dies_starting_are_the_ones_genau_keeps():
+    assert set(_promise()["in_the_state_dir"].values()) == set(GENAU_LOG_FILES)
