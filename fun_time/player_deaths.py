@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 from fun_time import preview_marker
 from fun_time.child_launch import marks_a_launch
 from fun_time.project_paths import PROJECT_ICON
-from fun_time.win32_process import is_process_alive
+from fun_time.win32_process import get_process_creation_time, is_process_alive
 
 LAST_WORDS_LINES = 12
 
@@ -73,6 +73,31 @@ def raise_if_a_player_died(
     for player in players:
         if player.pid and not asks(player.pid):
             raise PlayerDied(player, the_last_words(player.logs))
+
+
+PART_NAMES = {
+    "main_player_pid": "the Main player",
+    "portrait_pid": "the Portrait player",
+    "landscape_pid": "the Landscape player",
+    "dashboard_pid": "the dashboard",
+    "genau_pid": "Genau",
+    "audio_pid": "the audio companion",
+    "origenerator_pid": "Origenerator Core",
+}
+
+
+def the_part_that_closed(children: Mapping, *,
+                         created_at: Callable[[int], int | None] | None = None) -> str | None:
+    born = created_at or get_process_creation_time
+    for key, child in children.items():
+        if child.created_at and born(child.pid) != child.created_at:
+            return PART_NAMES.get(key, key)
+    return None
+
+
+def part_closed_message(part: str) -> str:
+    return (f"Fun Time stopped: {part} closed itself while the room was up, "
+            f"so the whole session was closed with it.")
 
 
 def player_died_message(player: LaunchedPlayer, said: str) -> str:

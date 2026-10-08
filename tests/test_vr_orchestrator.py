@@ -17,7 +17,7 @@ from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
 from player_core.drive_readout import DriveHud, drive_text
 from player_core.modes import MainMode
 
-from fun_time import win32_taskbar
+from fun_time import player_deaths, win32_taskbar
 from fun_time.config import load_config
 from fun_time.hosted_origenerator import HostedApp
 from fun_time.manifest import LaunchManifest, build_windows_bridge_manifest, write_manifest_data
@@ -383,6 +383,16 @@ class TestWaitForSessionEnd:
         assert _wait_for_session_end(
             _FakeProc(), _FakeProc(exits_after_polls=2), state_dir=tmp_path, poll_s=0.0
         ) == "player"
+
+    def test_any_other_part_of_the_room_closing_ends_the_session(self, tmp_path, monkeypatch):
+        """His rule (2026-10-08): if one part of Fun Time dies, the whole thing
+        dies with it, rather than carrying on without it."""
+        monkeypatch.setattr(player_deaths, "get_process_creation_time", lambda pid: None)
+
+        assert _wait_for_session_end(
+            _FakeProc(), _FakeProc(), state_dir=tmp_path, poll_s=0.0,
+            parts={"origenerator_pid": ChildProcess(pid=40, created_at=4000)},
+        ) == "part"
 
 
 class TestResumedMainPlaylist:

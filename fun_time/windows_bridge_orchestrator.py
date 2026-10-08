@@ -60,7 +60,13 @@ from .overlay_progress import (
     ready_file_for,
     what_the_flag_asks,
 )
-from .player_deaths import PlayerDied, player_died_message, show_player_died_alert
+from .player_deaths import (
+    PlayerDied,
+    part_closed_message,
+    player_died_message,
+    show_player_died_alert,
+    the_part_that_closed,
+)
 from .players import Player
 from .process_identity import NAMER
 from .rfb_slideshow import rfb_slideshow_on
@@ -1051,15 +1057,25 @@ def hold_the_osr2(commands: CommandFiles) -> None:
     write_broker_command(commands.broker_cmd_file, HOLD_VERB.get(ending.osr2_control, PARK_CMD))
 
 
+@dataclass(frozen=True)
+class SessionEnd:
+    exit_code: int
+    closed: str | None = None  # the part of the room that closed itself, ending it
+
+
 def _wait_for_the_session_to_end(
-    ahk_proc: subprocess.Popen, state_dir: Path, *, poll_s: float = 0.1,
-) -> int:
+    ahk_proc: subprocess.Popen, state_dir: Path, *, children: dict,
+    poll_s: float = 0.1,
+) -> SessionEnd:
     marker = session_end_marker_path(state_dir)
     while ahk_proc.poll() is None:
         if marker.exists():
-            return 0
+            return SessionEnd(0)
+        closed = the_part_that_closed(children)
+        if closed is not None:
+            return SessionEnd(1, closed)
         time.sleep(poll_s)
-    return ahk_proc.wait()
+    return SessionEnd(ahk_proc.wait())
 
 
 def _run_until_the_hotkeys_exit(
@@ -1087,8 +1103,10 @@ def _run_until_the_hotkeys_exit(
     voice_controller, voice_thread = voice
     dispatch_runner, _loop = dispatch
     asked = False
+    closed = None
     try:
-        exit_code = _wait_for_the_session_to_end(ahk_proc, state_dir)
+        ended = _wait_for_the_session_to_end(ahk_proc, state_dir, children=children)
+        exit_code, closed = ended.exit_code, ended.closed
         asked = session_end_marker_path(state_dir).exists()
         # WHY the session is ending, which the log could not say before.  A
         # session that vanishes and one the user quit produce the same lines
@@ -1097,8 +1115,11 @@ def _run_until_the_hotkeys_exit(
         # nothing in the log to confirm or deny it.  Every asked-for end leaves
         # a marker (see windows_bridge_hotkeys.ahk, MarkSessionEnd); no marker
         # and the script is gone anyway means it went down on its own.
-        logger.info("The session ended with code %s (%s)", exit_code,
-                    _describe_session_end(state_dir, exit_code))
+        if closed is not None:
+            logger.error("The session ended because %s closed itself", closed)
+        else:
+            logger.info("The session ended with code %s (%s)", exit_code,
+                        _describe_session_end(state_dir, exit_code))
     except KeyboardInterrupt:
         logger.info("Interrupted — shutting down")
         exit_code = 1
@@ -1144,6 +1165,8 @@ def _run_until_the_hotkeys_exit(
             elif crossing is None:  # the quit chord after an Esc that had parked it
                 let_go_of_a_kept_origenerator(state_dir, origenerator_cmd_file)
 
+    if closed is not None:
+        show_player_died_alert(part_closed_message(closed))  # the cover is down by now
     return exit_code
 
 
