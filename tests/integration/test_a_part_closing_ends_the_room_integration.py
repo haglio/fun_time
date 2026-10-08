@@ -12,8 +12,8 @@ import time
 
 import pytest
 
+from fun_time.process_tree import kill_process_tree
 from fun_time.win32_process import get_process_creation_time
-from fun_time.windows_bridge_orchestrator import kill_process_tree
 
 from .integration_support import (
     FunTimeIntegrationSession,

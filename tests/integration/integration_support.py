@@ -35,16 +35,13 @@ from fun_time.player_status import (
 from fun_time.players import Player
 from fun_time.process_identity import NAMER
 from fun_time.process_sweep import sweep_processes
+from fun_time.process_tree import kill_process_tree
 from fun_time.win32_process import (
     get_process_creation_time,
     get_process_image_name,
     is_process_alive,
 )
-from fun_time.windows_bridge_orchestrator import (
-    ChildProcess,
-    kill_process_tree,
-    kill_recorded_child,
-)
+from fun_time.windows_bridge_orchestrator import ChildProcess, kill_recorded_child
 from tests.scratch import remove_scratch
 
 from .hidden_desktop import (
