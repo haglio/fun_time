@@ -82,6 +82,11 @@ from fun_time.overlay_progress import (
     ready_file_for,
     what_the_flag_asks,
 )
+from fun_time.player_deaths import (
+    part_closed_message,
+    show_player_died_alert,
+    the_part_that_closed,
+)
 from fun_time.player_engine import engine_missing_abort
 from fun_time.player_status import read_main_player_status
 from fun_time.players import Player
@@ -251,10 +256,12 @@ def launch_vr_player(
                                 **hidden_subprocess_kwargs())
 
 
-def _wait_for_session_end(ahk_proc, player, *, state_dir: Path, poll_s: float = 0.5) -> str:
+def _wait_for_session_end(ahk_proc, player, *, state_dir: Path, parts=None,
+                          poll_s: float = 0.5) -> str:
     """Block until the session is marked ended, or the AHK bridge or the VR player
-    exits; name which.  The player's close button is a quit gesture too, and
-    waiting on AHK past it held the single-instance mutex with nothing to run."""
+    exits, or another of its *parts* closes; name which.  The player's close
+    button is a quit gesture too, and waiting on AHK past it held the
+    single-instance mutex with nothing to run."""
     marker = session_end_marker_path(state_dir)
     while True:
         if marker.exists():
@@ -263,6 +270,8 @@ def _wait_for_session_end(ahk_proc, player, *, state_dir: Path, poll_s: float = 
             return "ahk"
         if player.poll() is not None:
             return "player"
+        if the_part_that_closed(parts or {}) is not None:
+            return "part"
         time.sleep(poll_s)
 
 
@@ -722,14 +731,20 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         raise
 
     asked = False
+    closed = None
+    parts = {key: child for key, child in children.items() if key != "vr_player_pid"}
     try:
-        ended_by = _wait_for_session_end(ahk_proc, player, state_dir=state_dir)
+        ended_by = _wait_for_session_end(ahk_proc, player, state_dir=state_dir, parts=parts)
         asked = ended_by == "asked"
         if ended_by == "player":
             logger.info("VR player exited with code %s -- ending the session", player.returncode)
             ahk_proc.terminate()
             ahk_proc.wait()
             exit_code = 0
+        elif ended_by == "part":
+            closed = the_part_that_closed(parts)
+            logger.error("The session ended because %s closed itself", closed)
+            exit_code = 1
         elif ended_by == "asked":
             logger.info("The session was asked to end -- ending it")
             session_end_marker_path(state_dir).unlink(missing_ok=True)
@@ -790,6 +805,8 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
                 stop_hotkey_script(ahk_proc, ahk_cmd_file)
         if not held and not back_to_vr:
             _release_vr_runtime(runtime_was_up)  # after the player: it held an XR session
+    if closed is not None:
+        show_player_died_alert(part_closed_message(closed))
     return exit_code
 
 
