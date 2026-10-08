@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from player_core.modes import LoopState
+from player_core.play_points import PlayPoints
 from player_core.playback_rate import MAX_RATE, MIN_RATE
 from player_core.robot_hand import FULL_INTENSITY
 
@@ -16,7 +17,6 @@ from fun_time_vr.layout import TILT_LIMIT_DEG
 from fun_time_vr.picture_shape import FISHEYE_CIRCLE
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_180_SBS, FLAT, ProjectionMemory
 from fun_time_vr.roles import ANGLE_STEP, DIAL_STILL_S, TILT_STEP_DEG, MainRole
-from main_player.play_points import PlayPoints
 from tests.mpv_refusals import RefusesSeeks
 
 

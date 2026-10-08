@@ -7,9 +7,7 @@ import logging
 from pathlib import Path
 
 from player_core.file_channel import append_command
-from player_core.player_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST, play_file
-
-from satellite.versions import step_version
+from player_core.player_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST, play_file, step_version
 
 from .bridge_records import BridgeConfig, WindowOp
 from .event_log import FAVORITE

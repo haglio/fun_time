@@ -1,60 +1,26 @@
-"""Run loop for a native satellite player: an mpv window fun_time drives.
+"""Fun Time's satellite program: a Funestra on a borderless window the session places.
 
-The satellite half of the main player's app shell, stripped to essentials — no
-loop recording.  mpv renders the video into a
-pygame/SDL window; fun_time positions that window by HWND after launch and drives
-playback through the command + paused files, reading back the status file.  Three
-things are composited on top: the lock HUD from the panel fun_time publishes, the
-scrubber and the volume chip — they and the picture take this loop's mouse events.
-
-A shell: the control logic it drives lives in satellite.session,
-satellite.runtime, satellite.pointer, satellite.volume and
-player_core.satellite_hud*, and the loop itself runs against fakes for the
-window system and the video engine (tests/test_satellite_app_loop.py).
+A shell: the Funestra it runs on that window is player_core's, and what is
+tested here is the window and the loop (tests/test_satellite_app_loop.py).
 """
 from __future__ import annotations
 
 import logging
 import os
-import threading
-from dataclasses import dataclass
-from pathlib import Path
 
 import pygame
 from app_support.logging_utils import install_exception_logging
 from app_support.win32 import set_app_user_model_id
-from player_core.drive_gate import DriveGate
-from player_core.file_channel import consume_command_file, read_paused_state
-from player_core.mpv_player import MpvPlayer
-from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
+from player_core.funestra import Funestra
 from player_core.playlist import PlaylistItem
 from player_core.sdl_hints import deliver_the_focusing_click
-from player_core.session_quit import quit_gesture
-from player_core.status import StatusWriter
-from player_core.tcode import UdpTCodeSink
-from player_core.tcode_driver import FunscriptTCodeDriver
-from player_core.timeline import TIMELINE_HEIGHT
-from player_core.volume import VolumeHudPainter, chip_xy
 
-from main_player.overlay import HeatmapStrip, timeline_bgra
-from main_player.play_points import PlayPoints
 from main_player.player_window import take_outside_resizes, wear_the_icon
 
 from .cli import audio_muted, build_parser, resolve_playlist
 from .contract import SatelliteChannels, WindowPlacement
-from .hud_overlay import HudOverlay
-from .pointer import Pointer
-from .runtime import SatelliteControls, apply_command
-from .session import SatelliteSession, funscripts_of
-from .status import status_fields
-from .volume import SatelliteVolume
 
 logger = logging.getLogger(__name__)
-
-# Overlay ids, over the lock HUD's 10: mpv draws them in ascending order.
-_OV_SCRUBBER = 11
-_OV_VOLUME = 12
-_OV_READOUT = 13
 
 
 def set_up_logging() -> logging.Logger:
@@ -75,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
     return _run(args, playlist)
 
 
-def _open_window(args) -> int:
+def _open_window(placement: WindowPlacement) -> int:
     """Put this satellite's borderless window on screen; return its HWND.  The
     order here is the whole content of the function, and each step says why."""
     # Before the window exists, and before pygame.init(): SDL otherwise eats the
@@ -86,7 +52,6 @@ def _open_window(args) -> int:
     # window is created, and a satellite that claims none is filed under whatever
     # the shared interpreter's path is registered to — some unrelated program,
     # wearing its icon.  Cosmetic, so a refusal never costs the player its start.
-    placement = WindowPlacement.from_args(args)
     if placement.taskbar_identity:
         try:
             set_app_user_model_id(placement.taskbar_identity)
@@ -108,158 +73,26 @@ def _open_window(args) -> int:
     return pygame.display.get_wm_info()["window"]
 
 
-@dataclass(frozen=True)
-class _Runtime:
-    """Everything the frame loop drives, built once around the open window."""
-
-    player: MpvPlayer
-    session: SatelliteSession
-    pointer: Pointer
-    controls: SatelliteControls
-    stop_event: threading.Event
-    volume: SatelliteVolume
-    volume_painter: VolumeHudPainter
-    readout_painter: PlayheadHudPainter
-    paused_file: Path | None
-    command_file: Path | None
-    dashboard_cmd_file: Path | None
-    status_writer: StatusWriter | None
-    hud: HudOverlay | None
-    timeline: HeatmapStrip
-    tiles: bool
-
-
-def _build_runtime(args, wid: int, playlist: list[PlaylistItem]) -> _Runtime:
-    channels = SatelliteChannels.from_args(args)
-    paused_file = channels.paused
-    start_paused = paused_file is not None and read_paused_state(paused_file, logger=logger)
-    # loop_file=False so end-of-file advances the playlist; the lock toggles it on.
-    # prefetch=True so mpv opens the next clip before the current ends and the
-    # auto-advance is seamless instead of a cold on-screen reload.
-    # muted=True: a satellite is heard only once its chip is asked (satellite.volume).
-    player = MpvPlayer(wid, muted=True, loop_file=False, prefetch=True)
-    session = SatelliteSession([item.path for item in playlist], player=player,
-                               start_paused=start_paused,
-                               play_points=PlayPoints(channels.play_points),
-                               funscripts=funscripts_of(playlist),
-                               tcode=_osr2_line(channels))
-    drive_gate = DriveGate(session)
-    stop_event = threading.Event()
-
-    def _reload_playlist() -> None:
-        reloaded = resolve_playlist(args)
-        if reloaded:
-            session.replace_playlist([item.path for item in reloaded], funscripts_of(reloaded))
-
-    # Composited into this window's video, so it needs no window of its own.
-    hud = (
-        HudOverlay(
-            hud_file=channels.hud, command_file=channels.dashboard_cmd, player=player,
-            drive_file=channels.drive, drive_gate=drive_gate,
-        )
-        if channels.hud and channels.dashboard_cmd
-        else None
-    )
-    volume = SatelliteVolume(player, live=not audio_muted(args))
-    return _Runtime(
-        player=player,
-        session=session,
-        pointer=Pointer(session=session, volume=volume, hud=hud,
-                        dashboard_cmd_file=channels.dashboard_cmd),
-        controls=SatelliteControls(
-            session=session, stop_event=stop_event, reload_playlist=_reload_playlist),
-        stop_event=stop_event,
-        volume=volume,
-        volume_painter=VolumeHudPainter(),
-        readout_painter=PlayheadHudPainter(),
-        paused_file=paused_file,
-        command_file=channels.command,
-        dashboard_cmd_file=channels.dashboard_cmd,
-        status_writer=(StatusWriter(
-            channels.status,
-            lambda session: status_fields(session, drive_gate.handoff_touch()))
-                       if channels.status else None),
-        hud=hud,
-        timeline=HeatmapStrip(),
-        tiles=args.tile,
-    )
-
-
-def _osr2_line(channels: SatelliteChannels) -> FunscriptTCodeDriver | None:
-    if not channels.tcode_host or not channels.tcode_port:
-        return None
-    return FunscriptTCodeDriver(UdpTCodeSink(channels.tcode_host, channels.tcode_port))
-
-
-def _take_events(runtime: _Runtime, win_w: int, win_h: int) -> None:
-    """This pass's window events.  No key here ends this player: the session ends
-    as a whole, through Ctrl+Alt+Q, which the bridge turns into the teardown that
-    takes these processes down with it (CLAUDE.md, "Standing rules").  The
-    window's own close is that same ask; see player_core.session_quit."""
-    for ev in pygame.event.get():
-        if ev.type == pygame.QUIT:
-            if quit_gesture(runtime.dashboard_cmd_file):
-                runtime.stop_event.set()
-        elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-            runtime.pointer.press(*ev.pos, win_w=win_w, win_h=win_h)
-        elif ev.type == pygame.MOUSEMOTION:
-            runtime.pointer.motion(*ev.pos, held=bool(ev.buttons[0]),
-                                   win_w=win_w, win_h=win_h)
-
-
-def _paint_overlays(runtime: _Runtime, win_w: int, win_h: int) -> None:
-    """The scrubber, the volume chip and the playhead pill over this frame."""
-    session, player = runtime.session, runtime.player
-    if session.showing_picture:
-        player.remove_overlay(_OV_SCRUBBER)
-    else:
-        runtime.timeline.update(session.current_video, session.current_funscript,
-                                session.duration_ms, win_w)
-        scrubber = timeline_bgra(runtime.timeline, session.position_ms, None, win_w)
-        player.overlay(_OV_SCRUBBER, 0, win_h - scrubber.shape[0], scrubber)
-    vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
-    player.overlay(_OV_VOLUME, vx, vy, runtime.volume_painter.bgra(runtime.volume.hud))
-    readout = video_playhead(session.position_ms, session.duration_ms, player.frame_rate)
-    if readout is None:
-        player.remove_overlay(_OV_READOUT)
-    else:
-        pill = runtime.readout_painter.bgra(readout)
-        player.overlay(_OV_READOUT, *readout_xy(
-            pill.shape[1], win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT), pill)
-
-
 def _run(args, playlist: list[PlaylistItem]) -> int:
-    runtime = _build_runtime(args, _open_window(args), playlist)
+    placement = WindowPlacement.from_args(args)
+    funestra = Funestra.on_window(
+        _open_window(placement), channels=SatelliteChannels.from_args(args), playlist=playlist,
+        audible=not audio_muted(args), tiles=placement.tiles,
+    )
     clock = pygame.time.Clock()
-    while not runtime.stop_event.is_set():
+    while not funestra.stopped:
         # Before the events, which have to be placed against the window they
         # landed in; the sequencer can move this one between passes.
-        win_w, win_h = pygame.display.get_window_size()
-        _take_events(runtime, win_w, win_h)
-
-        if runtime.paused_file is not None:
-            runtime.session.set_paused(read_paused_state(runtime.paused_file, logger=logger))
-        if runtime.command_file is not None:
-            for cmd in consume_command_file(runtime.command_file, logger=logger, uppercase=False):
-                apply_command(cmd, runtime.controls)
-
-        runtime.session.advance()
-        if runtime.tiles:
-            runtime.player.tile_to_fill(win_w, win_h)
-        runtime.player.push_still()
-        if runtime.status_writer is not None:
-            runtime.status_writer.write(runtime.session)
-        if runtime.hud is not None:
-            # The clip on screen is the session's, not the published panel's — the
-            # playlist walks on by itself between publishes — so the HUD is told what
-            # is decoding, the same way the main player names its file from its own session.
-            runtime.hud.tick(video=runtime.session.name_on_screen,
-                             playback_speed=runtime.session.speed,
-                             window=(win_w, win_h))
-
-        _paint_overlays(runtime, win_w, win_h)
+        window = pygame.display.get_window_size()
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT:
+                funestra.close_requested()
+            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                funestra.press(*ev.pos, window=window)
+            elif ev.type == pygame.MOUSEMOTION:
+                funestra.motion(*ev.pos, held=bool(ev.buttons[0]), window=window)
+        funestra.tick(window=window)
         clock.tick(60)
-
-    runtime.session.close()
+    funestra.close()
     pygame.quit()
     return 0

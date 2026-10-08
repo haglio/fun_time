@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from player_core.funestra import Channels
+
 #: field, the flag it is given by, and the kind of file a side carries it as in
 #: the launch manifest -- ``None`` where the manifest does not spell it per side.
 CHANNELS = (
@@ -47,19 +49,8 @@ def _argv(record, table) -> list[str]:
 
 
 @dataclass(frozen=True)
-class SatelliteChannels:
-    """The files one satellite reads and writes; each is optional."""
-
-    playlist: Path | None = None
-    command: Path | None = None
-    paused: Path | None = None
-    status: Path | None = None
-    play_points: Path | None = None
-    hud: Path | None = None
-    dashboard_cmd: Path | None = None
-    drive: Path | None = None
-    tcode_host: str | None = None
-    tcode_port: int | None = None
+class SatelliteChannels(Channels):
+    """The files a Funestra is driven through, as a satellite is launched with them."""
 
     @classmethod
     def from_args(cls, args) -> SatelliteChannels:

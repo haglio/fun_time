@@ -6,10 +6,9 @@ those decisions into textures.
 """
 from __future__ import annotations
 
+from player_core.heatmap import build_heatmap
 from player_core.modes import LoopState
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, bar_x, progress_bar_bgra
-
-from .heatmap import build_heatmap
 
 _ZOOM_SPAN_START_MS = 20_000.0
 _ZOOM_LEAD_FRAC = 0.10

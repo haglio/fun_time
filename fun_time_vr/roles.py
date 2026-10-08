@@ -18,6 +18,7 @@ from player_core.control_registry import Control, Verb, bind, look_up
 from player_core.funscript import Funscript
 from player_core.funscript import load as load_funscript
 from player_core.modes import LoopState
+from player_core.play_points import PlayPoints
 from player_core.playback_rate import RATE_STEP, clamp_rate, parse_rate
 from player_core.player_verbs import (
     DISPLAY_OFF,
@@ -44,6 +45,7 @@ from player_core.player_verbs import (
 )
 from player_core.playlist import item_from_line, read_playlist
 from player_core.robot_hand import FULL_INTENSITY
+from player_core.seeking import OwedSeek, seek_if_taken
 from player_core.status import PlayerStatus
 from player_core.status import status_fields as player_status_fields
 
@@ -57,8 +59,6 @@ from main_player.loop_verbs import (
     RECORD_UP,
     SET_LOOP,
 )
-from main_player.play_points import PlayPoints
-from main_player.seeking import OwedSeek, seek_if_taken
 
 from .layout import clamp_tilt
 from .projection import ProjectionMemory, next_projection, previous_projection

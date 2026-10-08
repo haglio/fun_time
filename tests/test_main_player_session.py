@@ -5,10 +5,10 @@ from pathlib import Path
 import pytest
 from player_core.funscript import Funscript
 from player_core.modes import LoopState
+from player_core.play_points import PlayPoints
 from player_core.playback_rate import MAX_RATE, MIN_RATE
 from player_core.playlist import PlaylistItem
 
-from main_player.play_points import PlayPoints
 from main_player.session import (
     MAX_VOLUME,
     MIN_VOLUME,

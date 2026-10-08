@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from player_core.funscript import Funscript
+from player_core.heatmap import build_heatmap
 from player_core.playhead import PlayheadHudPainter, lower_edge_height, readout_xy, video_playhead
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, progress_bar_bgra
 from player_core.volume import (
@@ -37,7 +38,6 @@ from fun_time_vr.furniture import (
 from fun_time_vr.layout import MIN_WIDTH_DEG
 from fun_time_vr.pointer import Screen
 from fun_time_vr.scene import Placement
-from main_player.heatmap import build_heatmap
 
 _STROKES = Funscript(actions=[(0, 0), (500, 100), (1_000, 0), (6_000, 100), (9_000, 0)])
 

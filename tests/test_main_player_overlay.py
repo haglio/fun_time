@@ -3,10 +3,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from player_core.funscript import Funscript
+from player_core.heatmap import build_heatmap
 from player_core.modes import LoopState
 from player_core.timeline import BAR_INSET_Y, bar_track_x, progress_bar_bgra
 
-from main_player.heatmap import build_heatmap
 from main_player.overlay import (
     TIMELINE_HEIGHT,
     HeatmapStrip,

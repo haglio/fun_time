@@ -275,7 +275,11 @@ def test_no_module_reaches_into_another_ones_privates():
 # drive is slow to list, and each now says it once; the projection ring's order,
 # its restart on an unknown name and the stops the voice command listed are
 # tests and the reference row's line, so their comments went.
-MAX_PROSE_LINES = 7609
+# 7402 on 2026-10-07: the satellites run on a Funestra, so the session, the verbs,
+# the status, the HUD overlay, the volume chip and the pointer went to player_core
+# with their paragraphs, and the Main Player's play points, seeking, scripted
+# device and heatmap went the same way.
+MAX_PROSE_LINES = 7402
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

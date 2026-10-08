@@ -15,8 +15,8 @@ from pathlib import Path
 
 from player_core.file_channel import append_command
 from player_core.modes import MainMode
+from player_core.play_points import play_points_filename
 
-from main_player.play_points import play_points_filename
 from satellite.contract import SatelliteChannels
 
 from . import preview_marker
