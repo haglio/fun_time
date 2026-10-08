@@ -982,8 +982,8 @@ def _run_restack_main(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner.windows.restack_main_slot(runner.state.main_mode, paused=runner.state.omni_paused)
 
 
-def _run_restack_origenerator(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    runner.windows.restack_origenerator(
+def _run_restack_rfb(runner: DispatchLoopRunner, _op: WindowOp) -> None:
+    runner.windows.restack_rfb_slot(
         runner.state.main_mode, runner.state.satellites_mode, paused=runner.state.omni_paused)
 
 
@@ -1045,7 +1045,7 @@ _OP_HANDLERS = {
     Op.MINIMIZE_ROLE: _run_minimize_role,
     Op.RESTORE_PARKED: _run_restore_parked,
     Op.RESTACK_MAIN: _run_restack_main,
-    Op.RESTACK_ORIGENERATOR: _run_restack_origenerator,
+    Op.RESTACK_RFB: _run_restack_rfb,
     Op.DISABLE_ALL_TOPMOST: _run_disable_all_topmost,
     Op.RESTORE_ALL_TOPMOST: _run_restore_all_topmost,
     Op.SUSPEND_HOTKEYS: _run_ahk_passthrough,

@@ -1405,20 +1405,22 @@ def _satellites_slot_ops(satellites_mode: str) -> list[WindowOp]:
     of :func:`_main_slot_ops`.
 
     Entering origenerator mode restores its main window over the RFB and
-    promotes it above the fixed roles (``restack_origenerator``); the players
-    stay where they are, since they are what shows its slideshows.  Leaving
-    parks that window and takes the players back, which the loop does once the
-    app has let go of them (``take_back_players``).
+    stacks the pair (``restack_rfb``): the browser out of the band, the hosted
+    window in it.  The players stay where they are, since they are what shows
+    its slideshows.  Leaving parks that window, takes the players back once the
+    app has let go of them (``take_back_players``), and puts the browser back
+    in the band.
     """
     if satellites_mode == ORIGENERATOR_MODE:
         return [
             WindowOp(op="show_role", key="origenerator"),
             WindowOp(op="activate_role", key="origenerator"),
-            WindowOp(op="restack_origenerator"),
+            WindowOp(op="restack_rfb"),
         ]
     return [
         WindowOp(op="hide_role", key="origenerator"),
         WindowOp(op="take_back_players"),
+        WindowOp(op="restack_rfb"),
     ]
 
 

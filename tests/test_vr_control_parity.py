@@ -78,7 +78,7 @@ _CHANNELS = (
 # headset.  Listed so the sweep can tell a designed no-op from a new one.
 _OPS_WITH_NO_WINDOWS = frozenset({
     Op.NOTICE, Op.SHOW_ROLE, Op.HIDE_ROLE, Op.ACTIVATE_ROLE, Op.MINIMIZE_ROLE,
-    Op.RESTORE_PARKED, Op.RESTACK_MAIN, Op.RESTACK_ORIGENERATOR,
+    Op.RESTORE_PARKED, Op.RESTACK_MAIN, Op.RESTACK_RFB,
     Op.DISABLE_ALL_TOPMOST, Op.RESTORE_ALL_TOPMOST,
 })
 

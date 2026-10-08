@@ -248,8 +248,32 @@ class TestTopmostBands:
             for main_mode in (MainMode.KINO, MainMode.GENAU):
                 assert self._promotions(windows, "restack_main_slot",
                                         main_mode=main_mode, paused=True) == []
-            assert self._promotions(windows, "restack_origenerator", main_mode=MainMode.KINO,
+            assert self._promotions(windows, "restack_rfb_slot", main_mode=MainMode.KINO,
                                     satellites_mode="origenerator", paused=True) == []
+
+    def test_origenerator_mode_takes_the_browser_out_of_the_band_under_the_hosted_window(self):
+        """His: switching into Origenerator mode, Origenerator Core did not come
+        on top of the RFB.  The hosted app was busy opening its two shows, so
+        the restore sent to its window gave up after the stalled-window guard's
+        wait and landed after the promotion -- below the browser, which was
+        still in the band.  Out of the band, the browser cannot sit over a
+        topmost window however late that window's restore arrives."""
+        windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
+
+        calls = self._promotions(windows, "restack_rfb_slot", main_mode=MainMode.KINO,
+                                 satellites_mode="origenerator")
+
+        assert calls == [(RFB_HWND, False), (HOSTED_HWND, True)]
+
+    def test_kino_mode_puts_the_browser_back_in_the_band(self):
+        """The way back out of Origenerator mode, or the RFB would sit under
+        whatever else he has on its monitor."""
+        windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
+
+        calls = self._promotions(windows, "restack_rfb_slot", main_mode=MainMode.KINO,
+                                 satellites_mode="kino")
+
+        assert calls == [(RFB_HWND, True)]
 
 
 class TestOrigeneratorWindowConverger:
