@@ -341,6 +341,11 @@ class TestVoiceControlConfig:
         assert cfg.voice_control.confidence_threshold == 0.6
         assert cfg.voice_control.device_name == "Brio"
 
+    def test_a_config_that_names_no_model_listens_with_the_mid_size_one(self, cfg_factory):
+        cfg = load_config(cfg_factory({"voice_control": {"enabled": True}}))
+
+        assert cfg.voice_control.model_path == "vosk-model-en-us-0.22-lgraph"
+
     def test_raises_on_wrong_type(self, cfg_factory):
         path = cfg_factory({"voice_control": "not-a-dict"})
         with pytest.raises(TypeError):
