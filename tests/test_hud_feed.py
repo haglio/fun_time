@@ -80,10 +80,10 @@ def make_feed(tmp_path, *, config=None) -> HudFeed:
 
 
 def publish_satellite_status(path: Path, video, *, fraction: float = 0.1,
-                             speed: float = 1.0) -> None:
+                             speed: float = 1.0, duration_ms: int = 1000) -> None:
     path.write_text(
-        f"video={video}\nposition_ms={round(fraction * 1000)}\nduration_ms=1000\n"
-        f"paused=0\nlocked=0\nspeed={speed}\n",
+        f"video={video}\nposition_ms={round(fraction * duration_ms)}\n"
+        f"duration_ms={duration_ms}\npaused=0\nlocked=0\nspeed={speed}\n",
         encoding="utf-8",
     )
 
@@ -106,6 +106,12 @@ def reset_button(published: dict) -> dict:
     """The reset button a published panel declares, as written."""
     return next(button for row in published["rows"] for button in row
                 if button["command"].endswith("reset"))
+
+
+def ten_second_steps(published: dict) -> list[dict]:
+    """The back and forward 10s buttons a published panel declares, as written."""
+    return [button for row in published["rows"] for button in row
+            if button.get("command", "").endswith(("_nudge_prev", "_nudge_next"))]
 
 
 def version_button(published: dict) -> dict:
@@ -325,6 +331,21 @@ class TestHudPublishing:
         assert not reset_button(panel(tmp_path, "portrait")).get("dim")
         assert reset_button(panel(tmp_path, "landscape"))["dim"] is True
 
+    def test_a_side_on_a_clip_of_ten_seconds_or_shorter_dims_its_ten_second_steps(
+            self, tmp_path):
+        feed = make_feed(tmp_path)
+        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4",
+                                 duration_ms=10_000)
+        publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/landscape.mp4",
+                                 duration_ms=10_001)
+
+        feed.publish(BridgeState())
+
+        assert [step.get("dim") for step in ten_second_steps(panel(tmp_path, "portrait"))] == [
+            True, True]
+        assert [step.get("dim") for step in ten_second_steps(panel(tmp_path, "landscape"))] == [
+            None, None]
+
     def test_the_versions_button_lights_for_a_clip_the_library_has_twice(self, tmp_path):
         """The upscale the side plays and the sorted original it was made from:
         the button is pressable exactly where there is a second rendition on
@@ -485,6 +506,20 @@ class TestHudPublishing:
         assert shape_buttons(make_config(tmp_path)) == set()
         assert shape_buttons(make_config(tmp_path, genau_vr_clips=str(tmp_path / "vr_clips"))) == {
             ("main_projection_both", False), ("main_projection_none", True)}
+
+    def test_the_consoles_ten_second_steps_are_dim_on_a_video_of_ten_seconds_or_shorter(
+            self, tmp_path):
+        feed, state = make_feed(tmp_path), BridgeState()
+        status = feed.config.main_player_status_file
+
+        status.write_text("video=C:/v/n.mp4\nduration_ms=9000\n", encoding="utf-8")
+        feed.publish(state)
+        short = [step.get("dim") for step in ten_second_steps(console(tmp_path))]
+        status.write_text("video=C:/v/n.mp4\nduration_ms=90000\n", encoding="utf-8")
+        feed.publish(state)
+        longer = [step.get("dim") for step in ten_second_steps(console(tmp_path))]
+
+        assert (short, longer) == ([True, True], [None, None])
 
     def test_the_consoles_reset_is_faded_while_there_is_nothing_to_put_back(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()

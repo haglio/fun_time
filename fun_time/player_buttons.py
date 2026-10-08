@@ -15,13 +15,22 @@ SHUFFLE_ICON = shared_mark("shuffle")
 LATEST_ICON = shared_mark("latest")
 VERSIONS_ICON = shared_mark("versions")
 _NONE_FOR_THIS_ONE = " (none for this one)"
+MAIN_PLAYER_NOUN = "video"
+SATELLITE_NOUN = "clip"
 
 
-def transport(player: str, *, noun: str) -> tuple[Button, ...]:
+def too_short_to_step(noun: str) -> str:
+    return f"this {noun} is 10s or shorter"
+
+
+def transport(player: str, *, noun: str, longer_than_a_step: bool) -> tuple[Button, ...]:
+    too_short = "" if longer_than_a_step else f" ({too_short_to_step(noun)})"
     return (
         Button(f"{player}_prev", PREV_FACE, f"Previous {noun}"),
-        Button(f"{player}_nudge_prev", "⏪", "Back 10s"),
-        Button(f"{player}_nudge_next", "⏩", "Forward 10s"),
+        Button(f"{player}_nudge_prev", "⏪", f"Back 10s{too_short}",
+               dim=not longer_than_a_step),
+        Button(f"{player}_nudge_next", "⏩", f"Forward 10s{too_short}",
+               dim=not longer_than_a_step),
         Button(f"{player}_next", NEXT_FACE, f"Next {noun}"),
     )
 

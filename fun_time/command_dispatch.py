@@ -33,6 +33,8 @@ from player_core.player_verbs import (
 )
 from player_core.robot_hand import FULL_INTENSITY
 
+from main_player.controls import longer_than_a_step
+
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import BridgeConfig, WindowOp
 from .broker_control import HOLD_VERB, PARK_CMD, RESUME_CMD, write_broker_command
@@ -59,6 +61,7 @@ from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE, main_player_displays
 from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
 from .osr2_section import TAKE_OSR2_COMMANDS, player_with_the_osr2, take_osr2_command
+from .player_buttons import MAIN_PLAYER_NOUN, SATELLITE_NOUN, too_short_to_step
 from .player_status import MainPlayerStatus, read_genau_status, read_main_player_status
 from .players import Player
 from .random_favs_browser import FavEntry, target_for_fav
@@ -1544,16 +1547,41 @@ def _transport(player: Player, verb: str, state: BridgeState, config: BridgeConf
     return state, []
 
 
-_SATELLITE_PLAYBACK: dict[str, tuple[Player, str]] = {
+_SATELLITE_SPEEDS: dict[str, tuple[Player, str]] = {
     f"{player.label}_{act}": (player, verb)
     for player in Player.SATELLITES
-    for act, verb in {**_PLAYBACK_RATE_ACTS, **_PLAYHEAD_ACTS}.items()
+    for act, verb in _PLAYBACK_RATE_ACTS.items()
 }
 
 
-def _to_the_satellite(player: Player, verb: str, state: BridgeState, config: BridgeConfig,
-                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+def _satellite_speed(player: Player, verb: str, state: BridgeState, config: BridgeConfig,
+                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     send_satellite(config, player, verb)
+    return state, []
+
+
+_PLAYHEAD_COMMANDS: dict[str, tuple[Player, str]] = {
+    f"{player.label}_{act}": (player, verb)
+    for player in Player
+    for act, verb in _PLAYHEAD_ACTS.items()
+}
+
+
+def _step_through(player: Player, verb: str, state: BridgeState, config: BridgeConfig,
+                  _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    if player is Player.MAIN:
+        duration_ms = read_main_player_status(config.main_player_status_file).duration_ms
+        noun = MAIN_PLAYER_NOUN
+    else:
+        duration_ms = read_satellite_status(config.satellite(player).status_file).duration_ms
+        noun = SATELLITE_NOUN
+    if not longer_than_a_step(duration_ms):
+        return state, [WindowOp(op="notice", key=too_short_to_step(noun).capitalize(),
+                                source=_PLAYER_NOTICE_SOURCE[player], level=logging.WARNING)]
+    if player is Player.MAIN:
+        append_command(config.main_player_cmd_file, verb)
+    else:
+        send_satellite(config, player, verb)
     return state, []
 
 
@@ -1772,8 +1800,10 @@ def _build_handlers() -> dict[str, Handler]:
     handlers: dict[str, Handler] = {}
     handlers.update({cmd: partial(_transport, player, verb)
                      for cmd, (player, verb) in _TRANSPORT_COMMANDS.items()})
-    handlers.update({cmd: partial(_to_the_satellite, player, verb)
-                     for cmd, (player, verb) in _SATELLITE_PLAYBACK.items()})
+    handlers.update({cmd: partial(_satellite_speed, player, verb)
+                     for cmd, (player, verb) in _SATELLITE_SPEEDS.items()})
+    handlers.update({cmd: partial(_step_through, player, verb)
+                     for cmd, (player, verb) in _PLAYHEAD_COMMANDS.items()})
     handlers["portrait_lock"] = partial(_toggle_lock, Player.PORTRAIT)
     handlers["landscape_lock"] = partial(_toggle_lock, Player.LANDSCAPE)
     handlers.update({cmd: partial(_lock_as_said, player, locked)
@@ -1798,8 +1828,6 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, player in _LOCK_ACTION_SIDES.items()})
     handlers["main_prev"] = partial(_forward_to_main_player, PREV)
     handlers["main_next"] = partial(_forward_to_main_player, NEXT)
-    handlers.update({f"main_{act}": partial(_forward_to_main_player, verb)
-                     for act, verb in _PLAYHEAD_ACTS.items()})
     handlers.update({cmd: partial(_main_lock, verb)
                      for cmd, verb in _MAIN_LOCK_COMMANDS.items()})
     handlers["genau_lock"] = partial(_main_lock, TOGGLE_LOCK)

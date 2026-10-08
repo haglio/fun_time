@@ -59,11 +59,16 @@ __all__ = [
     "VERBS",
     "MainPlayerControls",
     "apply_command",
+    "longer_than_a_step",
 ]
 
 logger = logging.getLogger(__name__)
 
 SEEK_STEP_MS = 10_000
+
+
+def longer_than_a_step(duration_ms: float) -> bool:
+    return duration_ms > SEEK_STEP_MS
 
 
 @dataclass

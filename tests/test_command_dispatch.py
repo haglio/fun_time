@@ -31,7 +31,7 @@ from fun_time.command_dispatch import (
 )
 from fun_time.content import WebProvider, load_content, load_web_providers
 from fun_time.crown import Crown
-from fun_time.event_log import FAVORITE, NOTICE
+from fun_time.event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.lock_hud import hud_map_cells
 from fun_time.loopback_server import omnipause_url
 from fun_time.main_list_builds import MainListBuild
@@ -1844,10 +1844,15 @@ def test_reset_still_fires_for_any_one_thing_left_narrowing_the_side(
     assert [op.key for op in ops] == ["Reset"]
 
 
-def _publish_speed(config: BridgeConfig, player: Player, speed: float) -> None:
-    status_file = config.satellite(player).status_file
+def _publish_status(status_file: Path, **fields) -> None:
     status_file.parent.mkdir(parents=True, exist_ok=True)
-    status_file.write_text(f"video=C:/v/a.mp4\nspeed={speed}\n", encoding="utf-8")
+    status_file.write_text("".join(f"{key}={value}\n" for key, value in
+                                   {"video": "C:/v/a.mp4", **fields}.items()),
+                           encoding="utf-8")
+
+
+def _publish_speed(config: BridgeConfig, player: Player, speed: float) -> None:
+    _publish_status(config.satellite(player).status_file, speed=speed)
 
 
 def test_reset_puts_the_sides_speed_back_to_normal_as_the_main_players_does(tmp_path: Path):
@@ -3327,6 +3332,7 @@ def test_leaving_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
 def test_the_main_players_nudge_pair_seeks_the_main_player_in_either_mode(
         tmp_path: Path, main_mode: MainMode):
     config = _make_config(tmp_path)
+    _publish_status(config.main_player_status_file, duration_ms=60_000)
     state = _make_state(main_mode=main_mode)
 
     _state, back_ops = dispatch_command("main_nudge_prev", state, config)
@@ -3339,6 +3345,8 @@ def test_the_main_players_nudge_pair_seeks_the_main_player_in_either_mode(
 def test_a_satellites_nudge_pair_seeks_that_satellite_and_leaves_its_lock_alone(
         tmp_path: Path):
     config = _make_config(tmp_path)
+    for player in Player.SATELLITES:
+        _publish_status(config.satellite(player).status_file, duration_ms=60_000)
     state = _make_state(portrait=SatelliteState(locked=True))
 
     state, forward_ops = dispatch_command("portrait_nudge_next", state, config)
@@ -3350,6 +3358,26 @@ def test_a_satellites_nudge_pair_seeks_that_satellite_and_leaves_its_lock_alone(
     assert _cmds(config, Player.LANDSCAPE) == ["SEEK_FWD"]
     assert state.satellite(Player.PORTRAIT).locked is True
     assert not config.main_player_cmd_file.exists()
+
+
+@pytest.mark.parametrize(("command", "status_of", "notice"), [
+    ("main_nudge_next", lambda config: config.main_player_status_file,
+     ("This video is 10s or shorter", SOURCE_MAIN)),
+    ("portrait_nudge_prev", lambda config: config.satellite(Player.PORTRAIT).status_file,
+     ("This clip is 10s or shorter", SOURCE_PORTRAIT)),
+])
+def test_a_ten_second_step_on_a_video_of_ten_seconds_or_shorter_does_nothing_and_says_why(
+        tmp_path: Path, command, status_of, notice):
+    """The HUD draws the pair faded there; a key or a spoken word for it is
+    refused the same way, with what the faded button's hover says."""
+    config = _make_config(tmp_path)
+    _publish_status(status_of(config), duration_ms=10_000)
+
+    _state, ops = dispatch_command(command, _make_state(), config)
+
+    assert [(op.op, op.key, op.source) for op in ops] == [("notice", *notice)]
+    assert not config.main_player_cmd_file.exists()
+    assert _cmds(config, Player.PORTRAIT) == []
 
 
 # --- main_player record commands ---

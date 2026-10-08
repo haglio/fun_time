@@ -13,6 +13,8 @@ from player_core.console import console_text
 from player_core.drive_readout import read_drive
 from player_core.satellite_hud import HudModel, hud_text, parse_hud
 
+from main_player.controls import longer_than_a_step
+
 from .bridge_records import BridgeConfig
 from .command_dispatch import (
     genau_clip_shapes,
@@ -113,6 +115,7 @@ class HudFeed:
                 is_favorite=is_favorite_path(current, favs),
                 nothing_to_reset=satellite_at_defaults(values, status),
                 has_other_versions=bool(renditions(current, self.config.regen_media_root)),
+                longer_than_a_step=longer_than_a_step(status.duration_ms),
             )
 
         if self.config.origenerator_enabled and origenerator_shows(state.satellites_mode):

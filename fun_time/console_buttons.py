@@ -27,6 +27,7 @@ from .mode_plan import main_player_displays
 from .osr2_section import take_osr2_button
 from .player_buttons import (
     LOCK_FACE,
+    MAIN_PLAYER_NOUN,
     NEXT_FACE,
     PREV_FACE,
     TRASH_ICON,
@@ -62,6 +63,7 @@ class MainSlot:
     compilation: str = ""
     has_compilation: bool = False
     has_other_versions: bool = False
+    longer_than_a_step: bool = False
     jump_to: str = ""
     favorites_filter: bool | None = None
     enhanced_filter: bool | None = None
@@ -99,7 +101,6 @@ MODE_BUTTONS = (
     ("main_kino_activate", "Kino", MainMode.KINO),
     ("genau_activate", "Genau", MainMode.GENAU),
 )
-_VIDEO = "video"
 
 
 def console_rows(slot: MainSlot, *, in_vr: bool = False) -> tuple[tuple[Button, ...], ...]:
@@ -223,8 +224,8 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
     if main_player_displays(slot.main_mode):
         remembered = bool(slot.compilation)
         return (
-            *transport("main", noun=_VIDEO),
-            lock_button("main", locked=slot.locked, noun=_VIDEO),
+            *transport("main", noun=MAIN_PLAYER_NOUN, longer_than_a_step=slot.longer_than_a_step),
+            lock_button("main", locked=slot.locked, noun=MAIN_PLAYER_NOUN),
             Button("main_fmode", FMODE_ICON,
                    "F-Mode — play only the videos that have a funscript",
                    lit=slot.scripted_filter, favorite=True),
@@ -234,7 +235,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
             *_length_buttons(slot, remembered=remembered),
             _compilation_button(slot),
             _clip_scene_button(slot),
-            versions_button("main_player_cycle_version", noun=_VIDEO,
+            versions_button("main_player_cycle_version", noun=MAIN_PLAYER_NOUN,
                             has_other_versions=slot.has_other_versions),
         )
     return (

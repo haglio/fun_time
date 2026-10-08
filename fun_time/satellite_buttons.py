@@ -10,6 +10,7 @@ from player_core.modes import SatellitesMode
 
 from .crown import CROWN_ICON, Crown
 from .player_buttons import (
+    SATELLITE_NOUN,
     TRASH_ICON,
     browse_order_buttons,
     lock_button,
@@ -33,7 +34,6 @@ MODE_TOOLTIPS = {
 # waiting out that app's boot, and a hover over a button that cannot be pressed
 # has to say why.
 STILL_STARTING_TOOLTIP = "Origenerator is still starting — this lights up when it is ready"
-_CLIP = "clip"
 
 
 def player_rows(player: str, *, locked: bool = False, favorites_filter: bool = False,
@@ -42,6 +42,7 @@ def player_rows(player: str, *, locked: bool = False, favorites_filter: bool = F
                 origenerator_ready: bool = True,
                 nothing_to_reset: bool = False,
                 has_other_versions: bool = False,
+                longer_than_a_step: bool = False,
                 in_vr: bool = False,
                 crowned: bool = False) -> tuple[tuple[Button, ...], ...]:
     rows: list[tuple[Button, ...]] = []
@@ -50,8 +51,8 @@ def player_rows(player: str, *, locked: bool = False, favorites_filter: bool = F
                              origenerator_ready=origenerator_ready, in_vr=in_vr,
                              crowned=crowned))
     rows.append((
-        *transport(player, noun=_CLIP),
-        lock_button(player, locked=locked, noun=_CLIP),
+        *transport(player, noun=SATELLITE_NOUN, longer_than_a_step=longer_than_a_step),
+        lock_button(player, locked=locked, noun=SATELLITE_NOUN),
         Button(f"{player}_trash", TRASH_ICON,
                "Unfavorite it — or mark weird when it is not a favorite", danger=True),
         Button(f"{player}_fmode", FMODE_ICON,
@@ -59,7 +60,7 @@ def player_rows(player: str, *, locked: bool = False, favorites_filter: bool = F
                lit=favorites_filter, favorite=True),
         reset_button(player, nothing_to_reset=nothing_to_reset),
         *browse_order_buttons(player, latest=latest),
-        versions_button(f"{player}_cycle_version", noun=_CLIP,
+        versions_button(f"{player}_cycle_version", noun=SATELLITE_NOUN,
                         has_other_versions=has_other_versions),
         *(() if in_vr or satellites_mode is not None
           else (minimize_button(player), *_crown(player, crowned))),

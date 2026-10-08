@@ -167,6 +167,16 @@ def test_the_typed_faces_are_in_the_painters_symbol_face():
         assert typed_in_the_symbol_face(face), ascii(face)
 
 
+def test_the_ten_second_steps_are_dim_on_a_clip_of_ten_seconds_or_shorter():
+    """There is nothing to step through, and a step would only end the clip."""
+    short = {b.command: b for b in _band(longer_than_a_step=False)}
+    longer = {b.command: b for b in _band(longer_than_a_step=True)}
+
+    for step in ("portrait_nudge_prev", "portrait_nudge_next"):
+        assert short[step].dim and "this clip is 10s or shorter" in short[step].tooltip
+        assert not longer[step].dim and "shorter" not in longer[step].tooltip
+
+
 def test_the_versions_button_is_dim_where_the_clip_has_only_itself():
     """The console's own versions mark, and dim where there is nothing to step
     to — the way the main player's is, with the hover saying so."""

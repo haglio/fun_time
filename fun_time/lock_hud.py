@@ -114,6 +114,7 @@ class HudPanel:
     # nothing to put back -- the button is drawn faded and takes no press.
     nothing_to_reset: bool = False
     has_other_versions: bool = False
+    longer_than_a_step: bool = False
     crowned: bool = False
 
 
@@ -299,6 +300,7 @@ class SatelliteInputs:
     is_favorite: bool = False
     nothing_to_reset: bool = False
     has_other_versions: bool = False
+    longer_than_a_step: bool = False
 
 
 @dataclass(frozen=True)
@@ -499,6 +501,7 @@ def build_hud_panel(
         in_vr=in_vr,
         nothing_to_reset=inputs.nothing_to_reset,
         has_other_versions=inputs.has_other_versions,
+        longer_than_a_step=inputs.longer_than_a_step,
         crowned=crowned,
     )
 
