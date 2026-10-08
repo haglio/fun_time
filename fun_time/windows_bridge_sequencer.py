@@ -808,6 +808,8 @@ def _run_startup_phases(
             dashboard_pid=ui_pids["dashboard_pid"], progress=progress,
             players=launched.players)
 
+    raise_if_a_player_died(launched.players)
+
     # A session with nothing to hide under starts playing as soon as it is
     # built.  One with a cover does NOT: the orchestrator calls this once the
     # cover is off, since a player released under it loses its first seconds of
