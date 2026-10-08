@@ -108,7 +108,7 @@ def display_forms(acts: Acts | None = None) -> tuple[str, ...]:
     """The acts under their real names — what the reference shows.
 
     A spoken form is what the *recognizer* can hear, and that is not always what
-    the act is called: where the small model has no token for a word, the form
+    the act is called: where the model has no token for a word, the form
     spells it with tokens the model does have, which is what the model produces
     when the real word is said aloud.  The query keeps the real term, so that is
     what the reference shows — printing the workaround would teach the reader a
