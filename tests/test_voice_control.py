@@ -86,7 +86,7 @@ class TestCommandRules:
         assert {rules.said_in(phrase) for phrase in
                 ("go now", "go now mode", "next go now", "portrait go now")} == {"de"}
         assert {rules.said_in(phrase) for phrase in
-                ("video mode", "clip seconds five", "weird clip", "next")} == {None}
+                ("kino mode", "clip seconds five", "weird clip", "next")} == {None}
 
     def test_the_second_listener_is_handed_genau_whichever_spelling_the_first_heard(self):
         rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
