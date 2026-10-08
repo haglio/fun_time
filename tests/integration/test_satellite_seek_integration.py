@@ -13,11 +13,11 @@ from pathlib import Path
 
 import pytest
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+from player_core.funestra_controls import SEEK_STEP_MS
 from player_core.player_verbs import SEEK_BACK, SEEK_FWD
 
 from fun_time.runtime_flow import write_flag_file
 from fun_time.satellite_control import read_satellite_status
-from main_player.controls import SEEK_STEP_MS
 
 from .integration_support import published_status, wait_for
 from .test_satellite_navigation_integration import launched

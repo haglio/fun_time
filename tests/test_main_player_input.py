@@ -1,14 +1,8 @@
-"""What arrives in the main player's window, and what it is taken to mean.
+"""What arrives in the Main Funestra's window, and what it is taken to mean.
 
-The translation itself: which SDL event reaches the pointer and which is the
-window being closed -- and that a key reaches nothing, the room's keyboard
-being Fun Time's.  Until the dealer was pulled out of the run loop no test fed
-a pygame event to anything, so the mapping from ``ev.button`` /
-``ev.buttons`` / ``ev.pos`` to a collaborator's call was unpinned, including the
-two places a wrong index quietly turns a drag into a hover.
-
-What each collaborator then DOES is theirs, and is tested in
-test_main_player_pointer and test_main_player_dashboard.
+The translation itself: which SDL event reaches the Funestra as a press, a
+release, a move or the window being closed -- and that a key reaches nothing,
+the room's keyboard being Fun Time's.
 """
 from __future__ import annotations
 
@@ -18,126 +12,105 @@ import pygame
 
 from main_player.input import Input
 
-WIN_W, WIN_H = 1000, 600
+WINDOW = (1000, 600)
 
 
-class SpyPointer:
+class SpyFunestra:
     def __init__(self) -> None:
         self.calls: list[tuple] = []
 
-    def press(self, mx, my, *, win_w, win_h) -> None:
-        self.calls.append(("press", mx, my, win_w, win_h))
+    def close_requested(self) -> None:
+        self.calls.append(("close_requested",))
+
+    def press(self, x, y, *, window) -> None:
+        self.calls.append(("press", x, y, window))
 
     def release(self) -> None:
         self.calls.append(("release",))
 
-    def motion(self, mx, my, *, held, win_w, win_h) -> None:
-        self.calls.append(("motion", mx, my, held, win_w, win_h))
+    def motion(self, x, y, *, held, window) -> None:
+        self.calls.append(("motion", x, y, held, window))
 
 
-class SpyDashboard:
-    def __init__(self) -> None:
-        self.asked = 0
-
-    def take_quit_gesture(self) -> None:
-        self.asked += 1
-
-
-def _input() -> tuple[Input, SpyPointer, SpyDashboard]:
-    pointer, dashboard = SpyPointer(), SpyDashboard()
-    return Input(pointer, dashboard), pointer, dashboard
+def _input() -> tuple[Input, SpyFunestra]:
+    funestra = SpyFunestra()
+    return Input(funestra), funestra
 
 
 def _deal(window_input, *events) -> None:
-    window_input.deal(events, WIN_W, WIN_H)
+    window_input.deal(events, WINDOW)
 
 
 class TestTheWindowBeingClosed:
-    def test_a_quit_gesture_is_asked_of_the_session_rather_than_taken(self):
-        """The close button and Alt+F4 arrive here.  In a session it is the session
-        that goes, not this one window out of six -- see main_player.dashboard."""
-        window_input, _p, dashboard = _input()
+    def test_a_quit_gesture_is_the_funestras_to_answer(self):
+        """The close button and Alt+F4 arrive here; in a session it is the
+        session that goes, not this one window, and the Funestra knows."""
+        window_input, funestra = _input()
 
         _deal(window_input, SimpleNamespace(type=pygame.QUIT))
 
-        assert dashboard.asked == 1
+        assert funestra.calls == [("close_requested",)]
+
 
 class TestTheMouse:
     def test_a_left_press_lands_at_its_place_in_this_window(self):
-        """The size comes from the frame rather than the event, so everything in
-        one frame is read against one window."""
-        window_input, pointer, _d = _input()
+        window_input, funestra = _input()
 
-        _deal(window_input, SimpleNamespace(
-            type=pygame.MOUSEBUTTONDOWN, button=1, pos=(120, 480)))
+        _deal(window_input, SimpleNamespace(type=pygame.MOUSEBUTTONDOWN, button=1, pos=(120, 480)))
 
-        assert pointer.calls == [("press", 120, 480, WIN_W, WIN_H)]
+        assert funestra.calls == [("press", 120, 480, WINDOW)]
 
     def test_a_left_release_ends_whatever_was_held(self):
-        window_input, pointer, _d = _input()
+        window_input, funestra = _input()
 
         _deal(window_input, SimpleNamespace(type=pygame.MOUSEBUTTONUP, button=1))
 
-        assert pointer.calls == [("release",)]
+        assert funestra.calls == [("release",)]
 
     def test_the_other_buttons_do_nothing_at_all(self):
-        """Right, middle and the two wheel buttons: nothing on this HUD answers
-        them, and a press that fell through to the left button's branch would
-        seek the video from wherever the right button was clicked."""
-        window_input, pointer, _d = _input()
+        window_input, funestra = _input()
 
         for button in (2, 3, 4, 5):
             _deal(window_input,
                   SimpleNamespace(type=pygame.MOUSEBUTTONDOWN, button=button, pos=(1, 2)),
                   SimpleNamespace(type=pygame.MOUSEBUTTONUP, button=button))
 
-        assert pointer.calls == []
+        assert funestra.calls == []
 
     def test_a_drag_is_a_move_with_the_left_button_down(self):
-        """``buttons`` is the whole mouse, left first; reading another slot
-        turns every drag into a hover and the timeline stops scrubbing."""
-        window_input, pointer, _d = _input()
+        window_input, funestra = _input()
 
-        _deal(window_input, SimpleNamespace(
-            type=pygame.MOUSEMOTION, pos=(300, 200), buttons=(1, 0, 0)))
+        _deal(window_input, SimpleNamespace(type=pygame.MOUSEMOTION, pos=(300, 200), buttons=(1, 0, 0)))
 
-        assert pointer.calls == [("motion", 300, 200, True, WIN_W, WIN_H)]
+        assert funestra.calls == [("motion", 300, 200, True, WINDOW)]
 
     def test_a_move_with_nothing_held_is_a_hover(self):
-        window_input, pointer, _d = _input()
+        window_input, funestra = _input()
 
-        _deal(window_input, SimpleNamespace(
-            type=pygame.MOUSEMOTION, pos=(300, 200), buttons=(0, 1, 0)))
+        _deal(window_input, SimpleNamespace(type=pygame.MOUSEMOTION, pos=(300, 200), buttons=(0, 1, 0)))
 
-        assert pointer.calls == [("motion", 300, 200, False, WIN_W, WIN_H)]
+        assert funestra.calls == [("motion", 300, 200, False, WINDOW)]
 
 
 class TestTheKeyboard:
     def test_a_key_pressed_on_the_window_reaches_nothing(self):
-        """Fun Time's hotkeys are the keyboard for the whole room.  Keys this
-        window answered itself were the main player's standalone ones, and while
-        OmniPause has the room's keys switched off they went through to a room
-        that is supposed to hear nothing."""
-        window_input, pointer, dashboard = _input()
+        window_input, funestra = _input()
 
         _deal(window_input,
               SimpleNamespace(type=pygame.KEYDOWN, key=pygame.K_q, mod=pygame.KMOD_CTRL),
               SimpleNamespace(type=pygame.KEYDOWN, key=pygame.K_ESCAPE, mod=0),
-              SimpleNamespace(type=pygame.KEYDOWN, key=pygame.K_r, mod=0),
               SimpleNamespace(type=pygame.KEYUP, key=pygame.K_r, mod=0))
 
-        assert (pointer.calls, dashboard.asked) == ([], 0)
+        assert funestra.calls == []
 
 
 class TestAFrameOfEvents:
     def test_they_are_answered_in_the_order_they_arrived(self):
-        """SDL's queue is the order the user did things in, and a press
-        answered after the release that ended it leaves the drag latched."""
-        window_input, pointer, _d = _input()
+        window_input, funestra = _input()
 
         _deal(window_input,
               SimpleNamespace(type=pygame.MOUSEBUTTONDOWN, button=1, pos=(10, 20)),
               SimpleNamespace(type=pygame.MOUSEMOTION, pos=(11, 20), buttons=(1, 0, 0)),
               SimpleNamespace(type=pygame.MOUSEBUTTONUP, button=1))
 
-        assert [call[0] for call in pointer.calls] == ["press", "motion", "release"]
+        assert [call[0] for call in funestra.calls] == ["press", "motion", "release"]

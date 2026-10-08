@@ -15,6 +15,7 @@ from app_support.file_channel import read_key_values, write_flag
 from app_support.funscript import document, write
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from player_core.file_channel import append_command
+from player_core.funestra_controls import SEEK_STEP_MS
 from player_core.modes import LoopState
 from player_core.player_verbs import RELOAD_PLAYLIST, SET_SPEED, play_file
 from player_core.playlist import PlaylistItem
@@ -33,7 +34,6 @@ from fun_time.win32 import (
 )
 from fun_time.win32_process import is_process_alive
 from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
-from main_player.controls import SEEK_STEP_MS
 
 from .integration_support import (
     COMMAND_BUDGET_S,

@@ -10,8 +10,8 @@ from pathlib import Path
 
 from player_core.funestra import Channels
 
-#: field, the flag it is given by, and the kind of file a side carries it as in
-#: the launch manifest -- ``None`` where the manifest does not spell it per side.
+#: field, the flag it is given by -- none for the main slot's console, which no
+#: satellite is given -- and the manifest's kind of file, ``None`` where it has none.
 CHANNELS = (
     ("playlist", "--playlist", "playlist"),
     ("command", "--command-file", "cmd"),
@@ -19,6 +19,7 @@ CHANNELS = (
     ("status", "--status-file", "status"),
     ("play_points", "--play-points-file", None),
     ("hud", "--hud-file", "hud"),
+    ("console", None, None),
     ("dashboard_cmd", "--dashboard-cmd-file", None),
     ("drive", "--drive-file", None),
     ("tcode_host", "--tcode-host", None),
@@ -40,6 +41,8 @@ PLACEMENT = (
 def _argv(record, table) -> list[str]:
     words: list[str] = []
     for field, flag, *_ in table:
+        if flag is None:
+            continue
         value = getattr(record, field)
         if isinstance(value, bool):
             words += [flag] if value else []

@@ -9,7 +9,7 @@ from main_player.cli import (
     build_parser,
     library_source,
     mode_memory,
-    play_points,
+    play_points_path,
     resolve_playlist,
 )
 from main_player.library import SHORTS
@@ -417,11 +417,7 @@ class TestWhereMainPlayerKeepsItsState:
     def test_the_state_dir_holds_where_each_video_was_left(self, tmp_path):
         args = build_parser({}).parse_args(["--state-dir", str(tmp_path)])
 
-        points = play_points(args)
-        for _tick in range(2):
-            points.observe(tmp_path / "a.mp4", position_ms=300_000, duration_ms=3_600_000)
-
-        assert (tmp_path / "main_player_play_points.json").exists()
+        assert play_points_path(args) == tmp_path / "main_player_play_points.json"
 
     def test_with_no_state_dir_it_falls_back_beside_its_config(self, tmp_path):
         """Standalone there is no orchestrator to hand one, and writing into the

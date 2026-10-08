@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from player_core.control_registry import Control, Verb, bind, look_up
+from player_core.funestra_controls import SEEK_STEP_MS
 from player_core.funscript import Funscript
 from player_core.funscript import load as load_funscript
 from player_core.modes import LoopState
@@ -45,13 +46,13 @@ from player_core.player_verbs import (
 )
 from player_core.playlist import item_from_line, read_playlist
 from player_core.robot_hand import FULL_INTENSITY
+from player_core.scripted_device import REWIND_MS
 from player_core.seeking import OwedSeek, seek_if_taken
 from player_core.status import PlayerStatus
 from player_core.status import status_fields as player_status_fields
 
 from fun_time.event_log import SOURCE_MAIN, notice
 from fun_time.media_metadata import load_metadata, metadata_path_for, video_title
-from main_player.controls import SEEK_STEP_MS
 from main_player.loop_machine import LoopMachine
 from main_player.loop_verbs import (
     LOOP_CANCEL,
@@ -172,6 +173,7 @@ class MainRole:
         self._tcode_enabled = True
         self._locked = True
         self._stepped_at_eof = False
+        self._last_pos_ms = 0.0
         self._scripted_filter = False
         self._funscript: Funscript | None = None
         self._projections: dict[str, str] = {}
@@ -385,8 +387,12 @@ class MainRole:
         position_ms = self._player.position_ms
         self._play_points.observe(
             self.current_video, position_ms, self._player.duration_ms)
+        rewound = position_ms + REWIND_MS < self._last_pos_ms
+        self._last_pos_ms = position_ms
         if self._loops.observe(position_ms):
             return
+        if rewound:
+            self._take_the_device_over()
         if not self._tcode_enabled:
             return
         if not self._the_screen_has_resumed():
@@ -468,6 +474,7 @@ class MainRole:
         self._index = index % len(self._entries)
         item = self._entries[self._index]
         logger.info("Main loading: %s", item.path.name)
+        self._last_pos_ms = 0.0
         self._player.load(item.path)
         self._player.set_paused(self._paused)
         self._player.set_speed(self._speed)
