@@ -51,6 +51,7 @@ from player_core.status import status_fields as player_status_fields
 
 from fun_time.event_log import SOURCE_MAIN, notice
 from fun_time.media_metadata import load_metadata, metadata_path_for, video_title
+from main_player.controls import SEEK_STEP_MS
 from main_player.loop_machine import LoopMachine
 from main_player.loop_verbs import (
     LOOP_CANCEL,
@@ -65,9 +66,6 @@ from .projection import ProjectionMemory, next_projection, previous_projection
 from .video_scenes import scene_starts_ms
 
 logger = logging.getLogger(__name__)
-
-# The desktop main player's own seek step (main_player.controls), so the primary seeks alike in and out of the headset.
-SEEK_STEP_MS = 10_000
 
 SCENE_JUST_BEGUN_MS = 3_000
 SCENE_JUMP_LANDS_WITHIN_MS = 500
