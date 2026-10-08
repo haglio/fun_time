@@ -279,7 +279,11 @@ def test_no_module_reaches_into_another_ones_privates():
 # the status, the HUD overlay, the volume chip and the pointer went to player_core
 # with their paragraphs, and the Main Player's play points, seeking, scripted
 # device and heatmap went the same way.
-MAX_PROSE_LINES = 7401
+# 6720 on 2026-10-08: the Main Player became the Main Funestra, so its painter,
+# pointer, overlay, volume chip, published files, display, dashboard and session
+# went to player_core with their paragraphs, and what stayed as Kino says what
+# it does in names and tests.
+MAX_PROSE_LINES = 6720
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

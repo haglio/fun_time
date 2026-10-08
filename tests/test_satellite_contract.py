@@ -86,7 +86,7 @@ class TestNothingHasDrifted:
         accepted = {action.option_strings[0]
                     for action in build_parser()._actions if action.option_strings}
 
-        declared = {flag for _field, flag, _kind in CHANNELS}
+        declared = {flag for _field, flag, _kind in CHANNELS if flag is not None}
         declared |= {flag for _field, flag in PLACEMENT}
 
         assert declared <= accepted, declared - accepted
@@ -96,7 +96,7 @@ class TestNothingHasDrifted:
         added to the parser alone is a value the launcher can never pass."""
         accepted = {action.option_strings[0]
                     for action in build_parser()._actions if action.option_strings}
-        declared = {flag for _field, flag, _kind in CHANNELS}
+        declared = {flag for _field, flag, _kind in CHANNELS if flag is not None}
         declared |= {flag for _field, flag in PLACEMENT}
         # --help is argparse's own, and --no-audio is a policy rather than a
         # channel or a placement: a satellite opens muted either way, and the

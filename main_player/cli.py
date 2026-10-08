@@ -13,7 +13,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app_support import ports
-from player_core.play_points import PlayPoints, play_points_filename
+from player_core.play_points import play_points_filename
 from player_core.playlist import PlaylistItem, read_playlist
 
 from fun_time.win32_desktop import on_hidden_desktop
@@ -112,8 +112,8 @@ def mode_memory(args) -> ModeMemory:
     return ModeMemory(_state_path(args, "main_player_mode.txt"))
 
 
-def play_points(args) -> PlayPoints:
-    return PlayPoints(_state_path(args, play_points_filename("main_player")))
+def play_points_path(args) -> Path:
+    return _state_path(args, play_points_filename("main_player"))
 
 
 def library_source(

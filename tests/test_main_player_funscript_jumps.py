@@ -23,21 +23,26 @@ _LATE = Funscript(actions=[(60000, 0), (60300, 100), (60600, 0)])
 
 
 class FakeSession:
-    """Records the moves the jumps drive, over a fixed playlist."""
+    """Records the moves the jumps drive, over a fixed playlist, in the
+    Funestra's shape: a list of files, and the script named beside each."""
 
     def __init__(self, playlist, *, index: int = 0, funscripts=None) -> None:
-        self.playlist = list(playlist)
+        self.playlist = [video for video, _script in playlist]
+        self._scripts = dict(playlist)
         self.index = index
         self.position_ms = 0.0
         self.seeks: list[float] = []
         self.loads: list[int] = []
         # Which Funscript each playlist entry's script parses to, so loading an
-        # entry publishes it exactly as the real session's load does.
+        # entry publishes it exactly as the real playback's load does.
         self._funscripts = funscripts or {}
+
+    def funscript_of(self, video):
+        return self._scripts.get(video)
 
     @property
     def current_funscript(self):
-        return self._funscripts.get(self.playlist[self.index][1])
+        return self._funscripts.get(self._scripts.get(self.playlist[self.index]))
 
     def load(self, index: int) -> None:
         self.index = index % len(self.playlist)

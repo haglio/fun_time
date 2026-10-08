@@ -11,8 +11,9 @@ companion carried on and the session had to be ended by voice.
 Read off the source rather than run: the run loop needs a real window and the
 libmpv DLL, the same reason ``test_focus_clickthrough`` reads its guarantee
 that way.  The chain is two links — the loop hands its events to
-``main_player.input``, and that module answers a QUIT by asking the session —
-and both are scanned, because scanning only the second would pass a loop that
+``main_player.input``, and that module answers a QUIT by telling the Funestra
+its window was asked to close, which the Funestra answers by asking the session
+— and both are scanned, because scanning only the second would pass a loop that
 took its events back and ended itself, leaving ``input.py`` correct and unused.
 A synthetic QUIT is fed to the module directly in ``test_main_player_input``.
 """
@@ -26,7 +27,7 @@ REPO = Path(__file__).resolve().parents[1]
 # Every link of the chain, and the call it must make.
 PLAYER_LOOPS = {
     REPO / "main_player" / "app.py": "deal",
-    REPO / "main_player" / "input.py": "take_quit_gesture",
+    REPO / "main_player" / "input.py": "close_requested",
 }
 
 

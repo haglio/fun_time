@@ -38,6 +38,8 @@ class FakeSatellitePlayer(RefusesSeeks):
         self.pushes = 0
         self.tiled_to: list[tuple[int, int]] = []
         self.swapped: list[Path] = []
+        self.source_dims = (0, 0)
+        self.ab_loop: tuple[float, float] | None = None
 
     def tile_to_fill(self, window_width: int, window_height: int) -> None:
         self.tiled_to.append((window_width, window_height))
@@ -85,6 +87,12 @@ class FakeSatellitePlayer(RefusesSeeks):
         self.refuse_if_asked()
         self.seeks.append(ms)
         self.position_ms = max(0.0, min(self.duration_ms, ms))
+
+    def set_ab_loop(self, in_ms: float, out_ms: float) -> None:
+        self.ab_loop = (in_ms, out_ms)
+
+    def clear_ab_loop(self) -> None:
+        self.ab_loop = None
 
     def set_volume(self, volume: int) -> None:
         self.volume = volume

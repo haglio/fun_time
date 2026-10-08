@@ -34,6 +34,7 @@ from player_core.playhead import (
     video_playhead,
 )
 from player_core.playlist import PlaylistItem
+from player_core.scrubber import HeatmapStrip, timeline_bgra
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import (
     CHIP_H,
@@ -155,7 +156,6 @@ from fun_time_vr.scene import (
 from fun_time_vr.stacking import Stacking
 from fun_time_vr.video_thread import VideoThread
 from fun_time_vr.wrap_readout import WrapReadout
-from main_player.overlay import HeatmapStrip, timeline_bgra
 from tests.satellite_fakes import FakeSatellitePlayer
 
 

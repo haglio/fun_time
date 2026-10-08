@@ -25,29 +25,30 @@ def _clip(lib: Path, meta: Path, rel: str, comp: str, index: int,
     return video
 
 
-class FakeSession:
-    """Records the playlist moves the jumps drive."""
+class FakePlayback:
+    """Records the playlist moves the jumps drive, in the Funestra's own shape:
+    a list of files, with the scripts named beside it."""
 
     def __init__(self, current: Path, playlist=None) -> None:
         self.current_video = current
-        self.playlist = list(playlist or [PlaylistItem(current)])
+        self.playlist = [item.path for item in (playlist or [PlaylistItem(current)])]
         self.replaced: list[list[PlaylistItem]] = []
         self.played: list[tuple[Path, Path | None]] = []
-        # A real session only restarts playback when it loads an index; swapping
-        # the list around the clip on screen leaves this alone.
+        # A real playback only restarts when it opens an item; swapping the list
+        # around the clip on screen leaves this alone.
         self.loaded_first = 0
 
-    def replace_playlist(self, playlist) -> None:
-        self.replaced.append(list(playlist))
+    def replace_playlist(self, playlist, funscripts=None) -> None:
+        funscripts = funscripts or {}
+        self.replaced.append([PlaylistItem(path, funscripts.get(path)) for path in playlist])
         self.playlist = list(playlist)
 
-    def load_playlist(self, playlist) -> None:
-        self.replaced.append(list(playlist))
-        self.playlist = list(playlist)
+    def load_playlist(self, playlist, funscripts=None) -> None:
+        self.replace_playlist(playlist, funscripts)
         self.loaded_first += 1
 
-    def play_file(self, item) -> None:
-        self.played.append((item.path, item.funscript))
+    def play_file(self, video, funscript=None) -> None:
+        self.played.append((video, funscript))
 
 
 class FakeNotices:
@@ -74,9 +75,9 @@ def _world(tmp_path: Path):
 
 
 def _jumps(nav, current: Path, funscripts=None, playlist=None):
-    session = FakeSession(current, playlist)
+    playback = FakePlayback(current, playlist)
     notices = FakeNotices()
-    return ClipJumps(nav, session, funscripts or {}, notices), session, notices
+    return ClipJumps(nav, playback, funscripts or {}, notices), playback, notices
 
 
 class CountingNav:

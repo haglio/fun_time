@@ -29,6 +29,10 @@ landscape_hud_file
 
 # --- Read from a sibling package, which is a scan of its own ---
 from_manifest  # satellite.contract; fun_time_vr's player and the sequencer
+top_block  # main_player.kino; player_core's Funestra heads its console with it
+idle  # main_player.loop_machine; fun_time_vr's main role steps off the end by it
+repeating  # main_player.loop_machine; fun_time_vr's main role loops its script over it
+marked_in_ms  # main_player.loop_machine; fun_time_vr's main role publishes it
 to_argv  # satellite.contract; the session's satellite launcher
 tcode_udp_host  # fun_time_vr/orchestrator.py
 tcode_udp_port  # fun_time_vr/orchestrator.py
@@ -39,7 +43,6 @@ settle  # MainListBuilds; test_vr_control_parity drains a dispatch before readin
 get_process_image_name  # the integration reap, to tell a leftover app from pytest
 
 PROJECT_VR_ICON  # project_paths; read by fun_time_vr, a scan of its own
-timeline_x  # main_player.overlay; the headset's scrubber repaints on it, a scan of its own
 set_window_icon  # win32; the VR session's window asks for it, a scan of its own
 draw_nothing_at_all  # win32; the VR session's window asks for it too
 # The headset hold's channel: written by fun_time_vr's orchestrator and read by
