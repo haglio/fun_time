@@ -80,7 +80,7 @@ def apply_mode_switch(
     main_player_paused_file: str | Path,
     main_player_cmd_file: str | Path,
 ) -> ModeSwitchFlowResult:
-    """Switch the main slot between video and genau mode, sending each player
+    """Switch the main slot between kino and genau mode, sending each player
     what :class:`fun_time.mode_plan.ModeSwitchPlan` says it is owed.
 
     Queued, never written whole: the files are queues shared with every other
@@ -95,8 +95,8 @@ def apply_mode_switch(
     if plan.is_transition:
         if plan.main_player_should_play is not None:
             write_flag_file(main_player_paused_file, not plan.main_player_should_play)
-        for cmd_file, cmd in ((genau_cmd_file, plan.genau_cmd), (genau_cmd_file, plan.hud_cmd),
-                              (main_player_cmd_file, plan.main_player_display_cmd)):
+        for cmd_file, cmd in ((genau_cmd_file, plan.genau_cmd),
+                              (main_player_cmd_file, plan.show_cmd)):
             if cmd is not None:
                 append_command(Path(cmd_file), cmd)
     return ModeSwitchFlowResult(

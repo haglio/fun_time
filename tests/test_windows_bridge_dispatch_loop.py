@@ -62,7 +62,6 @@ from fun_time.windows_bridge_dispatch_loop import (
 from tests.role_window_fakes import (
     DASHBOARD_HWND,
     DASHBOARD_PID,
-    GENAU_HWND,
     LANDSCAPE_HWND,
     LANDSCAPE_PID,
     MAIN_PLAYER_HWND,
@@ -599,16 +598,14 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert runner.state.omni_paused is True
-        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS
 
     def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_player(
         self, tmp_path,
     ):
-        """Leaving omnipause in kino mode gives every managed window its TOPMOST
-        bit back — the main player, which floats above the desktop again, and Genau, which
-        shares the main player's rect and is promoted last, so putting it back in the band
-        puts its HUD ABOVE the main player's video — and re-activates the window on top of
-        the main player, which is Genau's.
+        """Leaving omnipause gives every managed window its TOPMOST bit back — the
+        main player, which floats above the desktop again, among them — and
+        re-activates the main player's window, which Kino and Genau share.
         """
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=True)
@@ -626,8 +623,8 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert runner.state.omni_paused is False
-        assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
-        assert activated == [GENAU_HWND]
+        assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS
+        assert activated == [MAIN_PLAYER_HWND]
 
     def test_omnipause_toggle_updates_state_and_writes_shared_state(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -856,10 +853,8 @@ class TestDispatchLoopRunner:
         assert take_handoff_request(tmp_path) is None
 
     def test_omniminimize_minimizes_only_mode_visible_windows(self, tmp_path):
-        """omniminimize minimizes the windows the current mode shows, without
-        stealing focus — in kino mode Genau's HUD among them.  (In genau mode
-        the hidden slot-mate, the main player, is NOT minimized: SW_MINIMIZE would drag a
-        hidden window back into view.)"""
+        """omniminimize minimizes the windows the modes show, without stealing
+        focus."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
@@ -872,15 +867,16 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert {h for h, _ in minimized} == {
-            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_PLAYER_HWND, GENAU_HWND,
+            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_PLAYER_HWND,
         }
         # Minimized without activation so focus isn't yanked between windows.
         assert all(kw.get("activate") is False for _, kw in minimized)
 
-    def test_omniminimize_in_hybrid_includes_main_player_and_genau(self, tmp_path):
-        """Kino mode shows the main player under Genau's HUD (Genau drives the OSR2)."""
+    def test_omniminimize_in_genau_mode_includes_the_main_player_too(self, tmp_path):
+        """Genau runs on the Main Player's window, so that window is on screen in
+        genau mode as in kino mode, and goes down with the rest."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        runner.state = BridgeState(main_mode=MainMode.KINO)
+        runner.state = BridgeState(main_mode=MainMode.GENAU)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
 
@@ -892,8 +888,7 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert set(minimized) == {
-            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND,
-            MAIN_PLAYER_HWND, GENAU_HWND,
+            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_PLAYER_HWND,
         }
 
     def test_omniminimize_skips_windows_that_are_not_found(self, tmp_path):
@@ -909,68 +904,6 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert minimized == []
-
-    def test_mode_switch_leaves_the_outgoing_player_up_for_a_beat(self, tmp_path):
-        """Minimizing freezes a window's Alt-Tab thumbnail — Windows stops
-        compositing it — so the player being left has to be minimized only once
-        the DISPLAY_OFF it is sent as it steps aside is on screen.  Minimize in the
-        frame or two that takes and the thumbnail keeps the video frame it was
-        sitting on, which is the whole thing the blanking is for."""
-        clock = FakeClock()
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
-        runner.config.genau_status_file.write_text("hud=0\n", encoding="utf-8")
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("genau_activate", encoding="utf-8")
-
-        minimized: list[int] = []
-
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.activate_window"), \
-             patch("fun_time.role_windows.restore_window"), \
-             patch("fun_time.role_windows.set_always_on_top"), \
-             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
-            runner.tick()
-            assert minimized == [], "the main player minimized before it could paint the black"
-
-            # A tick inside the beat still leaves it up.
-            clock.advance(MAIN_BLANK_SETTLE_S / 2)
-            runner.tick()
-            assert minimized == []
-
-            # The settle elapses; the next tick parks it, without activation.
-            clock.advance(MAIN_BLANK_SETTLE_S)
-            runner.tick()
-            assert minimized == [MAIN_PLAYER_HWND]
-
-            # And it is off the list: a later tick does not park it twice.
-            clock.advance(MAIN_BLANK_SETTLE_S)
-            runner.tick()
-
-        assert minimized == [MAIN_PLAYER_HWND]
-
-    def test_switching_straight_back_never_minimizes_the_player(self, tmp_path):
-        """A switch inside the settle window would otherwise minimize the very
-        player it had just restored."""
-        clock = FakeClock()
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("genau_activate\nmain_kino_activate", encoding="utf-8")
-
-        minimized: list[int] = []
-
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.activate_window"), \
-             patch("fun_time.role_windows.restore_window"), \
-             patch("fun_time.role_windows.set_always_on_top"), \
-             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
-            runner.tick()
-            clock.advance(MAIN_BLANK_SETTLE_S)
-            runner.tick()
-
-        assert MAIN_PLAYER_HWND not in minimized, "the main player owns the display again"
-        assert minimized == [], "and kino mode parks nobody: both share the screen"
 
     def test_omnirestore_restores_exactly_the_minimized_windows(self, tmp_path):
         """omnirestore un-minimizes the windows omniminimize minimized — no
@@ -1022,9 +955,10 @@ class TestDispatchLoopRunner:
         assert all(kw.get("activate") is False for _, kw in minimized)
 
     def test_a_huds_minimize_button_takes_effect_without_a_settle(self, tmp_path):
-        """Unlike the main-slot swap, which waits out MAIN_BLANK_SETTLE_S so the
-        outgoing player can present its black first, nothing here has been told to
-        blank — so the window goes down in the same tick as the press."""
+        """Unlike the hosted app's window on a switch out of its mode, which
+        waits out MAIN_BLANK_SETTLE_S so it can present itself first, nothing
+        here has been told to step aside — so the window goes down in the same
+        tick as the press."""
         clock = FakeClock()
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1044,11 +978,10 @@ class TestDispatchLoopRunner:
             runner.tick()
             assert minimized == [LANDSCAPE_HWND]
 
-    def test_the_main_players_console_button_parks_the_window_holding_the_slot(self, tmp_path):
-        """The main player and Genau share the main rect, so which window the console's button
-        reaches is the mode's business: Genau in genau mode, and in kino mode
-        both, where Genau's HUD sits over the main player's video."""
-        for mode, wanted in (("genau", [GENAU_HWND]), ("kino", [MAIN_PLAYER_HWND, GENAU_HWND])):
+    def test_the_main_players_console_button_parks_the_main_players_window_in_either_mode(self, tmp_path):
+        """Kino and Genau share the Main Player's one window, so the console's
+        button reaches that window whichever of them has it."""
+        for mode, wanted in (("genau", [MAIN_PLAYER_HWND]), ("kino", [MAIN_PLAYER_HWND])):
             runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
             # Through the shared state file, which every tick re-reads over
             # whatever the runner is holding.
@@ -1064,76 +997,6 @@ class TestDispatchLoopRunner:
                 runner.tick()
 
             assert minimized == wanted, mode
-
-    def test_genau_turns_into_the_hud_only_once_the_main_player_has_had_its_settle(self, tmp_path):
-        clock = FakeClock()
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
-        write_shared_state(tmp_path / "shared_state.ini", BridgeState(main_mode=MainMode.GENAU))
-        (tmp_path / "dashboard_cmd.txt").write_text("main_kino_activate", encoding="utf-8")
-        genau_cmds = runner.config.genau_cmd_file
-
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.restore_window"), \
-             patch("fun_time.role_windows.activate_window"), \
-             patch("fun_time.role_windows.set_always_on_top"):
-            runner.tick()
-            assert "HUD_ON" not in genau_cmds.read_text(encoding="utf-8").split()
-            clock.advance(MAIN_BLANK_SETTLE_S)
-            runner.tick()
-
-        assert genau_cmds.read_text(encoding="utf-8").split()[-1] == "HUD_ON"
-
-    def test_the_main_player_stays_under_genau_until_genau_says_it_is_solid(self, tmp_path):
-        clock = FakeClock()
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
-        genau_status = runner.config.genau_status_file
-        genau_status.write_text("hud=1\n", encoding="utf-8")
-        (tmp_path / "dashboard_cmd.txt").write_text("genau_activate", encoding="utf-8")
-        demoted: list[int] = []
-        minimized: list[int] = []
-
-        def main_player_verbs() -> list[str]:
-            cmd_file = runner.config.main_player_cmd_file
-            return cmd_file.read_text(encoding="utf-8").split() if cmd_file.exists() else []
-
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.restore_window"), \
-             patch("fun_time.role_windows.activate_window"), \
-             patch("fun_time.role_windows.set_always_on_top",
-                   side_effect=lambda h, on: None if on else demoted.append(h)), \
-             patch("fun_time.role_windows.minimize_window",
-                   side_effect=lambda h, **kw: minimized.append(h)):
-            runner.tick()
-            clock.advance(MAIN_BLANK_SETTLE_S)
-            runner.tick()
-            assert (demoted, minimized) == ([], [])
-            assert "DISPLAY_OFF" not in main_player_verbs()
-
-            genau_status.write_text("hud=0\n", encoding="utf-8")
-            runner.tick()
-            clock.advance(MAIN_BLANK_SETTLE_S)
-            runner.tick()
-
-        assert MAIN_PLAYER_HWND in demoted
-        assert minimized == [MAIN_PLAYER_HWND]
-        assert "DISPLAY_OFF" in main_player_verbs()
-
-    def test_a_mode_switch_clicked_while_paused_restacks_the_main_slot_as_paused(self, tmp_path):
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        write_shared_state(tmp_path / "shared_state.ini",
-                           BridgeState(omni_paused=True, main_mode=MainMode.GENAU))
-        (tmp_path / "dashboard_cmd.txt").write_text("main_kino_activate", encoding="utf-8")
-
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.restore_window"), \
-             patch("fun_time.role_windows.activate_window"), \
-             patch.object(runner.windows, "restack_main_slot") as restack:
-            runner.tick()
-
-        restack.assert_called_once_with(MainMode.KINO, paused=True)
 
     def test_leaving_omnipause_brings_back_every_window_a_button_parked(self, tmp_path):
         """A player parked from its own HUD took that HUD down with it, so it
@@ -1166,37 +1029,6 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert [h for h, _ in restored] == [PORTRAIT_HWND, LANDSCAPE_HWND]
-
-    def test_resuming_leaves_the_mode_parked_slot_mate_where_it_is(self, tmp_path):
-        """The idle main-slot player is minimized by the mode switch, not by a
-        button, and the switch that brings its mode back is what restores it.
-        Resuming must not drag it onto a rect the other player is using."""
-        clock = FakeClock()
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-
-        restored: list[int] = []
-
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.minimize_window"), \
-             patch("fun_time.role_windows.activate_window"), \
-             patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: restored.append(h)), \
-             patch.object(runner.windows, "restore_all_topmost"), \
-             patch.object(runner.windows, "restack_main_slot"):
-            # A switch to genau parks the main player, which the settle then flushes.
-            cmd_file.write_text("genau_activate", encoding="utf-8")
-            runner.tick()
-            clock.advance(MAIN_BLANK_SETTLE_S)
-            runner.tick()
-            restored.clear()
-
-            write_shared_state(tmp_path / "shared_state.ini",
-                               replace(runner.state, omni_paused=True))
-            cmd_file.write_text("omnipause_toggle", encoding="utf-8")
-            runner.tick()
-
-        assert MAIN_PLAYER_HWND not in restored
 
     def test_a_huds_minimize_button_says_nothing_to_ahk(self, tmp_path):
         """The op loop's fall-through writes an unrecognized op straight to the AHK
@@ -1796,20 +1628,18 @@ class TestTheRfbSlideshow:
 
 
 class TestModeSwitchVisibility:
-    """The two main-slot players (the main player and Genau) share one screen rect.
-    A mode switch swaps window VISIBILITY: the incoming player is shown and
-    activated BEFORE the outgoing one hides, so focus never falls through to
+    """Kino and Genau share the Main Player's one window, so a mode switch swaps
+    no windows: it tells that window which of the two to show, brings it back if
+    it was parked and hands it the focus, so focus never falls through to
     another application.
 
     These tests run the real dispatch_command, pinning the whole path from
-    command string to win32 call — including the show_role/activate_role/
-    hide_role ops, whose silent dropping broke mode switches once.
+    command string to win32 call — including the show_role/activate_role ops,
+    whose silent dropping broke mode switches once.
     """
 
     def _run_mode_switch(self, tmp_path, *, from_mode, command, integration=False):
-        clock = FakeClock()
-        runner = make_runner(tmp_path, clock=clock,
-                             env=SessionEnvironment(integration=integration))
+        runner = make_runner(tmp_path, env=SessionEnvironment(integration=integration))
         runner.state = BridgeState(main_mode=from_mode)
 
         calls: list[tuple[str, int]] = []
@@ -1823,67 +1653,48 @@ class TestModeSwitchVisibility:
                    side_effect=lambda h: calls.append(("activate", h))), \
              patch("fun_time.role_windows.set_always_on_top"):
             runner._dispatch(command)
-            runner.config.genau_status_file.write_text("hud=0\n", encoding="utf-8")
-            runner.tick()
-            clock.advance(MAIN_BLANK_SETTLE_S)
             runner.tick()
 
         assert runner.state.main_mode == {
             "genau_activate": "genau", "main_kino_activate": "kino",
         }[command]
-        return calls
+        return calls, runner.config.main_player_cmd_file.read_text(encoding="utf-8").split()
 
-    def test_genau_activate_shows_genau_before_hiding_main_player(self, tmp_path):
-        calls = self._run_mode_switch(
+    def test_genau_activate_tells_the_main_players_window_to_show_genau(self, tmp_path):
+        calls, told = self._run_mode_switch(
             tmp_path, from_mode="kino", command="genau_activate",
         )
         assert calls == [
-            ("show", GENAU_HWND),
-            ("activate", GENAU_HWND),
-            ("hide", MAIN_PLAYER_HWND),
+            ("show", MAIN_PLAYER_HWND),
+            ("activate", MAIN_PLAYER_HWND),
         ]
+        assert told[:2] == ["SHOW", "genau"]
 
-    def test_main_kino_activate_shows_main_player_under_genaus_hud(self, tmp_path):
-        calls = self._run_mode_switch(
+    def test_main_kino_activate_tells_the_main_players_window_to_show_kino(self, tmp_path):
+        calls, told = self._run_mode_switch(
             tmp_path, from_mode="genau", command="main_kino_activate",
         )
         assert calls == [
             ("show", MAIN_PLAYER_HWND),
-            ("show", GENAU_HWND),
-            ("activate", GENAU_HWND),
+            ("activate", MAIN_PLAYER_HWND),
         ]
-
-    def test_kino_to_genau_hides_main_player(self, tmp_path):
-        """Kino mode and Genau differ only in the main player's visibility, so the transition
-        must still swap windows.  Regression — a guard that compared
-        genau_active() instead of the mode missed this pair."""
-        calls = self._run_mode_switch(
-            tmp_path, from_mode="kino", command="genau_activate",
-        )
-        assert calls == [
-            ("show", GENAU_HWND),
-            ("activate", GENAU_HWND),
-            ("hide", MAIN_PLAYER_HWND),
-        ]
+        assert told[:2] == ["SHOW", "kino"]
 
     def test_activation_suppressed_during_integration_runs(self, tmp_path):
         """An integration session keeps mode switches from stealing the real
-        desktop's focus; show/hide still happen."""
-        calls = self._run_mode_switch(
+        desktop's focus; the window is still brought back."""
+        calls, _told = self._run_mode_switch(
             tmp_path, from_mode="kino", command="genau_activate",
             integration=True,
         )
-        assert calls == [
-            ("show", GENAU_HWND),
-            ("hide", MAIN_PLAYER_HWND),
-        ]
+        assert calls == [("show", MAIN_PLAYER_HWND)]
 
 
 class TestResolveRole:
     def test_cached_hwnd_survives_hiding_and_show_role_reaches_it(self, tmp_path):
         """Hidden windows are invisible to the pid/title lookups, so the
         HWND captured while a window was visible must be cached and reused —
-        otherwise a hidden slot-mate could never be shown again."""
+        otherwise a parked window could never be shown again."""
         runner = make_runner(tmp_path)
 
         # The main player is visible: the pid lookup finds it once, populating the cache.
@@ -1956,7 +1767,7 @@ class TestBrowseLibrary:
             runner._handle_browse_library()
 
         removed = {h for h, v in topmost_calls if not v}
-        assert removed == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
+        assert removed == TOPMOST_HWNDS
 
     def test_browses_the_session_library_over_the_primary_display(self, tmp_path):
         """The browse opens Fun Time's own library browser, filling the main player's rect.
@@ -2074,7 +1885,7 @@ class TestBrowseLibrary:
         assert runner.config.main_player_cmd_file.read_text(
             encoding="utf-8") == "PLAY_FILE C:\\videos\\movie.mp4\n"
 
-    def test_genau_browses_its_clips_over_its_own_window_from_the_clip_it_has_up(self, tmp_path):
+    def test_genau_browses_its_clips_over_the_main_players_window_from_the_clip_it_has_up(self, tmp_path):
         config = make_config(tmp_path, python_exe=r"C:\python.exe")
         runner = make_runner(tmp_path, config=config, manifest_path=tmp_path / "launch.ini")
         runner.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
@@ -2083,9 +1894,9 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch.object(runner.windows, "hwnd", side_effect=lambda role: {"genau": GENAU_HWND}.get(role, 0)), \
+             patch.object(runner.windows, "hwnd", side_effect=lambda role: {"main_player": MAIN_PLAYER_HWND}.get(role, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.window_rect",
-                   side_effect=lambda hwnd: (0, 400, 1080, 1520) if hwnd == GENAU_HWND else None), \
+                   side_effect=lambda hwnd: (0, 400, 1080, 1520) if hwnd == MAIN_PLAYER_HWND else None), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
             runner._handle_browse_library()
 
@@ -2124,8 +1935,7 @@ class TestBrowseLibrary:
 
     def test_restores_topmost_after_the_pick(self, tmp_path):
         """After the pick, every managed window gets its topmost band back —
-        The main player and Genau's HUD over it included, so the video floats above the
-        desktop again."""
+        the main player included, so the video floats above the desktop again."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
 
@@ -2139,9 +1949,11 @@ class TestBrowseLibrary:
             runner._handle_browse_library()
 
         restored = {h for h, v in topmost_calls if v}
-        assert restored == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
+        assert restored == TOPMOST_HWNDS
 
-    def test_never_restores_main_player_topmost_even_in_genau_mode(self, tmp_path):
+    def test_restores_the_main_players_band_in_genau_mode_too(self, tmp_path):
+        """Genau shows on the main player's window, so the window comes back
+        into the band in genau mode as it does in kino mode."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
 
@@ -2154,12 +1966,8 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
 
-        # genau mode: the main player is hidden and never joins the topmost band — it is
-        # explicitly held non-topmost, never promoted.
         restored = {h for h, v in topmost_calls if v}
-        assert restored == TOPMOST_HWNDS | {GENAU_HWND}
-        assert (MAIN_PLAYER_HWND, False) in topmost_calls
-        assert MAIN_PLAYER_HWND not in restored
+        assert restored == TOPMOST_HWNDS
 
     def test_hands_the_keyboard_to_the_browser_and_takes_it_back(self, tmp_path):
         """The global hotkeys are suspended for the browse, then restored.
@@ -2560,7 +2368,7 @@ class TestIdempotentVoiceCommands:
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
-        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS
 
     def test_enter_omnipause_noop_when_already_paused(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2945,25 +2753,23 @@ class TestWatchTracking:
 
 
 class TestSeededRoleHwnds:
-    def test_startup_seed_lets_hidden_windows_be_shown_again(self, tmp_path):
-        """A genau session's startup parks the idle main-slot window (the main player)
-        BEFORE the dispatch loop ever resolves it; with the pid/title lookups
-        mocked to fail, the runner must answer from the hwnds the startup
-        sequencer seeded while everything was visible, or kino mode could
-        never bring the main player back."""
+    def test_startup_seed_lets_a_parked_window_be_shown_again(self, tmp_path):
+        """A window parked from its own button is invisible to the pid/title
+        lookups; with those mocked to fail, the runner must answer from the hwnds
+        the startup sequencer seeded while everything was visible, or a switch
+        could never bring the main player's window back."""
         runner = make_runner(
             tmp_path,
-            role_hwnds={"genau": 6001, "main_player": 2001},
+            role_hwnds={"main_player": 2001},
         )
         runner.state = BridgeState(main_mode=MainMode.GENAU)
         shown: list[int] = []
 
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0),              patch("fun_time.role_windows.find_window_by_title", return_value=0),              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)):
-            assert runner.windows.hwnd("genau") == 6001
             assert runner.windows.hwnd("main_player") == 2001
             runner._dispatch("main_kino_activate")
 
-        assert shown == [2001, 6001]  # kino mode shows the main player then the Genau HUD
+        assert shown == [2001]
 
 
 class TestKinoModeFunscriptHandoff:
@@ -3260,7 +3066,7 @@ class TestOrigeneratorWindowConverger:
 
         converge.assert_not_called()
 
-    def test_outside_omnipause_the_windows_object_is_asked_for_these_modes(self, tmp_path):
+    def test_outside_omnipause_the_windows_object_is_asked_for_the_satellites_mode(self, tmp_path):
         runner = make_runner(tmp_path, origenerator_pid=700)
         runner.state = replace(runner.state, main_mode=MainMode.KINO,
                                satellites_mode="origenerator")
@@ -3268,7 +3074,7 @@ class TestOrigeneratorWindowConverger:
         with patch.object(runner.windows, "converge_origenerator_window") as converge:
             runner._converge_origenerator_window()
 
-        converge.assert_called_once_with("kino", "origenerator")
+        converge.assert_called_once_with("origenerator")
 
 
 class TestOrigeneratorWatchGuard:
@@ -3600,7 +3406,7 @@ def _seating_runner(tmp_path, cfg_path, *, main_video_portrait: bool) -> Dispatc
         f"video=C:/fixtures/scene one.mp4\nportrait={int(main_video_portrait)}\n", encoding="utf-8")
     return make_runner(
         tmp_path, config=config,
-        role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_PLAYER_HWND, "genau": GENAU_HWND},
+        role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_PLAYER_HWND},
         secondary_rects=partial(secondary_monitor_rects, SECONDARY_MONITOR,
                                 load_config(cfg_path).layout))
 
@@ -3608,8 +3414,7 @@ def _seating_runner(tmp_path, cfg_path, *, main_video_portrait: bool) -> Dispatc
 def test_a_portrait_video_on_the_crowned_main_player_gives_it_most_of_the_secondary_monitor(
         tmp_path, cfg_path):
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=True)
-    usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_PLAYER_HWND: (2560, 2500, 1440, 940),
-             GENAU_HWND: (2560, 2500, 1440, 940)}
+    usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_PLAYER_HWND: (2560, 2500, 1440, 940)}
 
     with patch("fun_time.role_windows.window_rect", side_effect=usual.get), \
          patch("fun_time.role_windows.is_window_minimized", return_value=False), \
@@ -3617,8 +3422,7 @@ def test_a_portrait_video_on_the_crowned_main_player_gives_it_most_of_the_second
         runner.tick()
 
     assert [call.args for call in place.call_args_list] == [
-        (PORTRAIT_HWND, 2560, 0, 1440, 940), (MAIN_PLAYER_HWND, 2560, 940, 1440, 2500),
-        (GENAU_HWND, 2560, 940, 1440, 2500)]
+        (PORTRAIT_HWND, 2560, 0, 1440, 940), (MAIN_PLAYER_HWND, 2560, 940, 1440, 2500)]
 
 
 def test_the_room_writes_down_which_player_has_most_of_the_secondary_monitor(tmp_path, cfg_path):
@@ -3635,8 +3439,7 @@ def test_the_room_writes_down_which_player_has_most_of_the_secondary_monitor(tmp
 def test_a_landscape_video_hands_most_of_the_secondary_monitor_back_to_the_portrait_player(
         tmp_path, cfg_path):
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=False)
-    traded = {PORTRAIT_HWND: (2560, 0, 1440, 940), MAIN_PLAYER_HWND: (2560, 940, 1440, 2500),
-              GENAU_HWND: (2560, 940, 1440, 2500)}
+    traded = {PORTRAIT_HWND: (2560, 0, 1440, 940), MAIN_PLAYER_HWND: (2560, 940, 1440, 2500)}
 
     with patch("fun_time.role_windows.window_rect", side_effect=traded.get), \
          patch("fun_time.role_windows.is_window_minimized", return_value=False), \
@@ -3644,25 +3447,24 @@ def test_a_landscape_video_hands_most_of_the_secondary_monitor_back_to_the_portr
         runner.tick()
 
     assert [call.args for call in place.call_args_list] == [
-        (MAIN_PLAYER_HWND, 2560, 2500, 1440, 940), (GENAU_HWND, 2560, 2500, 1440, 940),
-        (PORTRAIT_HWND, 2560, 0, 1440, 2500)]
+        (MAIN_PLAYER_HWND, 2560, 2500, 1440, 940), (PORTRAIT_HWND, 2560, 0, 1440, 2500)]
 
 
-def test_in_genau_mode_a_portrait_clip_gives_genau_most_of_the_secondary_monitor(tmp_path, cfg_path):
+def test_in_genau_mode_a_portrait_clip_gives_the_main_player_most_of_the_secondary_monitor(
+        tmp_path, cfg_path):
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=False)
     runner.config.genau_status_file.write_text(
         "clip=C:/fixtures/clip one.mp4\nportrait=1\n", encoding="utf-8")
     runner.state = replace(runner.state, main_mode=MainMode.GENAU)
-    usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), GENAU_HWND: (2560, 2500, 1440, 940)}
+    usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_PLAYER_HWND: (2560, 2500, 1440, 940)}
 
     with patch("fun_time.role_windows.window_rect", side_effect=usual.get), \
-         patch("fun_time.role_windows.is_window_minimized",
-               side_effect=lambda hwnd: hwnd == MAIN_PLAYER_HWND), \
+         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
          patch("fun_time.role_windows.place_window") as place:
         runner.tick()
 
     assert [call.args for call in place.call_args_list] == [
-        (PORTRAIT_HWND, 2560, 0, 1440, 940), (GENAU_HWND, 2560, 940, 1440, 2500)]
+        (PORTRAIT_HWND, 2560, 0, 1440, 940), (MAIN_PLAYER_HWND, 2560, 940, 1440, 2500)]
 
 
 def test_a_room_that_arranges_no_secondary_monitor_moves_nothing(tmp_path):

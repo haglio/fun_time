@@ -29,6 +29,7 @@ from player_core.funestra_controls import FunestraControls
 from player_core.funestra_controls import apply_command as apply_satellite_command
 from player_core.genau_controls import VERBS as GENAU_VERBS
 from player_core.playback import Playback
+from player_core.player_verbs import SHOW
 from player_core.playlist import read_playlist
 
 from fun_time.bridge_records import BridgeConfig, Op
@@ -78,7 +79,7 @@ _CHANNELS = (
 # headset.  Listed so the sweep can tell a designed no-op from a new one.
 _OPS_WITH_NO_WINDOWS = frozenset({
     Op.NOTICE, Op.SHOW_ROLE, Op.HIDE_ROLE, Op.ACTIVATE_ROLE, Op.MINIMIZE_ROLE,
-    Op.RESTORE_PARKED, Op.RESTACK_MAIN, Op.RESTACK_RFB,
+    Op.RESTORE_PARKED, Op.RESTACK_RFB,
     Op.DISABLE_ALL_TOPMOST, Op.RESTORE_ALL_TOPMOST,
 })
 
@@ -91,7 +92,7 @@ _OPS_WITH_NO_WINDOWS = frozenset({
 # trade the slot on the same HUD and display verbs).
 _OPS_THAT_STILL_ACT = frozenset({
     Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS, Op.SAVE_CLIP, Op.OPEN_RFB_TAB,
-    Op.TAKE_BACK_PLAYERS, Op.FOLLOW_GENAUS_LOCK, Op.HAND_OVER_THE_MAIN_SLOT,
+    Op.TAKE_BACK_PLAYERS, Op.FOLLOW_GENAUS_LOCK,
 })
 
 _OPS_A_HEADSET_NEVER_RAISES = frozenset({Op.MAIN_PLAYER_ANSWERS})
@@ -314,14 +315,18 @@ class TestTheMainPlayer:
 
 
 def _a_whole_line(verb: str) -> str:
-    """*verb* with an argument where the spelling needs one.
+    """*verb* with an argument where the spelling needs one: the name of a thing
+    that runs on the window for SHOW, and 1 for the rest, which reads as a number,
+    a path or a flag.
 
     Half a command is refused by both roles on purpose, so a vocabulary check
     that sent bare verbs would report every value-taking one as unanswered.
     Which ones want a value is read off the two registries rather than listed
     here, so a verb that starts taking one cannot leave this check sending it bare.
     """
-    return f"{verb} 1" if verb in _VERBS_THAT_TAKE_A_VALUE else verb
+    if verb not in _VERBS_THAT_TAKE_A_VALUE:
+        return verb
+    return f"{verb} {MAIN_KINO_MODE if verb == SHOW else 1}"
 
 
 _VERBS_THAT_TAKE_A_VALUE = frozenset(

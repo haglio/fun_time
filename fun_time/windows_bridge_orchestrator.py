@@ -22,7 +22,6 @@ from functools import partial
 from pathlib import Path
 
 from player_core.file_channel import append_command
-from player_core.modes import MainMode
 from voice_core.listener import why_unavailable
 from voice_core.whisper_reader import WhisperReader
 
@@ -43,7 +42,6 @@ from .lock_hud import prime_group_indexes
 from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
-from .mode_plan import main_player_displays
 from .modes import collect_video_files
 from .overlay_progress import (
     CANCEL_CLOSING_FUN_TIME,
@@ -109,7 +107,6 @@ from .win32 import (
 from .win32_job import tie_to_this_process
 from .win32_process import get_process_creation_time
 from .window_layout import SecondaryMonitorRects, screen_layout, secondary_monitor_rects
-from .window_roles import GENAU_TITLE
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
@@ -135,7 +132,7 @@ logger = logging.getLogger(__name__)
 # cannot quietly outlive the session.
 _CHILD_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("players", ("main_player_pid", "portrait_pid", "landscape_pid")),
-    ("companions", ("dashboard_pid", "genau_pid", "audio_pid", "origenerator_pid")),
+    ("companions", ("dashboard_pid", "audio_pid", "origenerator_pid")),
 )
 
 _CHILD_PID_KEYS = tuple(key for _, keys in _CHILD_GROUPS for key in keys)
@@ -522,8 +519,7 @@ SETTLE_PASSES = 8
 SETTLE_WAIT_S = 1.5
 
 
-def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0,
-                            ignore: int = 0) -> None:
+def _log_window_obstruction(name: str, hwnd: int, *, ignore: int = 0) -> None:
     """Record which windows, if any, cover *name* once the bands are re-applied.
 
     The topmost flag reads ``True`` here, yet a player can still be reported
@@ -535,20 +531,15 @@ def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0,
     is under other windows on startup" was undiagnosable while only the main player's
     coverage was logged.
 
-    *expected_over* is the one window that belongs above the target in every
-    mode — Genau's over the main player, which in kino mode is the transparent HUD layer
-    over the main player's video and in genau mode is the display itself.  Warning on the
-    session's own by-design layering flashed a notice on every startup with a "covering"
-    window that covers nothing you can see; anything else over the player
-    still warns.  *ignore* is the loading
-    overlay while this runs under it, which covers everything by design.
+    *ignore* is the loading overlay while this runs under it, which covers
+    everything by design.
     """
     if not hwnd:
         logger.warning("%s window unresolved after loading; cannot check z-order", name)
         return
     covering = [
         w for w in windows_obscuring(hwnd, iter_zorder())
-        if w.hwnd not in (expected_over, ignore)
+        if w.hwnd != ignore
     ]
     if covering:
         desc = "; ".join(
@@ -563,10 +554,6 @@ def _fix_post_loading_windows(result: StartupResult, *,
                               overlay_hwnd: int = 0) -> dict[str, int]:
     """Resolve every managed window, band it, and settle the z-order until each
     player is actually frontmost — returning the role hwnds it resolved.
-
-    For the mode the session actually opened in, not for main_player: on a resumed genau
-    session this pass would otherwise promote the main player over Genau and un-park it, one
-    pass after the sequencer parked it.
 
     ``overlay_hwnd`` is the loading screen's own window when this runs UNDER the
     curtain, which is where it belongs: the bands decide what the reveal looks
@@ -590,10 +577,6 @@ def _fix_post_loading_windows(result: StartupResult, *,
     main_player_hwnd = find_window_by_pid(result.main_player_pid) or wait_for_window_by_title(
         "Main Player", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
     )
-    # Exactly, and the plain caption alone: the HUD that renames this window
-    # is off until a mode switch, which is after this pass.
-    genau_hwnd = wait_for_window_by_title(
-        GENAU_TITLE, timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True)
     # By title as well as pid, like the main player above: python_exe is the venv's pythonw
     # SHIM, so the recorded satellite pid is the launcher's rather than the
     # interpreter that owns the SDL window, and the by-pid lookup finds
@@ -614,34 +597,29 @@ def _fix_post_loading_windows(result: StartupResult, *,
         rfb_hwnd=result.rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        genau_hwnd=genau_hwnd,
         main_player_hwnd=main_player_hwnd,
         dashboard_hwnd=dash_hwnd,
-        mode=result.main_mode,
         beneath=overlay_hwnd,
     )
     logger.info("Post-loading window state corrected")
     _settle_the_players(
         _players_to_settle(
             portrait_hwnd=portrait_hwnd, landscape_hwnd=landscape_hwnd,
-            main_player_hwnd=main_player_hwnd, genau_hwnd=genau_hwnd,
-            mode=result.main_mode,
+            main_player_hwnd=main_player_hwnd,
         ),
         overlay_hwnd=overlay_hwnd,
     )
-    _log_window_obstruction("Main Player", main_player_hwnd, expected_over=genau_hwnd)
+    _log_window_obstruction("Main Player", main_player_hwnd, ignore=overlay_hwnd)
     _log_window_obstruction("Portrait satellite", portrait_hwnd, ignore=overlay_hwnd)
     _log_window_obstruction("Landscape satellite", landscape_hwnd, ignore=overlay_hwnd)
     return role_hwnds
 
 
-def _players_to_settle(*, portrait_hwnd: int, landscape_hwnd: int, main_player_hwnd: int,
-                       genau_hwnd: int, mode: MainMode) -> list[tuple[str, int, int]]:
+def _players_to_settle(*, portrait_hwnd: int, landscape_hwnd: int,
+                       main_player_hwnd: int) -> list[tuple[str, int, int]]:
     """Which players the settle walk watches, and the one window each may sit under."""
-    players = [("portrait", portrait_hwnd, 0), ("landscape", landscape_hwnd, 0)]
-    if main_player_displays(mode):
-        players.append(("main", main_player_hwnd, genau_hwnd))
-    return players
+    return [("portrait", portrait_hwnd, 0), ("landscape", landscape_hwnd, 0),
+            ("main", main_player_hwnd, 0)]
 
 
 def _settle_the_players(players: Sequence[tuple[str, int, int]], *,
@@ -831,14 +809,12 @@ def _reveal_the_room(
     # The overlay's own teardown hands activation to whatever is next in
     # the z-order, so the bands are asserted once more over the finished
     # room — cheap, since every window is already resolved and in place.
-    apply_topmost_bands(role_hwnds, result.main_mode)
+    apply_topmost_bands(role_hwnds)
     _settle_the_players(
         _players_to_settle(
             portrait_hwnd=role_hwnds.get("portrait", 0),
             landscape_hwnd=role_hwnds.get("landscape", 0),
             main_player_hwnd=role_hwnds.get("main_player", 0),
-            genau_hwnd=role_hwnds.get("genau", 0),
-            mode=result.main_mode,
         ),
         passes=3, wait_s=0.4,
     )
@@ -1253,9 +1229,9 @@ def run_session(
         )
 
     logger.info(
-        "Startup complete: main_player=%d portrait=%d landscape=%d dashboard=%d genau=%d audio=%d",
+        "Startup complete: main_player=%d portrait=%d landscape=%d dashboard=%d audio=%d",
         result.main_player_pid, result.portrait_pid, result.landscape_pid,
-        result.dashboard_pid, result.genau_pid, result.audio_pid,
+        result.dashboard_pid, result.audio_pid,
     )
 
     try:

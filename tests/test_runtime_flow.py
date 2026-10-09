@@ -84,17 +84,17 @@ def _main_player_cmds(files) -> list[str]:
     return cmd_file.read_text(encoding="utf-8").split("\n")[:-1] if cmd_file.exists() else []
 
 
-def test_kino_to_genau_resumes_genau_and_pauses_the_main_player_on_its_picture(flow_files):
+def test_kino_to_genau_resumes_genau_hands_it_the_window_and_holds_the_video(flow_files):
     result = _mode_switch(flow_files, current="kino", target="genau")
 
     assert result.next_mode == "genau"
     assert result.is_transition is True
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_OFF\n"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
     assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "1"
-    assert _main_player_cmds(flow_files) == []
+    assert _main_player_cmds(flow_files) == ["SHOW genau"]
 
 
-def test_genau_to_kino_starts_main_player_under_genau(flow_files):
+def test_genau_to_kino_starts_the_video_and_hands_kino_the_window(flow_files):
     # RESUME either way: the dispatch loop's arbiter takes the hand from here,
     # pausing it for the funscript's stretches on its next tick.
     result = _mode_switch(flow_files, current="genau", target="kino")
@@ -102,7 +102,7 @@ def test_genau_to_kino_starts_main_player_under_genau(flow_files):
     assert result.next_mode == "kino"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
     assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "0"
-    assert _main_player_cmds(flow_files) == ["DISPLAY_ON"]
+    assert _main_player_cmds(flow_files) == ["SHOW kino"]
 
 
 def test_a_mode_switch_leaves_the_paused_flags_and_main_players_tcode_alone(flow_files):
@@ -117,12 +117,12 @@ def test_a_mode_switch_leaves_the_paused_flags_and_main_players_tcode_alone(flow
     assert "SET_TCODE_ENABLED 1" not in _main_player_cmds(flow_files)
 
 
-def test_a_mode_switch_during_omnipause_swaps_the_display_and_resumes_nothing(flow_files):
+def test_a_mode_switch_during_omnipause_hands_over_the_window_and_resumes_nothing(flow_files):
     result = _mode_switch(flow_files, current="kino", target="genau", omni_paused=True)
 
     assert result.next_mode == "genau"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "HUD_OFF\n"
-    assert _main_player_cmds(flow_files) == []
+    assert not flow_files["genau_cmd_file"].exists()
+    assert _main_player_cmds(flow_files) == ["SHOW genau"]
     assert not flow_files["main_player_paused_file"].exists()
 
 

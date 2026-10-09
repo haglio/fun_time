@@ -1,6 +1,6 @@
 """Genau's role in the VR process: the engine the Main Funestra runs, on the same
 file channel, with what a headset needs kept here -- the frame the engine chose,
-the clip's projection, whether the clip has the scene, the console it composed."""
+the clip's projection, the console it composed."""
 from __future__ import annotations
 
 import logging
@@ -89,11 +89,6 @@ class GenauRole:
         self.robot_hand = self._engine.robot_hand
 
     # ------------------------------------------------------------------ state
-
-    @property
-    def showing(self) -> bool:
-        """Whether the clip has the scene; HUD_ON is kino mode."""
-        return self._engine.showing
 
     @property
     def current_clip(self) -> Path | None:

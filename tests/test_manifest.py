@@ -52,7 +52,7 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
         "favs_file", "genau_clips", "genau_audio", "vr_library_dirs", "genau_vr_clips",
     },
     "modules": {
-        "genau_module", "main_player_module", "satellite_module", "audio_module",
+        "main_player_module", "satellite_module", "audio_module",
         "dashboard_module",
     },
     "commands": {

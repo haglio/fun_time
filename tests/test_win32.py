@@ -33,11 +33,9 @@ from fun_time.win32 import (
     is_window_topmost,
     minimize_window,
     move_window,
-    place_beneath,
     restore_window,
     run_ahead_of_background_work,
     set_always_on_top,
-    window_answers,
     window_exists,
     window_rect,
     windows_obscuring,
@@ -152,19 +150,6 @@ class TestSetAlwaysOnTop:
         assert flags & win32.SWP_NOACTIVATE
 
 
-
-class TestPlaceBeneath:
-    def test_it_lands_directly_beneath_the_window_above_without_moving_or_taking_focus(self):
-        with patch("fun_time.win32._user32") as mock:
-            place_beneath(111, 2**40 + 7)
-
-        args = mock.SetWindowPos.call_args[0]
-        assert args[0] == 111
-        assert args[1].value == 2**40 + 7
-        assert args[6] & win32.SWP_NOACTIVATE
-        assert args[6] & win32.SWP_NOMOVE
-        assert args[6] & win32.SWP_NOSIZE
-
 class TestAWindowThatHasStoppedAnswering:
     """SetWindowPos and ShowWindow SEND messages to the thread owning the window
     and wait for it to handle them, with no timeout — so a player whose own loop
@@ -253,9 +238,8 @@ class TestAWindowThatHasStoppedAnswering:
             self, monkeypatch):
         """Giving up on the wait does not take the call back.  It waits in that
         window's queue and is carried out when the thread takes messages again —
-        by then AFTER everything placed meanwhile, which is how Genau came up
-        over the hosted app's shows.  So a caller that needs a placement to land
-        in order asks ``window_answers`` before it sends one."""
+        by then AFTER everything placed meanwhile, so a placement that has to
+        land in order cannot be sent to a window that is not answering."""
         monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.05)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
         answering = threading.Event()
@@ -271,47 +255,6 @@ class TestAWindowThatHasStoppedAnswering:
             assert not landed.is_set()  # the caller has given up on it
             answering.set()  # the window starts taking messages again
             assert landed.wait(5), "the call the caller gave up on never happened"
-
-
-class TestWhetherAWindowIsTakingMessages:
-    """What ``set_always_on_top`` cannot tell a caller until it is too late."""
-
-    def test_a_thread_that_answers_says_so(self):
-        with patch("fun_time.win32._user32") as mock:
-            mock.SendMessageTimeoutW.return_value = 1
-            assert window_answers(4242) is True
-
-    def test_a_thread_that_does_not_answer_in_time_says_so(self):
-        with patch("fun_time.win32._user32") as mock:
-            mock.SendMessageTimeoutW.return_value = 0
-            assert window_answers(4242) is False
-
-    def test_it_asks_with_the_message_that_does_nothing(self):
-        """WM_NULL, because the answer is the whole point: any message that did
-        something would be a change made to a window this only meant to ask
-        about."""
-        with patch("fun_time.win32._user32") as mock:
-            window_answers(4242, timeout_ms=50)
-
-        hwnd, message, *_rest = mock.SendMessageTimeoutW.call_args.args
-        assert (hwnd, message) == (4242, win32.WM_NULL)
-
-    def test_a_thread_busy_for_seconds_is_still_given_the_whole_timeout(self):
-        """Genau's thread can stay busy past the five seconds after which Windows
-        stops waiting on a window, and a caller that waits by counting asks needs
-        each ask to take its full time -- the flag that gives up on such a window
-        would answer those at once."""
-        with patch("fun_time.win32._user32") as mock:
-            window_answers(4242, timeout_ms=50)
-
-        *_head, flags, timeout, _out = mock.SendMessageTimeoutW.call_args.args
-        assert (flags, timeout) == (win32.SMTO_NORMAL, 50)
-
-    def test_a_window_that_was_never_resolved_is_not_asked(self):
-        with patch("fun_time.win32._user32") as mock:
-            assert window_answers(0) is False
-
-        mock.SendMessageTimeoutW.assert_not_called()
 
 
 class TestActivateWindow:
@@ -1014,20 +957,6 @@ class TestIterZorder:
         with patch("fun_time.win32._user32") as mock:
             mock.GetTopWindow.return_value = 0
             assert win32.iter_zorder() == []
-
-
-class TestDisableWindowTransitions:
-    """The main slot swaps by minimizing one player and restoring the other, so
-    both keep a taskbar button — and the animation that would show has to go."""
-
-    def test_the_window_is_told_to_force_its_transitions_off(self):
-        with patch("fun_time.win32._dwmapi") as mock:
-            win32.disable_window_transitions(4242)
-
-        hwnd, attribute, value_ref, size = mock.DwmSetWindowAttribute.call_args.args
-        assert (hwnd, attribute) == (4242, 3)  # DWMWA_TRANSITIONS_FORCEDISABLED
-        assert value_ref._obj.value == 1  # TRUE
-        assert size == ctypes.sizeof(ctypes.wintypes.BOOL)
 
 
 class TestIsWindowMinimized:

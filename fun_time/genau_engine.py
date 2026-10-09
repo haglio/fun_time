@@ -48,10 +48,6 @@ class GenauEngine:
     def current_clip(self) -> Path | None:
         return self.renderer.current_clip_path
 
-    @property
-    def showing(self) -> bool:
-        return not self.controls.hud.on
-
     def playhead(self) -> tuple[int, int]:
         entry = self.renderer.current_clip_entry()
         frames = entry.get("frames") if entry else None

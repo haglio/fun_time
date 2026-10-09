@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from player_core.modes import MainMode
-from player_core.player_verbs import DISPLAY_OFF, DISPLAY_ON
+from player_core.player_verbs import SHOW
 
 # The main slot's two modes.  In both the Robot Hand is at work: in genau mode it
 # drives the OSR2 outright under Genau's clips, and in kino mode the arbiter
@@ -24,12 +24,9 @@ class ModeSwitchPlan:
     target_mode: MainMode
     is_transition: bool
     genau_cmd: str | None
-    hud_cmd: str | None
+    # What the Main Player is told: which of Kino and Genau has its window.
+    show_cmd: str | None
     main_player_should_play: bool | None
-    # Distinct from main_player_should_play: a paused main player still holds the frame it
-    # stopped on, and the idle main-slot player is minimized rather than hidden,
-    # so an alt-tab back to it lands on that frame unless it is blanked.
-    main_player_display_cmd: str | None
     log_message: str
 
 
@@ -38,14 +35,9 @@ def main_player_displays(mode: MainMode) -> bool:
     return mode == MAIN_KINO_MODE
 
 
-def hud_verb(mode: MainMode) -> str:
-    """What Genau's window is in *mode*: the HUD layer over the main player, or the display."""
-    return "HUD_ON" if main_player_displays(mode) else "HUD_OFF"
-
-
-def main_player_display_verb(mode: MainMode) -> str:
-    """Whether the main player paints in *mode* — :func:`hud_verb`'s mirror."""
-    return DISPLAY_ON if main_player_displays(mode) else DISPLAY_OFF
+def show_verb(mode: MainMode) -> str:
+    """What the Main Player is told so that *mode*'s player has its window."""
+    return f"{SHOW} {mode}"
 
 
 def build_mode_switch_plan(
@@ -63,9 +55,8 @@ def build_mode_switch_plan(
             target_mode=target_mode,
             is_transition=False,
             genau_cmd=None,
-            hud_cmd=None,
+            show_cmd=None,
             main_player_should_play=None,
-            main_player_display_cmd=None,
             log_message=f"Already in {target_mode} mode",
         )
 
@@ -73,9 +64,7 @@ def build_mode_switch_plan(
         target_mode=target_mode,
         is_transition=True,
         genau_cmd=None if omni_paused else "RESUME",
-        hud_cmd=None if main_player_displays(target_mode) else hud_verb(target_mode),
+        show_cmd=show_verb(target_mode),
         main_player_should_play=None if omni_paused else main_player_displays(target_mode),
-        main_player_display_cmd=(main_player_display_verb(target_mode)
-                                 if main_player_displays(target_mode) else None),
         log_message=f"Switched to {target_mode} mode",
     )

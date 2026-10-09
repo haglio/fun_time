@@ -40,9 +40,9 @@ def build_windows_bridge_manifest(
             "config_path": str(config.config_path),
             "windows_bridge_log_file": str(config.log_file("windows_bridge")),
             "genau_config_path": str(config.paths.genau_config_path or config.config_path),
-            # Where Genau and the main player are started from.  Empty means "wherever we
-            # are", resolving them through their venv's editable install; named,
-            # another checkout of that repo runs instead.
+            # Where the Main Player is started from.  Empty means "wherever we
+            # are", resolving it through its venv's editable installs; named,
+            # other checkouts run instead.
             "genau_project_dirs": config.paths.genau_project_path,
             # The Origenerator checkout the session hosts, or "" for a session
             # with no origenerator mode at all (see fun_time.satellites_mode).
@@ -51,7 +51,7 @@ def build_windows_bridge_manifest(
         "executables": {
             # Two interpreters: ours runs everything this repo ships (the
             # dashboard, the audio companion, the satellite players), and
-            # genau's runs the apps that live in ../genau (Genau and the main player).
+            # genau's runs the Main Player, which Kino and Genau both run on.
             "python_exe": str(config.paths.python_exe),
             "genau_python_exe": str(config.paths.genau_python_exe or config.paths.python_exe),
             # Origenerator has no venv; its deps live in a system install, so a
@@ -71,7 +71,6 @@ def build_windows_bridge_manifest(
             "genau_audio": str(config.paths.audio_dir),
         },
         "modules": {
-            "genau_module": "genau",
             "main_player_module": "main_player",
             "satellite_module": "satellite",
             "audio_module": "fun_time.audio_companion_app",
@@ -171,7 +170,7 @@ class RuntimePaths:
     config_path: str
     windows_bridge_log_file: str
     genau_config_path: str
-    # Where Genau and the main player are started from.  Empty means "wherever we are".
+    # Where the Main Player is started from.  Empty means "wherever we are".
     genau_project_dirs: str = ""
     # The Origenerator checkout the session hosts, or "" for a session with
     # no origenerator mode at all.
@@ -207,7 +206,6 @@ class MediaSources:
 class ChildModules:
     """[modules]: what each child is launched as (``python -m <module>``)."""
 
-    genau_module: str
     main_player_module: str
     satellite_module: str
     audio_module: str

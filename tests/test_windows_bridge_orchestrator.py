@@ -115,7 +115,6 @@ def _fake_startup_result() -> StartupResult:
         portrait_pid=300,
         landscape_pid=400,
         dashboard_pid=500,
-        genau_pid=600,
         audio_pid=700,
         origenerator_pid=800,
     )
@@ -124,23 +123,6 @@ def _fake_startup_result() -> StartupResult:
 class TestFixPostLoadingWindows:
     """The overlay's teardown can shuffle z-order and activation, so the whole
     window policy is applied again once the overlay process has exited."""
-
-    def test_reapplies_the_policy_for_the_mode_the_session_opened_in(self):
-        """A resumed genau session would otherwise get main_player's stacking back here:
-        The main player promoted over Genau and un-parked, one pass after the sequencer
-        parked it — the display handed back to the player that is not playing."""
-        result = replace(_fake_startup_result(), main_mode=MainMode.GENAU)
-
-        with patch(
-            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
-        ) as apply, patch(
-            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
-        ), patch(
-            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title", return_value=0
-        ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
-            _fix_post_loading_windows(result)
-
-        assert apply.call_args.kwargs["mode"] == "genau"
 
     def test_satellites_resolve_by_title_when_their_pids_are_launcher_shims(self):
         """python_exe is the venv's pythonw SHIM: the recorded satellite pid is
@@ -235,41 +217,10 @@ class TestFixPostLoadingWindows:
 
         promote.assert_called_once_with(333, True, under=0)
 
-    def test_genau_over_the_main_player_is_not_a_burial(self):
-        """Genau's window sits over the main player's by design in every mode —
-        the transparent layer over its video in kino mode, the display itself
-        in genau mode.  Re-promoting the player out from under it would undo
-        the layering the session just built."""
-        result = _fake_startup_result()
-        titles = {"Main Player": 333, "Genau": 444}
-        genau = StackedWindow(hwnd=444, title="Genau", topmost=True,
-                              rect=(0, 0, 2560, 1410))
-        main_player = StackedWindow(hwnd=333, title="Main Player",
-                                    topmost=True, rect=(0, 0, 2560, 1410))
-
-        with patch(
-            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
-        ), patch(
-            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
-        ), patch(
-            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
-            side_effect=lambda title, **kwargs: titles.get(title, 0),
-        ), patch(
-            "fun_time.windows_bridge_orchestrator.iter_zorder",
-            return_value=[genau, main_player],
-        ), patch(
-            "fun_time.windows_bridge_orchestrator.set_always_on_top"
-        ) as promote, sleeps_in(windows_bridge_orchestrator), patch(
-            "fun_time.windows_bridge_orchestrator._log_window_obstruction"
-        ):
-            _fix_post_loading_windows(result)
-
-        promote.assert_not_called()
-
-    def test_a_parked_main_player_is_left_where_genau_mode_put_it(self):
-        """In genau mode the display is Genau's and the player is parked, so a
-        window over the parked player is not a burial to undo — promoting it
-        would hand the slot back to the player that is not playing."""
+    def test_a_buried_main_player_is_re_promoted_in_genau_mode_too(self):
+        """Genau runs on the Main Player's window, so a genau session has no
+        parked player to leave alone: a window over it is a burial in either
+        mode."""
         result = replace(_fake_startup_result(), main_mode=MainMode.GENAU)
         titles = {"Main Player": 333}
         chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
@@ -286,7 +237,7 @@ class TestFixPostLoadingWindows:
             side_effect=lambda title, **kwargs: titles.get(title, 0),
         ), patch(
             "fun_time.windows_bridge_orchestrator.iter_zorder",
-            return_value=[chrome, main_player],
+            side_effect=[[chrome, main_player], [main_player, chrome]],
         ), patch(
             "fun_time.windows_bridge_orchestrator.set_always_on_top"
         ) as promote, sleeps_in(windows_bridge_orchestrator), patch(
@@ -294,7 +245,7 @@ class TestFixPostLoadingWindows:
         ):
             _fix_post_loading_windows(result)
 
-        promote.assert_not_called()
+        promote.assert_called_once_with(333, True, under=0)
 
     def test_a_player_still_buried_under_the_curtain_is_re_promoted_under_it(self):
         result = _fake_startup_result()
@@ -593,7 +544,6 @@ class TestWritePidsFile:
         assert parser.getint("pids", "portrait_pid") == 300
         assert parser.getint("pids", "landscape_pid") == 400
         assert parser.getint("pids", "dashboard_pid") == 500
-        assert parser.getint("pids", "genau_pid") == 600
         assert parser.getint("pids", "audio_pid") == 700
 
     def test_writes_the_creation_time_that_pins_each_pid(self, tmp_path):
@@ -702,12 +652,11 @@ class TestRunPythonOrchestratedBridge:
         assert calls == ["launch_loading", "launch_ahk", "startup_sequence", "launch_closing"]
         assert code == 0
 
-        # Should have killed all 6 child processes
+        # Should have killed all 5 child processes
         assert 200 in killed_pids  # main_player
         assert 300 in killed_pids  # portrait
         assert 400 in killed_pids  # landscape
         assert 500 in killed_pids  # dashboard
-        assert 600 in killed_pids  # genau
         assert 700 in killed_pids  # audio
 
     def test_holds_loading_screen_until_the_hud_indexes_are_primed(self, cfg_factory, tmp_path):
@@ -973,7 +922,7 @@ class TestLoadingScreenLifecycle:
 
         result_with_hwnds = StartupResult(
             main_player_pid=200, portrait_pid=300, landscape_pid=400,
-            dashboard_pid=500, genau_pid=600, audio_pid=700,
+            dashboard_pid=500, audio_pid=700,
             )
 
         popen_calls: list[list] = []
@@ -1498,7 +1447,7 @@ class TestClosingScreenLifecycle:
         assert events[0] == "cover_up"
         assert set(events[1:]) == {
             "close_browser", "kill:200", "kill:300", "kill:400",
-            "kill:500", "kill:600", "kill:700", "kill:800",
+            "kill:500", "kill:700", "kill:800",
         }
 
     def test_every_sound_is_paused_before_the_cover_goes_up(self, cfg_factory, tmp_path):
@@ -1907,15 +1856,15 @@ class TestAPlayerThatDiedWhileTheRoomCameUp:
                 if record.getMessage().startswith("Fun Time stopped starting up"):
                     happened.append("said why")
 
-        def genau_died(**_kwargs):
-            raise PlayerDied(LaunchedPlayer("Genau", 60), "ImportError: a made-up name",
+        def the_main_player_died(**_kwargs):
+            raise PlayerDied(LaunchedPlayer("the Main player", 60), "ImportError: a made-up name",
                              launched_pids=[300, 400])
 
         noted = _NoteTheLine()
         logging.getLogger(windows_bridge_orchestrator.__name__).addHandler(noted)
         try:
             with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-                       side_effect=genau_died), \
+                       side_effect=the_main_player_died), \
                  patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
                        return_value=MagicMock(wait=MagicMock(return_value=0))), \
                  patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
@@ -1959,7 +1908,7 @@ class TestStartupCancellation:
             return fake_ahk_proc
 
         def cancel_sequence(**kwargs):
-            raise StartupCancelled(launched_pids=[300, 400, 600], rfb_hwnd=1234)
+            raise StartupCancelled(launched_pids=[300, 400, 200], rfb_hwnd=1234)
 
         killed: list[int] = []
         closed: list[int] = []
@@ -1976,7 +1925,7 @@ class TestStartupCancellation:
             )
 
         assert code == 0
-        assert {300, 400, 600} <= set(killed)
+        assert {300, 400, 200} <= set(killed)
         assert 1234 in closed
         # The hotkey script is up from the start of a launch, so a cancelled one
         # has to take it back out — left running it would go on swallowing every
@@ -2101,7 +2050,7 @@ class TestStartupCancellation:
             )
 
         assert code == 0
-        assert {200, 300, 400, 500, 600, 700} <= set(killed)
+        assert {200, 300, 400, 500, 700} <= set(killed)
         assert (state_dir / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
         assert not (state_dir / "bridge_pids.ini").exists()
         mock_runner.assert_not_called()
@@ -2174,7 +2123,7 @@ class TestStartupCancellation:
                 env=SessionEnvironment(integration=True, show_overlays=False),
             )
 
-        assert set(killed) == {200, 300, 400, 500, 600, 700, 800}
+        assert set(killed) == {200, 300, 400, 500, 700, 800}
         assert (state_dir / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
 
     def test_stale_cancel_flag_is_cleared_before_startup(self, cfg_factory, tmp_path):
@@ -2412,7 +2361,7 @@ class TestPostLoadingWindowState:
 
         result_with_hwnds = StartupResult(
             main_player_pid=200, portrait_pid=300, landscape_pid=400,
-            dashboard_pid=500, genau_pid=600, audio_pid=700,
+            dashboard_pid=500, audio_pid=700,
                 rfb_hwnd=55555,
         )
 
@@ -2428,19 +2377,15 @@ class TestPostLoadingWindowState:
             return fake_ahk_proc
 
         topmost_calls: list[tuple] = []
-        hide_calls: list[int] = []
-        GENAU_HWND = 6060
         DASH_HWND = 5050
         pid_to_hwnd = {200: 2020, 300: 3030, 400: 4040, 500: DASH_HWND}
-        title_to_hwnd = {"Fun Time": DASH_HWND, "Genau": GENAU_HWND}
+        title_to_hwnd = {"Fun Time": DASH_HWND}
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=result_with_hwnds), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window", side_effect=lambda h, **kw: hide_calls.append(h)), \
-             patch("fun_time.windows_bridge_sequencer.disable_window_transitions"), \
              patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]), \
              patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)):
 
@@ -2452,19 +2397,12 @@ class TestPostLoadingWindowState:
                 project_dir=tmp_path,
             )
 
-        # video startup mode: both main-slot players stay up, Genau's HUD over
-        # The main player's video, so nobody is parked.
-        assert hide_calls == [], f"a main-slot player was parked: {hide_calls}"
-
-        # video startup mode: the windows that own a rect are promoted to topmost,
-        # The main player (hwnd 2020) included — it floats above the desktop like the main
-        # player always has — and Genau after it, which is what stacks the HUD
-        # above the video.
+        # The windows that own a rect are promoted to topmost, the Main Player
+        # (hwnd 2020) included: it floats above the desktop like it always has.
         promoted = [h for h, v in topmost_calls if v]
-        assert {DASH_HWND, 2020, 3030, 4040, 55555, GENAU_HWND} <= set(promoted), (
+        assert {DASH_HWND, 2020, 3030, 4040, 55555} <= set(promoted), (
             f"Wrong promotions: {topmost_calls}"
         )
-        assert promoted.index(GENAU_HWND) > promoted.index(2020)
 
 
 class TestMainPlayerObstructionLog:
@@ -2500,34 +2438,32 @@ class TestMainPlayerObstructionLog:
         it.assert_not_called()  # nothing to walk if the main player never resolved
         assert "unresolved" in caplog.text
 
-    def test_quiet_when_only_the_sessions_own_genau_layer_covers_main_player(self, caplog):
-        """In kino mode, Genau's window is the transparent HUD layer over the main player's
-        video — over it on purpose.  Warning on that flashed a notice on every kino mode
-        startup with a covering window that covers nothing visible."""
+    def test_quiet_when_only_the_loading_overlay_covers_main_player(self, caplog):
+        """The cover is over everything on purpose while this runs under it."""
         stack = [
-            StackedWindow(hwnd=1010, title="Kino Main Player+Genau", topmost=True,
-                          rect=(2560, 2483, 1440, 930)),
+            StackedWindow(hwnd=1010, title="Fun Time is starting", topmost=True,
+                          rect=(0, 0, 4000, 3440)),
             StackedWindow(hwnd=2020, title="Main Player", topmost=True, rect=(2560, 2500, 1440, 900)),
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Main Player", 2020, expected_over=1010)
+            _log_window_obstruction("Main Player", 2020, ignore=1010)
         assert "frontmost over its rect" in caplog.text
         assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
 
-    def test_a_third_window_still_warns_past_the_expected_layer(self, caplog):
+    def test_a_third_window_still_warns_past_the_loading_overlay(self, caplog):
         stack = [
             StackedWindow(hwnd=99, title="Claude", topmost=False, rect=(2560, 2500, 1440, 900)),
-            StackedWindow(hwnd=1010, title="Kino Main Player+Genau", topmost=True,
-                          rect=(2560, 2483, 1440, 930)),
+            StackedWindow(hwnd=1010, title="Fun Time is starting", topmost=True,
+                          rect=(0, 0, 4000, 3440)),
             StackedWindow(hwnd=2020, title="Main Player", topmost=True, rect=(2560, 2500, 1440, 900)),
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Main Player", 2020, expected_over=1010)
+            _log_window_obstruction("Main Player", 2020, ignore=1010)
         assert "covered at startup" in caplog.text
         assert "Claude" in caplog.text
-        assert "Kino Main Player+Genau" not in caplog.text
+        assert "Fun Time is starting" not in caplog.text
 
 
 class TestVoiceControlIntegration:
@@ -2791,19 +2727,19 @@ class TestTheFinishingPassFitsUnderTheCover:
         Outlast it and the cover takes itself down mid-pass, which is the user
         watching the z-order sort itself out: the exact thing it is up for.
 
-        Every wait that pass can take, added up, has to clear that guard.  Five
-        window resolutions: the dashboard, the main player, Genau, and the two satellites.
+        Every wait that pass can take, added up, has to clear that guard.  Four
+        window resolutions: the dashboard, the main player, and the two satellites.
         """
         budget = (
             HUD_PRIME_TIMEOUT_S
-            + 5 * POST_LOADING_RESOLVE_TIMEOUT_S
+            + 4 * POST_LOADING_RESOLVE_TIMEOUT_S
             + SETTLE_PASSES * SETTLE_WAIT_S
         )
         assert budget < STALE_TIMEOUT_S
 
 
 class TestThePlayersStartWhenTheCoverIsGone:
-    """The main player's video and Genau's audio must not run under the cover.
+    """The main player's video and Genau's clips must not run under the cover.
 
     The phase walk used to release them as its last act, which was also the
     moment the cover came down {D} so they lined up.  Now the cover is held
@@ -3229,10 +3165,10 @@ def test_the_reveal_seats_the_secondary_monitor_for_the_crown_the_room_came_back
     with patch("fun_time.role_windows.window_rect", return_value=None), \
          patch("fun_time.role_windows.is_window_minimized", return_value=False), \
          patch("fun_time.role_windows.place_window") as place:
-        seat_the_secondary_monitor(manifest, {"portrait": 3001, "main_player": 2001, "genau": 6001})
+        seat_the_secondary_monitor(manifest, {"portrait": 3001, "main_player": 2001})
 
     assert sorted(call.args for call in place.call_args_list) == [
-        (2001, 2560, 940, 1440, 2500), (3001, 2560, 0, 1440, 940), (6001, 2560, 940, 1440, 2500)]
+        (2001, 2560, 940, 1440, 2500), (3001, 2560, 0, 1440, 940)]
 
 
 def test_the_desktop_rooms_loop_is_handed_the_secondary_monitor_to_arrange(

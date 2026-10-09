@@ -20,7 +20,6 @@ from player_core.play_points import play_points_filename
 from satellite.contract import SatelliteChannels
 
 from . import preview_marker
-from .genau_config import genaus_own_logs
 from .hosted_origenerator import HostedApp, bring_up_the_hosted_app
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, main_player_displays
@@ -44,14 +43,10 @@ from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import read_shared_state, shared_state_path
 from .shortcuts import resolve_shortcut
 from .win32 import (
-    ANSWER_TIMEOUT_MS,
-    disable_window_transitions,
     find_windows_by_class,
-    minimize_window,
     move_window,
     set_always_on_top,
     wait_for_window_by_title,
-    window_answers,
 )
 from .window_layout import (
     ScreenLayout,
@@ -60,7 +55,7 @@ from .window_layout import (
     compute_main_media_rect,
     screen_layout,
 )
-from .window_roles import GENAU_TITLE, MANAGED_ROLES, role_topmost
+from .window_roles import MANAGED_ROLES, role_topmost
 from .windows_bridge_random_favs_browser import (
     CHROME_WINDOW_CLASS,
     launch_random_favs_browser,
@@ -68,7 +63,6 @@ from .windows_bridge_random_favs_browser import (
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
-    launch_genau,
     launch_main_player,
     launch_ui_companions,
     start_core_session,
@@ -80,8 +74,6 @@ logger = logging.getLogger(__name__)
 # returns the moment the window appears — a satellite's takes about half a second
 # — so this is a ceiling for a machine under load, not a cost anyone pays.
 WINDOW_RESOLVE_TIMEOUT_S = 15.0
-
-GENAU_ANSWER_TIMEOUT_S = 12.0  # player_core's FirstClipPreload caps Genau's first decode at 10s
 
 # How long startup waits for the main player to finish loading.  Wide enough for the worst
 # case, a cold duration cache: one ffprobe per unprobed video, measured at 28s
@@ -98,15 +90,14 @@ class StartupResult:
     portrait_pid: int
     landscape_pid: int
     dashboard_pid: int
-    genau_pid: int
     audio_pid: int
     # The hosted Origenerator's process, or 0 for a session with none configured.
     origenerator_pid: int = 0
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
     # Which player the main slot was revealed on — last session's, resumed.
-    # Carried out because the post-overlay z-order pass runs from the
-    # orchestrator and has to re-assert the same policy these phases applied.
+    # Carried out because the orchestrator starts the players once the cover
+    # is gone, and starts the mode's.
     # The satellite side has no such line: every room is BUILT in kino mode.
     main_mode: MainMode = STARTUP_MAIN_MODE
     rfb_hwnd: int = 0
@@ -131,7 +122,6 @@ def _startup_role_hwnds(
     *,
     portrait_hwnd: int,
     landscape_hwnd: int,
-    genau_hwnd: int,
     main_player_hwnd: int,
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
@@ -145,26 +135,20 @@ def _startup_role_hwnds(
     return {
         "portrait": portrait_hwnd,
         "landscape": landscape_hwnd,
-        "genau": genau_hwnd,
         "main_player": main_player_hwnd,
         "dashboard": dashboard_hwnd,
         "rfb": rfb_hwnd,
     }
 
 
-def apply_topmost_bands(role_hwnds: dict[str, int], mode: str, *, beneath: int = 0) -> None:
+def apply_topmost_bands(role_hwnds: dict[str, int], *, beneath: int = 0) -> None:
     """Give each managed window its topmost flag from the shared ``role_topmost``
-    policy for *mode* — the same policy omnipause and mode switches honor, so
-    they can never disagree.
-
-    Only the main slot's mode is asked for: the satellite side always opens in
-    kino mode, which is the policy's own default; a later switch re-bands
-    through ``role_windows``, which does pass it.
+    policy — the same policy omnipause and mode switches honor, so they can
+    never disagree.  The satellite side always opens in kino mode, which is the
+    policy's own default; a later switch re-bands through ``role_windows``.
 
     Walked in ``MANAGED_ROLES`` order rather than the mapping's, because
-    ``HWND_TOPMOST`` inserts at the *top* of the band: that order is what puts
-    Genau's transparent HUD above the main player's video in kino mode, and the policy says so
-    outright ("Genau is promoted last").
+    ``HWND_TOPMOST`` inserts at the *top* of the band.
 
     *beneath* is the loading overlay, when this runs under it: each promotion
     lands directly under it, which keeps the same order one slot lower.
@@ -172,41 +156,19 @@ def apply_topmost_bands(role_hwnds: dict[str, int], mode: str, *, beneath: int =
     for role in MANAGED_ROLES:
         hwnd = role_hwnds.get(role, 0)
         if hwnd:
-            set_always_on_top(hwnd, role_topmost(role, mode), under=beneath)
-
-
-def _apply_main_slot_visibility(main_player_hwnd: int, genau_hwnd: int, mode: str) -> None:
-    """Park whichever slot-mate *mode* leaves idle.
-
-    The main player and Genau share the main player's rect; the slot swaps by minimizing the idle
-    one (which keeps its taskbar button) and restoring the active one.  Disable
-    both windows' DWM transitions first so those minimize/restores are instant —
-    no visible animation.  The main player is the idle one in genau mode; in kino mode
-    neither is, because Genau's HUD is drawn over the main player's video.
-
-    Safe under the loading overlay: minimizing moves no window into the topmost
-    band, so nothing can flash over it.
-    """
-    for hwnd in (main_player_hwnd, genau_hwnd):
-        if hwnd:
-            disable_window_transitions(hwnd)
-    if main_player_hwnd and not main_player_displays(mode):
-        minimize_window(main_player_hwnd, activate=False)
+            set_always_on_top(hwnd, role_topmost(role), under=beneath)
 
 
 def apply_startup_window_state(
     *,
     portrait_hwnd: int,
     landscape_hwnd: int,
-    genau_hwnd: int,
     main_player_hwnd: int,
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
-    mode: str = STARTUP_MAIN_MODE,
     beneath: int = 0,
 ) -> dict[str, int]:
-    """Set the full window state for the mode the session opens in: bands, then
-    visibility.
+    """Set the full window state the session opens with: the bands.
 
     *beneath* is the loading overlay when this runs under one, and keeps the
     cover on top across the walk (:func:`apply_topmost_bands`).  Zero without a
@@ -215,13 +177,11 @@ def apply_startup_window_state(
     role_hwnds = _startup_role_hwnds(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        genau_hwnd=genau_hwnd,
         main_player_hwnd=main_player_hwnd,
         dashboard_hwnd=dashboard_hwnd,
         rfb_hwnd=rfb_hwnd,
     )
-    apply_topmost_bands(role_hwnds, mode, beneath=beneath)
-    _apply_main_slot_visibility(main_player_hwnd, genau_hwnd, mode)
+    apply_topmost_bands(role_hwnds, beneath=beneath)
     return role_hwnds
 
 
@@ -253,8 +213,8 @@ def release_the_players(m: LaunchManifest, main_mode: MainMode) -> None:
 
     Startup holds every one of them so nothing plays into a room that is still
     being built; this releases exactly the ones the mode shows — Genau (with
-    its audio) in both, the main player in kino mode alone — so nothing plays into a
-    minimized window or drives the OSR2 unasked.
+    its audio) in both, Kino's video in kino mode alone — so nothing plays out
+    of sight or drives the OSR2 unasked.
 
     Called by the sequencer on the path with no cover, and by the orchestrator on
     the path with one — there, only once the cover has actually left the screen.
@@ -323,7 +283,6 @@ class _CoreSession:
     main_mode: MainMode
     portrait_pid: int
     landscape_pid: int
-    genau_pid: int
     main_player_pid: int
     origenerator_pid: int
     origenerator_taken_over: bool
@@ -351,8 +310,7 @@ def _launch_the_satellites(
 
     Returns the mode last session was closed in — the core session has just
     seeded every cross-process flag for it, and what is left is the half only
-    this side can do: park the idle slot-mate, band the pair, and reveal on the
-    right player.
+    this side can do: band the windows, and reveal on the right player.
     """
     core_result_file = _build_unique_result_path(state_dir, "core_session")
     broker_launcher_raw = m.commands.broker_tray_launcher.strip()
@@ -422,67 +380,34 @@ def _launch_the_satellites(
     return main_mode, portrait_pid, landscape_pid
 
 
-def _launch_the_main_slot_players(
+def _launch_the_main_player(
     m: LaunchManifest,
     *,
     layout: ScreenLayout,
     state_dir: Path,
     project_dirs: str,
     launched: _LaunchedChildren,
-) -> tuple[int, int, Path]:
-    """Genau and the main player, who share the main slot's rect, and the main player's status file.
+) -> tuple[int, Path]:
+    """The Main Player, which Kino and Genau both run on, and its status file.
 
     That file is how startup learns the main player has finished loading, so it is dropped
     here — after ``start_core_session`` has read last session's copy to resume
     The main player onto the video it names, and before the main player could write a new one.
     """
     regen_metadata_raw = m.regen.metadata_root.strip()
-    # Launch Genau and the main player as early as possible so they can initialise
-    # pygame, scan media, and decode first frames while the rest of startup
-    # continues.  Both share the Main slot's rect, which depends only on
-    # the secondary monitor + main_top_ratio (already computed above).
+    # Launched as early as possible so it can initialise pygame, scan media and
+    # decode first frames while the rest of startup continues.  The main slot's
+    # rect depends only on the secondary monitor + main_top_ratio (already
+    # computed above).
     main_media_rect = compute_main_media_rect(
         secondary_monitor=layout.secondary_monitor, layout_config=layout.config,
     )
-    # Genau's drive readout, which main player draws inside its console in kino mode.  Named
-    # here and handed to BOTH players, because each resolving it for itself is how
-    # it went wrong: Genau derived it from its own config's state dir and wrote it
-    # into the Genau repo, while the main player was told to read it out of Fun Time's — so
-    # Kino mode showed a console with the Genau half missing.
-    genau_drive_file = Path(m.commands.genau_drive_file)
-    # Genau's own resume, read before this session's Genau writes over its
-    # status file: the clip it was left showing, and whether it was browsing
-    # Latest off the state the core session just resumed.
+    # Genau's resume, read before this session's Genau writes over its status
+    # file: the clip it was left showing, and whether it was browsing Latest off
+    # the state the core session just resumed.
     genau_clip = read_genau_status(Path(m.commands.genau_status_file)).clip
     state = read_shared_state(shared_state_path(state_dir))
     genau_latest = False if state is None else state.genau_latest
-    genau_log = state_dir / "genau.log"
-    genau_logs = logs_as_they_stand(genau_log, *genaus_own_logs(m.runtime.genau_config_path))
-    # project_dirs: which checkout of ../genau these two are run out of.  Empty
-    # in an ordinary session — they resolve through their venv's editable
-    # install, which is the primary — and a worktree of that repo while a branch
-    # of it is being judged.
-    genau_pid = launch_genau(
-        python_exe=m.executables.genau_python_exe,
-        genau_module=m.modules.genau_module,
-        config_path=m.runtime.genau_config_path,
-        clips_folder=m.media.genau_clips,
-        genau_x=main_media_rect.x,
-        genau_y=main_media_rect.y,
-        genau_width=main_media_rect.width,
-        genau_height=main_media_rect.height,
-        command_file=m.commands.genau_cmd_file,
-        paused_file=m.commands.genau_paused_file,
-        console_file=m.commands.main_player_console_file,
-        drive_file=genau_drive_file,
-        status_file=m.commands.genau_status_file,
-        dashboard_cmd_file=m.commands.dashboard_cmd_file,
-        start_clip=genau_clip,
-        latest=genau_latest,
-        metadata_dir=regen_metadata_raw or None,
-        log_file=genau_log,
-        project_dirs=project_dirs,
-    )
     # The main player's status file is how startup learns the main player has finished loading, and it
     # can only say that once last session's copy is gone.  start_core_session
     # read that one already, to resume the main player onto the video it names, so this is
@@ -501,7 +426,7 @@ def _launch_the_main_slot_players(
         paused_file=m.commands.main_player_paused_file,
         status_file=m.commands.main_player_status_file,
         console_file=m.commands.main_player_console_file,
-        drive_file=genau_drive_file,
+        drive_file=m.commands.genau_drive_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
         log_file=main_player_log,
         state_dir=state_dir,
@@ -509,16 +434,19 @@ def _launch_the_main_slot_players(
         main_player_y=main_media_rect.y,
         main_player_width=main_media_rect.width,
         main_player_height=main_media_rect.height,
+        genau_command_file=m.commands.genau_cmd_file,
+        genau_paused_file=m.commands.genau_paused_file,
+        genau_status_file=m.commands.genau_status_file,
+        genau_config_path=m.runtime.genau_config_path,
         clips_dir=m.media.genau_clips,
         metadata_dir=regen_metadata_raw or None,
+        genau_start_clip=genau_clip,
+        genau_latest=genau_latest,
         project_dirs=project_dirs,
     )
-    launched.pids.extend([genau_pid, main_player_pid])
-    launched.players.extend([
-        LaunchedPlayer("Genau", genau_pid, genau_logs),
-        LaunchedPlayer("the Main player", main_player_pid, main_player_logs),
-    ])
-    return genau_pid, main_player_pid, main_player_status_file
+    launched.pids.append(main_player_pid)
+    launched.players.append(LaunchedPlayer("the Main player", main_player_pid, main_player_logs))
+    return main_player_pid, main_player_status_file
 
 
 def _launch_the_hosted_origenerator(
@@ -541,7 +469,7 @@ def _launch_core_media(
     state_dir: Path,
     launched: _LaunchedChildren,
 ) -> _CoreSession:
-    """Phase 1: the hosted app, then the two satellites, then Genau and the main player.
+    """Phase 1: the hosted app, then the two satellites, then the main player.
 
     Nothing here waits for a window.  Everything is started as early as it can
     be, slowest first, so each child's own boot — ComfyUI, pygame, a media
@@ -557,7 +485,7 @@ def _launch_core_media(
     main_mode, portrait_pid, landscape_pid = _launch_the_satellites(
         m, plan=layout.plan, state_dir=state_dir, project_dirs=project_dirs,
         launched=launched)
-    genau_pid, main_player_pid, main_player_status_file = _launch_the_main_slot_players(
+    main_player_pid, main_player_status_file = _launch_the_main_player(
         m, layout=layout, state_dir=state_dir, project_dirs=project_dirs,
         launched=launched)
 
@@ -565,7 +493,6 @@ def _launch_core_media(
         main_mode=main_mode,
         portrait_pid=portrait_pid,
         landscape_pid=landscape_pid,
-        genau_pid=genau_pid,
         main_player_pid=main_player_pid,
         origenerator_pid=origenerator_pid,
         origenerator_taken_over=launched.origenerator_taken_over,
@@ -584,14 +511,8 @@ def _launch_core_media(
 _COMPANION_LAUNCH_DELAY_S = 1.2
 
 
-def _position_windows_now(plan: WindowLayoutPlan, main_mode: MainMode, *,
-                          env: SessionEnvironment,
-                          progress: ProgressReporter) -> dict[str, int]:
-    """Phase 2, on the path with no cover: place and band every window at once.
-
-    No progress reporting here: this is the integration path, and the loading
-    screen (with the reporter that drives it) belongs to the other one.
-    """
+def _position_windows_now(plan: WindowLayoutPlan, *, env: SessionEnvironment) -> dict[str, int]:
+    """Phase 2, on the path with no cover: place and band every window at once."""
     activate = not env.integration
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
     _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=activate)
@@ -601,9 +522,7 @@ def _position_windows_now(plan: WindowLayoutPlan, main_mode: MainMode, *,
     role_hwnds = apply_startup_window_state(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        genau_hwnd=_resolve_genau_window(progress),
         main_player_hwnd=wait_for_window_by_title("Main Player", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
-        mode=main_mode,
     )
     logger.info("Startup window state applied")
     return role_hwnds
@@ -683,17 +602,15 @@ def _wait_for_the_room_to_be_drawing(
         )
 
 
-def _place_and_park_under_the_cover(
+def _place_the_windows_under_the_cover(
     *,
     plan: WindowLayoutPlan,
-    main_mode: MainMode,
     portrait_hwnd: int,
     landscape_hwnd: int,
     rfb_hwnd: int,
     dashboard_pid: int,
-    progress: ProgressReporter,
 ) -> dict[str, int]:
-    """Place every window where the plan says and park the idle slot-mate.
+    """Place every window where the plan says.
 
     Nothing here can show over the overlay: the players are still out of the
     topmost band, and no move or show lifts a window above the band it is not
@@ -717,12 +634,10 @@ def _place_and_park_under_the_cover(
         rfb_hwnd=rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        genau_hwnd=_resolve_genau_window(progress),
         main_player_hwnd=wait_for_window_by_title("Main Player", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
         dashboard_hwnd=dash_hwnd,
     )
-    _apply_main_slot_visibility(role_hwnds["main_player"], role_hwnds["genau"], main_mode)
-    logger.info("Startup windows resolved and parked (bands deferred past the overlay)")
+    logger.info("Startup windows resolved (bands deferred past the overlay)")
     return role_hwnds
 
 
@@ -748,14 +663,12 @@ def _settle_the_room_under_the_cover(
         players=players)
 
     progress.advance("windows")
-    return _place_and_park_under_the_cover(
+    return _place_the_windows_under_the_cover(
         plan=plan,
-        main_mode=core.main_mode,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
         rfb_hwnd=rfb_hwnd,
         dashboard_pid=dashboard_pid,
-        progress=progress,
     )
 
 
@@ -784,8 +697,7 @@ def _run_startup_phases(
     # --- Phase 2: Position windows (layout computed up front) ---
     role_hwnds: dict[str, int] = {}
     if not hide_windows:
-        role_hwnds = _position_windows_now(
-            plan, core.main_mode, env=env, progress=progress)
+        role_hwnds = _position_windows_now(plan, env=env)
 
     # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("browser")
@@ -820,7 +732,6 @@ def _run_startup_phases(
         portrait_pid=core.portrait_pid,
         landscape_pid=core.landscape_pid,
         dashboard_pid=ui_pids["dashboard_pid"],
-        genau_pid=core.genau_pid,
         audio_pid=ui_pids["audio_pid"],
         origenerator_pid=core.origenerator_pid,
         origenerator_taken_over=core.origenerator_taken_over,
@@ -839,25 +750,6 @@ def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool =
                      label, hwnd, rect.x, rect.y, rect.width, rect.height)
     else:
         logger.warning("Could not find window for %s", label)
-
-
-def _resolve_genau_window(progress: ProgressReporter) -> int:
-    """Genau's window, once its thread takes messages: it waits out its first
-    clip's decode before its loop starts, and a placement sent sooner lands late."""
-    # Exactly, and the plain caption alone: the HUD that renames this window
-    # is off until a mode switch, which is after this.
-    hwnd = wait_for_window_by_title(
-        GENAU_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True)
-    if not hwnd:
-        return 0
-    for _ in range(int(GENAU_ANSWER_TIMEOUT_S * 1000 / ANSWER_TIMEOUT_MS)):
-        if progress.cancelled:
-            raise StartupCancelled()
-        if window_answers(hwnd):  # waits up to ANSWER_TIMEOUT_MS on a busy thread
-            return hwnd
-    logger.warning("Genau took no messages within %.0fs; placing it anyway, and "
-                   "that placement may land late", GENAU_ANSWER_TIMEOUT_S)
-    return hwnd
 
 
 def _resolve_satellite_hwnds() -> tuple[int, int]:

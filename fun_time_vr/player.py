@@ -82,6 +82,7 @@ from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_path, notice
 from fun_time.genau_config import GenauSettings
 from fun_time.manifest import LaunchManifest
+from fun_time.mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE
 from fun_time.modes import scripted_item
 from fun_time.player_status import read_genau_status, read_main_player_status
 from fun_time.project_paths import PROJECT_VR_ICON
@@ -465,7 +466,7 @@ class _MainUnit(_VideoUnit):
 
     def __init__(
         self, manifest: LaunchManifest, vr: VrSettings, contexts, *,
-        remembered: Layout, genau_role, notices=None, perf=None,
+        remembered: Layout, notices=None, perf=None,
     ) -> None:
         # Muted at birth: the headset's sink cannot be trusted until the
         # compositor is presenting (see route_audio).
@@ -497,7 +498,6 @@ class _MainUnit(_VideoUnit):
             play_points=PlayPoints(
                 Path(commands.state_dir) / play_points_filename("main_player")),
         )
-        self._genau_role = genau_role  # the other player the main slot can be showing
         # A VR video nobody has chosen a projection for gets its picture read off
         # the thread that paints it: a fisheye circle found there opens it as a
         # fisheye rather than drawing its lower edge into a point as a 180 does.
@@ -541,10 +541,10 @@ class _MainUnit(_VideoUnit):
 
     @property
     def owns_the_slot(self) -> bool:
-        return not self._genau_role.showing
+        return self.role.shows == MAIN_KINO_MODE
 
     def hangings(self) -> tuple[Hanging, ...]:
-        if not (self.owns_the_slot and self.target.ready and self.role.displayed):
+        if not (self.owns_the_slot and self.target.ready):
             return ()
         return _in_the_slot(self.screen, self.target, _wrap_of(self.role, self.target.video))
 
@@ -872,7 +872,7 @@ class _GenauUnit:
 
     def __init__(
         self, manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *,
-        remembered: Mapping[str, Placement],
+        remembered: Mapping[str, Placement], has_the_slot: Callable[[], bool],
     ) -> None:
         if vr.clips_folder is None:
             raise RuntimeError("the launch manifest names no clips folder for Genau's role")
@@ -894,6 +894,7 @@ class _GenauUnit:
             latest=False if resumed is None else resumed.genau_latest,
             metadata_root=_metadata_root(manifest),
         )
+        self._has_the_slot = has_the_slot
         self.texture = FrameTexture()
         self.screen = _HangingScreen(remembered.get(MAIN, self.SPOTS[MAIN]))
         self._dashboard_cmd_file = Path(commands.dashboard_cmd_file)
@@ -910,7 +911,7 @@ class _GenauUnit:
 
     @property
     def owns_the_slot(self) -> bool:
-        return self.role.showing
+        return self._has_the_slot()
 
     def hangings(self) -> tuple[Hanging, ...]:
         if not (self.owns_the_slot and self.texture.ready):
@@ -1931,7 +1932,7 @@ def _scene_is_up(main_unit, genau, satellites: Sequence, panel) -> bool:
 
 
 def _picture_in_the_slot(main_unit: _MainUnit, genau: _GenauUnit) -> RenderTarget | FrameTexture:
-    return genau.texture if genau.role.showing else main_unit.target
+    return genau.texture if genau.owns_the_slot else main_unit.target
 
 
 def _wrapped_slot(main_unit: _MainUnit, genau: _GenauUnit) -> _MainUnit | _GenauUnit | None:
@@ -2098,10 +2099,10 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     _raise_the_cover(session, renderer, cover)
     # One read of the event log per tick, pumped before every screen's banner.
     notices = NoticeBoard(event_log_path(state_dir), unlogged=UnloggedNotices(state_dir))
-    genau = _GenauUnit(manifest, vr, stop, remembered=remembered.placements)
+    main_unit = _MainUnit(manifest, vr, contexts, remembered=remembered, notices=notices, perf=perf)
     _present_the_cover(session, renderer, cover)
-    main_unit = _MainUnit(manifest, vr, contexts, remembered=remembered,
-                          genau_role=genau.role, notices=notices, perf=perf)
+    genau = _GenauUnit(manifest, vr, stop, remembered=remembered.placements,
+                       has_the_slot=lambda: main_unit.role.shows == MAIN_GENAU_MODE)
     _present_the_cover(session, renderer, cover)
     satellites = [
         _SatelliteUnit(player, manifest, contexts, vr=vr, remembered=remembered.placements,

@@ -205,11 +205,6 @@ class TestControllerManifest:
         assert str(landscape_extra) in manifest["media"]["landscape_dirs"]
         assert "|" in manifest["media"]["landscape_dirs"]
 
-    def test_genau_module_name_included(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        result = build_windows_bridge_manifest(cfg)
-        assert result["modules"]["genau_module"] == "genau"
-
     def test_audio_companion_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg)
