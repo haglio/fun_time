@@ -16,6 +16,7 @@ from player_core.console import (
     OSR2_RETRACTED,
 )
 from player_core.file_channel import append_command
+from player_core.hud_placement import HudCorner, HudEdge
 from player_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
 from player_core.modes import LengthMode, LoopState
 from player_core.player_verbs import (
@@ -477,6 +478,39 @@ _HUD_COLLAPSES = {f"{player.label}_hud_{verb}": (player, verb == "minimize")
                   for player in (*Player.SATELLITES, Player.MAIN)
                   for verb in ("minimize", "restore")}
 
+_HUD_RESTORES_AT = {f"{player.label}_hud_restore_at": player
+                    for player in (*Player.SATELLITES, Player.MAIN)}
+
+
+def _restored_at(command: str, state: BridgeState,
+                 config: BridgeConfig) -> BridgeState | None:
+    head, _, place = command.partition("|")
+    player = _HUD_RESTORES_AT.get(head)
+    if player is None:
+        return None
+    if config.vr_main_player:
+        return _hung_open_against(player, place, state)
+    return _opened_in(player, place, state, config)
+
+
+def _hung_open_against(player: Player, side: str, state: BridgeState) -> BridgeState:
+    if side not in HudEdge:
+        return state
+    if player is Player.MAIN:
+        return replace(state, main_hud_edge=HudEdge(side), main_hud_minimized=False)
+    return state.with_satellite(player, hud_edge=HudEdge(side), hud_minimized=False)
+
+
+def _opened_in(player: Player, corner: str, state: BridgeState,
+               config: BridgeConfig) -> BridgeState:
+    if corner not in HudCorner:
+        return state
+    if player is Player.MAIN:
+        return replace(state, main_hud_corner=HudCorner(corner), main_hud_minimized=False)
+    _tell_the_hosted_app(player, f"hud_corner|{corner}", state, config)
+    _tell_the_hosted_app(player, "hud_minimized|0", state, config)
+    return state.with_satellite(player, hud_corner=HudCorner(corner), hud_minimized=False)
+
 
 def _collapsed_hud(command: str, state: BridgeState,
                    config: BridgeConfig) -> BridgeState | None:
@@ -682,7 +716,8 @@ def _answered_without_making_a_player_active(
     minimize_ops = _minimize_ops(command)
     if minimize_ops is not None:
         return state, minimize_ops
-    moved = _moved_hud(command, state, config) or _collapsed_hud(command, state, config)
+    moved = (_moved_hud(command, state, config) or _collapsed_hud(command, state, config)
+             or _restored_at(command, state, config))
     if moved is not None:
         return moved, []
     return None

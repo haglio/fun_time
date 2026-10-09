@@ -391,7 +391,9 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             _Row(
                 "Move this player's panel — one key each way round the corners "
-                "of the picture, or round the sides of the player in the headset",
+                "of the picture, or round the sides of the player in the headset. "
+                "A click in a corner of the picture sends it there and opens it, "
+                "and so does a squeeze beside a side of the player in the headset",
                 ("Ctrl+[", "Ctrl+]"),
                 ("main_hud_counterclockwise", "main_hud_clockwise"),
             ),
@@ -513,7 +515,9 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             _Row(
                 "Move this player's HUD — round the corners of its picture, or "
-                "against a side of its player in the headset",
+                "against a side of its player in the headset. A click in a corner "
+                "of the picture sends it there and opens it, and so does a squeeze "
+                "beside a side of the player in the headset",
                 ("Ctrl+Left", "Ctrl+Right", "Ctrl+Up", "Ctrl+Down"),
                 ("portrait_hud_left", "portrait_hud_right",
                  "portrait_hud_up", "portrait_hud_down",
