@@ -28,6 +28,7 @@ from fun_time.win32_process import is_process_alive
 from tests.child_reports import A_STARVED_CHILDS_START_S, pid_written_to
 from tests.git_repo import git
 from tests.integration import hidden_desktop
+from tests.integration.coverage_map import Picked
 from tests.integration.hidden_desktop import (
     _child_environment,
     _close_process_handles,
@@ -577,3 +578,40 @@ def test_the_broker_a_run_starts_survives_that_runs_job(tmp_path):
         assert is_process_alive(broker_pid), "the broker must break away from the run's job"
     finally:
         subprocess.run(["taskkill", "/PID", str(broker_pid), "/T", "/F"], capture_output=True)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_a_run_of_what_a_change_needs_runs_the_tests_the_coverage_map_picks_as_a_short_run():
+    picked = Picked(files=frozenset({"tests/integration/test_b.py", "tests/integration/test_a.py"}))
+    launched: list[tuple[str, str]] = []
+    places: list[dict] = []
+    with (_runs_launched_into(launched, places=places),
+          patch.object(hidden_desktop, "what_this_change_needs", lambda base: picked)):
+        hidden_desktop.run_on_hidden_desktop(["--changed"])
+
+    files = ["tests/integration/test_a.py", "tests/integration/test_b.py"]
+    assert launched == [(subprocess.list2cmdline(build_run_argv(files)), sys.executable)]
+    assert [place["short"] for place in places] == [True]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_a_change_the_coverage_map_cannot_place_runs_the_whole_suite_in_line_as_a_full_run():
+    launched: list[tuple[str, str]] = []
+    places: list[dict] = []
+    with (_runs_launched_into(launched, places=places),
+          patch.object(hidden_desktop, "what_this_change_needs", lambda base: Picked(because="launch.vbs"))):
+        hidden_desktop.run_on_hidden_desktop(["--changed"])
+
+    assert launched == [(subprocess.list2cmdline(build_run_argv([])), sys.executable)]
+    assert [place["short"] for place in places] == [False]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_a_change_no_integration_test_runs_starts_nothing_and_says_so(capsys):
+    launched: list[tuple[str, str]] = []
+    with (_runs_launched_into(launched),
+          patch.object(hidden_desktop, "what_this_change_needs", lambda base: Picked())):
+        code = hidden_desktop.run_on_hidden_desktop(["--changed"])
+
+    assert (code, launched) == (0, [])
+    assert "no integration test runs what this change touched" in capsys.readouterr().err

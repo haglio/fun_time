@@ -38,6 +38,7 @@ Usage (default integration command):
     .venv/Scripts/python.exe -m tests.integration.hidden_desktop -k main_player   # extra args pass through
     .venv/Scripts/python.exe -m tests.integration.hidden_desktop tests/integration/test_x.py   # that file alone
     .venv/Scripts/python.exe -m tests.integration.hidden_desktop --repeat-changed   # each changed file whole, then ten runs of each changed test
+    .venv/Scripts/python.exe -m tests.integration.hidden_desktop --changed   # the tests that run what this branch changed
 """
 from __future__ import annotations
 
@@ -57,6 +58,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from fun_time.win32_job import a_job_whose_processes_end_with_it
 from fun_time.win32_loader import load_dll, win_functype
 
+from .coverage_map import CoverageMap, Picked, changed_paths, tests_to_run, the_machine_s_map
 from .flake_gate_install import flake_gate_python
 from .session_lock import (
     FULL_RUN_GIVES_WAY_S,
@@ -74,6 +76,7 @@ REFUSED_EXIT_CODE = 4
 
 
 REPEAT_CHANGED = "--repeat-changed"
+CHANGED = "--changed"
 REPEAT_RUNS = 10
 # What a repeat may spend on runs, the whole-file runs before its repeats
 # included. A branch that renames a file changes every test in it, and ten runs
@@ -456,8 +459,25 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
     os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
     if _is_a_repeat(extra_args):
         return _repeat_what_changed(_base_of(extra_args))
+    if extra_args[:1] == [CHANGED]:
+        return _run_what_this_change_needs(_base_of(extra_args))
     with _a_place_in_line(short=_is_short(extra_args)):
         return _run_the_suite(build_run_argv(extra_args), sys.executable, RUN_CEILING_S)
+
+
+def what_this_change_needs(base: str) -> Picked:
+    root = _repo_root()
+    return tests_to_run(changed_paths(root, base), CoverageMap.load(the_machine_s_map(root)))
+
+
+def _run_what_this_change_needs(base: str) -> int:
+    picked = what_this_change_needs(base)
+    print(f"[hidden-desktop] {picked.reason()}", file=sys.stderr, flush=True)
+    if not (picked.everything or picked.files):
+        return 0
+    files = [] if picked.everything else sorted(picked.files)
+    with _a_place_in_line(short=bool(files)):
+        return _run_the_suite(build_run_argv(files), sys.executable, RUN_CEILING_S)
 
 
 def _is_short(extra_args: list[str]) -> bool:
