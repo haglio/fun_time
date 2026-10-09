@@ -234,7 +234,7 @@ _OV_NOTICE_BANNER = 13
 
 # Longest texture side each video gets: near-native for the main player, and for
 # a satellite's 28° of view well above what the headset resolves there.
-MAIN_VIDEO_CAP_PX = 4096
+MAIN_VIDEO_CAP_PX = 8192
 SATELLITE_VIDEO_CAP_PX = 2048
 
 _WRAPPED_ROW_SIZE = (PANEL_WIDTH_PX, lower_edge_height(PANEL_WIDTH_PX, timeline_h=TIMELINE_HEIGHT))

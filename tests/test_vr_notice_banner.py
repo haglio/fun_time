@@ -13,6 +13,7 @@ from fun_time_vr.notice_banner import (
     font_px,
     paint_banner,
 )
+from fun_time_vr.player import MAIN_VIDEO_CAP_PX, SATELLITE_VIDEO_CAP_PX
 
 
 def _banner(message="skip", level=NOTICE, *, max_width=1600, size=48):
@@ -52,12 +53,12 @@ class TestTheBanner:
 
 
 class TestItIsSizedToThePictureItGoesOn:
-    """A player decodes to 2048 or 4096 pixels, not to the size of a window, so
+    """A player decodes to 2048 or 8192 pixels, not to the size of a window, so
     the desktop's own 19px type came out a tenth of the height it reads at
     there -- with a 1px border and a 4px corner nobody could see at all."""
 
     def test_the_type_grows_with_the_picture(self):
-        assert font_px(4096) > font_px(2048) > font_px(720)
+        assert font_px(MAIN_VIDEO_CAP_PX) > font_px(SATELLITE_VIDEO_CAP_PX) > font_px(720)
 
     def test_it_never_goes_under_the_desktops_own_size(self):
         assert font_px(100) == MIN_FONT_PX

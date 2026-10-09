@@ -5,7 +5,7 @@ the same banner is composited into the picture the way the scrubber is.  Shape
 and colors are :class:`fun_time.notice_overlay.NoticeOverlay`'s.
 
 Every measurement scales with the picture, which is not the size of a window: a
-satellite decodes to 2048px and the main player to 4096, so the desktop's own
+satellite decodes to 2048px and the main player to 8192, so the desktop's own
 19px type came out a tenth of the height it reads at there.
 """
 from __future__ import annotations

@@ -7,6 +7,7 @@ that agreement, apart from the GL calls it is made of.
 from __future__ import annotations
 
 from fun_time_vr.frame_relay import FrameRelay, StillAsked, capped_size
+from fun_time_vr.player import MAIN_VIDEO_CAP_PX
 
 WIDE = "C:/videos/wide.mp4"
 
@@ -69,6 +70,10 @@ def test_a_video_wider_than_the_cap_is_painted_smaller_at_its_own_shape():
 
 def test_a_video_inside_the_cap_is_painted_at_its_own_size():
     assert capped_size((1280, 720), 2048) == (1280, 720)
+
+
+def test_the_main_picture_keeps_a_7k_videos_own_size():
+    assert capped_size((7168, 3584), MAIN_VIDEO_CAP_PX) == (7168, 3584)
 
 
 def test_there_is_no_size_to_paint_until_mpv_says_what_the_video_is():
