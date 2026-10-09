@@ -604,6 +604,10 @@ class TestHotkeySuspendDuringIntegration:
 
 class TestRunPythonOrchestratedBridge:
     def test_runs_startup_then_launches_ahk_then_shuts_down(self, cfg_factory, tmp_path):
+        """The cover, the hotkeys, the startup sequence, the closing screen, in that
+        order.  Only those four are recorded: the session starts other processes
+        from its own threads meanwhile (the thumbnail warming, for one), at no fixed
+        moment, and the patched Popen is the one every module shares."""
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -628,8 +632,10 @@ class TestRunPythonOrchestratedBridge:
             if "closing_screen" in str(cmd):
                 calls.append("launch_closing")
                 return fake_loading_proc
-            calls.append("launch_ahk")
-            return fake_ahk_proc
+            if "ahk.exe" in str(cmd):
+                calls.append("launch_ahk")
+                return fake_ahk_proc
+            return MagicMock(wait=MagicMock(return_value=0))
 
         killed_pids: list[int] = []
 
