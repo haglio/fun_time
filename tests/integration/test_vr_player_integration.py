@@ -24,7 +24,7 @@ from pathlib import Path
 import glfw
 import numpy as np
 import pytest
-from OpenGL import GL
+from OpenGL import GL, _configflags
 from player_core.file_channel import append_command
 from player_core.modes import LoopState
 
@@ -71,6 +71,14 @@ pytestmark = [
 def _the_frame_loop_runs_ahead_of_background_work_as_the_headset_session_does():
     with ahead_of_background_work():
         yield
+
+
+@pytest.fixture(autouse=True)
+def _no_gl_call_waits_for_the_drivers_error_report_as_in_the_headset_session():
+    assert not _configflags.ERROR_CHECKING, (
+        "PyOpenGL was loaded before fun_time_vr in this run, so every GL call here "
+        "waits on the driver the way the headset's never do"
+    )
 
 
 # One headset refresh period at the Crystal Super's 90Hz.
@@ -310,7 +318,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         assert stall < 150.0, (
             f"clip transitions stalled the frame loop {stall:.0f}ms apiece "
             f"(worst frames {[round(max(one)) for one in transitions]}) — "
-            "mpv is being waited on by the frame loop again"
+            "the frame loop is waiting on the GL driver or on mpv while a clip changes"
         )
 
         # The paused flag freezes a satellite where it stands.

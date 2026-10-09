@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import ast
 import inspect
+import subprocess
+import sys
+from pathlib import Path
 
 from fun_time_vr import render
 from fun_time_vr.projection import (
@@ -35,6 +38,23 @@ from fun_time_vr.render import (
 
 _FISHEYES = (FISHEYE_180_SBS, FISHEYE_190_SBS, MKX200_SBS, FISHEYE_220_SBS,
              FISHEYE_200_STEREOGRAPHIC_SBS, FISHEYE_200_EQUISOLID_SBS)
+
+_HOW_THE_HEADSETS_GL_CHECKS_FOR_ERRORS = (
+    "import fun_time_vr.render\n"
+    "from OpenGL import _configflags\n"
+    "print(_configflags.ERROR_CHECKING)\n"
+)
+
+
+def test_no_gl_call_of_the_headset_waits_for_the_driver_to_say_whether_it_failed():
+    result = subprocess.run(
+        [sys.executable, "-c", _HOW_THE_HEADSETS_GL_CHECKS_FOR_ERRORS],
+        cwd=str(Path(__file__).resolve().parents[1]), capture_output=True, text=True,
+        timeout=180,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "False"
 
 
 def test_every_projection_but_flat_wraps_the_viewer_its_own_way():
