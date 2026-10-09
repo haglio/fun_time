@@ -20,7 +20,7 @@ from player_core.hud_placement import HudCorner, HudEdge
 from player_core.modes import MainMode
 
 from fun_time import clipper_save
-from fun_time.bridge_records import BridgeConfig, WindowOp
+from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
 from fun_time.clipper_save import _clipper_project_dir
 from fun_time.command_dispatch import (
@@ -674,7 +674,7 @@ def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path
      "main_scene_next", "vr_reset"],
 )
 @pytest.mark.parametrize("main_mode", ["kino", "genau"])
-def test_a_vr_only_verb_is_not_sent_in_a_desktop_session(command, main_mode, tmp_path: Path):
+def test_a_vr_only_verb_is_ignored_in_a_desktop_session(command, main_mode, tmp_path: Path):
     """the main player has no projection and no headset to face, in any mode.
 
     The channel is the main player's, and the desktop main player answers a
@@ -684,9 +684,10 @@ def test_a_vr_only_verb_is_not_sent_in_a_desktop_session(command, main_mode, tmp
     config = _make_config(tmp_path)
     state = _make_state(main_mode=main_mode)
 
-    dispatch_command(command, state, config)
+    _state, ops = dispatch_command(command, state, config)
 
     assert not config.main_player_cmd_file.exists()
+    assert ops == [WindowOp(op=Op.IGNORED, key="outside VR")]
 
 
 # --- main_player cycle-version / length-mode ---
@@ -2588,19 +2589,22 @@ def test_main_player_multiplier_sets_main_player_speed(tmp_path: Path):
 
 
 def test_main_player_speed_up_down_nudge_the_video_rate_where_main_player_is_on_screen(tmp_path: Path):
-    """The console's playback-rate arrows, and spoken "playback speed up".  They
-    tune the main player's video — never the motion — so they reach the main player in kino mode and
-    are a no-op in genau, where the main player is off screen and its clips have no such
-    rate."""
-    config = _make_config(tmp_path / "video")
+    config = _make_config(tmp_path)
     dispatch_command("main_player_speed_up", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.genau_cmd_file.exists()
 
-    config = _make_config(tmp_path / "genau")
-    dispatch_command("main_player_speed_down", _make_state(main_mode=MainMode.GENAU), config)
+
+@pytest.mark.parametrize("command", [
+    "main_player_speed_up", "main_player_speed_down", "main_player_speed_150"])
+def test_the_main_players_video_rate_is_ignored_in_genau_mode(tmp_path: Path, command: str):
+    config = _make_config(tmp_path)
+
+    _state, ops = dispatch_command(command, _make_state(main_mode=MainMode.GENAU), config)
+
     assert not config.main_player_cmd_file.exists()
     assert not config.genau_cmd_file.exists()
+    assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
 
 
 def test_naming_the_playback_reaches_the_video_while_genau_holds_the_osr2(tmp_path: Path):
@@ -2615,15 +2619,6 @@ def test_naming_the_playback_reaches_the_video_while_genau_holds_the_osr2(tmp_pa
 
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
     assert not config.genau_cmd_file.exists()
-
-
-def test_main_player_multiplier_is_a_noop_when_genau_drives(tmp_path: Path):
-    # An absolute multiplier is a main player-video concept; in genau mode the main player is hidden,
-    # so it is a no-op (the speaker uses Genau's own 0-100 grammar there).
-    config = _make_config(tmp_path)
-    dispatch_command("main_player_speed_150", _make_state(main_mode=MainMode.GENAU), config)
-    assert not config.genau_cmd_file.exists()
-    assert not config.main_player_cmd_file.exists()
 
 
 def test_absolute_speed_reaches_main_player_video_in_kino_mode_even_when_genau_drives(tmp_path: Path):
@@ -3053,7 +3048,7 @@ def test_marking_genaus_clip_weird_flashes_marked_weird_over_the_main_slot(tmp_p
     "genau_clip_seconds_up",
     "genau_clip_seconds_30",
 ])
-def test_every_genau_command_does_nothing_with_video_in_the_main_player(
+def test_every_genau_command_is_ignored_with_video_in_the_main_player(
         tmp_path: Path, command: str):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO, active_player=2)
@@ -3061,7 +3056,7 @@ def test_every_genau_command_does_nothing_with_video_in_the_main_player(
     new_state, ops = dispatch_command(command, state, config)
 
     assert not config.genau_cmd_file.exists()
-    assert (new_state, ops) == (state, [])
+    assert (new_state, ops) == (state, [WindowOp(op=Op.IGNORED, key="in Kino mode")])
 
 
 @pytest.mark.parametrize(("command", "verb"), [
@@ -3392,14 +3387,14 @@ def test_main_player_record_commands_work_in_kino_mode(tmp_path: Path):
     assert ops == []
 
 
-def test_main_player_record_commands_noop_in_genau_mode(tmp_path: Path):
+def test_main_player_record_commands_are_ignored_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
     new_state, ops = dispatch_command("main_player_record_tap", state, config)
 
     assert not config.main_player_cmd_file.exists()
-    assert ops == []
+    assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
 
 
 # --- unknown command ---
@@ -3427,30 +3422,25 @@ def test_unknown_command_warns_instead_of_dying_silently(tmp_path: Path, caplog)
     assert any("bogus_command" in record.message for record in caplog.records)
 
 
-def test_an_active_command_with_no_main_player_meaning_stays_a_quiet_no_op(tmp_path: Path, caplog):
-    """"weird" spoken while the main player is active resolves to nothing — the
-    loop hands the unresolved "active_trash" through, and that is a designed
-    dead end (the main player has no weird), not a missing handler."""
+def test_an_active_command_with_no_main_player_meaning_is_ignored_on_the_main_player(
+        tmp_path: Path, caplog):
     config = _make_config(tmp_path)
 
     with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
         new_state, ops = dispatch_command("active_trash", _make_state(), config)
 
-    assert ops == []
+    assert ops == [WindowOp(op=Op.IGNORED, key="on the main player")]
     assert new_state == _make_state()
     assert not any("active_trash" in record.message for record in caplog.records)
 
 
-def test_a_say_command_outside_origenerator_mode_does_nothing_quietly(tmp_path: Path, caplog):
-    """The hosted app's vocabulary is always in the recognizer's grammar, so its
-    phrases arrive in kino mode too; they reach nothing there, and that is a
-    known dead end rather than a missing handler."""
+def test_a_hosted_shows_words_in_kino_mode_say_kino_mode_ignored_them(tmp_path: Path, caplog):
     config = _make_config(tmp_path)
 
     with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
         new_state, ops = dispatch_command("portrait_say_experiments", _make_state(), config)
 
-    assert ops == []
+    assert ops == [WindowOp(op=Op.IGNORED, key="in Kino mode")]
     assert not any("portrait_say_experiments" in record.message for record in caplog.records)
 
 
@@ -3472,13 +3462,13 @@ def test_clipper_save_raises_a_save_clip_op_and_runs_nothing_inline(tmp_path: Pa
     assert ops == [WindowOp(op="save_clip")]
 
 
-def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
+def test_clipper_save_is_ignored_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
     new_state, ops = dispatch_command("clipper_save", state, config)
 
-    assert ops == []
+    assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
 
 
 # --- group loops and lock-action --------------------------------------------
