@@ -981,8 +981,9 @@ def sample_library_clips(candidates, count: int, *, desc: str, readable=None,
     A fresh draw each run — the same clips every run masks bugs that only one
     codec, aspect or duration shows — but never an unrepeatable one: the seed
     comes from ``FUN_TIME_INTEGRATION_SEED`` when set (re-running a failure on
-    the same media) or is drawn fresh, and the seed and the chosen files are
-    printed either way, so a failure names what it played.  Candidates are
+    the same media) or is drawn fresh, and the seed is printed either way, so a
+    failure can be run again on what it played without naming it: the names are
+    his, and a run's output ends up in an agent's transcript.  Candidates are
     sorted first so the draw depends only on the seed, not on glob order, and
     a library smaller than *count* fails saying so instead of raising
     ``Sample larger than population`` from inside a test.
@@ -998,7 +999,7 @@ def sample_library_clips(candidates, count: int, *, desc: str, readable=None,
     )
     seed = os.environ.get("FUN_TIME_INTEGRATION_SEED") or str(random.randrange(10 ** 8))
     rng = random.Random(seed)
-    print(f"[integration] sample seed {seed} for {desc}:")
+    print(f"[integration] sample seed {seed} for {count} of {len(candidates)} {desc}")
     if readable is None:
         chosen = rng.sample(candidates, count)
     else:
@@ -1010,13 +1011,11 @@ def sample_library_clips(candidates, count: int, *, desc: str, readable=None,
             if readable(clip):
                 chosen.append(clip)
             else:
-                print(f"[integration]   skipped, not readable at speed: {clip}")
+                print("[integration]   skipped one not readable at speed")
         assert len(chosen) == count, (
             f"need {count} {desc} that read at speed, found {len(chosen)} "
             f"within {budget_s:g}s -- the library is cold on this machine"
         )
-    for clip in chosen:
-        print(f"[integration]   {clip}")
     return chosen
 
 
@@ -1094,7 +1093,7 @@ def _link_sample_files(source_dirs: tuple[Path, ...], dest_dir: Path, *, count: 
             candidates.append(candidate)
     if len(candidates) < count:
         raise FileNotFoundError(f"Could not find {count} sample media files in {source_dirs}")
-    chosen = sample_library_clips(candidates, count, desc=f"sample media files in {source_dirs}")
+    chosen = sample_library_clips(candidates, count, desc="sample media files")
     selected: list[Path] = []
     for candidate in chosen:
         target = dest_dir / candidate.name

@@ -17,15 +17,29 @@ pytestmark = pytest.mark.skipif(
     reason="Fun Time integration tests require Windows",
 )
 
-WHAT_IT_SAID = "a player_core that dies importing, on purpose"
+WHAT_IT_SAID = "a clip folder that dies importing, on purpose"
+
+_THE_REAL_PACKAGE_BEHIND_IT = """import os
+import sys
+
+_here = os.path.dirname(os.path.abspath(__file__))
+for _entry in sys.path:
+    _real = os.path.join(_entry or os.getcwd(), "player_core")
+    if os.path.isdir(_real) and os.path.abspath(_real) != _here:
+        __path__.append(_real)
+        break
+"""
 
 
-def _a_player_core_that_dies_importing(root: Path) -> Path:
-    """A checkout whose player_core raises on import: every player this session
-    launches imports it ahead of the venv's, so each dies as it starts."""
-    package = root / "a_checkout_whose_player_core_dies_importing" / "player_core"
+def _a_player_core_whose_clip_folder_dies_importing(root: Path) -> Path:
+    """A checkout whose player_core is the real one behind a clip_folder that
+    raises on import.  The Main Player imports that module as Genau's engine
+    comes up; the satellites never do, and the room's check of the video engine
+    reads the real loader -- so the one death is the Main Player's."""
+    package = root / "a_checkout_whose_clip_folder_dies_importing" / "player_core"
     package.mkdir(parents=True)
-    (package / "__init__.py").write_text(
+    (package / "__init__.py").write_text(_THE_REAL_PACKAGE_BEHIND_IT, encoding="utf-8")
+    (package / "clip_folder.py").write_text(
         f"raise ImportError({WHAT_IT_SAID!r})\n", encoding="utf-8")
     return package.parent
 
@@ -40,7 +54,7 @@ def _run_the_players_out_of(config_path: Path, checkout: Path) -> None:
 def test_a_player_that_dies_importing_stops_the_startup_saying_what_it_said():
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
-    _run_the_players_out_of(config_path, _a_player_core_that_dies_importing(temp_root))
+    _run_the_players_out_of(config_path, _a_player_core_whose_clip_folder_dies_importing(temp_root))
     session = FunTimeIntegrationSession(config_path)
     try:
         logged = session.start_one_that_stops_starting_up(
@@ -48,5 +62,5 @@ def test_a_player_that_dies_importing_stops_the_startup_saying_what_it_said():
     finally:
         session.stop()
 
-    assert "closed itself before the room was up" in logged
+    assert "the Main player closed itself before the room was up" in logged
     assert WHAT_IT_SAID in logged
