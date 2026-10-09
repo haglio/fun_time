@@ -168,9 +168,7 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
     applies, so this does not match untitled internal surfaces.
     """
     def matches(hwnd: int) -> bool:
-        window_pid = ctypes.wintypes.DWORD()
-        _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
-        if window_pid.value != pid:
+        if window_process(hwnd) != pid:
             return False
         if not include_hidden and not _user32.IsWindowVisible(hwnd):
             return False
@@ -202,9 +200,7 @@ def find_window_for_process(
     pids = {pid, *list_child_pids(pid)}
 
     def matches(hwnd: int) -> bool:
-        window_pid = ctypes.wintypes.DWORD()
-        _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
-        if window_pid.value not in pids:
+        if window_process(hwnd) not in pids:
             return False
         if not include_hidden and not _user32.IsWindowVisible(hwnd):
             return False
@@ -247,11 +243,14 @@ def wait_for_window_by_title(
 STALLED_WINDOW_TIMEOUT_S = 1.5
 
 
-def _owned_by_this_process(hwnd: int) -> bool:
-    """Whether *hwnd* belongs to the process making the call."""
+def window_process(hwnd: int) -> int:
     pid = ctypes.wintypes.DWORD()
     _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-    return pid.value == _kernel32.GetCurrentProcessId()
+    return pid.value
+
+
+def _owned_by_this_process(hwnd: int) -> bool:
+    return window_process(hwnd) == _kernel32.GetCurrentProcessId()
 
 
 def _without_hanging(call, hwnd, *args, what: str) -> bool:
