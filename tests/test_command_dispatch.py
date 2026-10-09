@@ -1302,6 +1302,21 @@ def test_a_sided_fmode_flashes_on_that_players_own_display(tmp_path: Path):
                             level=FAVORITE)]
 
 
+@pytest.mark.parametrize("player", Player.SATELLITES)
+def test_favorites_said_to_a_side_in_kino_mode_flips_its_f_mode_as_a_show_does(
+        tmp_path: Path, player: Player):
+    config = _make_config(tmp_path)
+
+    on, ops, mock_fmode = _dispatch_fmode(f"{player.label}_say_favorites", _make_state(), config)
+    off, _ops, _mock = _dispatch_fmode(f"{player.label}_say_favorites", on, config)
+
+    assert mock_fmode.call_args.kwargs["players"] == (player,)
+    assert (on.satellite(player).favorites_filter, off.satellite(player).favorites_filter) == (
+        True, False)
+    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source=player.label,
+                            level=FAVORITE)]
+
+
 def test_fmode_passes_each_sides_current_order(tmp_path: Path):
     """A rebuild has to keep the player's order, and the two satellites can be in
     different ones, so each player's own ordering goes with it."""
@@ -3433,10 +3448,10 @@ def test_a_say_command_outside_origenerator_mode_does_nothing_quietly(tmp_path: 
     config = _make_config(tmp_path)
 
     with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
-        new_state, ops = dispatch_command("portrait_say_favorites", _make_state(), config)
+        new_state, ops = dispatch_command("portrait_say_experiments", _make_state(), config)
 
     assert ops == []
-    assert not any("portrait_say_favorites" in record.message for record in caplog.records)
+    assert not any("portrait_say_experiments" in record.message for record in caplog.records)
 
 
 # --- clipper_save ---
