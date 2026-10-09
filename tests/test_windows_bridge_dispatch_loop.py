@@ -24,6 +24,7 @@ from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
 from fun_time.dashboard_runtime import load_dashboard_snapshot
+from fun_time.event_log import FAVORITE
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -1234,6 +1235,14 @@ class TestWhatASpokenCommandFlashes:
 
         assert self._flashed(tmp_path, spoken) == [("landscape next", "landscape", 25)]
 
+    def test_a_command_its_mode_has_nothing_for_says_it_was_ignored_and_why(self, tmp_path):
+        spoken = format_spoken_command(
+            "landscape_say_experiments", spoken_at=1.0, said="landscape experiments")
+        ignored = WindowOp(op=Op.IGNORED, key="in Kino mode")
+
+        assert self._flashed(tmp_path, spoken, [ignored]) == [
+            ("ignored in Kino mode: landscape experiments", "landscape", logging.WARNING)]
+
     def test_a_command_heard_with_the_headset_off_says_it_was_ignored(self, tmp_path):
         spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
 
@@ -1281,17 +1290,33 @@ class TestWhatASpokenCommandFlashes:
 
         assert len(flashed) == 1, flashed
 
-    def test_a_jump_the_main_player_is_not_there_to_answer_says_what_was_heard(self, tmp_path):
+    def test_favorites_said_to_a_side_in_kino_mode_flashes_its_f_mode_going_on(self, tmp_path):
+        flashed = self._run_for_real(tmp_path, "landscape_say_favorites", "landscape favorites")
+
+        assert flashed == [("F-Mode enabled", "landscape", FAVORITE)]
+
+    def test_a_hosted_shows_words_in_kino_mode_say_kino_mode_ignored_them(self, tmp_path):
+        flashed = self._run_for_real(
+            tmp_path, "landscape_say_experiments", "landscape experiments")
+
+        assert flashed == [
+            ("ignored in Kino mode: landscape experiments", "landscape", logging.WARNING)]
+
+    def test_a_jump_the_main_player_is_not_there_to_answer_says_genau_mode_ignored_it(
+        self, tmp_path,
+    ):
         flashed = self._run_for_real(
             tmp_path, "main_player_compilation", "compilation", main_mode=MainMode.GENAU)
 
-        assert flashed == [("compilation", "system", 25)]
+        assert flashed == [("ignored in Genau mode: compilation", "system", logging.WARNING)]
 
-    def test_a_clip_save_with_no_main_player_to_save_from_says_what_was_heard(self, tmp_path):
+    def test_a_clip_save_with_no_main_player_to_save_from_says_genau_mode_ignored_it(
+        self, tmp_path,
+    ):
         flashed = self._run_for_real(
             tmp_path, "clipper_save", "save clip", main_mode=MainMode.GENAU)
 
-        assert flashed == [("save clip", "system", 25)]
+        assert flashed == [("ignored in Genau mode: save clip", "system", logging.WARNING)]
 
     @pytest.mark.parametrize(("command", "said"), [
         ("landscape_trash", "landscape weird"),

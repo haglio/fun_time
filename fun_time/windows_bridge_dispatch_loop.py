@@ -295,6 +295,7 @@ class DispatchLoopRunner:
         self.voice_controller: VoiceController | None = None
         self.headset_off = False
         self._answers = 0
+        self._ignored_because = ""
         # Satellites on their way back from the hosted app: by when they land,
         # and which of their hosted panels was up when they were sent for.
         self._coming_home: dict[Player, tuple[float, PanelStamp]] = {}
@@ -515,13 +516,15 @@ class DispatchLoopRunner:
         source = notice_source(line.command, self.state.active_player)
         frozen = self._frozen(line.command, line.spoken_at)
         answers_before = self._answers
+        self._ignored_because = ""
         resolved = resolve_active_player_command(line.command, self.state.active_player)
         for command in expand_group_command(resolved):
             self._handle_command(command, line.spoken_at)
         if not line.said:
             return
-        if frozen:
-            self._flash(f"ignored {self._voice_hold().ignored_while}: {line.said}", source=source,
+        ignored_because = self._voice_hold().ignored_while if frozen else self._ignored_because
+        if ignored_because:
+            self._flash(f"ignored {ignored_because}: {line.said}", source=source,
                         level=logging.WARNING)
         elif self._answers == answers_before:
             self._flash(line.said, source=source)
@@ -1028,6 +1031,10 @@ def _run_main_player_answers(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner._answers += 1
 
 
+def _run_ignored(runner: DispatchLoopRunner, op: WindowOp) -> None:
+    runner._ignored_because = op.key
+
+
 def _run_notice(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner._flash(op.key, source=op.source, level=op.level)
 
@@ -1061,6 +1068,7 @@ _OP_HANDLERS = {
     Op.OPEN_RFB_TAB: _run_open_rfb_tab,
     Op.SAVE_CLIP: _run_save_clip,
     Op.MAIN_PLAYER_ANSWERS: _run_main_player_answers,
+    Op.IGNORED: _run_ignored,
     Op.TAKE_BACK_PLAYERS: _run_take_back_players,
     Op.FOLLOW_GENAUS_LOCK: _run_follow_genaus_lock,
 }

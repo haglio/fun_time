@@ -288,7 +288,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # their paragraphs.
 # 6525 on 2026-10-09: two docstrings in vr_runtime that only said their function's
 # name again went, more than paying for the line the sound devices' module added.
-MAX_PROSE_LINES = 6525
+# 6520 on 2026-10-10: the dead ends that answered nothing say which mode
+# ignored them, and the docstrings that called them quiet went with them.
+MAX_PROSE_LINES = 6520
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
