@@ -245,6 +245,26 @@ def test_a_scene_and_its_apo8_iris2_upscale_are_one_scene(tmp_path):
     assert nav.clip_of(plain) == clip
 
 
+class TestAClipCutStraightFromItsScene:
+    def _pair(self, tmp_path):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        scene = _sidecar(lib, meta, "other/Beta Scene 4k.mp4", {})
+        portrait = _sidecar(lib, meta, "other/Beta Scene portrait.mp4",
+                            {"clip": {"full_video": str(scene)}})
+        return ClipNav.build([scene, portrait], meta), scene, portrait
+
+    def test_it_has_no_compilation_to_play(self, tmp_path):
+        nav, _scene, portrait = self._pair(tmp_path)
+
+        assert nav.compilation_playlist(portrait) == []
+
+    def test_it_jumps_to_its_scene_and_back_with_no_name_to_match(self, tmp_path):
+        nav, scene, portrait = self._pair(tmp_path)
+
+        assert nav.full_vid_of(portrait) == scene
+        assert nav.clip_of(scene) == portrait
+
+
 class TestAFileThatVanishedMidScan:
     def test_it_weighs_nothing_rather_than_ending_the_walk(self, tmp_path):
         """Biggest-is-canonical needs a size for every candidate, and the

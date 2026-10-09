@@ -289,7 +289,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6498 on 2026-10-09: the browse names a band after the folder its cuts were
 # filed into only when each folder holds mostly its own band, and the two
 # paragraphs that described the older test went to tests naming its cases.
-MAX_PROSE_LINES = 6498
+# 6492 the same day: a clip that names no compilation has none to play, and the
+# notes on the compilation playlist went to the tests that already state them.
+MAX_PROSE_LINES = 6492
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
