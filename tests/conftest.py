@@ -48,6 +48,7 @@ from fun_time import (
     session_handoff,
     transition_screen,
     win32,
+    win32_events,
     windows_bridge_orchestrator,
 )
 from fun_time.config import DEFAULT_CONFIG_PATH
@@ -113,6 +114,14 @@ def _never_switch_a_real_browsers_tabs(monkeypatch):
         raise RuntimeError("a unit test tried to reach a real browser's tabs")
 
     monkeypatch.setattr(chrome_accessibility, "_Automation", _refuse)
+
+
+@pytest.fixture(autouse=True)
+def _never_listen_to_his_desktop(monkeypatch):
+    """The watch hears every press on the desktop it runs on, which here is his,
+    so in a unit test it hears nothing.  The integration suite overrides this:
+    its desktop is a hidden one."""
+    monkeypatch.setattr(win32_events.PressAndCaretWatch, "start", lambda _watch: None)
 
 
 @pytest.fixture(autouse=True)

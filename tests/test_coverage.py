@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # never a pragma scattered through the tree.
 NOT_UNIT_TESTED = (
     NotUnitTested("fun_time/chrome_accessibility.py", "reaches a real Chrome's tabs: needs a browser"),
+    NotUnitTested("fun_time/win32_events.py", "listens to the presses and carets of a real desktop"),
     NotUnitTested("satellite/app.py", "a player's shell: needs the playback engine's library"),
     NotUnitTested("fun_time_vr/gl_contexts.py", "needs a graphics context"),
     NotUnitTested("fun_time_vr/player.py", "the VR player's shell: needs a headset"),

@@ -143,6 +143,13 @@ def _never_switch_a_real_browsers_tabs():
 
 
 @pytest.fixture(autouse=True)
+def _never_listen_to_his_desktop():
+    """Override the unit suite's refusal: a watch started here hears the hidden
+    desktop's presses, never his."""
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _no_thread_outlives_its_test():
     """Override the unit suite's thread guard: a sample clip's first read is
     left on a thread it may never return from, a cold one on the cloud drive

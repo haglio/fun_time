@@ -44,6 +44,7 @@ from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import DESKTOP, VR, take_handoff_request
 from fun_time.shared_state import BridgeState, SatelliteState, read_shared_state, write_shared_state
 from fun_time.shortcuts import Shortcut
+from fun_time.text_field_clicks import Seen, Sighting
 from fun_time.voice_commands import format_spoken_command, parse_command_line
 from fun_time.voice_control import VoiceController, take_whether_the_mic_was_off
 from fun_time.watch_stats import load_watch_stats
@@ -62,6 +63,8 @@ from fun_time.windows_bridge_dispatch_loop import (
 from tests.role_window_fakes import (
     DASHBOARD_HWND,
     DASHBOARD_PID,
+    HOSTED_HWND,
+    HOSTED_PID,
     LANDSCAPE_HWND,
     LANDSCAPE_PID,
     MAIN_PLAYER_HWND,
@@ -71,6 +74,7 @@ from tests.role_window_fakes import (
     RFB_HWND,
     TOPMOST_HWNDS,
     FakeClock,
+    lookup_hosted,
     lookup_pid,
     lookup_title,
 )
@@ -1625,6 +1629,107 @@ class TestTheRfbSlideshow:
         runner.close()
 
         slideshow.stop.assert_called_once()
+
+
+class _Sightings:
+    def __init__(self, *seen: Seen) -> None:
+        self._seen = list(seen)
+        self.started = False
+        self.stopped = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def take(self) -> list[Seen]:
+        taken, self._seen = self._seen, []
+        return taken
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
+def _a_click_into_a_text_field(window: int, process: int = 0) -> _Sightings:
+    pressed_at = time.monotonic() - 1.0
+    return _Sightings(
+        Seen(Sighting.PRESS, window, process, pressed_at, with_the_text_pointer=True),
+        Seen(Sighting.CARET_SHOWN, window, process, pressed_at + 0.002),
+        Seen(Sighting.RELEASE, window, process, pressed_at + 0.08),
+    )
+
+
+class TestAClickIntoATextField:
+    def test_one_in_the_rfb_enters_omnipause(self, tmp_path):
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND,
+                             press_and_caret_watch=_a_click_into_a_text_field(RFB_HWND))
+
+        runner.tick()
+
+        assert runner.state.omni_paused
+        assert "suspend_hotkeys" in _mailbox(runner)
+
+    def test_one_in_any_window_of_the_hosted_origenerator_enters_omnipause(self, tmp_path):
+        origenerator_process, its_other_window = 9009, 8002
+        config = make_config(tmp_path, origenerator_enabled=True,
+                             origenerator_paused_file=tmp_path / "origenerator_paused.txt")
+        runner = make_runner(
+            tmp_path, config=config, origenerator_pid=HOSTED_PID,
+            press_and_caret_watch=_a_click_into_a_text_field(its_other_window,
+                                                              origenerator_process))
+
+        with (
+            patch("fun_time.role_windows.find_window_for_process", side_effect=lookup_hosted),
+            patch("fun_time.windows_bridge_dispatch_loop.window_process",
+                  side_effect={HOSTED_HWND: origenerator_process}.get),
+        ):
+            runner.tick()
+
+        assert runner.state.omni_paused
+
+    def test_one_in_a_chrome_window_of_his_own_leaves_the_room_playing(self, tmp_path):
+        his_own_window = 55555
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND,
+                             press_and_caret_watch=_a_click_into_a_text_field(his_own_window))
+
+        runner.tick()
+
+        assert not runner.state.omni_paused
+
+    def test_one_while_the_room_is_paused_asks_the_dashboard_nothing(self, tmp_path):
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND,
+                             press_and_caret_watch=_a_click_into_a_text_field(RFB_HWND))
+        write_shared_state(tmp_path / "shared_state.ini", BridgeState(omni_paused=True))
+
+        with patch.object(runner, "_send_press") as press:
+            runner.tick()
+
+        press.assert_not_called()
+        assert runner.state.omni_paused
+
+    def test_the_log_says_what_paused_the_room(self, tmp_path, caplog):
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND,
+                             press_and_caret_watch=_a_click_into_a_text_field(RFB_HWND))
+
+        with caplog.at_level(logging.INFO):
+            runner.tick()
+
+        assert "A click into a text field enters OmniPause" in caplog.messages
+
+    def test_the_watch_starts_with_the_loop(self, tmp_path):
+        watch = _Sightings()
+        runner = make_runner(tmp_path, press_and_caret_watch=watch)
+        runner.stop()
+
+        runner.run()
+
+        assert watch.started
+
+    def test_the_watch_ends_with_the_session(self, tmp_path):
+        watch = _Sightings()
+        runner = make_runner(tmp_path, press_and_caret_watch=watch)
+
+        runner.close()
+
+        assert watch.stopped
 
 
 class TestModeSwitchVisibility:

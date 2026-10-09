@@ -8,6 +8,8 @@ omit =
     vulture_whitelist.py
     # reaches a real Chrome's tabs: needs a browser
     fun_time/chrome_accessibility.py
+    # listens to the presses and carets of a real desktop
+    fun_time/win32_events.py
     # a player's shell: needs the playback engine's library
     satellite/app.py
     # needs a graphics context

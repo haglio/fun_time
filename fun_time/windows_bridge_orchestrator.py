@@ -103,6 +103,7 @@ from .win32 import (
     wait_for_window_by_title,
     windows_obscuring,
 )
+from .win32_events import PressAndCaretWatch
 from .win32_job import tie_to_this_process
 from .win32_process import get_process_creation_time
 from .window_layout import SecondaryMonitorRects, screen_layout, secondary_monitor_rects
@@ -970,6 +971,9 @@ def _build_the_dispatch_loop(
         hud_publisher=hud_publisher,
         rfb_shortcut=rfb_shortcut,
         rfb_slideshow=rfb_slideshow_on(result.rfb_hwnd) if result.rfb_hwnd else None,
+        press_and_caret_watch=(
+            PressAndCaretWatch()
+            if result.rfb_hwnd or manifest.runtime.origenerator_dir.strip() else None),
         origenerator_already_open=result.origenerator_already_open,
         origenerator_showing=result.origenerator_showing,
         secondary_rects=secondary_rects(manifest),

@@ -70,6 +70,7 @@ from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import DESKTOP, VR, HandoffTarget, request_handoff, this_session
 from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .shortcuts import Shortcut
+from .text_field_clicks import Seen, Sightings, TextFieldClicks
 from .voice_commands import CommandLine, parse_command_line
 from .voice_control import (
     DURING_OMNIPAUSE,
@@ -86,10 +87,11 @@ from .win32 import (
     force_foreground_window,
     set_always_on_top,
     window_exists,
+    window_process,
     window_rect,
 )
 from .window_layout import SecondaryMonitorRects
-from .window_roles import visible_roles
+from .window_roles import ORIGENERATOR_ROLE, visible_roles
 from .windows_bridge_random_favs_browser import open_rfb_tab
 from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 
@@ -249,6 +251,7 @@ class DispatchLoopRunner:
         hud_publisher: HudPublisher | None = None,
         rfb_shortcut: Shortcut | None = None,
         rfb_slideshow: RfbSlideshow | None = None,
+        press_and_caret_watch: Sightings | None = None,
         sync_interval_ms: int = 200,
         origenerator_already_open: bool = False,
         origenerator_showing: bool = False,
@@ -275,6 +278,8 @@ class DispatchLoopRunner:
         self.hud = HudFeed(config=config, publisher=hud_publisher)
         self.rfb_shortcut = rfb_shortcut or Shortcut()
         self.rfb_slideshow = rfb_slideshow
+        self.press_and_caret_watch = press_and_caret_watch
+        self.text_field_clicks = TextFieldClicks(watched=self._watches_for_typing)
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0
@@ -409,6 +414,7 @@ class DispatchLoopRunner:
                 self._handle_line(parse_command_line(line))
         finally:
             self._batching_rfb = False
+        self._pause_for_a_click_into_a_text_field()
         self._flush_rfb_tabs()
         # After the batch, so a switch and a switch straight back inside one
         # batch cancel rather than minimize the player they just brought back.
@@ -433,6 +439,28 @@ class DispatchLoopRunner:
         if self.rfb_slideshow is not None:
             self.rfb_slideshow.tick(now=now, held=self.state.omni_paused
                                     or origenerator_shows(self.state.satellites_mode))
+
+    def _pause_for_a_click_into_a_text_field(self) -> None:
+        if self.press_and_caret_watch is None:
+            return
+        for seen in self.press_and_caret_watch.take():
+            self.text_field_clicks.saw(seen)
+        if self.text_field_clicks.clicked_into(now=time.monotonic()) is None:
+            return
+        if not self.state.omni_paused:
+            logger.info("A click into a text field enters OmniPause")
+            self._handle_command("enter_omnipause")
+
+    def _watches_for_typing(self, seen: Seen) -> bool:
+        if self.windows.rfb_hwnd and seen.window == self.windows.rfb_hwnd:
+            return True
+        return bool(seen.process) and seen.process == self._the_hosted_apps_process()
+
+    def _the_hosted_apps_process(self) -> int:
+        if not self.config.origenerator_enabled:
+            return 0
+        hwnd = self.windows.hwnd(ORIGENERATOR_ROLE)
+        return window_process(hwnd) if hwnd else 0
 
     def _seat_the_secondary_monitor(self) -> None:
         if self.secondary_rects is None:
@@ -927,6 +955,8 @@ class DispatchLoopRunner:
         # after launch" report can be pinned to the exact window that missed its
         # startup promotion.
         self._log_topmost_state("startup")
+        if self.press_and_caret_watch is not None:
+            self.press_and_caret_watch.start()
         last_wall = time.time()
         while not self._stop.is_set():
             now = time.time()
@@ -959,6 +989,8 @@ class DispatchLoopRunner:
     def close(self) -> None:
         if self.rfb_slideshow is not None:
             self.rfb_slideshow.stop()
+        if self.press_and_caret_watch is not None:
+            self.press_and_caret_watch.stop()
         browsing = self._browser_process
         if browsing is not None:
             browsing.terminate()
