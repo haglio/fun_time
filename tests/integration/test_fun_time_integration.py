@@ -26,6 +26,7 @@ from fun_time.player_status import MainPlayerStatus, read_genau_status, read_mai
 from fun_time.players import Player
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 from fun_time.shared_state import read_shared_state, shared_state_path
+from fun_time.voice_commands import format_spoken_command
 from fun_time.win32 import (
     find_window_by_title,
     is_window_minimized,
@@ -50,6 +51,8 @@ pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
     reason="Fun Time integration tests require Windows",
 )
+
+ALONE_WITH_THE_SHARED_SESSION_BUDGET_S = START_BUDGET_S + QUIT_BUDGET_S + 3 * COMMAND_BUDGET_S
 
 
 @pytest.fixture(scope="module")
@@ -117,6 +120,23 @@ def test_fun_time_sided_fmode_flow(shared_integration_session: FunTimeIntegratio
 
     shared_integration_session.write_dashboard_command("fmode_off")
     shared_integration_session.wait_for_new_log("F-mode disabled: main, portrait, landscape")
+
+
+@pytest.mark.timeout(ALONE_WITH_THE_SHARED_SESSION_BUDGET_S)
+def test_fun_time_spoken_favorites_flips_that_sides_f_mode(
+    shared_integration_session: FunTimeIntegrationSession,
+):
+    s = shared_integration_session
+    said = format_spoken_command(
+        "landscape_say_favorites", spoken_at=time.monotonic(), said="landscape favorites")
+    s.write_dashboard_command("play")
+    s.write_dashboard_command("landscape_fmode_off")
+
+    s.write_dashboard_command(said)
+    s.wait_for_new_log("F-mode enabled: landscape")
+
+    s.write_dashboard_command(said)
+    s.wait_for_new_log("F-mode disabled: landscape")
 
 
 def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
