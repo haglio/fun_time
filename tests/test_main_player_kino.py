@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from player_core.funestra import User
 from player_core.modes import LengthMode, LoopState
 from player_core.playback import Playback
 from player_core.playlist import PlaylistItem
@@ -75,6 +76,10 @@ class World:
             self.playback, source=self.source, clip_nav=ClipNav.build([self.first, self.second], meta),
             notices=self.notices, memory=self.memory, remembered=remembered or RememberedMode(),
             resolve_playlist=lambda: self.resolved[-1])
+
+
+def test_kino_is_a_thing_a_funestra_runs(tmp_path):
+    assert isinstance(World(tmp_path).kino, User)
 
 
 class TestItsVerbs:

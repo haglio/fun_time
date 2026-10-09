@@ -67,6 +67,15 @@ class Kino:
         self._follow_the_item()
         return self._modes.hud
 
+    def set_showing(self, _showing: bool) -> None:
+        pass
+
+    def picture(self) -> None:
+        pass
+
+    def close(self) -> None:
+        self._memory.sync(self._modes.remembered)
+
     def _follow_the_item(self) -> None:
         if self._playback.loads != self._loads_seen:
             self._loads_seen = self._playback.loads
