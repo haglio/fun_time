@@ -1,4 +1,4 @@
-"""What arrives in the Main Funestra's window, and what it is taken to mean.
+"""What arrives in a Funestra's window, and what it is taken to mean.
 
 SDL hands the frame a queue of events; the Funestra answers the mouse and the
 window being closed, and a key reaches nothing: Fun Time's hotkeys are the
@@ -25,3 +25,5 @@ class Input:
                 self._funestra.release()
             elif ev.type == pygame.MOUSEMOTION:
                 self._funestra.motion(*ev.pos, held=bool(ev.buttons[0]), window=window)
+            elif ev.type == pygame.WINDOWLEAVE:
+                self._funestra.leave()
