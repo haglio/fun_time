@@ -1,5 +1,5 @@
-"""Genau's own config file, as this session reads it: where its logs went, and
-the numbers its engine is tuned with."""
+"""Genau's own config file, as this session reads it: the numbers its engine is
+tuned with."""
 from __future__ import annotations
 
 import json
@@ -7,9 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support import ports
-from app_support.config_reader import resolve_path
-
-GENAU_LOG_FILES = ("genau_listener.log", "genau_crash.log")
 
 
 def read_genau_config(genau_config_path: str | Path | None) -> dict:
@@ -20,14 +17,6 @@ def read_genau_config(genau_config_path: str | Path | None) -> dict:
     except (OSError, ValueError):
         return {}
     return raw if isinstance(raw, dict) else {}
-
-
-def genaus_own_logs(genau_config_path: str | Path) -> tuple[Path, ...]:
-    state_dir = read_genau_config(genau_config_path).get("state_dir")
-    if not isinstance(state_dir, str):
-        return ()
-    folder = resolve_path(Path(genau_config_path).parent, state_dir)
-    return tuple(folder / name for name in GENAU_LOG_FILES)
 
 
 @dataclass(frozen=True)

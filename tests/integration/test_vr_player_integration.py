@@ -437,7 +437,7 @@ def test_the_main_player_plays_once_kino_mode_unpauses_it():
             desc="the main player's position to advance once kino mode unpaused it",
         )
         assert position > 0
-        assert main.role.displayed, "DISPLAY_ON rides the switch into kino mode"
+        assert main.owns_the_slot, "SHOW kino rides the switch into kino mode"
     finally:
         stop.set()
         pump.join(timeout=5.0)

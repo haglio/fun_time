@@ -148,9 +148,8 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("genau_activate",),
             ),
             _Row(
-                "Kino mode on the main player — the video under Genau's HUD, "
-                "its funscript driving the OSR2 where it has action and the "
-                "Robot Hand the rest",
+                "Kino mode on the main player — the video, its funscript "
+                "driving the OSR2 where it has action and the Robot Hand the rest",
                 ("H",),
                 ("main_kino_activate",),
             ),

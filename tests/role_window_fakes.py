@@ -1,23 +1,20 @@
 """The windows a session's children would own, stood in for off Windows.
 
 Both the :class:`fun_time.role_windows.WindowRoles` tests and the dispatch
-loop's drive the same imaginary desktop: five children with known pids, the
+loop's drive the same imaginary desktop: four children with known pids, the
 hosted Origenerator's own caption, and the browser window startup
 captured.  One home for it, so a test in either file that says ``PORTRAIT_HWND``
 means the same window a test in the other one does.
 """
 from __future__ import annotations
 
-from fun_time.window_roles import GENAU_TITLES
-
 # HWNDs the role lookups resolve to: portrait, landscape and dashboard by pid;
-# The main player by pid (with an exact-title fallback); Genau by title; RFB from the hwnd
+# The main player by pid (with an exact-title fallback); RFB from the hwnd
 # captured at startup.
 MAIN_PLAYER_HWND = 2001
 PORTRAIT_HWND = 3001
 LANDSCAPE_HWND = 4001
 DASHBOARD_HWND = 5001
-GENAU_HWND = 6001
 RFB_HWND = 7777
 
 # The hosted Origenerator's window, resolved by pid AND caption together.
@@ -37,10 +34,9 @@ PID_TO_HWND = {
 }
 
 # The windows that are topmost in EVERY mode — the ones that own a rect and so
-# overlap nothing.  The main player and Genau SHARE the main slot's rect, so each is in
-# the band only in the modes where it shows something; every test folds those
-# two in or out as its own mode requires.
-TOPMOST_HWNDS = {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND}
+# overlap nothing: every managed window but the hosted app's, which shares the
+# browser's rect.
+TOPMOST_HWNDS = {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_PLAYER_HWND}
 
 
 def lookup_pid(pid):
@@ -48,9 +44,9 @@ def lookup_pid(pid):
 
 
 def lookup_title(title, exact=False):
-    """Genau's window, under either caption and matched exactly -- the way the
-    session matches it now that it names both of them on the launch."""
-    return GENAU_HWND if exact and title in GENAU_TITLES else 0
+    """No window on this desktop resolves by caption alone: every child's is
+    found by its pid."""
+    return 0
 
 
 def lookup_hosted(pid, title, *, include_hidden=False):

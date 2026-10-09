@@ -110,7 +110,6 @@ from .shared_state import BridgeState, SatelliteState
 from .voice_commands import ORIGENERATOR_PHRASES
 from .vr_videos import shapes_verb
 from .watch_stats import record_watch_event, watch_stats_path
-from .window_roles import visible_main_slot_roles
 
 logger = logging.getLogger(__name__)
 
@@ -455,19 +454,17 @@ _NO_FILTER_SIDES: dict[str, tuple[Player, ...]] = {
     "landscape_no_filter": (Player.LANDSCAPE,),
 }
 
-# A satellite's own minimize button (``fun_time.satellite_buttons``), by the window
-# role the dispatch loop resolves it to.  Every player's window here is
-# borderless, so none of them carries a minimize button of its own, and the only
-# other way to park one was the dashboard's minimize — which takes the whole room
-# down together.
+# A player's own minimize button (``fun_time.satellite_buttons``, and the main
+# player's on its console, ``fun_time.console_buttons``), by the window role the
+# dispatch loop resolves it to.  Every player's window here is borderless, so
+# none of them carries a minimize button of its own, and the only other way to
+# park one was the dashboard's minimize — which takes the whole room down
+# together.
 _MINIMIZE_ROLES: dict[str, str] = {
     "portrait_minimize": "portrait",
     "landscape_minimize": "landscape",
+    "main_minimize": "main_player",
 }
-
-# The main player's own console button (``fun_time.console_buttons``).  It names the *slot*
-# rather than a window, because two players share that rect.
-MAIN_MINIMIZE = "main_minimize"
 
 
 _HUD_MOVES = {f"{player.label}_hud_{direction}": (player, direction)
@@ -525,21 +522,10 @@ def _tell_the_hosted_app(player: Player, action: str, state: BridgeState,
         append_command(config.origenerator_cmd_file, f"{player.label}_{action}")
 
 
-def _minimize_ops(command: str, main_mode: str) -> list[WindowOp] | None:
-    """The windows *command* asks to have parked, or None when it asks for none.
-
-    A satellite names its own window.  The main player names its slot, which the main player
-    and Genau share — so its button parks whichever of the pair the mode has on
-    screen, and never the one the mode has already put away: minimizing a hidden
-    window is what drags it back into view.
-    """
+def _minimize_ops(command: str) -> list[WindowOp] | None:
+    """The window *command* asks to have parked, or None when it asks for none."""
     role = _MINIMIZE_ROLES.get(command)
-    if role is not None:
-        return [WindowOp(op="minimize_role", key=role)]
-    if command == MAIN_MINIMIZE:
-        return [WindowOp(op="minimize_role", key=slot_role)
-                for slot_role in visible_main_slot_roles(main_mode)]
-    return None
+    return None if role is None else [WindowOp(op="minimize_role", key=role)]
 
 # The two browse orderings, per player: Latest reloads newest-first, Shuffle
 # reshuffles.  The main player is 1 and reloads through the main player rather than through
@@ -693,7 +679,7 @@ def _answered_without_making_a_player_active(
 ) -> tuple[BridgeState, list[WindowOp]] | None:
     if _about_genaus_clip(command) and main_player_displays(state.main_mode):
         return state, []
-    minimize_ops = _minimize_ops(command, state.main_mode)
+    minimize_ops = _minimize_ops(command)
     if minimize_ops is not None:
         return state, minimize_ops
     moved = _moved_hud(command, state, config) or _collapsed_hud(command, state, config)
@@ -887,33 +873,19 @@ def _dispatch_leave_omnipause(
 
 
 def _main_focus_ops() -> list[WindowOp]:
-    """Re-activate the window on top of the main player (omnipause leave):
-    Genau's in both modes — the display in genau mode, the HUD layer over
-    The main player's video in kino mode."""
-    return [WindowOp(op="activate_role", key="genau")]
+    """Re-activate the main slot's one window (omnipause leave): Kino and Genau
+    both run on the Main Player's window, whichever of them has it."""
+    return [WindowOp(op="activate_role", key="main_player")]
 
 
-def _main_slot_ops(main_mode: str) -> list[WindowOp]:
-    """Visibility + z-order ops for the main player-slot windows on a mode switch.
-
-    The two players (the main player and Genau) share one screen rect.  The incoming
-    window is shown and activated first, so focus never falls through to another
-    application; the handover then finishes the switch once the incoming player
-    is up (see ``MainSlotHandover``), so nothing else ever shows through the rect.
-    """
-    restack = WindowOp(op="restack_main")
-    if main_mode == MAIN_GENAU_MODE:
-        return [
-            WindowOp(op="show_role", key="genau"),
-            WindowOp(op="activate_role", key="genau"),
-            WindowOp(op="hand_over_the_main_slot", key=MAIN_GENAU_MODE),
-        ]
+def _main_slot_ops() -> list[WindowOp]:
+    """The main slot on a mode switch: Kino and Genau share the Main Player's
+    window, which the switch has already told which of them to show, so what is
+    left is to bring that window back if it was parked and hand it the focus,
+    so focus never falls through to another application."""
     return [
         WindowOp(op="show_role", key="main_player"),
-        WindowOp(op="show_role", key="genau"),
-        WindowOp(op="activate_role", key="genau"),
-        restack,
-        WindowOp(op="hand_over_the_main_slot", key=MAIN_KINO_MODE),
+        WindowOp(op="activate_role", key="main_player"),
     ]
 
 
@@ -1486,7 +1458,7 @@ def _dispatch_mode_switch(
     )
     state = replace(state, main_mode=result.next_mode)
     if result.is_transition:
-        ops.extend(_main_slot_ops(result.next_mode))
+        ops.extend(_main_slot_ops())
     if result.log_message:
         logger.info(result.log_message)
     return state, ops

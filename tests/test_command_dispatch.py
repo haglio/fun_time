@@ -1096,28 +1096,15 @@ def test_minimize_names_each_side_its_own_window(tmp_path: Path):
     assert ops == [WindowOp(op="minimize_role", key="landscape")]
 
 
-def test_the_main_players_button_parks_whichever_player_holds_the_slot(tmp_path: Path):
-    """the main player and Genau share the main rect, so the console's button names the slot
-    rather than a window: Genau alone in genau mode, and both in kino mode,
-    where Genau's HUD sits over the main player's video."""
+def test_the_main_players_button_parks_its_window_in_either_mode(tmp_path: Path):
+    """Kino and Genau both run on the Main Player's window, so the console's
+    button parks that one window whichever of them has it."""
     config = _make_config(tmp_path)
 
-    for mode, roles in (("genau", ["genau"]), ("kino", ["main_player", "genau"])):
+    for mode in ("genau", "kino"):
         _state, ops = dispatch_command(
             "main_minimize", _make_state(main_mode=mode), config)
-        assert ops == [WindowOp(op="minimize_role", key=role) for role in roles], mode
-
-
-def test_the_main_players_button_never_parks_the_hidden_slot_mate(tmp_path: Path):
-    """A mode switch parks the player it leaves, and minimizing an already-hidden
-    window is what drags it back into view — so the one the mode put away is not
-    in the ops, whichever mode it is."""
-    config = _make_config(tmp_path)
-
-    for mode, hidden in (("genau", "main_player"),):
-        _state, ops = dispatch_command(
-            "main_minimize", _make_state(main_mode=mode), config)
-        assert hidden not in [op.key for op in ops], mode
+        assert ops == [WindowOp(op="minimize_role", key="main_player")], mode
 
 
 def test_minimizing_a_player_does_not_make_it_the_active_player(tmp_path: Path):
@@ -2437,57 +2424,35 @@ def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
 # --- mode switch (genau_activate / main_kino_activate / main_kino_activate) ---
 
 
-def test_main_kino_activate_raises_main_player_under_genaus_hud(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.GENAU)
-
-    new_state, ops = dispatch_command("main_kino_activate", state, config)
-
-    assert new_state.main_mode is MainMode.KINO
-    slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
-    # Kino mode shows the main player underneath Genau's transparent HUD; nothing hides.
-    assert slot_ops == [
-        ("show_role", "main_player"),
-        ("show_role", "genau"),
-        ("activate_role", "genau"),
-    ]
-    # The mode switch re-stacks the pair — the main player topmost with Genau's HUD above it.
-    assert [op.op for op in ops if op.op == "restack_main"] == ["restack_main"]
-
-
-def test_a_switch_to_kino_hands_genau_its_hud_only_after_the_main_player_is_up(tmp_path: Path):
+def test_a_switch_brings_the_main_players_window_back_and_hands_it_the_focus(tmp_path: Path):
+    """Kino and Genau share the Main Player's one window, so the switch has no
+    window to swap: it brings that window back if it was parked and gives it
+    the focus, so focus never falls through to another application."""
     config = _make_config(tmp_path)
 
-    _state, ops = dispatch_command("main_kino_activate", _make_state(main_mode=MainMode.GENAU), config)
+    for from_mode, command, to_mode in (
+            (MainMode.GENAU, "main_kino_activate", MainMode.KINO),
+            (MainMode.KINO, "genau_activate", MainMode.GENAU)):
+        new_state, ops = dispatch_command(command, _make_state(main_mode=from_mode), config)
 
-    assert ops[-1] == WindowOp(op="hand_over_the_main_slot", key="kino")
-
-
-def test_genau_activate_makes_genau_the_display_and_leaves_the_main_player_to_the_handover(
-        tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.KINO)
-
-    new_state, ops = dispatch_command("genau_activate", state, config)
-
-    assert new_state.main_mode is MainMode.GENAU
-    assert ops == [
-        WindowOp(op="show_role", key="genau"),
-        WindowOp(op="activate_role", key="genau"),
-        WindowOp(op="hand_over_the_main_slot", key="genau"),
-    ]
+        assert new_state.main_mode is to_mode
+        assert ops == [
+            WindowOp(op="show_role", key="main_player"),
+            WindowOp(op="activate_role", key="main_player"),
+        ]
 
 
-def test_a_mode_switch_tells_main_player_only_whether_it_is_on_screen(tmp_path: Path):
-    """The arbiter owns the main player's T-Code lever inside kino mode, and a main player parked
-    off screen in genau mode sends nothing — so the switch says nothing of it."""
+def test_a_mode_switch_tells_the_main_player_which_of_kino_and_genau_has_its_window(tmp_path: Path):
+    """The window is the Main Player's; the room says which of the two running on
+    it is to show, with the same verb a startup seeds."""
     config = _make_config(tmp_path)
 
     dispatch_command("genau_activate", _make_state(main_mode=MainMode.KINO), config)
-    assert not config.main_player_cmd_file.exists()
+    assert config.main_player_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW genau"]
 
+    config.main_player_cmd_file.unlink()
     dispatch_command("main_kino_activate", _make_state(main_mode=MainMode.GENAU), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8").splitlines() == ["DISPLAY_ON"]
+    assert config.main_player_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW kino"]
 
 
 # --- genau command forwarding (_GENAU_CMD_MAP) ---
@@ -3316,13 +3281,15 @@ def test_leaving_omnipause_resumes_satellites_only(tmp_path: Path):
     assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
 
 
-def test_leaving_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
+@pytest.mark.parametrize("main_mode", list(MainMode))
+def test_leaving_omnipause_brings_the_main_player_forward_in_either_mode(
+        tmp_path: Path, main_mode):
     config = _make_config(tmp_path)
-    state = _make_state(omni_paused=True, main_mode=MainMode.GENAU)
+    state = _make_state(omni_paused=True, main_mode=main_mode)
 
     new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
-    assert any(op.op == "activate_role" and op.key == "genau" for op in ops)
+    assert any(op.op == "activate_role" and op.key == "main_player" for op in ops)
 
 
 # --- main-player nudge ---

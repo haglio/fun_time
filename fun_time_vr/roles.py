@@ -18,12 +18,10 @@ from player_core.control_registry import Control, Verb, bind, look_up
 from player_core.funestra_controls import SEEK_STEP_MS
 from player_core.funscript import Funscript
 from player_core.funscript import load as load_funscript
-from player_core.modes import LoopState
+from player_core.modes import LoopState, MainMode
 from player_core.play_points import PlayPoints
 from player_core.playback_rate import RATE_STEP, clamp_rate, parse_rate
 from player_core.player_verbs import (
-    DISPLAY_OFF,
-    DISPLAY_ON,
     LOCK_OFF,
     LOCK_ON,
     NEXT,
@@ -39,6 +37,7 @@ from player_core.player_verbs import (
     SET_SPEED,
     SET_TCODE_ENABLED,
     SET_VOLUME,
+    SHOW,
     SPEED_DOWN,
     SPEED_UP,
     TOGGLE_LOCK,
@@ -53,6 +52,7 @@ from player_core.status import status_fields as player_status_fields
 
 from fun_time.event_log import SOURCE_MAIN, notice
 from fun_time.media_metadata import load_metadata, metadata_path_for, video_title
+from fun_time.mode_plan import MAIN_MODES, STARTUP_MAIN_MODE
 from main_player.loop_machine import LoopMachine
 from main_player.loop_verbs import (
     LOOP_CANCEL,
@@ -193,9 +193,7 @@ class MainRole:
         self.angle_asked = AngleRequest()
         self.layout_reset = HostRequest()
         self._tilt_deg = clamp_tilt(tilt_deg)
-        # Whether this player is what the headset shows: DISPLAY_OFF rides every
-        # switch into genau mode, where the clip takes the scene instead.
-        self.displayed = True
+        self.shows: MainMode = STARTUP_MAIN_MODE
         self._load(0)
 
     # ------------------------------------------------------------------ state
@@ -352,10 +350,12 @@ class MainRole:
         self._tcode_enabled = enabled
         return True
 
-    def set_displayed(self, displayed: bool) -> None:
-        # The mirror of the HUD verb Genau's role gets, so the two roles
-        # cannot both claim the scene or both step out of it.
-        self.displayed = displayed
+    def show_from(self, name: str) -> bool:
+        """Which of Kino and Genau has the headset's main slot, as SHOW names it."""
+        if name not in MAIN_MODES:
+            return False
+        self.shows = MainMode(name)
+        return True
 
     def set_paused(self, paused: bool) -> None:
         if paused == self._paused:
@@ -812,9 +812,8 @@ CONTROLS: tuple[Control, ...] = (
                     takes_a_value=True),),
     ),
     Control(
-        name="display",
-        verbs=(Verb(DISPLAY_ON, _moves(lambda role: role.set_displayed(True))),
-               Verb(DISPLAY_OFF, _moves(lambda role: role.set_displayed(False)))),
+        name="showing",
+        verbs=(Verb(SHOW, _reads(MainRole.show_from), takes_a_value=True),),
     ),
     Control(name="quit", verbs=(Verb(QUIT, _quit),)),
 )

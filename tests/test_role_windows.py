@@ -9,14 +9,12 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from player_core.modes import MainMode
-
 from fun_time.role_windows import (
     MAIN_BLANK_SETTLE_S,
     ChildPids,
     WindowRoles,
 )
-from fun_time.window_layout import SecondaryMonitorRects, WindowRect
+from fun_time.window_layout import WindowRect
 from fun_time.windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
@@ -24,7 +22,6 @@ from fun_time.windows_bridge_startup import (
 from tests.role_window_fakes import (
     DASHBOARD_HWND,
     DASHBOARD_PID,
-    GENAU_HWND,
     HOSTED_HWND,
     HOSTED_PID,
     LANDSCAPE_HWND,
@@ -178,31 +175,16 @@ class TestTopmostBands:
 
         calls = self._promotions(windows, "remove_all_topmost")
 
-        assert {h for h, on in calls if on is False} == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
+        assert {h for h, on in calls if on is False} == TOPMOST_HWNDS
 
-    def test_restore_all_topmost_floats_main_player_and_genaus_hud_in_kino_mode(self):
-        """kino mode: the main player reclaims the topmost band, above the desktop, and
-        Genau's HUD is promoted after it, so it lands above the video."""
+    def test_restore_all_topmost_floats_every_window_with_a_rect_of_its_own(self):
+        """The main player among them: Kino and Genau share its one window, so it
+        is never the hidden half of a pair."""
         windows = make_windows(rfb_hwnd=RFB_HWND)
 
-        calls = self._promotions(windows, "restore_all_topmost",
-                                 main_mode=MainMode.KINO, satellites_mode="kino")
+        calls = self._promotions(windows, "restore_all_topmost", satellites_mode="kino")
 
-        assert {h for h, on in calls if on is True} == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
-
-    def test_kino_mode_promotes_main_player_before_genau_so_the_hud_lands_on_top(self):
-        """kino mode: the main player and Genau are BOTH topmost so the composite floats above
-        the desktop, and HWND_TOPMOST inserts at the TOP of the band — so the main player is
-        promoted BEFORE Genau, which is what stacks the HUD over the video."""
-        windows = make_windows(rfb_hwnd=RFB_HWND)
-
-        calls = self._promotions(windows, "restore_all_topmost",
-                                 main_mode=MainMode.KINO, satellites_mode="kino")
-
-        promoted = [h for h, on in calls if on]
-        assert {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND,
-                MAIN_PLAYER_HWND, GENAU_HWND} <= set(promoted)
-        assert promoted.index(MAIN_PLAYER_HWND) < promoted.index(GENAU_HWND)
+        assert {h for h, on in calls if on is True} == TOPMOST_HWNDS
 
     def test_restore_all_topmost_leaves_the_browser_under_the_hosted_app(self):
         """His: the Random Favs Browser flashes over Origenerator for a moment
@@ -218,7 +200,7 @@ class TestTopmostBands:
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
 
         calls = self._promotions(windows, "restore_all_topmost",
-                                 main_mode=MainMode.KINO, satellites_mode="origenerator")
+                                 satellites_mode="origenerator")
 
         promoted = [h for h, on in calls if on]
         assert RFB_HWND not in promoted, (
@@ -230,26 +212,10 @@ class TestTopmostBands:
         assert {PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_PLAYER_HWND,
                 HOSTED_HWND} <= set(promoted)
 
-    def test_a_restack_while_paused_puts_the_video_directly_under_genaus_hud(self):
-        windows = make_windows(rfb_hwnd=RFB_HWND)
-        placed: list[tuple[int, int]] = []
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.set_always_on_top"), \
-             patch("fun_time.role_windows.place_beneath",
-                   side_effect=lambda hwnd, above: placed.append((hwnd, above))):
-            windows.restack_main_slot(MainMode.KINO, paused=True)
-
-        assert placed == [(MAIN_PLAYER_HWND, GENAU_HWND)]
-
     def test_a_restack_while_paused_leaves_the_topmost_band_to_the_pause(self):
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
-        with patch("fun_time.role_windows.place_beneath"):
-            for main_mode in (MainMode.KINO, MainMode.GENAU):
-                assert self._promotions(windows, "restack_main_slot",
-                                        main_mode=main_mode, paused=True) == []
-            assert self._promotions(windows, "restack_rfb_slot", main_mode=MainMode.KINO,
-                                    satellites_mode="origenerator", paused=True) == []
+        assert self._promotions(windows, "restack_rfb_slot",
+                                satellites_mode="origenerator", paused=True) == []
 
     def test_origenerator_mode_takes_the_browser_out_of_the_band_under_the_hosted_window(self):
         """His: switching into Origenerator mode, Origenerator Core did not come
@@ -260,7 +226,7 @@ class TestTopmostBands:
         topmost window however late that window's restore arrives."""
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
 
-        calls = self._promotions(windows, "restack_rfb_slot", main_mode=MainMode.KINO,
+        calls = self._promotions(windows, "restack_rfb_slot",
                                  satellites_mode="origenerator")
 
         assert calls == [(RFB_HWND, False), (HOSTED_HWND, True)]
@@ -270,7 +236,7 @@ class TestTopmostBands:
         whatever else he has on its monitor."""
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
 
-        calls = self._promotions(windows, "restack_rfb_slot", main_mode=MainMode.KINO,
+        calls = self._promotions(windows, "restack_rfb_slot",
                                  satellites_mode="kino")
 
         assert calls == [(RFB_HWND, True)]
@@ -284,13 +250,13 @@ class TestOrigeneratorWindowConverger:
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=0), \
              patch("fun_time.role_windows.restore_window") as restore:
-            windows.converge_origenerator_window("kino", "origenerator")
+            windows.converge_origenerator_window("origenerator")
         restore.assert_not_called()  # still booting — nothing to drive
         with patch.object(windows, "hwnd", return_value=4242), \
              patch("fun_time.role_windows.is_window_minimized", return_value=True), \
              patch("fun_time.role_windows.restore_window") as restore, \
              patch("fun_time.role_windows.set_always_on_top"):
-            windows.converge_origenerator_window("kino", "origenerator")
+            windows.converge_origenerator_window("origenerator")
         restore.assert_called_once_with(4242, activate=False)
 
     def test_a_restore_the_busy_app_dropped_is_retried_next_pass(self):
@@ -304,8 +270,8 @@ class TestOrigeneratorWindowConverger:
              patch("fun_time.role_windows.is_window_minimized", return_value=True), \
              patch("fun_time.role_windows.restore_window") as restore, \
              patch("fun_time.role_windows.set_always_on_top"):
-            windows.converge_origenerator_window("kino", "origenerator")
-            windows.converge_origenerator_window("kino", "origenerator")
+            windows.converge_origenerator_window("origenerator")
+            windows.converge_origenerator_window("origenerator")
         assert restore.call_count == 2
 
     def test_a_shown_window_out_of_the_band_is_re_promoted(self):
@@ -317,7 +283,7 @@ class TestOrigeneratorWindowConverger:
              patch("fun_time.role_windows.is_window_topmost", return_value=False), \
              patch("fun_time.role_windows.restore_window") as restore, \
              patch("fun_time.role_windows.set_always_on_top") as promote:
-            windows.converge_origenerator_window("kino", "origenerator")
+            windows.converge_origenerator_window("origenerator")
         restore.assert_not_called()
         promote.assert_any_call(4242, True)
 
@@ -326,13 +292,13 @@ class TestOrigeneratorWindowConverger:
         with patch.object(windows, "hwnd", return_value=4242), \
              patch("fun_time.role_windows.is_window_minimized", return_value=False), \
              patch("fun_time.role_windows.minimize_window") as minimize:
-            windows.converge_origenerator_window("kino", "kino")
+            windows.converge_origenerator_window("kino")
         minimize.assert_called_once_with(4242, activate=False)
 
     def test_without_a_hosted_app_the_converger_is_inert(self):
         windows = make_windows()
         with patch.object(windows, "hwnd") as resolve:
-            windows.converge_origenerator_window("kino", "origenerator")
+            windows.converge_origenerator_window("origenerator")
         resolve.assert_not_called()
 
 
@@ -395,16 +361,3 @@ def test_the_window_that_shrinks_moves_before_the_one_that_grows_into_its_room()
         windows.place([("main_player", WindowRect(2560, 940, 1440, 2500)), ("portrait", TOP_STRIP)])
 
     assert [call.args[0] for call in place.call_args_list] == [PORTRAIT_HWND, MAIN_PLAYER_HWND]
-
-
-def test_genaus_window_takes_the_main_players_rect_whichever_of_them_is_showing():
-    windows = make_windows(role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_PLAYER_HWND,
-                                       "genau": GENAU_HWND})
-    rects = SecondaryMonitorRects(portrait=TOP_STRIP, main=WindowRect(2560, 940, 1440, 2500))
-
-    with patch("fun_time.role_windows.window_rect", return_value=(0, 0, 640, 480)), \
-         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
-         patch("fun_time.role_windows.place_window") as place:
-        windows.seat(rects)
-
-    assert {call.args for call in place.call_args_list} >= {(GENAU_HWND, 2560, 940, 1440, 2500)}

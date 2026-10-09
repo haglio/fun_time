@@ -29,7 +29,7 @@ from .child_launch import no_child_log, open_child_log
 from .config import load_config
 from .content import load_web_providers
 from .max_intensity import publish_max_intensity
-from .mode_plan import STARTUP_MAIN_MODE, hud_verb, main_player_display_verb
+from .mode_plan import STARTUP_MAIN_MODE, show_verb
 from .modes import (
     PLAYLIST_MAIN_PLAYER,
     SatelliteBuild,
@@ -65,7 +65,6 @@ from .session_resume import (
     resume_what_lives_in_a_player,
 )
 from .shared_state import shared_state_path
-from .window_roles import GENAU_KINO_TITLE, GENAU_TITLE
 
 logger = logging.getLogger(__name__)
 
@@ -289,7 +288,7 @@ def seed_startup_states(
     scripted_filter: bool = False,
     mode: MainMode = STARTUP_MAIN_MODE,
 ) -> None:
-    """Seed the cross-process flags the main slot opens on: both its players
+    """Seed the cross-process flags the main slot opens on: Kino and Genau both
     held until the sequencer's reveal starts whichever the mode puts on screen,
     and the sound, F-mode and mode this session comes back in.
 
@@ -306,13 +305,10 @@ def seed_startup_states(
     draws the satellites' HUD model itself, which is why a resumed F-mode session
     showed F-Mode on every player except the one that had to be sent it.
 
-    *mode* is which player owns the big display, seeded with the same verbs a live
-    switch into it says (see ``mode_plan``): Genau's window is told whether it is
-    the display or the HUD layer over the video, and the main player whether it is
-    on screen at all -- the mirror pair, so an alt-tab back to a parked main player
-    lands on black rather than on the frame it stopped on.  Never the switch's
-    RESUME, though: a live switch starts its player immediately and startup must
-    not, the reveal being what hands Genau its RESUME.
+    *mode* is which of Kino and Genau has the Main Player's window, seeded with
+    the same verb a live switch into it says (see ``mode_plan``).  Never the
+    switch's RESUME, though: a live switch starts its player immediately and
+    startup must not, the reveal being what hands Genau its RESUME.
 
     The defaults are a fresh session's: full, unmuted, unnarrowed, in kino mode.
     """
@@ -322,8 +318,8 @@ def seed_startup_states(
     # Everything after it appends — the player drains the queue in order, so a
     # later verb of the same kind supersedes an earlier one and none is lost.
     # The broker is left out on purpose — startup has already parked the OSR2.
-    Path(genau_cmd_file).write_text(f"PAUSE\n{hud_verb(mode)}\n", encoding="utf-8")
-    append_command(Path(main_player_cmd_file), main_player_display_verb(mode))
+    Path(genau_cmd_file).write_text("PAUSE\n", encoding="utf-8")
+    append_command(Path(main_player_cmd_file), show_verb(mode))
     # Every player waits for the reveal: a live switch's flags would start its
     # player the moment they landed, and here that is twenty seconds of the OSR2
     # moving under a progress bar.  The flag does not hold the Robot Hand,
@@ -501,82 +497,12 @@ def start_core_session(
     return carried.main_mode
 
 
-def genau_launch_command(
-    *,
-    python_exe: str | Path,
-    genau_module: str,
-    config_path: str | Path,
-    clips_folder: str | Path,
-    genau_x: int,
-    genau_y: int,
-    genau_width: int,
-    genau_height: int,
-    command_file: str | Path,
-    paused_file: str | Path,
-    console_file: str | Path,
-    drive_file: str | Path,
-    status_file: str | Path,
-    dashboard_cmd_file: str | Path,
-    start_clip: str = "",
-    latest: bool = False,
-    metadata_dir: str | Path | None = None,
-) -> list[str]:
-    """The argv a session launches Genau with, which
-    ``tests/test_genau_launch_contract`` holds against Genau's own published
-    document.  Every file below is required because Genau requires it: left off,
-    Genau falls through to a directory this session never reads.
-    """
-    cmd = [
-        NAMER.named_exe(python_exe, "Genau"),
-        "-m",
-        genau_module,
-        "--config",
-        str(config_path),
-        "--clips-folder",
-        str(clips_folder),
-        "--x",
-        str(genau_x),
-        "--y",
-        str(genau_y),
-        "--width",
-        str(genau_width),
-        "--height",
-        str(genau_height),
-    ]
-    cmd.extend(["--icon", _the_session_icon()])
-    cmd.extend(taskbar_identity_args())
-    # Both captions, for the same reason each satellite is handed its own: the
-    # window is one of this session's, and this session resolves it by them.
-    cmd.extend(["--title", GENAU_TITLE, "--video-title", GENAU_KINO_TITLE])
-    cmd.extend(["--command-file", str(command_file)])
-    cmd.extend(["--paused-file", str(paused_file)])
-    cmd.extend(["--console-file", str(console_file)])
-    cmd.extend(["--drive-file", str(drive_file)])
-    cmd.extend(["--status-file", str(status_file)])
-    cmd.extend(["--dashboard-cmd-file", str(dashboard_cmd_file)])
-    # Both on the command line rather than the command channel: the first clip is
-    # decoding before the channel is first read, and the order as a verb would
-    # browse the new order from its top, over the clip just resumed.
-    if start_clip:
-        cmd.extend(["--start-clip", start_clip])
-    if latest:
-        cmd.append("--latest")
-    if metadata_dir:
-        cmd.extend(["--metadata-dir", str(metadata_dir)])
-    return cmd
-
-
 def _start_a_player(cmd: list[str], *, log_file: str | Path, project_dirs: str | None) -> int:
     with open_child_log(log_file, cmd) as log:
         proc = subprocess.Popen(
             cmd, stdout=log, stderr=log,
             **genau_project_kwargs(project_dirs), **subprocess_window_kwargs())
     return proc.pid
-
-
-def launch_genau(*, log_file: str | Path, project_dirs: str | None = None, **contract) -> int:
-    return _start_a_player(genau_launch_command(**contract),
-                           log_file=log_file, project_dirs=project_dirs)
 
 
 @dataclass(frozen=True)
@@ -720,19 +646,28 @@ def launch_main_player(
     main_player_y: int,
     main_player_width: int,
     main_player_height: int,
+    genau_command_file: str | Path,
+    genau_paused_file: str | Path,
+    genau_status_file: str | Path,
+    genau_config_path: str | Path,
     clips_dir: str | Path | None = None,
     metadata_dir: str | Path | None = None,
+    genau_start_clip: str = "",
+    genau_latest: bool = False,
     project_dirs: str | None = None,
 ) -> int:
     """Launch the main player subprocess, returning its PID.
 
-    *project_dir* is which checkout of the genau repo to run — the main player ships there
-    too, so it follows Genau onto a branch rather than staying on the primary
-    while its housemate moves (see :func:`genau_project_kwargs`).
+    Kino and Genau both run on its window, so the launch names Genau's own files
+    and settings beside the player's: the channel the room's verbs for the hand
+    and the clip arrive on, the flag that pauses its clip, the status it
+    publishes, its config, and the clip and order it was left browsing.
 
-    Its stdout and stderr go to *log_file* for the same reason a satellite's do:
-    The main player is the same mpv-backed player under the same windowed ``pythonw``, which
-    gives an unhandled exception nowhere to print its traceback.
+    *project_dirs* names the checkouts it runs out of (see
+    :func:`genau_project_kwargs`).  Its stdout and stderr go to *log_file* for
+    the same reason a satellite's do: the main player is the same mpv-backed
+    player under the same windowed ``pythonw``, which gives an unhandled
+    exception nowhere to print its traceback.
     """
     cmd = [
         NAMER.named_exe(python_exe, "MainPlayer"),
@@ -773,9 +708,24 @@ def launch_main_player(
         "--icon",
         _the_session_icon(),
         *taskbar_identity_args(),
+        "--genau-command-file",
+        str(genau_command_file),
+        "--genau-paused-file",
+        str(genau_paused_file),
+        "--genau-status-file",
+        str(genau_status_file),
+        "--genau-config",
+        str(genau_config_path),
     ]
     if clips_dir:
         cmd += ["--clips-dir", str(clips_dir)]
+    # Both on the command line rather than the command channel: the first clip is
+    # decoding before the channel is first read, and the order as a verb would
+    # browse the new order from its top, over the clip just resumed.
+    if genau_start_clip:
+        cmd += ["--genau-start-clip", genau_start_clip]
+    if genau_latest:
+        cmd.append("--genau-latest")
     # Lets the main player group a video's versions from Evolver's metadata sidecars rather
     # than guessing from clip names.
     if metadata_dir:

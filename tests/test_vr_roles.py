@@ -1296,9 +1296,9 @@ class TestWhatTheDriveGateReadsOffIt:
         assert role.speed == 1.25
 
 
-class TestWhetherItIsTheDisplay:
-    """DISPLAY_ON / DISPLAY_OFF ride every mode switch: the mirror of the HUD
-    verb Genau's role gets, so exactly one of the two claims the scene."""
+class TestWhichOfTheTwoItShows:
+    """SHOW rides every mode switch, as it does on the desktop's Main Player:
+    which of Kino and Genau has the headset's main slot."""
 
     def _role(self, tmp_path):
         playlist = tmp_path / "main_player_playlist.tsv"
@@ -1306,22 +1306,28 @@ class TestWhetherItIsTheDisplay:
         return MainRole(player=FakePlayer(), driver=FakeDriver(), playlist_file=playlist,
                         metadata_root=None, vr_dirs=())
 
-    def test_a_fresh_role_is_the_display(self, tmp_path):
-        assert self._role(tmp_path).displayed is True
+    def test_a_fresh_role_shows_kino(self, tmp_path):
+        assert self._role(tmp_path).shows == "kino"
 
-    def test_display_off_steps_it_out_of_the_scene(self, tmp_path):
+    def test_show_genau_hands_the_slot_to_the_clip(self, tmp_path):
         role = self._role(tmp_path)
 
-        assert role.apply_command("DISPLAY_OFF", on_quit=_never_quits) is True
-        assert role.displayed is False
+        assert role.apply_command("SHOW genau", on_quit=_never_quits) is True
+        assert role.shows == "genau"
 
-    def test_display_on_puts_it_back(self, tmp_path):
+    def test_show_kino_takes_it_back(self, tmp_path):
         role = self._role(tmp_path)
-        role.apply_command("DISPLAY_OFF", on_quit=_never_quits)
+        role.apply_command("SHOW genau", on_quit=_never_quits)
 
-        role.apply_command("DISPLAY_ON", on_quit=_never_quits)
+        role.apply_command("SHOW kino", on_quit=_never_quits)
 
-        assert role.displayed is True
+        assert role.shows == "kino"
+
+    def test_a_name_neither_of_them_answers_to_is_refused(self, tmp_path):
+        role = self._role(tmp_path)
+
+        assert role.apply_command("SHOW slideshow", on_quit=_never_quits) is False
+        assert role.shows == "kino"
 
 
 class TestScenes:

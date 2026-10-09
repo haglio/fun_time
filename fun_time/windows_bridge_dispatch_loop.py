@@ -15,7 +15,7 @@ from pathlib import Path
 
 from app_support.file_channel import consume_command_file, read_flag
 from player_core.file_channel import append_command
-from player_core.modes import MainMode, NoticeLevel, SatellitesMode, read_mode
+from player_core.modes import NoticeLevel, SatellitesMode, read_mode
 from player_core.player_verbs import LOCK_OFF, LOCK_ON, play_file
 from player_core.playlist import PlaylistItem
 
@@ -48,7 +48,6 @@ from .hud_transport import HudPublisher
 from .library_browser import browse_library
 from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
 from .main_list_builds import BuildsOffTheLoop
-from .main_slot_handover import MainSlotHandover
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .mode_plan import main_player_displays
 from .modes import scripted_item
@@ -327,12 +326,6 @@ class DispatchLoopRunner:
             genau_status_file=config.genau_status_file,
             origenerator_cmd_file=config.origenerator_cmd_file,
         )
-        self.main_slot_handover = MainSlotHandover(
-            windows=windows,
-            genau_cmd_file=config.genau_cmd_file,
-            main_player_cmd_file=config.main_player_cmd_file,
-            genau_status_file=config.genau_status_file,
-        )
 
     def _the_satellite_modes_this_session_can_be_in(self, state: BridgeState) -> BridgeState:
         """*state* corrected to the room this session is really in -- never
@@ -437,7 +430,6 @@ class DispatchLoopRunner:
                 self._update_dashboard()
         self.bring_the_players_home(now=now)
         self.gallery_follows_genau.sync()
-        self.main_slot_handover.sync(self.state.main_mode, paused=self.state.omni_paused)
         self.watch.sample_due(now=now, paused=self.state.omni_paused,
                               satellites=not hosting_origenerator(self.state, self.config))
         self.hud.publish_due(self.state, now=now)
@@ -759,8 +751,7 @@ class DispatchLoopRunner:
         window state is its own."""
         if self.state.omni_paused:
             return
-        self.windows.converge_origenerator_window(
-            self.state.main_mode, self.state.satellites_mode)
+        self.windows.converge_origenerator_window(self.state.satellites_mode)
 
     def _broker_heartbeat_is_fresh(self) -> bool:
         """Whether the broker is currently talking to the OSR2 — not whether it exists.
@@ -838,15 +829,14 @@ class DispatchLoopRunner:
             ).start()
 
     def _handle_omniminimize(self) -> None:
-        """Minimize the windows the current mode shows — the "omniminimize" command.
+        """Minimize the windows the modes show — the "omniminimize" command.
 
-        Only mode-visible windows are minimized (SW_MINIMIZE would drag a
-        hidden slot-mate back into view), each with ``activate=False`` so
+        Only those are minimized (SW_MINIMIZE would drag a parked window back
+        into view), each with ``activate=False`` so
         minimizing one never yanks focus to the next.  The minimized set is
         remembered so omnirestore brings back exactly these windows.
         """
-        self.windows.minimize_all(
-            visible_roles(self.state.main_mode, self.state.satellites_mode))
+        self.windows.minimize_all(visible_roles(self.state.satellites_mode))
 
     def _handle_omnirestore(self) -> None:
         """Un-minimize exactly the windows omniminimize minimized.
@@ -912,10 +902,10 @@ class DispatchLoopRunner:
             append_command(self.ahk_cmd_file, Op.SUSPEND_HOTKEYS)
 
         try:
-            # Over the rect of whichever player has the main slot: the pick plays there, so
-            # the browse stands where it will, and covers nothing else on either monitor.
+            # Over the main slot's window: the pick plays there, so the browse
+            # stands where it will, and covers nothing else on either monitor.
             genau = not main_player_displays(self.state.main_mode)
-            player_hwnd = self.windows.hwnd("genau" if genau else "main_player")
+            player_hwnd = self.windows.hwnd("main_player")
             selected = browse_library(
                 self.manifest_path,
                 self.config.python_exe,
@@ -931,8 +921,7 @@ class DispatchLoopRunner:
                 append_command(self.config.main_player_cmd_file, play_file(scripted_item(selected, self.config.regen_metadata_root)))
         finally:
             if manage_session:
-                self.windows.restore_all_topmost(
-            self.state.main_mode, self.state.satellites_mode)
+                self.windows.restore_all_topmost(self.state.satellites_mode)
                 append_command(self.ahk_cmd_file, Op.UNSUSPEND_HOTKEYS)
 
     def run(self) -> None:
@@ -1011,16 +1000,8 @@ def _run_activate_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
         runner.windows.activate(op.key)
 
 
-def _run_restack_main(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    # Re-stack the overlapping main player/Genau pair for the current mode.  Not
-    # integration-guarded: SetWindowPos(HWND_TOPMOST) uses SWP_NOACTIVATE, so
-    # it changes only the z-band, never focus.
-    runner.windows.restack_main_slot(runner.state.main_mode, paused=runner.state.omni_paused)
-
-
 def _run_restack_rfb(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    runner.windows.restack_rfb_slot(
-        runner.state.main_mode, runner.state.satellites_mode, paused=runner.state.omni_paused)
+    runner.windows.restack_rfb_slot(runner.state.satellites_mode, paused=runner.state.omni_paused)
 
 
 def _run_disable_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
@@ -1028,8 +1009,7 @@ def _run_disable_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
 
 
 def _run_restore_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    runner.windows.restore_all_topmost(
-        runner.state.main_mode, runner.state.satellites_mode)
+    runner.windows.restore_all_topmost(runner.state.satellites_mode)
 
 
 def _run_open_rfb_tab(runner: DispatchLoopRunner, op: WindowOp) -> None:
@@ -1063,10 +1043,6 @@ def _run_follow_genaus_lock(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner.gallery_follows_genau.expect_a_lock()
 
 
-def _run_hand_over_the_main_slot(runner: DispatchLoopRunner, op: WindowOp) -> None:
-    runner.main_slot_handover.begin(MainMode(op.key))
-
-
 def _run_ahk_passthrough(runner: DispatchLoopRunner, op: WindowOp) -> None:
     if op.op == Op.UNSUSPEND_HOTKEYS and runner.env.integration:
         return
@@ -1080,7 +1056,6 @@ _OP_HANDLERS = {
     Op.ACTIVATE_ROLE: _run_activate_role,
     Op.MINIMIZE_ROLE: _run_minimize_role,
     Op.RESTORE_PARKED: _run_restore_parked,
-    Op.RESTACK_MAIN: _run_restack_main,
     Op.RESTACK_RFB: _run_restack_rfb,
     Op.DISABLE_ALL_TOPMOST: _run_disable_all_topmost,
     Op.RESTORE_ALL_TOPMOST: _run_restore_all_topmost,
@@ -1091,7 +1066,6 @@ _OP_HANDLERS = {
     Op.MAIN_PLAYER_ANSWERS: _run_main_player_answers,
     Op.TAKE_BACK_PLAYERS: _run_take_back_players,
     Op.FOLLOW_GENAUS_LOCK: _run_follow_genaus_lock,
-    Op.HAND_OVER_THE_MAIN_SLOT: _run_hand_over_the_main_slot,
 }
 assert set(_OP_HANDLERS) == set(Op), "every window op needs a handler"
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import configparser
 import contextlib
 import json
-import logging
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -24,8 +23,6 @@ from fun_time.manifest import (
 )
 from fun_time.monitors import MonitorInfo
 from fun_time.overlay_progress import (
-    COMING_BACK_TO_ORIGENERATOR_MODE,
-    ROOM_PHASES,
     NullProgress,
     StartupCancelled,
 )
@@ -38,7 +35,6 @@ from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import keep_the_origenerator
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time.shortcuts import Shortcut
-from fun_time.win32 import ANSWER_TIMEOUT_MS
 from fun_time.win32_process import get_process_creation_time
 from fun_time.window_layout import (
     MonitorRect,
@@ -46,16 +42,12 @@ from fun_time.window_layout import (
     compute_window_layout,
     screen_layout,
 )
-from fun_time.window_roles import GENAU_TITLE
 from fun_time.windows_bridge_sequencer import (
-    GENAU_ANSWER_TIMEOUT_S,
     MAIN_PLAYER_LOAD_TIMEOUT_S,
     WINDOW_RESOLVE_TIMEOUT_S,
     _maybe_launch_random_favs_browser,
-    _resolve_genau_window,
     _resolve_satellite_hwnds,
     _wait_for_main_player_loaded,
-    _wait_for_players_drawing,
     release_the_players,
     run_startup_sequence,
 )
@@ -75,7 +67,6 @@ def fake_screen_layout(layout_config):
 
 CORE_PIDS = {"portrait_pid": 30, "landscape_pid": 40}
 UI_PIDS = {"dashboard_pid": 50, "audio_pid": 70}
-GENAU_PID = 60
 MAIN_PLAYER_PID = 25
 
 # Main slot on the secondary monitor with conftest's main_top_ratio=0.727:
@@ -169,16 +160,12 @@ def _sequencer_stubs(**overrides):
     """
     spec: dict[str, dict] = {
         "start_core_session": dict(side_effect=_fake_core),
-        "launch_genau": dict(return_value=GENAU_PID),
         "launch_main_player": dict(side_effect=_fake_main_player),
         "launch_ui_companions": dict(side_effect=_fake_ui),
         "screen_layout": dict(side_effect=fake_screen_layout),
         "wait_for_window_by_title": dict(return_value=99999),
-        "window_answers": dict(return_value=True),
         "move_window": {},
         "set_always_on_top": {},
-        "minimize_window": {},
-        "disable_window_transitions": {},
         # Every player launched here is a made-up pid, so the room is running
         # unless a test says one of them died.
         "is_process_alive": dict(return_value=True),
@@ -281,7 +268,6 @@ class TestRunStartupSequence:
         assert result.portrait_pid == 30
         assert result.landscape_pid == 40
         assert result.dashboard_pid == 50
-        assert result.genau_pid == GENAU_PID
         assert result.audio_pid == 70
 
     def test_the_satellites_are_wired_from_the_manifest(self, cfg_factory, tmp_path):
@@ -344,36 +330,19 @@ class TestRunStartupSequence:
             for key in ("rfb_x", "rfb_y", "rfb_width", "rfb_height")
         )
 
-    def test_launches_genau_and_main_player_with_primary_media_rect(self, cfg_factory, tmp_path):
+    def test_launches_the_main_player_with_the_primary_media_rect_and_genaus_files(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        genau_kwargs = {}
         main_player_kwargs = {}
-
-        def capture_genau(**kwargs):
-            genau_kwargs.update(kwargs)
-            return GENAU_PID
 
         def capture_main_player(**kwargs):
             main_player_kwargs.update(kwargs)
             return _fake_main_player(**kwargs)
 
-        with _sequencer_stubs(launch_genau=dict(side_effect=capture_genau), launch_main_player=dict(side_effect=capture_main_player), wait_for_window_by_title=dict(return_value=88888)):
+        with _sequencer_stubs(launch_main_player=dict(side_effect=capture_main_player), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        # Genau receives its manifest file paths and the shared main-slot rect.
-        assert genau_kwargs["command_file"] == str(cfg.genau_cmd_file)
-        assert genau_kwargs["paused_file"] == str(cfg.genau_paused_file)
-        assert genau_kwargs["clips_folder"] == str(cfg.paths.clips_dir)
-        # The drive readout is a channel between the two of them, so both are told
-        # the same path.  Each resolving it for itself is how Kino mode ended up with
-        # no readout at all: Genau wrote it beside its own config, the main player read ours.
-        assert genau_kwargs["drive_file"] == main_player_kwargs["drive_file"]
-        assert {key: genau_kwargs[key] for key in ("genau_x", "genau_y", "genau_width", "genau_height")} == {
-            f"genau_{axis}": value for axis, value in zip(("x", "y", "width", "height"), PRIMARY_MEDIA_RECT.values())
-        }
-
-        # The main player is wired from the manifest [modules]/[commands] keys and the same rect.
+        # The main player is wired from the manifest [modules]/[commands] keys and the main slot's rect.
         assert main_player_kwargs == {
             "python_exe": str(cfg.paths.python_exe),
             "main_player_module": "main_player",
@@ -385,7 +354,7 @@ class TestRunStartupSequence:
             # The console: the panel Fun Time publishes for the main player's HUD, Genau's
             # readout for the section under it, and where a press goes back.
             "console_file": str(main_player_console_path(cfg.paths.state_dir)),
-            "drive_file": Path(cfg.genau_cmd_file).parent / "genau_drive.txt",
+            "drive_file": str(Path(cfg.genau_cmd_file).parent / "genau_drive.txt"),
             # The main player is the satellites' twin and gets the same crash log.
             "log_file": tmp_path / "main_player.log",
             # Where it keeps the mode it was in and the point each video was left
@@ -395,18 +364,27 @@ class TestRunStartupSequence:
             "main_player_y": PRIMARY_MEDIA_RECT["y"],
             "main_player_width": PRIMARY_MEDIA_RECT["width"],
             "main_player_height": PRIMARY_MEDIA_RECT["height"],
-            # Genau's loop-delivery folder, played as shorts; the main player reads its
-            # own library folders and T-Code port from Fun Time's config now, not genau's.
+            # Genau runs on this window too, through files of its own: the room's
+            # verbs for the hand and the clip, its pause, the status it publishes,
+            # and the config its engine is tuned by.
+            "genau_command_file": str(cfg.genau_cmd_file),
+            "genau_paused_file": str(cfg.genau_paused_file),
+            "genau_status_file": str(cfg.genau_status_file),
+            "genau_config_path": str(cfg.paths.genau_config_path or cfg.config_path),
+            # Genau's loop-delivery folder, played as shorts by Kino and browsed by Genau.
             "clips_dir": str(cfg.paths.clips_dir),
             # This manifest has no regen.metadata_root, so the main player is left to
             # group by name; launch_main_player's --metadata-dir wiring is covered in
             # test_windows_bridge_startup.
             "metadata_dir": None,
+            # Nothing to resume Genau onto: no status file from a session before.
+            "genau_start_clip": "",
+            "genau_latest": False,
             # Where a press on the main player's volume control posts its command — the same
             # file the dashboard and each satellite's HUD write to.
             "dashboard_cmd_file": str(cfg.paths.state_dir / "dashboard_cmd.txt"),
-            # Which checkouts of ../genau and ../player_core to run — empty in
-            # an ordinary session, so both players resolve through their venv.
+            # Which checkouts to run — empty in an ordinary session, so the player
+            # resolves through its venv.
             "project_dirs": "",
         }
 
@@ -433,13 +411,12 @@ class TestRunStartupSequence:
         assert main_player_kwargs["config_path"] == str(cfg.config_path)
         assert main_player_kwargs["config_path"] != str(genau_config)
         assert main_player_kwargs["clips_dir"] == str(cfg.paths.clips_dir)
+        # And Genau's own config beside it, for the engine's numbers.
+        assert main_player_kwargs["genau_config_path"] == str(genau_config)
 
-    def test_both_players_are_run_out_of_the_named_checkouts(self, cfg_factory, tmp_path):
-        """Genau and the main player both ship in that repo, so a branch of it has to move
-        the pair — one on the branch and one on the primary is two different
-        codebases sharing a console."""
+    def test_the_main_player_is_run_out_of_the_named_checkouts(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        checkout = tmp_path / "genau_worktree"
+        checkout = tmp_path / "a_worktree"
         checkout.mkdir()
         manifest = configparser.ConfigParser()
         manifest.optionxform = str
@@ -447,28 +424,21 @@ class TestRunStartupSequence:
         manifest["runtime"]["genau_project_dirs"] = str(checkout)
         with Path(manifest_path).open("w", encoding="utf-8") as fp:
             manifest.write(fp)
-        genau_kwargs: dict = {}
         main_player_kwargs: dict = {}
-
-        def capture_genau(**kwargs):
-            genau_kwargs.update(kwargs)
-            return GENAU_PID
 
         def capture_main_player(**kwargs):
             main_player_kwargs.update(kwargs)
             return _fake_main_player(**kwargs)
 
-        with _sequencer_stubs(launch_genau=dict(side_effect=capture_genau), launch_main_player=dict(side_effect=capture_main_player), wait_for_window_by_title=dict(return_value=88888)):
+        with _sequencer_stubs(launch_main_player=dict(side_effect=capture_main_player), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert genau_kwargs["project_dirs"] == str(checkout)
         assert main_player_kwargs["project_dirs"] == str(checkout)
 
     def test_positions_satellite_windows_and_applies_topmost_policy(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         title_to_hwnd = {
-            "Genau": 6060,
             "Main Player": 2525,
             "Portrait AI Player": 3030,
             "Landscape AI Player": 4040,
@@ -483,12 +453,10 @@ class TestRunStartupSequence:
         moved_hwnds = {c[0] for c in move_calls}
         assert {3030, 4040} <= moved_hwnds
 
-        # video startup mode: the windows that own a rect are promoted to topmost,
-        # The main player (2525) included so it floats above the desktop like the main player
-        # always has, and Genau (6060) after it — promoted last, so being in the
-        # band puts its HUD over the main player's video.
+        # The windows that own a rect are promoted to topmost, the main player
+        # (2525) included so it floats above the desktop.
         promoted = {h for h, on in topmost_calls if on}
-        assert promoted == {3030, 4040, 2525, 6060}
+        assert promoted == {3030, 4040, 2525}
 
     def test_non_hidden_path_unpauses_main_player(self, cfg_factory, tmp_path):
         """The no-loading-screen path (integration / normal without the
@@ -518,11 +486,11 @@ class TestRunStartupSequence:
         )
 
         with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
-            launch = stubs.launch_genau
+            launch = stubs.launch_main_player
 
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert launch.call_args.kwargs["start_clip"] == "C:\\clips\\alpha.mp4"
+        assert launch.call_args.kwargs["genau_start_clip"] == "C:\\clips\\alpha.mp4"
 
     def test_genau_is_launched_in_the_order_it_was_left_browsing(self, cfg_factory, tmp_path):
         """Whether Genau was on Latest is in the state the core session just
@@ -534,7 +502,7 @@ class TestRunStartupSequence:
         with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert stubs.launch_genau.call_args.kwargs["latest"] is True
+        assert stubs.launch_main_player.call_args.kwargs["genau_latest"] is True
 
     def test_genau_is_launched_knowing_where_the_librarys_records_are(self, cfg_factory, tmp_path):
         records = tmp_path / "library" / "videos" / "metadata"
@@ -544,27 +512,25 @@ class TestRunStartupSequence:
         with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert Path(stubs.launch_genau.call_args.kwargs["metadata_dir"]) == records
+        assert Path(stubs.launch_main_player.call_args.kwargs["metadata_dir"]) == records
 
-    def test_a_genau_session_parks_main_player_and_gives_genau_the_slot(self, cfg_factory, tmp_path):
+    def test_a_genau_session_opens_with_the_main_player_up_and_in_the_band(self, cfg_factory, tmp_path):
         """Reopening in genau mode: the session is still BUILT in kino mode — the main player loads
-        the main player's playlist and the overlay waits on it — but what is revealed
-        is Genau, so the pair swaps which one is parked and which one floats."""
+        the main player's playlist and the overlay waits on it — and Genau runs on that same
+        window, so nothing is parked and the window floats as it does in kino mode."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         title_to_hwnd = {
-            "Genau": 6060, "Main Player": 2525,
+            "Main Player": 2525,
             "Portrait AI Player": 3030, "Landscape AI Player": 4040,
         }
         topmost_calls: list[tuple] = []
-        minimized: list[int] = []
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(MainMode.GENAU)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
+        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(MainMode.GENAU)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v)))):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert minimized == [2525]
-        assert {h for h, on in topmost_calls if on} == {3030, 4040, 6060}
-        # Handed on, because the post-overlay z-order pass has to re-assert the
-        # same policy and it runs from the orchestrator, out of reach of this.
+        assert {h for h, on in topmost_calls if on} == {3030, 4040, 2525}
+        # Handed on, because the orchestrator starts the mode's player once the
+        # cover is gone.
         assert result.main_mode is MainMode.GENAU
 
     def test_a_genau_session_is_revealed_by_starting_genau_not_main_player(self, cfg_factory, tmp_path):
@@ -619,9 +585,9 @@ class TestRunStartupSequence:
 
         assert genau_cmd.read_text(encoding="utf-8") == ""
 
-    def test_a_genau_session_leaves_main_player_parked_at_the_reveal(self, cfg_factory, tmp_path):
-        """Genau's own mode: the main player stays held, so nothing plays into the minimized
-        window."""
+    def test_a_genau_session_leaves_kinos_video_held_at_the_reveal(self, cfg_factory, tmp_path):
+        """Genau's own mode: Kino's video stays held, so nothing plays under
+        Genau's picture."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
         _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "genau")
@@ -630,25 +596,18 @@ class TestRunStartupSequence:
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
-    def test_kino_mode_stacks_genau_over_main_player_and_parks_neither(self, cfg_factory, tmp_path):
-        """Kino mode is where both share the rect: Genau's transparent HUD sits
-        over the main player's video, which the topmost band expresses as promoting the main player
-        first and Genau last."""
+    def test_a_kino_session_opens_with_every_player_in_the_band(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         title_to_hwnd = {
-            "Genau": 6060, "Main Player": 2525,
+            "Main Player": 2525,
             "Portrait AI Player": 3030, "Landscape AI Player": 4040,
         }
         topmost_calls: list[tuple] = []
-        minimized: list[int] = []
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(MainMode.KINO)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
+        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(MainMode.KINO)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v)))):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert minimized == []
-        promoted = [h for h, on in topmost_calls if on]
-        assert set(promoted) == {3030, 4040, 2525, 6060}
-        assert promoted.index(6060) > promoted.index(2525)
+        assert {h for h, on in topmost_calls if on} == {3030, 4040, 2525}
 
 
 class _TrackingProgress:
@@ -720,7 +679,6 @@ class TestTheOrderInsideTheStartupPhases:
         stubs = dict(
             screen_layout=dict(side_effect=note("layout", fake_screen_layout)),
             start_core_session=dict(side_effect=note("core", _fake_core)),
-            launch_genau=dict(side_effect=note("genau", lambda **k: GENAU_PID)),
             launch_main_player=dict(side_effect=note("main_player", _fake_main_player)),
             launch_ui_companions=dict(side_effect=note("companions", _fake_ui)),
         )
@@ -742,12 +700,11 @@ class TestTheOrderInsideTheStartupPhases:
         assert order.index("layout") < order.index("core")
 
     def test_the_media_stack_is_up_before_the_ui_companions(self, cfg_factory, tmp_path):
-        """Genau and the main player are launched as early as possible so they can init
+        """The main player is launched as early as possible so it can init
         pygame, scan media and decode first frames while the rest of startup
         continues — which is only worth anything if the rest still follows."""
         order = self._sequence(cfg_factory, tmp_path)
 
-        assert order.index("genau") < order.index("companions")
         assert order.index("main_player") < order.index("companions")
 
     def test_the_browser_is_up_before_the_dashboard_that_opens_over_it(
@@ -779,7 +736,7 @@ class TestTheOrderInsideTheStartupPhases:
 class TestRunStartupSequenceCancellation:
     def test_cancel_before_companions_reports_only_the_core_children(self, cfg_factory, tmp_path):
         """Cancelling at the layout checkpoint (2nd advance) has launched the
-        core stack — the satellites, Genau and the main player — but not the companions."""
+        core stack — the satellites and the main player — but not the companions."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         ui = MagicMock()
 
@@ -791,13 +748,13 @@ class TestRunStartupSequenceCancellation:
                 )
 
         exc = excinfo.value
-        assert set(exc.launched_pids) == {30, 40, GENAU_PID, MAIN_PLAYER_PID}
+        assert set(exc.launched_pids) == {30, 40, MAIN_PLAYER_PID}
         assert exc.rfb_hwnd == 0
         ui.assert_not_called()
 
     def test_cancel_after_companions_reports_every_child_and_the_browser(self, cfg_factory, tmp_path):
         """Cancelling once companions are up reports the whole tree — satellites,
-        Genau, the main player, dashboard, audio — plus the Random Favs Browser hwnd."""
+        the main player, dashboard, audio — plus the Random Favs Browser hwnd."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         with _sequencer_stubs(_maybe_launch_random_favs_browser=dict(return_value=7777), wait_for_window_by_title=dict(return_value=88888)):
@@ -808,7 +765,7 @@ class TestRunStartupSequenceCancellation:
                 )
 
         exc = excinfo.value
-        assert set(exc.launched_pids) == {30, 40, GENAU_PID, MAIN_PLAYER_PID, 50, 70}
+        assert set(exc.launched_pids) == {30, 40, MAIN_PLAYER_PID, 50, 70}
         assert exc.rfb_hwnd == 7777
 
 
@@ -837,51 +794,6 @@ class TestAPlayerThatDiesWhileTheRoomComesUp:
         assert died.value.player.name == "the Main player"
         assert "no libmpv-2.dll in it" in died.value.said
 
-    def test_genau_that_dies_importing_ends_the_startup_with_what_it_said(
-            self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        def a_genau_that_dies_importing(**kwargs):
-            with Path(kwargs["log_file"]).open("a", encoding="utf-8") as log:
-                log.write("ImportError: cannot import name 'a_made_up_name' "
-                          "from 'player_core.clip_folder'\n")
-            return GENAU_PID
-
-        with _sequencer_stubs(
-                launch_genau=dict(side_effect=a_genau_that_dies_importing),
-                is_process_alive=dict(side_effect=lambda pid: pid != GENAU_PID)):
-            with pytest.raises(PlayerDied) as died:
-                run_startup_sequence(
-                    manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
-
-        assert died.value.player.name == "Genau"
-        assert "cannot import name 'a_made_up_name'" in died.value.said
-
-    def test_genau_that_dies_once_its_own_log_is_open_ends_the_startup_with_what_that_said(
-            self, cfg_factory, tmp_path):
-        genau_config = tmp_path / "genau_config.json"
-        genau_config.write_text(json.dumps({"state_dir": "genau_state"}), encoding="utf-8")
-        cfg, manifest_path = _make_manifest(
-            cfg_factory, tmp_path, {"paths": {"genau_config_path": str(genau_config)}})
-        genau_state = tmp_path / "genau_state"
-
-        def a_genau_whose_port_is_taken(**_kwargs):
-            genau_state.mkdir()
-            (genau_state / "genau_listener.log").write_text(
-                "2026-10-07 13:18:09 CRITICAL genau: Genau crashed in main\n"
-                "OSError: [WinError 10048] Only one usage of each socket address "
-                "is normally permitted\n", encoding="utf-8")
-            return GENAU_PID
-
-        with _sequencer_stubs(
-                launch_genau=dict(side_effect=a_genau_whose_port_is_taken),
-                is_process_alive=dict(side_effect=lambda pid: pid != GENAU_PID)):
-            with pytest.raises(PlayerDied) as died:
-                run_startup_sequence(
-                    manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
-
-        assert "[WinError 10048] Only one usage of each socket address" in died.value.said
-
     def test_what_was_launched_comes_back_with_it_to_be_torn_down(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
@@ -891,7 +803,7 @@ class TestAPlayerThatDiesWhileTheRoomComesUp:
                 run_startup_sequence(
                     manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
 
-        assert set(died.value.launched_pids) >= {30, 40, GENAU_PID, MAIN_PLAYER_PID}
+        assert set(died.value.launched_pids) >= {30, 40, MAIN_PLAYER_PID}
 
     def test_a_room_whose_players_are_all_running_is_not_stopped(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -899,98 +811,6 @@ class TestAPlayerThatDiesWhileTheRoomComesUp:
         with _sequencer_stubs():
             result = run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
-
-        assert result.main_player_pid == MAIN_PLAYER_PID
-
-    def test_genau_that_dies_after_the_players_are_drawing_still_ends_the_startup(
-            self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        gone: set[int] = set()
-
-        def genau_dies_while_its_window_is_awaited(title, **_kwargs):
-            if title == GENAU_TITLE:
-                gone.add(GENAU_PID)
-                return 0
-            return 99999
-
-        with _sequencer_stubs(
-                wait_for_window_by_title=dict(side_effect=genau_dies_while_its_window_is_awaited),
-                is_process_alive=dict(side_effect=lambda pid: pid not in gone)):
-            with pytest.raises(PlayerDied) as died:
-                run_startup_sequence(
-                    manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
-
-        assert died.value.player.name == "Genau"
-
-
-class TestNoActivateWindowDuringIntegration:
-    """During integration tests, window moves must not steal focus."""
-
-    def test_moves_windows_without_activation_in_integration_mode(self, cfg_factory, tmp_path):
-        """Told by its argument: the environment here is a production one."""
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        move_activates: list[bool] = []
-
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888), move_window=dict(side_effect=lambda *a, **kw: move_activates.append(kw.get("activate", True)))):
-            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
-                                 env=SessionEnvironment(integration=True))
-
-        assert move_activates, "Windows should still be positioned in integration mode"
-        assert all(activate is False for activate in move_activates), \
-            f"move_window must not activate during integration: {move_activates}"
-
-    def test_activates_windows_outside_integration_mode(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        move_activates: list[bool] = []
-
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888), move_window=dict(side_effect=lambda *a, **kw: move_activates.append(kw.get("activate", True)))):
-            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
-
-        assert any(activate is True for activate in move_activates), \
-            "move_window should activate core windows in normal mode"
-
-
-class TestProgressReporting:
-    """run_startup_sequence reports progress via the callback."""
-
-    def test_hide_windows_reports_every_phase_in_the_table_in_order(self, cfg_factory, tmp_path):
-        """The loading-screen path fires exactly the phases of the room's own build.
-
-        The bar is weighted by these phases and closes when the last one lands on
-        the total, so a phase fired out of order — or one skipped, or one the
-        table has never heard of — either stalls the bar short of the end or
-        closes the overlay early.
-        """
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        progress = _TrackingProgress()
-
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)):
-            run_startup_sequence(
-                manifest_path=manifest_path,
-                state_dir=tmp_path,
-                progress=progress,
-                hide_windows=True,
-            )
-
-        # The wait for a mode's app and the line after it are the orchestrator's,
-        # announced once the room this builds is standing.
-        assert progress.phases == [
-            phase.key for phase in ROOM_PHASES
-            if phase.key not in (COMING_BACK_TO_ORIGENERATOR_MODE, "finalizing")]
-
-    def test_null_progress_accepted_silently(self, cfg_factory, tmp_path):
-        """NullProgress should work as a no-op."""
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)):
-            result = run_startup_sequence(
-                manifest_path=manifest_path,
-                state_dir=tmp_path,
-                progress=NullProgress(),
-            )
 
         assert result.main_player_pid == MAIN_PLAYER_PID
 
@@ -1039,7 +859,6 @@ class TestLoadingScreenStartup:
             "Portrait AI Player": 3030,
             "Landscape AI Player": 4040,
             "Main Player": 2525,
-            "Genau": 6060,
             "Fun Time": 5050,
         }
 
@@ -1060,7 +879,7 @@ class TestLoadingScreenStartup:
         # first time it is asked for one.
         assert result.role_hwnds == {
             "portrait": 3030, "landscape": 4040, "main_player": 2525,
-            "genau": 6060, "dashboard": 5050, "rfb": 0,
+            "dashboard": 5050, "rfb": 0,
         }
 
 
@@ -1070,15 +889,14 @@ class TestTheRoomIsBandedUnderTheCover:
     which, on a loaded machine, it does late."""
 
     ROLE_HWNDS = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
-                  "main_player": 55, "genau": 66}
+                  "main_player": 55}
     COVER = 999
 
     def _calls(self, **kwargs):
         calls: list[tuple[int, bool, int]] = []
         with patch("fun_time.windows_bridge_sequencer.set_always_on_top",
                    side_effect=lambda h, v, *, under=0: calls.append((h, v, under))):
-            windows_bridge_sequencer.apply_topmost_bands(
-                dict(self.ROLE_HWNDS), "main_player", **kwargs)
+            windows_bridge_sequencer.apply_topmost_bands(dict(self.ROLE_HWNDS), **kwargs)
         return calls
 
     def test_every_promotion_names_the_cover_to_sit_under(self):
@@ -1089,7 +907,7 @@ class TestTheRoomIsBandedUnderTheCover:
 
     def test_the_walk_still_promotes_in_role_order(self):
         """Each lands directly under the cover, so the last one promoted is still
-        the highest: the order is what puts Genau's HUD over the main player's video."""
+        the highest: the order is what puts the hosted window over the browser."""
         banded = [h for h, on, _under in self._calls(beneath=self.COVER) if on]
         plain = [h for h, on, _under in self._calls() if on]
 
@@ -1109,7 +927,7 @@ class TestPhase4Reveal:
 
     def _run_hidden(self, manifest_path, tmp_path, *, title_to_hwnd=None, topmost_calls=None,
                     mode="kino"):
-        title_map = title_to_hwnd or {"Fun Time": 5050, "Genau": 6060, "Main Player": 2525}
+        title_map = title_to_hwnd or {"Fun Time": 5050, "Main Player": 2525}
         # Both players reporting frames: the curtain waits for that before it
         # comes down (a satellite's window exists long before mpv has drawn
         # anything into it), so a run with no status files would hold it up.
@@ -1121,9 +939,8 @@ class TestPhase4Reveal:
             status.parent.mkdir(parents=True, exist_ok=True)
             status.write_text("video=a.mp4\nposition_ms=250\n", encoding="utf-8")
         topmost_tracker = (lambda h, v, **_kw: topmost_calls.append((h, v))) if topmost_calls is not None else (lambda h, v, **_kw: None)
-        hide_calls = self._hide_calls = []
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(mode)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_map.get(title, 0)), set_always_on_top=dict(side_effect=topmost_tracker), minimize_window=dict(side_effect=lambda h, **kw: hide_calls.append(h))):
+        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(mode)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_map.get(title, 0)), set_always_on_top=dict(side_effect=topmost_tracker)):
             return run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -1176,27 +993,6 @@ class TestPhase4Reveal:
         )
 
         assert topmost_calls == []
-
-    def test_the_idle_slot_mate_is_still_parked_under_the_overlay(self, cfg_factory, tmp_path):
-        """Visibility is settled under the overlay even though the bands are not:
-        minimizing the main player (a genau session's idle slot-mate) moves no window into
-        the topmost band, so it cannot flash."""
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        self._run_hidden(manifest_path, tmp_path, mode="genau")
-
-        MAIN_PLAYER_HWND, GENAU_HWND = 2525, 6060
-        assert set(self._hide_calls) == {MAIN_PLAYER_HWND}
-        assert GENAU_HWND not in self._hide_calls
-
-    def test_a_kino_session_parks_nobody_under_the_overlay(self, cfg_factory, tmp_path):
-        """Both main-slot players are on screen in kino mode, Genau's HUD over
-        The main player's video, so there is no idle slot-mate to park."""
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        self._run_hidden(manifest_path, tmp_path)
-
-        assert self._hide_calls == []
 
 class TestMainPlayerGatesTheReveal:
     """The overlay must not come down over the main player's own loading screen.
@@ -1278,10 +1074,8 @@ class TestMainPlayerGatesTheReveal:
         assert WINDOW_RESOLVE_TIMEOUT_S + MAIN_PLAYER_LOAD_TIMEOUT_S < STALE_TIMEOUT_S
 
     def test_the_windows_phase_cannot_outlast_it_either(self):
-        """That phase resolves three windows and then waits for Genau to take
-        messages, all under one progress write."""
-        assert (3 * WINDOW_RESOLVE_TIMEOUT_S + GENAU_ANSWER_TIMEOUT_S
-                < STALE_TIMEOUT_S)
+        """That phase resolves three windows under one progress write."""
+        assert 3 * WINDOW_RESOLVE_TIMEOUT_S < STALE_TIMEOUT_S
 
 
 FAKE_LAYOUT_CFG = LayoutConfig(
@@ -1872,7 +1666,6 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
         with _sequencer_stubs(
             launch_origenerator=dict(side_effect=note("origenerator", _fake_origenerator)),
             start_core_session=dict(side_effect=note("satellites", _fake_core)),
-            launch_genau=dict(side_effect=note("genau", GENAU_PID)),
         ):
             result = run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
@@ -1933,137 +1726,3 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
             )
 
         assert seen["stale_at_launch"] is False
-
-
-
-class TestGenauIsPlacedOnlyOnceItCanTakeIt:
-    """Genau's window exists for seconds before its frame loop does: it waits out
-    the first clip's decode and takes no messages meanwhile.  A placement sent
-    into that gap is not refused — it waits in Genau's queue and is carried out
-    when the loop starts, over everything placed since, which is how Genau came
-    up on top of the hosted app's shows (``test_win32.py``'s
-    ``test_a_call_that_outlasted_the_wait_still_lands_when_the_window_answers``).
-    """
-
-    @staticmethod
-    def _asks_until(answers: list[bool], story: list[str]):
-        def asked(_hwnd, **_kwargs):
-            answering = answers.pop(0) if answers else True
-            story.append(f"asked ({answering})")
-            return answering
-        return asked
-
-    def test_nothing_is_placed_on_genau_until_its_window_answers(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        story: list[str] = []
-
-        with _sequencer_stubs(
-                window_answers=dict(side_effect=self._asks_until([False, False], story)),
-                disable_window_transitions=dict(
-                    side_effect=lambda hwnd: story.append(f"placed {hwnd}"))):
-            run_startup_sequence(
-                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
-
-        assert story[:3] == ["asked (False)", "asked (False)", "asked (True)"]
-        assert story[3].startswith("placed")
-
-    def test_the_path_with_no_cover_waits_the_same_way(self, cfg_factory, tmp_path):
-        """The bands go on in phase 2 there rather than under a curtain, and a
-        band is exactly the call that lands late."""
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        story: list[str] = []
-
-        with _sequencer_stubs(
-                window_answers=dict(side_effect=self._asks_until([False], story)),
-                set_always_on_top=dict(
-                    side_effect=lambda hwnd, on, **_kw: story.append(f"banded {hwnd}"))):
-            run_startup_sequence(
-                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
-
-        assert story[:2] == ["asked (False)", "asked (True)"]
-        assert story[2].startswith("banded")
-
-    def test_a_genau_that_never_answers_does_not_keep_the_curtain_up(
-            self, cfg_factory, tmp_path, caplog):
-        """Bounded like the player waits: a Genau stuck on a bad clip must not
-        hold the room shut, so it is placed anyway and the log says why."""
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        with _sequencer_stubs(window_answers=dict(return_value=False)) as stubs, \
-                caplog.at_level(logging.WARNING,
-                                logger="fun_time.windows_bridge_sequencer"):
-            result = run_startup_sequence(
-                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
-
-        assert result.role_hwnds["genau"] == 99999
-        assert "Genau took no messages" in caplog.text
-        # Each ask is the wait itself, so the asks are what add up to the budget.
-        asked_for = stubs.window_answers.call_count * ANSWER_TIMEOUT_MS / 1000
-        assert asked_for == GENAU_ANSWER_TIMEOUT_S
-
-    def test_esc_is_answered_inside_the_wait_not_at_the_end_of_it(self):
-        """The wait can run for the length of a clip decode, and the curtain over
-        it says "Press Esc to cancel"."""
-        class Cancelled:
-            cancelled = True
-            def advance(self, phase: str) -> None: pass
-            def finish(self) -> None: pass
-
-        with patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title",
-                   return_value=6060), \
-                patch("fun_time.windows_bridge_sequencer.window_answers",
-                      return_value=False) as answers:
-            with pytest.raises(StartupCancelled):
-                _resolve_genau_window(Cancelled())
-
-        answers.assert_not_called()
-
-    def test_a_genau_that_never_opened_a_window_is_not_waited_on(self):
-        """No window, nothing to place, and nothing to hold the room for."""
-        with patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title",
-                   return_value=0), \
-                patch("fun_time.windows_bridge_sequencer.window_answers") as answers:
-            assert _resolve_genau_window(NullProgress()) == 0
-
-        answers.assert_not_called()
-
-
-class TestWaitingForThePlayersToDraw:
-    """The curtain comes down on a room that is ready to look at.
-
-    A satellite's window exists within a second of launch and stays BLACK until
-    mpv has opened its first clip — several seconds on the 4K landscape library
-    — so a reveal timed on the windows alone lifts on two black rectangles that
-    fill in afterwards.  Its status file says ``position_ms`` once frames are
-    actually going out, which is what this waits for.
-    """
-
-    def test_it_waits_until_every_player_reports_frames(self, tmp_path):
-        portrait = tmp_path / "portrait_status.txt"
-        landscape = tmp_path / "landscape_status.txt"
-        portrait.write_text("video=a.mp4\nposition_ms=120\n", encoding="utf-8")
-        landscape.write_text("video=b.mp4\nposition_ms=0\n", encoding="utf-8")
-        progress = SimpleNamespace(cancelled=False)
-
-        assert _wait_for_players_drawing(
-            (portrait, landscape), progress, timeout_s=0.3) is False
-
-        landscape.write_text("video=b.mp4\nposition_ms=90\n", encoding="utf-8")
-        assert _wait_for_players_drawing(
-            (portrait, landscape), progress, timeout_s=0.3) is True
-
-    def test_a_player_that_never_draws_does_not_keep_the_desktop(self, tmp_path):
-        """Bounded like the main player's wait: a player stuck on a bad clip must not hold
-        the curtain up forever — the reveal goes ahead and the log says why."""
-        never = tmp_path / "portrait_status.txt"
-        progress = SimpleNamespace(cancelled=False)
-
-        assert _wait_for_players_drawing((never,), progress, timeout_s=0.2) is False
-
-    def test_it_is_a_cancellation_checkpoint(self, tmp_path):
-        """Esc on the loading screen has to land during this stretch too — it is
-        one of the few that can run for tens of seconds."""
-        progress = SimpleNamespace(cancelled=True)
-
-        with pytest.raises(StartupCancelled):
-            _wait_for_players_drawing((tmp_path / "s.txt",), progress, timeout_s=1.0)

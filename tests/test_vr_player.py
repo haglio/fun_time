@@ -260,8 +260,7 @@ def test_the_main_slot_opens_where_the_last_session_left_it(tmp_path, faked_coll
         audio_device="", compositor_layers=False,
     )
 
-    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, remembered=Layout({MAIN: moved}),
-                     genau_role=SimpleNamespace(showing=False))
+    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, remembered=Layout({MAIN: moved}))
 
     assert unit.screen.placement == moved
 
@@ -276,8 +275,7 @@ def test_the_main_slot_opens_at_the_tilt_the_last_session_left_it_at(
     )
 
     _MainUnit(_manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS,
-              remembered=Layout(tilt_deg=-17.5),
-              genau_role=SimpleNamespace(showing=False))
+              remembered=Layout(tilt_deg=-17.5))
 
     assert faked_collaborators["MainRole"].call_args.kwargs["tilt_deg"] == -17.5
 
@@ -297,7 +295,7 @@ def test_genau_opens_in_the_same_slot_the_last_session_left_it(tmp_path):
             patch("fun_time_vr.player.read_genau_status", return_value=SimpleNamespace(clip="")), \
             patch("fun_time_vr.player.read_shared_state", return_value=None):
         unit = _GenauUnit(_manifest_for_a_vr_session(tmp_path), vr, threading.Event(),
-                          remembered={MAIN: moved})
+                          remembered={MAIN: moved}, has_the_slot=lambda: False)
 
     assert unit.screen.placement == moved
 
@@ -318,7 +316,7 @@ def test_genau_opens_in_the_order_the_last_session_left_it_browsing(tmp_path):
             patch("fun_time_vr.player.read_genau_status", return_value=SimpleNamespace(clip="")), \
             patch("fun_time_vr.player.read_shared_state",
                   return_value=BridgeState(genau_latest=True)) as read_state:
-        _GenauUnit(manifest, vr, threading.Event(), remembered={})
+        _GenauUnit(manifest, vr, threading.Event(), remembered={}, has_the_slot=lambda: False)
 
     assert read_state.call_args.args == (shared_state_path(Path(manifest.commands.state_dir)),)
     assert fakes["GenauRole"].call_args.kwargs["latest"] is True
@@ -335,8 +333,7 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
         audio_device="Example Headset", compositor_layers=False,
     )
 
-    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, remembered=Layout(),
-                     genau_role=SimpleNamespace(showing=False))
+    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, remembered=Layout())
 
     commands = manifest.commands
     assert unit.cmd_file == Path(commands.main_player_cmd_file)
@@ -454,7 +451,7 @@ def test_the_main_screen_blends_nothing_into_its_picture(
     vr = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
                     audio_device="", compositor_layers=False)
     unit = _MainUnit(_manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS,
-                     remembered=Layout(), genau_role=SimpleNamespace(showing=False))
+                     remembered=Layout())
     unit.player = _OverlayPlayer()
     unit.player.frame_rate = 30.0
     unit.target = SimpleNamespace(ready=True, width=640, height=360, aspect=16 / 9, video=None)
@@ -759,7 +756,7 @@ class TestThePanelUnderThePointer:
                 current_video=Path("feature.mp4"), title="Jane Doe - Alpha Study",
                 position_ms=1_000.0, duration_ms=600_000.0,
                 volume=70, muted=False, seek_to=seeks.append, scripted_filter=False,
-                speed=1.25, displayed=True, projection_of=lambda _video: projection,
+                speed=1.25, projection_of=lambda _video: projection,
                 **_NEVER_DIALED,
             ),
             drive_gate=SimpleNamespace(
@@ -794,7 +791,7 @@ class TestThePanelUnderThePointer:
                                    position=1000, advance_interval=10,
                                    waveform=tuple([0.5] * 80), trace_seconds=12.0),
                 ),
-                current_clip=None, loading=None, showing=showing, volume=100, muted=False,
+                current_clip=None, loading=None, volume=100, muted=False,
                 projection=projection, playhead=(5, 20), seek=seeks.append,
             ),
         ))
@@ -1251,8 +1248,7 @@ def _picture(painted):
 def _room(*, main=True, portrait=True, landscape=True, panel=True, genau_showing=False):
     return dict(
         main_unit=SimpleNamespace(target=_picture(main)),
-        genau=SimpleNamespace(texture=_picture(main),
-                              role=SimpleNamespace(showing=genau_showing)),
+        genau=SimpleNamespace(texture=_picture(main), owns_the_slot=genau_showing),
         satellites=[SimpleNamespace(target=_picture(portrait)),
                     SimpleNamespace(target=_picture(landscape))],
         panel=SimpleNamespace(texture=_picture(panel)),
@@ -1490,7 +1486,7 @@ class TestTheMainPlayersPictureIsWrappedAsItsOwnVideo:
     def _showing(self, video):
         return _like(_MainUnit, SimpleNamespace(
             target=SimpleNamespace(ready=True, aspect=2.0, video=video),
-            role=SimpleNamespace(displayed=True, projection_of={
+            role=SimpleNamespace(projection_of={
                 self.WIDE: EQUIRECT_180_SBS, self.FLAT_VIDEO: FLAT}.get, **_NEVER_DIALED),
             screen=SimpleNamespace(placement=SPOTS[MAIN]),
             owns_the_slot=True,
@@ -1513,7 +1509,7 @@ class TestDialingTheMainPlayersWrap:
     def _main_unit(self, *, projection=FISHEYE_180_SBS, fov=None, height=None, showing=False):
         dialed = {}
         role = SimpleNamespace(
-            displayed=True, current_video=Path(self.VIDEO),
+            current_video=Path(self.VIDEO),
             projection_of=lambda _video: projection,
             fov_of=lambda _video: dialed.get("fov", fov),
             height_of=lambda _video: dialed.get("height", height),
@@ -1670,21 +1666,19 @@ class TestTheMainSlotUnderThePointer:
 
     def _units(self, **overrides):
         settings = dict(
-            picture=True, displayed=True, projection=FLAT,
+            picture=True, projection=FLAT,
             showing=False, clip=True, clip_projection=FLAT,
         ) | overrides
         main_unit = _like(_MainUnit, SimpleNamespace(
             target=SimpleNamespace(ready=settings["picture"], aspect=16 / 9, video=None),
             role=SimpleNamespace(
-                displayed=settings["displayed"],
                 projection_of=lambda _video: settings["projection"], **_NEVER_DIALED),
             screen=SimpleNamespace(placement=SPOTS[MAIN]),
             owns_the_slot=not settings["showing"],
         ))
         genau = _like(_GenauUnit, SimpleNamespace(
             texture=SimpleNamespace(ready=settings["clip"], aspect=4 / 3),
-            role=SimpleNamespace(
-                showing=settings["showing"], projection=settings["clip_projection"]),
+            role=SimpleNamespace(projection=settings["clip_projection"]),
             screen=SimpleNamespace(placement=SPOTS[MAIN]),
             owns_the_slot=settings["showing"],
         ))
@@ -1694,16 +1688,15 @@ class TestTheMainSlotUnderThePointer:
         hangings = room.what_hangs(self._units(**overrides))
         return hangings[0].screen if hangings else None
 
-    def test_the_main_player_has_the_slot_while_genau_stands_aside(self):
+    def test_the_main_player_has_the_slot_while_its_role_shows_kino(self):
         assert _MainUnit.owns_the_slot.fget(
-            SimpleNamespace(_genau_role=SimpleNamespace(showing=False)))
+            SimpleNamespace(role=SimpleNamespace(shows=MainMode.KINO)))
         assert not _MainUnit.owns_the_slot.fget(
-            SimpleNamespace(_genau_role=SimpleNamespace(showing=True)))
+            SimpleNamespace(role=SimpleNamespace(shows=MainMode.GENAU)))
 
-    def test_genau_has_the_slot_exactly_while_it_is_showing(self):
-        assert _GenauUnit.owns_the_slot.fget(SimpleNamespace(role=SimpleNamespace(showing=True)))
-        assert not _GenauUnit.owns_the_slot.fget(
-            SimpleNamespace(role=SimpleNamespace(showing=False)))
+    def test_genau_has_the_slot_exactly_while_the_main_role_shows_it(self):
+        assert _GenauUnit.owns_the_slot.fget(SimpleNamespace(_has_the_slot=lambda: True))
+        assert not _GenauUnit.owns_the_slot.fget(SimpleNamespace(_has_the_slot=lambda: False))
 
     def test_the_primary_offers_both_handles(self):
         screen = self._slot()
@@ -1750,7 +1743,6 @@ class TestTheMainSlotUnderThePointer:
 
     @pytest.mark.parametrize("state", [
         {"picture": False},
-        {"displayed": False},
         {"showing": True, "clip": False},
     ])
     def test_a_slot_with_no_picture_in_it_is_not_in_the_scene_at_all(self, state):
@@ -1811,7 +1803,6 @@ class TestWhichSlotAsksForARow:
         {},
         {"showing": True},
         {"projection": EQUIRECT_180_SBS, "picture": False},
-        {"projection": EQUIRECT_180_SBS, "displayed": False},
         {"showing": True, "clip_projection": EQUIRECT_180_SBS, "clip": False},
     ])
     def test_a_slot_on_a_screen_does_not(self, state):
@@ -1833,8 +1824,8 @@ class TestTheClipsOwnControls:
 
     def _unit(self, *, played=5, of=20, volume=70, muted=False, showing=True):
         unit = _GenauUnit.__new__(_GenauUnit)
-        unit.role = SimpleNamespace(playhead=(played, of), volume=volume, muted=muted,
-                                    showing=showing)
+        unit._has_the_slot = lambda: showing
+        unit.role = SimpleNamespace(playhead=(played, of), volume=volume, muted=muted)
         unit.screen = SimpleNamespace(placement=SPOTS[MAIN])
         return unit
 
@@ -1908,7 +1899,7 @@ class TestEveryHangingScreenIsDrawn:
                                    video=None),
             screen=SimpleNamespace(ready=True, mesh=MAIN, placement=SPOTS[MAIN]),
             role=SimpleNamespace(
-                displayed=True, projection_of=lambda _video: projection or FLAT, **_NEVER_DIALED),
+                projection_of=lambda _video: projection or FLAT, **_NEVER_DIALED),
             owns_the_slot=True,
         ))
         genau = _like(_GenauUnit, SimpleNamespace(
@@ -2032,7 +2023,7 @@ def _slot(*, wrapped=False):
     main_unit = _like(_MainUnit, SimpleNamespace(
         target=SimpleNamespace(ready=True, aspect=16 / 9, video=None),
         role=SimpleNamespace(
-            displayed=True, projection_of=lambda _video: projection, **_NEVER_DIALED),
+            projection_of=lambda _video: projection, **_NEVER_DIALED),
         screen=SimpleNamespace(placement=SPOTS[MAIN]),
         owns_the_slot=True,
     ))

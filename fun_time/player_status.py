@@ -146,7 +146,6 @@ class GenauStatus:
     clip: str = ""
     flipped: bool = False
     portrait: bool | None = None
-    hud_on: bool | None = None
 
 
 def _status_bool(values: dict[str, str], key: str, *, default: bool = False) -> bool:
@@ -172,7 +171,6 @@ def read_genau_status(path: Path) -> GenauStatus:
             clip=values.get("clip", "").strip(),
             flipped=_status_bool(values, "flipped"),
             portrait=_status_flag_or_none(values, "portrait"),
-            hud_on=_status_flag_or_none(values, "hud"),
         )
     except (OSError, ValueError):
         return GenauStatus()

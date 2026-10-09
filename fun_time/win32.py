@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 _user32 = load_dll("user32")
 _kernel32 = load_dll("kernel32")
-_dwmapi = load_dll("dwmapi")
 
 
 # Constants
@@ -79,9 +78,6 @@ WNDENUMPROC = win_functype(
 
 
 WM_CLOSE = 0x0010
-WM_NULL = 0x0000
-SMTO_NORMAL = 0x0000
-ANSWER_TIMEOUT_MS = 200  # past a scheduling hiccup, and short enough to ask again and again
 
 _user32.SendMessageTimeoutW.argtypes = [
     ctypes.wintypes.HWND,             # hWnd
@@ -303,15 +299,6 @@ def _without_hanging(call, hwnd, *args, what: str) -> bool:
     return False
 
 
-def window_answers(hwnd: int, *, timeout_ms: int = ANSWER_TIMEOUT_MS) -> bool:
-    """Whether the thread that owns *hwnd* takes a message within *timeout_ms*."""
-    if not hwnd:
-        return False
-    answer = ctypes.c_size_t(0)
-    return bool(_user32.SendMessageTimeoutW(
-        hwnd, WM_NULL, 0, 0, SMTO_NORMAL, timeout_ms, ctypes.byref(answer)))
-
-
 def move_window(hwnd: int, x: int, y: int, w: int, h: int, *, activate: bool = True) -> None:
     """Restore and reposition a window (WinRestore + WinMove equivalent).
 
@@ -365,10 +352,6 @@ def set_always_on_top(hwnd: int, on_top: bool, *, under: int = 0) -> None:
     else:
         insert_after = HWND_TOPMOST
     _stack_after(hwnd, insert_after, what=f"set_always_on_top({hwnd}, {on_top})")
-
-
-def place_beneath(hwnd: int, above: int) -> None:
-    _stack_after(hwnd, ctypes.wintypes.HWND(above), what=f"place_beneath({hwnd}, {above})")
 
 
 def _stack_after(hwnd: int, insert_after, *, what: str) -> None:
@@ -674,21 +657,6 @@ def restore_window(hwnd: int, *, activate: bool = True) -> None:
     _without_hanging(
         _user32.ShowWindow, hwnd, SW_RESTORE if activate else SW_SHOWNOACTIVATE,
         what=f"restore_window({hwnd})",
-    )
-
-
-def disable_window_transitions(hwnd: int) -> None:
-    """Force-disable this window's DWM open/minimize/restore animations.
-
-    The main-slot players (the main player, Genau) are swapped by minimizing the idle
-    one and restoring the active one, so both keep a taskbar button the whole
-    session (no reappearing-icon flash).  DWMWA_TRANSITIONS_FORCEDISABLED makes
-    that minimize/restore instantaneous — no fly-to-taskbar animation to see.
-    """
-    DWMWA_TRANSITIONS_FORCEDISABLED = 3
-    value = ctypes.wintypes.BOOL(1)  # TRUE
-    _dwmapi.DwmSetWindowAttribute(
-        hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, ctypes.byref(value), ctypes.sizeof(value)
     )
 
 

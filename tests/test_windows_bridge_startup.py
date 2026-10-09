@@ -51,11 +51,9 @@ from fun_time.windows_bridge_startup import (
     HandedPlayer,
     _build_satellite_launch_command,
     ensure_broker,
-    genau_launch_command,
     launch_audio_companion,
     launch_broker_tray,
     launch_core_apps,
-    launch_genau,
     launch_main_player,
     launch_origenerator,
     launch_satellite,
@@ -361,18 +359,16 @@ def test_seed_startup_states_writes_all_three_pause_flags(tmp_path: Path):
     assert main_player_file.read_text(encoding="utf-8") == "1"
 
 
-def test_seed_startup_states_puts_genaus_hud_up_for_a_fresh_session(tmp_path: Path):
-    """A fresh session opens in kino mode: Genau's window is the HUD layer over
-    The main player's video, and it is held (PAUSE, written whole as the channel's reset)
-    until the reveal.  Both players are told the mode, the main player by the mirror verb."""
+def test_seed_startup_states_gives_kino_the_window_for_a_fresh_session(tmp_path: Path):
+    """A fresh session opens in kino mode: the Main Player is told Kino has its
+    window, and Genau is held (PAUSE, written whole as the channel's reset)
+    until the reveal."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd)
 
-    assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
-        "PAUSE", "HUD_ON", "SET_VOLUME 100 0",
-    ]
-    assert _main_player_verbs(tmp_path) == ["DISPLAY_ON", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SET_VOLUME 100 0"]
+    assert _main_player_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
 def _main_player_verbs(tmp_path: Path) -> list[str]:
@@ -380,20 +376,17 @@ def _main_player_verbs(tmp_path: Path) -> list[str]:
     return (tmp_path / "main_player_cmd.txt").read_text(encoding="utf-8").split("\n")[:-1]
 
 
-def test_seed_startup_states_hands_the_primary_slot_to_genau_for_a_genau_session(tmp_path: Path):
-    """A session left showing Genau has to come back showing Genau: its window
-    is the display rather than the HUD layer, and the main player blanks — the same verbs a
-    live switch says, seeded before either player launches instead of sent to
-    a running one, and without the switch's RESUME (the reveal hands that
-    over)."""
+def test_seed_startup_states_gives_genau_the_window_for_a_genau_session(tmp_path: Path):
+    """A session left showing Genau has to come back showing Genau -- the same
+    verb a live switch says, seeded before the Main Player launches instead of
+    sent to a running one, and without the switch's RESUME (the reveal hands
+    that over)."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="genau")
 
-    assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
-        "PAUSE", "HUD_OFF", "SET_VOLUME 100 0",
-    ]
-    assert _main_player_verbs(tmp_path) == ["DISPLAY_OFF", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SET_VOLUME 100 0"]
+    assert _main_player_verbs(tmp_path) == ["SHOW genau", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
 def test_seed_startup_states_holds_every_player_for_the_reveal(tmp_path: Path):
@@ -430,19 +423,6 @@ def test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal(tmp_path: P
         assert _genau_play_verb(tmp_path) == "PAUSE", mode
 
 
-def test_seed_startup_states_puts_genaus_hud_up_for_a_kino_session(tmp_path: Path):
-    """Kino mode is both players at once: Genau's transparent HUD over the main player's
-    video, which each of them has to be told about."""
-    genau_cmd = tmp_path / "genau_cmd.txt"
-
-    _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="kino")
-
-    assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
-        "PAUSE", "HUD_ON", "SET_VOLUME 100 0",
-    ]
-    assert _main_player_verbs(tmp_path)[:1] == ["DISPLAY_ON"]
-
-
 def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path):
     """With nothing asked for, both sinks come up unattenuated and unnarrowed —
     what a first run, and every session before either was remembered, opens on."""
@@ -452,7 +432,7 @@ def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path
     _seed_startup_states(tmp_path, audio_volume_file=volume_file)
 
     assert read_volume(volume_file) == MAX_VOLUME
-    assert _main_player_verbs(tmp_path) == ["DISPLAY_ON", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _main_player_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
 def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: Path):
@@ -510,7 +490,7 @@ def test_seed_startup_states_tells_main_player_whether_f_mode_is_on(tmp_path: Pa
     have to survive on a channel nothing has drained yet."""
     _seed_startup_states(tmp_path, scripted_filter=True)
 
-    assert _main_player_verbs(tmp_path) == ["DISPLAY_ON", "SET_VOLUME 100 0", "SET_F_MODE 1"]
+    assert _main_player_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 1"]
 
 
 def _start_core_session_kwargs(tmp_path: Path) -> dict:
@@ -729,11 +709,12 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
 
     assert _run_start_core_session(kwargs) == "genau"
 
-    # Genau is told to come back up as the display; the reveal is what then
-    # lets it drive, so no RESUME is seeded and both players are held.
+    # Genau is held; the reveal is what then lets it drive, so no RESUME is
+    # seeded, and Kino's video stays held too.
     assert kwargs["genau_cmd_file"].read_text(encoding="utf-8").splitlines() == [
-        "PAUSE", "HUD_OFF", "SET_VOLUME 100 0",
+        "PAUSE", "SET_VOLUME 100 0",
     ]
+    assert kwargs["main_player_cmd_file"].read_text(encoding="utf-8").splitlines()[0] == "SHOW genau"
     assert kwargs["main_player_paused_file"].read_text(encoding="utf-8") == "1"
 
 
@@ -1132,130 +1113,82 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
     assert broker_cmd_file.read_text(encoding="utf-8") == PARK_CMD
 
 
-# The six files Genau requires on every launch (its genau_contract.json names
-# them), spelled once so a test about something else need not list them.
-GENAU_SESSION_FILES = dict(
-    command_file="a-state-dir/genau_cmd.txt",
-    paused_file="a-state-dir/genau_paused.txt",
-    console_file="a-state-dir/console.json",
-    drive_file="a-state-dir/genau_drive.txt",
-    status_file="a-state-dir/genau_status.txt",
-    dashboard_cmd_file="a-state-dir/dashboard_cmd.txt",
+# Genau runs on the Main Player's window, driven through files of its own, so
+# every main-player launch carries them; spelled once so a test about something
+# else need not list them.
+GENAUS_FILES = dict(
+    genau_command_file="a-state-dir/genau_cmd.txt",
+    genau_paused_file="a-state-dir/genau_paused.txt",
+    genau_status_file="a-state-dir/genau_status.txt",
+    genau_config_path="a-genau-checkout/genau_config.json",
 )
 
 
-def test_launching_genau_starts_it_and_says_which_process_it_is(tmp_path: Path):
+def _a_main_player_launch(**overrides) -> dict:
+    launch = dict(
+        python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+        playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
+        status_file="status", console_file="console.json",
+        drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
+        state_dir="a-state-dir",
+        main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+        **GENAUS_FILES)
+    launch.update(overrides)
+    return launch
+
+
+def _launched_main_player(tmp_path: Path, **overrides) -> list[str]:
     class FakeProc:
-        def __init__(self, pid: int):
-            self.pid = pid
+        pid = 42
 
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(42)) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        pid = launch_genau(
-            python_exe="python.exe",
-            genau_module="fun_time.genau.app",
-            config_path="cfg.json",
-            clips_folder="clips",
-            genau_x=100,
-            genau_y=200,
-            genau_width=300,
-            genau_height=400,
-            log_file=tmp_path / "genau.log",
-            **GENAU_SESSION_FILES,
-        )
-
-    assert pid == 42
-    command = popen.call_args.args[0]
-    assert command[:3] == ["python.exe", "-m", "fun_time.genau.app"]
-    assert "--config" in command
-    assert "--clips-folder" in command
+        launch_main_player(**_a_main_player_launch(log_file=tmp_path / "main_player.log", **overrides))
+    return popen.call_args.args[0]
 
 
-def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
-    class FakeProc:
-        def __init__(self, pid: int):
-            self.pid = pid
+def test_the_main_player_is_handed_genaus_own_files_and_settings(tmp_path: Path):
+    """Genau's channel, its pause, its status and its config: each one named by
+    the session, because Genau resolving one from its own config is how its
+    status once went where the session never read it."""
+    command = _launched_main_player(tmp_path)
 
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(42)) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
-    ):
-        pid = launch_genau(
-            python_exe="python.exe",
-            genau_module="fun_time.genau.app",
-            config_path="cfg.json",
-            clips_folder="clips",
-            genau_x=100,
-            genau_y=200,
-            genau_width=300,
-            genau_height=400,
-            log_file=tmp_path / "genau.log",
-            **{**GENAU_SESSION_FILES,
-               "command_file": "state/genau_cmd.txt",
-               "paused_file": "state/genau_paused.txt",
-               "drive_file": "state/genau_drive.txt"},
-        )
-
-    assert pid == 42
-    command = popen.call_args.args[0]
-    assert "--command-file" in command
-    idx = command.index("--command-file")
-    assert command[idx + 1] == "state/genau_cmd.txt"
-    assert "--paused-file" in command
-    idx = command.index("--paused-file")
-    assert command[idx + 1] == "state/genau_paused.txt"
-    # Where Genau publishes the readout the main player draws in Kino mode.  Named by us, because
-    # Genau resolving it from its own config put it in a directory the main player never read.
-    assert "--drive-file" in command
-    idx = command.index("--drive-file")
-    assert command[idx + 1] == "state/genau_drive.txt"
+    assert command[command.index("--genau-command-file") + 1] == "a-state-dir/genau_cmd.txt"
+    assert command[command.index("--genau-paused-file") + 1] == "a-state-dir/genau_paused.txt"
+    assert command[command.index("--genau-status-file") + 1] == "a-state-dir/genau_status.txt"
+    assert command[command.index("--genau-config") + 1] == "a-genau-checkout/genau_config.json"
 
 
-def test_launch_genau_opens_on_the_clip_it_was_left_showing(tmp_path: Path):
+def test_the_main_player_opens_genau_on_the_clip_it_was_left_showing(tmp_path: Path):
     """Genau rescans its clips folder every launch and starts at the top of it,
     so the clip a session was left on comes back only by being named — on the
     command line, since it has to be in hand before the first clip decodes."""
-    class FakeProc:
-        pid = 42
+    command = _launched_main_player(tmp_path, genau_start_clip="C:/clips/alpha.mp4")
 
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
-    ):
-        launch_genau(
-            python_exe="python.exe", genau_module="genau", config_path="cfg.json",
-            clips_folder="clips", genau_x=0, genau_y=0, genau_width=1, genau_height=1,
-            start_clip="C:/clips/alpha.mp4", log_file=tmp_path / "genau.log",
-            **GENAU_SESSION_FILES,
-        )
-
-    command = popen.call_args.args[0]
-    assert command[command.index("--start-clip") + 1] == "C:/clips/alpha.mp4"
+    assert command[command.index("--genau-start-clip") + 1] == "C:/clips/alpha.mp4"
 
 
-def test_launch_genau_names_no_clip_for_a_session_with_none_to_resume(tmp_path: Path):
+def test_the_main_player_names_no_clip_for_a_session_with_none_to_resume(tmp_path: Path):
     """A first run, or a Genau that published nothing: the flag is left off
     rather than passed empty, so Genau opens where its own scan starts."""
-    class FakeProc:
-        pid = 42
-
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
-    ):
-        launch_genau(
-            python_exe="python.exe", genau_module="genau", config_path="cfg.json",
-            clips_folder="clips", genau_x=0, genau_y=0, genau_width=1, genau_height=1,
-            start_clip="", log_file=tmp_path / "genau.log", **GENAU_SESSION_FILES,
-        )
-
-    assert "--start-clip" not in popen.call_args.args[0]
+    assert "--genau-start-clip" not in _launched_main_player(tmp_path, genau_start_clip="")
 
 
-def test_what_genau_says_as_it_dies_importing_is_what_the_alert_quotes(tmp_path: Path):
-    checkout = tmp_path / "a-genau-checkout"
+def test_the_launch_names_latest_only_for_a_session_left_browsing_it(tmp_path: Path):
+    """Genau's order comes back on the launch line, beside the clip: left off,
+    Genau's config decides, which is the shuffled order a session that was not
+    on Latest wants."""
+    assert "--genau-latest" in _launched_main_player(tmp_path, genau_latest=True)
+    assert "--genau-latest" not in _launched_main_player(tmp_path, genau_latest=False)
+
+
+def test_what_the_main_player_says_as_it_dies_importing_is_what_the_alert_quotes(tmp_path: Path):
+    checkout = tmp_path / "a-fun-time-checkout"
     checkout.mkdir()
-    (checkout / "a_genau_that_dies_importing.py").write_text(
+    (checkout / "a_main_player_that_dies_importing.py").write_text(
         "from player_core.clip_folder import a_name_player_core_never_had\n", encoding="utf-8")
-    log = tmp_path / "state" / "genau.log"
+    log = tmp_path / "state" / "main_player.log"
     logs = logs_as_they_stand(log)
     real_popen = subprocess.Popen
     started: list[subprocess.Popen] = []
@@ -1266,47 +1199,16 @@ def test_what_genau_says_as_it_dies_importing_is_what_the_alert_quotes(tmp_path:
 
     with patch.object(NAMER, "named_exe", side_effect=lambda exe, _role: str(exe)), \
          patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=started_and_kept):
-        pid = launch_genau(
-            python_exe=sys.executable, genau_module="a_genau_that_dies_importing",
-            config_path="cfg.json", clips_folder="clips",
-            genau_x=0, genau_y=0, genau_width=1, genau_height=1,
-            log_file=log, project_dirs=str(checkout), **GENAU_SESSION_FILES)
+        pid = launch_main_player(**_a_main_player_launch(
+            python_exe=sys.executable, main_player_module="a_main_player_that_dies_importing",
+            log_file=log, project_dirs=str(checkout)))
     started[0].wait(timeout=60)
 
     with pytest.raises(PlayerDied) as died:
-        raise_if_a_player_died([LaunchedPlayer("Genau", pid, logs)])
+        raise_if_a_player_died([LaunchedPlayer("the Main player", pid, logs)])
 
     assert ("cannot import name 'a_name_player_core_never_had' from 'player_core.clip_folder'"
             in player_died_message(died.value.player, died.value.said))
-
-
-def test_the_launch_names_latest_only_for_a_session_left_browsing_it():
-    """Genau's order comes back on its launch line, beside the clip: left off,
-    Genau's config decides, which is the shuffled order a session that was not
-    on Latest wants."""
-    def launch(latest: bool) -> list[str]:
-        return genau_launch_command(
-            python_exe="python.exe", genau_module="genau", config_path="cfg.json",
-            clips_folder="clips", genau_x=0, genau_y=0, genau_width=1, genau_height=1,
-            start_clip="", latest=latest, **GENAU_SESSION_FILES,
-        )
-
-    assert "--latest" in launch(True)
-    assert "--latest" not in launch(False)
-
-
-def test_genau_is_told_where_the_librarys_records_are_so_it_can_keep_a_flip():
-    def launch(metadata_dir) -> list[str]:
-        return genau_launch_command(
-            python_exe="python.exe", genau_module="genau", config_path="cfg.json",
-            clips_folder="clips", genau_x=0, genau_y=0, genau_width=1, genau_height=1,
-            metadata_dir=metadata_dir, **GENAU_SESSION_FILES,
-        )
-
-    told = launch("C:/library/videos/metadata")
-
-    assert told[told.index("--metadata-dir") + 1] == "C:/library/videos/metadata"
-    assert "--metadata-dir" not in launch(None)
 
 
 def test_launch_main_player_is_told_the_state_dir_it_remembers_in(tmp_path: Path):
@@ -1327,6 +1229,7 @@ def test_launch_main_player_is_told_the_state_dir_it_remembers_in(tmp_path: Path
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
             log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+        **GENAUS_FILES,
         )
 
     command = popen.call_args.args[0]
@@ -1348,6 +1251,7 @@ def test_launch_main_player_forwards_metadata_dir_when_given(tmp_path: Path):
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
             log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+            **GENAUS_FILES,
             metadata_dir="C:/videos/metadata",
         )
 
@@ -1371,6 +1275,7 @@ def test_launch_main_player_omits_metadata_dir_when_absent(tmp_path: Path):
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
             log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+        **GENAUS_FILES,
         )
 
     assert "--metadata-dir" not in popen.call_args.args[0]
@@ -1393,6 +1298,7 @@ def test_launch_main_player_forwards_clips_dir_when_given(tmp_path: Path):
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
             log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+            **GENAUS_FILES,
             clips_dir="C:/videos/genau/clips",
         )
 
@@ -1415,6 +1321,7 @@ def test_launch_main_player_omits_clips_dir_when_absent(tmp_path: Path):
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
             log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+        **GENAUS_FILES,
         )
 
     assert "--clips-dir" not in popen.call_args.args[0]
@@ -1437,35 +1344,10 @@ def test_launch_main_player_hands_it_fun_times_icon(tmp_path: Path):
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
             log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+        **GENAUS_FILES,
         )
 
     command = popen.call_args.args[0]
-    assert command[command.index("--icon") + 1] == str(PROJECT_ICON)
-
-
-def test_launch_genau_hands_it_fun_times_icon(tmp_path: Path):
-    class FakeProc:
-        def __init__(self, pid: int):
-            self.pid = pid
-
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(42)) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
-    ):
-        launch_genau(
-            python_exe="python.exe",
-            genau_module="genau.app",
-            config_path="cfg.json",
-            clips_folder="clips",
-            genau_x=0,
-            genau_y=0,
-            genau_width=800,
-            genau_height=600,
-            log_file=tmp_path / "genau.log",
-            **GENAU_SESSION_FILES,
-        )
-
-    command = popen.call_args.args[0]
-    assert "--fun-time" not in command  # there is no other way for Genau to run
     assert command[command.index("--icon") + 1] == str(PROJECT_ICON)
 
 
@@ -1512,16 +1394,7 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
             log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
-        )
-
-        assert self._identity(command) == APP_USER_MODEL_ID
-
-    def test_genau_is_told_who_it_belongs_to(self, tmp_path: Path):
-        command = self._launched(
-            launch_genau,
-            python_exe="python.exe", genau_module="genau.app", config_path="cfg.json",
-            clips_folder="clips", genau_x=0, genau_y=0, genau_width=800, genau_height=600,
-            log_file=tmp_path / "genau.log", **GENAU_SESSION_FILES,
+        **GENAUS_FILES,
         )
 
         assert self._identity(command) == APP_USER_MODEL_ID
@@ -1544,6 +1417,7 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
             log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+        **GENAUS_FILES,
         )
 
         assert self._identity(command) == f"{APP_USER_MODEL_ID}.Preview"
@@ -1570,7 +1444,7 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
         assert [icon.parent for icon in icons] == [tmp_path / "inked"] * 2
 
 
-class TestGenauCheckout:
+class TestTheCheckoutsThePlayerRunsOutOf:
     """Which checkouts Genau and the main player are run out of.
 
     Every package they import — their own, and ``player_core`` under them —
@@ -1588,20 +1462,9 @@ class TestGenauCheckout:
                      return_value=self._Proc())
 
     @staticmethod
-    def _genau(tmp_path: Path, **overrides):
-        return dict(python_exe="python.exe", genau_module="genau",
-                    config_path="cfg.json", clips_folder="clips",
-                    genau_x=0, genau_y=0, genau_width=800, genau_height=600,
-                    log_file=tmp_path / "genau.log", **GENAU_SESSION_FILES, **overrides)
-
-    @staticmethod
     def _main_player(tmp_path: Path, **overrides):
-        return dict(python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
-                    playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-                    status_file="status", console_file="console.json",
-                    drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-                    log_file=tmp_path / "main_player.log", state_dir=tmp_path,
-                    main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100, **overrides)
+        return _a_main_player_launch(log_file=tmp_path / "main_player.log", state_dir=tmp_path,
+                                     **overrides)
 
     @staticmethod
     def _path(popen) -> list[str]:
@@ -1613,43 +1476,31 @@ class TestGenauCheckout:
 
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_genau(**self._genau(tmp_path, project_dirs=str(checkout)))
-
-        assert self._path(popen)[0] == str(checkout)
-
-    def test_main_player_follows_genau_onto_the_same_checkouts(self, tmp_path: Path):
-        """the main player ships in that repo too, so it must not stay on the primary while
-        its housemate moves — the two would be running different code."""
-        checkout = tmp_path / "worktree"
-        checkout.mkdir()
-
-        with self._popen() as popen, patch(
-                "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
             launch_main_player(**self._main_player(tmp_path, project_dirs=str(checkout)))
 
         assert self._path(popen)[0] == str(checkout)
 
     def test_several_checkouts_are_run_against_each_other(self, tmp_path: Path):
-        """A change is often in two of these repos at once — a HUD in ../genau on
-        a channel in ../player_core — and running one branch against the other's
-        landed code is not running the change."""
-        genau, core = tmp_path / "genau", tmp_path / "player_core"
-        genau.mkdir()
+        """A change is often in two of these repos at once — Fun Time's Main
+        Player on a channel in ../player_core — and running one branch against
+        the other's landed code is not running the change."""
+        fun_time, core = tmp_path / "fun_time", tmp_path / "player_core"
+        fun_time.mkdir()
         core.mkdir()
 
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_genau(**self._genau(
-                tmp_path, project_dirs=os.pathsep.join([str(genau), str(core)])))
+            launch_main_player(**self._main_player(
+                tmp_path, project_dirs=os.pathsep.join([str(fun_time), str(core)])))
 
-        assert self._path(popen)[:2] == [str(genau), str(core)]
+        assert self._path(popen)[:2] == [str(fun_time), str(core)]
 
-    def test_naming_none_leaves_them_to_their_venv(self, tmp_path: Path):
+    def test_naming_none_leaves_it_to_its_venv(self, tmp_path: Path):
         """What every session did before this, and what an ordinary one still
         does: nothing said about the path, so the editable installs answer."""
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_genau(**self._genau(tmp_path))
+            launch_main_player(**self._main_player(tmp_path))
 
         assert "env" not in popen.call_args.kwargs
 
@@ -1658,7 +1509,7 @@ class TestGenauCheckout:
         session must still start rather than die on its way up."""
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_genau(**self._genau(tmp_path, project_dirs=str(tmp_path / "removed")))
+            launch_main_player(**self._main_player(tmp_path, project_dirs=str(tmp_path / "removed")))
 
         assert "env" not in popen.call_args.kwargs
 
@@ -1687,6 +1538,7 @@ def test_launch_main_player_sends_child_output_to_its_own_log(tmp_path: Path):
             log_file=log_file,
             state_dir=tmp_path,
             main_player_x=100, main_player_y=200, main_player_width=300, main_player_height=400,
+        **GENAUS_FILES,
         )
 
     stream = popen.call_args.kwargs["stdout"]
@@ -1720,6 +1572,7 @@ def test_launching_the_main_player_starts_it_and_says_which_process_it_is(tmp_pa
             main_player_y=200,
             main_player_width=300,
             main_player_height=400,
+        **GENAUS_FILES,
         )
 
     assert pid == 43
@@ -1757,6 +1610,14 @@ def test_launching_the_main_player_starts_it_and_says_which_process_it_is(tmp_pa
         "--icon",
         str(PROJECT_ICON),
         *taskbar_identity_args(),
+        "--genau-command-file",
+        "a-state-dir/genau_cmd.txt",
+        "--genau-paused-file",
+        "a-state-dir/genau_paused.txt",
+        "--genau-status-file",
+        "a-state-dir/genau_status.txt",
+        "--genau-config",
+        "a-genau-checkout/genau_config.json",
     ]
 
 
@@ -2182,23 +2043,9 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
 
             assert self._launched_exe(popen) == f"FunTime-{role}.exe"
 
-    def test_main_player_and_genau(self, tmp_path: Path):
+    def test_the_main_player(self, tmp_path: Path):
         class FakeProc:
             pid = 10
-
-        with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
-            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
-        ):
-            launch_genau(
-                python_exe=self._interpreter(tmp_path),
-                genau_module="genau",
-                config_path=tmp_path / "genau.json",
-                clips_folder=tmp_path / "clips",
-                genau_x=0, genau_y=0, genau_width=1, genau_height=1,
-                log_file=tmp_path / "genau.log",
-                **GENAU_SESSION_FILES,
-            )
-        assert self._launched_exe(popen) == "FunTime-Genau.exe"
 
         with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
             "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
@@ -2216,6 +2063,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
                 dashboard_cmd_file="dash.txt",
                 log_file=tmp_path / "main_player.log", state_dir=tmp_path,
                 main_player_x=0, main_player_y=0, main_player_width=1, main_player_height=1,
+            **GENAUS_FILES,
             )
         assert self._launched_exe(popen) == "FunTime-MainPlayer.exe"
 

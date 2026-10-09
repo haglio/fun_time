@@ -14,7 +14,6 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
 from . import preview_marker
-from .mode_plan import main_player_displays
 from .satellites_mode import origenerator_shows
 from .win32 import (
     activate_window,
@@ -24,7 +23,6 @@ from .win32 import (
     is_window_minimized,
     is_window_topmost,
     minimize_window,
-    place_beneath,
     place_window,
     restore_window,
     set_always_on_top,
@@ -34,7 +32,6 @@ from .win32 import (
 from .window_layout import SecondaryMonitorRects, WindowRect
 from .window_roles import (
     FIXED_TOPMOST_ROLES,
-    GENAU_TITLES,
     MANAGED_ROLES,
     ORIGENERATOR_ROLE,
     ORIGENERATOR_TITLE,
@@ -48,11 +45,10 @@ from .windows_bridge_startup import (
 logger = logging.getLogger(__name__)
 
 
-# How long a mode switch gives a main-slot player to act on its display verb: the
-# outgoing one keeps its window that long before it is minimized (see
-# :meth:`WindowRoles.hide_after_settle`), and Genau stays opaque that long over the
-# incoming main player (see ``MainSlotHandover``).  Generous next to the two
-# frames a player needs; being early is the failure it exists to avoid.
+# How long a switch out of origenerator mode gives the hosted app's window to
+# act before it is minimized (see :meth:`WindowRoles.hide_after_settle`).
+# Generous next to the two frames a window needs; being early is the failure it
+# exists to avoid.
 MAIN_BLANK_SETTLE_S = 0.25
 
 
@@ -121,11 +117,6 @@ class WindowRoles:
             hwnd = 0
         if hwnd:
             return hwnd
-        if role == "genau":
-            # Either caption, each matched exactly: this window renames
-            # itself when its HUD goes over the main player's video.
-            hwnd = next((found for title in GENAU_TITLES
-                         if (found := find_window_by_title(title, exact=True))), 0)
         # The three SDL players are looked up by pid AND by caption: the pid on
         # record is the venv pythonw launcher's, not the interpreter that owns
         # the window, so on a cold cache by-pid alone finds nothing and every
@@ -134,7 +125,7 @@ class WindowRoles:
         # lookup answers with whatever window it reaches first whose title
         # merely CONTAINS the name (see find_window_by_title), and handing one
         # side's window to the other is the portrait/landscape visual swap.
-        elif role == "main_player":
+        if role == "main_player":
             hwnd = find_window_by_pid(self.pids.main_player) or find_window_by_title("Main Player", exact=True)
         elif role == "portrait":
             hwnd = (find_window_by_pid(self.pids.portrait)
@@ -195,20 +186,12 @@ class WindowRoles:
             activate_window(hwnd)
 
     def hide_after_settle(self, role: str) -> None:
-        """Park the main-slot player a mode switch is leaving — after a beat.
+        """Park the window a mode switch is leaving — after a beat.
 
-        Only that pair is ever hidden (see ``MainSlotHandover``), and only they
-        need the beat.  Minimizing is what FREEZES a window's Alt-Tab thumbnail:
-        Windows stops compositing a minimized window, so whatever it last drew is
-        what the thumbnail keeps showing until it is restored.  The handover
-        has just told this player to go dark (DISPLAY_OFF), and reading that verb
-        and presenting the black costs it a frame or two — minimize inside that
-        gap and the thumbnail keeps the video frame the player was sitting on,
-        which is the exact thing the blanking exists to prevent.
-
-        Nothing shows during the wait: the incoming player already covers the
-        same rect, and this one has been demoted out of the topmost band (see
-        :meth:`restack_main_slot`).
+        Minimizing is what FREEZES a window's Alt-Tab thumbnail: Windows stops
+        compositing a minimized window, so whatever it last drew is what the
+        thumbnail keeps showing until it is restored, and a window told to step
+        aside needs a frame or two to present what it will be remembered by.
         """
         self._pending_hides[role] = self.clock() + MAIN_BLANK_SETTLE_S
 
@@ -235,9 +218,9 @@ class WindowRoles:
         """Minimize a window the user asked to have out of the way, and remember it.
 
         Remembered here rather than inside :meth:`minimize`, which the mode
-        switch also calls: the slot-mate it parks is the mode's business and comes
-        back when the mode brings it back, so putting it on this list would have
-        the next resume drag a hidden player onto a rect another one is using.
+        switch also calls: what it parks is the mode's business and comes back
+        when the mode brings it back, so putting it on this list would have the
+        next resume drag a hidden window onto a rect another one is using.
         """
         hwnd = self.hwnd(role)
         if not hwnd:
@@ -260,10 +243,10 @@ class WindowRoles:
         self._parked_hwnds = []
 
     def minimize_all(self, roles: Iterable[str]) -> None:
-        """Minimize the windows the current mode shows — the "omniminimize" command.
+        """Minimize the windows the modes show — the "omniminimize" command.
 
-        Only mode-visible windows are minimized (SW_MINIMIZE would drag a
-        hidden slot-mate back into view), each with ``activate=False`` so
+        Only those are minimized (SW_MINIMIZE would drag a parked window back
+        into view), each with ``activate=False`` so
         minimizing one never yanks focus to the next.  The minimized set is
         remembered so :meth:`restore_minimized` brings back exactly these.
         """
@@ -287,7 +270,7 @@ class WindowRoles:
         self._parked_hwnds = []
 
     def seat(self, rects: SecondaryMonitorRects) -> None:
-        self.place([("portrait", rects.portrait), ("main_player", rects.main), ("genau", rects.main)])
+        self.place([("portrait", rects.portrait), ("main_player", rects.main)])
 
     def place(self, placements: Iterable[tuple[str, WindowRect]]) -> None:
         moves = []
@@ -306,69 +289,36 @@ class WindowRoles:
 
     def remove_all_topmost(self) -> None:
         """Drop EVERY managed window out of the TOPMOST band (omnipause frees
-        the desktop).  Dropping unconditionally — not just the normally-topmost
-        roles — is what stops the main player from being stranded on top in kino mode, where
-        it does carry the topmost flag."""
+        the desktop)."""
         for role in MANAGED_ROLES:
             hwnd = self.hwnd(role)
             if hwnd:
                 set_always_on_top(hwnd, False)
 
-    def restore_all_topmost(self, main_mode: str, satellites_mode: str) -> None:
-        """Re-apply the topmost bands for these modes after omnipause: the
-        windows with a rect of their own, then each shared rect's pair in the
-        order that pair stacks in."""
+    def restore_all_topmost(self, satellites_mode: str) -> None:
+        """Re-apply the topmost bands after omnipause: the windows with a rect
+        of their own, then the shared rect's pair in the order it stacks in."""
         for role in FIXED_TOPMOST_ROLES:
             hwnd = self.hwnd(role)
             if hwnd:
                 set_always_on_top(hwnd, True)
-        self.restack_rfb_slot(main_mode, satellites_mode)
-        self.restack_main_slot(main_mode)
+        self.restack_rfb_slot(satellites_mode)
 
-    def restack_rfb_slot(self, main_mode: str, satellites_mode: str, *,
-                         paused: bool = False) -> None:
+    def restack_rfb_slot(self, satellites_mode: str, *, paused: bool = False) -> None:
         """Put the browser in the band only in kino mode, and in origenerator
         mode promote the hosted Origenerator's window over it."""
         if paused:
             return
         browser = self.hwnd("rfb")
         if browser:
-            set_always_on_top(browser, role_topmost("rfb", main_mode, satellites_mode))
-        if not role_topmost(ORIGENERATOR_ROLE, main_mode, satellites_mode):
+            set_always_on_top(browser, role_topmost("rfb", satellites_mode))
+        if not role_topmost(ORIGENERATOR_ROLE, satellites_mode):
             return
         hwnd = self.hwnd(ORIGENERATOR_ROLE)
         if hwnd:
             set_always_on_top(hwnd, True)
 
-    def restack_main_slot(self, main_mode: str, *, paused: bool = False) -> None:
-        """Re-establish the main player/Genau z-order for this mode.
-
-        The main player and Genau share one screen rect — in kino mode Genau's transparent HUD
-        overlays the main player's video — so unlike every other window they OVERLAP and need
-        explicit stacking.  Demote both, then promote low-to-high so the last
-        promotion lands highest:
-
-          * kino mode — promote the main player, then Genau ABOVE it, so the HUD overlays
-                         the video and both float above the desktop.
-          * genau mode — promote Genau (the main player hidden).
-
-        Promoting the main player before Genau is what keeps the HUD over the video.
-        """
-        main_player = self.hwnd("main_player")
-        genau = self.hwnd("genau")
-        if paused:
-            if main_player and genau and main_player_displays(main_mode):
-                place_beneath(main_player, genau)
-            return
-        for hwnd in (main_player, genau):
-            if hwnd:
-                set_always_on_top(hwnd, False)
-        if main_player and role_topmost("main_player", main_mode):
-            set_always_on_top(main_player, True)
-        if genau and role_topmost("genau", main_mode):
-            set_always_on_top(genau, True)
-
-    def converge_origenerator_window(self, main_mode: str, satellites_mode: str) -> None:
+    def converge_origenerator_window(self, satellites_mode: str) -> None:
         """Keep the hosted app's main window where the satellites' mode says.
 
         The mode-switch ops restore or park it when a command fires, but the
@@ -393,7 +343,7 @@ class WindowRoles:
             if minimized:
                 restore_window(hwnd, activate=False)
             if minimized or not is_window_topmost(hwnd):
-                self.restack_rfb_slot(main_mode, satellites_mode)
+                self.restack_rfb_slot(satellites_mode)
         elif not minimized:
             minimize_window(hwnd, activate=False)
 

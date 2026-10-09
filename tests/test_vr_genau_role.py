@@ -320,21 +320,7 @@ class TestTheFrameHandedToTheRenderThread:
         assert genau.role.take_frame() is None
 
 
-class TestWhatTheHeadsetIsToldToShow:
-    def test_a_fresh_role_shows_its_clip(self, tmp_path):
-        assert Genau(tmp_path).role.showing is True
-
-    def test_hud_on_means_the_video_shows_and_the_clip_does_not(self, tmp_path):
-        """Kino mode, on the desktop: Genau is the see-through layer over
-        The main player's video.  In the headset there is nothing to see through, so the
-        clip simply steps aside."""
-        genau = Genau(tmp_path)
-
-        genau.send("HUD_ON")
-        assert genau.role.showing is False
-        genau.send("HUD_OFF")
-        assert genau.role.showing is True
-
+class TestHowTheClipIsWatched:
     def test_a_clip_named_for_its_projection_is_watched_in_it(self, tmp_path):
         genau = Genau(tmp_path, clips=("scene_fisheye.mp4",))
         genau.role.refresh()

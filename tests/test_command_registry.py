@@ -195,7 +195,8 @@ def test_every_verb_the_console_posts_lands_on_a_handler():
     filter to narrow (bug 90)."""
     # Minimize is answered before the handler map, by name; browse and the
     # broker panel are the loop's own branches.
-    answered = _handler_ids() | _loop_branch_ids() | {command_dispatch.MAIN_MINIMIZE}
+    answered = (_handler_ids() | _loop_branch_ids()
+                | frozenset(command_dispatch._MINIMIZE_ROLES))
     posted = _console_verbs()
     assert posted, "no console button posts anything"
     assert answered >= posted, sorted(posted - answered)
