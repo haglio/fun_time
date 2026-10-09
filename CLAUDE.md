@@ -218,22 +218,23 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   relative one for you), before handing him the shortcut. Cost the broker/OSR2
   indicator fix a whole round trip on 2026-07-28.
 
-- **Which checkout of `../genau` your session runs is NOT one of those — say it
-  in your worktree, never in his config.** `paths.genau_project_dirs` looks like
-  an ordinary key, but it is per session: written into his
-  `fun_time_config.json` it repoints his ordinary `launch.vbs` session and every
-  other agent's branch session at your unlanded genau branch, for as long as it
-  sits there, and nothing sweeps it back out. Write
+- **Which checkout of `../player_core` your session's players run is NOT one of
+  those — say it in your worktree, never in his config.** `paths.genau_project_dirs`
+  (named for the Genau window it once launched; the Main Player and the
+  satellites read it now) looks like an ordinary key, but it is per session:
+  written into his `fun_time_config.json` it repoints his ordinary `launch.vbs`
+  session and every other agent's branch session at your unlanded branch, for as
+  long as it sits there, and nothing sweeps it back out. Write
   `state/genau_project_dirs.txt` in your own worktree instead — one absolute path
-  per line, and an **empty** file when your branch has nothing to do with genau,
-  which is how you get the plain install even if his config is pinned to someone
-  else's genau worktree. Cost the main-player minimize button a round trip on
+  per line, and an **empty** file when your branch has nothing to do with
+  player_core, which is how you get the plain install even if his config is
+  pinned to someone else's worktree. Cost the main-player minimize button a round trip on
   2026-08-13: it had landed in genau, and the pinned checkout predated it, so it
   was on neither the demo nor his app.
 
 - **That chain has no error state, so prove it at handoff time and re-prove it
   before ever suspecting your code.** An override that is missing, empty, or
-  naming a stale checkout silently runs some other genau: the session comes up
+  naming a stale checkout silently runs some other player_core: the session comes up
   fine, and he sits watching code that is not your branch believing he is
   judging it — a whole verification round demoed nothing on 2026-08-13.
   `--shortcut` prints the checkouts the next launch will carry, read exactly

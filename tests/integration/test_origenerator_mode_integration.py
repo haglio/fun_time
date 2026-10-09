@@ -497,7 +497,6 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
         portrait_pid=pids["portrait_pid"],
         landscape_pid=pids["landscape_pid"],
         dashboard_pid=0,
-        genau_pid=pids["genau_pid"],
         audio_pid=0,
         main_mode=MainMode.KINO,
     ))

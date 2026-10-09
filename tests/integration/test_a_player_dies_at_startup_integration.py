@@ -17,27 +17,30 @@ pytestmark = pytest.mark.skipif(
     reason="Fun Time integration tests require Windows",
 )
 
+WHAT_IT_SAID = "a player_core that dies importing, on purpose"
 
-def _a_genau_checkout_that_dies_importing(root: Path) -> Path:
-    package = root / "a_genau_checkout_that_dies_importing" / "genau"
+
+def _a_player_core_that_dies_importing(root: Path) -> Path:
+    """A checkout whose player_core raises on import: every player this session
+    launches imports it ahead of the venv's, so each dies as it starts."""
+    package = root / "a_checkout_whose_player_core_dies_importing" / "player_core"
     package.mkdir(parents=True)
-    (package / "__init__.py").write_text("", encoding="utf-8")
-    (package / "__main__.py").write_text(
-        "from player_core.clip_folder import a_name_player_core_never_had\n", encoding="utf-8")
+    (package / "__init__.py").write_text(
+        f"raise ImportError({WHAT_IT_SAID!r})\n", encoding="utf-8")
     return package.parent
 
 
-def _run_genau_out_of(config_path: Path, checkout: Path) -> None:
+def _run_the_players_out_of(config_path: Path, checkout: Path) -> None:
     config = json.loads(config_path.read_text(encoding="utf-8"))
     paths = config["paths"]
     paths["genau_project_dirs"] = [str(checkout), *paths.get("genau_project_dirs", [])]
     config_path.write_text(json.dumps(config), encoding="utf-8")
 
 
-def test_a_genau_that_dies_importing_stops_the_startup_saying_what_it_said():
+def test_a_player_that_dies_importing_stops_the_startup_saying_what_it_said():
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
-    _run_genau_out_of(config_path, _a_genau_checkout_that_dies_importing(temp_root))
+    _run_the_players_out_of(config_path, _a_player_core_that_dies_importing(temp_root))
     session = FunTimeIntegrationSession(config_path)
     try:
         logged = session.start_one_that_stops_starting_up(
@@ -45,6 +48,5 @@ def test_a_genau_that_dies_importing_stops_the_startup_saying_what_it_said():
     finally:
         session.stop()
 
-    assert "Genau closed itself before the room was up" in logged
-    assert ("cannot import name 'a_name_player_core_never_had' from 'player_core.clip_folder'"
-            in logged)
+    assert "closed itself before the room was up" in logged
+    assert WHAT_IT_SAID in logged
