@@ -1,6 +1,7 @@
 """The hosted app's bring-up, shared by the desktop session and the headset's."""
 from __future__ import annotations
 
+import mmap
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -139,11 +140,17 @@ class TestTellingAKeptAppWhereItsWindowGoes:
     """A crossing keeps the app running, and it was started for the session it
     left: the one adopting it says on the command file which shape it is."""
 
-    def _adopt(self, cfg_factory, tmp_path, *, in_a_headset):
+    def _adopt(self, cfg_factory, tmp_path, *, in_a_headset, left_over=False):
         origenerator = tmp_path / "origenerator"
         origenerator.mkdir()
         config, manifest = _manifest_for(
             cfg_factory, tmp_path, {"paths": {"origenerator_dir": str(origenerator)}})
+        if left_over:
+            frames = Path(config.origenerator_frames_file)
+            frames.parent.mkdir(parents=True, exist_ok=True)
+            frames.write_bytes(bytes([2]) + bytes(63))
+            Path(config.origenerator_input_file).write_text(
+                "press 1 1\n", encoding="utf-8")
         keep_the_origenerator(config.paths.state_dir, pid=6060, created_at=44)
         monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
         looking = patch("fun_time.window_layout.enumerate_monitors", return_value=monitors)
@@ -159,6 +166,34 @@ class TestTellingAKeptAppWhereItsWindowGoes:
 
         assert said == [f"{HAND_OVER}|{config.origenerator_frames_file}"
                         f"|{config.origenerator_input_file}"]
+
+    def test_a_headset_session_starts_with_no_picture_and_no_presses(
+            self, cfg_factory, tmp_path):
+        """What an earlier session left in those two files still reads as a live
+        picture and as presses nobody made.  On 2026-10-08 his room drew the
+        picture a session twelve days earlier had left there -- Origenerator in
+        the shape the monitors give it -- and he judged this change on it."""
+        config, _said = self._adopt(
+            cfg_factory, tmp_path, in_a_headset=True, left_over=True)
+
+        assert not Path(config.origenerator_frames_file).exists()
+        assert not Path(config.origenerator_input_file).exists()
+
+
+    def test_an_app_still_publishing_keeps_the_picture_it_is_publishing(
+            self, cfg_factory, tmp_path):
+        """Windows refuses to remove a file a process has mapped, which is how
+        the clearing above tells a dead session's picture from a live one's."""
+        held = tmp_path / "state" / "origenerator_frame.bin"
+        held.parent.mkdir(parents=True, exist_ok=True)
+        held.write_bytes(bytes(64))
+        with held.open("r+b") as file, mmap.mmap(file.fileno(), 0) as mapped:
+            mapped[0] = 2
+            config, _said = self._adopt(cfg_factory, tmp_path, in_a_headset=True)
+
+            assert Path(config.origenerator_frames_file) == held
+            assert held.read_bytes()[0] == 2
+
 
     def test_a_desktop_session_takes_the_window_back(self, cfg_factory, tmp_path):
         """One the headset had shown is still publishing and still up; here it

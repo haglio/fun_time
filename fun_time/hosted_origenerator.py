@@ -1,6 +1,7 @@
 """The hosted Origenerator, brought up the same way by either shape of session."""
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from pathlib import Path
@@ -83,6 +84,13 @@ def _the_players_it_is_handed(m: LaunchManifest) -> dict[str, HandedPlayer]:
     }
 
 
+def _clear_what_an_earlier_room_left(m: LaunchManifest) -> None:
+    for name in (m.commands.origenerator_frames_file,
+                 m.commands.origenerator_input_file):
+        with contextlib.suppress(OSError):
+            Path(name).unlink(missing_ok=True)
+
+
 def bring_up_the_hosted_app(
     m: LaunchManifest,
     *,
@@ -97,6 +105,8 @@ def bring_up_the_hosted_app(
     if plan is None:
         plan = screen_layout(m.layout).plan
     claim_the_osr2(origenerator_dir)
+    if in_a_headset:
+        _clear_what_an_earlier_room_left(m)
     kept = _adopt_a_kept_origenerator(m)
     if kept is not None:
         crossing = (f"{HAND_OVER}|{m.commands.origenerator_frames_file}"
