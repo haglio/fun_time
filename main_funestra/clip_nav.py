@@ -138,20 +138,12 @@ class ClipNav:
         return str(meta.get("compilation", "") or "") if meta is not None else ""
 
     def compilation_playlist(self, video: Path) -> list[Path]:
-        """The clips of *video*'s compilation in original order, self included.
-
-        Empty when *video* is not a clip.
-        """
-        meta = self._clips.get(video)
-        if meta is None:
+        comp = self.compilation_of(video)
+        if not comp:
             return []
-        comp = meta.get("compilation")
-        # One slot per scene: an upscaled variant carries the same clip object as
-        # its original, so keep only the largest file for each running index —
-        # the same "canonical is biggest" rule the version grouping uses.
         best: dict[int, Path] = {}
         for sibling, m in self._clips.items():
-            if m.get("compilation") != comp:
+            if self.compilation_of(sibling) != comp:
                 continue
             index = m.get("index", 0)
             current = best.get(index)
