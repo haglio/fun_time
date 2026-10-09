@@ -10,6 +10,8 @@ from __future__ import annotations
 
 # --- Called by a framework, not by us ---
 _.do_GET  # http.server dispatches by getattr
+_.set_showing  # the Funestra (player_core) tells each User whether it has the window
+_.picture  # the Funestra asks the User in front for the picture it brings
 _.leaveEvent  # Qt calls it when the pointer leaves the dashboard bar
 _.mouseMoveEvent  # Qt event override
 _.optionxform  # ConfigParser hook, set to keep key case
@@ -28,6 +30,11 @@ portrait_hud_file
 landscape_hud_file
 
 # --- Read from a sibling package, which is a scan of its own ---
+build_genau_engine  # main_player.genau and fun_time_vr.genau_role build Genau's engine with it
+run_ahead_of_background_work  # main_player.app, before its window opens
+_.current_clip  # both of them, off the engine
+_.playhead  # both of them, off the engine
+_.manifest_fields  # fun_time_vr.orchestrator carries Genau's settings into the manifest
 from_manifest  # satellite.contract; fun_time_vr's player and the sequencer
 top_block  # main_player.kino; player_core's Funestra heads its console with it
 idle  # main_player.loop_machine; fun_time_vr's main role steps off the end by it

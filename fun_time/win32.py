@@ -750,3 +750,15 @@ def create_hidden_topmost_window() -> int:
 def is_window_minimized(hwnd: int) -> bool:
     """True if the window is currently minimized (iconic)."""
     return bool(_user32.IsIconic(hwnd))
+
+
+_ABOVE_NORMAL_PRIORITY_CLASS = 0x8000
+_THIS_PROCESS = ctypes.wintypes.HANDLE(-1)
+
+
+def run_ahead_of_background_work(kernel32=None) -> None:
+    kernel32 = _kernel32 if kernel32 is None else kernel32
+    if not kernel32.SetPriorityClass(_THIS_PROCESS, _ABOVE_NORMAL_PRIORITY_CLASS):
+        logger.warning(
+            "Windows would not put this player ahead of background work (error %d), so a "
+            "busy machine can still make the OSR2's motion uneven", kernel32.GetLastError())

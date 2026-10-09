@@ -169,6 +169,12 @@ FUN_TIME_ARGV = [
     "--taskbar-identity", "Example.Orchestrator",
     "--icon", "C:/example/fun_time/icon.ico",
     "--metadata-dir", "C:/example/library/metadata",
+    "--genau-command-file", "C:/example/state/genau_cmd.txt",
+    "--genau-paused-file", "C:/example/state/genau_paused.txt",
+    "--genau-status-file", "C:/example/state/genau_status.txt",
+    "--genau-config", "C:/example/genau/genau_config.json",
+    "--genau-start-clip", "C:/example/library/clips/2D/alpha one.mp4",
+    "--genau-latest",
 ]
 
 # What each of those has to land as.  The type matters as much as the value:
@@ -192,6 +198,12 @@ LANDS_AS = {
     "height": 1024,
     "taskbar_identity": "Example.Orchestrator",
     "icon": Path("C:/example/fun_time/icon.ico"),
+    "genau_command_file": Path("C:/example/state/genau_cmd.txt"),
+    "genau_paused_file": Path("C:/example/state/genau_paused.txt"),
+    "genau_status_file": Path("C:/example/state/genau_status.txt"),
+    "genau_config": Path("C:/example/genau/genau_config.json"),
+    "genau_start_clip": "C:/example/library/clips/2D/alpha one.mp4",
+    "genau_latest": True,
 }
 
 
@@ -280,6 +292,14 @@ EVERY_FLAG_ARGV = [
     "--console-file", "C:/example/state/console.json",
     "--drive-file", "C:/example/state/drive.txt",
     "--dashboard-cmd-file", "C:/example/state/dashboard_cmd.txt",
+    "--genau-command-file", "C:/example/state/genau_cmd.txt",
+    "--genau-paused-file", "C:/example/state/genau_paused.txt",
+    "--genau-status-file", "C:/example/state/genau_status.txt",
+    "--genau-config", "C:/example/genau/genau_config.json",
+    "--genau-start-clip", "C:/example/library/clips/2D/alpha one.mp4",
+    "--genau-latest",
+    "--notify-host", "10.0.0.8",
+    "--notify-port", "51001",
     "--no-audio",
     "--taskbar-identity", "Example.Orchestrator",
     "--icon", "C:/example/fun_time/icon.ico",
@@ -306,6 +326,14 @@ EVERY_FLAG_LANDS_AS = {
     "console_file": Path("C:/example/state/console.json"),
     "drive_file": Path("C:/example/state/drive.txt"),
     "dashboard_cmd_file": Path("C:/example/state/dashboard_cmd.txt"),
+    "genau_command_file": Path("C:/example/state/genau_cmd.txt"),
+    "genau_paused_file": Path("C:/example/state/genau_paused.txt"),
+    "genau_status_file": Path("C:/example/state/genau_status.txt"),
+    "genau_config": Path("C:/example/genau/genau_config.json"),
+    "genau_start_clip": "C:/example/library/clips/2D/alpha one.mp4",
+    "genau_latest": True,
+    "notify_host": "10.0.0.8",
+    "notify_port": 51001,
     "no_audio": True,
     "taskbar_identity": "Example.Orchestrator",
     "icon": Path("C:/example/fun_time/icon.ico"),
@@ -332,6 +360,14 @@ NO_FLAGS_LANDS_AS = {
     "console_file": None,
     "drive_file": None,
     "dashboard_cmd_file": None,
+    "genau_command_file": None,
+    "genau_paused_file": None,
+    "genau_status_file": None,
+    "genau_config": None,
+    "genau_start_clip": None,
+    "genau_latest": False,
+    "notify_host": "127.0.0.1",
+    "notify_port": 50556,
     "no_audio": False,
     "taskbar_identity": None,
     "icon": None,
@@ -356,6 +392,13 @@ class TestTheWholeSurfaceFunTimeLaunchesThrough:
         """A spelling that moved fails here as argparse walking out; a dest that
         moved fails as a key that is not in the table."""
         assert vars(build_parser({}).parse_args(EVERY_FLAG_ARGV)) == EVERY_FLAG_LANDS_AS
+
+    def test_genau_tells_the_audio_companion_where_fun_times_config_puts_it(self):
+        """The companion binds the address its own section names, so Genau's
+        notices default to that same section rather than to a number of its own."""
+        args = build_parser({"audio_companion": {"host": "10.0.0.9", "port": 50600}}).parse_args([])
+
+        assert (args.notify_host, args.notify_port) == ("10.0.0.9", 50600)
 
 
 class TestTheConfigsOwnDefaults:

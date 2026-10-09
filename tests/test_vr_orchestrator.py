@@ -19,6 +19,7 @@ from player_core.modes import MainMode
 
 from fun_time import player_deaths, win32_taskbar
 from fun_time.config import load_config
+from fun_time.genau_config import GenauSettings
 from fun_time.hosted_origenerator import HostedApp
 from fun_time.manifest import LaunchManifest, build_windows_bridge_manifest, write_manifest_data
 from fun_time.modes import VideoShapes
@@ -57,7 +58,6 @@ from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manif
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from fun_time_vr import orchestrator, player
 from fun_time_vr.cover import CLOSING_STATUS, scene_ready_file
-from fun_time_vr.genau_settings import GenauSettings
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
     _closing_cover,

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from fun_time_vr.genau_settings import GenauSettings
+from fun_time.genau_config import GenauSettings
 
 
 def _write(tmp_path: Path, payload) -> Path:

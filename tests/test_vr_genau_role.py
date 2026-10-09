@@ -21,8 +21,9 @@ from player_core.console import ConsoleModel, console_text
 from player_core.modes import MainMode
 
 from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
+from fun_time.genau_config import GenauSettings
+from fun_time.genau_engine import GenauEngine
 from fun_time_vr.genau_role import GenauRole, run_ticks
-from fun_time_vr.genau_settings import GenauSettings
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
 
 
@@ -201,7 +202,7 @@ class TestTheClipOnScreen:
         def locked(_path, _weird_dir):
             raise OSError("the file is open elsewhere")
 
-        monkeypatch.setattr("fun_time_vr.genau_role.move_clip_to_weird", locked)
+        monkeypatch.setattr("fun_time.genau_engine.move_clip_to_weird", locked)
         with caplog.at_level(logging.DEBUG, logger="test.genau_role"):
             genau.send("WEIRD")
 
@@ -548,20 +549,20 @@ class TestThePlayheadItPublishes:
     drawn straight off that index walked backwards as the motion went on."""
 
     def _role(self, index, count):
-        role = GenauRole.__new__(GenauRole)
-        role._renderer = SimpleNamespace(
+        renderer = SimpleNamespace(
             current_frame_index=index,
             current_clip_entry=lambda: None if count is None else {"frames": [0] * count},
         )
-        return role
+        return GenauEngine(controls=None, controller=None, renderer=renderer,
+                           robot_hand=None, driver=None)
 
     def test_it_counts_up_across_the_clip(self):
-        assert self._role(19, 20).playhead == (0, 20)
-        assert self._role(12, 20).playhead == (7, 20)
-        assert self._role(0, 20).playhead == (19, 20)
+        assert self._role(19, 20).playhead() == (0, 20)
+        assert self._role(12, 20).playhead() == (7, 20)
+        assert self._role(0, 20).playhead() == (19, 20)
 
     def test_nothing_to_draw_before_a_clip_is_up(self):
-        assert self._role(None, None).playhead == (0, 0)
+        assert self._role(None, None).playhead() == (0, 0)
 
 
 class TestSeekingFromTheBar:
@@ -571,7 +572,7 @@ class TestSeekingFromTheBar:
     def test_it_hands_the_fraction_straight_to_the_engine(self):
         role = GenauRole.__new__(GenauRole)
         asked: list[float] = []
-        role._controller = SimpleNamespace(seek_the_clip=asked.append)
+        role._engine = SimpleNamespace(seek=asked.append)
 
         role.seek(0.25)
         role.seek(0.9)

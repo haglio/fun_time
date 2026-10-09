@@ -32,6 +32,7 @@ def load_config(config_path: Path) -> dict:
 
 def build_parser(config: dict) -> argparse.ArgumentParser:
     main_player = config.get("main_player", {})
+    audio_companion = config.get("audio_companion", {})
     p = argparse.ArgumentParser(description="Fun Time's main player: a funscript video player")
     p.add_argument("--config", type=Path, default=None,
                    help="Fun Time's config file, whose main_player section supplies "
@@ -70,6 +71,23 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--dashboard-cmd-file", type=Path, default=None,
                    help="Where a press on the console or the volume control posts "
                         "its Fun Time command")
+    p.add_argument("--genau-command-file", type=Path, default=None,
+                   help="Poll this file for the room's verbs to Genau, which runs on "
+                        "this window beside Kino; left off, Kino runs alone")
+    p.add_argument("--genau-paused-file", type=Path, default=None,
+                   help="Flag file that pauses Genau's clip under the OSR2's own beat")
+    p.add_argument("--genau-status-file", type=Path, default=None,
+                   help="Where Genau publishes what the hand and the clip are doing")
+    p.add_argument("--genau-config", type=Path, default=None,
+                   help="Genau's own config, whose genau section tunes its engine")
+    p.add_argument("--genau-start-clip", default=None,
+                   help="The clip Genau opens on: where the last session left it")
+    p.add_argument("--genau-latest", action="store_true", default=False,
+                   help="Browse Genau's clips newest-first from the start")
+    p.add_argument("--notify-host", default=audio_companion.get("host", "127.0.0.1"),
+                   help="Where Genau tells the audio companion which clip is up")
+    p.add_argument("--notify-port", type=int,
+                   default=audio_companion.get("port", ports.AUDIO_COMPANION))
     p.add_argument("--no-audio", action="store_true", default=False,
                    help="Never extract or play audio (silent)")
     p.add_argument("--taskbar-identity", default=None,

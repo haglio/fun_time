@@ -44,6 +44,7 @@ from fun_time.child_launch import no_child_log, no_console_window, open_child_lo
 from fun_time.command_dispatch import genau_clip_shapes
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.event_log import open_event_log
+from fun_time.genau_config import GenauSettings
 from fun_time.hosted_origenerator import bring_up_the_hosted_app
 from fun_time.manifest import (
     LaunchManifest,
@@ -165,7 +166,6 @@ from .cover import (
     scene_ready_file,
     wait_for_cover_painted,
 )
-from .genau_settings import GenauSettings
 from .projection import is_vr_video
 
 VR_STARTUP_MARKER_NAME = "vr_launcher.ready"
