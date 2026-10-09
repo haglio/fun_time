@@ -73,18 +73,26 @@ class ThrowawayChrome:
         self._browser: subprocess.Popen | None = None
         self._windows: list[int] = []
 
-    def page_for(self, marker: str) -> str:
+    def page_for(self, marker: str, body: str = "") -> str:
         path = self._pages / f"{marker}.html"
-        path.write_text(f"<!doctype html><title>{marker}</title><h1>{marker}</h1>", encoding="utf-8")
+        path.write_text(f"<!doctype html><title>{marker}</title>{body or f'<h1>{marker}</h1>'}",
+                        encoding="utf-8")
         return path.as_uri()
+
 
     def shortcut(self) -> Shortcut:
         return Shortcut(target=str(self._exe), work_dir=str(self._exe.parent),
                         arguments=subprocess.list2cmdline(self._arguments))
 
     def open_window(self, *markers: str) -> int:
-        self._launch("--new-window", *(self.page_for(marker) for marker in markers))
-        hwnd = await_window(markers[0], WINDOW_TIMEOUT_S)
+        return self._open_window_on(markers[0], *(self.page_for(marker) for marker in markers))
+
+    def open_page(self, marker: str, body: str) -> int:
+        return self._open_window_on(marker, self.page_for(marker, body))
+
+    def _open_window_on(self, marker: str, *pages: str) -> int:
+        self._launch("--new-window", *pages)
+        hwnd = await_window(marker, WINDOW_TIMEOUT_S)
         self._windows.append(hwnd)
         return hwnd
 

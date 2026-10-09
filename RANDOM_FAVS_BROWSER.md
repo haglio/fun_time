@@ -18,6 +18,10 @@ Every 10 seconds the RFB shows its next tab, starting over after the last, so ea
 
 No page can switch Chrome's tabs, so the bridge presses the next tab from outside Chrome, through Windows' accessibility interface — the tab's own "Switch" action, which leaves the window where it is and does not make it the window Chrome hands your links to (`tests/integration/test_rfb_slideshow_integration.py`). It walks Chrome's own buttons and tabs to find them and never enters a page, so Chrome turns its accessibility support on for its own interface only, not for the pages you have open. `fun_time/rfb_slideshow.py` decides when, `fun_time/chrome_tabs.py` which tab, and `fun_time/chrome_accessibility.py` does the pressing.
 
+### Typing into it
+
+Clicking into a text field in the RFB, whether a page's prompt or search field or the address bar, puts the room in OmniPause, so what you type goes into the field instead of to Fun Time's hotkeys. Fun Time sees the click from outside Chrome, through the reports Windows gets of every mouse press and of where a text cursor appears, without asking Chrome about its pages (`fun_time/win32_events.py`, `fun_time/text_field_clicks.py`).
+
 ### Where a tab actually goes
 
 A favorite's gallery link is usually dead — the generation provider does not keep old generations around. So each tab resolves to the provider's **regenerate** page, with the video's original prompts packed into a `#ft=` fragment that the userscript below fills in. That page can only recreate a video its own site made from a recorded prompt. Every other favorite falls back to its stored gallery link — a video from another provider (whichever provider's library folder holds it, on the site its gallery link names), or one whose sidecar records no prompt — and a favorite with no gallery link either, such as a video Origenerator made, opens no tab at all. `target_for_fav` in `fun_time/random_favs_browser.py` is the single resolver; both the startup tabs and the lock hotkey go through it, so they cannot drift apart.
