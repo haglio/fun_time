@@ -115,6 +115,11 @@ already in Fun Time. This shortcut can be deleted."""
 app = "Fun Time VR"
 log = 'state\vr_launcher.log'
 
+[tool.haglio.launchers."launch_main_verifier.vbs"]
+app = "Fun Time main verifier"
+interpreter = "pythonw.exe"
+run = "-m tests.integration.main_verifier"
+
 # What Fun Time relies on Windows to keep: the shortcut it is pinned from, kept in
 # this checkout to pin from and in the Start menu, and the Start menu's shortcut
 # into the headset. `python -m app_support.windows_settings --write` makes this
@@ -130,6 +135,10 @@ launcher = "launch_vr.vbs"
 icon = "vr_icon.ico"
 app-id = "FunTime.App"
 places = ["start-menu"]
+
+[tool.haglio.scheduled-tasks."Fun Time main verifier"]
+launcher = "launch_main_verifier.vbs"
+every-minutes = 5
 
 # Four top-level packages share this repo — the orchestrator, the main player
 # and the satellite player it launches as `python -m main_player` and
