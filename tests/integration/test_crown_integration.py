@@ -25,7 +25,6 @@ from fun_time.crown import Crown
 from fun_time.win32 import wait_for_window_by_title, window_rect
 from fun_time.win32_loader import Win32Rect
 from fun_time.window_layout import MonitorRect, WindowRect, secondary_monitor_rects
-from fun_time.window_roles import GENAU_TITLE
 from fun_time.windows_bridge_startup import SATELLITE_PORTRAIT_TITLE
 
 from .integration_support import (
@@ -121,14 +120,14 @@ def test_a_portrait_genau_clip_on_the_crowned_main_player_trades_places_with_the
 
         session.write_dashboard_command("genau_activate")
         session.wait_for_new_log("Switched to genau mode")
-        genau = wait_for_window_by_title(GENAU_TITLE, timeout_s=10, exact=True)
+        main = wait_for_window_by_title("Main Player", timeout_s=10, exact=True)
         crowned = rects(majority=Crown.MAIN)
-        _wait_until_seated(session, genau=(genau, crowned.main),
+        _wait_until_seated(session, main_player=(main, crowned.main),
                            portrait_player=(portrait, crowned.portrait))
 
         session.write_dashboard_command(Crown.PORTRAIT.command)
         usual = rects(majority=Crown.PORTRAIT)
-        _wait_until_seated(session, genau=(genau, usual.main),
+        _wait_until_seated(session, main_player=(main, usual.main),
                            portrait_player=(portrait, usual.portrait))
     finally:
         session.stop()

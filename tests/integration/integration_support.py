@@ -241,10 +241,6 @@ class FunTimeIntegrationSession:
     def weird_dir(self) -> Path:
         return self.config.paths.weird_dir
 
-    def read_genau_pid(self) -> int:
-        """Read the Genau PID from the bridge pids file."""
-        return self.read_child_pids()["genau_pid"]
-
     def read_main_player_status(self) -> MainPlayerStatus:
         """Parse the main player's published status file."""
         return published_status(read_main_player_status, self.config.main_player_status_file)

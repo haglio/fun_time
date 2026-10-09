@@ -24,7 +24,6 @@ from fun_time.config import SatelliteFiles
 from fun_time.media_actions import remove_from_favs
 from fun_time.player_status import MainPlayerStatus, read_genau_status, read_main_player_status
 from fun_time.players import Player
-from fun_time.role_windows import MAIN_BLANK_SETTLE_S
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.win32 import (
@@ -231,17 +230,14 @@ def test_fun_time_the_max_intensity_holds_a_funscript_down_through_its_gaps_too(
     assert _osr2_still(still_after), still_after
 
 
-def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integration_session: FunTimeIntegrationSession):
-    """The main-slot players share one screen rect, so a mode switch settles
-    which is on screen: in kino mode both are restored — the main player's video with
-    Genau's HUD stacked above it, both topmost — and genau mode parks the main player
-    (minimized, never hidden — both keep a taskbar button all session, so both
-    stay findable by title; is_window_minimized tells them apart)."""
+def test_fun_time_mode_switch_keeps_the_one_main_player_window_up_and_topmost(
+        shared_integration_session: FunTimeIntegrationSession):
+    """Kino and Genau both run on the Main Player's window, so a mode switch
+    parks nothing and promotes nothing: the window stays up and topmost through
+    both switches, and what changes is which of the two is playing on it --
+    Kino's video is held in genau mode and plays again in kino mode."""
     s = shared_integration_session
 
-    # kino mode: the main player restored AND topmost (its video above the desktop), and
-    # Genau restored and topmost too, promoted after the main player so the HUD lands above
-    # the video.  Exact, so a caption merely containing the name cannot answer.
     s.wait_until(
         lambda: find_window_by_title("Main Player", exact=True) != 0,
         description="the main player window to exist in kino mode",
@@ -251,80 +247,28 @@ def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integr
         lambda: is_window_topmost(main_player_hwnd) and not is_window_minimized(main_player_hwnd),
         description="the main player to be restored and topmost in kino mode",
     )
-    s.wait_until(
-        lambda: (not is_window_minimized(find_window_by_title("Genau"))
-                 and is_window_topmost(find_window_by_title("Genau"))),
-        description="Genau's HUD to be restored and topmost in kino mode, above the main player",
-    )
+    assert find_window_by_title("Genau") == 0, "Genau opened a window of its own"
 
-    s.write_dashboard_command("genau_activate")
-    s.wait_for_new_log("Switched to genau mode")
-
-    s.wait_until(
-        lambda: is_window_minimized(find_window_by_title("Main Player", exact=True)),
-        description="the main player window to minimize when Genau mode activates",
-    )
-    s.wait_until(
-        lambda: not is_window_minimized(find_window_by_title("Genau")),
-        description="Genau window to stay up as the display in genau mode",
-    )
-
-    # Back to kino mode: the main player is restored and reclaims the topmost band, Genau
-    # stays up as the HUD above it — BOTH in the topmost band, leaving the
-    # session where it started.
-    s.write_dashboard_command("main_kino_activate")
-    s.wait_for_new_log("Switched to kino mode")
-
-    s.wait_until(
-        lambda: not is_window_minimized(find_window_by_title("Main Player", exact=True)),
-        description="the main player window to restore in kino mode",
-    )
-    s.wait_until(
-        lambda: is_window_topmost(find_window_by_title("Main Player", exact=True)),
-        description="the main player to float topmost in kino mode (video above the desktop)",
-    )
-    s.wait_until(
-        lambda: (not is_window_minimized(find_window_by_title("Genau"))
-                 and is_window_topmost(find_window_by_title("Genau"))),
-        description="Genau's HUD to be topmost in kino mode, stacked above the main player",
-    )
+    for command, mode, held in (("genau_activate", "genau", "1"),
+                                ("main_kino_activate", "kino", "0")):
+        s.write_dashboard_command(command)
+        s.wait_for_new_log(f"Switched to {mode} mode")
+        s.wait_until(
+            lambda held=held: s.config.main_player_paused_file.read_text(encoding="utf-8") == held,
+            description=f"Kino's video to be {'held' if held == '1' else 'playing'} in {mode} mode",
+        )
+        assert _stays_up_and_topmost(main_player_hwnd, seconds=1.0), (
+            f"the main player window left the screen switching to {mode} mode")
+        assert find_window_by_title("Genau") == 0, "a second window took the main slot"
 
 
-def test_fun_time_leaving_player_stays_up_long_enough_to_go_dark(
-    shared_integration_session: FunTimeIntegrationSession,
-):
-    """Minimizing freezes a window's Alt-Tab thumbnail — Windows stops drawing a
-    minimized window, so whatever it last painted is what the thumbnail keeps —
-    and the same switch is what tells the outgoing player to go black.  Minimize
-    before it has painted that and the thumbnail keeps the video frame it was
-    sitting on, which is the whole point of the blanking.  So the minimize is
-    held back (MAIN_BLANK_SETTLE_S); this measures that it really is.
-    """
-    s = shared_integration_session
-    s.write_dashboard_command("main_kino_activate")
-    s.wait_until(
-        lambda: not is_window_minimized(find_window_by_title("Main Player", exact=True)),
-        description="the main player restored, so the switch away from it has something to hold",
-    )
-
-    started = time.monotonic()
-    s.write_dashboard_command("genau_activate")
-    # Sampled rather than waited on: how LONG the main player stays up is the assertion, and
-    # a log line read at 200 ms cannot see a 250 ms window.
-    while time.monotonic() - started < COMMAND_BUDGET_S:
-        if is_window_minimized(find_window_by_title("Main Player", exact=True)):
-            break
-        time.sleep(0.01)
-    else:
-        raise AssertionError("the main player never minimized after switching to genau mode")
-    held = time.monotonic() - started
-
-    assert held >= MAIN_BLANK_SETTLE_S, (
-        f"the main player was minimized after {held:.3f}s, inside the "
-        f"{MAIN_BLANK_SETTLE_S}s it is given to paint its black"
-    )
-    s.write_dashboard_command("main_kino_activate")
-    s.wait_for_new_log("Switched to kino mode")
+def _stays_up_and_topmost(hwnd: int, *, seconds: float) -> bool:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if is_window_minimized(hwnd) or not is_window_topmost(hwnd):
+            return False
+        time.sleep(0.02)
+    return True
 
 
 def test_fun_time_landscape_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):
@@ -385,19 +329,20 @@ def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTime
     shared_integration_session.wait_for_new_log("Switched to kino mode")
 
 
-def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunTimeIntegrationSession):
+def test_fun_time_omnipause_pauses_genau_and_keeps_the_main_player_running(
+        shared_integration_session: FunTimeIntegrationSession):
     """Regression: omnipause must pause Genau, not close it.
 
     The old AHK HandleOmniPauseToggle never removed Genau's topmost
     flag.  When omnipause was ported to Python, an explicit
     set_topmost(Genau, False) was added by mistake, causing the
-    window to fall under other windows (appearing "closed").  Verify the
-    Genau process survives an omnipause round-trip while in genau
-    mode.
+    window to fall under other windows (appearing "closed").  Genau runs on
+    the Main Player's window now, so that is the process an omnipause
+    round-trip in genau mode must leave running.
     """
     s = shared_integration_session
-    rh_pid = s.read_genau_pid()
-    assert is_process_alive(rh_pid), "Genau should be alive before test"
+    rh_pid = s.read_child_pids()["main_player_pid"]
+    assert is_process_alive(rh_pid), "the Main Player should be alive before test"
 
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode")
@@ -409,10 +354,8 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
         description="Genau paused file to flip on",
     )
 
-    # Genau must still be running — omnipause should pause, not close.
     assert is_process_alive(rh_pid), (
-        "Genau process died during omnipause — "
-        "Esc should pause Genau, not close it"
+        "the Main Player died during omnipause — Esc should pause Genau, not close it"
     )
 
     s.write_dashboard_command("omnipause_toggle")

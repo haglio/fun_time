@@ -1,6 +1,6 @@
 """Integration: navigate the native satellite player through its file protocol.
 
-Drives a real, launched native satellite (genau's ``satellite`` package) purely
+Drives a real, launched native satellite (this repo's ``satellite`` package) purely
 through the command/paused/status file quartet — ``append_command`` in,
 ``read_satellite_status`` out — the exact channel fun_time's dispatch loop uses.
 Complements ``test_satellite_native_integration`` (which proves basic

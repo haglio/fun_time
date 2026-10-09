@@ -43,9 +43,7 @@ pytestmark = pytest.mark.skipif(
     reason="Fun Time integration tests require Windows",
 )
 
-# The windows a session that opens in kino mode puts on screen, by exact title.
-# Genau is deliberately absent: kino mode parks it, and a parked window is not a
-# window that failed to arrive.
+# The windows a session puts on screen, by exact title.
 SHOWN_TITLES = ("Fun Time", "Portrait AI Player", "Landscape AI Player", "Main Player")
 
 # What the orchestrator logs when the room has been banded and settled.

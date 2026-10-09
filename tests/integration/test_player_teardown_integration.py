@@ -2,7 +2,7 @@
 
 libmpv raises Windows structured exceptions from its Lua engine, and a host that
 has armed faulthandler -- pytest for this whole suite, and
-``app_support.logging_utils.enable_faulthandler`` for Genau and Origenerator --
+``app_support.logging_utils.enable_faulthandler`` for Origenerator --
 answers each one by dumping every thread's Python frames without the GIL.  mpv's
 teardown is exactly when python-mpv's event thread is exiting, so the walk can
 reach a thread state being freed and fault; nothing handles that, and the process

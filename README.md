@@ -426,7 +426,7 @@ A press on the video itself still does nothing: a satellite's paused state belon
 
 Minimizing the **dashboard** minimizes the whole room with it (`omniminimize`), and restoring it brings back exactly those windows (`omnirestore`) — one gesture for the session as a whole.
 
-For one player on its own, every player's HUD carries a **minimize bar**: last in each satellite's control band, and beside the mode buttons on the main console (the row that is the same in every mode, so it does not move as you flip). Every one of these windows is borderless — the video fills its slot, so none has a title bar to carry a minimize button — and this is the only affordance that parks one. The main console's button names the *slot*, so it reaches whichever player is showing there: Genau in Genau mode, and both in Kino mode, never the hidden slot-mate (minimizing an already-parked window is what drags it back into view). In the headset there is no minimize bar at all: its players are screens in the scene rather than windows, so there is nothing for one to park.
+For one player on its own, every player's HUD carries a **minimize bar**: last in each satellite's control band, and beside the mode buttons on the main console (the row that is the same in every mode, so it does not move as you flip). Every one of these windows is borderless — the video fills its slot, so none has a title bar to carry a minimize button — and this is the only affordance that parks one. The main console's button parks the Main Player's window, which Kino and Genau both run on. In the headset there is no minimize bar at all: its players are screens in the scene rather than windows, so there is nothing for one to park.
 
 The player keeps running under it — its lock, loop and playlist are untouched, and the press does not even move the active side, since a player you have just put away should not be the one a bare "lock" reaches. Three things bring it back: its own **taskbar button** (the panel went down with the window, so there is nothing left to press), a dashboard minimize + restore, and **leaving OmniPause** — resuming is the room coming back, so every window a minimize button parked returns to its slot, in its band, before the re-stack and the focus land.
 
@@ -581,7 +581,7 @@ Commands (the full set `main_player/controls.py` answers to). The verbs every pl
 - `SET_TCODE_ENABLED 0|1`
 - `SET_MAX_INTENSITY <0-100>` — how far the OSR2 may travel in a second; the main player shallows its script under it (see "Max intensity")
 - `SET_F_MODE 0|1` / `SET_ACTIVE 0|1` — state only the orchestrator holds and the main player cannot work out for itself; both drive what its HUD shows
-- `DISPLAY_ON` / `DISPLAY_OFF` — whether the main player owns the main slot's rect, which is not whether it is playing: the idle main-slot player is minimized rather than closed (it keeps its taskbar button), so in Genau mode the main player blanks instead of sitting on the frame it was paused on. The same pair Genau gets, for the same reason
+- `SHOW kino` / `SHOW genau` — which of Kino and Genau has the Main Player's window; the other keeps running out of sight. A mode switch sends it, and Genau's own verbs still arrive on Genau's channel
 - `QUIT`
 
 ### `main_player_paused.txt`
