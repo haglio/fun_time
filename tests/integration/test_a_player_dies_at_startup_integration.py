@@ -19,7 +19,7 @@ pytestmark = pytest.mark.skipif(
 
 WHAT_IT_SAID = "a clip folder that dies importing, on purpose"
 
-_THE_REAL_PACKAGE_BEHIND_IT = """import os
+_THE_REAL_PACKAGE_UNDER_IT = """import os
 import sys
 
 _here = os.path.dirname(os.path.abspath(__file__))
@@ -32,13 +32,13 @@ for _entry in sys.path:
 
 
 def _a_player_core_whose_clip_folder_dies_importing(root: Path) -> Path:
-    """A checkout whose player_core is the real one behind a clip_folder that
+    """A checkout whose player_core is the real one under a clip_folder that
     raises on import.  The Main Player imports that module as Genau's engine
     comes up; the satellites never do, and the room's check of the video engine
     reads the real loader -- so the one death is the Main Player's."""
     package = root / "a_checkout_whose_clip_folder_dies_importing" / "player_core"
     package.mkdir(parents=True)
-    (package / "__init__.py").write_text(_THE_REAL_PACKAGE_BEHIND_IT, encoding="utf-8")
+    (package / "__init__.py").write_text(_THE_REAL_PACKAGE_UNDER_IT, encoding="utf-8")
     (package / "clip_folder.py").write_text(
         f"raise ImportError({WHAT_IT_SAID!r})\n", encoding="utf-8")
     return package.parent

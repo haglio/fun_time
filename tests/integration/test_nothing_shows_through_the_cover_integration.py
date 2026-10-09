@@ -39,7 +39,6 @@ import pytest
 
 from fun_time.loading_reveal import LoadingReveal
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
-from fun_time.mode_plan import STARTUP_MAIN_MODE
 from fun_time.overlay_progress import PROGRESS_FILENAME
 from fun_time.win32 import is_window_topmost, show_own_window, wait_for_window_by_title
 from fun_time.windows_bridge_sequencer import (
@@ -196,7 +195,7 @@ def test_a_room_banded_under_a_cover_too_busy_to_answer_never_shows_through_it(t
         with _a_real_cover(tmp_path / PROGRESS_FILENAME) as cover:
             _sampling(watcher)
             with _unable_to_run(cover):
-                apply_topmost_bands(players, STARTUP_MAIN_MODE, beneath=cover)
+                apply_topmost_bands(players, beneath=cover)
         watcher.join(timeout=15.0)
 
         assert not watcher.too_long(), (

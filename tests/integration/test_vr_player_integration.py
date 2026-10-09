@@ -20,7 +20,6 @@ import sys
 import threading
 import time
 from pathlib import Path
-from types import SimpleNamespace
 
 import glfw
 import numpy as np
@@ -138,8 +137,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     renderer = SceneRenderer()
     contexts = SharedContexts(window)
     remembered = read_layout(config.paths.state_dir / LAYOUT_FILENAME)
-    main = vrp._MainUnit(manifest, vr, contexts, remembered=remembered,
-                         genau_role=SimpleNamespace(showing=False))
+    main = vrp._MainUnit(manifest, vr, contexts, remembered=remembered)
     satellites = [
         vrp._SatelliteUnit(side, manifest, contexts, vr=vr,
                            remembered=remembered.placements)
@@ -401,8 +399,7 @@ def test_the_main_player_plays_once_kino_mode_unpauses_it():
     window = hidden_gl_window("vr-play-test")
     glfw.make_context_current(window)
 
-    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered=Layout(),
-                         genau_role=SimpleNamespace(showing=False))
+    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered=Layout())
     stop = threading.Event()
     pump = threading.Thread(
         target=vrp._pump_channels, args=([main], stop, vrp.FramePerf(logger=vrp.logger)),
@@ -473,8 +470,7 @@ def test_the_main_player_marks_and_runs_an_ab_loop_in_the_headset():
     window = hidden_gl_window("vr-loop-test")
     glfw.make_context_current(window)
 
-    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered=Layout(),
-                         genau_role=SimpleNamespace(showing=False))
+    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered=Layout())
     stop = threading.Event()
     pump = threading.Thread(
         target=vrp._pump_channels, args=([main], stop, vrp.FramePerf(logger=vrp.logger)),
