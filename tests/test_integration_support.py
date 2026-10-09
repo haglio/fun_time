@@ -576,7 +576,8 @@ def test_a_sample_skips_the_clips_the_drive_cannot_serve_at_speed(monkeypatch, c
     )
 
     assert len(chosen) == 2 and "b.mp4" not in chosen
-    assert "skipped, not readable at speed: b.mp4" in capsys.readouterr().out
+    assert "skipped one not readable at speed" in capsys.readouterr().out
+    assert "b.mp4" not in capsys.readouterr().out
 
 
 def test_a_sample_fails_saying_so_when_too_few_clips_read_at_speed():
