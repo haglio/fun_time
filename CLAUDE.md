@@ -20,6 +20,8 @@ Integration tests — run on a hidden Win32 desktop so the real windows never to
 .\.venv\Scripts\python.exe -m tests.integration.hidden_desktop
 ```
 
+**A branch runs the integration tests that run what it changed, not the whole suite:** `... hidden_desktop --changed` (against `origin/main`, or name a base). It reads what the branch committed, edited and added, and runs the integration test files the coverage map says run those files, or the whole suite when the map cannot say, and it prints which and why. **The whole suite runs on `main` after each change ships**, by the main verifier (`tests/integration/main_verifier.py`, kept running by the "Fun Time main verifier" scheduled task): it moves the everyday checkout only to a commit that passed, measures the coverage map once a day, and pins a failure on the change that caused it, takes that change back out with a pull request of its own and starts a Claude Code session to fix it and ship it again. What it did is in the everyday checkout's `state/main_verifier.log` and `state/main_verifier_incidents.jsonl`.
+
 The runner creates the hidden desktop, sets `FUN_TIME_RUN_INTEGRATION=1`, and runs the whole suite invisibly (real HWNDs, off-screen, never foreground) and below normal priority, every process of it, so a run gives way to his live session instead of making the OSR2 falter; expect it to run slower while he is using the machine. The runner's machine-wide lock serializes concurrent agent runs — a second run queues instead of clobbering, so you don't hunt for a quiet window. Extra pytest args pass through. **Try a new check first with its file alone** (`... hidden_desktop -k <file stem>`, or the file's path): a run narrowed that way, or by `--repeat-changed`, goes ahead of full runs in the line until short runs have held it for 20 minutes while a full run waited.
 
 A run other sessions are waiting for is a formality, never the place a check is first tried: a failure there costs a whole run plus the wait in line, again for every retry, and holds up every session queued after it. So before a branch goes into the machine-wide run, every check it adds or changes has already passed in the quickest place that can run it — the unit suite for anything a fake can stand in for, and otherwise the whole file the check lives in (`... hidden_desktop -k <file stem>`), never the check by itself, because the tests beside it are what a full run puts in front of it, and a check that passes alone can fail once they have run first. Running the file only after a full run has failed spends the shared run on what one run of the file would have shown.
@@ -132,10 +134,11 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   good, and the next agent reading `git branch -r` for what is in flight has to
   sift the dead from the live.
 - **The `.git/agent-merge.lock` is retired here** — the GitHub queue serializes.
-- **Sync local checkouts by pulling.** `main` advances only on origin (via the
-  queue), so the primary checkout and worktrees update with
-  `git pull --ff-only origin main`; the running app self-updates the same way.
-  The primary is only ever fast-forwarded — never reset or merged-into.
+- **The everyday checkout is the main verifier's to move.** `main` advances
+  only on origin (via the queue). Worktrees update with `git rebase
+  origin/main`; the primary checkout moves only when the main verifier
+  fast-forwards it to a commit that passed the whole integration suite, so
+  never pull it, reset it or merge into it yourself.
 - **A red required check** (`.github/workflows/merge-gate.yml`) can't land.
 - **A PR sitting with green checks has stalled in one of two ways, and only
   `isInMergeQueue` tells them apart.** `mergeStateStatus` reads `CLEAN` and
@@ -189,14 +192,14 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   purpose. **Say nothing about what he does once he is finished with it** —
   quitting it leaves nothing running and nothing to put back, so "then launch
   Fun Time the usual way" only made him stop and ask what that step was for
-  (2026-09-18). Then on his word: PR → queue → `git -C <primary> pull --ff-only origin
-  main` → `python -m fun_time.branch_session --remove-shortcut` from your
+  (2026-09-18). Then on his word: PR → queue → `python -m fun_time.branch_session --remove-shortcut` from your
   worktree, **before** you tell him it is done (the worktree itself is his to
   retire, not yours — see the global law, which also forbids mentioning it).
   **Always take your shortcut back out.** The work is in Fun Time by then,
   so a file still offering to run it separately is clutter he has to reason
   about, and nothing else sweeps it until some other agent happens to write one.
-  Then tell him it is live the next time he opens Fun Time — not that it
+  Then tell him it reaches his Fun Time once the main verifier has passed it,
+  usually within the hour, and he sees it the next time he opens it — not that it
   "needs a restart", which he only has running while he is using it, unlike
   the broker's tray and Evolver. Only he may waive the launch —
   "just land it" is his call to make, never yours. **The shortcut is owed to him
