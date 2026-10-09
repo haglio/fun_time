@@ -159,7 +159,7 @@ class VideoThread:
             while not self._stop.is_set():
                 if drawn is not None:
                     if not self._finished_on_the_gpu(wait, mark, "picture"):
-                        self._stop.wait(PAINT_POLL_S)
+                        time.sleep(PAINT_POLL_S)
                         continue
                     slot, texture, width, height, video = drawn
                     self._relay.painted(
@@ -176,7 +176,7 @@ class VideoThread:
                     if gone is not None:
                         logger.warning("The %s video has drawn nothing for %.0fs while it played on",
                                        self._name, gone)
-                self._stop.wait(PAINT_POLL_S)
+                time.sleep(PAINT_POLL_S)
         finally:
             mark.close()
 
