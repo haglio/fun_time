@@ -55,6 +55,7 @@ class FakeBench:
         self.head_commit, self.commits, self.broken_from = head, commits, broken_from
         self.tests, self.flaky, self.stale_map = list(tests), flaky, stale_map
         self.advanced, self.recorded, self.taken_back, self.measured = [], [], [], []
+        self.fixing, self.events = [], []
 
     def head(self):
         return self.head_commit
@@ -64,6 +65,7 @@ class FakeBench:
         return self.commits[start:self.commits.index(head) + 1]
 
     def run(self, commit, tests=()):
+        self.events.append(("run", commit))
         broken = self.broken_from is not None and self.commits.index(commit) >= self.commits.index(self.broken_from)
         if self.flaky and tests:
             broken = False
@@ -75,7 +77,14 @@ class FakeBench:
 
     def take_back(self, commit, among, tests):
         self.taken_back.append((commit, list(among)))
-        return 77
+        return main_verifier.TakeBack(41, "Loop the row on the main player", 77)
+
+    def start_fix_session(self, taken, tests, log):
+        self.fixing.append((taken, list(tests), log))
+        return "812181fb"
+
+    def bring_the_libraries_up_to(self, commit):
+        self.events.append(("libraries", commit))
 
     def record(self, incident):
         self.recorded.append(incident)
@@ -103,17 +112,41 @@ def test_a_head_that_passes_moves_the_everyday_checkout_to_it(tmp_path):
     assert ledger.verified == "c3"
 
 
-def test_a_head_that_breaks_takes_the_change_back_and_records_what_needs_fixing(tmp_path):
+def test_a_head_that_breaks_takes_the_change_back_and_starts_a_session_to_fix_it(tmp_path):
     bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3")
     ledger = a_ledger(tmp_path, verified="a1")
 
     assert main_verifier.cycle(ledger, bench) == "broke main"
 
     assert bench.taken_back == [("c3", ["b2", "c3", "d4", "e5"])]
+    taken = main_verifier.TakeBack(41, "Loop the row on the main player", 77)
+    assert bench.fixing == [(taken, ["tests/integration/test_x.py::test_y"], WHOLE_RUN)]
     assert bench.advanced == []
     assert ledger.failed_head == "e5"
     assert bench.recorded == [{"kind": "broke main", "commit": "c3", "tests": ["tests/integration/test_x.py::test_y"],
-                               "log": WHOLE_RUN, "taken_back_by": 77}]
+                               "log": WHOLE_RUN, "taken_back_by": 77, "pull_request": 41,
+                               "fix_session": "812181fb"}]
+
+
+def test_a_fix_session_that_could_not_start_is_recorded_with_why(tmp_path):
+    class UnsignedBench(FakeBench):
+        def start_fix_session(self, taken, tests, log):
+            raise main_verifier.CommandFailed("the Claude command line is not signed in")
+
+    bench = UnsignedBench("c3", ["a1", "b2", "c3"], broken_from="c3")
+
+    assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "broke main"
+
+    assert bench.recorded[0]["taken_back_by"] == 77
+    assert bench.recorded[0]["fix_session_not_started"] == "the Claude command line is not signed in"
+
+
+def test_main_s_libraries_are_brought_up_to_a_head_before_it_is_run(tmp_path):
+    bench = FakeBench("c3", ["a1", "b2", "c3"])
+
+    main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench)
+
+    assert bench.events[:2] == [("libraries", "c3"), ("run", "c3")]
 
 
 def test_a_failure_that_passes_when_rerun_is_recorded_as_flaky_and_main_still_moves(tmp_path):
@@ -158,7 +191,8 @@ def test_taking_a_change_back_reverts_its_pull_requests_commits_newest_first_and
     })
     bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell)
 
-    assert bench.take_back("c3", ["b2", "c3", "d4"], ["tests/integration/test_x.py::test_y"]) == 77
+    assert bench.take_back("c3", ["b2", "c3", "d4"], ["tests/integration/test_x.py::test_y"]) == main_verifier.TakeBack(
+        41, "Loop the row on the main player", 77)
 
     reverts = [command for command, _ in shell.commands if command[:2] == ["git", "revert"]]
     assert reverts == [["git", "revert", "--no-edit", "d4", "c3"]]
@@ -402,3 +436,68 @@ def test_the_coverage_map_is_out_of_date_when_missing_or_a_day_old(tmp_path):
     a_day_ago = kept.stat().st_mtime - main_verifier.COVERAGE_MAP_LASTS.total_seconds()
     os.utime(kept, (a_day_ago, a_day_ago))
     assert bench.coverage_map_is_stale()
+
+
+def test_only_the_libraries_main_pins_newer_than_this_machine_has_are_installed(tmp_path):
+    pyproject = ('    "app-support @ git+https://github.com/haglio/app_support@v0.1.182",\n'
+                 '    "player-core @ git+https://github.com/haglio/player_core@v0.1.410",\n'
+                 '    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.159",\n')
+    shell = FakeShell({"c3:pyproject.toml": pyproject})
+    have = {"app-support": "0.1.183", "player-core": "0.1.408"}
+    primary = tmp_path / "fun_time"
+
+    main_verifier.MachineBench(primary=primary, shell=shell, installed=have.get).bring_the_libraries_up_to("c3")
+
+    installs = [command for command, _ in shell.commands if command[1:4] == ["-m", "pip", "install"]]
+    assert installs == [[str(primary / ".venv" / "Scripts" / "python.exe"), "-m", "pip", "install",
+                         "player-core @ git+https://github.com/haglio/player_core@v0.1.410",
+                         "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.159"]]
+
+
+def test_a_fix_session_starts_in_a_checkout_of_its_own_and_is_told_what_broke(tmp_path):
+    shell = FakeShell({"auth status": '{"loggedIn": true}',
+                       "--bg": "backgrounded \xb7 812181fb \xb7 Fix #41: Loop the row on the main player\n"})
+    primary = tmp_path / "fun_time"
+    bench = main_verifier.MachineBench(primary=primary, shell=shell, claude="claude.exe")
+    taken = main_verifier.TakeBack(41, "Loop the row on the main player", 77)
+
+    started = bench.start_fix_session(taken, ["tests/integration/test_x.py::test_y"], Path("C:/runs/d4.txt"))
+
+    assert started == "812181fb"
+    place = primary / ".claude" / "worktrees" / "fix-41"
+    assert (["git", "worktree", "add", "-B", "claude/fix-41", str(place), "origin/main"], primary) in shell.commands
+    assert (place / "state" / "genau_project_dirs.txt").read_text(encoding="utf-8") == ""
+    command, cwd = next((command, cwd) for command, cwd in shell.commands if "--bg" in command)
+    assert command[0] == "claude.exe" and cwd == place
+    assert command[command.index("--permission-mode") + 1] == "auto"
+    assert command[command.index("--name") + 1] == "Fix #41: Loop the row on the main player"
+    brief = command[-1]
+    for detail in ("#41", "Loop the row on the main player", "tests/integration/test_x.py::test_y", "#77",
+                   str(Path("C:/runs/d4.txt")), "claude/fix-41"):
+        assert detail in brief
+
+
+def test_no_fix_session_starts_while_claude_code_is_not_signed_in(tmp_path):
+    class SignedOutShell(FakeShell):
+        def __call__(self, command, cwd=None):
+            if command[1:] == ["auth", "status"]:
+                raise main_verifier.CommandFailed('claude.exe auth status: {"loggedIn": false}')
+            return super().__call__(command, cwd)
+
+    shell = SignedOutShell({})
+    bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell, claude="claude.exe")
+
+    with pytest.raises(main_verifier.CommandFailed, match="not signed in"):
+        bench.start_fix_session(main_verifier.TakeBack(41, "Loop the row on the main player", 77), [], Path("run.txt"))
+
+    assert not [command for command, _ in shell.commands if command[:3] == ["git", "worktree", "add"]]
+
+
+def test_fix_sessions_run_on_the_newest_claude_code_the_claude_app_keeps(tmp_path, monkeypatch):
+    kept = tmp_path / "Packages" / "Claude_pzs8sxrjxfjjc" / "LocalCache" / "Roaming" / "Claude" / "claude-code"
+    for version, folder in (("2.1.289", "e1f0154146bb"), ("2.1.293", "83cb0bd7fed4"), ("2.1.30", "0c0ffee0")):
+        (kept / version / folder).mkdir(parents=True)
+        (kept / version / folder / "claude.exe").write_bytes(b"")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+
+    assert main_verifier.claude_command() == str(kept / "2.1.293" / "83cb0bd7fed4" / "claude.exe")
