@@ -1,4 +1,4 @@
-"""What arrives in the Main Funestra's window, and what it is taken to mean.
+"""What arrives in a Funestra's window, and what it is taken to mean.
 
 The translation itself: which SDL event reaches the Funestra as a press, a
 release, a move or the window being closed -- and that a key reaches nothing,
@@ -30,6 +30,9 @@ class SpyFunestra:
 
     def motion(self, x, y, *, held, window) -> None:
         self.calls.append(("motion", x, y, held, window))
+
+    def leave(self) -> None:
+        self.calls.append(("leave",))
 
 
 def _input() -> tuple[Input, SpyFunestra]:
@@ -83,6 +86,13 @@ class TestTheMouse:
         _deal(window_input, SimpleNamespace(type=pygame.MOUSEMOTION, pos=(300, 200), buttons=(1, 0, 0)))
 
         assert funestra.calls == [("motion", 300, 200, True, WINDOW)]
+
+    def test_the_pointer_going_out_of_the_window_is_the_funestras_to_know(self):
+        window_input, funestra = _input()
+
+        _deal(window_input, SimpleNamespace(type=pygame.WINDOWLEAVE))
+
+        assert funestra.calls == [("leave",)]
 
     def test_a_move_with_nothing_held_is_a_hover(self):
         window_input, funestra = _input()
