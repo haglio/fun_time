@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 from player_core.console_hud import ModeHud
+from player_core.funestra import User
 
 from fun_time.genau_config import GenauSettings
 from main_player.genau import Genau, GenauChannels
@@ -106,6 +107,10 @@ class World:
     def status(self) -> dict[str, str]:
         lines = self.channels.status.read_text(encoding="utf-8").splitlines()
         return dict(line.split("=", 1) for line in lines if "=" in line)
+
+
+def test_genau_is_a_thing_a_funestra_runs(tmp_path):
+    assert isinstance(World(tmp_path).genau, User)
 
 
 class TestTheClipOnScreen:
