@@ -197,6 +197,45 @@ def test_stop_does_not_kill_a_recorded_pid_windows_recycled(session):
     assert killed == []
 
 
+class RunningOrchestrator:
+    def __init__(self, steps):
+        self.steps = steps
+
+    def poll(self):
+        return 1 if "terminate" in self.steps else None
+
+    def terminate(self):
+        self.steps.append("terminate")
+
+    def wait(self, timeout=None):
+        return 1
+
+    def kill(self):
+        self.steps.append("kill")
+
+
+def test_a_session_measured_for_coverage_quits_the_way_he_quits_before_anything_is_ended(session, monkeypatch):
+    steps: list[str] = []
+    monkeypatch.setenv("COVERAGE_PROCESS_START", "coveragerc")
+    session._proc = RunningOrchestrator(steps)
+    monkeypatch.setattr(session, "quit_gracefully", lambda timeout=None: steps.append("quit"))
+
+    session.stop()
+
+    assert steps[:1] == ["quit"]
+
+
+def test_a_session_nobody_measures_is_ended_at_once(session, monkeypatch):
+    steps: list[str] = []
+    monkeypatch.delenv("COVERAGE_PROCESS_START", raising=False)
+    session._proc = RunningOrchestrator(steps)
+    monkeypatch.setattr(session, "quit_gracefully", lambda timeout=None: steps.append("quit"))
+
+    session.stop()
+
+    assert steps == ["terminate"]
+
+
 def test_stop_survives_missing_bridge_pids(session):
     """A session that failed before writing bridge_pids.ini must still tear
     down without raising — and without trying to kill anything by PID."""

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import contextlib
 import json
 import os
 import random
@@ -362,6 +363,9 @@ class FunTimeIntegrationSession:
         )
 
     def stop(self) -> None:
+        if os.environ.get("COVERAGE_PROCESS_START") and self._proc and self._proc.poll() is None:
+            with contextlib.suppress(AssertionError, RuntimeError):
+                self.quit_gracefully()
         if self._proc and self._proc.poll() is None:
             self._proc.terminate()
             try:
