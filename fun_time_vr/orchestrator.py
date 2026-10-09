@@ -139,9 +139,9 @@ from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
     add_dispatch_file_handler,
     clear_last_sessions_leftovers,
-    come_back_to_the_mode_the_last_session_left,
     kill_recorded_child,
     let_go_of_a_kept_origenerator,
+    open_in_origenerator_mode,
     prepare_voice_control,
     see_the_hosted_app_out,
     start_hud_priming,
@@ -692,8 +692,9 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             # its bar reads.
             dashboard_enabled=True,
             hud_publisher=hud_publisher,
+            origenerator_showing=hosted is not None and hosted.showing,
         )
-        come_back_to_the_mode_the_last_session_left(dispatch_runner, progress=progress)
+        open_in_origenerator_mode(dispatch_runner, progress=progress)
         progress.advance("finalizing")  # the last line, after any wait under the cover
 
         # --- The reveal ---

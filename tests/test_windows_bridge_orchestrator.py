@@ -1150,6 +1150,36 @@ class TestLoadingScreenLifecycle:
 
         assert runner.call_args.kwargs["origenerator_already_open"] is already_open
 
+    @pytest.mark.parametrize("showing", [True, False])
+    def test_the_dispatch_loop_is_told_whether_the_hosted_app_was_showing_a_slideshow(
+        self, cfg_factory, tmp_path, showing,
+    ):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=replace(_fake_startup_result(),
+                                        origenerator_showing=showing)), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   return_value=fake_ahk_proc), \
+             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as runner, \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+
+            _a_session(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+                env=SessionEnvironment(integration=True, show_overlays=False),
+            )
+
+        assert runner.call_args.kwargs["origenerator_showing"] is showing
+
 
 class TestKeepingTheHostedApp:
     """A crossing parks Origenerator instead of closing it, because its boot is

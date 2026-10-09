@@ -15,7 +15,7 @@ from pathlib import Path
 
 from app_support.file_channel import consume_command_file, read_flag
 from player_core.file_channel import append_command
-from player_core.modes import NoticeLevel, SatellitesMode, read_mode
+from player_core.modes import NoticeLevel, read_mode
 from player_core.player_verbs import LOCK_OFF, LOCK_ON, play_file
 from player_core.playlist import PlaylistItem
 
@@ -251,6 +251,7 @@ class DispatchLoopRunner:
         rfb_slideshow: RfbSlideshow | None = None,
         sync_interval_ms: int = 200,
         origenerator_already_open: bool = False,
+        origenerator_showing: bool = False,
         secondary_rects: Callable[..., SecondaryMonitorRects] | None = None,
     ) -> None:
         self.config = config
@@ -306,7 +307,8 @@ class DispatchLoopRunner:
         # Latched: the hosted app runs for the whole session, so this is a few
         # reads at the start of one and nothing after.
         self._origenerator_is_up = origenerator_already_open
-        self._the_mode_the_last_session_left = self._the_mode_the_room_was_left_in()
+        self._opens_in_origenerator_mode = config.origenerator_enabled and (
+            origenerator_showing or self._the_room_was_left_in_origenerator_mode())
         # The Robot Hand and a funscript both feed the broker's one T-Code inlet,
         # so in kino mode something has to hand the device between them.
         self.arbiter = DeviceArbiter(
@@ -336,26 +338,21 @@ class DispatchLoopRunner:
             return state
         return replace(state, satellites_mode=KINO_MODE)
 
-    def _the_mode_the_room_was_left_in(self) -> SatellitesMode | None:
-        """The satellites' mode this session has to take up, or None.  Read before
-        anything is dispatched, so a switch later is where the room IS."""
-        if not self.config.origenerator_enabled:
-            return None
+    def _the_room_was_left_in_origenerator_mode(self) -> bool:
+        """Read before anything is dispatched, so a switch later is where the room IS."""
         left_in = read_shared_state(self.shared_state_file)
-        if left_in is None or not origenerator_shows(left_in.satellites_mode):
-            return None
-        return left_in.satellites_mode
+        return left_in is not None and origenerator_shows(left_in.satellites_mode)
 
     @property
-    def opens_in_the_mode_the_last_session_left(self) -> bool:
-        return self._the_mode_the_last_session_left is not None
+    def opens_in_origenerator_mode(self) -> bool:
+        return self._opens_in_origenerator_mode
 
-    def come_back_to_the_mode_the_last_session_left(self, *, wait_for_the_app) -> None:
+    def open_in_origenerator_mode(self, *, wait_for_the_app) -> None:
         """Through the switch's own command, while *wait_for_the_app* holds the room
         under its cover for that app, and given up on if it never answers."""
-        if self._the_mode_the_last_session_left is None:
+        if not self._opens_in_origenerator_mode:
             return
-        self._the_mode_the_last_session_left = None
+        self._opens_in_origenerator_mode = False
         if not wait_for_the_app(self._the_hosted_app_has_answered):
             logger.info("Origenerator did not finish starting, so the room opens in kino mode")
             left_in = read_shared_state(self.shared_state_file)

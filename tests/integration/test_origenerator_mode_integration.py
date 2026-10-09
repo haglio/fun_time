@@ -114,6 +114,7 @@ _STUB_MAIN = textwrap.dedent(
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--fun-time", action="store_true")
+    parser.add_argument("--showing", action="store_true")
     for flag in ("--x", "--y", "--width", "--height"):
         parser.add_argument(flag, type=int, default=0)
     parser.add_argument("--command-file")
@@ -130,6 +131,8 @@ _STUB_MAIN = textwrap.dedent(
     silent_until = 0.0
     state_dir = Path(__file__).resolve().parent.parent / "state"
     offer = state_dir / "fun_time_offer.txt"
+    showing = state_dir / "fun_time_showing.txt"
+    showing_a_slideshow = args.showing
     takeover = state_dir / "fun_time_takeover.json"
 
     user32 = ctypes.WinDLL("user32")
@@ -172,7 +175,7 @@ _STUB_MAIN = textwrap.dedent(
         return (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
 
     def answer_a_takeover():
-        global args, silent_until
+        global args, silent_until, showing_a_slideshow
         if booted or not takeover.exists():
             return
         try:
@@ -183,13 +186,18 @@ _STUB_MAIN = textwrap.dedent(
         if asked.get("pid") != os.getpid():
             return
         offer.unlink(missing_ok=True)
+        showing.unlink(missing_ok=True)
+        showing_a_slideshow = False
         args, _unused = parser.parse_known_args(asked["args"])
         silent_until = time.monotonic() + 60
         park_as_hosted()
 
     def offer_itself():
         state_dir.mkdir(parents=True, exist_ok=True)
-        offer.write_text(f"{os.getpid()} {this_process_created_at()}", encoding="utf-8")
+        offered = f"{os.getpid()} {this_process_created_at()}"
+        offer.write_text(offered, encoding="utf-8")
+        if showing_a_slideshow:
+            showing.write_text(offered, encoding="utf-8")
 
     def go_back_to_standalone():
         global booted
@@ -285,6 +293,8 @@ _A_START_THAT_WAITS_FOR_THE_APP_S = (
     _A_START_WITH_EVERY_CORE_BUSY_S + ORIGENERATOR_BOOT_BUDGET_S)
 # Every wait the two-session check makes, at its own budget: both starts and
 # both players' pictures in the second one.
+_A_TAKEOVER_AND_EVERY_WAIT_IT_MAKES_S = (
+    COMMAND_BUDGET_S + _A_START_WITH_EVERY_CORE_BUSY_S + 2 * COMMAND_BUDGET_S)
 _TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S = (
     _A_START_WITH_EVERY_CORE_BUSY_S + _A_START_THAT_WAITS_FOR_THE_APP_S
     + 2 * COMMAND_BUDGET_S)
@@ -621,6 +631,29 @@ def test_a_room_left_in_the_mode_opens_in_it():
         assert read_shared_state(state_file).satellites_mode == "origenerator"
     finally:
         second.stop()
+
+
+@pytest.mark.timeout(_A_TAKEOVER_AND_EVERY_WAIT_IT_MAKES_S)
+def test_an_origenerator_open_on_a_slideshow_is_taken_into_a_room_that_opens_in_its_mode():
+    temp_root = build_integration_temp_root()
+    stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
+    config_path = build_integration_config(temp_root)
+    _host_stub(config_path, stub_root)
+    open_app = subprocess.Popen(
+        [sys.executable, str(stub_root / "origenerator" / "__main__.py"), "--showing"],
+        cwd=str(stub_root))
+    session = FunTimeIntegrationSession(config_path)
+    try:
+        wait_for((stub_root / "state" / "fun_time_showing.txt").exists,
+                 desc="the open app to say it is showing a slideshow")
+        session.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S)
+
+        _wait_for_the_shows(session)
+        state_file = shared_state_path(session.config.paths.state_dir)
+        assert read_shared_state(state_file).satellites_mode == "origenerator"
+    finally:
+        session.stop()
+        kill_process_tree(open_app.pid)
 
 
 def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doubled():

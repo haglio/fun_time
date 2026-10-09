@@ -95,6 +95,7 @@ class StartupResult:
     origenerator_pid: int = 0
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
+    origenerator_showing: bool = False
     # Which player the main slot was revealed on — last session's, resumed.
     # Carried out because the orchestrator starts the players once the cover
     # is gone, and starts the mode's.
@@ -199,10 +200,12 @@ class _LaunchedChildren:
     rfb_hwnd: int = 0
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
+    origenerator_showing: bool = False
 
     def hosts(self, app: HostedApp) -> int:
         self.origenerator_already_open = app.already_open
         self.origenerator_taken_over = app.taken_over
+        self.origenerator_showing = app.showing
         if not app.taken_over:
             self.pids.append(app.pid)
         return app.pid
@@ -287,6 +290,7 @@ class _CoreSession:
     origenerator_pid: int
     origenerator_taken_over: bool
     origenerator_already_open: bool
+    origenerator_showing: bool
     # The main player's status file, dropped once phase 1 has spent last session's copy —
     # phase 4 holds the overlay on the new one appearing.
     main_player_status_file: Path
@@ -497,6 +501,7 @@ def _launch_core_media(
         origenerator_pid=origenerator_pid,
         origenerator_taken_over=launched.origenerator_taken_over,
         origenerator_already_open=launched.origenerator_already_open,
+        origenerator_showing=launched.origenerator_showing,
         main_player_status_file=main_player_status_file,
     )
 
@@ -736,6 +741,7 @@ def _run_startup_phases(
         origenerator_pid=core.origenerator_pid,
         origenerator_taken_over=core.origenerator_taken_over,
         origenerator_already_open=core.origenerator_already_open,
+        origenerator_showing=core.origenerator_showing,
         main_mode=core.main_mode,
         role_hwnds=role_hwnds,
         rfb_hwnd=rfb_hwnd,

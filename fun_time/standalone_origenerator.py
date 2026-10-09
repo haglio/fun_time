@@ -10,6 +10,7 @@ from .win32_process import get_process_creation_time
 
 OFFER_NAME = "fun_time_offer.txt"
 OFFER_STILL_STARTING = "starting"
+SHOWING_NAME = "fun_time_showing.txt"
 TAKEOVER_NAME = "fun_time_takeover.json"
 SESSION_NAME = "fun_time_session.txt"
 RELEASE = "RELEASE"
@@ -19,6 +20,7 @@ class OpenOrigenerator(NamedTuple):
     pid: int
     starting: bool
     checkout: Path
+    showing: bool
 
 
 def _state_dir(origenerator_dir: str | Path) -> Path:
@@ -42,7 +44,16 @@ def _offered_in(checkout: Path) -> OpenOrigenerator | None:
         return None
     if get_process_creation_time(pid) != created_at:
         return None
-    return OpenOrigenerator(pid, starting=bool(still), checkout=checkout)
+    return OpenOrigenerator(pid, starting=bool(still), checkout=checkout,
+                            showing=_shows_a_slideshow(checkout, pid, created_at))
+
+
+def _shows_a_slideshow(checkout: Path, pid: int, created_at: int) -> bool:
+    try:
+        mark = (_state_dir(checkout) / SHOWING_NAME).read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return mark.split() == [str(pid), str(created_at)]
 
 
 def take_it_over(origenerator_dir: str | Path, *, pid: int, args: list[str]) -> None:

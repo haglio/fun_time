@@ -31,6 +31,7 @@ class HostedApp(NamedTuple):
     pid: int
     already_open: bool
     taken_over: bool
+    showing: bool
 
 
 def _adopt_a_kept_origenerator(m: LaunchManifest) -> HostedApp | None:
@@ -43,7 +44,8 @@ def _adopt_a_kept_origenerator(m: LaunchManifest) -> HostedApp | None:
     write_flag_file(m.commands.origenerator_paused_file, False)
     Path(m.commands.origenerator_cmd_file).write_text("", encoding="utf-8")
     logger.info("Adopted the hosted Origenerator left running (pid %d)", kept.pid)
-    return HostedApp(kept.pid, already_open=True, taken_over=kept.taken_over)
+    return HostedApp(kept.pid, already_open=True, taken_over=kept.taken_over,
+                     showing=False)
 
 
 def _the_players_it_is_handed(m: LaunchManifest) -> dict[str, HandedPlayer]:
@@ -99,7 +101,8 @@ def bring_up_the_hosted_app(
         logger.info("Took over the Origenerator %s from %s (pid %d)",
                     "still starting" if open_app.starting else "already open",
                     open_app.checkout, open_app.pid)
-        return HostedApp(open_app.pid, already_open=not open_app.starting, taken_over=True)
+        return HostedApp(open_app.pid, already_open=not open_app.starting, taken_over=True,
+                         showing=open_app.showing)
     origenerator_pid = launch_origenerator(
         python_exe=(m.executables.origenerator_python_exe.strip()
                     or origenerator_interpreter(origenerator_dir)),
@@ -110,4 +113,4 @@ def bring_up_the_hosted_app(
         **contract,
     )
     logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
-    return HostedApp(origenerator_pid, already_open=False, taken_over=False)
+    return HostedApp(origenerator_pid, already_open=False, taken_over=False, showing=False)
