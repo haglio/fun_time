@@ -346,6 +346,60 @@ def test_a_straggler_left_unfiled_does_not_rename_its_band(tmp_path: Path):
     assert sections == {"big_batch/whole", "big_batch/cuts"}
 
 
+def test_an_excerpt_filed_beside_its_scene_leaves_their_stage_folder_unnamed(tmp_path: Path):
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    for index in range(3):
+        unsorted = _video(videos, f"big_batch/0 unsorted/scene{index}.mp4")
+        _sidecar(metadata, unsorted, library_root, f"Scene {index}", kind="full_length")
+    scene = _video(videos, "big_batch/3_good_to_go/processed/beta.mp4")
+    _sidecar(metadata, scene, library_root, "Beta Scene", kind="full_length")
+    cut = _video(videos, "big_batch/3_good_to_go/processed/beta portrait.mp4")
+    _sidecar(metadata, cut, library_root, "Beta Portrait", kind="excerpt")
+
+    sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
+
+    assert sections == {
+        "Scene 0": "big_batch", "Scene 1": "big_batch", "Scene 2": "big_batch",
+        "Beta Scene": "big_batch", "Beta Portrait": "big_batch · clips",
+    }
+
+
+def test_an_excerpt_filed_beside_its_scene_never_makes_the_unrecorded_scene_a_cut(tmp_path: Path):
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    for index in range(3):
+        unsorted = _video(videos, f"big_batch/0 unsorted/scene{index}.mp4")
+        _sidecar(metadata, unsorted, library_root, f"Scene {index}", kind="full_length")
+    scene = _video(videos, "big_batch/3_good_to_go/processed/beta.mp4")
+    _sidecar(metadata, scene, library_root, "Beta Scene")
+    cut = _video(videos, "big_batch/3_good_to_go/processed/beta portrait.mp4")
+    _sidecar(metadata, cut, library_root, "Beta Portrait", kind="excerpt")
+
+    sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
+
+    assert sections["Beta Scene"] == "big_batch"
+
+
+def test_unrecorded_cuts_outnumbering_the_whole_videos_reclassify_nothing(tmp_path: Path):
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    recorded = _video(videos, "big_batch/cuts/0 unsorted/excerpt.mp4")
+    _sidecar(metadata, recorded, library_root, "Excerpt", kind="excerpt")
+    for index in range(2):
+        unrecorded = _video(videos, f"big_batch/cuts/0 unsorted/unrecorded{index}.mp4")
+        _sidecar(metadata, unrecorded, library_root, f"Unrecorded {index}")
+    whole = _video(videos, "big_batch/whole/0 unsorted/beta.mp4")
+    _sidecar(metadata, whole, library_root, "Beta Scene", kind="full_length")
+
+    sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
+
+    assert sections == {
+        "Excerpt": "big_batch · clips",
+        "Unrecorded 0": "big_batch", "Unrecorded 1": "big_batch", "Beta Scene": "big_batch",
+    }
+
+
 def test_a_cut_with_no_record_still_goes_with_the_cuts_it_sits_among(tmp_path: Path):
     """A sidecar that never got the ``clip`` record must not send a cut to the
     whole videos — beside the very scene it was carved out of, which is the one

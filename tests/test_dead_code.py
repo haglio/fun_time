@@ -298,7 +298,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # rules, and the module that ran them its own reason for existing.
 # 6466 then: a window is put in front with the keyboard by app_support's helper
 # alone, so Fun Time's copy of it went, paragraphs and all.
-MAX_PROSE_LINES = 6466
+# 6439 on 2026-10-09: the browse names a band after the folder its cuts were
+# filed into only when each folder holds mostly its own band, and the two
+# paragraphs that described the older test went to tests naming its cases.
+MAX_PROSE_LINES = 6439
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
