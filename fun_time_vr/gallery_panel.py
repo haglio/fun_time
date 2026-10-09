@@ -12,7 +12,6 @@ from .thumbs import CONTROLLER_DEADZONE
 FRAME_FILENAME = "origenerator_frame.bin"
 INPUT_FILENAME = "origenerator_input.txt"
 
-# The words this module says by itself; the rest travel as the event's kind.
 HOSTED_RELEASE = "release"
 HOVER = "hover"
 SCROLL = "scroll"
