@@ -133,7 +133,7 @@ class TestSayingWhenTheAppHasGoneQuiet:
 
         said = panel.went_quiet(now=QUIET_S + 1)
 
-        assert said is not None and "1" in said
+        assert said is not None and "1 lines" in said, said
         assert panel.went_quiet(now=QUIET_S + 2) is None, "it said the same thing twice"
 
     def test_a_silence_with_nothing_waiting_is_not_a_silence(self, tmp_path):

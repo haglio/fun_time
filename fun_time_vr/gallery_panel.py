@@ -92,7 +92,7 @@ class GalleryPanel:
 
     def _lines_waiting(self) -> int:
         try:
-            return len(self._input.read_text(encoding="utf-8").split())
+            return len(self._input.read_text(encoding="utf-8").splitlines())
         except OSError:
             return 0
 
