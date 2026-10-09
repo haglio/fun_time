@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
+import coverage
 import pytest
 
 from tests.integration import main_verifier
+from tests.integration.coverage_map import CoverageMap
 
 
 def test_the_change_that_broke_main_is_the_first_one_the_failing_tests_fail_on():
@@ -48,10 +51,10 @@ WHOLE_RUN = Path("whole-run.txt")
 
 class FakeBench:
     def __init__(self, head, commits, broken_from=None, tests=("tests/integration/test_x.py::test_y",),
-                 flaky=False):
+                 flaky=False, stale_map=False):
         self.head_commit, self.commits, self.broken_from = head, commits, broken_from
-        self.tests, self.flaky = list(tests), flaky
-        self.advanced, self.recorded, self.taken_back = [], [], []
+        self.tests, self.flaky, self.stale_map = list(tests), flaky, stale_map
+        self.advanced, self.recorded, self.taken_back, self.measured = [], [], [], []
 
     def head(self):
         return self.head_commit
@@ -76,6 +79,12 @@ class FakeBench:
 
     def record(self, incident):
         self.recorded.append(incident)
+
+    def coverage_map_is_stale(self):
+        return self.stale_map
+
+    def measure_coverage(self, commit):
+        self.measured.append(commit)
 
 
 def a_ledger(tmp_path, verified=None):
@@ -337,3 +346,59 @@ def test_failures_that_cannot_be_run_again_by_name_take_nothing_back(tmp_path):
     assert main_verifier.cycle(ledger, bench) == "broken run"
 
     assert bench.taken_back == [] and ledger.failed_head == "c3"
+
+
+def test_coverage_is_measured_one_integration_test_file_at_a_time_and_kept_for_branches_to_pick_from(tmp_path):
+    primary = tmp_path / "fun_time"
+    checkout = primary / ".claude" / "worktrees" / "verifying-main"
+    for name in ("tests/integration/test_a.py", "tests/integration/test_b.py", "fun_time/x.py", "fun_time/y.py"):
+        (checkout / name).parent.mkdir(parents=True, exist_ok=True)
+        (checkout / name).write_text("", encoding="utf-8")
+    shell = FakeShell({"ls-files -- tests/integration/test_*.py": "tests/integration/test_a.py\ntests/integration/test_b.py\n",
+                       "ls-files -- *.py": "fun_time/x.py\nfun_time/y.py\ntests/integration/test_a.py\n"
+                                           "tests/integration/test_b.py\ntests/test_unit.py\n"})
+    runs = []
+
+    def suite(command, cwd, log, environment=None):
+        runs.append(command[3:])
+        rcfile = environment["COVERAGE_PROCESS_START"]
+        data_file = coverage.Coverage(config_file=rcfile).config.data_file
+        data = coverage.CoverageData(basename=data_file, suffix=True)
+        ran, only_found = ("x.py", "y.py") if command[3].endswith("test_a.py") else ("y.py", "x.py")
+        data.add_lines({str(checkout / "fun_time" / ran): [1]})
+        data.touch_files([str(checkout / "fun_time" / only_found)])
+        data.write()
+        log.write_text("", encoding="utf-8")
+        return 0
+
+    main_verifier.MachineBench(primary=primary, shell=shell, suite=suite).measure_coverage("c3")
+
+    assert runs == [["tests/integration/test_a.py", "--no-cov"], ["tests/integration/test_b.py", "--no-cov"]]
+    assert CoverageMap.load(primary / "state" / "integration_coverage_map.json") == CoverageMap(
+        commit="c3",
+        ran={"tests/integration/test_a.py": frozenset({"fun_time/x.py"}),
+             "tests/integration/test_b.py": frozenset({"fun_time/y.py"})})
+
+
+def test_a_head_that_passes_is_measured_for_coverage_once_the_map_is_out_of_date(tmp_path):
+    fresh, stale = FakeBench("c3", ["a1", "b2", "c3"]), FakeBench("c3", ["a1", "b2", "c3"], stale_map=True)
+    broken = FakeBench("c3", ["a1", "b2", "c3"], broken_from="c3", stale_map=True)
+
+    for bench in (fresh, stale, broken):
+        main_verifier.cycle(a_ledger(tmp_path / str(id(bench)), verified="a1"), bench)
+
+    assert (fresh.measured, stale.measured, broken.measured) == ([], ["c3"], [])
+
+
+def test_the_coverage_map_is_out_of_date_when_missing_or_a_day_old(tmp_path):
+    primary = tmp_path / "fun_time"
+    bench = main_verifier.MachineBench(primary=primary, shell=FakeShell({}))
+    kept = primary / "state" / "integration_coverage_map.json"
+
+    assert bench.coverage_map_is_stale()
+    kept.parent.mkdir(parents=True)
+    kept.write_text("{}", encoding="utf-8")
+    assert not bench.coverage_map_is_stale()
+    a_day_ago = kept.stat().st_mtime - main_verifier.COVERAGE_MAP_LASTS.total_seconds()
+    os.utime(kept, (a_day_ago, a_day_ago))
+    assert bench.coverage_map_is_stale()
