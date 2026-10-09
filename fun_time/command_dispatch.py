@@ -36,7 +36,7 @@ from player_core.robot_hand import FULL_INTENSITY
 from main_player.controls import longer_than_a_step
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
-from .bridge_records import BridgeConfig, WindowOp
+from .bridge_records import BridgeConfig, Op, WindowOp
 from .broker_control import HOLD_VERB, PARK_CMD, RESUME_CMD, write_broker_command
 from .content import load_web_providers
 from .crown import CROWNS, Crown
@@ -678,7 +678,7 @@ def _answered_without_making_a_player_active(
     command: str, state: BridgeState, config: BridgeConfig,
 ) -> tuple[BridgeState, list[WindowOp]] | None:
     if _about_genaus_clip(command) and main_player_displays(state.main_mode):
-        return state, []
+        return _ignored(state, _IN_KINO_MODE)
     minimize_ops = _minimize_ops(command)
     if minimize_ops is not None:
         return state, minimize_ops
@@ -1570,7 +1570,7 @@ def _forward_to_main_player_on_screen(verb: str, state: BridgeState, config: Bri
     """Loop recording, versions and length only make sense while the main player owns the
     main slot — kino mode, not genau."""
     if not main_player_displays(state.main_mode):
-        return state, []
+        return _ignored(state, _IN_GENAU_MODE)
     append_command(config.main_player_cmd_file, verb)
     if verb in _VERBS_THE_MAIN_PLAYER_ANSWERS and not config.vr_main_player:
         return state, [WindowOp(op="main_player_answers")]
@@ -1579,8 +1579,9 @@ def _forward_to_main_player_on_screen(verb: str, state: BridgeState, config: Bri
 
 def _forward_to_the_vr_main_player(verb: str, state: BridgeState, config: BridgeConfig,
                                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if config.vr_main_player:
-        append_command(config.main_player_cmd_file, verb)
+    if not config.vr_main_player:
+        return _ignored(state, _OUTSIDE_VR)
+    append_command(config.main_player_cmd_file, verb)
     return state, []
 
 
@@ -1719,7 +1720,7 @@ def _speed(main_player_cmd: str | None, genau_cmd: str | None, by_driver: bool,
     target = _speed_target(state, config, by_driver=by_driver)
     verb = genau_cmd if target is None else main_player_cmd
     if verb is None:
-        return state, []
+        return _ignored(state, _IN_GENAU_MODE)
     if target is None:
         append_command(config.genau_cmd_file, verb)
     elif target is Player.MAIN:
@@ -1742,7 +1743,7 @@ def _save_clip(state: BridgeState, _config: BridgeConfig,
     20 Hz tick, so the loop saves on a worker thread and flashes the result
     when it lands — the one notice that trails its keypress."""
     if state.main_mode == MAIN_GENAU_MODE:
-        return state, []
+        return _ignored(state, _IN_GENAU_MODE)
     return state, [WindowOp(op="save_clip")]
 
 
@@ -1756,9 +1757,17 @@ def _filter_the_shows_enhanced(state: BridgeState, config: BridgeConfig,
 
 def _words_for_a_show_that_is_not_up(state: BridgeState, _config: BridgeConfig,
                                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """The hosted app's phrases arrive in kino mode too (its vocabulary is
-    always in the grammar); there they reach nothing, a known dead end."""
-    return state, []
+    return _ignored(state, _IN_KINO_MODE)
+
+
+_IN_KINO_MODE = "in Kino mode"
+_IN_GENAU_MODE = "in Genau mode"
+_OUTSIDE_VR = "outside VR"
+_ON_THE_MAIN_PLAYER = "on the main player"
+
+
+def _ignored(state: BridgeState, why: str) -> tuple[BridgeState, list[WindowOp]]:
+    return state, [WindowOp(op=Op.IGNORED, key=why)]
 
 
 def _build_handlers() -> dict[str, Handler]:
@@ -1956,12 +1965,9 @@ def _parsed_numeric(command: str, state: BridgeState, config: BridgeConfig,
 
 def _parsed_unresolved_active(command: str, state: BridgeState, _config: BridgeConfig,
                               _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    """An ``active_*`` command the loop could not resolve — a satellite-only
-    action ("weird", a cycle) spoken while the main player holds the floor: a
-    designed dead end, dropped quietly rather than logged as a missing handler."""
     if not command.startswith("active_"):
         return None
-    return state, []
+    return _ignored(state, _ON_THE_MAIN_PLAYER)
 
 
 _PARSED_FORMS = (
