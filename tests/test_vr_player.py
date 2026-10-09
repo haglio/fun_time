@@ -232,11 +232,23 @@ SPOTS = {name: spot for kind in vars(player).values() if isinstance(kind, type)
 
 
 def _manifest_for_a_vr_session(tmp_path) -> LaunchManifest:
-    """A real manifest, written by the writer the VR launcher uses."""
+    """A real manifest, written by the writer the VR launcher uses, whose
+    channel files live in the test's own folder: the example config names a
+    `state` beside the checkout, which a session run from this checkout
+    writes into, and a command it left there reached a unit under test."""
     config = load_config(Path("fun_time_config.example.json"))
+    config = replace(config, paths=replace(config.paths, state_dir=tmp_path,
+                                           broker_state_dir=tmp_path))
     path = write_manifest_data(
         build_vr_manifest(config), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
     return LaunchManifest.read(path)
+
+
+def test_a_test_sessions_channel_files_live_in_its_own_folder(tmp_path):
+    manifest = _manifest_for_a_vr_session(tmp_path)
+
+    assert Path(manifest.commands.main_player_cmd_file).is_relative_to(tmp_path)
+    assert Path(manifest.commands.genau_cmd_file).is_relative_to(tmp_path)
 
 
 @pytest.fixture
