@@ -2,6 +2,8 @@
 one chord that ends a session."""
 from __future__ import annotations
 
+import re
+
 from fun_time.overlay_progress import CANCEL_FILENAME
 from fun_time.session_handoff import COVER_STALE_S, CROSSING_PROGRESS_NAME
 from tests.ahk_script import function_source, script_text, suspend_exempt_block
@@ -255,3 +257,9 @@ class TestWithTheHeadsetOff:
         body = function_source("ApplyHolds")
         assert "HeadsetOff && !EndingPhase" in body
         assert "ApplyHolds()" in function_source("EndTheSession")
+
+
+def test_the_keys_let_go_within_a_twentieth_of_a_second_of_a_pause():
+    interval = re.search(r"SetTimer\(ProcessAhkCommand, (\d+)\)", script_text())
+
+    assert interval is not None and int(interval.group(1)) <= 50

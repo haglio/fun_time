@@ -74,7 +74,7 @@ global StartupSuspended := true
 global PauseHold := false
 global HeadsetOff := false
 
-SetTimer(ProcessAhkCommand, 150)
+SetTimer(ProcessAhkCommand, 50)
 SetTimer(WatchStartup, 150)
 
 ; Liveness beacon: a periodic line proving the hotkey script's message pump is
