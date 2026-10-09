@@ -133,28 +133,29 @@ def source_folder(video: str, sources: str) -> str:
 
 
 def band_names(bands: dict[tuple[str, bool], list[tuple[str, ...]]]) -> dict[tuple[str, bool], str]:
-    """What to call each (folder, is-clip) band — its own folder where it has one.
-
-    A folder whose cuts and whole videos have been filed into two folders of
-    their own is named after them, so the header and Explorer read the same
-    words.  That is recognized by each band having a *dominant* second folder and
-    the two differing: where the split is the sidecar's alone the two bands share
-    their stage folders, and where a folder holds only whole videos there is no
-    second band to differ from — in both of those the folder keeps its own name
-    and the cuts, if any, take the suffix.
-
-    Dominant rather than unanimous, so one straggler stranded by a move (a
-    file the running session had open) cannot drag a band's name back.
-    """
     names = {}
     for (folder, is_clip), paths in bands.items():
-        mate = bands.get((folder, not is_clip))
-        mine, theirs = _dominant_subfolder(paths), _dominant_subfolder(mate or [])
-        if mine and theirs and mine != theirs:
+        mine = _own_folder(paths, bands.get((folder, not is_clip), []))
+        if mine:
             names[(folder, is_clip)] = f"{folder}/{mine}"
         else:
             names[(folder, is_clip)] = folder + CLIPS_SUFFIX if is_clip else folder
     return names
+
+
+def _own_folder(band: list[tuple[str, ...]], mate: list[tuple[str, ...]]) -> str:
+    mine, theirs = _dominant_subfolder(band), _dominant_subfolder(mate)
+    if not mine or not theirs or mine == theirs:
+        return ""
+    return mine if _holds_mostly(mine, band, mate) and _holds_mostly(theirs, mate, band) else ""
+
+
+def _holds_mostly(subfolder: str, band: list[tuple[str, ...]], mate: list[tuple[str, ...]]) -> bool:
+    return _count_under(subfolder, band) > _count_under(subfolder, mate)
+
+
+def _count_under(subfolder: str, paths: list[tuple[str, ...]]) -> int:
+    return sum(1 for parts in paths if len(parts) > 1 and parts[1] == subfolder)
 
 
 def _dominant_subfolder(paths: list[tuple[str, ...]]) -> str:
@@ -168,26 +169,8 @@ def _dominant_subfolder(paths: list[tuple[str, ...]]) -> str:
 
 
 def cut_folders(
-    recorded: list[tuple[str, ...]], others: list[tuple[str, ...]]
+    recorded_excerpts: list[tuple[str, ...]], everything_else: list[tuple[str, ...]]
 ) -> dict[str, str]:
-    """Which folder each source folder files its excerpts into, where it has one.
-
-    *recorded* holds the library paths of the videos Evolver has marked as
-    excerpts, *others* the paths of everything else.  A source folder earns an
-    entry only when its cuts have a dominant second folder, the rest of it has
-    one too, and the two differ — which is the same test :func:`band_names`
-    already names a band by, and for the same reason: two sets under one folder
-    that share their sub-folders are separated by the sidecar alone, and the
-    sub-folders they share are the pipeline's stages.
-
-    So a folder is absent from this unless its librarian has drawn the line on
-    disk, and the one recorded cut in a stage folder full of whole videos can
-    never turn that stage folder into a cuts folder.  Dominance is also what
-    bounds the fallback: unrecorded cuts count towards *others*, so a folder
-    where they came to outnumber its whole videos would stop qualifying and be
-    left as it was — the reading that changes nothing, which is the right way
-    for a folder this can no longer read to fail.
-    """
     def by_source(paths: list[tuple[str, ...]]) -> dict[str, list[tuple[str, ...]]]:
         grouped: dict[str, list[tuple[str, ...]]] = {}
         for path in paths:
@@ -195,11 +178,11 @@ def cut_folders(
                 grouped.setdefault(path[0], []).append(path)
         return grouped
 
-    cuts, rest = by_source(recorded), by_source(others)
+    cuts, rest = by_source(recorded_excerpts), by_source(everything_else)
     folders = {}
     for folder, paths in cuts.items():
-        mine, theirs = _dominant_subfolder(paths), _dominant_subfolder(rest.get(folder, []))
-        if mine and theirs and mine != theirs:
+        mine = _own_folder(paths, rest.get(folder, []))
+        if mine:
             folders[folder] = mine
     return folders
 

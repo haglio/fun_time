@@ -286,9 +286,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6605 on 2026-10-08: Genau runs on the Main Funestra, so its window's launch,
 # the main-slot handover and the pairing of two windows on one rect went, with
 # their paragraphs.
-# 6525 on 2026-10-09: two docstrings in vr_runtime that only said their function's
-# name again went, more than paying for the line the sound devices' module added.
-MAX_PROSE_LINES = 6525
+# 6498 on 2026-10-09: the browse names a band after the folder its cuts were
+# filed into only when each folder holds mostly its own band, and the two
+# paragraphs that described the older test went to tests naming its cases.
+MAX_PROSE_LINES = 6498
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
