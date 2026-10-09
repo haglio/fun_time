@@ -460,6 +460,16 @@ def _metadata_root(manifest) -> Path | None:
     return Path(raw) if raw else None
 
 
+def main_video(contexts, perf=None) -> VideoThread:
+    # Muted at birth: the headset's sink cannot be trusted until the
+    # compositor is presenting (see _MainUnit.route_audio).
+    return VideoThread(
+        contexts,
+        lambda: MpvRenderPlayer(contexts.get_proc_address, muted=True, loop_file=True),
+        MAIN_VIDEO_CAP_PX, name="main-video", perf=perf,
+    )
+
+
 class _MainUnit(_VideoUnit):
     screen_name = MAIN  # NOT `screen`, which every unit uses for its _HangingScreen
     SPOTS = {MAIN: Placement(0.0, 0.0, MAIN_WIDTH_DEG)}  # level and straight ahead
@@ -468,15 +478,8 @@ class _MainUnit(_VideoUnit):
         self, manifest: LaunchManifest, vr: VrSettings, contexts, *,
         remembered: Layout, notices=None, perf=None,
     ) -> None:
-        # Muted at birth: the headset's sink cannot be trusted until the
-        # compositor is presenting (see route_audio).
         super().__init__(
-            VideoThread(
-                contexts,
-                lambda: MpvRenderPlayer(
-                    contexts.get_proc_address, muted=True, loop_file=True),
-                MAIN_VIDEO_CAP_PX, name="main-video", perf=perf,
-            ),
+            main_video(contexts, perf),
             remembered.placements.get(MAIN, self.SPOTS[MAIN]),
         )
         commands = manifest.commands
