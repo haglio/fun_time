@@ -107,7 +107,7 @@ from .satellites_mode import (
     origenerator_shows,
 )
 from .shared_state import BridgeState, SatelliteState
-from .voice_commands import ORIGENERATOR_PHRASES
+from .voice_commands import FAVORITES_PHRASE, ORIGENERATOR_PHRASES, say_command
 from .vr_videos import shapes_verb
 from .watch_stats import record_watch_event, watch_stats_path
 
@@ -909,6 +909,8 @@ _FMODE_COMMANDS: dict[str, tuple[tuple[Player, ...], bool | None]] = {
     "landscape_fmode": ((Player.LANDSCAPE,), None),
     "landscape_fmode_on": ((Player.LANDSCAPE,), True),
     "landscape_fmode_off": ((Player.LANDSCAPE,), False),
+    **{say_command(player.label, FAVORITES_PHRASE): ((player,), None)
+       for player in Player.SATELLITES},
 }
 
 _PLAYER_NOTICE_SOURCE = {
@@ -1338,7 +1340,7 @@ def _said_to_each_side(command: str) -> tuple[str, ...]:
 # knows which shelves its tree has and which detail parts have detectors.
 _ORIGENERATOR_SPEECH: dict[str, tuple[str, str]] = {
     **{
-        f"{side}_say_{phrase.replace(' ', '_')}": (side, phrase)
+        say_command(side, phrase): (side, phrase)
         for side in ("portrait", "landscape")
         for phrase in ORIGENERATOR_PHRASES
     },

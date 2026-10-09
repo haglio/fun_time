@@ -36,7 +36,13 @@ from shared_ui.palette import (
 )
 
 from fun_time.filter_vocab import display_forms, set_commands_for_scope
-from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS, friendly_voice
+from fun_time.voice_commands import (
+    FAVORITES_PHRASE,
+    ORIGENERATOR_PHRASES,
+    VOICE_COMMANDS,
+    friendly_voice,
+    say_command,
+)
 
 
 @dataclass(frozen=True)
@@ -181,8 +187,8 @@ _SECTIONS: tuple[_Section, ...] = (
             # Origenerator.
             _Row(
                 "Speak to a hosted Origenerator show — the side, then its own "
-                "words: a shelf to play (\"portrait favorites\", "
-                "\"landscape experiments\"), the show's controls "
+                "words: a shelf to play (\"landscape experiments\", "
+                "\"portrait requests\"), the show's controls "
                 "(\"landscape play slideshow\", \"portrait stop slideshow\"), "
                 "a targeted fix (\"portrait fix teeth\"), \"genau\" to "
                 "animate the picture as a Genau clip, or \"enhanced only\" to "
@@ -191,11 +197,11 @@ _SECTIONS: tuple[_Section, ...] = (
                 "show too",
                 (),
                 tuple(
-                    f"{side}_say_{phrase.replace(' ', '_')}"
+                    say_command(side, phrase)
                     for side in ("portrait", "landscape")
                     for phrase in ORIGENERATOR_PHRASES
                 ),
-                voice_display=("landscape favorites", "portrait fix teeth"),
+                voice_display=("landscape experiments", "portrait fix teeth"),
             ),
             _Row(
                 "Toggle F-Mode on every player at once — spoken it needs the "
@@ -555,7 +561,8 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Drop the filter — keep the order and everything else", (), _sided("no_filter")),
             _Row("Latest — reload newest-first", (), _sided("latest")),
             _Row("Shuffle — reshuffle (cancels Latest; keeps the filter)", (), _sided("shuffle")),
-            _Row("F-Mode — browse only the favorites", (), _sided("fmode", "fmode_on", "fmode_off")),
+            _Row("F-Mode — browse only the favorites", (), _sided("fmode", "fmode_on", "fmode_off"),
+                 literal_voice=tuple(f"{side} {FAVORITES_PHRASE}" for side in ("portrait", "landscape"))),
             _Row(
                 "Playback speed up / down — this player alone; when the main "
                 "player's rate changes, both take it",
