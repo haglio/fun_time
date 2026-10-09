@@ -432,8 +432,8 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row(
                 "Clip navigation: \"compilation\" plays the clip's compilation "
                 "in order and \"end compilation\" leaves it for the length mode "
-                "you were in; \"full video\" jumps to its source scene; \"money "
-                "jump\" returns to the clip",
+                "you were in; \"full video\" plays the full scene the clip came "
+                "from, and the clip jump goes back to the clip",
                 (),
                 ("main_player_compilation", "main_player_end_compilation", "main_player_full_vid",
                  "main_player_clip_jump"),

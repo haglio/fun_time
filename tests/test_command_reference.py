@@ -588,6 +588,13 @@ def test_offset_voice_on_genau_backslash_row():
     assert offset_rows and "offset" in offset_rows[0].voice
 
 
+def test_the_clip_navigation_row_quotes_only_what_voice_answers():
+    row = next(r for r in _all_rows() if "main_player_clip_jump" in r.commands)
+    spoken = {phrase.lower() for phrase in VOICE_COMMANDS} | set(row.voice)
+
+    assert set(re.findall(r'"([^"]+)"', row.description)) <= spoken
+
+
 def test_corrected_descriptions():
     """Rows say what the key does to the room, not just what it is called."""
     descs = {r.description for r in _all_rows()}
