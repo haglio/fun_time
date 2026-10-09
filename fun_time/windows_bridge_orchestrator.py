@@ -899,12 +899,12 @@ ORIGENERATOR_BOOT_BUDGET_S = 120.0
 ORIGENERATOR_BOOT_POLL_S = 0.5
 
 
-def come_back_to_the_mode_the_last_session_left(
+def open_in_origenerator_mode(
     runner: DispatchLoopRunner,
     *,
     progress: ProgressReporter,
 ) -> None:
-    if not runner.opens_in_the_mode_the_last_session_left:
+    if not runner.opens_in_origenerator_mode:
         return
     started = time.monotonic()
 
@@ -919,7 +919,7 @@ def come_back_to_the_mode_the_last_session_left(
         return True
 
     progress.announce(COMING_BACK_TO_ORIGENERATOR_MODE)
-    runner.come_back_to_the_mode_the_last_session_left(wait_for_the_app=wait_for_the_app)
+    runner.open_in_origenerator_mode(wait_for_the_app=wait_for_the_app)
 
 
 def _build_the_dispatch_loop(
@@ -969,6 +969,7 @@ def _build_the_dispatch_loop(
         rfb_shortcut=rfb_shortcut,
         rfb_slideshow=rfb_slideshow_on(result.rfb_hwnd) if result.rfb_hwnd else None,
         origenerator_already_open=result.origenerator_already_open,
+        origenerator_showing=result.origenerator_showing,
         secondary_rects=secondary_rects(manifest),
     )
 
@@ -1247,16 +1248,16 @@ def run_session(
             hud_publisher=hud_publisher,
             env=env,
         )
-        come_back_to_the_mode = partial(
-            come_back_to_the_mode_the_last_session_left, dispatch_runner, progress=progress)
+        take_up_origenerator_mode = partial(
+            open_in_origenerator_mode, dispatch_runner, progress=progress)
 
         # The sequencer already positioned all windows in Phase 4 (the reveal).
         if env.show_overlays:
             _reveal_the_room(result, manifest=manifest, cover=cover,
                              hud_publisher=hud_publisher, hud_primed=hud_primed,
-                             before_the_cover_goes=come_back_to_the_mode)
+                             before_the_cover_goes=take_up_origenerator_mode)
         else:
-            come_back_to_the_mode()
+            take_up_origenerator_mode()
 
         # The session is up and its windows are placed.  Writing this file records
         # the children for teardown and, by appearing, hands the keyboard over: the

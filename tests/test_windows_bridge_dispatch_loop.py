@@ -3215,7 +3215,7 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
         assert read_shared_state(state_file).origenerator_ready is True
 
 
-class TestComingBackToTheModeTheLastSessionLeft:
+class TestOpeningInOrigeneratorMode:
     """Startup hands the loop the wait under the room's cover, and the loop takes
     the mode up through the switch's own command once the hosted app answers."""
 
@@ -3229,7 +3229,17 @@ class TestComingBackToTheModeTheLastSessionLeft:
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
 
-        runner.come_back_to_the_mode_the_last_session_left(
+        runner.open_in_origenerator_mode(
+            wait_for_the_app=self._the_app_answers)
+
+        assert runner.state.satellites_mode == "origenerator"
+        assert "OPEN_SHOWS" in (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8")
+
+    def test_a_room_that_took_over_an_app_showing_a_slideshow_enters_its_mode(self, tmp_path):
+        runner = make_runner(tmp_path, config=_hosting(tmp_path),
+                             origenerator_already_open=True, origenerator_showing=True)
+
+        runner.open_in_origenerator_mode(
             wait_for_the_app=self._the_app_answers)
 
         assert runner.state.satellites_mode == "origenerator"
@@ -3244,7 +3254,7 @@ class TestComingBackToTheModeTheLastSessionLeft:
             waits.append(True)
             return has_answered()
 
-        runner.come_back_to_the_mode_the_last_session_left(wait_for_the_app=wait_for_the_app)
+        runner.open_in_origenerator_mode(wait_for_the_app=wait_for_the_app)
 
         assert not waits, "an ordinary room was held under its cover for the hosted app"
         assert runner.state.satellites_mode == "kino"
@@ -3258,7 +3268,7 @@ class TestComingBackToTheModeTheLastSessionLeft:
         write_shared_state(state_file, BridgeState(satellites_mode="origenerator"))
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
 
-        runner.come_back_to_the_mode_the_last_session_left(wait_for_the_app=lambda _: False)
+        runner.open_in_origenerator_mode(wait_for_the_app=lambda _: False)
         assert read_shared_state(state_file).satellites_mode == "kino"
 
         _the_hosted_app_answers(tmp_path)
@@ -3274,11 +3284,11 @@ class TestComingBackToTheModeTheLastSessionLeft:
                            BridgeState(satellites_mode="origenerator"))
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
-        runner.come_back_to_the_mode_the_last_session_left(
+        runner.open_in_origenerator_mode(
             wait_for_the_app=self._the_app_answers)
         sent = (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8")
 
-        runner.come_back_to_the_mode_the_last_session_left(
+        runner.open_in_origenerator_mode(
             wait_for_the_app=self._the_app_answers)
 
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == sent

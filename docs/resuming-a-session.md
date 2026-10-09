@@ -99,6 +99,14 @@ on. An Origenerator that was already open when the session began — one he open
 himself and the session took over, or one a crossing kept — has no boot to wait
 out, so its mode is there as the cover lifts.
 
+A room also opens in that mode, whatever mode the last one was left in, when the
+Origenerator it takes over is showing a slideshow: he was watching it, so the room
+comes up with that show on the satellite of its shape and the other side on its
+library, as the mode always opens. The app holds the show through the takeover
+and plays it there when the mode's shows are asked for. It says it is showing one
+beside its offer, in `fun_time_showing.txt`, naming its own process the way the
+offer does, so the mark of an app that has since closed is never believed.
+
 Coming back to the mode means putting back what the mode took. While the hosted app
 has a satellite, that player's playlist file holds the app's pictures and the
 session's own list waits beside it (`fun_time.player_handover`). A session quit

@@ -306,12 +306,33 @@ class TestOrigeneratorInVr:
 
         assert OPEN_SHOWS in verbs, "the headset's room opened in kino mode"
 
+    def test_a_room_that_took_over_an_app_showing_a_slideshow_asks_for_the_shows_as_it_opens(
+            self, hosted, tmp_path):
+        hosted.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        manifest = LaunchManifest.read(
+            write_manifest_data(build_vr_manifest(hosted), tmp_path / "launch.ini"))
+        Path(manifest.commands.origenerator_status_file).write_text(
+            "paused = 0\n", encoding="utf-8")
+        verbs: list[str] = []
+
+        with patch("fun_time.runtime_flow.append_command",
+                   side_effect=lambda _path, verb: verbs.append(verb)):
+            _end_a_vr_session(
+                orchestrator, hosted, ended_by=lambda *_a, **_k: "asked",
+                bring_up_the_hosted_app=MagicMock(return_value=HostedApp(
+                    303, already_open=True, taken_over=True, showing=True)),
+                resume_playlists=MagicMock(return_value=True),
+                DispatchLoopRunner=orchestrator.DispatchLoopRunner,
+            )
+
+        assert OPEN_SHOWS in verbs, "the headset's room opened in kino mode"
+
     def test_the_wait_is_named_on_the_cover_before_the_line_that_fills_the_bar(self):
         """Put after it, the wait read as a step past "Finalizing..." with the
         bar already full."""
         calls = _call_lines_in_run_vr_bridge()
 
-        assert (calls["come_back_to_the_mode_the_last_session_left"]
+        assert (calls["open_in_origenerator_mode"]
                 < calls["progress.advance"])
 
     def test_the_mode_is_taken_up_before_the_room_is_shown(self):
@@ -319,7 +340,7 @@ class TestOrigeneratorInVr:
         rearrange both players under a room he is already using."""
         calls = _call_lines_in_run_vr_bridge()
 
-        assert (calls["come_back_to_the_mode_the_last_session_left"]
+        assert (calls["open_in_origenerator_mode"]
                 < calls["progress.finish"])
 
 
@@ -1794,7 +1815,8 @@ class TestOpeningAVrSession:
             orchestrator, config, ended_by=_asked_then_esc(config),
             _wait_for_the_headset_hold=MagicMock(return_value=True),
             bring_up_the_hosted_app=MagicMock(
-                return_value=HostedApp(6060, already_open=True, taken_over=False)),
+                return_value=HostedApp(6060, already_open=True, taken_over=False,
+                                       showing=False)),
             see_the_hosted_app_out=MagicMock(
                 side_effect=lambda *a, **kw: parked.append(kw["keep"]) or True))
 
