@@ -63,7 +63,7 @@ class TestWhatTheFunestraIsHanded:
                               if isinstance(n, ast.Call) and _said(n.func) == "partial"
                               and _said(n.args[0]) == "Kino"))
 
-        assert given["user"].startswith("partial(Kino,")
+        assert given["users"].startswith("_users(args, kino=partial(Kino,")
         assert kino["source"] == "source"
         assert kino["memory"] == "memory"
         assert kino["remembered"] == "remembered"
@@ -81,6 +81,46 @@ class TestWhatTheFunestraIsHanded:
         loop = next(n for n in ast.walk(_function("_run")) if isinstance(n, ast.While))
 
         assert _call(loop, "window_input.deal").lineno < _call(loop, "funestra.tick").lineno
+
+
+class TestGenauRunsOnItToo:
+    """Beside Kino, on the files Fun Time named: the window's own clips folder and
+    drive file, the audio companion's address, and the OSR2's inlet."""
+
+    def test_it_is_built_from_the_flags_fun_time_passes(self):
+        given = _keywords(_call(_function("_genau"), "Genau"))
+        channels = _keywords(_call(_function("_genau"), "GenauChannels"))
+
+        assert given["clips_folder"] == "args.clips_dir"
+        assert given["settings"] == "GenauSettings.read(args.genau_config)"
+        assert given["notifier"] == "GenauNotifier(args.notify_host, args.notify_port)"
+        assert given["tcode_sink"] == "UdpTCodeSink(host=args.tcode_host, port=args.tcode_port)"
+        assert channels == {"command": "args.genau_command_file", "paused": "args.genau_paused_file",
+                            "status": "args.genau_status_file", "drive": "args.drive_file"}
+
+    def test_a_launch_naming_no_genau_files_runs_kino_alone(self):
+        users = app._users(SimpleNamespace(genau_command_file=None), kino="kino")
+
+        assert users == {"kino": "kino"}
+
+    def test_a_launch_naming_them_puts_genau_beside_kino(self):
+        args = SimpleNamespace(
+            genau_command_file=Path("C:/example/state/genau_cmd.txt"),
+            genau_paused_file=Path("C:/example/state/genau_paused.txt"),
+            genau_status_file=Path("C:/example/state/genau_status.txt"),
+            drive_file=Path("C:/example/state/genau_drive.txt"),
+        )
+
+        users = app._users(args, kino="kino")
+
+        assert list(users) == ["kino", "genau"]
+        assert callable(users["genau"])
+
+    def test_the_process_runs_ahead_of_background_work_before_the_window_opens(self):
+        main = _function("main")
+
+        assert (_call(main, "run_ahead_of_background_work").lineno
+                < _call(main, "_run").lineno)
 
 
 class TestAWindowFunTimeResizes:

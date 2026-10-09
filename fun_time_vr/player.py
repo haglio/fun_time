@@ -80,6 +80,7 @@ from fun_time.dashboard_actions import (
 )
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_path, notice
+from fun_time.genau_config import GenauSettings
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item
 from fun_time.player_status import read_genau_status, read_main_player_status
@@ -127,7 +128,6 @@ from .furniture import (
     paint_row,
 )
 from .genau_role import GenauRole, run_ticks
-from .genau_settings import GenauSettings
 from .headset_wear import HeadsetWear
 from .layout import (
     BANNER,

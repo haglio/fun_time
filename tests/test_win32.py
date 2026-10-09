@@ -10,7 +10,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from unittest.mock import call, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -35,6 +35,7 @@ from fun_time.win32 import (
     move_window,
     place_beneath,
     restore_window,
+    run_ahead_of_background_work,
     set_always_on_top,
     window_answers,
     window_exists,
@@ -1153,3 +1154,29 @@ class TestWhatHeIsUsing:
             user32.GetLastInputInfo.side_effect = last_input
             kernel32.GetTickCount.return_value = 1_000
             assert win32.seconds_since_input() == 2.0
+
+
+class TestAheadOfBackgroundWork:
+    """The Main Player drives the OSR2 with the Robot Hand, so it asks Windows to
+    run it ahead of background work; a refusal is said with Windows' reason and
+    the player carries on."""
+
+    def test_the_process_is_put_above_normal_priority(self):
+        kernel32 = MagicMock()
+        kernel32.SetPriorityClass.return_value = 1
+
+        run_ahead_of_background_work(kernel32)
+
+        (handle, priority), _kwargs = kernel32.SetPriorityClass.call_args
+        assert (handle.value, priority) == (ctypes.wintypes.HANDLE(-1).value,
+                                            subprocess.ABOVE_NORMAL_PRIORITY_CLASS)
+
+    def test_a_refusal_is_said_with_windows_reason(self, caplog):
+        kernel32 = MagicMock()
+        kernel32.SetPriorityClass.return_value = 0
+        kernel32.GetLastError.return_value = 5
+
+        with caplog.at_level(logging.WARNING, logger="fun_time.win32"):
+            run_ahead_of_background_work(kernel32)
+
+        assert "error 5" in caplog.text
