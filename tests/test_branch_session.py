@@ -553,6 +553,45 @@ def test_a_shortcut_is_refused_for_a_worktree_missing_work_the_primary_has(prima
     assert not (primary_with_launcher.primary / "Verify example-newer.lnk").exists()
 
 
+def test_a_shortcut_is_refused_when_the_hosted_app_carries_none_of_its_own_state(
+        primary_with_launcher, tmp_path):
+    """A worktree of Origenerator has the code and none of the private files
+    that make it his app: no content overlay, so it cannot find the library at
+    all, and no window state, so nothing is open in the gallery.  He gets a
+    fresh install to judge, which is what happened on 2026-09-20."""
+    hosted = tmp_path / "origenerator-worktree"
+    hosted.mkdir()
+    state = primary_with_launcher.newer / branch_session.STATE_DIRNAME
+    state.mkdir(exist_ok=True)
+    (state / branch_session.ORIGENERATOR_DIR_OVERRIDE_NAME).write_text(
+        f"{hosted}\n", encoding="utf-8")
+
+    with pytest.raises(branch_session.HostedAppWithoutItsOwnState,
+                       match="content.local.json"):
+        branch_session.write_launch_shortcut(
+            primary_with_launcher.newer, primary=primary_with_launcher.primary)
+
+    assert not list(primary_with_launcher.newer.glob("*.lnk"))
+
+
+@pytestmark_shortcut
+def test_a_shortcut_is_written_once_the_hosted_app_has_its_own_state(
+        primary_with_launcher, tmp_path):
+    hosted = tmp_path / "origenerator-worktree"
+    (hosted / "state").mkdir(parents=True)
+    (hosted / "content.local.json").write_text("{}", encoding="utf-8")
+    (hosted / "state" / "ui_state.json").write_text("{}", encoding="utf-8")
+    state = primary_with_launcher.newer / branch_session.STATE_DIRNAME
+    state.mkdir(exist_ok=True)
+    (state / branch_session.ORIGENERATOR_DIR_OVERRIDE_NAME).write_text(
+        f"{hosted}\n", encoding="utf-8")
+
+    written = branch_session.write_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary)
+
+    assert written.exists()
+
+
 def test_the_launch_seeds_the_branchs_state_from_the_live_sessions(checkouts):
     """Which files come across and on what rule is ``branch_seeding``'s; that a
     launch runs it at all is this module's, and the wiring is what breaks when

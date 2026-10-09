@@ -268,6 +268,7 @@ RELEASE_LEVEL = 0.35
 CARRY_AFTER_DEG = 2.0
 PRESS = "press"
 RELEASE = "release"
+RIGHT_CLICK = "rightclick"
 
 
 class TriggerEdge:
@@ -295,6 +296,7 @@ class HandInput:
     trigger: float = 0.0
     stick_x: float = 0.0
     stick_y: float = 0.0
+    stick_pressed: bool = False
     forward: bool = False
     back: bool = False
 
@@ -307,6 +309,7 @@ class Screen:
     movable: bool = False
     resizable: bool = False
     pressable: bool = False
+    right_clicks: bool = False
     immersive: bool = False  # wrapped round the viewer: no rectangle, so no hover
     picture: bool = False
     widened_by: float = 1.0
@@ -444,6 +447,8 @@ class Pointer:
                 screen, hover.u, hover.v):
             self._start_squeeze(aim, scene_rotation, PressEvent(
                 PRESS, screen.name, hover.u, hover.v) if screen.pressable else None)
+        elif edge == PRESS and screen.right_clicks and hands[self.hand].stick_pressed:
+            events = (PressEvent(RIGHT_CLICK, screen.name, hover.u, hover.v),)
         elif edge == PRESS and screen.pressable:
             self._pressing = screen
             events = (PressEvent(PRESS, screen.name, hover.u, hover.v),)

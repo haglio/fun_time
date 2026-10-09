@@ -430,6 +430,25 @@ class OutOfDateWorktree(RuntimeError):
         )
 
 
+HOSTED_APP_PRIVATE_STATE = ("content.local.json", "state/ui_state.json")
+
+
+class HostedAppWithoutItsOwnState(RuntimeError):
+    def __init__(self, checkout: Path, missing: list[str]):
+        super().__init__(
+            f"{checkout} hosts Origenerator for this session and carries no "
+            f"{', no '.join(missing)}. Those are git-ignored, so that checkout opens as a "
+            "fresh install: a library it cannot find, nothing open in the gallery. Copy each "
+            "from the primary Origenerator checkout, then make the shortcut again."
+        )
+
+
+def hosted_origenerator_checkout(worktree: Path) -> Path | None:
+    """The Origenerator checkout *worktree*'s OWN override names, or None."""
+    lines = override_lines(worktree / STATE_DIRNAME / ORIGENERATOR_DIR_OVERRIDE_NAME)
+    return Path(lines[0]) if lines else None
+
+
 def write_launch_shortcut(
     worktree: Path, *, primary: Path | None = None, vr: bool = False
 ) -> Path:
@@ -457,6 +476,11 @@ def write_launch_shortcut(
     missing = commits_missing(worktree, primary)
     if missing:
         raise OutOfDateWorktree(worktree, missing)
+    hosted = hosted_origenerator_checkout(worktree)
+    if hosted is not None:
+        without = [name for name in HOSTED_APP_PRIVATE_STATE if not (hosted / name).exists()]
+        if without:
+            raise HostedAppWithoutItsOwnState(hosted, without)
     branch = current_branch(worktree)
     destination = worktree / shortcut_name(worktree, branch, vr=vr)
     arguments = [str(launcher), str(worktree), branch]

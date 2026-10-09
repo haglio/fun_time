@@ -31,6 +31,7 @@ from pathlib import Path
 import pytest
 
 from fun_time.config import load_config
+from fun_time.hosted_origenerator import HAND_OVER, TAKE_BACK
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.window_roles import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_startup import (
@@ -39,6 +40,8 @@ from fun_time.windows_bridge_startup import (
     origenerator_launch_command,
     origenerator_launch_kwargs,
 )
+from fun_time_vr.gallery_panel import HOSTED_RELEASE, HOVER, SCROLL
+from fun_time_vr.pointer import DRAG, PRESS, RIGHT_CLICK
 from tests.integration.integration_support import checkout_project_dirs
 from tests.origenerator_contract import CONTRACT_FILE, named_checkout, published_by
 
@@ -212,6 +215,30 @@ def test_this_session_sends_exactly_the_flags_the_hosted_app_declares(tmp_path):
     assert set(written) == declared
     assert len(written) == len(declared), "a flag written twice"
     assert command[1:3] == ["-m", published["module"]]
+
+
+def test_a_headset_session_sends_the_pair_and_the_words_it_declares(tmp_path):
+    """The other half of the same drift, for the window a headset cannot show:
+    the flags this session writes it over, and the words it then sends through
+    them, are both the app's to name."""
+    checkout, python_exe = _hosted_checkout_and_python()
+    published = _the_contract_it_publishes(checkout)
+    command = origenerator_launch_command(
+        python_exe=python_exe, layout_plan=_PLAN,
+        command_file=tmp_path / "c.txt", paused_file=tmp_path / "p.txt",
+        status_file=tmp_path / "s.txt", dashboard_cmd_file=tmp_path / "d.txt",
+        players=_players(tmp_path),
+        frames_file=tmp_path / "frame.bin", input_file=tmp_path / "input.txt",
+    )
+    written = {word for word in command if word.startswith("--")}
+
+    assert set(published["headset_flags"]) <= written
+    assert set(published["headset_words"]) == {
+        PRESS, HOSTED_RELEASE, DRAG, HOVER, SCROLL, RIGHT_CLICK}
+    # And the two a session adopting a kept app says which room it is with,
+    # among the lines the app says its command file answers.
+    assert TAKE_BACK in published["command_lines"]
+    assert f"{HAND_OVER}|{{frames}}|{{input}}" in published["command_lines"]
 
 
 def test_the_caption_this_session_resolves_it_by_is_the_one_it_wears():

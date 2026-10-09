@@ -265,5 +265,13 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   agent's shell runs inside and empty for anything he launches; that is the case
   the copy exists for.
 
+- **An Origenerator worktree named on that chain (`state/origenerator_dir.txt`)
+  needs `content.local.json` and `state/ui_state.json` copied in from the
+  primary Origenerator's.** Both are git-ignored, so a fresh worktree has
+  neither: without the overlay the app cannot find the library and opens an
+  empty database of its own, and without the window state nothing is open in
+  the gallery. He gets a dummy to judge and has to ask what it is (2026-09-20).
+  `--shortcut` refuses until both are there.
+
 Everything else in the global CLAUDE.md — work in a worktree, green tests before
 you push, clean handoff — still applies.

@@ -23,6 +23,7 @@ DASH = "dash"
 REFERENCE = "reference"
 LIBRARY = "library"
 BANNER = "banner"
+GALLERY = "gallery"
 LAYOUT_FILENAME = "vr_layout.json"
 
 PLAYERS = (MAIN, LANDSCAPE, PORTRAIT)
