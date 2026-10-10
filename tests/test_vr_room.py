@@ -280,18 +280,20 @@ class TestTheGatesOnTheRoomsAssembly:
         assert self._spots_held_by(layout) == {}
         assert {name for name, kind in vars(player).items()
                 if isinstance(kind, type) and getattr(kind, "SPOTS", None)} == {
-            "_MainUnit", "_GenauUnit", "_SatelliteUnit", "_DashUnit", "_LibraryUnit"}
+            "_MainUnit", "_SatelliteUnit", "_DashUnit", "_LibraryUnit"}
         assert self._spots_held_by(player) == {}
 
     def test_the_room_is_the_one_list_everything_is_read_off(self):
-        """One registration per screen: the same list is what is pumped, what
-        the pointer reaches, what is drawn and what a drag moves."""
+        """One registration per screen: the same list is what is closed, what
+        is pumped (less the Main Funestra, on a worker of its own), what the
+        pointer reaches, what is drawn and what a drag moves."""
         tree = ast.parse(inspect.getsource(player._run))
         assigned = {ast.unparse(node.targets[0]): ast.unparse(node.value)
                     for node in ast.walk(tree) if isinstance(node, ast.Assign)}
         walked = {ast.unparse(node.iter) for node in ast.walk(tree) if isinstance(node, ast.For)}
 
-        assert "units" in assigned["pumped"]
+        assert "units" in assigned["closing"]
+        assert "closing" in assigned["pumped"]
         assert assigned["hangings"] == "room.what_hangs(units)"
         assert assigned["where"] == "room.where_they_hang(units)"
         assert "units" in walked

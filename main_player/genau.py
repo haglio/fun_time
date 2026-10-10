@@ -3,6 +3,7 @@ own, and with the window it brings its own picture, a clip scrubbed to the OSR2.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -15,7 +16,7 @@ from player_core.clip_picture import Picture
 from player_core.console_hud import ModeHud
 
 from fun_time.genau_config import GenauSettings
-from fun_time.genau_engine import build_genau_engine
+from fun_time.genau_engine import Narrow, build_genau_engine
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,8 @@ class Genau:
         start_clip: Path | None = None,
         latest: bool = False,
         metadata_root: Path | None = None,
+        narrow: Narrow | None = None,
+        stop_event: threading.Event | None = None,
         decode: Callable[[Path], list] = load_clip_frames,
         start_thread=start_daemon_thread,
         clock: Callable[[], float] = time.monotonic,
@@ -52,6 +55,7 @@ class Genau:
         self._recent = latest
         self._notifier = notifier
         self._frame = None
+        self._clip: Path | None = None
         self._loading: str | None = None
         self._engine = build_genau_engine(
             clips=self._scan(),
@@ -65,8 +69,10 @@ class Genau:
             blit_frame=self._take_frame,
             set_loading_text=self._set_loading,
             rescan=self._rescan,
+            narrow=narrow,
             condemned_to=lambda clip: weird_folder_for(clip, self._clips_folder),
             set_volume=self._the_rooms_level_is_the_funestras,
+            stop_event=stop_event,
             start_clip=start_clip,
             metadata_root=metadata_root,
             decode=decode,
@@ -94,14 +100,14 @@ class Genau:
     def picture(self) -> Picture:
         played, count = self._engine.playhead()
         return Picture(frame=self._frame, played=played, count=count, loading=self._loading,
-                       seek=self._engine.seek)
+                       seek=self._engine.seek, clip=self._clip)
 
     def close(self) -> None:
         self._engine.close()
         self._notifier.close()
 
-    def _take_frame(self, frame, _clip: Path | None) -> None:
-        self._frame = frame
+    def _take_frame(self, frame, clip: Path | None) -> None:
+        self._frame, self._clip = frame, clip
 
     def _set_loading(self, text: str | None) -> None:
         self._loading = text

@@ -41,7 +41,6 @@ class GenauEngine:
     controls: GenauControls
     controller: GenauRefreshController
     renderer: ClipRenderController
-    robot_hand: RobotHandState
     driver: RobotHandTCodeDriver
 
     @property
@@ -82,8 +81,6 @@ def build_genau_engine(
     narrow: Narrow | None = None,
     set_volume: Callable[[int, bool], None] | None = None,
     stop_event: threading.Event | None = None,
-    console_file: Path | None = None,
-    set_console=None,
     start_clip: Path | None = None,
     metadata_root: Path | None = None,
     decode: Callable[[Path], list] = load_clip_frames,
@@ -162,12 +159,10 @@ def build_genau_engine(
         tcode_sender=driver,
         status_file=status_file,
         drive_file=Path(drive_file),
-        console_file=None if console_file is None else Path(console_file),
-        set_console=set_console,
     )
     selection.set_current_clip(selection.current_path)
     return GenauEngine(controls=controls, controller=controller, renderer=renderer,
-                       robot_hand=robot_hand, driver=driver)
+                       driver=driver)
 
 
 def _rescanned(rescan: Callable[[], list[Path]], log: logging.Logger) -> list[Path]:

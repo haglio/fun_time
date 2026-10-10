@@ -1,9 +1,9 @@
-"""fun_time_vr.player off the headset: the manifest contract and the furniture.
+"""fun_time_vr.player off the headset: the manifest contract and the room's wiring.
 
 The scene, the eyes and the OpenXR frame loop need the real machine and stay
 with the VR integration run; these pin what runs the same everywhere — how the
-player is told about its session, and the repaint economy of the scrubber and
-volume chip every video unit paints.
+player is told about its session, what each Funestra is handed, and where each
+screen hangs.
 """
 from __future__ import annotations
 
@@ -18,35 +18,15 @@ from unittest.mock import DEFAULT, patch
 import numpy as np
 import pytest
 from app_support.file_channel import write_flag
-from player_core.console import ConsoleModel
-from player_core.console_hud import ConsoleHud
-from player_core.drive_readout import DriveHud
-from player_core.funscript import Funscript
+from player_core.clip_picture import Picture
+from player_core.console_hud import ModeHud
+from player_core.hud_placement import HudEdge
 from player_core.modes import MainMode
 from player_core.play_points import play_points_filename
-from player_core.playback import Playback
-from player_core.playhead import (
-    PlayheadHudPainter,
-    clip_playhead,
-    lower_edge_height,
-    readout_xy,
-    video_playhead,
-)
 from player_core.playlist import PlaylistItem
-from player_core.scrubber import HeatmapStrip, timeline_bgra
-from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
-from player_core.volume import (
-    CHIP_H,
-    CHIP_W,
-    PAD,
-    SPEAKER_W,
-    VolumeHud,
-    chip_xy,
-)
 from shared_ui.palette import BLUE
 
 from fun_time.config import load_config
-from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
 from fun_time.dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
     HELP_REFERENCE,
@@ -68,10 +48,7 @@ from fun_time.overlay_progress import (
 )
 from fun_time.shared_state import BridgeState, shared_state_path
 from fun_time_vr import player, room
-from fun_time_vr.console_panel import (
-    PANEL_WIDTH_DEG,
-    PANEL_WIDTH_PX,
-)
+from fun_time_vr.console_panel import PANEL_WIDTH_DEG, PANEL_WIDTH_PX
 from fun_time_vr.cover import (
     VR_SHUTDOWN_PHASES,
     VR_STARTUP_PHASES,
@@ -97,13 +74,13 @@ from fun_time_vr.library_panel import LIBRARY_SIZE_PX, scroll_from_stick, scroll
 from fun_time_vr.notices import NoticeBoard
 from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.player import (
+    OFF_THE_PANEL,
     VrSettings,
     _BannerUnit,
     _ControllerPosts,
     _CoverUnit,
     _DashUnit,
     _draw_eyes,
-    _GenauUnit,
     _hands_for_the_players,
     _HangingScreen,
     _LayoutKeeper,
@@ -114,9 +91,8 @@ from fun_time_vr.player import (
     _ReferenceUnit,
     _SatelliteUnit,
     _scene_is_up,
-    _SlotControls,
+    _users,
     _VideoUnit,
-    _wrapped_slot,
     build_parser,
 )
 from fun_time_vr.pointer import (
@@ -150,8 +126,10 @@ from fun_time_vr.scene import (
     widened,
 )
 from fun_time_vr.stacking import Stacking
+from fun_time_vr.surfaces import LatestPicture, PanelBitmap
 from fun_time_vr.video_thread import VideoThread
 from fun_time_vr.wrap_readout import WrapReadout
+from main_player.genau import GenauChannels
 from tests.satellite_fakes import FakeSatellitePlayer
 
 
@@ -213,14 +191,16 @@ def test_a_session_that_names_no_audio_device_reads_back_as_none_named(tmp_path)
 
 # --- The two units' construction: every file they need, out of the manifest ---
 
-# The collaborators a unit builds that need libmpv, a GL context, a socket or
-# the state directory.  Faked wholesale: what is under test here is which
-# manifest field each path comes from, not what is done with it afterwards.
+# The collaborators a unit builds that need libmpv, a GL context, a socket, the
+# library or the state directory.  Faked wholesale: what is under test here is
+# which manifest field each path comes from, not what is done with it afterwards.
 _UNIT_COLLABORATORS = (
-    "MpvRenderPlayer", "VideoThread", "RenderTarget", "FrameTexture", "MainRole",
-    "Playback", "StatusWriter", "HudOverlay", "FunscriptTCodeDriver", "UdpTCodeSink",
-    "VolumeHudPainter", "DriveGate", "PlayPoints",
+    "HeadsetPlayer", "VideoThread", "RenderTarget", "FrameTexture", "Funestra",
+    "HeadsetVerbs", "PictureLook", "_TheLibrary", "FunscriptTCodeDriver", "UdpTCodeSink",
 )
+
+_A_SESSION = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
+                        audio_device="", compositor_layers=False)
 
 
 # The video thread is faked above, so no GL context is ever asked for.
@@ -257,22 +237,21 @@ def faked_collaborators():
     with patch.multiple(
         "fun_time_vr.player", **dict.fromkeys(_UNIT_COLLABORATORS, DEFAULT)
     ) as fakes, \
-            patch("fun_time_vr.player.read_paused_state", return_value=False), \
             patch("fun_time_vr.player.read_playlist", return_value=[]):
         yield fakes
 
 
+def _a_main_unit(tmp_path, *, remembered=None, vr=_A_SESSION, manifest=None) -> _MainUnit:
+    return _MainUnit(manifest or _manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS,
+                     remembered=remembered or Layout(), stop=threading.Event())
+
+
 def test_the_main_slot_opens_where_the_last_session_left_it(tmp_path, faked_collaborators):
-    """Genau and the main player take turns in the one slot, so both open in
+    """Genau's picture and the video take turns in the one slot, so both open in
     whatever the last drag on it settled."""
     moved = Placement(azimuth_deg=18.0, elevation_deg=-6.0, width_deg=95.0)
-    manifest = _manifest_for_a_vr_session(tmp_path)
-    vr = VrSettings(
-        tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-        audio_device="", compositor_layers=False,
-    )
 
-    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, remembered=Layout({MAIN: moved}))
+    unit = _a_main_unit(tmp_path, remembered=Layout({MAIN: moved}))
 
     assert unit.screen.placement == moved
 
@@ -281,116 +260,145 @@ def test_the_main_slot_opens_at_the_tilt_the_last_session_left_it_at(
         tmp_path, faked_collaborators):
     """The tilt is the whole arrangement's, and this unit is the one that carries
     it, so a session that opened level would stand every screen up again."""
-    vr = VrSettings(
-        tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-        audio_device="", compositor_layers=False,
-    )
+    _a_main_unit(tmp_path, remembered=Layout(tilt_deg=-17.5))
 
-    _MainUnit(_manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS,
-              remembered=Layout(tilt_deg=-17.5))
-
-    assert faked_collaborators["MainRole"].call_args.kwargs["tilt_deg"] == -17.5
+    assert faked_collaborators["HeadsetVerbs"].call_args.kwargs["tilt_deg"] == -17.5
 
 
-def test_genau_opens_in_the_same_slot_the_last_session_left_it(tmp_path):
-    """It takes the main player's slot in turn, so a drag on the slot has to
-    reach it too -- else the picture jumps back on every mode change."""
-    moved = Placement(azimuth_deg=18.0, elevation_deg=-6.0, width_deg=95.0)
-    vr = VrSettings(
-        tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-        audio_device="", compositor_layers=False, clips_folder=tmp_path,
-    )
-
-    with patch.multiple("fun_time_vr.player", GenauRole=DEFAULT, GenauNotifier=DEFAULT,
-                        FrameTexture=DEFAULT, UdpTCodeSink=DEFAULT, VolumeHudPainter=DEFAULT,
-                        PlayheadHudPainter=DEFAULT), \
-            patch("fun_time_vr.player.read_genau_status", return_value=SimpleNamespace(clip="")), \
-            patch("fun_time_vr.player.read_shared_state", return_value=None):
-        unit = _GenauUnit(_manifest_for_a_vr_session(tmp_path), vr, threading.Event(),
-                          remembered={MAIN: moved}, has_the_slot=lambda: False)
-
-    assert unit.screen.placement == moved
-
-
-def test_genau_opens_in_the_order_the_last_session_left_it_browsing(tmp_path):
-    """Latest is handed to the role beside the clip, off the state the
-    orchestrator just resumed into the session's state dir: as a verb once the
-    role is up, LATEST would browse the new order from its top, over that clip."""
-    manifest = _manifest_for_a_vr_session(tmp_path)
-    vr = VrSettings(
-        tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-        audio_device="", compositor_layers=False, clips_folder=tmp_path,
-    )
-
-    with patch.multiple("fun_time_vr.player", GenauRole=DEFAULT, GenauNotifier=DEFAULT,
-                        FrameTexture=DEFAULT, UdpTCodeSink=DEFAULT, VolumeHudPainter=DEFAULT,
-                        PlayheadHudPainter=DEFAULT) as fakes, \
-            patch("fun_time_vr.player.read_genau_status", return_value=SimpleNamespace(clip="")), \
-            patch("fun_time_vr.player.read_shared_state",
-                  return_value=BridgeState(genau_latest=True)) as read_state:
-        _GenauUnit(manifest, vr, threading.Event(), remembered={}, has_the_slot=lambda: False)
-
-    assert read_state.call_args.args == (shared_state_path(Path(manifest.commands.state_dir)),)
-    assert fakes["GenauRole"].call_args.kwargs["latest"] is True
-
-
-def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
+def test_the_main_funestra_is_handed_every_file_it_needs_out_of_the_manifest(
         tmp_path, faked_collaborators):
-    """The main unit reads four paths and one device name out of the session it
-    was handed; a spelling that no longer resolves raises here rather than on
-    the headset, where the unit is built with no console to say so."""
+    """A spelling that no longer resolves raises here rather than on the
+    headset, where the unit is built with no console to say so."""
     manifest = _manifest_for_a_vr_session(tmp_path)
-    vr = VrSettings(
-        tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-        audio_device="Example Headset", compositor_layers=False,
-    )
+    vr = replace(_A_SESSION, audio_device="Example Headset")
 
-    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, remembered=Layout())
+    unit = _a_main_unit(tmp_path, vr=vr, manifest=manifest)
 
     commands = manifest.commands
-    assert unit.cmd_file == Path(commands.main_player_cmd_file)
-    assert unit.paused_file == Path(commands.main_player_paused_file)
-    assert faked_collaborators["StatusWriter"].call_args.args[0] == Path(
-        commands.main_player_status_file)
-    assert faked_collaborators["MainRole"].call_args.kwargs["playlist_file"] == Path(
-        commands.main_player_playlist_file)
-    assert faked_collaborators["PlayPoints"].call_args.args[0] == (
-        Path(commands.state_dir) / play_points_filename("main_player"))
-    # The one that is not a path, and the one that had no field to land in at
-    # all until this branch: without it `route_audio` never asks mpv for the
+    channels = faked_collaborators["Funestra"].call_args.kwargs["channels"]
+    assert channels.playlist == Path(commands.main_player_playlist_file)
+    assert channels.command == Path(commands.main_player_cmd_file)
+    assert channels.paused == Path(commands.main_player_paused_file)
+    assert channels.status == Path(commands.main_player_status_file)
+    assert channels.play_points == Path(commands.state_dir) / play_points_filename("main_player")
+    assert channels.console == Path(commands.main_player_console_file)
+    assert channels.dashboard_cmd == Path(commands.dashboard_cmd_file)
+    assert channels.drive == Path(commands.genau_drive_file)
+    # The one that is not a path: without it `route_audio` never asks mpv for the
     # headset's sink, and the main player's sound stays on the room speakers.
     assert unit._audio_device == "Example Headset"
 
 
-def test_a_side_screen_hands_its_session_the_scripts_its_playlist_names(
+def test_the_main_funestra_is_the_desktops_with_the_headsets_own_surfaces(
+        tmp_path, faked_collaborators):
+    """Locked and sounding as the room says, as the desktop's opens; its panel
+    on a bitmap held to the console's one width, a User's picture handed over,
+    and the headset's own verbs asked after what runs on it."""
+    unit = _a_main_unit(tmp_path)
+
+    handed = faked_collaborators["Funestra"].call_args.kwargs
+    assert (handed["locked"], handed["sound_is_the_rooms"]) == (True, True)
+    assert handed["panel_surface"] is unit.panel
+    assert unit.panel.width == PANEL_WIDTH_PX
+    assert handed["users_picture"] is unit.users_picture
+    handed["window_verbs"]("TILT_UP")
+    unit.verbs.apply.assert_called_once_with("TILT_UP")
+
+
+def test_kino_runs_on_it_through_the_library_and_the_memory_the_desktop_reads(
+        tmp_path, faked_collaborators):
+    manifest = _manifest_for_a_vr_session(tmp_path)
+
+    _a_main_unit(tmp_path, manifest=manifest)
+
+    library = faked_collaborators["_TheLibrary"]
+    assert library.call_args.args == (manifest, _A_SESSION)
+    users = faked_collaborators["Funestra"].call_args.kwargs["users"]
+    assert users == {MainMode.KINO: library.return_value.kino.return_value}
+    assert library.return_value.kino.call_args.args == (
+        Path(manifest.commands.main_player_notice_file),)
+    assert (faked_collaborators["Funestra"].call_args.kwargs["playlist"]
+            is library.return_value.playlist.return_value)
+
+
+def test_the_main_slot_drives_the_headsets_osr2_inlet(tmp_path, faked_collaborators):
+    vr = replace(_A_SESSION, tcode_udp_host="127.0.0.9", tcode_udp_port=8123)
+
+    _a_main_unit(tmp_path, vr=vr)
+
+    assert faked_collaborators["UdpTCodeSink"].call_args.args == ("127.0.0.9", 8123)
+    assert (faked_collaborators["Funestra"].call_args.kwargs["tcode"]
+            is faked_collaborators["FunscriptTCodeDriver"].return_value)
+
+
+class TestGenauOnTheMainFunestra:
+    """Genau runs on the headset's Main Funestra as it runs on the desktop's,
+    where the session names its clips folder."""
+
+    def _users(self, tmp_path, *, clips_folder, resumed=None):
+        manifest = _manifest_for_a_vr_session(tmp_path)
+        vr = replace(_A_SESSION, clips_folder=clips_folder)
+        stop = threading.Event()
+        with patch.multiple("fun_time_vr.player", GenauInTheHeadset=DEFAULT,
+                            GenauNotifier=DEFAULT, UdpTCodeSink=DEFAULT) as fakes, \
+                patch("fun_time_vr.player.read_genau_status",
+                      return_value=SimpleNamespace(clip="")), \
+                patch("fun_time_vr.player.read_shared_state", return_value=resumed) as read_state:
+            users = _users(manifest, vr, stop, kino="kino")
+            if MainMode.GENAU in users:
+                users[MainMode.GENAU](None)
+        return SimpleNamespace(users=users, manifest=manifest, stop=stop, fakes=fakes,
+                               read_state=read_state)
+
+    def test_a_session_naming_no_clips_folder_runs_kino_alone(self, tmp_path):
+        assert self._users(tmp_path, clips_folder=None).users == {MainMode.KINO: "kino"}
+
+    def test_a_session_naming_one_puts_genau_beside_kino(self, tmp_path):
+        built = self._users(tmp_path, clips_folder=tmp_path)
+
+        assert set(built.users) == {MainMode.KINO, MainMode.GENAU}
+        handed = built.fakes["GenauInTheHeadset"].call_args.kwargs
+        commands = built.manifest.commands
+        assert handed["clips_folder"] == tmp_path
+        assert handed["channels"] == GenauChannels(
+            command=Path(commands.genau_cmd_file), paused=Path(commands.genau_paused_file),
+            status=Path(commands.genau_status_file), drive=Path(commands.genau_drive_file))
+        assert handed["stop_event"] is built.stop
+        assert handed["metadata_root"] == Path(built.manifest.regen.metadata_root)
+
+    def test_it_opens_in_the_order_the_last_session_left_it_browsing(self, tmp_path):
+        """Latest is handed to Genau beside the clip, off the state the
+        orchestrator just resumed into the session's state dir: as a verb once
+        Genau is up, LATEST would browse the new order from its top, over that clip."""
+        built = self._users(tmp_path, clips_folder=tmp_path, resumed=BridgeState(genau_latest=True))
+
+        assert built.read_state.call_args.args == (
+            shared_state_path(Path(built.manifest.commands.state_dir)),)
+        assert built.fakes["GenauInTheHeadset"].call_args.kwargs["latest"] is True
+
+
+def test_a_side_screen_hands_its_funestra_the_scripts_its_playlist_names(
         tmp_path, faked_collaborators):
     clip, script, unscripted = tmp_path / "v0.mp4", tmp_path / "v0.funscript", tmp_path / "v1.mp4"
-    vr = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-                    audio_device="", compositor_layers=False)
+    items = [PlaylistItem(clip, script), PlaylistItem(unscripted)]
 
-    with patch("fun_time_vr.player.read_playlist",
-               return_value=[PlaylistItem(clip, script), PlaylistItem(unscripted)]):
+    with patch("fun_time_vr.player.read_playlist", return_value=items):
         _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
-                       vr=vr, remembered={})
+                       vr=_A_SESSION, remembered={})
 
-    handed = faked_collaborators["Playback"].call_args
-    assert handed.args[0] == [clip, unscripted]
-    assert handed.kwargs["funscripts"] == {clip: script}
+    assert faked_collaborators["Funestra"].call_args.kwargs["playlist"] == items
 
 
 def test_a_side_screen_drives_the_headsets_osr2_inlet_with_its_clips_script(
         tmp_path, faked_collaborators):
-    vr = VrSettings(tcode_udp_host="127.0.0.9", tcode_udp_port=8123, library_dirs=(),
-                    audio_device="", compositor_layers=False)
+    vr = replace(_A_SESSION, tcode_udp_host="127.0.0.9", tcode_udp_port=8123)
 
     _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
                    vr=vr, remembered={})
 
     assert faked_collaborators["UdpTCodeSink"].call_args.args == ("127.0.0.9", 8123)
-    assert (faked_collaborators["Playback"].call_args.kwargs["tcode"]
+    assert (faked_collaborators["Funestra"].call_args.kwargs["tcode"]
             is faked_collaborators["FunscriptTCodeDriver"].return_value)
-    assert (faked_collaborators["HudOverlay"].call_args.kwargs["drive_gate"]
-            is faked_collaborators["DriveGate"].return_value)
 
 
 @pytest.mark.parametrize("player", ["portrait", "landscape"])
@@ -400,116 +408,240 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
     out — and the sixth, the dashboard's command file, shared with the desktop."""
     manifest = _manifest_for_a_vr_session(tmp_path)
 
-    vr = VrSettings(
-        tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-        audio_device="", compositor_layers=False,
-    )
-
-    unit = _SatelliteUnit(
-        player, manifest, _NO_GL_CONTEXTS, vr=vr, remembered={})
+    unit = _SatelliteUnit(player, manifest, _NO_GL_CONTEXTS, vr=_A_SESSION, remembered={})
 
     commands = manifest.commands
-    assert unit.cmd_file == Path(commands.player_file(player, "cmd"))
-    assert unit.paused_file == Path(commands.player_file(player, "paused"))
-    assert unit.playlist_file == Path(commands.player_file(player, "playlist"))
-    assert faked_collaborators["StatusWriter"].call_args.args[0] == Path(
-        commands.player_file(player, "status"))
-    assert faked_collaborators["PlayPoints"].call_args.args[0] == (
-        Path(commands.state_dir) / play_points_filename(player))
-    hud = faked_collaborators["HudOverlay"].call_args.kwargs
-    assert hud["hud_file"] == Path(commands.player_file(player, "hud"))
-    assert hud["command_file"] == Path(commands.dashboard_cmd_file)
-    # The HUD paints into a surface of its own, hanging under the picture, not
+    handed = faked_collaborators["Funestra"].call_args.kwargs
+    channels = handed["channels"]
+    assert channels.command == Path(commands.player_file(player, "cmd"))
+    assert channels.paused == Path(commands.player_file(player, "paused"))
+    assert channels.playlist == Path(commands.player_file(player, "playlist"))
+    assert channels.status == Path(commands.player_file(player, "status"))
+    assert channels.play_points == Path(commands.state_dir) / play_points_filename(player)
+    assert channels.hud == Path(commands.player_file(player, "hud"))
+    assert channels.dashboard_cmd == Path(commands.dashboard_cmd_file)
+    # The HUD paints onto a bitmap of its own, hanging under the picture, not
     # into the video through mpv as the desktop satellite's does.
-    assert hud["player"] is unit.hud_surface
+    assert handed["panel_surface"] is unit.panel
 
 
-class _OverlayPlayer:
-    def __init__(self):
-        self.overlays: list[tuple[int, int, int]] = []
-        self.bitmaps: dict[int, np.ndarray] = {}
-        self.removed: list[int] = []
-        self.showing_picture = False
+class _AVideoThread:
+    """The video thread with a fake engine on it and no GL: what a unit reads
+    off it, and the player it hands the Funestra."""
 
-    def overlay(self, ident, x, y, bgra):
-        self.overlays.append((ident, x, y))
-        self.bitmaps[ident] = bgra
+    def __init__(self, *_args, **_kwargs) -> None:
+        self.player = FakeSatellitePlayer(duration_ms=600_000.0)
+        self.closed = False
 
-    def remove_overlay(self, ident):
-        self.removed.append(ident)
+    @property
+    def duration_ms(self) -> float:
+        return self.player.duration_ms
 
+    def show_newest(self, _target) -> bool:
+        return False
 
-_STROKES = Funscript(actions=[(0, 0), (500, 100), (1_000, 0), (6_000, 100), (9_000, 0)])
-_NEVER_DIALED = {"fov_of": lambda _video: None, "height_of": lambda _video: None}
+    def ask_for_a_still(self) -> None:
+        pass
 
+    def take_a_still(self):
+        return None
 
-def _a_main_role_reporting(loop: SimpleNamespace) -> SimpleNamespace:
-    """The main role as the unit reads it, with *loop* saying what its A/B loop
-    is doing (nothing, unless the test says otherwise)."""
-    return SimpleNamespace(
-        set_paused=lambda _paused: None, tick=lambda _now: None, seek_to=lambda _ms: True,
-        position_ms=1_000.0, duration_ms=10_000.0, paused=False,
-        projection_of=lambda _video: FLAT, **_NEVER_DIALED,
-        volume=70, muted=False, current_video=Path("v0.mp4"), current_funscript=_STROKES,
-        loop_bounds=getattr(loop, "loop_bounds", None),
-        record_in_ms=getattr(loop, "record_in_ms", None))
+    def close(self) -> None:
+        self.closed = True
 
 
-def test_the_main_screen_blends_nothing_into_its_picture(
-        tmp_path, faked_collaborators):
-    """The track, the time and the volume are on the panel hanging under the
-    slot (TestThePanelUnderThePointer), wrapped or flat, so the picture itself
-    comes through untouched."""
-    vr = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-                    audio_device="", compositor_layers=False)
-    unit = _MainUnit(_manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS,
-                     remembered=Layout())
-    unit.player = _OverlayPlayer()
-    unit.player.frame_rate = 30.0
-    unit.target = SimpleNamespace(ready=True, width=640, height=360, aspect=16 / 9, video=None)
-    unit.role = _a_main_role_reporting(SimpleNamespace())
+class _AKino:
+    """What runs on the Funestra, as far as these tests look."""
 
-    unit.pump(threading.Event(), 0.0)
+    def __init__(self, _playback) -> None:
+        self.closed = False
 
-    assert unit.player.bitmaps == {}
+    def apply_command(self, _command: str) -> bool:
+        return False
+
+    def tick(self) -> None:
+        pass
+
+    def status_fields(self) -> dict[str, str]:
+        return {}
+
+    def top_block(self) -> ModeHud:
+        return ModeHud(video="feature")
+
+    def set_showing(self, _showing: bool) -> None:
+        pass
+
+    def picture(self) -> None:
+        return None
+
+    def close(self) -> None:
+        self.closed = True
 
 
-def test_a_side_screen_fills_its_panels_track_with_its_clips_colors(
-        tmp_path, faked_collaborators):
-    """A panel is as wide as what is on it, so the screen measures the track the
-    panel drew and builds the script's colors across it; the panel fills the
-    next one (player_core's tests/test_hud_overlay.py)."""
-    vr = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-                    audio_device="", compositor_layers=False)
-    unit = _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
-                          vr=vr, remembered={})
-    clip = tmp_path / "v0.mp4"
-    clip.write_bytes(b"")
-    script = tmp_path / "v0.funscript"
-    script.write_text('{"actions": [{"at": 0, "pos": 0}, {"at": 700, "pos": 100}, '
-                      '{"at": 3000, "pos": 40}]}', encoding="utf-8")
-    unit.session = Playback(
-        [clip], player=FakeSatellitePlayer(duration_ms=10_000.0), funscripts={clip: script})
-    unit.player = _OverlayPlayer()
-    unit.player.frame_rate = 30.0
-    unit.player.push_still = lambda: None
-    unit.target = SimpleNamespace(ready=True, width=640, height=360, aspect=16 / 9)
-    unit.volume = SimpleNamespace(hud=VolumeHud())
-    unit.hud.row_rect = (0, 0, PANEL_WIDTH_PX, TIMELINE_HEIGHT)
+class _ALibrary:
+    def __init__(self, tmp_path, *_args, **_kwargs) -> None:
+        self._video = tmp_path / "feature.mp4"
+        self._video.write_bytes(b"")
 
-    unit.pump(threading.Event(), 0.0)
-    unit.pump(threading.Event(), 0.0)
+    def playlist(self) -> list[PlaylistItem]:
+        return [PlaylistItem(self._video)]
 
-    x0, x1 = bar_track_x(PANEL_WIDTH_PX)
-    assert len(unit.hud.tick.call_args.kwargs["heatmap"]) == x1 - x0
-    assert unit.hud.tick.call_args.kwargs["clip_row"].duration_ms == 10_000.0
+    def kino(self, _notice_file):
+        return _AKino
+
+
+class _FakeRenderTarget:
+    """A sized-nothing target: no GL, and no picture yet."""
+
+    def __init__(self) -> None:
+        self.width = self.height = 0
+        self.painted = False
+        self.video = None
+        self.texture = 0
+
+    ready = False
+    has_picture = False
+    aspect = 16 / 9
+
+    def close(self) -> None:
+        pass
+
+
+@pytest.fixture
+def a_fake_engine(tmp_path):
+    """The units over a real Funestra: the engine, the GL and the library
+    faked, everything the Funestra does real."""
+    with patch.multiple("fun_time_vr.player", VideoThread=_AVideoThread,
+                        RenderTarget=_FakeRenderTarget, FrameTexture=_FakeTexture,
+                        _TheLibrary=lambda *args, **kwargs: _ALibrary(tmp_path),
+                        UdpTCodeSink=DEFAULT):
+        yield
+
+
+def _dashboard_asked(tmp_path) -> list[str]:
+    path = tmp_path / "dashboard_cmd.txt"
+    return path.read_text(encoding="utf-8").split() if path.exists() else []
+
+
+class TestTheMainFunestrasPass:
+    def test_the_main_screen_blends_nothing_into_its_picture(self, tmp_path, a_fake_engine):
+        """The console goes onto the bitmap hanging under the slot, wrapped or
+        flat, so the picture itself comes through untouched."""
+        unit = _a_main_unit(tmp_path)
+
+        unit.pump(threading.Event(), 0.0)
+
+        assert unit.player.overlays == {}
+        assert unit.panel.take()[0] is not None
+
+    def test_a_squeeze_on_the_picture_asks_the_room_to_pause(self, tmp_path, a_fake_engine):
+        unit = _a_main_unit(tmp_path)
+
+        unit.point(Frame(events=(PressEvent(PRESS, MAIN, 0.5, 0.5), PressEvent(RELEASE, MAIN))))
+        unit.pump(threading.Event(), 0.0)
+
+        assert _dashboard_asked(tmp_path) == ["omnipause_toggle"]
+
+    def test_a_squeeze_on_the_panel_does_not(self, tmp_path, a_fake_engine):
+        """The panel places a press on its own buttons; what lands on none of
+        them is the panel's all the same, never the picture's."""
+        unit = _a_main_unit(tmp_path)
+        unit.pump(threading.Event(), 0.0)
+
+        unit.point(Frame(events=(PressEvent(PRESS, PANEL, 0.999, 0.001), PressEvent(RELEASE, PANEL))))
+        unit.pump(threading.Event(), 0.0)
+
+        assert _dashboard_asked(tmp_path) == []
+
+    def test_quit_stops_the_room(self, tmp_path, a_fake_engine):
+        manifest = _manifest_for_a_vr_session(tmp_path)
+        unit = _a_main_unit(tmp_path, manifest=manifest)
+        Path(manifest.commands.main_player_cmd_file).write_text("QUIT\n", encoding="utf-8")
+        stop = threading.Event()
+
+        unit.pump(stop, 0.0)
+
+        assert stop.is_set()
+
+    def test_closing_closes_what_runs_on_it_after_the_engine(self, tmp_path, a_fake_engine):
+        unit = _a_main_unit(tmp_path)
+
+        unit.close()
+
+        assert unit.video.closed
+        assert unit.player.closed
+
+
+class TestASqueezeOnAHangingPanel:
+    """A press on the hanging screen lands in the panel's own pixels; the unit
+    puts it back where the Funestra drew the panel and the Funestra places it."""
+
+    def _unit(self):
+        presses = []
+        unit = _VideoUnit.__new__(_VideoUnit)
+        unit._held = False
+        unit.panel = PanelBitmap()
+        unit.panel.overlay(10, 8, 300, np.zeros((100, 200, 4), dtype=np.uint8))
+        unit.target = SimpleNamespace(width=640, height=480)
+        unit.funestra = SimpleNamespace(
+            press=lambda x, y, window: presses.append(("press", x, y, window)),
+            motion=lambda x, y, held, window: presses.append(("motion", x, y, held)),
+            release=lambda: presses.append(("release",)))
+        return unit, presses
+
+    def test_a_press_is_placed_at_the_panels_own_pixel_where_it_was_drawn(self):
+        unit, presses = self._unit()
+
+        unit._press_on_the_panel(PressEvent(PRESS, PANEL, 0.25, 0.5))
+
+        assert presses == [("press", 8 + 50, 300 + 50, (640, 480))]
+
+    def test_a_drag_keeps_the_press_held_and_a_release_lets_go(self):
+        unit, presses = self._unit()
+
+        unit._press_on_the_panel(PressEvent(PRESS, PANEL, 0.25, 0.5))
+        unit._press_on_the_panel(PressEvent(DRAG, PANEL, 0.5, 0.5))
+        unit._press_on_the_panel(PressEvent(RELEASE, PANEL))
+
+        assert presses[1:] == [("motion", 8 + 100, 300 + 50, True), ("release",)]
+
+    def test_hovering_the_panel_names_the_button_under_the_pointer(self):
+        unit, presses = self._unit()
+
+        unit._hover_over_the_panel((PANEL, (0.25, 0.5)), PANEL)
+
+        assert presses == [("motion", 8 + 50, 300 + 50, False)]
+
+    def test_a_pointer_off_the_panel_leaves_no_tooltip(self):
+        unit, presses = self._unit()
+
+        unit._hover_over_the_panel((MAIN, (0.25, 0.5)), PANEL)
+        unit._hover_over_the_panel(None, PANEL)
+
+        assert presses == [("motion", *OFF_THE_PANEL, False)] * 2
+
+    def test_a_held_press_is_not_moved_by_the_hover(self):
+        unit, presses = self._unit()
+        unit._press_on_the_panel(PressEvent(PRESS, PANEL, 0.25, 0.5))
+
+        unit._hover_over_the_panel((PANEL, (0.5, 0.5)), PANEL)
+
+        assert len(presses) == 1
+
+    def test_a_press_before_the_panel_is_drawn_lands_nowhere(self):
+        unit, presses = self._unit()
+        unit.panel = PanelBitmap()
+
+        unit._press_on_the_panel(PressEvent(PRESS, PANEL, 0.25, 0.5))
+
+        assert presses == []
 
 
 # Every class that goes on the file-channel worker's list, which the frame
 # loop's `finally` then closes one by one: `pumped` in `player._run`.
 _EVERYTHING_THE_WORKER_IS_HANDED = [
-    NoticeBoard, _MainUnit, _GenauUnit, _SatelliteUnit, _DashUnit, _PanelUnit,
-    _ReferenceUnit, _CoverUnit, _LayoutKeeper, _ControllerPosts,
+    NoticeBoard, _MainUnit, _SatelliteUnit, _DashUnit, _PanelUnit, _ReferenceUnit,
+    _LibraryUnit, _BannerUnit, _CoverUnit, _LayoutKeeper, _ControllerPosts,
 ]
 
 
@@ -736,9 +868,6 @@ class TestWhatTheControllersPost:
         assert command_file.read_text(encoding="utf-8").split() == ["main_scene_next"]
 
 
-_WRAPPED_ROW_H = lower_edge_height(PANEL_WIDTH_PX, timeline_h=TIMELINE_HEIGHT)
-
-
 class _FakePanelTexture:
     """A FrameTexture with real numbers where the panel does arithmetic on them."""
 
@@ -753,132 +882,54 @@ class _FakePanelTexture:
         pass
 
 
-class TestThePanelUnderThePointer:
-    """The console in the headset: docked under whichever picture fills the main
-    slot and pressed there, and -- while the video wraps the viewer and there is
-    nothing to dock to -- carrying that video's row and moved by a handle of its own."""
+class TestThePanelUnderTheSlot:
+    """The console in the headset: the bitmap the Main Funestra draws, docked
+    under whichever picture fills the main slot -- and, while the video wraps
+    the viewer and there is nothing to dock to, under the dashboard."""
 
-    def _unit(self, tmp_path, *, wrapped=False, showing=False, funscript=None,
-              loop_bounds=None):
+    def _unit(self, *, wrapped=False, showing=False, edge=HudEdge.LOWER):
         projection = EQUIRECT_180_SBS if wrapped else FLAT
-        seeks: list[float] = []
-        main_unit = _like(_MainUnit, SimpleNamespace(
+        main_unit = _like(_MainUnit, _AMainStandIn(
             owns_the_slot=not showing,
-            role=SimpleNamespace(
-                current_video=Path("feature.mp4"), title="Jane Doe - Alpha Study",
-                position_ms=1_000.0, duration_ms=600_000.0,
-                volume=70, muted=False, seek_to=seeks.append, scripted_filter=False,
-                speed=1.25, projection_of=lambda _video: projection,
-                **_NEVER_DIALED,
-            ),
-            drive_gate=SimpleNamespace(
-                readout=lambda published, device_drives_itself=False: published),
+            funestra=SimpleNamespace(panel_edge=edge),
+            panel=PanelBitmap(width=PANEL_WIDTH_PX),
+            verbs=SimpleNamespace(projection_of=lambda _video: projection, **_NEVER_DIALED),
             target=SimpleNamespace(ready=True, aspect=16 / 9, video=None),
+            users_picture_texture=SimpleNamespace(ready=True, aspect=4 / 3),
+            _clip_projection=(Path("clip.mp4"), projection),
             screen=SimpleNamespace(placement=SPOTS[MAIN]),
-            controls=_SlotControls(
-                position=1_000.0, duration=600_000.0,
-                playhead=video_playhead(1_000.0, 600_000.0, 30.0),
-                hud=VolumeHud(volume=70, muted=False),
-                seek=seeks.append, scrub_duration_ms=600_000.0,
-                video=Path("feature.mp4"), funscript=funscript,
-                loop_bounds=loop_bounds),
         ))
-        genau = _like(_GenauUnit, SimpleNamespace(
-            owns_the_slot=showing,
-            screen=SimpleNamespace(placement=SPOTS[MAIN]),
-            texture=SimpleNamespace(ready=True, aspect=4 / 3),
-            # Genau's bar counts frames, and its seek takes the fraction read out.
-            controls=_SlotControls(
-                position=5, duration=20, playhead=clip_playhead(5, 20),
-                hud=VolumeHud(volume=70, muted=False),
-                seek=seeks.append, scrub_duration_ms=1.0),
-            role=SimpleNamespace(
-                console_hud=ConsoleHud(
-                    console=ConsoleModel(
-                        main_mode=MainMode.KINO, locked=False,
-                        rows=console_rows(MainSlot(main_mode=MainMode.KINO, locked=False),
-                                          in_vr=True),
-                        osr2_controls=osr2_controls(broker=True)),
-                    drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine",
-                                   position=1000, advance_interval=10,
-                                   waveform=tuple([0.5] * 80), trace_seconds=12.0),
-                ),
-                current_clip=None, loading=None, volume=100, muted=False,
-                projection=projection, playhead=(5, 20), seek=seeks.append,
-            ),
-        ))
-        command_file = tmp_path / "dashboard_cmd.txt"
-        event_log = tmp_path / "event_log.jsonl"
-        notices = NoticeBoard(event_log)
         dash = SimpleNamespace(texture=SimpleNamespace(ready=True, aspect=560 / 218),
                                screen=SimpleNamespace(placement=SPOTS[PANEL]))
         with patch("fun_time_vr.player.FrameTexture", _FakePanelTexture):
-            unit = _PanelUnit(main_unit, genau, dash,
-                              dashboard_cmd_file=command_file)
-        return SimpleNamespace(unit=unit, command_file=command_file, seeks=seeks,
-                               event_log=event_log, notices=notices, main_unit=main_unit,
-                               genau=genau, dash=dash)
+            unit = _PanelUnit(main_unit, dash)
+        main_unit.panel.overlay(10, 8, 8, np.zeros((120, PANEL_WIDTH_PX, 4), dtype=np.uint8))
+        return SimpleNamespace(unit=unit, main_unit=main_unit, dash=dash)
 
     @staticmethod
-    def _uv(unit, x: float, y: float) -> tuple[float, float]:
-        width, height = unit._image.size
-        return (x + 0.5) / width, 1 - (y + 0.5) / height
+    def _placed(unit) -> Placement:
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            unit.render_latest_frame()
+        return unit.screen.placement
 
-    def _uv_of(self, unit, action: str) -> tuple[float, float]:
-        """A button's middle in the PANEL's pixels: the painter places its buttons
-        in the console's, which the announcement strip above pushes down -- and
-        that strip is left off while the dashboard sits over the console."""
-        (x, y, w, h), _button = next(
-            (rect, button) for rect, button in unit._painter.buttons if button.command == action)
-        return self._uv(unit, x + w // 2, y + h // 2)
+    def test_the_bitmap_the_main_funestra_drew_is_what_it_hangs(self):
+        p = self._unit()
 
-    def _row_uv(self, unit, x: float, y: float) -> tuple[float, float]:
-        """A point in the ROW's own pixels, as a point on the panel."""
-        return self._uv(unit, x, unit._image.size[1] - _WRAPPED_ROW_H + y)
+        self._placed(p.unit)
 
-    def _press(self, console, uv):
-        console.unit.point(Frame(events=(
-            PressEvent(PRESS, PANEL, *uv), PressEvent(RELEASE, PANEL))))
-        console.unit.pump(threading.Event(), 0.0)
+        assert p.unit.texture.uploaded.shape == (120, PANEL_WIDTH_PX, 4)
 
-    def test_a_press_the_render_thread_hands_over_posts_on_the_worker(self, tmp_path):
-        p = self._unit(tmp_path)
-        p.unit.pump(threading.Event(), 0.0)  # painted: the buttons now have places
-
-        p.unit.point(Frame(events=(
-            PressEvent(PRESS, PANEL, *self._uv_of(p.unit, "main_lock")), PressEvent(RELEASE, PANEL),
-        )))
-        assert not p.command_file.exists()
-
-        p.unit.pump(threading.Event(), 0.0)
-
-        assert p.command_file.read_text(encoding="utf-8").split() == ["main_lock"]
-
-    def test_hovering_a_button_names_it_on_the_panel(self, tmp_path):
-        p = self._unit(tmp_path)
-        p.unit.pump(threading.Event(), 0.0)
-        plain = np.asarray(p.unit._image).copy()
-
-        p.unit.point(Frame(hover=Hover(PANEL, SURFACE, *self._uv_of(p.unit, "main_lock"))))
-        p.unit.pump(threading.Event(), 0.0)
-
-        assert not np.array_equal(np.asarray(p.unit._image), plain)
-
-    def test_the_console_rides_under_the_main_player_wherever_it_goes(self, tmp_path):
+    def test_the_console_rides_under_the_main_player_wherever_it_goes(self):
         """Docked the way a satellite's HUD is docked, rather than placed: and
         re-placed every frame, not only the ones that repaint it, so it cannot lag
         the player it belongs to -- which is what left its old handle dragging
         an empty rectangle around for seconds at a time."""
-        p = self._unit(tmp_path)
-        p.unit.pump(threading.Event(), 0.0)
-        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
-            p.unit.render_latest_frame()
-            docked = p.unit.screen.placement
+        p = self._unit()
 
-            p.main_unit.screen.placement = Placement(
-                azimuth_deg=-40.0, elevation_deg=12.0, width_deg=110.0)
-            p.unit.render_latest_frame()
-            followed = p.unit.screen.placement
+        docked = self._placed(p.unit)
+        p.main_unit.screen.placement = Placement(
+            azimuth_deg=-40.0, elevation_deg=12.0, width_deg=110.0)
+        followed = self._placed(p.unit)
 
         assert docked.azimuth_deg == SPOTS[MAIN].azimuth_deg
         assert docked.elevation_deg < 0.0  # under the picture, never over it
@@ -886,175 +937,63 @@ class TestThePanelUnderThePointer:
         assert followed.elevation_deg < docked.elevation_deg  # a bigger player hangs lower
         assert followed.width_deg == docked.width_deg == PANEL_WIDTH_DEG
 
-    def test_it_rides_under_genaus_clip_at_the_clips_own_shape(self, tmp_path):
-        p = self._unit(tmp_path, showing=True)
-        p.unit.pump(threading.Event(), 0.0)
+    def test_it_rides_under_genaus_picture_at_the_clips_own_shape(self):
+        p = self._unit(showing=True)
 
-        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
-            p.unit.render_latest_frame()
+        placed = self._placed(p.unit)
 
-        clip = p.genau.texture.aspect
-        assert p.unit.screen.placement == attached_below(
-            shown_at(MAIN, p.genau.screen.placement, clip), aspect=clip,
+        clip = p.main_unit.users_picture_texture.aspect
+        assert placed == attached_below(
+            shown_at(MAIN, p.main_unit.screen.placement, clip), aspect=clip,
             width_deg=PANEL_WIDTH_DEG, hanging_aspect=_FakePanelTexture.aspect, gap_deg=HUD_GAP_DEG)
 
-    def test_no_row_joins_it_while_the_video_draws_its_own(self, tmp_path):
-        p = self._unit(tmp_path)
+    def test_it_hangs_along_the_edge_the_room_moved_it_to(self):
+        p = self._unit(edge=HudEdge.UPPER)
 
-        p.unit.pump(threading.Event(), 0.0)
+        placed = self._placed(p.unit)
 
-        assert p.unit._row is None
+        assert placed.elevation_deg > 0.0  # over the picture
 
-    def test_a_wrapped_videos_row_joins_it_along_its_lower_edge(self, tmp_path):
-        """The video has no edge of its own to draw them on, so the console takes
-        them -- the same scrubber and chip, under the buttons."""
-        flat, wrapped = self._unit(tmp_path), self._unit(tmp_path, wrapped=True)
-
-        flat.unit.pump(threading.Event(), 0.0)
-        wrapped.unit.pump(threading.Event(), 0.0)
-
-        assert flat.unit._row is None
-        assert np.array_equal(
-            np.asarray(wrapped.unit._image)[-_WRAPPED_ROW_H:], wrapped.unit._row)
-
-    def test_a_wrapped_scripted_videos_row_is_the_desktop_heatmap_strip(self, tmp_path):
-        p = self._unit(tmp_path, wrapped=True, funscript=_STROKES)
-
-        p.unit.pump(threading.Event(), 0.0)
-
-        desktop = HeatmapStrip()
-        desktop.update(Path("feature.mp4"), _STROKES, 600_000.0, PANEL_WIDTH_PX)
-        strip = timeline_bgra(desktop, 1_000.0, None, PANEL_WIDTH_PX)
-        x0, x1 = bar_track_x(PANEL_WIDTH_PX)
-        assert np.array_equal(p.unit._row[-strip.shape[0]:, x0:x1],
-                              strip[:, x0:x1][:, :, [2, 1, 0, 3]])
-
-    def test_a_wrapped_videos_row_shades_the_loop_it_is_running(self, tmp_path):
-        """A wrapped video has no bar of its own -- the row is the only place the
-        loop can show, so it shows there."""
-        p = self._unit(tmp_path, wrapped=True, loop_bounds=(60_000, 120_000))
-
-        p.unit.pump(threading.Event(), 0.0)
-
-        desktop = HeatmapStrip()
-        desktop.update(Path("feature.mp4"), None, 600_000.0, PANEL_WIDTH_PX)
-        strip = timeline_bgra(desktop, 1_000.0, (60_000, 120_000), PANEL_WIDTH_PX)
-        x0, x1 = bar_track_x(PANEL_WIDTH_PX)
-        assert np.array_equal(p.unit._row[-strip.shape[0]:, x0:x1],
-                              strip[:, x0:x1][:, :, [2, 1, 0, 3]])
-
-    def test_a_wrapped_videos_row_says_where_that_video_is(self, tmp_path):
-        p = self._unit(tmp_path, wrapped=True)
-
-        p.unit.pump(threading.Event(), 0.0)
-
-        pill = PlayheadHudPainter().bgra(p.main_unit.controls.playhead)
-        x, y = readout_xy(pill.shape[1], win_w=PANEL_WIDTH_PX, win_h=_WRAPPED_ROW_H,
-                          timeline_h=TIMELINE_HEIGHT)
-        drawn = p.unit._row[y:y + pill.shape[0], x:x + pill.shape[1]].astype(int)
-        assert np.abs(drawn - pill[:, :, [2, 1, 0, 3]]).max() <= 1
-
-    def test_a_squeeze_on_the_row_seeks_the_video_the_wrap_is_showing(self, tmp_path):
-        p = self._unit(tmp_path, wrapped=True)
-        p.unit.pump(threading.Event(), 0.0)
-        left, right = bar_track_x(PANEL_WIDTH_PX)
-
-        self._press(p, self._row_uv(p.unit, left, _WRAPPED_ROW_H - TIMELINE_HEIGHT // 2))
-        assert p.seeks[-1] == pytest.approx(0.0, abs=3_000)
-
-        self._press(p, self._row_uv(p.unit, right - 1, _WRAPPED_ROW_H - TIMELINE_HEIGHT // 2))
-        assert p.seeks[-1] == pytest.approx(600_000.0, rel=0.02)
-
-    def test_a_squeeze_on_the_rows_readout_does_not_seek(self, tmp_path):
-        p = self._unit(tmp_path, wrapped=True)
-        p.unit.pump(threading.Event(), 0.0)
-
-        self._press(p, self._row_uv(p.unit, bar_track_x(PANEL_WIDTH_PX)[0] + 20, CHIP_H // 2))
-
-        assert p.seeks == []
-
-    def test_it_seeks_genaus_clip_by_fraction_while_genau_has_the_scene(self, tmp_path):
-        """Its bar counts frames, not milliseconds; read as a time, a squeeze
-        would throw the clip back to its first frame every time."""
-        p = self._unit(tmp_path, wrapped=True, showing=True)
-        p.unit.pump(threading.Event(), 0.0)
-
-        self._press(p, self._row_uv(p.unit, bar_track_x(PANEL_WIDTH_PX)[1] - 1,
-                                    _WRAPPED_ROW_H - TIMELINE_HEIGHT // 2))
-
-        assert p.seeks[-1] == pytest.approx(1.0, abs=0.02)
-
-    def test_the_speaker_and_the_slider_ask_fun_time_for_the_level(self, tmp_path):
-        """Fun Time holds the level for the whole display, so the row posts for
-        it the way every other player's row does rather than setting it here."""
-        p = self._unit(tmp_path, wrapped=True)
-        p.unit.pump(threading.Event(), 0.0)
-        x, y = chip_xy(win_w=PANEL_WIDTH_PX, win_h=_WRAPPED_ROW_H, timeline_h=TIMELINE_HEIGHT)
-
-        self._press(p, self._row_uv(p.unit, x + SPEAKER_W // 2, y + CHIP_H // 2))
-        self._press(p, self._row_uv(p.unit, x + CHIP_W - PAD, y + CHIP_H // 2))
-
-        assert p.command_file.read_text(encoding="utf-8").split() == [
-            "audio_mute", "audio_set_volume|100"]
-
-    def test_the_buttons_still_answer_with_the_row_under_them(self, tmp_path):
-        """The row is the panel's last rows only; everything above it is console."""
-        p = self._unit(tmp_path, wrapped=True)
-        p.unit.pump(threading.Event(), 0.0)
-
-        self._press(p, self._uv_of(p.unit, "main_lock"))
-
-        assert p.command_file.read_text(encoding="utf-8").split() == ["main_lock"]
-
-    def test_a_clips_bar_crossing_a_pixel_does_not_redraw_the_console(self, tmp_path):
-        """Genau counts frames, so its bar moves every frame of a short clip --
-        and the console's text is far too expensive to repaint at that rate."""
-        p = self._unit(tmp_path, wrapped=True, showing=True)
-        p.unit.pump(threading.Event(), 0.0)
-        painted, row = p.unit._image, p.unit._row
-
-        p.unit._genau.controls = replace(p.unit._genau.controls, position=19)
-        p.unit.pump(threading.Event(), 0.0)
-
-        assert p.unit._row is not row
-        assert np.array_equal(  # the console above the row is the same pixels
-            np.asarray(p.unit._image)[:-_WRAPPED_ROW_H],
-            np.asarray(painted)[:-_WRAPPED_ROW_H])
-
-    def test_a_wrapped_console_hangs_from_the_dashboard_instead(self, tmp_path):
+    def test_a_wrapped_console_hangs_from_the_dashboard_instead(self):
         """No picture to dock to, so it docks to the one thing above it -- which
         is what carries the handle the pair is moved by."""
-        p = self._unit(tmp_path, wrapped=True)
-        p.unit.pump(threading.Event(), 0.0)
+        p = self._unit(wrapped=True, edge=HudEdge.UPPER)
 
-        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
-            p.unit.render_latest_frame()
+        placed = self._placed(p.unit)
 
-        assert p.unit.screen.placement == attached_below(
+        assert placed == attached_below(
             p.dash.screen.placement, aspect=p.dash.texture.aspect,
             width_deg=PANEL_WIDTH_DEG, hanging_aspect=_FakePanelTexture.aspect)
 
-    def test_it_meets_the_dashboard_with_nothing_between_them(self, tmp_path):
+    def test_it_meets_the_dashboard_with_nothing_between_them(self):
         """The strip is left off there -- empty, it read as a gap the width of a
         handle between the two panels, which is what a handle looks like."""
-        p = self._unit(tmp_path, wrapped=True)
-        p.unit.pump(threading.Event(), 0.0)
-        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
-            p.unit.render_latest_frame()
+        p = self._unit(wrapped=True)
 
-        console = surface_vertices(p.unit.screen.placement, aspect=_FakePanelTexture.aspect)
+        placed = self._placed(p.unit)
+
+        console = surface_vertices(placed, aspect=_FakePanelTexture.aspect)
         over = surface_vertices(p.dash.screen.placement, aspect=p.dash.texture.aspect)
         assert console[:, 1].max() == pytest.approx(over[:, 1].min(), abs=1e-6)
 
-    def test_a_wrapped_videos_row_is_all_that_joins_the_console(self, tmp_path):
-        """The panel is the console itself, and a wrapped video's row the one
-        thing that ever rides with it."""
-        flat, wrapped = self._unit(tmp_path), self._unit(tmp_path, wrapped=True)
+    def test_it_is_pressed_and_never_dragged(self):
+        p = self._unit()
+        self._placed(p.unit)
 
-        flat.unit.pump(threading.Event(), 0.0)
-        wrapped.unit.pump(threading.Event(), 0.0)
+        (hanging,) = p.unit.hangings()
 
-        assert wrapped.unit._image.height == flat.unit._image.height + _WRAPPED_ROW_H
+        assert hanging.screen.name == PANEL
+        assert hanging.screen.pressable and not hanging.screen.movable
+        assert hanging.docked_to == MAIN
+
+    def test_before_the_main_funestra_has_drawn_it_there_is_nothing_to_hang(self):
+        p = self._unit()
+        p.main_unit.panel = PanelBitmap()
+        p.unit.texture = _FakeTexture()
+
+        self._placed(p.unit)
+
+        assert p.unit.hangings() == ()
 
 
 # --- The cover the roles arrive and leave under ---------------------------
@@ -1257,10 +1196,9 @@ def _picture(painted):
     return SimpleNamespace(ready=True, has_picture=painted)
 
 
-def _room(*, main=True, portrait=True, landscape=True, panel=True, genau_showing=False):
+def _room(*, main=True, portrait=True, landscape=True, panel=True):
     return dict(
-        main_unit=SimpleNamespace(target=_picture(main)),
-        genau=SimpleNamespace(texture=_picture(main), owns_the_slot=genau_showing),
+        main_unit=SimpleNamespace(picture_in_the_slot=_picture(main)),
         satellites=[SimpleNamespace(target=_picture(portrait)),
                     SimpleNamespace(target=_picture(landscape))],
         panel=SimpleNamespace(texture=_picture(panel)),
@@ -1283,7 +1221,7 @@ class TestWhenTheRoomIsUp:
         read as up almost as soon as the loop began, the cover came off in a
         blink nobody saw, and the OSR2 was released onto black."""
         scene = _room()
-        scene["main_unit"] = SimpleNamespace(target=SimpleNamespace(
+        scene["main_unit"] = SimpleNamespace(picture_in_the_slot=SimpleNamespace(
             ready=True, has_picture=False,
         ))
 
@@ -1300,13 +1238,14 @@ class TestWhenTheRoomIsUp:
         assert "target.painted = True" not in before
 
     def test_the_main_slot_counts_once_wherever_the_scene_is(self):
-        """In genau mode the clip player has the scene and the video waits
+        """In genau mode Genau's picture has the scene and the video waits
         paused under it, so asking the video for a picture would hold the
         cover over a room that is finished."""
-        scene = _room(genau_showing=True)
-        scene["main_unit"] = SimpleNamespace(target=_picture(False))
+        unit = _like(_MainUnit, SimpleNamespace(
+            owns_the_slot=False, target=_picture(False),
+            users_picture_texture=_picture(True)))
 
-        assert _scene_is_up(**scene)
+        assert _MainUnit.picture_in_the_slot.fget(unit) is unit.users_picture_texture
 
 
 def test_the_cover_goes_up_before_the_players_are_built():
@@ -1332,13 +1271,37 @@ def _keyword_given(source_of, call: str, keyword: str) -> str:
 
 
 def test_the_headsets_genau_keeps_its_flips_where_the_library_keeps_its_records():
-    assert _keyword_given(player._GenauUnit.__init__, "GenauRole", "metadata_root") == (
+    assert _keyword_given(player._users, "GenauInTheHeadset", "metadata_root") == (
         "_metadata_root(manifest)")
 
 
-def test_the_headsets_browse_asks_genau_whether_it_has_the_main_slot():
+def test_the_headsets_browse_asks_whether_genau_has_the_main_slot():
     assert _keyword_given(player._run, "_LibraryUnit", "genau_has_the_slot") == (
-        "lambda: genau.owns_the_slot")
+        "lambda: not main_unit.owns_the_slot")
+
+
+def test_the_main_funestra_keeps_the_cover_moving_while_it_reads_the_library():
+    """Reading the library takes seconds on a cold cache, and nothing else
+    presents a frame while the units are built."""
+    assert _keyword_given(player._run, "_MainUnit", "while_reading") == (
+        "lambda: _present_the_cover(session, renderer, cover)")
+
+
+def test_the_main_funestra_ticks_on_a_worker_of_its_own_at_genaus_rate():
+    tree = ast.parse(inspect.getsource(player._run))
+    workers = {
+        ast.unparse(call.keywords[-1].value): call
+        for call in ast.walk(tree)
+        if isinstance(call, ast.Call) and ast.unparse(call.func) == "start_daemon_thread"
+    }
+
+    main = workers["'main-funestra'"]
+    assert ast.unparse(next(k.value for k in main.keywords if k.arg == "args")) == (
+        "([main_unit], stop, perf)")
+    assert ast.unparse(next(k.value for k in main.keywords if k.arg == "kwargs")) == (
+        "{'hz': MAIN_TICK_HZ}")
+    assert ast.unparse(next(k.value for k in workers["'file-channels'"].keywords
+                            if k.arg == "args")) == "(pumped, stop, perf)"
 
 
 @pytest.mark.parametrize("screen", ["dash", "library"])
@@ -1420,13 +1383,12 @@ def test_the_controllers_reach_the_pictures_own_controls_and_the_worker():
     tree = ast.parse(inspect.getsource(player._run))
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
     (made,) = [call for call in calls if ast.unparse(call.func) == "Pointer"]
-    (pumped,) = [node for node in ast.walk(tree)
-                 if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "pumped"]
+    (closing,) = [node for node in ast.walk(tree)
+                  if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "closing"]
 
-    assert [ast.unparse(keyword) for keyword in made.keywords] == [
-        "on_its_controls=on_its_controls"]
+    assert made.keywords == []
     assert "posts.post(thumb.commands)" in _posted(tree)
-    assert "posts" in ast.unparse(pumped.value)
+    assert "posts" in ast.unparse(closing.value)
 
 
 def test_the_room_hears_from_the_headset_whether_anyone_is_wearing_it():
@@ -1489,6 +1451,32 @@ def _like(kind, stand_in):
     return stand_in
 
 
+_NEVER_DIALED = {"fov_of": lambda _video: None, "height_of": lambda _video: None}
+
+
+class _AMainStandIn(SimpleNamespace):
+    """A stand-in with the main unit's own answers about what fills the slot."""
+
+    wraps_the_viewer = _MainUnit.wraps_the_viewer
+    picture_in_the_slot = _MainUnit.picture_in_the_slot
+
+
+def _a_main_slot(*, picture=True, projection=FLAT, showing=False, clip=True,
+                 clip_projection=FLAT, video=None, fov=None, height=None, verbs=None):
+    """The main slot as the room reads it: the video or Genau's picture in it."""
+    return _like(_MainUnit, _AMainStandIn(
+        target=SimpleNamespace(ready=picture, aspect=16 / 9, video=video),
+        verbs=verbs or SimpleNamespace(
+            projection_of=lambda _video: projection,
+            fov_of=lambda _video: fov, height_of=lambda _video: height),
+        funestra=SimpleNamespace(playback=SimpleNamespace(current_video=Path(video or "v.mp4"))),
+        users_picture_texture=SimpleNamespace(ready=clip, aspect=4 / 3),
+        _clip_projection=(Path("clip.mp4"), clip_projection),
+        screen=SimpleNamespace(placement=SPOTS[MAIN]),
+        owns_the_slot=not showing,
+    ))
+
+
 class TestTheMainPlayersPictureIsWrappedAsItsOwnVideo:
     """The last video's picture stays up while the next video opens, so it is
     wrapped the way its own video is, not the way the next one will be."""
@@ -1496,13 +1484,9 @@ class TestTheMainPlayersPictureIsWrappedAsItsOwnVideo:
     WIDE, FLAT_VIDEO = "C:/videos/wide.mp4", "C:/videos/flat.mp4"
 
     def _showing(self, video):
-        return _like(_MainUnit, SimpleNamespace(
-            target=SimpleNamespace(ready=True, aspect=2.0, video=video),
-            role=SimpleNamespace(projection_of={
-                self.WIDE: EQUIRECT_180_SBS, self.FLAT_VIDEO: FLAT}.get, **_NEVER_DIALED),
-            screen=SimpleNamespace(placement=SPOTS[MAIN]),
-            owns_the_slot=True,
-        ))
+        return _a_main_slot(video=video, verbs=SimpleNamespace(
+            projection_of={self.WIDE: EQUIRECT_180_SBS, self.FLAT_VIDEO: FLAT}.get,
+            **_NEVER_DIALED))
 
     def test_a_vr_videos_picture_stays_round_the_viewer_while_a_flat_one_opens(self):
         (hanging,) = self._showing(self.WIDE).hangings()
@@ -1520,18 +1504,15 @@ class TestDialingTheMainPlayersWrap:
 
     def _main_unit(self, *, projection=FISHEYE_180_SBS, fov=None, height=None, showing=False):
         dialed = {}
-        role = SimpleNamespace(
-            current_video=Path(self.VIDEO),
+        verbs = SimpleNamespace(
             projection_of=lambda _video: projection,
             fov_of=lambda _video: dialed.get("fov", fov),
             height_of=lambda _video: dialed.get("height", height),
             set_fov=lambda degrees: dialed.update(fov=degrees),
             set_height=lambda value: dialed.update(height=value),
         )
-        main_unit = _like(_MainUnit, SimpleNamespace(
-            target=SimpleNamespace(ready=True, aspect=1.0, video=self.VIDEO), role=role,
-            screen=SimpleNamespace(placement=SPOTS[MAIN]), owns_the_slot=not showing,
-        ))
+        main_unit = _a_main_slot(video=self.VIDEO, verbs=verbs, showing=showing)
+        main_unit.target.aspect = 1.0
         main_unit.dial_the_wrap = lambda **dials: _MainUnit.dial_the_wrap(main_unit, **dials)
         return main_unit, dialed
 
@@ -1579,7 +1560,7 @@ class TestDialingTheMainPlayersWrap:
         loop = inspect.getsource(player._run)
 
         assert "dialing=dialing" in loop
-        assert "zoom = main_unit.role.angle_asked.take()" in loop
+        assert "zoom = main_unit.verbs.angle_asked.take()" in loop
         assert "main_unit.dial_the_wrap(zoom=zoom, stretch=thumb.stretch)" in loop
 
 
@@ -1587,11 +1568,8 @@ class TestTheReadoutOfAWrappedPicture:
     VIDEO = "C:/videos/wide.mp4"
 
     def _main_unit(self, *, projection=FISHEYE_180_SBS, fov=None, height=None, showing=False):
-        return SimpleNamespace(
-            owns_the_slot=not showing,
-            role=SimpleNamespace(
-                current_video=Path(self.VIDEO), projection_of=lambda _video: projection,
-                fov_of=lambda _video: fov, height_of=lambda _video: height))
+        return _a_main_slot(video=self.VIDEO, projection=projection, fov=fov, height=height,
+                            showing=showing)
 
     def test_the_main_player_reads_its_own_wrap(self):
         unit = self._main_unit(fov=158.4, height=1.2)
@@ -1677,38 +1655,17 @@ class TestTheMainSlotUnderThePointer:
     the slot is a flat screen with edges to take hold of."""
 
     def _units(self, **overrides):
-        settings = dict(
-            picture=True, projection=FLAT,
-            showing=False, clip=True, clip_projection=FLAT,
-        ) | overrides
-        main_unit = _like(_MainUnit, SimpleNamespace(
-            target=SimpleNamespace(ready=settings["picture"], aspect=16 / 9, video=None),
-            role=SimpleNamespace(
-                projection_of=lambda _video: settings["projection"], **_NEVER_DIALED),
-            screen=SimpleNamespace(placement=SPOTS[MAIN]),
-            owns_the_slot=not settings["showing"],
-        ))
-        genau = _like(_GenauUnit, SimpleNamespace(
-            texture=SimpleNamespace(ready=settings["clip"], aspect=4 / 3),
-            role=SimpleNamespace(projection=settings["clip_projection"]),
-            screen=SimpleNamespace(placement=SPOTS[MAIN]),
-            owns_the_slot=settings["showing"],
-        ))
-        return main_unit, genau
+        return (_a_main_slot(**overrides),)
 
     def _slot(self, **overrides):
         hangings = room.what_hangs(self._units(**overrides))
         return hangings[0].screen if hangings else None
 
-    def test_the_main_player_has_the_slot_while_its_role_shows_kino(self):
+    def test_the_video_has_the_slot_while_the_funestra_shows_kino(self):
         assert _MainUnit.owns_the_slot.fget(
-            SimpleNamespace(role=SimpleNamespace(shows=MainMode.KINO)))
+            SimpleNamespace(funestra=SimpleNamespace(showing=MainMode.KINO)))
         assert not _MainUnit.owns_the_slot.fget(
-            SimpleNamespace(role=SimpleNamespace(shows=MainMode.GENAU)))
-
-    def test_genau_has_the_slot_exactly_while_the_main_role_shows_it(self):
-        assert _GenauUnit.owns_the_slot.fget(SimpleNamespace(_has_the_slot=lambda: True))
-        assert not _GenauUnit.owns_the_slot.fget(SimpleNamespace(_has_the_slot=lambda: False))
+            SimpleNamespace(funestra=SimpleNamespace(showing=MainMode.GENAU)))
 
     def test_the_primary_offers_both_handles(self):
         screen = self._slot()
@@ -1762,15 +1719,15 @@ class TestTheMainSlotUnderThePointer:
         player: there is nothing there for the ray to find."""
         assert self._slot(**state) is None
 
-    def test_a_drag_on_the_slot_moves_both_players_screens(self):
+    def test_a_drag_on_the_slot_moves_genaus_picture_with_the_video(self):
         """They share it, so a drag while one is showing must not leave the
         other hanging where the slot used to be."""
-        main_unit, genau = self._units()
+        main_unit = _a_main_slot()
 
-        room.where_they_hang([main_unit, genau])[MAIN].put(_UNDER_THE_DASH)
+        room.where_they_hang([main_unit])[MAIN].put(_UNDER_THE_DASH)
 
         assert main_unit.screen.placement == _UNDER_THE_DASH
-        assert genau.screen.placement == _UNDER_THE_DASH
+        assert self._slot(showing=True).placement == shown_at(MAIN, SPOTS[MAIN], 4 / 3)
 
     def _the_room_around_the_slot(self) -> list:
         dash = _like(_DashUnit, SimpleNamespace(
@@ -1799,70 +1756,70 @@ class TestTheMainSlotUnderThePointer:
         assert not screens[PANEL].picture
 
 
-class TestWhichSlotAsksForARow:
-    """The main slot's mirror.  A video on a screen paints its own row into its
-    own frame; a video that wraps the viewer has nowhere to paint one, and the
-    console carries what it says instead."""
+class TestGenausPictureInTheSlot:
+    """Genau is handed finished pictures rather than decoding its own: the
+    frame its engine chose, handed over by the Funestra as a User's own
+    picture, is uploaded untouched and wrapped the way its clip is."""
 
-    @pytest.mark.parametrize("state", [
-        {"projection": EQUIRECT_180_SBS},
-        {"showing": True, "clip_projection": EQUIRECT_180_SBS},
-    ])
-    def test_a_wrapped_slot_is_the_one_that_asks(self, state):
-        assert _wrapped_slot(*TestTheMainSlotUnderThePointer()._units(**state)) is not None
-
-    @pytest.mark.parametrize("state", [
-        {},
-        {"showing": True},
-        {"projection": EQUIRECT_180_SBS, "picture": False},
-        {"showing": True, "clip_projection": EQUIRECT_180_SBS, "clip": False},
-    ])
-    def test_a_slot_on_a_screen_does_not(self, state):
-        assert _wrapped_slot(*TestTheMainSlotUnderThePointer()._units(**state)) is None
-
-    def test_it_is_genaus_own_while_genau_has_the_scene(self):
-        """Genau's bar counts frames and its seek takes a fraction, so a row
-        asking the main player instead would scrub a video nobody is watching."""
-        units = TestTheMainSlotUnderThePointer()._units(
-            showing=True, clip_projection=EQUIRECT_180_SBS, projection=EQUIRECT_180_SBS)
-
-        assert _wrapped_slot(*units) is units[1]
-
-
-class TestTheClipsOwnControls:
-    """Genau is handed finished pictures rather than decoding its own, and the
-    track, the time and the volume it used to have blended into them are on the
-    panel hanging under the slot now (TestThePanelUnderThePointer)."""
-
-    def _unit(self, *, played=5, of=20, volume=70, muted=False, showing=True):
-        unit = _GenauUnit.__new__(_GenauUnit)
-        unit._has_the_slot = lambda: showing
-        unit.role = SimpleNamespace(playhead=(played, of), volume=volume, muted=muted)
-        unit.screen = SimpleNamespace(placement=SPOTS[MAIN])
-        return unit
-
-    def _uploading(self, projection):
-        unit = self._unit()
-        clip = np.zeros((360, 640, 3), dtype=np.uint8)
-        unit.role.take_frame = lambda: clip
-        unit.role.projection = projection
-        unit.texture = _FakeTexture()
+    def _unit(self, *, showing=True, vr_dirs=()):
+        unit = _MainUnit.__new__(_MainUnit)
+        unit.funestra = SimpleNamespace(showing=MainMode.GENAU if showing else MainMode.KINO)
+        unit.users_picture = LatestPicture()
+        unit.users_picture_texture = _FakeTexture()
+        unit._uploaded_frame = None
+        unit._clip_projection = (None, "")
+        unit._vr_dirs = vr_dirs
         unit.screen = SimpleNamespace(placement=SPOTS[MAIN],
                                       rehang_at=lambda _placement, _aspect: None)
-        unit.render_latest_frame()
-        return clip, unit.texture.uploads[-1]
+        return unit
 
-    def test_a_wrapped_clip_is_uploaded_untouched(self):
-        clip, uploaded = self._uploading(EQUIRECT_180_SBS)
+    def _handed(self, unit, clip: Path):
+        frame = np.zeros((360, 640, 3), dtype=np.uint8)
+        unit.users_picture.show(Picture(frame=frame, clip=clip), (640, 360))
+        unit._show_the_users_picture()
+        return frame
 
-        assert uploaded is clip
+    def test_the_frame_is_uploaded_untouched(self):
+        unit = self._unit()
 
-    def test_a_clip_on_a_screen_is_uploaded_untouched_too(self):
-        """It used to come back with a bar along its lower edge; the panel
-        carries that now, so the two slots upload the same way."""
-        clip, uploaded = self._uploading(FLAT)
+        frame = self._handed(unit, Path("C:/clips/VR/alpha_180.mp4"))
 
-        assert uploaded is clip
+        assert unit.users_picture_texture.uploads == [frame]
+
+    def test_a_frame_is_uploaded_once_however_many_frames_the_loop_runs(self):
+        unit = self._unit()
+
+        self._handed(unit, Path("C:/clips/VR/alpha_180.mp4"))
+        unit._show_the_users_picture()
+
+        assert len(unit.users_picture_texture.uploads) == 1
+
+    def test_a_clip_in_the_vr_folder_wraps_the_viewer_and_a_flat_one_hangs_on_the_screen(self):
+        vr = Path("C:/clips/VR")
+        unit = self._unit(vr_dirs=(vr,))
+
+        self._handed(unit, vr / "scene one.mp4")
+        assert unit._clip_projection[1] == EQUIRECT_180_SBS
+        assert unit.hangings()[0].wrap == immersive_wrap(EQUIRECT_180_SBS)
+
+        self._handed(unit, Path("C:/clips/2D/scene two.mp4"))
+        assert unit._clip_projection[1] == FLAT
+        assert unit.hangings()[0].wrap is None
+
+    def test_nothing_is_uploaded_while_the_video_has_the_slot(self):
+        unit = self._unit(showing=False)
+
+        self._handed(unit, Path("C:/clips/VR/alpha_180.mp4"))
+
+        assert unit.users_picture_texture.uploads == []
+
+    def test_nothing_hangs_before_a_frame_has_arrived(self):
+        unit = self._unit()
+
+        unit._show_the_users_picture()
+
+        assert unit.hangings() == ()
+
 
 class _FakeRenderer:
     """Records which meshes were drawn, so a screen nobody draws is visible."""
@@ -1906,27 +1863,17 @@ class TestEveryHangingScreenIsDrawn:
         renderer = _FakeRenderer()
         session = SimpleNamespace(
             bind_eye_framebuffer=lambda _i: None, release_eye_framebuffer=lambda _i: None)
-        main_unit = _like(_MainUnit, SimpleNamespace(
-            target=SimpleNamespace(ready=projection is not None, texture=object(), aspect=16 / 9,
-                                   video=None),
-            screen=SimpleNamespace(ready=True, mesh=MAIN, placement=SPOTS[MAIN]),
-            role=SimpleNamespace(
-                projection_of=lambda _video: projection or FLAT, **_NEVER_DIALED),
-            owns_the_slot=True,
-        ))
-        genau = _like(_GenauUnit, SimpleNamespace(
-            role=SimpleNamespace(showing=False, projection=FLAT),
-            texture=SimpleNamespace(ready=False, texture=object(), aspect=4 / 3),
-            screen=SimpleNamespace(ready=False, mesh="genau", placement=SPOTS[MAIN]),
-            owns_the_slot=False,
-        ))
+        main_unit = _a_main_slot(picture=projection is not None, projection=projection or FLAT,
+                                 clip=False)
+        main_unit.target.texture = object()
+        main_unit.screen = SimpleNamespace(ready=True, mesh=MAIN, placement=SPOTS[MAIN])
         panel = _like(_PanelUnit, _hanging(PANEL, 1.2))
         dash = _like(_DashUnit, _hanging(DASH, 2.5))
         reference = _like(_ReferenceUnit, _hanging(REFERENCE, 1.7))
         reference.showing = showing
         library = _like(_LibraryUnit, _hanging(LIBRARY, 16 / 9))
         library.showing = browsing
-        hangings = room.what_hangs([main_unit, genau, panel, dash, reference, library])
+        hangings = room.what_hangs([main_unit, panel, dash, reference, library])
         screens = room.arranged(stacking or Stacking(), hangings)
         _draw_eyes(
             session, renderer, hangings,
@@ -2030,28 +1977,14 @@ def _a_panel(*, ready=True):
 
 
 def _slot(*, wrapped=False):
-    """The two players sharing the main slot, as the dashboard reads them."""
-    projection = EQUIRECT_180_SBS if wrapped else FLAT
-    main_unit = _like(_MainUnit, SimpleNamespace(
-        target=SimpleNamespace(ready=True, aspect=16 / 9, video=None),
-        role=SimpleNamespace(
-            projection_of=lambda _video: projection, **_NEVER_DIALED),
-        screen=SimpleNamespace(placement=SPOTS[MAIN]),
-        owns_the_slot=True,
-    ))
-    genau = _like(_GenauUnit, SimpleNamespace(
-        texture=SimpleNamespace(ready=True, aspect=4 / 3),
-        role=SimpleNamespace(showing=False, projection=projection),
-        screen=SimpleNamespace(placement=SPOTS[MAIN]),
-        owns_the_slot=False,
-    ))
-    return main_unit, genau
+    """The main slot as the dashboard reads it."""
+    return _a_main_slot(projection=EQUIRECT_180_SBS if wrapped else FLAT)
 
 
 def _a_dash(tmp_path, *, wrapped=False, texture=None, remembered=None):
     with patch("fun_time_vr.player.FrameTexture"):
         dash = _DashUnit(
-            *_slot(wrapped=wrapped),
+            _slot(wrapped=wrapped),
             remembered=remembered or {},
             dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
             notices=NoticeBoard(tmp_path / "event_log.jsonl"),
@@ -2365,16 +2298,15 @@ class TestWhatThePointerCanReach:
         panel = _a_panel()
         dash = _a_dash(tmp_path, wrapped=wrapped,
                        texture=SimpleNamespace(ready=True, aspect=2.5))
-        main_unit, genau = _slot(wrapped=wrapped)
-        main_unit.target = SimpleNamespace(ready=False, aspect=16 / 9)
-        genau.texture = SimpleNamespace(ready=False, aspect=4 / 3)
+        main_unit = _slot(wrapped=wrapped)
+        main_unit.target = SimpleNamespace(ready=False, aspect=16 / 9, video=None)
         reference = _like(_ReferenceUnit, SimpleNamespace(
             showing=reference_showing,
             texture=SimpleNamespace(ready=True, aspect=1.7),
             screen=SimpleNamespace(placement=_UNDER_THE_DASH),
         ))
         return {s.name: s for s in room.arranged(Stacking(), room.what_hangs(
-            [main_unit, genau, panel, dash, reference]))}
+            [main_unit, panel, dash, reference]))}
 
     def test_the_dash_is_one_of_them(self, tmp_path):
         assert DASH in self._screens(tmp_path)
@@ -2431,7 +2363,7 @@ class TestWhatComesForwardTogether:
             showing=reference_up, texture=SimpleNamespace(ready=True, aspect=1.7),
             screen=SimpleNamespace(placement=_UNDER_THE_DASH)))
         return [screen.name for screen in room.arranged(stacking, room.what_hangs(
-            [*_slot(wrapped=wrapped), *satellites,
+            [_slot(wrapped=wrapped), *satellites,
              panel or _a_panel(ready=False), dash, reference]))]
 
     def test_the_reference_comes_forward_as_part_of_the_dashboard(self):
@@ -2619,11 +2551,6 @@ class TestTheSpotEachScreenStartsIn:
         where it has always sat -- level and straight on."""
         assert _MainUnit.SPOTS[MAIN] == Placement(0.0, 0.0, MAIN_WIDTH_DEG)
 
-    def test_genau_opens_in_the_main_players_own_slot(self):
-        """The two take turns in one slot, so a session opening in Genau's mode
-        puts the picture exactly where the main player's would."""
-        assert _GenauUnit.SPOTS[MAIN] == _MainUnit.SPOTS[MAIN]
-
     def test_the_satellites_flank_the_main_screen_landscape_left_portrait_right(self):
         """The sides a desktop session puts them on, so the room reads the same
         in the headset as it does on the monitors."""
@@ -2681,16 +2608,6 @@ class TestPuttingTheRoomBack:
     def test_the_main_player_goes_back_to_the_slot(self):
         unit = _like(_MainUnit, SimpleNamespace(
             screen_name=MAIN, screen=SimpleNamespace(placement=_DRAGGED_OFF)))
-
-        unit.put_back()
-
-        assert unit.screen.placement == _MainUnit.SPOTS[MAIN]
-
-    def test_genau_goes_back_to_the_same_slot(self):
-        """Dragging the slot moves both of them, so putting it back must too --
-        else whichever was not showing comes forward somewhere else."""
-        unit = _like(_GenauUnit, SimpleNamespace(
-            screen=SimpleNamespace(placement=_DRAGGED_OFF)))
 
         unit.put_back()
 

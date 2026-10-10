@@ -42,18 +42,16 @@
     it boots parked and nothing in a VR session restores it, so the gallery and
     its tabs are the monitors' half of the mode and reachable only from a
     desktop session. A session hosting none is still a config naming none.
-  - The main player verbs the VR main role does not implement: version cycling,
-    clip jumps, funscript jumps, length modes, compilations. They report unhandled,
-    and the player logs each once rather than crashing. The list with a reason
-    per verb is `fun_time_vr.roles.UNIMPLEMENTED_MAIN_PLAYER_VERBS`, and the only
-    other place a control may be left dead in the headset is that test's own
-    list of what the hosted Origenerator does not answer in its mode (dead on the
-    monitors too): `tests/test_vr_control_parity.py` walks every hotkey and every
-    spoken phrase through the real dispatch, on the config a headset session
-    builds and in both of the satellite side's modes, and holds each verb that
-    lands to the vocabulary of whatever will read it in VR — the hosted app's
-    read from the `origenerator_contract.json` it publishes — so a gap is a red
-    test rather than a discovery in the log.
+  - The only place a control may be left dead in the headset is
+    `tests/test_vr_control_parity.py`'s own list of what the hosted Origenerator
+    does not answer in its mode (dead on the monitors too): it walks every hotkey
+    and every spoken phrase through the real dispatch, on the config a headset
+    session builds and in both of the satellite side's modes, and holds each
+    verb that lands to the vocabulary of whatever will read it in VR — the
+    headset's Main Funestra with Kino and the headset's own verbs on it, the
+    satellites' Funestras, Genau's registry, and the hosted app's as read from
+    the `origenerator_contract.json` it publishes — so a gap is a red test
+    rather than a discovery in the log.
   - Every notice a command raises is a desktop overlay window the session does not
     launch, so a key that only flashes a confirmation on the desktop (`X` in a VR
     session, say) shows nothing in the headset. What the panel and the satellite

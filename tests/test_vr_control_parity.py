@@ -2,32 +2,36 @@
 
 A headset runs the same orchestrator, the same dispatch loop, the same AHK
 hotkey script and the same voice control as the desktop.  What differs is who
-is listening at the far end of each file channel: the main player is
-:class:`fun_time_vr.roles.MainRole` rather than the main player, Genau and both satellites
-live inside the one VR process, the hosted Origenerator answers a side in its
-mode as it does on the desktop, and the windows the desktop's ops act on do not
-exist.  So a control can be perfectly routed and still be dead in the headset —
-which is exactly how the main-slot padlock and F-mode's status line came to be
-dead there with the whole suite green.
+is listening at the far end of each file channel: the three Funestras live
+inside the one VR process, with the headset's own verbs beside Kino's on the
+Main Funestra, the hosted Origenerator answers a side in its mode as it does
+on the desktop, and the windows the desktop's ops act on do not exist.  So a
+control can be perfectly routed and still be dead in the headset — which is
+exactly how the main-slot padlock and F-mode's status line came to be dead
+there with the whole suite green.
 
 This module closes that.  It walks every command the reference can produce —
 every hotkey, every spoken phrase — through the real dispatch, against the
 config a headset session builds and in both of the satellite side's modes, and
 holds each verb that lands to the vocabulary of whatever will actually read it
 in a VR session.  The only way to leave a control dead in the headset is to
-name it, with its reason, in
-:data:`fun_time_vr.roles.UNIMPLEMENTED_MAIN_PLAYER_VERBS` or in one of the sets here.
+name it, with its reason, in one of the sets here.
 """
 from __future__ import annotations
 
 import json
+import logging
+from functools import partial
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from player_core import funestra_controls
+from player_core.funestra import Channels, Funestra
 from player_core.funestra_controls import FunestraControls
 from player_core.funestra_controls import apply_command as apply_satellite_command
 from player_core.genau_controls import VERBS as GENAU_VERBS
+from player_core.modes import MainMode
 from player_core.playback import Playback
 from player_core.player_verbs import SHOW
 from player_core.playlist import read_playlist
@@ -49,13 +53,16 @@ from fun_time.windows_bridge_dispatch_loop import (
     HANDOFF_COMMANDS,
     build_bridge_config_from_manifest,
 )
-from fun_time_vr import roles
+from fun_time_vr import headset_verbs
+from fun_time_vr.headset_verbs import HeadsetVerbs
 from fun_time_vr.orchestrator import build_vr_manifest
-from fun_time_vr.roles import UNIMPLEMENTED_MAIN_PLAYER_VERBS, MainRole
 from main_player import controls as main_player_controls
+from main_player.clip_nav import ClipNav
+from main_player.kino import Kino
+from main_player.mode_memory import ModeMemory, RememberedMode
+from main_player.notice import NoticeWriter
 from tests.origenerator_contract import answers
 from tests.satellite_fakes import FakeSatellitePlayer
-from tests.test_vr_roles import FakeDriver, FakePlayer
 from tests.test_windows_bridge_dispatch_loop import make_runner
 
 # The channels a dispatch writes to.  The paused flags and the broker mailbox
@@ -240,78 +247,108 @@ def _sent_to(landed, channel: str) -> dict[str, str]:
     return seen
 
 
-def _main_role(tmp_path: Path) -> MainRole:
-    """A real main role on fakes — the vocabulary asked of the method itself."""
-    playlist = tmp_path / "main_player_playlist.tsv"
-    videos = tmp_path / "videos"
-    videos.mkdir(exist_ok=True)
-    first, second = videos / "one.mp4", videos / "two.mp4"
-    for video in (first, second):
-        video.write_bytes(b"")
-    script = videos / "one.funscript"
-    script.write_text(json.dumps({"actions": [{"at": 0, "pos": 0}]}), encoding="utf-8")
-    playlist.write_text(f"{first}\t{script}\n{second}\t\n", encoding="utf-8")
-    return MainRole(
-        player=FakePlayer(), driver=FakeDriver(), playlist_file=playlist,
-        metadata_root=tmp_path / "metadata", vr_dirs=(),
-    )
+WINDOW = (640, 480)
+
+
+class _TheHeadsetsMainFunestra:
+    """The headset's Main Funestra on fakes, built the way the headset builds
+    it: Kino running on it with the headset's own verbs beside it, driven
+    through its command file -- the vocabulary asked of the window itself."""
+
+    def __init__(self, tmp_path: Path) -> None:
+        videos = tmp_path / "videos"
+        videos.mkdir(exist_ok=True)
+        first, second = videos / "one.mp4", videos / "two.mp4"
+        for video in (first, second):
+            video.write_bytes(b"")
+        script = videos / "one.funscript"
+        script.write_text(json.dumps({"actions": [{"at": 0, "pos": 0}]}), encoding="utf-8")
+        channels = Channels(
+            playlist=tmp_path / "main_player_playlist.tsv",
+            command=tmp_path / "main_player_cmd.txt",
+            console=tmp_path / "main_player_console.json",
+            dashboard_cmd=tmp_path / "dashboard_cmd.txt",
+        )
+        channels.playlist.write_text(f"{first}\t{script}\n{second}\t\n", encoding="utf-8")
+        self._command_file = channels.command
+        self.player = FakeSatellitePlayer(duration_ms=3_600_000.0)
+        self.funestra = Funestra(
+            self.player, channels=channels, playlist=read_playlist(channels.playlist),
+            locked=True, sound_is_the_rooms=True,
+            users={MainMode.KINO: partial(
+                Kino, source=None, clip_nav=ClipNav.build([], None),
+                notices=NoticeWriter(None), memory=ModeMemory(None),
+                remembered=RememberedMode(), resolve_playlist=list)},
+            window_verbs=self._apply_the_headsets_verb,
+        )
+        self.verbs = HeadsetVerbs(self.funestra.playback, metadata_root=tmp_path / "metadata",
+                                  vr_dirs=())
+
+    def _apply_the_headsets_verb(self, command: str) -> bool:
+        return self.verbs.apply(command)
+
+    def answers(self, line: str) -> bool:
+        """Whether the window answered *line* off its command file: the
+        Funestra says on its log which lines nothing on it answered."""
+        self._command_file.write_text(line + "\n", encoding="utf-8")
+        with _the_funestras_refusals() as refused:
+            self.funestra.tick(window=WINDOW)
+        return not refused
+
+
+class _the_funestras_refusals:
+    def __enter__(self):
+        self._handler = _Refusals()
+        logging.getLogger("player_core.funestra").addHandler(self._handler)
+        return self._handler.refused
+
+    def __exit__(self, *_exc):
+        logging.getLogger("player_core.funestra").removeHandler(self._handler)
+
+
+class _Refusals(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.refused: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if "Unhandled command" in record.getMessage():
+            self.refused.append(record.getMessage())
 
 
 class TestTheMainPlayer:
-    """The one role a VR session substitutes wholesale, and so the one that can
+    """The one window a VR session builds for itself, and so the one that can
     quietly stop answering a key the desktop answers."""
 
     def test_every_verb_it_is_sent_is_one_it_answers(self, landed, tmp_path):
-        """A key that posts a verb the VR main role drops is a control that does
-        nothing at all in the headset, with nothing on screen to say so.
+        """A key that posts a verb the headset's Main Funestra drops is a
+        control that does nothing at all in the headset, with nothing on screen
+        to say so.
 
         ``'`` posted TOGGLE_LOCK into a role with no lock and the F key's
         SET_F_MODE went the same way: both dispatched cleanly, both dead, and
         the only trace was one "verb the VR main role does not handle" line in
         a log nobody reads while wearing a headset.
         """
-        role = _main_role(tmp_path)
-        dead: dict[str, str] = {}
-        for verb, where in _sent_to(landed, "main_player_cmd_file").items():
-            if verb in UNIMPLEMENTED_MAIN_PLAYER_VERBS:
-                continue
-            if not role.apply_command(_a_whole_line(verb), on_quit=lambda: None):
-                dead[verb] = where
-        assert not dead, (
-            "the VR main role answers none of these and none is a stated "
-            f"exception in UNIMPLEMENTED_MAIN_PLAYER_VERBS: {dead}"
-        )
-
-    def test_the_stated_exceptions_are_all_verbs_it_really_refuses(self, tmp_path):
-        """The exception list may not carry a verb the role has since learned.
-
-        Left there, a working control would read as a known gap for as long as
-        anyone believed the list — which is the whole value of writing one.
-        """
-        role = _main_role(tmp_path)
-        answered = [
-            verb for verb in UNIMPLEMENTED_MAIN_PLAYER_VERBS
-            if role.apply_command(_a_whole_line(verb), on_quit=lambda: None)
-        ]
-        assert not answered, (
-            f"UNIMPLEMENTED_MAIN_PLAYER_VERBS names verbs the role now answers: {answered}"
-        )
-
-    def test_every_exception_says_why(self):
-        """A bare list of dead verbs is a list nobody can act on later."""
-        for verb, reason in UNIMPLEMENTED_MAIN_PLAYER_VERBS.items():
-            assert reason.strip(), f"{verb} is excepted with no reason"
+        window = _TheHeadsetsMainFunestra(tmp_path)
+        dead = {
+            verb: where
+            for verb, where in _sent_to(landed, "main_player_cmd_file").items()
+            if not window.answers(_a_whole_line(verb))
+        }
+        assert not dead, f"the headset's Main Funestra answers none of these: {dead}"
 
     def test_a_reset_unlocks_it_and_puts_its_speed_back_to_normal(self, tmp_path):
         config = _headset_config(tmp_path)
-        role = _main_role(tmp_path)
-        role.apply_command("SPEED_DOWN", on_quit=lambda: None)
+        window = _TheHeadsetsMainFunestra(tmp_path)
+        window.answers("SPEED_DOWN")
 
         dispatch_command("main_reset", BridgeState(main_mode=MAIN_KINO_MODE), config)
         for line in config.main_player_cmd_file.read_text(encoding="utf-8").splitlines():
-            role.apply_command(line, on_quit=lambda: None)
+            window.answers(line)
 
-        assert (role.locked, role.speed) == (False, 1.0)
+        playback = window.funestra.playback
+        assert (playback.is_locked, playback.speed) == (False, 1.0)
 
 
 def _a_whole_line(verb: str) -> str:
@@ -319,10 +356,10 @@ def _a_whole_line(verb: str) -> str:
     that runs on the window for SHOW, and 1 for the rest, which reads as a number,
     a path or a flag.
 
-    Half a command is refused by both roles on purpose, so a vocabulary check
-    that sent bare verbs would report every value-taking one as unanswered.
-    Which ones want a value is read off the two registries rather than listed
-    here, so a verb that starts taking one cannot leave this check sending it bare.
+    Half a command is refused on purpose, so a vocabulary check that sent
+    bare verbs would report every value-taking one as unanswered.  Which ones
+    want a value is read off the three registries rather than listed here, so
+    a verb that starts taking one cannot leave this check sending it bare.
     """
     if verb not in _VERBS_THAT_TAKE_A_VALUE:
         return verb
@@ -331,7 +368,7 @@ def _a_whole_line(verb: str) -> str:
 
 _VERBS_THAT_TAKE_A_VALUE = frozenset(
     spelling
-    for registry in (main_player_controls.VERBS, roles.VERBS)
+    for registry in (main_player_controls.VERBS, headset_verbs.VERBS, funestra_controls.VERBS)
     for spelling, (_control, verb) in registry.items()
     if verb.takes_a_value
 )
