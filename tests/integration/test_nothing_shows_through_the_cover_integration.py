@@ -51,6 +51,7 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
 )
+from .run_clock import Budget
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -183,8 +184,8 @@ def _unable_to_run(hwnd: int):
 
 def _sampling(watcher: AboveTheCover) -> None:
     watcher.start()
-    deadline = time.monotonic() + 5.0
-    while not watcher.samples and time.monotonic() < deadline:
+    budget = Budget(5.0)
+    while not watcher.samples and not budget.expired():
         time.sleep(0.005)
     assert watcher.samples, "the watcher never sampled the cover"
 

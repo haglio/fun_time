@@ -15,6 +15,7 @@ from .integration_support import (
     build_integration_temp_root,
     the_runs_tcode_sink,
 )
+from .run_clock import Budget
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -50,9 +51,9 @@ def test_quitting_stops_the_robot_hand_before_anything_closes_and_parks_the_osr2
 
         session.write_dashboard_command("quit")
         last_move_at = time.monotonic()
-        deadline = last_move_at + QUIT_BUDGET_S
+        budget = Budget(QUIT_BUDGET_S)
         while is_process_alive(main_player.pid):
-            assert time.monotonic() < deadline, (
+            assert not budget.expired(), (
                 f"the Main Player was still running {QUIT_BUDGET_S:g}s after the quit\n"
                 f"{session._log_tail()}")
             if _moves_waiting(sink):
