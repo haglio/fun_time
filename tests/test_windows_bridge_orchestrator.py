@@ -19,7 +19,7 @@ from player_core.console import OSR2_RETRACTED
 from player_core.modes import MainMode
 from shared_ui.preview import Preview, window_title
 
-from fun_time import device_arbiter, windows_bridge_orchestrator
+from fun_time import closing_screen, device_arbiter, windows_bridge_orchestrator
 from fun_time.config import load_config
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
@@ -1449,7 +1449,8 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
                    at_cover_up=lambda: None, asked_to_end: bool = False,
                    overrides: dict | None = None,
                    launches: dict[str, dict] | None = None,
-                   result: StartupResult | None = None):
+                   result: StartupResult | None = None,
+                   while_ending=lambda pid: None):
     cfg = load_config(cfg_factory(overrides))
     manifest_path = write_windows_bridge_manifest(
         cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1488,6 +1489,10 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
             return fake_overlay_proc
         return fake_ahk_proc
 
+    def end(pid):
+        events.append(f"kill:{pid}")
+        while_ending(pid)
+
     with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
                side_effect=start_up if result is None else None,
                return_value=result), \
@@ -1496,8 +1501,7 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
                side_effect=lambda pid: pid * 10), \
          patch("fun_time.windows_bridge_orchestrator.close_window",
                side_effect=lambda hwnd: events.append("close_browser")), \
-         patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
-               side_effect=lambda pid: events.append(f"kill:{pid}")):
+         patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=end):
 
         _a_session(
             manifest_path=manifest_path,
@@ -1701,6 +1705,30 @@ class TestClosingScreenLifecycle:
         # Nothing of the shutdown channel is left for the next session.
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
         assert not ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
+
+    def test_a_part_slow_to_end_does_not_let_the_closing_screen_take_itself_down(
+            self, cfg_factory, tmp_path):
+        """He quit on a busy machine, and its parts took seconds each to end, one
+        after another.  The closing screen heard nothing for twenty seconds, took
+        that to mean Fun Time had died, and went -- with the dashboard still up,
+        waiting its turn to be closed."""
+        progress = tmp_path / "state" / SHUTDOWN_PROGRESS_FILENAME
+        heard_from_again: list[bool] = []
+
+        def the_main_player_takes_its_time(pid):
+            if pid != 200:
+                return
+            long_ago = time.time() - closing_screen.STALE_TIMEOUT_S - 1
+            os.utime(progress, (long_ago, long_ago))
+            deadline = time.monotonic() + 5.0
+            while progress.stat().st_mtime <= long_ago and time.monotonic() < deadline:
+                time.sleep(0.05)
+            heard_from_again.append(progress.stat().st_mtime > long_ago)
+
+        _run_a_session(cfg_factory, tmp_path, events=[],
+                       while_ending=the_main_player_takes_its_time)
+
+        assert heard_from_again == [True]
 
     def test_a_crossing_wears_the_transition_cover_and_leaves_it_standing(
         self, cfg_factory, tmp_path,

@@ -18,9 +18,9 @@ from .overlay_window import OverlayWindow
 # Distinct from the dashboard's "Fun Time", for the loading cover's reason.
 WINDOW_TITLE = "Fun Time Closing"
 
-# Teardown is over in seconds, so a file unmoved this long means the
-# orchestrator died holding the cover up.  Far shorter than startup's: what
-# this ends is a panel with nothing left under it to wait for.
+# The teardown says it is still going once a second, however long a part takes
+# to end, so a file unmoved this long means the orchestrator died holding the
+# cover up.  Far shorter than startup's: nothing is left under it to wait for.
 STALE_TIMEOUT_S = 20.0
 
 
