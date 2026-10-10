@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -380,15 +380,8 @@ class _Squeeze:
         return self.click, PressEvent(RELEASE, self.click.screen)
 
 
-def _nowhere(_screen: Screen, _u: float, _v: float) -> bool:
-    return False
-
-
 class Pointer:
-    def __init__(
-        self, *, on_its_controls: Callable[[Screen, float, float], bool] = _nowhere,
-    ) -> None:
-        self._on_its_controls = on_its_controls
+    def __init__(self) -> None:
         self.hand = RIGHT
         self._triggers = {LEFT: TriggerEdge(), RIGHT: TriggerEdge()}
         self._grab: tuple[Screen, Grab] | None = None
@@ -440,8 +433,7 @@ class Pointer:
         if edge == PRESS and hover.handle in (MOVE, RESIZE):
             self._grab = (screen, Grab(hover.handle, screen.placement, start=point,
                                        aspect=screen.aspect, widened_by=screen.widened_by))
-        elif edge == PRESS and screen.picture and not self._on_its_controls(
-                screen, hover.u, hover.v):
+        elif edge == PRESS and screen.picture:
             self._start_squeeze(aim, scene_rotation, PressEvent(
                 PRESS, screen.name, hover.u, hover.v) if screen.pressable else None)
         elif edge == PRESS and screen.pressable:
