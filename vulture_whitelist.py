@@ -1,4 +1,4 @@
-"""Vulture whitelist â€” false positives that are not dead code.
+"""Vulture whitelist: false positives that are not dead code.
 
 Each entry tells vulture the name is used, suppressing the report.  Vulture
 matches by bare name, so an entry that suppresses nothing keeps covering
@@ -14,6 +14,7 @@ _.set_showing  # the Funestra (player_core) tells each User whether it has the w
 _.picture  # the Funestra asks the User in front for the picture it brings
 _.leaveEvent  # Qt calls it when the pointer leaves the dashboard bar
 _.mouseMoveEvent  # Qt event override
+_.ERROR_CHECKING  # PyOpenGL reads it once, when OpenGL.GL is first imported
 _.optionxform  # ConfigParser hook, set to keep key case
 _.resizable  # pygame's Window property, set so SDL takes a resize from outside
 

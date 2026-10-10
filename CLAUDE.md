@@ -202,7 +202,10 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   usually within the hour, and he sees it the next time he opens it — not that it
   "needs a restart", which he only has running while he is using it, unlike
   the broker's tray and Evolver. Only he may waive the launch —
-  "just land it" is his call to make, never yours. **The shortcut is owed to him
+  "just land it" is his call to make, never yours. A story he did not file
+  himself, one that reached the session as another session's kickoff, gets no
+  shortcut at all: it ships on the session's own checks, as the global landing
+  skill says. **The shortcut is owed to him
   whether or not you are the one landing** — an agent handing its branch to
   another agent to merge still gets his verdict first, because the merge is what
   the verdict decides. Spawning one, say that outright in the brief: told only
