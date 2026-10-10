@@ -35,9 +35,10 @@ from fun_time.player_status import (
 )
 from fun_time.players import Player
 from fun_time.process_identity import NAMER
-from fun_time.process_sweep import sweep_processes
+from fun_time.process_sweep import processes_matching
 from fun_time.process_tree import kill_process_tree
 from fun_time.win32_process import (
+    command_line_of,
     get_process_creation_time,
     get_process_image_name,
     is_process_alive,
@@ -150,24 +151,11 @@ def _kill_leftover_hosted_apps(window_pids) -> None:
     is python.exe too.  The command line is what tells them apart: only the
     hosted app was launched ``-m origenerator``, and a leftover one owns real
     windows on this desktop that can sit over a later session's players (a
-    stalled boot's splash covered a satellite for a whole test run).  One WMI
-    query answers for all candidate pids at once.
+    stalled boot's splash covered a satellite for a whole test run).
     """
-    candidates = sorted(set(window_pids))
-    if not candidates:
-        return
-    pid_list = ",".join(str(pid) for pid in candidates)
-    ps = (
-        "Get-CimInstance Win32_Process | Where-Object { "
-        f"@({pid_list}) -contains $_.ProcessId -and "
-        "$_.CommandLine -match '-m +origenerator' } | "
-        "ForEach-Object { $_.ProcessId }"
-    )
-    for line in sweep_processes(ps, read_output=True).split():
-        try:
-            kill_process_tree(int(line))
-        except ValueError:
-            continue
+    for pid in sorted(set(window_pids)):
+        if re.search(r"-m +origenerator", command_line_of(pid) or "", re.IGNORECASE):
+            kill_process_tree(pid)
 
 
 
@@ -215,7 +203,6 @@ class FunTimeIntegrationSession:
     def __init__(self, config_path: Path):
         self.config = load_config(config_path)
         self._proc: subprocess.Popen[str] | None = None
-        self._started_at = time.time()
         self._log_pos = 0
 
     @property
@@ -544,18 +531,6 @@ class FunTimeIntegrationSession:
 
     def _reap_leftover_runtime_processes(self) -> None:
         _kill_leftover_app_processes()
-        # Wait for AHK to fully exit — #SingleInstance Force in the next
-        # AHK launch races with zombie processes that a force-kill has
-        # signalled but the OS hasn't fully reaped yet.
-        deadline = time.time() + 5.0
-        while time.time() < deadline:
-            result = subprocess.run(
-                ["tasklist", "/FI", "IMAGENAME eq AutoHotkey64.exe", "/NH"],
-                capture_output=True, text=True, check=False,
-            )
-            if "AutoHotkey64.exe" not in result.stdout:
-                break
-            time.sleep(0.3)
         self._wait_for_orchestrators_to_exit()
 
     def _wait_for_orchestrators_to_exit(self, timeout: float = 15.0) -> None:
@@ -574,18 +549,10 @@ class FunTimeIntegrationSession:
         whole timeout, and a run's own teardown waited on a session it has
         nothing to do with.
         """
-        config_pattern = INTEGRATION_CONFIG_NAME.replace(".", "\\.")
-        ps = (
-            "@(Get-CimInstance Win32_Process | Where-Object { "
-            "$_.Name -match '^pythonw?\\.exe$' -and "
-            "$_.CommandLine -match 'fun_time\\.orchestrator' -and "
-            f"$_.CommandLine -match '{config_pattern}' }}).Count"
-        )
+        an_integration_orchestrator = rf"fun_time\.orchestrator .*{re.escape(INTEGRATION_CONFIG_NAME)}"
         deadline = time.time() + timeout
         while time.time() < deadline:
-            still_up = sweep_processes(
-                ps, read_output=True, budget_s=max(1.0, deadline - time.time()))
-            if still_up.strip() == "0":
+            if not processes_matching(r"^pythonw?\.exe$", an_integration_orchestrator):
                 return
             time.sleep(0.5)
 

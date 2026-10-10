@@ -43,6 +43,7 @@ from tests.integration.integration_support import (
     wait_for,
     window_is_quiet,
 )
+from tests.made_up_machine import running
 
 BROKER_TCODE_PORT = 50557
 GENAU_INBOUND_PORT = 50555
@@ -90,13 +91,10 @@ def isolated_ports():
         close_udp_sinks()
 
 
-def _completed(stdout: str):
-    class _Result:
-        pass
-
-    result = _Result()
-    result.stdout = stdout
-    return result
+LIVE_ORCHESTRATOR = (
+    61, "python.exe", r"python.exe -m fun_time.orchestrator --config C:\Fun Time\fun_time_config.json", 0.0)
+A_RUNS_ORCHESTRATOR = (
+    62, "python.exe", rf"python.exe -m fun_time.orchestrator --config C:\Temp\run\{INTEGRATION_CONFIG_NAME}", 0.0)
 
 
 @pytest.fixture
@@ -346,15 +344,21 @@ def test_the_orchestrator_wait_only_ever_waits_on_integration_orchestrators(sess
     becomes hostage to a session it has nothing to do with.  Only orchestrators
     started from an integration config can be the one we are waiting on.
     """
-    with patch.object(integration_support.subprocess, "run") as run:
-        run.return_value = _completed("0")
+    with running("tests.integration.integration_support", [LIVE_ORCHESTRATOR]), \
+         patch.object(integration_support.time, "sleep",
+                      side_effect=AssertionError("it waited on the live session")):
         session._wait_for_orchestrators_to_exit()
 
-    ps_command = run.call_args.args[0][-1]
-    assert "fun_time\\.orchestrator" in ps_command
-    # The name appears regex-escaped, so match on its distinguishing stem.  What
-    # matters is that the user's `--config fun_time_config.json` cannot match.
-    assert INTEGRATION_CONFIG_NAME.removesuffix(".json") in ps_command
+
+def test_the_orchestrator_wait_holds_until_the_last_integration_orchestrator_is_gone(session):
+    machine = [LIVE_ORCHESTRATOR, A_RUNS_ORCHESTRATOR]
+
+    with running("tests.integration.integration_support", machine), \
+         patch.object(integration_support.time, "sleep",
+                      side_effect=lambda _seconds: machine.remove(A_RUNS_ORCHESTRATOR)) as slept:
+        session._wait_for_orchestrators_to_exit()
+
+    assert slept.call_count == 1
 
 
 def test_the_integration_config_never_shares_the_live_sessions_audio_port(isolated_ports):

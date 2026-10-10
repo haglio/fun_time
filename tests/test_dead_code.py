@@ -288,7 +288,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # their paragraphs.
 # 6525 on 2026-10-09: two docstrings in vr_runtime that only said their function's
 # name again went, more than paying for the line the sound devices' module added.
-MAX_PROSE_LINES = 6525
+# 6518 on 2026-10-10: the process sweeps stopped spelling out PowerShell's quoting
+# rules, and the module that ran them its own reason for existing.
+MAX_PROSE_LINES = 6518
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

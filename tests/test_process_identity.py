@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from unittest.mock import patch
 
 from app_support.launcher import launchers
 from app_support.process_identity_check import assert_the_app_names_its_process
@@ -18,6 +17,7 @@ from app_support.process_identity_check import assert_the_app_names_its_process
 from fun_time.process_identity import NAMER, prepare_orchestrator_launcher
 from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
 from fun_time.windows_bridge_startup import reap_orphaned_satellites
+from tests.made_up_machine import running
 
 # Every role this repo launches a child under, gathered from the launch sites in
 # windows_bridge_startup, windows_bridge_orchestrator and library_browser, plus
@@ -31,9 +31,10 @@ ROLES = (
 
 
 class TestTheStringsOtherLanguagesMatchOn:
-    """Two strings leave Python: an image name a VBScript looks for on disk, and
-    a regex three PowerShell sweeps interpolate.  Neither has a caller that
-    would fail if it changed, so both are held here to the byte."""
+    """Two strings are matched on outside this repo's own calls: an image name a
+    VBScript looks for on disk, and the regex the process sweeps match image
+    names with.  Neither has a caller that would fail if it changed, so both are
+    held here to the byte."""
 
     def test_the_sweep_pattern_is_the_one_the_sweeps_were_written_against(self):
         # Spelled out rather than derived, because a derivation would agree with
@@ -45,15 +46,15 @@ class TestTheStringsOtherLanguagesMatchOn:
 
     def test_the_satellite_reap_is_the_sweep_that_carries_it(self):
         # Pinning the string proves nothing on its own: a sweep that stopped
-        # interpolating it, or interpolated a bare "pythonw", would reach past
-        # this repo's own players and force-kill whatever else the machine runs
-        # under a Python.
-        with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
-            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
-        ):
+        # using it would reach past this repo's own players and force-kill
+        # whatever else the machine runs a satellite module under.
+        stranded = "-m satellite --status-file C:/state/portrait_status.txt"
+        machine = [(51, "FunTime-Portrait.exe", stranded, 0.0),
+                   (52, "Relay-Portrait.exe", stranded, 0.0)]
+        with running("fun_time.windows_bridge_startup", machine) as ended:
             reap_orphaned_satellites("satellite", ["C:/state/portrait_status.txt"])
 
-        assert NAMER.process_name_pattern in run.call_args.args[0][-1]
+        assert ended == [51]
 
     def test_the_launcher_looks_for_the_name_the_namer_gives_the_orchestrator(self):
         # launch.vbs looks in the venv for this file by name and runs it if it is

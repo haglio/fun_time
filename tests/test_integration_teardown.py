@@ -32,24 +32,27 @@ def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
         666: r"C:\Python314\python.exe",                    # a leftover hosted Origenerator
         own: sys.executable,
     }
+    command_lines = {444: "python.exe -m pytest tests/integration/",
+                     666: r"python.exe -m origenerator --hosted C:\state"}
+    asked: list[int] = []
+
+    def command_line_of(pid: int) -> str | None:
+        asked.append(pid)
+        return command_lines.get(pid)
+
     with patch.object(integration_support, "current_desktop_name", return_value=HIDDEN_DESKTOP_NAME), \
          patch.object(integration_support, "pids_with_window_on_current_desktop", return_value=set(images)), \
          patch.object(integration_support, "get_process_image_name", images.get), \
-         patch.object(integration_support, "kill_process_tree") as kill, \
-         patch.object(integration_support.subprocess, "run") as run:
-        run.return_value.stdout = "666\n"  # the command-line query names the hosted app
+         patch.object(integration_support, "command_line_of", command_line_of), \
+         patch.object(integration_support, "kill_process_tree") as kill:
         integration_support._kill_leftover_app_processes()
 
     killed = {call.args[0] for call in kill.call_args_list}
     assert killed == {222, 333, 666}  # players/AHK by image, the hosted app by command line
     assert 444 not in killed     # never another run's pytest
     assert own not in killed     # never the running pytest process itself
-    # The one subprocess call is the hosted-app QUERY, bounded to exactly the
-    # window-owning pids — never the old machine-wide by-name sweep.
-    query = run.call_args.args[0][-1]
-    assert "Stop-Process" not in query
-    for pid in sorted(set(images)):
-        assert str(pid) in query
+    # Only the window-owning pids are asked what they run — never the machine.
+    assert set(asked) <= set(images)
 
 
 def test_reap_off_the_hidden_desktop_kills_nothing_at_all():
@@ -66,9 +69,9 @@ def test_reap_off_the_hidden_desktop_kills_nothing_at_all():
     with patch.object(integration_support, "current_desktop_name", return_value="Default"), \
          patch.object(integration_support, "pids_with_window_on_current_desktop") as pids, \
          patch.object(integration_support, "kill_process_tree") as kill, \
-         patch.object(integration_support.subprocess, "run") as run:
+         patch.object(integration_support, "command_line_of") as asked:
         integration_support._kill_leftover_app_processes()
 
     kill.assert_not_called()
     pids.assert_not_called()
-    run.assert_not_called()
+    asked.assert_not_called()

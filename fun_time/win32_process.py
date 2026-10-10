@@ -1,10 +1,9 @@
 """Asking Windows about a process, rather than about a window.
 
-Four queries the session makes of the pids it recorded at launch: what a pid is
-running, when the process holding it started, whether it is still alive, and
-which pids call it parent.  They share a file with nothing — no window, no
-handle, no z-order — and they are what the orchestrator's reap and the
-integration runner's cleanup are built on.
+What a pid is running and with which command line, when the process holding it
+started, whether it is still alive, and which pids call it parent.  They share a
+file with nothing — no window, no handle, no z-order — and they are what the
+orchestrator's reap and the integration runner's cleanup are built on.
 
 Every entry point these call is declared below.  ``argtypes`` matter on 64-bit:
 without them ctypes marshals a HANDLE as a 32-bit ``c_int`` and truncates it,
@@ -14,10 +13,12 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.wintypes
+from typing import NamedTuple
 
 from fun_time.win32_loader import load_dll
 
 _kernel32 = load_dll("kernel32")
+_ntdll = load_dll("ntdll")
 
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
@@ -104,6 +105,13 @@ def get_process_creation_time(pid: int) -> int | None:
         _kernel32.CloseHandle(handle)
 
 
+_FILETIME_AT_THE_UNIX_EPOCH = 116_444_736_000_000_000
+
+
+def unix_seconds(filetime: int) -> float:
+    return (filetime - _FILETIME_AT_THE_UNIX_EPOCH) / 10_000_000
+
+
 def creation_time_of(handle: int) -> int | None:
     creation = ctypes.wintypes.FILETIME()
     unused = (ctypes.wintypes.FILETIME(), ctypes.wintypes.FILETIME(), ctypes.wintypes.FILETIME())
@@ -145,7 +153,17 @@ def list_child_pids(parent_pid: int) -> list[int]:
 
 
 def process_parents() -> list[tuple[int, int]]:
-    """Every running process's pid with its parent's, from one Toolhelp snapshot."""
+    return [(entry.pid, entry.parent) for entry in process_table()]
+
+
+class ProcessEntry(NamedTuple):
+    pid: int
+    parent: int
+    image: str
+
+
+def process_table() -> list[ProcessEntry]:
+    """Every running process, from one Toolhelp snapshot."""
     TH32CS_SNAPPROCESS = 0x2
     INVALID_HANDLE_VALUE = ctypes.wintypes.HANDLE(-1).value
 
@@ -173,15 +191,52 @@ def process_parents() -> list[tuple[int, int]]:
     snapshot = _kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
     if snapshot == INVALID_HANDLE_VALUE:
         return []
-    pairs: list[tuple[int, int]] = []
+    entries: list[ProcessEntry] = []
     try:
         entry = PROCESSENTRY32()
         entry.dwSize = ctypes.sizeof(PROCESSENTRY32)
         if _kernel32.Process32FirstW(snapshot, ctypes.byref(entry)):
             while True:
-                pairs.append((int(entry.th32ProcessID), int(entry.th32ParentProcessID)))
+                entries.append(ProcessEntry(
+                    int(entry.th32ProcessID), int(entry.th32ParentProcessID), entry.szExeFile))
                 if not _kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
                     break
     finally:
         _kernel32.CloseHandle(snapshot)
-    return pairs
+    return entries
+
+
+_PROCESS_COMMAND_LINE_INFORMATION = 60
+
+
+class _UNICODE_STRING(ctypes.Structure):
+    _fields_ = [("Length", ctypes.wintypes.USHORT),
+                ("MaximumLength", ctypes.wintypes.USHORT),
+                ("Buffer", ctypes.c_void_p)]
+
+
+_ntdll.NtQueryInformationProcess.argtypes = [
+    ctypes.wintypes.HANDLE, ctypes.wintypes.ULONG, ctypes.c_void_p, ctypes.wintypes.ULONG,
+    ctypes.POINTER(ctypes.wintypes.ULONG)]
+_ntdll.NtQueryInformationProcess.restype = ctypes.wintypes.LONG
+
+
+def command_line_of(pid: int) -> str | None:
+    handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return None
+    try:
+        needed = ctypes.wintypes.ULONG(0)
+        _ntdll.NtQueryInformationProcess(
+            handle, _PROCESS_COMMAND_LINE_INFORMATION, None, 0, ctypes.byref(needed))
+        if not needed.value:
+            return None
+        answer = ctypes.create_string_buffer(needed.value)
+        if _ntdll.NtQueryInformationProcess(
+            handle, _PROCESS_COMMAND_LINE_INFORMATION, answer, needed, ctypes.byref(needed)
+        ):
+            return None
+        text = _UNICODE_STRING.from_buffer(answer)
+        return ctypes.wstring_at(text.Buffer, text.Length // 2) if text.Length else ""
+    finally:
+        _kernel32.CloseHandle(handle)
