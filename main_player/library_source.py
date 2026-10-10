@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
-from player_core.clip_folder import SUPPORTED_VIDEO_EXTS, flat_clips_in
 from player_core.modes import LengthMode
 from player_core.playlist import PlaylistItem
 
@@ -75,7 +74,6 @@ PHASE_DURATIONS = "durations"
 @dataclass(frozen=True)
 class LibrarySource:
     entries: list[LibraryEntry]
-    genau_clips: list[LibraryEntry]
     durations: dict[Path, float]
     rng: random.Random
     # When set, version families come from Evolver's metadata sidecars (the
@@ -87,7 +85,6 @@ class LibrarySource:
             self.entries,
             mode=mode,
             durations=self.durations,
-            genau_clips=self.genau_clips,
             rng=self.rng,
             kind_of=self._kind_of(),
         )
@@ -122,32 +119,13 @@ class LibrarySource:
         that one an Evolver run can move under a session that is still open.
         """
         return version_index_from_groups(
-            group_versions(self.entries + self.genau_clips, self._group_id_of())
+            group_versions(self.entries, self._group_id_of())
         )
-
-
-def discover_genau_clips(clips_dir: Path | None) -> list[LibraryEntry]:
-    """The 2D clips Genau plays, found anywhere under its clips folder's 2D folder.
-
-    Unscripted, and shorts by where they came from however long they run.
-    Named for Genau because "clip" means something else two modules over: a
-    scene Evolver carved out of a compilation, which is what
-    :mod:`main_player.clip_nav` and :mod:`main_player.clip_jumps` navigate.
-    """
-    if clips_dir is None or not clips_dir.is_dir():
-        return []
-
-    clips: list[LibraryEntry] = []
-    for path in sorted(flat_clips_in(clips_dir).rglob("*")):
-        if path.is_file() and path.suffix.lower() in SUPPORTED_VIDEO_EXTS:
-            clips.append(LibraryEntry(video=path, funscript=None, size=path.stat().st_size))
-    return clips
 
 
 def build_library_source(
     videos_dir: Path,
     scripts_dir: Path,
-    clips_dir: Path | None,
     *,
     rng: random.Random,
     duration_cache: DurationCache | None = None,
@@ -172,7 +150,6 @@ def build_library_source(
     report = on_progress if on_progress is not None else lambda *_: None
     report(PHASE_DISCOVER, 0, 0)
     entries = discover_entries(videos_dir, scripts_dir)
-    genau_clips = discover_genau_clips(clips_dir)
     if durations is None:
         if duration_cache is None:
             raise ValueError("either durations or duration_cache must be given")
@@ -187,6 +164,6 @@ def build_library_source(
             durations[entry.video] = duration_cache.duration_for(entry.video)
         duration_cache.save()
     return LibrarySource(
-        entries=entries, genau_clips=genau_clips, durations=durations, rng=rng,
+        entries=entries, durations=durations, rng=rng,
         metadata_root=metadata_root,
     )

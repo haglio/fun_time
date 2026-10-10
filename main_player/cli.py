@@ -154,7 +154,6 @@ def library_source(
     return build_library_source(
         Path(args.videos_dir),
         Path(args.scripts_dir),
-        Path(args.clips_dir) if args.clips_dir else None,
         rng=rng or random.Random(),
         duration_cache=None if durations is not None else DurationCache(_duration_cache_path(args)),
         durations=durations,

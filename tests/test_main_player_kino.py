@@ -20,7 +20,6 @@ from tests.satellite_fakes import FakeSatellitePlayer
 class FakeSource:
     def __init__(self, entries: list[LibraryEntry], version_index=None, metadata_root=None) -> None:
         self.entries = entries
-        self.genau_clips: list[LibraryEntry] = []
         self.version_index = version_index or {}
         self.metadata_root = metadata_root
         self.asked: list[str] = []
