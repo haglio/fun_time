@@ -12,6 +12,7 @@ import ctypes
 import ctypes.wintypes as wt
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -97,7 +98,14 @@ def test_a_measured_run_puts_the_startup_that_keeps_coverage_saved_ahead_of_the_
     assert child["PYTHONPATH"].split(os.pathsep) == [str(hidden_desktop.MEASURED_PROCESS_STARTUP), "x"]
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="Win32 process creation")
+def _saved_so_far(data_file: Path, measured: Path, copy: Path) -> frozenset[str]:
+    shutil.rmtree(copy, ignore_errors=True)
+    if not data_file.parent.exists():
+        return frozenset()
+    shutil.copytree(data_file.parent, copy)
+    return measured_sources(copy / data_file.name, measured, frozenset({"ran.py"}))
+
+
 def test_a_process_a_measured_run_ends_without_warning_keeps_what_it_ran(tmp_path):
     measured = tmp_path / "measured"
     measured.mkdir()
@@ -113,7 +121,7 @@ def test_a_process_a_measured_run_ends_without_warning_keeps_what_it_ran(tmp_pat
         **hidden_subprocess_kwargs())
     try:
         deadline = time.monotonic() + A_STARVED_CHILDS_START_S
-        while not measured_sources(data_file, measured, frozenset({"ran.py"})):
+        while not _saved_so_far(data_file, measured, tmp_path / "read while it runs"):
             assert time.monotonic() < deadline, "nothing the probe ran was saved while it ran"
             time.sleep(0.25)
     finally:
