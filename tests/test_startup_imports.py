@@ -149,3 +149,12 @@ def test_the_sys_path_override_still_sits_between_the_two_import_blocks():
         "the genau/player_core override has to be applied after "
         "checkout_overrides is imported and before the bridge is"
     )
+    own_imports_above_the_call = [
+        node.module for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.lineno < applies
+        and node.module != "checkout_overrides" and (node.level or node.module.startswith("fun_time"))
+    ]
+    assert own_imports_above_the_call == [], (
+        "every import of this package but checkout_overrides reaches the siblings, so "
+        f"the override has to be applied before them: {own_imports_above_the_call}"
+    )
