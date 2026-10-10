@@ -54,6 +54,7 @@ from .overlay_progress import (
     PhaseProgress,
     ProgressReporter,
     StartupCancelled,
+    keep_the_cover_up,
     ready_file_for,
     what_the_flag_asks,
 )
@@ -394,9 +395,11 @@ def _closing_screen(
         tie_to_this_process(proc)
     logger.info("Teardown cover launched (pid=%d)", proc.pid)
     _wait_for_closing_screen(ready_file, proc)
+    stop_beating = keep_the_cover_up(progress_file, name="closing-cover")
     try:
         yield progress
     finally:
+        stop_beating()
         if crossing is None:
             progress.finish()
             try:

@@ -169,8 +169,8 @@ ROOM_PHASES: tuple[Phase, ...] = (
 
 STARTUP_PHASES: tuple[Phase, ...] = (*LAUNCH_PHASES, *ROOM_PHASES)
 
-# The teardown as the closing screen sees it.  NOT seconds: a taskkill returns
-# when Windows says so, so the bar walks the steps.  No weightless phase ends
+# The teardown as the closing screen sees it.  NOT seconds: a part ends when
+# Windows says it has, so the bar walks the steps.  No weightless phase ends
 # this one -- the orchestrator writes DONE once the last child is gone.
 SHUTDOWN_PHASES: tuple[Phase, ...] = (
     # The screen opens on this one, so its wording is the screen's own opening
