@@ -262,7 +262,7 @@ class FunTimeIntegrationSession:
         which calls _shutdown_children().
 
         The command is re-sent until the process goes.  ``ahk_cmd.txt`` is a
-        one-slot mailbox that AHK reads-and-deletes on a 150ms timer, and the
+        one-slot mailbox that AHK reads-and-deletes on a 50ms timer, and the
         dispatch loop writes to it too — an OmniPause enter puts
         ``suspend_hotkeys`` there — so a lone write can be overwritten before
         AHK ever reads it, and an exit lost that way never arrives.  That is
