@@ -254,5 +254,5 @@ class TestWhatThePanelCallsTheClip:
 
 class TestAFolderWithNothingToShow:
     def test_is_refused_at_once(self, tmp_path):
-        with pytest.raises(RuntimeError, match="No video clips"):
+        with pytest.raises(RuntimeError, match="No video flicks"):
             World(tmp_path, clips=())
