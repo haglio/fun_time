@@ -5,12 +5,11 @@ import os
 from pathlib import Path
 
 from app_support.win32 import described_taskbar_app, dress_window
-from shared_ui.palette import PREVIEW_INK, as_hex
+from shared_ui.palette import LOADING_ACCENT, PREVIEW_INK, Rgb
 from shared_ui.preview import Preview, preview_of, taskbar_identity, window_title
 from shared_ui.preview_icon_pil import icon_file as inked_icon_file
 
 from fun_time.checkout_overrides import STATE_DIRNAME
-from fun_time.cover_palette import WORDMARK_MAGENTA
 from fun_time.project_paths import PROJECT_DIR
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 
@@ -45,5 +44,5 @@ def dress_the_window(hwnd: int) -> None:
         logger.info("The taskbar keeps its own idea of window %s", hwnd, exc_info=True)
 
 
-def wordmark_ink(shown: Preview | None) -> str:
-    return WORDMARK_MAGENTA if shown is None else as_hex(PREVIEW_INK)
+def wordmark_ink(shown: Preview | None) -> Rgb:
+    return LOADING_ACCENT if shown is None else PREVIEW_INK

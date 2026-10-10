@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import os
 import subprocess
 import sys
@@ -9,20 +8,17 @@ import tkinter as tk
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
+from shared_ui.loading_panel import LoadingPanel
+from shared_ui.palette import LOADING_ACCENT
+
 from fun_time import overlay_window, preview_marker
-from fun_time.cover_palette import WORDMARK_MAGENTA
 from fun_time.overlay_progress import (
     Progress,
     cancel_file_for,
     parse_progress,
     startup_still_building,
 )
-from fun_time.overlay_window import (
-    POLL_MS,
-    TOPMOST_POLL_MS,
-    OverlayWindow,
-    _Content,
-)
+from fun_time.overlay_window import POLL_MS, TOPMOST_POLL_MS, OverlayWindow
 from tests.integration.integration_support import environment_with_this_checkouts_siblings
 
 
@@ -55,20 +51,12 @@ class _FakeRoot:
         self.rearmed.append((ms, callback))
 
 
-class _FakeVar:
+class _FakeCanvas:
     def __init__(self):
-        self.value = None
+        self.shown: list[LoadingPanel] = []
 
-    def set(self, value):
-        self.value = value
-
-
-class _FakeLabel:
-    def __init__(self):
-        self.text = None
-
-    def configure(self, **kwargs):
-        self.text = kwargs.get("text", self.text)
+    def show(self, panel: LoadingPanel) -> None:
+        self.shown.append(panel)
 
 
 def _cover(tmp_path: Path, *, stale_timeout_s: float = 5.0,
@@ -76,14 +64,15 @@ def _cover(tmp_path: Path, *, stale_timeout_s: float = 5.0,
     """The overlay's live loops over fakes standing in for Tk.
 
     The real window is a borderless cover over every monitor of whoever runs
-    the suite, and unlike Qt, tkinter has no offscreen platform.  So the Tk
-    widgets are the boundary faked here, and everything from the progress file
-    to the destroy decision runs for real.
+    the suite, and unlike Qt, tkinter has no offscreen platform.  So the label
+    the panel is drawn into is the boundary faked here, and everything from the
+    progress file to the destroy decision runs for real.
     """
     return OverlayWindow(
         tmp_path / "progress.txt",
         _FakeRoot(),
-        _Content(status_label=_FakeLabel(), progress_var=_FakeVar(), hint_label=_FakeLabel()),
+        _FakeCanvas(),
+        panel=LoadingPanel(wordmark="Fun Time", status="Starting..."),
         title=title,
         stale_timeout_s=stale_timeout_s,
     )
@@ -110,8 +99,8 @@ class TestTheCoverComesDown:
         window._poll()
 
         assert not window._root.destroyed
-        assert window._content.progress_var.value == 3 / 7 * 100
-        assert window._content.status_label.text == "Launching companions..."
+        assert window.panel.fraction == 3 / 7
+        assert window.panel.status == "Launching companions..."
         assert [ms for ms, _cb in window._root.rearmed] == [POLL_MS]
 
     def test_the_watchdog_closes_a_cover_whose_orchestrator_died(self, tmp_path: Path):
@@ -165,18 +154,12 @@ class TestTheCoverComesDown:
 
 
 def test_the_two_wordmarks_take_their_tone_from_one_place():
-    """The panel's "Fun Time" and the cover's are the same tone, a preview's
-    included.  They were two hex literals in two files kept in step by a
-    comment, in a repo where one of the files cannot import Qt and the other
-    cannot import tkinter."""
-    cover = ast.parse(Path(overlay_window.__file__).read_text(encoding="utf-8"))
-    wordmark = next(node for node in ast.walk(cover)
-                    if isinstance(node, ast.Call) and ast.unparse(node.func) == "tk.Label"
-                    and "APP_TITLE" in ast.unparse(node))
-    fg = next(keyword.value for keyword in wordmark.keywords if keyword.arg == "fg")
-
-    assert ast.unparse(fg) == "preview_marker.wordmark_ink(shown)"
-    assert preview_marker.wordmark_ink(None) == WORDMARK_MAGENTA
+    """The dashboard's "Fun Time" and the cover's are the same tone, a preview's
+    included: the cover's panel takes its ink from the same place the dashboard
+    does, and that place is a palette token rather than a hex literal of its own."""
+    assert overlay_window.opening_panel("Starting...").ink == preview_marker.wordmark_ink(None)
+    assert preview_marker.wordmark_ink(None) == LOADING_ACCENT
+    assert overlay_window.opening_panel("Starting...").wordmark == preview_marker.APP_TITLE
 
 
 def test_a_cover_process_loads_no_qt():
@@ -248,7 +231,7 @@ class TestWhatEscWouldCancel:
 
         window._poll()
 
-        assert window._content.hint_label.text == "Press Esc to cancel opening Fun Time"
+        assert window.panel.hint == "Press Esc to cancel opening Fun Time"
 
     def test_while_it_offers_esc_the_flag_turns_it_to_canceling(self, tmp_path: Path):
         """The hotkey script drops the flag without any key reaching this window."""
@@ -259,8 +242,8 @@ class TestWhatEscWouldCancel:
 
         window._poll()
 
-        assert window._content.status_label.text == "Canceling..."
-        assert window._content.hint_label.text == ""
+        assert window.panel.status == "Canceling..."
+        assert window.panel.hint == ""
 
     def test_the_quit_chord_never_turns_it_to_canceling(self, tmp_path: Path):
         """Over the closing screen it calls nothing off: the quit goes on."""
@@ -271,8 +254,8 @@ class TestWhatEscWouldCancel:
 
         window._poll()
 
-        assert window._content.status_label.text == "Closing..."
-        assert window._content.hint_label.text == "Press Esc to cancel closing Fun Time"
+        assert window.panel.status == "Closing..."
+        assert window.panel.hint == "Press Esc to cancel closing Fun Time"
 
     def test_a_cover_offering_nothing_goes_on_showing_its_own_words(self, tmp_path: Path):
         """The way back after an Esc offers no second one, and the flag that
@@ -283,8 +266,8 @@ class TestWhatEscWouldCancel:
 
         window._poll()
 
-        assert window._content.status_label.text == "Launching companions..."
-        assert window._content.hint_label.text == ""
+        assert window.panel.status == "Launching companions..."
+        assert window.panel.hint == ""
 
     def test_esc_on_a_cover_offering_it_drops_the_flag_itself(self, tmp_path: Path):
         """The route that needs the focus, for the moment before the hotkey
@@ -297,8 +280,8 @@ class TestWhatEscWouldCancel:
         window._on_escape()
 
         assert cancel_file_for(window._progress_file).exists()
-        assert window._content.status_label.text == "Canceling..."
-        assert window._content.hint_label.text == ""
+        assert window.panel.status == "Canceling..."
+        assert window.panel.hint == ""
 
     def test_a_second_esc_asks_nothing_more(self, tmp_path: Path):
         window = _cover(tmp_path)
@@ -324,8 +307,8 @@ class TestWhatEscWouldCancel:
         window._progress_file.write_text("2/6|Launching companions...", encoding="utf-8")
         window._poll()
 
-        assert window._content.status_label.text == "Canceling..."
-        assert window._content.hint_label.text == ""
+        assert window.panel.status == "Canceling..."
+        assert window.panel.hint == ""
 
     def test_esc_on_a_cover_offering_nothing_does_nothing(self, tmp_path: Path):
         window = _cover(tmp_path)
@@ -335,7 +318,7 @@ class TestWhatEscWouldCancel:
         window._on_escape()
 
         assert not cancel_file_for(window._progress_file).exists()
-        assert window._content.status_label.text == "Closing players..."
+        assert window.panel.status == "Closing players..."
 
     def test_esc_never_takes_a_cover_down(self, tmp_path: Path):
         """The cover is there to hide the room while it changes shape; a key
@@ -361,13 +344,13 @@ class TestALineTheCoverCannotRead:
         window = _cover(tmp_path)
         window._progress_file.write_text("3/6|Waiting for players...", encoding="utf-8")
         window._poll()
-        assert window._content.progress_var.value == 50.0
+        assert window.panel.fraction == 0.5
 
         window._progress_file.write_text("3/", encoding="utf-8")
         window._poll()
 
-        assert window._content.progress_var.value == 50.0
-        assert window._content.status_label.text == "Waiting for players..."
+        assert window.panel.fraction == 0.5
+        assert window.panel.status == "Waiting for players..."
 
     def test_a_line_torn_inside_a_character_leaves_the_cover_looking(self, tmp_path: Path):
         """A read that stopped the poll would leave the cover with no way down."""

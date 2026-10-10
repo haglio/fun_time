@@ -12,16 +12,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
+from shared_ui.loading_panel import LoadingPanel, Metrics, icon_image, render
+from shared_ui.palette import LOADING_GROUND
 
 from fun_time import preview_marker
-from fun_time.cover_palette import (
-    BG,
-    HINT_DIM,
-    TEXT_DIM,
-    TROUGH,
-    WORDMARK_MAGENTA,
-)
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCEL_WORD,
@@ -37,8 +32,6 @@ from fun_time.overlay_progress import (
 )
 from fun_time.project_paths import PROJECT_VR_ICON
 from fun_time.session_handoff import DESKTOP, crossing_progress_path, headset_hold_asked
-
-from .lettering import REGULAR_FACE, WORDMARK_FACE, load_font
 
 logger = logging.getLogger(__name__)
 
@@ -321,85 +314,28 @@ class CoverAnchor:
     def release(self) -> None:
         self._yaw = None
 
-_ICON_PX = 96
 _WORDMARK = "Fun Time VR"
-_WORDMARK_PT = 30
-_STATUS_PT = 17
-_HINT_PT = 13
-_BAR = (360, 18)  # the desktop bar's length and thickness
-_GAPS = (14, 12, 14, 12)  # icon->wordmark, wordmark->status, status->bar, bar->hint
 
+# The desktop panel's proportions scaled for a surface read at arm's length in
+# the headset: a larger name and larger lines over the desktop bar's own size.
+HEADSET = Metrics(icon=96, wordmark_px=30, status_px=17, hint_px=13, gaps=(14, 12, 14, 12))
 
-def _clear_color(hex_color: str) -> tuple[float, float, float, float]:
-    """A palette tone as ``glClearColor``'s floats, straight through: nothing
-    enables GL_FRAMEBUFFER_SRGB, so decoding would light it."""
-    value = hex_color.lstrip("#")
-    return (*(int(value[i:i + 2], 16) / 255.0 for i in (0, 2, 4)), 1.0)
-
-
-COVER_CLEAR = _clear_color(BG)
-
-
-def _icon_image() -> Image.Image | None:
-    try:
-        icon = Image.open(preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as()))
-        return icon.resize((_ICON_PX, _ICON_PX), Image.LANCZOS).convert("RGBA")
-    except (OSError, ValueError):
-        return None  # not there, or not an image: plain
-
-
-def _text_height(font: ImageFont.FreeTypeFont, text: str) -> int:
-    top, base = font.getbbox(text)[1], font.getbbox(text)[3]
-    return max(1, base - top)
+# The eye is cleared to the panel's own ground before the panel is drawn, as
+# ``glClearColor``'s floats, straight through: nothing enables
+# GL_FRAMEBUFFER_SRGB, so decoding would light it.
+COVER_CLEAR = (*(channel / 255.0 for channel in LOADING_GROUND), 1.0)
 
 
 def paint_cover(cover: Cover, *, size: tuple[int, int] = COVER_SIZE_PX) -> Image.Image:
-    """The desktop cover's panel, in its five tones, on a filled ground."""
-    width, height = size
-    image = Image.new("RGBA", size, BG)
-    draw = ImageDraw.Draw(image)
-    wordmark_font = load_font(_WORDMARK_PT, WORDMARK_FACE)
-    status_font = load_font(_STATUS_PT, REGULAR_FACE)
-    hint_font = load_font(_HINT_PT, REGULAR_FACE)
-
-    icon = _icon_image()
-    rows = [
-        _ICON_PX if icon is not None else 0,
-        _text_height(wordmark_font, _WORDMARK),
-        _text_height(status_font, cover.status or " "),
-        _BAR[1],
-        _text_height(hint_font, cover.hint or " "),
-    ]
-    y = (height - (sum(rows) + sum(_GAPS))) // 2
-    center = width // 2
-
-    if icon is not None:
-        image.alpha_composite(icon, (center - _ICON_PX // 2, y))
-        y += rows[0] + _GAPS[0]
-    _centered(draw, center, y, _WORDMARK, wordmark_font,
-              preview_marker.wordmark_ink(preview_marker.shown_as()))
-    y += rows[1] + _GAPS[1]
-    _centered(draw, center, y, cover.status, status_font, TEXT_DIM)
-    y += rows[2] + _GAPS[2]
-    _bar(draw, center, y, cover.fraction)
-    y += rows[3] + _GAPS[3]
-    if cover.hint:
-        _centered(draw, center, y, cover.hint, hint_font, HINT_DIM)
+    """The family's loading panel, centered on a filled ground of its own tone."""
+    panel = render(LoadingPanel(
+        wordmark=_WORDMARK,
+        status=cover.status,
+        fraction=cover.fraction,
+        hint=cover.hint,
+        ink=preview_marker.wordmark_ink(preview_marker.shown_as()),
+        icon=icon_image(preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as())),
+    ), HEADSET)
+    image = Image.new("RGBA", size, (*LOADING_GROUND, 255))
+    image.paste(panel, ((size[0] - panel.width) // 2, (size[1] - panel.height) // 2))
     return image
-
-
-def _centered(draw, center_x: int, top: int, text: str, font, fill: str) -> None:
-    if not text:
-        return
-    # Ink-top anchored, so measured and drawn agree.
-    draw.text((center_x - font.getlength(text) / 2, top - font.getbbox(text)[1]),
-              text, font=font, fill=fill)
-
-
-def _bar(draw, center_x: int, top: int, fraction: float) -> None:
-    bar_width, bar_height = _BAR
-    left = center_x - bar_width // 2
-    draw.rectangle([left, top, left + bar_width, top + bar_height], fill=TROUGH)
-    filled = round(bar_width * max(0.0, min(1.0, fraction)))
-    if filled:
-        draw.rectangle([left, top, left + filled, top + bar_height], fill=WORDMARK_MAGENTA)
