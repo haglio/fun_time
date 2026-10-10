@@ -12,6 +12,7 @@ import ctypes
 import ctypes.wintypes as wt
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -22,6 +23,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.win32_loader import load_dll
 from fun_time.win32_process import is_process_alive
@@ -40,6 +42,7 @@ from tests.integration.hidden_desktop import (
     create_run_job,
     main,
 )
+from tests.integration.main_verifier import measured_run_environment, measured_sources
 from tests.integration.session_lock import SingleInstanceLock, Waiting, hold_integration_lock
 
 
@@ -82,6 +85,50 @@ def test_a_launched_child_sees_the_mute_switch_though_the_caller_set_no_environm
                       ".write_text(os.environ.get('FUN_TIME_MUTE_AUDIO', 'unset'))")
 
     assert report.read_text() == "1"
+
+
+def test_a_run_nobody_measures_starts_its_processes_on_the_path_it_was_handed():
+    assert _child_environment({"PYTHONPATH": "x"})["PYTHONPATH"] == "x"
+    assert "PYTHONPATH" not in _child_environment({})
+
+
+def test_a_measured_run_puts_the_startup_that_keeps_coverage_saved_ahead_of_the_path_it_was_handed():
+    child = _child_environment({"COVERAGE_PROCESS_START": "coveragerc", "PYTHONPATH": "x"})
+
+    assert child["PYTHONPATH"].split(os.pathsep) == [str(hidden_desktop.MEASURED_PROCESS_STARTUP), "x"]
+
+
+def _saved_so_far(data_file: Path, measured: Path, copy: Path) -> frozenset[str]:
+    shutil.rmtree(copy, ignore_errors=True)
+    if not data_file.parent.exists():
+        return frozenset()
+    shutil.copytree(data_file.parent, copy)
+    return measured_sources(copy / data_file.name, measured, frozenset({"ran.py"}))
+
+
+def test_a_process_a_measured_run_ends_without_warning_keeps_what_it_ran(tmp_path):
+    measured = tmp_path / "measured"
+    measured.mkdir()
+    (measured / "ran.py").write_text("def it():\n    return 1\n", encoding="utf-8")
+    data_file = tmp_path / "data" / ".coverage"
+    rcfile = tmp_path / "coveragerc"
+    rcfile.write_text(f"[run]\nsource = {measured}\ndata_file = {data_file}\nparallel = true\n",
+                      encoding="utf-8")
+    probe = subprocess.Popen(
+        [sys.executable, "-c",
+         f"import sys, time; sys.path.insert(0, {str(measured)!r}); import ran; ran.it(); time.sleep(600)"],
+        cwd=_repo_root(), env=_child_environment(measured_run_environment(rcfile)),
+        **hidden_subprocess_kwargs())
+    try:
+        deadline = time.monotonic() + A_STARVED_CHILDS_START_S
+        while not _saved_so_far(data_file, measured, tmp_path / "read while it runs"):
+            assert time.monotonic() < deadline, "nothing the probe ran was saved while it ran"
+            time.sleep(0.25)
+    finally:
+        probe.kill()
+        probe.wait()
+
+    assert measured_sources(data_file, measured, frozenset({"ran.py"})) == {"ran.py"}
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 process creation")

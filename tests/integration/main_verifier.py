@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -112,13 +113,27 @@ def _run_suite(command: Sequence[str], cwd: Path, log: Path, environment: Mappin
                               **hidden_subprocess_kwargs()).returncode
 
 
-def _measured_sources(data_file: Path, checkout: Path, sources: frozenset[str]) -> frozenset[str]:
-    combined = coverage.Coverage(data_file=str(data_file), config_file=False)
-    combined.combine(data_paths=[str(data_file.parent)])
-    data = combined.get_data()
+def measured_run_environment(rcfile: Path) -> dict[str, str]:
+    return {**{name: value for name, value in os.environ.items() if name != "COVERAGE_FILE"},
+            "COVERAGE_PROCESS_START": str(rcfile)}
+
+
+def measured_sources(data_file: Path, checkout: Path, sources: frozenset[str]) -> frozenset[str]:
     by_path = {os.path.normcase(str(checkout / source)): source for source in sources}
-    return frozenset(by_path[os.path.normcase(measured)] for measured in data.measured_files()
-                     if data.lines(measured) and os.path.normcase(measured) in by_path)
+    ran: set[str] = set()
+    for one_process in data_file.parent.glob(f"{data_file.name}.*"):
+        try:
+            ran |= _what_one_process_ran(one_process, by_path)
+        except (coverage.CoverageException, sqlite3.Error) as torn:
+            _log.warning("left %s out of the coverage map: %s", one_process.name, torn)
+    return frozenset(ran)
+
+
+def _what_one_process_ran(saved: Path, by_path: Mapping[str, str]) -> set[str]:
+    data = coverage.CoverageData(str(saved))
+    data.read()
+    return {by_path[key] for measured in data.measured_files()
+            if (key := os.path.normcase(measured)) in by_path and data.lines(measured)}
 
 
 def _version(text: str) -> tuple[int, ...]:
@@ -187,16 +202,14 @@ class MachineBench:
         rcfile.write_text("\n".join(["[run]", f"source = {self.checkout}", f"omit = {self.checkout / 'tests'}/*",
                                       f"data_file = {measuring / '.coverage'}", "parallel = true", ""]),
                           encoding="utf-8")
-        measuring_everything = {**{name: value for name, value in os.environ.items()
-                                   if name != "COVERAGE_FILE"},
-                                "COVERAGE_PROCESS_START": str(rcfile)}
         ran = {}
         for test_file in sorted(path for path in self.shell(["git", "ls-files", "--", "tests/integration/test_*.py"],
                                                              cwd=self.checkout).split()):
             for left_over in measuring.glob(".coverage*"):
                 left_over.unlink()
-            self.suite(self._runner(test_file, "--no-cov"), self.checkout, self._log_for(commit), measuring_everything)
-            ran[test_file] = _measured_sources(measuring / ".coverage", self.checkout, sources)
+            self.suite(self._runner(test_file, "--no-cov"), self.checkout, self._log_for(commit),
+                       measured_run_environment(rcfile))
+            ran[test_file] = measured_sources(measuring / ".coverage", self.checkout, sources)
         CoverageMap(commit, ran).save(the_machine_s_map(self.primary))
 
     def _runner(self, *arguments: str) -> list[str]:
