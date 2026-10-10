@@ -4,6 +4,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import coverage
 import pytest
@@ -382,7 +383,13 @@ def test_failures_that_cannot_be_run_again_by_name_take_nothing_back(tmp_path):
     assert bench.taken_back == [] and ledger.failed_head == "c3"
 
 
-def test_coverage_is_measured_one_integration_test_file_at_a_time_and_kept_for_branches_to_pick_from(tmp_path):
+@pytest.mark.parametrize("the_verifier_s_own_coverage_file", [None, "elsewhere.coverage"])
+def test_coverage_is_measured_one_integration_test_file_at_a_time_and_kept_for_branches_to_pick_from(
+        tmp_path, monkeypatch, the_verifier_s_own_coverage_file):
+    if the_verifier_s_own_coverage_file:
+        monkeypatch.setenv("COVERAGE_FILE", str(tmp_path / the_verifier_s_own_coverage_file))
+    else:
+        monkeypatch.delenv("COVERAGE_FILE", raising=False)
     primary = tmp_path / "fun_time"
     checkout = primary / ".claude" / "worktrees" / "verifying-main"
     for name in ("tests/integration/test_a.py", "tests/integration/test_b.py", "fun_time/x.py", "fun_time/y.py"):
@@ -395,8 +402,8 @@ def test_coverage_is_measured_one_integration_test_file_at_a_time_and_kept_for_b
 
     def suite(command, cwd, log, environment=None):
         runs.append(command[3:])
-        rcfile = environment["COVERAGE_PROCESS_START"]
-        data_file = coverage.Coverage(config_file=rcfile).config.data_file
+        with patch.dict(os.environ, environment, clear=True):
+            data_file = coverage.Coverage(config_file=environment["COVERAGE_PROCESS_START"]).config.data_file
         data = coverage.CoverageData(basename=data_file, suffix=True)
         ran, only_found = ("x.py", "y.py") if command[3].endswith("test_a.py") else ("y.py", "x.py")
         data.add_lines({str(checkout / "fun_time" / ran): [1]})
