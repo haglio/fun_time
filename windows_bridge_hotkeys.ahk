@@ -205,7 +205,7 @@ v::QueueCommand("main_player_cycle_version")
 +]::QueueCommand("main_player_cycle_version")
 +SC01B::QueueCommand("main_player_cycle_version")
 
-; The Main Funestra: cycle the length of what plays — mixed (everything) / shorts / full-length.
+; The Main Funestra: cycle the length of what plays — mixed (everything) / clips / full.
 t::QueueCommand("main_player_toggle_length")
 
 ; FunTimeVR: cycle the Main Funestra's video's projection.  Desktop Main Funestra ignores the verb.
