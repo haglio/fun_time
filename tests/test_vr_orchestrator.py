@@ -1427,18 +1427,38 @@ class TestTheClosingCover:
 
         assert cleared == [False]
 
-    def test_a_part_slow_to_end_does_not_let_the_headset_cover_go(self, tmp_path):
+    def test_a_part_slow_to_end_does_not_let_the_headset_cover_go(self, config):
         """The desktop's closing screen went away over a dashboard still waiting
         its turn: a part took longer to end than the cover's guard, and nothing
         said the teardown was still going."""
+        heard: list[bool] = []
+
+        def the_audio_companion_takes_its_time(child):
+            if child.pid == 101:
+                heard.append(heard_from_again_once_stale(
+                    config.paths.state_dir / SHUTDOWN_PROGRESS_FILENAME,
+                    stale_after_s=SHUTDOWN_STALE_TIMEOUT_S))
+
+        _end_a_vr_session(
+            orchestrator, config, ended_by=lambda *_a, **_k: "asked",
+            kill_recorded_child=MagicMock(side_effect=the_audio_companion_takes_its_time))
+
+        assert heard == [True]
+
+    def test_a_teardown_stuck_anywhere_but_ending_a_part_still_lets_the_headset_cover_go(
+            self, tmp_path):
+        """A cover that never went would leave him in front of a panel for good.
+        Only a wait for a part to end, which always ends, may keep it up past its
+        guard."""
         (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
         heard: list[bool] = []
 
         with _closing_cover(tmp_path, _AlivePlayer(), enabled=True):
             heard.append(heard_from_again_once_stale(
-                tmp_path / SHUTDOWN_PROGRESS_FILENAME, stale_after_s=SHUTDOWN_STALE_TIMEOUT_S))
+                tmp_path / SHUTDOWN_PROGRESS_FILENAME,
+                stale_after_s=SHUTDOWN_STALE_TIMEOUT_S, within_s=2.5))
 
-        assert heard == [True]
+        assert heard == [False]
 
     def test_a_session_the_player_ended_gets_no_cover(self, tmp_path):
         """Nothing is left that can put a picture in the headset -- and nothing

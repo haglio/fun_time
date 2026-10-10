@@ -80,7 +80,6 @@ from fun_time.overlay_progress import (
     PhaseProgress,
     ProgressReporter,
     StartupCancelled,
-    keep_the_cover_up,
     ready_file_for,
     what_the_flag_asks,
 )
@@ -417,17 +416,14 @@ def _take_down_the_launch(
 ) -> None:
     """The player goes LAST (it wears the cover) and the hotkey script first."""
     say_the_crossing_is_cancelled(state_dir)  # a teardown of seconds looks like nothing
-    stop_beating = keep_the_cover_up(cover.progress_file, name="loading-cover")
-    try:
-        stop_hotkey_script(ahk_proc, ahk_cmd_file)
-        player = children.get("vr_player_pid")
+    stop_hotkey_script(ahk_proc, ahk_cmd_file)
+    player = children.get("vr_player_pid")
+    with cover.progress.cover_kept_up():
         for key, child in children.items():
             if key != "vr_player_pid":
                 kill_recorded_child(child)
         if player is not None:
             kill_recorded_child(player)
-    finally:
-        stop_beating()
     _release_vr_runtime(runtime_was_up, state_dir)
     cover.clear()
 
@@ -493,11 +489,9 @@ def _closing_cover(
         still_alive=lambda: player.poll() is None,
         timeout_s=CLOSING_COVER_READY_TIMEOUT_S,
     )
-    stop_beating = keep_the_cover_up(progress_file, name="closing-cover")
     try:
         yield shutdown
     finally:
-        stop_beating()
         progress_file.unlink(missing_ok=True)
         ready_file.unlink(missing_ok=True)
 
@@ -788,7 +782,8 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
                 voice_thread.join(timeout=2.0)
             dispatch_runner.close()
             shutdown.advance("companions")
-            kill_recorded_child(children["audio_pid"])
+            with shutdown.cover_kept_up():
+                kill_recorded_child(children["audio_pid"])
             shutdown.advance("players")
             back_to_vr = (crossing is None and esc_cancels != ""
                           and what_the_flag_asks(state_dir / CANCEL_FILENAME) == CANCEL_WORD)
@@ -805,12 +800,14 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
                     state_dir, hosted_app, Path(commands.origenerator_cmd_file),
                     keep=crossing is not None or back_to_vr,
                     taken_over=hosted_taken_over):
-                kill_recorded_child(hosted_app)
+                with shutdown.cover_kept_up():
+                    kill_recorded_child(hosted_app)
             held = (crossing is not None or back_to_vr) and _wait_for_the_headset_hold(
                 state_dir, player,
             )
             if not held:
-                kill_recorded_child(children["vr_player_pid"])  # last: it wears the cover
+                with shutdown.cover_kept_up():
+                    kill_recorded_child(children["vr_player_pid"])  # last: it wears the cover
             if crossing is None:  # else it hears Esc until the relay has read the flag
                 stop_hotkey_script(ahk_proc, ahk_cmd_file)
         if not held and not back_to_vr:

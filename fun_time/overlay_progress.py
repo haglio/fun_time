@@ -12,9 +12,10 @@ a keypress, and stays up reading "Canceling..." until the teardown finishes.
 """
 from __future__ import annotations
 
+import contextlib
 import os
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -187,6 +188,7 @@ class ProgressReporter(Protocol):
     def advance(self, phase: str) -> None: ...
     def announce(self, phase: str) -> None: ...
     def finish(self) -> None: ...
+    def cover_kept_up(self) -> contextlib.AbstractContextManager[None]: ...
     @property
     def cancelled(self) -> bool: ...
 
@@ -241,6 +243,14 @@ class PhaseProgress:
     def finish(self) -> None:
         self._progress_file.write_text("DONE", encoding="utf-8")
 
+    @contextlib.contextmanager
+    def cover_kept_up(self) -> Iterator[None]:
+        stop = keep_the_cover_up(self._progress_file, name="cover-kept-up")
+        try:
+            yield
+        finally:
+            stop()
+
 
 class NullProgress:  # silent no-op reporter, for integration mode
     cancelled = False
@@ -253,6 +263,9 @@ class NullProgress:  # silent no-op reporter, for integration mode
 
     def finish(self) -> None:
         pass
+
+    def cover_kept_up(self) -> contextlib.AbstractContextManager[None]:
+        return contextlib.nullcontext()
 
 
 COVER_HEARTBEAT_S = 1.0  # how often the work under a cover says it is still going
