@@ -4,7 +4,7 @@ from pathlib import Path
 
 from app_support.win32 import TaskbarApp
 from PIL import Image
-from shared_ui.palette import PREVIEW_INK
+from shared_ui.palette import LOADING_ACCENT, PREVIEW_INK
 from shared_ui.preview import Preview
 
 from fun_time import preview_marker
@@ -60,11 +60,11 @@ def test_the_live_session_hands_out_its_own_icon():
 
 
 def test_a_branch_session_writes_its_wordmark_in_the_preview_ink():
-    assert preview_marker.wordmark_ink(_A_PREVIEW) == "#ffc878"
+    assert preview_marker.wordmark_ink(_A_PREVIEW) == PREVIEW_INK
 
 
 def test_the_live_session_writes_its_wordmark_in_its_own_tone():
-    assert preview_marker.wordmark_ink(None) == "#e94560"
+    assert preview_marker.wordmark_ink(None) == LOADING_ACCENT
 
 
 _DESCRIBED = TaskbarApp(name="Fun Time - preview of the new reference popup",

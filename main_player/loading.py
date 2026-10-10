@@ -6,14 +6,18 @@ double-click with nothing on screen reads as nothing happening.  The window
 opens first and this paints the wait into it.
 
 The pure decisions — what the line says, how far the bar has gone, whether this
-update is worth a repaint — are module functions so they are unit-testable; the
-painting itself needs a real surface and is exercised by running the main player.
+update is worth a repaint — are module functions, and the painting is the
+family's loading panel on a surface.
 """
 from __future__ import annotations
 
 import time
+from dataclasses import replace
+from pathlib import Path
 
 import pygame
+from shared_ui.loading_panel import LoadingPanel, icon_image, render
+from shared_ui.palette import LOADING_GROUND
 
 from .library_source import PHASE_DISCOVER, PHASE_DURATIONS
 
@@ -74,20 +78,12 @@ class LoadingCanceled(Exception):
     """The user closed the loading window before the library finished."""
 
 
-# The main player's own magenta (its icon's), on near-black, with the timeline's inset,
-# bordered track for the bar — so the wait looks like the app it opens into.
-_BACKGROUND = (12, 12, 14)
-_MAGENTA = (200, 80, 160)
-_TEXT = (215, 215, 220)
-_TRACK_FILL = (34, 34, 38)
-_TRACK_BORDER = (70, 70, 78)
-_TITLE_SIZE = 72
-_MESSAGE_SIZE = 26
-_BAR_HEIGHT = 10
-_BAR_WIDTH_FRAC = 0.6
-_BORDER_W = 2
-_TITLE_GAP = 30    # under the name, before the message
-_MESSAGE_GAP = 24  # under the message, before the bar
+def paint_panel(surface, panel: LoadingPanel) -> None:
+    """The family's loading panel in the middle of *surface*, on its own ground."""
+    image = render(panel)
+    surface.fill(LOADING_GROUND)
+    painted = pygame.image.frombuffer(image.tobytes(), image.size, "RGB")
+    surface.blit(painted, painted.get_rect(center=surface.get_rect().center))
 
 
 class LoadingScreen:
@@ -98,17 +94,11 @@ class LoadingScreen:
     screen is handed straight to the build.  Every update pumps the window's
     event queue — both to keep Windows from graying the window out as
     unresponsive, and to notice the close button.
-
-    Not unit-tested: it needs a real display.  Its decisions are the module
-    functions above, which are — including the pump-and-raise, which is
-    :func:`stop_if_asked` rather than two lines in here; what is left is the
-    painting.
     """
 
-    def __init__(self, surface) -> None:
+    def __init__(self, surface, icon: Path | None = None) -> None:
         self._surface = surface
-        self._title_font = pygame.font.Font(None, _TITLE_SIZE)
-        self._message_font = pygame.font.Font(None, _MESSAGE_SIZE)
+        self._panel = LoadingPanel(wordmark="Main Player", status="", icon=icon_image(icon))
         self._last_phase: str | None = None
         self._last_paint_s = 0.0
 
@@ -121,34 +111,9 @@ class LoadingScreen:
         ):
             return
         self._last_phase, self._last_paint_s = phase, now
-        self._paint(progress_text(phase, done, total), progress_fraction(done, total))
-
-    def _paint(self, message: str, fraction: float | None) -> None:
-        width, height = self._surface.get_size()
-        self._surface.fill(_BACKGROUND)
-
-        # Name over message over bar, laid out as one block and centered as one,
-        # so the group sits in the middle of whatever rect the main player was given.
-        title = self._title_font.render("Main Player", True, _MAGENTA)
-        line = self._message_font.render(message, True, _TEXT)
-        bar_w = int(width * _BAR_WIDTH_FRAC)
-        block_h = (
-            title.get_height() + _TITLE_GAP + line.get_height() + _MESSAGE_GAP + _BAR_HEIGHT
+        self._panel = replace(
+            self._panel, status=progress_text(phase, done, total),
+            fraction=progress_fraction(done, total),
         )
-        top = (height - block_h) // 2
-
-        self._surface.blit(title, title.get_rect(midtop=(width // 2, top)))
-        top += title.get_height() + _TITLE_GAP
-        self._surface.blit(line, line.get_rect(midtop=(width // 2, top)))
-        top += line.get_height() + _MESSAGE_GAP
-
-        track = pygame.Rect((width - bar_w) // 2, top, bar_w, _BAR_HEIGHT)
-        pygame.draw.rect(self._surface, _TRACK_FILL, track)
-        pygame.draw.rect(self._surface, _TRACK_BORDER, track, _BORDER_W)
-        if fraction:
-            inner = track.inflate(-_BORDER_W * 2, -_BORDER_W * 2)
-            pygame.draw.rect(self._surface, _MAGENTA, pygame.Rect(
-                inner.left, inner.top, max(1, int(inner.width * fraction)), inner.height,
-            ))
-
+        paint_panel(self._surface, self._panel)
         pygame.display.flip()
