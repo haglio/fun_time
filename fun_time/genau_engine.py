@@ -54,11 +54,19 @@ class GenauEngine:
         index = self.renderer.current_frame_index
         return (0 if index is None else max(0, count - 1 - index), count)
 
+    @property
+    def time_on_screen(self) -> tuple[float, float]:
+        advance = self.controls.flick_advance_state
+        return advance.elapsed, float(advance.interval)
+
     def refresh(self) -> None:
         self.controller.refresh()
 
     def seek(self, fraction: float) -> None:
         self.controller.seek_the_clip(fraction)
+
+    def seek_the_time_on_screen(self, seconds: float) -> None:
+        self.controller.seek_the_time_on_screen(seconds)
 
     def close(self) -> None:
         self.driver.close()

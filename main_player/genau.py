@@ -99,8 +99,12 @@ class Genau:
 
     def picture(self) -> Picture:
         played, count = self._engine.playhead()
-        return Picture(frame=self._frame, played=played, count=count, loading=self._loading,
-                       seek=self._engine.seek, clip=self._clip)
+        elapsed_s, interval_s = self._engine.time_on_screen
+        return Picture(frame=self._frame, played=played, count=count,
+                       elapsed_ms=elapsed_s * 1000.0, interval_ms=interval_s * 1000.0,
+                       loading=self._loading,
+                       seek_time=lambda ms: self._engine.seek_the_time_on_screen(ms / 1000.0),
+                       seek_loop=self._engine.seek, clip=self._clip)
 
     def close(self) -> None:
         self._engine.close()

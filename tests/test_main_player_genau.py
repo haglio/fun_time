@@ -170,16 +170,34 @@ class TestItsPicture:
 
         assert len(shown) > 1
 
-    def test_a_seek_along_its_picture_moves_the_device(self, tmp_path):
+    def test_a_press_on_its_dial_moves_the_device(self, tmp_path):
         world = World(tmp_path)
         world.send("RESUME")
         world.tick(0.05)
         sent_before = len(world.sink.sent)
 
-        world.genau.picture().seek(0.5)
+        world.genau.picture().seek_loop(0.5)
         world.tick(0.05)
 
         assert len(world.sink.sent) > sent_before
+
+    def test_the_picture_carries_the_clips_time_on_screen(self, tmp_path):
+        """Genau opens with its clip held and nothing elapsed of the ten
+        seconds a clip gets."""
+        world = World(tmp_path)
+        world.tick(0.05)
+
+        picture = world.genau.picture()
+
+        assert (picture.elapsed_ms, picture.interval_ms) == (0.0, 10_000.0)
+
+    def test_a_press_along_its_track_puts_the_clip_that_far_into_its_time(self, tmp_path):
+        world = World(tmp_path)
+        world.tick(0.05)
+
+        world.genau.picture().seek_time(7_000.0)
+
+        assert world.genau.picture().elapsed_ms == 7_000.0
 
     def test_what_is_still_decoding_is_said_on_the_picture(self, tmp_path):
         world = World(tmp_path)

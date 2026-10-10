@@ -34,6 +34,7 @@ build_genau_engine  # main_player.genau builds Genau's engine with it
 run_ahead_of_background_work  # main_player.app, before its window opens
 _.current_clip  # main_player.genau, off the engine
 _.playhead  # main_player.genau, off the engine
+_.time_on_screen  # main_player.genau, off the engine
 _.manifest_fields  # fun_time_vr.orchestrator carries Genau's settings into the manifest
 from_manifest  # satellite.contract; fun_time_vr's player and the sequencer
 top_block  # main_player.kino; player_core's Funestra heads its console with it
