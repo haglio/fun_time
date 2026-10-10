@@ -235,15 +235,15 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
 
     lib = tmp_path / "videos" / "videos"
     meta = tmp_path / "videos" / "metadata"
-    original = lib / "larkin" / "2_orig" / "Scene-One-abc.mkv"
-    upscale = lib / "larkin" / "3_done" / "wholly-different-name_apo8_iris2.mp4"
+    original = lib / "example" / "2_orig" / "Scene-One-abc.mkv"
+    upscale = lib / "example" / "3_done" / "wholly-different-name_apo8_iris2.mp4"
     for clip, size in ((original, 100), (upscale, 900)):
         clip.parent.mkdir(parents=True, exist_ok=True)
         clip.write_bytes(b"x")
         side = (meta / clip.relative_to(lib)).with_suffix(".json")
         side.parent.mkdir(parents=True, exist_ok=True)
         side.write_text(
-            json.dumps({"version": {"group": "larkin/Scene-One-abc", "processed": clip is upscale}}),
+            json.dumps({"version": {"group": "example/Scene-One-abc", "processed": clip is upscale}}),
             encoding="utf-8",
         )
     ea = LibraryEntry(video=original, funscript=None, size=100)
