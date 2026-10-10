@@ -86,7 +86,7 @@ class Bench(Protocol):
     def head(self) -> str: ...
     def commits_since(self, base: str | None, head: str) -> list[str]: ...
     def run(self, commit: str, tests: Sequence[str] = ()) -> RunResult: ...
-    def advance_everyday_checkout(self, commit: str) -> None: ...
+    def advance_production_checkout(self, commit: str) -> None: ...
     def take_back(self, commit: str, among: Sequence[str], tests: list[str]) -> TakeBack | None: ...
     def start_fix_session(self, taken: TakeBack, tests: list[str], log: Path) -> str: ...
     def bring_the_libraries_up_to(self, commit: str) -> None: ...
@@ -227,11 +227,11 @@ class MachineBench:
             self.shell(["git", "worktree", "add", "--detach", str(self.checkout), commit], cwd=self.primary)
         _use_the_plain_genau(self.checkout)
 
-    def advance_everyday_checkout(self, commit: str) -> None:
+    def advance_production_checkout(self, commit: str) -> None:
         if self.shell(["git", "status", "--porcelain"], cwd=self.primary).strip():
-            raise CommandFailed("the everyday checkout has uncommitted changes, so it was left where it is")
+            raise CommandFailed("the production checkout has uncommitted changes, so it was left where it is")
         if self.shell(["git", "symbolic-ref", "--short", "HEAD"], cwd=self.primary).strip() != "main":
-            raise CommandFailed("the everyday checkout is not on main, so it was left where it is")
+            raise CommandFailed("the production checkout is not on main, so it was left where it is")
         self.shell(["git", "merge", "--ff-only", commit], cwd=self.primary)
 
     def commits_since(self, base: str | None, head: str) -> list[str]:
@@ -320,9 +320,9 @@ def fix_brief(taken: TakeBack, branch: str, tests: list[str], log: Path) -> str:
 def _mark_passed(ledger: Ledger, bench: Bench, head: str) -> None:
     ledger.passed(head)
     try:
-        bench.advance_everyday_checkout(head)
+        bench.advance_production_checkout(head)
     except CommandFailed as held:
-        bench.record({"kind": "everyday checkout held", "commit": head, "why": str(held)})
+        bench.record({"kind": "production checkout held", "commit": head, "why": str(held)})
     if bench.coverage_map_is_stale():
         bench.measure_coverage(head)
 

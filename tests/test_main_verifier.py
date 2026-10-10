@@ -75,7 +75,7 @@ class FakeBench:
         failed = self.tests if broken else []
         return main_verifier.RunResult(1 if broken else 0, failed, WHOLE_RUN)
 
-    def advance_everyday_checkout(self, commit):
+    def advance_production_checkout(self, commit):
         self.advanced.append(commit)
 
     def take_back(self, commit, among, tests):
@@ -106,7 +106,7 @@ def a_ledger(tmp_path, verified=None):
     return ledger
 
 
-def test_a_head_that_passes_moves_the_everyday_checkout_to_it(tmp_path):
+def test_a_head_that_passes_moves_the_production_checkout_to_it(tmp_path):
     bench = FakeBench("c3", ["a1", "b2", "c3"])
     ledger = a_ledger(tmp_path, verified="a1")
 
@@ -253,39 +253,39 @@ def test_main_s_head_is_read_after_fetching_it(tmp_path):
                               (["git", "rev-parse", "origin/main"], primary)]
 
 
-def test_the_everyday_checkout_is_fast_forwarded_to_a_commit_that_passed(tmp_path):
+def test_the_production_checkout_is_fast_forwarded_to_a_commit_that_passed(tmp_path):
     shell = FakeShell({"symbolic-ref": "main\n"})
     primary = tmp_path / "fun_time"
 
-    main_verifier.MachineBench(primary=primary, shell=shell).advance_everyday_checkout("c3")
+    main_verifier.MachineBench(primary=primary, shell=shell).advance_production_checkout("c3")
 
     assert (["git", "merge", "--ff-only", "c3"], primary) in shell.commands
 
 
-def test_the_everyday_checkout_is_left_alone_while_it_has_changes_of_its_own(tmp_path):
+def test_the_production_checkout_is_left_alone_while_it_has_changes_of_its_own(tmp_path):
     shell = FakeShell({"symbolic-ref": "main\n", "status --porcelain": " M fun_time/dashboard.py\n"})
     bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell)
 
     with pytest.raises(main_verifier.CommandFailed, match="uncommitted"):
-        bench.advance_everyday_checkout("c3")
+        bench.advance_production_checkout("c3")
 
     assert not [command for command, _ in shell.commands if command[1] == "merge"]
 
 
-def test_the_everyday_checkout_is_left_alone_while_it_is_off_main(tmp_path):
+def test_the_production_checkout_is_left_alone_while_it_is_off_main(tmp_path):
     shell = FakeShell({"symbolic-ref": "claude/some-branch\n"})
     bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell)
 
     with pytest.raises(main_verifier.CommandFailed, match="not on main"):
-        bench.advance_everyday_checkout("c3")
+        bench.advance_production_checkout("c3")
 
     assert not [command for command, _ in shell.commands if command[1] == "merge"]
 
 
-def test_a_head_that_passes_while_the_everyday_checkout_cannot_move_still_counts_as_verified(tmp_path):
+def test_a_head_that_passes_while_the_production_checkout_cannot_move_still_counts_as_verified(tmp_path):
     class HeldBench(FakeBench):
-        def advance_everyday_checkout(self, commit):
-            raise main_verifier.CommandFailed("the everyday checkout has uncommitted changes")
+        def advance_production_checkout(self, commit):
+            raise main_verifier.CommandFailed("the production checkout has uncommitted changes")
 
     bench = HeldBench("c3", ["a1", "b2", "c3"])
     ledger = a_ledger(tmp_path, verified="a1")
@@ -293,8 +293,8 @@ def test_a_head_that_passes_while_the_everyday_checkout_cannot_move_still_counts
     assert main_verifier.cycle(ledger, bench) == "passed"
 
     assert ledger.verified == "c3"
-    assert bench.recorded == [{"kind": "everyday checkout held", "commit": "c3",
-                               "why": "the everyday checkout has uncommitted changes"}]
+    assert bench.recorded == [{"kind": "production checkout held", "commit": "c3",
+                               "why": "the production checkout has uncommitted changes"}]
 
 
 def test_each_incident_is_added_to_the_runners_record_with_when_it_happened(tmp_path):
