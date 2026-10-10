@@ -216,6 +216,11 @@ STAND_IN_TITLE = "FUNTIMEMARK-MAIN-PLAYER"
 _BROWSE_WINDOW_TIMEOUT_S = 90.0
 
 
+def _until_no_browse_is_open() -> None:
+    wait_for(lambda: not any(window.title == WINDOW_TITLE for window in iter_zorder()),
+             desc="the browse an earlier test opened to finish closing")
+
+
 def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, cfg_factory):
     """A real browse, launched the way the bridge launches it, ends up on top.
 
@@ -244,6 +249,7 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
     # only input a test must supply: the fixture config names a stub .exe, and
     # this launch has to really run.
     manifest = write_windows_bridge_manifest(config)
+    _until_no_browse_is_open()
 
     stand_in = QWidget(None)
     stand_in.setWindowTitle(STAND_IN_TITLE)
@@ -299,6 +305,7 @@ def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
     for name in ("alpha.mp4", "beta.mp4"):
         (library / name).write_bytes(b"\0" * 2048)
     manifest = write_windows_bridge_manifest(config)
+    _until_no_browse_is_open()
 
     stand_in = QWidget(None)
     stand_in.setWindowTitle(STAND_IN_TITLE)
@@ -332,6 +339,7 @@ def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
         covering = [w.hwnd for w in windows_obscuring(browse_hwnd, iter_zorder())]
         assert covering == [stand_in_hwnd], "the browse should be buried at this point"
 
+        wait_for(lambda: started, desc="the browse's process to be handed to the runner")
         assert keep_a_browse_on_top(started[0]) == browse_hwnd
 
         def browse_uncovered() -> bool:
