@@ -299,6 +299,15 @@ class TestOrigeneratorWindowConverger:
         restore.assert_not_called()
         promote.assert_any_call(4242, True)
 
+    def test_a_browser_put_back_in_the_band_is_taken_out_from_under_origenerator(self):
+        windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
+        with patch("fun_time.role_windows.find_window_for_process", side_effect=lookup_hosted), \
+             patch("fun_time.role_windows.is_window_minimized", return_value=False), \
+             patch("fun_time.role_windows.is_window_topmost", return_value=True), \
+             patch("fun_time.role_windows.set_always_on_top") as band:
+            windows.converge_origenerator_window("origenerator")
+        assert band.call_args_list == [((RFB_HWND, False),), ((HOSTED_HWND, True),)]
+
     def test_kino_mode_parks_a_window_left_up(self):
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=4242), \

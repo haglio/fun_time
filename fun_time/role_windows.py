@@ -34,6 +34,7 @@ from .window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
     ORIGENERATOR_ROLE,
+    RFB_SLOT_ROLES,
     is_origenerators_caption,
     role_topmost,
 )
@@ -344,10 +345,14 @@ class WindowRoles:
         if origenerator_shows(satellites_mode):
             if minimized:
                 restore_window(hwnd, activate=False)
-            if minimized or not is_window_topmost(hwnd):
+            if minimized or self._an_rfb_slot_window_out_of_its_band(satellites_mode):
                 self.restack_rfb_slot(satellites_mode)
         elif not minimized:
             minimize_window(hwnd, activate=False)
+
+    def _an_rfb_slot_window_out_of_its_band(self, satellites_mode: str) -> bool:
+        return any(is_window_topmost(hwnd) != role_topmost(role, satellites_mode)
+                   for role in RFB_SLOT_ROLES if (hwnd := self.hwnd(role)))
 
     def topmost_report(self) -> str:
         """Every managed window's resolved hwnd and topmost state, one line.
