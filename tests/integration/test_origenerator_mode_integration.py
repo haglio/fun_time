@@ -68,6 +68,7 @@ from .integration_support import (
     build_integration_temp_root,
     wait_for,
 )
+from .run_clock import Budget
 
 pytestmark = [
     # Real players on a real desktop: the post-loading pass has to be given
@@ -353,9 +354,9 @@ def hosted_session():
         assert pid, "the session did not record a hosted origenerator child"
         # Wait past the splash decoy for the PARKED main window — the decoy
         # wears the same caption but is a normal visible window.
-        deadline = time.monotonic() + 20.0
+        budget = Budget(20.0)
         hwnd = 0
-        while not hwnd and time.monotonic() < deadline:
+        while not hwnd and not budget.expired():
             hwnd = _parked_main_window(pid)
             time.sleep(0.2)
         stderr_file = session.config.paths.state_dir / "orchestrator_stderr.log"
