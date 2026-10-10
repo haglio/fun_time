@@ -11,6 +11,8 @@ Origenerator's window (``restack_rfb_slot``).
 """
 from __future__ import annotations
 
+from shared_ui.preview import Preview, window_title
+
 from .satellites_mode import KINO_MODE, origenerator_shows
 
 # Windows with their own screen rect — always topmost; order among them is
@@ -31,6 +33,11 @@ RFB_SLOT_ROLES: tuple[str, ...] = ("rfb", ORIGENERATOR_ROLE)
 # The caption that window wears, resolved together with the app's PID: by
 # title alone a standalone Origenerator of his would match.
 ORIGENERATOR_TITLE = "Origenerator"
+_A_PREVIEWS_CAPTION = window_title(ORIGENERATOR_TITLE, Preview(feature=None))
+
+
+def is_origenerators_caption(caption: str) -> bool:
+    return caption == ORIGENERATOR_TITLE or caption.startswith(_A_PREVIEWS_CAPTION)
 
 # Every window role the bridge manages, in promotion order.
 MANAGED_ROLES: tuple[str, ...] = FIXED_TOPMOST_ROLES + RFB_SLOT_ROLES

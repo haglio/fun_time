@@ -181,7 +181,7 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
 
 
 def find_window_for_process(
-    pid: int, title: str | None = None, *, include_hidden: bool = False
+    pid: int, title: str | Callable[[str], bool] | None = None, *, include_hidden: bool = False
 ) -> int:
     """*pid*'s — or its direct children's — window titled exactly *title*, or 0.
 
@@ -216,7 +216,7 @@ def find_window_for_process(
         # Per window, at its own length; by-title shares one 256.
         buffer = ctypes.create_unicode_buffer(length + 1)
         _user32.GetWindowTextW(hwnd, buffer, length + 1)
-        return buffer.value == title
+        return title(buffer.value) if callable(title) else buffer.value == title
 
     return _first_window(matches)
 

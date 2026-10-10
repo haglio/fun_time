@@ -286,7 +286,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6605 on 2026-10-08: Genau runs on the Main Funestra, so its window's launch,
 # the main-slot handover and the pairing of two windows on one rect went, with
 # their paragraphs.
-MAX_PROSE_LINES = 6598
+MAX_PROSE_LINES = 6597
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
