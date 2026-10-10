@@ -531,29 +531,21 @@ def test_with_f_mode_off_a_satellites_playlist_holds_every_video(tmp_path: Path)
     assert len(paths) == 2
 
 
-def test_build_primary_playlist_paths_includes_funscripted_ai_subdir_in_f_mode(tmp_path: Path):
-    """F-mode main playlist should include AI videos with funscripts that live
-    inside the main source tree (non_AI/actually_AI_but_funscripted/)."""
+def test_f_mode_main_playlist_takes_scripted_videos_from_sub_folders_too(tmp_path: Path):
     primary_root = tmp_path / "videos" / "videos" / "2D" / "non_AI"
-    non_ai_video = primary_root / "clip.mp4"
-    ai_video = primary_root / "actually_AI_but_funscripted" / "portrait" / "funscripted_ai_clip.mp4"
-    non_ai_video.parent.mkdir(parents=True)
-    ai_video.parent.mkdir(parents=True)
-    non_ai_video.write_text("x", encoding="utf-8")
-    ai_video.write_text("x", encoding="utf-8")
-    non_ai_script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "non_AI" / "clip.funscript"
-    ai_script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "non_AI" / "actually_AI_but_funscripted" / "portrait" / "funscripted_ai_clip.funscript"
-    non_ai_script.parent.mkdir(parents=True, exist_ok=True)
-    ai_script.parent.mkdir(parents=True, exist_ok=True)
-    non_ai_script.write_text("{}", encoding="utf-8")
-    ai_script.write_text("{}", encoding="utf-8")
+    top_video = primary_root / "clip.mp4"
+    nested_video = primary_root / "batch" / "portrait" / "nested_clip.mp4"
+    scripts_root = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "non_AI"
+    for video, script in ((top_video, scripts_root / "clip.funscript"),
+                          (nested_video, scripts_root / "batch" / "portrait" / "nested_clip.funscript")):
+        video.parent.mkdir(parents=True, exist_ok=True)
+        video.write_text("x", encoding="utf-8")
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text("{}", encoding="utf-8")
 
     paths = build_main_playlist_paths(str(primary_root), True, rng=random.Random(1))
 
-    assert len(paths) == 2
-    path_strs = {str(p) for p in paths}
-    assert str(non_ai_video) in path_strs
-    assert str(ai_video) in path_strs
+    assert {str(p) for p in paths} == {str(top_video), str(nested_video)}
 
 
 # --- action-group collapse and watch weighting (satellites) ---

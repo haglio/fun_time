@@ -46,7 +46,7 @@ class TestNormalizeTitle:
         assert normalize_title("redacted_540-EhWGJW62") == "redacted"
         assert normalize_title("Jane-Doe-&-John-Roe-ab12cd34-old_iris2") == "jane doe & john roe"
         # A trailing hash exposed only after a quality token is stripped.
-        assert normalize_title("funscripted_video-0980a34b_topaz") == "funscripted video"
+        assert normalize_title("example_video-7c4d9e21_topaz") == "example video"
 
 
 class TestGroupVersions:
