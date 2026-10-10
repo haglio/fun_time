@@ -12,7 +12,7 @@ from main_player.cli import (
     play_points_path,
     resolve_playlist,
 )
-from main_player.library import SHORTS
+from main_player.library import CLIPS
 from main_player.library_source import PHASE_DISCOVER
 from main_player.mode_memory import RememberedMode
 
@@ -136,7 +136,7 @@ class TestLibrarySource:
         ])
         source = library_source(args, durations={scene: 300.0})
 
-        played = {video for mode in ("mixed", "shorts", "full") for video, _ in source.playlist_for(mode)}
+        played = {video for mode in ("mixed", "clips", "full") for video, _ in source.playlist_for(mode)}
 
         assert played == {scene}
 
@@ -468,7 +468,7 @@ class TestWhereMainPlayerKeepsItsState:
     def test_the_state_dir_holds_the_mode_it_was_last_in(self, tmp_path):
         args = build_parser({}).parse_args(["--state-dir", str(tmp_path)])
 
-        mode_memory(args).write(RememberedMode(length_mode=SHORTS))
+        mode_memory(args).write(RememberedMode(length_mode=CLIPS))
 
         assert (tmp_path / "main_player_mode.txt").exists()
 
@@ -484,6 +484,6 @@ class TestWhereMainPlayerKeepsItsState:
         config.write_text("{}", encoding="utf-8")
         args = build_parser({}).parse_args(["--config", str(config)])
 
-        mode_memory(args).write(RememberedMode(length_mode=SHORTS))
+        mode_memory(args).write(RememberedMode(length_mode=CLIPS))
 
         assert (tmp_path / "main_player_mode.txt").exists()

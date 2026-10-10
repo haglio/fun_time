@@ -226,7 +226,7 @@ _MAIN_PLAYER_CMD_MAP = {
     "main_player_cycle_version": "CYCLE_VERSION",
     "main_player_cycle_version_back": "CYCLE_VERSION_BACK",
     "main_player_toggle_length": "TOGGLE_LENGTH_MODE",
-    "main_player_length_shorts": "SET_LENGTH_MODE shorts",
+    "main_player_length_clips": "SET_LENGTH_MODE clips",
     "main_player_length_full": "SET_LENGTH_MODE full",
     "main_player_length_mixed": f"SET_LENGTH_MODE {_DEFAULT_LENGTH_MODE}",
     "main_player_length_none": "SET_LENGTH_MODE none",

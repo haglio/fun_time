@@ -574,7 +574,7 @@ Commands (the full set `main_player/controls.py` answers to). The verbs every pl
 - `CYCLE_VERSION` / `CYCLE_VERSION_BACK`
 - `PLAY_FILE video[TAB]funscript`
 - `RELOAD_PLAYLIST`
-- `TOGGLE_LENGTH_MODE` / `SET_LENGTH_MODE mixed|shorts|full`
+- `TOGGLE_LENGTH_MODE` / `SET_LENGTH_MODE mixed|clips|full`
 - `PLAY_COMPILATION` / `END_COMPILATION` / `PLAY_FULL_VID` / `PLAY_CLIP_JUMP`
 - `JUMP_TO_FUNSCRIPT` / `NEXT_FUNSCRIPTED` — funscript navigation: seek past this video's quiet stretch to where its scripting starts up again, or leave for the next scripted video in the playlist, landing where its action begins. The main player alone can answer either, holding both the playlist's funscript column and the parsed script of what is playing
 - `SET_TCODE_ENABLED 0|1`

@@ -18,9 +18,9 @@ from player_core.playlist import PlaylistItem
 from .discovery import discover_entries
 from .duration_cache import DurationCache
 from .library import (
+    CLIPS,
     FULL,
     MIXED,
-    SHORTS,
     LibraryEntry,
     group_versions,
     library_playlist,
@@ -35,7 +35,7 @@ DEFAULT_MODE = MIXED
 # The one the T key never lands on: the toggle walks the three that play
 # something, and neither-length is reachable only by turning off the last lit
 # button, which is a thing you have to mean.
-CYCLED_MODES = (MIXED, SHORTS, FULL)
+CYCLED_MODES = (MIXED, CLIPS, FULL)
 
 
 def next_length_mode(mode: LengthMode | None) -> LengthMode:

@@ -777,13 +777,13 @@ def test_main_player_toggle_length_writes_toggle_command(tmp_path: Path):
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LENGTH_MODE\n"
 
 
-def test_main_player_length_shorts_writes_set_length_mode(tmp_path: Path):
+def test_main_player_length_clips_writes_set_length_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
-    dispatch_command("main_player_length_shorts", state, config)
+    dispatch_command("main_player_length_clips", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE clips\n"
 
 
 def test_main_player_length_full_writes_set_length_mode(tmp_path: Path):
@@ -821,9 +821,9 @@ def test_main_player_length_mode_written_in_kino_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
-    dispatch_command("main_player_length_shorts", state, config)
+    dispatch_command("main_player_length_clips", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE clips\n"
 
 
 def test_main_player_length_mode_not_written_in_genau_mode(tmp_path: Path):
@@ -831,7 +831,7 @@ def test_main_player_length_mode_not_written_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
-    dispatch_command("main_player_length_shorts", state, config)
+    dispatch_command("main_player_length_clips", state, config)
 
     assert not config.main_player_cmd_file.exists()
 

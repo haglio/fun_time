@@ -244,7 +244,7 @@ class TestSelectLibrary:
     def _durations(self, mapping):
         return {Path(k): v for k, v in mapping.items()}
 
-    def test_full_length_mode_keeps_only_long_videos(self):
+    def test_full_mode_keeps_only_long_videos(self):
         entries = [
             _entry("long-1080p.mp4", 100),
             _entry("clip-1080p.mp4", 100),
@@ -255,14 +255,14 @@ class TestSelectLibrary:
 
         assert [e.video for e in result] == [Path("long-1080p.mp4")]
 
-    def test_shorts_mode_keeps_only_short_videos(self):
+    def test_clips_mode_keeps_only_short_videos(self):
         entries = [
             _entry("long-1080p.mp4", 100),
             _entry("clip-1080p.mp4", 100),
         ]
         durations = self._durations({"long-1080p.mp4": 300.0, "clip-1080p.mp4": 6.0})
 
-        result = select_library(entries, mode="shorts", durations=durations)
+        result = select_library(entries, mode="clips", durations=durations)
 
         assert [e.video for e in result] == [Path("clip-1080p.mp4")]
 
@@ -282,14 +282,14 @@ class TestSelectLibrary:
         entries = [_entry("unprobed-1080p.mp4", 100)]
 
         assert select_library(entries, mode=MIXED, durations={})
-        assert not select_library(entries, mode="shorts", durations={})
+        assert not select_library(entries, mode="clips", durations={})
         assert not select_library(entries, mode="full", durations={})
 
     def test_the_boundary_second_is_short(self):
         entries = [_entry("exactly-at-the-line-1080p.mp4", 100)]
         durations = self._durations({"exactly-at-the-line-1080p.mp4": SHORT_MAX_S})
 
-        assert select_library(entries, mode="shorts", durations=durations)
+        assert select_library(entries, mode="clips", durations=durations)
         assert not select_library(entries, mode="full", durations=durations)
 
     def test_long_compilation_is_not_a_short(self):
@@ -297,23 +297,15 @@ class TestSelectLibrary:
         entries = [_entry("mega-compilation-1080p.mp4", 100)]
         durations = self._durations({"mega-compilation-1080p.mp4": 1800.0})
 
-        assert not select_library(entries, mode="shorts", durations=durations)
+        assert not select_library(entries, mode="clips", durations=durations)
         assert select_library(entries, mode="full", durations=durations)
-
-    def test_empty_clips_shorts_mode_is_duration_only(self):
-        entries = [_entry("clip-1080p.mp4", 100)]
-        durations = self._durations({"clip-1080p.mp4": 10.0})
-
-        result = select_library(entries, mode="shorts", durations=durations)
-
-        assert [e.video for e in result] == [Path("clip-1080p.mp4")]
 
     def test_missing_duration_excluded_from_length_filter(self):
         # An unprobed video (no duration) can't be classified; leave it out.
         entries = [_entry("unknown-1080p.mp4", 100)]
 
         assert select_library(entries, mode="full", durations={}) == []
-        assert select_library(entries, mode="shorts", durations={}) == []
+        assert select_library(entries, mode="clips", durations={}) == []
 
     def test_the_recorded_kind_decides_before_any_running_time(self):
         """Evolver settles this for the whole library; the player reads it."""
@@ -321,7 +313,7 @@ class TestSelectLibrary:
         durations = self._durations({"carved-scene-1080p.mp4": 300.0})
         kinds = {Path("carved-scene-1080p.mp4"): EXCERPT}
 
-        assert select_library(entries, mode="shorts", durations=durations,
+        assert select_library(entries, mode="clips", durations=durations,
                               kind_of=kinds.get)
         assert not select_library(entries, mode="full", durations=durations,
                                   kind_of=kinds.get)
@@ -332,14 +324,14 @@ class TestSelectLibrary:
 
         assert select_library(entries, mode="full", durations={},
                               kind_of=kinds.get)
-        assert not select_library(entries, mode="shorts", durations={},
+        assert not select_library(entries, mode="clips", durations={},
                                   kind_of=kinds.get)
 
     def test_a_video_evolver_has_not_reached_falls_back_to_its_running_time(self):
         entries = [_entry("unrecorded-1080p.mp4", 100)]
         durations = self._durations({"unrecorded-1080p.mp4": 4.0})
 
-        assert select_library(entries, mode="shorts", durations=durations,
+        assert select_library(entries, mode="clips", durations=durations,
                               kind_of=lambda _video: "")
 
     def test_applies_version_dedup(self):
@@ -358,7 +350,7 @@ class TestLibraryPlaylist:
     def _durations(self, mapping):
         return {Path(k): v for k, v in mapping.items()}
 
-    def test_full_length_pairs_are_deduped_and_shuffled(self):
+    def test_full_pairs_are_deduped_and_shuffled(self):
         entries = [
             _entry("Jane-540.mp4", 100, funscript="Jane.funscript"),
             _entry("Jane-1080p.mp4", 900),  # canonical (bigger), no funscript

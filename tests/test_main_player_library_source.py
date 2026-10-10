@@ -8,7 +8,7 @@ import pytest
 
 import main_player.library_source
 from main_player.duration_cache import DurationCache
-from main_player.library import FULL, MIXED, SHORTS, LibraryEntry
+from main_player.library import CLIPS, FULL, MIXED, LibraryEntry
 from main_player.library_source import (
     DEFAULT_MODE,
     PHASE_DISCOVER,
@@ -27,8 +27,8 @@ class TestLengthModeCycle:
         assert DEFAULT_MODE == MIXED
 
     def test_the_toggle_walks_all_three_and_comes_back(self):
-        assert next_length_mode(MIXED) == SHORTS
-        assert next_length_mode(SHORTS) == FULL
+        assert next_length_mode(MIXED) == CLIPS
+        assert next_length_mode(CLIPS) == FULL
         assert next_length_mode(FULL) == MIXED
 
     def test_an_unknown_mode_lands_on_the_default(self):
@@ -42,7 +42,7 @@ class TestLengthModeRebuilds:
     for one that is already running is not free — it changes the video."""
 
     def test_a_different_mode_always_rebuilds(self):
-        assert length_mode_rebuilds(SHORTS, MIXED, in_compilation=False) is True
+        assert length_mode_rebuilds(CLIPS, MIXED, in_compilation=False) is True
         assert length_mode_rebuilds(MIXED, FULL, in_compilation=True) is True
 
     def test_the_mode_already_running_asks_for_nothing(self):
@@ -63,7 +63,7 @@ def _make_video(path: Path, body: str = "x") -> Path:
 
 
 class TestBuildLibrarySource:
-    def test_playlist_for_full_and_shorts(self, tmp_path):
+    def test_playlist_for_full_and_clips(self, tmp_path):
         vids = tmp_path / "videos"
         scripts = tmp_path / "scripts"
         vids.mkdir()
@@ -77,9 +77,9 @@ class TestBuildLibrarySource:
         )
 
         full = source.playlist_for("full")
-        shorts = source.playlist_for("shorts")
+        clips = source.playlist_for("clips")
         assert [v for v, _ in full] == [long_vid]
-        assert [v for v, _ in shorts] == [short_vid]
+        assert [v for v, _ in clips] == [short_vid]
 
     def test_version_index_covers_all_entries(self, tmp_path):
         vids = tmp_path / "videos"
@@ -300,7 +300,7 @@ class TestACarvedSceneIsAShort:
         video.write_bytes(b"x")
         return LibraryEntry(video=video, funscript=None, size=100)
 
-    def test_it_surfaces_as_a_short_and_never_as_full_length(self, tmp_path):
+    def test_it_surfaces_among_the_clips_and_never_among_the_full_videos(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clip = self._clip_entry(lib, meta, "example/1 clips/Jane Doe - alpha scene two.mp4")
         plain = self._plain_entry(lib, "example/0/Long Movie.mp4")
@@ -311,13 +311,13 @@ class TestACarvedSceneIsAShort:
             rng=random.Random(0), metadata_root=meta,
         )
 
-        shorts = {v for v, _ in source.playlist_for(SHORTS)}
+        clips = {v for v, _ in source.playlist_for(CLIPS)}
         full = {v for v, _ in source.playlist_for(FULL)}
 
-        assert clip.video in shorts
+        assert clip.video in clips
         assert clip.video not in full
         assert plain.video in full
-        assert plain.video not in shorts
+        assert plain.video not in clips
 
     def test_without_a_metadata_root_the_length_is_all_there_is(self, tmp_path):
         lib = tmp_path / "videos" / "videos"
@@ -328,4 +328,4 @@ class TestACarvedSceneIsAShort:
         )
 
         assert long_plain.video in {v for v, _ in source.playlist_for(FULL)}
-        assert long_plain.video not in {v for v, _ in source.playlist_for(SHORTS)}
+        assert long_plain.video not in {v for v, _ in source.playlist_for(CLIPS)}

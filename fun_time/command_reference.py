@@ -419,7 +419,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 "compilation with it; the console's own pair reaches a fourth "
                 "state, neither, which holds the video on screen",
                 ("T",),
-                ("main_player_toggle_length", "main_player_length_shorts", "main_player_length_full",
+                ("main_player_toggle_length", "main_player_length_clips", "main_player_length_full",
                  "main_player_length_mixed", "main_player_length_none"),
             ),
             _Row(

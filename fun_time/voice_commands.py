@@ -170,7 +170,7 @@ def build_voice_commands(
         # way "action"/"seed" do on a satellite; the "cycle / next / change version"
         # verb forms come from the cycle-axis grid below.
         "version": "main_player_cycle_version",
-        "shorts": "main_player_length_shorts",
+        "shorts": "main_player_length_clips",
         "full length": "main_player_length_full",
         # Which shape of video the player on the main screen may reach, in the
         # headset, where its library holds both.  "mixed" is taken by the length

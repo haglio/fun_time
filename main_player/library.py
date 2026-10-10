@@ -6,7 +6,7 @@ Many files in the wild are the same content at different quality or upscale
 module folds those variants into a single *version group* keyed on the name —
 an upscale is almost always the original's name plus an appended tag — picks
 the largest file as the canonical one, and offers a canonical-only shuffle, a
-Fun-Time playlist collapse, and a full-length/shorts filter.
+Fun-Time playlist collapse, and a clips/full filter.
 """
 from __future__ import annotations
 
@@ -329,16 +329,16 @@ SHORT_MAX_S = 10.0
 
 # The three length modes.  MIXED applies no length filter at all — it is what a
 # playlist looks like before anyone asks for a length, and so what the player
-# opens in; FULL and SHORTS are the two halves it splits into.
+# opens in; FULL and CLIPS are the two halves it splits into.
 MIXED = LengthMode.MIXED
 FULL = LengthMode.FULL
-SHORTS = LengthMode.SHORTS
+CLIPS = LengthMode.CLIPS
 # Neither length: a browse with nothing in it.  Degenerate, and the console
 # offers it anyway rather than refusing the press -- what happens is that the
 # video on screen is held, which is a state you can see and undo.
 NONE = LengthMode.NONE
 
-SHORTS_KINDS = frozenset({SHORT, EXCERPT})
+CLIPS_KINDS = frozenset({SHORT, EXCERPT})
 FULL_KINDS = frozenset({FULL_LENGTH})
 
 
@@ -376,10 +376,10 @@ def select_library(
     Mixed mode applies no length filter: every entry survives,
     including the ones nothing has classified, since nothing here has to.  NONE
     is its opposite and keeps nothing at all.  The
-    other two keep the kinds :data:`SHORTS_KINDS` and :data:`FULL_KINDS` name —
+    other two keep the kinds :data:`CLIPS_KINDS` and :data:`FULL_KINDS` name —
     :func:`kind_of_video` says what each video's kind is, and a video with no
     kind at all is dropped by both.  Anything that is not one of the three
-    modes filters as full-length, which is what it has always done.
+    modes filters as full, which is what it has always done.
 
     *kind_of* reads what Evolver recorded (``main_player.sidecar.read_video_type``); the
     *durations* are the fallback for what it has not reached.
@@ -391,7 +391,7 @@ def select_library(
     elif mode == MIXED:
         kept = list(entries)
     else:
-        wanted = SHORTS_KINDS if mode == SHORTS else FULL_KINDS
+        wanted = CLIPS_KINDS if mode == CLIPS else FULL_KINDS
         kept = [
             entry for entry in entries
             if kind_of_video(entry.video, kind_of=kind_of, durations=durations) in wanted

@@ -123,7 +123,7 @@ class TestVoiceCommands:
             # The bare axis word is the literal one; "cycle / next / change
             # version" are generated with the other cycle axes.
             "version": "main_player_cycle_version",
-            "shorts": "main_player_length_shorts",
+            "shorts": "main_player_length_clips",
             "full length": "main_player_length_full",
             "browse": "browse_library",
             "clip": "clipper_save",
@@ -309,7 +309,7 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["version"] == "main_player_cycle_version"
 
     def test_main_player_length_phrases(self):
-        assert VOICE_COMMANDS["shorts"] == "main_player_length_shorts"
+        assert VOICE_COMMANDS["shorts"] == "main_player_length_clips"
         assert VOICE_COMMANDS["full length"] == "main_player_length_full"
         assert VOICE_COMMANDS["mixed"] == "main_player_length_mixed"
 

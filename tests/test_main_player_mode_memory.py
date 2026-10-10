@@ -5,7 +5,7 @@ from pathlib import Path
 
 from player_core.modes import LengthMode
 
-from main_player.library import FULL, MIXED, SHORTS
+from main_player.library import CLIPS, FULL, MIXED
 from main_player.mode_memory import ModeMemory, RememberedMode
 
 
@@ -21,11 +21,11 @@ class TestLengthMode:
         path = tmp_path / "main_player_mode.txt"
 
         ModeMemory(path).write(RememberedMode(
-            length_mode=LengthMode.SHORTS, compilation="Volume Six", video="C:/x/y.mp4"))
+            length_mode=LengthMode.CLIPS, compilation="Volume Six", video="C:/x/y.mp4"))
 
         written = path.read_text(encoding="utf-8")
         assert written.splitlines() == [
-            "length_mode=shorts", "compilation=Volume Six", "video=C:/x/y.mp4"]
+            "length_mode=clips", "compilation=Volume Six", "video=C:/x/y.mp4"]
         assert written.endswith("\n"), "the last record is terminated like the others"
 
     def test_a_written_mode_reads_back(self, tmp_path):
@@ -33,9 +33,15 @@ class TestLengthMode:
         chose those videos has to survive the session too."""
         path = tmp_path / "state" / "main_player_mode.txt"
 
-        ModeMemory(path).write(RememberedMode(length_mode=SHORTS))
+        ModeMemory(path).write(RememberedMode(length_mode=CLIPS))
 
-        assert ModeMemory(path).read().length_mode == SHORTS
+        assert ModeMemory(path).read().length_mode == CLIPS
+
+    def test_a_mode_remembered_as_shorts_before_the_rename_comes_back_as_clips(self, tmp_path):
+        path = tmp_path / "main_player_mode.txt"
+        path.write_text("length_mode=shorts\n", encoding="utf-8")
+
+        assert ModeMemory(path).read().length_mode == CLIPS
 
     def test_nothing_remembered_reads_empty(self, tmp_path):
         assert ModeMemory(tmp_path / "never_written.txt").read() == RememberedMode()
@@ -43,7 +49,7 @@ class TestLengthMode:
     def test_a_later_write_replaces_the_earlier_one(self, tmp_path):
         memory = ModeMemory(tmp_path / "main_player_mode.txt")
 
-        memory.write(RememberedMode(length_mode=SHORTS))
+        memory.write(RememberedMode(length_mode=CLIPS))
         memory.write(RememberedMode(length_mode=FULL))
 
         assert memory.read().length_mode == FULL
@@ -75,17 +81,17 @@ class TestWritingItDownWheneverItMoves:
     def test_a_mode_that_has_not_moved_is_not_written_again(self, tmp_path):
         path = tmp_path / "main_player_mode.txt"
         memory = ModeMemory(path)
-        memory.write(RememberedMode(length_mode=SHORTS))
+        memory.write(RememberedMode(length_mode=CLIPS))
         path.unlink()          # so a write would show up as the file coming back
 
-        memory.sync(RememberedMode(length_mode=SHORTS))
+        memory.sync(RememberedMode(length_mode=CLIPS))
 
         assert not path.exists()
 
     def test_a_mode_that_moved_is_written_down(self, tmp_path):
         path = tmp_path / "main_player_mode.txt"
         memory = ModeMemory(path)
-        memory.write(RememberedMode(length_mode=SHORTS))
+        memory.write(RememberedMode(length_mode=CLIPS))
 
         memory.sync(RememberedMode(length_mode=FULL))
 
@@ -108,7 +114,7 @@ class TestWritingItDownWheneverItMoves:
         """The main player opens on the mode it closed in, so the first frame's record
         matches the file and must not rewrite it."""
         path = tmp_path / "main_player_mode.txt"
-        ModeMemory(path).write(RememberedMode(length_mode=SHORTS))
+        ModeMemory(path).write(RememberedMode(length_mode=CLIPS))
         memory = ModeMemory(path)
         remembered = memory.read()
         path.unlink()
@@ -125,7 +131,7 @@ class TestCompilation:
         or not at all, and so is which of its clips was on screen: the resumed
         playlist cannot be rotated onto a clip it does not contain."""
         path = tmp_path / "main_player_mode.txt"
-        mode = RememberedMode(length_mode=SHORTS, compilation="Vol6", video="C:/v/clip.mp4")
+        mode = RememberedMode(length_mode=CLIPS, compilation="Vol6", video="C:/v/clip.mp4")
 
         ModeMemory(path).write(mode)
 
@@ -144,9 +150,9 @@ class TestCompilation:
     def test_leaving_a_compilation_is_remembered_too(self, tmp_path):
         path = tmp_path / "main_player_mode.txt"
         memory = ModeMemory(path)
-        memory.write(RememberedMode(length_mode=SHORTS, compilation="Vol6"))
+        memory.write(RememberedMode(length_mode=CLIPS, compilation="Vol6"))
 
-        memory.write(RememberedMode(length_mode=SHORTS))
+        memory.write(RememberedMode(length_mode=CLIPS))
 
         assert memory.read().compilation == ""
 
@@ -157,7 +163,7 @@ class TestWhenTheFileCannotBeRead:
         """The same answer as a first-ever launch: opening on the default mode
         is right, and refusing to start is not."""
         path = tmp_path / "main_player_mode.txt"
-        ModeMemory(path).write(RememberedMode(length_mode=SHORTS))
+        ModeMemory(path).write(RememberedMode(length_mode=CLIPS))
 
         def refuse(*_args, **_kwargs):
             raise OSError("held open by something else")

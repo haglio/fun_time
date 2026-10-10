@@ -340,14 +340,14 @@ def test_a_loop_state_without_bounds_is_no_loop(tmp_path: Path):
 def test_read_main_player_status_parses_what_a_reset_puts_back(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nspeed=1.25\nlength_mode=shorts\ncompilation=Example Studio Volume One\n",
+        "video=C:\\clip.mp4\nspeed=1.25\nlength_mode=clips\ncompilation=Example Studio Volume One\n",
         encoding="utf-8",
     )
 
     status = read_main_player_status(status_file)
 
     assert (status.speed, status.length_mode, status.compilation) == (
-        1.25, "shorts", "Example Studio Volume One")
+        1.25, "clips", "Example Studio Volume One")
     assert read_main_player_status(tmp_path / "missing.txt").speed == 1.0
 
 
@@ -356,7 +356,7 @@ def test_read_main_player_status_reads_the_length_mode_as_its_entry_or_as_none(t
     session knows: no word, or one from a player of another age, draws no pair
     rather than lighting the wrong one."""
     status_file = tmp_path / "main_player_status.txt"
-    for written, read in (("shorts", LengthMode.SHORTS), ("", None), ("every", None)):
+    for written, read in (("clips", LengthMode.CLIPS), ("", None), ("every", None)):
         status_file.write_text(f"video=clip.mp4\nlength_mode={written}\n", encoding="utf-8")
 
         assert read_main_player_status(status_file).length_mode is read
