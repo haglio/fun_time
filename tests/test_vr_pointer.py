@@ -682,19 +682,23 @@ class TestThePointerOverTheScene:
         assert (press.u, press.v) == pytest.approx((0.4, 0.6), abs=1e-6)
         assert release == PressEvent(RELEASE, "portrait")
 
-    def test_a_squeeze_on_a_pictures_own_controls_works_them_rather_than_carrying(self):
+    @pytest.mark.parametrize("u, v", [(0.3, 0.02), (0.97, 0.02)], ids=["lower edge", "corner"])
+    def test_a_squeeze_along_a_pictures_lower_edge_is_a_click_on_it_like_any_other(self, u, v):
+        """The row that was drawn along a picture's lower edge is on the panel
+        beside it now, so no part of a picture seeks or sets the level: a
+        squeeze there still sat on an invisible scrubber and chip for two
+        weeks after the row moved."""
         portrait = _PORTRAIT
-        pointer = Pointer(on_its_controls=lambda _screen, _u, v: v < 0.1)
+        pointer = Pointer()
         scene = [portrait, _PANEL]
 
-        pressed = self._frame(pointer, _hands(right=_aim_at_uv(portrait, 0.3, 0.05),
-                                              right_trigger=1.0), screens=scene)
-        dragged = self._frame(pointer, _hands(right=_aim_at_uv(portrait, 0.8, 0.05),
-                                              right_trigger=1.0), screens=scene)
+        held = self._frame(pointer, _hands(right=_aim_at_uv(portrait, u, v), right_trigger=1.0),
+                           screens=scene)
+        let_go = self._frame(pointer, _hands(right=_aim_at_uv(portrait, u, v)), screens=scene)
 
-        assert pressed.events[0].kind == PRESS
-        assert dragged.events[0].kind == DRAG
-        assert dragged.carried == (0.0, 0.0)
+        assert held.events == ()
+        assert [(event.kind, event.screen) for event in let_go.events] == [
+            (PRESS, "portrait"), (RELEASE, "portrait")]
 
     def test_a_squeeze_spent_on_something_else_never_clicks_when_let_go(self):
         portrait = _PORTRAIT
