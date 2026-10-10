@@ -27,7 +27,7 @@ from fun_time.win32_loader import load_dll
 from fun_time.win32_process import is_process_alive
 from tests.child_reports import A_STARVED_CHILDS_START_S, pid_written_to
 from tests.git_repo import git
-from tests.integration import hidden_desktop
+from tests.integration import hidden_desktop, run_clock
 from tests.integration.coverage_map import Picked
 from tests.integration.hidden_desktop import (
     _child_environment,
@@ -40,6 +40,7 @@ from tests.integration.hidden_desktop import (
     create_run_job,
     main,
 )
+from tests.integration.run_clock import keep_time_by
 from tests.integration.session_lock import SingleInstanceLock, Waiting, hold_integration_lock
 
 
@@ -377,6 +378,41 @@ def test_a_run_that_never_decides_an_exit_code_is_ended_at_the_ceiling_with_its_
                                              sys.executable, 1) == hidden_desktop.WEDGED_EXIT_CODE
 
     assert _wait_until_dead(launched[0])
+
+
+class _Frozen:
+    def seconds(self) -> float:
+        return 0.0
+
+
+def test_a_run_starved_of_the_processor_is_never_ended_as_wedged():
+    """Its ceiling is counted in the seconds the run could run, and none pass
+    while normal-priority work holds every processor."""
+    still_running = iter([True] * 50_000 + [False])
+    keep_time_by(_Frozen())
+    try:
+        with patch.object(hidden_desktop, "_exit_code", lambda _process: (
+                hidden_desktop.STILL_ACTIVE if next(still_running) else 0)), \
+             patch.object(hidden_desktop, "_kernel32") as kernel32:
+            kernel32.WaitForSingleObject.return_value = 0
+            assert hidden_desktop._wait_for_the_run(object(), ceiling_s=0.01) == 0
+    finally:
+        keep_time_by(run_clock.WALL)
+
+
+def test_the_runner_counts_the_runs_job_as_the_run_and_everything_else_as_other_work():
+    asked: list[object] = []
+
+    def busy(job) -> float:
+        asked.append(job)
+        return 0.0
+
+    with patch.object(hidden_desktop, "busy_seconds_of_job", busy), \
+         hidden_desktop._the_runs_own_time(job=4242):
+        run_clock.now()
+
+    assert asked and set(asked) == {4242}
+    assert run_clock.now() == pytest.approx(run_clock.WALL.seconds(), abs=1.0)
 
 
 def test_the_ceiling_leaves_a_green_suite_room_to_finish():
