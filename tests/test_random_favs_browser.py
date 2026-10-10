@@ -111,7 +111,7 @@ def _decline_config(cfg_factory, tmp_path: Path, *, enabled=True, local_state=Tr
 
 
 def test_a_disabled_browser_declines_to_launch(cfg_factory, tmp_path: Path):
-    """random_favs_browser.enabled is a documented public config key (clipper
+    """random_favs_browser.enabled is a documented public config key (genaumacher
     reads it too), and turning it off must mean no profile and no tabs."""
     cfg_path = _decline_config(cfg_factory, tmp_path, enabled=False)
     assert build_manifest(load_config(cfg_path), _PROVIDERS) == ("", [])

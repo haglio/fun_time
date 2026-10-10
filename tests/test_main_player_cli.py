@@ -125,7 +125,7 @@ class TestLibrarySource:
 
     def test_clips_dir_falls_back_to_top_level_config(self, tmp_path):
         """Fun Time's config has no main_player.clips_dir; shorts should still pick up
-        the saved clips from the top-level clips_dir the clipper writes to."""
+        the saved clips from the top-level clips_dir the genaumacher writes to."""
         clips = tmp_path / "clips"
         args = build_parser({"clips_dir": str(clips)}).parse_args([])
         assert args.clips_dir == clips
