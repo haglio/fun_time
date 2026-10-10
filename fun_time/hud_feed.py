@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from player_core.console import console_text
+from player_core.console import aim_row, console_text
 from player_core.drive_readout import read_drive
 from player_core.satellite_hud import HudModel, hud_text, parse_hud
 
@@ -22,7 +22,7 @@ from .command_dispatch import (
     main_video_shapes,
     satellite_at_defaults,
 )
-from .console_buttons import aim_row, osr2_controls
+from .console_buttons import osr2_controls
 from .crown import Crown
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SatelliteInputs, build_panels
