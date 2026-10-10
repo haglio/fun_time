@@ -20,7 +20,7 @@ Integration tests — run on a hidden Win32 desktop so the real windows never to
 .\.venv\Scripts\python.exe -m tests.integration.hidden_desktop
 ```
 
-**A branch runs the integration tests that run what it changed, not the whole suite:** `... hidden_desktop --changed` (against `origin/main`, or name a base). It reads what the branch committed, edited and added, and runs the integration test files the coverage map says run those files, or the whole suite when the map cannot say, and it prints which and why. **The whole suite runs on `main` after each change ships**, by the main verifier (`tests/integration/main_verifier.py`, kept running by the "Fun Time main verifier" scheduled task): it moves the everyday checkout only to a commit that passed, measures the coverage map once a day, and pins a failure on the change that caused it, takes that change back out with a pull request of its own and starts a Claude Code session to fix it and ship it again. What it did is in the everyday checkout's `state/main_verifier.log` and `state/main_verifier_incidents.jsonl`.
+**A branch runs the integration tests that run what it changed, not the whole suite:** `... hidden_desktop --changed` (against `origin/main`, or name a base). It reads what the branch committed, edited and added, and runs the integration test files the coverage map says run those files, or the whole suite when the map cannot say, and it prints which and why. **The whole suite runs on `main` after each change ships**, by the main verifier (`tests/integration/main_verifier.py`, kept running by the "Fun Time main verifier" scheduled task): it moves the production checkout only to a commit that passed, measures the coverage map once a day, and pins a failure on the change that caused it, takes that change back out with a pull request of its own and starts a Claude Code session to fix it and ship it again. What it did is in the production checkout's `state/main_verifier.log` and `state/main_verifier_incidents.jsonl`.
 
 The runner creates the hidden desktop, sets `FUN_TIME_RUN_INTEGRATION=1`, and runs the whole suite invisibly (real HWNDs, off-screen, never foreground) and below normal priority, every process of it, so a run gives way to his live session instead of making the OSR2 falter; expect it to run slower while he is using the machine. The runner's machine-wide lock serializes concurrent agent runs — a second run queues instead of clobbering, so you don't hunt for a quiet window. Extra pytest args pass through. **Try a new check first with its file alone** (`... hidden_desktop -k <file stem>`, or the file's path): a run narrowed that way, or by `--repeat-changed`, goes ahead of full runs in the line until short runs have held it for 20 minutes while a full run waited.
 
@@ -134,7 +134,7 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   good, and the next agent reading `git branch -r` for what is in flight has to
   sift the dead from the live.
 - **The `.git/agent-merge.lock` is retired here** — the GitHub queue serializes.
-- **The everyday checkout is the main verifier's to move.** `main` advances
+- **The production checkout is the main verifier's to move.** `main` advances
   only on origin (via the queue). Worktrees update with `git rebase
   origin/main`; the primary checkout moves only when the main verifier
   fast-forwards it to a commit that passed the whole integration suite, so
@@ -212,7 +212,7 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   gave him nothing to click (2026-08-19).
 
 - **A launcher runs its branch only while that branch carries everything the
-  everyday checkout has, and only out of player_core checkouts that carry the
+  production checkout has, and only out of player_core checkouts that carry the
   tag the branch pins.** Every shortcut ever handed out runs the primary's
   `fun_time.branch_session`, which refuses either case before a room opens and
   says so in a message box: how many changes older the branch is, or which pinned
