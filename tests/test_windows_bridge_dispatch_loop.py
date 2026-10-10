@@ -60,6 +60,7 @@ from fun_time.windows_bridge_dispatch_loop import (
     poll_dashboard_commands,
     resolve_active_player_command,
 )
+from tests.hosted_shows import publish_the_show
 from tests.role_window_fakes import (
     DASHBOARD_HWND,
     DASHBOARD_PID,
@@ -2562,6 +2563,19 @@ class TestIdempotentVoiceCommands:
         runner._update_dashboard()
 
         assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is False
+
+    def test_the_dashboards_f_mode_lights_off_the_hosted_shows_in_origenerator_mode(
+        self, tmp_path,
+    ):
+        runner = make_runner(tmp_path, dashboard_enabled=True, config=_hosting(tmp_path))
+        runner.state = replace(runner.state, satellites_mode="origenerator",
+                               main_scripted_filter=True)
+        for player in Player.SATELLITES:
+            publish_the_show(runner.config, player, f_mode=True)
+
+        runner._update_dashboard()
+
+        assert load_dashboard_snapshot(runner.config.dashboard_state_file).f_mode is True
 
     # -- the window-op vocabulary --
 

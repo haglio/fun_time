@@ -44,6 +44,7 @@ from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import resolve_active_player_command
+from tests.hosted_shows import publish_the_show
 
 
 def _publish_drive(config: BridgeConfig, *, amplitude: int) -> None:
@@ -4491,6 +4492,8 @@ def _origenerator_config(tmp_path: Path) -> BridgeConfig:
         origenerator_enabled=True,
         origenerator_cmd_file=config.state_dir / "origenerator_cmd.txt",
         origenerator_paused_file=config.state_dir / "origenerator_paused.txt",
+        portrait_origenerator_hud_file=config.state_dir / "origenerator_portrait_hud.json",
+        landscape_origenerator_hud_file=config.state_dir / "origenerator_landscape_hud.json",
     )
 
 
@@ -4655,10 +4658,10 @@ class TestOrigeneratorTransport:
         assert _cmds(config, 2) == ["SPEED_UP"]
         assert minimize_ops
 
-    def test_the_rooms_f_mode_leaves_the_hosted_sides_alone(self, tmp_path):
-        """The F key narrows every player the session drives; the hosted app's
-        two are not the session's to rebuild while it has them."""
+    def test_the_rooms_f_mode_turns_each_hosted_shows_own_f_mode_on(self, tmp_path):
         config = _origenerator_config(tmp_path)
+        for player in Player.SATELLITES:
+            publish_the_show(config, player, f_mode=False)
         state = _up(satellites_mode="origenerator")
 
         with patch("fun_time.command_dispatch.apply_fmode") as fmode:
@@ -4666,7 +4669,40 @@ class TestOrigeneratorTransport:
             state, _ = dispatch_command("fmode_toggle", state, config)
 
         assert fmode.call_args.kwargs["players"] == (Player.MAIN,)
+        assert _origenerator_cmds(config) == ["portrait_fmode_on", "landscape_fmode_on"]
         assert not state.satellite(Player.PORTRAIT).favorites_filter
+
+    def test_the_rooms_f_mode_lifts_the_hosted_shows_once_every_player_is_in_it(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        for player in Player.SATELLITES:
+            publish_the_show(config, player, f_mode=True)
+        state = _up(satellites_mode="origenerator", main_scripted_filter=True)
+
+        state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
+
+        assert mock_fmode.call_args.kwargs["players"] == (Player.MAIN,)
+        assert state.main_scripted_filter is False
+        assert _origenerator_cmds(config) == ["portrait_fmode_off", "landscape_fmode_off"]
+
+    def test_a_hosted_show_already_in_the_asked_for_f_mode_is_sent_nothing(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        publish_the_show(config, Player.PORTRAIT, f_mode=True)
+        publish_the_show(config, Player.LANDSCAPE, f_mode=False)
+
+        _dispatch_fmode("fmode_on", _up(satellites_mode="origenerator"), config)
+
+        assert _origenerator_cmds(config) == ["landscape_fmode_on"]
+
+    def test_a_side_with_no_show_up_has_no_say_in_the_rooms_f_mode(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        publish_the_show(config, Player.PORTRAIT, f_mode=True)
+        config.satellite(Player.LANDSCAPE).origenerator_hud_file.write_text("", encoding="utf-8")
+        state = _up(satellites_mode="origenerator", main_scripted_filter=True)
+
+        state, _ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
+
+        assert state.main_scripted_filter is False
+        assert _origenerator_cmds(config) == ["portrait_fmode_off"]
 
     def test_a_spoken_phrase_reaches_the_hosted_app_as_words(self, tmp_path):
         """The session owns the room's microphone — one mic, one transcription —
