@@ -24,6 +24,8 @@ from dataclasses import dataclass
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from fun_time.win32 import find_window_by_title
 
+from .run_clock import Budget
+
 _user32 = ctypes.WinDLL("user32", use_last_error=True)
 _user32.GetWindow.argtypes = [wt.HWND, wt.UINT]
 _user32.GetWindow.restype = wt.HWND
@@ -103,9 +105,9 @@ class AboveTheCover(threading.Thread):
         self.samples: list[tuple[float, int, str]] = []
 
     def run(self) -> None:
-        deadline = time.monotonic() + self._timeout_s
+        budget = Budget(self._timeout_s)
         cover = 0
-        while time.monotonic() < deadline:
+        while not budget.expired():
             cover = find_window_by_title(LOADING_SCREEN_TITLE, exact=True)
             if cover:
                 break
@@ -113,7 +115,7 @@ class AboveTheCover(threading.Thread):
         if not cover:
             return
         self.cover_was_up = True
-        while time.monotonic() < deadline and _user32.IsWindowVisible(cover):
+        while not budget.expired() and _user32.IsWindowVisible(cover):
             hwnd = _user32.GetWindow(cover, GW_HWNDPREV)
             while hwnd and not _user32.IsWindowVisible(hwnd):
                 hwnd = _user32.GetWindow(hwnd, GW_HWNDPREV)

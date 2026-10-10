@@ -20,6 +20,7 @@ from fun_time.win32 import find_window_for_process
 from fun_time.win32_process import is_process_alive
 from tests.child_reports import all_gone_within, pid_written_to, with_what_it_started
 from tests.integration.integration_support import RELEASE_BUDGET_S, checkout_project_dirs
+from tests.integration.run_clock import Budget
 from tests.scratch import remove_scratch
 
 pytestmark = [
@@ -46,8 +47,8 @@ time.sleep(120)
 def _its_window_came_up(pid: int, title: str, *, within_s: float) -> bool:
     """By the screen's own process: an earlier test's screen wears the same
     title, and may still be on this desktop."""
-    deadline = time.monotonic() + within_s
-    while time.monotonic() < deadline and is_process_alive(pid):
+    budget = Budget(within_s)
+    while not budget.expired() and is_process_alive(pid):
         if find_window_for_process(pid, title):
             return True
         time.sleep(0.1)
@@ -57,12 +58,12 @@ def _its_window_came_up(pid: int, title: str, *, within_s: float) -> bool:
 def _removed_once_released(folder: Path) -> None:
     """A process ended from outside reads as dead a moment before Windows has
     closed the files it had open."""
-    deadline = time.monotonic() + RELEASE_BUDGET_S
+    budget = Budget(RELEASE_BUDGET_S)
     while folder.exists():
         try:
             remove_scratch(folder)
         except PermissionError:
-            if time.monotonic() >= deadline:
+            if budget.expired():
                 raise
             time.sleep(0.5)
 

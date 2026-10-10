@@ -20,6 +20,7 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
 )
+from .run_clock import Budget
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -44,8 +45,8 @@ def test_a_player_closing_mid_session_closes_the_whole_room():
         session._wait_for_own_log(
             "The session ended because the Landscape player closed itself",
             after=session._log_pos, timeout=ROOM_CLOSES_WITHIN_S)
-        deadline = time.monotonic() + ROOM_CLOSES_WITHIN_S
-        while time.monotonic() < deadline and any(map(_still_up, children.values())):
+        budget = Budget(ROOM_CLOSES_WITHIN_S)
+        while not budget.expired() and any(map(_still_up, children.values())):
             time.sleep(0.5)
 
         assert [key for key, child in children.items() if _still_up(child)] == []
