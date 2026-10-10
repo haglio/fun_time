@@ -30,8 +30,11 @@ import re
 import shlex
 import subprocess
 import sys
+import tomllib
+from dataclasses import dataclass
 from pathlib import Path
 
+from app_support.dependencies import pinned_siblings
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import TaskbarApp, describe_taskbar_app
 
@@ -77,15 +80,6 @@ RESERVED_IN_FILENAMES = r'[<>:"/\|?*]'
 
 FIELD_SEPARATOR = "\t"
 DETACHED = "(detached)"
-
-# A worktree's own answer to "which checkout of ../genau do the main player and Genau run
-# out of" — one absolute path per line, in the worktree's state dir, blank lines
-# and #-comments ignored.  See :func:`_apply_genau_checkout_override`.
-
-# The same per-worktree answer for "which Origenerator checkout does this
-# session host": one absolute path (or an empty file for none at all), for the
-# same reason genau's exists — the machine's one config must not be repointed
-# at an unlanded branch.  See :func:`apply_origenerator_dir_override`.
 
 # Superseded by the plural forms in :func:`_primary_resolved_values`.  A stale
 # singular left in the file still names a path, and it is one this rewrite never
@@ -298,28 +292,92 @@ def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
     log and its exited sentinel both describe the whole run.
     """
     worktree = worktree.resolve()
+    primary = (primary or primary_checkout()).resolve()
+    missing = commits_missing(worktree, primary)
+    if missing:
+        return _refuse(worktree, branch_label(worktree, current_branch(worktree)),
+                       _older_than_the_fun_time_he_runs(missing),
+                       str(OutOfDateWorktree(worktree, missing)))
+    older = sibling_checkouts_older_than_the_pin(worktree)
+    if older:
+        return _refuse(worktree, branch_label(worktree, current_branch(worktree)),
+                       PLAYERS_FROM_BEFORE_THE_PIN, str(OutOfDateSibling(older[0])))
     config_path = build_branch_config(worktree, primary=primary, **kwargs)
     command = [sys.executable, "-m", ORCHESTRATOR_MODULES[vr], "--config", str(config_path)]
     print(f"Running {subprocess.list2cmdline(command)}\n  in {worktree}", flush=True)
-    returncode = subprocess.run(
+    return subprocess.run(
         command, cwd=str(worktree), check=False, env={**os.environ, preview_marker.FLAG: "1"},
         **no_console_window()).returncode
-    if returncode:
-        _leave_out_of_date_note(worktree, primary or primary_checkout())
-    return returncode
 
 
-def _leave_out_of_date_note(worktree: Path, primary: Path) -> None:
-    missing = commits_missing(worktree, primary)
-    if not missing:
-        return
-    label = branch_label(worktree, current_branch(worktree))
-    (worktree / STATE_DIRNAME / OUT_OF_DATE_NOTE_NAME).write_text(
+def _older_than_the_fun_time_he_runs(missing: int) -> str:
+    return (f"That branch's copy of Fun Time is {missing} change{'' if missing == 1 else 's'} "
+            "older than the one you normally run, and a branch that old can start things this "
+            "computer no longer has.")
+
+
+def _carries(checkout: Path, commit: str) -> bool:
+    return subprocess.run(
+        ["git", "merge-base", "--is-ancestor", commit, "HEAD"], cwd=str(checkout),
+        capture_output=True, **hidden_subprocess_kwargs()).returncode == 0
+
+
+@dataclass(frozen=True)
+class SiblingOlderThanThePin:
+    checkout: Path
+    repo: str
+    tag: str
+
+
+class OutOfDateSibling(RuntimeError):
+    def __init__(self, older: SiblingOlderThanThePin):
+        super().__init__(
+            f"{older.checkout} does not carry {older.tag}, the {older.repo} this branch is "
+            "built against, so a Main Player run out of it would lack what the branch imports. "
+            f"Rebase that checkout onto {older.repo}'s origin/main, or take it out of "
+            f"state/{GENAU_DIRS_OVERRIDE_NAME}, first.")
+
+
+PLAYERS_FROM_BEFORE_THE_PIN = (
+    "That branch is set to run its players out of a player_core checkout older than the "
+    "one it was built against, so its Main player would not come up.")
+
+
+def sibling_checkouts_older_than_the_pin(worktree: Path) -> list[SiblingOlderThanThePin]:
+    pyproject = worktree / "pyproject.toml"
+    if not pyproject.is_file():
+        return []
+    pins = pinned_siblings(pyproject)
+    older = []
+    for entry in override_lines(worktree / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME) or []:
+        checkout = Path(entry)
+        repo = _family_repo_of(checkout)
+        if repo in pins and not _carries(checkout, pins[repo]):
+            older.append(SiblingOlderThanThePin(checkout, repo, pins[repo]))
+    return older
+
+
+def _family_repo_of(checkout: Path) -> str | None:
+    try:
+        with (checkout / "pyproject.toml").open("rb") as handle:
+            name = tomllib.load(handle).get("project", {}).get("name")
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    return name.replace("-", "_") if name else None
+
+
+def _refuse(worktree: Path, label: str, why_he_reads: str, what_the_agent_does: str) -> int:
+    _leave_note(worktree, label, why_he_reads)
+    print(f"Refused: {what_the_agent_does}", flush=True)
+    return 1
+
+
+def _leave_note(worktree: Path, label: str, why_it_could_not_start: str) -> None:
+    state_dir = worktree / STATE_DIRNAME
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / OUT_OF_DATE_NOTE_NAME).write_text(
         f"Fun Time couldn't start on {label}.\n\n"
-        f"That branch's copy of Fun Time is {missing} "
-        f"change{'' if missing == 1 else 's'} older than the one you normally run, "
-        "which "
-        "is the usual reason a launcher that worked once stops working.\n\n"
+        f"{why_it_could_not_start}\n\n"
         f"Ask the session working on {label} to bring its branch up to date and make "
         "you a new launcher.\n",
         encoding="utf-8",
@@ -457,6 +515,9 @@ def write_launch_shortcut(
     missing = commits_missing(worktree, primary)
     if missing:
         raise OutOfDateWorktree(worktree, missing)
+    older = sibling_checkouts_older_than_the_pin(worktree)
+    if older:
+        raise OutOfDateSibling(older[0])
     branch = current_branch(worktree)
     destination = worktree / shortcut_name(worktree, branch, vr=vr)
     arguments = [str(launcher), str(worktree), branch]
@@ -539,7 +600,11 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(errors="replace")
     if args.shortcut:
         target = config_module.PROJECT_DIR if args.shortcut == "." else Path(args.shortcut)
-        print(write_launch_shortcut(target, vr=args.vr))
+        try:
+            print(write_launch_shortcut(target, vr=args.vr))
+        except (OutOfDateWorktree, OutOfDateSibling) as refused:
+            print(f"No launcher written: {refused}", file=sys.stderr)
+            return 1
         print(sibling_checkouts_line(target, primary_checkout()))
         return 0
     if args.remove_shortcut:

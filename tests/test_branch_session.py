@@ -683,6 +683,8 @@ def _launch_recorded(monkeypatch, tmp_path: Path, **kwargs) -> _RecordedRun:
     monkeypatch.setattr(
         branch_session, "build_branch_config", lambda worktree, **_: tmp_path / "cfg.json"
     )
+    monkeypatch.setattr(branch_session, "primary_checkout", lambda start=None: tmp_path)
+    monkeypatch.setattr(branch_session, "commits_missing", lambda worktree, primary: 0)
     monkeypatch.setattr(branch_session.subprocess, "run", recorded)
     branch_session.launch(tmp_path, **kwargs)
     return recorded
@@ -713,17 +715,21 @@ def test_a_vr_branch_session_runs_the_vr_orchestrator(monkeypatch, tmp_path: Pat
     assert recorded.cwd == str(tmp_path.resolve())
 
 
-def _sessions_exit_with(monkeypatch, returncode: int) -> None:
+def _sessions_exit_with(monkeypatch, returncode: int) -> list[list[str]]:
+    """Every session the launcher goes on to start, as the command it ran."""
     real_run = subprocess.run
+    sessions: list[list[str]] = []
 
     def run(command, cwd=None, check=False, **kwargs):
         if command[0] == "git":
             return real_run(command, cwd=cwd, check=check, **kwargs)
+        sessions.append(list(command))
         return SimpleNamespace(returncode=returncode)
 
     monkeypatch.setattr(branch_session, "build_branch_config",
                         lambda worktree, **_: worktree / "state" / "cfg.json")
     monkeypatch.setattr(branch_session.subprocess, "run", run)
+    return sessions
 
 
 def _land_work_on_the_primary(checkouts) -> None:
@@ -735,36 +741,146 @@ def _note_left_in(worktree: Path) -> Path:
     return worktree / "state" / branch_session.OUT_OF_DATE_NOTE_NAME
 
 
-def test_a_launch_that_fails_on_a_worktree_missing_work_says_why_in_plain_words(
+def test_a_worktree_missing_work_the_primary_has_is_refused_before_a_room_opens(
         repo_with_worktrees, monkeypatch):
+    """The sibling checkouts a session runs against move with the primary, so a
+    branch left on an older Fun Time can start things this computer no longer has; refused, it
+    says so in his words instead of opening a room that dies."""
     _land_work_on_the_primary(repo_with_worktrees)
-    (repo_with_worktrees.newer / "state").mkdir()
-    _sessions_exit_with(monkeypatch, 1)
+    sessions = _sessions_exit_with(monkeypatch, 0)
 
-    branch_session.launch(repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
+    returncode = branch_session.launch(
+        repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
 
+    assert returncode == 1
+    assert sessions == []
     note = _note_left_in(repo_with_worktrees.newer).read_text(encoding="utf-8")
-    assert "example/newer" in note
-    assert "1 change older than" in note
+    assert "Fun Time couldn't start on example/newer" in note
+    assert "1 change older than the one you normally run" in note
+    assert "bring its branch up to date and make you a new launcher" in note
 
 
-def test_a_launch_that_fails_on_an_up_to_date_worktree_leaves_no_note(
-        repo_with_worktrees, monkeypatch):
-    (repo_with_worktrees.newer / "state").mkdir()
-    _sessions_exit_with(monkeypatch, 1)
-
-    branch_session.launch(repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
-
-    assert not _note_left_in(repo_with_worktrees.newer).exists()
-
-def test_a_session_that_ends_normally_leaves_no_note(repo_with_worktrees, monkeypatch):
+def test_the_refusal_tells_the_agent_to_rebase(repo_with_worktrees, monkeypatch, capsys):
     _land_work_on_the_primary(repo_with_worktrees)
-    (repo_with_worktrees.newer / "state").mkdir()
     _sessions_exit_with(monkeypatch, 0)
 
     branch_session.launch(repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
 
+    printed = capsys.readouterr().out
+    assert "Refused: " in printed
+    assert "missing 1 commit the primary checkout has" in printed
+    assert "origin/main" in printed
+
+
+def test_a_worktree_carrying_everything_the_primary_has_launches(
+        repo_with_worktrees, monkeypatch):
+    (repo_with_worktrees.newer / "state").mkdir()
+    sessions = _sessions_exit_with(monkeypatch, 0)
+
+    returncode = branch_session.launch(
+        repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
+
+    assert returncode == 0
+    assert len(sessions) == 1
     assert not _note_left_in(repo_with_worktrees.newer).exists()
+
+
+def test_a_session_that_fails_on_a_current_worktree_is_not_blamed_on_its_age(
+        repo_with_worktrees, monkeypatch):
+    (repo_with_worktrees.newer / "state").mkdir()
+    _sessions_exit_with(monkeypatch, 1)
+
+    returncode = branch_session.launch(
+        repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
+
+    assert returncode == 1
+    assert not _note_left_in(repo_with_worktrees.newer).exists()
+
+
+@pytest.fixture
+def engine_checkouts(tmp_path: Path) -> SimpleNamespace:
+    """A stand-in player_core repo at a tag, and a second checkout of it left before
+    the tag -- what a worktree pinned by an agent looks like once main moves on."""
+    current = tmp_path / "player_core"
+    current.mkdir()
+    git(current, "-c", "init.defaultBranch=main", "init")
+    (current / "pyproject.toml").write_text(
+        '[project]\nname = "player-core"\nversion = "0.1.0"\n', encoding="utf-8")
+    git(current, "add", "pyproject.toml")
+    git(current, "commit", "-m", "The engine", when="2026-01-01T12:00:00")
+    before_the_tag = tmp_path / "player_core_before_the_tag"
+    git(current, "worktree", "add", "--detach", str(before_the_tag))
+    git(current, "commit", "--allow-empty", "-m", "What the branch imports",
+        when="2026-02-01T12:00:00")
+    git(current, "tag", "v0.1.9")
+    return SimpleNamespace(current=current, before_the_tag=before_the_tag)
+
+
+def _built_against_player_core(worktree: Path, tag: str) -> None:
+    (worktree / "pyproject.toml").write_text(
+        '[project]\nname = "fun-time"\nversion = "0.1.0"\n'
+        f'dependencies = ["player-core @ git+https://github.com/haglio/player_core@{tag}"]\n',
+        encoding="utf-8")
+
+
+def _runs_its_players_out_of(worktree: Path, checkout: Path) -> None:
+    (worktree / "state").mkdir(exist_ok=True)
+    (worktree / "state" / branch_session.GENAU_DIRS_OVERRIDE_NAME).write_text(
+        f"{checkout}\n", encoding="utf-8")
+
+
+def test_a_shortcut_is_refused_while_a_pinned_player_core_checkout_predates_the_branchs_pin(
+        primary_with_launcher, engine_checkouts):
+    """The chain has no error state of its own: a stale checkout on the players'
+    path runs some other player_core, and the Main Player dies at import on a name
+    the branch was built against."""
+    _built_against_player_core(primary_with_launcher.newer, "v0.1.9")
+    _runs_its_players_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
+
+    with pytest.raises(branch_session.OutOfDateSibling) as refused:
+        branch_session.write_launch_shortcut(
+            primary_with_launcher.newer, primary=primary_with_launcher.primary)
+
+    assert str(engine_checkouts.before_the_tag) in str(refused.value)
+    assert "v0.1.9" in str(refused.value)
+    assert branch_session._generated_shortcuts(primary_with_launcher.newer) == {}
+
+
+def test_the_shortcut_command_reports_a_refusal_without_a_traceback(
+        primary_with_launcher, engine_checkouts, monkeypatch, capsys):
+    _built_against_player_core(primary_with_launcher.newer, "v0.1.9")
+    _runs_its_players_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
+    monkeypatch.setattr(branch_session, "primary_checkout",
+                        lambda start=None: primary_with_launcher.primary)
+
+    returncode = branch_session.main(["--shortcut", str(primary_with_launcher.newer)])
+
+    assert returncode == 1
+    assert "v0.1.9" in capsys.readouterr().err
+
+
+def test_a_pinned_checkout_carrying_the_branchs_pin_is_current(
+        repo_with_worktrees, engine_checkouts):
+    _built_against_player_core(repo_with_worktrees.newer, "v0.1.9")
+    _runs_its_players_out_of(repo_with_worktrees.newer, engine_checkouts.current)
+
+    assert branch_session.sibling_checkouts_older_than_the_pin(repo_with_worktrees.newer) == []
+
+
+def test_a_launch_out_of_a_pinned_checkout_from_before_the_branchs_pin_is_refused_with_a_note(
+        repo_with_worktrees, engine_checkouts, monkeypatch):
+    _built_against_player_core(repo_with_worktrees.newer, "v0.1.9")
+    _runs_its_players_out_of(repo_with_worktrees.newer, engine_checkouts.before_the_tag)
+    sessions = _sessions_exit_with(monkeypatch, 0)
+
+    returncode = branch_session.launch(
+        repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
+
+    assert returncode == 1
+    assert sessions == []
+    note = _note_left_in(repo_with_worktrees.newer).read_text(encoding="utf-8")
+    assert "Fun Time couldn't start on example/newer" in note
+    assert "player_core checkout older than the one it was built against" in note
 
 
 class TestTheSessionOnTheTaskbar:

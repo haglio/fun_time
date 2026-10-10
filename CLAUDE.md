@@ -211,6 +211,17 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   spawned agents in a row read the whole handoff as belonging to the merger and
   gave him nothing to click (2026-08-19).
 
+- **A launcher runs its branch only while that branch carries everything the
+  everyday checkout has, and only out of player_core checkouts that carry the
+  tag the branch pins.** Every shortcut ever handed out runs the primary's
+  `fun_time.branch_session`, which refuses either case before a room opens and
+  says so in a message box: how many changes older the branch is, or which pinned
+  checkout is older than the branch was built against, and that the session has
+  to bring it up to date. The sibling checkouts a session runs out of move with
+  main, so a branch left on an older Fun Time can start things this computer no longer has:
+  when Genau left its own window (8f27af7f), every launcher made before it died
+  the same way, and the message box named nothing. The landing-a-change skill's
+  watcher is what keeps a preview he holds inside this rule.
 - **A new config key your branch reads must also go in his real config, or that
   session will not see it.** `launch_branch.vbs` builds the branch config with
   the PRIMARY checkout's `branch_session` — main's code, by design — so a key
