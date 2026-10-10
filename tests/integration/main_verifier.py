@@ -187,7 +187,9 @@ class MachineBench:
         rcfile.write_text("\n".join(["[run]", f"source = {self.checkout}", f"omit = {self.checkout / 'tests'}/*",
                                       f"data_file = {measuring / '.coverage'}", "parallel = true", ""]),
                           encoding="utf-8")
-        measuring_everything = {**os.environ, "COVERAGE_PROCESS_START": str(rcfile)}
+        measuring_everything = {**{name: value for name, value in os.environ.items()
+                                   if name != "COVERAGE_FILE"},
+                                "COVERAGE_PROCESS_START": str(rcfile)}
         ran = {}
         for test_file in sorted(path for path in self.shell(["git", "ls-files", "--", "tests/integration/test_*.py"],
                                                              cwd=self.checkout).split()):
