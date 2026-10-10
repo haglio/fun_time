@@ -3123,6 +3123,16 @@ class TestStartingVoice:
         assert prepared is None
         second_listener.assert_not_called()
 
+    def test_a_session_that_will_not_listen_never_loads_the_microphone_stack(self, cfg_factory):
+        """Every integration session is one: loading the stack only to say it is
+        there spent a start the import of two native libraries."""
+        config_path = cfg_factory({"voice_control": {"enabled": False}})
+
+        with patch.object(windows_bridge_orchestrator, "why_unavailable") as asked:
+            windows_bridge_orchestrator.prepare_voice_control(str(config_path))
+
+        asked.assert_not_called()
+
     def test_a_session_prepares_voice_before_the_room_comes_up_and_listens_with_it(
         self, cfg_factory, tmp_path,
     ):

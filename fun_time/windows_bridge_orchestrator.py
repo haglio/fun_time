@@ -847,13 +847,12 @@ def prepare_voice_control(config_path: str) -> PreparedVoice | None:
     microphone stack did not import is not."""
     try:
         cfg = load_config(config_path)
-        unavailable = why_unavailable()
-        logger.info("Voice control check: available=%s, enabled=%s, model=%s, device_name=%s",
-                    not unavailable, cfg.voice_control.enabled, cfg.voice_control.model_path,
-                    cfg.voice_control.device_name)
         if not cfg.voice_control.enabled:
             logger.info("Voice control disabled in config")
             return None
+        unavailable = why_unavailable()
+        logger.info("Voice control check: available=%s, model=%s, device_name=%s",
+                    not unavailable, cfg.voice_control.model_path, cfg.voice_control.device_name)
         if unavailable:
             logger.error("Voice control enabled but import failed: %s", unavailable)
             return None

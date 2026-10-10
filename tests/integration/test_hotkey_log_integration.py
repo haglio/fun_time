@@ -27,6 +27,7 @@ from tests.ahk_script import function_source
 
 from .hidden_desktop import run_where_nothing_is_focused
 from .integration_support import real_config_path
+from .run_clock import Budget
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -120,9 +121,9 @@ def test_neither_writer_loses_a_line_to_the_other(tmp_path: Path):
 
 
 def _within(seconds: float, condition) -> bool:
-    deadline = time.monotonic() + seconds
+    budget = Budget(seconds)
     while not condition():
-        if time.monotonic() >= deadline:
+        if budget.expired():
             return False
         time.sleep(0.05)
     return True

@@ -47,6 +47,7 @@ from .integration_support import (
     sample_library_clips,
     wait_for,
 )
+from .run_clock import Budget
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="Windows only"),
@@ -445,17 +446,17 @@ def test_more_seeds_leaves_the_player_decoding(tmp_path):
         # reads 0/0 for a beat, so what fails this is a blank that OUTLASTS any
         # transition — the player having lost its file for good, which is the black
         # window that never comes back.
-        deadline = time.monotonic() + 60
+        watching = Budget(60)
         seen: set[str] = set()
-        blank_since = None
-        while time.monotonic() < deadline:
+        blank = None
+        while not watching.expired():
             status = read_satellite_status(satellite.status)
             if status.duration_ms > 0 and status.position_ms > 0:
-                blank_since = None
+                blank = None
                 seen.add(status.video)
             else:
-                blank_since = blank_since or time.monotonic()
-                assert time.monotonic() - blank_since < 8.0, (
+                blank = blank or Budget(8.0)
+                assert not blank.expired(), (
                     f"the player stopped decoding for good, {len(seen)} clip(s) into the "
                     f"widened loop (video={Path(status.video).name!r}, "
                     f"pos={status.position_ms}, dur={status.duration_ms})\n"

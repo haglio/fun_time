@@ -47,8 +47,8 @@ import ctypes.wintypes as wt
 import os
 import subprocess
 import sys
-from collections.abc import Callable, Mapping
-from contextlib import AbstractContextManager
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import AbstractContextManager, contextmanager
 from functools import partial
 from pathlib import Path
 from time import monotonic
@@ -60,6 +60,7 @@ from fun_time.win32_loader import load_dll, win_functype
 
 from .coverage_map import CoverageMap, Picked, changed_paths, tests_to_run, the_machine_s_map
 from .flake_gate_install import flake_gate_python
+from .run_clock import WALL, Budget, RunClock, busy_seconds_of_job, keep_time_by
 from .session_lock import (
     FULL_RUN_GIVES_WAY_S,
     INTEGRATION_LOCK_NAME,
@@ -407,17 +408,26 @@ _POLL_MS = 1000
 _TEARDOWN_GRACE_MS = 2000
 
 
+@contextmanager
+def _the_runs_own_time(job: int) -> Iterator[None]:
+    keep_time_by(RunClock(run_busy=partial(busy_seconds_of_job, job)))
+    try:
+        yield
+    finally:
+        keep_time_by(WALL)
+
+
 def _wait_for_the_run(process: int, ceiling_s: float) -> int:
     """pytest's exit code, as soon as pytest has decided it.
 
     A process can have exited and never be gone: Windows records its exit code,
     then may never finish taking it down, and a handle to it never signals."""
-    deadline = monotonic() + ceiling_s
+    budget = Budget(ceiling_s)
     while (code := _exit_code(process)) == STILL_ACTIVE:
-        if monotonic() >= deadline:
-            print(f"[hidden-desktop] the run passed {ceiling_s / 60:g} minutes "
-                  "without finishing, so it is being ended here; the job object "
-                  "takes its children with it and the queue moves again",
+        if budget.expired():
+            print(f"[hidden-desktop] the run went {ceiling_s / 60:g} minutes it could "
+                  "have run without finishing, so it is being ended here; the job "
+                  "object takes its children with it and the queue moves again",
                   file=sys.stderr, flush=True)
             return WEDGED_EXIT_CODE
         _kernel32.WaitForSingleObject(process, _POLL_MS)
@@ -538,7 +548,8 @@ def _run_the_suite(argv: list[str], venv_python: str | Path, ceiling_s: float) -
             pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job,
                                     environment=_venv_environment(venv_python))
             try:
-                return _wait_for_the_run(pi.hProcess, ceiling_s)
+                with _the_runs_own_time(job):
+                    return _wait_for_the_run(pi.hProcess, ceiling_s)
             finally:
                 _close_process_handles(pi)
         finally:

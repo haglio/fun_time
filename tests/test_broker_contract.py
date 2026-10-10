@@ -11,7 +11,6 @@ import json
 import os
 import re
 from pathlib import Path
-from unittest.mock import patch
 
 from app_support.process_identity import ProcessNamer
 
@@ -21,6 +20,7 @@ from fun_time.windows_bridge_startup import (
     broker_source_mtime,
     stop_broker_processes,
 )
+from tests.made_up_machine import running
 
 # A broker checkout as it publishes itself -- invented, not this machine's, so
 # the test says what it depends on rather than inheriting it.
@@ -43,20 +43,27 @@ def _a_broker_checkout(tmp_path: Path, **published: str) -> Path:
     return launcher
 
 
-def _swept(launcher: Path | None) -> str:
-    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
-    ):
+MACHINE = [
+    (21, "Relay-Broker.exe", r"C:\relay\Relay-Broker.exe -m relay_pkg.app --config r.json", 2000.0),
+    (22, "Relay-Tray.exe", r"C:\relay\Relay-Tray.exe -m relay_pkg.tray --config r.json", 900.0),
+    (23, "wscript.exe", r'wscript.exe "C:\relay\launch_relay_tray.vbs"', 800.0),
+    (24, "pythonw.exe", r"pythonw.exe -m relay_pkg.app --config r.json", 1500.0),
+    (25, "pythonw.exe", r"pythonw.exe -m wire.app", 1200.0),
+    (31, "FunTime-MainPlayer.exe", r"FunTime-MainPlayer.exe -m main_player --config c.json", 100.0),
+    (32, "pythonw.exe", r"pythonw.exe -m satellite --title Portrait AI Player", 100.0),
+    (33, "wscript.exe", r'wscript.exe "C:\Fun Time\launch.vbs"', 100.0),
+]
+
+
+def _swept(launcher: Path | None) -> list[int]:
+    with running("fun_time.windows_bridge_startup", MACHINE) as ended:
         stop_broker_processes(launcher)
-    return "" if not run.call_args else run.call_args[0][0][-1]
+    return sorted(ended)
 
 
-def _probed(launcher: Path | None) -> str:
-    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
-    ):
-        broker_process_started_at(launcher)
-    return "" if not run.call_args else run.call_args[0][0][-1]
+def _probed(launcher: Path | None) -> float | None:
+    with running("fun_time.windows_bridge_startup", MACHINE):
+        return broker_process_started_at(launcher)
 
 
 class TestTheImagePattern:
@@ -87,15 +94,11 @@ class TestTheImagePattern:
             assert not re.match(pattern, name), name
 
 
-class TestWhatTheSweepLooksFor:
-    def test_it_matches_the_modules_the_broker_published(self, tmp_path):
-        ps_command = _swept(_a_broker_checkout(tmp_path))
-
-        assert PUBLISHED["broker_module"].replace(".", r"\.") in ps_command
-        assert PUBLISHED["tray_module"].replace(".", r"\.") in ps_command
-        assert PUBLISHED["tray_launcher"].replace(".", r"\.") in ps_command
-        # Still bounded by the image name as well as by what it is running.
-        assert ProcessNamer(PUBLISHED["app_name"]).process_name_pattern in ps_command
+class TestWhatTheSweepEnds:
+    def test_the_broker_its_tray_and_their_launcher_under_any_image_they_run_as(self, tmp_path):
+        """The tray belongs in the sweep, or it survives the kill and restarts the
+        broker just stopped."""
+        assert _swept(_a_broker_checkout(tmp_path)) == [21, 22, 23, 24]
 
     def test_a_renamed_package_moves_the_sweep_with_it(self, tmp_path):
         """The whole point: a rename there is followed here."""
@@ -103,34 +106,13 @@ class TestWhatTheSweepLooksFor:
             tmp_path, package_dir="wire", broker_module="wire.app",
             tray_module="wire.tray")
 
-        ps_command = _swept(launcher)
-
-        assert r"wire\.app" in ps_command
-        assert PUBLISHED["broker_module"] not in ps_command
-
-    def test_it_sweeps_the_whole_machine_with_nothing_to_scope(self, tmp_path):
-        """It matches on command line, so a working directory would only
-        mislead -- and the tray belongs in the python half of the clause, or it
-        survives the kill and restarts the broker just stopped."""
-        launcher = _a_broker_checkout(tmp_path)
-
-        with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
-            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
-        ):
-            stop_broker_processes(launcher)
-
-        argv = run.call_args.args[0]
-        assert argv[0] == "powershell.exe"
-        assert "Stop-Process" in argv[-1]
-        assert "cwd" not in run.call_args.kwargs
-        python_clause = argv[-1].split("-or")[0]
-        assert PUBLISHED["tray_module"].replace(".", r"\.") in python_clause
+        assert _swept(launcher) == [23, 25]
 
     def test_a_broker_that_publishes_nothing_is_left_alone(self, tmp_path):
         """A sweep with no names is one that force-kills by guesswork."""
         (tmp_path / "launch_relay_tray.vbs").write_text("' a launcher", encoding="utf-8")
 
-        assert _swept(tmp_path / "launch_relay_tray.vbs") == ""
+        assert _swept(tmp_path / "launch_relay_tray.vbs") == []
 
 
 class TestWhatTheStartupProbeLooksFor:
@@ -139,17 +121,19 @@ class TestWhatTheStartupProbeLooksFor:
     could never fire and a stale broker went on dropping every verb newer than
     itself (bug 10)."""
 
-    def test_it_asks_after_the_broker_and_not_its_tray(self, tmp_path):
-        ps_command = _probed(_a_broker_checkout(tmp_path))
-
-        assert PUBLISHED["broker_module"].replace(".", r"\.") in ps_command
-        assert PUBLISHED["tray_module"].replace(".", r"\.") not in ps_command
-        assert ProcessNamer(PUBLISHED["app_name"]).process_name_pattern in ps_command
+    def test_it_dates_the_oldest_broker_and_never_its_tray(self, tmp_path):
+        assert _probed(_a_broker_checkout(tmp_path)) == 1500.0
 
     def test_it_asks_nothing_of_a_broker_that_publishes_nothing(self, tmp_path):
         (tmp_path / "launch_relay_tray.vbs").write_text("' a launcher", encoding="utf-8")
 
-        assert _probed(tmp_path / "launch_relay_tray.vbs") == ""
+        assert _probed(tmp_path / "launch_relay_tray.vbs") is None
+
+    def test_no_broker_running_cannot_be_dated(self, tmp_path):
+        launcher = _a_broker_checkout(
+            tmp_path, package_dir="gone", broker_module="gone.app", tray_module="gone.tray")
+
+        assert _probed(launcher) is None
 
 
 class TestWhichSourcesDateTheBroker:

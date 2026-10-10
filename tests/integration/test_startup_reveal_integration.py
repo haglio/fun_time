@@ -37,6 +37,7 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
 )
+from .run_clock import Budget
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -70,8 +71,8 @@ class _AtTheReveal(threading.Thread):
         self.hidden_hwnds: dict[str, int] = {}
 
     def run(self) -> None:
-        deadline = time.monotonic() + self._timeout_s
-        while time.monotonic() < deadline:
+        budget = Budget(self._timeout_s)
+        while not budget.expired():
             if find_window_by_title(LOADING_SCREEN_TITLE, exact=True):
                 self.cover_was_up = True
             elif self.cover_was_up:

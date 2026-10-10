@@ -45,6 +45,7 @@ from .integration_support import (
     senders,
     tcode_heard,
 )
+from .run_clock import Budget
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -159,9 +160,9 @@ def _osr2_heights(sink: int, *, seconds: float) -> list[float]:
 
 
 def _osr2_heard_until(sink: int, shows) -> list[float]:
-    deadline = time.monotonic() + COMMAND_BUDGET_S
+    budget = Budget(COMMAND_BUDGET_S)
     heard = _osr2_heights(sink, seconds=3)
-    while not shows(heard) and time.monotonic() < deadline:
+    while not shows(heard) and not budget.expired():
         heard = _osr2_heights(sink, seconds=3)
     return heard
 

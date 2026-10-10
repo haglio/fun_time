@@ -35,9 +35,10 @@ from fun_time.player_status import (
 )
 from fun_time.players import Player
 from fun_time.process_identity import NAMER
-from fun_time.process_sweep import sweep_processes
+from fun_time.process_sweep import processes_matching
 from fun_time.process_tree import kill_process_tree
 from fun_time.win32_process import (
+    command_line_of,
     get_process_creation_time,
     get_process_image_name,
     is_process_alive,
@@ -45,11 +46,13 @@ from fun_time.win32_process import (
 from fun_time.windows_bridge_orchestrator import ChildProcess, kill_recorded_child
 from tests.scratch import remove_scratch
 
+from . import run_clock
 from .hidden_desktop import (
     HIDDEN_DESKTOP_NAME,
     current_desktop_name,
     pids_with_window_on_current_desktop,
 )
+from .run_clock import Budget
 
 
 def read_recorded_children(state_dir: Path) -> dict[str, ChildProcess]:
@@ -76,7 +79,7 @@ def read_recorded_children(state_dir: Path) -> dict[str, ChildProcess]:
 
 
 def published_status(read, path: Path, *, budget_s: float = 2.0,
-                     now=time.monotonic, sleep=time.sleep):
+                     now=run_clock.now, sleep=time.sleep):
     deadline = now() + budget_s
     status = read(path)
     while status == type(status)() and now() < deadline:
@@ -150,53 +153,33 @@ def _kill_leftover_hosted_apps(window_pids) -> None:
     is python.exe too.  The command line is what tells them apart: only the
     hosted app was launched ``-m origenerator``, and a leftover one owns real
     windows on this desktop that can sit over a later session's players (a
-    stalled boot's splash covered a satellite for a whole test run).  One WMI
-    query answers for all candidate pids at once.
+    stalled boot's splash covered a satellite for a whole test run).
     """
-    candidates = sorted(set(window_pids))
-    if not candidates:
-        return
-    pid_list = ",".join(str(pid) for pid in candidates)
-    ps = (
-        "Get-CimInstance Win32_Process | Where-Object { "
-        f"@({pid_list}) -contains $_.ProcessId -and "
-        "$_.CommandLine -match '-m +origenerator' } | "
-        "ForEach-Object { $_.ProcessId }"
-    )
-    for line in sweep_processes(ps, read_output=True).split():
-        try:
-            kill_process_tree(int(line))
-        except ValueError:
-            continue
+    for pid in sorted(set(window_pids)):
+        if re.search(r"-m +origenerator", command_line_of(pid) or "", re.IGNORECASE):
+            kill_process_tree(pid)
 
 
 
-# How long a session is given to close itself after the quit verb.  A teardown
-# ends six players, the hotkey script and any app the session took over, and on
-# a machine carrying several agents' runs -- this one's ordinary state -- the
-# gap between one session closing and the next opening has run 20 to 30 seconds.
+# Every budget below is counted in the seconds the run could run (run_clock), so
+# the minutes other agents' normal-priority work holds every processor are not
+# spent: a session that opens in 5 to 10 seconds took 24 to 101 on the wall
+# beside them, and on 2026-10-10 the ones that missed 120 were still starting.
 QUIT_BUDGET_S = 60.0
-
-# How long a session is given to come up.  A run's processes start below normal
-# priority, so on that same busy machine a session that opens in 5 to 10 seconds
-# alone has taken 24 to 41, and two were still starting, not stuck, at 45.
 START_BUDGET_S = 120.0
 
 STARTUP_STOPPED = "Fun Time stopped starting up"
 
-# Long enough for Windows to reap a force-killed player under a loaded run.
 CHILDREN_GONE_TIMEOUT_S = 20.0
 
-# How long a command is given to show in what a player publishes.  When other
-# sessions' normal-priority work held every core, the dispatch loop went 66
-# seconds between two passes and every command still landed afterwards.
+# How long a command is given to show in what a player publishes.
 COMMAND_BUDGET_S = 120.0
 
 
 def wait_for(predicate, *, desc: str, timeout: float = COMMAND_BUDGET_S):
-    deadline = time.monotonic() + timeout
+    budget = Budget(timeout)
     last = None
-    while time.monotonic() < deadline:
+    while not budget.expired():
         last = predicate()
         if last:
             return last
@@ -215,7 +198,6 @@ class FunTimeIntegrationSession:
     def __init__(self, config_path: Path):
         self.config = load_config(config_path)
         self._proc: subprocess.Popen[str] | None = None
-        self._started_at = time.time()
         self._log_pos = 0
 
     @property
@@ -276,14 +258,14 @@ class FunTimeIntegrationSession:
         if not self._proc or self._proc.poll() is not None:
             raise RuntimeError("Orchestrator is not running")
         ahk_cmd = self.config.paths.state_dir / "ahk_cmd.txt"
-        deadline = time.monotonic() + timeout
+        budget = Budget(timeout)
         while True:
             ahk_cmd.write_text("exit", encoding="utf-8")
             try:
-                exit_code = self._proc.wait(timeout=min(1.0, max(deadline - time.monotonic(), 0.0)))
+                exit_code = self._proc.wait(timeout=min(1.0, budget.left()))
                 break
             except subprocess.TimeoutExpired:
-                if time.monotonic() >= deadline:
+                if budget.expired():
                     raise AssertionError(
                         f"Orchestrator did not exit within {timeout:g}s after it was told to quit"
                         f"\n{self._log_tail()}"
@@ -353,8 +335,8 @@ class FunTimeIntegrationSession:
 
     def _wait_for_own_log(self, needle: str, *, after: int, timeout: float) -> None:
         """Wait for *needle* among the log characters written past *after*."""
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+        budget = Budget(timeout)
+        while not budget.expired():
             if needle in self._read_windows_bridge_log()[after:]:
                 return
             time.sleep(0.2)
@@ -403,8 +385,8 @@ class FunTimeIntegrationSession:
 
     def wait_until(self, predicate, *, timeout: float = COMMAND_BUDGET_S,
                    description: str | Callable[[], str] = "condition") -> None:
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+        budget = Budget(timeout)
+        while not budget.expired():
             if predicate():
                 return
             time.sleep(0.2)
@@ -414,8 +396,8 @@ class FunTimeIntegrationSession:
         )
 
     def wait_for_log(self, needle: str, timeout: float = COMMAND_BUDGET_S) -> str:
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+        budget = Budget(timeout)
+        while not budget.expired():
             text = self._read_windows_bridge_log()
             if needle in text:
                 return text
@@ -425,8 +407,8 @@ class FunTimeIntegrationSession:
         )
 
     def wait_for_new_log(self, needle: str, timeout: float = COMMAND_BUDGET_S) -> str:
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+        budget = Budget(timeout)
+        while not budget.expired():
             chunk = self._read_windows_bridge_log_chunk()
             if needle in chunk:
                 return chunk
@@ -436,8 +418,8 @@ class FunTimeIntegrationSession:
         )
 
     def wait_for_any_log(self, needles: list[str], timeout: float = COMMAND_BUDGET_S) -> str:
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+        budget = Budget(timeout)
+        while not budget.expired():
             text = self._read_windows_bridge_log()
             for needle in needles:
                 if needle in text:
@@ -535,27 +517,15 @@ class FunTimeIntegrationSession:
         written through, and the new player's first write of it raises the sharing
         violation, which takes that startup down.
         """
-        deadline = time.time() + timeout_s
+        budget = Budget(timeout_s)
         for child in children:
             if not child.pid:
                 continue
-            while time.time() < deadline and is_process_alive(child.pid):
+            while not budget.expired() and is_process_alive(child.pid):
                 time.sleep(0.2)
 
     def _reap_leftover_runtime_processes(self) -> None:
         _kill_leftover_app_processes()
-        # Wait for AHK to fully exit — #SingleInstance Force in the next
-        # AHK launch races with zombie processes that a force-kill has
-        # signalled but the OS hasn't fully reaped yet.
-        deadline = time.time() + 5.0
-        while time.time() < deadline:
-            result = subprocess.run(
-                ["tasklist", "/FI", "IMAGENAME eq AutoHotkey64.exe", "/NH"],
-                capture_output=True, text=True, check=False,
-            )
-            if "AutoHotkey64.exe" not in result.stdout:
-                break
-            time.sleep(0.3)
         self._wait_for_orchestrators_to_exit()
 
     def _wait_for_orchestrators_to_exit(self, timeout: float = 15.0) -> None:
@@ -574,18 +544,10 @@ class FunTimeIntegrationSession:
         whole timeout, and a run's own teardown waited on a session it has
         nothing to do with.
         """
-        config_pattern = INTEGRATION_CONFIG_NAME.replace(".", "\\.")
-        ps = (
-            "@(Get-CimInstance Win32_Process | Where-Object { "
-            "$_.Name -match '^pythonw?\\.exe$' -and "
-            "$_.CommandLine -match 'fun_time\\.orchestrator' -and "
-            f"$_.CommandLine -match '{config_pattern}' }}).Count"
-        )
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            still_up = sweep_processes(
-                ps, read_output=True, budget_s=max(1.0, deadline - time.time()))
-            if still_up.strip() == "0":
+        an_integration_orchestrator = rf"fun_time\.orchestrator .*{re.escape(INTEGRATION_CONFIG_NAME)}"
+        budget = Budget(timeout)
+        while not budget.expired():
+            if not processes_matching(r"^pythonw?\.exe$", an_integration_orchestrator):
                 return
             time.sleep(0.5)
 
@@ -912,9 +874,9 @@ RELEASE_BUDGET_S = 180.0
 
 def clear_run_roots(*, budget_s: float = RELEASE_BUDGET_S, sleep=time.sleep) -> None:
     """Delete every root this run built, and say which ones would not go."""
-    deadline = time.monotonic() + budget_s
+    budget = Budget(budget_s)
     refused = _remove_each(RUN_ROOTS)
-    while refused and time.monotonic() < deadline:
+    while refused and not budget.expired():
         sleep(0.5)
         refused = _remove_each(root for root, _refusal in refused)
     RUN_ROOTS.clear()
@@ -931,9 +893,9 @@ def identify_child(pid: int) -> ChildProcess:
 def end_satellite(satellite: ChildProcess, log: Path, *, budget_s: float = RELEASE_BUDGET_S,
                   sleep=time.sleep) -> None:
     kill_recorded_child(satellite)
-    deadline = time.monotonic() + budget_s
+    budget = Budget(budget_s)
     while not _let_go(log):
-        if time.monotonic() >= deadline:
+        if budget.expired():
             raise AssertionError(
                 f"the satellite (pid {satellite.pid}) still holds {log} "
                 f"{budget_s:g}s after its process tree was ended")
@@ -979,7 +941,7 @@ def library_clips(roots) -> list[Path]:
 
 
 def sample_library_clips(candidates, count: int, *, desc: str, readable=None,
-                         budget_s: float = PROBE_BUDGET_S, now=time.monotonic) -> list:
+                         budget_s: float = PROBE_BUDGET_S, now=run_clock.now) -> list:
     """*count* clips drawn at random from *candidates*, reproducibly.
 
     A fresh draw each run — the same clips every run masks bugs that only one
@@ -1043,7 +1005,11 @@ def readable_at_speed(path, *, budget_s: float = 2.0, size: int = 16 << 20, read
         arrived.set()
 
     threading.Thread(target=attempt, daemon=True).start()
-    return arrived.wait(budget_s)
+    budget = Budget(budget_s)
+    while not arrived.wait(min(0.1, budget.left())):
+        if budget.expired():
+            return False
+    return True
 
 
 def _read_head(path, size: int) -> None:

@@ -1,33 +1,26 @@
-"""Asking the machine, through WMI, which processes match a command line.
-
-Bounded, because WMI under load does not always answer, and never raising:
-every caller's answer to no answer is to sweep nothing.
-"""
+"""Which processes on the machine run an image and a command line, asked of Windows in-process."""
 from __future__ import annotations
 
-import logging
-import subprocess
+import re
+from dataclasses import dataclass
 
-from .orchestrator_broker import subprocess_window_kwargs
-
-logger = logging.getLogger(__name__)
-
-SWEEP_BUDGET_S = 60.0
+from .win32_process import command_line_of, process_table
 
 
-def sweep_processes(powershell_command: str, *, read_output: bool = False,
-                    budget_s: float = SWEEP_BUDGET_S) -> str:
-    """Run *powershell_command*; "" unless asked to read what it printed."""
-    try:
-        result = subprocess.run(
-            ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden",
-             "-Command", powershell_command],
-            check=False, timeout=budget_s,
-            **({"capture_output": True, "text": True} if read_output else {}),
-            **subprocess_window_kwargs(),
-        )
-    except subprocess.TimeoutExpired:
-        logger.warning("A process sweep did not answer within %ds and was given up on: %s",
-                       int(budget_s), powershell_command)
-        return ""
-    return result.stdout if read_output and result.stdout else ""
+@dataclass(frozen=True)
+class Running:
+    pid: int
+    image: str
+    command_line: str
+
+
+def processes_matching(image: str, command_line: str, *, table=process_table,
+                       read=command_line_of) -> list[Running]:
+    found = []
+    for entry in table():
+        if not re.search(image, entry.image, re.IGNORECASE):
+            continue
+        started_with = read(entry.pid)
+        if started_with is not None and re.search(command_line, started_with, re.IGNORECASE):
+            found.append(Running(entry.pid, entry.image, started_with))
+    return found

@@ -25,7 +25,7 @@ from fun_time import player_status, windows_bridge_orchestrator
 from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.player_status import MainPlayerStatus
 from fun_time.windows_bridge_orchestrator import ChildProcess
-from tests.integration import integration_support
+from tests.integration import integration_support, run_clock
 from tests.integration.integration_support import (
     COMMAND_BUDGET_S,
     INTEGRATION_CONFIG_NAME,
@@ -43,6 +43,8 @@ from tests.integration.integration_support import (
     wait_for,
     window_is_quiet,
 )
+from tests.integration.run_clock import keep_time_by
+from tests.made_up_machine import running
 
 BROKER_TCODE_PORT = 50557
 GENAU_INBOUND_PORT = 50555
@@ -90,13 +92,10 @@ def isolated_ports():
         close_udp_sinks()
 
 
-def _completed(stdout: str):
-    class _Result:
-        pass
-
-    result = _Result()
-    result.stdout = stdout
-    return result
+LIVE_ORCHESTRATOR = (
+    61, "python.exe", r"python.exe -m fun_time.orchestrator --config C:\Fun Time\fun_time_config.json", 0.0)
+A_RUNS_ORCHESTRATOR = (
+    62, "python.exe", rf"python.exe -m fun_time.orchestrator --config C:\Temp\run\{INTEGRATION_CONFIG_NAME}", 0.0)
 
 
 @pytest.fixture
@@ -260,16 +259,37 @@ def test_a_timed_out_wait_says_when_each_player_last_published(session):
 
 
 class _Clock:
+    """The wall and the run's clock at once, moved on by the waits' own sleeps."""
+
     def __init__(self) -> None:
         self.now = 0.0
 
     def time(self) -> float:
         return self.now
 
-    monotonic = time
+    monotonic = seconds = time
 
     def sleep(self, seconds: float) -> None:
         self.now += seconds
+
+
+class _Starved:
+    def seconds(self) -> float:
+        return 0.0
+
+
+@pytest.fixture
+def run_time():
+    yield keep_time_by
+    keep_time_by(run_clock.WALL)
+
+
+@pytest.fixture
+def clock(monkeypatch, run_time):
+    fake = _Clock()
+    monkeypatch.setattr(integration_support, "time", fake)
+    run_time(fake)
+    return fake
 
 
 @pytest.mark.parametrize("wait", [
@@ -279,28 +299,32 @@ class _Clock:
     lambda session: session.wait_for_any_log(["never logged"]),
     lambda session: wait_for(lambda: None, desc="something that never comes"),
 ], ids=["wait_until", "wait_for_log", "wait_for_new_log", "wait_for_any_log", "wait_for"])
-def test_a_wait_named_without_a_budget_is_given_the_familys_command_budget(session, monkeypatch, wait):
-    clock = _Clock()
-    monkeypatch.setattr(integration_support, "time", clock)
-
+def test_a_wait_named_without_a_budget_is_given_the_familys_command_budget(session, clock, wait):
     with pytest.raises(AssertionError):
         wait(session)
 
     assert COMMAND_BUDGET_S <= clock.now < COMMAND_BUDGET_S + 1
 
 
-def test_a_wait_hands_back_what_it_found(monkeypatch):
-    monkeypatch.setattr(integration_support, "time", _Clock())
+def test_a_wait_hands_back_what_it_found(clock):
     answers = iter([None, "", "the clip"])
 
     assert wait_for(lambda: next(answers), desc="a clip") == "the clip"
 
 
-def test_a_wait_that_runs_out_says_what_it_waited_for_and_what_it_last_saw(monkeypatch):
-    monkeypatch.setattr(integration_support, "time", _Clock())
-
+def test_a_wait_that_runs_out_says_what_it_waited_for_and_what_it_last_saw(clock):
     with pytest.raises(AssertionError, match=r"the satellite to lock \(last=0\)"):
         wait_for(lambda: 0, desc="the satellite to lock")
+
+
+def test_a_wait_is_counted_in_the_seconds_the_run_could_run(monkeypatch, run_time):
+    """Ten thousand polls are half an hour on the wall, and none of it the run's
+    while normal-priority work holds every processor."""
+    monkeypatch.setattr(integration_support, "time", _Clock())
+    run_time(_Starved())
+    polls = iter(range(10_000))
+
+    assert wait_for(lambda: next(polls) == 9_999, desc="a player starved of the processor")
 
 
 def test_a_launched_child_is_named_by_its_pid_and_the_moment_it_was_born():
@@ -346,15 +370,21 @@ def test_the_orchestrator_wait_only_ever_waits_on_integration_orchestrators(sess
     becomes hostage to a session it has nothing to do with.  Only orchestrators
     started from an integration config can be the one we are waiting on.
     """
-    with patch.object(integration_support.subprocess, "run") as run:
-        run.return_value = _completed("0")
+    with running("tests.integration.integration_support", [LIVE_ORCHESTRATOR]), \
+         patch.object(integration_support.time, "sleep",
+                      side_effect=AssertionError("it waited on the live session")):
         session._wait_for_orchestrators_to_exit()
 
-    ps_command = run.call_args.args[0][-1]
-    assert "fun_time\\.orchestrator" in ps_command
-    # The name appears regex-escaped, so match on its distinguishing stem.  What
-    # matters is that the user's `--config fun_time_config.json` cannot match.
-    assert INTEGRATION_CONFIG_NAME.removesuffix(".json") in ps_command
+
+def test_the_orchestrator_wait_holds_until_the_last_integration_orchestrator_is_gone(session):
+    machine = [LIVE_ORCHESTRATOR, A_RUNS_ORCHESTRATOR]
+
+    with running("tests.integration.integration_support", machine), \
+         patch.object(integration_support.time, "sleep",
+                      side_effect=lambda _seconds: machine.remove(A_RUNS_ORCHESTRATOR)) as slept:
+        session._wait_for_orchestrators_to_exit()
+
+    assert slept.call_count == 1
 
 
 def test_the_integration_config_never_shares_the_live_sessions_audio_port(isolated_ports):
