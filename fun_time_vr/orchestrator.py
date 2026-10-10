@@ -836,9 +836,10 @@ def _release_vr_runtime(was_up: bool) -> None:
 
 
 def set_up_logging(config) -> logging.Logger:
-    configure_logging(logger.name, config.log_file("vr_orchestrator"), console=True)
+    session_log = configure_logging(
+        __package__, config.log_file("vr_orchestrator"), console=True)
     install_exception_logging(logger)
-    return logger
+    return session_log
 
 
 def main(argv: list[str] | None = None) -> int:

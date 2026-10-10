@@ -56,7 +56,7 @@ from fun_time.shared_state import (
 from fun_time.voice_control import say_the_mic_is_off
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
-from fun_time_vr import orchestrator, player
+from fun_time_vr import orchestrator, player, vr_runtime
 from fun_time_vr.cover import CLOSING_STATUS, scene_ready_file
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
@@ -594,42 +594,18 @@ class TestTheCheckRun:
              patch.object(orchestrator, "install_exception_logging"):
             assert orchestrator.main(["--check"]) == 0
 
-    def test_the_handlers_land_on_the_logger_this_module_writes_through(self, config):
-        """Every function here logs through the module-level ``logger``, so the
-        one ``main`` sets up has to BE that one — it used to be threaded back in
-        as a parameter under a second name, which was the same object only
-        because the string happened to match."""
-        configured: list[logging.Logger] = []
+    def test_the_session_s_log_holds_its_own_lines_and_the_vr_runtime_s(self, config):
+        assert orchestrator.logger.name == "fun_time_vr.orchestrator"
         with patch.object(orchestrator, "load_config", return_value=config), \
              patch("app_support.win32.try_acquire_mutex", return_value=object()), \
-             patch.object(orchestrator, "install_exception_logging"), \
-             patch.object(orchestrator, "configure_logging",
-                          side_effect=lambda name, *_a, **_k: (
-                              configured.append(logging.getLogger(name)),
-                              logging.getLogger(name))[1]):
+             patch.object(orchestrator, "install_exception_logging"):
             orchestrator.main(["--check"])
+        orchestrator.logger.info("a line of the session's own")
+        logging.getLogger(vr_runtime.__name__).info("a line about the VR runtime")
 
-        assert configured == [orchestrator.logger]
-
-    def test_and_it_asks_for_the_name_this_module_logs_under(self):
-        """Under pytest every spelling coincides, so only the source can say
-        which was written.  They do NOT coincide in the launch:
-        `launch_vr.vbs` runs `python -m fun_time_vr.orchestrator`, where
-        `__name__` is `"__main__"` — so a literal configured a logger this
-        module never wrote through, and `__name__` would put "__main__" in
-        every line of the log."""
-        assert orchestrator.logger.name == "fun_time_vr.orchestrator"
-
-        tree = ast.parse(inspect.getsource(orchestrator.set_up_logging))
-        call = next(
-            node for node in ast.walk(tree)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-            and node.func.id == "configure_logging")
-
-        # `logger.name`: whatever this module logs under, that is what is set up.
-        assert isinstance(call.args[0], ast.Attribute)
-        assert call.args[0].attr == "name"
-        assert call.args[0].value.id == "logger"
+        session_log = config.log_file("vr_orchestrator").read_text(encoding="utf-8")
+        assert "a line of the session's own" in session_log
+        assert "a line about the VR runtime" in session_log
 
 
 class TestStockingThePlaylists:

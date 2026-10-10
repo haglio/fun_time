@@ -209,7 +209,7 @@ def stop_runtime() -> None:
 def _run_quietly(command: list[str], *, cwd: Path | None = None) -> None:
     """Run *command* for its effect: this is teardown, so log, never raise."""
     try:
-        subprocess.run(
+        ended = subprocess.run(
             command,
             check=False,
             stdout=subprocess.DEVNULL,
@@ -220,6 +220,9 @@ def _run_quietly(command: list[str], *, cwd: Path | None = None) -> None:
         )
     except (OSError, subprocess.SubprocessError):
         logger.warning("Could not run %s", command[0], exc_info=True)
+        return
+    logger.info("%s ended with exit code %s",
+                " ".join([Path(command[0]).name, *command[1:]]), ended.returncode)
 
 
 def ensure_ready(*, timeout_s: float = STARTUP_TIMEOUT_S, poll_s: float = POLL_S) -> Probe:
