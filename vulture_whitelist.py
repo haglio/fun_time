@@ -34,6 +34,7 @@ landscape_hud_file
 build_genau_engine  # main_funestra.genau builds Genau's engine with it
 _.current_flick  # main_funestra.genau, off the engine
 _.playhead  # main_funestra.genau, off the engine
+_.time_on_screen  # main_funestra.genau, off the engine
 _.manifest_fields  # fun_time_vr.orchestrator carries Genau's settings into the manifest
 from_manifest  # satellite.contract; fun_time_vr's Funestra and the sequencer
 top_block  # main_funestra.kino; player_core's Funestra heads its console with it
