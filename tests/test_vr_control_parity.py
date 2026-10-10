@@ -90,7 +90,7 @@ _OPS_WITH_NO_WINDOWS = frozenset({
     Op.DISABLE_ALL_TOPMOST, Op.RESTORE_ALL_TOPMOST,
 })
 
-# Ops that still act in a headset: the AHK bridge IS launched there, the clipper
+# Ops that still act in a headset: the AHK bridge IS launched there, the genaumacher
 # is a subprocess of its own, an RFB tab is skipped rather than misdelivered
 # (a session with no browser window of its own opens none), and taking the
 # players back from a hosted app is file work on the players' own channels, as

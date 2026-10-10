@@ -178,7 +178,7 @@ e::QueueCommand("landscape_loop")
 ; apostrophe gave up Save clip to take this — that moved one key left, to the
 ; semicolon (bound by scancode because a bare ; opens a comment in AHK).
 '::QueueCommand("main_player_lock")
-SC027::QueueCommand("clipper_save")
+SC027::QueueCommand("genaumacher_save")
 
 ; The main player loop recording: hold R to mark, release to loop, press again to cancel.
 ; The held flag suppresses key-repeat so only one RECORD_DOWN is queued.

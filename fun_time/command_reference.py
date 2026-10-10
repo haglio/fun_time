@@ -462,7 +462,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("main_fmode", "main_fmode_on", "main_fmode_off"),
             ),
             _Row("Open file browser", ("N",), ("browse_library",)),
-            _Row("Save clip (Clipper)", (";",), ("clipper_save",)),
+            _Row("Save clip (Genaumacher)", (";",), ("genaumacher_save",)),
         ),
     ),
     _Section(

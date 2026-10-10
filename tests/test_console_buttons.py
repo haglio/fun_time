@@ -146,7 +146,7 @@ class TestTransport:
         actions = _actions(MainSlot(main_mode=MainMode.KINO))
         for action in ("main_prev", "main_next", "main_nudge_prev",
                        "main_nudge_next", "main_fmode", "browse_library",
-                       "clipper_save", "main_player_record_tap"):
+                       "genaumacher_save", "main_player_record_tap"):
             assert action in actions, action
 
     def test_f_mode_is_the_main_players_own_and_lights_while_it_is_on(self):
@@ -179,7 +179,7 @@ class TestTransport:
         """Nudge, clip and record act on a video; Genau's clips are not one."""
         actions = _actions(MainSlot(main_mode=MainMode.GENAU))
 
-        for action in ("main_nudge_prev", "clipper_save",
+        for action in ("main_nudge_prev", "genaumacher_save",
                        "main_player_record_tap", "main_fmode"):
             assert action not in actions
 
@@ -673,13 +673,13 @@ class TestLayout:
         video = [b.command for b in console_rows(MainSlot(main_mode=MainMode.KINO))[0]]
         genau = [b.command for b in console_rows(MainSlot(main_mode=MainMode.GENAU))[0]]
 
-        assert video[4:] == ["browse_library", "main_player_record_tap", "clipper_save"]
+        assert video[4:] == ["browse_library", "main_player_record_tap", "genaumacher_save"]
         assert genau[4:] == ["browse_library"]
 
     def test_the_file_actions_stand_apart_from_the_crown_and_from_each_other(self):
         by_action = _placed(MainSlot(main_mode=MainMode.KINO))
         crown, browse = by_action["main_crown"], by_action["browse_library"]
-        record, save = by_action["main_player_record_tap"], by_action["clipper_save"]
+        record, save = by_action["main_player_record_tap"], by_action["genaumacher_save"]
 
         assert browse[0] - (crown[0] + crown[2]) == GROUP_GAP
         assert record[0] - (browse[0] + browse[2]) == GROUP_GAP
@@ -716,7 +716,7 @@ class TestLayout:
         genau = [b.command for b in console_rows(MainSlot(main_mode=MainMode.GENAU), in_vr=True)[0]]
 
         assert video == ["main_kino_activate", "genau_activate",
-                         "browse_library", "main_player_record_tap", "clipper_save"]
+                         "browse_library", "main_player_record_tap", "genaumacher_save"]
         assert genau == ["main_kino_activate", "genau_activate", "browse_library"]
 
     def test_minimize_asks_for_a_drawn_bar_rather_than_a_font_glyph(self):

@@ -127,8 +127,8 @@ class TestVoiceCommands:
             "shorts": "main_player_length_shorts",
             "full length": "main_player_length_full",
             "browse": "browse_library",
-            "clip": "clipper_save",
-            "save clip": "clipper_save",
+            "clip": "genaumacher_save",
+            "save clip": "genaumacher_save",
             # Engine-agnostic: routed to whichever holds the OSR2, not to Genau
             # by name (the console's own marks are the by-name pair).
             "slow down": "speed_down",

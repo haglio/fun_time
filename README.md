@@ -200,9 +200,9 @@ nothing to do with genau says "the plain install", which is what you want when
 the machine is pinned to a genau worktree that predates what has landed. Absent,
 the machine's value rides through as before.
 
-### Clipper way
+### Genaumacher way
 
-Clipper has been extracted to its own project at `../clipper`. See that project for usage details.
+Genaumacher has been extracted to its own project at `../genaumacher`. See that project for usage details.
 
 ### Validation run
 
@@ -375,7 +375,7 @@ under a header that starts at **Genau**: one tile per clip, named for its file,
 over Genau's own window, opening on the clip Genau has up, the way the video
 browse opens on the video playing. Genau's clips folder (`paths.clips_dir`) is
 laid out as the library's videos are: a `2D` folder split into `AI` (the loops
-Origenerator makes) and `non_AI` (the clips Clipper cuts), and a `VR` folder.
+Origenerator makes) and `non_AI` (the clips Genaumacher cuts), and a `VR` folder.
 Either room's browse holds `VR` and `2D`, the way the headset's video browse
 does. The desktop's Genau cycles through the 2D clips alone, and a VR clip
 picked on the desktop plays there as it is, both eyes side by side. A clip
@@ -591,7 +591,7 @@ Flag file — the main player's pause channel. Mode switches and OmniPause write
 
 ### `main_player_status.txt`
 
-Written by the main player: the current `video`, `position_ms`, `duration_ms`, `has_funscript`, `state`, `paused`, and `speed` (the rate the video plays at). Read by `clipper_save` (for the current video/time in Kino mode), by the dashboard, and by the dispatch loop, which sets both satellites to `speed` whenever it changes.
+Written by the main player: the current `video`, `position_ms`, `duration_ms`, `has_funscript`, `state`, `paused`, and `speed` (the rate the video plays at). Read by `genaumacher_save` (for the current video/time in Kino mode), by the dashboard, and by the dispatch loop, which sets both satellites to `speed` whenever it changes.
 
 ### `watch_stats.json`
 
@@ -768,7 +768,7 @@ These are the files that define the working system:
 - `fun_time/dashboard_app.py`
 - `fun_time/audio_companion_app.py`
 
-The broker, Genau, and Clipper are separate projects: `../broker`, `../genau`, `../clipper`.
+The broker, Genau, and Genaumacher are separate projects: `../broker`, `../genau`, `../genaumacher`.
 
 ## Refactors completed
 
@@ -776,7 +776,7 @@ Completed from the earlier cleanup list:
 
 - orchestration now lives in `fun_time/orchestrator.py`, with `main.sh` kept as a thin wrapper
 - config is centralized in `fun_time_config.json`
-- Genau, the broker, and Clipper have been extracted to their own sibling projects (`../genau`, `../broker`, `../clipper`)
+- Genau, the broker, and Genaumacher have been extracted to their own sibling projects (`../genau`, `../broker`, `../genaumacher`)
 - window/layout constants are configurable through `layout`
 - runtime logging and diagnostics are written to `state/*.log`
 
@@ -812,10 +812,10 @@ Stop on the first failure and show a short traceback:
 bash test.sh -x --tb=short
 ```
 
-Run only tests whose name matches a keyword (e.g. just the clipper tests):
+Run only tests whose name matches a keyword (e.g. just the genaumacher tests):
 
 ```bash
-bash test.sh -k clipper
+bash test.sh -k genaumacher
 ```
 
 `test.sh` is a thin wrapper around `.venv/Scripts/python.exe -m pytest`. Any extra arguments are forwarded to pytest directly.
