@@ -337,6 +337,19 @@ def test_runtime_was_running_is_false_when_nothing_drives_the_headset():
         assert runtime_was_running() is False
 
 
+def test_a_running_program_is_found_after_voice_has_left_the_session_s_error_output_stale(
+        monkeypatch):
+    windows_standard_handle = subprocess._winapi.GetStdHandle
+
+    def as_voice_leaves_it(which):
+        if which == subprocess._winapi.STD_ERROR_HANDLE:
+            return 0x7FFF_FFF0
+        return windows_standard_handle(which)
+
+    monkeypatch.setattr(subprocess._winapi, "GetStdHandle", as_voice_leaves_it)
+    assert process_running(Path(sys.executable).name) is True
+
+
 def test_runtime_quit_tool_sits_beside_the_registered_runtime(tmp_path):
     runtime_json, _ = _pimax_tree(tmp_path, with_quit_tool=True)
     with patch("fun_time_vr.vr_runtime.active_runtime_json", return_value=runtime_json):
