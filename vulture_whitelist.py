@@ -30,16 +30,13 @@ portrait_hud_file
 landscape_hud_file
 
 # --- Read from a sibling package, which is a scan of its own ---
-build_genau_engine  # main_player.genau and fun_time_vr.genau_role build Genau's engine with it
+build_genau_engine  # main_player.genau builds Genau's engine with it
 run_ahead_of_background_work  # main_player.app, before its window opens
-_.current_clip  # both of them, off the engine
-_.playhead  # both of them, off the engine
+_.current_clip  # main_player.genau, off the engine
+_.playhead  # main_player.genau, off the engine
 _.manifest_fields  # fun_time_vr.orchestrator carries Genau's settings into the manifest
 from_manifest  # satellite.contract; fun_time_vr's player and the sequencer
 top_block  # main_player.kino; player_core's Funestra heads its console with it
-idle  # main_player.loop_machine; fun_time_vr's main role steps off the end by it
-repeating  # main_player.loop_machine; fun_time_vr's main role loops its script over it
-marked_in_ms  # main_player.loop_machine; fun_time_vr's main role publishes it
 to_argv  # satellite.contract; the session's satellite launcher
 tcode_udp_host  # fun_time_vr/orchestrator.py
 tcode_udp_port  # fun_time_vr/orchestrator.py

@@ -1,13 +1,5 @@
-"""A satellite's lock HUD in the headset: hanging under its picture, pressed by the controller."""
+"""A satellite's HUD in the headset hangs under its picture as a screen of its own."""
 from __future__ import annotations
-
-import threading
-from collections.abc import Callable
-
-import numpy as np
-from player_core.satellite_hud import MARGIN
-
-from .pointer import surface_pixel
 
 PICTURE = "picture"
 HUD = "hud"
@@ -20,66 +12,3 @@ def hud_screen_name(player: str) -> str:
 
 def screen_kind(name: str) -> str:
     return HUD if name.endswith(f"/{HUD}") else PICTURE
-
-
-class HudSurface:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._rgba: np.ndarray | None = None
-        self._version = 0
-
-    def overlay(self, _overlay_id: int, _x: int, _y: int, bgra: np.ndarray) -> None:
-        rgba = np.ascontiguousarray(bgra[:, :, [2, 1, 0, 3]])
-        with self._lock:
-            self._rgba = rgba
-            self._version += 1
-
-    def remove_overlay(self, _overlay_id: int) -> None:
-        with self._lock:
-            self._rgba = None
-            self._version += 1
-
-    def take(self) -> tuple[np.ndarray | None, int]:
-        with self._lock:
-            return self._rgba, self._version
-
-    @property
-    def size(self) -> tuple[int, int] | None:
-        with self._lock:
-            if self._rgba is None:
-                return None
-            height, width = self._rgba.shape[:2]
-            return width, height
-
-
-class SatellitePointer:
-    """A squeeze on one of the headset's side screens: the panel it hangs, which
-    places a squeeze on its own controls, or the picture under it, which has
-    nothing on it to hit and so asks the room to pause.
-    """
-
-    def __init__(self, *, hud, picture: Callable[[], None] | None = None) -> None:
-        self._hud = hud
-        self._picture = picture
-
-    def press(self, kind: str, u: float, v: float, *, size: tuple[int, int]) -> None:
-        if kind == HUD:
-            px, py = surface_pixel(u, v, size)
-            self._hud.press(px + MARGIN, py + MARGIN)
-        elif self._picture is not None:
-            self._picture()
-
-    def drag(self, kind: str, u: float, v: float, *, size: tuple[int, int]) -> None:
-        if kind == HUD:
-            px, py = surface_pixel(u, v, size)
-            self._hud.drag_to(px + MARGIN, py + MARGIN)
-
-    def release(self) -> None:
-        self._hud.release()
-
-    def hover(self, kind: str, uv: tuple[float, float] | None, *, size: tuple[int, int]) -> None:
-        if kind == HUD and uv is not None:
-            px, py = surface_pixel(*uv, size)
-            self._hud.motion(px + MARGIN, py + MARGIN)
-        else:
-            self._hud.motion(-1, -1)

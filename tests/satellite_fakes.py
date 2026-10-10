@@ -77,6 +77,9 @@ class FakeSatellitePlayer(RefusesSeeks):
     def set_loop_file(self, loop: bool) -> None:
         self.loop_file = loop
 
+    def screenshot_bgra(self):
+        return None
+
     def set_pace(self, seconds: float) -> None:
         self.pace_s = seconds
 

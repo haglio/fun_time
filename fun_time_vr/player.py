@@ -1,24 +1,26 @@
-"""The VR player process: the session's four players composited into one
+"""The VR player process: the session's three Funestras composited into one
 OpenXR scene.
 
-The desktop session runs the main player, Genau and two satellites as processes
+The desktop session runs the Main Funestra and the two satellites as processes
 owning windows; an OpenXR runtime gives the headset to one rendering process, so
-in VR all four are surfaces of this one -- :class:`fun_time_vr.roles.MainRole`,
-:class:`fun_time_vr.genau_role.GenauRole` on a thread of its own, and the
-satellite package's session against offscreen players.  Each keeps its desktop
-sibling's whole contract -- the playlist/command/paused/status quartet -- so
-everything that drives them is unaware the display changed.  The console hangs
-as a panel (:mod:`fun_time_vr.console_panel`) and the controllers move and
-resize every screen (:mod:`fun_time_vr.pointer`).
+in VR all three are player_core Funestras in this one, each playing through
+:class:`fun_time_vr.headset_player.HeadsetPlayer` into a texture.  Kino and
+Genau run on the Main Funestra as they do on the desktop, with the headset's
+own verbs beside them (:mod:`fun_time_vr.headset_verbs`); each Funestra draws
+its panel on a bitmap that hangs beside its picture and hands a User's own
+picture over as a frame (:mod:`fun_time_vr.surfaces`), and the controllers move
+and resize every screen (:mod:`fun_time_vr.pointer`).
 
 ``_pump_channels`` owns every file channel, since file I/O under a sync client
-can stall for arbitrary milliseconds; each video paints on a thread and GL
-context of its own (:mod:`fun_time_vr.video_thread`), since a clip change costs
-mpv whole frames.  The frame loop only copies each newest picture into the scene
-and hands the compositor its layers.  With ``vr.compositor_layers=true`` flat
-screens go as quad layers instead; the cost is in docs/known-issues.md.  Both
-ends of a session are covered from here (:mod:`fun_time_vr.cover`), the headset
-having no monitors for the desktop's overlay windows.
+can stall for arbitrary milliseconds: the satellites' Funestras and the room's
+panels on one worker, the Main Funestra on a worker of its own at Genau's
+rate; each video paints on a thread and GL context of its own
+(:mod:`fun_time_vr.video_thread`), since a clip change costs mpv whole frames.
+The frame loop only copies each newest picture into the scene and hands the
+compositor its layers.  With ``vr.compositor_layers=true`` flat screens go as
+quad layers instead; the cost is in docs/known-issues.md.  Both ends of a
+session are covered from here (:mod:`fun_time_vr.cover`), the headset having
+no monitors for the desktop's overlay windows.
 
 A shell: what it wires is tested outside it, per CLAUDE.md's standing rules.
 """
@@ -33,6 +35,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -41,36 +44,17 @@ from app_support.file_channel import read_flag
 from app_support.logging_utils import install_exception_logging
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import set_app_user_model_id
-from player_core.drive_gate import DriveGate
-from player_core.file_channel import append_command, consume_command_file, read_paused_state
-from player_core.funestra_controls import FunestraControls
-from player_core.funestra_controls import apply_command as apply_satellite_command
-from player_core.funestra_status import status_fields as satellite_status_fields
-from player_core.funscript import Funscript
+from player_core.clip_folder import vr_clips_in
+from player_core.file_channel import append_command
+from player_core.funestra import Channels, Funestra
 from player_core.genau_notifier import GenauNotifier
-from player_core.hud_overlay import HudOverlay
-from player_core.hud_placement import HudEdge
-from player_core.hud_row import RowHud
-from player_core.play_points import PlayPoints, play_points_filename
-from player_core.playback import Playback, funscripts_of
+from player_core.modes import MainMode
+from player_core.play_points import play_points_filename
 from player_core.player_verbs import play_file
-from player_core.playhead import (
-    PlayheadHud,
-    PlayheadHudPainter,
-    clip_playhead,
-    lower_edge_height,
-    video_playhead,
-)
 from player_core.playlist import PlaylistItem, read_playlist
 from player_core.pointer import OMNIPAUSE_TOGGLE
-from player_core.render_player import MpvRenderPlayer
-from player_core.scrubber import HeatmapStrip
-from player_core.status import StatusWriter
 from player_core.tcode import UdpTCodeSink
 from player_core.tcode_driver import FunscriptTCodeDriver
-from player_core.timeline import TIMELINE_HEIGHT
-from player_core.volume import VolumeHud, VolumeHudPainter
-from player_core.volume_control import VolumeControl
 
 from fun_time import preview_marker
 from fun_time.dashboard_actions import (
@@ -82,7 +66,6 @@ from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_path, notice
 from fun_time.genau_config import GenauSettings
 from fun_time.manifest import LaunchManifest
-from fun_time.mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE
 from fun_time.modes import scripted_item
 from fun_time.player_status import read_genau_status, read_main_player_status
 from fun_time.project_paths import PROJECT_VR_ICON
@@ -93,19 +76,17 @@ from fun_time.session_handoff import (
 )
 from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.unlogged_notices import UnloggedNotices
+from main_player.cli import build_parser as build_main_player_parser
+from main_player.cli import library_source, load_config, mode_memory, resolve_playlist
+from main_player.clip_nav import ClipNav
+from main_player.genau import GenauChannels
+from main_player.kino import Kino
+from main_player.notice import NoticeWriter
 from satellite.contract import SatelliteChannels
 
 from . import room, vr_runtime
 from .bringup import open_vr_session
-from .console_panel import (
-    DEG_PER_PX,
-    PANEL_WIDTH_PX,
-    PanelPointer,
-    paint_panel,
-    panel_hangs_from,
-    panel_hud,
-    panel_painter,
-)
+from .console_panel import DEG_PER_PX, PANEL_WIDTH_PX, panel_hangs_from
 from .controller_mesh import controllers_strip
 from .cover import (
     COVER_CLEAR,
@@ -120,15 +101,9 @@ from .cover import (
     scene_ready_file,
 )
 from .dash_panel import DASH_WIDTH_PX, DashPointer, dash_height, paint_dash
-from .furniture import (
-    FurniturePointer,
-    Scrubber,
-    chip_state,
-    control_size,
-    on_its_controls,
-    paint_row,
-)
-from .genau_role import GenauRole, run_ticks
+from .genau_in_the_headset import GenauInTheHeadset
+from .headset_player import HeadsetPlayer
+from .headset_verbs import HeadsetVerbs
 from .headset_wear import HeadsetWear
 from .layout import (
     BANNER,
@@ -177,7 +152,6 @@ from .playback_watch import STALLED, PlaybackWatch
 from .pointer import (
     DRAG,
     PRESS,
-    RELEASE,
     SURFACE,
     Frame,
     HandInput,
@@ -192,6 +166,7 @@ from .pointer import (
     laser_vertices,
     surface_pixel,
 )
+from .projection import default_projection
 from .reference_panel import (
     REFERENCE_WIDTH_DEG,
     REFERENCE_WIDTH_PX,
@@ -200,17 +175,8 @@ from .reference_panel import (
     reference_height,
 )
 from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, Wrap, immersive_wrap
-from .roles import UNIMPLEMENTED_MAIN_PLAYER_VERBS, MainRole
 from .room import Hanging, Hangs
-from .satellite_hud import (
-    HUD,
-    HUD_GAP_DEG,
-    PICTURE,
-    HudSurface,
-    SatellitePointer,
-    hud_screen_name,
-    screen_kind,
-)
+from .satellite_hud import HUD, HUD_GAP_DEG, hud_screen_name, screen_kind
 from .scene import (
     MAIN_WIDTH_DEG,
     Placement,
@@ -222,6 +188,7 @@ from .scene import (
 )
 from .scheduling import ahead_of_background_work
 from .stacking import Stacking
+from .surfaces import LatestPicture, PanelBitmap
 from .thumbs import Thumbs, strongest
 from .video_thread import VideoThread
 from .wrap_readout import WrapReadout, readout
@@ -237,13 +204,16 @@ _OV_NOTICE_BANNER = 13
 MAIN_VIDEO_CAP_PX = 8192
 SATELLITE_VIDEO_CAP_PX = 2048
 
-_WRAPPED_ROW_SIZE = (PANEL_WIDTH_PX, lower_edge_height(PANEL_WIDTH_PX, timeline_h=TIMELINE_HEIGHT))
-
 LIBRARY_READING_SHOWN_AFTER_S = 0.3
 
 # The file-channel worker's cadence: the dispatch loop polls these same files
 # at ~20Hz, so 30Hz loses no responsiveness.
 PUMP_HZ = 30.0
+# The Main Funestra's own cadence, Genau's: a slower tick shows fewer of a
+# clip's frames per cycle of the motion.
+MAIN_TICK_HZ = 120.0
+
+OFF_THE_PANEL = (-1, -1)
 
 LASER_REACH_M = 3.0  # when the laser meets no screen
 HANDLE_COLOR = (0.85, 0.85, 0.9, 0.35)
@@ -337,23 +307,9 @@ class _HangingScreen:
             self.mesh.close()
 
 
-@dataclass(frozen=True)
-class _SlotControls:  # what the row shows and does, said by the player in the slot
-    position: float
-    duration: float
-    playhead: PlayheadHud | None
-    hud: VolumeHud
-    seek: Callable[[float], None]
-    scrub_duration_ms: float  # 1.0 for Genau, which counts frames and seeks by fraction
-    video: Path | None = None
-    funscript: Funscript | None = None
-    # The main player's A/B loop; no other player in the room has one.
-    loop_bounds: tuple[int, int] | None = None
-    record_in_ms: int | None = None
-
-
 class _VideoUnit:
-    """What every mpv-backed player shares: a video thread and a texture target."""
+    """What every Funestra here shares: a video thread, a texture target and a
+    screen to hang it on."""
 
     SPOTS: dict[str, Placement] = {}
 
@@ -373,6 +329,8 @@ class _VideoUnit:
         self.layer_rect: tuple[int, int] | None = None
         # Furniture last painted, pump-thread-owned.
         self._banner_shown: tuple | None = None
+        self._audio_routed = False
+        self._held = False
 
     def render_latest_frame(self) -> None:
         sized = (self.target.width, self.target.height)
@@ -397,11 +355,55 @@ class _VideoUnit:
             scene_yaw_deg=scene_yaw_deg, scene_pitch_deg=scene_pitch_deg,
         )
 
-    def picture_on_screen(self) -> bool:
-        return self.player.showing_picture
+    def _window(self) -> tuple[int, int]:
+        """The picture's own pixels, which is the window the Funestra places
+        its panel in; the panel hangs beside the picture, so only the
+        placing's arithmetic sees these numbers."""
+        return max(1, self.target.width), max(1, self.target.height)
 
-    def control_size(self) -> tuple[int, int]:  # see :mod:`fun_time_vr.furniture`
-        return control_size(self.shown.width_deg, self.target.aspect)
+    def route_audio(self) -> None:
+        """Give the player its sound on the first frame the headset is WORN:
+        routed earlier, a parked endpoint takes the stream without consuming it
+        and mpv's audio clock never ticks, freezing the player on frame 1.
+        When it wedges anyway, :mod:`fun_time_vr.playback_watch` notices."""
+        if self._audio_routed:
+            return
+        self._audio_routed = True
+        picked = self.player.sound_goes_live(self._audio_device)
+        if self._audio_device:
+            logger.info("Audio device %r -> %s", self._audio_device, picked or "no match; default")
+
+    def _press_on_the_panel(self, event: PressEvent) -> None:
+        """A squeeze on the hanging panel, placed by the Funestra the way a
+        click on the desktop's is: in the window's pixels, at the panel's own."""
+        size = self.panel.size
+        if size is None:
+            return
+        at = self.panel.in_the_window(*surface_pixel(event.u, event.v, size))
+        if event.kind == PRESS:
+            self._held = True
+            self.funestra.press(*at, window=self._window())
+        elif event.kind == DRAG:
+            self.funestra.motion(*at, held=True, window=self._window())
+        else:
+            self._held = False
+            self.funestra.release()
+
+    def _hover_over_the_panel(self, hovered: tuple[str, tuple[float, float]] | None,
+                              panel_screen: str) -> None:
+        """Where the pointer rests on the panel, for its tooltip -- off it
+        entirely while a press is held, since the press's own drags say where
+        the pointer is."""
+        if self._held:
+            return
+        size = self.panel.size
+        at = OFF_THE_PANEL
+        if hovered is not None and hovered[0] == panel_screen and size is not None:
+            at = self.panel.in_the_window(*surface_pixel(*hovered[1], size))
+        self.funestra.motion(*at, held=False, window=self._window())
+
+    def _post(self, command: str) -> None:
+        append_command(self._dashboard_cmd_file, command)
 
     def overlay_banner(self, notice) -> None:
         """Flash *notice* over this picture, or clear what was flashing,
@@ -434,9 +436,9 @@ class _VideoUnit:
         self.screen.close()
 
 
-def _wrap_of(role, video: str | None) -> Wrap | None:
+def _wrap_of(verbs, video: str | None) -> Wrap | None:
     return immersive_wrap(
-        role.projection_of(video), fov_deg=role.fov_of(video), height=role.height_of(video))
+        verbs.projection_of(video), fov_deg=verbs.fov_of(video), height=verbs.height_of(video))
 
 
 def _in_the_slot(screen, picture, wrap: Wrap | None) -> tuple[Hanging, ...]:
@@ -460,112 +462,151 @@ def _metadata_root(manifest) -> Path | None:
     return Path(raw) if raw else None
 
 
+def _headsets_player(contexts) -> Callable[[], HeadsetPlayer]:
+    return lambda: HeadsetPlayer(contexts.get_proc_address, loop_file=False, prefetch=True)
+
+
 def main_video(contexts, perf=None) -> VideoThread:
-    # Muted at birth: the headset's sink cannot be trusted until the
-    # compositor is presenting (see _MainUnit.route_audio).
-    return VideoThread(
-        contexts,
-        lambda: MpvRenderPlayer(contexts.get_proc_address, muted=True, loop_file=True),
-        MAIN_VIDEO_CAP_PX, name="main-video", perf=perf,
-    )
+    return VideoThread(contexts, _headsets_player(contexts), MAIN_VIDEO_CAP_PX,
+                       name="main-video", perf=perf)
+
+
+class _TheLibrary:
+    """What Kino reads the library through, built the way the desktop's Main
+    Player builds it: off the session's config, with the same files named."""
+
+    def __init__(self, manifest: LaunchManifest, vr: VrSettings, *,
+                 while_reading: Callable[[], None]) -> None:
+        commands = manifest.commands
+        config_path = Path(manifest.runtime.config_path)
+        argv = ["--config", str(config_path), "--playlist", commands.main_player_playlist_file,
+                "--state-dir", commands.state_dir]
+        if vr.clips_folder is not None:
+            argv += ["--clips-dir", str(vr.clips_folder)]
+        metadata_root = _metadata_root(manifest)
+        if metadata_root is not None:
+            argv += ["--metadata-dir", str(metadata_root)]
+        self.args = build_main_player_parser(load_config(config_path)).parse_args(argv)
+        self.source = library_source(self.args, on_progress=lambda *_: while_reading())
+        self.memory = mode_memory(self.args)
+
+    def playlist(self) -> list[PlaylistItem]:
+        return resolve_playlist(self.args, source=self.source)
+
+    def kino(self, notice_file: Path) -> Callable[[object], Kino]:
+        source = self.source
+        entries = source.entries if source is not None else []
+        clip_nav = ClipNav.build(
+            [entry.video for entry in entries] + [
+                clip.video for clip in (source.genau_clips if source is not None else [])],
+            source.metadata_root if source is not None else None,
+        )
+        return partial(
+            Kino, source=source, clip_nav=clip_nav, notices=NoticeWriter(notice_file),
+            memory=self.memory, remembered=self.memory.read(),
+            resolve_playlist=self.playlist)
 
 
 class _MainUnit(_VideoUnit):
+    """The Main Funestra, with Kino and Genau running on it as they do on the
+    desktop, and the headset's own verbs beside them."""
+
     screen_name = MAIN  # NOT `screen`, which every unit uses for its _HangingScreen
     SPOTS = {MAIN: Placement(0.0, 0.0, MAIN_WIDTH_DEG)}  # level and straight ahead
 
     def __init__(
         self, manifest: LaunchManifest, vr: VrSettings, contexts, *,
-        remembered: Layout, notices=None, perf=None,
+        remembered: Layout, stop: threading.Event, notices=None, perf=None,
+        while_reading: Callable[[], None] = lambda: None,
     ) -> None:
         super().__init__(
             main_video(contexts, perf),
             remembered.placements.get(MAIN, self.SPOTS[MAIN]),
         )
         commands = manifest.commands
-        self.cmd_file = Path(commands.main_player_cmd_file)
-        self.paused_file = Path(commands.main_player_paused_file)
-        driver = FunscriptTCodeDriver(_SaysWhenItFirstMoves(
-            UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "main",
-        ))
-        self.role = MainRole(
-            player=self.player,
-            driver=driver,
-            playlist_file=Path(commands.main_player_playlist_file),
-            metadata_root=_metadata_root(manifest),
-            vr_dirs=tuple(
-                vr.library_dirs
+        self._dashboard_cmd_file = Path(commands.dashboard_cmd_file)
+        self._audio_device = vr.audio_device.strip()
+        self._notices = notices
+        self._watch = PlaybackWatch()
+        self._readout = WrapReadout()
+        self._presses = _Presses(MAIN, PANEL)
+        self._vr_dirs = () if vr.clips_folder is None else (vr_clips_in(vr.clips_folder),)
+        self.panel = PanelBitmap(width=PANEL_WIDTH_PX)
+        self.users_picture = LatestPicture()
+        self.users_picture_texture = FrameTexture()
+        self._uploaded_frame = None
+        self._clip_projection: tuple[Path | None, str] = (None, "")
+        library = _TheLibrary(manifest, vr, while_reading=while_reading)
+        self.verbs: HeadsetVerbs | None = None
+        self.funestra = Funestra(
+            self.player,
+            channels=Channels(
+                playlist=Path(commands.main_player_playlist_file),
+                command=Path(commands.main_player_cmd_file),
+                paused=Path(commands.main_player_paused_file),
+                status=Path(commands.main_player_status_file),
+                play_points=Path(commands.state_dir) / play_points_filename("main_player"),
+                console=Path(commands.main_player_console_file),
+                dashboard_cmd=self._dashboard_cmd_file,
+                drive=Path(commands.genau_drive_file),
             ),
-            start_paused=read_paused_state(self.paused_file, logger=logger),
-            tilt_deg=remembered.tilt_deg,
-            play_points=PlayPoints(
-                Path(commands.state_dir) / play_points_filename("main_player")),
+            playlist=library.playlist(),
+            tcode=FunscriptTCodeDriver(_SaysWhenItFirstMoves(
+                UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "main")),
+            locked=True, sound_is_the_rooms=True,
+            users=_users(manifest, vr, stop,
+                         kino=library.kino(Path(commands.main_player_notice_file))),
+            panel_surface=self.panel, users_picture=self.users_picture,
+            window_verbs=self._apply_the_headsets_verb,
         )
+        self.verbs = HeadsetVerbs(
+            self.funestra.playback, metadata_root=_metadata_root(manifest),
+            vr_dirs=tuple(vr.library_dirs), tilt_deg=remembered.tilt_deg)
         # A VR video nobody has chosen a projection for gets its picture read off
         # the thread that paints it: a fisheye circle found there opens it as a
         # fisheye rather than drawing its lower edge into a point as a 180 does.
-        self.role.look_with(PictureLook(self.video))
-        # The panel's forecasts of Genau's publish, and the touch each status carries.
-        self.drive_gate = DriveGate(self.role)
-        self._audio_device = vr.audio_device.strip()
-        self._audio_routed = False
-        self._status_writer = StatusWriter(
-            Path(commands.main_player_status_file),
-            lambda role: role.status_fields(self.drive_gate.handoff_touch()),
-        )
-        self._readout = WrapReadout()
-        self._notices = notices
-        self._watch = PlaybackWatch()
-        self._unhandled: set[str] = set()
-        self._presses = _Presses(MAIN)
-        self._dashboard_cmd_file = Path(commands.dashboard_cmd_file)
-        self._pointer = FurniturePointer(
-            seek=self.role.seek_to,
-            mute=lambda muted: self._post("audio_unmute" if muted else "audio_mute"),
-            set_volume=lambda level: self._post(f"audio_set_volume|{level}"),
-            picture=lambda: self._post(OMNIPAUSE_TOGGLE),
-            picture_on_screen=self.picture_on_screen,
-        )
+        self.verbs.look_with(PictureLook(self.video))
 
-    def _post(self, command: str) -> None:
-        append_command(self._dashboard_cmd_file, command)
-
-    @property
-    def controls(self) -> _SlotControls:
-        return _SlotControls(
-            position=self.role.position_ms, duration=self.role.duration_ms,
-            playhead=video_playhead(
-                self.role.position_ms, self.role.duration_ms, self.player.frame_rate),
-            hud=VolumeHud(volume=self.role.volume, muted=self.role.muted),
-            seek=self.role.seek_to, scrub_duration_ms=self.role.duration_ms,
-            video=self.role.current_video, funscript=self.role.current_funscript,
-            loop_bounds=self.role.loop_bounds, record_in_ms=self.role.record_in_ms,
-        )
+    def _apply_the_headsets_verb(self, command: str) -> bool:
+        """The Funestra asks after what runs on it; the verbs are built around
+        the playback the Funestra makes, so they are reached through here."""
+        return self.verbs.apply(command)
 
     @property
     def owns_the_slot(self) -> bool:
-        return self.role.shows == MAIN_KINO_MODE
+        """Whether the video is what fills the main slot, Genau's picture
+        filling it otherwise."""
+        return self.funestra.showing == MainMode.KINO
+
+    @property
+    def picture_in_the_slot(self) -> RenderTarget | FrameTexture:
+        return self.target if self.owns_the_slot else self.users_picture_texture
 
     def hangings(self) -> tuple[Hanging, ...]:
-        if not (self.owns_the_slot and self.target.ready):
+        if self.owns_the_slot:
+            if not self.target.ready:
+                return ()
+            return _in_the_slot(self.screen, self.target, _wrap_of(self.verbs, self.target.video))
+        if not self.users_picture_texture.ready:
             return ()
-        return _in_the_slot(self.screen, self.target, _wrap_of(self.role, self.target.video))
+        return _in_the_slot(self.screen, self.users_picture_texture,
+                            immersive_wrap(self._clip_projection[1]))
 
     @property
     def wraps_the_viewer(self) -> bool:
-        return _wrap_of(self.role, self.target.video) is not None
+        return any(one.wrap is not None for one in self.hangings())
 
     @property
     def can_dial_the_wrap(self) -> bool:
-        wrap = _wrap_of(self.role, str(self.role.current_video))
+        wrap = _wrap_of(self.verbs, str(self.funestra.playback.current_video))
         return self.owns_the_slot and wrap is not None and wrap.fov_deg > 0
 
     @property
     def wrap_readout(self) -> str | None:
         if not self.owns_the_slot:
             return None
-        video = str(self.role.current_video)
-        return readout(self.role.projection_of(video), _wrap_of(self.role, video))
+        video = str(self.funestra.playback.current_video)
+        return readout(self.verbs.projection_of(video), _wrap_of(self.verbs, video))
 
     def banner_into_the_picture(self):
         """A banner drawn into a picture wrapped round the viewer lands on the seam
@@ -580,62 +621,67 @@ class _MainUnit(_VideoUnit):
             self._notices.flash(said, level=NOTICE, screen=self.screen_name, now=now)
 
     def dial_the_wrap(self, *, zoom: float, stretch: float) -> None:
-        wrap = _wrap_of(self.role, str(self.role.current_video))
+        wrap = _wrap_of(self.verbs, str(self.funestra.playback.current_video))
         if zoom != 1.0:
-            self.role.set_fov(wrap.fov_deg * zoom)
+            self.verbs.set_fov(wrap.fov_deg * zoom)
         if stretch != 1.0:
-            self.role.set_height(wrap.height * stretch)
+            self.verbs.set_height(wrap.height * stretch)
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {MAIN: Hangs((self.screen,))}
 
     def point(self, frame: Frame) -> None:
+        self._presses.point(frame)
+
+    def render_latest_frame(self) -> None:
+        super().render_latest_frame()
+        self._show_the_users_picture()
+
+    def _show_the_users_picture(self) -> None:
+        """The frame the User in front put up -- Genau's, scrubbed to the OSR2
+        -- uploaded untouched, and wrapped the way its clip is."""
         if self.owns_the_slot:
-            self._presses.point(frame)
-
-    def route_audio(self) -> None:
-        """Give the main player its sound on the first frame the headset is WORN.
-
-        Routed earlier -- at construction, or on VISIBLE with the headset on its
-        stand -- a parked endpoint takes the stream without consuming it and mpv's
-        audio clock never ticks, freezing the player on frame 1.  When it wedges
-        anyway, :mod:`fun_time_vr.playback_watch` notices.
-        """
-        if self._audio_routed:
             return
-        self._audio_routed = True
-        if self._audio_device:
-            picked = self.player.set_audio_device_matching(self._audio_device)
-            logger.info(
-                "Audio device %r -> %s", self._audio_device, picked or "no match; default"
-            )
-        self.role.sound_goes_live()
+        picture = self.users_picture.picture
+        if picture is None or picture.frame is None:
+            return
+        if picture.frame is not self._uploaded_frame:
+            self.users_picture_texture.upload(picture.frame)
+            self._uploaded_frame = picture.frame
+            if picture.clip != self._clip_projection[0]:
+                self._clip_projection = (
+                    picture.clip, default_projection(str(picture.clip), self._vr_dirs))
+        if self.users_picture_texture.ready:
+            self.screen.rehang_at(
+                shown_at(MAIN, self.screen.placement, self.users_picture_texture.aspect),
+                self.users_picture_texture.aspect)
 
     def pump(self, stop: threading.Event, now: float) -> None:
-        self.role.set_paused(read_paused_state(self.paused_file, logger=logger))
-        for line in consume_command_file(self.cmd_file, logger=logger, uppercase=False):
-            if not self.role.apply_command(line, on_quit=stop.set):
-                keyword = line.split(None, 1)[0].upper() if line.split() else line
-                if keyword not in self._unhandled:
-                    self._unhandled.add(keyword)
-                    logger.info(
-                        "Verb the VR main role does not handle: %s (%s)", keyword,
-                        UNIMPLEMENTED_MAIN_PLAYER_VERBS.get(keyword, "not a verb it knows at all"),
-                    )
-        self.role.tick(now)
-        self._watch_progress(now)
-        self._status_writer.write(self.role)
         self._take_presses()
+        self.funestra.tick(window=self._window())
+        self.verbs.tick(now)
+        if self.funestra.stopped:
+            stop.set()
+        self._watch_progress(now)
         if self._notices is not None:
             self.overlay_banner(self.banner_into_the_picture())
+
+    def _take_presses(self) -> None:
+        for event in self._presses.drain():
+            if event.screen == PANEL:
+                self._press_on_the_panel(event)
+            elif event.kind == PRESS:
+                self._post(OMNIPAUSE_TOGGLE)
+        self._hover_over_the_panel(self._presses.hover, PANEL)
 
     def _watch_progress(self, now: float) -> None:
         """Say it out loud when the video stops advancing, and reopen it once:
         the failure leaves the player unpaused, its duration known and its
         position frozen, raising nothing and logging nothing."""
+        playback = self.funestra.playback
         verdict = self._watch.note(
-            position_ms=self.role.position_ms,
-            playing=not self.role.paused and self.role.duration_ms > 0,
+            position_ms=playback.position_ms,
+            playing=not playback.is_paused and playback.duration_ms > 0,
             now=now,
         )
         if verdict is None:
@@ -643,25 +689,53 @@ class _MainUnit(_VideoUnit):
         if verdict == STALLED:
             notice(logger, "the video stopped advancing; reopening it", source=SOURCE_MAIN,
                    level=logging.ERROR)
-            self.role.reopen()
+            self._reopen()
         else:
             notice(logger, "the video is still not advancing", source=SOURCE_MAIN,
                    level=logging.ERROR)
-    def _take_presses(self) -> None:
-        size, duration = self.control_size(), self.role.duration_ms
-        for event in self._presses.drain():
-            if event.kind == PRESS:
-                self._pointer.press(event.u, event.v, size=size, duration_ms=duration,
-                                    muted=self.role.muted)
-            elif event.kind == DRAG:
-                self._pointer.drag(event.u, event.v, size=size, duration_ms=duration)
-            else:
-                self._pointer.release()
+
+    def _reopen(self) -> None:
+        """Load the video again and seek back to where it was -- the way out
+        of a wedged pipeline, since mpv builds a whole new one, its audio
+        output included."""
+        playback = self.funestra.playback
+        position_ms = playback.position_ms
+        logger.warning("Reopening the main player at %.0fms", position_ms)
+        playback.load(playback.index)
+        if position_ms:
+            playback.seek_to(position_ms)
 
     def close(self) -> None:
+        self.verbs.close()  # before the player: its looks read a picture from one
         self.video.close()  # frees mpv on the thread whose context it renders in
-        self.role.close()   # closes the driver; the player is already gone
+        self.funestra.close()  # what runs on it, and the line to the device
+        self.users_picture_texture.close()
         self._close_graphics()
+
+
+def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, kino):
+    """What runs on the Main Funestra: Kino, and Genau where the session names
+    its clips folder -- as the desktop's Main Player runs them."""
+    users = {MainMode.KINO: kino}
+    if vr.clips_folder is None:
+        return users
+    commands = manifest.commands
+    resumed = read_shared_state(shared_state_path(Path(commands.state_dir)))
+    users[MainMode.GENAU] = lambda _playback: GenauInTheHeadset(
+        clips_folder=vr.clips_folder,
+        settings=vr.genau,
+        channels=GenauChannels(
+            command=Path(commands.genau_cmd_file), paused=Path(commands.genau_paused_file),
+            status=Path(commands.genau_status_file), drive=Path(commands.genau_drive_file)),
+        notifier=GenauNotifier(vr.notify_host, vr.notify_port),
+        tcode_sink=_SaysWhenItFirstMoves(
+            UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "genau"),
+        stop_event=stop,
+        start_clip=read_genau_status(Path(commands.genau_status_file)).clip or None,
+        latest=False if resumed is None else resumed.genau_latest,
+        metadata_root=_metadata_root(manifest),
+    )
+    return users
 
 
 class _SatelliteUnit(_VideoUnit):
@@ -676,15 +750,9 @@ class _SatelliteUnit(_VideoUnit):
         self, player: str, manifest: LaunchManifest, contexts, *,
         vr: VrSettings, remembered: Mapping[str, Placement], notices=None, perf=None,
     ) -> None:
-        # Muted, and on the default sink until the headset is worn, for the reason
-        # _MainUnit.route_audio waits: a sink not draining stops the video clock.
         super().__init__(
-            VideoThread(
-                contexts,
-                lambda: MpvRenderPlayer(
-                    contexts.get_proc_address, muted=True, loop_file=False, prefetch=True),
-                SATELLITE_VIDEO_CAP_PX, name=f"{player}-video", perf=perf,
-            ),
+            VideoThread(contexts, _headsets_player(contexts), SATELLITE_VIDEO_CAP_PX,
+                        name=f"{player}-video", perf=perf),
             remembered.get(player, self.SPOTS[player]),
         )
         commands = manifest.commands
@@ -695,89 +763,20 @@ class _SatelliteUnit(_VideoUnit):
         channels = SatelliteChannels.from_manifest(
             commands, player,
             play_points=Path(commands.state_dir) / play_points_filename(player))
-        self.cmd_file = channels.command
-        self.paused_file = channels.paused
-        self.playlist_file = channels.playlist
-        items = read_playlist(self.playlist_file)
-        self.session = Playback(
-            [item.path for item in items],
-            player=self.player,
-            start_paused=read_paused_state(self.paused_file, logger=logger),
-            play_points=PlayPoints(channels.play_points),
-            funscripts=funscripts_of(items),
+        self._dashboard_cmd_file = channels.dashboard_cmd
+        self._audio_device = vr.audio_device.strip()
+        self.panel = PanelBitmap()
+        self.funestra = Funestra(
+            self.player, channels=channels, playlist=read_playlist(channels.playlist),
             tcode=FunscriptTCodeDriver(_SaysWhenItFirstMoves(
                 UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), player)),
-        )
-        self.drive_gate = DriveGate(self.session)
-        self._status_writer = StatusWriter(
-            channels.status,
-            lambda session: satellite_status_fields(session, self.drive_gate.handoff_touch()))
-        self._controls = FunestraControls(
-            self.session, reload_playlist=self._reload_playlist)
-        self.hud_surface = HudSurface()
-        self.hud = HudOverlay(
-            hud_file=channels.hud,
-            command_file=channels.dashboard_cmd,
-            player=self.hud_surface,
-            drive_file=channels.drive,
-            drive_gate=self.drive_gate,
-            over_the_video=False,
-            seek=self.session.seek_to,
-            set_volume=self._set_volume,
-            toggle_mute=lambda: self._toggle_mute(self.volume.hud.muted),
+            panel_surface=self.panel,
         )
         self.hud_texture = FrameTexture()
         self.hud_screen = _HangingScreen(self.screen.placement)
-        self._strip = HeatmapStrip()
         self._hud_version = -1
         self._hud_shown = False
-        self.volume = VolumeControl(self.player)
-        self._audio_device = vr.audio_device.strip()
-        self._audio_routed = False
         self._presses = _Presses(player, hud_screen_name(player))
-        self._dashboard_cmd_file = channels.dashboard_cmd
-        self._pointer = SatellitePointer(
-            hud=self.hud, picture=lambda: self._post(OMNIPAUSE_TOGGLE),
-        )
-
-    def _post(self, command: str) -> None:
-        append_command(self._dashboard_cmd_file, command)
-
-    def route_audio(self) -> None:
-        if self._audio_routed:
-            return
-        self._audio_routed = True
-        if self._audio_device:
-            self.player.set_audio_device_matching(self._audio_device)
-
-    def _toggle_mute(self, _muted: bool) -> None:
-        if self._audio_routed:
-            self.volume.toggle_mute()
-
-    def _set_volume(self, level: int) -> None:
-        if self._audio_routed:
-            self.volume.set_level(level)
-
-    def _track_width(self) -> int:
-        """How wide the panel drew the track last frame, which is what the
-        colors have to cover -- 0 until one has been drawn, which leaves that
-        first row plain."""
-        rect = self.hud.row_rect
-        return 0 if rect is None else rect[2]
-
-    def clip_row(self) -> RowHud | None:
-        """Where this screen's clip has got to, how long it runs and how loud
-        it is -- the row the panel it hangs carries, or None on a picture."""
-        if self.picture_on_screen():
-            return None
-        session = self.session
-        return RowHud(
-            position_ms=session.position_ms,
-            duration_ms=session.duration_ms,
-            volume=self.volume.hud,
-            playhead=video_playhead(session.position_ms, session.duration_ms,
-                                    self.player.frame_rate),
-        )
 
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
@@ -805,7 +804,7 @@ class _SatelliteUnit(_VideoUnit):
 
     def render_latest_frame(self) -> None:
         super().render_latest_frame()
-        rgba, version = self.hud_surface.take()
+        rgba, version = self.panel.take()
         if version != self._hud_version:
             self._hud_version = version
             self._hud_shown = rgba is not None
@@ -813,170 +812,32 @@ class _SatelliteUnit(_VideoUnit):
                 self.hud_texture.upload(rgba)
         if self._hud_shown and self.target.ready:
             self.hud_screen.placement = attached_to(
-                self.hud.edge, self.shown, aspect=self.target.aspect,
+                self.funestra.panel_edge, self.shown, aspect=self.target.aspect,
                 width_deg=self.hud_texture.width * DEG_PER_PX,
                 hanging_aspect=self.hud_texture.aspect, gap_deg=HUD_GAP_DEG,
             )
             self.hud_screen.rehang(self.hud_texture.aspect)
 
-    def _surface_size(self, kind: str) -> tuple[int, int]:
-        if kind == HUD:
-            return self.hud_surface.size or (1, 1)
-        return self.control_size()
-
-    def _reload_playlist(self) -> None:
-        reloaded = read_playlist(self.playlist_file)
-        if reloaded:
-            self.session.replace_playlist([item.path for item in reloaded], funscripts_of(reloaded))
-
     def pump(self, stop: threading.Event, now: float) -> None:
-        self.session.set_paused(read_paused_state(self.paused_file, logger=logger))
-        for command in consume_command_file(self.cmd_file, logger=logger, uppercase=False):
-            apply_satellite_command(command, self._controls)
-        self.session.advance()
-        self.player.push_still()
-        self._status_writer.write(self.session)
-        row = self.clip_row()
-        self._strip.update(self.session.showing, self.session.current_funscript,
-                           self.session.duration_ms, self._track_width())
-        self.hud.tick(video=self.session.name_on_screen, playback_speed=self.session.speed,
-                      clip_row=row, heatmap=self._strip.colors if row else None)
-        for event in self._presses.drain():
-            kind = screen_kind(event.screen)
-            if event.kind == PRESS:
-                self._pointer.press(kind, event.u, event.v, size=self._surface_size(kind))
-            elif event.kind == DRAG:
-                self._pointer.drag(kind, event.u, event.v, size=self._surface_size(kind))
-            else:
-                self._pointer.release()
-        hover = self._presses.hover
-        kind = screen_kind(hover[0]) if hover is not None else PICTURE
-        self._pointer.hover(
-            kind, hover[1] if hover is not None else None, size=self._surface_size(kind))
+        self._take_presses()
+        self.funestra.tick(window=self._window())
         if self._notices is not None:
             self.overlay_banner(self._notices.banner(self.screen_name))
 
-    def picture_on_screen(self) -> bool:
-        return self.session.showing_picture
+    def _take_presses(self) -> None:
+        for event in self._presses.drain():
+            if screen_kind(event.screen) == HUD:
+                self._press_on_the_panel(event)
+            elif event.kind == PRESS:
+                self._post(OMNIPAUSE_TOGGLE)
+        self._hover_over_the_panel(self._presses.hover, hud_screen_name(self.screen_name))
 
     def close(self) -> None:
         self.video.close()  # frees mpv on the thread whose context it renders in
-        self.session.close()
+        self.funestra.close()
         self.hud_texture.close()
         self.hud_screen.close()
         self._close_graphics()
-
-
-class _GenauUnit:
-    """Genau's surface: the frame its engine chose, on the main player's screen
-    or wrapped round the viewer by the clip's projection, uploaded untouched."""
-
-    SPOTS = _MainUnit.SPOTS  # the same slot, which the two take turns in
-
-    def __init__(
-        self, manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *,
-        remembered: Mapping[str, Placement], has_the_slot: Callable[[], bool],
-    ) -> None:
-        if vr.clips_folder is None:
-            raise RuntimeError("the launch manifest names no clips folder for Genau's role")
-        commands = manifest.commands
-        resumed = read_shared_state(shared_state_path(Path(commands.state_dir)))
-        self.role = GenauRole(
-            clips_folder=vr.clips_folder,
-            settings=vr.genau,
-            command_file=Path(commands.genau_cmd_file),
-            paused_file=Path(commands.genau_paused_file),
-            drive_file=Path(commands.genau_drive_file),
-            console_file=Path(commands.main_player_console_file),
-            notifier=GenauNotifier(vr.notify_host, vr.notify_port),
-            tcode_sink=_SaysWhenItFirstMoves(
-                UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "genau",
-            ),
-            stop_event=stop,
-            start_clip=read_genau_status(Path(commands.genau_status_file)).clip or None,
-            latest=False if resumed is None else resumed.genau_latest,
-            metadata_root=_metadata_root(manifest),
-        )
-        self._has_the_slot = has_the_slot
-        self.texture = FrameTexture()
-        self.screen = _HangingScreen(remembered.get(MAIN, self.SPOTS[MAIN]))
-        self._dashboard_cmd_file = Path(commands.dashboard_cmd_file)
-        self._presses = _Presses(MAIN)
-        self._pointer = FurniturePointer(
-            seek=self.role.seek,
-            mute=lambda muted: self._post("audio_unmute" if muted else "audio_mute"),
-            set_volume=lambda level: self._post(f"audio_set_volume|{level}"),
-            picture=lambda: self._post(OMNIPAUSE_TOGGLE),
-        )
-
-    def _post(self, command: str) -> None:
-        append_command(self._dashboard_cmd_file, command)
-
-    @property
-    def owns_the_slot(self) -> bool:
-        return self._has_the_slot()
-
-    def hangings(self) -> tuple[Hanging, ...]:
-        if not (self.owns_the_slot and self.texture.ready):
-            return ()
-        return _in_the_slot(self.screen, self.texture, immersive_wrap(self.role.projection))
-
-    def hangs_by(self) -> dict[str, Hangs]:
-        return {MAIN: Hangs((self.screen,))}
-
-    def put_back(self) -> None:
-        self.screen.placement = self.SPOTS[MAIN]
-
-    def point(self, frame: Frame) -> None:
-        if self.owns_the_slot:
-            self._presses.point(frame)
-
-    @property
-    def controls(self) -> _SlotControls:
-        played, of = self.role.playhead
-        return _SlotControls(
-            position=played, duration=of, playhead=clip_playhead(played, of),
-            hud=VolumeHud(volume=self.role.volume, muted=self.role.muted),
-            seek=self.role.seek, scrub_duration_ms=1.0,
-        )
-
-    @property
-    def wraps_the_viewer(self) -> bool:
-        return immersive_wrap(self.role.projection) is not None
-
-    def render_latest_frame(self) -> None:
-        # Genau's engine free-runs regardless of visibility; skipping a hidden
-        # slot's frame costs nothing, since only the newest one is ever kept.
-        if not self.owns_the_slot:
-            return
-        frame = self.role.take_frame()
-        if frame is not None:
-            self.texture.upload(frame)
-        if self.texture.ready:
-            self.screen.rehang_at(self.shown, self.texture.aspect)
-
-    @property
-    def shown(self) -> Placement:
-        return shown_at(MAIN, self.screen.placement, self.texture.aspect)
-
-    def pump(self, stop: threading.Event, now: float) -> None:
-        """The presses only: the engine turns its channels on its own thread."""
-        size = self._control_size
-        if size is None:
-            return
-        for event in self._presses.drain():
-            if event.kind == PRESS:
-                self._pointer.press(event.u, event.v, size=size, duration_ms=1.0,
-                                    muted=self.role.muted)
-            elif event.kind == DRAG:
-                self._pointer.drag(event.u, event.v, size=size, duration_ms=1.0)
-            else:
-                self._pointer.release()
-
-    def close(self) -> None:
-        self.role.close()
-        self.texture.close()
-        self.screen.close()
 
 
 class _Presses:
@@ -1017,41 +878,18 @@ def _upload(unit) -> bool:
 
 
 class _PanelUnit:
+    """The console the Main Funestra draws, hanging under whichever picture
+    fills the main slot -- or, while that picture wraps the viewer and there is
+    nothing to dock to, under the dashboard."""
+
     SPOTS: dict[str, Placement] = {}
 
-    def __init__(
-        self, main_unit: _MainUnit, genau: _GenauUnit, dash, *,
-        dashboard_cmd_file: Path,
-    ) -> None:
+    def __init__(self, main_unit: _MainUnit, dash) -> None:
         self._main_unit = main_unit
-        self._genau = genau
         self._dash = dash
-        self._painter = panel_painter()
-        self._row_painter = VolumeHudPainter()
-        self._readout_painter = PlayheadHudPainter()
-        self._post = lambda command: append_command(dashboard_cmd_file, command)
-        self._pointer = PanelPointer(self._painter, post=self._post)
-        self._furniture = FurniturePointer(
-            seek=self._seek,
-            mute=lambda muted: self._post("audio_unmute" if muted else "audio_mute"),
-            set_volume=lambda level: self._post(f"audio_set_volume|{level}"),
-        )
-        self._pressing = None  # which of the two took the squeeze, until it lets go
-        self._controls: _SlotControls | None = None  # pump-thread-owned
-        self._presses = _Presses(PANEL)
-        self._lock = threading.Lock()
-        self._image = None
-        self._key = self._row_key = None
-        self._edge = HudEdge.LOWER
-        self._row = None
-        self._scrubber = Scrubber()
-        self._uploaded = None
+        self._version = -1
         self.texture = FrameTexture()
         self.screen = _HangingScreen(main_unit.screen.placement)
-
-    def _seek(self, position: float) -> None:
-        if self._controls is not None:
-            self._controls.seek(position)
 
     def hangings(self) -> tuple[Hanging, ...]:
         if not self.texture.ready:
@@ -1067,102 +905,27 @@ class _PanelUnit:
         pass  # it follows whatever it is docked under, back to that screen's own spot
 
     def point(self, frame: Frame) -> None:
-        self._presses.point(frame)
-
-    @property
-    def _panel_height(self) -> int:
-        return self._image.size[1] if self._image is not None else 1
-
-    def _on_the_row(self, v: float) -> float | None:
-        height = self._panel_height  # v in the ROW's own, or None: it is the last rows
-        if self._row is None or v * height > _WRAPPED_ROW_SIZE[1]:
-            return None
-        return v * height / _WRAPPED_ROW_SIZE[1]
-
-    def _take_presses(self) -> None:
-        for event in self._presses.drain():
-            if event.kind == RELEASE:
-                self._pointer.release()
-                self._furniture.release()
-                self._pressing = None
-                continue
-            row_v = self._on_the_row(event.v)
-            if event.kind == PRESS:
-                self._pressing = self._furniture if row_v is not None else self._pointer
-            if self._pressing is self._furniture:
-                self._squeeze_the_row(event.kind, event.u, event.v if row_v is None else row_v)
-            elif self._pressing is self._pointer:
-                (self._pointer.press if event.kind == PRESS else self._pointer.drag)(
-                    event.u, event.v)
-
-    def _squeeze_the_row(self, kind: str, u: float, v: float) -> None:
-        controls = self._controls
-        if controls is None:
-            return
-        size = _WRAPPED_ROW_SIZE
-        if kind == PRESS:
-            self._furniture.press(u, v, size=size, duration_ms=controls.scrub_duration_ms,
-                                  muted=controls.hud.muted)
-        else:
-            self._furniture.drag(u, v, size=size, duration_ms=controls.scrub_duration_ms)
+        pass  # a squeeze on it is the Main Funestra's, which draws it
 
     def pump(self, stop: threading.Event, now: float) -> None:
-        slot = _wrapped_slot(self._main_unit, self._genau)
-        self._controls = None if slot is None else slot.controls  # the roles' thread
-        self._take_presses()
-        genau, main = self._genau.role, self._main_unit.role
-        clip = genau.current_clip
-        hud = panel_hud(
-            genau.console_hud,
-            video_title=main.title,
-            clip_title=clip.stem if clip is not None else "",
-            loading=genau.loading,
-            drive_gate=self._main_unit.drive_gate,
-            scripted_filter=main.scripted_filter,
-            playback_speed=main.speed,
-        )
-        hovered = self._presses.hover
-        hover = self._pointer.tooltip_anchor(hovered[1] if hovered is not None else None)
-        self._edge = hud.console.hud_edge
-        # A clip's bar crossing a pixel must not redraw the console's text:
-        key, row_key = (hud, hover), self._row_state()
-        if (key, row_key) == (self._key, self._row_key):
-            return
-        if row_key != self._row_key:
-            self._row = None if row_key is None else paint_row(
-                self._scrubber.bgra(self._controls.position, _WRAPPED_ROW_SIZE[0],
-                                    loop_bounds=self._controls.loop_bounds,
-                                    record_in_ms=self._controls.record_in_ms),
-                self._controls.playhead, self._controls.hud, _WRAPPED_ROW_SIZE,
-                volume_painter=self._row_painter, readout_painter=self._readout_painter)
-        image = paint_panel(self._painter, hud, hover=hover, row=self._row)
-        self._pointer.painted(image.size)
-        with self._lock:
-            self._image = image
-        self._key, self._row_key = key, row_key
-
-    def _row_state(self):
-        controls = self._controls
-        if controls is None:
-            return None
-        size = _WRAPPED_ROW_SIZE
-        return (self._scrubber.state(size, controls.position, controls.duration,
-                                     video=controls.video, funscript=controls.funscript,
-                                     loop_bounds=controls.loop_bounds,
-                                     record_in_ms=controls.record_in_ms),
-                controls.playhead, chip_state(*size, controls.hud))
+        pass  # painted by the Main Funestra on its own worker
 
     def render_latest_frame(self) -> None:
-        if not _upload(self):
+        rgba, version = self._main_unit.panel.take()
+        if version != self._version:
+            self._version = version
+            if rgba is not None:
+                self.texture.upload(rgba)
+        if not self.texture.ready:
             return
-        wrapped = _wrapped_slot(self._main_unit, self._genau) is not None
-        slot_aspect = _picture_in_the_slot(self._main_unit, self._genau).aspect
+        wrapped = self._main_unit.wraps_the_viewer
+        slot_aspect = self._main_unit.picture_in_the_slot.aspect
         under, aspect, gap = (
             (self._dash.screen.placement, self._dash.texture.aspect, 0.0) if wrapped else
             (shown_at(MAIN, self._main_unit.screen.placement, slot_aspect), slot_aspect,
              HUD_GAP_DEG))
         self.screen.placement = attached_to(
-            panel_hangs_from(self._edge, wrapped=wrapped),
+            panel_hangs_from(self._main_unit.funestra.panel_edge, wrapped=wrapped),
             under, aspect=aspect, width_deg=self.texture.width * DEG_PER_PX,
             hanging_aspect=self.texture.aspect, gap_deg=gap,
         )
@@ -1182,12 +945,11 @@ class _DashUnit:
         PANEL: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=40.0),
     }
 
-    def __init__(self, main_unit: _MainUnit, genau: _GenauUnit, *,
+    def __init__(self, main_unit: _MainUnit, *,
                  remembered: Mapping[str, Placement], dashboard_cmd_file: Path,
                  notices: NoticeBoard, dashboard_state_file: Path,
                  reference_flag: Path) -> None:
         self._main_unit = main_unit
-        self._genau = genau
         self._notices = notices
         self._state_file = dashboard_state_file
         self._reference_flag = reference_flag
@@ -1206,7 +968,7 @@ class _DashUnit:
 
     @property
     def carrying_the_console(self) -> bool:  # a wrapped slot leaves it the only handle
-        return _wrapped_slot(self._main_unit, self._genau) is not None
+        return self._main_unit.wraps_the_viewer
 
     @property
     def layout_key(self) -> str:  # which remembered spot a drag lands in
@@ -1814,12 +1576,13 @@ def _log_into_the_event_log(state_dir: Path) -> None:
     logging.getLogger("fun_time_vr").addHandler(handler)
 
 
-def _pump_channels(units: list, stop: threading.Event, perf: FramePerf) -> None:
+def _pump_channels(units: list, stop: threading.Event, perf: FramePerf,
+                   hz: float = PUMP_HZ) -> None:
     """The file-channel worker: every unit's flags, drains, status writes and
     repaints — file I/O that can stall under a sync client, so never the frame
     loop's thread.  Two threads on one mpv is its design; see player_core.mpv_gate.
     Guarded per unit: the OSR2 is driven from here (:class:`_PumpFaults`)."""
-    period = 1.0 / PUMP_HZ
+    period = 1.0 / hz
     faults = _PumpFaults()
     while not stop.is_set():
         started = time.monotonic()
@@ -1923,26 +1686,14 @@ class _SaysWhenItFirstMoves:  # places the OSR2's first move against the rest of
         self._sink.close()
 
 
-def _scene_is_up(main_unit, genau, satellites: Sequence, panel) -> bool:
+def _scene_is_up(main_unit, satellites: Sequence, panel) -> bool:
     """Every picture the session opens with RENDERED, not merely sized
     (``has_picture``, never ``ready``); the main slot counts once."""
-    main = _picture_in_the_slot(main_unit, genau)
     return bool(
-        main.has_picture
+        main_unit.picture_in_the_slot.has_picture
         and panel.texture.has_picture
         and all(satellite.target.has_picture for satellite in satellites)
     )
-
-
-def _picture_in_the_slot(main_unit: _MainUnit, genau: _GenauUnit) -> RenderTarget | FrameTexture:
-    return genau.texture if genau.owns_the_slot else main_unit.target
-
-
-def _wrapped_slot(main_unit: _MainUnit, genau: _GenauUnit) -> _MainUnit | _GenauUnit | None:
-    for unit in (genau, main_unit):
-        if any(one.wrap is not None for one in unit.hangings()):
-            return unit
-    return None
 
 
 def _hands_for_the_players(
@@ -2102,10 +1853,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     _raise_the_cover(session, renderer, cover)
     # One read of the event log per tick, pumped before every screen's banner.
     notices = NoticeBoard(event_log_path(state_dir), unlogged=UnloggedNotices(state_dir))
-    main_unit = _MainUnit(manifest, vr, contexts, remembered=remembered, notices=notices, perf=perf)
-    _present_the_cover(session, renderer, cover)
-    genau = _GenauUnit(manifest, vr, stop, remembered=remembered.placements,
-                       has_the_slot=lambda: main_unit.role.shows == MAIN_GENAU_MODE)
+    main_unit = _MainUnit(
+        manifest, vr, contexts, remembered=remembered, stop=stop, notices=notices, perf=perf,
+        while_reading=lambda: _present_the_cover(session, renderer, cover))
     _present_the_cover(session, renderer, cover)
     satellites = [
         _SatelliteUnit(player, manifest, contexts, vr=vr, remembered=remembered.placements,
@@ -2115,17 +1865,14 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     _present_the_cover(session, renderer, cover)
     reference_flag = Path(state_dir) / REFERENCE_OPEN_FILENAME
     dash = _DashUnit(
-        main_unit, genau,
+        main_unit,
         remembered=remembered.placements,
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
         notices=notices,
         dashboard_state_file=Path(commands.dashboard_state_file),
         reference_flag=reference_flag,
     )
-    panel = _PanelUnit(
-        main_unit, genau, dash,
-        dashboard_cmd_file=Path(commands.dashboard_cmd_file),
-    )
+    panel = _PanelUnit(main_unit, dash)
     reference = _ReferenceUnit(dash, panel, flag=reference_flag)
     library = _LibraryUnit(
         remembered=remembered.placements,
@@ -2135,7 +1882,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
         main_player_status_file=Path(commands.main_player_status_file),
         genau_cmd_file=Path(commands.genau_cmd_file),
         genau_status_file=Path(commands.genau_status_file),
-        genau_has_the_slot=lambda: genau.owns_the_slot,
+        genau_has_the_slot=lambda: not main_unit.owns_the_slot,
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
         metadata_root=_metadata_root(manifest),
     )
@@ -2147,10 +1894,12 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     wear = HeadsetWear()
     # The room, each thing saying for itself what it hangs there.  Dash before
     # panel: the console hangs off where the dashboard ended up.
-    units = [main_unit, genau, *satellites, dash, panel, reference, library, banner, cover]
-    pumped = [notices, *units, keeper, posts]
+    units = [main_unit, *satellites, dash, panel, reference, library, banner, cover]
+    closing = [notices, *units, keeper, posts]
+    # The Main Funestra ticks on a worker of its own, at Genau's rate.
+    pumped = [one for one in closing if one is not main_unit]
     where = room.where_they_hang(units)
-    pointer = Pointer(on_its_controls=on_its_controls)
+    pointer = Pointer()
     thumbs = Thumbs()
     stacking = Stacking()
     pointing = _PointerDrawing()
@@ -2164,13 +1913,12 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     pump_thread = start_daemon_thread(
         target=_pump_channels, args=(pumped, stop, perf), name="file-channels",
     )
-    # Genau's engine on its own thread: file I/O every turn, at the desktop
-    # window's rate rather than the pump's.
-    genau_thread = start_daemon_thread(
-        target=run_ticks, args=(genau.role, stop), name="genau-tick",
+    main_thread = start_daemon_thread(
+        target=_pump_channels, args=([main_unit], stop, perf), kwargs={"hz": MAIN_TICK_HZ},
+        name="main-funestra",
     )
     logger.info(
-        "Entering the VR loop (four players up, compositor layers %s)",
+        "Entering the VR loop (three Funestras up, compositor layers %s)",
         "on" if use_layers else "off",
     )
 
@@ -2202,7 +1950,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                 unit.render_latest_frame()
             # The only place that sees the room fill in, and whether anyone
             # had the headset on while it did.
-            room_is_up = _scene_is_up(main_unit, genau, satellites, panel)
+            room_is_up = _scene_is_up(main_unit, satellites, panel)
             cover.anchor_settled = cover_seen.dwelt and session.views_tracked
             cover.awaiting_wearer = room_is_up and not session.focused  # set before he looks
             scene_ready.note(room_is_up and cover_seen.dwelt)
@@ -2226,7 +1974,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                 if session.focused:
                     for unit in (main_unit, *satellites):
                         unit.route_audio()
-                if main_unit.role.recenter.take():
+                if main_unit.verbs.recenter.take():
                     scene_yaw = yaw_of_orientation((
                         views[0].pose.orientation.x, views[0].pose.orientation.y,
                         views[0].pose.orientation.z, views[0].pose.orientation.w,
@@ -2234,13 +1982,13 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                     logger.info(
                         "Recentered the scene onto heading %.0f°", math.degrees(scene_yaw)
                     )
-                reset = main_unit.role.layout_reset.take()
+                reset = main_unit.verbs.layout_reset.take()
                 if reset:
                     pointer.let_go()
                     logger.info(
                         "Put the players and the dashboard back in their default spots and sizes")
                 session.sync_controller(display_time)
-                scene_rotation = _scene_rotation(scene_yaw, main_unit.role.tilt_deg)
+                scene_rotation = _scene_rotation(scene_yaw, main_unit.verbs.tilt_deg)
                 hangings = room.what_hangs(units)
                 screens = room.arranged(stacking, hangings)
                 head = head_position([
@@ -2256,13 +2004,13 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                     _hands_for_the_players(library, session.hands, elapsed_s=frame_dt),
                     pointer, elapsed_s=frame_dt, dialing=dialing)
                 posts.post(thumb.commands)
-                zoom = main_unit.role.angle_asked.take()
+                zoom = main_unit.verbs.angle_asked.take()
                 if dialing:
                     main_unit.dial_the_wrap(zoom=zoom, stretch=thumb.stretch)
                 main_unit.flash_the_readout(now)
                 scene_yaw, lift_deg = carried_heading(scene_yaw, frame.carried)
-                main_unit.role.nudge_tilt(lift_deg)
-                scene_pitch_deg = main_unit.role.tilt_deg
+                main_unit.verbs.nudge_tilt(lift_deg)
+                scene_pitch_deg = main_unit.verbs.tilt_deg
                 scene_rotation = _scene_rotation(scene_yaw, scene_pitch_deg)
                 players = {name: frame.moved.get(name, where[name].placement)
                            for name in PLAYERS}
@@ -2288,7 +2036,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                     # taken -- and a picture wrapping the view is never taken.
                     for index, unit in enumerate([main_unit, *satellites]):
                         if unit is main_unit and (
-                                main_unit.wraps_the_viewer or genau.role.showing):
+                                main_unit.wraps_the_viewer or not main_unit.owns_the_slot):
                             continue
                         quad = _update_quad_layer(
                             session, renderer, index, unit,
@@ -2324,10 +2072,10 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
         stop.set()
         # Only to settle the file channels — player_core.mpv_gate makes the closes safe.
         pump_thread.join(timeout=2.0)
-        genau_thread.join(timeout=2.0)
+        main_thread.join(timeout=2.0)
         held = headset_hold_asked(state_dir)
         stop_runtime = held and headset_hold_stops_the_runtime(state_dir)  # while it is there
-        _close_channels(pumped, keep=cover if held else None)
+        _close_channels(closing, keep=cover if held else None)
         if held:
             _hold_the_headset(session, renderer, cover, state_dir)
             cover.close()

@@ -57,7 +57,7 @@ class TestOpeningAVideo:
     def test_it_starts_idle_with_no_range_on_the_player(self):
         loops, player, _seeks, _takeovers, _marks = _loops()
 
-        assert (loops.idle, loops.state) == (True, LoopState.NORMAL)
+        assert loops.state is LoopState.NORMAL
         assert player.ab_loop is None
 
     def test_it_clears_a_range_the_last_video_left_running(self):
@@ -67,7 +67,7 @@ class TestOpeningAVideo:
         loops.open(None)
 
         assert player.ab_loop is None
-        assert loops.idle
+        assert loops.state is LoopState.NORMAL
 
     def test_it_drops_a_mark_the_last_video_left_open(self):
         loops, _player, _seeks, _takeovers, marks = _loops()
@@ -115,17 +115,17 @@ class TestTheRecordGesture:
 
         loops.record_up(3500)
 
-        assert (loops.idle, player.ab_loop, seeks, marks) == (True, None, [], [])
+        assert (loops.state, player.ab_loop, seeks, marks) == (LoopState.NORMAL, None, [], [])
 
-    def test_the_in_point_shows_only_while_the_mark_is_open(self):
-        loops, _player, _seeks, _takeovers, _marks = _loops()
-        assert loops.marked_in_ms is None
+    def test_the_in_point_is_kept_only_while_the_mark_is_open(self):
+        loops, _player, _seeks, _takeovers, marks = _loops()
+        assert marks == []
 
         loops.record_down(2500)
-        assert loops.marked_in_ms == 2500
+        assert marks == [2500]
 
         loops.record_up(3500)
-        assert loops.marked_in_ms is None, "looping now, not marking"
+        assert marks == [2500, None], "looping now, not marking"
 
     def test_the_player_is_told_where_the_mark_starts_and_when_it_closes(self):
         """A Playback floors its seeks at the mark, so it hears of the mark the
@@ -144,7 +144,7 @@ class TestTheOneButtonGesture:
 
         loops.record_tap(2500)
 
-        assert (loops.marking, loops.marked_in_ms, marks) == (True, 2500, [2500])
+        assert (loops.marking, marks) == (True, [2500])
 
     def test_the_second_closes_the_loop_and_starts_it(self):
         loops, player, seeks, _takeovers, _marks = _loops()
@@ -162,7 +162,7 @@ class TestTheOneButtonGesture:
 
         loops.record_tap(3000)
 
-        assert (loops.idle, player.ab_loop, takeovers) == (True, None, [1])
+        assert (loops.state, player.ab_loop, takeovers) == (LoopState.NORMAL, None, [1])
 
 
 class TestTheBoundsItPublishes:
@@ -197,7 +197,7 @@ class TestPuttingALoopBack:
         loops.restore(0, 0)
         loops.restore(4000, 2000)
 
-        assert (loops.idle, player.ab_loop, seeks) == (True, None, [])
+        assert (loops.state, player.ab_loop, seeks) == (LoopState.NORMAL, None, [])
 
 
 class TestLeavingALoop:
@@ -208,7 +208,7 @@ class TestLeavingALoop:
 
         loops.cancel()
 
-        assert (loops.idle, player.ab_loop, takeovers) == (True, None, [1])
+        assert (loops.state, player.ab_loop, takeovers) == (LoopState.NORMAL, None, [1])
 
     def test_cancelling_an_open_mark_drops_it_and_takes_nothing_back(self):
         loops, player, _seeks, takeovers, marks = _loops()
@@ -216,7 +216,7 @@ class TestLeavingALoop:
 
         loops.cancel()
 
-        assert (loops.idle, player.ab_loop, takeovers, marks) == (True, None, [], [2500, None])
+        assert (loops.state, player.ab_loop, takeovers, marks) == (LoopState.NORMAL, None, [], [2500, None])
 
     def test_pressing_record_again_leaves_it_the_same_way(self):
         loops, player, _seeks, takeovers, _marks = _loops()
@@ -225,7 +225,7 @@ class TestLeavingALoop:
 
         loops.record_down(2500)
 
-        assert (loops.idle, player.ab_loop, takeovers) == (True, None, [1])
+        assert (loops.state, player.ab_loop, takeovers) == (LoopState.NORMAL, None, [1])
 
     def test_cancelling_when_nothing_is_running_asks_for_nothing(self):
         loops, player, _seeks, takeovers, _marks = _loops()
@@ -233,7 +233,7 @@ class TestLeavingALoop:
 
         loops.cancel()
 
-        assert (loops.idle, takeovers) == (True, [])
+        assert (loops.state, takeovers) == (LoopState.NORMAL, [])
         assert player.clears == clears_before, "no range to clear"
 
 

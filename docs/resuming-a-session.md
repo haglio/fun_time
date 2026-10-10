@@ -170,8 +170,8 @@ than only the one a session ended on. `main_player.play_points` is the whole of
 it — a JSON file in the state dir keyed by video path, read when a player opens
 a file and written as it plays. Every player that shows a video takes it: the
 main player (`main_player.kino.Kino`, on the Main Funestra), both satellites
-(`satellite.session.SatelliteSession`), and their headset twins
-(`fun_time_vr.roles.MainRole` and the same satellite session again).
+(player_core's Funestra, on the satellite program's window), and the headset's
+three, which are the same Funestras again.
 
 Each player keeps its own file — `<who>_play_points.json`. One file between them
 would have each player's whole-file write erasing what the others had added

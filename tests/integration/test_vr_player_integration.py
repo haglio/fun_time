@@ -137,14 +137,14 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     renderer = SceneRenderer()
     contexts = SharedContexts(window)
     remembered = read_layout(config.paths.state_dir / LAYOUT_FILENAME)
-    main = vrp._MainUnit(manifest, vr, contexts, remembered=remembered)
+    stop = threading.Event()
+    main = vrp._MainUnit(manifest, vr, contexts, remembered=remembered, stop=stop)
     satellites = [
         vrp._SatelliteUnit(side, manifest, contexts, vr=vr,
                            remembered=remembered.placements)
         for side in (PORTRAIT, LANDSCAPE)
     ]
     units = [main, *satellites]
-    stop = threading.Event()
     perf = vrp.FramePerf(logger=vrp.logger)
     pump_failure: list[BaseException] = []
 
@@ -333,9 +333,9 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         # either an immersive wrap this renderer has a shader for, or flat.
         from fun_time_vr.projection import PROJECTIONS  # noqa: PLC0415
 
-        assert main.role.projection in PROJECTIONS
-        assert main.role.projection == "flat" or (
-            immersive_wrap(main.role.projection) is not None
+        assert main.verbs.projection in PROJECTIONS
+        assert main.verbs.projection == "flat" or (
+            immersive_wrap(main.verbs.projection) is not None
         )
 
         # Teardown, deliberately in the hostile order: the players close while
@@ -399,8 +399,8 @@ def test_the_main_player_plays_once_kino_mode_unpauses_it():
     window = hidden_gl_window("vr-play-test")
     glfw.make_context_current(window)
 
-    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered=Layout())
     stop = threading.Event()
+    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered=Layout(), stop=stop)
     pump = threading.Thread(
         target=vrp._pump_channels, args=([main], stop, vrp.FramePerf(logger=vrp.logger)),
         daemon=True, name="file-channels",
@@ -470,8 +470,8 @@ def test_the_main_player_marks_and_runs_an_ab_loop_in_the_headset():
     window = hidden_gl_window("vr-loop-test")
     glfw.make_context_current(window)
 
-    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered=Layout())
     stop = threading.Event()
+    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered=Layout(), stop=stop)
     pump = threading.Thread(
         target=vrp._pump_channels, args=([main], stop, vrp.FramePerf(logger=vrp.logger)),
         daemon=True, name="file-channels",

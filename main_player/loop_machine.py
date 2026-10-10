@@ -7,11 +7,10 @@ rather than by seeking, drops the playhead on its start, clears the range again
 when the loop is left, and reads the clock each tick to catch the one thing a
 gesture cannot say -- a mark that ran to the end of the file.
 
-Both main players own one: Kino on the Main Funestra, whose Playback is the
-player here, and :class:`fun_time_vr.roles.MainRole` in the headset, which is
-why it lives here rather than inside either of them.  *mark* is told where a
-stretch starts to be marked out, and None when the mark closes or drops, so a
-player that keeps the mark (a Playback floors its seeks at it) hears of it.
+Kino owns one, on the Main Funestra of the desktop and of the headset alike,
+whose Playback is the player here.  *mark* is told where a stretch starts to
+be marked out, and None when the mark closes or drops, so a player that keeps
+the mark (a Playback floors its seeks at it) hears of it.
 """
 from __future__ import annotations
 
@@ -61,10 +60,6 @@ class LoopMachine:
         return self._ctrl.state == LoopState.LOOPING
 
     @property
-    def idle(self) -> bool:
-        return self._ctrl.state == LoopState.NORMAL
-
-    @property
     def state(self) -> LoopState:
         return self._ctrl.state
 
@@ -73,17 +68,6 @@ class LoopMachine:
         if not self.running:
             return None
         return self._ctrl.in_ms, self._ctrl.out_ms
-
-    def repeating(self, *, locked: bool) -> tuple[int, int] | None:
-        if self.bounds is not None:
-            return self.bounds
-        return (0, round(self._player.duration_ms)) if locked else None
-
-    @property
-    def marked_in_ms(self) -> int | None:
-        if not self.marking:
-            return None
-        return self._ctrl.in_ms
 
     def observe(self, position_ms: float) -> bool:
         previous_ms, self._last_pos_ms = self._last_pos_ms, position_ms

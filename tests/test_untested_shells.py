@@ -15,15 +15,22 @@ import importlib
 import inspect
 from pathlib import Path
 
+from player_core.funestra import Funestra
 from player_core.render_player import MpvRenderPlayer
 
+from fun_time_vr.headset_player import HeadsetPlayer
+from fun_time_vr.headset_verbs import HeadsetVerbs
+from fun_time_vr.surfaces import LatestPicture, PanelBitmap
 from tests.test_coverage import NOT_UNIT_TESTED
 
 ROOT = Path(__file__).resolve().parent.parent
 
 HELD_BY_THE_SHELLS: dict[str, dict[str, type]] = {
     "fun_time_vr/video_thread.py": {"player": MpvRenderPlayer},
-    "fun_time_vr/player.py": {"player": MpvRenderPlayer},
+    "fun_time_vr/player.py": {
+        "player": HeadsetPlayer, "funestra": Funestra, "verbs": HeadsetVerbs,
+        "panel": PanelBitmap, "users_picture": LatestPicture,
+    },
 }
 
 CALLS_NOTHING_RUNS = ("main_player/app.py", "satellite/app.py",
