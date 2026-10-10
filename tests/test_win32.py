@@ -41,9 +41,11 @@ from fun_time.win32 import (
     windows_obscuring,
 )
 from fun_time.win32_process import (
+    command_line_of,
     get_process_creation_time,
     get_process_image_name,
     is_process_alive,
+    process_table,
 )
 from tests.sleeps import sleeps_in
 
@@ -447,6 +449,30 @@ class TestIsProcessAlive:
         proc.wait()
 
         assert is_process_alive(proc.pid) is False
+
+
+class TestCommandLineOf:
+    def test_a_running_process_says_what_it_was_started_with(self):
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(60)", "started-to-be-read"])
+        try:
+            assert "started-to-be-read" in command_line_of(child.pid)
+        finally:
+            child.kill()
+            child.wait()
+
+    def test_a_process_this_one_may_not_open_has_none(self):
+        with patch("fun_time.win32_process._kernel32") as mock:
+            mock.OpenProcess.return_value = None
+            assert command_line_of(4242) is None
+
+
+class TestProcessTable:
+    def test_this_process_is_listed_with_its_parent_and_its_image(self):
+        listed = {entry.pid: entry for entry in process_table()}
+
+        assert listed[os.getpid()].parent == os.getppid()
+        assert listed[os.getpid()].image.lower() in {"python.exe", "pythonw.exe"}
 
 
 class TestWindowsObscuring:

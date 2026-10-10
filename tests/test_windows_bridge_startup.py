@@ -66,6 +66,7 @@ from fun_time.windows_bridge_startup import (
     taskbar_identity_args,
 )
 from satellite.contract import SatelliteChannels, WindowPlacement
+from tests.made_up_machine import running
 
 
 def test_launch_broker_tray_uses_the_brokers_own_launch_kwargs(tmp_path: Path):
@@ -160,7 +161,7 @@ def test_ensure_broker_does_not_ask_about_the_process_when_it_cannot_read_the_co
 ):
     """No readable broker package means no answer, and no answer is not permission
     to kill.  It also fixes the order: the directory read comes first, so an
-    ordinary startup never spawns a PowerShell process to ask a question the
+    ordinary startup never sweeps the machine's processes to ask a question the
     cheap half has already settled."""
     with patch("fun_time.windows_bridge_startup.broker_process_started_at") as started, \
          patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=True), \
@@ -196,62 +197,57 @@ def test_ensure_broker_leaves_a_live_broker_alone(tmp_path: Path):
     launch.assert_not_called()
 
 
-def test_reap_orphaned_satellites_is_scoped_to_the_satellite_module():
-    """A crash or unclean close can strand the two satellite players; a second
-    session then has four players racing two command/status file sets.  The
-    startup reap clears them — scoped by command line to ``-m <satellite_module>``
-    so it can never reach the main player (``-m main_player``), the orchestrator, or a path that merely
-    contains the word — and it never throws."""
-    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
-    ):
-        reap_orphaned_satellites("satellite", ["C:/state/portrait_status.txt"])
-
-    run.assert_called_once()
-    argv = run.call_args.args[0]
-    assert argv[0] == "powershell.exe"
-    ps_command = argv[-1]
-    assert "-m\\s+satellite" in ps_command
-    assert "Get-CimInstance Win32_Process" in ps_command
-    assert "Stop-Process" in ps_command
-    assert run.call_args.kwargs.get("check") is False
+SATELLITES_ON_THE_MACHINE = [
+    (41, "FunTime-Portrait.exe",
+     r"FunTime-Portrait.exe -m satellite --status-file C:\state\portrait_status.txt", 0.0),
+    (42, "pythonw.exe",
+     r"pythonw.exe -m satellite --status-file C:\state\landscape_status.txt", 0.0),
+    (43, "FunTime-Portrait.exe",
+     r"FunTime-Portrait.exe -m satellite --status-file C:\live\portrait_status.txt", 0.0),
+    (44, "FunTime-MainPlayer.exe",
+     r"FunTime-MainPlayer.exe -m main_player --status-file C:\state\portrait_status.txt", 0.0),
+    (45, "pythonw.exe",
+     r"pythonw.exe -m satellite_tools --status-file C:\state\portrait_status.txt", 0.0),
+    (46, "Other-Portrait.exe",
+     r"Other-Portrait.exe -m satellite --status-file C:\state\portrait_status.txt", 0.0),
+]
 
 
-def test_reap_orphaned_satellites_only_reaches_players_holding_our_own_state_files():
-    """The reap must not be able to leave its own session.
-
-    Every satellite on the machine runs ``-m satellite``, so a module-only sweep
-    killed *every* satellite alive — including the two in the user's live session,
-    from an integration run whose state dir is somewhere else entirely.  That is
-    what took both of the user's players down mid-session, leaving no traceback
-    because nothing crashed: they were terminated.
-
-    Scoping to the status files this session is about to take over is exactly the
-    reason the reap exists ("a stranded pair keeps reading the same files"), and a
-    session that does not own those files cannot match."""
-    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
-    ):
+def _reaped_from_the_machine() -> list[int]:
+    with running("fun_time.windows_bridge_startup", SATELLITES_ON_THE_MACHINE) as ended:
         reap_orphaned_satellites(
             "satellite",
             [Path(r"C:\state\portrait_status.txt"), Path(r"C:\state\landscape_status.txt")],
         )
+    return ended
 
-    ps_command = run.call_args.args[0][-1]
-    assert r"C:\state\portrait_status.txt" in ps_command
-    assert r"C:\state\landscape_status.txt" in ps_command
-    # The command line has to actually be tested against them, not merely mention
-    # them — a bare `-m satellite` match is the machine-wide sweep again.
-    assert "CommandLine.Contains" in ps_command
+
+def test_reap_orphaned_satellites_ends_the_players_stranded_on_this_sessions_files():
+    """A crash or unclean close can strand the two satellite players; a second
+    session then has four players racing two command/status file sets."""
+    assert {41, 42} <= set(_reaped_from_the_machine())
+
+
+def test_reap_orphaned_satellites_leaves_another_sessions_satellites_alone():
+    """Every satellite on the machine runs ``-m satellite``, so a module-only sweep
+    killed *every* satellite alive — including the two in the user's live session,
+    from an integration run whose state dir is somewhere else entirely."""
+    assert 43 not in _reaped_from_the_machine()
+
+
+def test_reap_orphaned_satellites_reaches_only_the_satellite_module():
+    """Never the main player (``-m main_player``), nor a module whose name merely
+    starts with the satellite's."""
+    assert not {44, 45} & set(_reaped_from_the_machine())
 
 
 def test_reap_orphaned_satellites_does_nothing_without_state_files_to_claim():
     """No files to take over means no satellite can be stranded on them, so there
     is nothing to reap — and certainly no licence to sweep the machine."""
-    with patch("fun_time.windows_bridge_startup.subprocess.run") as run:
+    with running("fun_time.windows_bridge_startup", SATELLITES_ON_THE_MACHINE) as ended:
         reap_orphaned_satellites("satellite", [])
 
-    run.assert_not_called()
+    assert ended == []
 
 
 def _rfb_config(cfg_factory, tmp_path: Path, *, lazy_load: bool) -> Path:
@@ -2093,20 +2089,11 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
 
         assert self._launched_exe(popen) == "FunTime-Origenerator.exe"
 
-    def test_the_satellite_reap_can_still_find_a_player_under_its_new_name(self, tmp_path: Path):
+    def test_the_satellite_reap_can_still_find_a_player_under_its_new_name(self):
         """The reap that clears stranded players bounds itself by image name.
         Renaming the players without widening it would leave every one of them
         beyond the reach of the sweep written to collect them."""
-        with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
-            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
-        ):
-            reap_orphaned_satellites("satellite", [tmp_path / "portrait_status.txt"])
-
-        ps_command = run.call_args[0][0][-1]
-        # app_support's namer spells the prefix the way this repo's own sweep
-        # always did (item 49), so the sweep carries a bare FunTime-.
-        assert "FunTime-" in ps_command
-        assert "pythonw?" in ps_command
+        assert 41 in _reaped_from_the_machine()
 
 
 def _handed_players() -> dict[str, HandedPlayer]:

@@ -120,7 +120,7 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone(tmp_path):
     module alone swept the whole machine: an integration run coming up killed both
     players in the user's live session, with no traceback anywhere because nothing
     had crashed — they were terminated.  Only a real process can prove the
-    PowerShell filter actually holds, so this launches one and fires both halves of
+    reap's filter actually holds, so this launches one and fires both halves of
     the contract at it: a stranger's reap must spare it, its own must still take it.
     """
     cfg = load_config(real_config_path())
