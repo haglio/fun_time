@@ -432,6 +432,14 @@ class TestShuttingDownCannotWaitForever:
         assert 0 < asked["timeout"] < 60
 
 
+def test_how_each_quit_command_ended_is_logged(caplog):
+    ended = subprocess.CompletedProcess(["launcher.exe", "PiPlayService", "quit"], 7)
+    with patch("fun_time_vr.vr_runtime.subprocess.run", return_value=ended), \
+            caplog.at_level("INFO", logger=vr_runtime.__name__):
+        _run_quietly(["launcher.exe", "PiPlayService", "quit"])
+    assert "launcher.exe PiPlayService quit ended with exit code 7" in caplog.text
+
+
 def test_stop_runtime_survives_a_quit_command_that_will_not_run(tmp_path):
     """It runs on the way out: a runtime that will not answer is not an error."""
     runtime_json, client = _pimax_tree(tmp_path, with_quit_tool=True)
