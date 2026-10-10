@@ -39,6 +39,7 @@ from .players import Player
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot
+from .satellites_mode import KINO_MODE
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import read_shared_state, shared_state_path
 from .shortcuts import resolve_shortcut
@@ -142,11 +143,11 @@ def _startup_role_hwnds(
     }
 
 
-def apply_topmost_bands(role_hwnds: dict[str, int], *, beneath: int = 0) -> None:
+def apply_topmost_bands(role_hwnds: dict[str, int], *, beneath: int = 0,
+                        satellites_mode: str = KINO_MODE) -> None:
     """Give each managed window its topmost flag from the shared ``role_topmost``
     policy — the same policy omnipause and mode switches honor, so they can
-    never disagree.  The satellite side always opens in kino mode, which is the
-    policy's own default; a later switch re-bands through ``role_windows``.
+    never disagree.
 
     Walked in ``MANAGED_ROLES`` order rather than the mapping's, because
     ``HWND_TOPMOST`` inserts at the *top* of the band.
@@ -157,7 +158,7 @@ def apply_topmost_bands(role_hwnds: dict[str, int], *, beneath: int = 0) -> None
     for role in MANAGED_ROLES:
         hwnd = role_hwnds.get(role, 0)
         if hwnd:
-            set_always_on_top(hwnd, role_topmost(role), under=beneath)
+            set_always_on_top(hwnd, role_topmost(role, satellites_mode), under=beneath)
 
 
 def apply_startup_window_state(
@@ -168,6 +169,7 @@ def apply_startup_window_state(
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
     beneath: int = 0,
+    satellites_mode: str = KINO_MODE,
 ) -> dict[str, int]:
     """Set the full window state the session opens with: the bands.
 
@@ -182,7 +184,7 @@ def apply_startup_window_state(
         dashboard_hwnd=dashboard_hwnd,
         rfb_hwnd=rfb_hwnd,
     )
-    apply_topmost_bands(role_hwnds, beneath=beneath)
+    apply_topmost_bands(role_hwnds, beneath=beneath, satellites_mode=satellites_mode)
     return role_hwnds
 
 
