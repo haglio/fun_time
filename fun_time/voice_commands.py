@@ -185,7 +185,7 @@ def build_voice_commands(
         # half.  "main reset" contains this and puts back every other default too
         # (see the main-player grid below); this is the narrow gesture of the pair.
         "mixed": "main_player_length_mixed",
-        # Clip navigation (Larkin-style clips carved from compilations); "full
+        # Clip navigation (clips carved from compilations); "full
         # video" is the reliable phrase, "full vid" a fallback.
         "compilation": "main_player_compilation",
         # …and back out of one, without having to name a length: the main player returns to
