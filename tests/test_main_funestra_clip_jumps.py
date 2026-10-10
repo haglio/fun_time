@@ -267,7 +267,7 @@ class TestPlayCompilation:
         assert jumps.compilation == ""
 
     def test_leaving_forgets_it(self, tmp_path):
-        """Saying "shorts" or reloading rebuilds the playlist from elsewhere, so
+        """Saying "clips" or reloading rebuilds the playlist from elsewhere, so
         the compilation is no longer what is on screen."""
         nav, _first, second, _scene = _world(tmp_path)
         jumps, _session, _notices = _jumps(nav, second)
