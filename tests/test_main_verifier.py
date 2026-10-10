@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -419,6 +421,34 @@ def test_coverage_is_measured_one_integration_test_file_at_a_time_and_kept_for_b
         commit="c3",
         ran={"tests/integration/test_a.py": frozenset({"fun_time/x.py"}),
              "tests/integration/test_b.py": frozenset({"fun_time/y.py"})})
+
+
+def _tear_the_lines_saved_in(data_file: str) -> None:
+    with closing(sqlite3.connect(data_file)) as data:
+        page_size, = data.execute("pragma page_size").fetchone()
+        lines_page, = data.execute("select rootpage from sqlite_master where name = 'line_bits'").fetchone()
+    with open(data_file, "r+b") as raw:
+        raw.seek((lines_page - 1) * page_size)
+        raw.write(b"\xff" * page_size)
+
+
+def test_a_process_ended_part_way_through_saving_costs_the_map_only_what_that_process_ran(tmp_path, caplog):
+    checkout, measuring = tmp_path / "verifying-main", tmp_path / "measuring"
+    measuring.mkdir()
+    torn = None
+    for ran in ("x.py", "y.py"):
+        data = coverage.CoverageData(basename=str(measuring / ".coverage"), suffix=True)
+        data.add_lines({str(checkout / "fun_time" / ran): [1]})
+        data.write()
+        torn = Path(data.data_filename())
+    _tear_the_lines_saved_in(str(torn))
+
+    with caplog.at_level("WARNING", logger="main_verifier"):
+        ran = main_verifier._measured_sources(measuring / ".coverage", checkout,
+                                              frozenset({"fun_time/x.py", "fun_time/y.py"}))
+
+    assert ran == {"fun_time/x.py"}
+    assert torn.name in caplog.text
 
 
 def test_a_head_that_passes_is_measured_for_coverage_once_the_map_is_out_of_date(tmp_path):

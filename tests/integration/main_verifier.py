@@ -113,12 +113,21 @@ def _run_suite(command: Sequence[str], cwd: Path, log: Path, environment: Mappin
 
 
 def _measured_sources(data_file: Path, checkout: Path, sources: frozenset[str]) -> frozenset[str]:
-    combined = coverage.Coverage(data_file=str(data_file), config_file=False)
-    combined.combine(data_paths=[str(data_file.parent)])
-    data = combined.get_data()
     by_path = {os.path.normcase(str(checkout / source)): source for source in sources}
-    return frozenset(by_path[os.path.normcase(measured)] for measured in data.measured_files()
-                     if data.lines(measured) and os.path.normcase(measured) in by_path)
+    ran: set[str] = set()
+    for one_process in data_file.parent.glob(f"{data_file.name}.*"):
+        try:
+            ran |= _what_one_process_ran(one_process, by_path)
+        except coverage.CoverageException as torn:
+            _log.warning("left %s out of the coverage map: %s", one_process.name, torn)
+    return frozenset(ran)
+
+
+def _what_one_process_ran(saved: Path, by_path: Mapping[str, str]) -> set[str]:
+    data = coverage.CoverageData(str(saved))
+    data.read()
+    return {by_path[key] for measured in data.measured_files()
+            if (key := os.path.normcase(measured)) in by_path and data.lines(measured)}
 
 
 def _version(text: str) -> tuple[int, ...]:
