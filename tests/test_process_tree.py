@@ -37,6 +37,7 @@ class FakeWindows:
         self.when_ended: dict[int, callable] = {}
         self.open_handles: set[int] = set()
         self.asked_for: list[int] = []
+        self.slow_to_end: set[int] = set()
 
     def start(self, pid: int, *, parent: int, created: int) -> None:
         self.running[pid] = _Process(parent, created)
@@ -55,11 +56,13 @@ class FakeWindows:
         return self.running[handle].created
 
     def terminate(self, handle: int) -> None:
+        if handle in self.slow_to_end:
+            return
         if self.running.pop(handle, None) is not None:
             self.when_ended.pop(handle, lambda: None)()
 
-    def wait(self, handle: int, timeout_s: float) -> None:
-        pass
+    def wait(self, handle: int, timeout_s: float) -> bool:
+        return handle not in self.running
 
     def close(self, handle: int) -> None:
         self.open_handles.discard(handle)
@@ -93,6 +96,21 @@ def test_every_handle_it_opens_is_closed():
     kill_process_tree(10, windows=windows)
 
     assert windows.open_handles == set()
+
+
+def test_it_names_what_was_still_running_when_it_stopped_waiting():
+    """A part slow to end is what held his quit up for half a minute, and
+    nothing said which part it was."""
+    windows = FakeWindows({10: (1, 100), 11: (10, 101), 12: (10, 102)})
+    windows.slow_to_end.add(11)
+
+    assert kill_process_tree(10, windows=windows) == [11]
+
+
+def test_a_tree_that_ended_in_time_leaves_nothing_named():
+    windows = FakeWindows({10: (1, 100), 11: (10, 101)})
+
+    assert kill_process_tree(10, windows=windows) == []
 
 
 def test_the_zero_pid_of_a_child_that_was_never_launched_is_left_alone():

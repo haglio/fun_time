@@ -14,6 +14,7 @@ _kernel32 = load_dll("kernel32")
 _PROCESS_TERMINATE = 0x0001
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 _SYNCHRONIZE = 0x00100000
+_WAIT_OBJECT_0 = 0
 
 _kernel32.OpenProcess.argtypes = [
     ctypes.wintypes.DWORD, ctypes.wintypes.BOOL, ctypes.wintypes.DWORD]
@@ -42,8 +43,8 @@ class _Windows:
         _kernel32.TerminateProcess(handle, 1)
 
     @staticmethod
-    def wait(handle: int, timeout_s: float) -> None:
-        _kernel32.WaitForSingleObject(handle, int(timeout_s * 1000))
+    def wait(handle: int, timeout_s: float) -> bool:
+        return _kernel32.WaitForSingleObject(handle, int(timeout_s * 1000)) == _WAIT_OBJECT_0
 
     @staticmethod
     def close(handle: int) -> None:
@@ -55,8 +56,8 @@ class _Held(NamedTuple):
     created: int
 
 
-def kill_process_tree(pid: int, *, windows=_Windows) -> None:
-    """Kill *pid* and its descendants, and whatever they start while they go.
+def kill_process_tree(pid: int, *, windows=_Windows) -> list[int]:
+    """Kill *pid* and all it starts, even while it goes; the pids that outlived the wait.
 
     Unconditional.  A bare PID is evidence of nothing — Windows hands freed PIDs
     straight back out — so the caller must first establish that *pid* is theirs
@@ -65,24 +66,26 @@ def kill_process_tree(pid: int, *, windows=_Windows) -> None:
     desktop.
     """
     if not pid:
-        return
+        return []
     held: dict[int, _Held] = {}
     passed_over: set[int] = set()
     ended: set[int] = set()
+    still_running: list[int] = []
     try:
         if not _hold(windows, held, pid, born_after=0):
-            return
+            return []
         while True:
             while _hold_their_children(windows, held, passed_over):
                 pass
             going = [each for each in held if each not in ended]
             if not going:
-                return
+                return still_running
             for each in going:
                 windows.terminate(held[each].handle)
             deadline = time.monotonic() + ENDING_BUDGET_S
-            for each in going:
-                windows.wait(held[each].handle, max(0.0, deadline - time.monotonic()))
+            still_running += [
+                each for each in going
+                if not windows.wait(held[each].handle, max(0.0, deadline - time.monotonic()))]
             ended.update(going)
     finally:
         for each in held.values():

@@ -227,7 +227,14 @@ def kill_recorded_child(child: ChildProcess) -> None:
             child.pid, created_at, child.created_at,
         )
         return
-    kill_process_tree(child.pid)
+    told_at = time.monotonic()
+    still_running = kill_process_tree(child.pid)
+    took_s = time.monotonic() - told_at
+    if still_running:
+        logger.warning("Gave up waiting for PID %d to end after %.1fs; still running: %s",
+                       child.pid, took_s, ", ".join(map(str, still_running)))
+    else:
+        logger.info("Ended PID %d in %.1fs", child.pid, took_s)
 
 
 def _close_origenerator_gracefully(child: ChildProcess | None) -> None:
@@ -1239,9 +1246,10 @@ def run_session(
         )
 
     logger.info(
-        "Startup complete: main_player=%d portrait=%d landscape=%d dashboard=%d audio=%d",
+        "Startup complete: main_player=%d portrait=%d landscape=%d dashboard=%d audio=%d "
+        "origenerator=%d",
         result.main_player_pid, result.portrait_pid, result.landscape_pid,
-        result.dashboard_pid, result.audio_pid,
+        result.dashboard_pid, result.audio_pid, result.origenerator_pid,
     )
 
     try:
