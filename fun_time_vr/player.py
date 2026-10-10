@@ -105,6 +105,8 @@ from .genau_in_the_headset import GenauInTheHeadset
 from .headset_player import HeadsetPlayer
 from .headset_verbs import HeadsetVerbs
 from .headset_wear import HeadsetWear
+from .hud_buttons import HudButtons, hud_button_names
+from .hud_toggle import PANEL_GAP_DEG
 from .layout import (
     BANNER,
     DASH,
@@ -176,7 +178,7 @@ from .reference_panel import (
 )
 from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, Wrap, immersive_wrap
 from .room import Hanging, Hangs
-from .satellite_hud import HUD, HUD_GAP_DEG, hud_screen_name, screen_kind
+from .satellite_hud import HUD, hud_screen_name, screen_kind
 from .scene import (
     MAIN_WIDTH_DEG,
     Placement,
@@ -776,7 +778,9 @@ class _SatelliteUnit(_VideoUnit):
         self.hud_screen = _HangingScreen(self.screen.placement)
         self._hud_version = -1
         self._hud_shown = False
-        self._presses = _Presses(player, hud_screen_name(player))
+        self._buttons = HudButtons(player, player, post=self._post, texture=FrameTexture,
+                                   mesh=lambda: _HangingScreen(self.screen.placement))
+        self._presses = _Presses(player, hud_screen_name(player), *hud_button_names(player))
 
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
@@ -787,9 +791,10 @@ class _SatelliteUnit(_VideoUnit):
         picture = Hanging(
             _picture_screen(self.screen_name, self.screen.placement, self.target.aspect),
             mesh=self.screen, picture=self.target)
+        beside = self._buttons.hangings()
         if not self.hud_ready:
-            return (picture,)
-        return (picture, Hanging(
+            return (picture, *beside)
+        return (picture, *beside, Hanging(
             Screen(hud_screen_name(self.screen_name), self.hud_screen.placement,
                    self.hud_texture.aspect, pressable=True),
             mesh=self.hud_screen, picture=self.hud_texture, blend=True,
@@ -810,11 +815,17 @@ class _SatelliteUnit(_VideoUnit):
             self._hud_shown = rgba is not None
             if rgba is not None:
                 self.hud_texture.upload(rgba)
+        minimized = self.funestra.panel_minimized
+        if self.target.ready and (self._hud_shown or minimized):
+            self._buttons.hang(self.shown, self.target.aspect, edge=self.funestra.panel_edge,
+                               minimized=minimized)
+        else:
+            self._buttons.unhang()
         if self._hud_shown and self.target.ready:
             self.hud_screen.placement = attached_to(
                 self.funestra.panel_edge, self.shown, aspect=self.target.aspect,
                 width_deg=self.hud_texture.width * DEG_PER_PX,
-                hanging_aspect=self.hud_texture.aspect, gap_deg=HUD_GAP_DEG,
+                hanging_aspect=self.hud_texture.aspect, gap_deg=PANEL_GAP_DEG,
             )
             self.hud_screen.rehang(self.hud_texture.aspect)
 
@@ -826,17 +837,22 @@ class _SatelliteUnit(_VideoUnit):
 
     def _take_presses(self) -> None:
         for event in self._presses.drain():
+            if self._buttons.take(event):
+                continue
             if screen_kind(event.screen) == HUD:
                 self._press_on_the_panel(event)
             elif event.kind == PRESS:
                 self._post(OMNIPAUSE_TOGGLE)
-        self._hover_over_the_panel(self._presses.hover, hud_screen_name(self.screen_name))
+        hovered = self._presses.hover
+        self._buttons.point(None if hovered is None else hovered[0])
+        self._hover_over_the_panel(hovered, hud_screen_name(self.screen_name))
 
     def close(self) -> None:
         self.video.close()  # frees mpv on the thread whose context it renders in
         self.funestra.close()
         self.hud_texture.close()
         self.hud_screen.close()
+        self._buttons.close()
         self._close_graphics()
 
 
@@ -888,15 +904,20 @@ class _PanelUnit:
         self._main_unit = main_unit
         self._dash = dash
         self._version = -1
+        self._shown = False
         self.texture = FrameTexture()
         self.screen = _HangingScreen(main_unit.screen.placement)
+        self._buttons = HudButtons(MAIN, MAIN, post=main_unit._post, texture=FrameTexture,
+                                   mesh=lambda: _HangingScreen(main_unit.screen.placement))
+        self._presses = _Presses(*hud_button_names(MAIN))
 
     def hangings(self) -> tuple[Hanging, ...]:
-        if not self.texture.ready:
-            return ()
-        return (Hanging(
+        beside = self._buttons.hangings()
+        if not (self._shown and self.texture.ready):
+            return beside
+        return (*beside, Hanging(
             Screen(PANEL, self.screen.placement, self.texture.aspect, pressable=True),
-            mesh=self.screen, picture=self.texture, blend=True, docked_to=MAIN),)
+            mesh=self.screen, picture=self.texture, blend=True, docked_to=MAIN))
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {}  # it hangs from whatever is above it, and is never dragged
@@ -905,35 +926,45 @@ class _PanelUnit:
         pass  # it follows whatever it is docked under, back to that screen's own spot
 
     def point(self, frame: Frame) -> None:
-        pass  # a squeeze on it is the Main Funestra's, which draws it
+        self._presses.point(frame)  # a squeeze on the console itself is the Main Funestra's
 
     def pump(self, stop: threading.Event, now: float) -> None:
-        pass  # painted by the Main Funestra on its own worker
+        for event in self._presses.drain():
+            self._buttons.take(event)
+        hovered = self._presses.hover
+        self._buttons.point(None if hovered is None else hovered[0])
 
     def render_latest_frame(self) -> None:
         rgba, version = self._main_unit.panel.take()
         if version != self._version:
             self._version = version
+            self._shown = rgba is not None
             if rgba is not None:
                 self.texture.upload(rgba)
-        if not self.texture.ready:
-            return
         wrapped = self._main_unit.wraps_the_viewer
         slot_aspect = self._main_unit.picture_in_the_slot.aspect
-        under, aspect, gap = (
-            (self._dash.screen.placement, self._dash.texture.aspect, 0.0) if wrapped else
-            (shown_at(MAIN, self._main_unit.screen.placement, slot_aspect), slot_aspect,
-             HUD_GAP_DEG))
+        under, aspect = (
+            (self._dash.screen.placement, self._dash.texture.aspect) if wrapped else
+            (shown_at(MAIN, self._main_unit.screen.placement, slot_aspect), slot_aspect))
+        edge = panel_hangs_from(self._main_unit.funestra.panel_edge, wrapped=wrapped)
+        minimized = self._main_unit.funestra.panel_minimized
+        if self._shown or minimized:
+            self._buttons.hang(under, aspect, edge=edge, minimized=minimized,
+                               with_sides=not wrapped)
+        else:
+            self._buttons.unhang()
+        if not (self._shown and self.texture.ready):
+            return
         self.screen.placement = attached_to(
-            panel_hangs_from(self._main_unit.funestra.panel_edge, wrapped=wrapped),
-            under, aspect=aspect, width_deg=self.texture.width * DEG_PER_PX,
-            hanging_aspect=self.texture.aspect, gap_deg=gap,
+            edge, under, aspect=aspect, width_deg=self.texture.width * DEG_PER_PX,
+            hanging_aspect=self.texture.aspect, gap_deg=PANEL_GAP_DEG,
         )
         self.screen.rehang(self.texture.aspect)
 
     def close(self) -> None:
         self.texture.close()
         self.screen.close()
+        self._buttons.close()
 
 
 class _DashUnit:
