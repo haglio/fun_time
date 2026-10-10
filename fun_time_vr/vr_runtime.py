@@ -21,6 +21,7 @@ from app_support.file_channel import write_whole
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.child_launch import no_child_log
+from fun_time.win32_process import process_running
 
 from . import windows_sound
 from .windows_sound import Defaults, SoundDevice
@@ -47,7 +48,6 @@ _QUIT_TOOL_NAME = "launcher.exe"
 _QUIT_SERVICES = ("PiPlatformService", "PiPlayService")  # the client's own order
 _DISPLAY_SERVER_NAME = "pi_server.exe"  # its exit is the headset going off
 QUIT_TIMEOUT_S = 15.0  # PiPlayService's quit waits on pi_server: ~3s in practice
-ASK_TIMEOUT_S = 10.0
 
 _UNKNOWN_FAILURE = "VR could not be started."
 
@@ -160,20 +160,6 @@ def runtime_launcher() -> Path | None:
     if runtime_json is None:
         return None
     return launcher_for_runtime(runtime_json)
-
-
-def process_running(image_name: str) -> bool:
-    try:
-        output = subprocess.check_output(
-            ["tasklist", "/FI", f"IMAGENAME eq {image_name}", "/NH", "/FO", "CSV"],
-            stderr=subprocess.DEVNULL,
-            text=True,
-            timeout=ASK_TIMEOUT_S,
-            **hidden_subprocess_kwargs(),
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return image_name.lower() in output.lower()
 
 
 def start_runtime(launcher: Path) -> None:

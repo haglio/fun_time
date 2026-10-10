@@ -844,34 +844,34 @@ class TestFindWindowForProcess:
             assert win32.find_window_for_process(500, "Origenerator") == 0
 
 
+def _answer_the_snapshot_with(mock, rows, *, handle=4321):
+    remaining = list(rows)
+
+    def fill(_snapshot, entry_ref):
+        if not remaining:
+            return 0
+        pid, parent, *image = remaining.pop(0)
+        entry_ref._obj.th32ProcessID = pid
+        entry_ref._obj.th32ParentProcessID = parent
+        entry_ref._obj.szExeFile = image[0] if image else ""
+        return 1
+
+    mock.CreateToolhelp32Snapshot.return_value = handle
+    mock.Process32FirstW.side_effect = fill
+    mock.Process32NextW.side_effect = fill
+
+
 class TestListChildPids:
     """The one hop from a recorded pid to the process that owns the windows."""
 
-    @staticmethod
-    def _snapshot(mock, rows, *, handle=4321):
-        """Answer the Toolhelp walk with *rows*, a list of (pid, parent_pid)."""
-        remaining = list(rows)
-
-        def fill(_snapshot, entry_ref):
-            if not remaining:
-                return 0
-            pid, parent = remaining.pop(0)
-            entry_ref._obj.th32ProcessID = pid
-            entry_ref._obj.th32ParentProcessID = parent
-            return 1
-
-        mock.CreateToolhelp32Snapshot.return_value = handle
-        mock.Process32FirstW.side_effect = fill
-        mock.Process32NextW.side_effect = fill
-
     def test_only_the_pids_whose_parent_is_the_one_asked_about(self):
         with patch("fun_time.win32_process._kernel32") as mock:
-            self._snapshot(mock, [(501, 500), (502, 999), (503, 500)])
+            _answer_the_snapshot_with(mock, [(501, 500), (502, 999), (503, 500)])
             assert win32_process.list_child_pids(500) == [501, 503]
 
     def test_the_snapshot_is_always_closed(self):
         with patch("fun_time.win32_process._kernel32") as mock:
-            self._snapshot(mock, [(501, 500)], handle=4321)
+            _answer_the_snapshot_with(mock, [(501, 500)], handle=4321)
             win32_process.list_child_pids(500)
             mock.CloseHandle.assert_called_once_with(4321)
 
@@ -897,6 +897,18 @@ class TestListChildPids:
             mock.Process32FirstW.return_value = 0
             assert win32_process.list_child_pids(500) == []
             mock.CloseHandle.assert_called_once_with(4321)
+
+
+class TestProcessRunning:
+    def test_a_program_is_running_when_a_process_wears_its_name_in_any_case(self):
+        with patch("fun_time.win32_process._kernel32") as mock:
+            _answer_the_snapshot_with(mock, [(501, 500, "Notepad.exe"), (502, 4, "pi_server.exe")])
+            assert win32_process.process_running("PI_SERVER.EXE") is True
+
+    def test_a_name_that_is_only_part_of_a_running_programs_name_is_not_running(self):
+        with patch("fun_time.win32_process._kernel32") as mock:
+            _answer_the_snapshot_with(mock, [(501, 500, "pi_server.exe")])
+            assert win32_process.process_running("server.exe") is False
 
 
 class TestIterZorder:

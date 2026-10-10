@@ -41,6 +41,7 @@ from fun_time.win32_process import (
     get_process_creation_time,
     get_process_image_name,
     is_process_alive,
+    process_running,
 )
 from fun_time.windows_bridge_orchestrator import ChildProcess, kill_recorded_child
 from tests.scratch import remove_scratch
@@ -548,13 +549,7 @@ class FunTimeIntegrationSession:
         # AHK launch races with zombie processes that a force-kill has
         # signalled but the OS hasn't fully reaped yet.
         deadline = time.time() + 5.0
-        while time.time() < deadline:
-            result = subprocess.run(
-                ["tasklist", "/FI", "IMAGENAME eq AutoHotkey64.exe", "/NH"],
-                capture_output=True, text=True, check=False,
-            )
-            if "AutoHotkey64.exe" not in result.stdout:
-                break
+        while time.time() < deadline and process_running("AutoHotkey64.exe"):
             time.sleep(0.3)
         self._wait_for_orchestrators_to_exit()
 
