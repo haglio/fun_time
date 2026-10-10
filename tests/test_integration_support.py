@@ -334,6 +334,20 @@ def test_a_satellite_on_its_way_out_is_waited_for_until_it_lets_go_of_its_log(tm
     assert not log.exists()
 
 
+def test_the_reap_waits_out_the_hotkey_script_without_starting_a_program(session, monkeypatch):
+    monkeypatch.setattr(integration_support, "_kill_leftover_app_processes", lambda: None)
+    monkeypatch.setattr(session, "_wait_for_orchestrators_to_exit", lambda: None)
+    monkeypatch.setattr(integration_support.time, "sleep", lambda _seconds: None)
+    hotkey_script_running = iter([True, False])
+    monkeypatch.setattr(integration_support, "process_running",
+                        lambda _image: next(hotkey_script_running))
+
+    with patch("subprocess.Popen", side_effect=AssertionError("started a program")):
+        FunTimeIntegrationSession._reap_leftover_runtime_processes(session)
+
+    assert next(hotkey_script_running, "asked again") == "asked again"
+
+
 def test_the_orchestrator_wait_only_ever_waits_on_integration_orchestrators(session):
     """Between a session's teardown and the next one's start, the harness waits
     for the *previous run's* orchestrator to finish its shutdown storm — that

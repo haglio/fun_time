@@ -217,10 +217,13 @@ def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
     assert nxt.key_columns == (("Right",), ("D",))
     lock = next(r for r in section.rows if "portrait_lock_on" in r.commands)
     assert lock.voice == ("lock", "unlock")
+    sayable_bare = {friendly_voice(phrase) for phrase in VOICE_COMMANDS}
     for row in section.rows:
         if row.description.startswith(("Filter by act", "Drop the filter")):
             continue  # the filter phrases scope themselves differently; see below
         for phrase in row.voice:
+            if _collapse_scopes(phrase) not in sayable_bare:
+                continue
             assert not {"portrait", "landscape", "both"} & set(phrase.split()), (
                 f"{phrase!r} still carries a scope word"
             )
@@ -268,6 +271,13 @@ def test_the_bare_phrases_read_as_the_say_column():
     for cmd, phrase in expected.items():
         assert cmd in by_command, f"{cmd} missing from the satellite grid"
         assert phrase in by_command[cmd].voice
+
+
+def test_the_f_mode_row_offers_favorites_only_with_a_side_named():
+    f_mode = next(r for r in _satellite_section().rows if "active_fmode" in r.commands)
+
+    assert {"portrait favorites", "landscape favorites"} <= set(f_mode.voice)
+    assert "favorites" not in f_mode.voice
 
 
 def test_the_satellite_grid_carries_a_players_own_playback_speed():

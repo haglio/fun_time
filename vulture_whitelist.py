@@ -41,6 +41,7 @@ to_argv  # satellite.contract; the session's satellite launcher
 tcode_udp_host  # fun_time_vr/orchestrator.py
 tcode_udp_port  # fun_time_vr/orchestrator.py
 compositor_layers  # fun_time_vr/orchestrator.py
+process_running  # win32_process; fun_time_vr's shutdown asks it whether the VR runtime is up
 
 # --- Read from outside vulture's scan ---
 settle  # MainListBuilds; test_vr_control_parity drains a dispatch before reading it

@@ -20,7 +20,7 @@ from player_core.hud_placement import HudCorner, HudEdge
 from player_core.modes import MainMode
 
 from fun_time import clipper_save
-from fun_time.bridge_records import BridgeConfig, WindowOp
+from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
 from fun_time.clipper_save import _clipper_project_dir
 from fun_time.command_dispatch import (
@@ -44,6 +44,7 @@ from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import resolve_active_player_command
+from tests.hosted_shows import publish_the_show
 
 
 def _publish_drive(config: BridgeConfig, *, amplitude: int) -> None:
@@ -674,7 +675,7 @@ def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path
      "main_scene_next", "vr_reset"],
 )
 @pytest.mark.parametrize("main_mode", ["kino", "genau"])
-def test_a_vr_only_verb_is_not_sent_in_a_desktop_session(command, main_mode, tmp_path: Path):
+def test_a_vr_only_verb_is_ignored_in_a_desktop_session(command, main_mode, tmp_path: Path):
     """the main player has no projection and no headset to face, in any mode.
 
     The channel is the main player's, and the desktop main player answers a
@@ -684,9 +685,10 @@ def test_a_vr_only_verb_is_not_sent_in_a_desktop_session(command, main_mode, tmp
     config = _make_config(tmp_path)
     state = _make_state(main_mode=main_mode)
 
-    dispatch_command(command, state, config)
+    _state, ops = dispatch_command(command, state, config)
 
     assert not config.main_player_cmd_file.exists()
+    assert ops == [WindowOp(op=Op.IGNORED, key="outside VR")]
 
 
 # --- main_player cycle-version / length-mode ---
@@ -1299,6 +1301,21 @@ def test_a_sided_fmode_flashes_on_that_players_own_display(tmp_path: Path):
     _state, ops, _mock = _dispatch_fmode("landscape_fmode", _make_state(), config)
 
     assert ops == [WindowOp(op="notice", key="F-Mode enabled", source="landscape",
+                            level=FAVORITE)]
+
+
+@pytest.mark.parametrize("player", Player.SATELLITES)
+def test_favorites_said_to_a_side_in_kino_mode_flips_its_f_mode_as_a_show_does(
+        tmp_path: Path, player: Player):
+    config = _make_config(tmp_path)
+
+    on, ops, mock_fmode = _dispatch_fmode(f"{player.label}_say_favorites", _make_state(), config)
+    off, _ops, _mock = _dispatch_fmode(f"{player.label}_say_favorites", on, config)
+
+    assert mock_fmode.call_args.kwargs["players"] == (player,)
+    assert (on.satellite(player).favorites_filter, off.satellite(player).favorites_filter) == (
+        True, False)
+    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source=player.label,
                             level=FAVORITE)]
 
 
@@ -2573,19 +2590,22 @@ def test_main_player_multiplier_sets_main_player_speed(tmp_path: Path):
 
 
 def test_main_player_speed_up_down_nudge_the_video_rate_where_main_player_is_on_screen(tmp_path: Path):
-    """The console's playback-rate arrows, and spoken "playback speed up".  They
-    tune the main player's video — never the motion — so they reach the main player in kino mode and
-    are a no-op in genau, where the main player is off screen and its clips have no such
-    rate."""
-    config = _make_config(tmp_path / "video")
+    config = _make_config(tmp_path)
     dispatch_command("main_player_speed_up", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.genau_cmd_file.exists()
 
-    config = _make_config(tmp_path / "genau")
-    dispatch_command("main_player_speed_down", _make_state(main_mode=MainMode.GENAU), config)
+
+@pytest.mark.parametrize("command", [
+    "main_player_speed_up", "main_player_speed_down", "main_player_speed_150"])
+def test_the_main_players_video_rate_is_ignored_in_genau_mode(tmp_path: Path, command: str):
+    config = _make_config(tmp_path)
+
+    _state, ops = dispatch_command(command, _make_state(main_mode=MainMode.GENAU), config)
+
     assert not config.main_player_cmd_file.exists()
     assert not config.genau_cmd_file.exists()
+    assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
 
 
 def test_naming_the_playback_reaches_the_video_while_genau_holds_the_osr2(tmp_path: Path):
@@ -2600,15 +2620,6 @@ def test_naming_the_playback_reaches_the_video_while_genau_holds_the_osr2(tmp_pa
 
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
     assert not config.genau_cmd_file.exists()
-
-
-def test_main_player_multiplier_is_a_noop_when_genau_drives(tmp_path: Path):
-    # An absolute multiplier is a main player-video concept; in genau mode the main player is hidden,
-    # so it is a no-op (the speaker uses Genau's own 0-100 grammar there).
-    config = _make_config(tmp_path)
-    dispatch_command("main_player_speed_150", _make_state(main_mode=MainMode.GENAU), config)
-    assert not config.genau_cmd_file.exists()
-    assert not config.main_player_cmd_file.exists()
 
 
 def test_absolute_speed_reaches_main_player_video_in_kino_mode_even_when_genau_drives(tmp_path: Path):
@@ -3038,7 +3049,7 @@ def test_marking_genaus_clip_weird_flashes_marked_weird_over_the_main_slot(tmp_p
     "genau_clip_seconds_up",
     "genau_clip_seconds_30",
 ])
-def test_every_genau_command_does_nothing_with_video_in_the_main_player(
+def test_every_genau_command_is_ignored_with_video_in_the_main_player(
         tmp_path: Path, command: str):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO, active_player=2)
@@ -3046,7 +3057,7 @@ def test_every_genau_command_does_nothing_with_video_in_the_main_player(
     new_state, ops = dispatch_command(command, state, config)
 
     assert not config.genau_cmd_file.exists()
-    assert (new_state, ops) == (state, [])
+    assert (new_state, ops) == (state, [WindowOp(op=Op.IGNORED, key="in Kino mode")])
 
 
 @pytest.mark.parametrize(("command", "verb"), [
@@ -3377,14 +3388,14 @@ def test_main_player_record_commands_work_in_kino_mode(tmp_path: Path):
     assert ops == []
 
 
-def test_main_player_record_commands_noop_in_genau_mode(tmp_path: Path):
+def test_main_player_record_commands_are_ignored_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
     new_state, ops = dispatch_command("main_player_record_tap", state, config)
 
     assert not config.main_player_cmd_file.exists()
-    assert ops == []
+    assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
 
 
 # --- unknown command ---
@@ -3412,31 +3423,26 @@ def test_unknown_command_warns_instead_of_dying_silently(tmp_path: Path, caplog)
     assert any("bogus_command" in record.message for record in caplog.records)
 
 
-def test_an_active_command_with_no_main_player_meaning_stays_a_quiet_no_op(tmp_path: Path, caplog):
-    """"weird" spoken while the main player is active resolves to nothing — the
-    loop hands the unresolved "active_trash" through, and that is a designed
-    dead end (the main player has no weird), not a missing handler."""
+def test_an_active_command_with_no_main_player_meaning_is_ignored_on_the_main_player(
+        tmp_path: Path, caplog):
     config = _make_config(tmp_path)
 
     with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
         new_state, ops = dispatch_command("active_trash", _make_state(), config)
 
-    assert ops == []
+    assert ops == [WindowOp(op=Op.IGNORED, key="on the main player")]
     assert new_state == _make_state()
     assert not any("active_trash" in record.message for record in caplog.records)
 
 
-def test_a_say_command_outside_origenerator_mode_does_nothing_quietly(tmp_path: Path, caplog):
-    """The hosted app's vocabulary is always in the recognizer's grammar, so its
-    phrases arrive in kino mode too; they reach nothing there, and that is a
-    known dead end rather than a missing handler."""
+def test_a_hosted_shows_words_in_kino_mode_say_kino_mode_ignored_them(tmp_path: Path, caplog):
     config = _make_config(tmp_path)
 
     with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
-        new_state, ops = dispatch_command("portrait_say_favorites", _make_state(), config)
+        new_state, ops = dispatch_command("portrait_say_experiments", _make_state(), config)
 
-    assert ops == []
-    assert not any("portrait_say_favorites" in record.message for record in caplog.records)
+    assert ops == [WindowOp(op=Op.IGNORED, key="in Kino mode")]
+    assert not any("portrait_say_experiments" in record.message for record in caplog.records)
 
 
 # --- clipper_save ---
@@ -3457,13 +3463,13 @@ def test_clipper_save_raises_a_save_clip_op_and_runs_nothing_inline(tmp_path: Pa
     assert ops == [WindowOp(op="save_clip")]
 
 
-def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
+def test_clipper_save_is_ignored_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
     new_state, ops = dispatch_command("clipper_save", state, config)
 
-    assert ops == []
+    assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
 
 
 # --- group loops and lock-action --------------------------------------------
@@ -4486,6 +4492,8 @@ def _origenerator_config(tmp_path: Path) -> BridgeConfig:
         origenerator_enabled=True,
         origenerator_cmd_file=config.state_dir / "origenerator_cmd.txt",
         origenerator_paused_file=config.state_dir / "origenerator_paused.txt",
+        portrait_origenerator_hud_file=config.state_dir / "origenerator_portrait_hud.json",
+        landscape_origenerator_hud_file=config.state_dir / "origenerator_landscape_hud.json",
     )
 
 
@@ -4650,10 +4658,10 @@ class TestOrigeneratorTransport:
         assert _cmds(config, 2) == ["SPEED_UP"]
         assert minimize_ops
 
-    def test_the_rooms_f_mode_leaves_the_hosted_sides_alone(self, tmp_path):
-        """The F key narrows every player the session drives; the hosted app's
-        two are not the session's to rebuild while it has them."""
+    def test_the_rooms_f_mode_turns_each_hosted_shows_own_f_mode_on(self, tmp_path):
         config = _origenerator_config(tmp_path)
+        for player in Player.SATELLITES:
+            publish_the_show(config, player, f_mode=False)
         state = _up(satellites_mode="origenerator")
 
         with patch("fun_time.command_dispatch.apply_fmode") as fmode:
@@ -4661,7 +4669,40 @@ class TestOrigeneratorTransport:
             state, _ = dispatch_command("fmode_toggle", state, config)
 
         assert fmode.call_args.kwargs["players"] == (Player.MAIN,)
+        assert _origenerator_cmds(config) == ["portrait_fmode_on", "landscape_fmode_on"]
         assert not state.satellite(Player.PORTRAIT).favorites_filter
+
+    def test_the_rooms_f_mode_lifts_the_hosted_shows_once_every_player_is_in_it(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        for player in Player.SATELLITES:
+            publish_the_show(config, player, f_mode=True)
+        state = _up(satellites_mode="origenerator", main_scripted_filter=True)
+
+        state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
+
+        assert mock_fmode.call_args.kwargs["players"] == (Player.MAIN,)
+        assert state.main_scripted_filter is False
+        assert _origenerator_cmds(config) == ["portrait_fmode_off", "landscape_fmode_off"]
+
+    def test_a_hosted_show_already_in_the_asked_for_f_mode_is_sent_nothing(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        publish_the_show(config, Player.PORTRAIT, f_mode=True)
+        publish_the_show(config, Player.LANDSCAPE, f_mode=False)
+
+        _dispatch_fmode("fmode_on", _up(satellites_mode="origenerator"), config)
+
+        assert _origenerator_cmds(config) == ["landscape_fmode_on"]
+
+    def test_a_side_with_no_show_up_has_no_say_in_the_rooms_f_mode(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        publish_the_show(config, Player.PORTRAIT, f_mode=True)
+        config.satellite(Player.LANDSCAPE).origenerator_hud_file.write_text("", encoding="utf-8")
+        state = _up(satellites_mode="origenerator", main_scripted_filter=True)
+
+        state, _ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
+
+        assert state.main_scripted_filter is False
+        assert _origenerator_cmds(config) == ["portrait_fmode_off"]
 
     def test_a_spoken_phrase_reaches_the_hosted_app_as_words(self, tmp_path):
         """The session owns the room's microphone — one mic, one transcription —

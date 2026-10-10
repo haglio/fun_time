@@ -288,7 +288,13 @@ def test_no_module_reaches_into_another_ones_privates():
 # their paragraphs.
 # 6525 on 2026-10-09: two docstrings in vr_runtime that only said their function's
 # name again went, more than paying for the line the sound devices' module added.
-MAX_PROSE_LINES = 6525
+# 6520 on 2026-10-10: the dead ends that answered nothing say which mode
+# ignored them, and the docstrings that called them quiet went with them.
+# 6517 then: the room's F-Mode reaches the hosted shows, and the note saying it
+# left them alone went with it.
+# 6512 then: whether a program is running is read off the process list instead
+# of asked of tasklist, and the paragraph counting the module's queries went.
+MAX_PROSE_LINES = 6512
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

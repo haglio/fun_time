@@ -57,6 +57,7 @@ def parse_command_line(line: str) -> CommandLine:
 
 
 GENAU_SAID: tuple[str, ...] = ("genau", "go now")
+FAVORITES_PHRASE = "favorites"
 
 # A hosted Origenerator's own vocabulary, said to one of its sides.
 #
@@ -73,13 +74,18 @@ ORIGENERATOR_PHRASES: tuple[str, ...] = (
     # that player's browse, "portrait trash" discards its clip), and in
     # origenerator mode those same two commands are routed to the hosted app
     # instead — one phrase, one meaning per mode, rather than two spellings.
-    "favorites", "experiments", "requests",
+    FAVORITES_PHRASE, "experiments", "requests",
     "enhanced only", "filter enhanced",
     # The show's own controls.
     "play slideshow", "start slideshow", "pause slideshow", "stop slideshow",
     # The commands about the picture on screen: the built-in detail parts, and Genau.
     "fix face", "fix hands", "fix teeth", "fix eyes", *GENAU_SAID,
 )
+
+
+def say_command(side: str, phrase: str) -> str:
+    return f"{side}_say_{phrase.replace(' ', '_')}"
+
 
 def build_voice_commands(
     *,
@@ -525,7 +531,7 @@ def build_voice_commands(
             _spoken = f"{_side} {_phrase}"
             if _spoken in commands:  # the session already says this to a player
                 raise RuntimeError(f"hosted phrase collides with a session command: {_spoken}")
-            commands[_spoken] = f"{_side}_say_{_phrase.replace(' ', '_')}"
+            commands[_spoken] = say_command(_side, _phrase)
 
 
     # Spoken metadata filters — "portrait beta gamma", "alpha form", "clear portrait" —

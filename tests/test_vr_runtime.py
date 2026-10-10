@@ -516,11 +516,9 @@ class TestShuttingDownCannotWaitForever:
     question below from 01:14 to past 03:00 on 2026-09-20, and every branch that
     tried to enter VR after it was refused, with nothing left running."""
 
-    def test_asking_what_is_running_gives_up_rather_than_waiting(self):
-        with patch("fun_time_vr.vr_runtime.subprocess.check_output",
-                   side_effect=subprocess.TimeoutExpired("tasklist", 1)) as asked:
-            assert process_running("pi_server.exe") is False
-        assert 0 < asked.call_args.kwargs["timeout"] < 60
+    def test_asking_what_is_running_starts_no_program(self):
+        with patch("subprocess.Popen", side_effect=AssertionError("started a program")):
+            assert process_running(Path(sys.executable).name) is True
 
     def test_a_quit_command_is_not_read_back(self):
         """`capture_output` outlives the deadline: killing the command on time
