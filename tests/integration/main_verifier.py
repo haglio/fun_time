@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -123,7 +124,7 @@ def measured_sources(data_file: Path, checkout: Path, sources: frozenset[str]) -
     for one_process in data_file.parent.glob(f"{data_file.name}.*"):
         try:
             ran |= _what_one_process_ran(one_process, by_path)
-        except coverage.CoverageException as torn:
+        except (coverage.CoverageException, sqlite3.Error) as torn:
             _log.warning("left %s out of the coverage map: %s", one_process.name, torn)
     return frozenset(ran)
 
