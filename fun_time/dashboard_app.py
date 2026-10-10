@@ -266,7 +266,7 @@ def build_dashboard_scene(
     # mark, so the bar carries one weight across it.
     texts = (
         DashboardTextItem(preview_marker.APP_TITLE, layout.app_title,
-                          color=QColor(preview_marker.wordmark_ink(shown_as)), anchor="w", font=_font_app),
+                          color=QColor(*preview_marker.wordmark_ink(shown_as)), anchor="w", font=_font_app),
     )
     images = (
         DashboardImageItem(marks.icon(preview_marker.icon_file(PROJECT_ICON, shown_as),

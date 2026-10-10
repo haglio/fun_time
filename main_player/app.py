@@ -107,7 +107,7 @@ def _run(args) -> int:
     wid = pygame.display.get_wm_info()["window"]
     memory = mode_memory(args)
     remembered = memory.read()
-    loading = LoadingScreen(screen)
+    loading = LoadingScreen(screen, icon=args.icon)
     try:
         source = library_source(args, on_progress=loading.update)
         items = resolve_playlist(args, source=source)

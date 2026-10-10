@@ -9,12 +9,12 @@ from pathlib import Path
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from PIL import Image, ImageDraw
 from player_core.file_channel import append_command, consume_command_file
+from shared_ui.lettering import load_font
 from shared_ui.palette import BG_PRIMARY, TEXT_MUTED
 
 from fun_time.process_identity import NAMER
 
 from .frame_channel import FrameReader
-from .lettering import load_font
 from .pointer import RELEASE, PressEvent, surface_pixel
 from .thumbs import CONTROLLER_DEADZONE
 

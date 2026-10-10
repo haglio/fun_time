@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 
 import pytest
+from shared_ui.palette import LOADING_ACCENT, LOADING_STATUS
 
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
@@ -497,6 +498,16 @@ class TestPainting:
         edge, and a negative one must not draw backwards."""
         for fraction in (-1.0, 2.0):
             assert paint_cover(Cover(status="x", fraction=fraction)).size == COVER_SIZE_PX
+
+    def test_it_is_the_familys_loading_panel_on_that_ground(self):
+        """The same panel every app's loading screen shows: the words in the
+        family's status tone, the bar's fill in its accent."""
+        image = paint_cover(Cover(status="Waiting for players...", fraction=0.5))
+
+        pixels = image.load()
+        tones = {pixels[x, y][:3] for y in range(image.height) for x in range(image.width)}
+        assert LOADING_STATUS in tones
+        assert LOADING_ACCENT in tones
 
     def test_the_ground_is_the_panels_own_tone(self):
         """The eye is cleared to this before the panel is drawn, so a mismatch

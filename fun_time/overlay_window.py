@@ -10,20 +10,15 @@ from __future__ import annotations
 import time
 import tkinter as tk
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import replace
 from pathlib import Path
-from tkinter import ttk
+from typing import Protocol
+
+from PIL import ImageTk
+from shared_ui.loading_panel import LoadingPanel, icon_image, render
+from shared_ui.palette import LOADING_GROUND, as_hex
 
 from . import preview_marker
-from .cover_palette import (
-    BG,
-    FACE,
-    HINT_DIM,
-    TEXT_DIM,
-    TROUGH,
-    WORDMARK_MAGENTA,
-)
-from .icon_image import load_icon_image
 from .monitors import MonitorInfo, virtual_desktop_rect
 from .overlay_progress import (
     CANCEL_WORD,
@@ -36,9 +31,6 @@ from .overlay_progress import (
 from .project_paths import PROJECT_ICON
 from .win32 import create_hidden_topmost_window, find_window_by_title, set_always_on_top
 
-ICON_DISPLAY_SIZE = 128
-
-
 POLL_MS = 200
 
 # How long another window may sit over the cover -- not POLL_MS, which is how
@@ -49,71 +41,32 @@ POLL_MS = 200
 TOPMOST_POLL_MS = 16
 
 
-@dataclass(frozen=True)
-class _Content:  # the three widgets the cover writes to as it runs
-    status_label: tk.Label
-    progress_var: tk.DoubleVar
-    hint_label: tk.Label
-
-
-def _apply_theme(root: tk.Tk) -> None:
-    """The two ttk styles the bar and its frame are drawn with."""
-    style = ttk.Style(root)
-    try:
-        style.theme_use("clam")  # full style control; not every Tk ships it
-    except tk.TclError:
-        pass
-    style.configure(
-        "FunTime.Horizontal.TProgressbar",
-        troughcolor=TROUGH,
-        background=WORDMARK_MAGENTA,
-        thickness=18,
-        borderwidth=0,
-    )
-    style.configure("FunTime.TFrame", background=BG)
-
-
-def _build_content(root: tk.Tk, *, origin: tuple[int, int], status: str) -> _Content:
-    """The panel in the middle, centred on the main player's monitor rather
-    than the virtual desktop's midpoint, which may fall between two."""
-    frame = ttk.Frame(root, padding=24, style="FunTime.TFrame")
-    origin_x, origin_y = origin
-    frame.place(
-        x=root.winfo_screenwidth() // 2 - origin_x,
-        y=root.winfo_screenheight() // 2 - origin_y,
-        anchor=tk.CENTER,
-    )
-
+def opening_panel(status: str) -> LoadingPanel:
+    """The panel as the cover first shows it: this app's icon and name, in the
+    tone the dashboard writes the name in, over the launch's first words."""
     shown = preview_marker.shown_as()
-    icon_img = load_icon_image(preview_marker.icon_file(PROJECT_ICON, shown), ICON_DISPLAY_SIZE)
-    if icon_img is not None:
-        try:
-            from PIL import ImageTk  # noqa: PLC0415  (optional: no Pillow, no icon)
+    return LoadingPanel(
+        wordmark=preview_marker.APP_TITLE,
+        status=status,
+        ink=preview_marker.wordmark_ink(shown),
+        icon=icon_image(preview_marker.icon_file(PROJECT_ICON, shown)),
+    )
 
-            icon_label = tk.Label(frame, bg=BG)
-            # On the label: what keeps the PhotoImage from being collected.
-            icon_label.image = ImageTk.PhotoImage(icon_img)
-            icon_label.configure(image=icon_label.image)
-            icon_label.pack(pady=(0, 12))
-        except (ImportError, tk.TclError):
-            pass  # no Tk extension, or a Tk that refuses it: come up plain
 
-    tk.Label(frame, text=preview_marker.APP_TITLE, font=(FACE, 18, "bold italic"),
-             fg=preview_marker.wordmark_ink(shown), bg=BG).pack(pady=(0, 10))
+class Canvas(Protocol):
+    """Where the panel is drawn: the one Tk label in the middle of the cover."""
 
-    status_label = tk.Label(frame, text=status, font=(FACE, 10), fg=TEXT_DIM, bg=BG)
-    status_label.pack(pady=(0, 10))
+    def show(self, panel: LoadingPanel) -> None: ...
 
-    progress_var = tk.DoubleVar(value=0)
-    ttk.Progressbar(
-        frame, variable=progress_var, maximum=100, length=360,
-        mode="determinate", style="FunTime.Horizontal.TProgressbar",
-    ).pack(pady=(0, 8))
 
-    hint_label = tk.Label(frame, text="", font=(FACE, 8), fg=HINT_DIM, bg=BG)
-    hint_label.pack()
+class _LabelCanvas:
+    def __init__(self, label: tk.Label) -> None:
+        self._label = label
 
-    return _Content(status_label, progress_var, hint_label)
+    def show(self, panel: LoadingPanel) -> None:
+        # On the label: what keeps the PhotoImage from being collected.
+        self._label.image = ImageTk.PhotoImage(render(panel))
+        self._label.configure(image=self._label.image)
 
 
 class OverlayWindow:
@@ -123,20 +76,26 @@ class OverlayWindow:
         self,
         progress_file: Path,
         root: tk.Tk,
-        content: _Content,
+        canvas: Canvas,
         *,
+        panel: LoadingPanel,
         title: str,
         stale_timeout_s: float,
     ) -> None:
         self._progress_file = progress_file
         self._root = root
-        self._content = content
+        self._canvas = canvas
+        self._panel = panel
         self._title = title
         self._stale_timeout_s = stale_timeout_s
         self._unmoved_since = time.time()
         self._status_held = False
         self._offering = False
         self._hwnd = 0
+
+    @property
+    def panel(self) -> LoadingPanel:
+        return self._panel
 
     @classmethod
     def over_every_monitor(
@@ -147,24 +106,34 @@ class OverlayWindow:
         # some topmost window sits below the cover.
         create_hidden_topmost_window()
 
+        ground = as_hex(LOADING_GROUND)
         root = tk.Tk()
         root.title(title)
         root.resizable(False, False)
         root.attributes("-topmost", True)
         root.overrideredirect(True)
-        root.configure(bg=BG)
+        root.configure(bg=ground)
 
         desktop = virtual_desktop_rect() or MonitorInfo(
             x=0, y=0, width=root.winfo_screenwidth(), height=root.winfo_screenheight(),
         )
         root.geometry(f"{desktop.width}x{desktop.height}+{desktop.x}+{desktop.y}")
 
-        _apply_theme(root)
+        # Centered on the main player's monitor rather than the virtual desktop's
+        # midpoint, which may fall between two.
+        label = tk.Label(root, bg=ground, borderwidth=0, highlightthickness=0)
+        label.place(
+            x=root.winfo_screenwidth() // 2 - desktop.x,
+            y=root.winfo_screenheight() // 2 - desktop.y,
+            anchor=tk.CENTER,
+        )
+        canvas = _LabelCanvas(label)
+        panel = opening_panel(status)
+        canvas.show(panel)
 
         window = cls(
-            progress_file, root,
-            _build_content(root, origin=(desktop.x, desktop.y), status=status),
-            title=title, stale_timeout_s=stale_timeout_s,
+            progress_file, root, canvas, panel=panel, title=title,
+            stale_timeout_s=stale_timeout_s,
         )
 
         # The focus is taken so Esc lands here rather than on whatever the
@@ -203,8 +172,7 @@ class OverlayWindow:
         """And go on saying it: a phase still in flight would otherwise flip the
         line back while the teardown runs."""
         self._status_held = True
-        self._content.status_label.configure(text=CANCELING)
-        self._content.hint_label.configure(text="")
+        self._redraw(status=CANCELING, hint="")
 
     def _poll(self) -> None:
         progress = self._read_progress()
@@ -233,14 +201,18 @@ class OverlayWindow:
     def _show(self, progress: Progress) -> None:
         self._offering = bool(progress.hint)
         if progress.total > 0:
-            self._content.progress_var.set(progress.step / progress.total * 100)
+            self._redraw(fraction=progress.step / progress.total)
         if progress.hint and what_the_flag_asks(
                 cancel_file_for(self._progress_file)) == CANCEL_WORD:
             self._say_canceling()
         if not self._status_held:
-            if progress.message:
-                self._content.status_label.configure(text=progress.message)
-            self._content.hint_label.configure(text=progress.hint)
+            self._redraw(status=progress.message or self._panel.status, hint=progress.hint)
+
+    def _redraw(self, **changes) -> None:
+        panel = replace(self._panel, **changes)
+        if panel != self._panel:
+            self._panel = panel
+            self._canvas.show(panel)
 
     def run(self, on_shown: Callable[[], None] | None = None) -> None:
         """Show the cover and hold it until the progress file says otherwise.
