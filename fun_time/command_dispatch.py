@@ -62,6 +62,7 @@ from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
 from .osr2_section import TAKE_OSR2_COMMANDS, player_with_the_osr2, take_osr2_command
 from .player_buttons import MAIN_PLAYER_NOUN, SATELLITE_NOUN, too_short_to_step
+from .player_handover import show_f_mode
 from .player_status import MainPlayerStatus, read_genau_status, read_main_player_status
 from .players import Player
 from .random_favs_browser import FavEntry, target_for_fav
@@ -889,6 +890,10 @@ def _main_slot_ops() -> list[WindowOp]:
     ]
 
 
+def _sided_fmode_command(player: Player, target: bool | None) -> str:
+    return f"{player.label}_fmode" + {None: "", True: "_on", False: "_off"}[target]
+
+
 # Which players each F-mode command reaches, and what it sets them to — None for
 # the toggles, True/False for the forms that assert a state and so cannot land on
 # the opposite of what was asked when a phrase is misheard twice.  The bare
@@ -900,15 +905,8 @@ _FMODE_COMMANDS: dict[str, tuple[tuple[Player, ...], bool | None]] = {
     "fmode_toggle": (FMODE_PLAYERS, None),
     "fmode_on": (FMODE_PLAYERS, True),
     "fmode_off": (FMODE_PLAYERS, False),
-    "main_fmode": ((Player.MAIN,), None),
-    "main_fmode_on": ((Player.MAIN,), True),
-    "main_fmode_off": ((Player.MAIN,), False),
-    "portrait_fmode": ((Player.PORTRAIT,), None),
-    "portrait_fmode_on": ((Player.PORTRAIT,), True),
-    "portrait_fmode_off": ((Player.PORTRAIT,), False),
-    "landscape_fmode": ((Player.LANDSCAPE,), None),
-    "landscape_fmode_on": ((Player.LANDSCAPE,), True),
-    "landscape_fmode_off": ((Player.LANDSCAPE,), False),
+    **{_sided_fmode_command(player, target): ((player,), target)
+       for player in Player for target in (None, True, False)},
     **{say_command(player.label, FAVORITES_PHRASE): ((player,), None)
        for player in Player.SATELLITES},
 }
@@ -920,9 +918,12 @@ _PLAYER_NOTICE_SOURCE = {
 }
 
 
-def _player_f_mode(state: BridgeState, player: Player) -> bool:
-    """Whether *player* is in F-mode — the main slot's own flag, or its side's."""
-    return state.main_scripted_filter if player is Player.MAIN else state.satellite(player).favorites_filter
+def _player_f_mode(state: BridgeState, config: BridgeConfig, player: Player) -> bool | None:
+    if player is Player.MAIN:
+        return state.main_scripted_filter
+    if hosting_origenerator(state, config):
+        return show_f_mode(config.satellite(player))
+    return state.satellite(player).favorites_filter
 
 
 def _with_f_mode(state: BridgeState, players: tuple[Player, ...], enabled: bool) -> BridgeState:
@@ -933,7 +934,13 @@ def _with_f_mode(state: BridgeState, players: tuple[Player, ...], enabled: bool)
     return state
 
 
-def _next_f_mode(state: BridgeState, players: tuple[Player, ...]) -> bool:
+def every_player_in_f_mode(state: BridgeState, config: BridgeConfig,
+                           players: tuple[Player, ...] = FMODE_PLAYERS) -> bool:
+    return all(f_mode for player in players
+               if (f_mode := _player_f_mode(state, config, player)) is not None)
+
+
+def _next_f_mode(state: BridgeState, config: BridgeConfig, players: tuple[Player, ...]) -> bool:
     """What a toggle over *players* should set them all to.
 
     One player is an ordinary flip.  Several — the F key, or a spoken "f mode" —
@@ -941,7 +948,14 @@ def _next_f_mode(state: BridgeState, players: tuple[Player, ...]) -> bool:
     everything" can never leave half the room narrowed and half not: it either
     completes the narrowing or lifts it.
     """
-    return not all(_player_f_mode(state, player) for player in players)
+    return not every_player_in_f_mode(state, config, players)
+
+
+def _set_the_hosted_shows_f_mode(players: tuple[Player, ...], enabled: bool,
+                                 config: BridgeConfig) -> None:
+    for player in players:
+        if show_f_mode(config.satellite(player)) not in (None, enabled):
+            append_command(config.origenerator_cmd_file, _sided_fmode_command(player, enabled))
 
 
 def _dispatch_fmode(
@@ -955,12 +969,12 @@ def _dispatch_fmode(
     rewritten, so "portrait f mode on" said twice does not reshuffle the queue the
     first one built.
     """
-    # The hosted app's players are not the session's to narrow while it has
-    # them: their lists are its own, and a rebuild would write over them.
-    if hosting_origenerator(state, config):
-        players = tuple(player for player in players if player not in Player.SATELLITES)
-    enabled = _next_f_mode(state, players) if target is None else target
-    changed = tuple(player for player in players if _player_f_mode(state, player) != enabled)
+    enabled = _next_f_mode(state, config, players) if target is None else target
+    hosted = (tuple(player for player in players if player in Player.SATELLITES)
+              if hosting_origenerator(state, config) else ())
+    changed = tuple(player for player in players
+                    if player not in hosted and _player_f_mode(state, config, player) != enabled)
+    _set_the_hosted_shows_f_mode(hosted, enabled, config)
     result = apply_fmode(
         players=changed,
         enabled=enabled,

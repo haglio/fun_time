@@ -24,6 +24,7 @@ from .child_launch import no_child_log
 from .clipper_save import save_clip_session
 from .command_dispatch import (
     dispatch_command,
+    every_player_in_f_mode,
     hosting_origenerator,
     notice_source,
     room_at_defaults,
@@ -731,9 +732,7 @@ class DispatchLoopRunner:
                 DashboardSnapshot(
                     omni_paused=self.state.omni_paused,
                     voice_active=voice_active,
-                    f_mode=(self.state.main_scripted_filter
-                            and all(self.state.satellite(p).favorites_filter
-                                    for p in Player.SATELLITES)),
+                    f_mode=every_player_in_f_mode(self.state, self.config),
                     in_vr=self.config.vr_main_player,
                     nothing_to_reset=room_at_defaults(
                         self.state, self.config,

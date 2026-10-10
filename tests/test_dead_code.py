@@ -290,7 +290,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # name again went, more than paying for the line the sound devices' module added.
 # 6520 on 2026-10-10: the dead ends that answered nothing say which mode
 # ignored them, and the docstrings that called them quiet went with them.
-MAX_PROSE_LINES = 6520
+# 6517 then: the room's F-Mode reaches the hosted shows, and the note saying it
+# left them alone went with it.
+MAX_PROSE_LINES = 6517
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
