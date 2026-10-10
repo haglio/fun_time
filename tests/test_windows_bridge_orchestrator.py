@@ -92,6 +92,7 @@ from fun_time.windows_bridge_orchestrator import (
     write_pids_file,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
+from tests.cover_beats import heard_from_again_once_stale
 from tests.role_window_fakes import HOSTED_HWND, HOSTED_PID, RFB_HWND, lookup_hosted
 from tests.sleeps import sleeps_in
 
@@ -1712,23 +1713,18 @@ class TestClosingScreenLifecycle:
         after another.  The closing screen heard nothing for twenty seconds, took
         that to mean Fun Time had died, and went -- with the dashboard still up,
         waiting its turn to be closed."""
-        progress = tmp_path / "state" / SHUTDOWN_PROGRESS_FILENAME
-        heard_from_again: list[bool] = []
+        heard: list[bool] = []
 
         def the_main_player_takes_its_time(pid):
-            if pid != 200:
-                return
-            long_ago = time.time() - closing_screen.STALE_TIMEOUT_S - 1
-            os.utime(progress, (long_ago, long_ago))
-            deadline = time.monotonic() + 5.0
-            while progress.stat().st_mtime <= long_ago and time.monotonic() < deadline:
-                time.sleep(0.05)
-            heard_from_again.append(progress.stat().st_mtime > long_ago)
+            if pid == 200:
+                heard.append(heard_from_again_once_stale(
+                    tmp_path / "state" / SHUTDOWN_PROGRESS_FILENAME,
+                    stale_after_s=closing_screen.STALE_TIMEOUT_S))
 
         _run_a_session(cfg_factory, tmp_path, events=[],
                        while_ending=the_main_player_takes_its_time)
 
-        assert heard_from_again == [True]
+        assert heard == [True]
 
     def test_a_crossing_wears_the_transition_cover_and_leaves_it_standing(
         self, cfg_factory, tmp_path,

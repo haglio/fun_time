@@ -80,6 +80,7 @@ from fun_time.overlay_progress import (
     PhaseProgress,
     ProgressReporter,
     StartupCancelled,
+    keep_the_cover_up,
     ready_file_for,
     what_the_flag_asks,
 )
@@ -488,9 +489,11 @@ def _closing_cover(
         still_alive=lambda: player.poll() is None,
         timeout_s=CLOSING_COVER_READY_TIMEOUT_S,
     )
+    stop_beating = keep_the_cover_up(progress_file, name="closing-cover")
     try:
         yield shutdown
     finally:
+        stop_beating()
         progress_file.unlink(missing_ok=True)
         ready_file.unlink(missing_ok=True)
 
