@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 
 from PIL import Image, ImageDraw
 from shared_ui.icons_pil import glyph_image
+from shared_ui.lettering import fit_text, load_font
 from shared_ui.palette import (
     BG_BUTTON,
     BG_PRIMARY,
@@ -19,8 +20,6 @@ from shared_ui.spacing import BUTTON_MARK, BUTTON_RADIUS, BUTTON_SIZE
 
 from fun_time.command_reference import build_reference_sections
 from fun_time.dashboard_layout import Rect
-
-from .lettering import fit_text, load_font
 
 __all__ = [
     "NEXT_PAGE",

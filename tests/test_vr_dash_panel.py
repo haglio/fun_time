@@ -6,11 +6,13 @@ from itertools import pairwise
 
 import numpy as np
 from PIL import Image, ImageDraw
+from shared_ui.lettering import BOLD_FACE, WORDMARK_FACE, load_font
 from shared_ui.palette import (
     BG_BUTTON,
     BG_PRIMARY,
     BG_TERTIARY,
     BLUE,
+    LOADING_ACCENT,
     MAGENTA,
     PREVIEW_INK,
     TEXT_MUTED,
@@ -25,7 +27,6 @@ from shared_ui.spacing import (
 )
 
 from fun_time import preview_marker
-from fun_time.cover_palette import WORDMARK_MAGENTA
 from fun_time.dashboard_actions import (
     EXIT_VR,
     FMODE_TOGGLE,
@@ -65,7 +66,6 @@ from fun_time_vr.dash_panel import (
     paint_dash,
     verbosity_name,
 )
-from fun_time_vr.lettering import BOLD_FACE, WORDMARK_FACE, load_font
 
 _A_PREVIEW = Preview(feature="the new reference popup")
 
@@ -86,7 +86,7 @@ def _middle(action: str, *, dial_open: bool = False) -> tuple[int, int]:
 
 def _app_name_mask(image) -> np.ndarray:
     """Where the bar's "Fun Time" is inked, in the tone it is written in."""
-    wanted = np.asarray([int(WORDMARK_MAGENTA[i:i + 2], 16) for i in (1, 3, 5)])
+    wanted = np.asarray(LOADING_ACCENT)
     title = compute_dashboard_bar_layout().app_title
     band = np.asarray(image)[title.y:title.y + title.height,
                              title.x:title.x + title.width, :3].astype(int)
@@ -160,7 +160,7 @@ class TestItIsTheDesktopsBar:
         def written_in(face):
             image = Image.new("RGBA", (DASH_WIDTH_PX, dash_height()), (*BG_PRIMARY, 235))
             ImageDraw.Draw(image).text((title.x, title.y + 4), "Fun Time",
-                                       font=load_font(_FONT_PX, face), fill=WORDMARK_MAGENTA)
+                                       font=load_font(_FONT_PX, face), fill=LOADING_ACCENT)
             return _app_name_mask(image)
 
         painted = _app_name_mask(paint_dash(DashState(), []))

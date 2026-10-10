@@ -13,6 +13,8 @@ from functools import cache
 
 from PIL import Image, ImageDraw
 from shared_ui.icons_pil import glyph_image
+from shared_ui.lettering import WORDMARK_FACE, load_font
+from shared_ui.loading_panel import icon_image
 from shared_ui.palette import (
     BG_BUTTON,
     BG_PRIMARY,
@@ -43,11 +45,9 @@ from fun_time.event_log import (
     SOURCES,
     EventRecord,
 )
-from fun_time.icon_image import load_icon_image
 from fun_time.project_paths import PROJECT_ICON
 
 from .console_panel import level_color
-from .lettering import WORDMARK_FACE, load_font
 
 _DIAL_W = 92  # the name and the arrow beside it
 _ARROW_PX = 10
@@ -177,7 +177,8 @@ def _label(draw, rect: Rect, text: str, font, ink, *, left: bool = False) -> Non
 
 @cache
 def _app_mark(size: int, shown_as: Preview | None) -> Image.Image | None:
-    return load_icon_image(preview_marker.icon_file(PROJECT_ICON, shown_as), size)
+    icon = icon_image(preview_marker.icon_file(PROJECT_ICON, shown_as))
+    return None if icon is None else icon.resize((size, size), Image.LANCZOS)
 
 
 _TIP_PAD = 4

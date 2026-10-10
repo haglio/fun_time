@@ -14,10 +14,10 @@ import math
 
 import numpy as np
 from PIL import Image, ImageDraw
+from shared_ui.lettering import load_font, wrap_text
 from shared_ui.palette import BG_SECONDARY
 
 from .console_panel import level_color
-from .lettering import load_font, wrap_text
 
 # The type as a fraction of the height, never under the desktop's own; the rest
 # of the shape is in multiples of it (the desktop's 16/8 padding, 1px border and
