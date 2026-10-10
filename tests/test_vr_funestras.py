@@ -49,7 +49,7 @@ from fun_time.overlay_progress import (
 )
 from fun_time.shared_state import BridgeState, shared_state_path
 from fun_time_vr import funestras, room
-from fun_time_vr.console_panel import DEG_PER_PX, PANEL_WIDTH_DEG, PANEL_WIDTH_PX
+from fun_time_vr.console_panel import DEG_PER_PX, PANEL_WIDTH_PX
 from fun_time_vr.cover import (
     VR_SHUTDOWN_PHASES,
     VR_STARTUP_PHASES,
@@ -954,7 +954,7 @@ class TestThePanelUnderTheSlot:
         assert docked.elevation_deg < 0.0  # under the picture, never over it
         assert followed.azimuth_deg == -40.0
         assert followed.elevation_deg < docked.elevation_deg  # a bigger Funestra hangs lower
-        assert followed.width_deg == docked.width_deg == PANEL_WIDTH_DEG
+        assert followed.width_deg == docked.width_deg == PANEL_WIDTH_PX * DEG_PER_PX
 
     def test_it_rides_under_genaus_picture_at_the_flicks_own_shape(self):
         p = self._unit(showing=True)
@@ -964,7 +964,7 @@ class TestThePanelUnderTheSlot:
         flick = p.main_unit.users_picture_texture.aspect
         assert placed == attached_below(
             shown_at(MAIN, p.main_unit.screen.placement, flick), aspect=flick,
-            width_deg=PANEL_WIDTH_DEG, hanging_aspect=_FakePanelTexture.aspect,
+            width_deg=PANEL_WIDTH_PX * DEG_PER_PX, hanging_aspect=_FakePanelTexture.aspect,
             gap_deg=PANEL_GAP_DEG)
 
     def test_it_hangs_along_the_edge_the_room_moved_it_to(self):
@@ -983,7 +983,7 @@ class TestThePanelUnderTheSlot:
 
         assert placed == attached_below(
             p.dash.screen.placement, aspect=p.dash.texture.aspect,
-            width_deg=PANEL_WIDTH_DEG, hanging_aspect=_FakePanelTexture.aspect,
+            width_deg=PANEL_WIDTH_PX * DEG_PER_PX, hanging_aspect=_FakePanelTexture.aspect,
             gap_deg=PANEL_GAP_DEG)
 
     @pytest.mark.parametrize("wrapped", [False, True])
@@ -2539,7 +2539,7 @@ class TestTheReferenceUnderTheDashboard:
                                texture=SimpleNamespace(aspect=2.5),
                                carrying_the_console=carrying_the_console)
         panel = SimpleNamespace(
-            screen=SimpleNamespace(placement=Placement(0.0, 20.0, PANEL_WIDTH_DEG)),
+            screen=SimpleNamespace(placement=Placement(0.0, 20.0, PANEL_WIDTH_PX * DEG_PER_PX)),
             texture=SimpleNamespace(aspect=1.2))
         with patch("fun_time_vr.funestras.FrameTexture", _FakePanelTexture):
             unit = _ReferenceUnit(dash, panel, flag=tmp_path / REFERENCE_OPEN_FILENAME)

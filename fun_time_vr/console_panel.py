@@ -8,11 +8,10 @@ from shared_ui.palette import AMBER, GREEN, RED, TEXT_MUTED, TEXT_PRIMARY
 
 from fun_time.event_log import FAVORITE, NOTICE
 
-# Pixels across, held: the screen keeps one size between the modes (the genau
-# rows are narrower) and across titles (elided), so its bitmap never rescales.
-PANEL_WIDTH_PX = 380
-PANEL_WIDTH_DEG = 32.6
-DEG_PER_PX = PANEL_WIDTH_DEG / PANEL_WIDTH_PX  # every control in the scene, one size
+DEG_PER_PX = 32.6 / 380  # every control in the scene, one size
+# Pixels across, held: the screen keeps one size whatever it carries, so its
+# bitmap never rescales.
+PANEL_WIDTH_PX = 560
 
 # fun_time.log_panel's own mapping.
 _LEVEL_COLORS: dict[int, tuple[int, int, int]] = {
