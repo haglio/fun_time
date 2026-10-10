@@ -8,15 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from player_core.console import (
-    OSR2_CONTROL_OFF,
-    OSR2_DRIVING,
-    OSR2_PARKED,
-    OSR2_RETRACTED,
-    ROW_LABEL_W,
-    VALUE_W,
-    shape_label,
-)
+from player_core.console import OSR2_DRIVING, ROW_LABEL_W, VALUE_W, aim_row
 from player_core.hud_button import Button
 from player_core.hud_marks import BROKER_ICON, FMODE_ICON, shared_mark
 from player_core.modes import LengthMode, LoopState, MainMode
@@ -89,13 +81,7 @@ COMPILATION_ICON = shared_mark("compilation")
 CLIP_TO_SCENE_ICON = shared_mark("clip_to_scene")
 SCENE_TO_CLIP_ICON = shared_mark("scene_to_clip")
 FUNSCRIPT_JUMP_ICON = shared_mark("funscript_jump")
-PARK_ICON = shared_mark("park")
-RETRACT_ICON = shared_mark("retract")
-RELEASE_ICON = shared_mark("release")
-CONTROL_OFF_ICON = shared_mark("control_off")
-QUARTER_ICON = shared_mark("quarter_offset")
 FLIP_ENDS_ICON = shared_mark("flip_ends")
-WAVE_ICON = shared_mark("wave")
 
 MODE_BUTTONS = (
     ("main_kino_activate", "Kino", MainMode.KINO),
@@ -302,32 +288,4 @@ def _control_row(slot: MainSlot) -> tuple[Button, ...]:
                    "Skip ahead to where this video's scripting starts up again",
                    group_break=True),
         ) if main_player_displays(slot.main_mode) else ()),
-    )
-
-
-def aim_row(*, cruise: bool, learned: bool, shape: str, control: str) -> tuple[Button, ...]:
-    return (
-        Button("robot_hand_toggle_cruise", "cc",
-               "Cruise control: vary the motion hands-free", lit=cruise),
-        Button("robot_hand_toggle_learned", "hi",
-               "Human inspired: motion drawn from real hand-made scripts, not a waveform",
-               lit=learned),
-        Button("robot_hand_cycle_shape", WAVE_ICON, f"Waveform: {shape_label(shape)}"),
-        Button("quarter_button", QUARTER_ICON, "Offset the motion a ¼ cycle"),
-        Button("osr2_control_off", CONTROL_OFF_ICON,
-               "Control off — the OSR2 settles home and is left there; nothing "
-               "here moves it again until you park, retract or drive it.  The "
-               "device itself stays on: this is the app letting go of it, not "
-               "the OSR2 switching off",
-               warn=control == OSR2_CONTROL_OFF, group_break=True),
-        Button("robot_hand_park", PARK_ICON,
-               "Parked — the OSR2 held still, settled home",
-               lit=control == OSR2_PARKED),
-        Button("robot_hand_retract", RETRACT_ICON,
-               "Retracted — the OSR2 held still at the far end, away from you",
-               lit=control == OSR2_RETRACTED),
-        Button("robot_hand_release", RELEASE_ICON,
-               "Driving — the OSR2 back on whatever the motion was doing, "
-               "cruise included",
-               lit=control == OSR2_DRIVING),
     )

@@ -18,6 +18,7 @@ from player_core.console import (
 from player_core.hud_button import BUTTON, Button
 from player_core.hud_marks import BROKER_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
 from player_core.modes import LengthMode, LoopState, MainMode
+from player_core.robot_hand import WaveformShape
 from player_core.satellite_hud import HudModel
 from player_core.satellite_hud_paint import HudRenderer
 from shared_ui.icon_geometry import RENAMED_MARKS, glyph_names
@@ -583,6 +584,13 @@ class TestDriveControls:
 
         assert _button(slot, "robot_hand_toggle_cruise").lit is True
         assert _button(slot, "robot_hand_cycle_shape").tooltip == "Waveform: Square"
+
+    def test_the_waveform_button_wears_the_waveform_the_motion_is_in(self):
+        faces = {_button(MainSlot(main_mode=MainMode.GENAU, shape=shape.value),
+                         "robot_hand_cycle_shape").glyph
+                 for shape in WaveformShape}
+
+        assert len(faces) == len(WaveformShape)
 
 
 class TestTheRowsThatAimTheDevice:
