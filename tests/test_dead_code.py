@@ -293,7 +293,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # notes on the compilation playlist went to the tests that already state them.
 # 6471 the same day: Kino plays nothing from Genau's folder, so the paragraphs
 # on how Genau's clips counted as shorts went with the code that counted them.
-MAX_PROSE_LINES = 6471
+# 6468 the same day: a folder that never divided its cuts shows them as full
+# and clips, and the note on the old suffix went with it.
+MAX_PROSE_LINES = 6468
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

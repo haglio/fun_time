@@ -96,10 +96,8 @@ def _payload(video: str, metadata_root: Path | None) -> dict:
     return {} if sidecar is None else load_metadata(sidecar)
 
 
-# What marks a section as holding excerpts rather than whole videos.  Structural
-# on purpose: the section name is built from the user's own folder names plus
-# this, so no word describing what is in the library lives in this repo.
-CLIPS_SUFFIX = " · clips"
+FULL_FOLDER = "full"
+CLIPS_FOLDER = "clips"
 
 
 def source_path(video: str, sources: str) -> tuple[str, ...]:
@@ -135,11 +133,16 @@ def source_folder(video: str, sources: str) -> str:
 def band_names(bands: dict[tuple[str, bool], list[tuple[str, ...]]]) -> dict[tuple[str, bool], str]:
     names = {}
     for (folder, is_clip), paths in bands.items():
-        mine = _own_folder(paths, bands.get((folder, not is_clip), []))
+        mate = bands.get((folder, not is_clip), [])
+        mine = _own_folder(paths, mate)
         if mine:
             names[(folder, is_clip)] = f"{folder}/{mine}"
+        elif is_clip:
+            names[(folder, is_clip)] = f"{folder}/{CLIPS_FOLDER}"
+        elif mate:
+            names[(folder, is_clip)] = f"{folder}/{FULL_FOLDER}"
         else:
-            names[(folder, is_clip)] = folder + CLIPS_SUFFIX if is_clip else folder
+            names[(folder, is_clip)] = folder
     return names
 
 

@@ -351,9 +351,8 @@ by the sidecar alone, and the sub-folders they share are pipeline stages, which
 can never stand in for a division of the library.
 
 Where those two sets have been filed into two folders on disk, each
-keeping its own copy of the pipeline stages, the tiles are named after those
-folders (the cuts folder's name and `full`); where the split is the sidecar's
-alone, the cuts take a `· clips` name instead.
+keeping its own copy of the pipeline stages, the browse names them after those
+folders; where the split is the sidecar's alone, they are `full` and `clips`.
 
 The families come from Evolver's metadata sidecar (`version.group`), which is
 the authority on "same video, other version" — the filenames alone cannot say
