@@ -292,7 +292,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # ignored them, and the docstrings that called them quiet went with them.
 # 6517 then: the room's F-Mode reaches the hosted shows, and the note saying it
 # left them alone went with it.
-MAX_PROSE_LINES = 6517
+# 6512 then: whether a program is running is read off the process list instead
+# of asked of tasklist, and the paragraph counting the module's queries went.
+MAX_PROSE_LINES = 6512
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

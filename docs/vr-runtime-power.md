@@ -47,10 +47,12 @@ again whenever it sees them stop, so a client that outlives the quit turns the
 headset straight back on. From then to 2026-10-09 that happened in every
 session whose player went before the session did: the client is the player's
 child, so killing the player took it along, but with the player already gone
-nothing did -- the session asks `tasklist` whether the client runs, and voice
+nothing did -- the session asked `tasklist` whether the client ran, and voice
 control's sound library had left the session unable to start a program that
-inherits its error output, so the answer was always "no". The ask now hands
-`tasklist` no error output of the session's to inherit.
+inherits its error output, so the answer was always "no". A busy computer gave
+the same "no" another way: with about a thousand programs running, `tasklist`
+took 14 seconds to answer a session that waited 10. The session now reads the
+list of running programs from Windows itself, and starts no program to ask.
 
 ## The sound devices it leaves on the headset
 

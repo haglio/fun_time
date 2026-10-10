@@ -1,11 +1,5 @@
 """Asking Windows about a process, rather than about a window.
 
-Four queries the session makes of the pids it recorded at launch: what a pid is
-running, when the process holding it started, whether it is still alive, and
-which pids call it parent.  They share a file with nothing — no window, no
-handle, no z-order — and they are what the orchestrator's reap and the
-integration runner's cleanup are built on.
-
 Every entry point these call is declared below.  ``argtypes`` matter on 64-bit:
 without them ctypes marshals a HANDLE as a 32-bit ``c_int`` and truncates it,
 and an out-parameter pointer has to be a real pointer.
@@ -57,6 +51,30 @@ _kernel32.CreateToolhelp32Snapshot.argtypes = [
     ctypes.wintypes.DWORD,  # th32ProcessID
 ]
 _kernel32.CreateToolhelp32Snapshot.restype = ctypes.wintypes.HANDLE
+
+
+class PROCESSENTRY32(ctypes.Structure):
+    _fields_ = [
+        ("dwSize", ctypes.wintypes.DWORD),
+        ("cntUsage", ctypes.wintypes.DWORD),
+        ("th32ProcessID", ctypes.wintypes.DWORD),
+        ("th32DefaultHeapID", ctypes.POINTER(ctypes.wintypes.ULONG)),
+        ("th32ModuleID", ctypes.wintypes.DWORD),
+        ("cntThreads", ctypes.wintypes.DWORD),
+        ("th32ParentProcessID", ctypes.wintypes.DWORD),
+        ("pcPriClassBase", ctypes.wintypes.LONG),
+        ("dwFlags", ctypes.wintypes.DWORD),
+        ("szExeFile", ctypes.c_wchar * 260),
+    ]
+
+
+_kernel32.Process32FirstW.argtypes = [ctypes.wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32)]
+_kernel32.Process32FirstW.restype = ctypes.wintypes.BOOL
+_kernel32.Process32NextW.argtypes = [ctypes.wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32)]
+_kernel32.Process32NextW.restype = ctypes.wintypes.BOOL
+
+_TH32CS_SNAPPROCESS = 0x2
+_INVALID_HANDLE_VALUE = ctypes.wintypes.HANDLE(-1).value
 
 # GetExitCodeProcess reports this while the process is still running.
 _STILL_ACTIVE = 259
@@ -146,42 +164,27 @@ def list_child_pids(parent_pid: int) -> list[int]:
 
 def process_parents() -> list[tuple[int, int]]:
     """Every running process's pid with its parent's, from one Toolhelp snapshot."""
-    TH32CS_SNAPPROCESS = 0x2
-    INVALID_HANDLE_VALUE = ctypes.wintypes.HANDLE(-1).value
+    return [(pid, parent) for pid, parent, _image in _running_processes()]
 
-    class PROCESSENTRY32(ctypes.Structure):
-        _fields_ = [
-            ("dwSize", ctypes.wintypes.DWORD),
-            ("cntUsage", ctypes.wintypes.DWORD),
-            ("th32ProcessID", ctypes.wintypes.DWORD),
-            ("th32DefaultHeapID", ctypes.POINTER(ctypes.wintypes.ULONG)),
-            ("th32ModuleID", ctypes.wintypes.DWORD),
-            ("cntThreads", ctypes.wintypes.DWORD),
-            ("th32ParentProcessID", ctypes.wintypes.DWORD),
-            ("pcPriClassBase", ctypes.wintypes.LONG),
-            ("dwFlags", ctypes.wintypes.DWORD),
-            ("szExeFile", ctypes.c_wchar * 260),
-        ]
 
-    _kernel32.Process32FirstW.argtypes = [
-        ctypes.wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32)]
-    _kernel32.Process32FirstW.restype = ctypes.wintypes.BOOL
-    _kernel32.Process32NextW.argtypes = [
-        ctypes.wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32)]
-    _kernel32.Process32NextW.restype = ctypes.wintypes.BOOL
+def process_running(image_name: str) -> bool:
+    return any(image.lower() == image_name.lower() for _pid, _parent, image in _running_processes())
 
-    snapshot = _kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
-    if snapshot == INVALID_HANDLE_VALUE:
+
+def _running_processes() -> list[tuple[int, int, str]]:
+    snapshot = _kernel32.CreateToolhelp32Snapshot(_TH32CS_SNAPPROCESS, 0)
+    if snapshot == _INVALID_HANDLE_VALUE:
         return []
-    pairs: list[tuple[int, int]] = []
+    processes: list[tuple[int, int, str]] = []
     try:
         entry = PROCESSENTRY32()
         entry.dwSize = ctypes.sizeof(PROCESSENTRY32)
         if _kernel32.Process32FirstW(snapshot, ctypes.byref(entry)):
             while True:
-                pairs.append((int(entry.th32ProcessID), int(entry.th32ParentProcessID)))
+                processes.append((int(entry.th32ProcessID), int(entry.th32ParentProcessID),
+                                  entry.szExeFile))
                 if not _kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
                     break
     finally:
         _kernel32.CloseHandle(snapshot)
-    return pairs
+    return processes
