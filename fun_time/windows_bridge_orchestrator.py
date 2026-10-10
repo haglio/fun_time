@@ -464,17 +464,21 @@ def _take_down_the_startup(
     back_to = cover.turns_back_to if (
         canceled and what_the_flag_asks(cover.cancel_file) == CANCEL_WORD) else None
     logger.info("%s; tearing down %d launched child(ren)", reason, len(pids))
-    stop_hotkey_script(ahk_proc, ahk_cmd_file)
-    for pid in pids:
-        kill_process_tree(pid)
-    if release_origenerator_via is not None:
-        append_command(release_origenerator_via, RELEASE)
-    close_window(rfb_hwnd)
-    if back_to is not None:
-        logger.info("Going back to %s", back_to.app_name)
-        way_back = launch_the_way_back_cover(state_dir, project_dirs=project_dirs)
-        _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
-        request_handoff(state_dir, back_to, cancelable=False)
+    stop_beating = keep_the_cover_up(cover.progress_file, name="loading-cover")
+    try:
+        stop_hotkey_script(ahk_proc, ahk_cmd_file)
+        for pid in pids:
+            kill_process_tree(pid)
+        if release_origenerator_via is not None:
+            append_command(release_origenerator_via, RELEASE)
+        close_window(rfb_hwnd)
+        if back_to is not None:
+            logger.info("Going back to %s", back_to.app_name)
+            way_back = launch_the_way_back_cover(state_dir, project_dirs=project_dirs)
+            _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
+            request_handoff(state_dir, back_to, cancelable=False)
+    finally:
+        stop_beating()
     # Only now that the windows under it are gone: drop the overlay.
     cover.take_it_down()
     cover.cancel_file.unlink(missing_ok=True)

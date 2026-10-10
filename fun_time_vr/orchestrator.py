@@ -417,13 +417,17 @@ def _take_down_the_launch(
 ) -> None:
     """The player goes LAST (it wears the cover) and the hotkey script first."""
     say_the_crossing_is_cancelled(state_dir)  # a teardown of seconds looks like nothing
-    stop_hotkey_script(ahk_proc, ahk_cmd_file)
-    player = children.get("vr_player_pid")
-    for key, child in children.items():
-        if key != "vr_player_pid":
-            kill_recorded_child(child)
-    if player is not None:
-        kill_recorded_child(player)
+    stop_beating = keep_the_cover_up(cover.progress_file, name="loading-cover")
+    try:
+        stop_hotkey_script(ahk_proc, ahk_cmd_file)
+        player = children.get("vr_player_pid")
+        for key, child in children.items():
+            if key != "vr_player_pid":
+                kill_recorded_child(child)
+        if player is not None:
+            kill_recorded_child(player)
+    finally:
+        stop_beating()
     _release_vr_runtime(runtime_was_up, state_dir)
     cover.clear()
 
