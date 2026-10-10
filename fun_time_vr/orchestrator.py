@@ -423,7 +423,7 @@ def _take_down_the_launch(
             kill_recorded_child(child)
     if player is not None:
         kill_recorded_child(player)
-    _release_vr_runtime(runtime_was_up)
+    _release_vr_runtime(runtime_was_up, state_dir)
     cover.clear()
 
 
@@ -640,6 +640,8 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         # surface of the process launched here, so it covers the rest of it.
         progress.advance("players")
         runtime_was_up = vr_runtime.runtime_was_running()  # before ensure_ready() moves it
+        if not runtime_was_up:
+            vr_runtime.remember_the_sound_devices(state_dir)
         main_player_status_file = Path(commands.main_player_status_file)
         main_player_status_file.unlink(missing_ok=True)
         room_ready_file = scene_ready_file(state_dir)
@@ -660,7 +662,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             stop_hotkey_script(ahk_proc, ahk_cmd_file)
             for child in children.values():
                 kill_recorded_child(child)
-            _release_vr_runtime(runtime_was_up)
+            _release_vr_runtime(runtime_was_up, state_dir)
             cover.clear()
             return 1
         _wait_for_the_room(room_ready_file, player, progress)
@@ -805,7 +807,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             if crossing is None:  # else it hears Esc until the relay has read the flag
                 stop_hotkey_script(ahk_proc, ahk_cmd_file)
         if not held and not back_to_vr:
-            _release_vr_runtime(runtime_was_up)  # after the player: it held an XR session
+            _release_vr_runtime(runtime_was_up, state_dir)  # after the player: it held an XR session
     if closed is not None:
         show_player_died_alert(part_closed_message(closed))
     return exit_code
@@ -828,11 +830,11 @@ def _wait_for_the_headset_hold(state_dir: Path, player: subprocess.Popen) -> boo
     return False
 
 
-def _release_vr_runtime(was_up: bool) -> None:
+def _release_vr_runtime(was_up: bool, state_dir: Path) -> None:
     if was_up:
         return
     logger.info("Stopping the VR runtime this session started")
-    vr_runtime.stop_runtime()
+    vr_runtime.stop_the_runtime_a_session_started(state_dir)
 
 
 def set_up_logging(config) -> logging.Logger:

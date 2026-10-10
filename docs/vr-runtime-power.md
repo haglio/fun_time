@@ -42,6 +42,28 @@ it is the one thing that would start the services straight back up.
 A Pimax update that renamed a service would cost a headset left on, not a
 broken session: every step is best-effort and bounded by `QUIT_TIMEOUT_S`.
 
+Since Pimax Play 2.0.4 (installed 2026-09-25) the client starts the services
+again whenever it sees them stop, so a client that outlives the quit turns the
+headset straight back on. From then to 2026-10-09 that happened in every
+session whose player went before the session did: the client is the player's
+child, so killing the player took it along, but with the player already gone
+nothing did -- the session asks `tasklist` whether the client runs, and voice
+control's sound library had left the session unable to start a program that
+inherits its error output, so the answer was always "no". The ask now hands
+`tasklist` no error output of the session's to inherit.
+
+## The sound devices it leaves on the headset
+
+`pi_server` makes the headset Windows' default output and input when it starts,
+and puts back what was default before when the headset goes. When the quit
+lands while it is starting Pimax Home for an app that has just gone, its
+shutdown hangs, Pimax's launcher kills it after ten seconds, and nothing puts
+the defaults back: eleven of the 27 quits between 2026-09-26 and 2026-10-09 left
+his speakers on the headset that way. So a session that brings the runtime up
+writes down Windows' defaults first (`vr_sound_devices_before.json`), reads them
+again just before the quit, and afterwards puts back each one the runtime moved
+and left where it put it. A default anybody moved again since is left alone.
+
 ## What it will not touch
 
 `runtime_was_running()` is read once, before the session's first

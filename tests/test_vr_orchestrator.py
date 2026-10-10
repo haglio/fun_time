@@ -1010,23 +1010,21 @@ class TestHandingTheHeadsetOver:
         assert headset_hold_asked(tmp_path) is False, "the next launch must not read it"
 
 
-def test_a_session_puts_back_down_the_vr_runtime_it_brought_up(monkeypatch):
+def test_a_session_puts_back_down_the_vr_runtime_it_brought_up(monkeypatch, tmp_path):
     """Started hidden, so nothing on screen would offer to quit it afterwards."""
-    calls = []
+    stopped = []
     monkeypatch.setattr(
-        "fun_time_vr.orchestrator.vr_runtime.stop_runtime", lambda: calls.append("stop")
-    )
-    _release_vr_runtime(was_up=False)
-    assert calls == ["stop"]
+        "fun_time_vr.orchestrator.vr_runtime.stop_the_runtime_a_session_started", stopped.append)
+    _release_vr_runtime(was_up=False, state_dir=tmp_path)
+    assert stopped == [tmp_path]
 
 
-def test_a_session_leaves_a_vr_runtime_that_was_already_the_users(monkeypatch):
-    calls = []
+def test_a_session_leaves_a_vr_runtime_that_was_already_the_users(monkeypatch, tmp_path):
+    stopped = []
     monkeypatch.setattr(
-        "fun_time_vr.orchestrator.vr_runtime.stop_runtime", lambda: calls.append("stop")
-    )
-    _release_vr_runtime(was_up=True)
-    assert calls == []
+        "fun_time_vr.orchestrator.vr_runtime.stop_the_runtime_a_session_started", stopped.append)
+    _release_vr_runtime(was_up=True, state_dir=tmp_path)
+    assert stopped == []
 
 
 class TestGenausRoleInTheManifest:
@@ -1574,7 +1572,7 @@ def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
         start_hud_priming=MagicMock(return_value=(None, threading.Event())),
         stop_hotkey_script=MagicMock(side_effect=lambda _proc, _file: torn_down.append("hotkeys")),
         kill_recorded_child=MagicMock(side_effect=lambda child: torn_down.append(child.pid)),
-        _release_vr_runtime=MagicMock(side_effect=lambda _was_up: torn_down.append("runtime")),
+        _release_vr_runtime=MagicMock(side_effect=lambda *_a, **_k: torn_down.append("runtime")),
     )
     stand_ins.update(overrides)
     return patch.multiple(orchestrator, **stand_ins)
@@ -1666,6 +1664,28 @@ class TestOpeningAVrSession:
                               launch_vr_player=MagicMock(return_value=died))
 
         assert "3221225477" in caplog.text
+
+    def test_a_session_that_brings_the_runtime_up_remembers_the_sound_devices_first(
+            self, config):
+        happened: list[str] = []
+        player = MagicMock(pid=202)
+        player.poll.return_value = None
+        with patch.object(orchestrator.vr_runtime, "remember_the_sound_devices",
+                          side_effect=happened.append):
+            _end_a_vr_session(
+                orchestrator, config, ended_by=lambda *_a, **_k: "asked",
+                runtime_was_running=False,
+                launch_vr_player=MagicMock(
+                    side_effect=lambda **_k: (happened.append("player"), player)[1]))
+
+        assert happened == [config.paths.state_dir, "player"]
+
+    def test_a_session_on_a_runtime_that_was_already_up_remembers_nothing(self, config):
+        with patch.object(orchestrator.vr_runtime, "remember_the_sound_devices") as remembered:
+            _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "asked",
+                              runtime_was_running=True)
+
+        remembered.assert_not_called()
 
     def test_a_session_crossing_to_fun_time_says_esc_cancels_exiting_vr(self, config):
         def asked_to_cross(*_args, **_kwargs):

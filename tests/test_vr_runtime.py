@@ -28,6 +28,7 @@ from fun_time_vr.vr_runtime import (
     runtime_was_running,
     stop_runtime,
 )
+from fun_time_vr.windows_sound import SoundDevice
 from tests.sleeps import sleeps_in
 
 
@@ -405,6 +406,107 @@ def test_stop_runtime_does_nothing_it_cannot_do(tmp_path):
     ):
         stop_runtime()
     run.assert_not_called()
+
+
+SPEAKERS = SoundDevice("{0.0.0.00000000}.{speakers}", "Speakers (Example Audio)")
+HEADSET = SoundDevice("{0.0.0.00000000}.{headset}", "Headphones (Example Headset)")
+OUTPUT_FOR_MUSIC = ("output", "multimedia")
+
+
+def _a_session_ends(tmp_path, *, before, during, after):
+    with patch("fun_time_vr.vr_runtime.windows_sound.default_devices", return_value=before):
+        vr_runtime.remember_the_sound_devices(tmp_path)
+    with (
+        patch("fun_time_vr.vr_runtime.windows_sound.default_devices",
+              side_effect=[during, after]),
+        patch("fun_time_vr.vr_runtime.windows_sound.make_default") as made_default,
+        patch("fun_time_vr.vr_runtime.stop_runtime") as stopped,
+    ):
+        vr_runtime.stop_the_runtime_a_session_started(tmp_path)
+    stopped.assert_called_once_with()
+    return made_default
+
+
+def test_a_sound_device_the_runtime_left_on_the_headset_is_put_back(tmp_path):
+    made_default = _a_session_ends(
+        tmp_path,
+        before={OUTPUT_FOR_MUSIC: SPEAKERS},
+        during={OUTPUT_FOR_MUSIC: HEADSET},
+        after={OUTPUT_FOR_MUSIC: HEADSET})
+    made_default.assert_called_once_with(SPEAKERS, "multimedia")
+
+
+def test_a_sound_device_the_runtime_put_back_itself_is_left_alone(tmp_path):
+    made_default = _a_session_ends(
+        tmp_path,
+        before={OUTPUT_FOR_MUSIC: SPEAKERS},
+        during={OUTPUT_FOR_MUSIC: HEADSET},
+        after={OUTPUT_FOR_MUSIC: SPEAKERS})
+    made_default.assert_not_called()
+
+
+def test_a_sound_device_the_runtime_never_moved_is_left_alone(tmp_path):
+    output_for_calls = ("output", "communications")
+    made_default = _a_session_ends(
+        tmp_path,
+        before={output_for_calls: HEADSET},
+        during={output_for_calls: HEADSET},
+        after={output_for_calls: HEADSET})
+    made_default.assert_not_called()
+
+
+def test_putting_a_sound_device_back_is_logged(tmp_path, caplog):
+    with caplog.at_level("INFO", logger=vr_runtime.__name__):
+        _a_session_ends(
+            tmp_path,
+            before={OUTPUT_FOR_MUSIC: SPEAKERS},
+            during={OUTPUT_FOR_MUSIC: HEADSET},
+            after={OUTPUT_FOR_MUSIC: HEADSET})
+    assert "Headphones (Example Headset)" in caplog.text
+    assert "Speakers (Example Audio)" in caplog.text
+
+
+def test_sound_devices_that_cannot_be_written_down_do_not_stop_a_session_opening(tmp_path):
+    not_a_folder = tmp_path / "state"
+    not_a_folder.write_text("", encoding="utf-8")
+    with patch("fun_time_vr.vr_runtime.windows_sound.default_devices",
+               return_value={OUTPUT_FOR_MUSIC: SPEAKERS}):
+        vr_runtime.remember_the_sound_devices(not_a_folder)
+
+
+def test_with_nothing_written_down_the_runtime_stops_and_nothing_is_put_back(tmp_path, caplog):
+    with (
+        patch("fun_time_vr.vr_runtime.windows_sound.default_devices",
+              side_effect=[{OUTPUT_FOR_MUSIC: HEADSET}, {OUTPUT_FOR_MUSIC: HEADSET}]),
+        patch("fun_time_vr.vr_runtime.windows_sound.make_default") as made_default,
+        patch("fun_time_vr.vr_runtime.stop_runtime") as stopped,
+        caplog.at_level("WARNING", logger=vr_runtime.__name__),
+    ):
+        vr_runtime.stop_the_runtime_a_session_started(tmp_path)
+    stopped.assert_called_once_with()
+    made_default.assert_not_called()
+    assert caplog.text == ""
+
+
+def test_a_written_down_record_that_cannot_be_read_still_lets_the_runtime_stop(tmp_path):
+    (tmp_path / vr_runtime.SOUND_DEVICES_BEFORE_NAME).write_text(
+        '{"output/multimedia": {"device": "from some other version"}}', encoding="utf-8")
+    with (
+        patch("fun_time_vr.vr_runtime.windows_sound.default_devices", return_value={}),
+        patch("fun_time_vr.vr_runtime.stop_runtime") as stopped,
+    ):
+        vr_runtime.stop_the_runtime_a_session_started(tmp_path)
+    stopped.assert_called_once_with()
+
+
+def test_a_sound_device_moved_on_from_where_the_runtime_put_it_is_left_alone(tmp_path):
+    monitor = SoundDevice("{0.0.0.00000000}.{monitor}", "Example Monitor (Example Audio)")
+    made_default = _a_session_ends(
+        tmp_path,
+        before={OUTPUT_FOR_MUSIC: SPEAKERS},
+        during={OUTPUT_FOR_MUSIC: HEADSET},
+        after={OUTPUT_FOR_MUSIC: monitor})
+    made_default.assert_not_called()
 
 
 class TestShuttingDownCannotWaitForever:

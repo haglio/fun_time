@@ -17,6 +17,8 @@ NOT_UNIT_TESTED = (
     NotUnitTested("fun_time_vr/render.py", "needs a graphics context"),
     NotUnitTested("fun_time_vr/video_thread.py", "needs a graphics context"),
     NotUnitTested("fun_time_vr/vr_session.py", "needs a headset and a graphics context"),
+    NotUnitTested("fun_time_vr/windows_sound.py",
+                  "sets Windows' default sound devices: a test would change the machine's"),
 )
 
 
