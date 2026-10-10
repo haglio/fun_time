@@ -30,7 +30,7 @@ in either orchestrator:
 | The main player's A/B loop | yes, when the clip carried — re-queued on the command file |
 | Every player's playback rate | yes, re-queued on its command file |
 | The main player's hold on the video it is playing | yes, same |
-| Genau's speed, amplitude, center, shape, clip seconds, cruise, learned motion and hold | yes, same |
+| Genau's speed, amplitude, center, shape, flick seconds, cruise, learned motion and hold | yes, same |
 | The mic being off | yes, off the flag the last session wrote |
 | The satellites' mode (Kino / Origenerator) | yes, entered under the cover before the room is shown |
 | OmniPause | no — a session never opens paused |

@@ -140,7 +140,7 @@ nobody chose — which is what `playlist_opens_on` is asked before the queue.
 
 Three more things live only in a player process, so they are gone the moment a
 session ends: each player's playback rate, the main player's hold on the video it
-is playing, and Genau's Amp, Speed and Center bars, shape, clip seconds and three switches. Every
+is playing, and Genau's Amp, Speed and Center bars, shape, flick seconds and three switches. Every
 session re-sends all of them off the status and drive files the last one
 published, so the room that opens is the room the last one was showing, whether
 it was left by a crossing ([entering-vr.md](entering-vr.md)) or by quitting. The
