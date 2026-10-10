@@ -91,7 +91,7 @@ from fun_time.windows_bridge_orchestrator import (
     write_pids_file,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
-from tests.role_window_fakes import HOSTED_HWND, HOSTED_PID, lookup_hosted
+from tests.role_window_fakes import HOSTED_HWND, HOSTED_PID, RFB_HWND, lookup_hosted
 from tests.sleeps import sleeps_in
 
 
@@ -2879,12 +2879,21 @@ class TestARoomLeftInOrigeneratorMode:
         def fake_popen(cmd, **kwargs):
             return fake_loading_proc if "loading_screen" in str(cmd) else fake_ahk_proc
 
+        def the_post_loading_pass(_result, *, satellites_mode="kino", **_kwargs):
+            events.append(f"post-loading pass in {satellites_mode}")
+            return {"rfb": RFB_HWND}
+
+        def a_band(hwnd, on, **_kwargs):
+            if hwnd == RFB_HWND:
+                events.append("rfb in the band" if on else "rfb out of the band")
+
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
                    return_value=_fake_startup_result()), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
                    side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator._fix_post_loading_windows",
-                   return_value={}), \
+                   side_effect=the_post_loading_pass), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=a_band), \
              patch("fun_time.windows_bridge_orchestrator.release_the_players"), \
              patch("fun_time.runtime_flow.append_command",
                    side_effect=lambda _path, verb: events.append(verb)), \
@@ -2897,6 +2906,13 @@ class TestARoomLeftInOrigeneratorMode:
                 project_dir=tmp_path,
             )
         return events
+
+    def test_the_room_is_shown_with_the_browser_under_origenerator(self, cfg_factory, tmp_path):
+        events = self._run(cfg_factory, tmp_path, the_app_answers=True)
+
+        assert "post-loading pass in origenerator" in events
+        assert "rfb out of the band" in events
+        assert "rfb in the band" not in events
 
     def test_the_shows_are_asked_for_before_the_cover_comes_down(self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path, the_app_answers=True)

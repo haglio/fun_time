@@ -921,6 +921,11 @@ class TestTheRoomIsBandedUnderTheCover:
         """The re-band after the cover has gone, and the path with no cover."""
         assert all(under == 0 for _h, _on, under in self._calls())
 
+    def test_a_room_opening_in_origenerator_mode_keeps_the_browser_under_the_hosted_window(self):
+        for beneath in (self.COVER, 0):
+            calls = self._calls(beneath=beneath, satellites_mode="origenerator")
+            assert [on for h, on, _under in calls if h == self.ROLE_HWNDS["rfb"]] == [False]
+
 
 class TestPhase4Reveal:
     """Phase 4 (hide_windows only): play satellites, unpause the main player."""

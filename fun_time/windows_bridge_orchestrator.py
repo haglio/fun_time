@@ -70,7 +70,7 @@ from .process_tree import kill_process_tree
 from .rfb_slideshow import rfb_slideshow_on
 from .role_windows import ChildPids, WindowRoles, find_origenerators_window
 from .runtime_flow import write_flag_file
-from .satellites_mode import CLOSE_SHOWS
+from .satellites_mode import CLOSE_SHOWS, KINO_MODE
 from .session_end import session_end_marker_path
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import (
@@ -549,8 +549,8 @@ def _log_window_obstruction(name: str, hwnd: int, *, ignore: int = 0) -> None:
         logger.info("%s (hwnd=%d) is frontmost over its rect at startup", name, hwnd)
 
 
-def _fix_post_loading_windows(result: StartupResult, *,
-                              overlay_hwnd: int = 0) -> dict[str, int]:
+def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
+                              satellites_mode: str = KINO_MODE) -> dict[str, int]:
     """Resolve every managed window, band it, and settle the z-order until each
     player is actually frontmost — returning the role hwnds it resolved.
 
@@ -599,6 +599,7 @@ def _fix_post_loading_windows(result: StartupResult, *,
         main_player_hwnd=main_player_hwnd,
         dashboard_hwnd=dash_hwnd,
         beneath=overlay_hwnd,
+        satellites_mode=satellites_mode,
     )
     logger.info("Post-loading window state corrected")
     _settle_the_players(
@@ -769,7 +770,7 @@ def _reveal_the_room(
     cover: LoadingCover,
     hud_publisher,
     hud_primed,
-    before_the_cover_goes: Callable[[], None] = lambda: None,
+    before_the_cover_goes: Callable[[], str] = lambda: KINO_MODE,
 ) -> None:
     """Take the curtain down on a session that is finished under it.
 
@@ -785,12 +786,13 @@ def _reveal_the_room(
     # bands off (each promotion inserts above the overlay), so nothing of the
     # session is topmost yet: revealing here would show players sitting under
     # whatever was on those monitors, climbing over it a second later.
-    before_the_cover_goes()
+    satellites_mode = before_the_cover_goes()
     # Before the pass below, which waits for the window the dashboard shows
     # itself in when this line fills the bar.
     cover.progress.advance("finalizing")
 
-    role_hwnds = _fix_post_loading_windows(result, overlay_hwnd=cover.hwnd)
+    role_hwnds = _fix_post_loading_windows(
+        result, overlay_hwnd=cover.hwnd, satellites_mode=satellites_mode)
     seat_the_secondary_monitor(manifest, role_hwnds)
 
     cover.take_it_down()
@@ -808,7 +810,7 @@ def _reveal_the_room(
     # The overlay's own teardown hands activation to whatever is next in
     # the z-order, so the bands are asserted once more over the finished
     # room — cheap, since every window is already resolved and in place.
-    apply_topmost_bands(role_hwnds)
+    apply_topmost_bands(role_hwnds, satellites_mode=satellites_mode)
     _settle_the_players(
         _players_to_settle(
             portrait_hwnd=role_hwnds.get("portrait", 0),
@@ -902,9 +904,9 @@ def open_in_origenerator_mode(
     runner: DispatchLoopRunner,
     *,
     progress: ProgressReporter,
-) -> None:
+) -> str:
     if not runner.opens_in_origenerator_mode:
-        return
+        return runner.state.satellites_mode
     started = time.monotonic()
 
     def wait_for_the_app(has_answered: Callable[[], bool]) -> bool:
@@ -919,6 +921,7 @@ def open_in_origenerator_mode(
 
     progress.announce(COMING_BACK_TO_ORIGENERATOR_MODE)
     runner.open_in_origenerator_mode(wait_for_the_app=wait_for_the_app)
+    return runner.state.satellites_mode
 
 
 def _build_the_dispatch_loop(
