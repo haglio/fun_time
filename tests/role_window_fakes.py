@@ -49,7 +49,7 @@ def lookup_title(title, exact=False):
     return 0
 
 
-def lookup_hosted(pid, title, *, include_hidden=False):
+def lookup_hosted(pid, title, *, include_hidden=False, caption="Origenerator"):
     """The hosted app's window, which resolves by pid AND caption together.
 
     Parked, so a caller that does not ask for hidden windows finds nothing —
@@ -57,7 +57,8 @@ def lookup_hosted(pid, title, *, include_hidden=False):
     away from it in."""
     if pid != HOSTED_PID or not include_hidden:
         return 0
-    return HOSTED_HWND if title == "Origenerator" else 0
+    accepted = title(caption) if callable(title) else title == caption
+    return HOSTED_HWND if accepted else 0
 
 
 class FakeClock:

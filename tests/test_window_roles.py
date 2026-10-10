@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import pytest
+from shared_ui.preview import Preview, window_title
+
 from fun_time.window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
     ORIGENERATOR_ROLE,
+    ORIGENERATOR_TITLE,
     RFB_SLOT_ROLES,
+    is_origenerators_caption,
     role_topmost,
     visible_roles,
 )
@@ -67,3 +72,17 @@ class TestOrigeneratorRoles:
         # HWND_TOPMOST inserts at the top of the band, so a later promotion
         # wins: the hosted window must come after the fixed roles.
         assert MANAGED_ROLES.index(ORIGENERATOR_ROLE) > MANAGED_ROLES.index("rfb")
+
+
+@pytest.mark.parametrize(("caption", "is_it"), [
+    (ORIGENERATOR_TITLE, True),
+    (window_title(ORIGENERATOR_TITLE, Preview(feature=None)), True),
+    (window_title(ORIGENERATOR_TITLE, Preview(feature="a fabricated feature")), True),
+    ("Origenerator Loading", False),
+    ("Origenerator Portrait", False),
+    ("Origenerator Landscape", False),
+    ("Slideshow", False),
+])
+def test_the_hosted_window_is_known_by_its_caption_or_by_the_one_a_preview_wears(
+        caption, is_it):
+    assert is_origenerators_caption(caption) is is_it

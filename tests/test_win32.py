@@ -760,6 +760,14 @@ class TestFindWindowForProcess:
             self._enumerating(mock, [(11, 500, "Origenerator — portrait")])
             assert win32.find_window_for_process(500, "Origenerator") == 0
 
+    def test_a_caption_test_finds_the_window_whose_caption_it_accepts(self, monkeypatch):
+        monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, 500, "Origenerator Loading"),
+                                     (12, 500, "Origenerator — preview of a fabricated feature")])
+            assert win32.find_window_for_process(
+                500, lambda caption: caption.startswith("Origenerator — preview")) == 12
+
     def test_the_same_title_on_another_process_is_not_it(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         with patch("fun_time.win32._user32") as mock:

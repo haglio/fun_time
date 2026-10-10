@@ -7,7 +7,10 @@ config, no session state, no runner.
 """
 from __future__ import annotations
 
+from functools import partial
 from unittest.mock import patch
+
+from shared_ui.preview import Preview, window_title
 
 from fun_time.role_windows import (
     MAIN_BLANK_SETTLE_S,
@@ -15,6 +18,7 @@ from fun_time.role_windows import (
     WindowRoles,
 )
 from fun_time.window_layout import WindowRect
+from fun_time.window_roles import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
@@ -122,6 +126,14 @@ class TestResolveRole:
         with patch("fun_time.role_windows.window_exists", return_value=False), \
              patch("fun_time.role_windows.find_window_for_process",
                    side_effect=lookup_hosted):
+            assert windows.hwnd("origenerator") == HOSTED_HWND
+
+    def test_an_origenerator_he_had_open_as_a_preview_is_found_after_the_room_takes_it_over(self):
+        windows = make_windows(pids={"origenerator": HOSTED_PID})
+        the_preview = partial(lookup_hosted, caption=window_title(
+            ORIGENERATOR_TITLE, Preview(feature="a fabricated feature")))
+
+        with patch("fun_time.role_windows.find_window_for_process", side_effect=the_preview):
             assert windows.hwnd("origenerator") == HOSTED_HWND
 
 

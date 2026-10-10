@@ -34,7 +34,7 @@ from .window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
     ORIGENERATOR_ROLE,
-    ORIGENERATOR_TITLE,
+    is_origenerators_caption,
     role_topmost,
 )
 from .windows_bridge_startup import (
@@ -50,6 +50,12 @@ logger = logging.getLogger(__name__)
 # Generous next to the two frames a window needs; being early is the failure it
 # exists to avoid.
 MAIN_BLANK_SETTLE_S = 0.25
+
+
+def find_origenerators_window(pid: int) -> int:
+    # Pid AND title: a standalone Origenerator of his owns a window with the
+    # same caption.  Children included, for a recorded pid that is a launcher's.
+    return find_window_for_process(pid, is_origenerators_caption, include_hidden=True)
 
 
 @dataclass(frozen=True)
@@ -138,11 +144,7 @@ class WindowRoles:
         elif role == "rfb":
             hwnd = self.rfb_hwnd
         elif role == ORIGENERATOR_ROLE:
-            # Pid AND title: a standalone Origenerator of his owns a window
-            # with the same caption.  Children included, for a recorded pid
-            # that is a launcher's.
-            hwnd = find_window_for_process(
-                self.pids.origenerator, ORIGENERATOR_TITLE, include_hidden=True)
+            hwnd = find_origenerators_window(self.pids.origenerator)
         if hwnd:
             self._role_hwnds[role] = hwnd
         return hwnd

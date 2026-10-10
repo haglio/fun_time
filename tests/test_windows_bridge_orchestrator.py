@@ -8,6 +8,7 @@ import subprocess
 import threading
 import time
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -16,6 +17,7 @@ import pytest
 from app_support.file_channel import read_flag, write_flag
 from player_core.console import OSR2_RETRACTED
 from player_core.modes import MainMode
+from shared_ui.preview import Preview, window_title
 
 from fun_time import device_arbiter, windows_bridge_orchestrator
 from fun_time.config import load_config
@@ -65,6 +67,7 @@ from fun_time.shortcuts import Shortcut
 from fun_time.unlogged_notices import UNLOGGED_NOTICE_PORT_FILENAME
 from fun_time.voice_control import say_the_mic_is_off
 from fun_time.win32 import StackedWindow
+from fun_time.window_roles import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_orchestrator import (
     _CHILD_PID_KEYS,
     HUD_PRIME_TIMEOUT_S,
@@ -88,6 +91,7 @@ from fun_time.windows_bridge_orchestrator import (
     write_pids_file,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
+from tests.role_window_fakes import HOSTED_HWND, HOSTED_PID, lookup_hosted
 from tests.sleeps import sleeps_in
 
 
@@ -1192,7 +1196,7 @@ class TestKeepingTheHostedApp:
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child",
                    side_effect=lambda child: killed.append(child.pid)), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
-             patch("fun_time.windows_bridge_orchestrator.find_window_for_process",
+             patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
                    return_value=4242), \
              patch("fun_time.windows_bridge_orchestrator.hide_window") as parked, \
              patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
@@ -1213,7 +1217,7 @@ class TestKeepingTheHostedApp:
     def test_a_crossing_closes_its_shows_on_the_channel_it_was_launched_with(
         self, cfg_factory, tmp_path,
     ):
-        with patch("fun_time.windows_bridge_orchestrator.find_window_for_process",
+        with patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
                    return_value=4242), \
              patch("fun_time.windows_bridge_orchestrator.hide_window"):
             _run_a_session(cfg_factory, tmp_path, events=[], crossing=VR)
@@ -1230,7 +1234,7 @@ class TestKeepingTheHostedApp:
         def esc():
             (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_orchestrator.find_window_for_process",
+        with patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
                    return_value=4242), \
              patch("fun_time.windows_bridge_orchestrator.hide_window"):
             _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True,
@@ -1252,7 +1256,7 @@ class TestKeepingTheHostedApp:
             real_shutdown(*args, **kwargs)
             flag.write_text("cancel\nquit\n", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_orchestrator.find_window_for_process",
+        with patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
                    return_value=4242), \
              patch("fun_time.windows_bridge_orchestrator.hide_window"), \
              patch("fun_time.windows_bridge_orchestrator._shutdown_children",
@@ -1308,7 +1312,7 @@ class TestKeepingTheHostedApp:
         channel = tmp_path / "origenerator_cmd.txt"
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
-             patch("fun_time.windows_bridge_orchestrator.find_window_for_process",
+             patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
                    return_value=4242), \
              patch("fun_time.windows_bridge_orchestrator.hide_window"):
             _shutdown_children(
@@ -1319,12 +1323,28 @@ class TestKeepingTheHostedApp:
         assert kept_origenerator(tmp_path).taken_over
         assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SHOWS"]
 
+    def test_a_crossing_keeps_an_origenerator_he_had_open_as_a_preview(self, tmp_path):
+        the_preview = partial(lookup_hosted, caption=window_title(
+            ORIGENERATOR_TITLE, Preview(feature="a fabricated feature")))
+        with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
+             patch("fun_time.role_windows.find_window_for_process", side_effect=the_preview), \
+             patch("fun_time.windows_bridge_orchestrator.hide_window") as parked:
+            _shutdown_children(
+                0, _recorded_children(
+                    origenerator_pid=ChildProcess(pid=HOSTED_PID, created_at=90)),
+                NullProgress(), state_dir=tmp_path,
+                keep_origenerator_via=tmp_path / "origenerator_cmd.txt",
+                release_origenerator_via=tmp_path / "origenerator_cmd.txt")
+
+        parked.assert_called_once_with(HOSTED_HWND)
+        assert kept_origenerator(tmp_path).taken_over
+
     def test_a_window_that_cannot_be_found_is_closed_rather_than_kept(self, tmp_path):
         """Nothing to park means nothing to adopt, so it goes the ordinary way
         rather than being left running with no record of it."""
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
-             patch("fun_time.windows_bridge_orchestrator.find_window_for_process",
+             patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
                    return_value=0), \
              patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
                    ) as closed:
@@ -2731,7 +2751,7 @@ class TestOrigeneratorGracefulClose:
             "fun_time.windows_bridge_orchestrator.get_process_creation_time",
             side_effect=[8000, None],  # recorded alive, then exited after the close
         ), patch(
-            "fun_time.windows_bridge_orchestrator.find_window_for_process",
+            "fun_time.windows_bridge_orchestrator.find_origenerators_window",
             return_value=4242,
         ), patch("fun_time.windows_bridge_orchestrator.close_window",
                  side_effect=closed.append):
@@ -2741,7 +2761,7 @@ class TestOrigeneratorGracefulClose:
 
     def test_no_window_means_nothing_to_close(self):
         with patch(
-            "fun_time.windows_bridge_orchestrator.find_window_for_process",
+            "fun_time.windows_bridge_orchestrator.find_origenerators_window",
             return_value=0,
         ), patch("fun_time.windows_bridge_orchestrator.close_window") as close:
             _close_origenerator_gracefully(ChildProcess(pid=800, created_at=8000))

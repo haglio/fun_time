@@ -68,7 +68,7 @@ from .players import Player
 from .process_identity import NAMER
 from .process_tree import kill_process_tree
 from .rfb_slideshow import rfb_slideshow_on
-from .role_windows import ChildPids, WindowRoles
+from .role_windows import ChildPids, WindowRoles, find_origenerators_window
 from .runtime_flow import write_flag_file
 from .satellites_mode import CLOSE_SHOWS
 from .session_end import session_end_marker_path
@@ -97,7 +97,6 @@ from .voice_control import VoiceController, take_whether_the_mic_was_off
 from .win32 import (
     close_window,
     find_window_by_pid,
-    find_window_for_process,
     hide_window,
     iter_zorder,
     set_always_on_top,
@@ -238,7 +237,7 @@ def _close_origenerator_gracefully(child: ChildProcess | None) -> None:
     """
     if child is None or not child.pid:
         return
-    hwnd = find_window_for_process(child.pid, "Origenerator", include_hidden=True)
+    hwnd = find_origenerators_window(child.pid)
     if not hwnd:
         return
     close_window(hwnd)
@@ -256,7 +255,7 @@ def _park_the_hosted_origenerator(
     """Park the hosted app for the arriving session; whether it took it."""
     if child is None or not child.pid:
         return False
-    hwnd = find_window_for_process(child.pid, "Origenerator", include_hidden=True)
+    hwnd = find_origenerators_window(child.pid)
     if not hwnd:
         return False
     append_command(command_file, CLOSE_SHOWS)
