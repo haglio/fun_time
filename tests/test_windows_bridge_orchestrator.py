@@ -4,6 +4,7 @@ import configparser
 import inspect
 import logging
 import os
+import re
 import subprocess
 import threading
 import time
@@ -422,6 +423,31 @@ class TestKillRecordedChild:
 
         mock_kill.assert_not_called()
         assert "1234" in caplog.text
+
+    def test_says_how_long_the_child_took_to_end(self, caplog):
+        """His quit took half a minute once, and nothing said which part held it."""
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            return_value=111_000,
+        ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree", return_value=[]), \
+             caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
+            kill_recorded_child(ChildProcess(pid=1234, created_at=111_000))
+
+        assert re.fullmatch(r"Ended PID 1234 in \d+\.\ds", caplog.records[-1].getMessage())
+
+    def test_names_what_outlived_the_wait(self, caplog):
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            return_value=111_000,
+        ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
+                 return_value=[1234, 5678]), \
+             caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
+            kill_recorded_child(ChildProcess(pid=1234, created_at=111_000))
+
+        (record,) = caplog.records
+        assert record.levelname == "WARNING"
+        assert re.fullmatch(r"Gave up waiting for PID 1234 to end after \d+\.\ds; "
+                            r"still running: 1234, 5678", record.getMessage())
 
     def test_skips_an_already_exited_child_without_a_recycle_warning(self, caplog):
         with patch(
