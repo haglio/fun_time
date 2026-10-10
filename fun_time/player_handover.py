@@ -11,6 +11,7 @@ from pathlib import Path
 from player_core.file_channel import append_command
 from player_core.player_verbs import RELOAD_PLAYLIST
 from player_core.playlist import read_playlist, write_playlist
+from player_core.satellite_hud import parse_hud
 
 from .bridge_records import SatelliteChannel
 from .modes import rotated_onto
@@ -28,6 +29,19 @@ def panel_stamp(channel: SatelliteChannel) -> PanelStamp:
     except OSError:
         return None
     return stat.st_ino, stat.st_mtime_ns
+
+
+def show_f_mode(channel: SatelliteChannel) -> bool | None:
+    if channel.origenerator_hud_file is None:
+        return None
+    try:
+        panel = parse_hud(channel.origenerator_hud_file.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+    if panel is None:
+        return None
+    return next((button.lit for row in panel.rows for button in row
+                 if button.command == f"{panel.player}_fmode"), None)
 
 
 def let_go_since(channel: SatelliteChannel, stamp: PanelStamp) -> bool:

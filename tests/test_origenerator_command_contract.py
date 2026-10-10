@@ -3,21 +3,26 @@ held to what the app says it answers.
 
 What a key or a phrase says to a side in the app's mode is walked, every one of
 them, by ``tests/test_vr_control_parity.py``.  These are the rest: the console's
-enhanced-only switch, the gallery following a lock Genau took, and a copy of
-the app the session took over being handed back.
+enhanced-only switch, the room's F-Mode reaching each show's own, the gallery
+following a lock Genau took, and a copy of the app the session took over being
+handed back.
 """
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from fun_time.command_dispatch import dispatch_command
 from fun_time.config import load_config
 from fun_time.gallery_follows_genau import GalleryFollowsGenau
 from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
+from fun_time.players import Player
 from fun_time.satellites_mode import ORIGENERATOR_MODE
 from fun_time.shared_state import BridgeState
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import see_the_hosted_app_out
+from tests.hosted_shows import publish_the_show
 from tests.origenerator_contract import answers
 
 
@@ -34,6 +39,24 @@ def test_the_consoles_enhanced_only_switch(cfg_factory, tmp_path):
 
     dispatch_command("genau_filter_enhanced", BridgeState(
         satellites_mode=ORIGENERATOR_MODE, origenerator_ready=True), bridge)
+
+    sent = _what_it_was_sent(bridge.origenerator_cmd_file)
+    assert sent and all(map(answers, sent)), sent
+
+
+def test_the_rooms_f_mode_reaching_each_hosted_show(cfg_factory, tmp_path):
+    checkout = tmp_path / "origenerator"
+    checkout.mkdir()
+    config = load_config(cfg_factory({"paths": {"origenerator_dir": str(checkout)}}))
+    bridge = build_bridge_config_from_manifest(
+        LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini")))
+    for player in Player.SATELLITES:
+        publish_the_show(bridge, player, f_mode=False)
+
+    with patch("fun_time.command_dispatch.apply_fmode") as rebuild:
+        rebuild.return_value = SimpleNamespace(players=(), log_message="")
+        dispatch_command("fmode_toggle", BridgeState(
+            satellites_mode=ORIGENERATOR_MODE, origenerator_ready=True), bridge)
 
     sent = _what_it_was_sent(bridge.origenerator_cmd_file)
     assert sent and all(map(answers, sent)), sent
