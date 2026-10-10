@@ -1703,6 +1703,27 @@ class TestOpeningAVrSession:
         assert torn_down == ["hotkeys", 101, 202, "runtime"]
         assert pending_handoff(config.paths.state_dir) is None
 
+    def test_a_player_that_never_comes_up_is_ended_with_the_cover_kept_up(self, config):
+        """What it launched is ended under the opening cover, and a part slow to
+        end must not let it go over the half-built room."""
+        config.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        heard: list[bool] = []
+
+        def the_audio_companion_takes_its_time(child):
+            if child.pid == 101:
+                heard.append(heard_from_again_once_stale(
+                    config.paths.state_dir / PROGRESS_FILENAME,
+                    stale_after_s=STARTUP_STALE_TIMEOUT_S))
+
+        with _launch_stand_ins(
+            orchestrator, [], _wait_for_player=MagicMock(return_value=False),
+            kill_recorded_child=MagicMock(side_effect=the_audio_companion_takes_its_time),
+        ), patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
+             patch("fun_time_vr.orchestrator.subprocess.Popen"):
+            orchestrator.run_vr_bridge(config, SessionEnvironment())
+
+        assert heard == [True]
+
     def test_a_session_he_quit_says_esc_cancels_closing_fun_time_vr(self, config):
         offered = _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "asked")
 

@@ -661,8 +661,9 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         if not _wait_for_player(main_player_status_file, player, progress):
             # The script too: one left running swallows every key it binds.
             stop_hotkey_script(ahk_proc, ahk_cmd_file)
-            for child in children.values():
-                kill_recorded_child(child)
+            with cover.progress.cover_kept_up():
+                for child in children.values():
+                    kill_recorded_child(child)
             _release_vr_runtime(runtime_was_up, state_dir)
             cover.clear()
             return 1
