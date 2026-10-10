@@ -22,6 +22,7 @@ from player_core.hud_marks import BROKER_ICON, FMODE_ICON, shared_mark
 from player_core.modes import LengthMode, LoopState, MainMode
 from shared_ui.spacing import BUTTON_WORD_W
 
+from .content import genau_flick_noun
 from .crown import CROWN_ICON, Crown
 from .mode_plan import main_player_displays
 from .osr2_section import take_osr2_button
@@ -124,7 +125,7 @@ def console_rows(slot: MainSlot, *, in_vr: bool = False) -> tuple[tuple[Button, 
             *_file_controls(slot),
         ),
         _transport_row(slot),
-        _playback_speed_row() if main_player_displays(slot.main_mode) else _clip_seconds_row(),
+        _playback_speed_row() if main_player_displays(slot.main_mode) else _flick_seconds_row(),
     )
 
 
@@ -143,7 +144,8 @@ def osr2_controls(*, broker: bool) -> tuple[Button, ...]:
 
 def _file_controls(slot: MainSlot) -> tuple[Button, ...]:
     if not main_player_displays(slot.main_mode):
-        return (Button("browse_library", _GLYPHS["open"], "Browse the clips", group_break=True),)
+        return (Button("browse_library", _GLYPHS["open"], f"Browse the {genau_flick_noun().many}",
+                       group_break=True),)
     return (
         Button("browse_library", _GLYPHS["open"], "Browse the library", group_break=True),
         Button("main_player_record_tap", _GLYPHS["record"],
@@ -153,7 +155,7 @@ def _file_controls(slot: MainSlot) -> tuple[Button, ...]:
                else "Record loop",
                warn=slot.loop_state is LoopState.RECORDING,
                hold=slot.loop_state is LoopState.LOOPING, group_break=True),
-        Button("clipper_save", _GLYPHS["save"], "Save clip"),
+        Button("genaumacher_save", _GLYPHS["save"], "Save clip"),
     )
 
 
@@ -241,14 +243,15 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
             versions_button("main_player_cycle_version", noun=MAIN_PLAYER_NOUN,
                             has_other_versions=slot.has_other_versions),
         )
+    flick = genau_flick_noun()
     return (
-        Button("genau_prev_clip", PREV_FACE, "Previous clip"),
-        Button("genau_next_clip", NEXT_FACE, "Next clip"),
+        Button("genau_prev_clip", PREV_FACE, f"Previous {flick.one}"),
+        Button("genau_next_clip", NEXT_FACE, f"Next {flick.one}"),
         Button("main_lock", LOCK_FACE,
-               "Locked — this clip repeats; press to move on every "
+               f"Locked — this {flick.one} repeats; press to move on every "
                f"{slot.pace_s}s" if slot.locked
                else "Unlocked — moving on every "
-                    f"{slot.pace_s}s; press to hold this clip",
+                    f"{slot.pace_s}s; press to hold this {flick.one}",
                lit=slot.locked, favorite=True, group_break=True),
         *(() if slot.favorites_filter is None else (
             Button("main_fmode", FMODE_ICON,
@@ -265,12 +268,12 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
                    lit=slot.enhanced_filter, enhanced=True, group_break=True),
         )),
         Button("genau_flip_ends", FLIP_ENDS_ICON,
-               "Flipped — this clip stays that way; press to put it back" if slot.flipped
-               else "Flip this clip, for a picture running opposite the OSR2 — it stays flipped",
+               f"Flipped — this {flick.one} stays that way; press to put it back" if slot.flipped
+               else f"Flip this {flick.one}, for a picture running opposite the OSR2 — it stays flipped",
                lit=slot.flipped, group_break=True),
         Button("genau_weird_clip", TRASH_ICON, "Mark weird — move it out", danger=True),
         *browse_order_buttons("main", latest=slot.latest),
-        *_projection_buttons(slot, remembered=False, things="clips"),
+        *_projection_buttons(slot, remembered=False, things=flick.many),
     )
 
 
@@ -284,12 +287,13 @@ def _playback_speed_row() -> tuple[Button, ...]:
     )
 
 
-def _clip_seconds_row() -> tuple[Button, ...]:
+def _flick_seconds_row() -> tuple[Button, ...]:
+    flick = genau_flick_noun()
     return (
-        Button("", "Clip seconds", "", width=ROW_LABEL_W),
+        Button("", f"{flick.one.capitalize()} seconds", "", width=ROW_LABEL_W),
         Button("genau_clip_seconds_down", _GLYPHS["minus"], "Move on sooner", group_break=True),
         Button("", "", "", width=VALUE_W, host_value="advance_interval"),
-        Button("genau_clip_seconds_up", _GLYPHS["plus"], "Leave each clip longer"),
+        Button("genau_clip_seconds_up", _GLYPHS["plus"], f"Leave each {flick.one} longer"),
     )
 
 

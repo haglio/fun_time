@@ -19,19 +19,19 @@ from player_core.console import (
 from player_core.hud_placement import HudCorner, HudEdge
 from player_core.modes import MainMode
 
-from fun_time import clipper_save
+from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, WindowOp
 from fun_time.broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
-from fun_time.clipper_save import _clipper_project_dir
 from fun_time.command_dispatch import (
     _discard,
     _toggle_lock,
     dispatch_command,
     routes_to_origenerator,
 )
-from fun_time.content import WebProvider, load_content, load_web_providers
+from fun_time.content import Noun, WebProvider, load_content, load_web_providers
 from fun_time.crown import Crown
 from fun_time.event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_PORTRAIT
+from fun_time.genaumacher_save import _genaumacher_project_dir
 from fun_time.lock_hud import hud_map_cells
 from fun_time.loopback_server import omnipause_url
 from fun_time.main_list_builds import MainListBuild
@@ -3439,29 +3439,29 @@ def test_a_say_command_outside_origenerator_mode_does_nothing_quietly(tmp_path: 
     assert not any("portrait_say_favorites" in record.message for record in caplog.records)
 
 
-# --- clipper_save ---
+# --- genaumacher_save ---
 
 
-def test_clipper_save_raises_a_save_clip_op_and_runs_nothing_inline(tmp_path: Path):
+def test_genaumacher_save_raises_a_save_clip_op_and_runs_nothing_inline(tmp_path: Path):
     """The save is a 10-second cross-repo subprocess; the dispatcher only asks
     for it (the loop runs it on a worker thread), so the 20 Hz tick never
     stalls on a booting interpreter."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
-    with patch("fun_time.clipper_save.subprocess") as mock_subprocess:
-        new_state, ops = dispatch_command("clipper_save", state, config)
+    with patch("fun_time.genaumacher_save.subprocess") as mock_subprocess:
+        new_state, ops = dispatch_command("genaumacher_save", state, config)
 
     mock_subprocess.run.assert_not_called()
     assert new_state == state
     assert ops == [WindowOp(op="save_clip")]
 
 
-def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
+def test_genaumacher_save_noop_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
-    new_state, ops = dispatch_command("clipper_save", state, config)
+    new_state, ops = dispatch_command("genaumacher_save", state, config)
 
     assert ops == []
 
@@ -4106,36 +4106,53 @@ def test_lock_action_without_metadata_says_so(tmp_path: Path):
     )
 
 
-# --- where the clipper sibling is ---
+# --- where the genaumacher sibling is ---
 
 
-def test_the_clipper_sibling_is_found_beside_the_primary_not_beside_a_worktree():
-    """``../clipper`` measured from this file names a directory inside
+def test_the_genaumacher_sibling_is_found_beside_the_primary_not_beside_a_worktree():
+    """``../genaumacher`` measured from this file names a directory inside
     ``.claude/worktrees`` whenever the session is a branch-verification one, and
     there is nothing there — the save died in its ``cwd=`` and the hotkey looked
     like the branch had broken it.  The siblings live beside the primary
     checkout, which a worktree can name because they share a git directory."""
-    _clipper_project_dir.cache_clear()
+    _genaumacher_project_dir.cache_clear()
     try:
-        resolved = _clipper_project_dir()
+        resolved = _genaumacher_project_dir()
     finally:
-        _clipper_project_dir.cache_clear()
+        _genaumacher_project_dir.cache_clear()
 
-    assert resolved.name == "clipper"
+    assert resolved.name in genaumacher_save.NAMES_NEWEST_FIRST
     assert "worktrees" not in resolved.parts
 
 
-def test_the_clipper_sibling_falls_back_to_this_checkout_without_git():
+@pytest.mark.parametrize(("folders", "found"), [
+    (("genaumacher", "clipper"), "genaumacher"),
+    (("clipper",), "clipper"),
+])
+def test_the_sibling_is_the_folder_the_checkout_has_now(tmp_path, folders, found):
+    for name in folders:
+        (tmp_path / name).mkdir()
+    _genaumacher_project_dir.cache_clear()
+    try:
+        with patch("fun_time.branch_session.primary_checkout", return_value=tmp_path / "fun_time"):
+            resolved = _genaumacher_project_dir()
+    finally:
+        _genaumacher_project_dir.cache_clear()
+
+    assert resolved == tmp_path / found
+
+
+def test_the_genaumacher_sibling_falls_back_to_this_checkout_without_git():
     """No worse than it was: where git cannot answer, the checkout that is
     running is the only guess available."""
-    clipper_save._clipper_project_dir.cache_clear()
+    genaumacher_save._genaumacher_project_dir.cache_clear()
     try:
         with patch("fun_time.branch_session.primary_checkout", side_effect=OSError("no git")):
-            resolved = clipper_save._clipper_project_dir()
+            resolved = genaumacher_save._genaumacher_project_dir()
     finally:
-        clipper_save._clipper_project_dir.cache_clear()
+        genaumacher_save._genaumacher_project_dir.cache_clear()
 
-    assert resolved == Path(clipper_save.__file__).resolve().parents[1].parent / "clipper"
+    assert resolved == Path(genaumacher_save.__file__).resolve().parents[1].parent / "genaumacher"
 
 
 class _BuildsRecorded:
@@ -4337,7 +4354,8 @@ def test_putting_genaus_other_shape_back_names_both(tmp_path):
     assert [op.key for op in ops] == ["2D + VR"]
 
 
-def test_neither_of_genaus_shapes_holds_its_clip(tmp_path):
+def test_neither_of_genaus_shapes_holds_its_flick(tmp_path, monkeypatch):
+    monkeypatch.setattr("fun_time.command_dispatch.genau_flick_noun", lambda: Noun(one="pip", many="pips"))
     config = _genau_vr_config(tmp_path)
     only_flat = _make_state(main_mode=MainMode.GENAU, genau_plays_vr=False)
 
@@ -4345,7 +4363,7 @@ def test_neither_of_genaus_shapes_holds_its_clip(tmp_path):
 
     assert (state.genau_plays_vr, state.genau_plays_flat) == (False, False)
     assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["LOCK_ON"]
-    assert [op.key for op in ops] == ["No clips left"]
+    assert [op.key for op in ops] == ["No pips left"]
 
 
 def test_asking_genau_for_the_shapes_it_already_plays_sends_it_nothing(tmp_path):

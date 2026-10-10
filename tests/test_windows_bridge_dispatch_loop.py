@@ -704,7 +704,7 @@ class TestDispatchLoopRunner:
         runner = make_runner(tmp_path)
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
-        notice_op = WindowOp(op="notice", key="Clipper: MyVideo", source="main")
+        notice_op = WindowOp(op="notice", key="Genaumacher: MyVideo", source="main")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.notice") as mock_notice:
             mock_dispatch.return_value = (runner.state, [notice_op])
@@ -712,7 +712,7 @@ class TestDispatchLoopRunner:
 
         assert not ahk_cmd_file.exists()
         mock_notice.assert_called_once()
-        assert mock_notice.call_args[0][1] == "Clipper: MyVideo"
+        assert mock_notice.call_args[0][1] == "Genaumacher: MyVideo"
         assert mock_notice.call_args[1] == {"source": "main", "level": notice_op.level}
 
     def test_a_dead_end_notice_is_logged_at_its_warning_level(self, tmp_path):
@@ -1289,7 +1289,7 @@ class TestWhatASpokenCommandFlashes:
 
     def test_a_clip_save_with_no_main_player_to_save_from_says_what_was_heard(self, tmp_path):
         flashed = self._run_for_real(
-            tmp_path, "clipper_save", "save clip", main_mode=MainMode.GENAU)
+            tmp_path, "genaumacher_save", "save clip", main_mode=MainMode.GENAU)
 
         assert flashed == [("save clip", "system", 25)]
 
@@ -1327,9 +1327,9 @@ class TestWhatASpokenCommandFlashes:
         assert flashed == []
 
     def test_a_clip_save_that_answers_once_it_lands_says_nothing_now(self, tmp_path):
-        spoken = format_spoken_command("clipper_save", spoken_at=1.0, said="save clip")
+        spoken = format_spoken_command("genaumacher_save", spoken_at=1.0, said="save clip")
 
-        with patch.object(DispatchLoopRunner, "_handle_clipper_save"):
+        with patch.object(DispatchLoopRunner, "_handle_genaumacher_save"):
             assert self._flashed(tmp_path, spoken, [WindowOp(op="save_clip")]) == []
 
     def test_a_pressed_command_flashes_only_what_it_says_itself(self, tmp_path):
@@ -2562,7 +2562,7 @@ class TestIdempotentVoiceCommands:
         assert set(_OP_HANDLERS) == set(Op)
         assert {Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS} == _AHK_PASSTHROUGH_OPS
 
-    # -- clipper save --
+    # -- genaumacher save --
 
     def test_save_clip_runs_on_a_worker_thread_and_flashes_the_result(self, tmp_path, caplog):
         """The save boots a sibling repo's interpreter (up to its 10 s timeout),
@@ -2571,19 +2571,19 @@ class TestIdempotentVoiceCommands:
         runner = make_runner(tmp_path)
         with patch(
             "fun_time.windows_bridge_dispatch_loop.save_clip_session",
-            return_value="Clipper: fabricated-session",
+            return_value="Genaumacher: fabricated-session",
         ) as mock_save, caplog.at_level(
             logging.INFO, logger="fun_time.windows_bridge_dispatch_loop"
         ):
-            (tmp_path / "dashboard_cmd.txt").write_text("clipper_save", encoding="utf-8")
+            (tmp_path / "dashboard_cmd.txt").write_text("genaumacher_save", encoding="utf-8")
             runner.tick()
             wait_until(lambda: mock_save.call_count >= 1, timeout=10.0)
             wait_until(
-                lambda: any(r.message == "Clipper: fabricated-session" for r in caplog.records),
+                lambda: any(r.message == "Genaumacher: fabricated-session" for r in caplog.records),
                 timeout=10.0,
             )
         mock_save.assert_called_once_with(runner.config)
-        flashed = [r for r in caplog.records if r.message == "Clipper: fabricated-session"]
+        flashed = [r for r in caplog.records if r.message == "Genaumacher: fabricated-session"]
         assert flashed[0].source == "main"
         # The op is handled, never mistaken for an AHK verb (the else-branch
         # writes unknown ops verbatim into ahk_cmd.txt).
@@ -2598,10 +2598,10 @@ class TestIdempotentVoiceCommands:
         ) as mock_save, caplog.at_level(
             logging.INFO, logger="fun_time.windows_bridge_dispatch_loop"
         ):
-            (tmp_path / "dashboard_cmd.txt").write_text("clipper_save", encoding="utf-8")
+            (tmp_path / "dashboard_cmd.txt").write_text("genaumacher_save", encoding="utf-8")
             runner.tick()
             wait_until(lambda: mock_save.call_count >= 1, timeout=10.0)
-        assert all(not getattr(r, "source", "") == "main" or "Clipper" not in r.message
+        assert all(not getattr(r, "source", "") == "main" or "Genaumacher" not in r.message
                    for r in caplog.records)
 
     # -- broker start / broker stop --

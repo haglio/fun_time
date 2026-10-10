@@ -21,7 +21,6 @@ from player_core.playlist import PlaylistItem
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log
-from .clipper_save import save_clip_session
 from .command_dispatch import (
     dispatch_command,
     hosting_origenerator,
@@ -43,6 +42,7 @@ from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, SatelliteLine
 from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_SYSTEM, notice
 from .gallery_follows_genau import GalleryFollowsGenau
+from .genaumacher_save import save_clip_session
 from .hud_feed import HudFeed
 from .hud_transport import HudPublisher
 from .library_browser import browse_library
@@ -784,8 +784,8 @@ class DispatchLoopRunner:
                 or not self.voice_controller.accept_what_it_was_not_sure_of()):
             self._flash(NOTHING_TO_ACCEPT, source=SOURCE_SYSTEM, level=logging.WARNING)
 
-    def _handle_clipper_save(self) -> None:
-        """Run the clipper save and flash its notice — from the clipper-save thread."""
+    def _handle_genaumacher_save(self) -> None:
+        """Run the genaumacher save and flash its notice — from the genaumacher-save thread."""
         message = save_clip_session(self.config)
         if message:
             notice(logger, message, source=SOURCE_MAIN)
@@ -1018,9 +1018,9 @@ def _run_save_clip(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     # the thread flashes the result when the save lands.
     runner._answers += 1
     threading.Thread(
-        target=runner._handle_clipper_save,
+        target=runner._handle_genaumacher_save,
         daemon=True,
-        name="clipper-save",
+        name="genaumacher-save",
     ).start()
 
 

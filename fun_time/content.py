@@ -60,6 +60,20 @@ def load_content(
 
 
 @dataclass(frozen=True)
+class Noun:
+    one: str
+    many: str
+
+
+def genau_flick_noun(
+    local_path: Path = LOCAL_CONTENT,
+    example_path: Path = EXAMPLE_CONTENT,
+) -> Noun:
+    words = load_content(local_path, example_path)["genau_flick_words"]
+    return Noun(one=words["one"], many=words["many"])
+
+
+@dataclass(frozen=True)
 class WebProvider:
     """A media provider's library-folder marker and gallery-URL template.
 

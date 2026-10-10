@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import itertools
 
+import pytest
 from player_core.console import (
     GAP,
     GROUP_GAP,
@@ -22,6 +23,7 @@ from player_core.satellite_hud import HudModel
 from player_core.satellite_hud_paint import HudRenderer
 from shared_ui.icon_geometry import RENAMED_MARKS, glyph_names
 
+from fun_time import console_buttons
 from fun_time.console_buttons import (
     FLAT_ICON,
     FULL_LENGTH_ICON,
@@ -32,12 +34,20 @@ from fun_time.console_buttons import (
     osr2_controls,
     osr2_rows,
 )
+from fun_time.content import Noun
 from fun_time.osr2_section import take_osr2_button
 from fun_time.player_buttons import LATEST_ICON
 from fun_time.players import Player
 from tests.symbol_face import typed_in_the_symbol_face
 
 _MINUS, _PLUS = "−", "+"
+
+
+@pytest.fixture
+def pips(monkeypatch):
+    """Genau's flicks under a word only this test uses, so a tooltip that names
+    them can only have taken the word from the overlay."""
+    monkeypatch.setattr(console_buttons, "genau_flick_noun", lambda: Noun(one="pip", many="pips"))
 
 
 def _every_row(slot: MainSlot) -> tuple[tuple[Button, ...], ...]:
@@ -136,7 +146,7 @@ class TestTransport:
         actions = _actions(MainSlot(main_mode=MainMode.KINO))
         for action in ("main_prev", "main_next", "main_nudge_prev",
                        "main_nudge_next", "main_fmode", "browse_library",
-                       "clipper_save", "main_player_record_tap"):
+                       "genaumacher_save", "main_player_record_tap"):
             assert action in actions, action
 
     def test_f_mode_is_the_main_players_own_and_lights_while_it_is_on(self):
@@ -169,16 +179,29 @@ class TestTransport:
         """Nudge, clip and record act on a video; Genau's clips are not one."""
         actions = _actions(MainSlot(main_mode=MainMode.GENAU))
 
-        for action in ("main_nudge_prev", "clipper_save",
+        for action in ("main_nudge_prev", "genaumacher_save",
                        "main_player_record_tap", "main_fmode"):
             assert action not in actions
 
-    def test_genau_browses_its_clips_from_the_same_button_kino_browses_its_library(self):
+    def test_genau_browses_its_flicks_from_the_same_button_kino_browses_its_library(self, pips):
         kino = _button(MainSlot(main_mode=MainMode.KINO), "browse_library")
         genau = _button(MainSlot(main_mode=MainMode.GENAU), "browse_library")
 
         assert (kino.glyph, kino.tooltip) == (genau.glyph, "Browse the library")
-        assert genau.tooltip == "Browse the clips"
+        assert genau.tooltip == "Browse the pips"
+
+    def test_genaus_transport_names_its_flicks_in_the_overlays_word(self, pips):
+        def tips(**slot):
+            return {b.command: b.tooltip for b in _every_row(MainSlot(main_mode=MainMode.GENAU, **slot))[1]}
+
+        held, loose = tips(locked=True, pace_s=7), tips(locked=False, pace_s=7)
+
+        assert (held["genau_prev_clip"], held["genau_next_clip"]) == ("Previous pip", "Next pip")
+        assert held["main_lock"] == "Locked — this pip repeats; press to move on every 7s"
+        assert loose["main_lock"] == "Unlocked — moving on every 7s; press to hold this pip"
+        assert tips(flipped=True)["genau_flip_ends"] == "Flipped — this pip stays that way; press to put it back"
+        assert tips()["genau_flip_ends"] == ("Flip this pip, for a picture running opposite the OSR2 — "
+                                             "it stays flipped")
 
 
 class TestFavoritesFilter:
@@ -360,14 +383,14 @@ class TestGenausProjectionPair:
     def test_it_follows_the_browse_order_as_it_does_under_a_video(self):
         assert self._faces_after_latest(MainMode.GENAU) == self._faces_after_latest(MainMode.KINO) != []
 
-    def test_it_says_clips_where_the_video_pair_says_videos(self):
+    def test_it_names_the_flicks_where_the_video_pair_says_videos(self, pips):
         tips = [{b.tooltip for b in self._pair(*plays)}
                 for plays in ((True, True), (True, False), (False, False))]
 
         assert tips == [
-            {"Including VR clips", "Including 2D clips"},
-            {"Including VR clips", "Not including 2D clips"},
-            {"Not including VR clips", "Not including 2D clips"},
+            {"Including VR pips", "Including 2D pips"},
+            {"Including VR pips", "Not including 2D pips"},
+            {"Not including VR pips", "Not including 2D pips"},
         ]
 
 
@@ -523,12 +546,13 @@ class TestPaceRows:
         assert [b.glyph or b.host_value for b in row] == [
             "Playback speed", _MINUS, "playback_speed", _PLUS]
 
-    def test_the_seconds_are_a_read_out_between_the_arrows_that_genau_fills(self):
+    def test_the_seconds_are_a_read_out_between_the_arrows_that_genau_fills(self, pips):
         row = next(row for row in console_rows(MainSlot(main_mode=MainMode.GENAU))
                    if any(b.command == "genau_clip_seconds_down" for b in row))
 
         assert [b.glyph or b.host_value for b in row] == [
-            "Clip seconds", _MINUS, "advance_interval", _PLUS]
+            "Pip seconds", _MINUS, "advance_interval", _PLUS]
+        assert row[-1].tooltip == "Leave each pip longer"
 
     def test_a_read_out_is_not_a_hit_target(self):
         placed = place_rows(console_rows(MainSlot(main_mode=MainMode.KINO)), x=0, y=0)
@@ -649,13 +673,13 @@ class TestLayout:
         video = [b.command for b in console_rows(MainSlot(main_mode=MainMode.KINO))[0]]
         genau = [b.command for b in console_rows(MainSlot(main_mode=MainMode.GENAU))[0]]
 
-        assert video[4:] == ["browse_library", "main_player_record_tap", "clipper_save"]
+        assert video[4:] == ["browse_library", "main_player_record_tap", "genaumacher_save"]
         assert genau[4:] == ["browse_library"]
 
     def test_the_file_actions_stand_apart_from_the_crown_and_from_each_other(self):
         by_action = _placed(MainSlot(main_mode=MainMode.KINO))
         crown, browse = by_action["main_crown"], by_action["browse_library"]
-        record, save = by_action["main_player_record_tap"], by_action["clipper_save"]
+        record, save = by_action["main_player_record_tap"], by_action["genaumacher_save"]
 
         assert browse[0] - (crown[0] + crown[2]) == GROUP_GAP
         assert record[0] - (browse[0] + browse[2]) == GROUP_GAP
@@ -692,7 +716,7 @@ class TestLayout:
         genau = [b.command for b in console_rows(MainSlot(main_mode=MainMode.GENAU), in_vr=True)[0]]
 
         assert video == ["main_kino_activate", "genau_activate",
-                         "browse_library", "main_player_record_tap", "clipper_save"]
+                         "browse_library", "main_player_record_tap", "genaumacher_save"]
         assert genau == ["main_kino_activate", "genau_activate", "browse_library"]
 
     def test_minimize_asks_for_a_drawn_bar_rather_than_a_font_glyph(self):

@@ -13,6 +13,7 @@ from fun_time.command_reference import (
     build_reference_sections,
     render_reference_html,
 )
+from fun_time.content import genau_flick_noun
 from fun_time.filter_vocab import display_forms, filter_voice_commands, load_acts
 from fun_time.voice_commands import VOICE_COMMANDS, friendly_voice
 from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
@@ -456,6 +457,19 @@ def test_the_genau_row_shows_each_phrase_once_though_the_recognizer_hears_two_sp
     assert VOICE_COMMANDS["genau"] == VOICE_COMMANDS["go now"] == "genau_activate"
     genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
     assert genau_rows and genau_rows[0].voice == ("genau", "genau mode")
+
+
+def test_the_reference_names_genaus_flicks_in_the_overlays_word():
+    flick = genau_flick_noun()
+    genau = next(section for section in build_reference_sections() if section.title == "Genau")
+    seconds = next(row for row in genau.rows if "genau_clip_seconds_up" in row.commands)
+
+    assert [row.description for row in genau.rows[:2]] == [
+        f"Previous Genau {flick.one}", f"Next Genau {flick.one}"]
+    assert seconds.voice == (f"{flick.one} seconds 1–60",)
+    assert [row.description for row in genau.rows if re.search(r"\bclips?\b", row.description)] == []
+    assert [row.description for row in _all_rows()
+            if re.search(r"Genau(?:'s)? clips?\b", row.description)] == []
 
 
 def test_genau_mode_row_lists_genau_phrase_and_g_key():

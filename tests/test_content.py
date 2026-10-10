@@ -15,7 +15,13 @@ from pathlib import Path
 
 import pytest
 
-from fun_time.content import EXAMPLE_CONTENT, load_content, load_web_providers
+from fun_time.content import (
+    EXAMPLE_CONTENT,
+    Noun,
+    genau_flick_noun,
+    load_content,
+    load_web_providers,
+)
 
 
 def _example() -> dict:
@@ -72,6 +78,15 @@ class TestLoadContent:
 
         with pytest.raises(ValueError, match=re.escape(str(local))):
             load_content(local, EXAMPLE_CONTENT)
+
+
+class TestGenauFlickNoun:
+    def test_a_local_overlay_names_genaus_flicks_its_own_way(self, tmp_path: Path):
+        local = tmp_path / "content.local.json"
+        local.write_text(json.dumps({"genau_flick_words": {"one": "pip", "many": "pips"}}),
+                         encoding="utf-8")
+
+        assert genau_flick_noun(local, EXAMPLE_CONTENT) == Noun(one="pip", many="pips")
 
 
 class TestLoadWebProviders:

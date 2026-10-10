@@ -1,4 +1,4 @@
-"""The clipper save itself — the cross-repo contract with clipper.create_session.
+"""The genaumacher save itself — the cross-repo contract with genaumacher.create_session.
 
 The dispatcher only raises the ``save_clip`` op (tests/test_command_dispatch.py);
 the loop runs it on a worker thread (tests/test_windows_bridge_dispatch_loop.py).
@@ -15,7 +15,7 @@ from unittest.mock import patch
 import pytest
 
 from fun_time.bridge_records import BridgeConfig
-from fun_time.clipper_save import save_clip_session
+from fun_time.genaumacher_save import save_clip_session
 
 
 def _make_config(tmp_path: Path) -> BridgeConfig:
@@ -49,17 +49,19 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
     )
 
 
-def test_the_save_runs_clippers_venv_on_main_players_video_and_position(tmp_path: Path):
+def test_the_save_runs_genaumachers_venv_on_main_players_video_and_position(tmp_path: Path):
     config = _make_config(tmp_path)
     config.main_player_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\nloop_state=normal\npaused=0\n",
         encoding="utf-8",
     )
 
-    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
-         patch("fun_time.clipper_save.subprocess") as mock_subprocess:
+    checkout = _a_checkout_holding(tmp_path / "checkout", "genaumacher")
+    with patch("fun_time.genaumacher_save._genaumacher_project_dir", return_value=checkout), \
+         patch("fun_time.genaumacher_save._genaumacher_python", return_value="python"), \
+         patch("fun_time.genaumacher_save.subprocess") as mock_subprocess:
         mock_subprocess.run.return_value.returncode = 0
-        mock_subprocess.run.return_value.stdout = r"C:\clipper\sessions\test.json"
+        mock_subprocess.run.return_value.stdout = r"C:\genaumacher\sessions\test.json"
         mock_subprocess.run.return_value.stderr = ""
         message = save_clip_session(config)
 
@@ -67,14 +69,14 @@ def test_the_save_runs_clippers_venv_on_main_players_video_and_position(tmp_path
     cmd = mock_subprocess.run.call_args[0][0]
     assert cmd[0] == "python"
     assert "-m" in cmd
-    assert "clipper.create_session" in cmd
+    assert "genaumacher.create_session" in cmd
     assert "--video" in cmd
     assert r"C:\videos\test.mp4" in cmd
     assert "--time" in cmd
     assert "42.5" in cmd
     # The notice names the session after the path's stem.  Windows path
     # splitting differs off Windows, so the pin is the shape, not the equality.
-    assert message.startswith("Clipper: ")
+    assert message.startswith("Genaumacher: ")
     assert "test" in message
 
 
@@ -84,8 +86,8 @@ def test_a_failed_save_answers_empty(tmp_path: Path):
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
-    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
-         patch("fun_time.clipper_save.subprocess") as mock_subprocess:
+    with patch("fun_time.genaumacher_save._genaumacher_python", return_value="python"), \
+         patch("fun_time.genaumacher_save.subprocess") as mock_subprocess:
         mock_subprocess.run.return_value.returncode = 1
         mock_subprocess.run.return_value.stdout = ""
         mock_subprocess.run.return_value.stderr = "ffprobe failed"
@@ -95,8 +97,8 @@ def test_a_failed_save_answers_empty(tmp_path: Path):
 
 
 @pytest.mark.parametrize("failure", [
-    {"return_value": subprocess.CompletedProcess(["clipper"], 1, stdout="", stderr="ffprobe failed")},
-    {"side_effect": subprocess.TimeoutExpired(cmd="clipper", timeout=10)},
+    {"return_value": subprocess.CompletedProcess(["genaumacher"], 1, stdout="", stderr="ffprobe failed")},
+    {"side_effect": subprocess.TimeoutExpired(cmd="genaumacher", timeout=10)},
 ])
 def test_a_failed_save_is_logged_as_an_error(tmp_path: Path, caplog, failure):
     """The save that was asked for did not happen, and the log line is the only
@@ -106,12 +108,12 @@ def test_a_failed_save_is_logged_as_an_error(tmp_path: Path, caplog, failure):
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
-    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
-         patch("fun_time.clipper_save.subprocess.run", **failure), \
-         caplog.at_level(logging.DEBUG, logger="fun_time.clipper_save"):
+    with patch("fun_time.genaumacher_save._genaumacher_python", return_value="python"), \
+         patch("fun_time.genaumacher_save.subprocess.run", **failure), \
+         caplog.at_level(logging.DEBUG, logger="fun_time.genaumacher_save"):
         save_clip_session(config)
 
-    assert [r.levelno for r in caplog.records if r.name == "fun_time.clipper_save"] == [
+    assert [r.levelno for r in caplog.records if r.name == "fun_time.genaumacher_save"] == [
         logging.ERROR]
 
 
@@ -119,7 +121,7 @@ def test_no_video_playing_means_no_subprocess_at_all(tmp_path: Path):
     config = _make_config(tmp_path)
     # No main_player_status file → no current video → nothing to clip.
 
-    with patch("fun_time.clipper_save.subprocess") as mock_subprocess:
+    with patch("fun_time.genaumacher_save.subprocess") as mock_subprocess:
         message = save_clip_session(config)
 
     mock_subprocess.run.assert_not_called()
@@ -132,9 +134,9 @@ def test_a_timeout_reads_as_a_failed_save_not_a_crash(tmp_path: Path):
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
-    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
-         patch("fun_time.clipper_save.subprocess.run",
-               side_effect=subprocess.TimeoutExpired(cmd="clipper", timeout=10)):
+    with patch("fun_time.genaumacher_save._genaumacher_python", return_value="python"), \
+         patch("fun_time.genaumacher_save.subprocess.run",
+               side_effect=subprocess.TimeoutExpired(cmd="genaumacher", timeout=10)):
         message = save_clip_session(config)
 
     assert message == ""
@@ -142,13 +144,37 @@ def test_a_timeout_reads_as_a_failed_save_not_a_crash(tmp_path: Path):
 
 def test_a_bug_in_our_own_argument_building_surfaces(tmp_path: Path):
     """The old bare `except Exception` read a TypeError in our own code as
-    "clipper failed"; only the OS and subprocess failures are clipper's."""
+    "genaumacher failed"; only the OS and subprocess failures are genaumacher's."""
     config = _make_config(tmp_path)
     config.main_player_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
-    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
-         patch("fun_time.clipper_save.subprocess.run", side_effect=TypeError("bug")), \
+    with patch("fun_time.genaumacher_save._genaumacher_python", return_value="python"), \
+         patch("fun_time.genaumacher_save.subprocess.run", side_effect=TypeError("bug")), \
          pytest.raises(TypeError):
         save_clip_session(config)
+
+
+def _a_checkout_holding(root: Path, package: str) -> Path:
+    (root / package).mkdir(parents=True)
+    (root / package / "create_session.py").touch()
+    return root
+
+
+@pytest.mark.parametrize("package", ["genaumacher", "clipper"])
+def test_the_save_runs_the_package_the_checkout_holds(tmp_path: Path, package):
+    checkout = _a_checkout_holding(tmp_path / "checkout", package)
+    config = _make_config(tmp_path)
+    config.main_player_status_file.write_text(
+        "video=C:\videos\test.mp4\nposition_ms=42500\n", encoding="utf-8",
+    )
+
+    with patch("fun_time.genaumacher_save._genaumacher_project_dir", return_value=checkout), \
+         patch("fun_time.genaumacher_save._genaumacher_python", return_value="python"), \
+         patch("fun_time.genaumacher_save.subprocess") as mock_subprocess:
+        mock_subprocess.run.return_value.returncode = 0
+        mock_subprocess.run.return_value.stdout = r"C:\checkout\sessions\test.json"
+        save_clip_session(config)
+
+    assert f"{package}.create_session" in mock_subprocess.run.call_args[0][0]

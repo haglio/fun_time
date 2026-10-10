@@ -38,7 +38,7 @@ from main_player.controls import longer_than_a_step
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import BridgeConfig, WindowOp
 from .broker_control import HOLD_VERB, PARK_CMD, RESUME_CMD, write_broker_command
-from .content import load_web_providers
+from .content import genau_flick_noun, load_web_providers
 from .crown import CROWNS, Crown
 from .event_log import (
     FAVORITE,
@@ -1084,7 +1084,8 @@ def _dispatch_main_projection(
     else:
         state, ops = _narrow_genau(plays_vr, plays_flat, state, config)
     label = _PROJECTION_LABELS.get(
-        (plays_vr, plays_flat), "No videos left" if on_main_player else "No clips left")
+        (plays_vr, plays_flat),
+        "No videos left" if on_main_player else f"No {genau_flick_noun().many} left")
     logger.info("%s shapes: %s", "Main player" if on_main_player else "Genau", label)
     return state, [*ops, WindowOp(
         op="notice", key=label, source=SOURCE_MAIN,
@@ -1735,7 +1736,7 @@ def _mark_genaus_clip_weird(state: BridgeState, config: BridgeConfig,
 
 def _save_clip(state: BridgeState, _config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """Ask the loop for a clipper save — asked for, not run: clipper boots a
+    """Ask the loop for a genaumacher save — asked for, not run: genaumacher boots a
     sibling repo's interpreter (up to its 10 s timeout) and this runs on the
     20 Hz tick, so the loop saves on a worker thread and flashes the result
     when it lands — the one notice that trails its keypress."""
@@ -1846,7 +1847,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers[OSR2_CONTROL_BUTTONS[OSR2_CONTROL_OFF]] = _osr2_control_off
     handlers.update({cmd: partial(_take_the_osr2, player)
                      for cmd, player in TAKE_OSR2_COMMANDS.items()})
-    handlers["clipper_save"] = _save_clip
+    handlers["genaumacher_save"] = _save_clip
     handlers["genau_weird_clip"] = _mark_genaus_clip_weird
     handlers["genau_filter_enhanced"] = _filter_the_shows_enhanced
     handlers.update({cmd: _words_for_a_show_that_is_not_up

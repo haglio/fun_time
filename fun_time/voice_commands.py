@@ -18,7 +18,7 @@ from types import MappingProxyType
 
 from fun_time.filter_vocab import filter_voice_commands
 
-from .content import load_content
+from .content import Noun, genau_flick_noun, load_content
 from .crown import Crown
 
 # A spoken command carries when the *utterance began*, appended after " @".  A
@@ -87,6 +87,7 @@ def build_voice_commands(
     clip_jump_phrases: tuple[str, ...] | None = None,
     clip_flip_phrases: tuple[str, ...] | None = None,
     origenerator_phrases: tuple[str, ...] | None = None,
+    genau_flick_words: Noun | None = None,
 ) -> Mapping[str, str]:
     """The spoken vocabulary, built as a read-only value.
 
@@ -97,6 +98,7 @@ def build_voice_commands(
     or filter phrase silently shadowing a session command."""
     if origenerator_phrases is None:
         origenerator_phrases = ORIGENERATOR_PHRASES
+    flick = (genau_flick_words or genau_flick_noun()).one
     commands: dict[str, str] = {
         "quit": "quit",
         # Into the headset and back out (docs/entering-vr.md).  No key and no
@@ -161,8 +163,8 @@ def build_voice_commands(
     "tilt down": "tilt_down",
     "level": "tilt_reset",
         "browse": "browse_library",
-        "clip": "clipper_save",
-        "save clip": "clipper_save",
+        "clip": "genaumacher_save",
+        "save clip": "genaumacher_save",
         "record": "main_player_record_down",
         "loop": "main_player_record_up",
         "end loop": "main_player_loop_cancel",
@@ -218,13 +220,13 @@ def build_voice_commands(
         "human inspired": "robot_hand_toggle_learned",
         "human inspired on": "robot_hand_learned_on",
         "human inspired off": "robot_hand_learned_off",
-        "previous clip": "genau_prev_clip",
-        "next clip": "genau_next_clip",
-        # Bare "weird" already addresses the active satellite, so Genau's own clip
-        # action names the clip.  There is no spoken hold to go with it: holding a
-        # clip is the main player's lock, said as "main lock" or bare while the
+        f"previous {flick}": "genau_prev_clip",
+        f"next {flick}": "genau_next_clip",
+        # Bare "weird" already addresses the active satellite, so Genau's own
+        # action names the flick.  There is no spoken hold to go with it: holding
+        # one is the main player's lock, said as "main lock" or bare while the
         # main player has the floor.
-        "weird clip": "genau_weird_clip",
+        f"weird {flick}": "genau_weird_clip",
         "offset": "quarter_button",
         # "voice off" / "mic off" both mute voice control (there is no spoken way
         # back — a muted recognizer hears nothing; the dashboard mic button or a
@@ -444,13 +446,13 @@ def build_voice_commands(
         for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
             commands[f"{_prefix} {_word}"] = f"{_cmd_prefix}_{_value}"
 
-    # "clip seconds five" -> genau_clip_seconds_5.  These are seconds, not a 0-100 axis,
+    # "<flick> seconds five" -> genau_clip_seconds_5.  These are seconds, not a 0-100 axis,
     # so they need finer granularity than the tens-only _NUMBER_WORDS above: a spoken
     # integer 1-60, single digits and compounds ("twenty five" -> 25) alike.  Zero is
     # omitted — a nought-second interval would step the clip every frame.  Naming a
     # small number was the whole point of the interval, and its absence from the
     # grammar was why the recognizer fell back to free capture ("otto advance five").
-    # The phrase says what the number means — how many seconds a clip holds the
+    # The phrase says what the number means — how many seconds a flick holds the
     # screen — rather than naming the machinery that moves it on.
     _SPOKEN_ONES: dict[str, int] = {
         "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
@@ -477,7 +479,7 @@ def build_voice_commands(
 
 
     for _word, _value in _spoken_seconds().items():
-        commands[f"clip seconds {_word}"] = f"genau_clip_seconds_{_value}"
+        commands[f"{flick} seconds {_word}"] = f"genau_clip_seconds_{_value}"
 
     # "min amp" -> robot_hand_amp_0, "max center" -> robot_hand_center_100.
     _EXTREMES: dict[str, int] = {"min": 0, "max": 100}

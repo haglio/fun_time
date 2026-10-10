@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+from fun_time.content import Noun
 from fun_time.filter_vocab import (
     decode_filter_command,
     filter_voice_commands,
@@ -126,8 +127,8 @@ class TestVoiceCommands:
             "shorts": "main_player_length_shorts",
             "full length": "main_player_length_full",
             "browse": "browse_library",
-            "clip": "clipper_save",
-            "save clip": "clipper_save",
+            "clip": "genaumacher_save",
+            "save clip": "genaumacher_save",
             # Engine-agnostic: routed to whichever holds the OSR2, not to Genau
             # by name (the console's own marks are the by-name pair).
             "slow down": "speed_down",
@@ -149,8 +150,6 @@ class TestVoiceCommands:
             "human inspired": "robot_hand_toggle_learned",
             "human inspired on": "robot_hand_learned_on",
             "human inspired off": "robot_hand_learned_off",
-            "previous clip": "genau_prev_clip",
-            "next clip": "genau_next_clip",
             "offset": "quarter_button",
             "voice off": "voice_off",
             "mic off": "voice_off",
@@ -158,11 +157,21 @@ class TestVoiceCommands:
         for phrase, cmd in static_phrases.items():
             assert VOICE_COMMANDS[phrase] == cmd
 
-    def test_genau_clip_phrases_are_distinct_from_the_satellite_ones(self):
-        """Bare "weird" already means the active satellite, so Genau's clip
-        action has to name the clip."""
-        assert VOICE_COMMANDS["weird clip"] == "genau_weird_clip"
-        assert VOICE_COMMANDS["weird"] == "active_trash"
+    def test_genaus_flicks_are_said_in_the_overlays_word(self):
+        said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
+
+        assert {phrase: said[phrase] for phrase in ("previous pip", "next pip", "weird pip")} == {
+            "previous pip": "genau_prev_clip",
+            "next pip": "genau_next_clip",
+            "weird pip": "genau_weird_clip",
+        }
+        assert [phrase for phrase, command in said.items()
+                if command.startswith("genau_") and "clip" in phrase.split()] == []
+
+    def test_marking_a_flick_weird_names_it_where_bare_weird_means_the_active_satellite(self):
+        said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
+
+        assert (said["weird pip"], said["weird"]) == ("genau_weird_clip", "active_trash")
 
     def test_the_overlay_says_the_words_that_flip_genaus_clip(self):
         assert build_voice_commands(clip_flip_phrases=("flip alpha",))["flip alpha"] == "genau_flip_ends"
@@ -176,16 +185,15 @@ class TestVoiceCommands:
         assert "advance off" not in VOICE_COMMANDS
         assert VOICE_COMMANDS["main lock"] == "main_lock_on"
 
-    def test_a_spoken_interval_names_the_seconds(self):
-        # A spoken interval covers 1-60 seconds, single digits and compounds
-        # included — the tens-only vocabulary could not hear "advance five".
-        # The phrase is "clip seconds": what the number means, not the machinery.
+    def test_a_spoken_interval_names_the_seconds_a_flick_holds_the_screen(self):
+        said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
+
         for word, seconds in (
             ("one", 1), ("five", 5), ("nine", 9), ("fifteen", 15),
             ("thirty", 30), ("forty five", 45), ("sixty", 60),
         ):
-            assert VOICE_COMMANDS[f"clip seconds {word}"] == f"genau_clip_seconds_{seconds}"
-        assert not any(p.startswith("auto advance") for p in VOICE_COMMANDS)
+            assert said[f"pip seconds {word}"] == f"genau_clip_seconds_{seconds}"
+        assert not any(p.startswith("auto advance") for p in said)
 
     def test_no_spoken_clip_interval_is_zero_seconds(self):
         """A zero-second interval would step the clip every frame."""
