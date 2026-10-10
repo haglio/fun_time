@@ -20,10 +20,14 @@ from __future__ import annotations
 
 import os
 import sys
+import time
+from functools import partial
 from pathlib import Path
 
 import pytest
+import pytest_timeout
 
+from . import run_clock
 from .hidden_desktop import REFUSED_EXIT_CODE, on_hidden_desktop, require_hidden_desktop
 from .integration_support import (
     RootsLeftBehind,
@@ -54,6 +58,30 @@ def _refuse_a_run_off_the_hidden_desktop() -> None:
         # hook is reported as an INTERNALERROR traceback, which reads
         # as a broken harness instead of what it is — the run being invoked wrongly.
         pytest.exit(str(wrong_desktop), returncode=REFUSED_EXIT_CODE)
+
+
+def pytest_configure(config):
+    if on_hidden_desktop():
+        clock = run_clock.RunClock()
+        config.add_cleanup(partial(_say_how_much_of_the_run_was_its_own, clock, time.monotonic()))
+        config.add_cleanup(partial(run_clock.keep_time_by, run_clock.WALL))
+        run_clock.keep_time_by(clock)
+
+
+def _say_how_much_of_the_run_was_its_own(clock: run_clock.RunClock, started: float) -> None:
+    print(f"\n[integration] the run could run for {clock.seconds() / 60:.1f} of its "
+          f"{(time.monotonic() - started) / 60:.1f} minutes; other work held the processors "
+          "for the rest", file=sys.stderr, flush=True)
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_timeout_set_timer(item, settings):
+    """pytest-timeout's own thread and its own verdict, on the run's clock."""
+    if settings.method != "thread":
+        return None
+    item.cancel_timeout = run_clock.watch_for_a_timeout(
+        settings.timeout, partial(pytest_timeout.timeout_timer, item, settings))
+    return True
 
 
 def pytest_sessionstart(session):
