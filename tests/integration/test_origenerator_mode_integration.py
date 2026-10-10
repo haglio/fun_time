@@ -28,10 +28,12 @@ from PIL import Image
 from player_core.modes import MainMode
 from player_core.playlist import read_playlist
 from player_core.satellite_hud import parse_hud
+from shared_ui.preview import Preview, window_title
 
 from fun_time.event_log import event_log_path
 from fun_time.players import Player
 from fun_time.process_tree import kill_process_tree
+from fun_time.role_windows import find_origenerators_window
 from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import (
     read_shared_state,
@@ -39,7 +41,6 @@ from fun_time.shared_state import (
     write_shared_state,
 )
 from fun_time.win32 import (
-    find_window_for_process,
     is_window_minimized,
     is_window_topmost,
     iter_zorder,
@@ -47,6 +48,7 @@ from fun_time.win32 import (
     wait_for_window_by_title,
     windows_obscuring,
 )
+from fun_time.window_roles import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_orchestrator import (
     ORIGENERATOR_BOOT_BUDGET_S,
     _fix_post_loading_windows,
@@ -116,6 +118,7 @@ _STUB_MAIN = textwrap.dedent(
     parser = argparse.ArgumentParser()
     parser.add_argument("--fun-time", action="store_true")
     parser.add_argument("--showing", action="store_true")
+    parser.add_argument("--caption", default="Origenerator")
     for flag in ("--x", "--y", "--width", "--height"):
         parser.add_argument(flag, type=int, default=0)
     parser.add_argument("--command-file")
@@ -149,7 +152,6 @@ _STUB_MAIN = textwrap.dedent(
 
     def park_as_hosted():
         global booted
-        root.title("Origenerator")
         root.geometry(
             f"{max(args.width, 120)}x{max(args.height, 80)}+{args.x}+{args.y}")
         root.attributes("-topmost", True)
@@ -216,11 +218,13 @@ _STUB_MAIN = textwrap.dedent(
 
         def finish_boot():
             splash.destroy()
+            root.title("Origenerator")
             park_as_hosted()
 
         root.after(3000, finish_boot)
     else:
-        root.title("Origenerator")
+        # Kept through a takeover, as the real app keeps a preview's.
+        root.title(args.caption)
         root.geometry("640x480+40+40")
         root.deiconify()
         offer_itself()
@@ -325,7 +329,7 @@ def _host_stub(config_path: Path, stub_root: Path) -> None:
 
 
 def _parked_main_window(pid: int) -> int:
-    hwnd = find_window_for_process(pid, "Origenerator")
+    hwnd = find_origenerators_window(pid)
     return hwnd if hwnd and is_window_minimized(hwnd) else 0
 
 
@@ -667,8 +671,11 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
     _host_stub(config_path, stub_root)
     # By path rather than -m: a session's start reaps every `-m origenerator`
     # an earlier run left on this desktop, and this one is meant to be open.
+    # Open as a preview, the copy he most often has open when a room starts.
     open_app = subprocess.Popen(
-        [sys.executable, str(stub_root / "origenerator" / "__main__.py")], cwd=str(stub_root))
+        [sys.executable, str(stub_root / "origenerator" / "__main__.py"), "--caption",
+         window_title(ORIGENERATOR_TITLE, Preview(feature="a fabricated feature"))],
+        cwd=str(stub_root))
     session = FunTimeIntegrationSession(config_path)
     try:
         offer = stub_root / "state" / "fun_time_offer.txt"
