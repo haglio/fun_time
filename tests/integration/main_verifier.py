@@ -112,6 +112,11 @@ def _run_suite(command: Sequence[str], cwd: Path, log: Path, environment: Mappin
                               **hidden_subprocess_kwargs()).returncode
 
 
+def measured_run_environment(rcfile: Path) -> dict[str, str]:
+    return {**{name: value for name, value in os.environ.items() if name != "COVERAGE_FILE"},
+            "COVERAGE_PROCESS_START": str(rcfile)}
+
+
 def measured_sources(data_file: Path, checkout: Path, sources: frozenset[str]) -> frozenset[str]:
     by_path = {os.path.normcase(str(checkout / source)): source for source in sources}
     ran: set[str] = set()
@@ -196,15 +201,13 @@ class MachineBench:
         rcfile.write_text("\n".join(["[run]", f"source = {self.checkout}", f"omit = {self.checkout / 'tests'}/*",
                                       f"data_file = {measuring / '.coverage'}", "parallel = true", ""]),
                           encoding="utf-8")
-        measuring_everything = {**{name: value for name, value in os.environ.items()
-                                   if name != "COVERAGE_FILE"},
-                                "COVERAGE_PROCESS_START": str(rcfile)}
         ran = {}
         for test_file in sorted(path for path in self.shell(["git", "ls-files", "--", "tests/integration/test_*.py"],
                                                              cwd=self.checkout).split()):
             for left_over in measuring.glob(".coverage*"):
                 left_over.unlink()
-            self.suite(self._runner(test_file, "--no-cov"), self.checkout, self._log_for(commit), measuring_everything)
+            self.suite(self._runner(test_file, "--no-cov"), self.checkout, self._log_for(commit),
+                       measured_run_environment(rcfile))
             ran[test_file] = measured_sources(measuring / ".coverage", self.checkout, sources)
         CoverageMap(commit, ran).save(the_machine_s_map(self.primary))
 
