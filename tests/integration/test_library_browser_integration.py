@@ -29,7 +29,7 @@ from fun_time.library_browser import (
     LibraryBrowserWindow,
     browse_library,
 )
-from fun_time.library_handles import CLIPS_SUFFIX, LibraryHandle
+from fun_time.library_handles import LibraryHandle
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.thumbnail_cache import thumbnail_path
 from fun_time.win32 import (
@@ -50,12 +50,12 @@ pytestmark = [
 ]
 
 TITLES = ("Alpha Studio - Scene One", "Beta Collective - The Long Afternoon 2")
-SECTIONS = ("big_batch", "big_batch" + CLIPS_SUFFIX)
+SECTIONS = ("big_batch", "small_batch")
 
 
 def _handles(tmp_path: Path, cache: Path) -> list[LibraryHandle]:
     """One handle per section, each with a still already cached, so nothing is
-    extracted — and so the grid has a header of each kind to paint."""
+    extracted."""
     handles = []
     for index, title in enumerate(TITLES):
         video = tmp_path / f"v{index}.mp4"

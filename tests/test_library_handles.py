@@ -65,9 +65,9 @@ def test_the_recorded_kind_puts_a_video_in_the_excerpts_band(tmp_path: Path):
     sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
 
     assert sections == {
-        "Whole": "big_batch",
-        "Carved 0": "big_batch · clips",
-        "Carved 1": "big_batch · clips",
+        "Whole": "big_batch/full",
+        "Carved 0": "big_batch/clips",
+        "Carved 1": "big_batch/clips",
     }
 
 
@@ -233,18 +233,9 @@ def test_handles_are_sectioned_by_source_folder_biggest_first(tmp_path: Path):
     ]
 
 
-def test_clips_carved_from_a_compilation_get_their_own_section(tmp_path: Path):
-    """An excerpt is not a shorter version of the library — it is its own thing.
-
-    Evolver marks a video carved out of a compilation with a ``clip`` record, so
-    those split off into a section of their own rather than sitting between the
-    full videos they were cut from — and after them, since a folder's whole
-    videos are what it is *for*, however many cuts came out of them.
-    """
+def test_a_folder_that_never_divided_its_cuts_still_shows_full_and_clips(tmp_path: Path):
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
-    # All in one stage folder: the split is the sidecar's alone, with nothing on
-    # disk separating the cuts from the videos they came out of.
     full = _video(videos, "big_batch/0 unsorted/beta.mp4")
     _sidecar(metadata, full, library_root, "Beta Scene")
     for index in range(2):
@@ -254,9 +245,9 @@ def test_clips_carved_from_a_compilation_get_their_own_section(tmp_path: Path):
     handles = build_library_handles(str(videos), metadata)
 
     assert [(handle.section, handle.title) for handle in handles] == [
-        ("big_batch", "Beta Scene"),
-        ("big_batch · clips", "Excerpt 0"),
-        ("big_batch · clips", "Excerpt 1"),
+        ("big_batch/full", "Beta Scene"),
+        ("big_batch/clips", "Excerpt 0"),
+        ("big_batch/clips", "Excerpt 1"),
     ]
 
 
@@ -280,15 +271,13 @@ def test_a_folders_two_sections_stay_together_however_big_each_gets(tmp_path: Pa
     sections = [handle.section for handle in build_library_handles(str(videos), metadata)]
 
     assert sections == (
-        ["big_batch"] + ["big_batch · clips"] * 4 + ["small_batch"] * 2
+        ["big_batch/full"] + ["big_batch/clips"] * 4 + ["small_batch"] * 2
     )
 
 
 def test_a_band_is_named_after_the_folder_it_was_filed_into(tmp_path: Path):
-    """Once the split is on disk, the browse says the folders, not a suffix.
-
-    Two bands filed into two folders of their own are named after those folders,
-    so what the header reads and what Explorer shows are the same words.
+    """Two bands filed into two folders of their own are named after those
+    folders, so what the header reads and what Explorer shows are the same words.
     """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
@@ -360,8 +349,8 @@ def test_an_excerpt_filed_beside_its_scene_leaves_their_stage_folder_unnamed(tmp
     sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
 
     assert sections == {
-        "Scene 0": "big_batch", "Scene 1": "big_batch", "Scene 2": "big_batch",
-        "Beta Scene": "big_batch", "Beta Portrait": "big_batch · clips",
+        "Scene 0": "big_batch/full", "Scene 1": "big_batch/full", "Scene 2": "big_batch/full",
+        "Beta Scene": "big_batch/full", "Beta Portrait": "big_batch/clips",
     }
 
 
@@ -378,7 +367,7 @@ def test_an_excerpt_filed_beside_its_scene_never_makes_the_unrecorded_scene_a_cu
 
     sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
 
-    assert sections["Beta Scene"] == "big_batch"
+    assert sections["Beta Scene"] == "big_batch/full"
 
 
 def test_unrecorded_cuts_outnumbering_the_whole_videos_reclassify_nothing(tmp_path: Path):
@@ -395,8 +384,9 @@ def test_unrecorded_cuts_outnumbering_the_whole_videos_reclassify_nothing(tmp_pa
     sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
 
     assert sections == {
-        "Excerpt": "big_batch · clips",
-        "Unrecorded 0": "big_batch", "Unrecorded 1": "big_batch", "Beta Scene": "big_batch",
+        "Excerpt": "big_batch/clips",
+        "Unrecorded 0": "big_batch/full", "Unrecorded 1": "big_batch/full",
+        "Beta Scene": "big_batch/full",
     }
 
 
@@ -448,9 +438,9 @@ def test_a_folder_that_never_separated_its_cuts_reclassifies_nothing(tmp_path: P
     handles = build_library_handles(str(videos), metadata)
 
     assert [(handle.section, handle.title) for handle in handles] == [
-        ("big_batch", "Beta Scene"),
-        ("big_batch", "Gamma Scene"),
-        ("big_batch · clips", "Excerpt One"),
+        ("big_batch/full", "Beta Scene"),
+        ("big_batch/full", "Gamma Scene"),
+        ("big_batch/clips", "Excerpt One"),
     ]
 
 
