@@ -432,7 +432,15 @@ def _tear_the_lines_saved_in(data_file: str) -> None:
         raw.write(b"\xff" * page_size)
 
 
-def test_a_process_ended_part_way_through_saving_costs_the_map_only_what_that_process_ran(tmp_path, caplog):
+def _leave_its_tables_half_made(data_file: str) -> None:
+    os.remove(data_file)
+    with closing(sqlite3.connect(data_file)) as data:
+        data.execute("create table file (id integer primary key, path text, unique (path))")
+        data.commit()
+
+
+@pytest.mark.parametrize("tear", [_tear_the_lines_saved_in, _leave_its_tables_half_made])
+def test_a_process_ended_part_way_through_saving_costs_the_map_only_what_that_process_ran(tmp_path, caplog, tear):
     checkout, measuring = tmp_path / "verifying-main", tmp_path / "measuring"
     measuring.mkdir()
     torn = None
@@ -441,7 +449,7 @@ def test_a_process_ended_part_way_through_saving_costs_the_map_only_what_that_pr
         data.add_lines({str(checkout / "fun_time" / ran): [1]})
         data.write()
         torn = Path(data.data_filename())
-    _tear_the_lines_saved_in(str(torn))
+    tear(str(torn))
 
     with caplog.at_level("WARNING", logger="main_verifier"):
         ran = main_verifier.measured_sources(measuring / ".coverage", checkout,
