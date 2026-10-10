@@ -1,4 +1,4 @@
-"""What the players draw: each satellite's lock map, and the main console.
+"""What the Funestras draw: each satellite's lock map, and the main console.
 
 The feed's inputs are the session's config, the bridge state and a publisher,
 so these build one and ask it — no dispatch loop, no windows, no tick.
@@ -12,12 +12,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from player_core.console import OSR2_CONTROL_OFF
-from player_core.drive_readout import DriveHud, publish_drive
-from player_core.hud_button import Button
-from player_core.hud_placement import HudCorner
-from player_core.modes import MainMode, Osr2State
-from player_core.satellite_hud import HudCell, HudModel, hud_text, parse_hud
+from funestra_core.console import OSR2_CONTROL_OFF
+from funestra_core.drive_readout import DriveHud, publish_drive
+from funestra_core.hud_button import Button
+from funestra_core.hud_placement import HudCorner
+from funestra_core.modes import MainMode, Osr2State
+from funestra_core.satellite_hud import HudCell, HudModel, hud_text, parse_hud
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.crown import Crown
@@ -48,9 +48,9 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
         genau_status_file=tmp_path / "genau_status.txt",
         audio_paused_file=tmp_path / "audio_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
-        main_player_cmd_file=tmp_path / "main_player_cmd.txt",
-        main_player_paused_file=tmp_path / "main_player_paused.txt",
-        main_player_status_file=tmp_path / "main_player_status.txt",
+        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
+        main_funestra_paused_file=tmp_path / "main_player_paused.txt",
+        main_funestra_status_file=tmp_path / "main_player_status.txt",
         dashboard_state_file=tmp_path / "dashboard_state.ini",
         broker_heartbeat_file=tmp_path / "broker_heartbeat.txt",
     )
@@ -60,7 +60,7 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
 
 def hosting_config(tmp_path) -> BridgeConfig:
     """A session hosting an Origenerator, with the files that app publishes
-    each player's panel to."""
+    each Funestra's panel to."""
     return make_config(
         tmp_path, origenerator_enabled=True,
         origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
@@ -88,8 +88,8 @@ def publish_satellite_status(path: Path, video, *, fraction: float = 0.1,
     )
 
 
-def panel(tmp_path, player: str) -> dict:
-    return json.loads((tmp_path / f"{player}_hud.json").read_text(encoding="utf-8"))
+def panel(tmp_path, funestra: str) -> dict:
+    return json.loads((tmp_path / f"{funestra}_hud.json").read_text(encoding="utf-8"))
 
 
 def console(tmp_path) -> dict:
@@ -130,7 +130,7 @@ def broker_is_up(published: dict) -> bool:
 
 class TestHudPublishing:
     """Each satellite's lock map and the main console, built from the session's
-    config and the bridge state and published to the files the players read."""
+    config and the bridge state and published to the files the Funestras read."""
 
     def test_each_satellites_panel_carries_its_own_clip_and_lock(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
@@ -151,7 +151,7 @@ class TestHudPublishing:
         assert landscape["corner"]["path"] == "C:/v/l.mp4"
 
     def test_the_console_is_told_what_the_room_does_to_the_osr2(self, tmp_path):
-        """The state is the session's; the player drawing the console has no way
+        """The state is the session's; the Funestra drawing the console has no way
         to know it, which is why it is published like the rest of the room."""
         feed = make_feed(tmp_path)
 
@@ -167,12 +167,12 @@ class TestHudPublishing:
         assert console(tmp_path)["max_intensity"] == 35
 
     def test_a_side_the_hosted_app_has_wears_that_apps_own_panel(self, tmp_path):
-        """The hosted app publishes the player's map, line and buttons; the
+        """The hosted app publishes the Funestra's map, line and buttons; the
         session puts its own row over them -- the way back to its videos, and
-        minimize for the player's window -- and says which player has the floor."""
+        minimize for the Funestra's window -- and says which Funestra has the floor."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted = HudModel(
-            player="portrait", lock_label="Unlocked · Shuffle",
+            funestra="portrait", lock_label="Unlocked · Shuffle",
             corner=HudCell(path="C:/g/scene one.png"),
             seeds=(HudCell(path="C:/g/scene two.png"),), seed_count=2,
             rows=((Button("portrait_next", "N", "Next slide"),),),
@@ -180,7 +180,7 @@ class TestHudPublishing:
         (tmp_path / "origenerator_portrait_hud.json").write_text(
             hud_text(hosted), encoding="utf-8")
 
-        feed.publish(BridgeState(satellites_mode="origenerator", active_player=2))
+        feed.publish(BridgeState(satellites_mode="origenerator", active_funestra=2))
 
         portrait = parse_hud((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
         assert portrait.corner.path == "C:/g/scene one.png"
@@ -195,7 +195,7 @@ class TestHudPublishing:
 
     def test_a_side_the_hosted_app_has_not_filled_wears_the_mode_alone(self, tmp_path):
         """Between the switch and the app's first panel -- and after it lets a
-        player go -- there is nothing of the app's to draw: the player names the
+        Funestra go -- there is nothing of the app's to draw: the Funestra names the
         mode, with the way back on it, and no map of the videos it left."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
@@ -203,26 +203,26 @@ class TestHudPublishing:
 
         feed.publish(BridgeState(satellites_mode="origenerator"))
 
-        for player in ("portrait", "landscape"):
-            published = parse_hud((tmp_path / f"{player}_hud.json").read_text(encoding="utf-8"))
+        for funestra in ("portrait", "landscape"):
+            published = parse_hud((tmp_path / f"{funestra}_hud.json").read_text(encoding="utf-8"))
             assert published.corner is None
             assert published.seeds == ()
             assert published.lock_label == "Origenerator mode"
-            crown = ["portrait_crown"] if player == "portrait" else []
+            crown = ["portrait_crown"] if funestra == "portrait" else []
             assert [[button.command for button in row] for row in published.rows] == [
-                ["satellites_kino_activate", "origenerator_activate", f"{player}_minimize",
+                ["satellites_kino_activate", "origenerator_activate", f"{funestra}_minimize",
                  *crown]]
 
     @pytest.mark.parametrize(("hosting", "satellites_mode"), [
         (False, "kino"), (True, "kino"), (True, "origenerator")])
-    def test_no_player_in_a_headset_session_offers_to_minimize(
+    def test_no_funestra_in_a_headset_session_offers_to_minimize(
         self, tmp_path, hosting, satellites_mode,
     ):
-        """There every player is a screen in the scene with no window of its own
+        """There every Funestra is a screen in the scene with no window of its own
         to park -- whichever row minimize would ride on the desktop: the end of
         a side's band, the session's row over it, or the console's mode row."""
         config = hosting_config(tmp_path) if hosting else make_config(tmp_path)
-        feed = make_feed(tmp_path, config=replace(config, vr_main_player=True))
+        feed = make_feed(tmp_path, config=replace(config, vr_main_funestra=True))
 
         feed.publish(BridgeState(satellites_mode=satellites_mode))
 
@@ -234,10 +234,10 @@ class TestHudPublishing:
 
     def test_a_hosted_panel_caught_mid_write_leaves_the_last_one_up(self, tmp_path):
         """A read that loses to the app's own republish is not the app letting
-        go: the player keeps the panel it had rather than flashing the mode's."""
+        go: the Funestra keeps the panel it had rather than flashing the mode's."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted_file = tmp_path / "origenerator_portrait_hud.json"
-        hosted_file.write_text(hud_text(HudModel(player="portrait", lock_label="Locked")),
+        hosted_file.write_text(hud_text(HudModel(funestra="portrait", lock_label="Locked")),
                                encoding="utf-8")
         state = BridgeState(satellites_mode="origenerator")
         feed.publish(state)
@@ -249,16 +249,16 @@ class TestHudPublishing:
             return real_read(path, *args, **kwargs)
 
         with patch.object(Path, "read_text", busy):
-            feed.publish(replace(state, active_player=3))
+            feed.publish(replace(state, active_funestra=3))
 
         assert panel(tmp_path, "portrait")["lock_label"] == "Locked"
 
-    def test_what_the_hosted_app_says_about_the_picture_on_screen_reaches_the_player(
+    def test_what_the_hosted_app_says_about_the_picture_on_screen_reaches_the_funestra(
         self, tmp_path,
     ):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         (tmp_path / "origenerator_portrait_hud.json").write_text(
-            hud_text(HudModel(player="portrait", item_note="Enhancing…")), encoding="utf-8")
+            hud_text(HudModel(funestra="portrait", item_note="Enhancing…")), encoding="utf-8")
 
         feed.publish(BridgeState(satellites_mode="origenerator"))
 
@@ -288,15 +288,15 @@ class TestHudPublishing:
         assert not origenerator_button().get("dim")
 
     def test_the_published_panel_says_when_that_sides_f_mode_is_on(self, tmp_path):
-        """The flag lives on the bridge state and nowhere the player can see, so the
+        """The flag lives on the bridge state and nowhere the Funestra can see, so the
         publish is the only way F-mode reaches the screen a satellite is on — as the
         status line, and as the flag its own button lights off.
 
         It is sided: the satellite that is not in F-mode must not say it is."""
         feed, state = make_feed(tmp_path), BridgeState()
-        for player in ("portrait", "landscape"):
-            publish_satellite_status(tmp_path / f"{player}_status.txt",
-                                     f"C:/v/{player}.mp4")
+        for funestra in ("portrait", "landscape"):
+            publish_satellite_status(tmp_path / f"{funestra}_status.txt",
+                                     f"C:/v/{funestra}.mp4")
         state = replace(state, portrait=SatelliteState(favorites_filter=True))
 
         feed.publish(state)
@@ -349,7 +349,7 @@ class TestHudPublishing:
     def test_the_versions_button_lights_for_a_clip_the_library_has_twice(self, tmp_path):
         """The upscale the side plays and the sorted original it was made from:
         the button is pressable exactly where there is a second rendition on
-        disk, the way the main player's reads its own library."""
+        disk, the way the Main Funestra's reads its own library."""
         media_root = tmp_path / "AI"
         upscale = (media_root / "2_outbox" / "upscaled_by_orientation" / "portrait"
                    / "provider" / "clip_topaz.mp4")
@@ -369,9 +369,9 @@ class TestHudPublishing:
 
     def test_a_hosted_shows_reset_is_never_faded_by_the_session(self, tmp_path):
         """That reset belongs to the show, whose state this room cannot see, so
-        it stays pressable however settled the player underneath it is."""
+        it stays pressable however settled the Funestra underneath it is."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
-        hosted = HudModel(player="portrait", lock_label="Unlocked \u00b7 Shuffle",
+        hosted = HudModel(funestra="portrait", lock_label="Unlocked \u00b7 Shuffle",
                           rows=((Button("portrait_reset", "R", "Reset the show"),),))
         (tmp_path / "origenerator_portrait_hud.json").write_text(
             hud_text(hosted), encoding="utf-8")
@@ -382,38 +382,38 @@ class TestHudPublishing:
         assert not reset_button(panel(tmp_path, "portrait")).get("dim")
 
     def test_the_published_panel_says_which_side_has_the_floor(self, tmp_path):
-        """The active player is a slot number in the state and a player *name* on the
+        """The active Funestra is a slot number in the state and a Funestra *name* on the
         panel, so exactly one satellite can claim it — and neither does while the
-        the main player holds it."""
+        the Main Funestra holds it."""
         feed, state = make_feed(tmp_path), BridgeState()
-        for player in ("portrait", "landscape"):
-            publish_satellite_status(tmp_path / f"{player}_status.txt",
-                                     f"C:/v/{player}.mp4")
+        for funestra in ("portrait", "landscape"):
+            publish_satellite_status(tmp_path / f"{funestra}_status.txt",
+                                     f"C:/v/{funestra}.mp4")
 
         def actives(slot: int) -> tuple[bool, bool]:
-            feed.publish(replace(state, active_player=slot))
-            return tuple(panel(tmp_path, player)["active"]
-                         for player in ("portrait", "landscape"))
+            feed.publish(replace(state, active_funestra=slot))
+            return tuple(panel(tmp_path, funestra)["active"]
+                         for funestra in ("portrait", "landscape"))
 
         assert actives(2) == (True, False)
         assert actives(3) == (False, True)
         assert actives(1) == (False, False)
 
     def test_the_console_says_when_the_primary_has_the_floor(self, tmp_path):
-        """The main player's dot rides the console file, the same file that carries the
-        rest of its panel — one source for both players, in place of the separate
+        """The Main Funestra's dot rides the console file, the same file that carries the
+        rest of its panel — one source for both Funestras, in place of the separate
         command it used to be sent."""
         feed, state = make_feed(tmp_path), BridgeState()
 
         def active(slot: int) -> bool:
-            feed.publish(replace(state, active_player=slot))
+            feed.publish(replace(state, active_funestra=slot))
             return console(tmp_path)["active"]
 
-        assert active(1) is True   # the main player holds it
+        assert active(1) is True   # the Main Funestra holds it
         assert active(2) is False  # a satellite does
 
     def test_the_console_says_what_has_the_osr2_and_whether_the_broker_is_up(self, tmp_path):
-        """Broker status is the main player's alone — it moved off the dashboard onto
+        """Broker status is the Main Funestra's alone — it moved off the dashboard onto
         this panel — and the OSR2 state comes down as one word for the console to
         badge."""
         feed, state = make_feed(tmp_path), BridgeState()
@@ -473,23 +473,23 @@ class TestHudPublishing:
         assert "every 7s" in lock["tooltip"]
 
     def test_the_console_carries_the_lock_back_to_whoever_draws_it(self, tmp_path):
-        """Each player owns its own lock, and neither can see the other's — so
+        """Each Funestra owns its own lock, and neither can see the other's — so
         both go out on their status files and the one the mode says is showing
         comes back down here, the way the loop state does."""
         feed, state = make_feed(tmp_path), BridgeState()
-        main_player = feed.config.main_player_status_file
+        main_funestra = feed.config.main_funestra_status_file
         genau = feed.config.state_dir / "genau_status.txt"
 
         def published(mode: str) -> bool:
             feed.publish(replace(state, main_mode=mode))
             return console(tmp_path)["locked"]
 
-        main_player.write_text("video=C:/v/n.mp4\nlocked=0\n", encoding="utf-8")
+        main_funestra.write_text("video=C:/v/n.mp4\nlocked=0\n", encoding="utf-8")
         genau.write_text("locked=1\n", encoding="utf-8")
         assert published("kino") is False
         assert published("genau") is True
 
-        main_player.write_text("video=C:/v/n.mp4\nlocked=1\n", encoding="utf-8")
+        main_funestra.write_text("video=C:/v/n.mp4\nlocked=1\n", encoding="utf-8")
         genau.write_text("locked=0\n", encoding="utf-8")
         assert published("kino") is True
         assert published("genau") is False
@@ -510,7 +510,7 @@ class TestHudPublishing:
     def test_the_consoles_ten_second_steps_are_dim_on_a_video_of_ten_seconds_or_shorter(
             self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
-        status = feed.config.main_player_status_file
+        status = feed.config.main_funestra_status_file
 
         status.write_text("video=C:/v/n.mp4\nduration_ms=9000\n", encoding="utf-8")
         feed.publish(state)
@@ -523,7 +523,7 @@ class TestHudPublishing:
 
     def test_the_consoles_reset_is_faded_while_there_is_nothing_to_put_back(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
-        status = feed.config.main_player_status_file
+        status = feed.config.main_funestra_status_file
 
         status.write_text("video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n",
                           encoding="utf-8")
@@ -537,7 +537,7 @@ class TestHudPublishing:
 
     def test_each_sides_panel_says_whether_its_own_clip_is_a_favorite(self, tmp_path):
         """The dashboard's panel used to say this by turning green; the HUD marks
-        it, so the loop has to judge each player's clip against the favs file."""
+        it, so the loop has to judge each Funestra's clip against the favs file."""
         feed, state = make_feed(tmp_path), BridgeState()
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
@@ -581,7 +581,7 @@ class TestHudPublishing:
         with patch.object(feed.publisher, "publish", return_value=True) as publish:
             feed.publish_due(state, now=100.0)
             feed.publish_due(state, now=100.0 + PUBLISH_INTERVAL_S / 2)
-            assert publish.call_count == 2, "one publish per player, once"
+            assert publish.call_count == 2, "one publish per Funestra, once"
 
             feed.publish_due(state, now=100.0 + PUBLISH_INTERVAL_S)
 
@@ -589,9 +589,9 @@ class TestHudPublishing:
 
     def test_a_status_that_cannot_be_read_keeps_the_clip_it_last_named(self, tmp_path):
         """A satellite always has a clip, so a status file that reads blank means
-        the read lost — not that the player has nothing.
+        the read lost — not that the Funestra has nothing.
 
-        Believing the blank republishes an empty panel, which the player renders
+        Believing the blank republishes an empty panel, which the Funestra renders
         as a HUD with nothing on it, and the next tick puts it back: the map
         blinks.  It is most visible under OmniPause, where the picture is frozen
         and the map is the only thing that can move.
@@ -619,7 +619,7 @@ class TestHudPublishing:
         assert not reset_button(panel(tmp_path, "portrait")).get("dim")
 
     def test_a_satellite_that_has_not_started_yet_publishes_an_empty_panel(self, tmp_path):
-        # The other player of it: before a satellite's first status there is no
+        # The other Funestra of it: before a satellite's first status there is no
         # clip to hold onto, and an empty map is the truth.
         feed, state = make_feed(tmp_path), BridgeState()
 
@@ -636,8 +636,8 @@ class TestHudPublishing:
         assert not (tmp_path / "landscape_hud.json").exists()
 
 
-def _published(tmp_path, player: str) -> HudModel:
-    return parse_hud((tmp_path / f"{player}_hud.json").read_text(encoding="utf-8"))
+def _published(tmp_path, funestra: str) -> HudModel:
+    return parse_hud((tmp_path / f"{funestra}_hud.json").read_text(encoding="utf-8"))
 
 
 def _osr2_commands(model: HudModel) -> list[str]:
@@ -648,18 +648,18 @@ def _console_osr2_commands(tmp_path) -> list[str]:
     return [button.get("command", "") for row in console(tmp_path)["osr2_rows"] for button in row]
 
 
-class TestTheOsr2SectionIsOnThePlayerThatHasTheOsr2:
+class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
     def test_the_main_console_has_it_to_begin_with(self, tmp_path):
         make_feed(tmp_path).publish(BridgeState())
 
         assert console(tmp_path)["has_osr2"] is True
         assert "robot_hand_park" in _console_osr2_commands(tmp_path)
-        for player in ("portrait", "landscape"):
-            assert _osr2_commands(_published(tmp_path, player)) == [f"{player}_take_osr2"]
-            assert _published(tmp_path, player).osr2 == ""
+        for funestra in ("portrait", "landscape"):
+            assert _osr2_commands(_published(tmp_path, funestra)) == [f"{funestra}_take_osr2"]
+            assert _published(tmp_path, funestra).osr2 == ""
 
-    def test_a_side_player_that_takes_it_carries_the_whole_section(self, tmp_path):
-        make_feed(tmp_path).publish(BridgeState(osr2_player=2, osr2_control=OSR2_CONTROL_OFF))
+    def test_a_side_funestra_that_takes_it_carries_the_whole_section(self, tmp_path):
+        make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, osr2_control=OSR2_CONTROL_OFF))
 
         portrait = _published(tmp_path, "portrait")
         assert {"robot_hand_toggle_cruise", "robot_hand_park",
@@ -668,20 +668,20 @@ class TestTheOsr2SectionIsOnThePlayerThatHasTheOsr2:
         assert portrait.osr2_control == OSR2_CONTROL_OFF
         assert [button.command for button in portrait.osr2_controls] == ["broker_panel"]
 
-    def test_the_side_player_that_has_it_carries_the_max_intensity_on_its_line(self, tmp_path):
-        make_feed(tmp_path).publish(BridgeState(osr2_player=2, max_intensity=35))
+    def test_the_side_funestra_that_has_it_carries_the_max_intensity_on_its_line(self, tmp_path):
+        make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, max_intensity=35))
 
         assert _published(tmp_path, "portrait").max_intensity == 35
         assert _published(tmp_path, "landscape").max_intensity is None
 
-    def test_the_players_it_left_carry_the_button_that_takes_it(self, tmp_path):
-        make_feed(tmp_path).publish(BridgeState(osr2_player=2))
+    def test_the_funestras_it_left_carry_the_button_that_takes_it(self, tmp_path):
+        make_feed(tmp_path).publish(BridgeState(osr2_funestra=2))
 
         assert console(tmp_path)["has_osr2"] is False
         assert _console_osr2_commands(tmp_path) == ["main_take_osr2"]
         assert _osr2_commands(_published(tmp_path, "landscape")) == ["landscape_take_osr2"]
 
-    def test_a_side_player_whose_clip_is_scripted_says_its_funscript_has_the_osr2(self, tmp_path):
+    def test_a_side_funestra_whose_clip_is_scripted_says_its_funscript_has_the_osr2(self, tmp_path):
         feed = make_feed(tmp_path)
         (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
         (tmp_path / "portrait_status.txt").write_text(
@@ -689,14 +689,14 @@ class TestTheOsr2SectionIsOnThePlayerThatHasTheOsr2:
 
         with patch("app_support.file_channel.time") as mock_time:
             mock_time.time.return_value = 110.0
-            feed.publish(BridgeState(osr2_player=2))
+            feed.publish(BridgeState(osr2_funestra=2))
 
         assert _published(tmp_path, "portrait").osr2 == Osr2State.FUNSCRIPT
 
     def test_a_side_the_hosted_app_has_carries_it_as_well(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
 
-        feed.publish(BridgeState(satellites_mode="origenerator", osr2_player=3))
+        feed.publish(BridgeState(satellites_mode="origenerator", osr2_funestra=3))
 
         assert "robot_hand_park" in _osr2_commands(_published(tmp_path, "landscape"))
         assert _osr2_commands(_published(tmp_path, "portrait")) == ["portrait_take_osr2"]
@@ -704,7 +704,7 @@ class TestTheOsr2SectionIsOnThePlayerThatHasTheOsr2:
 
 class TestOsr2Mode:
     """What the main console is told the OSR2 is doing — this feed's payload
-    for the main player is the only consumer of the answer."""
+    for the Main Funestra is the only consumer of the answer."""
 
     def test_osr2_mode_off_when_rx_file_missing(self, tmp_path):
         feed = make_feed(tmp_path)
@@ -741,7 +741,7 @@ class TestOsr2Mode:
             assert feed.osr2_mode() == "auto"
 
 
-def test_the_consoles_crown_goes_dark_once_the_room_gives_it_to_the_portrait_player(tmp_path):
+def test_the_consoles_crown_goes_dark_once_the_room_gives_it_to_the_portrait_funestra(tmp_path):
     feed = make_feed(tmp_path)
 
     feed.publish(BridgeState(crowned=Crown.PORTRAIT))
@@ -763,7 +763,7 @@ def test_the_portrait_panels_crown_is_lit_once_the_room_gives_it_the_crown(tmp_p
 
 class TestWhatThePanelSaysAboutWhereItSits:
     """Where a HUD sits and whether it is collapsed travel with the panel: the
-    player draws them, and only the session knows what the keys did."""
+    Funestra draws them, and only the session knows what the keys did."""
 
     def test_each_panel_carries_its_own_corner_and_collapse(self, tmp_path):
         feed = make_feed(tmp_path)
@@ -783,7 +783,7 @@ class TestWhatThePanelSaysAboutWhereItSits:
 
     def test_a_side_the_hosted_app_holds_wears_the_sessions_own_corner(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
-        hosted = hud_text(HudModel(player="portrait", lock_label="Slideshow",
+        hosted = hud_text(HudModel(funestra="portrait", lock_label="Slideshow",
                                    corner=HudCell(path="C:/p/one.png")))
         (tmp_path / "origenerator_portrait_hud.json").write_text(hosted, encoding="utf-8")
         state = replace(

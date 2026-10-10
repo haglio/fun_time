@@ -70,7 +70,7 @@ class DashState:  # what the bar shows, and what the log is filtered to
     # the desktop's.
     f_mode: bool = False
     reference_open: bool = False
-    # Whether every player is already at its defaults, which leaves Reset All
+    # Whether every Funestra is already at its defaults, which leaves Reset All
     # with nothing to do -- drawn faded, and it takes no press.
     nothing_to_reset: bool = False
     verbosity: int = LEVELS_BY_NAME["NOTICE"]

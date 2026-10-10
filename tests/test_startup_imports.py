@@ -28,7 +28,7 @@ EXAMPLE_CONTENT = PROJECT_DIR / "content.example.json"
 
 # The launch entrypoint.  Importing it transitively pulls the whole launch
 # graph — the single-instance guard, the manifest, the dispatch loop, the
-# players' wiring, and voice_control -> voice_commands -> filter_vocab ->
+# Funestras' wiring, and voice_control -> voice_commands -> filter_vocab ->
 # content, which is where the module-level overlay reads live.
 _STARTUP_MODULES = (
     "fun_time.orchestrator",     # python -m fun_time.orchestrator

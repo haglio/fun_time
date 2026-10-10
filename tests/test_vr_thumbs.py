@@ -25,7 +25,7 @@ def _hands(*, right: HandInput | None = None, left: HandInput | None = None):
     return {RIGHT: right or HandInput(), LEFT: left or HandInput()}
 
 
-def test_pulling_the_stick_back_grows_the_main_player():
+def test_pulling_the_stick_back_grows_the_main_funestra():
     thumb = Thumbs().frame(_hands(right=HandInput(stick_y=-1.0)), _Squeeze(), elapsed_s=0.5)
 
     assert thumb.grow == pytest.approx(2.0 ** (0.5 * DOUBLINGS_PER_S))
@@ -45,7 +45,7 @@ def test_a_stick_drifting_inside_its_deadzone_sizes_nothing():
     assert Thumbs().frame(drifting, _Squeeze(), elapsed_s=1.0).grow == 1.0
 
 
-def test_with_the_trigger_held_the_stick_brings_the_players_nearer_instead():
+def test_with_the_trigger_held_the_stick_brings_the_funestras_nearer_instead():
     held = _Squeeze(squeezing=True)
 
     thumb = Thumbs().frame(_hands(right=HandInput(stick_y=-1.0)), held, elapsed_s=0.5)
@@ -114,7 +114,7 @@ def test_a_push_mostly_away_or_back_steps_no_projection_however_far_it_leans():
     assert thumb.grow > 1.0
 
 
-def test_a_push_mostly_sideways_sizes_no_player_and_spends_no_trigger():
+def test_a_push_mostly_sideways_sizes_no_funestra_and_spends_no_trigger():
     held = _Squeeze(squeezing=True)
     leaning = _hands(right=HandInput(stick_x=0.9, stick_y=0.4))
 
@@ -150,7 +150,7 @@ def test_the_stick_coming_back_to_rest_settles_what_it_moved_once():
 
 
 class TestDialingAWrappedPicture:
-    def test_either_sticks_up_and_down_stretches_the_picture_and_sizes_no_player(self):
+    def test_either_sticks_up_and_down_stretches_the_picture_and_sizes_no_funestra(self):
         for hands in (_hands(left=HandInput(stick_y=-1.0)), _hands(right=HandInput(stick_y=-1.0))):
             thumb = Thumbs().frame(hands, _Squeeze(), elapsed_s=0.5, dialing=True)
 
@@ -177,7 +177,7 @@ class TestDialingAWrappedPicture:
 
         assert Thumbs().frame(drifting, _Squeeze(), elapsed_s=1.0, dialing=True).stretch == 1.0
 
-    def test_with_the_trigger_held_the_stick_still_brings_the_players_nearer(self):
+    def test_with_the_trigger_held_the_stick_still_brings_the_funestras_nearer(self):
         held = _Squeeze(squeezing=True)
 
         thumb = Thumbs().frame(
@@ -194,7 +194,7 @@ class TestDialingAWrappedPicture:
         assert thumb.commands == ("projection_cycle",)
         assert thumb.stretch == 1.0
 
-    def test_without_a_wrapped_picture_either_stick_sizes_a_player_as_before(self):
+    def test_without_a_wrapped_picture_either_stick_sizes_a_funestra_as_before(self):
         thumb = Thumbs().frame(_hands(left=HandInput(stick_y=-1.0)), _Squeeze(), elapsed_s=0.5)
 
         assert thumb.grow == pytest.approx(2.0 ** (0.5 * DOUBLINGS_PER_S))

@@ -9,12 +9,16 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from player_core.modes import MainMode
+from funestra_core.modes import MainMode
 
 from fun_time import windows_bridge_sequencer
 from fun_time.config import LayoutConfig, load_config
+from fun_time.funestra_deaths import FunestraDied
+from fun_time.funestra_status import (
+    read_main_funestra_status,
+)
 from fun_time.loading_screen import STALE_TIMEOUT_S
-from fun_time.main_player_console import main_player_console_path
+from fun_time.main_funestra_console import main_funestra_console_path
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
@@ -26,11 +30,7 @@ from fun_time.overlay_progress import (
     NullProgress,
     StartupCancelled,
 )
-from fun_time.player_deaths import PlayerDied
-from fun_time.player_status import (
-    read_main_player_status,
-)
-from fun_time.players import Player
+from fun_time.room_funestras import RoomFunestra
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import keep_the_origenerator
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
@@ -43,15 +43,15 @@ from fun_time.window_layout import (
     screen_layout,
 )
 from fun_time.windows_bridge_sequencer import (
-    MAIN_PLAYER_LOAD_TIMEOUT_S,
+    MAIN_FUNESTRA_LOAD_TIMEOUT_S,
     WINDOW_RESOLVE_TIMEOUT_S,
     _maybe_launch_random_favs_browser,
     _resolve_satellite_hwnds,
-    _wait_for_main_player_loaded,
-    release_the_players,
+    _wait_for_main_funestra_loaded,
+    release_the_funestras,
     run_startup_sequence,
 )
-from fun_time.windows_bridge_startup import HandedPlayer
+from fun_time.windows_bridge_startup import HandedFunestra
 from tests.sleeps import sleeps_in
 
 FAKE_MONITORS = [
@@ -67,10 +67,10 @@ def fake_screen_layout(layout_config):
 
 CORE_PIDS = {"portrait_pid": 30, "landscape_pid": 40}
 UI_PIDS = {"dashboard_pid": 50, "audio_pid": 70}
-MAIN_PLAYER_PID = 25
+MAIN_FUNESTRA_PID = 25
 
 # Main slot on the secondary monitor with conftest's main_top_ratio=0.727:
-# portrait height = int(3440 * 0.727) = 2500, main player height = 940.
+# portrait height = int(3440 * 0.727) = 2500, Main Funestra height = 940.
 PRIMARY_MEDIA_RECT = {"x": 2560, "y": 2500, "width": 1440, "height": 940}
 
 
@@ -82,9 +82,9 @@ def _make_manifest(cfg_factory, tmp_path, overrides: dict | None = None):
     return cfg, manifest_path
 
 
-def _pause_every_player(m) -> list[Path]:
+def _pause_every_funestra(m) -> list[Path]:
     """The three paused flags, all set — the state seed_startup_states leaves."""
-    flags = [Path(m.commands.main_player_paused_file), Path(m.commands.genau_paused_file),
+    flags = [Path(m.commands.main_funestra_paused_file), Path(m.commands.genau_paused_file),
              Path(m.commands.audio_paused_file)]
     for flag in flags:
         flag.parent.mkdir(parents=True, exist_ok=True)
@@ -121,7 +121,7 @@ def _seed_paused_flags(manifest_path) -> dict[str, Path]:
     m.optionxform = str
     m.read(str(manifest_path), encoding="utf-8")
     flags = {}
-    for key in ("main_player_paused_file", "genau_paused_file", "audio_paused_file"):
+    for key in ("main_funestra_paused_file", "genau_paused_file", "audio_paused_file"):
         path = Path(m["commands"][key])
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("1", encoding="utf-8")
@@ -143,7 +143,7 @@ SEQUENCER = "fun_time.windows_bridge_sequencer"
 
 #: Collaborators the sequencer reaches through another module, patched there.
 _STUB_MODULES = {"launch_origenerator": "fun_time.hosted_origenerator",
-                 "is_process_alive": "fun_time.player_deaths"}
+                 "is_process_alive": "fun_time.funestra_deaths"}
 
 
 @contextlib.contextmanager
@@ -160,13 +160,13 @@ def _sequencer_stubs(**overrides):
     """
     spec: dict[str, dict] = {
         "start_core_session": dict(side_effect=_fake_core),
-        "launch_main_player": dict(side_effect=_fake_main_player),
+        "launch_main_funestra": dict(side_effect=_fake_main_funestra),
         "launch_ui_companions": dict(side_effect=_fake_ui),
         "screen_layout": dict(side_effect=fake_screen_layout),
         "wait_for_window_by_title": dict(return_value=99999),
         "move_window": {},
         "set_always_on_top": {},
-        # Every player launched here is a made-up pid, so the room is running
+        # Every Funestra launched here is a made-up pid, so the room is running
         # unless a test says one of them died.
         "is_process_alive": dict(return_value=True),
     }
@@ -187,14 +187,14 @@ def _fake_ui(**kwargs):
     _write_result(kwargs["result_file"], UI_PIDS)
 
 
-def _fake_main_player(**kwargs):
-    """the main player, launched: its status file appears once it has a video up.
+def _fake_main_funestra(**kwargs):
+    """the Main Funestra, launched: its status file appears once it has a video up.
 
     The overlay is held on exactly that file, so a fake that returned a pid and
     wrote nothing would leave every startup here waiting out the full budget.
     """
     Path(kwargs["status_file"]).write_text("video=this_session.mp4\n", encoding="utf-8")
-    return MAIN_PLAYER_PID
+    return MAIN_FUNESTRA_PID
 
 
 ORIGENERATOR_PID = 91
@@ -203,7 +203,7 @@ ORIGENERATOR_PID = 91
 def _fake_origenerator(**kwargs):
     """The hosted app, launched and up: both regions occupied in its status file.
 
-    Written for the same reason ``_fake_main_player`` writes the main player's — the overlay is
+    Written for the same reason ``_fake_main_funestra`` writes the Main Funestra's — the overlay is
     held on this file now — and written full, since a status saying the app
     answers but shows nothing is what holds a session in origenerator mode.
     """
@@ -264,16 +264,16 @@ class TestRunStartupSequence:
     def test_every_phases_pids_are_gathered_into_the_launch_result(self, cfg_factory, tmp_path):
         _cfg, result, _core, _ui = self._captured_launch(cfg_factory, tmp_path)
 
-        assert result.main_player_pid == MAIN_PLAYER_PID
+        assert result.main_funestra_pid == MAIN_FUNESTRA_PID
         assert result.portrait_pid == 30
         assert result.landscape_pid == 40
         assert result.dashboard_pid == 50
         assert result.audio_pid == 70
 
     def test_the_satellites_are_wired_from_the_manifest(self, cfg_factory, tmp_path):
-        """OUR python (the satellite player ships from this repo, so it must
+        """OUR python (the Satellite Funestra ships from this repo, so it must
         not depend on genau's venv), the satellite module, and each side's
-        files — plus a log per windowed player: under pythonw there is no
+        files — plus a log per windowed Funestra: under pythonw there is no
         console, so without one an unhandled exception dies tracelessly."""
         cfg, _result, core_called, _ui = self._captured_launch(cfg_factory, tmp_path)
 
@@ -283,20 +283,20 @@ class TestRunStartupSequence:
         state = cfg.paths.state_dir
         for side in ("portrait", "landscape"):
             slot = core_called[side]
-            assert slot.player.label == side
+            assert slot.funestra.label == side
             assert slot.channels.command == Path(state / f"{side}_cmd.txt")
             assert slot.channels.paused == Path(state / f"{side}_paused.txt")
             assert slot.channels.status == Path(state / f"{side}_status.txt")
             assert slot.log_file == tmp_path / f"{side}_satellite.log"
             assert slot.channels.playlist == tmp_path / f"{side}_playlist.tsv"
-        # The main player's status file rides along too: startup resumes each player onto
-        # the video its status file names, and the main player is the third of the three.
-        assert core_called["main_player_status_file"] == str(cfg.main_player_status_file)
-        assert core_called["main_player_paused_file"] == str(cfg.main_player_paused_file)
+        # The Main Funestra's status file rides along too: startup resumes each Funestra onto
+        # the video its status file names, and the Main Funestra is the third of the three.
+        assert core_called["main_funestra_status_file"] == str(cfg.main_funestra_status_file)
+        assert core_called["main_funestra_paused_file"] == str(cfg.main_funestra_paused_file)
 
     def test_the_satellites_launch_straight_into_their_layout_rects(self, cfg_factory, tmp_path):
         """The sequencer threads the computed rects into the core launch, so
-        each player opens where it plays."""
+        each Funestra opens where it plays."""
         _cfg, _result, core_called, ui_called = self._captured_launch(cfg_factory, tmp_path)
 
         assert core_called["portrait"].rect.x == 2560
@@ -330,40 +330,40 @@ class TestRunStartupSequence:
             for key in ("rfb_x", "rfb_y", "rfb_width", "rfb_height")
         )
 
-    def test_launches_the_main_player_with_the_primary_media_rect_and_genaus_files(self, cfg_factory, tmp_path):
+    def test_launches_the_main_funestra_with_the_primary_media_rect_and_genaus_files(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        main_player_kwargs = {}
+        main_funestra_kwargs = {}
 
-        def capture_main_player(**kwargs):
-            main_player_kwargs.update(kwargs)
-            return _fake_main_player(**kwargs)
+        def capture_main_funestra(**kwargs):
+            main_funestra_kwargs.update(kwargs)
+            return _fake_main_funestra(**kwargs)
 
-        with _sequencer_stubs(launch_main_player=dict(side_effect=capture_main_player), wait_for_window_by_title=dict(return_value=88888)):
+        with _sequencer_stubs(launch_main_funestra=dict(side_effect=capture_main_funestra), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        # The main player is wired from the manifest [modules]/[commands] keys and the main slot's rect.
-        assert main_player_kwargs == {
+        # The Main Funestra is wired from the manifest [modules]/[commands] keys and the main slot's rect.
+        assert main_funestra_kwargs == {
             "python_exe": str(cfg.paths.python_exe),
-            "main_player_module": "main_player",
+            "main_funestra_module": "main_funestra",
             "config_path": str(cfg.config_path),
-            "playlist_file": str(cfg.main_player_playlist_file),
-            "command_file": str(cfg.main_player_cmd_file),
-            "paused_file": str(cfg.main_player_paused_file),
-            "status_file": str(cfg.main_player_status_file),
-            # The console: the panel Fun Time publishes for the main player's HUD, Genau's
+            "playlist_file": str(cfg.main_funestra_playlist_file),
+            "command_file": str(cfg.main_funestra_cmd_file),
+            "paused_file": str(cfg.main_funestra_paused_file),
+            "status_file": str(cfg.main_funestra_status_file),
+            # The console: the panel Fun Time publishes for the Main Funestra's HUD, Genau's
             # readout for the section under it, and where a press goes back.
-            "console_file": str(main_player_console_path(cfg.paths.state_dir)),
+            "console_file": str(main_funestra_console_path(cfg.paths.state_dir)),
             "drive_file": str(Path(cfg.genau_cmd_file).parent / "genau_drive.txt"),
-            # The main player is the satellites' twin and gets the same crash log.
-            "log_file": tmp_path / "main_player.log",
+            # The Main Funestra is the satellites' twin and gets the same crash log.
+            "log_file": tmp_path / "main_funestra.log",
             # Where it keeps the mode it was in and the point each video was left
             # at; left to itself it puts them beside the config, in the checkout.
             "state_dir": tmp_path,
-            "main_player_x": PRIMARY_MEDIA_RECT["x"],
-            "main_player_y": PRIMARY_MEDIA_RECT["y"],
-            "main_player_width": PRIMARY_MEDIA_RECT["width"],
-            "main_player_height": PRIMARY_MEDIA_RECT["height"],
+            "main_funestra_x": PRIMARY_MEDIA_RECT["x"],
+            "main_funestra_y": PRIMARY_MEDIA_RECT["y"],
+            "main_funestra_width": PRIMARY_MEDIA_RECT["width"],
+            "main_funestra_height": PRIMARY_MEDIA_RECT["height"],
             # Genau runs on this window too, through files of its own: the room's
             # verbs for the hand and the clip, its pause, the status it publishes,
             # and the config its engine is tuned by.
@@ -373,24 +373,24 @@ class TestRunStartupSequence:
             "genau_config_path": str(cfg.paths.genau_config_path or cfg.config_path),
             # Genau's loop-delivery folder, played as shorts by Kino and browsed by Genau.
             "clips_dir": str(cfg.paths.clips_dir),
-            # This manifest has no regen.metadata_root, so the main player is left to
-            # group by name; launch_main_player's --metadata-dir wiring is covered in
+            # This manifest has no regen.metadata_root, so the Main Funestra is left to
+            # group by name; launch_main_funestra's --metadata-dir wiring is covered in
             # test_windows_bridge_startup.
             "metadata_dir": None,
             # Nothing to resume Genau onto: no status file from a session before.
             "genau_start_clip": "",
             "genau_latest": False,
-            # Where a press on the main player's volume control posts its command — the same
+            # Where a press on the Main Funestra's volume control posts its command — the same
             # file the dashboard and each satellite's HUD write to.
             "dashboard_cmd_file": str(cfg.paths.state_dir / "dashboard_cmd.txt"),
-            # Which checkouts to run — empty in an ordinary session, so the player
+            # Which checkouts to run — empty in an ordinary session, so the Funestra
             # resolves through its venv.
             "project_dirs": "",
         }
 
-    def test_the_main_player_reads_its_settings_from_fun_times_own_config_not_genaus(
+    def test_the_main_funestra_reads_its_settings_from_fun_times_own_config_not_genaus(
             self, cfg_factory, tmp_path):
-        """The main player's library folders and T-Code port live in Fun Time's
+        """The Main Funestra's library folders and T-Code port live in Fun Time's
         config now, so it is handed Fun Time's config file, not genau's -- even
         when the two are distinct files, as they are on a real machine."""
         genau_config = tmp_path / "genau_config.json"
@@ -399,22 +399,22 @@ class TestRunStartupSequence:
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
 
-        main_player_kwargs: dict = {}
+        main_funestra_kwargs: dict = {}
 
-        def capture_main_player(**kwargs):
-            main_player_kwargs.update(kwargs)
-            return _fake_main_player(**kwargs)
+        def capture_main_funestra(**kwargs):
+            main_funestra_kwargs.update(kwargs)
+            return _fake_main_funestra(**kwargs)
 
-        with _sequencer_stubs(launch_main_player=dict(side_effect=capture_main_player)):
+        with _sequencer_stubs(launch_main_funestra=dict(side_effect=capture_main_funestra)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert main_player_kwargs["config_path"] == str(cfg.config_path)
-        assert main_player_kwargs["config_path"] != str(genau_config)
-        assert main_player_kwargs["clips_dir"] == str(cfg.paths.clips_dir)
+        assert main_funestra_kwargs["config_path"] == str(cfg.config_path)
+        assert main_funestra_kwargs["config_path"] != str(genau_config)
+        assert main_funestra_kwargs["clips_dir"] == str(cfg.paths.clips_dir)
         # And Genau's own config beside it, for the engine's numbers.
-        assert main_player_kwargs["genau_config_path"] == str(genau_config)
+        assert main_funestra_kwargs["genau_config_path"] == str(genau_config)
 
-    def test_the_main_player_is_run_out_of_the_named_checkouts(self, cfg_factory, tmp_path):
+    def test_the_main_funestra_is_run_out_of_the_named_checkouts(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         checkout = tmp_path / "a_worktree"
         checkout.mkdir()
@@ -424,24 +424,24 @@ class TestRunStartupSequence:
         manifest["runtime"]["genau_project_dirs"] = str(checkout)
         with Path(manifest_path).open("w", encoding="utf-8") as fp:
             manifest.write(fp)
-        main_player_kwargs: dict = {}
+        main_funestra_kwargs: dict = {}
 
-        def capture_main_player(**kwargs):
-            main_player_kwargs.update(kwargs)
-            return _fake_main_player(**kwargs)
+        def capture_main_funestra(**kwargs):
+            main_funestra_kwargs.update(kwargs)
+            return _fake_main_funestra(**kwargs)
 
-        with _sequencer_stubs(launch_main_player=dict(side_effect=capture_main_player), wait_for_window_by_title=dict(return_value=88888)):
+        with _sequencer_stubs(launch_main_funestra=dict(side_effect=capture_main_funestra), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert main_player_kwargs["project_dirs"] == str(checkout)
+        assert main_funestra_kwargs["project_dirs"] == str(checkout)
 
     def test_positions_satellite_windows_and_applies_topmost_policy(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         title_to_hwnd = {
-            "Main Player": 2525,
-            "Portrait AI Player": 3030,
-            "Landscape AI Player": 4040,
+            "Main Funestra": 2525,
+            "Portrait AI Funestra": 3030,
+            "Landscape AI Funestra": 4040,
         }
         move_calls: list[tuple] = []
         topmost_calls: list[tuple] = []
@@ -453,27 +453,27 @@ class TestRunStartupSequence:
         moved_hwnds = {c[0] for c in move_calls}
         assert {3030, 4040} <= moved_hwnds
 
-        # The windows that own a rect are promoted to topmost, the main player
+        # The windows that own a rect are promoted to topmost, the Main Funestra
         # (2525) included so it floats above the desktop.
         promoted = {h for h, on in topmost_calls if on}
         assert promoted == {3030, 4040, 2525}
 
-    def test_non_hidden_path_unpauses_main_player(self, cfg_factory, tmp_path):
+    def test_non_hidden_path_unpauses_main_funestra(self, cfg_factory, tmp_path):
         """The no-loading-screen path (integration / normal without the
-        overlay) must still start the main player — the reveal that clears main_player_paused
+        overlay) must still start the Main Funestra — the reveal that clears main_funestra_paused
         cannot live only in the hidden branch."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = configparser.ConfigParser()
         m.optionxform = str
         m.read(str(manifest_path), encoding="utf-8")
-        main_player_paused = Path(m["commands"]["main_player_paused_file"])
-        main_player_paused.parent.mkdir(parents=True, exist_ok=True)
-        main_player_paused.write_text("1", encoding="utf-8")  # seeded paused at startup
+        main_funestra_paused = Path(m["commands"]["main_funestra_paused_file"])
+        main_funestra_paused.parent.mkdir(parents=True, exist_ok=True)
+        main_funestra_paused.write_text("1", encoding="utf-8")  # seeded paused at startup
 
         with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
 
-        assert main_player_paused.read_text(encoding="utf-8").strip() == "0"
+        assert main_funestra_paused.read_text(encoding="utf-8").strip() == "0"
 
     def test_genau_is_launched_onto_the_clip_it_was_left_showing(self, cfg_factory, tmp_path):
         """Genau's status file is the only record of which clip was up — it
@@ -486,7 +486,7 @@ class TestRunStartupSequence:
         )
 
         with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
-            launch = stubs.launch_main_player
+            launch = stubs.launch_main_funestra
 
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
@@ -502,7 +502,7 @@ class TestRunStartupSequence:
         with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert stubs.launch_main_player.call_args.kwargs["genau_latest"] is True
+        assert stubs.launch_main_funestra.call_args.kwargs["genau_latest"] is True
 
     def test_genau_is_launched_knowing_where_the_librarys_records_are(self, cfg_factory, tmp_path):
         records = tmp_path / "library" / "videos" / "metadata"
@@ -512,16 +512,16 @@ class TestRunStartupSequence:
         with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert Path(stubs.launch_main_player.call_args.kwargs["metadata_dir"]) == records
+        assert Path(stubs.launch_main_funestra.call_args.kwargs["metadata_dir"]) == records
 
-    def test_a_genau_session_opens_with_the_main_player_up_and_in_the_band(self, cfg_factory, tmp_path):
-        """Reopening in genau mode: the session is still BUILT in kino mode — the main player loads
-        the main player's playlist and the overlay waits on it — and Genau runs on that same
+    def test_a_genau_session_opens_with_the_main_funestra_up_and_in_the_band(self, cfg_factory, tmp_path):
+        """Reopening in genau mode: the session is still BUILT in kino mode — the Main Funestra loads
+        the Main Funestra's playlist and the overlay waits on it — and Genau runs on that same
         window, so nothing is parked and the window floats as it does in kino mode."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         title_to_hwnd = {
-            "Main Player": 2525,
-            "Portrait AI Player": 3030, "Landscape AI Player": 4040,
+            "Main Funestra": 2525,
+            "Portrait AI Funestra": 3030, "Landscape AI Funestra": 4040,
         }
         topmost_calls: list[tuple] = []
 
@@ -529,29 +529,29 @@ class TestRunStartupSequence:
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert {h for h, on in topmost_calls if on} == {3030, 4040, 2525}
-        # Handed on, because the orchestrator starts the mode's player once the
+        # Handed on, because the orchestrator starts the mode's Funestra once the
         # cover is gone.
         assert result.main_mode is MainMode.GENAU
 
-    def test_a_genau_session_is_revealed_by_starting_genau_not_main_player(self, cfg_factory, tmp_path):
-        """The reveal starts whichever player owns the display, and only that
-        one: unpausing the main player regardless would put a video up under the parked
+    def test_a_genau_session_is_revealed_by_starting_genau_not_main_funestra(self, cfg_factory, tmp_path):
+        """The reveal starts whichever Funestra owns the display, and only that
+        one: unpausing the Main Funestra regardless would put a video up under the parked
         window and hand the OSR2 two drivers at once."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
         _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "genau")
 
-        assert paused["main_player_paused_file"].read_text(encoding="utf-8").strip() == "1"
+        assert paused["main_funestra_paused_file"].read_text(encoding="utf-8").strip() == "1"
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
     def test_a_kino_session_is_revealed_by_starting_both(self, cfg_factory, tmp_path):
-        """Kino mode runs both: the main player's video with Genau's HUD over it."""
+        """Kino mode runs both: the Main Funestra's video with Genau's HUD over it."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
         _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "kino")
 
-        assert paused["main_player_paused_file"].read_text(encoding="utf-8").strip() == "0"
+        assert paused["main_funestra_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
     def test_a_genau_session_hands_genau_the_osr2_at_the_reveal(self, cfg_factory, tmp_path):
@@ -592,15 +592,15 @@ class TestRunStartupSequence:
 
         _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "genau")
 
-        assert paused["main_player_paused_file"].read_text(encoding="utf-8").strip() == "1"
+        assert paused["main_funestra_paused_file"].read_text(encoding="utf-8").strip() == "1"
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
-    def test_a_kino_session_opens_with_every_player_in_the_band(self, cfg_factory, tmp_path):
+    def test_a_kino_session_opens_with_every_funestra_in_the_band(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         title_to_hwnd = {
-            "Main Player": 2525,
-            "Portrait AI Player": 3030, "Landscape AI Player": 4040,
+            "Main Funestra": 2525,
+            "Portrait AI Funestra": 3030, "Landscape AI Funestra": 4040,
         }
         topmost_calls: list[tuple] = []
 
@@ -614,7 +614,7 @@ class _TrackingProgress:
     """A ProgressReporter that records the phases it is told, in order.
 
     Carries ``cancelled`` because the real reporter does and the sequencer reads
-    it — the wait for the main player polls it, so a double without it fails there rather
+    it — the wait for the Main Funestra polls it, so a double without it fails there rather
     than at the assertion.
     """
 
@@ -679,7 +679,7 @@ class TestTheOrderInsideTheStartupPhases:
         stubs = dict(
             screen_layout=dict(side_effect=note("layout", fake_screen_layout)),
             start_core_session=dict(side_effect=note("core", _fake_core)),
-            launch_main_player=dict(side_effect=note("main_player", _fake_main_player)),
+            launch_main_funestra=dict(side_effect=note("main_player", _fake_main_funestra)),
             launch_ui_companions=dict(side_effect=note("companions", _fake_ui)),
         )
         stubs.update(extra_stubs or {})
@@ -692,7 +692,7 @@ class TestTheOrderInsideTheStartupPhases:
                                  hide_windows=hide_windows)
         return order
 
-    def test_the_layout_is_computed_before_any_player_launches(self, cfg_factory, tmp_path):
+    def test_the_layout_is_computed_before_any_funestra_launches(self, cfg_factory, tmp_path):
         """A satellite is started straight into its real rect, so computing the
         layout after the launch would hand it the wrong one."""
         order = self._sequence(cfg_factory, tmp_path)
@@ -700,7 +700,7 @@ class TestTheOrderInsideTheStartupPhases:
         assert order.index("layout") < order.index("core")
 
     def test_the_media_stack_is_up_before_the_ui_companions(self, cfg_factory, tmp_path):
-        """The main player is launched as early as possible so it can init
+        """The Main Funestra is launched as early as possible so it can init
         pygame, scan media and decode first frames while the rest of startup
         continues — which is only worth anything if the rest still follows."""
         order = self._sequence(cfg_factory, tmp_path)
@@ -714,9 +714,9 @@ class TestTheOrderInsideTheStartupPhases:
 
         assert order.index("browser") < order.index("companions")
 
-    def test_the_players_are_released_only_once_the_room_is_built(
+    def test_the_funestras_are_released_only_once_the_room_is_built(
             self, cfg_factory, tmp_path):
-        """Startup holds every player so nothing plays into a room that is
+        """Startup holds every Funestra so nothing plays into a room that is
         still being built; the release is therefore the last thing the phases
         do on the path with no cover to hide under."""
         order = self._sequence(cfg_factory, tmp_path)
@@ -736,7 +736,7 @@ class TestTheOrderInsideTheStartupPhases:
 class TestRunStartupSequenceCancellation:
     def test_cancel_before_companions_reports_only_the_core_children(self, cfg_factory, tmp_path):
         """Cancelling at the layout checkpoint (2nd advance) has launched the
-        core stack — the satellites and the main player — but not the companions."""
+        core stack — the satellites and the Main Funestra — but not the companions."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         ui = MagicMock()
 
@@ -748,13 +748,13 @@ class TestRunStartupSequenceCancellation:
                 )
 
         exc = excinfo.value
-        assert set(exc.launched_pids) == {30, 40, MAIN_PLAYER_PID}
+        assert set(exc.launched_pids) == {30, 40, MAIN_FUNESTRA_PID}
         assert exc.rfb_hwnd == 0
         ui.assert_not_called()
 
     def test_cancel_after_companions_reports_every_child_and_the_browser(self, cfg_factory, tmp_path):
         """Cancelling once companions are up reports the whole tree — satellites,
-        the main player, dashboard, audio — plus the Random Favs Browser hwnd."""
+        the Main Funestra, dashboard, audio — plus the Random Favs Browser hwnd."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         with _sequencer_stubs(_maybe_launch_random_favs_browser=dict(return_value=7777), wait_for_window_by_title=dict(return_value=88888)):
@@ -765,54 +765,54 @@ class TestRunStartupSequenceCancellation:
                 )
 
         exc = excinfo.value
-        assert set(exc.launched_pids) == {30, 40, MAIN_PLAYER_PID, 50, 70}
+        assert set(exc.launched_pids) == {30, 40, MAIN_FUNESTRA_PID, 50, 70}
         assert exc.rfb_hwnd == 7777
 
 
-class TestAPlayerThatDiesWhileTheRoomComesUp:
+class TestAFunestraThatDiesWhileTheRoomComesUp:
     """Every wait here is bounded and reveals anyway when it runs out, which is right
-    for a player that is merely slow and wrong for one that is gone: his previews
+    for a Funestra that is merely slow and wrong for one that is gone: his previews
     spent every window and status timeout in turn and then opened on a room with no
-    players in it, with Ctrl+Alt+Q the only way out (2026-09-22)."""
+    Funestras in it, with Ctrl+Alt+Q the only way out (2026-09-22)."""
 
-    def test_the_startup_ends_naming_the_player_and_what_it_said(self, cfg_factory, tmp_path):
+    def test_the_startup_ends_naming_the_funestra_and_what_it_said(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        def a_main_player_that_cannot_load_its_engine(**kwargs):
+        def a_main_funestra_that_cannot_load_its_engine(**kwargs):
             with Path(kwargs["log_file"]).open("a", encoding="utf-8") as log:
                 log.write("OSError: The engine (libmpv) could not be loaded. Looked in: "
                           "C:\\player_core\\vendor (no libmpv-2.dll in it)\n")
-            return MAIN_PLAYER_PID
+            return MAIN_FUNESTRA_PID
 
         with _sequencer_stubs(
-                launch_main_player=dict(side_effect=a_main_player_that_cannot_load_its_engine),
-                is_process_alive=dict(side_effect=lambda pid: pid != MAIN_PLAYER_PID)):
-            with pytest.raises(PlayerDied) as died:
+                launch_main_funestra=dict(side_effect=a_main_funestra_that_cannot_load_its_engine),
+                is_process_alive=dict(side_effect=lambda pid: pid != MAIN_FUNESTRA_PID)):
+            with pytest.raises(FunestraDied) as died:
                 run_startup_sequence(
                     manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
 
-        assert died.value.player.name == "the Main player"
+        assert died.value.funestra.name == "the Main Funestra"
         assert "no libmpv-2.dll in it" in died.value.said
 
     def test_what_was_launched_comes_back_with_it_to_be_torn_down(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         with _sequencer_stubs(
-                is_process_alive=dict(side_effect=lambda pid: pid != MAIN_PLAYER_PID)):
-            with pytest.raises(PlayerDied) as died:
+                is_process_alive=dict(side_effect=lambda pid: pid != MAIN_FUNESTRA_PID)):
+            with pytest.raises(FunestraDied) as died:
                 run_startup_sequence(
                     manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
 
-        assert set(died.value.launched_pids) >= {30, 40, MAIN_PLAYER_PID}
+        assert set(died.value.launched_pids) >= {30, 40, MAIN_FUNESTRA_PID}
 
-    def test_a_room_whose_players_are_all_running_is_not_stopped(self, cfg_factory, tmp_path):
+    def test_a_room_whose_funestras_are_all_running_is_not_stopped(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         with _sequencer_stubs():
             result = run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
 
-        assert result.main_player_pid == MAIN_PLAYER_PID
+        assert result.main_funestra_pid == MAIN_FUNESTRA_PID
 
 
 class TestLoadingScreenStartup:
@@ -821,7 +821,7 @@ class TestLoadingScreenStartup:
     def test_defers_positioning_under_the_overlay(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        title_to_hwnd = {"Portrait AI Player": 3030, "Landscape AI Player": 4040}
+        title_to_hwnd = {"Portrait AI Funestra": 3030, "Landscape AI Funestra": 4040}
         move_calls: list[tuple] = []
         move_activates: list[bool] = []
 
@@ -851,14 +851,14 @@ class TestLoadingScreenStartup:
         spawns the base interpreter as a CHILD — and the child owns the window.  So
         the launched pid never matches, and each poll on one runs its full timeout
         before the title lookup that was going to answer anyway.  The two
-        satellites and the main player together were 25 seconds of a 28-second loading screen.
+        satellites and the Main Funestra together were 25 seconds of a 28-second loading screen.
         """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         title_to_hwnd = {
-            "Portrait AI Player": 3030,
-            "Landscape AI Player": 4040,
-            "Main Player": 2525,
+            "Portrait AI Funestra": 3030,
+            "Landscape AI Funestra": 4040,
+            "Main Funestra": 2525,
             "Fun Time": 5050,
         }
 
@@ -928,12 +928,12 @@ class TestTheRoomIsBandedUnderTheCover:
 
 
 class TestPhase4Reveal:
-    """Phase 4 (hide_windows only): play satellites, unpause the main player."""
+    """Phase 4 (hide_windows only): play satellites, unpause the Main Funestra."""
 
     def _run_hidden(self, manifest_path, tmp_path, *, title_to_hwnd=None, topmost_calls=None,
                     mode="kino"):
-        title_map = title_to_hwnd or {"Fun Time": 5050, "Main Player": 2525}
-        # Both players reporting frames: the curtain waits for that before it
+        title_map = title_to_hwnd or {"Fun Time": 5050, "Main Funestra": 2525}
+        # Both Funestras reporting frames: the curtain waits for that before it
         # comes down (a satellite's window exists long before mpv has drawn
         # anything into it), so a run with no status files would hold it up.
         manifest = configparser.ConfigParser()
@@ -952,34 +952,34 @@ class TestPhase4Reveal:
                 hide_windows=True,
             )
 
-    def test_every_player_is_still_held_when_the_phases_end(self, cfg_factory, tmp_path):
+    def test_every_funestra_is_still_held_when_the_phases_end(self, cfg_factory, tmp_path):
         """The path with a cover does not start playing when its phases end.
 
         The finishing pass — the bands, the settle — runs after this and under
-        the cover, so a player released here plays for seconds he can neither see
+        the cover, so a Funestra released here plays for seconds he can neither see
         nor hear, and the opening of the video is gone by the time the cover
-        lifts.  The orchestrator calls ``release_the_players`` itself, once the
+        lifts.  The orchestrator calls ``release_the_funestras`` itself, once the
         cover is off the screen.
         """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = LaunchManifest.read(manifest_path)
-        held = _pause_every_player(m)
+        held = _pause_every_funestra(m)
 
         self._run_hidden(manifest_path, tmp_path)
 
         for flag in held:
             assert flag.read_text(encoding="utf-8").strip() == "1", flag.name
 
-    def test_the_release_starts_the_players_the_mode_shows(self, cfg_factory, tmp_path):
+    def test_the_release_starts_the_funestras_the_mode_shows(self, cfg_factory, tmp_path):
         """And what the orchestrator calls once the cover is gone does start them:
-        The main player in kino mode, with Genau and its audio alongside."""
+        The Main Funestra in kino mode, with Genau and its audio alongside."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = LaunchManifest.read(manifest_path)
-        _pause_every_player(m)
+        _pause_every_funestra(m)
 
-        release_the_players(m, "kino")
+        release_the_funestras(m, "kino")
 
-        assert Path(m.commands.main_player_paused_file).read_text(encoding="utf-8").strip() == "0"
+        assert Path(m.commands.main_funestra_paused_file).read_text(encoding="utf-8").strip() == "0"
         assert Path(m.commands.genau_paused_file).read_text(encoding="utf-8").strip() == "0"
         assert Path(m.commands.audio_paused_file).read_text(encoding="utf-8").strip() == "0"
 
@@ -999,18 +999,18 @@ class TestPhase4Reveal:
 
         assert topmost_calls == []
 
-class TestMainPlayerGatesTheReveal:
-    """The overlay must not come down over the main player's own loading screen.
+class TestMainFunestraGatesTheReveal:
+    """The overlay must not come down over the Main Funestra's own loading screen.
 
-    The main player opens its window before it reads its library, so the caption lookup that
-    stood for "the main player is up" now answers while the main player is still loading and painting its
-    own progress bar.  Standalone, that screen is the main player's to show; inside Fun Time
+    The Main Funestra opens its window before it reads its library, so the caption lookup that
+    stood for "the Main Funestra is up" now answers while the Main Funestra is still loading and painting its
+    own progress bar.  Standalone, that screen is the Main Funestra's to show; inside Fun Time
     the wait belongs to Fun Time, and the phase named for it — "Waiting for
-    players..." — is where it goes.  The main player is the third player, and the only one
+    Funestras..." — is where it goes.  The Main Funestra is the third Funestra, and the only one
     still loading by then.
     """
 
-    def test_the_players_phase_covers_the_wait_for_main_player(self, cfg_factory, tmp_path):
+    def test_the_funestras_phase_covers_the_wait_for_main_funestra(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         events: list[str] = []
 
@@ -1018,7 +1018,7 @@ class TestMainPlayerGatesTheReveal:
             events.append(f"wait-for-main_player:{status_file}")
             return True
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888), _wait_for_main_player_loaded=dict(side_effect=track_wait)):
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888), _wait_for_main_funestra_loaded=dict(side_effect=track_wait)):
             run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -1026,15 +1026,15 @@ class TestMainPlayerGatesTheReveal:
                 hide_windows=True,
             )
 
-        # Inside the players phase, and on the main player's own status file — not after
+        # Inside the Funestras phase, and on the Main Funestra's own status file — not after
         # "windows", where the bar would sit under "Positioning windows..."
         # through a wait that positions nothing.
         assert events == [
             "services",
             "browser",
             "companions",
-            "players",
-            f"wait-for-main_player:{cfg.main_player_status_file}",
+            "funestras",
+            f"wait-for-main_player:{cfg.main_funestra_status_file}",
             "windows",
         ]
 
@@ -1043,25 +1043,25 @@ class TestMainPlayerGatesTheReveal:
     ):
         """Dropping last session's status file is what makes the next one mean
         something — without it the wait ends at once on a video from a session
-        that is over.  But startup also resumes the main player onto the video that same file
-        names, so the drop has to fall between that read and the main player's launch.
+        that is over.  But startup also resumes the Main Funestra onto the video that same file
+        names, so the drop has to fall between that read and the Main Funestra's launch.
         """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        status_file = Path(cfg.main_player_status_file)
+        status_file = Path(cfg.main_funestra_status_file)
         status_file.parent.mkdir(parents=True, exist_ok=True)
         status_file.write_text("video=last_session.mp4\n", encoding="utf-8")
 
         seen: dict = {}
 
         def capture_core(**kwargs):
-            seen["resumed_onto"] = read_main_player_status(Path(kwargs["main_player_status_file"])).video
+            seen["resumed_onto"] = read_main_funestra_status(Path(kwargs["main_funestra_status_file"])).video
             _write_result(kwargs["result_file"], CORE_PIDS)
 
-        def capture_main_player(**kwargs):
+        def capture_main_funestra(**kwargs):
             seen["stale_at_launch"] = Path(kwargs["status_file"]).exists()
-            return _fake_main_player(**kwargs)
+            return _fake_main_funestra(**kwargs)
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=capture_core), launch_main_player=dict(side_effect=capture_main_player), wait_for_window_by_title=dict(return_value=88888)):
+        with _sequencer_stubs(start_core_session=dict(side_effect=capture_core), launch_main_funestra=dict(side_effect=capture_main_funestra), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )
@@ -1069,14 +1069,14 @@ class TestMainPlayerGatesTheReveal:
         assert seen["resumed_onto"] == "last_session.mp4"
         assert seen["stale_at_launch"] is False
 
-    def test_the_wait_for_the_players_cannot_outlast_the_overlay(self):
+    def test_the_wait_for_the_funestras_cannot_outlast_the_overlay(self):
         """The overlay tears itself down when the progress file has gone
         STALE_TIMEOUT_S without changing — its guard against an orchestrator that
-        died.  The file is written when a phase STARTS, so a players phase able to
+        died.  The file is written when a phase STARTS, so a Funestras phase able to
         run longer than that guard would drop the overlay mid-wait and reveal the
         very loading screen it is waiting out.
         """
-        assert WINDOW_RESOLVE_TIMEOUT_S + MAIN_PLAYER_LOAD_TIMEOUT_S < STALE_TIMEOUT_S
+        assert WINDOW_RESOLVE_TIMEOUT_S + MAIN_FUNESTRA_LOAD_TIMEOUT_S < STALE_TIMEOUT_S
 
     def test_the_windows_phase_cannot_outlast_it_either(self):
         """That phase resolves three windows under one progress write."""
@@ -1212,7 +1212,7 @@ class TestResolveSatelliteHwnds:
     """
 
     def test_resolves_each_side_by_its_distinct_title(self):
-        title_to_hwnd = {"Portrait AI Player": 1111, "Landscape AI Player": 2222}
+        title_to_hwnd = {"Portrait AI Funestra": 1111, "Landscape AI Funestra": 2222}
 
         with patch(
             "fun_time.windows_bridge_sequencer.wait_for_window_by_title",
@@ -1226,33 +1226,33 @@ class TestResolveSatelliteHwnds:
         # Resolved by the two DISTINCT captions, never the shared "Satellite" that
         # made the lookup ambiguous, and each lookup is exact.
         resolved = {call.args[0] for call in by_title.call_args_list}
-        assert resolved == {"Portrait AI Player", "Landscape AI Player"}
+        assert resolved == {"Portrait AI Funestra", "Landscape AI Funestra"}
         assert all(call.kwargs.get("exact") is True for call in by_title.call_args_list)
 
 
-class TestWaitForMainPlayerLoaded:
-    """the main player's window is not the signal that main player is ready.
+class TestWaitForMainFunestraLoaded:
+    """the Main Funestra's window is not the signal that Main Funestra is ready.
 
-    The main player opens its window within half a second of launch and reads its library
+    The Main Funestra opens its window within half a second of launch and reads its library
     under it — one ffprobe per unprobed video on a cold cache, tens of seconds —
     painting its OWN loading screen into it meanwhile.  So a caption lookup
-    returns while the main player is still loading.  Its status file does not: the main player writes
+    returns while the Main Funestra is still loading.  Its status file does not: the Main Funestra writes
     that from its playback loop, once a video is up.
     """
 
-    def test_returns_once_main_player_reports_a_video(self, tmp_path):
+    def test_returns_once_main_funestra_reports_a_video(self, tmp_path):
         status_file = tmp_path / "main_player_status.txt"
 
-        def main_player_finishes_loading(_seconds):
+        def main_funestra_finishes_loading(_seconds):
             status_file.write_text("video=clip.mp4\n", encoding="utf-8")
 
         # Absent on the first look, so it can only return by polling again.
         with sleeps_in(windows_bridge_sequencer) as slept:
-            slept.side_effect = main_player_finishes_loading
-            assert _wait_for_main_player_loaded(status_file, NullProgress()) is True
+            slept.side_effect = main_funestra_finishes_loading
+            assert _wait_for_main_funestra_loaded(status_file, NullProgress()) is True
 
-    def test_a_status_file_naming_no_video_is_not_a_loaded_main_player(self, tmp_path):
-        """the main player writes its status whole, but a poll can catch that first write
+    def test_a_status_file_naming_no_video_is_not_a_loaded_main_funestra(self, tmp_path):
+        """the Main Funestra writes its status whole, but a poll can catch that first write
         half-done.  So the wait reads the video out rather than taking the file's
         mere existence for the signal, and an empty read keeps it waiting.
         """
@@ -1260,16 +1260,16 @@ class TestWaitForMainPlayerLoaded:
         status_file.write_text("", encoding="utf-8")
 
         with sleeps_in(windows_bridge_sequencer):
-            assert _wait_for_main_player_loaded(
+            assert _wait_for_main_funestra_loaded(
                 status_file, NullProgress(), timeout_s=0.3,
             ) is False
 
-    def test_a_main_player_that_never_loads_gives_the_desktop_up_rather_than_keep_it(self, tmp_path):
-        """A crashed main player must not wedge startup under an overlay forever: the
+    def test_a_main_funestra_that_never_loads_gives_the_desktop_up_rather_than_keep_it(self, tmp_path):
+        """A crashed Main Funestra must not wedge startup under an overlay forever: the
         wait is bounded, and past its budget the session is revealed without it.
         """
         with sleeps_in(windows_bridge_sequencer):
-            assert _wait_for_main_player_loaded(
+            assert _wait_for_main_funestra_loaded(
                 tmp_path / "never.txt", NullProgress(), timeout_s=0.0,
             ) is False
 
@@ -1286,7 +1286,7 @@ class TestWaitForMainPlayerLoaded:
 
         with sleeps_in(windows_bridge_sequencer) as slept:
             with pytest.raises(StartupCancelled):
-                _wait_for_main_player_loaded(tmp_path / "never.txt", Cancelled())
+                _wait_for_main_funestra_loaded(tmp_path / "never.txt", Cancelled())
 
         slept.assert_not_called()
 
@@ -1320,10 +1320,10 @@ class TestOrigeneratorLaunch:
         # open frozen while the room ran.
         assert Path(captured["paused_file"]).read_text(encoding="utf-8") == "0"
 
-    def test_the_hosted_app_is_handed_both_players(self, cfg_factory, tmp_path):
-        """Each side's own channel -- the list its player plays, the verbs it
+    def test_the_hosted_app_is_handed_both_funestras(self, cfg_factory, tmp_path):
+        """Each side's own channel -- the list its Funestra plays, the verbs it
         drains, the status it publishes -- and where the app publishes the
-        panel the session puts on that player.  Last session's panel is gone
+        panel the session puts on that Funestra.  Last session's panel is gone
         before the app starts, so no side wears a show that is not running."""
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator"),
@@ -1331,9 +1331,9 @@ class TestOrigeneratorLaunch:
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
-        stale = cfg.satellite(Player.PORTRAIT).origenerator_hud_file
+        stale = cfg.satellite(RoomFunestra.PORTRAIT).origenerator_hud_file
         stale.parent.mkdir(parents=True, exist_ok=True)
-        stale.write_text('{"player": "portrait"}', encoding="utf-8")
+        stale.write_text('{"Funestra": "portrait"}', encoding="utf-8")
         captured = {}
 
         def capture(**kwargs):
@@ -1343,9 +1343,9 @@ class TestOrigeneratorLaunch:
         with _sequencer_stubs(launch_origenerator=dict(side_effect=capture)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        for player in Player.SATELLITES:
-            files = cfg.satellite(player)
-            assert captured["players"][player.label] == HandedPlayer(
+        for funestra in RoomFunestra.SATELLITES:
+            files = cfg.satellite(funestra)
+            assert captured["funestras"][funestra.label] == HandedFunestra(
                 playlist_file=str(files.playlist_file), cmd_file=str(files.cmd_file),
                 status_file=str(files.status_file),
                 hud_file=str(files.origenerator_hud_file))

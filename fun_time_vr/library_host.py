@@ -9,7 +9,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
-from player_core.file_channel import append_command, consume_command_file
+from funestra_core.file_channel import append_command, consume_command_file
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt, QTimer
 from PyQt6.QtGui import QImage, QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import QApplication, QWidget

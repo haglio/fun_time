@@ -12,7 +12,7 @@ SETTLE_S = 5.0
 
 def _main_list_build(tmp_path, **settings) -> MainListBuild:
     return MainListBuild(scripted_filter=False, main_sources=str(tmp_path / "library"),
-                         state_dir=tmp_path, main_player_cmd_file=tmp_path / "cmd.txt",
+                         state_dir=tmp_path, main_funestra_cmd_file=tmp_path / "cmd.txt",
                          **settings)
 
 

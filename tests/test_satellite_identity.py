@@ -7,15 +7,15 @@ from unittest.mock import patch
 
 import pygame
 
-from fun_time.players import Player
 from fun_time.project_paths import PROJECT_ICON
+from fun_time.room_funestras import RoomFunestra
 from fun_time.window_layout import WindowRect
 from fun_time.windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
     launch_core_apps,
 )
-from main_player.player_window import wear_the_icon
+from main_funestra.window import wear_the_icon
 from tests.test_windows_bridge_startup import _slot
 
 
@@ -28,8 +28,8 @@ def test_a_session_hands_each_satellite_fun_times_own_icon(tmp_path: Path):
                side_effect=[202, 303]) as launched:
         launch_core_apps(
             python_exe="python.exe", satellite_module="satellite",
-            portrait=_slot(Player.PORTRAIT, str(tmp_path / "p"), tmp_path, rect),
-            landscape=_slot(Player.LANDSCAPE, str(tmp_path / "l"), tmp_path, rect),
+            portrait=_slot(RoomFunestra.PORTRAIT, str(tmp_path / "p"), tmp_path, rect),
+            landscape=_slot(RoomFunestra.LANDSCAPE, str(tmp_path / "l"), tmp_path, rect),
             result_file=tmp_path / "core_apps.ini",
         )
 
@@ -48,6 +48,6 @@ def test_fun_times_icon_loads_as_a_window_icon():
     assert len(worn) == 1
 
 
-def test_each_side_names_the_player_it_is():
-    assert SATELLITE_PORTRAIT_TITLE == "Portrait AI Player"
-    assert SATELLITE_LANDSCAPE_TITLE == "Landscape AI Player"
+def test_each_side_names_the_funestra_it_is():
+    assert SATELLITE_PORTRAIT_TITLE == "Portrait AI Funestra"
+    assert SATELLITE_LANDSCAPE_TITLE == "Landscape AI Funestra"

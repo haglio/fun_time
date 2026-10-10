@@ -2,7 +2,7 @@
 projection each video is wrapped in and the field of view and height it is
 dialed to, kept in the video's record; the heading the room is re-zeroed onto,
 its tilt and its layout; the scenes a video's record marks.  Spelled beside the
-registry that answers them, the way a player's own verbs are everywhere in this
+registry that answers them, the way a Funestra's own verbs are everywhere in this
 family."""
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import threading
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from player_core.control_registry import Control, Verb, bind, look_up
+from funestra_core.control_registry import Control, Verb, bind, look_up
 
 from fun_time.event_log import SOURCE_MAIN, notice
 from fun_time.media_metadata import load_metadata, metadata_path_for

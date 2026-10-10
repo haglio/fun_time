@@ -1,7 +1,7 @@
 """The state file a session reads its own mode off.
 
 One small INI in the state dir holds what the whole session is *in* — which
-satellites are locked, what each is filtered and ordered by, which players are in
+satellites are locked, what each is filtered and ordered by, which Funestras are in
 F-mode, what is looping, where the sound is.  The dispatch loop owns it: it re-reads the
 file every tick and writes it back after every command, so the state survives
 its own resync and reaches the dashboard and both satellite HUDs, which are
@@ -21,16 +21,16 @@ from dataclasses import MISSING, dataclass, field, fields, replace
 from enum import Enum
 from pathlib import Path
 
-from player_core.console import OSR2_DRIVING
-from player_core.hud_placement import HudCorner, HudEdge
-from player_core.modes import MainMode, SatellitesMode, read_mode
-from player_core.robot_hand import FULL_INTENSITY
+from funestra_core.console import OSR2_DRIVING
+from funestra_core.hud_placement import HudCorner, HudEdge
+from funestra_core.modes import MainMode, SatellitesMode, read_mode
+from funestra_core.robot_hand import FULL_INTENSITY
 
 from .audio_volume import MAX_VOLUME
 from .crown import Crown
 from .mode_plan import STARTUP_MAIN_MODE
-from .players import Player
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
+from .room_funestras import RoomFunestra
 from .satellites_mode import STARTUP_SATELLITES_MODE
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class SatelliteState:
     hud_minimized: bool = False
     # This satellite's metadata filter query ("" = none), honored by later rebuilds.
     filter: str = ""
-    # Per player, because each HUD carries its own F button; here it keeps the favorites.
+    # Per Funestra, because each HUD carries its own F button; here it keeps the favorites.
     favorites_filter: bool = False
     # Newest-first ("Latest") when set, else shuffled.  Read by every later
     # rebuild, so the satellite reloads the same way.
@@ -59,7 +59,7 @@ class SatelliteState:
     loop: str = ""
     # The clip this satellite's HUD map hangs on — the head of the queue a loop
     # wrote.  The map is ordered from it, so the group is drawn in the order the
-    # player plays it.  It outlives the loop: switching a loop off leaves the map
+    # Funestra plays it.  It outlives the loop: switching a loop off leaves the map
     # hanging here, and the map re-homes once the browse moves past the group.
     map_anchor: str = ""
     # The clip this satellite's seed row has been widened around ("more seeds").
@@ -73,8 +73,8 @@ class SatelliteState:
     nav_anchor: str = ""
 
 
-def _satellite_key(name: str, player: Player) -> str:
-    return f"{player.label}_{name}"
+def _satellite_key(name: str, funestra: RoomFunestra) -> str:
+    return f"{funestra.label}_{name}"
 
 
 @dataclass
@@ -85,14 +85,14 @@ class BridgeState:
     main_mode: MainMode = STARTUP_MAIN_MODE
     # The satellite side's own mode axis (see fun_time.satellites_mode):
     # "kino" is the session as ever, "origenerator" puts the hosted
-    # Origenerator over the RFB and its shows over the players.
+    # Origenerator over the RFB and its shows over the Funestras.
     satellites_mode: SatellitesMode = STARTUP_SATELLITES_MODE
     # Whether the hosted Origenerator is up.  Every room opens without waiting
     # out its boot, so the mode above is closed for a session's first
     # half-minute; the dispatch loop reads the app's status file and writes the
     # answer here, for the HUDs drawing the mode pair and the switch that refuses.
     origenerator_ready: bool = False
-    # The main player's own F-mode -- its playlist narrowed to the scripted
+    # The Main Funestra's own F-mode -- its playlist narrowed to the scripted
     # videos -- and browse order; the satellites' are theirs.
     main_scripted_filter: bool = False
     main_hud_corner: HudCorner = HudCorner.UPPER_LEFT
@@ -100,24 +100,24 @@ class BridgeState:
     main_hud_minimized: bool = False
     omni_paused: bool = False
     main_latest: bool = False
-    # Which shapes of video the main player's browse may reach: VR masters, flat
+    # Which shapes of video the Main Funestra's browse may reach: VR masters, flat
     # ones, or both -- the only answer outside the headset, holding one shape.
     main_plays_vr: bool = True
     main_plays_flat: bool = True
-    # Genau's own, kept apart from ``main_latest`` even though the two players
+    # Genau's own, kept apart from ``main_latest`` even though the two Funestras
     # share the main slot: ``main_latest`` describes the playlist file we built
-    # for the main player, and a Genau reorder rewrites nothing of the main player's.  One flag for both
-    # would light "Latest" on the main player's console over a playlist nobody reordered.
+    # for the Main Funestra, and a Genau reorder rewrites nothing of the Main Funestra's.  One flag for both
+    # would light "Latest" on the Main Funestra's console over a playlist nobody reordered.
     genau_latest: bool = False
     genau_plays_vr: bool = True
     genau_plays_flat: bool = True
-    # The player most recently navigated, as a :class:`Player` slot.  Any command
-    # naming a player, or a main next/prev, updates it; the player-agnostic "active_*"
+    # The Funestra most recently navigated, as a :class:`Funestra` slot.  Any command
+    # naming a Funestra, or a main next/prev, updates it; the player-agnostic "active_*"
     # commands resolve against it — nav reaches all three, the satellite-only
-    # actions only the two.  Starts on the main player: it is the display the eye
+    # actions only the two.  Starts on the Main Funestra: it is the display the eye
     # opens on, so it holds the floor until a satellite is addressed.
-    active_player: int = 1
-    # The main player's sound level, 0-100, and whether it is silenced.  A
+    active_funestra: int = 1
+    # The Main Funestra's sound level, 0-100, and whether it is silenced.  A
     # mute leaves the level alone so a second "mute" restores what was set.
     volume: int = MAX_VOLUME
     muted: bool = False
@@ -125,16 +125,16 @@ class BridgeState:
     osr2_control: str = OSR2_DRIVING  # the console's four-button group sets it
     crowned: Crown = Crown.MAIN
     majority: Crown = Crown.PORTRAIT
-    osr2_player: int = 1
+    osr2_funestra: int = 1
 
-    def satellite(self, player: Player) -> SatelliteState:
+    def satellite(self, funestra: RoomFunestra) -> SatelliteState:
         """The slice of this state one satellite carries."""
-        return self.portrait if Player(player) is Player.PORTRAIT else self.landscape
+        return self.portrait if RoomFunestra(funestra) is RoomFunestra.PORTRAIT else self.landscape
 
-    def with_satellite(self, player: Player, **changes) -> BridgeState:
+    def with_satellite(self, funestra: RoomFunestra, **changes) -> BridgeState:
         """This state with one satellite's named :class:`SatelliteState` values replaced."""
-        satellite = replace(self.satellite(player), **changes)
-        if Player(player) is Player.PORTRAIT:
+        satellite = replace(self.satellite(funestra), **changes)
+        if RoomFunestra(funestra) is RoomFunestra.PORTRAIT:
             return replace(self, portrait=satellite)
         return replace(self, landscape=satellite)
 
@@ -150,8 +150,8 @@ def shared_state_path(state_dir: Path) -> Path:
 def _written_satellites(state: BridgeState) -> dict[str, str]:
     """Both satellites' slices, under the keys the file has always used."""
     return {
-        _satellite_key(f.name, player): _written(getattr(state.satellite(player), f.name))
-        for player in Player.SATELLITES
+        _satellite_key(f.name, funestra): _written(getattr(state.satellite(funestra), f.name))
+        for funestra in RoomFunestra.SATELLITES
         for f in fields(SatelliteState)
     }
 
@@ -192,10 +192,10 @@ def _publish(state_file: Path, parser: configparser.ConfigParser) -> None:
                        state_file.name, READER_HOLD_BUDGET_S)
 
 
-def _read_satellite(section, player: Player) -> SatelliteState:
+def _read_satellite(section, funestra: RoomFunestra) -> SatelliteState:
     """One satellite's slice."""
     return SatelliteState(**{
-        f.name: _read_back(section.get(_satellite_key(f.name, player)), f.default)
+        f.name: _read_back(section.get(_satellite_key(f.name, funestra)), f.default)
         for f in fields(SatelliteState)
     })
 
@@ -218,14 +218,16 @@ def _read_back(written: str | None, default: bool | int | str) -> bool | int | s
     return written
 
 
-# The keys this file carried until 2026-09-13, and what each became.
+# The keys this file once carried, and what each became.
 _LAST_SESSIONS_KEYS = {
     "locked2": "portrait_locked",
     "locked3": "landscape_locked",
-    "active_side": "active_player",
+    "active_side": "active_funestra",
     "main_f_mode": "main_scripted_filter",
     "portrait_f_mode": "portrait_favorites_filter",
     "landscape_f_mode": "landscape_favorites_filter",
+    "active_player": "active_funestra",
+    "osr2_player": "osr2_funestra",
 }
 
 
@@ -262,7 +264,7 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
         return None
     s = parser["state"]
     return BridgeState(
-        portrait=_read_satellite(s, Player.PORTRAIT),
-        landscape=_read_satellite(s, Player.LANDSCAPE),
+        portrait=_read_satellite(s, RoomFunestra.PORTRAIT),
+        landscape=_read_satellite(s, RoomFunestra.LANDSCAPE),
         **{f.name: _read_back(s.get(f.name), f.default) for f in _session_fields()},
     )

@@ -1,4 +1,4 @@
-"""The off-screen check that silences a player, and the three players it silences."""
+"""The off-screen check that silences a Funestra, and the three Funestras it silences."""
 from __future__ import annotations
 
 import argparse
@@ -48,8 +48,8 @@ def test_the_unit_run_is_on_the_interactive_desktop_so_nothing_is_silenced():
     assert on_hidden_desktop() is False
 
 
-@pytest.mark.parametrize("module_name", ["main_player.cli", "satellite.cli"])
-def test_a_video_player_silences_itself_off_screen_with_no_switch_set(module_name, monkeypatch):
+@pytest.mark.parametrize("module_name", ["main_funestra.cli", "satellite.cli"])
+def test_a_video_funestra_silences_itself_off_screen_with_no_switch_set(module_name, monkeypatch):
     module = importlib.import_module(module_name)
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
     monkeypatch.setattr(module, "on_hidden_desktop", lambda: True)

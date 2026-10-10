@@ -1,4 +1,4 @@
-"""Genau's tunables, read off its own config for the engine the VR player runs."""
+"""Genau's tunables, read off its own config for the engine the headset runs."""
 from __future__ import annotations
 
 import json

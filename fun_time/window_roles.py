@@ -2,9 +2,9 @@
 
 Startup, omnipause and mode switches all read this ONE policy, so they can
 never disagree about a window's topmost band, which is the drift that leaves
-the main player stranded on top after entering omnipause.
+the Main Funestra stranded on top after entering omnipause.
 
-The satellite, dashboard and Main Player windows each own a screen rect and
+The satellite, dashboard and Main Funestra windows each own a screen rect and
 never overlap, so they are unconditionally topmost.  One pair SHARES a rect and
 stacks against each other: the Random Favs Browser under the hosted
 Origenerator's window (``restack_rfb_slot``).
@@ -18,11 +18,11 @@ from .satellites_mode import KINO_MODE, origenerator_shows
 # Windows with their own screen rect — always topmost; order among them is
 # irrelevant because they never overlap.  The log stream is a child widget of the
 # dashboard window, not a role of its own, so it rides the dashboard's band.
-# Kino and Genau both run on the Main Player's one window.
+# Kino and Genau both run on the Main Funestra's one window.
 FIXED_TOPMOST_ROLES: tuple[str, ...] = ("portrait", "landscape", "dashboard", "main_player")
 
-# The hosted Origenerator's one window.  Its shows play on the satellite
-# players, not in windows of its own (fun_time.player_handover).
+# The hosted Origenerator's one window.  Its shows play on the Satellite
+# Funestras, not in windows of its own (fun_time.funestra_handover).
 ORIGENERATOR_ROLE = "origenerator"
 
 # The browser and the hosted app's window share the RFB's rect.  In

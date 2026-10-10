@@ -33,8 +33,8 @@ def test_the_snapshot_carries_only_the_sections_the_dashboard_reads():
 
     The dashboard in its own process is the only reader of this file in the
     family, and it asks for exactly five things -- whether the room is
-    omnipaused, whether voice is listening, whether every player is in F-mode,
-    whether every player is already at its defaults, and whether this session
+    omnipaused, whether voice is listening, whether every Funestra is in F-mode,
+    whether every Funestra is already at its defaults, and whether this session
     is the headset's.
     """
     parser = configparser.ConfigParser()
@@ -72,7 +72,7 @@ def test_build_dashboard_snapshot_text_includes_voice_state():
     assert "[voice]\nactive=0\n" in text
 
 
-def test_the_snapshot_says_when_every_player_has_nothing_to_reset():
+def test_the_snapshot_says_when_every_funestra_has_nothing_to_reset():
     assert "[reset]\nnothing=1\n" in build_dashboard_snapshot_text(DashboardSnapshot(nothing_to_reset=True))
     assert "[reset]\nnothing=0\n" in build_dashboard_snapshot_text()
 

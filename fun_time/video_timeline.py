@@ -1,9 +1,9 @@
-"""Recent playback history for one player, so a late command can be back-dated.
+"""Recent playback history for one Funestra, so a late command can be back-dated.
 
 Speech recognition only finalizes a phrase once the speaker stops, so a spoken
 "lock portrait" reaches the dispatcher a second or two after the user began
 saying it — by which time an auto-advancing satellite may already be on the next
-video.  Sampling each player's current video into a timeline lets the dispatcher
+video.  Sampling each Funestra's current video into a timeline lets the dispatcher
 resolve the video that was on screen when the utterance *started*, which is the
 one the user meant.
 """
@@ -34,7 +34,7 @@ class VideoTimeline:
         interval in either direction rather than a full interval in one.
         """
         if not path:
-            # A player's status file carries no path before it has loaded
+            # A Funestra's status file carries no path before it has loaded
             # anything — a gap in the record, not a switch to a new video.
             return
         if self._entries and self._entries[-1].path == path:

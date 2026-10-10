@@ -1,6 +1,6 @@
 """The loading screen from the orchestrator's side: raised, then taken down.
 
-Raised before the launch's own work -- the taskbar pin, the players' engine, the
+Raised before the launch's own work -- the taskbar pin, the Funestras' engine, the
 session machinery's import -- which he watched a bare desktop through.  What is
 imported here is paid for before the cover is up, so there is a test that
 nothing else is (``test_the_launch_loads_nothing_the_cover_does_not_need``).

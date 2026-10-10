@@ -1,4 +1,4 @@
-"""OpenXR session lifecycle and swapchain management for the VR player.
+"""OpenXR session lifecycle and swapchain management for the headset.
 
 The loader's traps, each learned the slow way: graphics requirements queried
 before session creation, typed event casting, waiting for READY before the frame
@@ -154,7 +154,7 @@ class VRSession:
         except Exception:
             # A failed bring-up must leave nothing: the caller retries
             # construction when the runtime's graphics side is still warming
-            # up (see the player's bring-up loop), and every attempt makes a
+            # up (see the Funestra's bring-up loop), and every attempt makes a
             # fresh window, instance and context.  close() is None-guarded
             # throughout, so it tears down exactly what got made.
             try:

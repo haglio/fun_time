@@ -1,5 +1,5 @@
 """The hotkeys and voice reference, hanging in the headset: the desktop's is an
-HTML popup and a player process has no browser, so the same sections
+HTML popup and a Funestra process has no browser, so the same sections
 (:func:`fun_time.command_reference.build_reference_sections`) are painted one at
 a time, with two controls that walk them."""
 from __future__ import annotations

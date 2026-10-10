@@ -29,9 +29,9 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
         genau_status_file=state_dir / "genau_status.txt",
         audio_paused_file=state_dir / "audio_paused.txt",
         audio_volume_file=state_dir / "audio_volume.txt",
-        main_player_cmd_file=state_dir / "main_player_cmd.txt",
-        main_player_paused_file=state_dir / "main_player_paused.txt",
-        main_player_status_file=state_dir / "main_player_status.txt",
+        main_funestra_cmd_file=state_dir / "main_player_cmd.txt",
+        main_funestra_paused_file=state_dir / "main_player_paused.txt",
+        main_funestra_status_file=state_dir / "main_player_status.txt",
         dashboard_state_file=state_dir / "dashboard_state.ini",
     )
 

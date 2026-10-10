@@ -10,25 +10,25 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
-from player_core.broker_feed import BrokerFeed, udp_reader
-from player_core.clip_advance import ClipAdvanceState
-from player_core.clip_cache import ClipCacheStore, DecodeRequestState
-from player_core.clip_decode import load_clip_frames
-from player_core.clip_flip import ClipFlip
-from player_core.clip_folder import move_clip_to_weird
-from player_core.clip_loader import ClipLoadController
-from player_core.clip_renderer import ClipRenderController
-from player_core.clip_selection import ClipSelectionController
-from player_core.clip_sequence import ClipSequenceController
-from player_core.cruise_control import CruiseControlState
-from player_core.file_channel import read_paused_state
-from player_core.flag import Flag
-from player_core.genau_controls import GenauControls
-from player_core.genau_refresh import GenauRefreshController
-from player_core.learned_motion import LearnedMotionState, load_default_model
-from player_core.robot_hand import RobotHandState, bpm_for_speed
-from player_core.robot_hand_beat import BeatEngine
-from player_core.robot_hand_driver import RobotHandTCodeDriver
+from funestra_core.broker_feed import BrokerFeed, udp_reader
+from funestra_core.clip_advance import ClipAdvanceState
+from funestra_core.clip_cache import ClipCacheStore, DecodeRequestState
+from funestra_core.clip_decode import load_clip_frames
+from funestra_core.clip_flip import ClipFlip
+from funestra_core.clip_folder import move_clip_to_weird
+from funestra_core.clip_loader import ClipLoadController
+from funestra_core.clip_renderer import ClipRenderController
+from funestra_core.clip_selection import ClipSelectionController
+from funestra_core.clip_sequence import ClipSequenceController
+from funestra_core.cruise_control import CruiseControlState
+from funestra_core.file_channel import read_paused_state
+from funestra_core.flag import Flag
+from funestra_core.genau_controls import GenauControls
+from funestra_core.genau_refresh import GenauRefreshController
+from funestra_core.learned_motion import LearnedMotionState, load_default_model
+from funestra_core.robot_hand import RobotHandState, bpm_for_speed
+from funestra_core.robot_hand_beat import BeatEngine
+from funestra_core.robot_hand_driver import RobotHandTCodeDriver
 
 logger = logging.getLogger(__name__)
 

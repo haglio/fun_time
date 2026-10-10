@@ -14,17 +14,17 @@ from pathlib import Path
 from fun_time.config import LayoutConfig
 from fun_time.crown import Crown
 from fun_time.event_log import EVENT_LOG_FILENAME, EventRecord, is_announcement, read_events
-from fun_time.notice_placement import PlayerRects, notice_target_rect
+from fun_time.notice_placement import FunestraRects, notice_target_rect
 from fun_time.overlay_progress import loading_cover_is_up
 from fun_time.shared_state import read_shared_state
 from fun_time.unlogged_notices import UnloggedNotices
 from fun_time.window_layout import ScreenLayout, screen_layout, secondary_monitor_rects
 
 
-def player_rects(screens: ScreenLayout, majority: Crown = Crown.PORTRAIT) -> PlayerRects:
+def funestra_rects(screens: ScreenLayout, majority: Crown = Crown.PORTRAIT) -> FunestraRects:
     """Where each notice-bearing window sits, in real screen coordinates."""
     seats = secondary_monitor_rects(screens.secondary_monitor, screens.config, majority=majority)
-    return PlayerRects(
+    return FunestraRects(
         main=seats.main,
         portrait=seats.portrait,
         landscape=screens.plan.landscape,
@@ -74,10 +74,10 @@ class NoticeFeed:
         return self._offset
 
     @property
-    def player_rects(self) -> PlayerRects | None:
+    def funestra_rects(self) -> FunestraRects | None:
         if self._screens is None:
             return None
-        return player_rects(self._screens, self._majority())
+        return funestra_rects(self._screens, self._majority())
 
     def _majority(self) -> Crown:
         state = read_shared_state(self._shared_state_file) if self._shared_state_file else None
@@ -101,7 +101,7 @@ class NoticeFeed:
                                key=lambda record: record.ts)
         if not announcements:
             return
-        rects = self.player_rects
+        rects = self.funestra_rects
         for record in announcements:
             self.overlay.flash(record, notice_target_rect(record.source, rects))
 

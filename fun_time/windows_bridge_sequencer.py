@@ -13,29 +13,29 @@ import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from player_core.file_channel import append_command
-from player_core.modes import MainMode
-from player_core.play_points import play_points_filename
+from funestra_core.file_channel import append_command
+from funestra_core.modes import MainMode
+from funestra_core.play_points import play_points_filename
 
 from satellite.contract import SatelliteChannels
 
 from . import preview_marker
+from .funestra_deaths import (
+    FunestraDied,
+    LaunchedFunestra,
+    logs_as_they_stand,
+    raise_if_a_funestra_died,
+)
+from .funestra_status import (
+    read_genau_status,
+    read_main_funestra_status,
+)
 from .hosted_origenerator import HostedApp, bring_up_the_hosted_app
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
-from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, main_player_displays
+from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, kino_shows
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
-from .player_deaths import (
-    LaunchedPlayer,
-    PlayerDied,
-    logs_as_they_stand,
-    raise_if_a_player_died,
-)
-from .player_status import (
-    read_genau_status,
-    read_main_player_status,
-)
-from .players import Player
+from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot
@@ -64,7 +64,7 @@ from .windows_bridge_random_favs_browser import (
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
-    launch_main_player,
+    launch_main_funestra,
     launch_ui_companions,
     start_core_session,
 )
@@ -76,18 +76,18 @@ logger = logging.getLogger(__name__)
 # — so this is a ceiling for a machine under load, not a cost anyone pays.
 WINDOW_RESOLVE_TIMEOUT_S = 15.0
 
-# How long startup waits for the main player to finish loading.  Wide enough for the worst
+# How long startup waits for the Main Funestra to finish loading.  Wide enough for the worst
 # case, a cold duration cache: one ffprobe per unprobed video, measured at 28s
 # for 525 of them, and paid once because the cache persists.  Its ceiling is the
 # overlay's own patience: the two waits in this phase run back to back under a
 # single progress write, and the overlay tears itself down when that file has
 # gone ``loading_screen.STALE_TIMEOUT_S`` without changing.  A test pins the sum.
-MAIN_PLAYER_LOAD_TIMEOUT_S = 40.0
+MAIN_FUNESTRA_LOAD_TIMEOUT_S = 40.0
 
 
 @dataclass(frozen=True)
 class StartupResult:
-    main_player_pid: int
+    main_funestra_pid: int
     portrait_pid: int
     landscape_pid: int
     dashboard_pid: int
@@ -97,8 +97,8 @@ class StartupResult:
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
     origenerator_showing: bool = False
-    # Which player the main slot was revealed on — last session's, resumed.
-    # Carried out because the orchestrator starts the players once the cover
+    # Which Funestra the main slot was revealed on — last session's, resumed.
+    # Carried out because the orchestrator starts the Funestras once the cover
     # is gone, and starts the mode's.
     # The satellite side has no such line: every room is BUILT in kino mode.
     main_mode: MainMode = STARTUP_MAIN_MODE
@@ -124,7 +124,7 @@ def _startup_role_hwnds(
     *,
     portrait_hwnd: int,
     landscape_hwnd: int,
-    main_player_hwnd: int,
+    main_funestra_hwnd: int,
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
 ) -> dict[str, int]:
@@ -137,7 +137,7 @@ def _startup_role_hwnds(
     return {
         "portrait": portrait_hwnd,
         "landscape": landscape_hwnd,
-        "main_player": main_player_hwnd,
+        "main_player": main_funestra_hwnd,
         "dashboard": dashboard_hwnd,
         "rfb": rfb_hwnd,
     }
@@ -165,7 +165,7 @@ def apply_startup_window_state(
     *,
     portrait_hwnd: int,
     landscape_hwnd: int,
-    main_player_hwnd: int,
+    main_funestra_hwnd: int,
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
     beneath: int = 0,
@@ -180,7 +180,7 @@ def apply_startup_window_state(
     role_hwnds = _startup_role_hwnds(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        main_player_hwnd=main_player_hwnd,
+        main_funestra_hwnd=main_funestra_hwnd,
         dashboard_hwnd=dashboard_hwnd,
         rfb_hwnd=rfb_hwnd,
     )
@@ -198,7 +198,7 @@ class _LaunchedChildren:
     """
 
     pids: list[int] = field(default_factory=list)
-    players: list[LaunchedPlayer] = field(default_factory=list)
+    funestras: list[LaunchedFunestra] = field(default_factory=list)
     rfb_hwnd: int = 0
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
@@ -213,8 +213,8 @@ class _LaunchedChildren:
         return app.pid
 
 
-def release_the_players(m: LaunchManifest, main_mode: MainMode) -> None:
-    """Start the players the session's mode puts to work.
+def release_the_funestras(m: LaunchManifest, main_mode: MainMode) -> None:
+    """Start the Funestras the session's mode puts to work.
 
     Startup holds every one of them so nothing plays into a room that is still
     being built; this releases exactly the ones the mode shows — Genau (with
@@ -227,7 +227,7 @@ def release_the_players(m: LaunchManifest, main_mode: MainMode) -> None:
     phases, playback starts while the cover is still hiding it, and the first
     seconds of the video are spent under it.
     """
-    write_flag_file(m.commands.main_player_paused_file, not main_player_displays(main_mode))
+    write_flag_file(m.commands.main_funestra_paused_file, not kino_shows(main_mode))
     for flag_file in (m.commands.genau_paused_file, m.commands.audio_paused_file):
         write_flag_file(flag_file, False)
     # The Robot Hand rides Genau's command channel rather than that flag (see
@@ -273,7 +273,7 @@ def run_startup_sequence(
             launched=launched,
             env=env,
         )
-    except (StartupCancelled, PlayerDied) as stopped:
+    except (StartupCancelled, FunestraDied) as stopped:
         stopped.launched_pids = launched.pids
         stopped.rfb_hwnd = launched.rfb_hwnd
         stopped.origenerator_taken_over = launched.origenerator_taken_over
@@ -288,19 +288,19 @@ class _CoreSession:
     main_mode: MainMode
     portrait_pid: int
     landscape_pid: int
-    main_player_pid: int
+    main_funestra_pid: int
     origenerator_pid: int
     origenerator_taken_over: bool
     origenerator_already_open: bool
     origenerator_showing: bool
-    # The main player's status file, dropped once phase 1 has spent last session's copy —
+    # The Main Funestra's status file, dropped once phase 1 has spent last session's copy —
     # phase 4 holds the overlay on the new one appearing.
-    main_player_status_file: Path
+    main_funestra_status_file: Path
 
 
 def _plan_the_layout(m: LaunchManifest) -> ScreenLayout:
     """Every window's rect, from the monitors and the manifest's layout section,
-    made before the first child so each player opens where it plays."""
+    made before the first child so each Funestra opens where it plays."""
     return screen_layout(m.layout)
 
 
@@ -312,20 +312,20 @@ def _launch_the_satellites(
     project_dirs: str,
     launched: _LaunchedChildren,
 ) -> tuple[str, int, int]:
-    """The core session: both satellite players, and the mode it resumed into.
+    """The core session: both Satellite Funestras, and the mode it resumed into.
 
     Returns the mode last session was closed in — the core session has just
     seeded every cross-process flag for it, and what is left is the half only
-    this side can do: band the windows, and reveal on the right player.
+    this side can do: band the windows, and reveal on the right Funestra.
     """
     core_result_file = _build_unique_result_path(state_dir, "core_session")
     broker_launcher_raw = m.commands.broker_tray_launcher.strip()
     regen_metadata_raw = m.regen.metadata_root.strip()
     # Each satellite's whole launch bundle, built once where the manifest is read.
 
-    def _slot(player: Player, side: str, sources: str, playlist: str, rect):
+    def _slot(funestra: RoomFunestra, side: str, sources: str, playlist: str, rect):
         return SatelliteSlot(
-            player=player,
+            funestra=funestra,
             sources=sources,
             channels=replace(
                 SatelliteChannels.from_manifest(
@@ -336,9 +336,9 @@ def _launch_the_satellites(
             rect=rect,
         )
 
-    portrait_slot = _slot(Player.PORTRAIT, "portrait", m.media.portrait_dirs,
+    portrait_slot = _slot(RoomFunestra.PORTRAIT, "portrait", m.media.portrait_dirs,
                           PLAYLIST_PORTRAIT, plan.portrait)
-    landscape_slot = _slot(Player.LANDSCAPE, "landscape", m.media.landscape_dirs,
+    landscape_slot = _slot(RoomFunestra.LANDSCAPE, "landscape", m.media.landscape_dirs,
                            PLAYLIST_LANDSCAPE, plan.landscape)
     portrait_logs = logs_as_they_stand(portrait_slot.log_file)
     landscape_logs = logs_as_they_stand(landscape_slot.log_file)
@@ -351,22 +351,22 @@ def _launch_the_satellites(
         genau_paused_file=m.commands.genau_paused_file,
         genau_cmd_file=m.commands.genau_cmd_file,
         audio_paused_file=m.commands.audio_paused_file,
-        main_player_paused_file=m.commands.main_player_paused_file,
+        main_funestra_paused_file=m.commands.main_funestra_paused_file,
         audio_volume_file=m.commands.audio_volume_file,
-        main_player_cmd_file=m.commands.main_player_cmd_file,
+        main_funestra_cmd_file=m.commands.main_funestra_cmd_file,
         satellite_python_exe=m.executables.python_exe,
         satellite_module=m.modules.satellite_module,
         portrait=portrait_slot,
         landscape=landscape_slot,
-        main_player_status_file=m.commands.main_player_status_file,
+        main_funestra_status_file=m.commands.main_funestra_status_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
-        main_sources=m.media.main_player_library_sources,
+        main_sources=m.media.main_funestra_library_sources,
         favs_file=m.media.favs_file,
         state_dir=state_dir,
         result_file=str(core_result_file),
         regen_metadata_root=Path(regen_metadata_raw) if regen_metadata_raw else None,
         # The satellites import player_core, so a named player_core checkout
-        # must reach them exactly as it reaches Genau and the main player — without this
+        # must reach them exactly as it reaches Genau and the Main Funestra — without this
         # they quietly ran the venv's primary while everything else ran the
         # branch.
         project_dirs=project_dirs,
@@ -375,9 +375,9 @@ def _launch_the_satellites(
     portrait_pid = core_pids["portrait_pid"]
     landscape_pid = core_pids["landscape_pid"]
     launched.pids.extend([portrait_pid, landscape_pid])
-    launched.players.extend([
-        LaunchedPlayer("the Portrait player", portrait_pid, portrait_logs),
-        LaunchedPlayer("the Landscape player", landscape_pid, landscape_logs),
+    launched.funestras.extend([
+        LaunchedFunestra("the Portrait Funestra", portrait_pid, portrait_logs),
+        LaunchedFunestra("the Landscape Funestra", landscape_pid, landscape_logs),
     ])
     logger.info(
         "Core session launched: portrait=%d landscape=%d",
@@ -386,7 +386,7 @@ def _launch_the_satellites(
     return main_mode, portrait_pid, landscape_pid
 
 
-def _launch_the_main_player(
+def _launch_the_main_funestra(
     m: LaunchManifest,
     *,
     layout: ScreenLayout,
@@ -394,11 +394,11 @@ def _launch_the_main_player(
     project_dirs: str,
     launched: _LaunchedChildren,
 ) -> tuple[int, Path]:
-    """The Main Player, which Kino and Genau both run on, and its status file.
+    """The Main Funestra, which Kino and Genau both run on, and its status file.
 
-    That file is how startup learns the main player has finished loading, so it is dropped
+    That file is how startup learns the Main Funestra has finished loading, so it is dropped
     here — after ``start_core_session`` has read last session's copy to resume
-    The main player onto the video it names, and before the main player could write a new one.
+    The Main Funestra onto the video it names, and before the Main Funestra could write a new one.
     """
     regen_metadata_raw = m.regen.metadata_root.strip()
     # Launched as early as possible so it can initialise pygame, scan media and
@@ -414,32 +414,32 @@ def _launch_the_main_player(
     genau_clip = read_genau_status(Path(m.commands.genau_status_file)).clip
     state = read_shared_state(shared_state_path(state_dir))
     genau_latest = False if state is None else state.genau_latest
-    # The main player's status file is how startup learns the main player has finished loading, and it
+    # The Main Funestra's status file is how startup learns the Main Funestra has finished loading, and it
     # can only say that once last session's copy is gone.  start_core_session
-    # read that one already, to resume the main player onto the video it names, so this is
-    # the first moment it is spent — and the last before the main player could write a new
-    # one.  See _wait_for_main_player_loaded.
-    main_player_status_file = Path(m.commands.main_player_status_file)
-    main_player_status_file.unlink(missing_ok=True)
-    main_player_log = state_dir / "main_player.log"
-    main_player_logs = logs_as_they_stand(main_player_log)
-    main_player_pid = launch_main_player(
+    # read that one already, to resume the Main Funestra onto the video it names, so this is
+    # the first moment it is spent — and the last before the Main Funestra could write a new
+    # one.  See _wait_for_main_funestra_loaded.
+    main_funestra_status_file = Path(m.commands.main_funestra_status_file)
+    main_funestra_status_file.unlink(missing_ok=True)
+    main_funestra_log = state_dir / "main_funestra.log"
+    main_funestra_logs = logs_as_they_stand(main_funestra_log)
+    main_funestra_pid = launch_main_funestra(
         python_exe=m.executables.genau_python_exe,
-        main_player_module=m.modules.main_player_module,
+        main_funestra_module=m.modules.main_funestra_module,
         config_path=m.runtime.config_path,
-        playlist_file=m.commands.main_player_playlist_file,
-        command_file=m.commands.main_player_cmd_file,
-        paused_file=m.commands.main_player_paused_file,
-        status_file=m.commands.main_player_status_file,
-        console_file=m.commands.main_player_console_file,
+        playlist_file=m.commands.main_funestra_playlist_file,
+        command_file=m.commands.main_funestra_cmd_file,
+        paused_file=m.commands.main_funestra_paused_file,
+        status_file=m.commands.main_funestra_status_file,
+        console_file=m.commands.main_funestra_console_file,
         drive_file=m.commands.genau_drive_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
-        log_file=main_player_log,
+        log_file=main_funestra_log,
         state_dir=state_dir,
-        main_player_x=main_media_rect.x,
-        main_player_y=main_media_rect.y,
-        main_player_width=main_media_rect.width,
-        main_player_height=main_media_rect.height,
+        main_funestra_x=main_media_rect.x,
+        main_funestra_y=main_media_rect.y,
+        main_funestra_width=main_media_rect.width,
+        main_funestra_height=main_media_rect.height,
         genau_command_file=m.commands.genau_cmd_file,
         genau_paused_file=m.commands.genau_paused_file,
         genau_status_file=m.commands.genau_status_file,
@@ -450,9 +450,9 @@ def _launch_the_main_player(
         genau_latest=genau_latest,
         project_dirs=project_dirs,
     )
-    launched.pids.append(main_player_pid)
-    launched.players.append(LaunchedPlayer("the Main player", main_player_pid, main_player_logs))
-    return main_player_pid, main_player_status_file
+    launched.pids.append(main_funestra_pid)
+    launched.funestras.append(LaunchedFunestra("the Main Funestra", main_funestra_pid, main_funestra_logs))
+    return main_funestra_pid, main_funestra_status_file
 
 
 def _launch_the_hosted_origenerator(
@@ -475,7 +475,7 @@ def _launch_core_media(
     state_dir: Path,
     launched: _LaunchedChildren,
 ) -> _CoreSession:
-    """Phase 1: the hosted app, then the two satellites, then the main player.
+    """Phase 1: the hosted app, then the two satellites, then the Main Funestra.
 
     Nothing here waits for a window.  Everything is started as early as it can
     be, slowest first, so each child's own boot — ComfyUI, pygame, a media
@@ -491,7 +491,7 @@ def _launch_core_media(
     main_mode, portrait_pid, landscape_pid = _launch_the_satellites(
         m, plan=layout.plan, state_dir=state_dir, project_dirs=project_dirs,
         launched=launched)
-    main_player_pid, main_player_status_file = _launch_the_main_player(
+    main_funestra_pid, main_funestra_status_file = _launch_the_main_funestra(
         m, layout=layout, state_dir=state_dir, project_dirs=project_dirs,
         launched=launched)
 
@@ -499,12 +499,12 @@ def _launch_core_media(
         main_mode=main_mode,
         portrait_pid=portrait_pid,
         landscape_pid=landscape_pid,
-        main_player_pid=main_player_pid,
+        main_funestra_pid=main_funestra_pid,
         origenerator_pid=origenerator_pid,
         origenerator_taken_over=launched.origenerator_taken_over,
         origenerator_already_open=launched.origenerator_already_open,
         origenerator_showing=launched.origenerator_showing,
-        main_player_status_file=main_player_status_file,
+        main_funestra_status_file=main_funestra_status_file,
     )
 
 
@@ -529,7 +529,7 @@ def _position_windows_now(plan: WindowLayoutPlan, *, env: SessionEnvironment) ->
     role_hwnds = apply_startup_window_state(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        main_player_hwnd=wait_for_window_by_title("Main Player", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+        main_funestra_hwnd=wait_for_window_by_title("Main Funestra", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
     )
     logger.info("Startup window state applied")
     return role_hwnds
@@ -575,13 +575,13 @@ def _launch_the_companions(
 def _wait_for_the_room_to_be_drawing(
     m: LaunchManifest,
     *,
-    main_player_status_file: Path,
+    main_funestra_status_file: Path,
     progress: ProgressReporter,
-    players: list[LaunchedPlayer] = (),
+    funestras: list[LaunchedFunestra] = (),
 ) -> None:
-    """Hold the cover until every player has a picture under it.
+    """Hold the cover until every Funestra has a picture under it.
 
-    The main player is the third player and by now the only one still loading: its window
+    The Main Funestra is the third Funestra and by now the only one still loading: its window
     has been up since half a second after launch with its own loading screen
     painted into it, so revealing on the window alone shows his progress bar
     instead of a video.  The two satellites are the same case one step earlier —
@@ -589,19 +589,19 @@ def _wait_for_the_room_to_be_drawing(
     opened the first clip, which is what "the windows are not ready when the
     loading screen goes away" looks like.
 
-    Neither wait gets to keep the desktop: a player that never arrives is
+    Neither wait gets to keep the desktop: a Funestra that never arrives is
     revealed over anyway, and the log says which one.
     """
-    if not _wait_for_main_player_loaded(main_player_status_file, progress, players=players):
+    if not _wait_for_main_funestra_loaded(main_funestra_status_file, progress, funestras=funestras):
         logger.warning(
-            "the main player reported no video within %.0fs; revealing over whatever it "
-            "still has on screen", MAIN_PLAYER_LOAD_TIMEOUT_S,
+            "the Main Funestra reported no video within %.0fs; revealing over whatever it "
+            "still has on screen", MAIN_FUNESTRA_LOAD_TIMEOUT_S,
         )
-    if not _wait_for_players_drawing(
+    if not _wait_for_funestras_drawing(
         (m.commands.portrait_status_file,
          m.commands.landscape_status_file),
         progress,
-        players=players,
+        funestras=funestras,
     ):
         logger.warning(
             "A satellite reported no frames within %.0fs; revealing anyway",
@@ -619,7 +619,7 @@ def _place_the_windows_under_the_cover(
 ) -> dict[str, int]:
     """Place every window where the plan says.
 
-    Nothing here can show over the overlay: the players are still out of the
+    Nothing here can show over the overlay: the Funestras are still out of the
     topmost band, and no move or show lifts a window above the band it is not
     in.  ``_fix_post_loading_windows`` bands them, under the overlay.  This is
     still the last moment the dashboard is resolvable, and it is hidden
@@ -641,7 +641,7 @@ def _place_the_windows_under_the_cover(
         rfb_hwnd=rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        main_player_hwnd=wait_for_window_by_title("Main Player", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+        main_funestra_hwnd=wait_for_window_by_title("Main Funestra", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
         dashboard_hwnd=dash_hwnd,
     )
     logger.info("Startup windows resolved (bands deferred past the overlay)")
@@ -656,18 +656,18 @@ def _settle_the_room_under_the_cover(
     rfb_hwnd: int,
     dashboard_pid: int,
     progress: ProgressReporter,
-    players: list[LaunchedPlayer],
+    funestras: list[LaunchedFunestra],
 ) -> dict[str, int]:
     """Phase 4, on the path with a loading screen: everything at once, unseen."""
-    # Named for the wait it is: until the players open their own windows there
+    # Named for the wait it is: until the Funestras open their own windows there
     # is nothing here to position.
-    progress.advance("players")
+    progress.advance("funestras")
     # The satellites launched playing and own their playlists, so there is
     # nothing to start here — only resolve and position each under the overlay.
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
     _wait_for_the_room_to_be_drawing(
-        m, main_player_status_file=core.main_player_status_file, progress=progress,
-        players=players)
+        m, main_funestra_status_file=core.main_funestra_status_file, progress=progress,
+        funestras=funestras)
 
     progress.advance("windows")
     return _place_the_windows_under_the_cover(
@@ -699,7 +699,7 @@ def _run_startup_phases(
     progress.advance("services")
     core = _launch_core_media(m, layout=layout, state_dir=state_dir, launched=launched)
 
-    raise_if_a_player_died(launched.players)
+    raise_if_a_funestra_died(launched.funestras)
 
     # --- Phase 2: Position windows (layout computed up front) ---
     role_hwnds: dict[str, int] = {}
@@ -716,26 +716,26 @@ def _run_startup_phases(
     ui_pids = _launch_the_companions(
         m, plan=plan, state_dir=state_dir, manifest_path=manifest_path, launched=launched)
 
-    raise_if_a_player_died(launched.players)
+    raise_if_a_funestra_died(launched.funestras)
 
     # --- Phase 4 (loading screen only): batch-position everything at once ---
     if hide_windows:
         role_hwnds = _settle_the_room_under_the_cover(
             m, core=core, plan=plan, rfb_hwnd=rfb_hwnd,
             dashboard_pid=ui_pids["dashboard_pid"], progress=progress,
-            players=launched.players)
+            funestras=launched.funestras)
 
-    raise_if_a_player_died(launched.players)
+    raise_if_a_funestra_died(launched.funestras)
 
     # A session with nothing to hide under starts playing as soon as it is
     # built.  One with a cover does NOT: the orchestrator calls this once the
-    # cover is off, since a player released under it loses its first seconds of
+    # cover is off, since a Funestra released under it loses its first seconds of
     # video (and Genau's audio) before anyone can see or hear them.
     if not hide_windows:
-        release_the_players(m, core.main_mode)
+        release_the_funestras(m, core.main_mode)
 
     return StartupResult(
-        main_player_pid=core.main_player_pid,
+        main_funestra_pid=core.main_funestra_pid,
         portrait_pid=core.portrait_pid,
         landscape_pid=core.landscape_pid,
         dashboard_pid=ui_pids["dashboard_pid"],
@@ -763,14 +763,14 @@ def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool =
 def _resolve_satellite_hwnds() -> tuple[int, int]:
     """The portrait and landscape native-satellite windows, as (portrait, landscape).
 
-    Each side is resolved by its DISTINCT window caption ("Portrait AI Player" vs
-    "Landscape AI Player"), so the lookup can never assign one side's window to the
+    Each side is resolved by its DISTINCT window caption ("Portrait AI Funestra" vs
+    "Landscape AI Funestra"), so the lookup can never assign one side's window to the
     other — a shared caption could, and that was the portrait/landscape visual swap.
 
     Deliberately NOT by pid.  The pid we launch with is the venv's
     ``Scripts\\pythonw.exe``, a launcher that spawns the base interpreter as a
     child, and the child is what owns the window — so a pid poll here can only
-    ever run out its timeout.  Two of them (plus the main player's) were 25 seconds of a
+    ever run out its timeout.  Two of them (plus the Main Funestra's) were 25 seconds of a
     28-second loading screen.
     """
     return (
@@ -783,24 +783,24 @@ def _resolve_satellite_hwnds() -> tuple[int, int]:
 # Their windows exist within a second of launch and stay BLACK until mpv has
 # opened the first clip and drawn a frame — on the 4K landscape library that is
 # several seconds — so a reveal timed on the windows alone lifts on two black
-# rectangles.  Bounded like the main player's: a player that never gets there does not get
+# rectangles.  Bounded like the Main Funestra's: a Funestra that never gets there does not get
 # to keep the desktop.
 SATELLITE_PLAY_TIMEOUT_S = 25.0
 _PLAY_POLL_S = 0.1
 
 
-def _wait_for_players_drawing(status_files, progress: ProgressReporter,
+def _wait_for_funestras_drawing(status_files, progress: ProgressReporter,
                               timeout_s: float = SATELLITE_PLAY_TIMEOUT_S,
-                              *, players: list[LaunchedPlayer] = ()) -> bool:
+                              *, funestras: list[LaunchedFunestra] = ()) -> bool:
     """Wait until every satellite is DRAWING, returning whether they all got there.
 
     The window existing is not the signal, and neither is the process running:
     a satellite opens its window immediately, then spends seconds asking mpv for
     the first clip.  Its status file says ``position_ms`` once frames are
     actually going out, which is the same thing the integration suite waits on
-    to call a player started.
+    to call a Funestra started.
 
-    Also a cancellation checkpoint, per poll, like the main player wait it sits beside:
+    Also a cancellation checkpoint, per poll, like the Main Funestra wait it sits beside:
     this is one of the stretches that can run for tens of seconds, and the
     overlay covering it offers Esc.
     """
@@ -813,32 +813,32 @@ def _wait_for_players_drawing(status_files, progress: ProgressReporter,
     for _ in range(max(1, int(timeout_s / _PLAY_POLL_S))):
         if progress.cancelled:
             raise StartupCancelled()
-        raise_if_a_player_died(players)
+        raise_if_a_funestra_died(funestras)
         if all(read_satellite_status(path).position_ms > 0 for path in files):
             return True
         time.sleep(_PLAY_POLL_S)
     return False
 
 
-def _wait_for_main_player_loaded(
+def _wait_for_main_funestra_loaded(
     status_file: Path,
     progress: ProgressReporter,
-    timeout_s: float = MAIN_PLAYER_LOAD_TIMEOUT_S,
+    timeout_s: float = MAIN_FUNESTRA_LOAD_TIMEOUT_S,
     *,
-    players: list[LaunchedPlayer] = (),
+    funestras: list[LaunchedFunestra] = (),
 ) -> bool:
-    """Wait until the main player has a video on screen, returning whether it got there.
+    """Wait until the Main Funestra has a video on screen, returning whether it got there.
 
-    The main player's caption is NOT this signal.  The main player opens its window before reading its
+    The Main Funestra's caption is NOT this signal.  The Main Funestra opens its window before reading its
     library and paints its own loading screen into it while it does — so the
     window exists within half a second of launch, however long the library walk
     then runs.  Waiting on the caption alone brings the overlay down over that
-    loading screen, which is the one place it must never be seen: standalone main player
+    loading screen, which is the one place it must never be seen: standalone Main Funestra
     owns its wait, and inside Fun Time, Fun Time owns it.
 
-    The main player's status file is the signal, because the main player writes it only from its playback
+    The Main Funestra's status file is the signal, because the Main Funestra writes it only from its playback
     loop.  The stale one is dropped at launch, so a file naming a video is this
-    session's the main player saying it is up.  Reading the *video* rather than merely the
+    session's the Main Funestra saying it is up.  Reading the *video* rather than merely the
     file's existence also survives a read that catches the first write half-done.
 
     Also a cancellation checkpoint, for the same reason ``advance`` is one — but
@@ -849,8 +849,8 @@ def _wait_for_main_player_loaded(
     while time.monotonic() < deadline:
         if progress.cancelled:
             raise StartupCancelled()
-        raise_if_a_player_died(players)
-        if read_main_player_status(status_file).video:
+        raise_if_a_funestra_died(funestras)
+        if read_main_funestra_status(status_file).video:
             return True
         time.sleep(0.1)
     return False

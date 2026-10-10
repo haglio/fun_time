@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from player_core.modes import MainMode
-from player_core.player_verbs import SHOW
+from funestra_core.funestra_verbs import SHOW
+from funestra_core.modes import MainMode
 
 # The main slot's two modes.  In both the Robot Hand is at work: in genau mode it
 # drives the OSR2 outright under Genau's clips, and in kino mode the arbiter
@@ -24,19 +24,19 @@ class ModeSwitchPlan:
     target_mode: MainMode
     is_transition: bool
     genau_cmd: str | None
-    # What the Main Player is told: which of Kino and Genau has its window.
+    # What the Main Funestra is told: which of Kino and Genau has its window.
     show_cmd: str | None
-    main_player_should_play: bool | None
+    main_funestra_should_play: bool | None
     log_message: str
 
 
-def main_player_displays(mode: MainMode) -> bool:
-    """Return True if the main player owns the on-screen display (and its interaction)."""
+def kino_shows(mode: MainMode) -> bool:
+    """Return True if the Main Funestra owns the on-screen display (and its interaction)."""
     return mode == MAIN_KINO_MODE
 
 
 def show_verb(mode: MainMode) -> str:
-    """What the Main Player is told so that *mode*'s player has its window."""
+    """What the Main Funestra is told so that *mode*'s Funestra has its window."""
     return f"{SHOW} {mode}"
 
 
@@ -56,7 +56,7 @@ def build_mode_switch_plan(
             is_transition=False,
             genau_cmd=None,
             show_cmd=None,
-            main_player_should_play=None,
+            main_funestra_should_play=None,
             log_message=f"Already in {target_mode} mode",
         )
 
@@ -65,6 +65,6 @@ def build_mode_switch_plan(
         is_transition=True,
         genau_cmd=None if omni_paused else "RESUME",
         show_cmd=show_verb(target_mode),
-        main_player_should_play=None if omni_paused else main_player_displays(target_mode),
+        main_funestra_should_play=None if omni_paused else kino_shows(target_mode),
         log_message=f"Switched to {target_mode} mode",
     )

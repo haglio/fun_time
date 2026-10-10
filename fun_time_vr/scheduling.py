@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from fun_time.win32_loader import get_last_error, load_dll
-from main_player.player_priority import ahead_on_the_processor
+from main_funestra.funestra_priority import ahead_on_the_processor
 
 logger = logging.getLogger(__name__)
 

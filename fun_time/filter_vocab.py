@@ -1,7 +1,7 @@
-"""Spoken filter vocabulary and command decoding for the satellite players.
+"""Spoken filter vocabulary and command decoding for the Satellite Funestras.
 
 A metadata filter is issued by voice: an optional orientation scope
-("portrait"/"landscape", or none for both players) plus an act drawn from the
+("portrait"/"landscape", or none for both Funestras) plus an act drawn from the
 library's ``video.action`` values.  This module is the single source of truth
 mapping those to dispatch commands.  It stays free of the speech runtime so the
 command reference and tests can import it cheaply — the same reason
@@ -49,7 +49,7 @@ def load_camera_words(
     return tuple(load_content(local_path, example_path)["cameras"])
 
 # Spoken scope word -> command scope token.  "" means no orientation was said,
-# so the filter applies to both players.
+# so the filter applies to both Funestras.
 _SCOPES: dict[str, str] = {"": "both", "portrait": "portrait", "landscape": "landscape"}
 
 _SCOPE_TOKENS: tuple[str, ...] = ("both", "portrait", "landscape")

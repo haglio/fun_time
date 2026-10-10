@@ -10,12 +10,12 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from player_core.console_hud import ModeHud
-from player_core.funestra import User
+from funestra_core.console_hud import ModeHud
+from funestra_core.funestra import User
 
 from fun_time.genau_config import GenauSettings
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
-from main_player.genau import GenauChannels
+from main_funestra.genau import GenauChannels
 
 
 class FakeSink:

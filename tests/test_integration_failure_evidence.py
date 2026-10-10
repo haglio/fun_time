@@ -1,4 +1,4 @@
-"""What is left when an integration run ends: what its players logged if it
+"""What is left when an integration run ends: what its Funestras logged if it
 failed, and nothing else.
 
 Every test used to delete its session's temp root on the way out, so a failure
@@ -34,7 +34,7 @@ def _a_session_root(tmp_path: Path, name: str) -> Path:
     root = tmp_path / name
     state = root / "integration_runtime" / "state"
     state.mkdir(parents=True)
-    (state / "main_player.log").write_text(f"{name} main player log", encoding="utf-8")
+    (state / "main_funestra.log").write_text(f"{name} Main Funestra log", encoding="utf-8")
     (root / "integration_runtime" / "videos").mkdir()
     (root / "integration_runtime" / "videos" / "clip.mp4").write_bytes(b"not really a video")
     integration_support.RUN_ROOTS.append(root)
@@ -56,26 +56,26 @@ def test_a_root_that_will_not_go_is_named_and_the_others_still_do(tmp_path: Path
     held = _a_session_root(tmp_path, "held")
     goes = _a_session_root(tmp_path, "goes")
 
-    with (held / "integration_runtime" / "state" / "main_player.log").open("a"):
+    with (held / "integration_runtime" / "state" / "main_funestra.log").open("a"):
         with pytest.raises(RootsLeftBehind, match="held"):
             clear_run_roots(budget_s=0)
 
     assert not goes.exists()
 
 
-def test_a_player_still_on_its_way_out_is_waited_for(tmp_path: Path):
-    """The last session's players are killed with taskkill /F, which returns
+def test_a_funestra_still_on_its_way_out_is_waited_for(tmp_path: Path):
+    """The last session's Funestras are killed with taskkill /F, which returns
     before they have finished going."""
     root = _a_session_root(tmp_path, "going")
 
-    with (root / "integration_runtime" / "state" / "main_player.log").open("a") as log:
+    with (root / "integration_runtime" / "state" / "main_funestra.log").open("a") as log:
         clear_run_roots(budget_s=60.0, sleep=lambda _seconds: log.close())
 
     assert not root.exists()
 
 
-def test_the_wait_outlasts_the_slowest_player_measured_on_a_busy_machine():
-    """59 seconds from a session's stop to its last player gone, with the flake
+def test_the_wait_outlasts_the_slowest_funestra_measured_on_a_busy_machine():
+    """59 seconds from a session's stop to its last Funestra gone, with the flake
     gate keeping every core busy."""
     assert integration_support.RELEASE_BUDGET_S >= 2 * 59
 
@@ -86,8 +86,8 @@ def test_a_failed_run_keeps_each_sessions_logs(tmp_path: Path):
     kept = keep_every_sessions_logs(tmp_path / "kept")
 
     assert all(root.exists() for root in roots)
-    logs = sorted(path.read_text(encoding="utf-8") for path in kept.rglob("main_player.log"))
-    assert logs == ["one main player log", "two main player log"]
+    logs = sorted(path.read_text(encoding="utf-8") for path in kept.rglob("main_funestra.log"))
+    assert logs == ["one Main Funestra log", "two Main Funestra log"]
 
 
 def test_the_media_a_session_linked_is_not_kept(tmp_path: Path):

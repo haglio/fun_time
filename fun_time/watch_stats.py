@@ -1,4 +1,4 @@
-"""Fun Time's own record of how its players treated each video ("breeding").
+"""Fun Time's own record of how its Funestras treated each video ("breeding").
 
 Videos the user watches to the end (or locks and loops) accumulate positive
 signals; videos skipped early accumulate negative ones.  Evolver sums these
@@ -78,10 +78,10 @@ def passes_inclusion(weight: float, rng: random.Random) -> bool:
 
 
 class WatchTracker:
-    """Classify one player's playback into completions and skips.
+    """Classify one Funestra's playback into completions and skips.
 
-    Player-agnostic: the same tracker serves a satellite and the main player
-    player.  Fed with periodic (path, position-fraction) samples plus
+    Player-agnostic: the same tracker serves a satellite and the Main Funestra
+    Funestra.  Fed with periodic (path, position-fraction) samples plus
     notifications of user navigation and discards, it emits
     ("completion" | "skip", path) events: a video that reached ~the end counts
     as watched (each repeat-one wrap while locked counts again); a video the

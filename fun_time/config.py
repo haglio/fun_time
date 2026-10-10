@@ -18,8 +18,8 @@ from app_support.config_reader import (
 )
 
 from .loopback_server import LOOPBACK_PORT
-from .players import Player
 from .project_paths import PROJECT_DIR
+from .room_funestras import RoomFunestra
 
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "fun_time_config.json"
 EXAMPLE_CONFIG_PATH = PROJECT_DIR / "fun_time_config.example.json"
@@ -29,7 +29,7 @@ EXAMPLE_CONFIG_PATH = PROJECT_DIR / "fun_time_config.example.json"
 class PathsConfig:
     ahk_exe: Path
     python_exe: Path
-    main_player_library_dirs: tuple[Path, ...]
+    main_funestra_library_dirs: tuple[Path, ...]
     portrait_dirs: tuple[Path, ...]
     landscape_dirs: tuple[Path, ...]
     weird_dir: Path
@@ -48,7 +48,7 @@ class PathsConfig:
     broker_state_dir: Path
     genau_python_exe: Path | None = None
     genau_config_path: Path | None = None
-    # Which checkouts Genau and the main player are run out of, put on their PYTHONPATH.
+    # Which checkouts Genau and the Main Funestra are run out of, put on their PYTHONPATH.
     # Absent, every package they import — their own, and ``player_core`` under
     # them — resolves through the genau venv's editable installs, which name the
     # primary checkout of each repo for good: so a *worktree* of either could not
@@ -123,7 +123,7 @@ class VrConfig:
     """What FunTimeVR needs beyond the desktop session's own config.
 
     ``library_dirs`` joins the main rotation alongside ``main_player_library_dirs``;
-    ``audio_device`` routes the main player's sound to the headset by substring
+    ``audio_device`` routes the Main Funestra's sound to the headset by substring
     match; the T-Code endpoint is the broker's UDP inlet.  ``compositor_layers`` hands flat screens to the runtime
     as quad layers — off by default because the bundled "Pimax OpenXR 0.1.0"
     accepts them in xrEndFrame and then never composites them.
@@ -165,7 +165,7 @@ class ProjectConfig:
     loopback_port: int = LOOPBACK_PORT
     # FunTimeVR's additions; the desktop session never reads them.
     vr: VrConfig = VrConfig()
-    main_player_tcode: TcodeTarget = TcodeTarget()
+    main_funestra_tcode: TcodeTarget = TcodeTarget()
     # Config key ``instance_id``; read through the property below.
     instance_id_override: str | None = None
 
@@ -219,27 +219,27 @@ class ProjectConfig:
         return self.paths.state_dir / state_files.GENAU_STATUS
 
     @property
-    def main_player_cmd_file(self) -> Path:
+    def main_funestra_cmd_file(self) -> Path:
         return self.paths.state_dir / "main_player_cmd.txt"
 
     @property
-    def main_player_paused_file(self) -> Path:
+    def main_funestra_paused_file(self) -> Path:
         return self.paths.state_dir / "main_player_paused.txt"
 
     @property
-    def main_player_status_file(self) -> Path:
+    def main_funestra_status_file(self) -> Path:
         return self.paths.state_dir / "main_player_status.txt"
 
     @property
-    def main_player_notice_file(self) -> Path:
+    def main_funestra_notice_file(self) -> Path:
         return self.paths.state_dir / "main_player_notice.txt"
 
     @property
-    def main_player_playlist_file(self) -> Path:
+    def main_funestra_playlist_file(self) -> Path:
         return self.paths.state_dir / "main_player_playlist.tsv"
 
     # --- The hosted Origenerator's channel (see fun_time.satellites_mode):
-    # verbs in, the OmniPause flag over it, and which players it holds back.
+    # verbs in, the OmniPause flag over it, and which Funestras it holds back.
     @property
     def origenerator_cmd_file(self) -> Path:
         return self.paths.state_dir / "origenerator_cmd.txt"
@@ -264,10 +264,10 @@ class ProjectConfig:
     def random_favs_browser_manifest_file(self) -> Path:
         return self.paths.state_dir / "random_favs_browser_urls.txt"
 
-    def satellite(self, player: Player) -> SatelliteFiles:
+    def satellite(self, funestra: RoomFunestra) -> SatelliteFiles:
         """The four channel files and the HUD one satellite reads — here with the
         session's other file names, not where the manifest is serialized."""
-        label = Player(player).label
+        label = RoomFunestra(funestra).label
         return SatelliteFiles(
             cmd_file=self.paths.state_dir / f"{label}_cmd.txt",
             paused_file=self.paths.state_dir / f"{label}_paused.txt",
@@ -302,17 +302,17 @@ def _resolve_config_path(config_path: str | Path | None, project_dir: Path) -> P
 
 
 def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir: Path) -> PathsConfig:
-    main_player_library_dirs_raw = require_value(paths_raw, "main_player_library_dirs", source_path, context="config.paths")
-    if not isinstance(main_player_library_dirs_raw, list):
+    main_funestra_library_dirs_raw = require_value(paths_raw, "main_player_library_dirs", source_path, context="config.paths")
+    if not isinstance(main_funestra_library_dirs_raw, list):
         raise TypeError("paths.main_player_library_dirs must be a list of folder paths")
-    if not main_player_library_dirs_raw:
+    if not main_funestra_library_dirs_raw:
         raise ValueError("paths.main_player_library_dirs must include at least one folder path")
 
     state_dir = require_path(paths_raw, "state_dir", source_path, base=project_dir, context="config.paths")
     return PathsConfig(
         ahk_exe=require_path(paths_raw, "ahk_exe", source_path, base=project_dir, context="config.paths"),
         python_exe=require_path(paths_raw, "python_exe", source_path, base=project_dir, context="config.paths"),
-        main_player_library_dirs=tuple(resolve_path(project_dir, str(value)) for value in main_player_library_dirs_raw),
+        main_funestra_library_dirs=tuple(resolve_path(project_dir, str(value)) for value in main_funestra_library_dirs_raw),
         portrait_dirs=_load_dir_list(paths_raw, "portrait_dirs", "portrait_dir", source_path, project_dir),
         landscape_dirs=_load_dir_list(paths_raw, "landscape_dirs", "landscape_dir", source_path, project_dir),
         weird_dir=require_path(paths_raw, "weird_dir", source_path, base=project_dir, context="config.paths"),
@@ -450,7 +450,7 @@ def load_config(config_path: str | Path | None = None, *, project_dir: Path | No
     this package, which is what every session wants: a config's relative values
     describe the checkout it belongs to.  It is a parameter so that code holding
     *two* checkouts at once can say which — the branch-verification launcher
-    reads the live config while running from the main player, and must resolve it
+    reads the live config while running from the Main Funestra, and must resolve it
     the way the live session does rather than the way its caller happens to sit.
     """
     project_dir = project_dir or PROJECT_DIR
@@ -467,7 +467,7 @@ def load_config(config_path: str | Path | None = None, *, project_dir: Path | No
     voice_raw = optional_section(raw, "voice_control", path)
     regen_raw = optional_section(raw, "regen", path)
     vr_raw = optional_section(raw, "vr", path)
-    main_player_raw = optional_section(raw, "main_player", path) or {}
+    main_funestra_raw = optional_section(raw, "main_player", path) or {}
 
     return ProjectConfig(
         project_dir=project_dir,
@@ -480,9 +480,9 @@ def load_config(config_path: str | Path | None = None, *, project_dir: Path | No
         regen=_load_regen_config(regen_raw, project_dir),
         loopback_port=int(raw.get("loopback_port", LOOPBACK_PORT)),
         vr=_load_vr_config(vr_raw, project_dir),
-        main_player_tcode=TcodeTarget(
-            host=str(main_player_raw.get("tcode_udp_host", "127.0.0.1")),
-            port=int(main_player_raw.get("tcode_udp_port", ports.TCODE_UDP))),
+        main_funestra_tcode=TcodeTarget(
+            host=str(main_funestra_raw.get("tcode_udp_host", "127.0.0.1")),
+            port=int(main_funestra_raw.get("tcode_udp_port", ports.TCODE_UDP))),
         instance_id_override=str(raw["instance_id"]) if raw.get("instance_id") else None,
     )
 

@@ -66,7 +66,7 @@ def _roll_oversize_log(path: Path, max_bytes: int) -> None:
     """Move an oversize log aside to ``<name>.1``, keeping one generation.
 
     Best-effort: a stranded child still holding the old handle makes Windows
-    refuse the rename, and log housekeeping must never keep a player from
+    refuse the rename, and log housekeeping must never keep a Funestra from
     launching — the launch just appends to the big file instead.
     """
     try:

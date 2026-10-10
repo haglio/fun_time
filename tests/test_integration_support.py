@@ -3,7 +3,7 @@
 These guard the deterministic child-process cleanup that
 ``FunTimeIntegrationSession.stop()`` must perform.  ``stop()`` hard-terminates
 the orchestrator, so the orchestrator's own graceful ``_shutdown_children()``
-never runs and its children (the two satellites, plus main player/Genau/dashboard/
+never runs and its children (the two satellites, plus Main Funestra/Genau/dashboard/
 audio) are orphaned.  The teardown must therefore kill them itself, by the
 exact processes recorded in ``bridge_pids.ini`` — PID *and* creation time, so a
 PID Windows has since recycled is recognized rather than shot.
@@ -21,11 +21,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from player_core.clip_folder import SUPPORTED_VIDEO_EXTS
+from funestra_core.clip_folder import SUPPORTED_VIDEO_EXTS
 
-from fun_time import player_status, windows_bridge_orchestrator
+from fun_time import funestra_status, windows_bridge_orchestrator
+from fun_time.funestra_status import MainFunestraStatus
 from fun_time.loopback_server import LOOPBACK_PORT
-from fun_time.player_status import MainPlayerStatus
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from tests.integration import integration_support, run_clock
 from tests.integration.integration_support import (
@@ -37,7 +37,7 @@ from tests.integration.integration_support import (
     identify_child,
     isolate_shared_resources,
     library_clips,
-    point_the_main_player_at,
+    point_the_main_funestra_at,
     published_status,
     readable_at_speed,
     sample_library_clips,
@@ -133,7 +133,7 @@ def test_stop_taskkills_every_recorded_child(session):
     _write_bridge_pids(
         session,
         {
-            "main_player_pid": ChildProcess(201, 2010),
+            "main_funestra_pid": ChildProcess(201, 2010),
             "portrait_pid": ChildProcess(202, 2020),   # satellite
             "landscape_pid": ChildProcess(203, 2030),  # satellite
             "dashboard_pid": ChildProcess(0, 0),       # disabled in integration — absent
@@ -153,10 +153,10 @@ def test_stop_taskkills_every_recorded_child(session):
 
 def test_stop_waits_for_every_child_it_killed_to_be_gone(session):
     """A test that opens a second session over the same state dir hands it a
-    player still publishing: the one dying holds its own status file's temp name,
-    and the new player's first write of it dies on the sharing violation, which
+    Funestra still publishing: the one dying holds its own status file's temp name,
+    and the new Funestra's first write of it dies on the sharing violation, which
     takes the whole startup down (seen on run 4 of a flake gate, 2026-10-06)."""
-    _write_bridge_pids(session, {"main_player_pid": ChildProcess(201, 2010)})
+    _write_bridge_pids(session, {"main_funestra_pid": ChildProcess(201, 2010)})
     alive = [True, True, False]
     asked: list[int] = []
 
@@ -176,7 +176,7 @@ def test_stop_waits_for_every_child_it_killed_to_be_gone(session):
 
 def test_stop_gives_up_on_a_child_that_never_goes(session):
     """Bounded: a pid Windows will not reap must not hold the suite for good."""
-    _write_bridge_pids(session, {"main_player_pid": ChildProcess(201, 2010)})
+    _write_bridge_pids(session, {"main_funestra_pid": ChildProcess(201, 2010)})
 
     with patch.object(windows_bridge_orchestrator, "get_process_creation_time",
                       side_effect=lambda pid: pid * 10), \
@@ -247,17 +247,17 @@ def test_stop_survives_missing_bridge_pids(session):
     assert killed == []
 
 
-def test_a_timed_out_wait_says_when_each_player_last_published(session):
-    main_player_status = session.config.main_player_status_file
-    main_player_status.parent.mkdir(parents=True, exist_ok=True)
-    main_player_status.write_text("paused=0\n", encoding="utf-8")
+def test_a_timed_out_wait_says_when_each_funestra_last_published(session):
+    main_funestra_status = session.config.main_funestra_status_file
+    main_funestra_status.parent.mkdir(parents=True, exist_ok=True)
+    main_funestra_status.write_text("paused=0\n", encoding="utf-8")
     two_minutes_ago = time.time() - 120
-    os.utime(main_player_status, (two_minutes_ago, two_minutes_ago))
+    os.utime(main_funestra_status, (two_minutes_ago, two_minutes_ago))
 
     with pytest.raises(AssertionError) as timed_out:
-        session.wait_until(lambda: False, timeout=0, description="the main player to hold still")
+        session.wait_until(lambda: False, timeout=0, description="the Main Funestra to hold still")
 
-    assert "main player 120s ago; portrait never; landscape never" in str(timed_out.value)
+    assert "Main Funestra 120s ago; portrait never; landscape never" in str(timed_out.value)
 
 
 class _Clock:
@@ -326,7 +326,7 @@ def test_a_wait_is_counted_in_the_seconds_the_run_could_run(monkeypatch, run_tim
     run_time(_Starved())
     polls = iter(range(10_000))
 
-    assert wait_for(lambda: next(polls) == 9_999, desc="a player starved of the processor")
+    assert wait_for(lambda: next(polls) == 9_999, desc="a Funestra starved of the processor")
 
 
 def test_a_launched_child_is_named_by_its_pid_and_the_moment_it_was_born():
@@ -423,7 +423,7 @@ def test_the_integration_config_never_shares_the_live_sessions_audio_port(isolat
 def test_the_integration_config_never_streams_tcode_to_the_machines_broker(isolated_ports):
     """T-Code is the one output that reaches hardware, and it leaves by UDP.
 
-    The main player and Genau both stream to the broker's inlet, and the broker holds the
+    The Main Funestra and Genau both stream to the broker's inlet, and the broker holds the
     OSR2's serial port — one process, one device, for the whole machine.  A run
     that keeps the production inlet therefore drives the user's OSR2 while they
     are using it, and no amount of desktop or state-dir isolation touches that:
@@ -437,12 +437,12 @@ def test_the_integration_config_never_streams_tcode_to_the_machines_broker(isola
 
     assert genau_config["genau"]["tcode_udp_port"] != BROKER_TCODE_PORT
     assert config["main_player"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
-    # The VR main player is the third sender at that inlet; it moves with them.
+    # The VR Main Funestra is the third sender at that inlet; it moves with them.
     assert config["vr"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
 
 
-def test_a_config_with_no_main_player_section_still_keeps_the_run_off_the_broker():
-    """The main player falls back to the broker's own port for a key its section does not name."""
+def test_a_config_with_no_main_funestra_section_still_keeps_the_run_off_the_broker():
+    """The Main Funestra falls back to the broker's own port for a key its section does not name."""
     config, genau_config = _the_users_config()
     del config["main_player"]
     try:
@@ -453,11 +453,11 @@ def test_a_config_with_no_main_player_section_still_keeps_the_run_off_the_broker
         close_udp_sinks()
 
 
-def test_a_runs_main_player_browses_the_runs_copy_of_the_library_not_the_machines():
+def test_a_runs_main_funestra_browses_the_runs_copy_of_the_library_not_the_machines():
     config, _genau_config = _the_users_config()
     run_videos = Path("C:\\Temp\\fun_time_integration_run\\integration_runtime\\videos\\videos\\primary")
 
-    point_the_main_player_at(config, run_videos)
+    point_the_main_funestra_at(config, run_videos)
 
     assert config["main_player"]["videos_dir"] == str(run_videos)
     assert config["main_player"]["scripts_dir"] == str(
@@ -599,7 +599,7 @@ def test_a_run_launches_this_checkouts_siblings(tmp_path, monkeypatch):
     checkout's SIBLINGS too.
 
     A branch that leans on an unlanded ``player_core`` change — the satellites'
-    HUD moved there, say — otherwise starts players that import a name the
+    HUD moved there, say — otherwise starts Funestras that import a name the
     primary's install does not have.  Every one of them dies at import, with no
     window and no status file, and the suite reads as a wall of timeouts rather
     than as a path problem: eight errors and six failures, none of them naming
@@ -635,7 +635,7 @@ def test_a_checkout_with_no_override_names_no_siblings(tmp_path, monkeypatch):
 
 def test_a_clip_reads_at_speed_only_when_its_first_bytes_arrive_in_time():
     """The VR masters sit on the pCloud drive, which fetches a file from the
-    internet the first time anything here opens it; a player fed one stalls
+    internet the first time anything here opens it; a Funestra fed one stalls
     on the fetch, not on the code under test."""
     def instant(path, size):
         return None
@@ -690,7 +690,7 @@ def test_a_sample_gives_up_probing_once_its_budget_is_spent(monkeypatch):
     assert len(probed) == 2
 
 
-def test_the_listing_keeps_only_what_the_players_play(tmp_path):
+def test_the_listing_keeps_only_what_the_funestras_play(tmp_path):
     for suffix in (*SUPPORTED_VIDEO_EXTS, ".wmv", ".funscript", ".txt"):
         (tmp_path / f"clip{suffix}").write_bytes(b"")
 
@@ -708,7 +708,7 @@ def _a_library_whose_videos_never_answer(library: Path, monkeypatch) -> None:
     monkeypatch.setattr(Path, "is_file", is_file)
 
 
-def test_the_main_players_draw_never_waits_on_a_video_it_lists(tmp_path, monkeypatch):
+def test_the_main_funestras_draw_never_waits_on_a_video_it_lists(tmp_path, monkeypatch):
     library = tmp_path / "drawn" / "videos" / "videos"
     scripts = tmp_path / "drawn" / "videos" / "scripts" / "scripts"
     library.mkdir(parents=True)
@@ -721,7 +721,7 @@ def test_the_main_players_draw_never_waits_on_a_video_it_lists(tmp_path, monkeyp
     room.mkdir(parents=True)
 
     linked = integration_support._link_primary_samples(
-        SimpleNamespace(paths=SimpleNamespace(main_player_library_dirs=[library])), room, count=2)
+        SimpleNamespace(paths=SimpleNamespace(main_funestra_library_dirs=[library])), room, count=2)
 
     assert sorted(path.name for path in linked) == ["one.mp4", "two.mp4"]
 
@@ -746,7 +746,7 @@ def test_the_vr_test_draws_nothing_from_the_vr_library():
     Windows cannot finish closing a process that has one.  Every run that drew
     from them left an unkillable python process -- fifteen on 2026-09-12 -- so the
     VR test draws from the desktop library alone."""
-    vr_test = Path(integration_support.__file__).with_name("test_vr_player_integration.py")
+    vr_test = Path(integration_support.__file__).with_name("test_vr_funestras_integration.py")
 
     assert "vr.library_dirs" not in vr_test.read_text(encoding="utf-8")
 
@@ -794,20 +794,20 @@ def test_the_stall_a_transition_costs_is_the_typical_pass_not_the_worst():
 
 
 def test_a_status_read_that_caught_the_file_mid_replace_is_read_again():
-    """A player publishes its status by replacing the file, and a read that lands
+    """A Funestra publishes its status by replacing the file, and a read that lands
     inside the replace gets the reader's empty record: no clip, not paused, about
-    a player that has a clip and is paused."""
-    published = MainPlayerStatus(video="C:/example/scene one.mp4", duration_ms=61_000, paused=True)
-    reads = iter([MainPlayerStatus(), published])
+    a Funestra that has a clip and is paused."""
+    published = MainFunestraStatus(video="C:/example/scene one.mp4", duration_ms=61_000, paused=True)
+    reads = iter([MainFunestraStatus(), published])
 
     assert published_status(lambda path: next(reads), Path("main_player_status.txt")) == published
 
 
 def test_a_duration_read_refused_mid_replace_is_read_again(session, monkeypatch):
-    """Windows can refuse a read outright while the player replaces its status
+    """Windows can refuse a read outright while the Funestra replaces its status
     file, and the refusal went straight up into the test that asked."""
-    session.config.main_player_status_file.parent.mkdir(parents=True, exist_ok=True)
-    session.config.main_player_status_file.write_text("", encoding="utf-8")
+    session.config.main_funestra_status_file.parent.mkdir(parents=True, exist_ok=True)
+    session.config.main_funestra_status_file.write_text("", encoding="utf-8")
     refusals = iter([PermissionError(13, "Permission denied")])
 
     def read(path):
@@ -815,20 +815,20 @@ def test_a_duration_read_refused_mid_replace_is_read_again(session, monkeypatch)
             raise refusal
         return {"video": "C:/example/scene one.mp4", "duration_ms": "61000"}
 
-    monkeypatch.setattr(player_status, "read_key_values", read)
+    monkeypatch.setattr(funestra_status, "read_key_values", read)
 
-    assert session.read_main_player_status().duration_ms == 61_000
+    assert session.read_main_funestra_status().duration_ms == 61_000
 
 
 def test_a_replace_that_outlasts_one_retry_is_still_waited_out():
-    published = MainPlayerStatus(video="C:/example/scene two.mp4", duration_ms=45_000, paused=True)
-    reads = iter([MainPlayerStatus(), MainPlayerStatus(), MainPlayerStatus(), published])
+    published = MainFunestraStatus(video="C:/example/scene two.mp4", duration_ms=45_000, paused=True)
+    reads = iter([MainFunestraStatus(), MainFunestraStatus(), MainFunestraStatus(), published])
 
     assert published_status(lambda path: next(reads), Path("main_player_status.txt")) == published
 
 
 def test_a_record_that_stays_empty_comes_back_once_its_wait_is_spent():
-    """A player that has published nothing yet is not waited on forever, and the
+    """A Funestra that has published nothing yet is not waited on forever, and the
     reads are paced: a reader holding the file open is what fails the replace."""
     clock = [0.0]
     reads = []
@@ -836,7 +836,7 @@ def test_a_record_that_stays_empty_comes_back_once_its_wait_is_spent():
     def read(path):
         assert len(reads) < 1000, "reading as fast as it can instead of pacing its reads"
         reads.append(path)
-        return MainPlayerStatus()
+        return MainFunestraStatus()
 
     def sleep(seconds):
         clock[0] += seconds
@@ -844,7 +844,7 @@ def test_a_record_that_stays_empty_comes_back_once_its_wait_is_spent():
     empty = published_status(read, Path("main_player_status.txt"), budget_s=1.0,
                              now=lambda: clock[0], sleep=sleep)
 
-    assert empty == MainPlayerStatus()
+    assert empty == MainFunestraStatus()
     assert clock[0] >= 1.0
 
 

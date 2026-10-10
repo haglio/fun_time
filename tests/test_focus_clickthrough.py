@@ -1,14 +1,14 @@
-"""Every player here must ask SDL for the click that focuses its window.
+"""Every Funestra here must ask SDL for the click that focuses its window.
 
-A player is never the focused window — the sequencer places every one with
+A Funestra is never the focused window — the sequencer places every one with
 SWP_NOACTIVATE — so the click that lands on a HUD button is also the click that
 focuses the window, and SDL drops that one unless
-``player_core.sdl_hints.deliver_the_focusing_click`` has run.  Without it every
+``funestra_core.sdl_hints.deliver_the_focusing_click`` has run.  Without it every
 press on the map or the console has to be made twice.
 
 Read off the source rather than exercised: both shells need a real window and
 the libmpv DLL, so nothing here can run them.  The same guard lives in genau
-over Genau's window path, which is the other half of "every player in this
+over Genau's window path, which is the other half of "every Funestra in this
 family behaves the same on the first click".
 """
 from __future__ import annotations
@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-WINDOW_OPENERS = (REPO / "satellite" / "app.py", REPO / "main_player" / "app.py")
+WINDOW_OPENERS = (REPO / "satellite" / "app.py", REPO / "main_funestra" / "app.py")
 
 
 def _call_lines(source: Path) -> tuple[list[int], list[int]]:

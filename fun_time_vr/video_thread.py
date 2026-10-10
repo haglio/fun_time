@@ -50,7 +50,7 @@ class GpuMark:
 
 
 class VideoThread:
-    def __init__(self, contexts, build_player, cap_px: int, *, name: str, perf=None) -> None:
+    def __init__(self, contexts, build_engine, cap_px: int, *, name: str, perf=None) -> None:
         self._contexts = contexts
         self._cap_px = cap_px
         self._name = name
@@ -63,10 +63,10 @@ class VideoThread:
         self._copy: GpuMark | None = None
         self._copy_wait = GpuWait()
         self._copying = False
-        self.player = None
+        self.engine = None
         self._window = contexts.open(name)
         self._thread = start_daemon_thread(
-            target=self._paint_until_stopped, args=(build_player,), name=name)
+            target=self._paint_until_stopped, args=(build_engine,), name=name)
         self._built.wait()
         if self._fault is not None:
             self._thread.join(timeout=CLOSE_TIMEOUT_S)
@@ -76,7 +76,7 @@ class VideoThread:
     @property
     def duration_ms(self) -> float:
         """How long the file on screen is -- 0 while there is none yet."""
-        return 0.0 if self.player is None else self.player.duration_ms
+        return 0.0 if self.engine is None else self.engine.duration_ms
 
     def ask_for_a_still(self) -> None:
         """Have the next painted frame left as a small copy, for :meth:`take_a_still`."""
@@ -124,7 +124,7 @@ class VideoThread:
             self._copy = None
         self._contexts.close(self._window)
 
-    def _paint_until_stopped(self, build_player) -> None:
+    def _paint_until_stopped(self, build_engine) -> None:
         self._contexts.make_current(self._window)
         targets: list[RenderTarget] = []
         still: RenderTarget | None = None
@@ -132,7 +132,7 @@ class VideoThread:
             targets = [RenderTarget() for _ in range(SLOTS)]
             still = RenderTarget()
             still.ensure(*STILL_SIZE_PX)
-            self.player = build_player()
+            self.engine = build_engine()
         except BaseException as fault:  # noqa: BLE001 -- raised again on the frame loop's thread
             self._fault = fault
         finally:
@@ -144,8 +144,8 @@ class VideoThread:
         except Exception:
             logger.exception("The %s video stopped painting", self._name)
         finally:
-            if self.player is not None:
-                self.player.close()
+            if self.engine is not None:
+                self.engine.close()
             for target in (*targets, still):
                 if target is not None:
                     target.close()
@@ -172,7 +172,7 @@ class VideoThread:
                     continue
                 now = time.monotonic()
                 if watch.wants_a_reading(now):
-                    gone = watch.read(position_ms=self.player.position_ms, now=now)
+                    gone = watch.read(position_ms=self.engine.position_ms, now=now)
                     if gone is not None:
                         logger.warning("The %s video has drawn nothing for %.0fs while it played on",
                                        self._name, gone)
@@ -198,7 +198,7 @@ class VideoThread:
         this thread, whose GL context is the one its render context was made on;
         asking from any other thread is refused, not answered.
         """
-        self.player.render(still.fbo, still.width, still.height)
+        self.engine.render(still.fbo, still.width, still.height)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, still.fbo)
         GL.glPixelStorei(GL.GL_PACK_ALIGNMENT, 1)
         pixels = GL.glReadPixels(0, 0, still.width, still.height, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE)
@@ -206,9 +206,9 @@ class VideoThread:
         return np.frombuffer(pixels, np.uint8).reshape(still.height, still.width, 4)
 
     def _draw_next(self, targets: list[RenderTarget], mark: GpuMark):
-        if not self.player.has_picture_to_draw:
+        if not self.engine.has_picture_to_draw:
             return None
-        size = capped_size(self.player.video_dims, self._cap_px)
+        size = capped_size(self.engine.video_dims, self._cap_px)
         if size is None:
             return None
         started = time.perf_counter()
@@ -217,7 +217,7 @@ class VideoThread:
         target.ensure(*size)
         # flip_y: mpv renders top-left-origin; the scene samples GL lower-left
         # convention (verified against a top-half-white clip).
-        video = self.player.render(target.fbo, target.width, target.height, flip_y=True)
+        video = self.engine.render(target.fbo, target.width, target.height, flip_y=True)
         mark.set()
         GL.glFlush()
         if self._perf is not None:

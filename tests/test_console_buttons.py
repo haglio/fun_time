@@ -4,7 +4,7 @@ from __future__ import annotations
 import itertools
 
 import pytest
-from player_core.console import (
+from funestra_core.console import (
     GAP,
     GROUP_GAP,
     OSR2_CONTROL_BUTTONS,
@@ -16,12 +16,12 @@ from player_core.console import (
     place_rows,
     tooltip_at,
 )
-from player_core.hud_button import BUTTON, Button
-from player_core.hud_marks import BROKER_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
-from player_core.modes import LengthMode, LoopState, MainMode
-from player_core.robot_hand import WaveformShape
-from player_core.satellite_hud import HudModel
-from player_core.satellite_hud_paint import HudRenderer
+from funestra_core.hud_button import BUTTON, Button
+from funestra_core.hud_marks import BROKER_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
+from funestra_core.modes import LengthMode, LoopState, MainMode
+from funestra_core.robot_hand import WaveformShape
+from funestra_core.satellite_hud import HudModel
+from funestra_core.satellite_hud_paint import HudRenderer
 from shared_ui.icon_geometry import RENAMED_MARKS, glyph_names
 
 from fun_time import console_buttons
@@ -36,9 +36,9 @@ from fun_time.console_buttons import (
     osr2_rows,
 )
 from fun_time.content import Noun
+from fun_time.funestra_buttons import LATEST_ICON
 from fun_time.osr2_section import take_osr2_button
-from fun_time.player_buttons import LATEST_ICON
-from fun_time.players import Player
+from fun_time.room_funestras import RoomFunestra
 from tests.symbol_face import typed_in_the_symbol_face
 
 _MINUS, _PLUS = "−", "+"
@@ -140,7 +140,7 @@ class TestOsr2Controls:
 
 
 class TestTransport:
-    """Prev/next step the main player's video where the main player is on screen, Genau's clips where it
+    """Prev/next step the Main Funestra's video where the Main Funestra is on screen, Genau's clips where it
     is — with the actions that only make sense for each."""
 
     def test_kino_mode_steps_the_video_and_acts_on_it(self):
@@ -150,11 +150,11 @@ class TestTransport:
                        "genaumacher_save", "main_player_record_tap"):
             assert action in actions, action
 
-    def test_f_mode_is_the_main_players_own_and_lights_while_it_is_on(self):
+    def test_f_mode_is_the_main_funestras_own_and_lights_while_it_is_on(self):
         assert _button(MainSlot(main_mode=MainMode.KINO), "main_fmode").lit is False
         assert _button(MainSlot(main_mode=MainMode.KINO, scripted_filter=True), "main_fmode").lit is True
 
-    def test_f_mode_is_not_offered_where_there_is_no_main_player_playlist(self):
+    def test_f_mode_is_not_offered_where_there_is_no_main_funestra_playlist(self):
         """In genau mode the main slot is Genau's, and the playlist F-mode
         narrows is not what is playing — the same reason nudge and record go."""
         assert "main_fmode" not in _actions(MainSlot(main_mode=MainMode.GENAU))
@@ -258,12 +258,12 @@ class TestEnhancedFilter:
 
 
 class TestReset:
-    """The way back out: drop everything narrowing what the main player plays."""
+    """The way back out: drop everything narrowing what the Main Funestra plays."""
 
-    def test_the_main_player_can_be_reset_wherever_main_player_is_on_screen(self):
+    def test_the_main_funestra_can_be_reset_wherever_main_funestra_is_on_screen(self):
         assert "main_reset" in _actions(MainSlot(main_mode=MainMode.KINO))
 
-    def test_it_is_not_offered_where_there_is_no_main_player_playlist(self):
+    def test_it_is_not_offered_where_there_is_no_main_funestra_playlist(self):
         assert "main_reset" not in _actions(MainSlot(main_mode=MainMode.GENAU))
 
     def test_it_is_a_thing_done_rather_than_a_state_held(self):
@@ -283,7 +283,7 @@ class TestReset:
 class TestBrowseOrder:
     """Shuffle and Latest: which way round what plays was put in order."""
 
-    def test_both_players_can_be_reordered_from_the_console(self):
+    def test_both_funestras_can_be_reordered_from_the_console(self):
         for mode in MainMode:
             actions = _actions(MainSlot(main_mode=mode, latest=False))
             assert "main_shuffle" in actions and "main_latest" in actions
@@ -530,7 +530,7 @@ class TestPaceRows:
     """The video's playback rate under a video, Genau's clip pace in genau mode:
     a named row, a read-out the drawing host fills, and the pair around it."""
 
-    def test_the_video_rate_has_controls_where_main_player_is_on_screen(self):
+    def test_the_video_rate_has_controls_where_main_funestra_is_on_screen(self):
         actions = _actions(MainSlot(main_mode=MainMode.KINO))
         assert "main_player_speed_down" in actions and "main_player_speed_up" in actions
         assert "genau_clip_seconds_down" not in actions
@@ -540,7 +540,7 @@ class TestPaceRows:
         assert "genau_clip_seconds_down" in actions and "genau_clip_seconds_up" in actions
         assert "main_player_speed_down" not in actions
 
-    def test_the_rate_is_a_read_out_between_the_arrows_that_the_player_fills(self):
+    def test_the_rate_is_a_read_out_between_the_arrows_that_the_funestra_fills(self):
         row = next(row for row in console_rows(MainSlot(main_mode=MainMode.KINO))
                    if any(b.command == "main_player_speed_down" for b in row))
 
@@ -562,10 +562,10 @@ class TestPaceRows:
         assert hit_test(placed, rect[0] + 1, rect[1] + 1) == ""
 
     def test_the_rate_pair_says_what_a_satellites_rate_pair_says(self):
-        """The satellites draw their own pair, in the players' words; one
-        control reads the same on every player."""
+        """The satellites draw their own pair, in the Funestras' words; one
+        control reads the same on every Funestra."""
         rendered = HudRenderer("landscape").render(
-            HudModel(player="landscape", playback_speed=1.0))
+            HudModel(funestra="landscape", playback_speed=1.0))
         satellite = [button.tooltip for _rect, button in rendered.targets.buttons
                      if button.command.startswith("landscape_speed_")]
         console = [button.tooltip
@@ -627,8 +627,8 @@ class TestTheRowsThatAimTheDevice:
     def test_a_console_that_gave_the_osr2_away_offers_it_back_there(self):
         slot = MainSlot(main_mode=MainMode.VIDEO, has_osr2=False)
 
-        assert osr2_rows(slot) == ((take_osr2_button(Player.MAIN),),)
-        assert take_osr2_button(Player.MAIN) not in [b for row in console_rows(slot) for b in row]
+        assert osr2_rows(slot) == ((take_osr2_button(RoomFunestra.MAIN),),)
+        assert take_osr2_button(RoomFunestra.MAIN) not in [b for row in console_rows(slot) for b in row]
 
 
 class TestState:
@@ -693,7 +693,7 @@ class TestLayout:
         assert record[0] - (browse[0] + browse[2]) == GROUP_GAP
         assert save[0] - (record[0] + record[2]) == GAP
 
-    def test_the_crown_is_lit_while_the_main_player_holds_it(self):
+    def test_the_crown_is_lit_while_the_main_funestra_holds_it(self):
         held = _button(MainSlot(crowned=True), "main_crown")
         given_away = _button(MainSlot(crowned=False), "main_crown")
 
@@ -718,7 +718,7 @@ class TestLayout:
         assert minimize[0] - (genau[0] + genau[2]) == GROUP_GAP
 
     def test_a_console_in_the_headset_has_no_window_to_minimize(self):
-        """The players under it are screens in the scene there, not windows, so
+        """The Funestras under it are screens in the scene there, not windows, so
         the mode pair runs straight on into the file controls."""
         video = [b.command for b in console_rows(MainSlot(main_mode=MainMode.KINO), in_vr=True)[0]]
         genau = [b.command for b in console_rows(MainSlot(main_mode=MainMode.GENAU), in_vr=True)[0]]

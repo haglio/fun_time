@@ -1,11 +1,11 @@
-"""The banner a notice flashes over the player it names, drawn for a video.
+"""The banner a notice flashes over the Funestra it names, drawn for a video.
 
-The desktop hangs a frameless window over that player's; a headset has none, so
+The desktop hangs a frameless window over that Funestra's; a headset has none, so
 the same banner is composited into the picture the way the scrubber is.  Shape
 and colors are :class:`fun_time.notice_overlay.NoticeOverlay`'s.
 
 Every measurement scales with the picture, which is not the size of a window: a
-satellite decodes to 2048px and the main player to 8192, so the desktop's own
+satellite decodes to 2048px and the Main Funestra to 8192, so the desktop's own
 19px type came out a tenth of the height it reads at there.
 """
 from __future__ import annotations
@@ -29,7 +29,7 @@ _PAD_Y = 0.42
 _BORDER = 1 / 19
 _RADIUS = 4 / 19
 
-# The desktop's own 28px down a player's window, as a fraction.
+# The desktop's own 28px down a Funestra's window, as a fraction.
 TOP_MARGIN_FRACTION = 0.028
 
 WIDTH_FRACTION = 0.9  # most of the picture's width, never all of it

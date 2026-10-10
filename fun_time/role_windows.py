@@ -65,7 +65,7 @@ class ChildPids:
     """The launched children whose windows the session manages: a pid the
     startup sequencer recorded, or 0 for a child this session never launched."""
 
-    main_player: int = 0
+    main_funestra: int = 0
     portrait: int = 0
     landscape: int = 0
     dashboard: int = 0
@@ -90,18 +90,18 @@ class WindowRoles:
         # main-slot windows, and hidden windows are invisible to the
         # pid/title lookups.
         self._role_hwnds: dict[str, int] = dict(role_hwnds or {})
-        # The settle a mode switch's outgoing player waits out is the one thing
+        # The settle a mode switch's outgoing Funestra waits out is the one thing
         # here that is about elapsed time.  Injectable so a test can let it run
         # out rather than reach in and back-date the deadline.
         self.clock = clock
         # Main-slot windows waiting out MAIN_BLANK_SETTLE_S before they are
         # minimized, by role -> the time they are due.
         self._pending_hides: dict[str, float] = {}
-        # Windows a player's own minimize button parked, kept apart from the two
+        # Windows a Funestra's own minimize button parked, kept apart from the two
         # other things that minimize around here: the mode switch parks the idle
-        # main-slot player (undone by the switch that brings it back) and
+        # main-slot Funestra (undone by the switch that brings it back) and
         # omniminimize parks the room (undone by omnirestore).  These are undone
-        # by the room resuming — a player parked from its own HUD took that HUD
+        # by the room resuming — a Funestra parked from its own HUD took that HUD
         # down with it and has no button left to press.
         self._parked_hwnds: list[int] = []
         self._minimized_hwnds: list[int] = []
@@ -125,16 +125,16 @@ class WindowRoles:
             hwnd = 0
         if hwnd:
             return hwnd
-        # The three SDL players are looked up by pid AND by caption: the pid on
+        # The three SDL Funestras are looked up by pid AND by caption: the pid on
         # record is the venv pythonw launcher's, not the interpreter that owns
         # the window, so on a cold cache by-pid alone finds nothing and every
-        # band operation silently skips the player.  The captions are matched
+        # band operation silently skips the Funestra.  The captions are matched
         # exactly, the way every caption this session resolves is: a substring
         # lookup answers with whatever window it reaches first whose title
         # merely CONTAINS the name (see find_window_by_title), and handing one
         # side's window to the other is the portrait/landscape visual swap.
         if role == "main_player":
-            hwnd = find_window_by_pid(self.pids.main_player) or find_window_by_title("Main Player", exact=True)
+            hwnd = find_window_by_pid(self.pids.main_funestra) or find_window_by_title("Main Funestra", exact=True)
         elif role == "portrait":
             hwnd = (find_window_by_pid(self.pids.portrait)
                     or find_window_by_title(SATELLITE_PORTRAIT_TITLE, exact=True))
@@ -154,7 +154,7 @@ class WindowRoles:
     def _dashboard_hwnd(self) -> int:
         """Find the Dashboard window, falling back to its caption — the venv
         launcher's pid differs from the interpreter that owns the Qt window the
-        same way it does for the SDL players above."""
+        same way it does for the SDL Funestras above."""
         hwnd = find_window_by_pid(self.pids.dashboard) if self.pids.dashboard else 0
         if not hwnd:
             hwnd = find_window_by_title(
@@ -169,9 +169,9 @@ class WindowRoles:
     # -- putting windows down and bringing them back ------------------------
 
     def show(self, role: str) -> None:
-        """Bring a role's window back — the mode switch's incoming player.
+        """Bring a role's window back — the mode switch's incoming Funestra.
 
-        Restore rather than SW_SHOW: the idle main-slot player is parked by
+        Restore rather than SW_SHOW: the idle main-slot Funestra is parked by
         minimizing it (which keeps its taskbar button), so bringing it back is a
         restore.  No-activate — focus is :meth:`activate`'s business — and DWM
         transitions are disabled, so it is instant.  A switch straight back
@@ -213,7 +213,7 @@ class WindowRoles:
         # (running indicator) the whole session — and, for a satellite parked
         # from its own HUD, so there is something left to click: that panel goes
         # down with the window, so the taskbar button is the way back.
-        # No-activate, so parking one player never yanks focus to the next.
+        # No-activate, so parking one Funestra never yanks focus to the next.
         hwnd = self.hwnd(role)
         if hwnd:
             minimize_window(hwnd, activate=False)

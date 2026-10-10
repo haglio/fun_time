@@ -13,9 +13,9 @@ from unittest.mock import Mock, patch
 import pytest
 from app_support.file_channel import read_flag
 from app_support.threading_utils import wait_until
-from player_core.file_channel import publish_whole
-from player_core.modes import MainMode
-from player_core.playlist import PlaylistItem, write_playlist
+from funestra_core.file_channel import publish_whole
+from funestra_core.modes import MainMode
+from funestra_core.playlist import PlaylistItem, write_playlist
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
@@ -25,6 +25,7 @@ from fun_time.crown import Crown
 from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import FAVORITE
+from fun_time.funestra_handover import keep_aside
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -32,8 +33,6 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.media_metadata import normalize_path_key
-from fun_time.player_handover import keep_aside
-from fun_time.players import Player
 from fun_time.regen import build_regen_url
 from fun_time.rfb_slideshow import RfbSlideshow
 from fun_time.role_windows import (
@@ -41,6 +40,7 @@ from fun_time.role_windows import (
     ChildPids,
     WindowRoles,
 )
+from fun_time.room_funestras import RoomFunestra
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import DESKTOP, VR, take_handoff_request
 from fun_time.shared_state import BridgeState, SatelliteState, read_shared_state, write_shared_state
@@ -59,7 +59,7 @@ from fun_time.windows_bridge_dispatch_loop import (
     detect_sleep_gap,
     expand_group_command,
     poll_dashboard_commands,
-    resolve_active_player_command,
+    resolve_active_funestra_command,
 )
 from tests.hosted_shows import publish_the_show
 from tests.role_window_fakes import (
@@ -69,8 +69,8 @@ from tests.role_window_fakes import (
     HOSTED_PID,
     LANDSCAPE_HWND,
     LANDSCAPE_PID,
-    MAIN_PLAYER_HWND,
-    MAIN_PLAYER_PID,
+    MAIN_FUNESTRA_HWND,
+    MAIN_FUNESTRA_PID,
     PORTRAIT_HWND,
     PORTRAIT_PID,
     RFB_HWND,
@@ -127,9 +127,9 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
         genau_status_file=tmp_path / "genau_status.txt",
         audio_paused_file=tmp_path / "audio_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
-        main_player_cmd_file=tmp_path / "main_player_cmd.txt",
-        main_player_paused_file=tmp_path / "main_player_paused.txt",
-        main_player_status_file=tmp_path / "main_player_status.txt",
+        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
+        main_funestra_paused_file=tmp_path / "main_player_paused.txt",
+        main_funestra_status_file=tmp_path / "main_player_status.txt",
         dashboard_state_file=tmp_path / "dashboard_state.ini",
         broker_heartbeat_file=tmp_path / "broker_heartbeat.txt",
     )
@@ -139,9 +139,9 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
 
 def _write_satellite_status(path: Path, video, *, fraction: float | None = None,
                             paused: bool = False, locked: bool = False) -> None:
-    """Write a native satellite's status file the way its player publishes it.
+    """Write a native satellite's status file the way its Funestra publishes it.
 
-    ``fraction`` sets how far through the clip the player reports: None writes a
+    ``fraction`` sets how far through the clip the Funestra reports: None writes a
     not-yet-known duration (``read_satellite_status().fraction`` is then None, so
     the sample is dropped), otherwise position/duration encode the fraction.
     """
@@ -165,7 +165,7 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
     """
     windows = WindowRoles(
         pids=ChildPids(
-            main_player=kwargs.pop("main_player_pid", MAIN_PLAYER_PID),
+            main_funestra=kwargs.pop("main_funestra_pid", MAIN_FUNESTRA_PID),
             portrait=kwargs.pop("portrait_pid", PORTRAIT_PID),
             landscape=kwargs.pop("landscape_pid", LANDSCAPE_PID),
             dashboard=kwargs.pop("dashboard_pid", DASHBOARD_PID),
@@ -210,8 +210,8 @@ def test_either_session_hosts_the_origenerator_its_config_names(cfg_factory, tmp
 
     The headset was excluded for as long as the app's shows were windows of
     their own laid over the satellites, which a VR session has none of.  They
-    are the satellite PLAYERS' own playlists now (fun_time.player_handover),
-    and the headset's satellites are players, so the same checkout is the same
+    are the satellite FUNESTRAS' own playlists now (fun_time.funestra_handover),
+    and the headset's satellites are Funestras, so the same checkout is the same
     mode in either shape.  A session that hosts none is still a config naming
     none, which the assertion below the fixture holds.
     """
@@ -222,7 +222,7 @@ def test_either_session_hosts_the_origenerator_its_config_names(cfg_factory, tmp
 
     assert build_bridge_config_from_manifest(manifest).origenerator_enabled
     assert build_bridge_config_from_manifest(
-        manifest, vr_main_player=True).origenerator_enabled
+        manifest, vr_main_funestra=True).origenerator_enabled
 
 
 def test_each_side_reads_the_hosted_panel_where_the_manifest_names_it(cfg_factory, tmp_path):
@@ -231,9 +231,9 @@ def test_each_side_reads_the_hosted_panel_where_the_manifest_names_it(cfg_factor
 
     bridge = build_bridge_config_from_manifest(manifest)
 
-    for player in Player.SATELLITES:
-        assert bridge.satellite(player).origenerator_hud_file == (
-            config.satellite(player).origenerator_hud_file)
+    for funestra in RoomFunestra.SATELLITES:
+        assert bridge.satellite(funestra).origenerator_hud_file == (
+            config.satellite(funestra).origenerator_hud_file)
 
 
 def _join_the_browse_threads() -> None:
@@ -417,88 +417,88 @@ class TestResolveActiveSideCommand:
     def test_group_commands_ride_the_same_active_and_both_plumbing(self):
         # The loop / lock-action commands follow the <scope>_<action> shape, so
         # they resolve and expand without any special-casing.
-        assert resolve_active_player_command("active_action_loop", 3) == "landscape_action_loop"
-        assert resolve_active_player_command("active_lock_action", 2) == "portrait_lock_action"
+        assert resolve_active_funestra_command("active_action_loop", 3) == "landscape_action_loop"
+        assert resolve_active_funestra_command("active_lock_action", 2) == "portrait_lock_action"
         assert expand_group_command("both_seed_loop") == ["portrait_seed_loop", "landscape_seed_loop"]
 
-    def test_rewrites_to_portrait_when_active_player_is_portrait(self):
-        assert resolve_active_player_command("active_lock_on", 2) == "portrait_lock_on"
+    def test_rewrites_to_portrait_when_active_funestra_is_portrait(self):
+        assert resolve_active_funestra_command("active_lock_on", 2) == "portrait_lock_on"
 
-    def test_rewrites_to_landscape_when_active_player_is_landscape(self):
-        assert resolve_active_player_command("active_next", 3) == "landscape_next"
+    def test_rewrites_to_landscape_when_active_funestra_is_landscape(self):
+        assert resolve_active_funestra_command("active_next", 3) == "landscape_next"
 
     def test_passes_non_active_commands_through(self):
-        assert resolve_active_player_command("main_next", 3) == "main_next"
-        assert resolve_active_player_command("portrait_lock", 3) == "portrait_lock"
+        assert resolve_active_funestra_command("main_next", 3) == "main_next"
+        assert resolve_active_funestra_command("portrait_lock", 3) == "portrait_lock"
 
     def test_active_nav_targets_primary_when_primary_is_active(self):
-        """The main player (slot 1) joins the active-side feature for nav."""
-        assert resolve_active_player_command("active_next", 1) == "main_next"
-        assert resolve_active_player_command("active_prev", 1) == "main_prev"
+        """The Main Funestra (slot 1) joins the active-side feature for nav."""
+        assert resolve_active_funestra_command("active_next", 1) == "main_next"
+        assert resolve_active_funestra_command("active_prev", 1) == "main_prev"
 
-    def test_reset_on_the_primary_means_the_main_players_own_reset(self):
-        """Another phrase that means a different thing on each player: on a
-        satellite it drops the act filter and the loop, on the main player its
+    def test_reset_on_the_primary_means_the_main_funestras_own_reset(self):
+        """Another phrase that means a different thing on each Funestra: on a
+        satellite it drops the act filter and the loop, on the Main Funestra its
         length mode and its F-mode.  Without this, a bare "reset" said after
-        navigating the main player reached nothing at all."""
-        assert resolve_active_player_command("active_reset", 1) == "main_reset"
-        assert resolve_active_player_command("active_reset", 2) == "portrait_reset"
-        assert resolve_active_player_command("active_reset", 3) == "landscape_reset"
+        navigating the Main Funestra reached nothing at all."""
+        assert resolve_active_funestra_command("active_reset", 1) == "main_reset"
+        assert resolve_active_funestra_command("active_reset", 2) == "portrait_reset"
+        assert resolve_active_funestra_command("active_reset", 3) == "landscape_reset"
 
-    def test_end_loop_on_the_primary_means_main_players_own_loop(self):
-        """A side-agnostic phrase may mean a different thing on each player: on a
-        satellite "end loop" ends a group loop, on the main player it cancels the main player's A-B
+    def test_end_loop_on_the_primary_means_main_funestras_own_loop(self):
+        """A side-agnostic phrase may mean a different thing on each Funestra: on a
+        satellite "end loop" ends a group loop, on the Main Funestra it cancels the Main Funestra's A-B
         loop.  The resolution is where that translation belongs."""
-        assert resolve_active_player_command("active_no_loop", 1) == "main_player_loop_cancel"
-        assert resolve_active_player_command("active_no_loop", 2) == "portrait_no_loop"
-        assert resolve_active_player_command("active_no_loop", 3) == "landscape_no_loop"
+        assert resolve_active_funestra_command("active_no_loop", 1) == "main_player_loop_cancel"
+        assert resolve_active_funestra_command("active_no_loop", 2) == "portrait_no_loop"
+        assert resolve_active_funestra_command("active_no_loop", 3) == "landscape_no_loop"
 
     def test_a_bare_lock_reaches_the_primary_too(self):
         """A lock means the same thing on all three — repeat-one on what is on
-        screen — so the bare word follows the active side onto the main player rather
+        screen — so the bare word follows the active side onto the Main Funestra rather
         than falling through to nothing there."""
-        assert resolve_active_player_command("active_lock_on", 1) == "main_lock_on"
-        assert resolve_active_player_command("active_lock_off", 1) == "main_lock_off"
-        assert resolve_active_player_command("active_lock_on", 2) == "portrait_lock_on"
-        assert resolve_active_player_command("active_lock_off", 3) == "landscape_lock_off"
+        assert resolve_active_funestra_command("active_lock_on", 1) == "main_lock_on"
+        assert resolve_active_funestra_command("active_lock_off", 1) == "main_lock_off"
+        assert resolve_active_funestra_command("active_lock_on", 2) == "portrait_lock_on"
+        assert resolve_active_funestra_command("active_lock_off", 3) == "landscape_lock_off"
 
-    def test_a_bare_f_mode_reaches_whichever_player_is_active(self):
-        """Every player has its own F-mode, so the bare phrase follows the active
-        side onto any of the three — the main player included, which is where it
+    def test_a_bare_f_mode_reaches_whichever_funestra_is_active(self):
+        """Every Funestra has its own F-mode, so the bare phrase follows the active
+        side onto any of the three — the Main Funestra included, which is where it
         lands at startup."""
         for suffix in ("", "_on", "_off"):
-            assert resolve_active_player_command(f"active_fmode{suffix}", 1) == f"main_fmode{suffix}"
-            assert resolve_active_player_command(f"active_fmode{suffix}", 2) == f"portrait_fmode{suffix}"
-            assert resolve_active_player_command(f"active_fmode{suffix}", 3) == f"landscape_fmode{suffix}"
+            assert resolve_active_funestra_command(f"active_fmode{suffix}", 1) == f"main_fmode{suffix}"
+            assert resolve_active_funestra_command(f"active_fmode{suffix}", 2) == f"portrait_fmode{suffix}"
+            assert resolve_active_funestra_command(f"active_fmode{suffix}", 3) == f"landscape_fmode{suffix}"
 
-    def test_a_bare_browse_order_reaches_whichever_player_is_active(self):
-        """Every player browses in these two orders, the main player included now
-        that Genau answers them too.  Left out, a bare "latest" said while the main
-        player was the active one resolved to a command with no handler and did
-        nothing — the player had to be named for a word that is supposed to reach
+    def test_a_bare_browse_order_reaches_whichever_funestra_is_active(self):
+        """Every Funestra browses in these two orders, the Main Funestra included now
+        that Genau answers them too.  Left out, a bare "latest" said while the Main
+        Funestra was the active one resolved to a command with no handler and did
+        nothing — the Funestra had to be named for a word that is supposed to reach
         whoever is active."""
         for order in ("latest", "shuffle"):
-            assert resolve_active_player_command(f"active_{order}", 1) == f"main_{order}"
-            assert resolve_active_player_command(f"active_{order}", 2) == f"portrait_{order}"
-            assert resolve_active_player_command(f"active_{order}", 3) == f"landscape_{order}"
+            assert resolve_active_funestra_command(f"active_{order}", 1) == f"main_{order}"
+            assert resolve_active_funestra_command(f"active_{order}", 2) == f"portrait_{order}"
+            assert resolve_active_funestra_command(f"active_{order}", 3) == f"landscape_{order}"
 
-    def test_a_bare_skip_or_back_reaches_whichever_player_is_active(self):
+    def test_a_bare_skip_or_back_reaches_whichever_funestra_is_active(self):
         for action in ("nudge_next", "nudge_prev"):
-            assert resolve_active_player_command(f"active_{action}", 1) == f"main_{action}"
-            assert resolve_active_player_command(f"active_{action}", 2) == f"portrait_{action}"
-            assert resolve_active_player_command(f"active_{action}", 3) == f"landscape_{action}"
+            assert resolve_active_funestra_command(f"active_{action}", 1) == f"main_{action}"
+            assert resolve_active_funestra_command(f"active_{action}", 2) == f"portrait_{action}"
+            assert resolve_active_funestra_command(f"active_{action}", 3) == f"landscape_{action}"
 
-    def test_a_bare_playback_speed_reaches_whichever_player_is_active(self):
+    def test_a_bare_playback_speed_reaches_whichever_funestra_is_active(self):
         for action in ("speed_up", "speed_down", "speed_150"):
-            assert resolve_active_player_command(f"active_{action}", 1) == f"main_player_{action}"
-            assert resolve_active_player_command(f"active_{action}", 2) == f"portrait_{action}"
-            assert resolve_active_player_command(f"active_{action}", 3) == f"landscape_{action}"
+            assert resolve_active_funestra_command(f"active_{action}", 1) == f"main_player_{action}"
+            assert resolve_active_funestra_command(f"active_{action}", 2) == f"portrait_{action}"
+            assert resolve_active_funestra_command(f"active_{action}", 3) == f"landscape_{action}"
 
     def test_active_satellite_only_command_is_noop_when_primary_is_active(self):
         """Main has no weird or cycle, so a bare satellite-only command while it
         is active resolves to nothing (unchanged → a downstream no-op)."""
-        assert resolve_active_player_command("active_trash", 1) == "active_trash"
-        assert resolve_active_player_command("active_cycle_seed", 1) == "active_cycle_seed"
+        assert resolve_active_funestra_command("active_trash", 1) == "active_trash"
+        assert resolve_active_funestra_command("active_cycle_seed", 1) == "active_cycle_seed"
 
 
 class TestDispatchLoopRunner:
@@ -520,7 +520,7 @@ class TestDispatchLoopRunner:
         """Voice 'lock' (active_lock_on) locks whichever side is active — here
         landscape, e.g. after the user navigated it with A/D."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SatelliteState(locked=False), active_player=3)
+        runner.state = BridgeState(landscape=SatelliteState(locked=False), active_funestra=3)
         (tmp_path / "dashboard_cmd.txt").write_text("active_lock_on", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -531,10 +531,10 @@ class TestDispatchLoopRunner:
         assert "landscape_lock_on" in commands
         assert "portrait_lock_on" not in commands
 
-    def test_bare_active_next_targets_the_active_player(self, tmp_path):
+    def test_bare_active_next_targets_the_active_funestra(self, tmp_path):
         """A non-lock bare command ('next') also follows the active side."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(active_player=2)
+        runner.state = BridgeState(active_funestra=2)
         (tmp_path / "dashboard_cmd.txt").write_text("active_next", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -550,7 +550,7 @@ class TestDispatchLoopRunner:
         that was is the sampler's timeline to answer; what the runner owes is
         putting its answer on the dispatch."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SatelliteState(locked=False), active_player=2)
+        runner.state = BridgeState(portrait=SatelliteState(locked=False), active_funestra=2)
         (tmp_path / "dashboard_cmd.txt").write_text("portrait_lock_on @100.200", encoding="utf-8")
 
         with patch.object(runner.watch, "video_at", return_value="C:\\clips\\meant.mp4"), \
@@ -561,7 +561,7 @@ class TestDispatchLoopRunner:
         assert mock_dispatch.call_args[0][0] == "portrait_lock_on"
         assert mock_dispatch.call_args.kwargs["target_path"] == "C:\\clips\\meant.mp4"
 
-    def test_the_tick_samples_every_player_on_the_watch_cadence(self, tmp_path):
+    def test_the_tick_samples_every_funestra_on_the_watch_cadence(self, tmp_path):
         """Watch tracking rides the tick, and knows whether the room is paused —
         under OmniPause nothing is playing, so nothing is sampled."""
         runner = make_runner(tmp_path)
@@ -576,8 +576,8 @@ class TestDispatchLoopRunner:
             assert sample.call_args.kwargs["paused"] is True
 
     def test_nudge_dispatches_to_command(self, tmp_path):
-        """The main player answers a nudge in every mode it appears in, so a nudge
-        dispatches to the main player's SEEK command (which stacks against its live clock)."""
+        """The Main Funestra answers a nudge in every mode it appears in, so a nudge
+        dispatches to the Main Funestra's SEEK command (which stacks against its live clock)."""
         runner = make_runner(tmp_path)
         (tmp_path / "dashboard_cmd.txt").write_text("main_nudge_next", encoding="utf-8")
 
@@ -590,7 +590,7 @@ class TestDispatchLoopRunner:
 
     def test_omnipause_enter_via_tick_drops_topmost_on_all_managed_windows(self, tmp_path):
         """Entering omnipause frees the desktop: EVERY managed window leaves the
-        TOPMOST band — including the main player, which carries the topmost flag in kino mode
+        TOPMOST band — including the Main Funestra, which carries the topmost flag in kino mode
         and would otherwise stay stranded above the desktop."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
@@ -606,12 +606,12 @@ class TestDispatchLoopRunner:
         assert runner.state.omni_paused is True
         assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS
 
-    def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_player(
+    def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_funestra(
         self, tmp_path,
     ):
         """Leaving omnipause gives every managed window its TOPMOST bit back — the
-        main player, which floats above the desktop again, among them — and
-        re-activates the main player's window, which Kino and Genau share.
+        Main Funestra, which floats above the desktop again, among them — and
+        re-activates the Main Funestra's window, which Kino and Genau share.
         """
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=True)
@@ -630,7 +630,7 @@ class TestDispatchLoopRunner:
 
         assert runner.state.omni_paused is False
         assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS
-        assert activated == [MAIN_PLAYER_HWND]
+        assert activated == [MAIN_FUNESTRA_HWND]
 
     def test_omnipause_toggle_updates_state_and_writes_shared_state(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -666,7 +666,7 @@ class TestDispatchLoopRunner:
 
         assert "browse_library" in messages
         # Browsing must NOT enter OmniPause: the old flow paused the whole
-        # session for the browse and resumed only the main player, stranding the
+        # session for the browse and resumed only the Main Funestra, stranding the
         # satellites + voice frozen.  The browser opens with everything
         # still playing.
         assert runner.state.omni_paused is False
@@ -766,7 +766,7 @@ class TestDispatchLoopRunner:
 
         loaded = read_shared_state(state_file)
         assert loaded is not None
-        assert loaded.satellite(Player.LANDSCAPE).locked is True
+        assert loaded.satellite(RoomFunestra.LANDSCAPE).locked is True
 
     def test_quit_asks_the_hotkey_script_to_end_the_session_rather_than_exit(self, tmp_path):
         """Exiting, it would take Esc with it, and Esc on the closing screen is
@@ -794,7 +794,7 @@ class TestDispatchLoopRunner:
         assert taken.cancelable, "a spoken crossing is one Esc may call off"
 
     def test_exiting_vr_from_a_vr_session_asks_for_the_desktop(self, tmp_path):
-        runner = make_runner(tmp_path, config=make_config(tmp_path, vr_main_player=True))
+        runner = make_runner(tmp_path, config=make_config(tmp_path, vr_main_funestra=True))
         (tmp_path / "dashboard_cmd.txt").write_text("exit_vr", encoding="utf-8")
 
         runner.tick()
@@ -803,17 +803,17 @@ class TestDispatchLoopRunner:
         assert take_handoff_request(tmp_path).target is DESKTOP
 
     @pytest.mark.parametrize(
-        ("command", "vr_main_player"), [("exit_vr", False), ("enter_vr", True)],
+        ("command", "vr_main_funestra"), [("exit_vr", False), ("enter_vr", True)],
     )
     def test_crossing_to_the_session_already_running_says_so_and_stays_put(
-        self, tmp_path, caplog, command, vr_main_player,
+        self, tmp_path, caplog, command, vr_main_funestra,
     ):
         """A room can be told the same thing twice — misheard, or said again
         while the headset was slow to come up — and ending the session on the
         second is the worst available reading of it.  The crossing had nowhere
         to go, so it is said as a warning, in yellow."""
         runner = make_runner(tmp_path, config=make_config(
-            tmp_path, vr_main_player=vr_main_player,
+            tmp_path, vr_main_funestra=vr_main_funestra,
         ))
         (tmp_path / "dashboard_cmd.txt").write_text(command, encoding="utf-8")
 
@@ -873,13 +873,13 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert {h for h, _ in minimized} == {
-            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_PLAYER_HWND,
+            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_FUNESTRA_HWND,
         }
         # Minimized without activation so focus isn't yanked between windows.
         assert all(kw.get("activate") is False for _, kw in minimized)
 
-    def test_omniminimize_in_genau_mode_includes_the_main_player_too(self, tmp_path):
-        """Genau runs on the Main Player's window, so that window is on screen in
+    def test_omniminimize_in_genau_mode_includes_the_main_funestra_too(self, tmp_path):
+        """Genau runs on the Main Funestra's window, so that window is on screen in
         genau mode as in kino mode, and goes down with the rest."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(main_mode=MainMode.GENAU)
@@ -894,7 +894,7 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert set(minimized) == {
-            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_PLAYER_HWND,
+            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_FUNESTRA_HWND,
         }
 
     def test_omniminimize_skips_windows_that_are_not_found(self, tmp_path):
@@ -941,10 +941,10 @@ class TestDispatchLoopRunner:
 
         assert [h for h, _ in restored] == minimized_hwnds
 
-    def test_a_huds_minimize_button_parks_only_that_player(self, tmp_path):
+    def test_a_huds_minimize_button_parks_only_that_funestra(self, tmp_path):
         """The satellites are borderless, so the HUD button is the only way to get
         one out of the way on its own.  It reaches exactly that window — the other
-        players stay up — and never activates, so parking one does not hand the
+        Funestras stay up — and never activates, so parking one does not hand the
         foreground to the next."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -984,10 +984,10 @@ class TestDispatchLoopRunner:
             runner.tick()
             assert minimized == [LANDSCAPE_HWND]
 
-    def test_the_main_players_console_button_parks_the_main_players_window_in_either_mode(self, tmp_path):
-        """Kino and Genau share the Main Player's one window, so the console's
+    def test_the_main_funestras_console_button_parks_the_main_funestras_window_in_either_mode(self, tmp_path):
+        """Kino and Genau share the Main Funestra's one window, so the console's
         button reaches that window whichever of them has it."""
-        for mode, wanted in (("genau", [MAIN_PLAYER_HWND]), ("kino", [MAIN_PLAYER_HWND])):
+        for mode, wanted in (("genau", [MAIN_FUNESTRA_HWND]), ("kino", [MAIN_FUNESTRA_HWND])):
             runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
             # Through the shared state file, which every tick re-reads over
             # whatever the runner is holding.
@@ -1005,7 +1005,7 @@ class TestDispatchLoopRunner:
             assert minimized == wanted, mode
 
     def test_leaving_omnipause_brings_back_every_window_a_button_parked(self, tmp_path):
-        """A player parked from its own HUD took that HUD down with it, so it
+        """A Funestra parked from its own HUD took that HUD down with it, so it
         cannot ask to come back — resuming the room is what returns it, to the same
         rect, and the list is consumed so a second resume restores nothing."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
@@ -1022,7 +1022,7 @@ class TestDispatchLoopRunner:
              patch.object(runner.windows, "restore_all_topmost"):
             cmd_file.write_text("portrait_minimize\nlandscape_minimize", encoding="utf-8")
             runner.tick()
-            assert restored == [], "parking a player restores nothing"
+            assert restored == [], "parking a Funestra restores nothing"
 
             cmd_file.write_text("omnipause_toggle", encoding="utf-8")
             runner.tick()
@@ -1068,7 +1068,7 @@ class TestDispatchLoopRunner:
     def test_help_reference_commands_send_press_but_do_not_dispatch(self, tmp_path):
         """The reference popup is a dashboard-UI concern: the loop echoes each
         command (toggle and close) as a press (the dashboard acts on it) and
-        dispatches nothing — no player commands, no shared-state churn."""
+        dispatches nothing — no Funestra commands, no shared-state churn."""
         for command in ("help_reference", "help_reference_close"):
             with _press_channel(tmp_path) as recv_sock:
                 runner = make_runner(tmp_path, dashboard_enabled=True)
@@ -1233,7 +1233,7 @@ class TestWhatASpokenCommandFlashes:
             runner.tick()
         return flashed
 
-    def test_a_command_that_says_nothing_itself_flashes_what_was_heard_over_its_player(
+    def test_a_command_that_says_nothing_itself_flashes_what_was_heard_over_its_funestra(
         self, tmp_path,
     ):
         spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
@@ -1254,15 +1254,15 @@ class TestWhatASpokenCommandFlashes:
         assert self._flashed(tmp_path, f"{HEADSET_OFF}\n{spoken}") == [
             ("ignored while not wearing headset: landscape next", "landscape", logging.WARNING)]
 
-    @pytest.mark.parametrize(("active_player", "source"), [(2, "portrait"), (1, "main")])
-    def test_a_bare_command_flashes_over_the_player_it_reached(
-        self, tmp_path, active_player, source,
+    @pytest.mark.parametrize(("active_funestra", "source"), [(2, "portrait"), (1, "main")])
+    def test_a_bare_command_flashes_over_the_funestra_it_reached(
+        self, tmp_path, active_funestra, source,
     ):
-        """"Portrait next" makes portrait the active player, so the "next" after
+        """"Portrait next" makes portrait the active Funestra, so the "next" after
         it drives portrait -- and what was heard belongs over portrait."""
         spoken = format_spoken_command("active_next", spoken_at=1.0, said="next")
 
-        flashed = self._flashed(tmp_path, spoken, active_player=active_player)
+        flashed = self._flashed(tmp_path, spoken, active_funestra=active_funestra)
 
         assert flashed == [("next", source, 25)]
 
@@ -1307,7 +1307,7 @@ class TestWhatASpokenCommandFlashes:
         assert flashed == [
             ("ignored in Kino mode: landscape experiments", "landscape", logging.WARNING)]
 
-    def test_a_jump_the_main_player_is_not_there_to_answer_says_genau_mode_ignored_it(
+    def test_a_jump_the_main_funestra_is_not_there_to_answer_says_genau_mode_ignored_it(
         self, tmp_path,
     ):
         flashed = self._run_for_real(
@@ -1315,7 +1315,7 @@ class TestWhatASpokenCommandFlashes:
 
         assert flashed == [("ignored in Genau mode: compilation", "system", logging.WARNING)]
 
-    def test_a_clip_save_with_no_main_player_to_save_from_says_genau_mode_ignored_it(
+    def test_a_clip_save_with_no_main_funestra_to_save_from_says_genau_mode_ignored_it(
         self, tmp_path,
     ):
         flashed = self._run_for_real(
@@ -1339,10 +1339,10 @@ class TestWhatASpokenCommandFlashes:
 
         assert flashed == [(f"Already running {DESKTOP.app_name}", "system", logging.WARNING)]
 
-    def test_a_jump_the_headsets_main_player_cannot_answer_says_what_was_heard(self, tmp_path):
+    def test_a_jump_the_headsets_main_funestra_cannot_answer_says_what_was_heard(self, tmp_path):
         flashed = self._run_for_real(
             tmp_path, "main_player_compilation", "compilation",
-            config=make_config(tmp_path, vr_main_player=True), main_mode=MainMode.KINO)
+            config=make_config(tmp_path, vr_main_funestra=True), main_mode=MainMode.KINO)
 
         assert flashed == [("compilation", "system", 25)]
 
@@ -1350,7 +1350,7 @@ class TestWhatASpokenCommandFlashes:
         "main_player_compilation", "main_player_full_vid", "main_player_clip_jump",
         "main_player_funscript_jump", "main_player_next_funscripted",
     ])
-    def test_a_jump_the_main_player_answers_itself_says_nothing_now(self, tmp_path, command):
+    def test_a_jump_the_main_funestra_answers_itself_says_nothing_now(self, tmp_path, command):
         flashed = self._run_for_real(
             tmp_path, command, "whatever was said", main_mode=MainMode.KINO)
 
@@ -1376,10 +1376,10 @@ class TestWhatASpokenCommandFlashes:
         assert self._flashed(tmp_path, spoken, omni_paused=True) == [
             ("ignored during OmniPause: landscape next", "landscape", logging.WARNING)]
 
-    def test_a_named_command_flashes_over_its_player_whichever_is_active(self, tmp_path):
+    def test_a_named_command_flashes_over_its_funestra_whichever_is_active(self, tmp_path):
         spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
 
-        assert self._flashed(tmp_path, spoken, active_player=2) == [
+        assert self._flashed(tmp_path, spoken, active_funestra=2) == [
             ("landscape next", "landscape", 25)]
 
     @pytest.mark.parametrize(("command", "said"), [
@@ -1389,12 +1389,12 @@ class TestWhatASpokenCommandFlashes:
     def test_words_the_hosted_apps_show_takes_flash_what_was_heard(
         self, tmp_path, command, said,
     ):
-        """On a player F-mode flashes which way it went; in origenerator mode the
+        """On a Funestra F-mode flashes which way it went; in origenerator mode the
         words go to the show on that side, which flashes nothing here."""
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", BridgeState(
-            satellites_mode="origenerator", active_player=3))
+            satellites_mode="origenerator", active_funestra=3))
         (tmp_path / "dashboard_cmd.txt").write_text(
             format_spoken_command(command, spoken_at=1.0, said=said), encoding="utf-8")
         flashed = []
@@ -1759,7 +1759,7 @@ class TestAClickIntoATextField:
 
 
 class TestModeSwitchVisibility:
-    """Kino and Genau share the Main Player's one window, so a mode switch swaps
+    """Kino and Genau share the Main Funestra's one window, so a mode switch swaps
     no windows: it tells that window which of the two to show, brings it back if
     it was parked and hands it the focus, so focus never falls through to
     another application.
@@ -1789,25 +1789,25 @@ class TestModeSwitchVisibility:
         assert runner.state.main_mode == {
             "genau_activate": "genau", "main_kino_activate": "kino",
         }[command]
-        return calls, runner.config.main_player_cmd_file.read_text(encoding="utf-8").split()
+        return calls, runner.config.main_funestra_cmd_file.read_text(encoding="utf-8").split()
 
-    def test_genau_activate_tells_the_main_players_window_to_show_genau(self, tmp_path):
+    def test_genau_activate_tells_the_main_funestras_window_to_show_genau(self, tmp_path):
         calls, told = self._run_mode_switch(
             tmp_path, from_mode="kino", command="genau_activate",
         )
         assert calls == [
-            ("show", MAIN_PLAYER_HWND),
-            ("activate", MAIN_PLAYER_HWND),
+            ("show", MAIN_FUNESTRA_HWND),
+            ("activate", MAIN_FUNESTRA_HWND),
         ]
         assert told[:2] == ["SHOW", "genau"]
 
-    def test_main_kino_activate_tells_the_main_players_window_to_show_kino(self, tmp_path):
+    def test_main_kino_activate_tells_the_main_funestras_window_to_show_kino(self, tmp_path):
         calls, told = self._run_mode_switch(
             tmp_path, from_mode="genau", command="main_kino_activate",
         )
         assert calls == [
-            ("show", MAIN_PLAYER_HWND),
-            ("activate", MAIN_PLAYER_HWND),
+            ("show", MAIN_FUNESTRA_HWND),
+            ("activate", MAIN_FUNESTRA_HWND),
         ]
         assert told[:2] == ["SHOW", "kino"]
 
@@ -1818,7 +1818,7 @@ class TestModeSwitchVisibility:
             tmp_path, from_mode="kino", command="genau_activate",
             integration=True,
         )
-        assert calls == [("show", MAIN_PLAYER_HWND)]
+        assert calls == [("show", MAIN_FUNESTRA_HWND)]
 
 
 class TestResolveRole:
@@ -1828,14 +1828,14 @@ class TestResolveRole:
         otherwise a parked window could never be shown again."""
         runner = make_runner(tmp_path)
 
-        # The main player is visible: the pid lookup finds it once, populating the cache.
+        # The Main Funestra is visible: the pid lookup finds it once, populating the cache.
         with patch("fun_time.role_windows.find_window_by_pid",
                    side_effect=lookup_pid):
-            assert runner.windows.hwnd("main_player") == MAIN_PLAYER_HWND
+            assert runner.windows.hwnd("main_player") == MAIN_FUNESTRA_HWND
 
-        # The main player is now minimized: the pid/title lookups are mocked to fail, but
+        # The Main Funestra is now minimized: the pid/title lookups are mocked to fail, but
         # the cache still answers, and a show_role op reaches the cached hwnd
-        # (show_role restores rather than SW_SHOWs — the idle player is parked
+        # (show_role restores rather than SW_SHOWs — the idle Funestra is parked
         # by minimizing it, so bringing it back is a restore).
         shown: list[int] = []
         show_op = WindowOp(op="show_role", key="main_player")
@@ -1844,14 +1844,14 @@ class TestResolveRole:
              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)), \
              patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
                    return_value=(runner.state, [show_op])):
-            assert runner.windows.hwnd("main_player") == MAIN_PLAYER_HWND
+            assert runner.windows.hwnd("main_player") == MAIN_FUNESTRA_HWND
             runner._dispatch("main_kino_activate")
 
-        assert shown == [MAIN_PLAYER_HWND]
+        assert shown == [MAIN_FUNESTRA_HWND]
 
 
 class TestBrowseLibrary:
-    """Tests for the browse_library command (the main player "browse" feature).
+    """Tests for the browse_library command (the Main Funestra "browse" feature).
 
     Browsing must leave playback and voice alone — everything keeps playing
     while you pick.  The browser only needs the topmost bands dropped so it is
@@ -1862,7 +1862,7 @@ class TestBrowseLibrary:
         """The core regression: browsing must not pause the session.
 
         The bug — browse entered OmniPause, and picking a video resumed only
-        The main player, leaving the satellites + voice frozen (so "pause" was ignored with
+        The Main Funestra, leaving the satellites + voice frozen (so "pause" was ignored with
         "we're in omnipause").  Browsing keeps everything playing, so it never
         enters OmniPause and never leaves the session paused.
         """
@@ -1901,9 +1901,9 @@ class TestBrowseLibrary:
         assert removed == TOPMOST_HWNDS
 
     def test_browses_the_session_library_over_the_primary_display(self, tmp_path):
-        """The browse opens Fun Time's own library browser, filling the main player's rect.
+        """The browse opens Fun Time's own library browser, filling the Main Funestra's rect.
 
-        The main player's window is what the pick will play in, so the browser stands exactly
+        The Main Funestra's window is what the pick will play in, so the browser stands exactly
         where the video will be — and covers nothing else on either monitor.
         """
         config = make_config(tmp_path, python_exe=r"C:\python.exe")
@@ -1922,15 +1922,15 @@ class TestBrowseLibrary:
             playing="", clips=False, runner=runner._run_browser,
         )
 
-    def test_browses_from_the_folder_the_main_player_is_playing_in(self, tmp_path):
+    def test_browses_from_the_folder_the_main_funestra_is_playing_in(self, tmp_path):
         """What is up decides where the browse opens, so it goes with the launch.
 
-        The main player publishes it, which is also the only thing that knows —
+        The Main Funestra publishes it, which is also the only thing that knows —
         the pick that started this session's video may have come from anywhere.
         """
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
-        runner.config.main_player_status_file.write_text(
+        runner.config.main_funestra_status_file.write_text(
             "video=C:/videos/big_batch/beta.mp4\n", encoding="utf-8",
         )
 
@@ -1945,8 +1945,8 @@ class TestBrowseLibrary:
 
     def test_leaving_omnipause_puts_an_open_browse_back_on_top(self, tmp_path):
         """The state he could not get out of: leaving OmniPause restacks the
-        players, HWND_TOPMOST inserts at the TOP of the band, and the browse was
-        left underneath the main player it opens over — with the key that opens
+        Funestras, HWND_TOPMOST inserts at the TOP of the band, and the browse was
+        left underneath the Main Funestra it opens over — with the key that opens
         one refused while one is already open."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
@@ -1978,8 +1978,8 @@ class TestBrowseLibrary:
 
         assert on_top.call_args_list == []
 
-    def test_sends_selected_file_to_main_player_by_default(self, tmp_path):
-        """In kino mode (the default) a selected file becomes a main player PLAY_FILE
+    def test_sends_selected_file_to_main_funestra_by_default(self, tmp_path):
+        """In kino mode (the default) a selected file becomes a Main Funestra PLAY_FILE
         command, paired with its mirrored funscript when one exists."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
@@ -1997,11 +1997,11 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=str(video)):
             runner._handle_browse_library()
 
-        command = runner.config.main_player_cmd_file.read_text(encoding="utf-8")
+        command = runner.config.main_funestra_cmd_file.read_text(encoding="utf-8")
         assert command == f"PLAY_FILE {video}\t{mirrored}\n"
 
-    def test_sends_selected_file_to_main_player_in_kino_mode(self, tmp_path):
-        """Kino mode displays the main player, so a selected file becomes a main player PLAY_FILE
+    def test_sends_selected_file_to_main_funestra_in_kino_mode(self, tmp_path):
+        """Kino mode displays the Main Funestra, so a selected file becomes a Main Funestra PLAY_FILE
         command there too (no funscript pairing when none exists)."""
         config = make_config(tmp_path, main_sources=r"C:\videos")
         runner = make_runner(tmp_path, config=config)
@@ -2013,10 +2013,10 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=r"C:\videos\movie.mp4"):
             runner._handle_browse_library()
 
-        assert runner.config.main_player_cmd_file.read_text(
+        assert runner.config.main_funestra_cmd_file.read_text(
             encoding="utf-8") == "PLAY_FILE C:\\videos\\movie.mp4\n"
 
-    def test_genau_browses_its_clips_over_the_main_players_window_from_the_clip_it_has_up(self, tmp_path):
+    def test_genau_browses_its_clips_over_the_main_funestras_window_from_the_clip_it_has_up(self, tmp_path):
         config = make_config(tmp_path, python_exe=r"C:\python.exe")
         runner = make_runner(tmp_path, config=config, manifest_path=tmp_path / "launch.ini")
         runner.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
@@ -2025,9 +2025,9 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch.object(runner.windows, "hwnd", side_effect=lambda role: {"main_player": MAIN_PLAYER_HWND}.get(role, 0)), \
+             patch.object(runner.windows, "hwnd", side_effect=lambda role: {"main_player": MAIN_FUNESTRA_HWND}.get(role, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.window_rect",
-                   side_effect=lambda hwnd: (0, 400, 1080, 1520) if hwnd == MAIN_PLAYER_HWND else None), \
+                   side_effect=lambda hwnd: (0, 400, 1080, 1520) if hwnd == MAIN_FUNESTRA_HWND else None), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
             runner._handle_browse_library()
 
@@ -2036,7 +2036,7 @@ class TestBrowseLibrary:
             playing="C:/library/genau/clips/Scene One.mp4", clips=True, runner=runner._run_browser,
         )
 
-    def test_a_clip_picked_in_genau_mode_goes_to_genau_not_the_main_player(self, tmp_path):
+    def test_a_clip_picked_in_genau_mode_goes_to_genau_not_the_main_funestra(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
 
@@ -2049,10 +2049,10 @@ class TestBrowseLibrary:
 
         assert runner.config.genau_cmd_file.read_text(
             encoding="utf-8") == "PLAY_FILE C:\\library\\genau\\clips\\Scene One.mp4\n"
-        assert not runner.config.main_player_cmd_file.exists()
+        assert not runner.config.main_funestra_cmd_file.exists()
 
     def test_does_not_play_anything_on_cancel(self, tmp_path):
-        """When the user cancels the dialog, nothing is sent to the main player."""
+        """When the user cancels the dialog, nothing is sent to the Main Funestra."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
@@ -2062,11 +2062,11 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
 
-        assert not runner.config.main_player_cmd_file.exists()
+        assert not runner.config.main_funestra_cmd_file.exists()
 
     def test_restores_topmost_after_the_pick(self, tmp_path):
         """After the pick, every managed window gets its topmost band back —
-        the main player included, so the video floats above the desktop again."""
+        the Main Funestra included, so the video floats above the desktop again."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
 
@@ -2082,8 +2082,8 @@ class TestBrowseLibrary:
         restored = {h for h, v in topmost_calls if v}
         assert restored == TOPMOST_HWNDS
 
-    def test_restores_the_main_players_band_in_genau_mode_too(self, tmp_path):
-        """Genau shows on the main player's window, so the window comes back
+    def test_restores_the_main_funestras_band_in_genau_mode_too(self, tmp_path):
+        """Genau shows on the Main Funestra's window, so the window comes back
         into the band in genau mode as it does in kino mode."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
@@ -2161,7 +2161,7 @@ class TestBrowseLibrary:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=MAIN_PLAYER_HWND), \
+        with patch("fun_time.role_windows.find_window_by_pid", return_value=MAIN_FUNESTRA_HWND), \
              patch("fun_time.windows_bridge_dispatch_loop.window_rect", return_value=(0, 0, 800, 600)), \
              patch("fun_time.role_windows.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
@@ -2171,11 +2171,11 @@ class TestBrowseLibrary:
         mock_browse.assert_called_once()
 
     def test_browses_unplaced_when_the_primary_display_cannot_be_found(self, tmp_path):
-        """With no main player window to stand over, the browser picks its own place.
+        """With no Main Funestra window to stand over, the browser picks its own place.
 
         find_window_by_title is stubbed too: _resolve_role("main_player") falls back to it
         when the pid lookup misses, and left live it would enumerate the real
-        desktop and return a stray HWND (a running Fun Time's the main player window) — a flake.
+        desktop and return a stray HWND (a running Fun Time's the Main Funestra window) — a flake.
         """
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
@@ -2236,8 +2236,8 @@ class TestBrowseLibrary:
 class TestBrowsingFromTheHeadset:
     def _runner(self, tmp_path):
         return make_runner(
-            tmp_path, config=make_config(tmp_path, vr_main_player=True),
-            main_player_pid=0, portrait_pid=0, landscape_pid=0, dashboard_pid=0,
+            tmp_path, config=make_config(tmp_path, vr_main_funestra=True),
+            main_funestra_pid=0, portrait_pid=0, landscape_pid=0, dashboard_pid=0,
         )
 
     def _press(self, runner, *commands):
@@ -2251,7 +2251,7 @@ class TestBrowsingFromTheHeadset:
             _join_the_browse_threads()
         return desktop
 
-    def test_a_headset_browse_opens_the_panel_the_player_hangs(self, tmp_path):
+    def test_a_headset_browse_opens_the_panel_the_funestra_hangs(self, tmp_path):
         runner = self._runner(tmp_path)
 
         self._press(runner, "browse_library")
@@ -2550,7 +2550,7 @@ class TestIdempotentVoiceCommands:
 
     def test_a_sided_fmode_reaches_the_dispatch_as_written(self, tmp_path):
         """The on/off forms are the dispatch's own commands now — it alone knows
-        which players each names, and it is what decides a no-op rebuilds nothing —
+        which Funestras each names, and it is what decides a no-op rebuilds nothing —
         so the loop passes them straight through rather than second-guessing them."""
         runner = make_runner(tmp_path)
         with patch.object(runner, "_dispatch") as mock_d:
@@ -2634,9 +2634,9 @@ class TestIdempotentVoiceCommands:
         ), pytest.raises(TypeError):
             runner._update_dashboard()
 
-    def test_the_snapshot_says_whether_every_player_has_nothing_to_reset(self, tmp_path):
+    def test_the_snapshot_says_whether_every_funestra_has_nothing_to_reset(self, tmp_path):
         runner = make_runner(tmp_path, dashboard_enabled=True)
-        runner.config.main_player_status_file.write_text(
+        runner.config.main_funestra_status_file.write_text(
             "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
 
         runner._update_dashboard()
@@ -2648,7 +2648,7 @@ class TestIdempotentVoiceCommands:
 
     def test_a_satellite_off_normal_speed_leaves_the_room_something_to_reset(self, tmp_path):
         runner = make_runner(tmp_path, dashboard_enabled=True)
-        runner.config.main_player_status_file.write_text(
+        runner.config.main_funestra_status_file.write_text(
             "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
         runner.config.landscape_status_file.write_text(
             "video=C:/v/l.mp4\nspeed=0.5\n", encoding="utf-8")
@@ -2661,7 +2661,7 @@ class TestIdempotentVoiceCommands:
         runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(
             tmp_path, origenerator_enabled=True,
             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
-        runner.config.main_player_status_file.write_text(
+        runner.config.main_funestra_status_file.write_text(
             "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
         runner.state = replace(runner.state, satellites_mode="origenerator")
 
@@ -2675,8 +2675,8 @@ class TestIdempotentVoiceCommands:
         runner = make_runner(tmp_path, dashboard_enabled=True, config=_hosting(tmp_path))
         runner.state = replace(runner.state, satellites_mode="origenerator",
                                main_scripted_filter=True)
-        for player in Player.SATELLITES:
-            publish_the_show(runner.config, player, f_mode=True)
+        for funestra in RoomFunestra.SATELLITES:
+            publish_the_show(runner.config, funestra, f_mode=True)
 
         runner._update_dashboard()
 
@@ -2830,7 +2830,7 @@ class TestWatchTracking:
     def _run_samples(self, runner, monkeypatch, timeline):
         """Drive tick() through (t, portrait_path, portrait_fraction) samples,
         publishing each to the portrait satellite's status file the way its
-        native player would (a None fraction writes an unknown duration, which
+        native Funestra would (a None fraction writes an unknown duration, which
         the sampler drops)."""
         fake_now = {"t": 0.0}
         monkeypatch.setattr(
@@ -2901,7 +2901,7 @@ class TestSeededRoleHwnds:
         """A window parked from its own button is invisible to the pid/title
         lookups; with those mocked to fail, the runner must answer from the hwnds
         the startup sequencer seeded while everything was visible, or a switch
-        could never bring the main player's window back."""
+        could never bring the Main Funestra's window back."""
         runner = make_runner(
             tmp_path,
             role_hwnds={"main_player": 2001},
@@ -2928,20 +2928,20 @@ class TestKinoModeFunscriptHandoff:
             runner.tick()
 
         sync.assert_called_once_with("kino", paused=True, control="driving",
-                                     holder=Player.MAIN)
+                                     holder=RoomFunestra.MAIN)
 
-    def test_the_tick_tells_the_arbiter_when_a_side_player_has_the_osr2(self, tmp_path):
+    def test_the_tick_tells_the_arbiter_when_a_side_funestra_has_the_osr2(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode=MainMode.KINO, osr2_player=Player.LANDSCAPE)
+        runner.state = BridgeState(main_mode=MainMode.KINO, osr2_funestra=RoomFunestra.LANDSCAPE)
 
         with patch.object(runner.arbiter, "sync") as sync:
             runner.tick()
 
-        assert sync.call_args.kwargs["holder"] is Player.LANDSCAPE
+        assert sync.call_args.kwargs["holder"] is RoomFunestra.LANDSCAPE
 
 
-class TestTheSatellitesTakeTheMainPlayersRate:
-    def test_a_rate_the_main_player_moves_to_reaches_both_satellites_on_the_periodic_sync(
+class TestTheSatellitesTakeTheMainFunestrasRate:
+    def test_a_rate_the_main_funestra_moves_to_reaches_both_satellites_on_the_periodic_sync(
             self, tmp_path):
         runner = make_runner(tmp_path)
         status = tmp_path / "main_player_status.txt"
@@ -2959,7 +2959,7 @@ class TestTheSatellitesTakeTheMainPlayersRate:
 
 
 class TestExpandGroupCommand:
-    """A group word is sugar for the players it names, driven one at a time."""
+    """A group word is sugar for the Funestras it names, driven one at a time."""
 
     def test_passes_through_non_both_commands(self):
         assert expand_group_command("portrait_next") == ["portrait_next"]
@@ -2980,7 +2980,7 @@ class TestExpandGroupCommand:
             "portrait_cycle_seed", "landscape_cycle_seed",
         ]
 
-    def test_reset_all_reaches_the_main_player_and_both_satellites(self):
+    def test_reset_all_reaches_the_main_funestra_and_both_satellites(self):
         assert expand_group_command("all_reset") == [
             "main_reset", "portrait_reset", "landscape_reset",
         ]
@@ -3010,8 +3010,8 @@ class TestBothSatelliteCommands:
 
         runner.tick()
 
-        assert [_told(runner, player) for player in Player.SATELLITES] == [[], ["LOCK_ON"]]
-        assert runner.state.satellite(Player.LANDSCAPE).locked is True
+        assert [_told(runner, funestra) for funestra in RoomFunestra.SATELLITES] == [[], ["LOCK_ON"]]
+        assert runner.state.satellite(RoomFunestra.LANDSCAPE).locked is True
 
     def test_unlock_both_unlocks_each_locked_satellite(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -3020,13 +3020,13 @@ class TestBothSatelliteCommands:
 
         runner.tick()
 
-        assert [_told(runner, player) for player in Player.SATELLITES] == [
+        assert [_told(runner, funestra) for funestra in RoomFunestra.SATELLITES] == [
             ["LOCK_OFF", "NEXT"], ["LOCK_OFF", "NEXT"]]
 
 
-def _told(runner, player) -> list[str]:
-    """What the loop's dispatch sent satellite *player*, in order."""
-    cmd_file = runner.config.satellite(player).cmd_file
+def _told(runner, funestra) -> list[str]:
+    """What the loop's dispatch sent satellite *Funestra*, in order."""
+    cmd_file = runner.config.satellite(funestra).cmd_file
     return cmd_file.read_text(encoding="utf-8").split() if cmd_file.exists() else []
 
 
@@ -3049,7 +3049,7 @@ class TestBrowserOutlivesNothing:
     """The browser is a child of the session, so quitting has to take it.
 
     It is launched mid-session rather than at startup, so it cannot join the
-    _CHILD_GROUPS teardown list the way the players and companions do; the
+    _CHILD_GROUPS teardown list the way the Funestras and companions do; the
     dispatch loop owns it instead, and its close is where the browse dies.
     """
 
@@ -3177,8 +3177,8 @@ class TestAGenauLockTakesTheGalleryToTheClip:
         assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.FIRST}"]
 
     @pytest.mark.parametrize(("main_mode", "satellites_mode"), [
-        (MainMode.KINO, "origenerator"),   # the main player's lock, not Genau's
-        (MainMode.GENAU, "kino"),          # the players showing, the gallery parked
+        (MainMode.KINO, "origenerator"),   # the Main Funestra's lock, not Genau's
+        (MainMode.GENAU, "kino"),          # the Funestras showing, the gallery parked
     ])
     def test_a_lock_leaves_the_gallery_alone_unless_genau_and_the_gallery_are_both_up(
             self, tmp_path, main_mode, satellites_mode):
@@ -3222,7 +3222,7 @@ class TestOrigeneratorWindowConverger:
 
 
 class TestOrigeneratorWatchGuard:
-    def test_a_routed_step_books_nothing_against_the_blacked_player(self, tmp_path):
+    def test_a_routed_step_books_nothing_against_the_blacked_funestra(self, tmp_path):
         config = make_config(tmp_path, origenerator_enabled=True,
                              origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
         runner = make_runner(tmp_path, config=config, origenerator_pid=700)
@@ -3231,7 +3231,7 @@ class TestOrigeneratorWatchGuard:
             runner._dispatch("portrait_next")
         note.assert_not_called()
 
-    def test_a_player_mode_step_still_books_the_player(self, tmp_path):
+    def test_a_funestra_mode_step_still_books_the_funestra(self, tmp_path):
         config = make_config(tmp_path, origenerator_enabled=True,
                              origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
         runner = make_runner(tmp_path, config=config, origenerator_pid=700)
@@ -3442,7 +3442,7 @@ class TestOpeningInOrigeneratorMode:
 class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
     """Two of the session's paths were worked out from a neighbor's, so the
     writer that owns the layout had no say in them: the state directory was
-    dashboard_state_file's parent, and the notice channel was main_player_status_file
+    dashboard_state_file's parent, and the notice channel was main_funestra_status_file
     with the name swapped.  Both are keys now, and a manifest that says
     something else is believed."""
 
@@ -3462,16 +3462,16 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
     def test_the_notice_channel_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
         manifest = self._manifest(
             cfg_factory, tmp_path,
-            main_player_notice_file=str(tmp_path / "elsewhere" / "notices.txt"),
-            main_player_status_file=str(tmp_path / "somewhere" / "main_player_status.txt"))
+            main_funestra_notice_file=str(tmp_path / "elsewhere" / "notices.txt"),
+            main_funestra_status_file=str(tmp_path / "somewhere" / "main_player_status.txt"))
 
-        assert build_bridge_config_from_manifest(manifest).main_player_notice_file == (
+        assert build_bridge_config_from_manifest(manifest).main_funestra_notice_file == (
             tmp_path / "elsewhere" / "notices.txt")
 
 
-class TestThePlayersComeHome:
+class TestTheFunestrasComeHome:
     """Leaving origenerator mode asks the hosted app to let go of the two
-    players, and each comes home once it has: its own list back, turned onto
+    Funestras, and each comes home once it has: its own list back, turned onto
     the clip it left, with the session's own hold put back on it."""
 
     def _left_for_origenerator(self, tmp_path, *, locked=False):
@@ -3479,65 +3479,65 @@ class TestThePlayersComeHome:
         runner = make_runner(tmp_path, config=config)
         runner.state = replace(runner.state, origenerator_ready=True,
                                portrait=SatelliteState(locked=locked))
-        for player in Player.SATELLITES:
-            channel = config.satellite(player)
-            write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / f"{player.label}.mp4")])
+        for funestra in RoomFunestra.SATELLITES:
+            channel = config.satellite(funestra)
+            write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / f"{funestra.label}.mp4")])
             keep_aside(channel)
             write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "picture.png")])
-            publish_whole(channel.origenerator_hud_file, f'{{"player": "{player.label}"}}')
-        runner.expect_the_players_home(now=100.0)
+            publish_whole(channel.origenerator_hud_file, f'{{"Funestra": "{funestra.label}"}}')
+        runner.expect_the_funestras_home(now=100.0)
         return runner, config
 
     @staticmethod
-    def _lets_go_of(config, player) -> None:
-        publish_whole(config.satellite(player).origenerator_hud_file, "")
+    def _lets_go_of(config, funestra) -> None:
+        publish_whole(config.satellite(funestra).origenerator_hud_file, "")
 
     @staticmethod
-    def _queued(config, player) -> list[str]:
-        cmd_file = config.satellite(player).cmd_file
+    def _queued(config, funestra) -> list[str]:
+        cmd_file = config.satellite(funestra).cmd_file
         return cmd_file.read_text(encoding="utf-8").split() if cmd_file.exists() else []
 
     def test_a_side_the_app_has_let_go_of_comes_home(self, tmp_path):
         runner, config = self._left_for_origenerator(tmp_path, locked=True)
-        self._lets_go_of(config, Player.PORTRAIT)
+        self._lets_go_of(config, RoomFunestra.PORTRAIT)
 
-        runner.bring_the_players_home(now=100.5)
+        runner.bring_the_funestras_home(now=100.5)
 
-        assert self._queued(config, Player.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_ON"]
-        assert self._queued(config, Player.LANDSCAPE) == []    # still the app's
+        assert self._queued(config, RoomFunestra.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_ON"]
+        assert self._queued(config, RoomFunestra.LANDSCAPE) == []    # still the app's
 
     def test_a_side_the_app_never_lets_go_of_comes_home_anyway(self, tmp_path):
-        """An app that has stalled or gone does not get to keep the players."""
+        """An app that has stalled or gone does not get to keep the Funestras."""
         runner, config = self._left_for_origenerator(tmp_path)
 
-        runner.bring_the_players_home(now=100.0 + LET_GO_TIMEOUT_S + 0.1)
+        runner.bring_the_funestras_home(now=100.0 + LET_GO_TIMEOUT_S + 0.1)
 
-        assert self._queued(config, Player.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
-        assert self._queued(config, Player.LANDSCAPE) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
+        assert self._queued(config, RoomFunestra.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
+        assert self._queued(config, RoomFunestra.LANDSCAPE) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
 
     def test_going_back_into_the_mode_first_leaves_them_with_the_app(self, tmp_path):
         runner, config = self._left_for_origenerator(tmp_path)
         runner.state = replace(runner.state, satellites_mode="origenerator")
-        self._lets_go_of(config, Player.PORTRAIT)
+        self._lets_go_of(config, RoomFunestra.PORTRAIT)
 
-        runner.bring_the_players_home(now=100.5)
+        runner.bring_the_funestras_home(now=100.5)
 
-        assert self._queued(config, Player.PORTRAIT) == []
+        assert self._queued(config, RoomFunestra.PORTRAIT) == []
         runner.state = replace(runner.state, satellites_mode="kino")
-        runner.bring_the_players_home(now=100.6)
-        assert self._queued(config, Player.PORTRAIT) == []     # nothing owed any more
+        runner.bring_the_funestras_home(now=100.6)
+        assert self._queued(config, RoomFunestra.PORTRAIT) == []     # nothing owed any more
 
     def test_a_side_the_app_had_not_taken_yet_waits_for_it_to_let_go(self, tmp_path):
         """Out of the mode before the app had read the way in: it will still
         write its list for the side, so handing the side's own back first would
-        leave the player on the app's."""
+        leave the Funestra on the app's."""
         runner, config = self._left_for_origenerator(tmp_path)
-        self._lets_go_of(config, Player.PORTRAIT)
-        runner.expect_the_players_home(now=101.0)
+        self._lets_go_of(config, RoomFunestra.PORTRAIT)
+        runner.expect_the_funestras_home(now=101.0)
 
-        runner.bring_the_players_home(now=101.5)
+        runner.bring_the_funestras_home(now=101.5)
 
-        assert self._queued(config, Player.PORTRAIT) == []
+        assert self._queued(config, RoomFunestra.PORTRAIT) == []
 
     def test_the_switch_out_of_the_mode_is_what_sends_for_them(self, tmp_path):
         config = _hosting(tmp_path)
@@ -3545,7 +3545,7 @@ class TestThePlayersComeHome:
         runner.state = replace(runner.state, origenerator_ready=True,
                                satellites_mode="origenerator")
 
-        with patch.object(runner, "expect_the_players_home") as expect:
+        with patch.object(runner, "expect_the_funestras_home") as expect:
             runner._dispatch("satellites_kino_activate")
 
         expect.assert_called_once()
@@ -3556,19 +3556,19 @@ SECONDARY_MONITOR = MonitorRect(2560, 0, 1440, 3440)
 
 def _seating_runner(tmp_path, cfg_path, *, main_video_portrait: bool) -> DispatchLoopRunner:
     config = make_config(tmp_path)
-    config.main_player_status_file.write_text(
+    config.main_funestra_status_file.write_text(
         f"video=C:/fixtures/scene one.mp4\nportrait={int(main_video_portrait)}\n", encoding="utf-8")
     return make_runner(
         tmp_path, config=config,
-        role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_PLAYER_HWND},
+        role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_FUNESTRA_HWND},
         secondary_rects=partial(secondary_monitor_rects, SECONDARY_MONITOR,
                                 load_config(cfg_path).layout))
 
 
-def test_a_portrait_video_on_the_crowned_main_player_gives_it_most_of_the_secondary_monitor(
+def test_a_portrait_video_on_the_crowned_main_funestra_gives_it_most_of_the_secondary_monitor(
         tmp_path, cfg_path):
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=True)
-    usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_PLAYER_HWND: (2560, 2500, 1440, 940)}
+    usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_FUNESTRA_HWND: (2560, 2500, 1440, 940)}
 
     with patch("fun_time.role_windows.window_rect", side_effect=usual.get), \
          patch("fun_time.role_windows.is_window_minimized", return_value=False), \
@@ -3576,10 +3576,10 @@ def test_a_portrait_video_on_the_crowned_main_player_gives_it_most_of_the_second
         runner.tick()
 
     assert [call.args for call in place.call_args_list] == [
-        (PORTRAIT_HWND, 2560, 0, 1440, 940), (MAIN_PLAYER_HWND, 2560, 940, 1440, 2500)]
+        (PORTRAIT_HWND, 2560, 0, 1440, 940), (MAIN_FUNESTRA_HWND, 2560, 940, 1440, 2500)]
 
 
-def test_the_room_writes_down_which_player_has_most_of_the_secondary_monitor(tmp_path, cfg_path):
+def test_the_room_writes_down_which_funestra_has_most_of_the_secondary_monitor(tmp_path, cfg_path):
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=True)
 
     with patch("fun_time.role_windows.window_rect", return_value=None), \
@@ -3590,10 +3590,10 @@ def test_the_room_writes_down_which_player_has_most_of_the_secondary_monitor(tmp
     assert read_shared_state(runner.shared_state_file).majority is Crown.MAIN
 
 
-def test_a_landscape_video_hands_most_of_the_secondary_monitor_back_to_the_portrait_player(
+def test_a_landscape_video_hands_most_of_the_secondary_monitor_back_to_the_portrait_funestra(
         tmp_path, cfg_path):
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=False)
-    traded = {PORTRAIT_HWND: (2560, 0, 1440, 940), MAIN_PLAYER_HWND: (2560, 940, 1440, 2500)}
+    traded = {PORTRAIT_HWND: (2560, 0, 1440, 940), MAIN_FUNESTRA_HWND: (2560, 940, 1440, 2500)}
 
     with patch("fun_time.role_windows.window_rect", side_effect=traded.get), \
          patch("fun_time.role_windows.is_window_minimized", return_value=False), \
@@ -3601,16 +3601,16 @@ def test_a_landscape_video_hands_most_of_the_secondary_monitor_back_to_the_portr
         runner.tick()
 
     assert [call.args for call in place.call_args_list] == [
-        (MAIN_PLAYER_HWND, 2560, 2500, 1440, 940), (PORTRAIT_HWND, 2560, 0, 1440, 2500)]
+        (MAIN_FUNESTRA_HWND, 2560, 2500, 1440, 940), (PORTRAIT_HWND, 2560, 0, 1440, 2500)]
 
 
-def test_in_genau_mode_a_portrait_clip_gives_the_main_player_most_of_the_secondary_monitor(
+def test_in_genau_mode_a_portrait_clip_gives_the_main_funestra_most_of_the_secondary_monitor(
         tmp_path, cfg_path):
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=False)
     runner.config.genau_status_file.write_text(
         "clip=C:/fixtures/clip one.mp4\nportrait=1\n", encoding="utf-8")
     runner.state = replace(runner.state, main_mode=MainMode.GENAU)
-    usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_PLAYER_HWND: (2560, 2500, 1440, 940)}
+    usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_FUNESTRA_HWND: (2560, 2500, 1440, 940)}
 
     with patch("fun_time.role_windows.window_rect", side_effect=usual.get), \
          patch("fun_time.role_windows.is_window_minimized", return_value=False), \
@@ -3618,7 +3618,7 @@ def test_in_genau_mode_a_portrait_clip_gives_the_main_player_most_of_the_seconda
         runner.tick()
 
     assert [call.args for call in place.call_args_list] == [
-        (PORTRAIT_HWND, 2560, 0, 1440, 940), (MAIN_PLAYER_HWND, 2560, 940, 1440, 2500)]
+        (PORTRAIT_HWND, 2560, 0, 1440, 940), (MAIN_FUNESTRA_HWND, 2560, 940, 1440, 2500)]
 
 
 def test_a_room_that_arranges_no_secondary_monitor_moves_nothing(tmp_path):

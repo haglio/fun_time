@@ -19,17 +19,17 @@ import ast
 import itertools
 from pathlib import Path
 
-from player_core.modes import LengthMode, MainMode, SatellitesMode
+from funestra_core.modes import LengthMode, MainMode, SatellitesMode
 
 from fun_time import command_dispatch, dashboard_actions, windows_bridge_dispatch_loop
 from fun_time.command_reference import build_reference_sections
 from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
-from fun_time.satellite_buttons import player_rows
+from fun_time.satellite_buttons import funestra_rows
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import (
     _MAIN_EQUIVALENTS,
     expand_group_command,
-    resolve_active_player_command,
+    resolve_active_funestra_command,
 )
 from tests.test_command_id_snapshot import (
     HUD_ONLY_COMMAND_IDS,
@@ -40,7 +40,7 @@ from tests.test_command_id_snapshot import (
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# Commands posted straight off a player's own surface, as literal strings in
+# Commands posted straight off a Funestra's own surface, as literal strings in
 # player_core (the satellite HUDs and the main console) — the reachability the
 # in-repo surfaces cannot show.  HUD_ONLY_COMMAND_IDS is the subset the
 # reference does not list either; the rest it does.
@@ -140,7 +140,7 @@ def _voice_resolutions() -> tuple[frozenset[str], frozenset[str]]:
     residues: set[str] = set()
     for value in set(VOICE_COMMANDS.values()):
         for side in (1, 2, 3):
-            for command in expand_group_command(resolve_active_player_command(value, side)):
+            for command in expand_group_command(resolve_active_funestra_command(value, side)):
                 (residues if command.startswith("active_") else targets).add(command)
     return frozenset(targets), frozenset(residues)
 
@@ -176,17 +176,17 @@ def _satellite_verbs() -> frozenset[str]:
     sides and every state the declaration takes."""
     return frozenset(
         button.command
-        for player in ("portrait", "landscape")
+        for funestra in ("portrait", "landscape")
         for latest in (None, False, True)
         for satellites_mode in (None, *SatellitesMode)
-        for row in player_rows(player, locked=True, favorites_filter=True, latest=latest,
+        for row in funestra_rows(funestra, locked=True, favorites_filter=True, latest=latest,
                                satellites_mode=satellites_mode)
         for button in row
     )
 
 
 def test_every_verb_the_console_posts_lands_on_a_handler():
-    """The sixth surface: the console the players draw for the main slot posts
+    """The sixth surface: the console the Funestras draw for the main slot posts
     the verbs of the buttons Fun Time declares into this dispatcher.  Nothing
     held the two together once, which is how the clip-seconds pair came to
     post a verb this table had renamed away -- both buttons inert in genau
@@ -223,7 +223,7 @@ def test_every_spoken_phrase_lands_on_a_handler():
 
 
 def test_the_unresolvable_active_forms_are_exactly_the_satellite_only_actions():
-    """A bare "weird" or "cycle seed" spoken while the main player holds the
+    """A bare "weird" or "cycle seed" spoken while the Main Funestra holds the
     floor resolves to nothing on purpose — but only for actions whose sided
     forms ARE handled, or the residue would be hiding a genuinely dead phrase."""
     _, residues = _voice_resolutions()
@@ -243,7 +243,7 @@ def test_every_ahk_binding_lands_on_a_handler():
 
 def test_every_handler_is_reachable_from_some_surface():
     """Surface 5 → 1/2/3/4: a handler no phrase, key, loop translation or
-    player surface can reach is dead code wearing a command id."""
+    Funestra surface can reach is dead code wearing a command id."""
     targets, _ = _voice_resolutions()
     reachable = (
         targets
@@ -288,7 +288,7 @@ def test_the_reference_and_the_handlers_agree():
         | _HUD_PLACE_IDS
         # The reference documents the side-agnostic and group forms as such.
         | frozenset(c for c in reference
-                    if c.startswith(("active_", *windows_bridge_dispatch_loop._PLAYER_GROUPS)))
+                    if c.startswith(("active_", *windows_bridge_dispatch_loop._FUNESTRA_GROUPS)))
     )
     ghosts = reference - real
     assert not ghosts, f"reference rows naming unhandled commands: {sorted(ghosts)}"
@@ -297,12 +297,12 @@ def test_the_reference_and_the_handlers_agree():
     assert not undocumented, f"handled commands the reference omits: {sorted(undocumented)}"
 
 
-def test_the_session_keeps_only_the_players_own_controls_in_origenerator_mode():
+def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode():
     """The routing guard runs ahead of the handler map, so what it may shadow is
-    pinned by rule: every side command about what the player plays goes to the
-    hosted app, and the session keeps only what is about the player itself --
+    pinned by rule: every side command about what the Funestra plays goes to the
+    hosted app, and the session keeps only what is about the Funestra itself --
     parking its window, and the rate it plays at.  A side command the session
-    must go on answering while the app has the player has to be argued here."""
+    must go on answering while the app has the Funestra has to be argued here."""
     side_commands = {command for command in command_dispatch._HANDLERS
                      if command.startswith(("portrait_", "landscape_"))}
     kept = {command for command in side_commands

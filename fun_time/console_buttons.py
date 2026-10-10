@@ -1,26 +1,24 @@
 """The buttons Fun Time puts on the main console, row by row, declared in
-:class:`player_core.hud_button.Button` off what the room knows and what the
-main player published about its video.  Each button's command is a dashboard
+:class:`funestra_core.hud_button.Button` off what the room knows and what the
+Main Funestra published about its video.  Each button's command is a dashboard
 command verbatim: a press goes onto the command file, and the dispatcher
-routes it to the player the mode says owns it.
+routes it to the Funestra the mode says owns it.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from player_core.console import OSR2_DRIVING, ROW_LABEL_W, VALUE_W, aim_row
-from player_core.hud_button import Button
-from player_core.hud_marks import BROKER_ICON, FMODE_ICON, shared_mark
-from player_core.modes import LengthMode, LoopState, MainMode
+from funestra_core.console import OSR2_DRIVING, ROW_LABEL_W, VALUE_W, aim_row
+from funestra_core.hud_button import Button
+from funestra_core.hud_marks import BROKER_ICON, FMODE_ICON, shared_mark
+from funestra_core.modes import LengthMode, LoopState, MainMode
 from shared_ui.spacing import BUTTON_WORD_W
 
 from .content import genau_flick_noun
 from .crown import CROWN_ICON, Crown
-from .mode_plan import main_player_displays
-from .osr2_section import take_osr2_button
-from .player_buttons import (
+from .funestra_buttons import (
     LOCK_FACE,
-    MAIN_PLAYER_NOUN,
+    MAIN_FUNESTRA_NOUN,
     NEXT_FACE,
     PREV_FACE,
     TRASH_ICON,
@@ -32,14 +30,16 @@ from .player_buttons import (
     transport,
     versions_button,
 )
-from .players import Player
+from .mode_plan import kino_shows
+from .osr2_section import take_osr2_button
+from .room_funestras import RoomFunestra
 
 
 @dataclass(frozen=True)
 class MainSlot:
     """What the console's buttons are lit and named from: the room's own state
-    of the main slot, then what the main player published about its video,
-    each defaulting to "cannot" until the player says otherwise."""
+    of the main slot, then what the Main Funestra published about its video,
+    each defaulting to "cannot" until the Funestra says otherwise."""
 
     main_mode: MainMode = MainMode.KINO
     locked: bool = True
@@ -61,7 +61,7 @@ class MainSlot:
     favorites_filter: bool | None = None
     enhanced_filter: bool | None = None
     osr2_control: str = OSR2_DRIVING
-    # Whether the player is already at every default, which leaves its reset
+    # Whether the Funestra is already at every default, which leaves its reset
     # nothing to put back -- the button is drawn faded and takes no press.
     nothing_to_reset: bool = False
     flipped: bool = False
@@ -105,18 +105,18 @@ def console_rows(slot: MainSlot, *, in_vr: bool = False) -> tuple[tuple[Button, 
                 Button(Crown.MAIN.command, CROWN_ICON,
                        "Crowned — a portrait video here takes most of the secondary "
                        "monitor" if slot.crowned else
-                       "Give this player the crown — its portrait videos take "
+                       "Give this Funestra the crown — its portrait videos take "
                        "most of the secondary monitor", lit=slot.crowned),
             )),
             *_file_controls(slot),
         ),
         _transport_row(slot),
-        _playback_speed_row() if main_player_displays(slot.main_mode) else _flick_seconds_row(),
+        _playback_speed_row() if kino_shows(slot.main_mode) else _flick_seconds_row(),
     )
 
 
 def osr2_rows(slot: MainSlot) -> tuple[tuple[Button, ...], ...]:
-    return (_control_row(slot) if slot.has_osr2 else (take_osr2_button(Player.MAIN),),)
+    return (_control_row(slot) if slot.has_osr2 else (take_osr2_button(RoomFunestra.MAIN),),)
 
 
 def osr2_controls(*, broker: bool) -> tuple[Button, ...]:
@@ -129,7 +129,7 @@ def osr2_controls(*, broker: bool) -> tuple[Button, ...]:
 
 
 def _file_controls(slot: MainSlot) -> tuple[Button, ...]:
-    if not main_player_displays(slot.main_mode):
+    if not kino_shows(slot.main_mode):
         return (Button("browse_library", _GLYPHS["open"], f"Browse the {genau_flick_noun().many}",
                        group_break=True),)
     return (
@@ -212,11 +212,11 @@ def _clip_scene_button(slot: MainSlot) -> Button:
 
 
 def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
-    if main_player_displays(slot.main_mode):
+    if kino_shows(slot.main_mode):
         remembered = bool(slot.compilation)
         return (
-            *transport("main", noun=MAIN_PLAYER_NOUN, longer_than_a_step=slot.longer_than_a_step),
-            lock_button("main", locked=slot.locked, noun=MAIN_PLAYER_NOUN),
+            *transport("main", noun=MAIN_FUNESTRA_NOUN, longer_than_a_step=slot.longer_than_a_step),
+            lock_button("main", locked=slot.locked, noun=MAIN_FUNESTRA_NOUN),
             Button("main_fmode", FMODE_ICON,
                    "F-Mode — play only the videos that have a funscript",
                    lit=slot.scripted_filter, favorite=True),
@@ -226,7 +226,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
             *_length_buttons(slot, remembered=remembered),
             _compilation_button(slot),
             _clip_scene_button(slot),
-            versions_button("main_player_cycle_version", noun=MAIN_PLAYER_NOUN,
+            versions_button("main_player_cycle_version", noun=MAIN_FUNESTRA_NOUN,
                             has_other_versions=slot.has_other_versions),
         )
     flick = genau_flick_noun()
@@ -291,5 +291,5 @@ def _control_row(slot: MainSlot) -> tuple[Button, ...]:
             Button("main_player_funscript_jump", FUNSCRIPT_JUMP_ICON,
                    "Skip ahead to where this video's scripting starts up again",
                    group_break=True),
-        ) if main_player_displays(slot.main_mode) else ()),
+        ) if kino_shows(slot.main_mode) else ()),
     )

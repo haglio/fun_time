@@ -53,7 +53,7 @@ def test_a_branch_sessions_own_watch_stats_are_not_rolled_back_by_older_ones(liv
 
 
 def test_the_duration_cache_is_merged_rather_than_copied(live, branch_state):
-    """The main player rewrites the file with what it loaded plus what it probed, so a
+    """The Main Funestra rewrites the file with what it loaded plus what it probed, so a
     branch session's copy shrinks to its own view of the library.  Both files
     are partial views of one library, and the union is what either wants."""
     (branch_state / branch_seeding.DURATION_CACHE_NAME).write_text(
@@ -73,7 +73,7 @@ def test_the_duration_cache_is_merged_rather_than_copied(live, branch_state):
 
 def test_a_newer_duration_cache_still_takes_what_the_live_session_knows(live, branch_state):
     """The regression this exists for.  Copy-if-newer skipped the seed for every
-    worktree that had launched once, because the main player's own rewrite is always newer
+    worktree that had launched once, because the Main Funestra's own rewrite is always newer
     than the live session's file — so branch launches went on re-probing the
     library and taking half a minute long after the seeding landed."""
     (branch_state / branch_seeding.DURATION_CACHE_NAME).write_text(

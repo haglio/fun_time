@@ -2,8 +2,8 @@
 
 Fun Time is a Windows desktop setup that launches and coordinates:
 
-- the main player, a funscript video player for the main library (this repo's `main_player` package, launched as `python -m main_player`)
-- two satellite players, portrait and landscape (this repo's own mpv-based `satellite` package, launched as `python -m satellite`)
+- the Main Funestra, which plays the main library's funscript videos (this repo's `main_funestra` package, launched as `python -m main_funestra`)
+- two Satellite Funestras, portrait and landscape (this repo's own mpv-based `satellite` package, launched as `python -m satellite`)
 - Genau, a clip-based visualizer for OSR2 auto mode (the separate `../genau` project)
 - a Genau audio companion
 - a minimal AutoHotkey hotkey shell (window placement and command dispatch run in Python)
@@ -12,7 +12,7 @@ It uses a serial broker for the OSR2 — the separate `../broker` project — th
 
 The main stack runs in one of two modes (startup mode is **video**):
 
-- in **Kino mode**, the main player owns the main slot and plays the whole main library, with Genau's HUD as a see-through layer over it. The OSR2 goes to the video's funscript while it has action (the main player sends funscript-derived T-Code over UDP to the broker), and to the **Robot Hand** — the family's own motion generator, run from Genau's process — through the quiet stretches and for videos without a script
+- in **Kino mode**, the Main Funestra owns the main slot and plays the whole main library, with Genau's HUD as a see-through layer over it. The OSR2 goes to the video's funscript while it has action (the Main Funestra sends funscript-derived T-Code over UDP to the broker), and to the **Robot Hand** — the family's own motion generator, run from Genau's process — through the quiet stretches and for videos without a script
 - in **Genau mode** (OSR2 auto/free mode), Genau clips own the main slot and the Robot Hand drives the OSR2 outright
 
 ## Folder layout
@@ -64,7 +64,7 @@ This file now controls:
 
 - executable paths
 - media/library paths
-- the audio companion's and the VR player's network endpoints
+- the audio companion's and the headset's network endpoints
 - monitor/layout ratios used by the Python window layout
 
 Every section `fun_time/config.py` reads. The first three are required and the rest optional:
@@ -84,7 +84,7 @@ For the satellite AI libraries, Fun Time can now read either a single folder or 
 
 If the list form is used, the portrait or landscape satellite gets all listed folders joined into one rotating source set.
 
-The main player's video library folders are configured with `paths.main_player_library_dirs` (a list of one or more folders):
+The Main Funestra's video library folders are configured with `paths.main_player_library_dirs` (a list of one or more folders):
 
 Example:
 
@@ -106,15 +106,15 @@ The layout values that used to be hard-coded in AutoHotkey now live under `layou
 Monitor naming under `layout` now uses:
 
 - `primary_monitor` — the monitor that shows the landscape satellite, the dashboard, and the Random Favs Browser
-- `secondary_monitor` — the monitor that shows the portrait satellite and the shared main-player slot (the main player and Genau use the same rect)
+- `secondary_monitor` — the monitor that shows the portrait satellite and the shared main-player slot (the Main Funestra and Genau use the same rect)
 
 ## High-level architecture
 
 Serial / mode control:
 
 - the real OSR2 is on `COM4`; the **broker** — the separate `../broker` project — is the only process that talks to it. It forwards UDP T-Code to the OSR2 unconditionally and suppresses serial input while UDP flows, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/broker_mode.txt`.
-- **the main player** — this repo's `main_player` package — never opens `COM4`. It drives the OSR2 itself by sending funscript-derived T-Code to the broker over UDP (the same port Genau uses), reads commands from `state/main_player_cmd.txt`, and publishes playback status to `state/main_player_status.txt`.
-- **Genau** — the separate `../genau` project — never opens `COM4` either. It follows the broker-fed state, is the display in Genau mode and the see-through HUD layer over the main player in Kino mode, and reads clip and Robot Hand commands from `state/genau_cmd.txt`.
+- **the Main Funestra** — this repo's `main_funestra` package — never opens `COM4`. It drives the OSR2 itself by sending funscript-derived T-Code to the broker over UDP (the same port Genau uses), reads commands from `state/main_player_cmd.txt`, and publishes playback status to `state/main_player_status.txt`.
+- **Genau** — the separate `../genau` project — never opens `COM4` either. It follows the broker-fed state, is the display in Genau mode and the see-through HUD layer over the Main Funestra in Kino mode, and reads clip and Robot Hand commands from `state/genau_cmd.txt`.
 
 See those projects for the serial parsing, COM-port recovery, and playback internals.
 
@@ -124,9 +124,9 @@ The main monitor's left column stacks the **Dashboard** across its top and the *
 
 The log panel is a widget inside the dashboard window — one window, not two — so it rides the dashboard's topmost band, minimize/restore and close. It tails `state/event_log.jsonl` and shows the **stream** of everything the session logs, filtered by a verbosity dial (`DEBUG`/`INFO`/`NOTICE`/`WARNING`/`ERROR`, default `NOTICE`) and by per-window toggles across one compact row. Both settings persist in `state/log_panel_state.ini`.
 
-The brief **notices** — "Clip saved", "No other seeds", "Next seed", "Similar clip" — flash over the top-center of the player they concern (a portrait notice over the portrait satellite, a main-player notice over the main player/Genau display) and then fade. They also land in the stream, colored by level — red for an error, yellow for a warning such as a dead end, green for the favorites and the funscripts, white for everything else — so the panel is where you scroll back through them. The flash always fires regardless of the verbosity dial, which governs only the stream. Long lines in the stream **word-wrap** rather than being cut off, so the tail of a message (a video name, a phrase heard) is readable.
+The brief **notices** — "Clip saved", "No other seeds", "Next seed", "Similar clip" — flash over the top-center of the Funestra they concern (a portrait notice over the portrait satellite, a main-player notice over the Main Funestra/Genau display) and then fade. They also land in the stream, colored by level — red for an error, yellow for a warning such as a dead end, green for the favorites and the funscripts, white for everything else — so the panel is where you scroll back through them. The flash always fires regardless of the verbosity dial, which governs only the stream. Long lines in the stream **word-wrap** rather than being cut off, so the tail of a message (a video name, a phrase heard) is readable.
 
-Every recognized voice command flashes a **white confirmation** — the phrase it matched — over the player it addresses, so you can see what was heard. While OmniPause is on, a command that is heard but ignored — anything but resume, quit and retracting the OSR2 — flashes **"ignored during OmniPause: ‹the phrase›"** in yellow instead, so a paused room says why it did nothing. While nobody is wearing the headset, a command other than quit flashes **"ignored while not wearing headset: ‹the phrase›"** the same way. A command the room's mode has nothing for says which mode ignored it, in yellow: Origenerator's words in Kino mode ("ignored in Kino mode: landscape experiments"), Genau's with a video on the main player, the main player's own in Genau mode ("ignored in Genau mode: compilation"), the headset's on the monitors ("ignored outside VR: recenter"), and a satellite's said bare while the main player was the last one addressed ("ignored on the main player: weird"). A command that hits a dead end ("No other seeds", "No action metadata") flashes **yellow** instead. And when the recognizer clearly hears speech that matches no command, it flashes **"unrecognized voice command: ‹what it heard›"** in yellow — over the player the phrase named, if it named one ("landscape ‹something garbled›" reports on landscape, not the main player) — a second, unrestricted recognizer runs alongside the grammar one purely to transcribe that, so an out-of-grammar phrase surfaces as text instead of vanishing. What it heard and did not act on shows its words in the flash and in the log panel, in the headset's too, for as long as the session runs; the stream saved to `state/event_log.jsonl` lists only what kind of miss it was and how many words it heard ("unrecognized voice command (4 words)"). Each "Figuring out what you said..." ends in exactly one such line or command line, and a miss it never said it was figuring out says nothing.
+Every recognized voice command flashes a **white confirmation** — the phrase it matched — over the Funestra it addresses, so you can see what was heard. While OmniPause is on, a command that is heard but ignored — anything but resume, quit and retracting the OSR2 — flashes **"ignored during OmniPause: ‹the phrase›"** in yellow instead, so a paused room says why it did nothing. While nobody is wearing the headset, a command other than quit flashes **"ignored while not wearing headset: ‹the phrase›"** the same way. A command the room's mode has nothing for says which mode ignored it, in yellow: Origenerator's words in Kino mode ("ignored in Kino mode: landscape experiments"), Genau's with a video on the Main Funestra, the Main Funestra's own in Genau mode ("ignored in Genau mode: compilation"), the headset's on the monitors ("ignored outside VR: recenter"), and a satellite's said bare while the Main Funestra was the last one addressed ("ignored on the Main Funestra: weird"). A command that hits a dead end ("No other seeds", "No action metadata") flashes **yellow** instead. And when the recognizer clearly hears speech that matches no command, it flashes **"unrecognized voice command: ‹what it heard›"** in yellow — over the Funestra the phrase named, if it named one ("landscape ‹something garbled›" reports on landscape, not the Main Funestra) — a second, unrestricted recognizer runs alongside the grammar one purely to transcribe that, so an out-of-grammar phrase surfaces as text instead of vanishing. What it heard and did not act on shows its words in the flash and in the log panel, in the headset's too, for as long as the session runs; the stream saved to `state/event_log.jsonl` lists only what kind of miss it was and how many words it heard ("unrecognized voice command (4 words)"). Each "Figuring out what you said..." ends in exactly one such line or command line, and a miss it never said it was figuring out says nothing.
 
 Two listeners hear every command (the family's shared listener, `../voice_core`). The first proposes what was said from the whole phrase list; the second has to read the same command in the same audio before anything happens, which takes about half a second and is what keeps a cough or ordinary talk from firing a command — on recordings of ordinary talk it took false commands from about 9 in 100 utterances to about 1. It listens only to the moment the first heard the command in, not to the noise around it, and listens a second time, more closely, before it disagrees. Genau is a German word its English cannot place, so before it disagrees about Genau it listens once more in German, which takes about a second. It starts loading as a session begins to launch, so it is ready before the room appears. **"stop"** alone acts on the first listener's word, because relief must not wait. A command the first listener was not confident enough of, or the second did not agree to, flashes **"not sure enough of: ‹the phrase› (press Enter to accept)"** in yellow and does nothing until you press **Enter**, which carries out the last such command as if it had been heard for sure. Turning voice off drops it, and with nothing waiting Enter flashes "Nothing to accept". `"confirm_commands": false` under `voice_control` in the config lets every command act on the first listener's word; the second is then only asked about what the first could not settle.
 
@@ -140,7 +140,7 @@ Two listeners hear every command (the family's shared listener, `../voice_core`)
 
 - Python (currently launched via Miniconda `pythonw.exe`)
 - Python dependencies are declared in `pyproject.toml` — notably PyQt6 (dashboard), pygame-ce (audio companion), voice_core (the family's listener, which brings vosk + sounddevice; the `voice` extra adds faster-whisper for the second listener), and Pillow / numpy / opencv-python.
-- Genau runs out of the `../genau` project's venv (`paths.genau_python_exe`), launched as `python -m genau`; the main player runs out of this project's venv like the satellites, launched as `python -m main_player`, and reads its library folders and device port from the `main_player` section of the genau config file (`paths.genau_config_path`).
+- Genau runs out of the `../genau` project's venv (`paths.genau_python_exe`), launched as `python -m genau`; the Main Funestra runs out of this project's venv like the satellites, launched as `python -m main_funestra`, and reads its library folders and device port from the `main_funestra` section of the genau config file (`paths.genau_config_path`).
 
 Install the declared dependencies into the project venv before first use.
 
@@ -188,7 +188,7 @@ the real thing on purpose. See `fun_time/branch_session.py`.
 
 Genau comes out of `../genau`, and which checkout of it is a per-session
 fact: `paths.genau_project_dirs` puts directories in front of that repo's own
-install — and in front of every player's — so a branch of *genau* or of
+install — and in front of every Funestra's — so a branch of *genau* or of
 *player_core* can be judged the same way. That is per session
 and must be said per session — written into the machine's `fun_time_config.json`
 it reaches the ordinary `launch.vbs` session and every other agent's branch
@@ -242,23 +242,23 @@ This README deliberately does not repeat the key table — open the **?** popup 
 
 ### Active side (side-agnostic satellite voice)
 
-The satellite voice commands can be spoken with or without naming a side. The side word always comes first, so naming one — "portrait lock", "landscape next" — acts on that player as always. Said **bare** — "lock", "unlock", "next", "previous", "skip", "back", "weird", "wrong action", "action", "seed" — the command acts on the **active side**: whichever satellite you most recently touched, by voice *or* by keyboard. So if you were just navigating the portrait with `←`/`→`, a plain "lock" locks the portrait; switch to the landscape with `A`/`D` and "lock" now locks the landscape. The active side is remembered (persisted in the bridge's shared state) until the other side is addressed. Bare commands are voice-only — the keys stay side-specific.
+The satellite voice commands can be spoken with or without naming a side. The side word always comes first, so naming one — "portrait lock", "landscape next" — acts on that Funestra as always. Said **bare** — "lock", "unlock", "next", "previous", "skip", "back", "weird", "wrong action", "action", "seed" — the command acts on the **active side**: whichever satellite you most recently touched, by voice *or* by keyboard. So if you were just navigating the portrait with `←`/`→`, a plain "lock" locks the portrait; switch to the landscape with `A`/`D` and "lock" now locks the landscape. The active side is remembered (persisted in the bridge's shared state) until the other side is addressed. Bare commands are voice-only — the keys stay side-specific.
 
-Every player says whether it is the one those bare words would reach: the **dot** at the head of its HUD is green on the active player and gray on the others. It is always drawn — an absent dot could not be told from an idle one — so exactly one dot is lit at any moment. Each satellite reads its own off the panel the dispatch loop publishes; the main player is told over `SET_ACTIVE`, appended to its command file so the message cannot displace a queued verb.
+Every Funestra says whether it is the one those bare words would reach: the **dot** at the head of its HUD is green on the active Funestra and gray on the others. It is always drawn — an absent dot could not be told from an idle one — so exactly one dot is lit at any moment. Each satellite reads its own off the panel the dispatch loop publishes; the Main Funestra is told over `SET_ACTIVE`, appended to its command file so the message cannot displace a queued verb.
 
 ### Playback speed
 
-Every player has its own playback speed: the main player's row on its console, and the same **Playback speed** row on each satellite's HUD — slower, the rate, faster. When the main player's speed changes, both satellites are set to the same speed; a satellite you set on its own keeps its speed until the main player's changes again. Spoken, a playback speed phrase — "playback speed up", "max speed", "half speed", "reset speed", "speed one point five ex" — reaches the player you last addressed, and "main", "portrait", "landscape" or "both" before or after it aims it at that player. The bare "speed up" and "slow down" still follow whichever engine is driving the OSR2. A satellite answers `SPEED_UP`, `SPEED_DOWN` and `SET_SPEED min|max|<rate>` on its command file, the same three the main player does.
+Every Funestra has its own playback speed: the Main Funestra's row on its console, and the same **Playback speed** row on each satellite's HUD — slower, the rate, faster. When the Main Funestra's speed changes, both satellites are set to the same speed; a satellite you set on its own keeps its speed until the Main Funestra's changes again. Spoken, a playback speed phrase — "playback speed up", "max speed", "half speed", "reset speed", "speed one point five ex" — reaches the Funestra you last addressed, and "main", "portrait", "landscape" or "both" before or after it aims it at that Funestra. The bare "speed up" and "slow down" still follow whichever engine is driving the OSR2. A satellite answers `SPEED_UP`, `SPEED_DOWN` and `SET_SPEED min|max|<rate>` on its command file, the same three the Main Funestra does.
 
 ### Modes
 
-The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Kino** (`H`) and **Genau** (`G`). `\` offsets the Robot Hand's motion by a quarter cycle in either. `N` opens the **library browser** (see below); the chosen video plays in the main player, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
+The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Kino** (`H`) and **Genau** (`G`). `\` offsets the Robot Hand's motion by a quarter cycle in either. `N` opens the **library browser** (see below); the chosen video plays in the Main Funestra, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
 
-The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive the main player in every mode (in Genau mode the paused main player still navigates in the background). A ten-second step has nothing to step through in a video of 10 seconds or shorter, so there every player's HUD draws its back and forward 10s buttons faded, and a key or a spoken "skip" or "back" does nothing but say so over that player. The `;` clip-save key reads the current video/time from the main player's status file in Kino mode.
+The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive the Main Funestra in every mode (in Genau mode the paused Main Funestra still navigates in the background). A ten-second step has nothing to step through in a video of 10 seconds or shorter, so there every Funestra's HUD draws its back and forward 10s buttons faded, and a key or a spoken "skip" or "back" does nothing but say so over that Funestra. The `;` clip-save key reads the current video/time from the Main Funestra's status file in Kino mode.
 
-Spoken, "kino mode" puts both sides on their video players at once; "main kino mode" and "satellite kino mode" do one side, and "genau mode" or "origenerator mode" puts a side back. Genau is heard said either way, the German word or "go now"; "origenerator" is in no dictionary, so the recognizer listens for "aura generator mode".
+Spoken, "kino mode" puts both sides in Kino mode at once; "main kino mode" and "satellite kino mode" do one side, and "genau mode" or "origenerator mode" puts a side back. Genau is heard said either way, the German word or "go now"; "origenerator" is in no dictionary, so the recognizer listens for "aura generator mode".
 
-The satellite side has a mode axis of its own, orthogonal to the two above: **Kino mode** (the session as ever — the Random Favs Browser plus the two satellite players) and **Origenerator mode**, toggled with `X` or spoken as "origenerator mode" / "satellite kino mode". With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag: its main window sits over the RFB's rect (parked while in Kino mode), and the slideshows it opens play on the portrait or landscape satellite player by each subject's orientation — the session hands both players to the app for the mode — so up to two shows can run while the Origenerator window itself stays usable. Entering the mode opens both players on the whole Origenerator library of their own shape, shuffled — the same base state each satellite player holds in Kino mode, and what a side's reset button goes back to. Each player then wears the app's own map and buttons under the session's mode row, and everything said to a side — its buttons, the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`), its spoken commands — reaches the hosted app for as long as the mode lasts; only minimize and the playback speed stay the player's own. Leaving the mode gives each player back its own list, on the clip it was playing when the mode began. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface, and a standalone one that the session never took over stands off the device too — the session leaves its pid in `state/fun_time_session.txt` for as long as it runs, in that checkout and in the primary checkout a worktree belongs to, and a window that reads a live one there lets go of the OSR2 and keeps its switch off. A preview of an Origenerator branch reads the primary's as well as its own, so one open beside Fun Time lets go too. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry. Fun Time's hotkeys stay live while Origenerator's window has the keyboard, and clicking into one of its text fields enters OmniPause, which suspends them, so what you type goes into the field.
+The satellite side has a mode axis of its own, orthogonal to the two above: **Kino mode** (the session as ever — the Random Favs Browser plus the two Satellite Funestras) and **Origenerator mode**, toggled with `X` or spoken as "origenerator mode" / "satellite kino mode". With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag: its main window sits over the RFB's rect (parked while in Kino mode), and the slideshows it opens play on the portrait or landscape Satellite Funestra by each subject's orientation — the session hands both Funestras to the app for the mode — so up to two shows can run while the Origenerator window itself stays usable. Entering the mode opens both Funestras on the whole Origenerator library of their own shape, shuffled — the same base state each Satellite Funestra holds in Kino mode, and what a side's reset button goes back to. Each Funestra then wears the app's own map and buttons under the session's mode row, and everything said to a side — its buttons, the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`), its spoken commands — reaches the hosted app for as long as the mode lasts; only minimize and the playback speed stay the Funestra's own. Leaving the mode gives each Funestra back its own list, on the clip it was playing when the mode began. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface, and a standalone one that the session never took over stands off the device too — the session leaves its pid in `state/fun_time_session.txt` for as long as it runs, in that checkout and in the primary checkout a worktree belongs to, and a window that reads a live one there lets go of the OSR2 and keeps its switch off. A preview of an Origenerator branch reads the primary's as well as its own, so one open beside Fun Time lets go too. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry. Fun Time's hotkeys stay live while Origenerator's window has the keyboard, and clicking into one of its text fields enters OmniPause, which suspends them, so what you type goes into the field.
 
 ### The library browser
 
@@ -273,7 +273,7 @@ So `N` opens Fun Time's own browser instead of a file dialog. It shows one tile
 per **video** rather than per file — every rendition of one video collapsed into
 a single *handle* — with a still off each, named after the video, and no stage
 folders anywhere. Arrow keys move the selection, typing jumps to a title,
-and Enter or a double-click plays it in the main player; the window's close button abandons
+and Enter or a double-click plays it in the Main Funestra; the window's close button abandons
 the browse. The global hotkeys are suspended for its duration so those keys
 reach it at all — they consume the press, and the arrows and every letter are
 already commands. Escape is the exception: it belongs to OmniPause and stays
@@ -300,10 +300,10 @@ since no title bar is drawn around it. A headset session has two kinds of
 video, so the browse opens on two folders: `VR`, the headset's own library
 (`vr.library_dirs`), and `2D`, the folders the desktop walks; a session with
 videos of only one kind opens straight on that kind's folders. A video picked
-plays on the main player and puts the browse away. It opens on the folder of
+plays on the Main Funestra and puts the browse away. It opens on the folder of
 the video that is playing, with that video chosen, and no hotkey is suspended
 while it is up. The browser starts, and reads the library, when the headset's
-player does, so a browse opened in the first moments of a session says it is
+Funestra does, so a browse opened in the first moments of a session says it is
 still reading.
 
 The grid is one you **walk**. It opens on the library's own folders — one tile
@@ -335,7 +335,7 @@ The pipeline stages are never steps. Opening the last folder lays out **every**
 video under it at once, however many processing folders they are spread across
 on disk, because how far a video got through the pipeline is an implementation
 detail Fun Time exists to hide — and its other stages are reachable from the
-player anyway, as versions. Within a folder it is alphabetical, and the folders
+Funestra anyway, as versions. Within a folder it is alphabetical, and the folders
 rank by how much of the library each holds, biggest first.
 
 Videos **carved out of a compilation** become a folder of their own beside their
@@ -358,7 +358,7 @@ alone, the cuts take a `· clips` name instead.
 The families come from Evolver's metadata sidecar (`version.group`), which is
 the authority on "same video, other version" — the filenames alone cannot say
 so. A video with no record stands alone as its own handle. Picking one plays its
-largest rendition, the same one the main player's own version cycling treats
+largest rendition, the same one the Main Funestra's own version cycling treats
 as canonical, so `V` walks the rest of the family from there. That largest
 rendition also decides the section: the odd family that records both an excerpt
 and the whole scene sits with the whole videos, because that is what it plays.
@@ -388,21 +388,21 @@ their stills are warmed at startup with the library's.
 
 ### Loop recording (Kino mode)
 
-Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the loop to funscript base positions and start looping (amber loop icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows the main player's play/pause/record/loop state. Voice equivalents: "record", "loop", "cancel".
+Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the loop to funscript base positions and start looping (amber loop icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows the Main Funestra's play/pause/record/loop state. Voice equivalents: "record", "loop", "cancel".
 
 ### Sound
 
-One level covers the whole main slot, because it has two audio sinks — the main player's video and the Genau audio companion — and which is audible depends on the mode. The bridge holds the level and the mute; the keys and voice step it, and the main player draws a **volume control** at the right-hand end of the row above its timeline: click the speaker to mute, click or drag the slider to set the level.
+One level covers the whole main slot, because it has two audio sinks — the Main Funestra's video and the Genau audio companion — and which is audible depends on the mode. The bridge holds the level and the mute; the keys and voice step it, and the Main Funestra draws a **volume control** at the right-hand end of the row above its timeline: click the speaker to mute, click or drag the slider to set the level.
 
-A press there posts to the dashboard command file (`audio_set_volume|<0-100>`, `audio_mute`, `audio_unmute`) and the bridge answers on the main player's own channel, so the slider is never the authority — it shows what it asked for straight away, and the answer confirms or corrects it a tick later.
+A press there posts to the dashboard command file (`audio_set_volume|<0-100>`, `audio_mute`, `audio_unmute`) and the bridge answers on the Main Funestra's own channel, so the slider is never the authority — it shows what it asked for straight away, and the answer confirms or corrects it a tick later.
 
-The mute reaches the two sinks differently, which is why `SET_VOLUME` carries two numbers. The audio companion only has to be quiet, so it gets a plain zero. The main player also has to *draw* the level, and a zero cannot say whether you are muted or merely turned all the way down, nor what unmuting should return to — so it gets `SET_VOLUME <level> <muted>` and works the audible loudness out itself. That is why a muted control still shows its fill.
+The mute reaches the two sinks differently, which is why `SET_VOLUME` carries two numbers. The audio companion only has to be quiet, so it gets a plain zero. The Main Funestra also has to *draw* the level, and a zero cannot say whether you are muted or merely turned all the way down, nor what unmuting should return to — so it gets `SET_VOLUME <level> <muted>` and works the audible loudness out itself. That is why a muted control still shows its fill.
 
 ### Max intensity
 
 The OSR2 line carries a **Max intensity** slider, a blue bar with its number beside it: how hard the OSR2 may work, whoever is driving it. All the way up puts no limit on it. Lower, it pushes the Robot Hand's Amp and Speed down together, and its Center toward home, far enough that the motion fits, and they stay where it pushed them when it goes back up. Amp and Speed then stop at the most it allows, one against the other: the stretch of each bar they can no longer reach is etched in red, and a drag stops where the etching starts. A funscript's motion gets shallower toward home instead, the way it already does when a video plays faster than the OSR2 can follow. All the way down, nothing moves. The slider is dimmed while the OSR2 runs its own auto mode, which nothing sent from here reaches.
 
-A press posts `max_intensity_<0-100>` to the dashboard command file; the bridge keeps the level with the rest of the session, tells Genau and the main player `SET_MAX_INTENSITY <0-100>`, and seeds it again when the session comes back.
+A press posts `max_intensity_<0-100>` to the dashboard command file; the bridge keeps the level with the rest of the session, tells Genau and the Main Funestra `SET_MAX_INTENSITY <0-100>`, and seeds it again when the session comes back.
 
 ### OmniPause
 
@@ -417,9 +417,9 @@ A press posts `max_intensity_<0-100>` to the dashboard command file; the bridge 
 
 ### The satellites' scrubber and volume chip
 
-Each satellite draws the same two controls the main player does along the lower edge of its video — the scrubber and the volume chip — and, like the main player's, both answer a press. Clicking anywhere on the bar seeks the clip on screen, which is what a longer video in a satellite needed and had no way to ask for; the playlist does not move, so the prefetched next clip is still there when it plays out. On the chip, the speaker mutes and unmutes and the slider sets the level, dragging as well as clicking.
+Each satellite draws the same two controls the Main Funestra does along the lower edge of its video — the scrubber and the volume chip — and, like the Main Funestra's, both answer a press. Clicking anywhere on the bar seeks the clip on screen, which is what a longer video in a satellite needed and had no way to ask for; the playlist does not move, so the prefetched next clip is still there when it plays out. On the chip, the speaker mutes and unmutes and the slider sets the level, dragging as well as clicking.
 
-A satellite **opens muted** whatever its clips carry — the room's sound is the main player's, and two more voices under it would be noise — so the speaker is how you hear one, and the fill under the mute is the level unmuting comes back to. The level is that player's own: it goes straight to its mpv rather than through Fun Time, which arbitrates only the main slot's two sinks. The hidden-desktop integration runs stay permanently silent (`FUN_TIME_MUTE_AUDIO`), their chips read-only indicators, so an unattended run beside a live session can never be heard.
+A satellite **opens muted** whatever its clips carry — the room's sound is the Main Funestra's, and two more voices under it would be noise — so the speaker is how you hear one, and the fill under the mute is the level unmuting comes back to. The level is that Funestra's own: it goes straight to its mpv rather than through Fun Time, which arbitrates only the main slot's two sinks. The hidden-desktop integration runs stay permanently silent (`FUN_TIME_MUTE_AUDIO`), their chips read-only indicators, so an unattended run beside a live session can never be heard.
 
 A press on the video itself still does nothing: a satellite's paused state belongs to the flag file under OmniPause, so a pause toggled in the window would be gone by the next frame.
 
@@ -427,47 +427,47 @@ A press on the video itself still does nothing: a satellite's paused state belon
 
 Minimizing the **dashboard** minimizes the whole room with it (`omniminimize`), and restoring it brings back exactly those windows (`omnirestore`) — one gesture for the session as a whole.
 
-For one player on its own, every player's HUD carries a **minimize bar**: last in each satellite's control band, and beside the mode buttons on the main console (the row that is the same in every mode, so it does not move as you flip). Every one of these windows is borderless — the video fills its slot, so none has a title bar to carry a minimize button — and this is the only affordance that parks one. The main console's button parks the Main Player's window, which Kino and Genau both run on. In the headset there is no minimize bar at all: its players are screens in the scene rather than windows, so there is nothing for one to park.
+For one Funestra on its own, every Funestra's HUD carries a **minimize bar**: last in each satellite's control band, and beside the mode buttons on the main console (the row that is the same in every mode, so it does not move as you flip). Every one of these windows is borderless — the video fills its slot, so none has a title bar to carry a minimize button — and this is the only affordance that parks one. The main console's button parks the Main Funestra's window, which Kino and Genau both run on. In the headset there is no minimize bar at all: its Funestras are screens in the scene rather than windows, so there is nothing for one to park.
 
-The player keeps running under it — its lock, loop and playlist are untouched, and the press does not even move the active side, since a player you have just put away should not be the one a bare "lock" reaches. Three things bring it back: its own **taskbar button** (the panel went down with the window, so there is nothing left to press), a dashboard minimize + restore, and **leaving OmniPause** — resuming is the room coming back, so every window a minimize button parked returns to its slot, in its band, before the re-stack and the focus land.
+The Funestra keeps running under it — its lock, loop and playlist are untouched, and the press does not even move the active side, since a Funestra you have just put away should not be the one a bare "lock" reaches. Three things bring it back: its own **taskbar button** (the panel went down with the window, so there is nothing left to press), a dashboard minimize + restore, and **leaving OmniPause** — resuming is the room coming back, so every window a minimize button parked returns to its slot, in its band, before the re-stack and the focus land.
 
 ### Closing one window closes the session
 
-There is no window of a session you can close on its own. Every player answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, under the closing cover, exactly like the dashboard's Quit button, `Ctrl+Alt+Q` or a spoken "quit".
+There is no window of a session you can close on its own. Every Funestra answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, under the closing cover, exactly like the dashboard's Quit button, `Ctrl+Alt+Q` or a spoken "quit".
 
-However a session ends — any of those, or a crossing into or out of the headset — the room stops before the closing cover goes up: every player pauses, the Robot Hand stops, and the OSR2 parks, the way entering OmniPause parks it, or stays at the far end if Relief Omnipause or Retract had sent it there. From then on nothing said or pressed reaches the room; Esc on the cover still calls the quit off.
+However a session ends — any of those, or a crossing into or out of the headset — the room stops before the closing cover goes up: every Funestra pauses, the Robot Hand stops, and the OSR2 parks, the way entering OmniPause parks it, or stays at the far end if Relief Omnipause or Retract had sent it there. From then on nothing said or pressed reaches the room; Esc on the cover still calls the quit off.
 
-The alternative was worse than it sounds: a player that closed itself left the sequencer's layout with a gap nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the players out one press at a time while the dashboard and the audio companion carried on. Launched by hand, outside a session, a satellite or the main player still closes on its own close, because then that is the whole application; Genau runs only inside a session. See `player_core.session_quit`.
+The alternative was worse than it sounds: a Funestra that closed itself left the sequencer's layout with a gap nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the Funestras out one press at a time while the dashboard and the audio companion carried on. Launched by hand, outside a session, a satellite or the Main Funestra still closes on its own close, because then that is the whole application; Genau runs only inside a session. See `funestra_core.session_quit`.
 
 ### F-Mode
 
-F-Mode is **per player** — the main player, portrait and landscape each have their own — and setting one rebuilds that player's playlist immediately, rather than waiting for the next advance, then sends it `RELOAD_PLAYLIST`. A player that was not named is not rebuilt at all, so narrowing one side never reshuffles the other's queue. What it narrows to differs by player:
+F-Mode is **per Funestra** — the Main Funestra, portrait and landscape each have their own — and setting one rebuilds that Funestra's playlist immediately, rather than waiting for the next advance, then sends it `RELOAD_PLAYLIST`. A Funestra that was not named is not rebuilt at all, so narrowing one side never reshuffles the other's queue. What it narrows to differs by Funestra:
 
-- the main playlist (the main player) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
+- the main playlist (the Main Funestra) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
 - each satellite plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
 
-Every player carries its own F button in the first row of icons on its own HUD (the satellites' control band, the main console's transport row), with that player's reset button just past it. The dashboard's F button, the `F` key and the spoken "all f mode" reach all three at once — they turn F-Mode **on** unless every player is already in it, so the whole-room gesture can never leave half the room narrowed. In Origenerator mode the portrait and landscape players' part of it is each slideshow's own F-Mode switch, and the dashboard's F button lights off those. A bare spoken "f mode" reaches the player last addressed, and naming a player narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "both f mode off" — either word order, and `both` means the two satellites. A satellite also takes its side's "favorites" — "portrait favorites", "landscape favorites" — as its F-Mode, the word Origenerator's shows answer with their own F-Mode switch in Origenerator mode.
+Every Funestra carries its own F button in the first row of icons on its own HUD (the satellites' control band, the main console's transport row), with that Funestra's reset button just past it. The dashboard's F button, the `F` key and the spoken "all f mode" reach all three at once — they turn F-Mode **on** unless every Funestra is already in it, so the whole-room gesture can never leave half the room narrowed. In Origenerator mode the portrait and Landscape Funestras' part of it is each slideshow's own F-Mode switch, and the dashboard's F button lights off those. A bare spoken "f mode" reaches the Funestra last addressed, and naming a Funestra narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "both f mode off" — either word order, and `both` means the two satellites. A satellite also takes its side's "favorites" — "portrait favorites", "landscape favorites" — as its F-Mode, the word Origenerator's shows answer with their own F-Mode switch in Origenerator mode.
 
-`build_all_playlists` writes all three playlist files at startup (each player's F-Mode off, which is what a session with nothing to resume opens in); `apply_fmode` rebuilds the named players after that.
+`build_all_playlists` writes all three playlist files at startup (each Funestra's F-Mode off, which is what a session with nothing to resume opens in); `apply_fmode` rebuilds the named Funestras after that.
 
-Because the narrowing is invisible in the playlist itself, every HUD says when it is on. Each satellite's status line carries `F-Mode` between the browse order and the act filter (`fun_time/lock_hud.py`), and the main player's mode HUD carries it beside the length mode or compilation — the main player is told over `SET_F_MODE`, since a playlist of scripted videos looks like any other. Each HUD's F button lights green off the same per-player flag, published with the rest of that player's panel.
+Because the narrowing is invisible in the playlist itself, every HUD says when it is on. Each satellite's status line carries `F-Mode` between the browse order and the act filter (`fun_time/lock_hud.py`), and the Main Funestra's mode HUD carries it beside the length mode or compilation — the Main Funestra is told over `SET_F_MODE`, since a playlist of scripted videos looks like any other. Each HUD's F button lights green off the same per-player flag, published with the rest of that Funestra's panel.
 
 F-Mode is also one of the things a **reset** drops — see below.
 
 ### Reset
 
-"Reset" means the same thing on every player: put it back to its defaults, and it is a button on that player's own HUD (next to F-Mode in each satellite's control band and in the main console's transport row) as well as a spoken word. What the defaults cover differs by player, because what each player has does:
+"Reset" means the same thing on every Funestra: put it back to its defaults, and it is a button on that Funestra's own HUD (next to F-Mode in each satellite's control band and in the main console's transport row) as well as a spoken word. What the defaults cover differs by Funestra, because what each Funestra has does:
 
-- a satellite (`portrait_reset` / `landscape_reset` / `both reset`) releases its lock, clears its act filter, drops F-Mode, ends any group loop with the widened seed row and frozen map that rode on it, returns the browse to shuffled and starts from the top of a freshly built playlist, and puts its playback speed back to 1×. A player whose speed is the only thing off keeps its browse and the video on screen, as the main player does. `no filter` is the narrow counterpart — it drops the act filter and leaves the rest standing
-- the main player (`main_reset`, "main reset" / "reset main") drops F-Mode and the headset's VR-only/flat-only filter, returns the browse to shuffled and starts from the top of a freshly built playlist; on the desktop it also returns its length mode to mixed (which leaves any compilation with it), cancels any A/B loop, unlocks it and puts its playback speed back to 1×. The headset's main player has no length modes or A/B loop, so there the lock and the speed are what it puts back
+- a satellite (`portrait_reset` / `landscape_reset` / `both reset`) releases its lock, clears its act filter, drops F-Mode, ends any group loop with the widened seed row and frozen map that rode on it, returns the browse to shuffled and starts from the top of a freshly built playlist, and puts its playback speed back to 1×. A Funestra whose speed is the only thing off keeps its browse and the video on screen, as the Main Funestra does. `no filter` is the narrow counterpart — it drops the act filter and leaves the rest standing
+- the Main Funestra (`main_reset`, "main reset" / "reset main") drops F-Mode and the headset's VR-only/flat-only filter, returns the browse to shuffled and starts from the top of a freshly built playlist; on the desktop it also returns its length mode to mixed (which leaves any compilation with it), cancels any A/B loop, unlocks it and puts its playback speed back to 1×. The headset's Main Funestra has no length modes or A/B loop, so there the lock and the speed are what it puts back
 
-**A reset does nothing to a player that is already in one.** Every rebuild after it reshuffles and lands on the new list's first entry, so a press with nothing to put back was the quickest way to keep changing what was playing — press it three times and see three videos. A satellite is skipped whole when its side state is already the default one; the main player's playlist is rebuilt only when F-Mode, Latest or the headset's shape filter was narrowing it, and the main player ignores being told to go somewhere it already is.
+**A reset does nothing to a Funestra that is already in one.** Every rebuild after it reshuffles and lands on the new list's first entry, so a press with nothing to put back was the quickest way to keep changing what was playing — press it three times and see three videos. A satellite is skipped whole when its side state is already the default one; the Main Funestra's playlist is rebuilt only when F-Mode, Latest or the headset's shape filter was narrowing it, and the Main Funestra ignores being told to go somewhere it already is.
 
-Bare "reset" reaches whichever player was last addressed, the main player included.
+Bare "reset" reaches whichever Funestra was last addressed, the Main Funestra included.
 
-**A reset with nothing to put back is drawn faded, and takes no press.** The same answer that skips the dispatch rides out to the surfaces that draw the button: the main console's reset, each satellite HUD's, and the dashboards' Reset All go dim while every player they reach is already at its defaults. The players draw that from the button's own dim flag, which fades the mark, leaves it unlit under the pointer and posts nothing. Reset All stays live while a show is hosted — the session cannot see what the show is showing, so it never claims there is nothing to put back.
+**A reset with nothing to put back is drawn faded, and takes no press.** The same answer that skips the dispatch rides out to the surfaces that draw the button: the main console's reset, each satellite HUD's, and the dashboards' Reset All go dim while every Funestra they reach is already at its defaults. The Funestras draw that from the button's own dim flag, which fades the mark, leaves it unlit under the pointer and posts nothing. Reset All stays live while a show is hosted — the session cannot see what the show is showing, so it never claims there is nothing to put back.
 
-**Reset All** resets every player at once: it is the dashboard's button beside F-Mode, on the desktop and in the headset alike, and the spoken "reset all" / "all reset". It posts `all_reset`, which the dispatch loop expands the way it expands a `both_*` command — into `main_reset`, `portrait_reset` and `landscape_reset`, each handled exactly as if it had been pressed on its own player.
+**Reset All** resets every Funestra at once: it is the dashboard's button beside F-Mode, on the desktop and in the headset alike, and the spoken "reset all" / "all reset". It posts `all_reset`, which the dispatch loop expands the way it expands a `both_*` command — into `main_reset`, `portrait_reset` and `landscape_reset`, each handled exactly as if it had been pressed on its own Funestra.
 
 ### Cycle action & cycle seed (satellites)
 
@@ -480,7 +480,7 @@ AI videos under the regen media root carry metadata sidecars (see `regen.media_r
 Two command pairs ride on those groups, spoken rather than key-bound ("portrait action", "portrait seed", "landscape action", "landscape seed"):
 
 - **Cycle action** switches the current video to the next action of its group, in a fixed order so repeating it tours every act. The log panel names the action that came up. If the sibling is not in the playlist (grouped builds keep one slot per group — see below), it is swapped in place of the current entry.
-- **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries. When no exact sister exists, it widens the net to the loose seed family (same scene, render settings freed) so a config that differs only in a render setting still surfaces instead of dead-ending on "No other seeds". Every hit narrates itself over the player and in the log panel — **"Next seed"** for an exact same-config sister, **"Similar clip"** for a widened near-match — so you can see at a glance which one fired (and thus watch the widening happen: say "seed" across clips and wait for a "Similar clip").
+- **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries. When no exact sister exists, it widens the net to the loose seed family (same scene, render settings freed) so a config that differs only in a render setting still surfaces instead of dead-ending on "No other seeds". Every hit narrates itself over the Funestra and in the log panel — **"Next seed"** for an exact same-config sister, **"Similar clip"** for a widened near-match — so you can see at a glance which one fired (and thus watch the widening happen: say "seed" across clips and wait for a "Similar clip").
 
 Unlike prev/next, cycling does **not** release an active lock: it means "show me this differently", so the lock's repeat-one simply carries over to the sibling.
 
@@ -532,7 +532,7 @@ Written by the broker (the `../broker` project).
 
 Values:
 
-- `0` = Genau takeover not active (the main player owns playback)
+- `0` = Genau takeover not active (the Main Funestra owns playback)
 - `1` = Genau takeover active
 
 The audio companion and the Python dispatch loop both read this file as the authoritative source of whether Genau takeover is actually active.
@@ -564,14 +564,14 @@ Genau (the `../genau` project) consumes and clears this file.
 
 ### `main_player_cmd.txt`
 
-Written by the Python dispatch loop when the main player control commands are dispatched; the main player consumes and clears it.
+Written by the Python dispatch loop when the Main Funestra control commands are dispatched; the Main Funestra consumes and clears it.
 
-Commands (the full set `main_player/controls.py` answers to). The verbs every player in the family shares — stepping, the hold, `PLAY_FILE`, `RELOAD_PLAYLIST`, the sound, the rate, the display, `QUIT` — are spelled once in `player_core.player_verbs` (see "The player contract" in `../player_core`'s README) and the satellites answer the part of that set that is about the list and the clip: `NEXT`, `PREV`, `SEEK_FWD`, `SEEK_BACK`, `LOCK_ON`, `LOCK_OFF`, `TRASH`, `PLAY_FILE`, `RELOAD_PLAYLIST`, `QUIT`, and `NEXT_VERSION` / `PREV_VERSION`, each carrying the clip's renditions as `path|path` so the player steps from the file it has up and puts the one it lands on in the clip's own place in the list. The main player's own verbs are spelled in its registry:
+Commands (the full set `main_funestra/controls.py` answers to). The verbs every Funestra in the family shares — stepping, the hold, `PLAY_FILE`, `RELOAD_PLAYLIST`, the sound, the rate, the display, `QUIT` — are spelled once in `funestra_core.funestra_verbs` (see "The Funestra contract" in `../player_core`'s README) and the satellites answer the part of that set that is about the list and the clip: `NEXT`, `PREV`, `SEEK_FWD`, `SEEK_BACK`, `LOCK_ON`, `LOCK_OFF`, `TRASH`, `PLAY_FILE`, `RELOAD_PLAYLIST`, `QUIT`, and `NEXT_VERSION` / `PREV_VERSION`, each carrying the clip's renditions as `path|path` so the Funestra steps from the file it has up and puts the one it lands on in the clip's own place in the list. The Main Funestra's own verbs are spelled in its registry:
 
 - `NEXT` / `PREV`
 - `SEEK_FWD` / `SEEK_BACK`
 - `SPEED_UP` / `SPEED_DOWN` / `SET_SPEED min|max|<rate>`
-- `SET_VOLUME <0-100> [muted]` — the level to *show* plus whether it is muted; the main player derives the audible loudness (see "Sound")
+- `SET_VOLUME <0-100> [muted]` — the level to *show* plus whether it is muted; the Main Funestra derives the audible loudness (see "Sound")
 - `RECORD_DOWN` / `RECORD_UP` / `RECORD_TAP`
 - `LOOP_CANCEL`
 - `CYCLE_VERSION` / `CYCLE_VERSION_BACK`
@@ -579,20 +579,20 @@ Commands (the full set `main_player/controls.py` answers to). The verbs every pl
 - `RELOAD_PLAYLIST`
 - `TOGGLE_LENGTH_MODE` / `SET_LENGTH_MODE mixed|shorts|full`
 - `PLAY_COMPILATION` / `END_COMPILATION` / `PLAY_FULL_VID` / `PLAY_CLIP_JUMP`
-- `JUMP_TO_FUNSCRIPT` / `NEXT_FUNSCRIPTED` — funscript navigation: seek past this video's quiet stretch to where its scripting starts up again, or leave for the next scripted video in the playlist, landing where its action begins. The main player alone can answer either, holding both the playlist's funscript column and the parsed script of what is playing
+- `JUMP_TO_FUNSCRIPT` / `NEXT_FUNSCRIPTED` — funscript navigation: seek past this video's quiet stretch to where its scripting starts up again, or leave for the next scripted video in the playlist, landing where its action begins. The Main Funestra alone can answer either, holding both the playlist's funscript column and the parsed script of what is playing
 - `SET_TCODE_ENABLED 0|1`
-- `SET_MAX_INTENSITY <0-100>` — how far the OSR2 may travel in a second; the main player shallows its script under it (see "Max intensity")
-- `SET_F_MODE 0|1` / `SET_ACTIVE 0|1` — state only the orchestrator holds and the main player cannot work out for itself; both drive what its HUD shows
-- `SHOW kino` / `SHOW genau` — which of Kino and Genau has the Main Player's window; the other keeps running out of sight. A mode switch sends it, and Genau's own verbs still arrive on Genau's channel
+- `SET_MAX_INTENSITY <0-100>` — how far the OSR2 may travel in a second; the Main Funestra shallows its script under it (see "Max intensity")
+- `SET_F_MODE 0|1` / `SET_ACTIVE 0|1` — state only the orchestrator holds and the Main Funestra cannot work out for itself; both drive what its HUD shows
+- `SHOW kino` / `SHOW genau` — which of Kino and Genau has the Main Funestra's window; the other keeps running out of sight. A mode switch sends it, and Genau's own verbs still arrive on Genau's channel
 - `QUIT`
 
 ### `main_player_paused.txt`
 
-Flag file — the main player's pause channel. Mode switches and OmniPause write it; the main player polls it every tick.
+Flag file — the Main Funestra's pause channel. Mode switches and OmniPause write it; the Main Funestra polls it every tick.
 
 ### `main_player_status.txt`
 
-Written by the main player: the current `video`, `position_ms`, `duration_ms`, `has_funscript`, `state`, `paused`, and `speed` (the rate the video plays at). Read by `genaumacher_save` (for the current video/time in Kino mode), by the dashboard, and by the dispatch loop, which sets both satellites to `speed` whenever it changes.
+Written by the Main Funestra: the current `video`, `position_ms`, `duration_ms`, `has_funscript`, `state`, `paused`, and `speed` (the rate the video plays at). Read by `genaumacher_save` (for the current video/time in Kino mode), by the dashboard, and by the dispatch loop, which sets both satellites to `speed` whenever it changes.
 
 ### `watch_stats.json`
 
@@ -601,21 +601,21 @@ Per-video watch counts (`completions` / `skips` / `locks`) keyed by normalized p
 ### `library_browser_pick.txt`
 
 The video the library browser picked, written as it closes and consumed by the
-dispatch loop, which turns it into the main player's `PLAY_FILE`. The browser is a separate
+dispatch loop, which turns it into the Main Funestra's `PLAY_FILE`. The browser is a separate
 process (the bridge has no Qt event loop), so this is how the pick gets back.
 Cleared before every browse, so abandoning one never replays the last pick.
 
 ### `main_player_playlist.tsv`
 
-One video per line, with a TAB plus the funscript path when one exists. Written by `build_all_playlists` at startup and by `apply_fmode` whenever the main player's F-mode changes (which also queues `RELOAD_PLAYLIST` and `SET_F_MODE` on the main player's command file). Every playlist is written and read through `player_core.playlist`, one `PlaylistItem` per line.
+One video per line, with a TAB plus the funscript path when one exists. Written by `build_all_playlists` at startup and by `apply_fmode` whenever the Main Funestra's F-mode changes (which also queues `RELOAD_PLAYLIST` and `SET_F_MODE` on the Main Funestra's command file). Every playlist is written and read through `funestra_core.playlist`, one `PlaylistItem` per line.
 
 ### `origenerator_cmd.txt`, `origenerator_paused.txt`, `origenerator_status.txt`, `origenerator_portrait_hud.json`, `origenerator_landscape_hud.json`
 
 The hosted Origenerator's channel, spoken in the same idioms as the satellites'
-(`player_core.file_channel`). The command file carries whatever is said to a
+(`funestra_core.file_channel`). The command file carries whatever is said to a
 side, exactly as it was said (`portrait_next`, `landscape_lock`,
 `portrait_fmode`, …) — the app declared those buttons, so it is what answers
-them — plus `OPEN_SHOWS` (entering the mode, which fills both players with
+them — plus `OPEN_SHOWS` (entering the mode, which fills both Funestras with
 their base state), `CLOSE_SHOWS`, `FILTER_ENHANCED` (the console's
 enhanced-only switch), `QUIT` and `RELEASE`, `PORTRAIT_SAY:<phrase>` for a
 spoken command the session heard about one side, and `GO_TO|<clip>` once Genau
@@ -623,13 +623,13 @@ has locked on a clip, which takes the gallery to that clip when the app made
 it. The paused flag freezes its shows for OmniPause. The status file says only
 that the app is up (`ready=1`), which is what opens the mode. A side the app
 has let go of is one whose panel it has published empty; the session waits for
-that, up to three seconds, before handing that player its own list back — kept
+that, up to three seconds, before handing that Funestra its own list back — kept
 meanwhile in `portrait_playlist.kept.tsv` / `landscape_playlist.kept.tsv`.
 
-The app is handed each player's own playlist, command and status files at
-launch, and publishes the panel for each player it holds to its
+The app is handed each Funestra's own playlist, command and status files at
+launch, and publishes the panel for each Funestra it holds to its
 `origenerator_<side>_hud.json`; the session puts its own mode row over that
-panel and publishes the result to the player's HUD file.
+panel and publishes the result to the Funestra's HUD file.
 
 ### `event_log.jsonl`
 
@@ -639,7 +639,7 @@ Every line any `fun_time` logger emits during a session, one JSON object per lin
 {"ts": 1752000000.5, "level": 25, "source": "portrait", "msg": "No other seeds"}
 ```
 
-`source` is the window the line is about — `main`, `portrait`, `landscape`, `dash`, or `system` for the session at large. `level` is a standard `logging` level plus **`NOTICE` (25)**, the tier for messages meant for whoever is watching the screen ("Clip saved", "Similar clip"). These used to flash as AutoHotkey tooltips under the mouse pointer; now they flash over the player they name (top-center) and land here in the stream.
+`source` is the window the line is about — `main`, `portrait`, `landscape`, `dash`, or `system` for the session at large. `level` is a standard `logging` level plus **`NOTICE` (25)**, the tier for messages meant for whoever is watching the screen ("Clip saved", "Similar clip"). These used to flash as AutoHotkey tooltips under the mouse pointer; now they flash over the Funestra they name (top-center) and land here in the stream.
 
 The file is truncated when a session starts, so it always holds exactly the current run. The log panel tails it — and so can you, or an agent debugging a session: pause, describe the symptom, and the answer is in this one file.
 
@@ -662,19 +662,19 @@ Windows serial ports are effectively single-owner, so exactly one process can ow
 With the broker:
 
 - the broker alone opens real `COM4`
-- The main player and Genau drive the OSR2 by sending T-Code to the broker over UDP; the broker forwards it and suppresses serial input while UDP flows
+- The Main Funestra and Genau drive the OSR2 by sending T-Code to the broker over UDP; the broker forwards it and suppresses serial input while UDP flows
 - Genau gets mode/timing info over localhost instead of serial
 
 (Historically, MultiFunPlayer sat on the other side of a `com0com` virtual serial pair from the broker; MFP and that pair are gone now that UDP T-Code is the only control path.)
 
-### Why Genau and the main player use local files for commands/mode
+### Why Genau and the Main Funestra use local files for commands/mode
 
 For this setup, file-based signaling turned out to be a reliable and simple way to let:
 
 - Python dispatch loop
 - broker
 - Genau
-- The main player
+- The Main Funestra
 
 coordinate mode, playback, and clip-switch commands without depending on focused windows.
 
@@ -707,7 +707,7 @@ If startup still fails, inspect:
 - `state/orchestrator.log`
 - `state/windows_bridge.log`
 
-### The OSR2 does not respond to the main player
+### The OSR2 does not respond to the Main Funestra
 
 Check:
 

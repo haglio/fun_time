@@ -1,4 +1,4 @@
-"""Integration: navigate the native satellite player through its file protocol.
+"""Integration: navigate the native Satellite Funestra through its file protocol.
 
 Drives a real, launched native satellite (this repo's ``satellite`` package) purely
 through the command/paused/status file quartet — ``append_command`` in,
@@ -21,9 +21,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from player_core.file_channel import append_command
-from player_core.player_verbs import LOCK_ON, QUIT, play_file
-from player_core.playlist import read_playlist
+from funestra_core.file_channel import append_command
+from funestra_core.funestra_verbs import LOCK_ON, QUIT, play_file
+from funestra_core.playlist import read_playlist
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
@@ -76,10 +76,10 @@ class _Satellite:
         append_command(self.cmd, verb)
 
     def log_tail(self, lines: int = 25) -> str:
-        """The end of the player's own log, for a failure message.
+        """The end of the Funestra's own log, for a failure message.
 
-        It carries mpv's warnings and errors as well as the player's own lines, so
-        a player that stopped drawing says here why it stopped — the answer is
+        It carries mpv's warnings and errors as well as the Funestra's own lines, so
+        a Funestra that stopped drawing says here why it stopped — the answer is
         never anywhere else, and the temp dir is gone by the time anyone looks.
         """
         try:
@@ -134,7 +134,7 @@ def launched(tmp_path: Path, videos: list[str], *, width: int, height: int):
             hud=hud,
             dashboard_cmd=tmp_path / "dashboard_cmd.txt"),
         placement=WindowPlacement(x=0, y=0, width=width, height=height,
-                                  title="Portrait AI Player"),
+                                  title="Portrait AI Funestra"),
         role="Portrait",
         log_file=log,
         # This checkout's siblings, as a session launches them.
@@ -197,7 +197,7 @@ def test_navigation_wraps_around(satellite):
 
 def test_play_file_switches_to_a_specific_clip(satellite):
     """A line of the playlist is a video and, where it has one, a TAB and its
-    funscript, and ``PLAY_FILE`` carries that whole line -- so what the player
+    funscript, and ``PLAY_FILE`` carries that whole line -- so what the Funestra
     then reports playing is the video half of it."""
     start = satellite.video()
     target = next(item for item in read_playlist(satellite.playlist)
@@ -219,7 +219,7 @@ def test_trash_advances_off_the_discarded_clip(satellite):
 
 def test_reload_playlist_keeps_the_current_clip(satellite):
     """A loop/filter reshape writes a new playlist that still contains the clip on
-    screen and sends RELOAD_PLAYLIST; the native player keeps that clip playing."""
+    screen and sends RELOAD_PLAYLIST; the native Funestra keeps that clip playing."""
     current = satellite.video()
     videos = [v.strip() for v in satellite.playlist.read_text(encoding="utf-8").splitlines() if v.strip()]
     # Rebuild the playlist with the current clip kept and the order changed.
@@ -243,7 +243,7 @@ def _bridge_config(satellite: _Satellite, tmp_path: Path) -> BridgeConfig:
     """
     # The state dir is where a rebuild writes the side's playlist, and the satellite
     # is already reading tmp_path/portrait_playlist.tsv — the same name — so they have
-    # to be the same directory or the rebuild would land beside the running player.
+    # to be the same directory or the rebuild would land beside the running Funestra.
     state_dir = tmp_path
     state_dir.mkdir(parents=True, exist_ok=True)
     favs = tmp_path / "favs.csv"
@@ -269,19 +269,19 @@ def _bridge_config(satellite: _Satellite, tmp_path: Path) -> BridgeConfig:
         genau_status_file=state_dir / "genau_status.txt",
         audio_paused_file=state_dir / "audio_paused.txt",
         audio_volume_file=state_dir / "audio_volume.txt",
-        main_player_cmd_file=state_dir / "main_player_cmd.txt",
-        main_player_paused_file=state_dir / "main_player_paused.txt",
-        main_player_status_file=state_dir / "main_player_status.txt",
+        main_funestra_cmd_file=state_dir / "main_player_cmd.txt",
+        main_funestra_paused_file=state_dir / "main_player_paused.txt",
+        main_funestra_status_file=state_dir / "main_player_status.txt",
         dashboard_state_file=state_dir / "dashboard_state.ini",
     )
 
 
 def _drained(satellite: _Satellite) -> None:
-    """Block until the player has consumed everything on its command file.
+    """Block until the Funestra has consumed everything on its command file.
 
-    No file at all is the drained state, and the usual one: the player claims the
+    No file at all is the drained state, and the usual one: the Funestra claims the
     queue by renaming it aside and deletes what it read
-    (``player_core.file_channel.consume_command_file``), so a fully drained queue
+    (``funestra_core.file_channel.consume_command_file``), so a fully drained queue
     leaves nothing.  Reading it outright raised FileNotFoundError from
     inside the wait — a drain looked like a hang.
 
@@ -298,7 +298,7 @@ def _drained(satellite: _Satellite) -> None:
         except PermissionError:
             return False  # claimed this instant; ask again next poll
 
-    wait_for(empty, desc="the player to drain its command file")
+    wait_for(empty, desc="the Funestra to drain its command file")
 
 
 def test_latest_puts_the_newest_clip_on_screen(satellite, tmp_path):
@@ -340,8 +340,8 @@ def test_no_loop_keeps_the_clip_on_screen_playing(satellite, tmp_path):
 
     The interesting case is the real one: a loop cycles a group whose items are
     NOT in the browse it returns to (the browse holds one clip per group), and a
-    player whose clip is missing from a reloaded playlist restarts at the top.  So
-    this drives the production ``portrait_no_loop`` against a real player with
+    Funestra whose clip is missing from a reloaded playlist restarts at the top.  So
+    this drives the production ``portrait_no_loop`` against a real Funestra with
     exactly that shape of browse — stubbing only where the browse's *contents* come
     from, since the real library might happen to include the clip on screen and
     then never exercise the case at all.
@@ -375,10 +375,10 @@ def test_next_leaves_a_loop_down_to_one_clip_for_another_clip(satellite, tmp_pat
 
 
 def _decoding(satellite: _Satellite) -> bool:
-    """Whether the player still has a decoded clip on screen.
+    """Whether the Funestra still has a decoded clip on screen.
 
     ``duration_ms`` and ``position_ms`` are mpv's own ``duration`` / ``time_pos``,
-    which are None — published as 0 — the moment mpv has no file open.  A player
+    which are None — published as 0 — the moment mpv has no file open.  A Funestra
     showing a black window reads exactly that way, so this is what tells a clip
     still being drawn from an empty video output.
     """
@@ -386,9 +386,9 @@ def _decoding(satellite: _Satellite) -> bool:
     return status.duration_ms > 0 and status.position_ms > 0
 
 
-def test_more_seeds_leaves_the_player_decoding(tmp_path):
+def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
     """"More seeds" reshapes a seed loop's playlist a second time, seconds after
-    the loop itself reshaped it — and the player must still be drawing its clip.
+    the loop itself reshaped it — and the Funestra must still be drawing its clip.
 
     This is the sequence off the HUD's expand button: lock a clip, start its seed
     loop (one playlist rewrite + RELOAD_PLAYLIST), then widen the net (another).
@@ -413,14 +413,14 @@ def test_more_seeds_leaves_the_player_decoding(tmp_path):
 
         # The HUD is up throughout, as in a real session: widening is the one
         # gesture that grows the panel — a two-cell seed row becomes eight — so the
-        # player re-renders it at a new size and hands mpv a differently-shaped
+        # Funestra re-renders it at a new size and hands mpv a differently-shaped
         # overlay while the video under it keeps decoding.
         publisher = HudPublisher({"portrait": satellite.hud},
                                  tmp_path / THUMBNAIL_CACHE_DIRNAME, load_camera_words())
 
         def publish(row: list[str], loop: str) -> None:
             publisher.publish("portrait", HudPanel(
-                player="portrait", locked=False, lock_label="Looping seeds", current=playing,
+                funestra="portrait", locked=False, lock_label="Looping seeds", current=playing,
                 seed_siblings=[v for v in row if v != playing], action_siblings=[],
                 seed_count=len(row), active_loop=loop, playing=playing,
             ))
@@ -437,14 +437,14 @@ def test_more_seeds_leaves_the_player_decoding(tmp_path):
 
         _drained(satellite)
         assert satellite.video() == playing, "widening must never switch the clip on screen"
-        assert _decoding(satellite), "the player went black when the seed row widened"
+        assert _decoding(satellite), "the Funestra went black when the seed row widened"
         # Then let the widened loop run through several clip boundaries: the reload
         # lands wherever the click happened to fall, so what has to hold is that the
         # video output survives every auto-advance the reshaped queue then makes.
         #
         # A clip mpv had not finished prefetching cold-opens at the boundary and
         # reads 0/0 for a beat, so what fails this is a blank that OUTLASTS any
-        # transition — the player having lost its file for good, which is the black
+        # transition — the Funestra having lost its file for good, which is the black
         # window that never comes back.
         watching = Budget(60)
         seen: set[str] = set()
@@ -457,9 +457,9 @@ def test_more_seeds_leaves_the_player_decoding(tmp_path):
             else:
                 blank = blank or Budget(8.0)
                 assert not blank.expired(), (
-                    f"the player stopped decoding for good, {len(seen)} clip(s) into the "
+                    f"the Funestra stopped decoding for good, {len(seen)} clip(s) into the "
                     f"widened loop (video={Path(status.video).name!r}, "
                     f"pos={status.position_ms}, dur={status.duration_ms})\n"
-                    f"--- player log ---\n{satellite.log_tail()}")
+                    f"--- Funestra log ---\n{satellite.log_tail()}")
             time.sleep(0.25)
         assert len(seen) > 1, f"the loop never advanced, so nothing was proven (saw {len(seen)})"

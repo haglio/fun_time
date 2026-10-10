@@ -132,9 +132,9 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
     assert plan.random_favs_browser.y == 50 + plan.dashboard.height
 
 
-def test_the_main_players_rect_is_on_the_secondary_below_the_portrait_satellite(cfg_path: Path):
-    """The main player fills the secondary monitor below the portrait's slice
-    — the rect startup launches main player/Genau into and the notice overlay flashes
+def test_the_main_funestras_rect_is_on_the_secondary_below_the_portrait_satellite(cfg_path: Path):
+    """The Main Funestra fills the secondary monitor below the portrait's slice
+    — the rect startup launches Main Funestra/Genau into and the notice overlay flashes
     main-player notices over.  It abuts the portrait window with no gap and no
     overlap, and reaches the monitor's lower edge."""
     config = load_config(cfg_path)
@@ -175,7 +175,7 @@ def test_the_dashboard_takes_a_bar_and_a_log_and_the_browser_takes_the_rest(cfg_
 
 
 
-def test_a_main_player_given_most_of_the_screen_trades_sizes_with_the_portrait_player(
+def test_a_main_funestra_given_most_of_the_screen_trades_sizes_with_the_portrait_funestra(
         cfg_path: Path):
     layout = load_config(cfg_path).layout
     secondary = MonitorRect(2560, 0, 1440, 3440)
@@ -191,7 +191,7 @@ def test_a_main_player_given_most_of_the_screen_trades_sizes_with_the_portrait_p
         2560, 3440 - usual_portrait.height, usual_portrait.width, usual_portrait.height)
 
 
-def test_a_portrait_player_given_most_of_the_screen_sits_where_startup_puts_both(cfg_path: Path):
+def test_a_portrait_funestra_given_most_of_the_screen_sits_where_startup_puts_both(cfg_path: Path):
     layout = load_config(cfg_path).layout
     secondary = MonitorRect(2560, 0, 1440, 3440)
 

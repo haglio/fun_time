@@ -4,7 +4,7 @@ The loop must hand the compositor a frame every refresh period; a stage that
 spikes past the budget is a dropped frame the user feels as judder, and
 nothing on a desktop monitor shows it.  So the loop notes each stage's
 duration and this logs one percentile line every few seconds — cheap enough
-to stay on permanently, so any headset session's ``vr_player.log`` says where
+to stay on permanently, so any headset session's ``vr_funestras.log`` says where
 its time went.
 
 Thread-aware: the file-channel pump reports from its worker thread while the

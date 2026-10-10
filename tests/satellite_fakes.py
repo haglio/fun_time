@@ -1,4 +1,4 @@
-"""Shared in-memory stand-in for the mpv-backed player a headset satellite drives.
+"""Shared in-memory stand-in for the mpv-backed Funestra a headset satellite drives.
 
 Models mpv's tiny lookahead playlist: a cold ``load`` resets it to just the
 current entry, ``stage_next`` appends the one prefetch entry, and
@@ -12,7 +12,7 @@ from pathlib import Path
 from tests.mpv_refusals import RefusesSeeks
 
 
-class FakeSatellitePlayer(RefusesSeeks):
+class FakeSatelliteEngine(RefusesSeeks):
     def __init__(self, duration_ms: float = 5_000.0) -> None:
         self.opened: list[Path] = []        # cold plays (load) only
         self.playlist: list[Path] = []      # mpv's window: [current, next?]
@@ -33,7 +33,7 @@ class FakeSatellitePlayer(RefusesSeeks):
         self.pace_s: float | None = None
         self.showing_picture = False
         # How many times the loop has asked for a still's move to be
-        # carried on — the player's own account of where it has got to lives
+        # carried on — the Funestra's own account of where it has got to lives
         # in player_core, and this only counts the asking.
         self.pushes = 0
         self.tiled_to: list[tuple[int, int]] = []

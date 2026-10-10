@@ -162,7 +162,7 @@ ROOM_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("browser", "Launching browser...", 0.4),
     Phase("companions", "Launching companions...", 1.3),
-    Phase("players", "Waiting for players...", 0.5),
+    Phase("funestras", "Waiting for Funestras...", 0.5),
     Phase("windows", "Positioning windows...", 0.5),
     COMING_BACK_TO_THE_MODE,
     Phase("finalizing", "Finalizing...", 0.0),
@@ -178,7 +178,7 @@ SHUTDOWN_PHASES: tuple[Phase, ...] = (
     # status — anything else would read as a flicker on the first poll.
     Phase("controls", "Closing...", 1.0),
     Phase("browser", "Closing browser...", 1.0),
-    Phase("players", "Closing players...", 1.0),
+    Phase("funestras", "Closing Funestras...", 1.0),
     Phase("companions", "Closing companions...", 1.0),
 )
 

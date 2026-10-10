@@ -40,7 +40,7 @@ CHECKOUT_DIR = Path(__file__).resolve().parents[2]
 # launches by module name, the hotkey script the orchestrator hands AHK, and the
 # content overlay's committed fallback, which ``fun_time.content`` loads at
 # import time.
-_COPIED_TREES = ("fun_time", "main_player", "satellite")
+_COPIED_TREES = ("fun_time", "main_funestra", "satellite")
 _COPIED_FILES = ("windows_bridge_hotkeys.ahk", "content.example.json")
 
 
@@ -71,7 +71,7 @@ def branch_checkout_session():
     """A session on a branch config, launched out of a checkout of its own."""
     temp_root = build_integration_temp_root()
     branch_checkout = _copy_checkout(temp_root / "branch_checkout")
-    # The isolated config plays the main player's: its ports, broker launcher and
+    # The isolated config plays the Main Funestra's: its ports, broker launcher and
     # microphone are already stripped, and build_branch_config carries all of
     # that through — so this session reaches nothing of the user's either.
     branch_config = build_branch_config(
@@ -107,7 +107,7 @@ def test_a_branch_session_runs_the_branch_checkouts_code(branch_checkout_session
 def test_a_branch_session_brings_up_a_whole_session_in_the_worktrees_state(
     branch_checkout_session,
 ):
-    """Not a bare orchestrator: the players and companions launched too, and
+    """Not a bare orchestrator: the Funestras and companions launched too, and
     everything they write is in the worktree rather than beside the live
     session's."""
     session, branch_checkout = branch_checkout_session
@@ -115,7 +115,7 @@ def test_a_branch_session_brings_up_a_whole_session_in_the_worktrees_state(
 
     children = session.read_child_pids()
 
-    assert all(children[role] for role in ("main_player_pid", "portrait_pid", "landscape_pid"))
+    assert all(children[role] for role in ("main_funestra_pid", "portrait_pid", "landscape_pid"))
     assert (state_dir / "bridge_pids.ini").is_file()
     assert (state_dir / "windows_bridge_launch.ini").is_file()
     assert session.windows_bridge_log.parent == state_dir

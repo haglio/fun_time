@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from app_support.json_store import locked_update
-from player_core.satellite_hud import label_is_filtered
+from funestra_core.satellite_hud import label_is_filtered
 
 from fun_time.media_metadata import (
     GroupIndexCache,

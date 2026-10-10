@@ -6,8 +6,8 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from player_core.clip_folder import SUPPORTED_VIDEO_EXTS
-from player_core.playlist import PlaylistItem, write_playlist
+from funestra_core.clip_folder import SUPPORTED_VIDEO_EXTS
+from funestra_core.playlist import PlaylistItem, write_playlist
 
 from .folder_listings import FolderListings
 from .media_metadata import GroupIndex, build_group_index, normalize_path_key, path_matches_query
@@ -16,7 +16,7 @@ from .watch_stats import passes_inclusion, weighted_shuffle
 
 PLAYLIST_PORTRAIT = "portrait_playlist"
 PLAYLIST_LANDSCAPE = "landscape_playlist"
-PLAYLIST_MAIN_PLAYER = "main_player_playlist"
+PLAYLIST_MAIN_FUNESTRA = "main_player_playlist"
 
 
 def is_supported_video_path(path: str) -> bool:
@@ -155,7 +155,7 @@ def order_paths(paths: list[str], *, recent: bool, rng: random.Random | None = N
 
 @dataclass(frozen=True)
 class VideoShapes:
-    """Which shapes of video the main player's browse may reach, and where the
+    """Which shapes of video the Main Funestra's browse may reach, and where the
     VR masters live.  No VR dirs is every session outside the headset, which
     narrows nothing whatever shapes the headset's flags were left on.
     """
@@ -186,10 +186,10 @@ def build_main_playlist_paths(main_sources: str, scripted_filter: bool, *,
                               rng: random.Random | None = None,
                               shapes: VideoShapes | None = None,
                               metadata_root: Path | None = None) -> list[str]:
-    """The main player's playlist, narrowed as the session asks and in its order.
+    """The Main Funestra's playlist, narrowed as the session asks and in its order.
 
     *recent* is Latest — newest-first — and its absence is Shuffle, the same two
-    orders a satellite browses in and the same words on the HUD.  The main player
+    orders a satellite browses in and the same words on the HUD.  The Main Funestra
     had only the shuffle: a video that arrived an hour ago was somewhere in a
     thousand-clip rotation with no way to ask for it, while either satellite could
     be told "latest".
@@ -346,8 +346,8 @@ def rotated_onto(entries: list[PlaylistItem], last_video: str) -> list[PlaylistI
     """*entries* rotated so *last_video* leads them.
 
     Unchanged when that video is not among them — it was deleted since, or the
-    player published no status at all; the queue comes back from its top rather
-    than being thrown away.  A player handed a list it is not playing opens at
+    Funestra published no status at all; the queue comes back from its top rather
+    than being thrown away.  A Funestra handed a list it is not playing opens at
     the top, which is what makes this a way back to the clip it left.
     """
     key = normalize_path_key(last_video)
@@ -428,15 +428,15 @@ def build_satellite_playlists(
 def build_main_playlist(playlist_file: Path, main_sources: str, *, scripted_filter: bool,
                         recent: bool = False, shapes: VideoShapes | None = None,
                         metadata_root: Path | None = None) -> None:
-    """Build and write the main player's playlist alone.
+    """Build and write the Main Funestra's playlist alone.
 
     The one-player counterpart to :func:`build_all_playlists`, for a startup
-    that keeps the satellites' resumed playlists and needs only the main player's
+    that keeps the satellites' resumed playlists and needs only the Main Funestra's
     rebuilt — the satellites' library is the same whichever app is running,
-    while the main player's is what the two apps disagree about.
+    while the Main Funestra's is what the two apps disagree about.
 
     *scripted_filter* is the session's, not off: the satellites' playlists came back
-    built under it, and one player quietly holding the whole library while the
+    built under it, and one Funestra quietly holding the whole library while the
     HUDs say F-mode is what this rebuild would otherwise leave standing.
     """
     write_playlist_file(
@@ -456,9 +456,9 @@ def build_all_playlists(
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
 ) -> None:
-    """Build and write all three playlists — both satellites' and the main player's.
+    """Build and write all three playlists — both satellites' and the Main Funestra's.
 
-    Only a start with nothing to resume builds all three, so the main player's
+    Only a start with nothing to resume builds all three, so the Main Funestra's
     is built whole; each satellite's build still carries its own F-mode flag.
     """
     build_satellite_playlists(
@@ -470,7 +470,7 @@ def build_all_playlists(
         metadata_root=metadata_root,
     )
     write_playlist_file(
-        build_playlist_file_path(state_dir, PLAYLIST_MAIN_PLAYER),
+        build_playlist_file_path(state_dir, PLAYLIST_MAIN_FUNESTRA),
         build_main_playlist_paths(main_sources, False, rng=rng, metadata_root=metadata_root),
         metadata_root=metadata_root,
     )

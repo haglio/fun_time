@@ -12,12 +12,12 @@ from .config import RegenConfig
 from .event_log import NOTICE, SOURCE_SYSTEM
 from .loopback_server import LOOPBACK_PORT
 from .main_list_builds import BUILDS_HERE, MainListBuilds
-from .players import Player
+from .room_funestras import RoomFunestra
 
 
 @dataclass
 class BridgeConfig:
-    # Each satellite is a native mpv-backed player
+    # Each satellite is a native mpv-backed Funestra
     # driven through a file quartet — a command file it drains verbs from, a
     # paused flag it obeys, a status file it publishes, and the playlist file it
     # plays.  See :mod:`fun_time.satellite_control`.
@@ -41,22 +41,22 @@ class BridgeConfig:
     genau_status_file: Path
     audio_paused_file: Path
     audio_volume_file: Path
-    main_player_cmd_file: Path
-    main_player_paused_file: Path
-    main_player_status_file: Path
+    main_funestra_cmd_file: Path
+    main_funestra_paused_file: Path
+    main_funestra_status_file: Path
     dashboard_state_file: Path
     # Where this session answers whether it is in OmniPause -- baked into the
     # landing page a lock opens, which polls it.
     loopback_port: int = LOOPBACK_PORT
-    # Where the main player publishes its one-shot notices (a clip jump with nowhere to go).
-    main_player_notice_file: Path | None = None
-    # Which main player this session launched.  The main_player file quartet is the
-    # MAIN PLAYER's channel, not the main player's: in a desktop session the reader is the main player,
+    # Where the Main Funestra publishes its one-shot notices (a clip jump with nowhere to go).
+    main_funestra_notice_file: Path | None = None
+    # Which Main Funestra this session launched.  The main_player file quartet is the
+    # MAIN FUNESTRA's channel, not the Main Funestra's: in a desktop session the reader is the Main Funestra,
     # and in a VR session it is fun_time_vr's in-process role, which speaks the
     # same contract plus the two verbs that need a projection and a heading.
     # Set by whichever orchestrator built this config, since that is the only
     # thing that knows.
-    vr_main_player: bool = False
+    vr_main_funestra: bool = False
     # Which of ``main_sources`` hold the VR masters, pipe-joined like the
     # sources themselves.  Empty in a desktop session, whose rotation has none —
     # and that emptiness is what leaves the shape filter off its console.
@@ -74,17 +74,17 @@ class BridgeConfig:
     origenerator_enabled: bool = False
     origenerator_cmd_file: Path | None = None
     origenerator_paused_file: Path | None = None
-    # Where the hosted app publishes which players it holds.  Read every tick
+    # Where the hosted app publishes which Funestras it holds.  Read every tick
     # until it appears: the file existing is how a session learns the app has
     # finished booting, which is when origenerator mode opens up.
     origenerator_status_file: Path | None = None
-    # Where the hosted app publishes the panel for each player it holds.
+    # Where the hosted app publishes the panel for each Funestra it holds.
     portrait_origenerator_hud_file: Path | None = None
     landscape_origenerator_hud_file: Path | None = None
     # Where the broker keeps the rest of its channel.  Unset it falls back to
     # ``state_dir``, which is what the two are for every session that runs from
     # the primary checkout; a branch session moves ``state_dir`` into its worktree
-    # and this stays on the main player, because the broker is still the machine's one
+    # and this stays on the Main Funestra, because the broker is still the machine's one
     # broker.  See :attr:`fun_time.config.PathsConfig.broker_state_dir`.
     broker_state_dir: Path | None = None
     regen_media_root: Path | None = None
@@ -93,9 +93,9 @@ class BridgeConfig:
     regen_generate_image_url: str = RegenConfig.generate_image_url
     main_list_builds: MainListBuilds = BUILDS_HERE
 
-    def satellite(self, player: Player) -> SatelliteChannel:
-        """Satellite *player*'s file quartet and sources."""
-        if Player(player) is Player.PORTRAIT:
+    def satellite(self, funestra: RoomFunestra) -> SatelliteChannel:
+        """Satellite *Funestra*'s file quartet and sources."""
+        if RoomFunestra(funestra) is RoomFunestra.PORTRAIT:
             return SatelliteChannel(
                 cmd_file=self.portrait_cmd_file,
                 paused_file=self.portrait_paused_file,
@@ -179,9 +179,9 @@ class Op(StrEnum):
     UNSUSPEND_HOTKEYS = "unsuspend_hotkeys"
     OPEN_RFB_TAB = "open_rfb_tab"
     SAVE_CLIP = "save_clip"
-    MAIN_PLAYER_ANSWERS = "main_player_answers"
+    MAIN_FUNESTRA_ANSWERS = "main_funestra_answers"
     IGNORED = "ignored"
-    TAKE_BACK_PLAYERS = "take_back_players"
+    TAKE_BACK_FUNESTRAS = "take_back_funestras"
     FOLLOW_GENAUS_LOCK = "follow_genaus_lock"
 
 

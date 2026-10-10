@@ -1,9 +1,9 @@
 """fun_time's side of the native satellite protocol: what a satellite reports.
 
-The native satellite players (this repo's ``satellite`` package) are driven
-through a file quartet; verbs go in through ``player_core.file_channel``'s
+The native Satellite Funestras (this repo's ``satellite`` package) are driven
+through a file quartet; verbs go in through ``funestra_core.file_channel``'s
 append (``satellite_groups.send_satellite``), and where the clip has got to is
-read back here from the status file the player publishes.
+read back here from the status file the Funestra publishes.
 
 Its sibling ``broker_control`` is the same idea for the OSR2 broker, with the
 one difference spelled out there: that channel holds a single verb, not a queue.
@@ -15,9 +15,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from app_support.file_channel import read_key_values
-from player_core.status import parse_status
+from funestra_core.status import parse_status
 
-from .player_status import ScriptedStatus, scripted_fields
+from .funestra_status import ScriptedStatus, scripted_fields
 
 
 @dataclass(frozen=True)

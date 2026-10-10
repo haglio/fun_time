@@ -8,7 +8,7 @@ from fun_time.dashboard_layout import Rect, Size
 
 
 @dataclass(frozen=True)
-class PlayerRects:
+class FunestraRects:
     """Where each notice-bearing window sits on screen, in real coordinates."""
 
     main: Rect
@@ -17,11 +17,11 @@ class PlayerRects:
     dash: Rect
 
 
-def notice_target_rect(source: str, rects: PlayerRects) -> Rect:
+def notice_target_rect(source: str, rects: FunestraRects) -> Rect:
     """The window a *source*'s notice flashes over.
 
-    ``system`` (and any unexpected source) has no player of its own, so it falls
-    back to the main player — the one always on screen.
+    ``system`` (and any unexpected source) has no Funestra of its own, so it falls
+    back to the Main Funestra — the one always on screen.
     """
     return {
         "main": rects.main,

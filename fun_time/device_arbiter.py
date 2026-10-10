@@ -2,7 +2,7 @@
 
 The Robot Hand and a funscript both feed the broker's one UDP T-Code inlet, so only one
 may drive at a time.  This is the arbiter that hands the device between them —
-edge-triggered on the published status of the player that has the OSR2, and
+edge-triggered on the published status of the Funestra that has the OSR2, and
 asserted rather than fired-and-forgotten, because a verb queued on a file
 channel can still die.
 
@@ -17,17 +17,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
-from player_core.console import (
+from funestra_core.console import (
     OSR2_CONTROL_OFF,
     OSR2_DRIVING,
 )
-from player_core.file_channel import append_command
-from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
+from funestra_core.file_channel import append_command
+from funestra_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from .broker_control import HOLD_VERB, PARK_CMD
-from .mode_plan import main_player_displays
-from .player_status import ScriptedStatus, read_main_player_status
-from .players import Player
+from .funestra_status import ScriptedStatus, read_main_funestra_status
+from .mode_plan import kino_shows
+from .room_funestras import RoomFunestra
 from .satellite_control import read_satellite_status
 
 # How often the standing pair (SET_TCODE_ENABLED + PAUSE/RESUME) is re-queued
@@ -46,31 +46,31 @@ class SatelliteLine:
 
 
 class DeviceArbiter:
-    """The handoff between the Robot Hand and the funscript of the player that has the OSR2."""
+    """The handoff between the Robot Hand and the funscript of the Funestra that has the OSR2."""
 
     def __init__(
         self,
         *,
-        main_player_status_file: Path,
-        main_player_cmd_file: Path,
+        main_funestra_status_file: Path,
+        main_funestra_cmd_file: Path,
         genau_cmd_file: Path,
-        satellites: Mapping[Player, SatelliteLine] = MappingProxyType({}),
+        satellites: Mapping[RoomFunestra, SatelliteLine] = MappingProxyType({}),
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        self.main_player_status_file = main_player_status_file
-        self.main_player_cmd_file = main_player_cmd_file
+        self.main_funestra_status_file = main_funestra_status_file
+        self.main_funestra_cmd_file = main_funestra_cmd_file
         self.genau_cmd_file = genau_cmd_file
         self._satellites = dict(satellites)
         self._clock = clock
-        # Which player's funscript is driving the OSR2 right now (so the hand is
-        # paused and that player's T-Code is on), or that the Robot Hand is (a
+        # Which Funestra's funscript is driving the OSR2 right now (so the hand is
+        # paused and that Funestra's T-Code is on), or that the Robot Hand is (a
         # funscript gap or an unscripted clip).  None means "no decision applied
         # yet" — set while nobody is arbitrating, so the next arbitration
         # re-asserts the correct driver.
-        self._driving: tuple[Player, bool] | None = None
+        self._driving: tuple[RoomFunestra, bool] | None = None
         self._mode: str | None = None
-        self._have_had_the_device = {Player.MAIN}
-        self._statuses: dict[Player, ScriptedStatus] = {}
+        self._have_had_the_device = {RoomFunestra.MAIN}
+        self._statuses: dict[RoomFunestra, ScriptedStatus] = {}
         # When the park-touch hold releases the pending hand-to-script flip;
         # None outside one — see _holding_for_park_touch.
         self._park_touch_deadline: float | None = None
@@ -82,9 +82,9 @@ class DeviceArbiter:
         self._stopped_by_control_off = False
 
     def sync(self, main_mode: str, *, paused: bool,
-             control: str = OSR2_DRIVING, holder: Player = Player.MAIN) -> None:
+             control: str = OSR2_DRIVING, holder: RoomFunestra = RoomFunestra.MAIN) -> None:
         """Route the OSR2 to *holder*'s funscript or the Robot Hand, moment to
-        moment -- a side player in every mode, the main player in kino mode.
+        moment -- a side Funestra in every mode, the Main Funestra in kino mode.
 
         *control* off, parked or retracted is nobody driving, in every mode, and
         nothing below runs: there is no device to hand over.
@@ -93,14 +93,14 @@ class DeviceArbiter:
         and not ``funscript_resting``); the hand drives the unscripted stretches.
         Each handoff sets both levers: the holder's T-Code on + the hand paused
         for the funscript, or the holder's T-Code off + the hand resumed, and
-        every other player that has had the device told to keep off it.
+        every other Funestra that has had the device told to keep off it.
         Edge-triggered, so it fires once per handoff; paused, in a new mode, or
         where the holder is not arbitrated, the remembered state is cleared so
         the next arbitration re-asserts.
 
         The handoff itself is not smoothed here, and nothing waits for the
         motion: whoever takes the device walks it from where it is to where it
-        needs to be (the main player's driver parks it over its handoff ramp; the hand climbs
+        needs to be (the Main Funestra's driver parks it over its handoff ramp; the hand climbs
         back out of the park over the same one).  Waiting here for the hand's next
         floor-touch made the moment depend on the live motion, and the trace —
         which had to draw that moment before it happened — could only guess it.
@@ -115,7 +115,7 @@ class DeviceArbiter:
         self._carried_out = None
         self._hand_the_output_back()
         self._start_what_control_off_stopped(main_mode, paused=paused)
-        if paused or (holder is Player.MAIN and not main_player_displays(main_mode)):
+        if paused or (holder is RoomFunestra.MAIN and not kino_shows(main_mode)):
             self._let_the_last_driver_go(holder, paused=paused)
             self._driving = None
             self._park_touch_deadline = None
@@ -155,17 +155,17 @@ class DeviceArbiter:
             self._asserted_at = now
             self._park_touch_deadline = None
 
-    def _cmd_file(self, player: Player) -> Path:
-        if player is Player.MAIN:
-            return self.main_player_cmd_file
-        return self._satellites[player].cmd_file
+    def _cmd_file(self, funestra: RoomFunestra) -> Path:
+        if funestra is RoomFunestra.MAIN:
+            return self.main_funestra_cmd_file
+        return self._satellites[funestra].cmd_file
 
-    def _read_status(self, player: Player, previous) -> ScriptedStatus:
-        if player is Player.MAIN:
-            return read_main_player_status(self.main_player_status_file, fallback=previous)
-        return read_satellite_status(self._satellites[player].status_file, fallback=previous)
+    def _read_status(self, funestra: RoomFunestra, previous) -> ScriptedStatus:
+        if funestra is RoomFunestra.MAIN:
+            return read_main_funestra_status(self.main_funestra_status_file, fallback=previous)
+        return read_satellite_status(self._satellites[funestra].status_file, fallback=previous)
 
-    def _let_the_last_driver_go(self, holder: Player, *, paused: bool) -> None:
+    def _let_the_last_driver_go(self, holder: RoomFunestra, *, paused: bool) -> None:
         if self._driving is None or self._driving[0] is holder:
             return
         last_driver, its_script_drove = self._driving
@@ -183,8 +183,8 @@ class DeviceArbiter:
             genau = ("PAUSE" if paused else "RESUME", TCODE_OFF, HOLD_VERB[control])
         else:
             genau = ("PAUSE", PARK_CMD)
-        queued = [append_command(self._cmd_file(player), TCODE_OFF)
-                  for player in self._have_had_the_device]
+        queued = [append_command(self._cmd_file(funestra), TCODE_OFF)
+                  for funestra in self._have_had_the_device]
         queued += [append_command(self.genau_cmd_file, verb) for verb in genau]
         if all(queued):
             self._carried_out, self._asserted_at = (control, paused), now
@@ -200,7 +200,7 @@ class DeviceArbiter:
     def _start_what_control_off_stopped(self, main_mode: str, *, paused: bool) -> None:
         if not self._stopped_by_control_off or paused:
             return
-        if main_player_displays(main_mode) or append_command(self.genau_cmd_file, "RESUME"):
+        if kino_shows(main_mode) or append_command(self.genau_cmd_file, "RESUME"):
             self._stopped_by_control_off = False
 
     def _holding_for_park_touch(self, now: float, status) -> bool:

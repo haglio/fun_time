@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from player_core.hud_placement import HudEdge
+from funestra_core.hud_placement import HudEdge
 
 from fun_time_vr.hud_buttons import HudButtons, hud_button_names
 from fun_time_vr.hud_sides import side_screen_name

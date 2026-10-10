@@ -1,22 +1,22 @@
-"""Bringing a reopened session back to the clip each player was on."""
+"""Bringing a reopened session back to the clip each Funestra was on."""
 from __future__ import annotations
 
 from dataclasses import fields
 from pathlib import Path
 
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from player_core.clip_advance import ClipAdvanceState
-from player_core.console import OSR2_CONTROL_OFF, OSR2_RETRACTED
-from player_core.drive_readout import DriveHud, drive_text
-from player_core.genau_controls import VERBS as GENAU_VERBS
-from player_core.modes import LoopState, MainMode
-from player_core.robot_hand import RobotHandState
+from funestra_core.clip_advance import ClipAdvanceState
+from funestra_core.console import OSR2_CONTROL_OFF, OSR2_RETRACTED
+from funestra_core.drive_readout import DriveHud, drive_text
+from funestra_core.genau_controls import VERBS as GENAU_VERBS
+from funestra_core.modes import LoopState, MainMode
+from funestra_core.robot_hand import RobotHandState
 
 from fun_time.bridge_records import SatelliteChannel
 from fun_time.crown import Crown
-from fun_time.player_handover import hand_back, keep_aside
-from fun_time.player_status import MainPlayerStatus
-from fun_time.players import Player
+from fun_time.funestra_handover import hand_back, keep_aside
+from fun_time.funestra_status import MainFunestraStatus
+from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import (
     CLIP_SECONDS,
     CRUISE_ON,
@@ -61,7 +61,7 @@ def _write_playlist(path: Path, lines: list[str]) -> None:
 def _never_came_home(
     tmp_path: Path, *, own: list[str], showing: str, hosted: list[str],
 ) -> SatelliteChannel:
-    """The portrait player as a session quit in origenerator mode leaves it: its
+    """The Portrait Funestra as a session quit in origenerator mode leaves it: its
     own list kept aside the way entering that mode keeps it, the hosted app's
     list in its playlist file."""
     channel = SatelliteChannel(
@@ -80,7 +80,7 @@ def _never_came_home(
 
 class TestResumePlaylists:
     def test_rotates_a_playlist_onto_the_clip_that_was_on_screen(self, tmp_path: Path):
-        """A player starts at the top of its playlist file, so putting last
+        """A Funestra starts at the top of its playlist file, so putting last
         session's clip there is what makes it resume — and rotating (rather than
         moving it to the front) keeps the clips that were coming up coming up."""
         a, b, c = _clips(tmp_path, "a.mp4", "b.mp4", "c.mp4")
@@ -92,7 +92,7 @@ class TestResumePlaylists:
         assert playlist.read_text(encoding="utf-8").splitlines() == [b, c, a]
 
     def test_carries_the_funscript_column_through_the_rotation(self, tmp_path: Path):
-        """The main player's playlist pairs each video with the funscript that drives the
+        """The Main Funestra's playlist pairs each video with the funscript that drives the
         OSR2 through it; rewriting the file without that column would leave a
         resumed session silently unscripted."""
         a, b, c = _clips(tmp_path, "a.mp4", "b.mp4", "c.mp4")
@@ -153,9 +153,9 @@ class TestResumePlaylists:
 
         assert playlist.read_text(encoding="utf-8").splitlines() == [b, a]
 
-    def test_opens_a_player_that_never_came_home_on_its_own_list(self, tmp_path: Path):
-        """A session quit while the hosted Origenerator had the player leaves that
-        app's pictures in the playlist file and the player's own list kept aside.
+    def test_opens_a_funestra_that_never_came_home_on_its_own_list(self, tmp_path: Path):
+        """A session quit while the hosted Origenerator had the Funestra leaves that
+        app's pictures in the playlist file and the Funestra's own list kept aside.
         Every room is built in kino mode, so its own list is what it opens on —
         at the clip it was showing when it left."""
         a, b, picture = _clips(tmp_path, "a.mp4", "b.mp4", "picture.png")
@@ -167,7 +167,7 @@ class TestResumePlaylists:
 
     def test_spends_a_kept_list_even_when_there_is_nothing_to_resume(self, tmp_path: Path):
         """The caller then rebuilds every playlist, and a kept list that outlived
-        the rebuild would be dealt over it the next time that player came home."""
+        the rebuild would be dealt over it the next time that Funestra came home."""
         a, picture = _clips(tmp_path, "a.mp4", "picture.png")
         channel = _never_came_home(tmp_path, own=[a], showing=a, hosted=[picture])
 
@@ -189,18 +189,18 @@ class TestResumeSharedState:
     "F-mode" by reporting it *enabled* while nothing visibly changed.
     """
 
-    def test_carries_each_players_own_f_mode_onto_the_resumed_session(self, tmp_path: Path):
-        """A resumed playlist holds whatever its own player was narrowed to, so
+    def test_carries_each_funestras_own_f_mode_onto_the_resumed_session(self, tmp_path: Path):
+        """A resumed playlist holds whatever its own Funestra was narrowed to, so
         each F-mode comes back as it was closed — and each HUD has to say so.
-        Carrying one flag for all three would put players into an F-mode whose
+        Carrying one flag for all three would put Funestras into an F-mode whose
         playlist was never built under it."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(landscape=SatelliteState(favorites_filter=True), portrait=SatelliteState(favorites_filter=False), main_scripted_filter=True))
 
         state = resume_shared_state(state_file, resumed=True)
 
-        assert (state.main_scripted_filter, state.satellite(Player.PORTRAIT).favorites_filter,
-                state.satellite(Player.LANDSCAPE).favorites_filter) == (True, False, True)
+        assert (state.main_scripted_filter, state.satellite(RoomFunestra.PORTRAIT).favorites_filter,
+                state.satellite(RoomFunestra.LANDSCAPE).favorites_filter) == (True, False, True)
 
     def test_carries_a_running_loop_and_the_map_it_hangs_on(self, tmp_path: Path):
         """A loop IS the group written out as the side's playlist, so resuming
@@ -211,11 +211,11 @@ class TestResumeSharedState:
 
         state = resume_shared_state(state_file, resumed=True)
 
-        assert state.satellite(Player.PORTRAIT).loop == "seed"
-        assert state.satellite(Player.PORTRAIT).map_anchor == "C:/v/a.mp4"
-        assert state.satellite(Player.PORTRAIT).widen_clip == "C:/v/a.mp4"
-        assert state.satellite(Player.LANDSCAPE).loop == "action"
-        assert state.satellite(Player.LANDSCAPE).map_anchor == "C:/v/b.mp4"
+        assert state.satellite(RoomFunestra.PORTRAIT).loop == "seed"
+        assert state.satellite(RoomFunestra.PORTRAIT).map_anchor == "C:/v/a.mp4"
+        assert state.satellite(RoomFunestra.PORTRAIT).widen_clip == "C:/v/a.mp4"
+        assert state.satellite(RoomFunestra.LANDSCAPE).loop == "action"
+        assert state.satellite(RoomFunestra.LANDSCAPE).map_anchor == "C:/v/b.mp4"
 
     def test_carries_each_side_s_filter_and_order(self, tmp_path: Path):
         """Both narrowed the playlist that just came back, so both are still in
@@ -225,12 +225,12 @@ class TestResumeSharedState:
 
         state = resume_shared_state(state_file, resumed=True)
 
-        assert (state.satellite(Player.PORTRAIT).filter, state.satellite(Player.LANDSCAPE).filter) == ("alpha", "beta gamma")
-        assert state.satellite(Player.PORTRAIT).latest is True
-        assert state.satellite(Player.LANDSCAPE).latest is True
+        assert (state.satellite(RoomFunestra.PORTRAIT).filter, state.satellite(RoomFunestra.LANDSCAPE).filter) == ("alpha", "beta gamma")
+        assert state.satellite(RoomFunestra.PORTRAIT).latest is True
+        assert state.satellite(RoomFunestra.LANDSCAPE).latest is True
 
-    def test_carries_the_main_player_s_order(self, tmp_path: Path):
-        """The main player's order fixes its resumed playlist exactly as a
+    def test_carries_the_main_funestra_s_order(self, tmp_path: Path):
+        """The Main Funestra's order fixes its resumed playlist exactly as a
         satellite's does, so it comes back with it — otherwise the session opens
         on a newest-first list while its HUD says Shuffle, and the next rebuild
         reshuffles the order it was left in."""
@@ -263,7 +263,7 @@ class TestResumeSharedState:
         state = resume_shared_state(state_file, resumed=True)
 
         assert (state.volume, state.muted) == (40, True)
-        assert (state.satellite(Player.PORTRAIT).locked, state.satellite(Player.LANDSCAPE).locked) == (True, False)
+        assert (state.satellite(RoomFunestra.PORTRAIT).locked, state.satellite(RoomFunestra.LANDSCAPE).locked) == (True, False)
 
     def test_carries_what_the_osr2_was_left_in(self, tmp_path: Path):
         """Let go of, or held at one end, it stays that way: the device arbiter
@@ -275,15 +275,15 @@ class TestResumeSharedState:
 
             assert resume_shared_state(state_file, resumed=True).osr2_control == control
 
-    def test_carries_which_player_has_the_osr2(self, tmp_path: Path):
+    def test_carries_which_funestra_has_the_osr2(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(osr2_player=Player.LANDSCAPE))
+        write_shared_state(state_file, BridgeState(osr2_funestra=RoomFunestra.LANDSCAPE))
 
-        assert resume_shared_state(state_file, resumed=True).osr2_player == Player.LANDSCAPE
+        assert resume_shared_state(state_file, resumed=True).osr2_funestra == RoomFunestra.LANDSCAPE
 
     def test_carries_the_mode_the_primary_slot_was_left_in(self, tmp_path: Path):
-        """Which player owns the big display is as much a thing you set as the
-        sound level, so leaving the session showing Genau and reopening on the main player
+        """Which Funestra owns the big display is as much a thing you set as the
+        sound level, so leaving the session showing Genau and reopening on the Main Funestra
         is the same overnight reset.  Startup builds every session in kino mode
         and then puts the carried mode on over the top (see
         :func:`fun_time.windows_bridge_startup.seed_startup_states`)."""
@@ -293,21 +293,21 @@ class TestResumeSharedState:
         assert resume_shared_state(state_file, resumed=True).main_mode is MainMode.GENAU
 
     def test_drops_the_state_nothing_on_disk_brings_back(self, tmp_path: Path):
-        """OmniPause's flags are cleared before the players launch, and a
+        """OmniPause's flags are cleared before the Funestras launch, and a
         keyboard selection was never a thing you could leave running.  Carrying
         either forward would be the same lie in the other direction."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SatelliteState(nav_anchor="C:/v/b.mp4"), portrait=SatelliteState(nav_anchor="C:/v/a.mp4"), omni_paused=True, active_player=3))
+        write_shared_state(state_file, BridgeState(landscape=SatelliteState(nav_anchor="C:/v/b.mp4"), portrait=SatelliteState(nav_anchor="C:/v/a.mp4"), omni_paused=True, active_funestra=3))
 
         state = resume_shared_state(state_file, resumed=True)
 
         fresh = BridgeState()
         for name in NOT_RESUMED:
             assert getattr(state, name) == getattr(fresh, name)
-        for player in Player.SATELLITES:
+        for funestra in RoomFunestra.SATELLITES:
             for name in NOT_RESUMED_PER_SATELLITE:
-                assert getattr(state.satellite(player), name) == getattr(
-                    fresh.satellite(player), name)
+                assert getattr(state.satellite(funestra), name) == getattr(
+                    fresh.satellite(funestra), name)
 
     def test_a_room_reopens_with_the_windows_where_startup_puts_them(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
@@ -333,9 +333,9 @@ class TestResumeSharedState:
 
 
 class TestResumeSatelliteLocks:
-    """A lock is repeat-one in mpv's own loop_file, so it dies with the player
+    """A lock is repeat-one in mpv's own loop_file, so it dies with the Funestra
     process and has to be re-sent — unlike a filter or a loop, which ride back in
-    on the playlist file the new player reads."""
+    on the playlist file the new Funestra reads."""
 
     def test_queues_a_lock_for_the_side_that_was_holding_one(self, tmp_path: Path):
         portrait = tmp_path / "portrait_cmd.txt"
@@ -385,7 +385,7 @@ class TestResumeSatelliteLocks:
 
         written = read_shared_state(state_file)
         assert written is not None
-        assert written.satellite(Player.PORTRAIT).favorites_filter is True
+        assert written.satellite(RoomFunestra.PORTRAIT).favorites_filter is True
         assert written.omni_paused is False
 
     def test_a_first_run_leaves_a_state_file(self, tmp_path: Path):
@@ -398,9 +398,9 @@ class TestResumeSatelliteLocks:
 
 
 class TestResumeMainLoop:
-    """The main player's A/B loop is a range inside one video, held in a player
+    """The Main Funestra's A/B loop is a range inside one video, held in a Funestra
     process that is about to be replaced — so like a satellite's lock it cannot
-    ride back in on a file the new player reads, and has to be re-sent.  Either
+    ride back in on a file the new Funestra reads, and has to be re-sent.  Either
     orchestrator asks for it, so the whole decision is here rather than at each
     of them: a desktop session and a headset one part company over which clips
     they can play, not over what a loop is."""
@@ -410,89 +410,89 @@ class TestResumeMainLoop:
         _write_playlist(playlist, list(_clips(tmp_path, *videos)))
         return playlist
 
-    def _looping(self, tmp_path: Path, video: str) -> MainPlayerStatus:
-        return MainPlayerStatus(video=str(tmp_path / video), loop_state=LoopState.LOOPING,
+    def _looping(self, tmp_path: Path, video: str) -> MainFunestraStatus:
+        return MainFunestraStatus(video=str(tmp_path / video), loop_state=LoopState.LOOPING,
                                 loop_in_ms=2000, loop_out_ms=4000)
 
     def test_queues_the_range_the_primary_was_looping(self, tmp_path: Path):
-        main_player_cmd = tmp_path / "main_player_cmd.txt"
+        main_funestra_cmd = tmp_path / "main_player_cmd.txt"
         playlist = self._playlist(tmp_path, "a.mp4", "b.mp4")
 
-        resume_main_loop(main_player_cmd, self._looping(tmp_path, "a.mp4"), playlist)
+        resume_main_loop(main_funestra_cmd, self._looping(tmp_path, "a.mp4"), playlist)
 
-        assert main_player_cmd.read_text(encoding="utf-8").splitlines() == ["SET_LOOP 2000 4000"]
+        assert main_funestra_cmd.read_text(encoding="utf-8").splitlines() == ["SET_LOOP 2000 4000"]
 
     def test_queues_nothing_when_there_was_no_loop(self, tmp_path: Path):
-        """A main player that was not looping must be sent nothing at all: playing
+        """A Main Funestra that was not looping must be sent nothing at all: playing
         the video through is already what no loop means."""
-        main_player_cmd = tmp_path / "main_player_cmd.txt"
+        main_funestra_cmd = tmp_path / "main_player_cmd.txt"
         playlist = self._playlist(tmp_path, "a.mp4")
 
-        resume_main_loop(main_player_cmd, MainPlayerStatus(video=str(tmp_path / "a.mp4")),
+        resume_main_loop(main_funestra_cmd, MainFunestraStatus(video=str(tmp_path / "a.mp4")),
                          playlist)
 
-        assert not main_player_cmd.exists()
+        assert not main_funestra_cmd.exists()
 
     def test_queues_nothing_when_another_video_leads_the_playlist(self, tmp_path: Path):
         """A rebuilt playlist, or a clip trashed since, leaves some other video at
         the top -- and these bounds would mark out a stretch of a video nobody
         chose.  This is the crossing between the two apps: each refuses the
         other's primary playlist and rebuilds its own."""
-        main_player_cmd = tmp_path / "main_player_cmd.txt"
+        main_funestra_cmd = tmp_path / "main_player_cmd.txt"
         playlist = self._playlist(tmp_path, "b.mp4")
 
-        resume_main_loop(main_player_cmd, self._looping(tmp_path, "a.mp4"), playlist)
+        resume_main_loop(main_funestra_cmd, self._looping(tmp_path, "a.mp4"), playlist)
 
-        assert not main_player_cmd.exists()
+        assert not main_funestra_cmd.exists()
 
     def test_keeps_whatever_is_already_queued(self, tmp_path: Path):
         """Startup has already seeded this channel with the sound level and the
-        F-mode flag, and the main player has drained none of it yet."""
-        main_player_cmd = tmp_path / "main_player_cmd.txt"
-        main_player_cmd.write_text("SET_VOLUME 40 0\n", encoding="utf-8")
+        F-mode flag, and the Main Funestra has drained none of it yet."""
+        main_funestra_cmd = tmp_path / "main_player_cmd.txt"
+        main_funestra_cmd.write_text("SET_VOLUME 40 0\n", encoding="utf-8")
         playlist = self._playlist(tmp_path, "a.mp4")
 
-        resume_main_loop(main_player_cmd, self._looping(tmp_path, "a.mp4"), playlist)
+        resume_main_loop(main_funestra_cmd, self._looping(tmp_path, "a.mp4"), playlist)
 
-        assert main_player_cmd.read_text(encoding="utf-8").splitlines() == [
+        assert main_funestra_cmd.read_text(encoding="utf-8").splitlines() == [
             "SET_VOLUME 40 0", "SET_LOOP 2000 4000",
         ]
 
 class TestResumeRates:
-    def test_queues_the_rate_each_player_was_playing_at(self, tmp_path: Path):
-        main_player_cmd = tmp_path / "main_player_cmd.txt"
+    def test_queues_the_rate_each_funestra_was_playing_at(self, tmp_path: Path):
+        main_funestra_cmd = tmp_path / "main_player_cmd.txt"
         portrait_cmd = tmp_path / "portrait_cmd.txt"
 
-        resume_rates([(main_player_cmd, 0.25), (portrait_cmd, 1.5)])
+        resume_rates([(main_funestra_cmd, 0.25), (portrait_cmd, 1.5)])
 
-        assert main_player_cmd.read_text(encoding="utf-8").splitlines() == ["SET_SPEED 0.25"]
+        assert main_funestra_cmd.read_text(encoding="utf-8").splitlines() == ["SET_SPEED 0.25"]
         assert portrait_cmd.read_text(encoding="utf-8").splitlines() == ["SET_SPEED 1.5"]
 
-    def test_queues_nothing_for_a_player_at_normal_speed(self, tmp_path: Path):
-        main_player_cmd = tmp_path / "main_player_cmd.txt"
+    def test_queues_nothing_for_a_funestra_at_normal_speed(self, tmp_path: Path):
+        main_funestra_cmd = tmp_path / "main_player_cmd.txt"
 
-        resume_rates([(main_player_cmd, 1.0)])
+        resume_rates([(main_funestra_cmd, 1.0)])
 
-        assert not main_player_cmd.exists()
+        assert not main_funestra_cmd.exists()
 
 
 class TestResumeMainLock:
-    """The main player opens holding the video it loads, so unlike a satellite's
+    """The Main Funestra opens holding the video it loads, so unlike a satellite's
     lock it is the UNheld video that has to be re-sent."""
 
-    def test_queues_the_unlock_a_main_player_was_left_in(self, tmp_path: Path):
-        main_player_cmd = tmp_path / "main_player_cmd.txt"
+    def test_queues_the_unlock_a_main_funestra_was_left_in(self, tmp_path: Path):
+        main_funestra_cmd = tmp_path / "main_player_cmd.txt"
 
-        resume_main_lock(main_player_cmd, locked=False)
+        resume_main_lock(main_funestra_cmd, locked=False)
 
-        assert main_player_cmd.read_text(encoding="utf-8").splitlines() == ["LOCK_OFF"]
+        assert main_funestra_cmd.read_text(encoding="utf-8").splitlines() == ["LOCK_OFF"]
 
-    def test_queues_nothing_for_a_main_player_that_was_holding_its_video(self, tmp_path: Path):
-        main_player_cmd = tmp_path / "main_player_cmd.txt"
+    def test_queues_nothing_for_a_main_funestra_that_was_holding_its_video(self, tmp_path: Path):
+        main_funestra_cmd = tmp_path / "main_player_cmd.txt"
 
-        resume_main_lock(main_player_cmd, locked=True)
+        resume_main_lock(main_funestra_cmd, locked=True)
 
-        assert not main_player_cmd.exists()
+        assert not main_funestra_cmd.exists()
 
 
 class TestResumeGenau:
@@ -580,8 +580,8 @@ class TestResumeGenau:
 
 
 class TestPlaylistOpensOn:
-    """Whether the clip a player will actually load is the one expected — asked
-    of the main player before its loop is handed back, since a loop belongs to one
+    """Whether the clip a Funestra will actually load is the one expected — asked
+    of the Main Funestra before its loop is handed back, since a loop belongs to one
     video and would otherwise be applied to whatever took its place."""
 
     def test_the_clip_a_resumed_playlist_leads_with(self, tmp_path: Path):
@@ -614,7 +614,7 @@ class TestPlaylistOpensOn:
 class TestPlaylistFitsSources:
     """Telling a playlist this session built from one that another app stranded.
 
-    FunTimeVR shares this state dir and writes the main player's playlist to the
+    FunTimeVR shares this state dir and writes the Main Funestra's playlist to the
     same file, built from the VR library merged with the desktop's — so the
     desktop session has to recognize that file rather than resume it.
     """
@@ -642,7 +642,7 @@ class TestPlaylistFitsSources:
         assert playlist_fits_sources(playlist, str(library)) is False
 
     def test_every_dir_of_a_multi_dir_spec_counts(self, tmp_path: Path):
-        """The main player's spec is pipe-joined, and a video from any of its dirs
+        """The Main Funestra's spec is pipe-joined, and a video from any of its dirs
         is this session's own."""
         first = tmp_path / "library" / "one"
         second = tmp_path / "library" / "two"
@@ -662,7 +662,7 @@ class TestPlaylistFitsSources:
 
     def test_case_alone_never_makes_a_video_foreign(self, tmp_path: Path):
         """Windows hands the same folder back in either case, and the config and
-        a player's playlist need not agree — a rebuild on that would throw away
+        a Funestra's playlist need not agree — a rebuild on that would throw away
         a good resume every launch."""
         library = tmp_path / "Library" / "2D"
         playlist = tmp_path / "main_player_playlist.tsv"
@@ -709,7 +709,7 @@ class TestResumeMainVideo:
         assert playlist.read_text(encoding="utf-8").splitlines() == [a, b]
 
     def test_the_funscript_column_survives_the_rotation(self, tmp_path: Path):
-        """The main player drives the OSR2 off that column, so a crossing that
+        """The Main Funestra drives the OSR2 off that column, so a crossing that
         dropped it would carry the video over and leave it unscripted."""
         a, b = _clips(tmp_path, "a.mp4", "b.mp4")
         playlist = tmp_path / "main_player_playlist.tsv"
@@ -734,7 +734,7 @@ class TestResumeMainVideo:
             tmp_path / "Scene One.mp4"
         )
 
-    def test_a_player_that_published_no_clip_leaves_the_rebuild_alone(self, tmp_path: Path):
+    def test_a_funestra_that_published_no_clip_leaves_the_rebuild_alone(self, tmp_path: Path):
         a, b = _clips(tmp_path, "a.mp4", "b.mp4")
         playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [a, b])
@@ -743,8 +743,8 @@ class TestResumeMainVideo:
 
         assert playlist.read_text(encoding="utf-8").splitlines() == [a, b]
 
-    def test_it_leaves_the_main_player_s_loop_answerable(self, tmp_path: Path):
-        """``resume_main_loop`` is queued only when the player really did come
+    def test_it_leaves_the_main_funestra_s_loop_answerable(self, tmp_path: Path):
+        """``resume_main_loop`` is queued only when the Funestra really did come
         back onto the video the loop was cut from, which is what this decides."""
         a, b = _clips(tmp_path, "a.mp4", "b.mp4")
         playlist = tmp_path / "main_player_playlist.tsv"

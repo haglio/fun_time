@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 
-from player_core.hud_placement import HudEdge
+from funestra_core.hud_placement import HudEdge
 
 from fun_time_vr.hud_sides import HudSides, side_named, side_screen_name, sides
 from fun_time_vr.pointer import HANDLE_DEG, PRESS, RELEASE, PressEvent
@@ -35,7 +35,7 @@ class TestTheSidesThePanelIsNotAgainst:
         assert side_bottom >= picture_top + RADIUS * math.radians(HANDLE_DEG)
 
 
-class TestAPlayersSides:
+class TestAFunestrasSides:
     @staticmethod
     def _sides():
         posted: list[str] = []

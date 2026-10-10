@@ -2,18 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from player_core.modes import LengthMode
+from funestra_core.modes import LengthMode
 
 from fun_time.dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from fun_time.dashboard_runtime import load_dashboard_snapshot
-from fun_time.player_status import (
+from fun_time.funestra_status import (
     GenauStatus,
-    MainPlayerStatus,
+    MainFunestraStatus,
     is_broker_heartbeat_fresh,
     is_osr2_device_on,
     read_genau_status,
     read_key_values,
-    read_main_player_status,
+    read_main_funestra_status,
 )
 
 
@@ -65,7 +65,7 @@ def test_load_dashboard_snapshot_defaults_voice_active_to_true(tmp_path: Path):
     assert snapshot.voice_active is True
 
 
-def test_load_dashboard_snapshot_reads_whether_every_player_has_nothing_to_reset(tmp_path: Path):
+def test_load_dashboard_snapshot_reads_whether_every_funestra_has_nothing_to_reset(tmp_path: Path):
     snapshot_file = tmp_path / "dashboard_state.ini"
     write_dashboard_snapshot(snapshot_file, DashboardSnapshot(nothing_to_reset=True))
 
@@ -177,8 +177,8 @@ def test_read_genau_status_handles_inactive_cruise(tmp_path: Path):
     assert status.shape == "sawtooth"
 
 
-def test_read_main_player_status_parses_has_funscript(tmp_path: Path):
-    # The main player publishes has_funscript per current video; the device arbiter
+def test_read_main_funestra_status_parses_has_funscript(tmp_path: Path):
+    # The Main Funestra publishes has_funscript per current video; the device arbiter
     # reads it to decide whether the funscript or Genau drives the OSR2.
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
@@ -186,93 +186,93 @@ def test_read_main_player_status_parses_has_funscript(tmp_path: Path):
         encoding="utf-8",
     )
 
-    status = read_main_player_status(status_file)
+    status = read_main_funestra_status(status_file)
 
     assert status.has_funscript is True
 
 
-def test_read_main_player_status_defaults_has_funscript_to_false(tmp_path: Path):
+def test_read_main_funestra_status_defaults_has_funscript_to_false(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\nhas_funscript=0\n", encoding="utf-8")
 
-    assert read_main_player_status(status_file).has_funscript is False
-    assert read_main_player_status(tmp_path / "missing.txt").has_funscript is False
+    assert read_main_funestra_status(status_file).has_funscript is False
+    assert read_main_funestra_status(tmp_path / "missing.txt").has_funscript is False
 
 
-def test_read_main_player_status_parses_funscript_resting(tmp_path: Path):
-    # The main player flags when the current spot is in a funscript gap so the device arbiter
+def test_read_main_funestra_status_parses_funscript_resting(tmp_path: Path):
+    # The Main Funestra flags when the current spot is in a funscript gap so the device arbiter
     # can hand that stretch to Genau.
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nhas_funscript=1\nfunscript_resting=1\n", encoding="utf-8"
     )
 
-    assert read_main_player_status(status_file).funscript_resting is True
+    assert read_main_funestra_status(status_file).funscript_resting is True
 
 
-def test_read_main_player_status_defaults_funscript_resting_to_false(tmp_path: Path):
+def test_read_main_funestra_status_defaults_funscript_resting_to_false(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\nhas_funscript=1\n", encoding="utf-8")
 
-    assert read_main_player_status(status_file).funscript_resting is False
-    assert read_main_player_status(tmp_path / "missing.txt").funscript_resting is False
+    assert read_main_funestra_status(status_file).funscript_resting is False
+    assert read_main_funestra_status(tmp_path / "missing.txt").funscript_resting is False
 
 
-def test_read_main_player_status_parses_the_lock(tmp_path: Path):
+def test_read_main_funestra_status_parses_the_lock(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\nlocked=0\n", encoding="utf-8")
 
-    assert read_main_player_status(status_file).locked is False
+    assert read_main_funestra_status(status_file).locked is False
 
 
-def test_read_main_player_status_defaults_the_lock_to_on(tmp_path: Path):
-    """Holding one video is what the main player does until told otherwise, so a
+def test_read_main_funestra_status_defaults_the_lock_to_on(tmp_path: Path):
+    """Holding one video is what the Main Funestra does until told otherwise, so a
     status that says nothing about the lock — or no status at all — must not read
     as unlocked and light the console's padlock the wrong way."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\n", encoding="utf-8")
 
-    assert read_main_player_status(status_file).locked is True
-    assert read_main_player_status(tmp_path / "missing.txt").locked is True
+    assert read_main_funestra_status(status_file).locked is True
+    assert read_main_funestra_status(tmp_path / "missing.txt").locked is True
 
 
-def test_read_main_player_status_parses_position_and_duration(tmp_path: Path):
+def test_read_main_funestra_status_parses_position_and_duration(tmp_path: Path):
     # Watch tracking (breeding) needs the playback fraction, so both the
-    # position and the clip length are read off the main player's status file.
+    # position and the clip length are read off the Main Funestra's status file.
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nposition_ms=54233\nduration_ms=60000\nloop_state=normal\npaused=0\n",
         encoding="utf-8",
     )
 
-    status = read_main_player_status(status_file)
+    status = read_main_funestra_status(status_file)
 
     assert status.position_ms == 54233
     assert status.duration_ms == 60000
 
 
-def test_read_main_player_status_defaults_duration_to_zero(tmp_path: Path):
+def test_read_main_funestra_status_defaults_duration_to_zero(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\n", encoding="utf-8")
 
-    assert read_main_player_status(status_file).duration_ms == 0
-    assert read_main_player_status(tmp_path / "missing.txt").duration_ms == 0
+    assert read_main_funestra_status(status_file).duration_ms == 0
+    assert read_main_funestra_status(tmp_path / "missing.txt").duration_ms == 0
 
 
-def test_read_main_player_status_parses_the_rate_the_main_player_plays_at(tmp_path: Path):
+def test_read_main_funestra_status_parses_the_rate_the_main_funestra_plays_at(tmp_path: Path):
     status_file = tmp_path / "nau_status.txt"
     status_file.write_text("video=C:\\clip.mp4\nspeed=1.5\n", encoding="utf-8")
 
-    assert read_main_player_status(status_file).speed == 1.5
+    assert read_main_funestra_status(status_file).speed == 1.5
 
 
-def test_read_main_player_status_reads_no_published_rate_as_normal_speed(tmp_path: Path):
+def test_read_main_funestra_status_reads_no_published_rate_as_normal_speed(tmp_path: Path):
     status_file = tmp_path / "nau_status.txt"
     status_file.write_text("video=C:\\clip.mp4\nhas_funscript=1\n", encoding="utf-8")
 
-    assert read_main_player_status(status_file).speed == 1.0
-    assert read_main_player_status(status_file).has_funscript is True
-    assert read_main_player_status(tmp_path / "missing.txt").speed == 1.0
+    assert read_main_funestra_status(status_file).speed == 1.0
+    assert read_main_funestra_status(status_file).has_funscript is True
+    assert read_main_funestra_status(tmp_path / "missing.txt").speed == 1.0
 
 
 def test_read_genau_status_names_the_clip_on_screen(tmp_path: Path):
@@ -302,8 +302,8 @@ def test_read_genau_status_says_whether_the_clip_up_is_flipped(tmp_path: Path):
     assert read_genau_status(tmp_path / "missing.txt").flipped is False
 
 
-def test_read_main_player_status_parses_the_range_a_running_loop_holds(tmp_path: Path):
-    """A loop lives in the player process, so the only record of one is what the main player
+def test_read_main_funestra_status_parses_the_range_a_running_loop_holds(tmp_path: Path):
+    """A loop lives in the Funestra process, so the only record of one is what the Main Funestra
     publishes — which is how a reopened session can be handed it back."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
@@ -311,61 +311,61 @@ def test_read_main_player_status_parses_the_range_a_running_loop_holds(tmp_path:
         encoding="utf-8",
     )
 
-    assert read_main_player_status(status_file).loop_bounds == (2000, 4000)
+    assert read_main_funestra_status(status_file).loop_bounds == (2000, 4000)
 
 
-def test_read_main_player_status_reads_no_loop_where_nothing_is_looping(tmp_path: Path):
+def test_read_main_funestra_status_reads_no_loop_where_nothing_is_looping(tmp_path: Path):
     """The bounds go on being published as the empty range when the loop is
-    cancelled, and an older main player does not publish them at all — neither is a loop
+    cancelled, and an older Main Funestra does not publish them at all — neither is a loop
     to come back to."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nloop_state=normal\nloop_in_ms=0\nloop_out_ms=0\n", encoding="utf-8",
     )
 
-    assert read_main_player_status(status_file).loop_bounds is None
-    assert read_main_player_status(tmp_path / "missing.txt").loop_bounds is None
+    assert read_main_funestra_status(status_file).loop_bounds is None
+    assert read_main_funestra_status(tmp_path / "missing.txt").loop_bounds is None
 
 
 def test_a_loop_state_without_bounds_is_no_loop(tmp_path: Path):
-    """The main player published the state before it published the range, so a status file
+    """The Main Funestra published the state before it published the range, so a status file
     left by that version names a loop it cannot describe.  Sending mpv a
     zero-length A/B range would strand the video on one frame."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\nloop_state=looping\n", encoding="utf-8")
 
-    assert read_main_player_status(status_file).loop_bounds is None
+    assert read_main_funestra_status(status_file).loop_bounds is None
 
 
-def test_read_main_player_status_parses_what_a_reset_puts_back(tmp_path: Path):
+def test_read_main_funestra_status_parses_what_a_reset_puts_back(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nspeed=1.25\nlength_mode=shorts\ncompilation=Example Studio Volume One\n",
         encoding="utf-8",
     )
 
-    status = read_main_player_status(status_file)
+    status = read_main_funestra_status(status_file)
 
     assert (status.speed, status.length_mode, status.compilation) == (
         1.25, "shorts", "Example Studio Volume One")
-    assert read_main_player_status(tmp_path / "missing.txt").speed == 1.0
+    assert read_main_funestra_status(tmp_path / "missing.txt").speed == 1.0
 
 
-def test_read_main_player_status_reads_the_length_mode_as_its_entry_or_as_none(tmp_path: Path):
-    """The length pair is drawn only for a player that names a length mode this
-    session knows: no word, or one from a player of another age, draws no pair
+def test_read_main_funestra_status_reads_the_length_mode_as_its_entry_or_as_none(tmp_path: Path):
+    """The length pair is drawn only for a Funestra that names a length mode this
+    session knows: no word, or one from a Funestra of another age, draws no pair
     rather than lighting the wrong one."""
     status_file = tmp_path / "main_player_status.txt"
     for written, read in (("shorts", LengthMode.SHORTS), ("", None), ("every", None)):
         status_file.write_text(f"video=clip.mp4\nlength_mode={written}\n", encoding="utf-8")
 
-        assert read_main_player_status(status_file).length_mode is read
+        assert read_main_funestra_status(status_file).length_mode is read
 
 
 def test_funscript_driving_is_scripted_and_not_resting():
-    assert MainPlayerStatus(has_funscript=True, funscript_resting=False).funscript_driving is True
-    assert MainPlayerStatus(has_funscript=True, funscript_resting=True).funscript_driving is False
-    assert MainPlayerStatus(has_funscript=False).funscript_driving is False
+    assert MainFunestraStatus(has_funscript=True, funscript_resting=False).funscript_driving is True
+    assert MainFunestraStatus(has_funscript=True, funscript_resting=True).funscript_driving is False
+    assert MainFunestraStatus(has_funscript=False).funscript_driving is False
 
 
 
@@ -399,7 +399,7 @@ class TestTheTwoFreshnessChecks:
 
 class TestTheStatusFilesShape:
     def test_a_line_with_no_equals_is_passed_over(self, tmp_path):
-        """Both players' files are read by this one parse; a torn write leaves
+        """Both Funestras' files are read by this one parse; a torn write leaves
         a fragment that is not a pair, and it must not take the read down."""
         path = tmp_path / "status.txt"
         path.write_text("video=demo.mp4\nnonsense\nposition_ms=42\n", encoding="utf-8")
@@ -414,11 +414,11 @@ class TestTheStatusFilesShape:
         assert read_key_values(path) == {"video": "C:/clips/a=b.mp4"}
 
 
-def test_the_main_players_video_is_portrait_where_it_says_so(tmp_path: Path):
+def test_the_main_funestras_video_is_portrait_where_it_says_so(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:/v/n.mp4\nportrait=1\n", encoding="utf-8")
 
-    assert read_main_player_status(status_file).portrait is True
+    assert read_main_funestra_status(status_file).portrait is True
 
 
 def test_genaus_clip_is_portrait_where_it_says_so(tmp_path: Path):

@@ -16,8 +16,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support.file_channel import read_flag, write_flag
-from player_core.console import OSR2_RETRACTED
-from player_core.modes import MainMode
+from funestra_core.console import OSR2_RETRACTED
+from funestra_core.modes import MainMode
 from shared_ui.preview import Preview, window_title
 
 from fun_time import closing_screen, device_arbiter, windows_bridge_orchestrator
@@ -25,6 +25,7 @@ from fun_time.config import load_config
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
+from fun_time.funestra_deaths import FunestraDied, LaunchedFunestra
 from fun_time.loading_cover import open_the_cover
 from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.loopback_inbox import PRESS_PORT_FILENAME
@@ -46,7 +47,6 @@ from fun_time.overlay_progress import (
     parse_progress,
     ready_file_for,
 )
-from fun_time.player_deaths import LaunchedPlayer, PlayerDied
 from fun_time.satellites_mode import ORIGENERATOR_MODE
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
@@ -88,7 +88,7 @@ from fun_time.windows_bridge_orchestrator import (
     kill_recorded_child,
     run_session,
     seat_the_secondary_monitor,
-    silence_the_players,
+    silence_the_funestras,
     stop_everything,
     write_pids_file,
 )
@@ -118,7 +118,7 @@ def _a_session(**kwargs) -> int:
 
 def _fake_startup_result() -> StartupResult:
     return StartupResult(
-        main_player_pid=200,
+        main_funestra_pid=200,
         portrait_pid=300,
         landscape_pid=400,
         dashboard_pid=500,
@@ -136,10 +136,10 @@ class TestFixPostLoadingWindows:
         the launcher's, not the interpreter that owns the SDL window, so the
         by-pid lookup finds nothing.  This pass was the only banding the
         satellites got on a loading-screen startup, and with hwnd 0 it silently
-        skipped them — every session opened with both players out of the
+        skipped them — every session opened with both Funestras out of the
         topmost band, buried by the first window raised over their rects."""
         result = _fake_startup_result()
-        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+        titles = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
 
         with patch(
             "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
@@ -157,18 +157,18 @@ class TestFixPostLoadingWindows:
     def test_a_buried_satellite_is_re_promoted_until_frontmost(self):
         """The banding waits on each window's own thread, and the satellites
         are at their busiest exactly at the reveal — a promotion that times
-        out through the stalled-window guard leaves the player under whatever
+        out through the stalled-window guard leaves the Funestra under whatever
         the user had on that monitor (a maximized Chrome sat over the
-        landscape player until the next full re-band).  The pass now walks
+        Landscape Funestra until the next full re-band).  The pass now walks
         the real z-order afterwards and re-promotes whoever is still buried."""
         result = _fake_startup_result()
-        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+        titles = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
         chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
                                rect=(0, 0, 2560, 1410))
         buried = [chrome,
-                  StackedWindow(hwnd=222, title="Landscape AI Player",
+                  StackedWindow(hwnd=222, title="Landscape AI Funestra",
                                 topmost=True, rect=(854, 0, 1706, 1410)),
-                  StackedWindow(hwnd=111, title="Portrait AI Player",
+                  StackedWindow(hwnd=111, title="Portrait AI Funestra",
                                 topmost=True, rect=(2560, 0, 1440, 2560))]
         risen = [buried[1], chrome, buried[2]]  # landscape above Chrome now
 
@@ -191,18 +191,18 @@ class TestFixPostLoadingWindows:
 
         promote.assert_called_once_with(222, True, under=0)  # only the buried one, once
 
-    def test_a_buried_main_player_is_re_promoted_too(self):
-        """The main player is decoding its first frame at the reveal, so its
+    def test_a_buried_main_funestra_is_re_promoted_too(self):
+        """The Main Funestra is decoding its first frame at the reveal, so its
         promotion times out through the stalled-window guard exactly as a
         satellite's does — and a timed-out SetWindowPos lands when that window
         next pumps, which is the second after the cover lifts.  He watched the
-        main player climb over the room there, so it is walked and re-promoted
+        Main Funestra climb over the room there, so it is walked and re-promoted
         with the other two rather than only logged."""
         result = _fake_startup_result()
-        titles = {"Main Player": 333}
+        titles = {"Main Funestra": 333}
         chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
                                rect=(0, 0, 2560, 1410))
-        main_player = StackedWindow(hwnd=333, title="Main Player",
+        main_funestra = StackedWindow(hwnd=333, title="Main Funestra",
                                     topmost=True, rect=(0, 0, 2560, 1410))
 
         with patch(
@@ -214,7 +214,7 @@ class TestFixPostLoadingWindows:
             side_effect=lambda title, **kwargs: titles.get(title, 0),
         ), patch(
             "fun_time.windows_bridge_orchestrator.iter_zorder",
-            side_effect=[[chrome, main_player], [main_player, chrome]],
+            side_effect=[[chrome, main_funestra], [main_funestra, chrome]],
         ), patch(
             "fun_time.windows_bridge_orchestrator.set_always_on_top"
         ) as promote, sleeps_in(windows_bridge_orchestrator), patch(
@@ -224,15 +224,15 @@ class TestFixPostLoadingWindows:
 
         promote.assert_called_once_with(333, True, under=0)
 
-    def test_a_buried_main_player_is_re_promoted_in_genau_mode_too(self):
-        """Genau runs on the Main Player's window, so a genau session has no
-        parked player to leave alone: a window over it is a burial in either
+    def test_a_buried_main_funestra_is_re_promoted_in_genau_mode_too(self):
+        """Genau runs on the Main Funestra's window, so a genau session has no
+        parked Funestra to leave alone: a window over it is a burial in either
         mode."""
         result = replace(_fake_startup_result(), main_mode=MainMode.GENAU)
-        titles = {"Main Player": 333}
+        titles = {"Main Funestra": 333}
         chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
                                rect=(0, 0, 2560, 1410))
-        main_player = StackedWindow(hwnd=333, title="Main Player",
+        main_funestra = StackedWindow(hwnd=333, title="Main Funestra",
                                     topmost=True, rect=(0, 0, 2560, 1410))
 
         with patch(
@@ -244,7 +244,7 @@ class TestFixPostLoadingWindows:
             side_effect=lambda title, **kwargs: titles.get(title, 0),
         ), patch(
             "fun_time.windows_bridge_orchestrator.iter_zorder",
-            side_effect=[[chrome, main_player], [main_player, chrome]],
+            side_effect=[[chrome, main_funestra], [main_funestra, chrome]],
         ), patch(
             "fun_time.windows_bridge_orchestrator.set_always_on_top"
         ) as promote, sleeps_in(windows_bridge_orchestrator), patch(
@@ -254,12 +254,12 @@ class TestFixPostLoadingWindows:
 
         promote.assert_called_once_with(333, True, under=0)
 
-    def test_a_player_still_buried_under_the_curtain_is_re_promoted_under_it(self):
+    def test_a_funestra_still_buried_under_the_curtain_is_re_promoted_under_it(self):
         result = _fake_startup_result()
-        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+        titles = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
         chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
                                rect=(0, 0, 2560, 1410))
-        landscape = StackedWindow(hwnd=222, title="Landscape AI Player",
+        landscape = StackedWindow(hwnd=222, title="Landscape AI Funestra",
                                   topmost=True, rect=(854, 0, 1706, 1410))
 
         with patch(
@@ -305,18 +305,18 @@ class TestFixPostLoadingWindows:
         sequencer_banding.assert_not_called()
 
     def test_the_curtain_is_not_a_burial(self):
-        """The overlay covers both players by design, so counting it as a
-        covering window would spend every pass re-promoting players that are
+        """The overlay covers both Funestras by design, so counting it as a
+        covering window would spend every pass re-promoting Funestras that are
         exactly where they belong — and each promotion would put one over the
         curtain."""
         result = _fake_startup_result()
-        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+        titles = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
         curtain = StackedWindow(hwnd=77, title="Fun Time Loading", topmost=True,
                                 rect=(0, 0, 4000, 2560))
         stack = [curtain,
-                 StackedWindow(hwnd=222, title="Landscape AI Player",
+                 StackedWindow(hwnd=222, title="Landscape AI Funestra",
                                topmost=True, rect=(854, 0, 1706, 1410)),
-                 StackedWindow(hwnd=111, title="Portrait AI Player",
+                 StackedWindow(hwnd=111, title="Portrait AI Funestra",
                                topmost=True, rect=(2560, 0, 1440, 2560))]
 
         with patch(
@@ -337,7 +337,7 @@ class TestFixPostLoadingWindows:
         ):
             _fix_post_loading_windows(result, overlay_hwnd=77)
 
-        # Neither player is buried, and the curtain itself is never touched.
+        # Neither Funestra is buried, and the curtain itself is never touched.
         cover_back.assert_not_called()
         promote.assert_not_called()
         slept.assert_not_called()
@@ -347,13 +347,13 @@ class TestFixPostLoadingWindows:
 
         It used to, because a session could open already in origenerator mode:
         the curtain was held for that app's boot, its window restored under the
-        cover, and the shows banded here as the roles that cover the players.
+        cover, and the shows banded here as the roles that cover the Funestras.
         Every room opens in kino mode now -- the boot is what made a launch
         long -- so the app is still coming up when this runs, and its three
         windows are the dispatch loop's to find and band when it has them.
         """
         result = _fake_startup_result()
-        by_title = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+        by_title = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
 
         with patch(
             "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
@@ -373,7 +373,7 @@ class TestFixPostLoadingWindows:
 
         assert not [name for name in apply.call_args.kwargs
                     if name.startswith("origenerator")]
-        # And each satellite rect is watched for its own player, always.
+        # And each satellite rect is watched for its own Funestra, always.
         watched = [call.args[1] for call in obstruction.call_args_list]
         assert 111 in watched and 222 in watched
 
@@ -381,7 +381,7 @@ class TestFixPostLoadingWindows:
         """The reveal re-asserts the bands once the overlay is gone, and does
         it on these rather than resolving every window a second time."""
         result = _fake_startup_result()
-        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+        titles = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
 
         with patch(
             "fun_time.windows_bridge_orchestrator.apply_startup_window_state",
@@ -470,7 +470,7 @@ class TestIdentifyChildren:
         ):
             children = identify_children(_fake_startup_result())
 
-        assert children["main_player_pid"] == ChildProcess(pid=200, created_at=2000)
+        assert children["main_funestra_pid"] == ChildProcess(pid=200, created_at=2000)
         assert children["audio_pid"] == ChildProcess(pid=700, created_at=7000)
 
     def test_records_a_child_that_already_exited_as_unkillable(self):
@@ -482,7 +482,7 @@ class TestIdentifyChildren:
         ):
             children = identify_children(_fake_startup_result())
 
-        assert children["main_player_pid"] == ChildProcess(pid=200, created_at=0)
+        assert children["main_funestra_pid"] == ChildProcess(pid=200, created_at=0)
 
 
 def _recorded_children(**overrides: ChildProcess) -> dict[str, ChildProcess]:
@@ -512,7 +512,7 @@ class TestShutdownChildren:
 
     def test_kills_the_recorded_children_but_never_a_recycled_pid(self, tmp_path):
         children = _recorded_children(
-            main_player_pid=ChildProcess(pid=200, created_at=111),
+            main_funestra_pid=ChildProcess(pid=200, created_at=111),
             portrait_pid=ChildProcess(pid=300, created_at=222),
         )
         live_creation_times = {200: 111, 300: 999}  # 300 was recycled
@@ -572,7 +572,7 @@ class TestWritePidsFile:
     def test_writes_all_pids(self, tmp_path):
         parser = self._write(tmp_path)
 
-        assert parser.getint("pids", "main_player_pid") == 200
+        assert parser.getint("pids", "main_funestra_pid") == 200
         assert parser.getint("pids", "portrait_pid") == 300
         assert parser.getint("pids", "landscape_pid") == 400
         assert parser.getint("pids", "dashboard_pid") == 500
@@ -583,7 +583,7 @@ class TestWritePidsFile:
         Windows has since handed the PID to."""
         parser = self._write(tmp_path)
 
-        assert parser.getint("created_at", "main_player_pid") == 2000
+        assert parser.getint("created_at", "main_funestra_pid") == 2000
         assert parser.getint("created_at", "audio_pid") == 7000
 
 
@@ -1003,7 +1003,7 @@ class TestLoadingScreenLifecycle:
         )
 
         result_with_hwnds = StartupResult(
-            main_player_pid=200, portrait_pid=300, landscape_pid=400,
+            main_funestra_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, audio_pid=700,
             )
 
@@ -1588,7 +1588,7 @@ class TestClosingScreenLifecycle:
         def read_the_sound_flags():
             commands = LaunchManifest.read(tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands
             for flag in map(Path, (
-                commands.main_player_paused_file, commands.audio_paused_file,
+                commands.main_funestra_paused_file, commands.audio_paused_file,
                 commands.portrait_paused_file, commands.landscape_paused_file,
                 commands.origenerator_paused_file,
             )):
@@ -1665,10 +1665,10 @@ class TestClosingScreenLifecycle:
         commands = replace(LaunchManifest.read(manifest_path).commands,
                            origenerator_paused_file="")
 
-        silence_the_players(commands)
+        silence_the_funestras(commands)
 
         assert [Path(flag).read_text(encoding="utf-8") for flag in (
-            commands.main_player_paused_file, commands.audio_paused_file,
+            commands.main_funestra_paused_file, commands.audio_paused_file,
             commands.portrait_paused_file, commands.landscape_paused_file,
         )] == ["1", "1", "1", "1"]
 
@@ -1683,7 +1683,7 @@ class TestClosingScreenLifecycle:
         with caplog.at_level(logging.WARNING, logger=windows_bridge_orchestrator.__name__):
             stop_everything(commands, (MagicMock(), still_busy))
 
-        assert Path(commands.main_player_paused_file).read_text(encoding="utf-8") == "1"
+        assert Path(commands.main_funestra_paused_file).read_text(encoding="utf-8") == "1"
         assert Path(commands.broker_cmd_file).read_text(encoding="utf-8") == "PARK"
         assert [r.getMessage() for r in caplog.records] == [
             "The dispatch loop was still busy 1.0s after the session ended"]
@@ -1727,7 +1727,7 @@ class TestClosingScreenLifecycle:
 
         assert events[-1] == "done"
         assert events.index("advance:browser") < events.index("close_browser")
-        assert events.index("advance:players") < events.index("kill:300")
+        assert events.index("advance:funestras") < events.index("kill:300")
         assert events.index("advance:companions") < events.index("kill:500")
         # Nothing of the shutdown channel is left for the next session.
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
@@ -1741,14 +1741,14 @@ class TestClosingScreenLifecycle:
         waiting its turn to be closed."""
         heard: list[bool] = []
 
-        def the_main_player_takes_its_time(pid):
+        def the_main_funestra_takes_its_time(pid):
             if pid == 200:
                 heard.append(heard_from_again_once_stale(
                     tmp_path / "state" / SHUTDOWN_PROGRESS_FILENAME,
                     stale_after_s=closing_screen.STALE_TIMEOUT_S))
 
         _run_a_session(cfg_factory, tmp_path, events=[],
-                       while_ending=the_main_player_takes_its_time)
+                       while_ending=the_main_funestra_takes_its_time)
 
         assert heard == [True]
 
@@ -1975,9 +1975,9 @@ def _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, *, word, popen=None
     return state_dir
 
 
-class TestAPlayerThatDiedWhileTheRoomCameUp:
-    """The launch ends and says which player went and what it said, instead of
-    revealing a room with a player missing: his previews waited out every window and
+class TestAFunestraThatDiedWhileTheRoomCameUp:
+    """The launch ends and says which Funestra went and what it said, instead of
+    revealing a room with a Funestra missing: his previews waited out every window and
     status timeout and opened on the browser alone, and Ctrl+Alt+Q was the only way
     out (2026-09-22)."""
 
@@ -1991,16 +1991,16 @@ class TestAPlayerThatDiedWhileTheRoomCameUp:
         killed: list[int] = []
         shown: list[str] = []
 
-        def a_player_died(**_kwargs):
-            raise PlayerDied(
-                LaunchedPlayer("the Main player", 25),
+        def a_funestra_died(**_kwargs):
+            raise FunestraDied(
+                LaunchedFunestra("the Main Funestra", 25),
                 "OSError: The engine (libmpv) could not be loaded.",
                 launched_pids=[300, 400])
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-                   side_effect=a_player_died),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   side_effect=a_funestra_died),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
                    return_value=MagicMock(wait=MagicMock(return_value=0))),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
-                   side_effect=killed.append),              patch("fun_time.windows_bridge_orchestrator.close_window"),              patch("fun_time.windows_bridge_orchestrator.show_player_died_alert",
+                   side_effect=killed.append),              patch("fun_time.windows_bridge_orchestrator.close_window"),              patch("fun_time.windows_bridge_orchestrator.show_funestra_died_alert",
                    side_effect=shown.append):
             code = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe",
@@ -2008,7 +2008,7 @@ class TestAPlayerThatDiedWhileTheRoomCameUp:
 
         assert code == 1
         assert {300, 400} <= set(killed)
-        assert "the Main player" in shown[0]
+        assert "the Main Funestra" in shown[0]
         assert "The engine (libmpv) could not be loaded." in shown[0]
         assert not (state_dir / "bridge_pids.ini").exists()
 
@@ -2025,21 +2025,21 @@ class TestAPlayerThatDiedWhileTheRoomCameUp:
                 if record.getMessage().startswith("Fun Time stopped starting up"):
                     happened.append("said why")
 
-        def the_main_player_died(**_kwargs):
-            raise PlayerDied(LaunchedPlayer("the Main player", 60), "ImportError: a made-up name",
+        def the_main_funestra_died(**_kwargs):
+            raise FunestraDied(LaunchedFunestra("the Main Funestra", 60), "ImportError: a made-up name",
                              launched_pids=[300, 400])
 
         noted = _NoteTheLine()
         logging.getLogger(windows_bridge_orchestrator.__name__).addHandler(noted)
         try:
             with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-                       side_effect=the_main_player_died), \
+                       side_effect=the_main_funestra_died), \
                  patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
                        return_value=MagicMock(wait=MagicMock(return_value=0))), \
                  patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
                        side_effect=lambda pid: happened.append(f"ended {pid}")), \
                  patch("fun_time.windows_bridge_orchestrator.close_window"), \
-                 patch("fun_time.windows_bridge_orchestrator.show_player_died_alert",
+                 patch("fun_time.windows_bridge_orchestrator.show_funestra_died_alert",
                        side_effect=lambda _text: happened.append("alert")):
                 _a_session(
                     manifest_path=manifest_path, ahk_exe="ahk.exe",
@@ -2118,7 +2118,7 @@ class TestStartupCancellation:
         state_dir = tmp_path / "state"
         heard: list[bool] = []
 
-        def the_main_player_takes_its_time(pid):
+        def the_main_funestra_takes_its_time(pid):
             if pid == 200:
                 heard.append(heard_from_again_once_stale(
                     state_dir / PROGRESS_FILENAME, stale_after_s=STALE_TIMEOUT_S))
@@ -2127,7 +2127,7 @@ class TestStartupCancellation:
                    side_effect=StartupCancelled(launched_pids=[300, 200], rfb_hwnd=0)), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen"), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
-                   side_effect=the_main_player_takes_its_time), \
+                   side_effect=the_main_funestra_takes_its_time), \
              patch("fun_time.windows_bridge_orchestrator.close_window"):
             _a_session(manifest_path=manifest_path, ahk_exe="ahk.exe",
                        hotkey_script="hotkeys.ahk", state_dir=state_dir, project_dir=tmp_path)
@@ -2525,7 +2525,7 @@ class TestHotkeyScriptGoesUpFirst:
         cancel away with them, since Esc only cancels while the hold is on."""
         state_dir = tmp_path / "state"
         state_dir.mkdir(parents=True, exist_ok=True)
-        (state_dir / "bridge_pids.ini").write_text("[pids]\nmain_player_pid = 999\n", encoding="utf-8")
+        (state_dir / "bridge_pids.ini").write_text("[pids]\nmain_funestra_pid = 999\n", encoding="utf-8")
 
         seen: list[bool] = []
         self._run(
@@ -2554,7 +2554,7 @@ class TestPostLoadingWindowState:
         )
 
         result_with_hwnds = StartupResult(
-            main_player_pid=200, portrait_pid=300, landscape_pid=400,
+            main_funestra_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, audio_pid=700,
                 rfb_hwnd=55555,
         )
@@ -2591,7 +2591,7 @@ class TestPostLoadingWindowState:
                 project_dir=tmp_path,
             )
 
-        # The windows that own a rect are promoted to topmost, the Main Player
+        # The windows that own a rect are promoted to topmost, the Main Funestra
         # (hwnd 2020) included: it floats above the desktop like it always has.
         promoted = [h for h, v in topmost_calls if v]
         assert {DASH_HWND, 2020, 3030, 4040, 55555} <= set(promoted), (
@@ -2599,49 +2599,49 @@ class TestPostLoadingWindowState:
         )
 
 
-class TestMainPlayerObstructionLog:
+class TestMainFunestraObstructionLog:
     """After the bands are re-applied, the orchestrator walks the real z-order
-    and names whatever still covers the main player — the diagnostic that turns a "the main player isn't
+    and names whatever still covers the Main Funestra — the diagnostic that turns a "the Main Funestra isn't
     on top" report into the exact culprit window, since the topmost flag alone
-    reads True even when the main player is buried."""
+    reads True even when the Main Funestra is buried."""
 
-    def test_names_the_window_covering_main_player(self, caplog):
+    def test_names_the_window_covering_main_funestra(self, caplog):
         stack = [
             StackedWindow(hwnd=99, title="Claude", topmost=False, rect=(2560, 2500, 1440, 900)),
-            StackedWindow(hwnd=2020, title="Main Player", topmost=True, rect=(2560, 2500, 1440, 900)),
+            StackedWindow(hwnd=2020, title="Main Funestra", topmost=True, rect=(2560, 2500, 1440, 900)),
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Main Player", 2020)
+            _log_window_obstruction("Main Funestra", 2020)
         assert "covered at startup" in caplog.text
         assert "Claude" in caplog.text
-        assert "topmost=False" in caplog.text  # a non-topmost window over topmost the main player
+        assert "topmost=False" in caplog.text  # a non-topmost window over topmost the Main Funestra
 
-    def test_quiet_when_main_player_is_frontmost(self, caplog):
-        stack = [StackedWindow(hwnd=2020, title="Main Player", topmost=True, rect=(2560, 2500, 1440, 900))]
+    def test_quiet_when_main_funestra_is_frontmost(self, caplog):
+        stack = [StackedWindow(hwnd=2020, title="Main Funestra", topmost=True, rect=(2560, 2500, 1440, 900))]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Main Player", 2020)
+            _log_window_obstruction("Main Funestra", 2020)
         assert "frontmost over its rect" in caplog.text
         assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
 
-    def test_warns_when_main_player_unresolved(self, caplog):
+    def test_warns_when_main_funestra_unresolved(self, caplog):
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder") as it, \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Main Player", 0)
-        it.assert_not_called()  # nothing to walk if the main player never resolved
+            _log_window_obstruction("Main Funestra", 0)
+        it.assert_not_called()  # nothing to walk if the Main Funestra never resolved
         assert "unresolved" in caplog.text
 
-    def test_quiet_when_only_the_loading_overlay_covers_main_player(self, caplog):
+    def test_quiet_when_only_the_loading_overlay_covers_main_funestra(self, caplog):
         """The cover is over everything on purpose while this runs under it."""
         stack = [
             StackedWindow(hwnd=1010, title="Fun Time is starting", topmost=True,
                           rect=(0, 0, 4000, 3440)),
-            StackedWindow(hwnd=2020, title="Main Player", topmost=True, rect=(2560, 2500, 1440, 900)),
+            StackedWindow(hwnd=2020, title="Main Funestra", topmost=True, rect=(2560, 2500, 1440, 900)),
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Main Player", 2020, ignore=1010)
+            _log_window_obstruction("Main Funestra", 2020, ignore=1010)
         assert "frontmost over its rect" in caplog.text
         assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
 
@@ -2650,11 +2650,11 @@ class TestMainPlayerObstructionLog:
             StackedWindow(hwnd=99, title="Claude", topmost=False, rect=(2560, 2500, 1440, 900)),
             StackedWindow(hwnd=1010, title="Fun Time is starting", topmost=True,
                           rect=(0, 0, 4000, 3440)),
-            StackedWindow(hwnd=2020, title="Main Player", topmost=True, rect=(2560, 2500, 1440, 900)),
+            StackedWindow(hwnd=2020, title="Main Funestra", topmost=True, rect=(2560, 2500, 1440, 900)),
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Main Player", 2020, ignore=1010)
+            _log_window_obstruction("Main Funestra", 2020, ignore=1010)
         assert "covered at startup" in caplog.text
         assert "Claude" in caplog.text
         assert "Fun Time is starting" not in caplog.text
@@ -2922,7 +2922,7 @@ class TestTheFinishingPassFitsUnderTheCover:
         watching the z-order sort itself out: the exact thing it is up for.
 
         Every wait that pass can take, added up, has to clear that guard.  Four
-        window resolutions: the dashboard, the main player, and the two satellites.
+        window resolutions: the dashboard, the Main Funestra, and the two satellites.
         """
         budget = (
             HUD_PRIME_TIMEOUT_S
@@ -2932,8 +2932,8 @@ class TestTheFinishingPassFitsUnderTheCover:
         assert budget < STALE_TIMEOUT_S
 
 
-class TestThePlayersStartWhenTheCoverIsGone:
-    """The main player's video and Genau's clips must not run under the cover.
+class TestTheFunestrasStartWhenTheCoverIsGone:
+    """The Main Funestra's video and Genau's clips must not run under the cover.
 
     The phase walk used to release them as its last act, which was also the
     moment the cover came down {D} so they lined up.  Now the cover is held
@@ -2964,8 +2964,8 @@ class TestThePlayersStartWhenTheCoverIsGone:
                    side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator._fix_post_loading_windows",
                    return_value={}), \
-             patch("fun_time.windows_bridge_orchestrator.release_the_players",
-                   side_effect=lambda *_a: events.append("players released")), \
+             patch("fun_time.windows_bridge_orchestrator.release_the_funestras",
+                   side_effect=lambda *_a: events.append("Funestras released")), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
             _a_session(
                 manifest_path=manifest_path,
@@ -2979,9 +2979,9 @@ class TestThePlayersStartWhenTheCoverIsGone:
     def test_the_release_waits_for_the_cover_to_go(self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path)
 
-        assert "players released" in events, "the players were never started"
-        assert events.index("cover gone") < events.index("players released"), (
-            "the players were started while the cover was still up"
+        assert "Funestras released" in events, "the Funestras were never started"
+        assert events.index("cover gone") < events.index("Funestras released"), (
+            "the Funestras were started while the cover was still up"
         )
 
 
@@ -3032,7 +3032,7 @@ class TestARoomLeftInOrigeneratorMode:
              patch("fun_time.windows_bridge_orchestrator._fix_post_loading_windows",
                    side_effect=the_post_loading_pass), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=a_band), \
-             patch("fun_time.windows_bridge_orchestrator.release_the_players"), \
+             patch("fun_time.windows_bridge_orchestrator.release_the_funestras"), \
              patch("fun_time.runtime_flow.append_command",
                    side_effect=lambda _path, verb: events.append(verb)), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
@@ -3334,12 +3334,12 @@ class TestStartingVoice:
 class TestTheHudPublisherASessionStarts:
     def test_it_names_the_camera_words_the_content_overlay_lists(self, tmp_path: Path):
         """The desktop session and the headset's both start their publisher here,
-        so this is the one place the overlay's words reach every player's panel."""
+        so this is the one place the overlay's words reach every Funestra's panel."""
         bridge_config = SimpleNamespace(
             portrait_sources="", landscape_sources="", state_dir=tmp_path)
         manifest = SimpleNamespace(commands=SimpleNamespace(
-            player_file=lambda player, kind: str(tmp_path / f"{player}_{kind}.json"),
-            main_player_console_file=str(tmp_path / "console.json")))
+            funestra_file=lambda funestra, kind: str(tmp_path / f"{funestra}_{kind}.json"),
+            main_funestra_console_file=str(tmp_path / "console.json")))
 
         with patch("fun_time.windows_bridge_orchestrator.load_camera_words",
                    return_value=("Side", "XYZ")),              patch("fun_time.windows_bridge_orchestrator.HudPublisher") as publisher,              patch("fun_time.windows_bridge_orchestrator.threading.Thread"):
@@ -3377,7 +3377,7 @@ def test_the_reveal_seats_the_secondary_monitor_for_the_crown_the_room_came_back
         load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME))
     write_shared_state(shared_state_path(Path(manifest.commands.state_dir)),
                        BridgeState(crowned=Crown.MAIN))
-    status = Path(manifest.commands.main_player_status_file)
+    status = Path(manifest.commands.main_funestra_status_file)
     status.parent.mkdir(parents=True, exist_ok=True)
     status.write_text("video=C:/fixtures/scene one.mp4\nportrait=1\n", encoding="utf-8")
     monkeypatch.setenv("FUN_TIME_FAKE_MONITORS", "0,0,2560,1392;2560,0,1440,3440")

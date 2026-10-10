@@ -54,10 +54,10 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
     )
 
 
-def _panel(player: str = "portrait", *, index, active: bool = False,
+def _panel(funestra: str = "portrait", *, index, active: bool = False,
            satellites_mode: str = "", **side_fields):
-    """One player's panel, built from the SatelliteInputs production builds."""
-    return build_hud_panel(SatelliteInputs(player, **side_fields), index=index,
+    """One Funestra's panel, built from the SatelliteInputs production builds."""
+    return build_hud_panel(SatelliteInputs(funestra, **side_fields), index=index,
                            active=active, satellites_mode=satellites_mode)
 
 
@@ -66,7 +66,7 @@ def test_panel_gathers_action_and_seed_siblings_and_labels_the_lock():
 
     panel = _panel("portrait", locked=True, current=CUR, index=index)
 
-    assert panel.player == "portrait"
+    assert panel.funestra == "portrait"
     assert panel.locked is True
     assert panel.lock_label == "Locked · Shuffle"
     assert panel.current == CUR
@@ -132,7 +132,7 @@ def test_without_a_loop_the_map_anchors_on_the_live_clip():
 def test_a_seed_loop_freezes_the_map_on_the_clip_the_loop_started_on():
     """While the seed row loops, the map anchors on the clip the loop started on —
     the clip that heads the queue the loop wrote — so the map holds still and reads
-    in the order the player plays it: that clip in the corner, the rest running
+    in the order the Funestra plays it: that clip in the corner, the rest running
     right from it.  ``playing`` follows the clip actually on screen.
     """
     index = _index(current=CUR, seed_sibs=[S1])
@@ -384,7 +384,7 @@ def test_ending_a_widened_loop_keeps_the_row_wide():
 
 def test_the_status_line_holds_every_state_the_side_is_in():
     """One line to read the satellite off: the lock, what is looping, which order its
-    browse is in, and the filter.  Anything the HUD knows about how the player is
+    browse is in, and the filter.  Anything the HUD knows about how the Funestra is
     behaving belongs up there, not spread around the panel."""
     index = _index(current=CUR, seed_sibs=[S1])
 
@@ -400,7 +400,7 @@ def test_the_status_line_holds_every_state_the_side_is_in():
 
 def test_the_status_line_says_when_f_mode_is_narrowing_the_library():
     """F-mode is a filtering layer of its own — favorites only — sitting under
-    whatever else the player is doing.  Left off the line, a player that has been cut
+    whatever else the Funestra is doing.  Left off the line, a Funestra that has been cut
     to a handful of clips looks identical to one browsing everything."""
     index = _index(current=CUR, seed_sibs=[S1])
 
@@ -442,7 +442,7 @@ def test_the_status_line_names_the_axis_that_is_looping():
 def test_the_lock_word_stands_down_while_a_loop_runs():
     """A loop is repeat-all over a group, so the lock is off and saying so is noise.
     The browse order stays on the line: the moment the loop ends, that is what the
-    player goes back to playing."""
+    Funestra goes back to playing."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     panel = _panel(
@@ -821,7 +821,7 @@ def _clip(media_root: Path, metadata_root: Path, name: str, meta: dict) -> str:
 
 
 def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
-    """Priming builds each player's real index up front and caches it, so a later
+    """Priming builds each Funestra's real index up front and caches it, so a later
     read serves it from memory — no per-clip rebuild during the session."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
@@ -847,38 +847,38 @@ def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
         metadata_root=metadata_root,
     )
 
-    assert portrait.player == "portrait" and portrait.locked is True
+    assert portrait.funestra == "portrait" and portrait.locked is True
     assert portrait.action_siblings == [sibling]
     assert portrait.filter_query == "beta gamma"
-    assert landscape.player == "landscape" and landscape.locked is False
+    assert landscape.funestra == "landscape" and landscape.locked is False
     assert landscape.action_siblings == [] and landscape.seed_siblings == []
     assert landscape.filter_query == ""
 
 
-def test_build_panels_marks_only_the_active_player_active(tmp_path: Path):
-    """A bare "lock" or "next" goes to whichever player was addressed last, and
+def test_build_panels_marks_only_the_active_funestra_active(tmp_path: Path):
+    """A bare "lock" or "next" goes to whichever Funestra was addressed last, and
     nothing on screen said which that was — so each panel carries whether it is
-    the one those words would reach.  Exactly one player can be it."""
+    the one those words would reach.  Exactly one Funestra can be it."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
 
-    def actives(active_player: str) -> tuple[bool, bool]:
+    def actives(active_funestra: str) -> tuple[bool, bool]:
         portrait, landscape = build_panels(
             SatelliteInputs("portrait", sources=sources, current=current),
             SatelliteInputs("landscape", sources=sources, current=current),
-            metadata_root=metadata_root, active_player=active_player,
+            metadata_root=metadata_root, active_funestra=active_funestra,
         )
         return portrait.active, landscape.active
 
     assert actives("portrait") == (True, False)
     assert actives("landscape") == (False, True)
-    assert actives("main") == (False, False)  # the main player has it; neither satellite does
+    assert actives("main") == (False, False)  # the Main Funestra has it; neither satellite does
 
 
 def test_build_panels_says_f_mode_on_the_side_that_is_in_it(tmp_path: Path):
     """F-mode is sided now — each satellite has its own button for it — so the
-    status line says it on the player it is on, and the other panel stays silent."""
+    status line says it on the Funestra it is on, and the other panel stays silent."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
@@ -891,7 +891,7 @@ def test_build_panels_says_f_mode_on_the_side_that_is_in_it(tmp_path: Path):
 
     assert "F-Mode" in portrait.lock_label
     assert "F-Mode" not in landscape.lock_label
-    # …and the flag itself rides along, so the player's own button can light.
+    # …and the flag itself rides along, so the Funestra's own button can light.
     assert (portrait.favorites_filter, landscape.favorites_filter) == (True, False)
 
 

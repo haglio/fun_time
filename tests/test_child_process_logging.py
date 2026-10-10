@@ -2,7 +2,7 @@
 
 The orchestrators and the audio companion have always installed the family's
 exception hooks; the three windowed children — the dashboard, a satellite and
-the headset player — set up bare ``basicConfig`` and nothing else, so a crash
+the headset process — set up bare ``basicConfig`` and nothing else, so a crash
 on one of their worker threads reached the parent's capture as an unlabeled
 traceback and nothing said which process or which thread it came out of.
 """
@@ -23,7 +23,7 @@ ENTRY_POINTS = (
     "fun_time.audio_companion_app",
     "fun_time.orchestrator",
     "fun_time_vr.orchestrator",
-    "fun_time_vr.player",
+    "fun_time_vr.funestras",
     "satellite.app",
 )
 
@@ -38,7 +38,7 @@ def hooks_restored():
 
 @pytest.mark.parametrize("module_name", ENTRY_POINTS)
 def test_every_entry_point_can_install_the_family_hooks(module_name, hooks_restored):
-    """The two players import a video engine this machine may not have; what is
+    """The two Funestras import a video engine this machine may not have; what is
     pinned here is that each module exposes the same setup step, called the same
     thing, so a sixth entry point has one obvious thing to copy."""
     try:
@@ -51,7 +51,7 @@ def test_every_entry_point_can_install_the_family_hooks(module_name, hooks_resto
 
 @pytest.mark.parametrize("module_name", ENTRY_POINTS)
 def test_every_entry_points_logging_step_runs(module_name, hooks_restored, tmp_path):
-    """Being callable is not running: the headset player named a helper it never
+    """Being callable is not running: the headset process named a helper it never
     imported, so its very first line raised NameError and every Enter VR closed
     Fun Time with nothing in the headset (2026-09-20).  The processes with a log
     of their own are handed where it goes; the windowed ones take nothing."""

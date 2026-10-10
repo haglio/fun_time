@@ -15,16 +15,16 @@ from pathlib import Path
 
 from app_support.file_channel import consume_command_file, read_flag
 from app_support.win32 import force_foreground_window, window_exists
-from player_core.file_channel import append_command
-from player_core.modes import NoticeLevel, read_mode
-from player_core.player_verbs import LOCK_OFF, LOCK_ON, play_file
-from player_core.playlist import PlaylistItem
+from funestra_core.file_channel import append_command
+from funestra_core.funestra_verbs import LOCK_OFF, LOCK_ON, play_file
+from funestra_core.modes import NoticeLevel, read_mode
+from funestra_core.playlist import PlaylistItem
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log
 from .command_dispatch import (
     dispatch_command,
-    every_player_in_f_mode,
+    every_funestra_in_f_mode,
     hosting_origenerator,
     notice_source,
     room_at_defaults,
@@ -44,6 +44,13 @@ from .dashboard_actions import (
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, SatelliteLine
 from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_SYSTEM, notice
+from .funestra_handover import PanelStamp, hand_back, let_go_since, panel_stamp
+from .funestra_status import (
+    is_broker_heartbeat_fresh,
+    origenerator_has_published,
+    read_genau_status,
+    read_main_funestra_status,
+)
 from .gallery_follows_genau import GalleryFollowsGenau
 from .genaumacher_save import save_clip_session
 from .hud_feed import HudFeed
@@ -52,19 +59,12 @@ from .library_browser import browse_library
 from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
 from .main_list_builds import BuildsOffTheLoop
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
-from .mode_plan import main_player_displays
+from .mode_plan import kino_shows
 from .modes import scripted_item
-from .osr2_section import player_with_the_osr2
-from .player_handover import PanelStamp, hand_back, let_go_since, panel_stamp
-from .player_status import (
-    is_broker_heartbeat_fresh,
-    origenerator_has_published,
-    read_genau_status,
-    read_main_player_status,
-)
-from .players import Player
+from .osr2_section import funestra_with_the_osr2
 from .rfb_slideshow import RfbSlideshow
 from .role_windows import WindowRoles
+from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_speeds import SatelliteSpeeds
 from .satellites_mode import KINO_MODE, origenerator_shows
@@ -99,18 +99,18 @@ from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 logger = logging.getLogger(__name__)
 
 
-# What the main player's own notice levels mean here.  The main player has no palette — it names the kind
+# What the Main Funestra's own notice levels mean here.  The Main Funestra has no palette — it names the kind
 # of thing that happened and this side picks the color, the same way the ops
 # raised in :mod:`fun_time.command_dispatch` do.
-_MAIN_PLAYER_NOTICE_LEVELS = {NoticeLevel.WARNING: logging.WARNING, NoticeLevel.HIGHLIGHT: FAVORITE}
+_MAIN_FUNESTRA_NOTICE_LEVELS = {NoticeLevel.WARNING: logging.WARNING, NoticeLevel.HIGHLIGHT: FAVORITE}
 
 
 
-def read_main_player_notice(path) -> tuple[float, NoticeLevel, str]:
-    """the main player's latest one-shot notice as (sequence, level, message).
+def read_main_funestra_notice(path) -> tuple[float, NoticeLevel, str]:
+    """the Main Funestra's latest one-shot notice as (sequence, level, message).
 
-    The main player bumps the sequence whenever it raises one; (0, "", "") means there is
-    nothing to read. Only the main player knows whether a clip jump had a target, so this is
+    The Main Funestra bumps the sequence whenever it raises one; (0, "", "") means there is
+    nothing to read. Only the Main Funestra knows whether a clip jump had a target, so this is
     how "full video not available" reaches the overlay.
     """
     try:
@@ -147,12 +147,12 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
 HANDOFF_COMMANDS: dict[str, HandoffTarget] = {"enter_vr": VR, "exit_vr": DESKTOP}
 
 
-# The side-agnostic actions the main player (the main player) answers, and what it answers with.
-# Navigation is the same gesture on every player; "end loop" is the same *word* for
-# a different loop — the main player's A-B loop rather than a satellite's group loop.  A lock
+# The side-agnostic actions the Main Funestra (the Main Funestra) answers, and what it answers with.
+# Navigation is the same gesture on every Funestra; "end loop" is the same *word* for
+# a different loop — the Main Funestra's A-B loop rather than a satellite's group loop.  A lock
 # is the same thing on all three — repeat-one on what is on screen — so the bare
-# word reaches whichever was last addressed, the main player included.  So is
-# F-mode, though it narrows each player to something different.
+# word reaches whichever was last addressed, the Main Funestra included.  So is
+# F-mode, though it narrows each Funestra to something different.
 _MAIN_EQUIVALENTS = {
     "next": "main_next",
     "prev": "main_prev",
@@ -164,12 +164,12 @@ _MAIN_EQUIVALENTS = {
     "fmode": "main_fmode",
     "fmode_on": "main_fmode_on",
     "fmode_off": "main_fmode_off",
-    # And so is a reset — "drop whatever is narrowing this player", which on the
-    # main player is its length mode and its F-mode where on a satellite it is the
+    # And so is a reset — "drop whatever is narrowing this Funestra", which on the
+    # Main Funestra is its length mode and its F-mode where on a satellite it is the
     # act filter and the loop.
     "reset": "main_reset",
-    # So are the two browse orders: every player browses newest-first or
-    # shuffled, and the main player is no exception now that Genau answers them too.
+    # So are the two browse orders: every Funestra browses newest-first or
+    # shuffled, and the Main Funestra is no exception now that Genau answers them too.
     "latest": "main_latest",
     "shuffle": "main_shuffle",
     "hud_minimize": "main_hud_minimize",
@@ -177,31 +177,31 @@ _MAIN_EQUIVALENTS = {
 }
 
 
-def resolve_active_player_command(command: str, active_player: int) -> str:
-    """Rewrite a side-agnostic ``active_*`` command onto the active player.
+def resolve_active_funestra_command(command: str, active_funestra: int) -> str:
+    """Rewrite a side-agnostic ``active_*`` command onto the active Funestra.
 
-    ``active_next``/``active_prev`` follow the last player navigated — main
-    (the main player, slot 1), portrait (2), or landscape (3).  ``active_lock_on``/``_off``
-    reach the main player too, meaning there what they mean on a satellite.  So
-    does ``active_no_loop``, but meaning the loop *it* has: the main player's A-B loop, where
+    ``active_next``/``active_prev`` follow the last Funestra navigated — main
+    (the Main Funestra, slot 1), portrait (2), or landscape (3).  ``active_lock_on``/``_off``
+    reach the Main Funestra too, meaning there what they mean on a satellite.  So
+    does ``active_no_loop``, but meaning the loop *it* has: the Main Funestra's A-B loop, where
     on a satellite the same phrase ends a group loop.  The rest (weird, cycle)
-    exist only on the satellites and resolve to nothing while the main player is
+    exist only on the satellites and resolve to nothing while the Main Funestra is
     active.  Every non-``active_`` command passes through unchanged.
     """
     if not command.startswith("active_"):
         return command
     action = command[len("active_"):]
-    if active_player == 1:
-        # What each side-agnostic action means on the main player; anything absent
+    if active_funestra == 1:
+        # What each side-agnostic action means on the Main Funestra; anything absent
         # here simply has no main-player equivalent.
         if action.startswith("speed_"):
             return f"main_player_{action}"
         return _MAIN_EQUIVALENTS.get(action, command)
-    prefix = "portrait_" if active_player == 2 else "landscape_"
+    prefix = "portrait_" if active_funestra == 2 else "landscape_"
     return prefix + action
 
 
-_PLAYER_GROUPS = {
+_FUNESTRA_GROUPS = {
     "both_": ("portrait_", "landscape_"),
     "all_": ("main_", "portrait_", "landscape_"),
 }
@@ -210,9 +210,9 @@ _PLAYER_GROUPS = {
 def expand_group_command(command: str) -> list[str]:
     """A ``both_``/``all_`` command as the per-player commands it stands for,
     each then handled exactly as if said alone; anything else as itself."""
-    for group, players in _PLAYER_GROUPS.items():
+    for group, funestras in _FUNESTRA_GROUPS.items():
         if command.startswith(group):
-            return [player + command[len(group):] for player in players]
+            return [funestra + command[len(group):] for funestra in funestras]
     return [command]
 
 
@@ -230,7 +230,7 @@ def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 
     return gap if gap >= threshold_s else None
 
 
-# How long the hosted app is given to let go of the players when origenerator
+# How long the hosted app is given to let go of the Funestras when origenerator
 # mode ends: a ceiling for an app that has stalled, not a wait anyone sits through.
 LET_GO_TIMEOUT_S = 3.0
 
@@ -274,7 +274,7 @@ class DispatchLoopRunner:
         self.secondary_rects = secondary_rects
         self.dashboard_enabled = dashboard_enabled
         self.env = env
-        # This loop holds the state each player's own HUD is drawn from (locks,
+        # This loop holds the state each Funestra's own HUD is drawn from (locks,
         # filters, loops) and already ticks, so it is what feeds them.
         self.hud = HudFeed(config=config, publisher=hud_publisher)
         self.rfb_shortcut = rfb_shortcut or Shortcut()
@@ -295,8 +295,8 @@ class DispatchLoopRunner:
         self._batching_rfb = False
         # Latch whatever is already on disk, so a notice left over from a
         # previous session does not flash the moment this one opens.
-        self._last_main_player_notice_seq = read_main_player_notice(
-            getattr(config, "main_player_notice_file", None) or Path("main_player_notice.txt")
+        self._last_main_funestra_notice_seq = read_main_funestra_notice(
+            getattr(config, "main_funestra_notice_file", None) or Path("main_player_notice.txt")
         )[0]
         self.voice_controller: VoiceController | None = None
         self.headset_off = False
@@ -304,9 +304,9 @@ class DispatchLoopRunner:
         self._ignored_because = ""
         # Satellites on their way back from the hosted app: by when they land,
         # and which of their hosted panels was up when they were sent for.
-        self._coming_home: dict[Player, tuple[float, PanelStamp]] = {}
+        self._coming_home: dict[RoomFunestra, tuple[float, PanelStamp]] = {}
         self.watch = WatchSampler(
-            main_player_status_file=config.main_player_status_file,
+            main_funestra_status_file=config.main_funestra_status_file,
             satellite_status_files={2: config.portrait_status_file,
                                     3: config.landscape_status_file},
             stats_file=watch_stats_path(config.state_dir),
@@ -319,17 +319,17 @@ class DispatchLoopRunner:
         # The Robot Hand and a funscript both feed the broker's one T-Code inlet,
         # so in kino mode something has to hand the device between them.
         self.arbiter = DeviceArbiter(
-            main_player_status_file=config.main_player_status_file,
-            main_player_cmd_file=config.main_player_cmd_file,
+            main_funestra_status_file=config.main_funestra_status_file,
+            main_funestra_cmd_file=config.main_funestra_cmd_file,
             genau_cmd_file=config.genau_cmd_file,
-            satellites={player: SatelliteLine(status_file=config.satellite(player).status_file,
-                                              cmd_file=config.satellite(player).cmd_file)
-                        for player in Player.SATELLITES},
+            satellites={funestra: SatelliteLine(status_file=config.satellite(funestra).status_file,
+                                              cmd_file=config.satellite(funestra).cmd_file)
+                        for funestra in RoomFunestra.SATELLITES},
         )
         self.satellite_speeds = SatelliteSpeeds(
-            main_player_status_file=config.main_player_status_file,
+            main_funestra_status_file=config.main_funestra_status_file,
             satellite_cmd_files=tuple(
-                config.satellite(player).cmd_file for player in Player.SATELLITES),
+                config.satellite(funestra).cmd_file for funestra in RoomFunestra.SATELLITES),
         )
         self.gallery_follows_genau = GalleryFollowsGenau(
             genau_status_file=config.genau_status_file,
@@ -386,7 +386,7 @@ class DispatchLoopRunner:
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
-        self._flash_main_player_notice()
+        self._flash_main_funestra_notice()
 
         shared = read_shared_state(self.shared_state_file)
         if shared is not None:
@@ -404,11 +404,11 @@ class DispatchLoopRunner:
         # Hand).
         self.arbiter.sync(self.state.main_mode, paused=self.state.omni_paused,
                           control=self.state.osr2_control,
-                          holder=player_with_the_osr2(self.state))
+                          holder=funestra_with_the_osr2(self.state))
 
         # Dashboard commands, several at once under rapid hotkey presses.  Each
         # raw line yields a command plus, for a spoken one, when the utterance
-        # began; an "active_*" command then resolves onto the player most
+        # began; an "active_*" command then resolves onto the Funestra most
         # recently addressed and a "both_*" one expands into its pair.
         self._batching_rfb = True
         try:
@@ -419,7 +419,7 @@ class DispatchLoopRunner:
         self._pause_for_a_click_into_a_text_field()
         self._flush_rfb_tabs()
         # After the batch, so a switch and a switch straight back inside one
-        # batch cancel rather than minimize the player they just brought back.
+        # batch cancel rather than minimize the Funestra they just brought back.
         self.windows.flush_pending_hides()
         self._seat_the_secondary_monitor()
 
@@ -430,10 +430,10 @@ class DispatchLoopRunner:
         if now - self._last_sync >= self.sync_interval_s:
             self._last_sync = now
             self._converge_origenerator_window()
-            self.satellite_speeds.take_the_main_players_rate()
+            self.satellite_speeds.take_the_main_funestras_rate()
             if self.dashboard_enabled:
                 self._update_dashboard()
-        self.bring_the_players_home(now=now)
+        self.bring_the_funestras_home(now=now)
         self.gallery_follows_genau.sync()
         self.watch.sample_due(now=now, paused=self.state.omni_paused,
                               satellites=not hosting_origenerator(self.state, self.config))
@@ -467,37 +467,37 @@ class DispatchLoopRunner:
     def _seat_the_secondary_monitor(self) -> None:
         if self.secondary_rects is None:
             return
-        most = majority_now(self.state, self.config.main_player_status_file,
+        most = majority_now(self.state, self.config.main_funestra_status_file,
                             self.config.genau_status_file)
         self.windows.seat(self.secondary_rects(majority=most))
         if most is not self.state.majority:
             self.state = replace(self.state, majority=most)
             write_shared_state(self.shared_state_file, self.state)
 
-    def expect_the_players_home(self, *, now: float) -> None:
+    def expect_the_funestras_home(self, *, now: float) -> None:
         """Both satellites are on their way back from the hosted app."""
         self._coming_home = {
-            player: (now + LET_GO_TIMEOUT_S, panel_stamp(self.config.satellite(player)))
-            for player in Player.SATELLITES
+            funestra: (now + LET_GO_TIMEOUT_S, panel_stamp(self.config.satellite(funestra)))
+            for funestra in RoomFunestra.SATELLITES
         }
 
-    def bring_the_players_home(self, *, now: float) -> None:
+    def bring_the_funestras_home(self, *, now: float) -> None:
         """Hand each satellite its own list again once the hosted app has let
         go of it, or has had long enough to -- never before, when a list the app
-        wrote after it would take the player straight back.
+        wrote after it would take the Funestra straight back.
         """
         if origenerator_shows(self.state.satellites_mode):
             self._coming_home.clear()
             return
-        for player, (deadline, stamp) in list(self._coming_home.items()):
-            channel = self.config.satellite(player)
+        for funestra, (deadline, stamp) in list(self._coming_home.items()):
+            channel = self.config.satellite(funestra)
             if now < deadline and not let_go_since(channel, stamp):
                 continue
-            del self._coming_home[player]
+            del self._coming_home[funestra]
             hand_back(channel)
             # The session's own hold stands again, whatever the app left.
             append_command(channel.cmd_file,
-                           LOCK_ON if self.state.satellite(player).locked else LOCK_OFF)
+                           LOCK_ON if self.state.satellite(funestra).locked else LOCK_OFF)
 
     def _sync_voice_suspension(self) -> None:
         """Freeze voice while omnipause holds, as AHK's ``Suspend`` freezes the keys.
@@ -521,32 +521,32 @@ class DispatchLoopRunner:
             return DURING_OMNIPAUSE
         return None
 
-    def _flash_main_player_notice(self) -> None:
-        """Surface anything the main player has raised since the last tick, once.
+    def _flash_main_funestra_notice(self) -> None:
+        """Surface anything the Main Funestra has raised since the last tick, once.
 
-        The main player names the kind rather than the color: a warning for a request
+        The Main Funestra names the kind rather than the color: a warning for a request
         with nowhere to go, a highlight for one about a funscript — which is what
         green is kept for here — and anything else is an ordinary white notice.
         """
-        path = getattr(self.config, "main_player_notice_file", None)
+        path = getattr(self.config, "main_funestra_notice_file", None)
         if path is None:
             return
-        seq, level, message = read_main_player_notice(path)
-        if seq <= self._last_main_player_notice_seq:
+        seq, level, message = read_main_funestra_notice(path)
+        if seq <= self._last_main_funestra_notice_seq:
             return
-        self._last_main_player_notice_seq = seq
+        self._last_main_funestra_notice_seq = seq
         if message:
             notice(
                 logger, message, source="main",
-                level=_MAIN_PLAYER_NOTICE_LEVELS.get(level, NOTICE),
+                level=_MAIN_FUNESTRA_NOTICE_LEVELS.get(level, NOTICE),
             )
 
     def _handle_line(self, line: CommandLine) -> None:
-        source = notice_source(line.command, self.state.active_player)
+        source = notice_source(line.command, self.state.active_funestra)
         frozen = self._frozen(line.command, line.spoken_at)
         answers_before = self._answers
         self._ignored_because = ""
-        resolved = resolve_active_player_command(line.command, self.state.active_player)
+        resolved = resolve_active_funestra_command(line.command, self.state.active_funestra)
         for command in expand_group_command(resolved):
             self._handle_command(command, line.spoken_at)
         if not line.said:
@@ -625,7 +625,7 @@ class DispatchLoopRunner:
             # for, so the retract must go out even from inside omnipause.
             self._handle_enter_omnipause("relief_omnipause")
         elif cmd == "browse_library":
-            if self.config.vr_main_player:
+            if self.config.vr_main_funestra:
                 self._publish_panel(LIBRARY_OPEN_FILENAME, toggling=True)
             else:
                 threading.Thread(
@@ -664,7 +664,7 @@ class DispatchLoopRunner:
         leaving word of where to go next (docs/entering-vr.md).  Asked for the
         session already running it says so and stays put."""
         target = HANDOFF_COMMANDS[cmd]
-        if target is this_session(vr_main_player=self.config.vr_main_player):
+        if target is this_session(vr_main_funestra=self.config.vr_main_funestra):
             self._flash(f"Already running {target.app_name}", source=SOURCE_SYSTEM,
                         level=logging.WARNING)
             return
@@ -711,7 +711,7 @@ class DispatchLoopRunner:
         are candidates for the tab too: Chrome's ``FindTabbedBrowser`` walks
         that profile's windows most-recently-active first, so the window he
         touched last would win and the lock's tab would land under the
-        players.  Activating the RFB window first is what settles it — it goes
+        Funestras.  Activating the RFB window first is what settles it — it goes
         to the head of Chrome's own activation order, and Chrome shows the
         window it opens into either way, so this only decides which one rises.
 
@@ -760,11 +760,11 @@ class DispatchLoopRunner:
                 DashboardSnapshot(
                     omni_paused=self.state.omni_paused,
                     voice_active=voice_active,
-                    f_mode=every_player_in_f_mode(self.state, self.config),
-                    in_vr=self.config.vr_main_player,
+                    f_mode=every_funestra_in_f_mode(self.state, self.config),
+                    in_vr=self.config.vr_main_funestra,
                     nothing_to_reset=room_at_defaults(
                         self.state, self.config,
-                        read_main_player_status(self.config.main_player_status_file)),
+                        read_main_funestra_status(self.config.main_funestra_status_file)),
                 ),
             )
         except OSError as exc:
@@ -902,7 +902,7 @@ class DispatchLoopRunner:
         self._log_topmost_state("post-enter")
 
     def _handle_browse_library(self) -> None:
-        """Browse the library and play the pick in the main player, one browse at a time.
+        """Browse the library and play the pick in the Main Funestra, one browse at a time.
 
         Serialized on a lock: the browser is the user's window, not the dispatch
         loop's, so a second request while one is open would stack a second
@@ -931,21 +931,21 @@ class DispatchLoopRunner:
         try:
             # Over the main slot's window: the pick plays there, so the browse
             # stands where it will, and covers nothing else on either monitor.
-            genau = not main_player_displays(self.state.main_mode)
-            player_hwnd = self.windows.hwnd("main_player")
+            genau = not kino_shows(self.state.main_mode)
+            funestra_hwnd = self.windows.hwnd("main_player")
             selected = browse_library(
                 self.manifest_path,
                 self.config.python_exe,
-                over=window_rect(player_hwnd) if player_hwnd else None,
+                over=window_rect(funestra_hwnd) if funestra_hwnd else None,
                 playing=(read_genau_status(self.config.genau_status_file).clip if genau
-                         else read_main_player_status(self.config.main_player_status_file).video),
+                         else read_main_funestra_status(self.config.main_funestra_status_file).video),
                 clips=genau,
                 runner=self._run_browser,
             )
             if selected and genau:
                 append_command(self.config.genau_cmd_file, play_file(PlaylistItem(Path(selected))))
             elif selected:
-                append_command(self.config.main_player_cmd_file, play_file(scripted_item(selected, self.config.regen_metadata_root)))
+                append_command(self.config.main_funestra_cmd_file, play_file(scripted_item(selected, self.config.regen_metadata_root)))
         finally:
             if manage_session:
                 self.windows.restore_all_topmost(self.state.satellites_mode)
@@ -1015,7 +1015,7 @@ def _run_hide_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 
 def _run_minimize_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
-    # A player's own HUD minimize button, parking that one window — straight
+    # A Funestra's own HUD minimize button, parking that one window — straight
     # away, unlike the settled main-slot hide: the window goes down still
     # showing its video, which is what was pressed for, and its frozen
     # thumbnail is then the clip it holds.
@@ -1058,7 +1058,7 @@ def _run_save_clip(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     ).start()
 
 
-def _run_main_player_answers(runner: DispatchLoopRunner, _op: WindowOp) -> None:
+def _run_main_funestra_answers(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner._answers += 1
 
 
@@ -1070,8 +1070,8 @@ def _run_notice(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner._flash(op.key, source=op.source, level=op.level)
 
 
-def _run_take_back_players(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    runner.expect_the_players_home(now=time.monotonic())
+def _run_take_back_funestras(runner: DispatchLoopRunner, _op: WindowOp) -> None:
+    runner.expect_the_funestras_home(now=time.monotonic())
 
 
 def _run_follow_genaus_lock(runner: DispatchLoopRunner, _op: WindowOp) -> None:
@@ -1098,9 +1098,9 @@ _OP_HANDLERS = {
     Op.UNSUSPEND_HOTKEYS: _run_ahk_passthrough,
     Op.OPEN_RFB_TAB: _run_open_rfb_tab,
     Op.SAVE_CLIP: _run_save_clip,
-    Op.MAIN_PLAYER_ANSWERS: _run_main_player_answers,
+    Op.MAIN_FUNESTRA_ANSWERS: _run_main_funestra_answers,
     Op.IGNORED: _run_ignored,
-    Op.TAKE_BACK_PLAYERS: _run_take_back_players,
+    Op.TAKE_BACK_FUNESTRAS: _run_take_back_funestras,
     Op.FOLLOW_GENAUS_LOCK: _run_follow_genaus_lock,
 }
 assert set(_OP_HANDLERS) == set(Op), "every window op needs a handler"
@@ -1109,17 +1109,17 @@ assert set(_OP_HANDLERS) == set(Op), "every window op needs a handler"
 def build_bridge_config_from_manifest(
     manifest: LaunchManifest,
     *,
-    vr_main_player: bool = False,
+    vr_main_funestra: bool = False,
 ) -> BridgeConfig:
     """Build a BridgeConfig from the session's launch manifest.
 
-    *vr_main_player* says the session hosts its main player inside the VR
-    scene rather than launching the main player.  The manifest cannot answer it — both
+    *vr_main_funestra* says the session hosts its Main Funestra inside the VR
+    scene rather than launching the Main Funestra.  The manifest cannot answer it — both
     sessions build from the same one — so the orchestrator that knows says so.
     """
     commands = manifest.commands
     return BridgeConfig(
-        vr_main_player=vr_main_player,
+        vr_main_funestra=vr_main_funestra,
         main_list_builds=BuildsOffTheLoop(),
         portrait_cmd_file=Path(commands.portrait_cmd_file),
         portrait_paused_file=Path(commands.portrait_paused_file),
@@ -1133,7 +1133,7 @@ def build_bridge_config_from_manifest(
         weird_dir=Path(manifest.media.weird_dir),
         state_dir=Path(commands.state_dir),
         loopback_port=manifest.loopback_port,
-        main_sources=manifest.media.main_player_library_sources,
+        main_sources=manifest.media.main_funestra_library_sources,
         vr_library_dirs=manifest.media.vr_library_dirs,
         genau_vr_clips=manifest.media.genau_vr_clips,
         python_exe=manifest.executables.python_exe,
@@ -1145,10 +1145,10 @@ def build_bridge_config_from_manifest(
         genau_status_file=Path(commands.genau_status_file),
         audio_paused_file=Path(commands.audio_paused_file),
         audio_volume_file=Path(commands.audio_volume_file),
-        main_player_cmd_file=Path(commands.main_player_cmd_file),
-        main_player_paused_file=Path(commands.main_player_paused_file),
-        main_player_status_file=Path(commands.main_player_status_file),
-        main_player_notice_file=Path(commands.main_player_notice_file),
+        main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
+        main_funestra_paused_file=Path(commands.main_funestra_paused_file),
+        main_funestra_status_file=Path(commands.main_funestra_status_file),
+        main_funestra_notice_file=Path(commands.main_funestra_notice_file),
         dashboard_state_file=Path(commands.dashboard_state_file),
         broker_cmd_file=Path(commands.broker_cmd_file),
         broker_heartbeat_file=Path(commands.broker_heartbeat_file),

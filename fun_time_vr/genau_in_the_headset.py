@@ -5,11 +5,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from player_core.clip_folder import flat_clips_in, scan_clips, vr_clips_in
-from player_core.console_hud import ModeHud
+from funestra_core.clip_folder import flat_clips_in, scan_clips, vr_clips_in
+from funestra_core.console_hud import ModeHud
 
 from fun_time.vr_videos import keep_shapes
-from main_player.genau import Genau
+from main_funestra.genau import Genau
 
 
 class GenauInTheHeadset(Genau):

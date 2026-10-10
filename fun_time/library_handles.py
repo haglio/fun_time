@@ -19,7 +19,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from player_core.clip_folder import flat_clips_in, vr_clips_in
+from funestra_core.clip_folder import flat_clips_in, vr_clips_in
 
 from .folder_listings import FolderListings
 from .media_metadata import (
@@ -39,8 +39,8 @@ class LibraryHandle:
     """One video, however many files it exists as.
 
     *versions* holds every rendition, largest file first — the same canonical
-    ordering the main player's own version cycling walks, so the version a
-    handle plays is the one that player would have chosen anyway.
+    ordering the Main Funestra's own version cycling walks, so the version a
+    handle plays is the one that Funestra would have chosen anyway.
     """
 
     title: str

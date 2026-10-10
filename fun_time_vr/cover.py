@@ -1,7 +1,7 @@
 """The cover Fun Time VR hangs in the headset while the session is changing.
 
 A headset has no monitors for the desktop's overlay windows, so this cover is a
-surface the VR player draws over its own scene, on the desktop's channel
+surface the headset draws over its own scene, on the desktop's channel
 (:mod:`fun_time.overlay_progress`) -- only the phase lists differ.
 """
 from __future__ import annotations
@@ -39,16 +39,16 @@ logger = logging.getLogger(__name__)
 VR_STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("companions", "Launching companions...", 0.6),
-    Phase("players", "Waiting for players...", 9.0),
+    Phase("funestras", "Waiting for Funestras...", 9.0),
     COMING_BACK_TO_THE_MODE,
     Phase("finalizing", "Finalizing...", 0.0),  # weightless: the bar reads full
 )
 
-# The player's phase is last because it is killed last: it wears the cover.
+# The Funestra's phase is last because it is killed last: it wears the cover.
 VR_SHUTDOWN_PHASES: tuple[Phase, ...] = (
     Phase("controls", "Closing...", 1.0),  # the cover opens on this wording
     Phase("companions", "Closing companions...", 1.0),
-    Phase("players", "Closing players...", 1.0),
+    Phase("funestras", "Closing Funestras...", 1.0),
 )
 
 # What each waits on, and why they differ: docs/entering-vr.md.
@@ -57,7 +57,7 @@ SHUTDOWN_STALE_TIMEOUT_S = 20.0
 
 CLOSING_STATUS = VR_SHUTDOWN_PHASES[0].message
 HELD_STATUS = DESKTOP.crossing_message  # exempt from staleness: see the doc
-WEARER_STATUS = "Waiting for you to put the headset on..."  # not on the players
+WEARER_STATUS = "Waiting for you to put the headset on..."  # not on the Funestras
 
 _STARTUP = "startup"
 _SHUTDOWN = "shutdown"
@@ -80,7 +80,7 @@ def _line_on(path: Path) -> Progress | None:
 
 class CoverWatcher:
     """What the cover should show, read off the orchestrator's progress files
-    and polled from the player's worker, never its frame loop.  None means show
+    and polled from the Funestra's worker, never its frame loop.  None means show
     the scene: no end running, DONE, or a file gone stale."""
 
     def __init__(
@@ -182,7 +182,7 @@ class CoverWatcher:
         return now - seen[1] > stale_timeout_s
 
 
-# The player's answer to "is the room on screen?", which a desktop orchestrator
+# The Funestra's answer to "is the room on screen?", which a desktop orchestrator
 # sees for itself.  The grace caps it -- an empty satellite playlist never gets
 # a texture -- and the dwell is the cover's time in front of a WORN headset
 # before the room may be revealed (docs/entering-vr.md).
@@ -224,7 +224,7 @@ def scene_ready_file(state_dir: str | Path) -> Path:
 
 class SceneReady:
     """Watches the room fill in under the cover, and says once when it has.
-    Without it the reveal lands on the player's first STATUS write: a role
+    Without it the reveal lands on the Funestra's first STATUS write: a role
     having PICKED a video, a second before the pictures land."""
 
     def __init__(
@@ -271,15 +271,15 @@ def wait_for_cover_painted(
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
 ) -> bool:
-    """Block until the player reports the closing cover painted in the headset.
-    Two ways out besides the flag, both the desktop's: the player is gone, so no
+    """Block until the Funestra reports the closing cover painted in the headset.
+    Two ways out besides the flag, both the desktop's: the Funestra is gone, so no
     flag is coming; or waiting costs more than the flicker would."""
     deadline = clock() + timeout_s
     while clock() < deadline:
         if ready_file.exists():
             return True
         if not still_alive():
-            logger.warning("The VR player was gone before it could raise the closing cover")
+            logger.warning("The headset was gone before it could raise the closing cover")
             return False
         sleep(poll_s)
     logger.warning("No closing cover after %.1fs; closing anyway", timeout_s)

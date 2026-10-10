@@ -3,7 +3,7 @@
 Fun Time and FunTimeVR are one session in two shapes. Both read the same config
 and the same state dir, run the same dispatch loop, voice control and AHK
 bridge, and drive the same OSR2 broker; the difference is that a VR session
-hosts every visual role inside one VR player process instead of the main player, Genau and
+hosts every visual role inside one headset process instead of the Main Funestra, Genau and
 two satellite windows. So "Fun Time VR" is not a second app to start, and since
 2026-09-07 it is not a second thing to click either: you say **"enter VR"** and
 **"exit VR"**, the session running ends, and the other one opens on the state it
@@ -23,13 +23,13 @@ in either orchestrator:
 |---|---|
 | Both satellites' playlists, rotated onto the clip each had on screen | yes — the two libraries are the same in either app |
 | Each satellite's lock | yes, re-queued on its command file |
-| F-mode per player, each side's filter, browse order, group loops, map anchors | yes, via `resume_shared_state` |
+| F-mode per Funestra, each side's filter, browse order, group loops, map anchors | yes, via `resume_shared_state` |
 | Sound level and mute | yes |
 | The main slot's mode (video / Genau) | yes |
-| The main player's clip | yes, when the arriving session can play it |
-| The main player's A/B loop | yes, when the clip carried — re-queued on the command file |
-| Every player's playback rate | yes, re-queued on its command file |
-| The main player's hold on the video it is playing | yes, same |
+| The Main Funestra's clip | yes, when the arriving session can play it |
+| The Main Funestra's A/B loop | yes, when the clip carried — re-queued on the command file |
+| Every Funestra's playback rate | yes, re-queued on its command file |
+| The Main Funestra's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, flick seconds, cruise, learned motion and hold | yes, same |
 | The mic being off | yes, off the flag the last session wrote |
 | The satellites' mode (Kino / Origenerator) | yes, entered under the cover before the room is shown |
@@ -38,11 +38,11 @@ in either orchestrator:
 Every row of that table is carried by any reopen, a crossing included
 ([resuming-a-session.md](resuming-a-session.md)): the rate, the hold and Genau's
 Amp, Speed and Center bars are re-sent from the status and drive files the last session published
-(`session_resume.resume_what_lives_in_a_player`), and the mic from the flag the
+(`session_resume.resume_what_lives_in_a_funestra`), and the mic from the flag the
 dispatch loop writes whenever the mute moves
 (`voice_control.take_whether_the_mic_was_off`).
 
-The main player is the one that needed work, and it is why this note exists.
+The Main Funestra is the one that needed work, and it is why this note exists.
 Each app refuses the other's main playlist: the desktop must never put a
 VR-mastered video on the primary monitor, and a desktop rotation resumed into a
 headset is nothing but flat screens. So a crossing rebuilds that one playlist
@@ -61,7 +61,7 @@ the desktop's rebuild, because the desktop cannot play it; that crossing opens
 on the rebuild's own first clip. The log line says which of the two happened.
 
 The A/B loop follows the clip, in both directions. It is a range inside one
-video and lives nowhere but in the player holding it, so each session publishes
+video and lives nowhere but in the Funestra holding it, so each session publishes
 it and the arriving one is sent it back on the command file — and only when the
 clip it was cut from is what the rebuilt playlist leads with, since otherwise
 those bounds would mark out a stretch of a video nobody chose. Both
@@ -84,7 +84,7 @@ So the crossing goes through a relay, `fun_time.session_handoff`:
 2. The orchestrator's `main`, after teardown and as its very last act, takes
    that request off the disk and spawns the relay, detached.
 3. The relay waits for the mutex to come free. That is the outgoing session
-   having actually let go — every player killed, the AHK bridge gone, the state
+   having actually let go — every Funestra killed, the AHK bridge gone, the state
    files written — not merely having been asked to stop.
 4. It starts the incoming orchestrator on the same config, with the outgoing
    session's working directory, so a branch session crosses into the branch's
@@ -147,8 +147,8 @@ staleness timeout is the backstop for a relay that died outright.
 
 ### The headset's half
 
-The headset's cover is drawn by the VR player, and the player is the last thing
-a teardown kills -- so leaving the headset covered means keeping the player
+The headset's cover is drawn by the headset, and the Funestra is the last thing
+a teardown kills -- so leaving the headset covered means keeping the Funestra
 alive past its own session. Its roles hold the very status and command files the
 arriving desktop session claims, which is why the hold is a handshake rather
 than a delay:
@@ -156,27 +156,27 @@ than a delay:
 1. The VR teardown writes `vr_headset_hold.flag`, carrying whether this session
    started the VR runtime -- the orchestrator is the only thing that knows, and
    it is about to exit. It writes it FIRST, before stopping its own voice and
-   dispatch controls and killing the audio companion, so the player spends
+   dispatch controls and killing the audio companion, so the Funestra spends
    those seconds letting go instead of waiting them out and starting after.
-2. The player breaks its frame loop, stops both worker threads and closes every
+2. The Funestra breaks its frame loop, stops both worker threads and closes every
    unit but the cover. Only then does it answer with `vr_headset_held.flag`.
    That close is guarded one unit at a time, the way the pump beside it is: a
    raise in any of them ended the teardown where it stood, and the answer never
    came at all.
 3. The orchestrator waits for that answer once its own teardown is done. Without
-   it, it closes the player exactly as it always did -- a hold that cannot be
-   taken is never worth a session that will not start. A player that has already
+   it, it closes the Funestra exactly as it always did -- a hold that cannot be
+   taken is never worth a session that will not start. A Funestra that has already
    exited ends the wait then and there rather than at the deadline: nobody is
    left to write the answer, and every second of that wait is the desktop room
    not coming back.
-4. The player keeps presenting the cover, which reads "Returning to Fun Time..."
+4. The Funestra keeps presenting the cover, which reads "Returning to Fun Time..."
    and is exempt from the staleness rule the others obey: nothing is writing its
    progress file, because the session that would have is gone.
 5. The arriving desktop session deletes the flag at its reveal, the moment the
-   room is on its monitors. The player then closes its XR session and, if the
+   room is on its monitors. The Funestra then closes its XR session and, if the
    flag said so, stops the runtime.
 
-A relay whose crossing failed releases the hold too, and the player gives up on
+A relay whose crossing failed releases the hold too, and the Funestra gives up on
 its own after three minutes: a headset under a panel forever is worse than the
 runtime's own view.
 
@@ -200,7 +200,7 @@ script outlives the session that started it: the relay reads the flag once
 that session has let go, and the arriving session's own script replaces it
 (`#SingleInstance Force`). If nothing arrives, the script exits by itself once
 its orchestrator is gone and the crossing cover's file is done or stale. On
-the way back into VR the old player holds the headset covered until the new
+the way back into VR the old Funestra holds the headset covered until the new
 session reaps it.
 
 ## The taskbar
@@ -217,7 +217,7 @@ is concerned, which is the trick — but minimizing alone was not enough: shown
 and never painted, it came out as a glassy square on the desktop, and something
 in the launch put it back on screen. Zero alpha settles it whoever shows it,
 because a window the compositor draws at no opacity draws nothing at all, and
-click-through means it can never swallow a click meant for the window under it. The VR player's windows claim Fun Time's identity,
+click-through means it can never swallow a click meant for the window under it. The headset's windows claim Fun Time's identity,
 so the headset session lights the button you already have. `launch_vr.vbs` stays
 as the direct way to start a VR session on the installed config, and as one of
 the launchers `tests/test_launch_smoke.py` reads to decide what to import-check;
@@ -228,8 +228,8 @@ it is simply not something to pin any more.
 Origenerator is by far the slowest child of a session, either shape of it: its
 window lands ten to thirty seconds after launch, against five to eight for
 everything else. Both sessions host it as of 2026-09-20, so origenerator mode
-crosses like any other mode — the shows are the satellite players' own
-playlists, and the headset's satellites are players
+crosses like any other mode — the shows are the Satellite Funestras' own
+playlists, and the headset's satellites are Funestras
 ([known-issues.md](known-issues.md) has what the headset still cannot show of
 it: the app's own window).
 The curtain waits for it only where the last session left the room in that mode:
@@ -271,9 +271,9 @@ that a headset or a monitor is never left under a panel nothing will ever take
 down. The timeouts differ because what they are waiting out differs:
 
 - **The VR startup cover** (`STARTUP_STALE_TIMEOUT_S`, 120s) matches the
-  orchestrator's own patience with the player: startup's last phase writes
+  orchestrator's own patience with the Funestra: startup's last phase writes
   nothing for the length of it, and the cover cannot appear at all before the
-  player holds an OpenXR session, well into "Waiting for players...".
+  Funestra holds an OpenXR session, well into "Waiting for Funestras...".
 - **The VR shutdown cover** (20s), like the desktop's closing screen, is kept
   up by the teardown itself while it waits for a part to end: it moves the
   file's time once a second then, so a part slow to end never uncovers the room.

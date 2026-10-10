@@ -7,8 +7,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+from funestra_core.file_channel import append_command, consume_command_file
 from PIL import Image, ImageDraw
-from player_core.file_channel import append_command, consume_command_file
 from shared_ui.lettering import load_font
 from shared_ui.palette import BG_PRIMARY, TEXT_MUTED
 

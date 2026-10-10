@@ -1,4 +1,4 @@
-"""Real-window checks for the main player library browser.
+"""Real-window checks for the Main Funestra library browser.
 
 The browser's whole value is what the user *reads* off it — the handle names
 under the stills — and the unit suite cannot see that: it renders on Qt's
@@ -207,7 +207,7 @@ def test_opening_a_folder_takes_a_double_click_too(tmp_path: Path):
 
 
 # A title no real window carries, so the stand-in below is found by nothing else.
-STAND_IN_TITLE = "FUNTIMEMARK-MAIN-PLAYER"
+STAND_IN_TITLE = "FUNTIMEMARK-MAIN-FUNESTRA"
 
 # A whole interpreter, Qt, and a walk of the library stand between the launch
 # and the window.  Generous rather than tuned: a cold run is the slow one, and
@@ -218,10 +218,10 @@ _BROWSE_WINDOW_TIMEOUT_S = 90.0
 def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, cfg_factory):
     """A real browse, launched the way the bridge launches it, ends up on top.
 
-    The browse opens over the main player's own rect, and it used to come up
+    The browse opens over the Main Funestra's own rect, and it used to come up
     UNDER it: Windows refuses ``SetForegroundWindow`` to a process that
     neither owns the foreground nor took the last input, and the browse is a
-    child the bridge starts while the player holds both — so Qt's own
+    child the bridge starts while the Funestra holds both — so Qt's own
     ``activateWindow`` did nothing, silently.
 
     What this covers is the opening path itself, which nothing covered before:
@@ -234,7 +234,7 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
     here either way.  Only a real display can show the refusal.
     """
     config = load_config(cfg_factory())
-    library = config.paths.main_player_library_dirs[0] / "batch_one"
+    library = config.paths.main_funestra_library_dirs[0] / "batch_one"
     library.mkdir(parents=True, exist_ok=True)
     for name in ("alpha.mp4", "beta.mp4"):
         (library / name).write_bytes(b"\0" * 2048)
@@ -250,7 +250,7 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
     stand_in.show()
     QApplication.instance().processEvents()
     stand_in_hwnd = int(stand_in.winId())
-    # The shape the session is in when a browse starts: the player runs in the
+    # The shape the session is in when a browse starts: the Funestra runs in the
     # topmost band and the bridge drops it out for the browse's duration.
     set_always_on_top(stand_in_hwnd, True)
     set_always_on_top(stand_in_hwnd, False)
@@ -284,16 +284,16 @@ def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
     A browse's own process owns no window — the interpreter a session launches
     is a venv's ``python.exe``, which spawns the one that opens it — so the
     first fix here looked the window up by the started pid, found nothing, and
-    left the browse buried under the player exactly as before.  Only a real
+    left the browse buried under the Funestra exactly as before.  Only a real
     launch has a real process tree to get that wrong against, which is why this
     lives here.
 
-    The stand-in going topmost is what leaving OmniPause does to the players:
+    The stand-in going topmost is what leaving OmniPause does to the Funestras:
     ``HWND_TOPMOST`` inserts at the top of the band, over a browse that is not
     in it.  Re-asserting the browse has to clear it again.
     """
     config = load_config(cfg_factory())
-    library = config.paths.main_player_library_dirs[0] / "batch_one"
+    library = config.paths.main_funestra_library_dirs[0] / "batch_one"
     library.mkdir(parents=True, exist_ok=True)
     for name in ("alpha.mp4", "beta.mp4"):
         (library / name).write_bytes(b"\0" * 2048)

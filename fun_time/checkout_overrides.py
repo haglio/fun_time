@@ -60,7 +60,7 @@ def _own_override(name: str) -> list[str] | None:
 def apply_genau_dirs_to_sys_path() -> list[str]:
     """Put this checkout's genau_project_dirs override on ``sys.path``.
 
-    The override reaches Genau and the main player as subprocess PYTHONPATH, but the
+    The override reaches Genau and the Main Funestra as subprocess PYTHONPATH, but the
     orchestrator's own process — and the device arbiter inside it — resolves
     ``player_core`` through the venv, which is the primary checkout's.  A branch
     that leans on an unlanded player_core change therefore imports names the
@@ -94,9 +94,9 @@ def apply_origenerator_dir_override(config, *, integration: bool = False):
 
 
 def genau_project_kwargs(project_dirs: str | Path | None) -> dict:
-    """The ``Popen`` environment that decides which checkouts Genau and the main player run.
+    """The ``Popen`` environment that decides which checkouts Genau and the Main Funestra run.
 
-    Both are started as ``python -m genau`` / ``-m main_player`` out of the genau venv,
+    Both are started as ``python -m genau`` / ``-m main_funestra`` out of the genau venv,
     and every package they import — their own, and ``player_core`` under them —
     resolves through that venv's editable installs, which name the primary
     checkout of each repo for good.  So a *worktree* of either could not be run

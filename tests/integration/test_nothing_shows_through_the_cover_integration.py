@@ -2,7 +2,7 @@
 
 His: "many things flash out for a split second from underneath the loading
 screen's scrim."  Nothing keeps a topmost window above the OTHER topmost
-windows — every raise a session makes while the cover is up (showing a player,
+windows — every raise a session makes while the cover is up (showing a Funestra,
 moving it onto its rect, promoting it into the band) inserts that window ABOVE
 the cover, and Windows never tells a window it has been displaced.
 
@@ -115,7 +115,7 @@ def test_nothing_stays_over_the_cover_long_enough_to_be_seen():
 
 
 class _Windows(threading.Thread):
-    """Windows on a thread of their own that answers, as a player's own does."""
+    """Windows on a thread of their own that answers, as a Funestra's own does."""
 
     def __init__(self, *titles: str, style: int = WS_POPUP, ex_style: int = 0) -> None:
         super().__init__(daemon=True)
@@ -192,18 +192,18 @@ def _sampling(watcher: AboveTheCover) -> None:
 
 def test_a_room_banded_under_a_cover_too_busy_to_answer_never_shows_through_it(tmp_path):
     watcher = AboveTheCover(timeout_s=60.0)
-    with _Windows("portrait", "landscape") as players:
+    with _Windows("portrait", "landscape") as funestras:
         with _a_real_cover(tmp_path / PROGRESS_FILENAME) as cover:
             _sampling(watcher)
             with _unable_to_run(cover):
-                apply_topmost_bands(players, beneath=cover)
+                apply_topmost_bands(funestras, beneath=cover)
         watcher.join(timeout=15.0)
 
         assert not watcher.too_long(), (
             "banded while the cover could not answer, these sat over it: "
             + "; ".join(watcher.too_long())
         )
-        assert all(is_window_topmost(hwnd) for hwnd in players.values()), (
+        assert all(is_window_topmost(hwnd) for hwnd in funestras.values()), (
             "the room never made it into the topmost band"
         )
 

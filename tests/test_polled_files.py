@@ -5,7 +5,7 @@ import threading
 from contextlib import contextmanager
 from pathlib import Path
 
-from player_core.playlist import read_playlist
+from funestra_core.playlist import read_playlist
 
 from fun_time import polled_files
 from fun_time.modes import write_playlist_file
@@ -25,7 +25,7 @@ def _held_open_for(path: Path, seconds: float):
         release.join()
 
 
-def test_a_playlist_lands_though_a_player_is_partway_through_reading_it(tmp_path: Path):
+def test_a_playlist_lands_though_a_funestra_is_partway_through_reading_it(tmp_path: Path):
     playlist = tmp_path / "portrait_playlist.tsv"
     playlist.write_text(f"{tmp_path / 'before.mp4'}\n", encoding="utf-8")
 
@@ -35,7 +35,7 @@ def test_a_playlist_lands_though_a_player_is_partway_through_reading_it(tmp_path
     assert [item.path for item in read_playlist(playlist)] == [tmp_path / "after.mp4"]
 
 
-def test_a_flag_lands_though_a_player_is_partway_through_reading_it(tmp_path: Path):
+def test_a_flag_lands_though_a_funestra_is_partway_through_reading_it(tmp_path: Path):
     flag = tmp_path / "main_player_paused.txt"
     flag.write_text("0", encoding="utf-8")
 
@@ -45,7 +45,7 @@ def test_a_flag_lands_though_a_player_is_partway_through_reading_it(tmp_path: Pa
     assert flag.read_text(encoding="utf-8") == "1"
 
 
-def test_a_flag_a_player_keeps_open_past_the_budget_is_reported(tmp_path: Path, monkeypatch, caplog):
+def test_a_flag_a_funestra_keeps_open_past_the_budget_is_reported(tmp_path: Path, monkeypatch, caplog):
     flag = tmp_path / "landscape_paused.txt"
     flag.write_text("0", encoding="utf-8")
     monkeypatch.setattr(polled_files, "READER_HOLD_BUDGET_S", 0.05)

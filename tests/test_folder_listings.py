@@ -26,7 +26,7 @@ def test_a_file_s_size_and_date_come_from_its_folder(tmp_path: Path):
 
 
 def test_a_folder_is_listed_once_however_many_of_its_files_are_asked_about(tmp_path: Path):
-    """The map under the main player asks about a dozen clips each time it is
+    """The map under the Main Funestra asks about a dozen clips each time it is
     drawn, and the browse about hundreds -- one listing has to serve them all."""
     folder = tmp_path / "vids"
     videos = [_clip(folder, f"clip{index}.mp4", size=index + 1, modified=1000 + index)

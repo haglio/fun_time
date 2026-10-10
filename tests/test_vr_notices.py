@@ -57,8 +57,8 @@ class TestWhichScreenALineBelongsTo:
         assert screen_for(SOURCE_LANDSCAPE) == SOURCE_LANDSCAPE
 
     def test_everything_else_belongs_to_the_primary(self):
-        """The desktop falls back to the main player for a line about no one
-        player; there is no dash screen in the headset to fall back to either."""
+        """The desktop falls back to the Main Funestra for a line about no one
+        Funestra; there is no dash screen in the headset to fall back to either."""
         for source in (SOURCE_MAIN, SOURCE_SYSTEM, SOURCE_DASH, "something new"):
             assert screen_for(source) == MAIN
 
@@ -117,8 +117,8 @@ class TestWhatItPicksUp:
         assert board.banner(MAIN).level == FAVORITE
 
 
-class TestTheBannerOverEachPlayer:
-    def test_a_line_flashes_over_the_player_it_names(self, tmp_path):
+class TestTheBannerOverEachFunestra:
+    def test_a_line_flashes_over_the_funestra_it_names(self, tmp_path):
         path = _log(tmp_path)
         board = NoticeBoard(path)
         _write(path, "portrait next", source=SOURCE_PORTRAIT)
@@ -130,7 +130,7 @@ class TestTheBannerOverEachPlayer:
         assert board.banner(MAIN) is None
 
     def test_the_newest_line_wins_its_screen(self, tmp_path):
-        """One banner per player, as on the desktop: a second notice replaces
+        """One banner per Funestra, as on the desktop: a second notice replaces
         the first rather than waiting its turn."""
         path = _log(tmp_path)
         board = NoticeBoard(path)
@@ -168,7 +168,7 @@ class TestWhatItDrops:
 
 
 class TestWordsFlashedWithNoLogLine:
-    def test_they_flash_over_the_player_they_name(self, tmp_path):
+    def test_they_flash_over_the_funestra_they_name(self, tmp_path):
         board = NoticeBoard(_log(tmp_path), unlogged=_Unlogged(EventRecord(
             2.0, logging.WARNING, SOURCE_PORTRAIT, "unrecognized voice command: alpha beta")))
 
@@ -262,7 +262,7 @@ class TestWordsFlashedWithNoLogLine:
 
 
 class TestWhatTheChannelWorkerAsksOfIt:
-    """The player hands the board to the same worker it hands its players, and
+    """The Funestra hands the board to the same worker it hands its Funestras, and
     its teardown closes everything on that list.  The board answered ``pump``
     and not ``close``, so the worker's list raised on its first entry and the
     session died there — before it could tell the orchestrator it was holding

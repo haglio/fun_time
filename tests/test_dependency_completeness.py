@@ -21,11 +21,11 @@ from app_support.dependencies import (
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Every top-level package ships from this repo, so all must be covered: the
-# satellite player pulls in numpy and Pillow that the orchestrator alone would
+# Satellite Funestra pulls in numpy and Pillow that the orchestrator alone would
 # not have justified, and fun_time_vr brings the OpenXR/GL stack.
 PACKAGE_DIRS = (
     PROJECT_ROOT / "fun_time",
-    PROJECT_ROOT / "main_player",
+    PROJECT_ROOT / "main_funestra",
     PROJECT_ROOT / "satellite",
     PROJECT_ROOT / "fun_time_vr",
 )
@@ -40,7 +40,7 @@ def test_all_third_party_imports_declared_in_pyproject():
     # own and the two import names its pyproject spells differently.
     assert_every_import_is_declared(
         PROJECT_ROOT, PACKAGE_DIRS, PYPROJECT,
-        local=("fun_time", "main_player", "satellite", "fun_time_vr"),
+        local=("fun_time", "main_funestra", "satellite", "fun_time_vr"),
         import_names={"glfw": "glfw", "PyQt6": "PyQt6"})
 
 
@@ -69,8 +69,8 @@ def test_the_declared_python_floor_is_the_one_ci_actually_runs():
     assert_the_declared_floor_is_the_one_the_gate_runs(PYPROJECT, MERGE_GATE)
 
 
-def test_the_gate_takes_the_video_engine_from_the_build_player_core_pins():
-    """The engine is ~117 MB, ships in no package, and every player stands on it.
+def test_the_gate_takes_the_video_engine_from_the_build_funestra_core_pins():
+    """The engine is ~117 MB, ships in no package, and every Funestra stands on it.
 
     This gate used to ask a community repository's releases feed for the newest
     asset matching a glob and copy the result next to the interpreter -- no

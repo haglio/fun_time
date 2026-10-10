@@ -3,8 +3,8 @@
 These modules need a headset, a graphics context or a real window, so nothing
 exercises the lines that matter and a sibling that renames a property or grows a
 signature leaves a broken call with both suites green -- the first anyone sees
-of it is a room missing a player. Two of those on 2026-09-28:
-`MpvRenderPlayer.has_new_frame` became `has_picture_to_draw` while a branch
+of it is a room missing a Funestra. Two of those on 2026-09-28:
+`MpvRenderEngine.has_new_frame` became `has_picture_to_draw` while a branch
 waited, and `Painter.paint` grew the window height. Read off the source, there
 being nothing here to run.
 """
@@ -15,10 +15,10 @@ import importlib
 import inspect
 from pathlib import Path
 
-from player_core.funestra import Funestra
-from player_core.render_player import MpvRenderPlayer
+from funestra_core.funestra import Funestra
+from funestra_core.render_engine import MpvRenderEngine
 
-from fun_time_vr.headset_player import HeadsetPlayer
+from fun_time_vr.headset_engine import HeadsetEngine
 from fun_time_vr.headset_verbs import HeadsetVerbs
 from fun_time_vr.surfaces import LatestPicture, PanelBitmap
 from tests.test_coverage import NOT_UNIT_TESTED
@@ -26,15 +26,15 @@ from tests.test_coverage import NOT_UNIT_TESTED
 ROOT = Path(__file__).resolve().parent.parent
 
 HELD_BY_THE_SHELLS: dict[str, dict[str, type]] = {
-    "fun_time_vr/video_thread.py": {"player": MpvRenderPlayer},
-    "fun_time_vr/player.py": {
-        "player": HeadsetPlayer, "funestra": Funestra, "verbs": HeadsetVerbs,
+    "fun_time_vr/video_thread.py": {"engine": MpvRenderEngine},
+    "fun_time_vr/funestras.py": {
+        "engine": HeadsetEngine, "funestra": Funestra, "verbs": HeadsetVerbs,
         "panel": PanelBitmap, "users_picture": LatestPicture,
     },
 }
 
-CALLS_NOTHING_RUNS = ("main_player/app.py", "satellite/app.py",
-                      "fun_time_vr/player.py", "fun_time_vr/video_thread.py")
+CALLS_NOTHING_RUNS = ("main_funestra/app.py", "satellite/app.py",
+                      "fun_time_vr/funestras.py", "fun_time_vr/video_thread.py")
 
 
 def _called_on(module: Path, field: str) -> set[str]:

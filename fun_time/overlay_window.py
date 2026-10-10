@@ -34,7 +34,7 @@ from .win32 import create_hidden_topmost_window, find_window_by_title, set_alway
 POLL_MS = 200
 
 # How long another window may sit over the cover -- not POLL_MS, which is how
-# stale the bar may be.  At 200ms it was a fifth of a second of a player through
+# stale the bar may be.  At 200ms it was a fifth of a second of a Funestra through
 # the scrim per raise.  Re-asserted through SetWindowPos on our own HWND, not
 # Tk's ``-topmost``: WS_EX_TOPMOST is still set, so Tk may do nothing; only
 # SetWindowPos re-inserts.
@@ -119,7 +119,7 @@ class OverlayWindow:
         )
         root.geometry(f"{desktop.width}x{desktop.height}+{desktop.x}+{desktop.y}")
 
-        # Centered on the main player's monitor rather than the virtual desktop's
+        # Centered on the Main Funestra's monitor rather than the virtual desktop's
         # midpoint, which may fall between two.
         label = tk.Label(root, bg=ground, borderwidth=0, highlightthickness=0)
         label.place(

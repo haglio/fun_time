@@ -1,7 +1,7 @@
 """The hosted Origenerator, brought up the same way by either shape of session.
 
-Its shows are the satellite players' own playlists (:mod:`fun_time.player_handover`),
-and the headset's satellites are players, so a VR session hosts it as a desktop
+Its shows are the Satellite Funestras' own playlists (:mod:`fun_time.funestra_handover`),
+and the headset's satellites are Funestras, so a VR session hosts it as a desktop
 session does.
 """
 from __future__ import annotations
@@ -11,14 +11,14 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .manifest import LaunchManifest
-from .players import Player
+from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .session_handoff import forget_the_kept_origenerator, kept_origenerator
 from .standalone_origenerator import claim_the_osr2, take_it_over, the_open_origenerator
 from .win32_process import get_process_creation_time
 from .window_layout import WindowLayoutPlan, screen_layout
 from .windows_bridge_startup import (
-    HandedPlayer,
+    HandedFunestra,
     launch_origenerator,
     origenerator_interpreter,
     origenerator_session_args,
@@ -48,15 +48,15 @@ def _adopt_a_kept_origenerator(m: LaunchManifest) -> HostedApp | None:
                      showing=False)
 
 
-def _the_players_it_is_handed(m: LaunchManifest) -> dict[str, HandedPlayer]:
+def _the_funestras_it_is_handed(m: LaunchManifest) -> dict[str, HandedFunestra]:
     return {
-        player.label: HandedPlayer(
-            playlist_file=m.commands.player_file(player.label, "playlist"),
-            cmd_file=m.commands.player_file(player.label, "cmd"),
-            status_file=m.commands.player_file(player.label, "status"),
-            hud_file=m.commands.player_file(player.label, "origenerator_hud"),
+        funestra.label: HandedFunestra(
+            playlist_file=m.commands.funestra_file(funestra.label, "playlist"),
+            cmd_file=m.commands.funestra_file(funestra.label, "cmd"),
+            status_file=m.commands.funestra_file(funestra.label, "status"),
+            hud_file=m.commands.funestra_file(funestra.label, "origenerator_hud"),
         )
-        for player in Player.SATELLITES
+        for funestra in RoomFunestra.SATELLITES
     }
 
 
@@ -83,16 +83,16 @@ def bring_up_the_hosted_app(
     origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
     origenerator_cmd_file.write_text("", encoding="utf-8")
     Path(m.commands.origenerator_status_file).unlink(missing_ok=True)
-    players = _the_players_it_is_handed(m)
-    for player in players.values():
-        Path(player.hud_file).unlink(missing_ok=True)
+    funestras = _the_funestras_it_is_handed(m)
+    for funestra in funestras.values():
+        Path(funestra.hud_file).unlink(missing_ok=True)
     contract = dict(
         layout_plan=plan,
         command_file=m.commands.origenerator_cmd_file,
         paused_file=m.commands.origenerator_paused_file,
         status_file=m.commands.origenerator_status_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
-        players=players,
+        funestras=funestras,
     )
     open_app = the_open_origenerator(origenerator_dir)
     if open_app is not None:
@@ -107,7 +107,7 @@ def bring_up_the_hosted_app(
         python_exe=(m.executables.origenerator_python_exe.strip()
                     or origenerator_interpreter(origenerator_dir)),
         origenerator_dir=origenerator_dir,
-        # It imports player_core too (the shows' HUD is the players'
+        # It imports player_core too (the shows' HUD is the Funestras'
         # shared one), so a named checkout reaches it like everyone else.
         project_dirs=project_dirs,
         **contract,

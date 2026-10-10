@@ -284,7 +284,7 @@ class TestServing:
 
         assert "Beta Scene" in _names(browse)
 
-    def test_it_stops_once_the_headsets_player_is_gone(self, headset, tmp_path: Path):
+    def test_it_stops_once_the_headset_process_is_gone(self, headset, tmp_path: Path):
         browse, _reader, _said = headset
 
         assert serve_once(browse, tmp_path / "input.txt", parent_alive=lambda: False,

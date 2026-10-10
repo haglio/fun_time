@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from app_support.logging_utils import install_exception_logging
-from player_core.file_channel import append_command
+from funestra_core.file_channel import append_command
 from PyQt6.QtGui import QColor, QFont
 from shared_ui.chrome import family_stylesheet
 from shared_ui.colors import (
@@ -212,8 +212,8 @@ _ACTION_TOOLTIPS: dict[str, str] = {
     OMNIPAUSE_TOGGLE: "Pause everything",
     HELP_REFERENCE: REFERENCE_WINDOW_TITLE,
     VOICE_TOGGLE: "Voice",
-    FMODE_TOGGLE: "F-Mode on every player",
-    RESET_ALL: ("Reset every player — no filter, no lock, no loop, no F-Mode, "
+    FMODE_TOGGLE: "F-Mode on every Funestra",
+    RESET_ALL: ("Reset every Funestra — no filter, no lock, no loop, no F-Mode, "
                 "normal speed, shuffled from the top"),
     ENTER_VR: "Enter VR — end this session and open FunTimeVR",
     EXIT_VR: "Exit VR — end this session and open Fun Time on the desktop",
@@ -232,7 +232,7 @@ def build_dashboard_scene(
     shown_as: Preview | None = None,
 ) -> DashboardScene:
     """The control bar: the app's mark, the session's four, then the three that
-    reach past it.  Nothing here stands for one player."""
+    reach past it.  Nothing here stands for one Funestra."""
     omni_paused = snapshot is not None and snapshot.omni_paused
     controls = bar_controls(
         layout,
@@ -448,7 +448,7 @@ class ReferenceDialog(QDialog):
     def sync_topmost(self, omni_paused: bool) -> None:
         """Follow the same OmniPause band policy as every other Fun Time window.
 
-        This popup floats over the players via WindowStaysOnTopHint, but it is
+        This popup floats over the Funestras via WindowStaysOnTopHint, but it is
         not one of the bridge's MANAGED_ROLES — it comes and goes with the ``?``
         button — so the orchestrator's disable_all_topmost never reached it and
         it stayed stranded above a freed desktop for the whole pause.  It is its

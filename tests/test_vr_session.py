@@ -118,7 +118,7 @@ def test_a_session_the_runtime_has_readied_is_ready_to_submit_frames(monkeypatch
 def test_a_stopped_session_is_no_longer_ready_to_submit_frames(monkeypatch):
     """STOPPING ends the session, and a session that has ended takes no frames.
 
-    The flag was set on READY and never cleared, so the player's frame loop
+    The flag was set on READY and never cleared, so the Funestra's frame loop
     went on submitting into an ended session and the app could die there
     (bug 18).
     """

@@ -132,7 +132,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("enter_vr", "exit_vr"),
             ),
             _Row(
-                "VR reset — the main player, both satellites and the dashboard back "
+                "VR reset — the Main Funestra, both satellites and the dashboard back "
                 "to their default spots and sizes in the headset, and level again",
                 (),
                 ("vr_reset",),
@@ -150,13 +150,13 @@ _SECTIONS: tuple[_Section, ...] = (
             # The modes are rows, not a section of their own: each is one key
             # and one phrase, like everything else here that reshapes the room.
             _Row(
-                f"Genau mode — Genau's {_FLICK.many} on the main player, the Robot Hand "
+                f"Genau mode — Genau's {_FLICK.many} on the Main Funestra, the Robot Hand "
                 "driving the OSR2",
                 ("G",),
                 ("genau_activate",),
             ),
             _Row(
-                "Kino mode on the main player — the video, its funscript "
+                "Kino mode on the Main Funestra — the video, its funscript "
                 "driving the OSR2 where it has action and the Robot Hand the rest",
                 ("H",),
                 ("main_kino_activate",),
@@ -164,21 +164,21 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row(
                 "Origenerator mode / Kino mode — the satellite side's own "
                 "switch: Origenerator over the Random Favs Browser, its "
-                "slideshows over the players, and back",
+                "slideshows over the Funestras, and back",
                 ("X",),
                 ("satellites_toggle", "origenerator_activate", "satellites_kino_activate"),
                 voice_display=("origenerator mode", "satellite kino mode"),
             ),
             _Row(
-                "Crown the main player or the portrait player — while the crowned "
+                "Crown the Main Funestra or the Portrait Funestra — while the crowned "
                 "one plays a portrait video it takes most of the secondary monitor, "
                 "and the other tiles what it shows across the strip that is left",
                 (),
                 ("main_crown", "portrait_crown"),
             ),
             _Row(
-                "Kino mode on both sides at once — the main player's video "
-                "and the satellite players",
+                "Kino mode on both sides at once — the Main Funestra's video "
+                "and the Satellite Funestras",
                 (),
                 ("kino_activate",),
             ),
@@ -206,23 +206,23 @@ _SECTIONS: tuple[_Section, ...] = (
                 voice_display=("landscape experiments", "portrait fix teeth"),
             ),
             _Row(
-                "Toggle F-Mode on every player at once — spoken it needs the "
-                "word \"all\", since bare \"f mode\" reaches the active player; "
-                "each player also has its own, on its own HUD (see the sections "
+                "Toggle F-Mode on every Funestra at once — spoken it needs the "
+                "word \"all\", since bare \"f mode\" reaches the active Funestra; "
+                "each Funestra also has its own, on its own HUD (see the sections "
                 "below)",
                 ("F",),
                 ("fmode_toggle", "fmode_on", "fmode_off"),
             ),
             _Row(
-                "Reset All — every player back to its defaults at once, as "
-                "each player's own reset does",
+                "Reset All — every Funestra back to its defaults at once, as "
+                "each Funestra's own reset does",
                 (),
                 ("all_reset",),
             ),
-            # The main player's sound, in whichever mode owns it — the main player's
+            # The Main Funestra's sound, in whichever mode owns it — the Main Funestra's
             # video in kino mode, Genau's clip audio in genau.  Its volume steps
-            # sit with the main player's other playback controls.
-            _Row("Mute / unmute the main player", (), ("audio_mute", "audio_unmute")),
+            # sit with the Main Funestra's other playback controls.
+            _Row("Mute / unmute the Main Funestra", (), ("audio_mute", "audio_unmute")),
             _Row("Disable voice control", (), ("voice_toggle", "voice_off")),
             _Row("Accept the last command voice was not sure enough of", ("Enter",),
                  ("voice_accept",)),
@@ -309,7 +309,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 (),
                 ("genau_flip_ends",),
             ),
-            # The same two commands the main player's section carries: one sound level reaches
+            # The same two commands the Main Funestra's section carries: one sound level reaches
             # both sinks, and which is audible is which mode owns the display.
             _Row(f"Volume down / up, in tenths — the {_FLICK.one} music", (),
                  ("audio_volume_down", "audio_volume_up")),
@@ -323,7 +323,7 @@ _SECTIONS: tuple[_Section, ...] = (
         ),
     ),
     _Section(
-        "Main Player",
+        "Main Funestra",
         (
             _Row("Previous video", ("[",), ("main_prev",)),
             _Row("Next video", ("]",), ("main_next",)),
@@ -334,7 +334,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("main_player_lock",),
             ),
             _Row(
-                "Lock / unlock whichever player is on the main screen — the "
+                "Lock / unlock whichever Funestra is on the main screen — the "
                 f"video here, Genau's {_FLICK.one} in Genau mode",
                 (),
                 ("main_lock_on", "main_lock_off"),
@@ -400,15 +400,15 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("main_player_cycle_version_back", "main_player_cycle_version"),
             ),
             _Row(
-                "Move this player's panel — one key each way round the corners "
-                "of the picture, or round the sides of the player in the headset. "
+                "Move this Funestra's panel — one key each way round the corners "
+                "of the picture, or round the sides of the Funestra in the headset. "
                 "A click in a corner of the picture sends it there and opens it, "
-                "and so does a squeeze beside a side of the player in the headset",
+                "and so does a squeeze beside a side of the Funestra in the headset",
                 ("Ctrl+[", "Ctrl+]"),
                 ("main_hud_counterclockwise", "main_hud_clockwise"),
             ),
             _Row(
-                "Minimize this player's panel — it collapses to a square with a "
+                "Minimize this Funestra's panel — it collapses to a square with a "
                 "plus on it, and the plus brings it back",
                 (),
                 ("main_hud_minimize", "main_hud_restore"),
@@ -435,7 +435,7 @@ _SECTIONS: tuple[_Section, ...] = (
                  "main_player_length_mixed", "main_player_length_none"),
             ),
             _Row(
-                "Reset the main player — back to every default: every length and "
+                "Reset the Main Funestra — back to every default: every length and "
                 "shape (leaving any compilation), no lock, no loop, no F-Mode, "
                 "normal speed, shuffled from the top",
                 (),
@@ -464,7 +464,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("main_player_record_down", "main_player_record_up", "main_player_record_tap", "main_player_loop_cancel"),
             ),
             _Row(
-                "F-Mode on the main player alone — play only the hand-scripted "
+                "F-Mode on the Main Funestra alone — play only the hand-scripted "
                 "videos",
                 (),
                 ("main_fmode", "main_fmode_on", "main_fmode_off"),
@@ -524,10 +524,10 @@ _SECTIONS: tuple[_Section, ...] = (
                 hotkeys_alt=("Shift+W", "Shift+S"),
             ),
             _Row(
-                "Move this player's HUD — round the corners of its picture, or "
-                "against a side of its player in the headset. A click in a corner "
+                "Move this Funestra's HUD — round the corners of its picture, or "
+                "against a side of its Funestra in the headset. A click in a corner "
                 "of the picture sends it there and opens it, and so does a squeeze "
-                "beside a side of the player in the headset",
+                "beside a side of the Funestra in the headset",
                 ("Ctrl+Left", "Ctrl+Right", "Ctrl+Up", "Ctrl+Down"),
                 ("portrait_hud_left", "portrait_hud_right",
                  "portrait_hud_up", "portrait_hud_down",
@@ -536,7 +536,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 hotkeys_alt=("Ctrl+A", "Ctrl+D", "Ctrl+W", "Ctrl+S"),
             ),
             _Row(
-                "Minimize this player's HUD — it collapses to a square with a "
+                "Minimize this Funestra's HUD — it collapses to a square with a "
                 "plus on it, and the plus brings it back",
                 (),
                 ("portrait_hud_minimize", "portrait_hud_restore",
@@ -572,8 +572,8 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("F-Mode — browse only the favorites", (), _sided("fmode", "fmode_on", "fmode_off"),
                  literal_voice=tuple(f"{side} {FAVORITES_PHRASE}" for side in ("portrait", "landscape"))),
             _Row(
-                "Playback speed up / down — this player alone; when the main "
-                "player's rate changes, both take it",
+                "Playback speed up / down — this Funestra alone; when the main "
+                "Funestra's rate changes, both take it",
                 (),
                 _sided("speed_up", "speed_down"),
             ),
@@ -589,7 +589,7 @@ _SECTIONS: tuple[_Section, ...] = (
         ),
         key_headers=("Portrait", "Landscape"),
         note="Alone, a phrase reaches whatever you last navigated — a side, or "
-        "the main player.  Add “portrait”, “landscape” or “both”, before it or "
+        "the Main Funestra.  Add “portrait”, “landscape” or “both”, before it or "
         "after, to aim it: “portrait next”, “next both”.",
         merge_scopes=True,
     ),

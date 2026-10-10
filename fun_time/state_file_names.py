@@ -1,4 +1,4 @@
-"""The main player's files under a state directory, from before it was called that."""
+"""The Main Funestra's files under a state directory, from before it was called that."""
 from __future__ import annotations
 
 from pathlib import Path

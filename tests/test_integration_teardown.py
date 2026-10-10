@@ -21,7 +21,7 @@ def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
     with no output, so the reap targets the images the apps run as — plus, by
     COMMAND LINE rather than image, a leftover hosted Origenerator, which runs
     on a plain python.exe of its own and once survived every reap to leave its
-    windows over a later session's players.
+    windows over a later session's Funestras.
     """
     own = os.getpid()
     images = {
@@ -48,7 +48,7 @@ def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
         integration_support._kill_leftover_app_processes()
 
     killed = {call.args[0] for call in kill.call_args_list}
-    assert killed == {222, 333, 666}  # players/AHK by image, the hosted app by command line
+    assert killed == {222, 333, 666}  # Funestras/AHK by image, the hosted app by command line
     assert 444 not in killed     # never another run's pytest
     assert own not in killed     # never the running pytest process itself
     # Only the window-owning pids are asked what they run — never the machine.
@@ -57,11 +57,11 @@ def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
 
 def test_reap_off_the_hidden_desktop_kills_nothing_at_all():
     """The last machine-wide kill in the suite, and the same shape as the reap
-    that took down the user's players.
+    that took down the user's Funestras.
 
     Off the hidden desktop this used to run `Get-Process pythonw,autohotkey64 |
     where StartTime > -5min | Stop-Process -Force`, which is every satellite,
-    The main player, Genau, the dashboard, the audio companion and the AHK bridge of any
+    The Main Funestra, Genau, the dashboard, the audio companion and the AHK bridge of any
     session started in the last five minutes — the user's included.  It existed
     to support bare `pytest tests/integration/`, which is exactly the invocation
     that is forbidden; the suite now refuses that run instead of sweeping.

@@ -7,13 +7,13 @@ have a Ctrl+Q handler), and the close every Windows window has — Alt+F4, the
 taskbar, the system menu — is handed to the Funestra, which asks the session.
 
 The close is the one that bit.  Opt+Cmd+Q on a Mac keyboard arrives as Alt+F4, so
-it took out the main player, then the portrait satellite, then the landscape one, a press at
+it took out the Main Funestra, then the portrait satellite, then the landscape one, a press at
 a time, while the dashboard, Genau and the audio companion carried on and the
 session had to be ended by voice.  The gesture itself is
-``player_core.session_quit``'s, and tested there; what is here is that the
+``funestra_core.session_quit``'s, and tested there; what is here is that the
 loop hands the close on, and that the verb it posts is the dashboard's.
 
-The satellite reads its window's events through ``main_player.input``, the Main
+The satellite reads its window's events through ``main_funestra.input``, the Main
 Funestra's own reader, so the scans read that module and check the satellite
 still hands its events to it.  Read off the source rather than run:
 ``satellite/app.py`` needs a real window and the libmpv DLL, the same reason
@@ -24,13 +24,13 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from player_core.session_quit import SESSION_QUIT
+from funestra_core.session_quit import SESSION_QUIT
 
 from fun_time.dashboard_actions import QUIT_BUTTON
 
 ROOT = Path(__file__).resolve().parents[1]
 SATELLITE = ROOT / "satellite" / "app.py"
-WINDOW_INPUT = ROOT / "main_player" / "input.py"
+WINDOW_INPUT = ROOT / "main_funestra" / "input.py"
 
 # The event types the loop is allowed to answer.  QUIT is here because the loop
 # must *see* the close in order to hand it to the session — what it may not do is
@@ -79,7 +79,7 @@ def test_a_satellite_reads_its_window_through_that_loop():
 def test_the_loop_answers_no_keyboard_event():
     """KEYDOWN or KEYUP here is the handler that was taken out, coming back."""
     assert not _pygame_event_names() & {"KEYDOWN", "KEYUP", "TEXTINPUT"}, (
-        "main_player/input.py answers a key again — a key that ends one satellite "
+        "main_funestra/input.py answers a key again — a key that ends one satellite "
         "leaves the session running around a gap nothing refills"
     )
 
@@ -89,14 +89,14 @@ def test_nothing_else_has_crept_into_the_loop_either():
     than assumed harmless — the Ctrl+Q handler this guards against was itself
     once an obvious convenience."""
     assert _pygame_event_names() <= ALLOWED_EVENTS, (
-        f"main_player/input.py answers {sorted(_pygame_event_names() - ALLOWED_EVENTS)}; "
+        f"main_funestra/input.py answers {sorted(_pygame_event_names() - ALLOWED_EVENTS)}; "
         "if that is right, say why here and add it to ALLOWED_EVENTS"
     )
 
 
 def test_the_close_is_handed_to_the_funestra_rather_than_answered():
     """The loop must not end itself straight from a QUIT.  That is what closed
-    one player at a time, and it is invisible standalone, where stopping is
+    one Funestra at a time, and it is invisible standalone, where stopping is
     exactly right -- the Funestra tells the two apart."""
     handed_on = any(
         isinstance(node, ast.Call)
@@ -105,4 +105,4 @@ def test_the_close_is_handed_to_the_funestra_rather_than_answered():
         for node in ast.walk(_tree())
     )
 
-    assert handed_on, "main_player/input.py ends itself on a close instead of asking the session"
+    assert handed_on, "main_funestra/input.py ends itself on a close instead of asking the session"

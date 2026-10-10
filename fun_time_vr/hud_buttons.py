@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from player_core.hud_placement import HudEdge
+from funestra_core.hud_placement import HudEdge
 
 from .hud_sides import HudSides, side_screen_names
 from .hud_toggle import HudToggle, toggle_screen_name
@@ -16,13 +16,13 @@ def hud_button_names(screen_name: str) -> tuple[str, ...]:
 
 
 class HudButtons:
-    def __init__(self, player: str, screen_name: str, *, post: Callable[[str], None],
+    def __init__(self, funestra: str, screen_name: str, *, post: Callable[[str], None],
                  texture: Callable[[], object], mesh: Callable[[], object]) -> None:
         side_texture, toggle_texture, tip_texture = texture(), texture(), texture()
         side_mesh, toggle_mesh, tip_mesh = mesh(), mesh(), mesh()
         self._made = (side_texture, toggle_texture, tip_texture, side_mesh, toggle_mesh, tip_mesh)
-        self._sides = HudSides(player, screen_name, post=post, mesh=side_mesh, texture=side_texture)
-        self._toggle = HudToggle(player, screen_name, post=post, mesh=toggle_mesh,
+        self._sides = HudSides(funestra, screen_name, post=post, mesh=side_mesh, texture=side_texture)
+        self._toggle = HudToggle(funestra, screen_name, post=post, mesh=toggle_mesh,
                                  texture=toggle_texture, tip_mesh=tip_mesh,
                                  tip_texture=tip_texture)
 

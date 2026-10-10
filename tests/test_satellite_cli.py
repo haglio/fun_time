@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from player_core.playlist import PlaylistItem
+from funestra_core.playlist import PlaylistItem
 
 from satellite.cli import audio_muted, build_parser, resolve_playlist
 
@@ -57,12 +57,12 @@ def test_title_is_taken_from_the_flag():
     """fun_time gives each satellite a distinct caption so the sequencer can
     resolve each window to its portrait/landscape slot; a shared title crosses
     them, which is the visual swap this prevents."""
-    args = build_parser().parse_args(["--title", "Portrait AI Player"])
-    assert args.title == "Portrait AI Player"
+    args = build_parser().parse_args(["--title", "Portrait AI Funestra"])
+    assert args.title == "Portrait AI Funestra"
 
 
 def test_parser_takes_the_hud_panel_and_command_files():
-    """The lock HUD is drawn inside the player, so fun_time hands it the panel to
+    """The lock HUD is drawn inside the Funestra, so fun_time hands it the panel to
     render and the command file its clicks post back to."""
     args = build_parser().parse_args(
         ["--hud-file", "state/portrait_hud.json",

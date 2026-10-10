@@ -1,5 +1,5 @@
 """The glanceable flash of a notice (:func:`fun_time.event_log.notice`), at the
-top-center of the window it is about: a main-slot one over the main player/Genau
+top-center of the window it is about: a main-slot one over the Main Funestra/Genau
 display, a portrait/landscape one over that satellite.
 
 Which window and where on it are :mod:`fun_time.notice_placement`'s.
@@ -26,12 +26,12 @@ NOTICE_TOP_MARGIN = 28
 
 
 class NoticeOverlay(QLabel):
-    """A frameless, click-through banner that flashes a notice over a player.
+    """A frameless, click-through banner that flashes a notice over a Funestra.
 
     It never takes focus -- this suite is acutely focus-sensitive -- so it is
     shown with ``WA_ShowWithoutActivating`` and the ``Tool`` window type, and
     input falls through it (``WA_TransparentForMouseEvents``) so it cannot
-    intercept a click meant for the player under it.
+    intercept a click meant for the Funestra under it.
     """
 
     def __init__(self) -> None:

@@ -15,28 +15,28 @@ from urllib.request import url2pathname
 
 import pytest
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from player_core.drive_readout import DriveHud, drive_text
-from player_core.modes import MainMode
-from player_core.playlist import PlaylistItem, write_playlist
-from player_core.robot_hand import FULL_INTENSITY
+from funestra_core.drive_readout import DriveHud, drive_text
+from funestra_core.modes import MainMode
+from funestra_core.playlist import PlaylistItem, write_playlist
+from funestra_core.robot_hand import FULL_INTENSITY
 from shared_ui.preview import Preview
 
 from fun_time import preview_marker
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
 from fun_time.child_launch import no_child_log
+from fun_time.funestra_deaths import (
+    FunestraDied,
+    LaunchedFunestra,
+    funestra_died_message,
+    logs_as_they_stand,
+    raise_if_a_funestra_died,
+)
 from fun_time.loopback_server import omnipause_url
 from fun_time.modes import SatelliteBuild
-from fun_time.player_deaths import (
-    LaunchedPlayer,
-    PlayerDied,
-    logs_as_they_stand,
-    player_died_message,
-    raise_if_a_player_died,
-)
-from fun_time.players import Player
 from fun_time.process_identity import NAMER
 from fun_time.project_paths import PROJECT_ICON
+from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_slot import SatelliteSlot
 from fun_time.shared_state import (
     BridgeState,
@@ -48,13 +48,13 @@ from fun_time.shared_state import (
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.windows_bridge_startup import (
-    HandedPlayer,
+    HandedFunestra,
     _build_satellite_launch_command,
     ensure_broker,
     launch_audio_companion,
     launch_broker_tray,
     launch_core_apps,
-    launch_main_player,
+    launch_main_funestra,
     launch_origenerator,
     launch_satellite,
     launch_ui_companions,
@@ -204,8 +204,8 @@ SATELLITES_ON_THE_MACHINE = [
      r"pythonw.exe -m satellite --status-file C:\state\landscape_status.txt", 0.0),
     (43, "FunTime-Portrait.exe",
      r"FunTime-Portrait.exe -m satellite --status-file C:\live\portrait_status.txt", 0.0),
-    (44, "FunTime-MainPlayer.exe",
-     r"FunTime-MainPlayer.exe -m main_player --status-file C:\state\portrait_status.txt", 0.0),
+    (44, "FunTime-MainFunestra.exe",
+     r"FunTime-MainFunestra.exe -m main_funestra --status-file C:\state\portrait_status.txt", 0.0),
     (45, "pythonw.exe",
      r"pythonw.exe -m satellite_tools --status-file C:\state\portrait_status.txt", 0.0),
     (46, "Other-Portrait.exe",
@@ -222,9 +222,9 @@ def _reaped_from_the_machine() -> list[int]:
     return ended
 
 
-def test_reap_orphaned_satellites_ends_the_players_stranded_on_this_sessions_files():
-    """A crash or unclean close can strand the two satellite players; a second
-    session then has four players racing two command/status file sets."""
+def test_reap_orphaned_satellites_ends_the_funestras_stranded_on_this_sessions_files():
+    """A crash or unclean close can strand the two Satellite Funestras; a second
+    session then has four Funestras racing two command/status file sets."""
     assert {41, 42} <= set(_reaped_from_the_machine())
 
 
@@ -236,7 +236,7 @@ def test_reap_orphaned_satellites_leaves_another_sessions_satellites_alone():
 
 
 def test_reap_orphaned_satellites_reaches_only_the_satellite_module():
-    """Never the main player (``-m main_player``), nor a module whose name merely
+    """Never the Main Funestra (``-m main_funestra``), nor a module whose name merely
     starts with the satellite's."""
     assert not {44, 45} & set(_reaped_from_the_machine())
 
@@ -329,15 +329,15 @@ def _seed_startup_states(tmp_path: Path, **overrides):
     kwargs = dict(
         genau_paused_file=tmp_path / "genau_paused.txt",
         audio_paused_file=tmp_path / "audio_paused.txt",
-        main_player_paused_file=tmp_path / "main_player_paused.txt",
+        main_funestra_paused_file=tmp_path / "main_player_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
         genau_cmd_file=tmp_path / "genau_cmd.txt",
-        main_player_cmd_file=tmp_path / "main_player_cmd.txt",
+        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
     )
     kwargs.update(overrides)
     return seed_startup_states(
         kwargs.pop("genau_paused_file"), kwargs.pop("audio_paused_file"),
-        kwargs.pop("main_player_paused_file"), kwargs.pop("audio_volume_file"),
+        kwargs.pop("main_funestra_paused_file"), kwargs.pop("audio_volume_file"),
         kwargs.pop("genau_cmd_file"), **kwargs,
     )
 
@@ -345,18 +345,18 @@ def _seed_startup_states(tmp_path: Path, **overrides):
 def test_seed_startup_states_writes_all_three_pause_flags(tmp_path: Path):
     genau_file = tmp_path / "genau_paused.txt"
     audio_file = tmp_path / "audio_paused.txt"
-    main_player_file = tmp_path / "main_player_paused.txt"
+    main_funestra_file = tmp_path / "main_player_paused.txt"
 
     _seed_startup_states(tmp_path)
 
-    # Genau parked, audio parked, main player paused until the sequencer's reveal.
+    # Genau parked, audio parked, Main Funestra paused until the sequencer's reveal.
     assert genau_file.read_text(encoding="utf-8") == "1"
     assert audio_file.read_text(encoding="utf-8") == "1"
-    assert main_player_file.read_text(encoding="utf-8") == "1"
+    assert main_funestra_file.read_text(encoding="utf-8") == "1"
 
 
 def test_seed_startup_states_gives_kino_the_window_for_a_fresh_session(tmp_path: Path):
-    """A fresh session opens in kino mode: the Main Player is told Kino has its
+    """A fresh session opens in kino mode: the Main Funestra is told Kino has its
     window, and Genau is held (PAUSE, written whole as the channel's reset)
     until the reveal."""
     genau_cmd = tmp_path / "genau_cmd.txt"
@@ -364,17 +364,17 @@ def test_seed_startup_states_gives_kino_the_window_for_a_fresh_session(tmp_path:
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd)
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SET_VOLUME 100 0"]
-    assert _main_player_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
-def _main_player_verbs(tmp_path: Path) -> list[str]:
-    """What is queued for the main player, one verb per line as it drains them."""
+def _main_funestra_verbs(tmp_path: Path) -> list[str]:
+    """What is queued for the Main Funestra, one verb per line as it drains them."""
     return (tmp_path / "main_player_cmd.txt").read_text(encoding="utf-8").split("\n")[:-1]
 
 
 def test_seed_startup_states_gives_genau_the_window_for_a_genau_session(tmp_path: Path):
     """A session left showing Genau has to come back showing Genau -- the same
-    verb a live switch says, seeded before the Main Player launches instead of
+    verb a live switch says, seeded before the Main Funestra launches instead of
     sent to a running one, and without the switch's RESUME (the reveal hands
     that over)."""
     genau_cmd = tmp_path / "genau_cmd.txt"
@@ -382,10 +382,10 @@ def test_seed_startup_states_gives_genau_the_window_for_a_genau_session(tmp_path
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="genau")
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SET_VOLUME 100 0"]
-    assert _main_player_verbs(tmp_path) == ["SHOW genau", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _main_funestra_verbs(tmp_path) == ["SHOW genau", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
-def test_seed_startup_states_holds_every_player_for_the_reveal(tmp_path: Path):
+def test_seed_startup_states_holds_every_funestra_for_the_reveal(tmp_path: Path):
     """Whatever mode is coming back, nothing plays until the loading screen is
     gone.  The switch this replays would have started Genau outright — right for
     a live switch, wrong here, where it would drive the OSR2 for the twenty
@@ -428,11 +428,11 @@ def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path
     _seed_startup_states(tmp_path, audio_volume_file=volume_file)
 
     assert read_volume(volume_file) == MAX_VOLUME
-    assert _main_player_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
 def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: Path):
-    """the main player and the audio companion each launch unattenuated and neither reads a
+    """the Main Funestra and the audio companion each launch unattenuated and neither reads a
     level it already has, so seeding is the only way a resumed session comes up
     as loud as it was left."""
     volume_file = tmp_path / "audio_volume.txt"
@@ -440,12 +440,12 @@ def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: P
     _seed_startup_states(tmp_path, audio_volume_file=volume_file, volume=40)
 
     assert read_volume(volume_file) == 40
-    assert _main_player_verbs(tmp_path)[1] == "SET_VOLUME 40 0"
+    assert _main_funestra_verbs(tmp_path)[1] == "SET_VOLUME 40 0"
 
 
 def test_seed_startup_states_tells_genau_the_level_too(tmp_path: Path):
     """Genau draws the primary display's volume chip in the mode it owns the
-    screen, so it is told the level like the main player is — in every mode, not only its own,
+    screen, so it is told the level like the Main Funestra is — in every mode, not only its own,
     or the chip it draws is wrong for as long as it takes the first "quieter"."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
@@ -453,40 +453,40 @@ def test_seed_startup_states_tells_genau_the_level_too(tmp_path: Path):
 
     verbs = genau_cmd.read_text(encoding="utf-8").splitlines()
     assert verbs[-1] == "SET_VOLUME 40 1"
-    assert verbs[-1] == _main_player_verbs(tmp_path)[-2], "the two players are told the same"
+    assert verbs[-1] == _main_funestra_verbs(tmp_path)[-2], "the two Funestras are told the same"
 
 
-def test_seed_startup_states_holds_every_player_that_can_drive_the_osr2_to_its_max_intensity(
+def test_seed_startup_states_holds_every_funestra_that_can_drive_the_osr2_to_its_max_intensity(
         tmp_path: Path):
     sides = (tmp_path / "portrait_cmd.txt", tmp_path / "landscape_cmd.txt")
 
     _seed_startup_states(tmp_path, max_intensity=30, satellite_cmd_files=sides)
 
-    assert "SET_MAX_INTENSITY 30" in _main_player_verbs(tmp_path)
+    assert "SET_MAX_INTENSITY 30" in _main_funestra_verbs(tmp_path)
     for command_file in (tmp_path / "genau_cmd.txt", *sides):
         assert "SET_MAX_INTENSITY 30" in command_file.read_text(encoding="utf-8").splitlines()
 
 
 def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Path):
     """The companion is only asked to be quiet, so a mute reaches it as zero;
-    The main player also draws the control, so it gets the level and the flag and can say
+    The Main Funestra also draws the control, so it gets the level and the flag and can say
     muted rather than turned all the way down."""
     volume_file = tmp_path / "audio_volume.txt"
 
     _seed_startup_states(tmp_path, audio_volume_file=volume_file, volume=40, muted=True)
 
     assert read_volume(volume_file) == 0
-    assert _main_player_verbs(tmp_path)[1] == "SET_VOLUME 40 1"
+    assert _main_funestra_verbs(tmp_path)[1] == "SET_VOLUME 40 1"
 
 
-def test_seed_startup_states_tells_main_player_whether_f_mode_is_on(tmp_path: Path):
-    """The playlist the main player is handed has already been narrowed and a list of
+def test_seed_startup_states_tells_main_funestra_whether_f_mode_is_on(tmp_path: Path):
+    """The playlist the Main Funestra is handed has already been narrowed and a list of
     scripted videos looks like any other, so its HUD can only know from being
     told — and it is told alongside the level, not instead of it: both verbs
     have to survive on a channel nothing has drained yet."""
     _seed_startup_states(tmp_path, scripted_filter=True)
 
-    assert _main_player_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 1"]
+    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 1"]
 
 
 def _start_core_session_kwargs(tmp_path: Path) -> dict:
@@ -504,16 +504,16 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         genau_paused_file=tmp_path / "genau_paused.txt",
         genau_cmd_file=tmp_path / "genau_cmd.txt",
         audio_paused_file=tmp_path / "audio_paused.txt",
-        main_player_paused_file=tmp_path / "main_player_paused.txt",
+        main_funestra_paused_file=tmp_path / "main_player_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
-        main_player_cmd_file=state_dir / "main_player_cmd.txt",
+        main_funestra_cmd_file=state_dir / "main_player_cmd.txt",
         satellite_python_exe="fun_time_python.exe",
         satellite_module="satellite",
-        portrait=_slot(Player.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
+        portrait=_slot(RoomFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
                        WindowRect(x=2560, y=0, width=1440, height=2500)),
-        landscape=_slot(Player.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
+        landscape=_slot(RoomFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
                         WindowRect(x=1664, y=0, width=896, height=1392)),
-        main_player_status_file=state_dir / "main_player_status.txt",
+        main_funestra_status_file=state_dir / "main_player_status.txt",
         main_sources=f"{tmp_path / 'main_a'}|{tmp_path / 'main_b'}",
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
@@ -550,14 +550,14 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     # Startup leaves a live broker alone, only starting one when none answers.
     ensure.assert_called_once_with(state_dir / "broker_heartbeat.txt", None)
     # Seeded at what this session opens on — full volume for the sound, no cap on
-    # the OSR2, F-mode off, on the main player, with no session to come back to.
+    # the OSR2, F-mode off, on the Main Funestra, with no session to come back to.
     seed.assert_called_once_with(
         tmp_path / "genau_paused.txt",
         tmp_path / "audio_paused.txt",
         tmp_path / "main_player_paused.txt",
         tmp_path / "audio_volume.txt",
         tmp_path / "genau_cmd.txt",
-        main_player_cmd_file=state_dir / "main_player_cmd.txt",
+        main_funestra_cmd_file=state_dir / "main_player_cmd.txt",
         volume=MAX_VOLUME,
         muted=False,
         max_intensity=FULL_INTENSITY,
@@ -567,7 +567,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         mode="kino",
     )
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
-    # Every player's playlist, each built with its F-mode off — the flags default
+    # Every Funestra's playlist, each built with its F-mode off — the flags default
     # off, which is what a session with nothing to resume opens in.
     build.assert_called_once_with(
         main_sources=kwargs["main_sources"],
@@ -577,13 +577,13 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         state_dir=state_dir,
         metadata_root=tmp_path / "metadata",
     )
-    # The two native satellites are launched with OUR python (the player ships
+    # The two native satellites are launched with OUR python (the Funestra ships
     # from this repo), the satellite module, the builder's playlists, and each
     # side's file quartet.
     # The whole launch bundle travels as the two slots — each side's file
     # quartet, log, playlist, rect and HUD file in one value — plus the shared
     # settings.  project_dirs names the sibling checkouts, because the
-    # satellites import player_core like Genau and the main player do.
+    # satellites import player_core like Genau and the Main Funestra do.
     launch.assert_called_once_with(
         python_exe="fun_time_python.exe",
         satellite_module="satellite",
@@ -598,7 +598,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
 def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
     """Last session's three playlist files and status files, on disk.
 
-    Each player gets two clips drawn from the very dirs this session's source
+    Each Funestra gets two clips drawn from the very dirs this session's source
     spec names — the shape a real build leaves — and its status file
     names the second, so a resume rotates that one to the front.
     """
@@ -628,7 +628,7 @@ def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
 def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_path: Path, caplog):
     """Reopening Fun Time lands on the clips it was closed on: with last
     session's playlist files still on disk, each is rotated onto the video that
-    player published and no fresh shuffle is built over them."""
+    Funestra published and no fresh shuffle is built over them."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     left_on = _seed_resumable_session(kwargs)
@@ -655,7 +655,7 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
 def test_a_session_that_ended_hosting_resumes_its_own_clips_not_the_hosted_apps(
         tmp_path: Path):
     """Every room is BUILT in kino mode, so a room whose last session ended with
-    the hosted app holding the players must not open playing that app's pictures
+    the hosted app holding the Funestras must not open playing that app's pictures
     — which it did, held on a still nothing would page.  The session's own list
     was waiting beside each of them the whole time."""
     kwargs = _start_core_session_kwargs(tmp_path)
@@ -693,8 +693,8 @@ def _run_start_core_session(kwargs: dict) -> str:
 
 
 def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tmp_path: Path):
-    """Which player owns the big display is a thing you set, so leaving the
-    session on Genau and reopening on the main player is an overnight reset like any other.
+    """Which Funestra owns the big display is a thing you set, so leaving the
+    session on Genau and reopening on the Main Funestra is an overnight reset like any other.
     The mode is also handed back to the caller, because the windows have to be
     parked to match it and only the sequencer holds their handles."""
     kwargs = _start_core_session_kwargs(tmp_path)
@@ -710,15 +710,15 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
     assert kwargs["genau_cmd_file"].read_text(encoding="utf-8").splitlines() == [
         "PAUSE", "SET_VOLUME 100 0",
     ]
-    assert kwargs["main_player_cmd_file"].read_text(encoding="utf-8").splitlines()[0] == "SHOW genau"
-    assert kwargs["main_player_paused_file"].read_text(encoding="utf-8") == "1"
+    assert kwargs["main_funestra_cmd_file"].read_text(encoding="utf-8").splitlines()[0] == "SHOW genau"
+    assert kwargs["main_funestra_paused_file"].read_text(encoding="utf-8") == "1"
 
 
 def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp_path: Path):
     """A loop is a range inside one video, held in the mpv process that just
-    died, so it is re-sent the way a satellite's lock is — waiting in the main player's
-    command file before the main player launches, over the video the resume put at the top
-    of the main player's playlist."""
+    died, so it is re-sent the way a satellite's lock is — waiting in the Main Funestra's
+    command file before the Main Funestra launches, over the video the resume put at the top
+    of the Main Funestra's playlist."""
     kwargs = _start_core_session_kwargs(tmp_path)
     left_on = _seed_resumable_session(kwargs)
     (kwargs["state_dir"] / "main_player_status.txt").write_text(
@@ -728,14 +728,14 @@ def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp
 
     _run_start_core_session(kwargs)
 
-    assert "SET_LOOP 2000 4000" in kwargs["main_player_cmd_file"].read_text(
+    assert "SET_LOOP 2000 4000" in kwargs["main_funestra_cmd_file"].read_text(
         encoding="utf-8"
     ).splitlines()
 
 
 def _left_playing_at(kwargs: dict, *, main: float, portrait: float, landscape: float) -> None:
     for status_file, speed in (
-        (kwargs["main_player_status_file"], main),
+        (kwargs["main_funestra_status_file"], main),
         (kwargs["portrait"].channels.status, portrait),
         (kwargs["landscape"].channels.status, landscape),
     ):
@@ -747,27 +747,27 @@ def _queued(command_file) -> list[str]:
     return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
 
 
-def test_a_reopen_hands_each_player_the_rate_it_was_playing_at(tmp_path: Path):
+def test_a_reopen_hands_each_funestra_the_rate_it_was_playing_at(tmp_path: Path):
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     _left_playing_at(kwargs, main=0.25, portrait=0.5, landscape=1.0)
 
     _run_start_core_session(kwargs)
 
-    assert "SET_SPEED 0.25" in _queued(kwargs["main_player_cmd_file"])
+    assert "SET_SPEED 0.25" in _queued(kwargs["main_funestra_cmd_file"])
     assert "SET_SPEED 0.5" in _queued(kwargs["portrait"].channels.command)
     assert not any(verb.startswith("SET_SPEED")
                    for verb in _queued(kwargs["landscape"].channels.command))
 
 
-def test_a_reopen_hands_the_main_player_back_the_unlock_it_was_left_in(tmp_path: Path):
+def test_a_reopen_hands_the_main_funestra_back_the_unlock_it_was_left_in(tmp_path: Path):
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
-    Path(kwargs["main_player_status_file"]).write_text("video=\nlocked=0\n", encoding="utf-8")
+    Path(kwargs["main_funestra_status_file"]).write_text("video=\nlocked=0\n", encoding="utf-8")
 
     _run_start_core_session(kwargs)
 
-    assert "LOCK_OFF" in _queued(kwargs["main_player_cmd_file"])
+    assert "LOCK_OFF" in _queued(kwargs["main_funestra_cmd_file"])
 
 
 def test_a_reopen_hands_genau_back_the_robot_hand_it_was_left_with(tmp_path: Path):
@@ -799,7 +799,7 @@ def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path:
 
     _run_start_core_session(kwargs)
 
-    assert "SET_LOOP" not in kwargs["main_player_cmd_file"].read_text(encoding="utf-8")
+    assert "SET_LOOP" not in kwargs["main_funestra_cmd_file"].read_text(encoding="utf-8")
 
 
 def test_start_core_session_opens_a_fresh_session_in_kino_mode(tmp_path: Path):
@@ -827,21 +827,21 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
 
     state = read_shared_state(state_file)
     assert state is not None
-    assert (state.main_scripted_filter, state.satellite(Player.PORTRAIT).favorites_filter) == (True, True)
-    assert state.satellite(Player.PORTRAIT).filter == "alpha"
-    assert state.satellite(Player.LANDSCAPE).latest is True
-    assert state.satellite(Player.PORTRAIT).loop == "seed"
-    assert state.satellite(Player.PORTRAIT).map_anchor == "C:/v/a.mp4"
+    assert (state.main_scripted_filter, state.satellite(RoomFunestra.PORTRAIT).favorites_filter) == (True, True)
+    assert state.satellite(RoomFunestra.PORTRAIT).filter == "alpha"
+    assert state.satellite(RoomFunestra.LANDSCAPE).latest is True
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == "seed"
+    assert state.satellite(RoomFunestra.PORTRAIT).map_anchor == "C:/v/a.mp4"
     # fun_time draws the satellites' HUD model and the dashboard's off that
-    # state, but the main player's own HUD can only know F-mode from being told — so it is
-    # told, or the main player is the one display that comes back saying nothing.
-    assert "SET_F_MODE 1" in kwargs["main_player_cmd_file"].read_text(encoding="utf-8").splitlines()
+    # state, but the Main Funestra's own HUD can only know F-mode from being told — so it is
+    # told, or the Main Funestra is the one display that comes back saying nothing.
+    assert "SET_F_MODE 1" in kwargs["main_funestra_cmd_file"].read_text(encoding="utf-8").splitlines()
 
 
 def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path: Path):
-    """The level lives in the bridge, not in anything the players read on their
+    """The level lives in the bridge, not in anything the Funestras read on their
     own, so it reaches this session only by being seeded — to the audio
-    companion as the audible level, and to the main player as the level plus the mute it
+    companion as the audible level, and to the Main Funestra as the level plus the mute it
     draws over it."""
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
@@ -854,7 +854,7 @@ def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path:
     state = read_shared_state(shared_state_path(kwargs["state_dir"]))
     assert (state.volume, state.muted) == (40, True)
     assert read_volume(kwargs["audio_volume_file"]) == 0
-    assert kwargs["main_player_cmd_file"].read_text(encoding="utf-8").splitlines()[1] == (
+    assert kwargs["main_funestra_cmd_file"].read_text(encoding="utf-8").splitlines()[1] == (
         "SET_VOLUME 40 1"
     )
 
@@ -873,7 +873,7 @@ def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path
     _run_start_core_session(kwargs)
 
     state = read_shared_state(shared_state_path(kwargs["state_dir"]))
-    assert (state.satellite(Player.PORTRAIT).locked, state.satellite(Player.LANDSCAPE).locked) == (True, False)
+    assert (state.satellite(RoomFunestra.PORTRAIT).locked, state.satellite(RoomFunestra.LANDSCAPE).locked) == (True, False)
     assert kwargs["portrait"].channels.command.read_text(encoding="utf-8").split() == ["LOCK_ON"]
     assert not kwargs["landscape"].channels.command.exists()
 
@@ -893,8 +893,8 @@ def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_p
 
 def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_path: Path):
     """The rebuild for another app's playlist has to honor the F-mode the
-    satellites came back in — the main player's own reading of it, funscripted
-    clips only — or one player quietly holds the whole library while the HUDs
+    satellites came back in — the Main Funestra's own reading of it, funscripted
+    clips only — or one Funestra quietly holds the whole library while the HUDs
     say F-mode.  The order it came back in rides along for the same reason: the
     state carried forward has to describe the file this writes."""
     kwargs = _start_core_session_kwargs(tmp_path)
@@ -925,7 +925,7 @@ def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
     """FunTimeVR writes its main playlist to the very file the desktop
     session resumes from, and builds it from the VR library merged with this
     one's — so reopening the desktop app inherited VR videos it must never
-    play.  Only the main player is rebuilt: both apps build the satellites from the
+    play.  Only the Main Funestra is rebuilt: both apps build the satellites from the
     same dirs, so their resume is still last session's and is kept."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
@@ -934,8 +934,8 @@ def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
     vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
     vr_clip.parent.mkdir(parents=True, exist_ok=True)
     vr_clip.write_bytes(b"")
-    main_player_playlist = state_dir / "main_player_playlist.tsv"
-    main_player_playlist.write_text(
+    main_funestra_playlist = state_dir / "main_player_playlist.tsv"
+    main_funestra_playlist.write_text(
         f"{vr_clip}\n{left_on['main_player'][0]}\n", encoding="utf-8"
     )
     (state_dir / "main_player_status.txt").write_text(f"video={vr_clip}\n", encoding="utf-8")
@@ -952,9 +952,9 @@ def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
         with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"):
             start_core_session(**kwargs)
 
-    # The main player comes back from this session's own library, and the foreign
+    # The Main Funestra comes back from this session's own library, and the foreign
     # video is gone from it.
-    rebuilt = main_player_playlist.read_text(encoding="utf-8").splitlines()
+    rebuilt = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
     assert sorted(line.split("\t")[0] for line in rebuilt) == sorted(left_on["main_player"])
     # The satellites keep the resume; nothing rebuilt all three.
     build.assert_not_called()
@@ -962,7 +962,7 @@ def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
         first, second = left_on[name]
         playlist = state_dir / f"{name}_playlist.tsv"
         assert playlist.read_text(encoding="utf-8").splitlines() == [second, first]
-    assert "rebuilt the main player's" in caplog.text
+    assert "rebuilt the Main Funestra's" in caplog.text
 
 
 def test_start_core_session_keeps_the_clip_when_it_leaves_the_headset(
@@ -973,7 +973,7 @@ def test_start_core_session_keeps_the_clip_when_it_leaves_the_headset(
     FunTimeVR's rotation is the VR library merged with this one's, so the video
     on screen is often one of this app's own — the playlist has to be rebuilt
     all the same (the rest of it is foreign), and then rotated back onto that
-    video.  Rebuilding alone is what dropped the main player while both
+    video.  Rebuilding alone is what dropped the Main Funestra while both
     satellites came back untouched (docs/entering-vr.md)."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
@@ -981,9 +981,9 @@ def test_start_core_session_keeps_the_clip_when_it_leaves_the_headset(
     vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
     vr_clip.parent.mkdir(parents=True, exist_ok=True)
     vr_clip.write_bytes(b"")
-    main_player_playlist = state_dir / "main_player_playlist.tsv"
+    main_funestra_playlist = state_dir / "main_player_playlist.tsv"
     watching = left_on["main_player"][1]
-    main_player_playlist.write_text(f"{vr_clip}\n{watching}\n", encoding="utf-8")
+    main_funestra_playlist.write_text(f"{vr_clip}\n{watching}\n", encoding="utf-8")
     (state_dir / "main_player_status.txt").write_text(f"video={watching}\n", encoding="utf-8")
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
@@ -994,14 +994,14 @@ def test_start_core_session_keeps_the_clip_when_it_leaves_the_headset(
         with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"):
             start_core_session(**kwargs)
 
-    rebuilt = main_player_playlist.read_text(encoding="utf-8").splitlines()
+    rebuilt = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
     assert rebuilt[0].split("\t")[0] == watching
     assert str(vr_clip) not in [line.split("\t")[0] for line in rebuilt]
     assert "around the video it was on" in caplog.text
 
 
 def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path: Path):
-    """The loop follows the clip: it is queued only when the main player really
+    """The loop follows the clip: it is queued only when the Main Funestra really
     did come back onto the video it was cut from, and after a crossing that is
     exactly when the rebuild could be rotated onto it."""
     kwargs = _start_core_session_kwargs(tmp_path)
@@ -1026,7 +1026,7 @@ def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path:
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         start_core_session(**kwargs)
 
-    queued = Path(kwargs["main_player_cmd_file"]).read_text(encoding="utf-8")
+    queued = Path(kwargs["main_funestra_cmd_file"]).read_text(encoding="utf-8")
     assert "SET_LOOP 1000 4000" in queued
 
 
@@ -1055,12 +1055,12 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
     assert landscape_paused.read_text(encoding="utf-8") == "0"
 
 
-def test_a_session_resumed_into_origenerator_mode_still_seeds_its_players_playing(
+def test_a_session_resumed_into_origenerator_mode_still_seeds_its_funestras_playing(
     tmp_path: Path,
 ):
     """Every room is BUILT in kino mode: the hosted app that owns those regions
     is still booting when the room opens, and nothing waits for it any more.  So
-    both players come up playing whatever mode the last session ended in, and
+    both Funestras come up playing whatever mode the last session ended in, and
     the switch into origenerator mode — which the dispatch loop makes once the
     app answers — is what pauses them.  Seeded paused off the resumed mode, they
     sat frozen at position 0 under a mode nothing had entered."""
@@ -1086,7 +1086,7 @@ def test_a_session_resumed_into_origenerator_mode_still_seeds_its_players_playin
 def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Path):
     """Opening Fun Time sends the OSR2 home before anything slow begins.
 
-    Startup runs long — two native players decode their first frames while the main player
+    Startup runs long — two native Funestras decode their first frames while the Main Funestra
     and Genau scan their libraries — and wherever the last session left the
     device is where it would sit for all of it.  So the park is queued at the
     very top, ahead of the launches that make the wait.  The broker reads its
@@ -1109,7 +1109,7 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
     assert broker_cmd_file.read_text(encoding="utf-8") == PARK_CMD
 
 
-# Genau runs on the Main Player's window, driven through files of its own, so
+# Genau runs on the Main Funestra's window, driven through files of its own, so
 # every main-player launch carries them; spelled once so a test about something
 # else need not list them.
 GENAUS_FILES = dict(
@@ -1120,35 +1120,35 @@ GENAUS_FILES = dict(
 )
 
 
-def _a_main_player_launch(**overrides) -> dict:
+def _a_main_funestra_launch(**overrides) -> dict:
     launch = dict(
-        python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+        python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
         playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
         status_file="status", console_file="console.json",
         drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
         state_dir="a-state-dir",
-        main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+        main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
         **GENAUS_FILES)
     launch.update(overrides)
     return launch
 
 
-def _launched_main_player(tmp_path: Path, **overrides) -> list[str]:
+def _launched_main_funestra(tmp_path: Path, **overrides) -> list[str]:
     class FakeProc:
         pid = 42
 
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        launch_main_player(**_a_main_player_launch(log_file=tmp_path / "main_player.log", **overrides))
+        launch_main_funestra(**_a_main_funestra_launch(log_file=tmp_path / "main_funestra.log", **overrides))
     return popen.call_args.args[0]
 
 
-def test_the_main_player_is_handed_genaus_own_files_and_settings(tmp_path: Path):
+def test_the_main_funestra_is_handed_genaus_own_files_and_settings(tmp_path: Path):
     """Genau's channel, its pause, its status and its config: each one named by
     the session, because Genau resolving one from its own config is how its
     status once went where the session never read it."""
-    command = _launched_main_player(tmp_path)
+    command = _launched_main_funestra(tmp_path)
 
     assert command[command.index("--genau-command-file") + 1] == "a-state-dir/genau_cmd.txt"
     assert command[command.index("--genau-paused-file") + 1] == "a-state-dir/genau_paused.txt"
@@ -1156,36 +1156,36 @@ def test_the_main_player_is_handed_genaus_own_files_and_settings(tmp_path: Path)
     assert command[command.index("--genau-config") + 1] == "a-genau-checkout/genau_config.json"
 
 
-def test_the_main_player_opens_genau_on_the_clip_it_was_left_showing(tmp_path: Path):
+def test_the_main_funestra_opens_genau_on_the_clip_it_was_left_showing(tmp_path: Path):
     """Genau rescans its clips folder every launch and starts at the top of it,
     so the clip a session was left on comes back only by being named — on the
     command line, since it has to be in hand before the first clip decodes."""
-    command = _launched_main_player(tmp_path, genau_start_clip="C:/clips/alpha.mp4")
+    command = _launched_main_funestra(tmp_path, genau_start_clip="C:/clips/alpha.mp4")
 
     assert command[command.index("--genau-start-clip") + 1] == "C:/clips/alpha.mp4"
 
 
-def test_the_main_player_names_no_clip_for_a_session_with_none_to_resume(tmp_path: Path):
+def test_the_main_funestra_names_no_clip_for_a_session_with_none_to_resume(tmp_path: Path):
     """A first run, or a Genau that published nothing: the flag is left off
     rather than passed empty, so Genau opens where its own scan starts."""
-    assert "--genau-start-clip" not in _launched_main_player(tmp_path, genau_start_clip="")
+    assert "--genau-start-clip" not in _launched_main_funestra(tmp_path, genau_start_clip="")
 
 
 def test_the_launch_names_latest_only_for_a_session_left_browsing_it(tmp_path: Path):
     """Genau's order comes back on the launch line, beside the clip: left off,
     Genau's config decides, which is the shuffled order a session that was not
     on Latest wants."""
-    assert "--genau-latest" in _launched_main_player(tmp_path, genau_latest=True)
-    assert "--genau-latest" not in _launched_main_player(tmp_path, genau_latest=False)
+    assert "--genau-latest" in _launched_main_funestra(tmp_path, genau_latest=True)
+    assert "--genau-latest" not in _launched_main_funestra(tmp_path, genau_latest=False)
 
 
-def test_what_the_main_player_says_as_it_dies_importing_is_what_the_alert_quotes(tmp_path: Path):
+def test_what_the_main_funestra_says_as_it_dies_importing_is_what_the_alert_quotes(tmp_path: Path):
     checkout = tmp_path / "a-fun-time-checkout"
     checkout.mkdir()
     (checkout / "a_sibling_without_the_name.py").write_text("", encoding="utf-8")
-    (checkout / "a_main_player_that_dies_importing.py").write_text(
+    (checkout / "a_main_funestra_that_dies_importing.py").write_text(
         "from a_sibling_without_the_name import a_name_it_never_had\n", encoding="utf-8")
-    log = tmp_path / "state" / "main_player.log"
+    log = tmp_path / "state" / "main_funestra.log"
     logs = logs_as_they_stand(log)
     real_popen = subprocess.Popen
     started: list[subprocess.Popen] = []
@@ -1196,20 +1196,20 @@ def test_what_the_main_player_says_as_it_dies_importing_is_what_the_alert_quotes
 
     with patch.object(NAMER, "named_exe", side_effect=lambda exe, _role: str(exe)), \
          patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=started_and_kept):
-        pid = launch_main_player(**_a_main_player_launch(
-            python_exe=sys.executable, main_player_module="a_main_player_that_dies_importing",
+        pid = launch_main_funestra(**_a_main_funestra_launch(
+            python_exe=sys.executable, main_funestra_module="a_main_funestra_that_dies_importing",
             log_file=log, project_dirs=str(checkout)))
     started[0].wait(timeout=60)
 
-    with pytest.raises(PlayerDied) as died:
-        raise_if_a_player_died([LaunchedPlayer("the Main player", pid, logs)])
+    with pytest.raises(FunestraDied) as died:
+        raise_if_a_funestra_died([LaunchedFunestra("the Main Funestra", pid, logs)])
 
     assert ("cannot import name 'a_name_it_never_had' from 'a_sibling_without_the_name'"
-            in player_died_message(died.value.player, died.value.said))
+            in funestra_died_message(died.value.funestra, died.value.said))
 
 
-def test_launch_main_player_is_told_the_state_dir_it_remembers_in(tmp_path: Path):
-    """Without it the player falls back beside its config, which is the primary
+def test_launch_main_funestra_is_told_the_state_dir_it_remembers_in(tmp_path: Path):
+    """Without it the Funestra falls back beside its config, which is the primary
     checkout's root: the mode it was last in and the point each video was left at
     then land there as untracked files, dirtying main for everyone."""
     class FakeProc:
@@ -1219,13 +1219,13 @@ def test_launch_main_player_is_told_the_state_dir_it_remembers_in(tmp_path: Path
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        launch_main_player(
-            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+        launch_main_funestra(
+            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
-            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
+            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
         **GENAUS_FILES,
         )
 
@@ -1233,7 +1233,7 @@ def test_launch_main_player_is_told_the_state_dir_it_remembers_in(tmp_path: Path
     assert command[command.index("--state-dir") + 1] == str(tmp_path)
 
 
-def test_launch_main_player_forwards_metadata_dir_when_given(tmp_path: Path):
+def test_launch_main_funestra_forwards_metadata_dir_when_given(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1241,13 +1241,13 @@ def test_launch_main_player_forwards_metadata_dir_when_given(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        launch_main_player(
-            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+        launch_main_funestra(
+            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
-            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
+            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
             **GENAUS_FILES,
             metadata_dir="C:/videos/metadata",
         )
@@ -1257,7 +1257,7 @@ def test_launch_main_player_forwards_metadata_dir_when_given(tmp_path: Path):
     assert command[command.index("--metadata-dir") + 1] == "C:/videos/metadata"
 
 
-def test_launch_main_player_omits_metadata_dir_when_absent(tmp_path: Path):
+def test_launch_main_funestra_omits_metadata_dir_when_absent(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1265,22 +1265,22 @@ def test_launch_main_player_omits_metadata_dir_when_absent(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        launch_main_player(
-            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+        launch_main_funestra(
+            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
-            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
+            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
         **GENAUS_FILES,
         )
 
     assert "--metadata-dir" not in popen.call_args.args[0]
 
 
-def test_launch_main_player_forwards_clips_dir_when_given(tmp_path: Path):
-    """Genau's loop folder used to reach the main player through genau's config;
-    Fun Time hands it explicitly now, since the player reads Fun Time's config."""
+def test_launch_main_funestra_forwards_clips_dir_when_given(tmp_path: Path):
+    """Genau's loop folder used to reach the Main Funestra through genau's config;
+    Fun Time hands it explicitly now, since the Funestra reads Fun Time's config."""
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1288,13 +1288,13 @@ def test_launch_main_player_forwards_clips_dir_when_given(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        launch_main_player(
-            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+        launch_main_funestra(
+            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
-            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
+            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
             **GENAUS_FILES,
             clips_dir="C:/videos/genau/clips",
         )
@@ -1303,7 +1303,7 @@ def test_launch_main_player_forwards_clips_dir_when_given(tmp_path: Path):
     assert command[command.index("--clips-dir") + 1] == "C:/videos/genau/clips"
 
 
-def test_launch_main_player_omits_clips_dir_when_absent(tmp_path: Path):
+def test_launch_main_funestra_omits_clips_dir_when_absent(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1311,22 +1311,22 @@ def test_launch_main_player_omits_clips_dir_when_absent(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        launch_main_player(
-            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+        launch_main_funestra(
+            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
-            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
+            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
         **GENAUS_FILES,
         )
 
     assert "--clips-dir" not in popen.call_args.args[0]
 
 
-def test_launch_main_player_hands_it_fun_times_icon(tmp_path: Path):
-    """the main player's window is one of Fun Time's, so it wears Fun Time's icon — the
-    launcher's to say, since the icon is not the main player's own."""
+def test_launch_main_funestra_hands_it_fun_times_icon(tmp_path: Path):
+    """the Main Funestra's window is one of Fun Time's, so it wears Fun Time's icon — the
+    launcher's to say, since the icon is not the Main Funestra's own."""
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1334,13 +1334,13 @@ def test_launch_main_player_hands_it_fun_times_icon(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        launch_main_player(
-            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+        launch_main_funestra(
+            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
-            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
+            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
         **GENAUS_FILES,
         )
 
@@ -1348,9 +1348,9 @@ def test_launch_main_player_hands_it_fun_times_icon(tmp_path: Path):
     assert command[command.index("--icon") + 1] == str(PROJECT_ICON)
 
 
-class TestEveryPlayerWearsFunTimesTaskbarIdentity:
+class TestEveryFunestraWearsFunTimesTaskbarIdentity:
     """One launch, one button.  Windows groups by AppUserModelID and takes the
-    icon from the pinned shortcut carrying the same one, so a player that claims
+    icon from the pinned shortcut carrying the same one, so a Funestra that claims
     its own puts a second application on the bar, and one that claims none lands
     under whatever the shared interpreter's path is registered to — which was some
     unrelated program's mark.  Fun Time tells each of them instead."""
@@ -1377,20 +1377,20 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
             "python.exe", "satellite",
             channels=_a_satellite_channels(),
             placement=WindowPlacement(x=0, y=0, width=100, height=100,
-                                      title="Portrait AI Player",
+                                      title="Portrait AI Funestra",
                                       taskbar_identity=APP_USER_MODEL_ID))
 
         assert self._identity(command) == APP_USER_MODEL_ID
 
-    def test_main_player_is_told_who_it_belongs_to(self, tmp_path: Path):
+    def test_main_funestra_is_told_who_it_belongs_to(self, tmp_path: Path):
         command = self._launched(
-            launch_main_player,
-            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+            launch_main_funestra,
+            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
-            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
+            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
         **GENAUS_FILES,
         )
 
@@ -1401,19 +1401,19 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
         would group these windows under a button with no icon at all."""
         assert taskbar_identity_args() == ("--taskbar-identity", APP_USER_MODEL_ID)
 
-    def test_a_branch_sessions_players_join_its_own_button_wearing_its_amber_letter(
+    def test_a_branch_sessions_funestras_join_its_own_button_wearing_its_amber_letter(
             self, tmp_path: Path, monkeypatch):
         monkeypatch.setenv(preview_marker.FLAG, "1")
         monkeypatch.setattr(preview_marker, "preview_of", lambda checkout: Preview(feature=None))
         monkeypatch.setattr(preview_marker, "INKED_ICON_FOLDER", tmp_path / "inked")
         command = self._launched(
-            launch_main_player,
-            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+            launch_main_funestra,
+            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
-            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
+            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
         **GENAUS_FILES,
         )
 
@@ -1432,8 +1432,8 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
                    side_effect=[202, 303]) as launched:
             launch_core_apps(
                 python_exe="python.exe", satellite_module="satellite",
-                portrait=_slot(Player.PORTRAIT, str(tmp_path / "p"), state_dir, rect),
-                landscape=_slot(Player.LANDSCAPE, str(tmp_path / "l"), state_dir, rect),
+                portrait=_slot(RoomFunestra.PORTRAIT, str(tmp_path / "p"), state_dir, rect),
+                landscape=_slot(RoomFunestra.LANDSCAPE, str(tmp_path / "l"), state_dir, rect),
                 result_file=tmp_path / "core_apps.ini",
             )
 
@@ -1441,8 +1441,8 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
         assert [icon.parent for icon in icons] == [tmp_path / "inked"] * 2
 
 
-class TestTheCheckoutsThePlayerRunsOutOf:
-    """Which checkouts Genau and the main player are run out of.
+class TestTheCheckoutsTheFunestraRunsOutOf:
+    """Which checkouts Genau and the Main Funestra are run out of.
 
     Every package they import — their own, and ``player_core`` under them —
     resolves through the genau venv's editable installs, which name the primary
@@ -1459,8 +1459,8 @@ class TestTheCheckoutsThePlayerRunsOutOf:
                      return_value=self._Proc())
 
     @staticmethod
-    def _main_player(tmp_path: Path, **overrides):
-        return _a_main_player_launch(log_file=tmp_path / "main_player.log", state_dir=tmp_path,
+    def _main_funestra(tmp_path: Path, **overrides):
+        return _a_main_funestra_launch(log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
                                      **overrides)
 
     @staticmethod
@@ -1473,13 +1473,13 @@ class TestTheCheckoutsThePlayerRunsOutOf:
 
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_main_player(**self._main_player(tmp_path, project_dirs=str(checkout)))
+            launch_main_funestra(**self._main_funestra(tmp_path, project_dirs=str(checkout)))
 
         assert self._path(popen)[0] == str(checkout)
 
     def test_several_checkouts_are_run_against_each_other(self, tmp_path: Path):
         """A change is often in two of these repos at once — Fun Time's Main
-        Player on a channel in ../player_core — and running one branch against
+        Funestra on a channel in ../player_core — and running one branch against
         the other's landed code is not running the change."""
         fun_time, core = tmp_path / "fun_time", tmp_path / "player_core"
         fun_time.mkdir()
@@ -1487,7 +1487,7 @@ class TestTheCheckoutsThePlayerRunsOutOf:
 
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_main_player(**self._main_player(
+            launch_main_funestra(**self._main_funestra(
                 tmp_path, project_dirs=os.pathsep.join([str(fun_time), str(core)])))
 
         assert self._path(popen)[:2] == [str(fun_time), str(core)]
@@ -1497,7 +1497,7 @@ class TestTheCheckoutsThePlayerRunsOutOf:
         does: nothing said about the path, so the editable installs answer."""
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_main_player(**self._main_player(tmp_path))
+            launch_main_funestra(**self._main_funestra(tmp_path))
 
         assert "env" not in popen.call_args.kwargs
 
@@ -1506,24 +1506,24 @@ class TestTheCheckoutsThePlayerRunsOutOf:
         session must still start rather than die on its way up."""
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_main_player(**self._main_player(tmp_path, project_dirs=str(tmp_path / "removed")))
+            launch_main_funestra(**self._main_funestra(tmp_path, project_dirs=str(tmp_path / "removed")))
 
         assert "env" not in popen.call_args.kwargs
 
 
-def test_launch_main_player_sends_child_output_to_its_own_log(tmp_path: Path):
-    """the main player is the satellites' twin — the same mpv player under the same windowed
+def test_launch_main_funestra_sends_child_output_to_its_own_log(tmp_path: Path):
+    """the Main Funestra is the satellites' twin — the same mpv Funestra under the same windowed
     ``pythonw`` — so it needs the same place to leave a traceback when it dies."""
     class FakeProc:
         pid = 43
 
-    log_file = tmp_path / "main_player.log"
+    log_file = tmp_path / "main_funestra.log"
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        launch_main_player(
+        launch_main_funestra(
             python_exe="pythonw.exe",
-            main_player_module="main_player",
+            main_funestra_module="main_funestra",
             config_path="cfg.json",
             playlist_file="state/main_player_playlist.tsv",
             command_file="state/main_player_cmd.txt",
@@ -1534,7 +1534,7 @@ def test_launch_main_player_sends_child_output_to_its_own_log(tmp_path: Path):
             dashboard_cmd_file="state/dashboard_cmd.txt",
             log_file=log_file,
             state_dir=tmp_path,
-            main_player_x=100, main_player_y=200, main_player_width=300, main_player_height=400,
+            main_funestra_x=100, main_funestra_y=200, main_funestra_width=300, main_funestra_height=400,
         **GENAUS_FILES,
         )
 
@@ -1542,10 +1542,10 @@ def test_launch_main_player_sends_child_output_to_its_own_log(tmp_path: Path):
     assert popen.call_args.kwargs["stderr"] is stream
     assert Path(stream.name) == log_file
     assert stream.closed
-    assert "-m main_player" in log_file.read_text(encoding="utf-8")
+    assert "-m main_funestra" in log_file.read_text(encoding="utf-8")
 
 
-def test_launching_the_main_player_starts_it_and_says_which_process_it_is(tmp_path: Path):
+def test_launching_the_main_funestra_starts_it_and_says_which_process_it_is(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1553,9 +1553,9 @@ def test_launching_the_main_player_starts_it_and_says_which_process_it_is(tmp_pa
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(43)) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
     ):
-        pid = launch_main_player(
+        pid = launch_main_funestra(
             python_exe="python.exe",
-            main_player_module="main_player",
+            main_funestra_module="main_funestra",
             config_path="cfg.json",
             playlist_file="state/main_player_playlist.tsv",
             command_file="state/main_player_cmd.txt",
@@ -1564,11 +1564,11 @@ def test_launching_the_main_player_starts_it_and_says_which_process_it_is(tmp_pa
             console_file="state/main_player_console.json",
             drive_file="state/genau_drive.txt",
             dashboard_cmd_file="state/dashboard_cmd.txt",
-            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
-            main_player_x=100,
-            main_player_y=200,
-            main_player_width=300,
-            main_player_height=400,
+            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
+            main_funestra_x=100,
+            main_funestra_y=200,
+            main_funestra_width=300,
+            main_funestra_height=400,
         **GENAUS_FILES,
         )
 
@@ -1577,7 +1577,7 @@ def test_launching_the_main_player_starts_it_and_says_which_process_it_is(tmp_pa
     assert popen.call_args.args[0] == [
         "python.exe",
         "-m",
-        "main_player",
+        "main_funestra",
         "--config",
         "cfg.json",
         "--playlist",
@@ -1719,7 +1719,7 @@ def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
 def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_path: Path):
     """launch_core_apps spawns exactly two native satellites — portrait then
     landscape — each with its own playlist and command/paused/status quartet, and
-    records both pids in the result INI.  The native player owns its playlist and
+    records both pids in the result INI.  The native Funestra owns its playlist and
     plays at once, so nothing is enqueued, repeat-set, or waited for here."""
     result_file = tmp_path / "core_apps.ini"
     state_dir = tmp_path / "state"
@@ -1734,9 +1734,9 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
         launch_core_apps(
             python_exe="fun_time_python.exe",
             satellite_module="satellite",
-            portrait=_slot(Player.PORTRAIT, str(tmp_path / "portrait_a"),
+            portrait=_slot(RoomFunestra.PORTRAIT, str(tmp_path / "portrait_a"),
                            state_dir, portrait_rect),
-            landscape=_slot(Player.LANDSCAPE, str(tmp_path / "landscape_a"),
+            landscape=_slot(RoomFunestra.LANDSCAPE, str(tmp_path / "landscape_a"),
                             state_dir, landscape_rect),
             result_file=result_file,
         )
@@ -1752,7 +1752,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     # lookup fails — the portrait title on the portrait side, never swapped.
     assert portrait_kwargs["python_exe"] == "fun_time_python.exe"
     assert portrait_kwargs["satellite_module"] == "satellite"
-    assert portrait_kwargs["placement"].title == "Portrait AI Player"
+    assert portrait_kwargs["placement"].title == "Portrait AI Funestra"
     assert portrait_kwargs["channels"].playlist == portrait_playlist
     assert portrait_kwargs["channels"].command == state_dir / "portrait_cmd.txt"
     assert portrait_kwargs["channels"].paused == state_dir / "portrait_paused.txt"
@@ -1760,7 +1760,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
 
     assert landscape_kwargs["python_exe"] == "fun_time_python.exe"
     assert landscape_kwargs["satellite_module"] == "satellite"
-    assert landscape_kwargs["placement"].title == "Landscape AI Player"
+    assert landscape_kwargs["placement"].title == "Landscape AI Funestra"
     assert landscape_kwargs["channels"].playlist == landscape_playlist
     assert landscape_kwargs["channels"].command == state_dir / "landscape_cmd.txt"
     assert landscape_kwargs["channels"].paused == state_dir / "landscape_paused.txt"
@@ -1800,18 +1800,18 @@ def _a_satellite_channels(**overrides) -> SatelliteChannels:
         **overrides)
 
 
-def _a_satellite_argv(*, title="Portrait AI Player", **channels) -> list[str]:
+def _a_satellite_argv(*, title="Portrait AI Funestra", **channels) -> list[str]:
     return _build_satellite_launch_command(
         "python.exe", "satellite",
         channels=_a_satellite_channels(**channels),
         placement=WindowPlacement(x=0, y=0, width=1, height=1, title=title))
 
 
-def _slot(player, sources, state_dir, rect) -> SatelliteSlot:
+def _slot(funestra, sources, state_dir, rect) -> SatelliteSlot:
     """One side's launch bundle, spelled the way the sequencer spells it."""
-    side = player.label
+    side = funestra.label
     return SatelliteSlot(
-        player=player,
+        funestra=funestra,
         sources=sources,
         channels=SatelliteChannels(
             playlist=state_dir / f"{side}_playlist.tsv",
@@ -1834,14 +1834,14 @@ def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry()
             status=Path("state/portrait_status.txt"),
             play_points=Path("state/portrait_play_points.json")),
         placement=WindowPlacement(x=2560, y=0, width=1440, height=2500,
-                                  title="Portrait AI Player"),
+                                  title="Portrait AI Funestra"),
     )
     assert cmd[:3] == ["python.exe", "-m", "satellite"]
 
     def _val(flag):
         return cmd[cmd.index(flag) + 1]
 
-    assert _val("--title") == "Portrait AI Player"
+    assert _val("--title") == "Portrait AI Funestra"
     assert Path(_val("--playlist")) == Path("state/portrait_playlist.tsv")
     assert Path(_val("--command-file")) == Path("state/portrait_cmd.txt")
     assert Path(_val("--paused-file")) == Path("state/portrait_paused.txt")
@@ -1854,9 +1854,9 @@ def test_build_satellite_launch_command_forwards_the_distinct_title():
     # The two satellites carry distinct captions; the sequencer resolves each
     # window to its slot by title when the pid lookup fails, so a shared caption
     # (or a dropped --title) would let the portrait/landscape windows cross.
-    cmd = _a_satellite_argv(title="Landscape AI Player")
+    cmd = _a_satellite_argv(title="Landscape AI Funestra")
 
-    assert cmd[cmd.index("--title") + 1] == "Landscape AI Player"
+    assert cmd[cmd.index("--title") + 1] == "Landscape AI Funestra"
 
 
 def test_build_satellite_launch_command_leaves_the_audio_switchable():
@@ -1869,7 +1869,7 @@ def test_build_satellite_launch_command_leaves_the_audio_switchable():
 
 
 def test_build_satellite_launch_command_passes_no_config_flag():
-    # The satellite CLI takes no --config (unlike the main player); it is fully specified by
+    # The satellite CLI takes no --config (unlike the Main Funestra); it is fully specified by
     # the file quartet and geometry, so none must be forwarded.
     cmd = _a_satellite_argv()
 
@@ -1889,7 +1889,7 @@ def test_launching_a_satellite_starts_it_and_says_which_process_it_is(tmp_path: 
             satellite_module="satellite",
             channels=_a_satellite_channels(),
             placement=WindowPlacement(x=2560, y=0, width=1440, height=2500,
-                                      title="Portrait AI Player"),
+                                      title="Portrait AI Funestra"),
             role="Portrait",
             log_file=tmp_path / "portrait_satellite.log",
         )
@@ -1898,7 +1898,7 @@ def test_launching_a_satellite_starts_it_and_says_which_process_it_is(tmp_path: 
     assert popen.call_args.kwargs["creationflags"] == 1
     assert popen.call_args.args[0][:3] == ["python.exe", "-m", "satellite"]
     argv = popen.call_args.args[0]
-    assert argv[argv.index("--title") + 1] == "Portrait AI Player"
+    assert argv[argv.index("--title") + 1] == "Portrait AI Funestra"
 
 
 def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
@@ -1917,7 +1917,7 @@ def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
             python_exe="pythonw.exe",
             satellite_module="satellite",
             channels=_a_satellite_channels(),
-            placement=WindowPlacement(title="Portrait AI Player"),
+            placement=WindowPlacement(title="Portrait AI Funestra"),
             role="Portrait",
             log_file=log_file,
         )
@@ -1932,7 +1932,7 @@ def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
 
 
 def test_build_satellite_launch_command_forwards_the_hud_files():
-    """The HUD is drawn inside the player now, so each satellite is told which
+    """The HUD is drawn inside the Funestra now, so each satellite is told which
     panel file to render and where to post the clicks on it."""
     cmd = _a_satellite_argv(hud=Path("state/portrait_hud.json"),
                             dashboard_cmd=Path("state/dashboard_cmd.txt"))
@@ -2025,7 +2025,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
         class FakeProc:
             pid = 9
 
-        for role, title in (("Portrait", "Portrait AI Player"), ("Landscape", "Landscape AI Player")):
+        for role, title in (("Portrait", "Portrait AI Funestra"), ("Landscape", "Landscape AI Funestra")):
             with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
             ):
@@ -2040,16 +2040,16 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
 
             assert self._launched_exe(popen) == f"FunTime-{role}.exe"
 
-    def test_the_main_player(self, tmp_path: Path):
+    def test_the_main_funestra(self, tmp_path: Path):
         class FakeProc:
             pid = 10
 
         with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
             "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
         ):
-            launch_main_player(
+            launch_main_funestra(
                 python_exe=self._interpreter(tmp_path),
-                main_player_module="main_player",
+                main_funestra_module="main_funestra",
                 config_path=tmp_path / "genau.json",
                 playlist_file="playlist.tsv",
                 command_file="cmd.txt",
@@ -2058,11 +2058,11 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
                 console_file="console.json",
                 drive_file="drive.txt",
                 dashboard_cmd_file="dash.txt",
-                log_file=tmp_path / "main_player.log", state_dir=tmp_path,
-                main_player_x=0, main_player_y=0, main_player_width=1, main_player_height=1,
+                log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
+                main_funestra_x=0, main_funestra_y=0, main_funestra_width=1, main_funestra_height=1,
             **GENAUS_FILES,
             )
-        assert self._launched_exe(popen) == "FunTime-MainPlayer.exe"
+        assert self._launched_exe(popen) == "FunTime-MainFunestra.exe"
 
     def test_the_hosted_origenerator(self, tmp_path: Path):
         class FakeProc:
@@ -2085,21 +2085,21 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
                 paused_file="state/origenerator_paused.txt",
                 status_file="state/origenerator_status.txt",
                 dashboard_cmd_file="state/dashboard_cmd.txt",
-                players=_handed_players(),
+                funestras=_handed_funestras(),
             )
 
         assert self._launched_exe(popen) == "FunTime-Origenerator.exe"
 
-    def test_the_satellite_reap_can_still_find_a_player_under_its_new_name(self):
-        """The reap that clears stranded players bounds itself by image name.
-        Renaming the players without widening it would leave every one of them
+    def test_the_satellite_reap_can_still_find_a_funestra_under_its_new_name(self):
+        """The reap that clears stranded Funestras bounds itself by image name.
+        Renaming the Funestras without widening it would leave every one of them
         beyond the reach of the sweep written to collect them."""
         assert 41 in _reaped_from_the_machine()
 
 
-def _handed_players() -> dict[str, HandedPlayer]:
+def _handed_funestras() -> dict[str, HandedFunestra]:
     return {
-        side: HandedPlayer(
+        side: HandedFunestra(
             playlist_file=f"state/{side}_playlist.tsv",
             cmd_file=f"state/{side}_cmd.txt",
             status_file=f"state/{side}_status.txt",
@@ -2111,7 +2111,7 @@ def _handed_players() -> dict[str, HandedPlayer]:
 
 def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
     """The argv is origenerator's --fun-time contract: the RFB rect as the main
-    window's, both satellite players' channels, the hosted app's own files, and
+    window's, both Satellite Funestras' channels, the hosted app's own files, and
     the session's taskbar identity — run from the checkout so ``-m`` resolves
     that checkout's code, exactly like its own launcher does."""
 
@@ -2137,7 +2137,7 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
             paused_file="state/origenerator_paused.txt",
             status_file="state/origenerator_status.txt",
             dashboard_cmd_file="state/dashboard_cmd.txt",
-            players=_handed_players(),
+            funestras=_handed_funestras(),
         )
 
     assert pid == 77
@@ -2160,7 +2160,7 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
     ):
         assert flag in command, flag
         assert command[command.index(flag) + 1] == value, flag
-    # The players are handed over, so the regions are no longer the hosted
+    # The Funestras are handed over, so the regions are no longer the hosted
     # app's to cover with windows of its own: no rect of theirs goes across.
     assert not any(flag.startswith(("--portrait_", "--landscape_")) for flag in command)
     # cwd is what picks the checkout: -m resolves the package from it.
@@ -2195,7 +2195,7 @@ def test_hosting_a_worktree_runs_it_as_a_branch_session(tmp_path: Path):
             layout_plan=plan,
             command_file="c.txt", paused_file="p.txt",
             status_file="s.txt", dashboard_cmd_file="d.txt",
-            players=_handed_players(),
+            funestras=_handed_funestras(),
         )
 
     env = popen.call_args.kwargs["env"]
@@ -2259,7 +2259,7 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
         """It reaches into player_core like every other child -- for the flag
         files, and for which output a named device is -- so a branch of that
         checkout has to reach it too, or the companion answers a session with
-        the landed copy while the players beside it run the branch."""
+        the landed copy while the Funestras beside it run the branch."""
         checkout = tmp_path / "player_core"
         checkout.mkdir()
 
@@ -2268,15 +2268,15 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
         assert kwargs["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
 
 
-def test_only_the_portrait_player_is_launched_to_tile(tmp_path):
+def test_only_the_portrait_funestra_is_launched_to_tile(tmp_path):
     state_dir = tmp_path / "state"
     with patch("fun_time.windows_bridge_startup.launch_satellite",
                side_effect=[202, 303]) as launch:
         launch_core_apps(
             python_exe="fun_time_python.exe", satellite_module="satellite",
-            portrait=_slot(Player.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
+            portrait=_slot(RoomFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
                            WindowRect(x=2560, y=0, width=1440, height=2500)),
-            landscape=_slot(Player.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
+            landscape=_slot(RoomFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
                             WindowRect(x=1664, y=0, width=896, height=1392)),
             result_file=tmp_path / "core_apps.ini",
         )
@@ -2285,7 +2285,7 @@ def test_only_the_portrait_player_is_launched_to_tile(tmp_path):
 
 
 def test_a_satellite_launched_to_tile_is_told_so_on_its_command_line():
-    placement = WindowPlacement(x=0, y=0, width=1, height=1, title="Portrait AI Player")
+    placement = WindowPlacement(x=0, y=0, width=1, height=1, title="Portrait AI Funestra")
 
     tiling = _build_satellite_launch_command(
         "python.exe", "satellite", channels=_a_satellite_channels(),

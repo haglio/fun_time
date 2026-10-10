@@ -8,7 +8,7 @@ from fun_time.mode_plan import (
     MAIN_MODES,
     STARTUP_MAIN_MODE,
     build_mode_switch_plan,
-    main_player_displays,
+    kino_shows,
     show_verb,
 )
 
@@ -17,13 +17,13 @@ def test_a_session_is_built_in_kino_mode():
     assert STARTUP_MAIN_MODE == "kino"
 
 
-def test_main_player_displays_in_kino_mode_alone():
-    assert main_player_displays("kino") is True
-    assert main_player_displays("genau") is False
+def test_main_funestra_displays_in_kino_mode_alone():
+    assert kino_shows("kino") is True
+    assert kino_shows("genau") is False
 
 
-def test_the_verb_each_mode_says_to_the_main_player():
-    """Kino and Genau both run on the Main Player's window; a switch tells that
+def test_the_verb_each_mode_says_to_the_main_funestra():
+    """Kino and Genau both run on the Main Funestra's window; a switch tells that
     window which of them has it."""
     assert (show_verb("kino"), show_verb("genau")) == ("SHOW kino", "SHOW genau")
 
@@ -34,7 +34,7 @@ def test_kino_to_genau_gives_genau_the_window_and_pauses_kinos_video():
     assert plan.is_transition is True
     assert plan.genau_cmd == "RESUME"
     assert plan.show_cmd == "SHOW genau"
-    assert plan.main_player_should_play is False
+    assert plan.main_funestra_should_play is False
 
 
 def test_genau_to_kino_gives_kino_the_window_and_starts_its_video():
@@ -42,7 +42,7 @@ def test_genau_to_kino_gives_kino_the_window_and_starts_its_video():
     assert plan.is_transition is True
     assert plan.genau_cmd == "RESUME"
     assert plan.show_cmd == "SHOW kino"
-    assert plan.main_player_should_play is True
+    assert plan.main_funestra_should_play is True
 
 
 def test_a_switch_while_paused_still_says_who_has_the_window_and_starts_nobody():
@@ -50,7 +50,7 @@ def test_a_switch_while_paused_still_says_who_has_the_window_and_starts_nobody()
         plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=True)
         assert plan.show_cmd == f"SHOW {target}", f"{current}->{target}"
         assert plan.genau_cmd is None
-        assert plan.main_player_should_play is None
+        assert plan.main_funestra_should_play is None
 
 
 def test_every_transition_outside_a_pause_resumes_genau():
@@ -68,7 +68,7 @@ def test_same_mode_is_noop():
         assert plan.is_transition is False
         assert plan.genau_cmd is None
         assert plan.show_cmd is None
-        assert plan.main_player_should_play is None
+        assert plan.main_funestra_should_play is None
 
 
 def test_a_mode_that_is_not_the_main_slots_is_refused():

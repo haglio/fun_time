@@ -14,16 +14,20 @@ import pytest
 from app_support.file_channel import read_key_values, write_flag
 from app_support.funscript import document, write
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from player_core.file_channel import append_command
-from player_core.funestra_controls import SEEK_STEP_MS
-from player_core.modes import LoopState
-from player_core.player_verbs import RELOAD_PLAYLIST, SET_SPEED, play_file
-from player_core.playlist import PlaylistItem
+from funestra_core.file_channel import append_command
+from funestra_core.funestra_controls import SEEK_STEP_MS
+from funestra_core.funestra_verbs import RELOAD_PLAYLIST, SET_SPEED, play_file
+from funestra_core.modes import LoopState
+from funestra_core.playlist import PlaylistItem
 
 from fun_time.config import SatelliteFiles
+from fun_time.funestra_status import (
+    MainFunestraStatus,
+    read_genau_status,
+    read_main_funestra_status,
+)
 from fun_time.media_actions import remove_from_favs
-from fun_time.player_status import MainPlayerStatus, read_genau_status, read_main_player_status
-from fun_time.players import Player
+from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.voice_commands import format_spoken_command
@@ -102,7 +106,7 @@ def test_fun_time_omnipause_toggle_flow(shared_integration_session: FunTimeInteg
 
 
 def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
-    """The bare command still narrows every player at once, and lifts it again."""
+    """The bare command still narrows every Funestra at once, and lifts it again."""
     shared_integration_session.write_dashboard_command("fmode_toggle")
     shared_integration_session.wait_for_new_log("F-mode enabled: main, portrait, landscape")
 
@@ -111,7 +115,7 @@ def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrati
 
 
 def test_fun_time_sided_fmode_flow(shared_integration_session: FunTimeIntegrationSession):
-    """What a satellite's own F button posts: that player alone goes into F-mode,
+    """What a satellite's own F button posts: that Funestra alone goes into F-mode,
     and the whole-room command afterwards finishes the job rather than undoing it."""
     shared_integration_session.write_dashboard_command("portrait_fmode")
     shared_integration_session.wait_for_new_log("F-mode enabled: portrait")
@@ -151,16 +155,16 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
         description="Genau paused file to flip off (active)",
     )
     s.wait_until(
-        lambda: s.config.main_player_paused_file.read_text(encoding="utf-8") == "1",
-        description="the main player paused file to flip on (inactive)",
+        lambda: s.config.main_funestra_paused_file.read_text(encoding="utf-8") == "1",
+        description="the Main Funestra paused file to flip on (inactive)",
     )
 
     s.write_dashboard_command("main_kino_activate")
     s.wait_for_new_log("Switched to kino mode")
 
     s.wait_until(
-        lambda: s.config.main_player_paused_file.read_text(encoding="utf-8") == "0",
-        description="the main player paused file to flip back off (active)",
+        lambda: s.config.main_funestra_paused_file.read_text(encoding="utf-8") == "0",
+        description="the Main Funestra paused file to flip back off (active)",
     )
     # Genau runs on in kino mode — its HUD over the video, the Robot Hand
     # under it for the funscript's gaps — so its flag never flips back.
@@ -204,7 +208,7 @@ def test_fun_time_the_max_intensity_pushes_the_robot_hand_down_and_leaves_it_the
     shared_integration_session: FunTimeIntegrationSession,
 ):
     s = shared_integration_session
-    sink = s.config.main_player_tcode.port
+    sink = s.config.main_funestra_tcode.port
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode")
     try:
@@ -235,7 +239,7 @@ def test_fun_time_the_max_intensity_holds_a_funscript_down_through_its_gaps_too(
     shared_integration_session: FunTimeIntegrationSession,
 ):
     s = shared_integration_session
-    sink = s.config.main_player_tcode.port
+    sink = s.config.main_funestra_tcode.port
     s.write_dashboard_command("main_kino_activate")
     s.write_dashboard_command("play")
     try:
@@ -251,22 +255,22 @@ def test_fun_time_the_max_intensity_holds_a_funscript_down_through_its_gaps_too(
     assert _osr2_still(still_after), still_after
 
 
-def test_fun_time_mode_switch_keeps_the_one_main_player_window_up_and_topmost(
+def test_fun_time_mode_switch_keeps_the_one_main_funestra_window_up_and_topmost(
         shared_integration_session: FunTimeIntegrationSession):
-    """Kino and Genau both run on the Main Player's window, so a mode switch
+    """Kino and Genau both run on the Main Funestra's window, so a mode switch
     parks nothing and promotes nothing: the window stays up and topmost through
     both switches, and what changes is which of the two is playing on it --
     Kino's video is held in genau mode and plays again in kino mode."""
     s = shared_integration_session
 
     s.wait_until(
-        lambda: find_window_by_title("Main Player", exact=True) != 0,
-        description="the main player window to exist in kino mode",
+        lambda: find_window_by_title("Main Funestra", exact=True) != 0,
+        description="the Main Funestra window to exist in kino mode",
     )
-    main_player_hwnd = find_window_by_title("Main Player", exact=True)
+    main_funestra_hwnd = find_window_by_title("Main Funestra", exact=True)
     s.wait_until(
-        lambda: is_window_topmost(main_player_hwnd) and not is_window_minimized(main_player_hwnd),
-        description="the main player to be restored and topmost in kino mode",
+        lambda: is_window_topmost(main_funestra_hwnd) and not is_window_minimized(main_funestra_hwnd),
+        description="the Main Funestra to be restored and topmost in kino mode",
     )
     assert find_window_by_title("Genau") == 0, "Genau opened a window of its own"
 
@@ -275,11 +279,11 @@ def test_fun_time_mode_switch_keeps_the_one_main_player_window_up_and_topmost(
         s.write_dashboard_command(command)
         s.wait_for_new_log(f"Switched to {mode} mode")
         s.wait_until(
-            lambda held=held: s.config.main_player_paused_file.read_text(encoding="utf-8") == held,
+            lambda held=held: s.config.main_funestra_paused_file.read_text(encoding="utf-8") == held,
             description=f"Kino's video to be {'held' if held == '1' else 'playing'} in {mode} mode",
         )
-        assert _stays_up_and_topmost(main_player_hwnd, seconds=1.0), (
-            f"the main player window left the screen switching to {mode} mode")
+        assert _stays_up_and_topmost(main_funestra_hwnd, seconds=1.0), (
+            f"the Main Funestra window left the screen switching to {mode} mode")
         assert find_window_by_title("Genau") == 0, "a second window took the main slot"
 
 
@@ -350,7 +354,7 @@ def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTime
     shared_integration_session.wait_for_new_log("Switched to kino mode")
 
 
-def test_fun_time_omnipause_pauses_genau_and_keeps_the_main_player_running(
+def test_fun_time_omnipause_pauses_genau_and_keeps_the_main_funestra_running(
         shared_integration_session: FunTimeIntegrationSession):
     """Regression: omnipause must pause Genau, not close it.
 
@@ -358,12 +362,12 @@ def test_fun_time_omnipause_pauses_genau_and_keeps_the_main_player_running(
     flag.  When omnipause was ported to Python, an explicit
     set_topmost(Genau, False) was added by mistake, causing the
     window to fall under other windows (appearing "closed").  Genau runs on
-    the Main Player's window now, so that is the process an omnipause
+    the Main Funestra's window now, so that is the process an omnipause
     round-trip in genau mode must leave running.
     """
     s = shared_integration_session
-    rh_pid = s.read_child_pids()["main_player_pid"]
-    assert is_process_alive(rh_pid), "the Main Player should be alive before test"
+    rh_pid = s.read_child_pids()["main_funestra_pid"]
+    assert is_process_alive(rh_pid), "the Main Funestra should be alive before test"
 
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode")
@@ -376,7 +380,7 @@ def test_fun_time_omnipause_pauses_genau_and_keeps_the_main_player_running(
     )
 
     assert is_process_alive(rh_pid), (
-        "the Main Player died during omnipause — Esc should pause Genau, not close it"
+        "the Main Funestra died during omnipause — Esc should pause Genau, not close it"
     )
 
     s.write_dashboard_command("omnipause_toggle")
@@ -399,7 +403,7 @@ def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_ses
     s.write_dashboard_command("play")
 
     # Resolve exactly as startup does: by each satellite's DISTINCT caption
-    # ("Portrait AI Player" / "Landscape AI Player").  A pid cannot find either
+    # ("Portrait AI Funestra" / "Landscape AI Funestra").  A pid cannot find either
     # window — the venv's pythonw launcher spawns the interpreter that owns it as
     # a child — and the distinct captions are what tell portrait from landscape
     # without swapping them.
@@ -435,7 +439,7 @@ def test_fun_time_omnipause_freezes_the_satellites(
 ):
     """OmniPause freezes the native satellites through their paused flag file.
 
-    The player obeys that flag every tick and simply cannot auto-advance while it
+    The Funestra obeys that flag every tick and simply cannot auto-advance while it
     is set, so entering OmniPause is a settled state that needs no policing.  We
     assert each satellite reports paused and its playhead stops moving."""
     s = shared_integration_session
@@ -471,7 +475,7 @@ def test_fun_time_omnipause_freezes_the_satellites(
     s.wait_for_new_log("OmniPause: leaving")
 
 
-def test_fun_time_the_satellites_take_the_main_players_playback_speed(
+def test_fun_time_the_satellites_take_the_main_funestras_playback_speed(
     shared_integration_session: FunTimeIntegrationSession,
 ):
     s = shared_integration_session
@@ -480,20 +484,20 @@ def test_fun_time_the_satellites_take_the_main_players_playback_speed(
     s.write_dashboard_command("main_kino_activate")
     s.write_dashboard_command("play")
     s.wait_until(
-        lambda: s.read_main_player_status().video != "" and s.read_main_player_status().speed == 1.0,
-        description="the main player to be playing at normal speed",
+        lambda: s.read_main_funestra_status().video != "" and s.read_main_funestra_status().speed == 1.0,
+        description="the Main Funestra to be playing at normal speed",
     )
 
     s.write_dashboard_command("main_player_speed_150")
     s.wait_until(
         lambda: all(read_satellite_status(status).speed == 1.5 for status in statuses),
-        description="both satellites to take the main player's one and a half speed",
+        description="both satellites to take the Main Funestra's one and a half speed",
     )
 
     s.write_dashboard_command("main_player_speed_100")
     s.wait_until(
         lambda: all(read_satellite_status(status).speed == 1.0 for status in statuses),
-        description="both satellites back at normal speed with the main player",
+        description="both satellites back at normal speed with the Main Funestra",
     )
 
 
@@ -502,126 +506,126 @@ NUDGE_HEADROOM_MS = SEEK_STEP_MS + 2_000
 LONG_ENOUGH_TO_NUDGE_MS = 25_000
 
 
-def _loaded_and_playing(status: MainPlayerStatus) -> bool:
+def _loaded_and_playing(status: MainFunestraStatus) -> bool:
     return status.video != "" and status.duration_ms > 0 and not status.paused
 
 
-def _main_player_playing_in_kino_mode(session: FunTimeIntegrationSession) -> None:
+def _main_funestra_playing_in_kino_mode(session: FunTimeIntegrationSession) -> None:
     session.write_dashboard_command("main_kino_activate")
     session.write_dashboard_command("play")
     session.wait_until(
-        lambda: _loaded_and_playing(session.read_main_player_status()),
-        description="the main player to be playing a loaded video in kino mode",
+        lambda: _loaded_and_playing(session.read_main_funestra_status()),
+        description="the Main Funestra to be playing a loaded video in kino mode",
     )
 
 
 @contextmanager
-def _main_player_held_still(session: FunTimeIntegrationSession):
-    paused_file = session.config.main_player_paused_file
+def _main_funestra_held_still(session: FunTimeIntegrationSession):
+    paused_file = session.config.main_funestra_paused_file
     try:
         session.wait_until(
-            lambda: write_flag(paused_file, True) and session.read_main_player_status().paused,
-            description="the main player to hold still",
+            lambda: write_flag(paused_file, True) and session.read_main_funestra_status().paused,
+            description="the Main Funestra to hold still",
         )
         yield
     finally:
         session.wait_until(lambda: write_flag(paused_file, False),
-                           description="the main player's paused flag to be lifted")
+                           description="the Main Funestra's paused flag to be lifted")
 
 
-def _a_different_video_loaded(status: MainPlayerStatus, than: str) -> bool:
+def _a_different_video_loaded(status: MainFunestraStatus, than: str) -> bool:
     return status.video not in ("", than) and status.duration_ms > 0
 
 
 def _step_to_a_video_long_enough_to_nudge(session: FunTimeIntegrationSession) -> int:
     for _ in range(12):
-        shown = session.read_main_player_status()
+        shown = session.read_main_funestra_status()
         if shown.duration_ms >= LONG_ENOUGH_TO_NUDGE_MS:
             return shown.duration_ms
         session.write_dashboard_command("main_next")
         session.wait_until(
-            lambda than=shown.video: _a_different_video_loaded(session.read_main_player_status(), than),
-            description="the main player to load the next video",
+            lambda than=shown.video: _a_different_video_loaded(session.read_main_funestra_status(), than),
+            description="the Main Funestra to load the next video",
         )
     raise AssertionError(f"no sampled video runs {LONG_ENOUGH_TO_NUDGE_MS} ms, to nudge each way")
 
 
 def _nudge(session: FunTimeIntegrationSession, command: str, *, by_ms: int) -> None:
-    before = session.read_main_player_status()
+    before = session.read_main_funestra_status()
     aim = min(max(before.position_ms + by_ms, 0), before.duration_ms)
     session.write_dashboard_command(command)
     session.wait_until(
-        lambda: abs(session.read_main_player_status().position_ms - aim) <= NUDGE_SLACK_MS,
-        description=lambda: (f"{command} to move the held main player from {before.position_ms} ms "
-                             f"to {aim} ms; it reads {session.read_main_player_status().position_ms}"),
+        lambda: abs(session.read_main_funestra_status().position_ms - aim) <= NUDGE_SLACK_MS,
+        description=lambda: (f"{command} to move the held Main Funestra from {before.position_ms} ms "
+                             f"to {aim} ms; it reads {session.read_main_funestra_status().position_ms}"),
     )
 
 
-def test_fun_time_main_player_nudge_seeks_playback(shared_integration_session: FunTimeIntegrationSession):
-    """main_nudge_next/prev in kino mode drive the main player's seek via its command
-    file, observed through the main player's published status position."""
+def test_fun_time_main_funestra_nudge_seeks_playback(shared_integration_session: FunTimeIntegrationSession):
+    """main_nudge_next/prev in kino mode drive the Main Funestra's seek via its command
+    file, observed through the Main Funestra's published status position."""
     s = shared_integration_session
-    _main_player_playing_in_kino_mode(s)
-    with _main_player_held_still(s):
+    _main_funestra_playing_in_kino_mode(s)
+    with _main_funestra_held_still(s):
         duration = _step_to_a_video_long_enough_to_nudge(s)
-        while s.read_main_player_status().position_ms > duration - NUDGE_HEADROOM_MS:
+        while s.read_main_funestra_status().position_ms > duration - NUDGE_HEADROOM_MS:
             _nudge(s, "main_nudge_prev", by_ms=-SEEK_STEP_MS)
         _nudge(s, "main_nudge_next", by_ms=SEEK_STEP_MS)
         _nudge(s, "main_nudge_prev", by_ms=-SEEK_STEP_MS)
 
 
-def test_fun_time_main_player_record_loop_cancel_cycle(shared_integration_session: FunTimeIntegrationSession):
-    """The record gesture round-trips through the main player: record → looping → cancel,
-    observed through the main player's published loop state."""
+def test_fun_time_main_funestra_record_loop_cancel_cycle(shared_integration_session: FunTimeIntegrationSession):
+    """The record gesture round-trips through the Main Funestra: record → looping → cancel,
+    observed through the Main Funestra's published loop state."""
     s = shared_integration_session
-    _main_player_playing_in_kino_mode(s)
-    with _main_player_held_still(s):
-        assert s.read_main_player_status().loop_state is LoopState.NORMAL
+    _main_funestra_playing_in_kino_mode(s)
+    with _main_funestra_held_still(s):
+        assert s.read_main_funestra_status().loop_state is LoopState.NORMAL
 
         s.write_dashboard_command("main_player_record_tap")
         s.wait_until(
-            lambda: s.read_main_player_status().loop_state is LoopState.RECORDING,
-            description="the main player to enter recording state",
+            lambda: s.read_main_funestra_status().loop_state is LoopState.RECORDING,
+            description="the Main Funestra to enter recording state",
         )
 
         s.write_dashboard_command("main_player_record_tap")
         s.wait_until(
-            lambda: s.read_main_player_status().loop_state is LoopState.LOOPING,
-            description="the main player to enter looping state",
+            lambda: s.read_main_funestra_status().loop_state is LoopState.LOOPING,
+            description="the Main Funestra to enter looping state",
         )
 
         s.write_dashboard_command("main_player_loop_cancel")
         s.wait_until(
-            lambda: s.read_main_player_status().loop_state is LoopState.NORMAL,
-            description="the main player to return to normal state",
+            lambda: s.read_main_funestra_status().loop_state is LoopState.NORMAL,
+            description="the Main Funestra to return to normal state",
         )
 
 
-def test_fun_time_kino_mode_comes_back_to_the_video_main_player_was_showing(shared_integration_session: FunTimeIntegrationSession):
-    """A round trip through genau mode hands the main player nothing new: the video it was
+def test_fun_time_kino_mode_comes_back_to_the_video_main_funestra_was_showing(shared_integration_session: FunTimeIntegrationSession):
+    """A round trip through genau mode hands the Main Funestra nothing new: the video it was
     parked on is the one it resumes, and prev/next/nudge dispatch to it again
     just as before.
 
-    (The precise +10s the main player seek is covered by the nudge test above, which
+    (The precise +10s the Main Funestra seek is covered by the nudge test above, which
     exercises the identical dispatch path.)
 
     Must run before isolated-session tests (trash), whose teardown kills all
-    recent player processes and would leave the shared session's players dead.
+    recent Funestra processes and would leave the shared session's Funestras dead.
     """
     s = shared_integration_session
 
-    main_player_video_before = s.read_main_player_status().video
-    assert main_player_video_before, "expected the main player to be playing before switching to genau"
+    main_funestra_video_before = s.read_main_funestra_status().video
+    assert main_funestra_video_before, "expected the Main Funestra to be playing before switching to genau"
 
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode")
     s.write_dashboard_command("main_kino_activate")
     s.wait_for_new_log("Switched to kino mode")
 
-    # The main player is the display again and keeps playing its current video — no handoff.
+    # The Main Funestra is the display again and keeps playing its current video — no handoff.
     s.wait_until(
-        lambda: s.read_main_player_status().video == main_player_video_before,
-        description="the main player to come back on the video it was showing",
+        lambda: s.read_main_funestra_status().video == main_funestra_video_before,
+        description="the Main Funestra to come back on the video it was showing",
     )
 
     # A nudge in kino mode reaches the normal dispatch path.
@@ -641,11 +645,11 @@ def _script_that_starts_in_ten_hours(path: Path) -> Path:
 
 
 @contextmanager
-def _the_portrait_player_driving_the_osr2(s: FunTimeIntegrationSession, tmp_path: Path):
-    portrait = s.config.satellite(Player.PORTRAIT)
+def _the_portrait_funestra_driving_the_osr2(s: FunTimeIntegrationSession, tmp_path: Path):
+    portrait = s.config.satellite(RoomFunestra.PORTRAIT)
     s.wait_until(lambda: bool(read_satellite_status(portrait.status_file).video)
                  and not read_satellite_status(portrait.status_file).paused,
-                 description="the portrait player playing a video")
+                 description="the Portrait Funestra playing a video")
     video = Path(read_satellite_status(portrait.status_file).video)
     try:
         s.write_dashboard_command("portrait_take_osr2")
@@ -654,7 +658,7 @@ def _the_portrait_player_driving_the_osr2(s: FunTimeIntegrationSession, tmp_path
         s.write_dashboard_command("portrait_lock")
         s.wait_for_new_log("Locked portrait satellite")
         s.wait_until(lambda: read_satellite_status(portrait.status_file).funscript_driving,
-                     description="the portrait player's funscript to be driving")
+                     description="the Portrait Funestra's funscript to be driving")
         yield portrait, video
     finally:
         s.write_dashboard_command("main_take_osr2")
@@ -668,9 +672,9 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
     shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
 ):
     s = shared_integration_session
-    sink = s.config.main_player_tcode.port
+    sink = s.config.main_funestra_tcode.port
     before = senders(tcode_heard(sink, seconds=2))
-    with _the_portrait_player_driving_the_osr2(s, tmp_path) as (portrait, video):
+    with _the_portrait_funestra_driving_the_osr2(s, tmp_path) as (portrait, video):
         time.sleep(1.0)
         scripted = senders(tcode_heard(sink, seconds=4))
         assert len(scripted) == 1, (before, scripted)
@@ -679,24 +683,24 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
 
         s.write_dashboard_command("speed_up")
         s.wait_until(lambda: read_satellite_status(portrait.status_file).speed > 1.0,
-                     description="the speed nudge to reach the portrait player")
+                     description="the speed nudge to reach the Portrait Funestra")
         append_command(portrait.cmd_file, f"{SET_SPEED} 1")
 
         append_command(portrait.cmd_file, play_file(PlaylistItem(
             video, _script_that_starts_in_ten_hours(tmp_path / "later.funscript"))))
         s.wait_until(lambda: read_satellite_status(portrait.status_file).funscript_resting,
-                     description="the portrait player to reach a stretch with no funscript")
+                     description="the Portrait Funestra to reach a stretch with no funscript")
         time.sleep(2.0)
         resting = senders(tcode_heard(sink, seconds=4))
         assert resting and portraits_line not in resting, (portraits_line, resting)
 
 
-def test_fun_time_the_max_intensity_holds_a_side_players_funscript_down_too(
+def test_fun_time_the_max_intensity_holds_a_side_funestras_funscript_down_too(
     shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
 ):
     s = shared_integration_session
-    sink = s.config.main_player_tcode.port
-    with _the_portrait_player_driving_the_osr2(s, tmp_path):
+    sink = s.config.main_funestra_tcode.port
+    with _the_portrait_funestra_driving_the_osr2(s, tmp_path):
         try:
             free = _osr2_heard_until(sink, _osr2_swinging)
             s.write_dashboard_command("max_intensity_0")
@@ -711,11 +715,11 @@ def test_fun_time_the_max_intensity_holds_a_side_players_funscript_down_too(
 def _held_still(session: FunTimeIntegrationSession, side: SatelliteFiles) -> SatelliteStatus:
     session.wait_until(
         lambda: bool(read_satellite_status(side.status_file).video),
-        description="the player to name the clip it opened on",
+        description="the Funestra to name the clip it opened on",
     )
     session.wait_until(
         lambda: write_flag(side.paused_file, True) and read_satellite_status(side.status_file).paused,
-        description="the player to hold its clip",
+        description="the Funestra to hold its clip",
     )
     return published_status(read_satellite_status, side.status_file)
 
@@ -732,12 +736,12 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     list, the file stays in the library, and the clip stays in the rotation —
     W then A comes straight back to it."""
     s = isolated_integration_session
-    landscape = s.config.satellite(Player.LANDSCAPE)
+    landscape = s.config.satellite(RoomFunestra.LANDSCAPE)
     held = _held_still(s, landscape)
 
     s.write_dashboard_command("landscape_trash")
-    chunk = s.wait_for_new_log("Removed from favorites on player 3:")
-    match = re.search(r"Removed from favorites on player 3:\s*(.+)", chunk)
+    chunk = s.wait_for_new_log("Removed from favorites on Funestra 3:")
+    match = re.search(r"Removed from favorites on Funestra 3:\s*(.+)", chunk)
     assert match, "Expected the unfavorite log chunk to include the landscape path"
     demoted_path = Path(match.group(1).strip()).resolve()
     assert demoted_path == Path(held.video).resolve()
@@ -751,12 +755,12 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
 
     s.wait_until(
         lambda: any(n.message == "Unfavorited" and n.source == "landscape" for n in s.notices()),
-        description="an \"Unfavorited\" notice over the landscape player",
+        description="an \"Unfavorited\" notice over the Landscape Funestra",
     )
 
     s.wait_until(
         lambda: _showing(landscape) != demoted_path,
-        description="the landscape player to move on from the demoted clip",
+        description="the Landscape Funestra to move on from the demoted clip",
     )
     assert read_satellite_status(landscape.status_file).playlist_length == held.playlist_length, (
         "the demoted clip must stay in the landscape rotation"
@@ -791,8 +795,8 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
     remove_from_favs(isolated_integration_session.favs_file, held)
 
     isolated_integration_session.write_dashboard_command("portrait_trash")
-    chunk = isolated_integration_session.wait_for_new_log("Discarding from player 2:")
-    match = re.search(r"Discarding from player 2:\s*(.+)", chunk)
+    chunk = isolated_integration_session.wait_for_new_log("Discarding from Funestra 2:")
+    match = re.search(r"Discarding from Funestra 2:\s*(.+)", chunk)
     assert match, "Expected discard log chunk to include the discarded portrait path"
     trashed_path = Path(match.group(1).strip()).resolve()
 
@@ -809,34 +813,34 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
             n.message == "Marked weird" and n.source == "portrait"
             for n in isolated_integration_session.notices()
         ),
-        description='a "Marked weird" notice over the portrait player',
+        description='a "Marked weird" notice over the Portrait Funestra',
     )
 
 
-def test_fun_time_reset_all_leaves_every_player_unlocked(
+def test_fun_time_reset_all_leaves_every_funestra_unlocked(
     isolated_integration_session: FunTimeIntegrationSession,
 ):
     session = isolated_integration_session
     state_dir = session.config.paths.state_dir
-    main_player_status = session.config.main_player_status_file
+    main_funestra_status = session.config.main_funestra_status_file
     satellite_statuses = [state_dir / f"{side}_status.txt" for side in ("portrait", "landscape")]
     for side in ("portrait", "landscape"):
         session.write_dashboard_command(f"{side}_lock_on")
         session.wait_for_new_log(f"Locked {side} satellite")
     session.wait_until(
-        lambda: read_main_player_status(main_player_status).locked and all(
+        lambda: read_main_funestra_status(main_funestra_status).locked and all(
             read_satellite_status(path).locked for path in satellite_statuses),
-        description="all three players to report themselves locked",
+        description="all three Funestras to report themselves locked",
     )
 
     session.write_dashboard_command("all_reset")
 
     session.wait_until(
-        lambda: main_player_status.exists()
-        and not read_main_player_status(main_player_status).locked and all(
+        lambda: main_funestra_status.exists()
+        and not read_main_funestra_status(main_funestra_status).locked and all(
             read_satellite_status(path).video and not read_satellite_status(path).locked
             for path in satellite_statuses),
-        description="Reset All to leave all three players unlocked",
+        description="Reset All to leave all three Funestras unlocked",
     )
 
 
@@ -857,12 +861,12 @@ TWO_SESSIONS_BUDGET_S = 2 * START_BUDGET_S + QUIT_BUDGET_S + 5 * COMMAND_BUDGET_
 def test_fun_time_reopens_on_the_video_it_was_closed_on():
     """Close Fun Time on one video and it comes back on that one.
 
-    Nothing is written at shutdown: each player publishes what it is showing to
-    its status file every tick, and the next start rotates that player's playlist
+    Nothing is written at shutdown: each Funestra publishes what it is showing to
+    its status file every tick, and the next start rotates that Funestra's playlist
     onto the video named there rather than building a fresh shuffle.  Only a real
     session proves it — the record has to survive the force-kill that ends one.
 
-    The main player carries the assertion because its library is the several-entry one, so
+    The Main Funestra carries the assertion because its library is the several-entry one, so
     the resumed playlist has to be an exact rotation of the last one — an order
     a rebuild would reproduce only by chance.
     """
@@ -870,7 +874,7 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
     config_path = build_integration_config(temp_root)
 
     first = FunTimeIntegrationSession(config_path)
-    playlist = first.config.main_player_playlist_file
+    playlist = first.config.main_funestra_playlist_file
     try:
         first.start()
         opened_with = _videos(playlist)
@@ -878,18 +882,18 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
         # every session does anyway — cannot pass this by accident.
         first.write_dashboard_command("main_next")
         first.wait_until(
-            lambda: first.read_main_player_status().video not in ("", opened_with[0]),
-            description="the main player to navigate off the first video",
+            lambda: first.read_main_funestra_status().video not in ("", opened_with[0]),
+            description="the Main Funestra to navigate off the first video",
         )
-        # Then freeze the session before closing it. Some of the main player library
-        # is seconds long, and a main player that auto-advanced while the shutdown ran
+        # Then freeze the session before closing it. Some of the Main Funestra library
+        # is seconds long, and a Main Funestra that auto-advanced while the shutdown ran
         # would leave a different video than the one read here.
         first.write_dashboard_command("omnipause_toggle")
         first.wait_until(
-            lambda: first.read_main_player_status().paused,
-            description="the main player to freeze under OmniPause",
+            lambda: first.read_main_funestra_status().paused,
+            description="the Main Funestra to freeze under OmniPause",
         )
-        left_on = first.read_main_player_status().video
+        left_on = first.read_main_funestra_status().video
         assert left_on != opened_with[0], "the session must close off the top of its playlist"
         first.quit_gracefully()
     finally:
@@ -908,8 +912,8 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
             + "\nreopened with:\n" + "\n".join(resumed)
         )
         second.wait_until(
-            lambda: second.read_main_player_status().video == left_on,
-            description="the main player to come back up on the video the last session ended on",
+            lambda: second.read_main_funestra_status().video == left_on,
+            description="the Main Funestra to come back up on the video the last session ended on",
         )
     finally:
         second.stop()
@@ -920,11 +924,11 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
     """Close Fun Time with the room playing fast and unheld, and it comes back
     that way.
 
-    A player's rate and its hold live in the player process and in nothing the
-    next one reads, so the only record of either is what each player publishes to
+    A Funestra's rate and its hold live in the Funestra process and in nothing the
+    next one reads, so the only record of either is what each Funestra publishes to
     its status file every tick.  The reopened session re-sends both, and only a
     real session proves that: they have to survive the force-kill that ends one
-    and arrive as verbs the new player obeys.
+    and arrive as verbs the new Funestra obeys.
     """
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
@@ -935,15 +939,15 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
         first.write_dashboard_command("main_kino_activate")
         first.write_dashboard_command("play")
         first.wait_until(
-            lambda: _loaded_and_playing(first.read_main_player_status()),
-            description="the main player to be playing",
+            lambda: _loaded_and_playing(first.read_main_funestra_status()),
+            description="the Main Funestra to be playing",
         )
         first.write_dashboard_command("main_player_speed_150")
         first.write_dashboard_command("main_player_lock")
         first.wait_until(
-            lambda: (first.read_main_player_status().speed == 1.5
-                     and not first.read_main_player_status().locked),
-            description="the main player to take one and a half speed and let its video go",
+            lambda: (first.read_main_funestra_status().speed == 1.5
+                     and not first.read_main_funestra_status().locked),
+            description="the Main Funestra to take one and a half speed and let its video go",
         )
         first.quit_gracefully()
     finally:
@@ -953,9 +957,9 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
     try:
         second.start()
         second.wait_until(
-            lambda: (second.read_main_player_status().speed == 1.5
-                     and not second.read_main_player_status().locked),
-            description="the reopened main player to come back fast and still unheld",
+            lambda: (second.read_main_funestra_status().speed == 1.5
+                     and not second.read_main_funestra_status().locked),
+            description="the reopened Main Funestra to come back fast and still unheld",
         )
     finally:
         second.stop()
@@ -1068,7 +1072,7 @@ def test_fun_time_reopens_holding_the_osr2_to_the_max_intensity_it_was_closed_at
         first.stop()
 
     second = FunTimeIntegrationSession(config_path)
-    sink = second.config.main_player_tcode.port
+    sink = second.config.main_funestra_tcode.port
     try:
         second.start()
         came_back_at = getattr(read_shared_state(state_file), "max_intensity", None)

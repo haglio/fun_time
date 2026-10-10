@@ -46,25 +46,25 @@ def test_quitting_stops_the_robot_hand_before_anything_closes_and_parks_the_osr2
         _moves_waiting(sink)
         session.wait_until(lambda: _moves_waiting(sink) > 0, timeout=COMMAND_BUDGET_S,
                            description="the Robot Hand to drive the OSR2")
-        main_player = session.read_child_processes()["main_player_pid"]
+        main_funestra = session.read_child_processes()["main_funestra_pid"]
         session.config.broker_cmd_file.unlink(missing_ok=True)
 
         session.write_dashboard_command("quit")
         last_move_at = time.monotonic()
         budget = Budget(QUIT_BUDGET_S)
-        while is_process_alive(main_player.pid):
+        while is_process_alive(main_funestra.pid):
             assert not budget.expired(), (
-                f"the Main Player was still running {QUIT_BUDGET_S:g}s after the quit\n"
+                f"the Main Funestra was still running {QUIT_BUDGET_S:g}s after the quit\n"
                 f"{session._log_tail()}")
             if _moves_waiting(sink):
                 last_move_at = time.monotonic()
             time.sleep(0.01)
-        quiet_before_the_main_player_went = time.monotonic() - last_move_at
+        quiet_before_the_main_funestra_went = time.monotonic() - last_move_at
         session._proc.wait(timeout=QUIT_BUDGET_S)
 
-        assert quiet_before_the_main_player_went >= 0.25, (
-            f"the Robot Hand drove the OSR2 until {quiet_before_the_main_player_went:.2f}s "
-            f"before the Main Player it runs in was killed, so the kill stopped it and the "
+        assert quiet_before_the_main_funestra_went >= 0.25, (
+            f"the Robot Hand drove the OSR2 until {quiet_before_the_main_funestra_went:.2f}s "
+            f"before the Main Funestra it runs in was killed, so the kill stopped it and the "
             f"quit did not\n{session._log_tail()}")
         assert session.config.broker_cmd_file.read_text(encoding="utf-8") == "PARK"
     finally:

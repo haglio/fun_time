@@ -1,6 +1,6 @@
 """The install the flake gate runs from: beside this repo's venv, not in it.
 
-This venv pins the app_support the players run on, and the gate can live in a
+This venv pins the app_support the Funestras run on, and the gate can live in a
 newer one, so the gate gets a venv of its own under ``state/`` -- the same
 arrangement the family merge gate uses on a runner.
 """

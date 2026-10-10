@@ -1,13 +1,13 @@
 """The satellite side's two modes: kino and origenerator.
 
-``kino`` is the session as ever, the Random Favs Browser and the two satellite
-players; ``origenerator`` puts the hosted app over the browser's rect and its
-slideshows on the players (:mod:`fun_time.player_handover`).  Switching tears
+``kino`` is the session as ever, the Random Favs Browser and the two Satellite
+Funestras; ``origenerator`` puts the hosted app over the browser's rect and its
+slideshows on the Funestras (:mod:`fun_time.funestra_handover`).  Switching tears
 nothing down, and what a session opens in is ``docs/resuming-a-session.md``.
 """
 from __future__ import annotations
 
-from player_core.modes import SatellitesMode
+from funestra_core.modes import SatellitesMode
 
 KINO_MODE = SatellitesMode.KINO
 ORIGENERATOR_MODE = SatellitesMode.ORIGENERATOR
@@ -16,7 +16,7 @@ OPEN_SHOWS = "OPEN_SHOWS"
 CLOSE_SHOWS = "CLOSE_SHOWS"
 
 # The mode every session is BUILT in (mirroring mode_plan.STARTUP_MAIN_MODE):
-# the satellites launch as players, and a room left in origenerator mode takes it
+# the satellites launch as Funestras, and a room left in origenerator mode takes it
 # up once the hosted app answers (docs/resuming-a-session.md).
 STARTUP_SATELLITES_MODE = KINO_MODE
 

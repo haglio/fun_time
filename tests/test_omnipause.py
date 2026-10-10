@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from player_core.console import OSR2_CONTROL_OFF, OSR2_PARKED, OSR2_RETRACTED
-from player_core.modes import MainMode
+from funestra_core.console import OSR2_CONTROL_OFF, OSR2_PARKED, OSR2_RETRACTED
+from funestra_core.modes import MainMode
 
 from fun_time.broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
 from fun_time.omnipause import build_omnipause_plan
-from fun_time.players import Player
+from fun_time.room_funestras import RoomFunestra
 
 
 def test_toggle_enters_omnipause_when_not_already_paused():
@@ -13,7 +13,7 @@ def test_toggle_enters_omnipause_when_not_already_paused():
 
     assert plan.action == "enter"
     assert plan.next_omni_paused is True
-    assert plan.resume_main_player_playback is False
+    assert plan.resume_main_funestra_playback is False
     assert plan.log_message == "OmniPause: entering"
 
 
@@ -22,16 +22,16 @@ def test_toggle_leaves_omnipause_when_already_paused():
 
     assert plan.action == "leave"
     assert plan.next_omni_paused is False
-    # Genau owns the display in genau mode, so there is no main player playback to resume.
-    assert plan.resume_main_player_playback is False
+    # Genau owns the display in genau mode, so there is no Main Funestra playback to resume.
+    assert plan.resume_main_funestra_playback is False
     assert plan.log_message == "OmniPause: leaving"
 
 
-def test_leave_kino_mode_resumes_main_player():
+def test_leave_kino_mode_resumes_main_funestra():
     plan = build_omnipause_plan("leave", omni_paused=True, main_mode=MainMode.KINO)
 
     assert plan.action == "leave"
-    assert plan.resume_main_player_playback is True
+    assert plan.resume_main_funestra_playback is True
 
 
 def test_leaving_gives_genau_the_device_back_in_genau_mode():
@@ -49,9 +49,9 @@ def test_leaving_does_not_give_it_back_while_control_is_off():
     assert plan.resume_genau_playback is False
 
 
-def test_leaving_leaves_the_hand_to_the_arbiter_while_a_side_player_has_the_osr2():
+def test_leaving_leaves_the_hand_to_the_arbiter_while_a_side_funestra_has_the_osr2():
     plan = build_omnipause_plan("leave", omni_paused=True, main_mode=MainMode.GENAU,
-                                osr2_player=Player.PORTRAIT)
+                                osr2_funestra=RoomFunestra.PORTRAIT)
 
     assert plan.resume_genau_playback is False
 

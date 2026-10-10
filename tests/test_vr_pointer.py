@@ -604,7 +604,7 @@ class TestThePointerOverTheScene:
         assert not released.settled
         assert self._frame(pointer, _hands(right=_aim_at_uv(_PANEL, 0.5, 0.75))).events == ()
 
-    def test_a_squeeze_on_a_players_picture_that_moves_carries_the_main_player_instead(self):
+    def test_a_squeeze_on_a_funestras_picture_that_moves_carries_the_main_funestra_instead(self):
         landscape = replace(_LANDSCAPE, pressable=True, picture=True)
         pointer = Pointer()
         start, end = (_seen_at(landscape.placement, landscape.aspect, u, 0.5) for u in (0.5, 0.7))
@@ -626,7 +626,7 @@ class TestThePointerOverTheScene:
         assert let_go.settled
 
     def test_a_click_where_a_wrapped_picture_is_all_there_is_presses_it_when_let_go(self):
-        """A VR180 or 360 main player is round the viewer rather than hanging in
+        """A VR180 or 360 Main Funestra is round the viewer rather than hanging in
         the scene, so it has no rectangle to aim at — it is what a squeeze lands
         on wherever no hanging screen is, reported at its middle since there is
         no point on it to give."""
@@ -664,7 +664,7 @@ class TestThePointerOverTheScene:
         assert released.events == (PressEvent(PRESS, "primary", 0.5, 0.5),
                                    PressEvent(RELEASE, "primary"))
 
-    def test_a_click_on_a_players_picture_presses_it_when_let_go(self):
+    def test_a_click_on_a_funestras_picture_presses_it_when_let_go(self):
         portrait = _PORTRAIT
         pointer = Pointer()
         scene = [portrait, _PANEL]
@@ -771,7 +771,7 @@ class TestThePointerOverTheScene:
 
         assert frame.hover.screen == "panel"
 
-    def test_a_squeeze_on_nothing_carries_the_main_player_as_far_as_the_hand_turns(self):
+    def test_a_squeeze_on_nothing_carries_the_main_funestra_as_far_as_the_hand_turns(self):
         pointer = Pointer()
         self._frame(pointer, _hands(right=_aim_at(-100.0, 0.0), right_trigger=1.0))
 
@@ -797,7 +797,7 @@ class TestThePointerOverTheScene:
 
         assert further.carried == pytest.approx((3.0, 0.0), abs=1e-6)
 
-    def test_letting_go_of_a_carry_settles_where_the_main_player_was_left(self):
+    def test_letting_go_of_a_carry_settles_where_the_main_funestra_was_left(self):
         pointer = Pointer()
         self._frame(pointer, _hands(right=_aim_at(-100.0, 0.0), right_trigger=1.0))
         self._frame(pointer, _hands(right=_aim_at(-90.0, 0.0), right_trigger=1.0))

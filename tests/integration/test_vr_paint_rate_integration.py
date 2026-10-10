@@ -13,8 +13,8 @@ import glfw
 import pytest
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
+from fun_time_vr.funestras import main_video
 from fun_time_vr.gl_contexts import SharedContexts, hidden_gl_window
-from fun_time_vr.player import main_video
 from fun_time_vr.render import RenderTarget
 from fun_time_vr.scheduling import ahead_of_background_work
 
@@ -66,7 +66,7 @@ def test_the_main_picture_is_painted_at_a_sixty_fps_videos_own_rate():
     video = main_video(SharedContexts(window))
     target = RenderTarget()
     try:
-        video.player.load(clip)
+        video.engine.load(clip)
         wait_for(lambda: video.show_newest(target), desc="the clip's first painted frame")
         with ahead_of_background_work():
             shown = _pictures_shown(video, target, seconds=MEASURED_S)

@@ -52,7 +52,7 @@ def test_thumbnail_path_changes_when_the_video_is_modified(tmp_path: Path):
 
 
 def test_a_cached_still_is_found_for_a_video_its_drive_will_not_answer_about(tmp_path: Path):
-    """The map under the main player is drawn on the dispatch loop, so a still it
+    """The map under the Main Funestra is drawn on the dispatch loop, so a still it
     looks up while the drive is stuck on that very video would freeze every
     control in the session -- the folder's listing dates it instead."""
     folder = tmp_path / "vids"

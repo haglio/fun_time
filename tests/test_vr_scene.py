@@ -4,7 +4,7 @@ import math
 
 import numpy as np
 import pytest
-from player_core.hud_placement import HudEdge
+from funestra_core.hud_placement import HudEdge
 
 from fun_time_vr.matrices import pitch_rotation_matrix, yaw_rotation_matrix
 from fun_time_vr.scene import (
@@ -212,7 +212,7 @@ class TestAttachedBelow:
 
 class TestAttachedAgainstASide:
     """The same strip against the other three sides of a screen: what the Ctrl
-    keys ask for in the headset, where a HUD hangs beside its player rather than
+    keys ask for in the headset, where a HUD hangs beside its Funestra rather than
     over its picture."""
 
     _PICTURE = Placement(azimuth_deg=0.0, elevation_deg=10.0, width_deg=28.0)

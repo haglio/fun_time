@@ -1,6 +1,6 @@
 """Run the integration suite on a hidden Win32 desktop — invisibly, focus-safe.
 
-The suite launches real windows (the main player/the satellites — all mpv, the dashboard, AHK) and asserts on
+The suite launches real windows (the Main Funestra/the satellites — all mpv, the dashboard, AHK) and asserts on
 real window state, so it must run on the native Qt platform — but that throws those
 windows onto the monitors and can grab focus.  A Win32 *desktop* other than the
 input desktop fixes this: its windows are real HWNDs (winId != 0, real styles, real
@@ -9,7 +9,7 @@ foreground.
 
 ``CreateDesktopW`` makes the desktop; ``CreateProcessW`` with ``STARTUPINFO.lpDesktop``
 binds pytest to it, and every subprocess pytest spawns (orchestrator -> the
-satellites / the main player / AHK / dashboard) inherits it.  The win32 lookup helpers enumerate the caller's own
+satellites / the Main Funestra / AHK / dashboard) inherits it.  The win32 lookup helpers enumerate the caller's own
 desktop, so they see the app because pytest shares the hidden desktop.  There is no
 silent fall-back: if the desktop can't be opened, ``CreateProcessW`` fails, so a run
 can never leak onto the real screen.
@@ -28,7 +28,7 @@ to collide over, so they no longer have to take turns.
 pytest is also placed in a *job object* that this runner alone holds a handle to.
 Windows destroys a job when its last handle closes, and a job with
 ``KILL_ON_JOB_CLOSE`` takes its processes down with it — so however the run ends, it
-cannot leave a player or an AHK to poison the next one.  The broker is the sole
+cannot leave a Funestra or an AHK to poison the next one.  The broker is the sole
 exception: it is a service that outlives the session, and it breaks away (see
 ``fun_time.orchestrator_broker.broker_launch_kwargs``).
 
@@ -252,11 +252,11 @@ def require_hidden_desktop(desktop_name: Callable[[], str] = current_desktop_nam
     """Refuse to run the suite anywhere but the hidden desktop.
 
     Bare ``pytest tests/integration/`` runs on the user's own desktop, where the
-    suite's real windows, AHK bridge and players land on their monitors, steal
+    suite's real windows, AHK bridge and Funestras land on their monitors, steal
     focus, and are resolved by title alongside their session's.  That invocation
     has always been forbidden and never enforced — and the harness grew a
     machine-wide by-name process sweep to serve it, which is precisely the shape
-    of kill that took the user's players down.
+    of kill that took the user's Funestras down.
 
     Enforcing it here is what lets the reap have no second mode.
     """
@@ -267,7 +267,7 @@ def require_hidden_desktop(desktop_name: Callable[[], str] = current_desktop_nam
             f"not '{current}'.  Run it with:\n\n"
             f"    .venv/Scripts/python.exe -m tests.integration.hidden_desktop\n\n"
             "Running pytest against tests/integration/ directly puts real windows, a "
-            "real AHK bridge and real players on your screen, on top of whatever Fun "
+            "real AHK bridge and real Funestras on your screen, on top of whatever Fun "
             "Time session you have open.\n\n"
             "A unit run that swept this directory in lands here too — that is a run "
             "whose config lacks the norecursedirs exclusion, which means a -c naming "
@@ -286,7 +286,7 @@ def create_run_job() -> int:
     The runner holds the job's only handle, so whichever way the runner ends —
     a clean exit, a crash, a TerminateProcess — Windows closes that handle,
     destroys the job, and terminates every process the run still had running.
-    A run therefore cannot strand a player (or an AHK, or an orchestrator) for
+    A run therefore cannot strand a Funestra (or an AHK, or an orchestrator) for
     the next run to trip over.
 
     ``BREAKAWAY_OK`` is what lets the broker opt out with

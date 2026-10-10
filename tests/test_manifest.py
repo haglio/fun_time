@@ -48,18 +48,18 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
     },
     "executables": {"python_exe", "genau_python_exe", "origenerator_python_exe"},
     "media": {
-        "main_player_library_sources", "portrait_dirs", "landscape_dirs", "weird_dir",
+        "main_funestra_library_sources", "portrait_dirs", "landscape_dirs", "weird_dir",
         "favs_file", "genau_clips", "genau_audio", "vr_library_dirs", "genau_vr_clips",
     },
     "modules": {
-        "main_player_module", "satellite_module", "audio_module",
+        "main_funestra_module", "satellite_module", "audio_module",
         "dashboard_module",
     },
     "commands": {
         "broker_mode_file", "genau_cmd_file", "genau_paused_file",
         "genau_status_file",
-        "main_player_cmd_file", "main_player_paused_file", "main_player_status_file",
-        "main_player_console_file", "main_player_playlist_file",
+        "main_funestra_cmd_file", "main_funestra_paused_file", "main_funestra_status_file",
+        "main_funestra_console_file", "main_funestra_playlist_file",
         "portrait_cmd_file", "portrait_paused_file", "portrait_status_file",
         "portrait_playlist_file", "portrait_hud_file", "portrait_origenerator_hud_file",
         "landscape_cmd_file", "landscape_paused_file", "landscape_status_file",
@@ -67,7 +67,7 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
         "broker_cmd_file", "broker_heartbeat_file", "broker_state_dir",
         "broker_tray_launcher", "audio_paused_file", "audio_volume_file",
         "dashboard_state_file", "dashboard_cmd_file",
-        "state_dir", "main_player_notice_file",
+        "state_dir", "main_funestra_notice_file",
         "origenerator_cmd_file", "origenerator_paused_file",
         "origenerator_status_file",
         "tcode_udp_host", "tcode_udp_port",
@@ -162,8 +162,8 @@ class TestReadingItBack:
 
         manifest = LaunchManifest.read(path)
 
-        assert manifest.commands.main_player_cmd_file == raw["commands"]["main_player_cmd_file"]
-        assert manifest.media.main_player_library_sources == raw["media"]["main_player_library_sources"]
+        assert manifest.commands.main_funestra_cmd_file == raw["commands"]["main_funestra_cmd_file"]
+        assert manifest.media.main_funestra_library_sources == raw["media"]["main_funestra_library_sources"]
         assert manifest.executables.python_exe == raw["executables"]["python_exe"]
         assert manifest.runtime.config_path == raw["runtime"]["config_path"]
         assert manifest.modules.satellite_module == raw["modules"]["satellite_module"]
@@ -182,17 +182,17 @@ class TestReadingItBack:
         assert manifest.random_favs_browser.enabled is cfg.random_favs_browser.enabled
 
     def test_a_sides_file_can_be_asked_for_by_that_side(self, cfg_path, tmp_path):
-        """The HUD publisher and the VR player both build their two sides in a
+        """The HUD publisher and the headset both build their two sides in a
         loop, so they need the key by side name rather than spelled out."""
         cfg = load_config(cfg_path)
         commands = LaunchManifest.read(
             write_windows_bridge_manifest(
                 cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)).commands
 
-        assert commands.player_file("portrait", "hud") == commands.portrait_hud_file
-        assert commands.player_file("landscape", "cmd") == commands.landscape_cmd_file
-        assert commands.player_file("portrait", "playlist") == commands.portrait_playlist_file
-        assert (commands.player_file("landscape", "origenerator_hud")
+        assert commands.funestra_file("portrait", "hud") == commands.portrait_hud_file
+        assert commands.funestra_file("landscape", "cmd") == commands.landscape_cmd_file
+        assert commands.funestra_file("portrait", "playlist") == commands.portrait_playlist_file
+        assert (commands.funestra_file("landscape", "origenerator_hud")
                 == commands.landscape_origenerator_hud_file)
 
     def test_a_missing_key_names_the_key_and_the_file(self, cfg_path, tmp_path):
@@ -201,20 +201,20 @@ class TestReadingItBack:
         cfg = load_config(cfg_path)
         path = write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
         path.write_text(
-            path.read_text(encoding="utf-8").replace("main_player_cmd_file = ", "main_player_cmd_typo = "),
+            path.read_text(encoding="utf-8").replace("main_funestra_cmd_file = ", "main_funestra_cmd_typo = "),
             encoding="utf-8")
 
         with pytest.raises(ManifestKeyMissing) as raised:
             LaunchManifest.read(path)
 
-        assert "main_player_cmd_file" in str(raised.value)
+        assert "main_funestra_cmd_file" in str(raised.value)
         assert str(path) in str(raised.value)
 
     def test_the_message_survives_str_without_repr_escaping(self):
         """str() of the error is the message verbatim, so a Windows manifest
         path keeps its single backslashes.  A KeyError base applies repr() and
         would double every one, and the file the error names is the point of it."""
-        message = r"[runtime] main_player_cmd_file missing from D:\a\fun_time\state\bridge.ini"
+        message = r"[runtime] main_funestra_cmd_file missing from D:\a\fun_time\state\bridge.ini"
         assert str(ManifestKeyMissing(message)) == message
 
     def test_a_section_this_session_does_not_read_is_left_alone(self, cfg_path, tmp_path):
@@ -225,7 +225,7 @@ class TestReadingItBack:
         data["vr"] = {"tcode_udp_port": "8000"}
         path = write_manifest_data(data, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
 
-        assert LaunchManifest.read(path).commands.main_player_cmd_file
+        assert LaunchManifest.read(path).commands.main_funestra_cmd_file
 
     def test_the_keys_a_reader_has_always_defaulted_stay_defaulted(self, cfg_path, tmp_path):
         """These five were read with a fallback rather than demanded, so a

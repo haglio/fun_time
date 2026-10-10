@@ -3,7 +3,7 @@
 They were declared three times over in modules that do not reference each other
 -- argparse flags in ``satellite/cli.py``, an argv builder in
 ``fun_time/windows_bridge_startup.py``, and a third reading out of the launch
-manifest by the VR player's own in-process satellite -- so adding one file to
+manifest by the headset's own in-process satellite -- so adding one file to
 the contract meant finding all three.  What holds them together now is the
 round trip: a record spelled into argv and parsed straight back must be the
 record it started as, which no spelling can survive being wrong on one side of.
@@ -36,7 +36,7 @@ _FILLED = SatelliteChannels(
 )
 
 _PLACED = WindowPlacement(x=2560, y=0, width=1440, height=2500,
-                          title="Portrait AI Player", taskbar_identity="Example.App")
+                          title="Portrait AI Funestra", taskbar_identity="Example.App")
 
 
 class TestTheRoundTrip:
@@ -81,7 +81,7 @@ class TestNothingHasDrifted:
 
     def test_every_flag_declared_here_is_one_the_satellite_accepts(self):
         """The flags are written into a real process's command line, so a
-        spelling that only this module believes in is a player that will not
+        spelling that only this module believes in is a Funestra that will not
         start."""
         accepted = {action.option_strings[0]
                     for action in build_parser()._actions if action.option_strings}
@@ -105,7 +105,7 @@ class TestNothingHasDrifted:
 
 
 class TestReadOutOfTheManifest:
-    """The VR player runs its satellites in its own process, so it is handed
+    """The headset runs its satellites in its own process, so it is handed
     these rather than an argv -- the same group, through the manifest's own
     per-side lookup."""
 
@@ -143,7 +143,7 @@ class TestReadOutOfTheManifest:
 
         assert portrait.dashboard_cmd == landscape.dashboard_cmd
 
-    def test_each_side_sends_its_funscript_to_the_main_players_osr2_inlet(self):
+    def test_each_side_sends_its_funscript_to_the_main_funestras_osr2_inlet(self):
         commands = replace(self._commands(), tcode_udp_host="127.0.0.2", tcode_udp_port="50599")
 
         portrait = SatelliteChannels.from_manifest(commands, "portrait")

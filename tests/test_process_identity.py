@@ -25,7 +25,7 @@ from tests.made_up_machine import running
 # the set is worth naming somewhere a reader can see all of it at once.
 ROLES = (
     "Orchestrator", "Dashboard", "AudioCompanion", "LibraryBrowser",
-    "MainPlayer", "Genau", "Origenerator", "Portrait", "Landscape",
+    "MainFunestra", "Genau", "Origenerator", "Portrait", "Landscape",
     "ClosingScreen", "LoadingScreen",
 )
 
@@ -46,7 +46,7 @@ class TestTheStringsOtherLanguagesMatchOn:
 
     def test_the_satellite_reap_is_the_sweep_that_carries_it(self):
         # Pinning the string proves nothing on its own: a sweep that stopped
-        # using it would reach past this repo's own players and force-kill
+        # using it would reach past this repo's own Funestras and force-kill
         # whatever else the machine runs a satellite module under.
         stranded = "-m satellite --status-file C:/state/portrait_status.txt"
         machine = [(51, "FunTime-Portrait.exe", stranded, 0.0),
@@ -72,7 +72,7 @@ class TestTheRolesThisRepoLaunches:
     def test_the_sweep_pattern_reaches_every_one_of_them(self):
         # The satellite reap and the integration leftover sweep both bound
         # themselves by image name.  A role-named copy the pattern misses is a
-        # player no sweep can reach.
+        # Funestra no sweep can reach.
         for role in ROLES:
             name = NAMER.exe_name("pythonw.exe", role)
             assert re.match(NAMER.process_name_pattern, name), name

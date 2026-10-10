@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
-from player_core.file_channel import append_command
+from funestra_core.file_channel import append_command
 from voice_core.listener import why_unavailable
 from voice_core.whisper_reader import WhisperReader
 
@@ -35,6 +35,13 @@ from .crown import majority_now
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from .event_log import THE_LISTENERS_LOGGERS
 from .filter_vocab import load_camera_words
+from .funestra_deaths import (
+    FunestraDied,
+    funestra_died_message,
+    part_closed_message,
+    show_funestra_died_alert,
+    the_part_that_closed,
+)
 from .hud_transport import HudPublisher
 from .library_handles import build_library_handles, genau_clip_sources
 from .loading_cover import LoadingCover
@@ -57,18 +64,11 @@ from .overlay_progress import (
     ready_file_for,
     what_the_flag_asks,
 )
-from .player_deaths import (
-    PlayerDied,
-    part_closed_message,
-    player_died_message,
-    show_player_died_alert,
-    the_part_that_closed,
-)
-from .players import Player
 from .process_identity import NAMER
 from .process_tree import kill_process_tree
 from .rfb_slideshow import rfb_slideshow_on
 from .role_windows import ChildPids, WindowRoles, find_origenerators_window
+from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellites_mode import CLOSE_SHOWS, KINO_MODE
 from .session_end import session_end_marker_path
@@ -115,7 +115,7 @@ from .windows_bridge_sequencer import (
     StartupResult,
     apply_startup_window_state,
     apply_topmost_bands,
-    release_the_players,
+    release_the_funestras,
     run_startup_sequence,
 )
 from .windows_bridge_startup import (
@@ -131,7 +131,7 @@ logger = logging.getLogger(__name__)
 # recorded at startup and killed at shutdown by the same edit, so a child
 # cannot quietly outlive the session.
 _CHILD_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("players", ("main_player_pid", "portrait_pid", "landscape_pid")),
+    ("funestras", ("main_funestra_pid", "portrait_pid", "landscape_pid")),
     ("companions", ("dashboard_pid", "audio_pid", "origenerator_pid")),
 )
 
@@ -158,7 +158,7 @@ def identify_children(result: StartupResult) -> dict[str, ChildProcess]:
     """Pin each freshly-launched child PID to the process now holding it.
 
     Called seconds after launch, with startup having just driven the children
-    (the satellites' status files appeared, as did the main player's and Genau's windows), so
+    (the satellites' status files appeared, as did the Main Funestra's and Genau's windows), so
     the creation time read here is the one our child was born with.  Everything that
     kills a child later compares against it, and a PID Windows has since handed
     to someone else no longer matches.
@@ -531,13 +531,13 @@ SETTLE_WAIT_S = 1.5
 def _log_window_obstruction(name: str, hwnd: int, *, ignore: int = 0) -> None:
     """Record which windows, if any, cover *name* once the bands are re-applied.
 
-    The topmost flag reads ``True`` here, yet a player can still be reported
+    The topmost flag reads ``True`` here, yet a Funestra can still be reported
     "not on top" — a window may carry WS_EX_TOPMOST and remain buried under
     another overlapping window (a user's own always-on-top app, or a
     promotion-order slip).  ``is_window_topmost`` cannot see that; only the
     real z-order can, so this walks it and names the covering window instead
-    of guessing.  Run for the satellites as well as the main player: "the landscape player
-    is under other windows on startup" was undiagnosable while only the main player's
+    of guessing.  Run for the satellites as well as the Main Funestra: "the Landscape Funestra
+    is under other windows on startup" was undiagnosable while only the Main Funestra's
     coverage was logged.
 
     *ignore* is the loading overlay while this runs under it, which covers
@@ -562,13 +562,13 @@ def _log_window_obstruction(name: str, hwnd: int, *, ignore: int = 0) -> None:
 def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
                               satellites_mode: str = KINO_MODE) -> dict[str, int]:
     """Resolve every managed window, band it, and settle the z-order until each
-    player is actually frontmost — returning the role hwnds it resolved.
+    Funestra is actually frontmost — returning the role hwnds it resolved.
 
     ``overlay_hwnd`` is the loading screen's own window when this runs UNDER the
     curtain, which is where it belongs: the bands decide what the reveal looks
     like, so applying them afterwards is watching the room sort itself out.
     Handed the overlay, this bands every window under it and leaves it out of
-    the "is this player buried?" test.
+    the "is this Funestra buried?" test.
     """
     dash_hwnd = 0
     if result.dashboard_pid:
@@ -583,15 +583,15 @@ def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
                 preview_marker.app_title(preview_marker.shown_as()),
                 timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True)
 
-    main_player_hwnd = find_window_by_pid(result.main_player_pid) or wait_for_window_by_title(
-        "Main Player", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
+    main_funestra_hwnd = find_window_by_pid(result.main_funestra_pid) or wait_for_window_by_title(
+        "Main Funestra", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
     )
-    # By title as well as pid, like the main player above: python_exe is the venv's pythonw
+    # By title as well as pid, like the Main Funestra above: python_exe is the venv's pythonw
     # SHIM, so the recorded satellite pid is the launcher's rather than the
     # interpreter that owns the SDL window, and the by-pid lookup finds
     # nothing.  This pass is the only banding the satellites get on a
     # loading-screen startup — with hwnd 0 it silently skipped them, and every
-    # session opened with both players out of the topmost band (the startup
+    # session opened with both Funestras out of the topmost band (the startup
     # topmost log said so each time), buried by the first window raised over
     # their rects.
     portrait_hwnd = find_window_by_pid(result.portrait_pid) or wait_for_window_by_title(
@@ -606,42 +606,42 @@ def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
         rfb_hwnd=result.rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        main_player_hwnd=main_player_hwnd,
+        main_funestra_hwnd=main_funestra_hwnd,
         dashboard_hwnd=dash_hwnd,
         beneath=overlay_hwnd,
         satellites_mode=satellites_mode,
     )
     logger.info("Post-loading window state corrected")
-    _settle_the_players(
-        _players_to_settle(
+    _settle_the_funestras(
+        _funestras_to_settle(
             portrait_hwnd=portrait_hwnd, landscape_hwnd=landscape_hwnd,
-            main_player_hwnd=main_player_hwnd,
+            main_funestra_hwnd=main_funestra_hwnd,
         ),
         overlay_hwnd=overlay_hwnd,
     )
-    _log_window_obstruction("Main Player", main_player_hwnd, ignore=overlay_hwnd)
+    _log_window_obstruction("Main Funestra", main_funestra_hwnd, ignore=overlay_hwnd)
     _log_window_obstruction("Portrait satellite", portrait_hwnd, ignore=overlay_hwnd)
     _log_window_obstruction("Landscape satellite", landscape_hwnd, ignore=overlay_hwnd)
     return role_hwnds
 
 
-def _players_to_settle(*, portrait_hwnd: int, landscape_hwnd: int,
-                       main_player_hwnd: int) -> list[tuple[str, int, int]]:
-    """Which players the settle walk watches, and the one window each may sit under."""
+def _funestras_to_settle(*, portrait_hwnd: int, landscape_hwnd: int,
+                       main_funestra_hwnd: int) -> list[tuple[str, int, int]]:
+    """Which Funestras the settle walk watches, and the one window each may sit under."""
     return [("portrait", portrait_hwnd, 0), ("landscape", landscape_hwnd, 0),
-            ("main", main_player_hwnd, 0)]
+            ("main", main_funestra_hwnd, 0)]
 
 
-def _settle_the_players(players: Sequence[tuple[str, int, int]], *,
+def _settle_the_funestras(funestras: Sequence[tuple[str, int, int]], *,
                         overlay_hwnd: int = 0, passes: int = SETTLE_PASSES,
                         wait_s: float = SETTLE_WAIT_S) -> None:
-    """Re-promote each player until it is genuinely frontmost over its own rect.
+    """Re-promote each Funestra until it is genuinely frontmost over its own rect.
 
     The banding above can silently miss one: SetWindowPos waits on the target's
-    own thread, and every player is at its busiest exactly now (first frames
+    own thread, and every Funestra is at its busiest exactly now (first frames
     decoding), so a promotion can time out through the stalled-window guard and
     land only when that thread next pumps — a maximized Chrome sat over the
-    landscape player until the next full re-band, and the main player climbed
+    Landscape Funestra until the next full re-band, and the Main Funestra climbed
     over the room a second after the cover lifted.  So walk the real z-order and
     re-promote whoever is still buried.  The loading overlay covers everything
     on purpose, so it is not a burial, and a re-promotion under it goes under it.
@@ -649,13 +649,13 @@ def _settle_the_players(players: Sequence[tuple[str, int, int]], *,
     for _ in range(passes):
         stack = iter_zorder()
         buried = [
-            (name, hwnd) for name, hwnd, allowed_above in players
+            (name, hwnd) for name, hwnd, allowed_above in funestras
             if hwnd and _covering(hwnd, stack, ignore=(overlay_hwnd, allowed_above))
         ]
         if not buried:
             break
         for name, hwnd in buried:
-            logger.info("The %s player is still buried; re-asserting its band", name)
+            logger.info("The %s Funestra is still buried; re-asserting its band", name)
             set_always_on_top(hwnd, True, under=overlay_hwnd)
         time.sleep(wait_s)
 
@@ -702,10 +702,10 @@ def start_hud_priming(
     cache_dir = bridge_config.state_dir / THUMBNAIL_CACHE_DIRNAME
     publisher = HudPublisher(
         {
-            **{player.label: Path(manifest.commands.player_file(player.label, "hud"))
-               for player in Player.SATELLITES},
-            # The main player's console rides the same publisher as the satellites' maps.
-            "main_player": Path(manifest.commands.main_player_console_file),
+            **{funestra.label: Path(manifest.commands.funestra_file(funestra.label, "hud"))
+               for funestra in RoomFunestra.SATELLITES},
+            # The Main Funestra's console rides the same publisher as the satellites' maps.
+            "main_player": Path(manifest.commands.main_funestra_console_file),
         },
         cache_dir,
         load_camera_words(),
@@ -768,7 +768,7 @@ def seat_the_secondary_monitor(manifest: LaunchManifest, role_hwnds: dict[str, i
     rects = secondary_rects(manifest)
     if state is None or rects is None:
         return
-    most = majority_now(state, Path(manifest.commands.main_player_status_file),
+    most = majority_now(state, Path(manifest.commands.main_funestra_status_file),
                         Path(manifest.commands.genau_status_file))
     WindowRoles(pids=ChildPids(), role_hwnds=role_hwnds).seat(rects(majority=most))
 
@@ -785,7 +785,7 @@ def _reveal_the_room(
     """Take the curtain down on a session that is finished under it.
 
     The sequencer already positioned every window in phase 4; what is left is
-    the sorting phase 4 deliberately left off, then the cover, then the players.
+    the sorting phase 4 deliberately left off, then the cover, then the Funestras.
     """
     # Held until the HUD's group indexes are primed, so Fun Time is not
     # revealed with the maps blank.  Capped: a slow scan fills in late instead.
@@ -794,7 +794,7 @@ def _reveal_the_room(
                        HUD_PRIME_TIMEOUT_S)
     # Band the room and settle its z-order UNDER the curtain.  Phase 4 left the
     # bands off (each promotion inserts above the overlay), so nothing of the
-    # session is topmost yet: revealing here would show players sitting under
+    # session is topmost yet: revealing here would show Funestras sitting under
     # whatever was on those monitors, climbing over it a second later.
     satellites_mode = before_the_cover_goes()
     # Before the pass below, which waits for the window the dashboard shows
@@ -807,25 +807,25 @@ def _reveal_the_room(
 
     cover.take_it_down()
 
-    # The cover is off the screen: NOW the players may run.  The phase walk
-    # deliberately leaves this to us (see ``release_the_players``) — released
-    # with the phases, the main player's video and Genau's audio would have been running
+    # The cover is off the screen: NOW the Funestras may run.  The phase walk
+    # deliberately leaves this to us (see ``release_the_funestras``) — released
+    # with the phases, the Main Funestra's video and Genau's audio would have been running
     # for the whole finishing pass, under a cover he cannot see or hear
     # through, and the opening seconds of the video would be gone by the time
     # it lifted.
-    release_the_players(manifest, result.main_mode)
-    # And the headset, where a player may have been holding its cover.
+    release_the_funestras(manifest, result.main_mode)
+    # And the headset, where a Funestra may have been holding its cover.
     release_the_headset(cover.progress_file.parent)
 
     # The overlay's own teardown hands activation to whatever is next in
     # the z-order, so the bands are asserted once more over the finished
     # room — cheap, since every window is already resolved and in place.
     apply_topmost_bands(role_hwnds, satellites_mode=satellites_mode)
-    _settle_the_players(
-        _players_to_settle(
+    _settle_the_funestras(
+        _funestras_to_settle(
             portrait_hwnd=role_hwnds.get("portrait", 0),
             landscape_hwnd=role_hwnds.get("landscape", 0),
-            main_player_hwnd=role_hwnds.get("main_player", 0),
+            main_funestra_hwnd=role_hwnds.get("main_player", 0),
         ),
         passes=3, wait_s=0.4,
     )
@@ -894,7 +894,7 @@ def start_voice_control(
         if muted:
             voice_controller.mute()
         dispatch_runner.voice_controller = voice_controller
-        voice_controller.active_player = lambda: dispatch_runner.state.active_player
+        voice_controller.active_funestra = lambda: dispatch_runner.state.active_funestra
         voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
         voice_thread.start()
         logger.info("Voice control thread launched")
@@ -950,8 +950,8 @@ def _build_the_dispatch_loop(
 
     Genau startup detection rides the loop's first sync tick: if the broker has
     already written broker_mode.txt = "1" (it infers auto mode within ~4 s from
-    BPM and motion), the sync sees the entering transition and hands the main
-    player over to Genau naturally.
+    BPM and motion), the sync sees the entering transition and hands the Main
+    Funestra over to Genau naturally.
     """
     rfb_shortcut = Shortcut()
     if manifest.random_favs_browser.enabled:
@@ -965,7 +965,7 @@ def _build_the_dispatch_loop(
         ahk_cmd_file=ahk_cmd_file,
         windows=WindowRoles(
             pids=ChildPids(
-                main_player=result.main_player_pid,
+                main_funestra=result.main_funestra_pid,
                 portrait=result.portrait_pid,
                 landscape=result.landscape_pid,
                 dashboard=result.dashboard_pid,
@@ -995,9 +995,9 @@ def _start_the_dispatch_loop(dispatch_runner: DispatchLoopRunner) -> threading.T
     return dispatch_thread
 
 
-def silence_the_players(commands: CommandFiles) -> None:
+def silence_the_funestras(commands: CommandFiles) -> None:
     for paused_file in (
-        commands.main_player_paused_file, commands.audio_paused_file,
+        commands.main_funestra_paused_file, commands.audio_paused_file,
         commands.portrait_paused_file, commands.landscape_paused_file,
         commands.origenerator_paused_file,
     ):
@@ -1016,7 +1016,7 @@ def stop_everything(commands: CommandFiles,
     if loop.is_alive():
         logger.warning("The dispatch loop was still busy %.1fs after the session ended",
                        DISPATCH_LOOP_STOP_S)
-    silence_the_players(commands)
+    silence_the_funestras(commands)
     hold_the_osr2(commands)
 
 
@@ -1135,7 +1135,7 @@ def _run_until_the_hotkeys_exit(
                 let_go_of_a_kept_origenerator(state_dir, origenerator_cmd_file)
 
     if closed is not None:
-        show_player_died_alert(part_closed_message(closed))  # the cover is down by now
+        show_funestra_died_alert(part_closed_message(closed))  # the cover is down by now
     return exit_code
 
 
@@ -1187,7 +1187,7 @@ def run_session(
     ahk_proc = subprocess.Popen(
         command, cwd=project_dir, **no_child_log(), **no_console_window())
 
-    # The lock HUD's model is built here and published for each satellite player
+    # The lock HUD's model is built here and published for each Satellite Funestra
     # to draw into its own video.  It rides the dashboard's enable gate, so an
     # integration run stays free of library scans and frame grabs.
     hud_publisher, hud_primed = start_hud_priming(
@@ -1214,7 +1214,7 @@ def run_session(
             release_origenerator_via=(bridge_config.origenerator_cmd_file
                                       if cancelled.origenerator_taken_over else None),
         )
-    except PlayerDied as died:
+    except FunestraDied as died:
         _take_down_the_startup(
             str(died), pids=died.launched_pids,
             rfb_hwnd=died.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
@@ -1222,9 +1222,9 @@ def run_session(
             release_origenerator_via=(bridge_config.origenerator_cmd_file
                                       if died.origenerator_taken_over else None),
         )
-        said = player_died_message(died.player, died.said)
+        said = funestra_died_message(died.funestra, died.said)
         logger.error(said)
-        show_player_died_alert(said)  # after the teardown: the cover is down by now
+        show_funestra_died_alert(said)  # after the teardown: the cover is down by now
         return 1
 
     launched = [getattr(result, key) for key in _CHILD_PID_KEYS
@@ -1246,7 +1246,7 @@ def run_session(
     logger.info(
         "Startup complete: main_player=%d portrait=%d landscape=%d dashboard=%d audio=%d "
         "origenerator=%d",
-        result.main_player_pid, result.portrait_pid, result.landscape_pid,
+        result.main_funestra_pid, result.portrait_pid, result.landscape_pid,
         result.dashboard_pid, result.audio_pid, result.origenerator_pid,
     )
 

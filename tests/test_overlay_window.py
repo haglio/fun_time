@@ -180,7 +180,7 @@ def test_a_cover_process_loads_no_qt():
 class TestTheCoverKeepsTheTopOfItsBand:
     """Nothing keeps a topmost window above the OTHER topmost windows: every
     window a session raises lands over this one, and Windows never says so.
-    How fast this runs IS how long a player shows through the scrim."""
+    How fast this runs IS how long a Funestra shows through the scrim."""
 
     def test_the_handle_is_resolved_by_title_once_and_then_reused(self, tmp_path: Path):
         window = _cover(tmp_path)
@@ -312,20 +312,20 @@ class TestWhatEscWouldCancel:
 
     def test_esc_on_a_cover_offering_nothing_does_nothing(self, tmp_path: Path):
         window = _cover(tmp_path)
-        window._progress_file.write_text("2/4|Closing players...", encoding="utf-8")
+        window._progress_file.write_text("2/4|Closing Funestras...", encoding="utf-8")
         window._poll()
 
         window._on_escape()
 
         assert not cancel_file_for(window._progress_file).exists()
-        assert window.panel.status == "Closing players..."
+        assert window.panel.status == "Closing Funestras..."
 
     def test_esc_never_takes_a_cover_down(self, tmp_path: Path):
         """The cover is there to hide the room while it changes shape; a key
         that uncovered it was never wanted."""
         window = _cover(tmp_path)
         for line in ("1/6|Preparing services...|Press Esc to cancel opening Fun Time",
-                     "2/4|Closing players..."):
+                     "2/4|Closing Funestras..."):
             window._progress_file.write_text(line, encoding="utf-8")
             window._poll()
             window._on_escape()
@@ -342,7 +342,7 @@ class TestALineTheCoverCannotRead:
         """A read that catches the write before its total is a prefix like
         "3/" — parsed as a 4-tuple that came back as step 0 of 1."""
         window = _cover(tmp_path)
-        window._progress_file.write_text("3/6|Waiting for players...", encoding="utf-8")
+        window._progress_file.write_text("3/6|Waiting for Funestras...", encoding="utf-8")
         window._poll()
         assert window.panel.fraction == 0.5
 
@@ -350,12 +350,12 @@ class TestALineTheCoverCannotRead:
         window._poll()
 
         assert window.panel.fraction == 0.5
-        assert window.panel.status == "Waiting for players..."
+        assert window.panel.status == "Waiting for Funestras..."
 
     def test_a_line_torn_inside_a_character_leaves_the_cover_looking(self, tmp_path: Path):
         """A read that stopped the poll would leave the cover with no way down."""
         window = _cover(tmp_path, stale_timeout_s=60.0)
-        window._progress_file.write_bytes("2/6|Waiting for players…".encode()[:-1])
+        window._progress_file.write_bytes("2/6|Waiting for Funestras…".encode()[:-1])
 
         window._poll()
 

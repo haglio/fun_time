@@ -4,7 +4,7 @@ Assembles the panel drawn over each satellite: the side's own state — locked,
 looping, filtered, favorite — and the other videos reachable in the current
 clip's action group and seed family.  Only fun_time has the library metadata this
 needs, so the model lives here — :mod:`fun_time.hud_transport` publishes it, and
-each satellite player draws it straight into its own video (:mod:`player_core.satellite_hud`).
+each Satellite Funestra draws it straight into its own video (:mod:`funestra_core.satellite_hud`).
 """
 from __future__ import annotations
 
@@ -12,9 +12,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from player_core.hud_placement import HudCorner, HudEdge
-from player_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL, looping_label, status_line
-from player_core.modes import SatellitesMode
+from funestra_core.hud_placement import HudCorner, HudEdge
+from funestra_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL, looping_label, status_line
+from funestra_core.modes import SatellitesMode
 
 from fun_time.media_metadata import (
     GroupIndex,
@@ -33,9 +33,9 @@ def _status_label(
 ) -> str:
     """The HUD's one status line — everything the side is in, at a glance.
 
-    This side's words in the slots :func:`player_core.hud_status.status_line` lays
+    This side's words in the slots :func:`funestra_core.hud_status.status_line` lays
     out, which is where the grammar lives and why "Locked", "Unlocked" and "F-Mode"
-    are not spelled here: every player in the room says this line, and a reader
+    are not spelled here: every Funestra in the room says this line, and a reader
     glancing between two screens is reading one sentence in two places.
 
     What fills the slots is the satellite's own.  The loop is the set it is playing,
@@ -66,7 +66,7 @@ class HudPanel:
     seed's are the ones a viewer can want to step down into.
     """
 
-    player: str
+    funestra: str
     locked: bool
     lock_label: str
     current: str
@@ -78,8 +78,8 @@ class HudPanel:
     # Whether the clip on screen is one of the favorites — the star the HUD
     # marks at the head of the line naming that very clip.
     is_favorite: bool = False
-    # Whether THIS player's F-mode is on — said in the status line already, and
-    # riding along so the player's own button can light the way ``locked`` does.
+    # Whether THIS Funestra's F-mode is on — said in the status line already, and
+    # riding along so the Funestra's own button can light the way ``locked`` does.
     favorites_filter: bool = False
     latest: bool | None = None
     # Labels for the map's axes: the current clip's own action (the top row),
@@ -92,7 +92,7 @@ class HudPanel:
     seed_count: int = 0
     action_count: int = 0
     filter_query: str = ""
-    # Whether this side is the one a bare, side-less command reaches — the player
+    # Whether this side is the one a bare, side-less command reaches — the Funestra
     # addressed most recently.  Global state, published per side so each panel can
     # answer "is it me?" without knowing what the others are.
     active: bool = False
@@ -281,7 +281,7 @@ class SatelliteInputs:
     rather than as ``portrait_``/``landscape_`` twins of every field.
     """
 
-    player: str
+    funestra: str
     sources: str = ""
     current: str = ""
     locked: bool = False
@@ -294,7 +294,7 @@ class SatelliteInputs:
     widen_clip: str = ""
     nav_anchor: str = ""
     latest: bool = False
-    # This player's own F-mode.  Per player like the filter and the order beside it: each
+    # This Funestra's own F-mode.  Per Funestra like the filter and the order beside it: each
     # satellite has its own button for it, so the two can differ.
     favorites_filter: bool = False
     is_favorite: bool = False
@@ -458,7 +458,7 @@ def build_hud_panel(
 
     ``inputs.map_anchor`` is the clip the map hangs on — the one a loop started
     on, which heads the queue that loop wrote.  While it holds, the map reads in
-    the order the player plays it and does not re-orient as the loop advances;
+    the order the Funestra plays it and does not re-orient as the loop advances;
     ``playing`` marks the cell on screen.  It holds on after the loop is
     switched off for as long as the clip on screen is still one of the map's
     cells, so ending a loop takes away the loop's chrome and nothing else.
@@ -476,7 +476,7 @@ def build_hud_panel(
         hold = _resolve_anchor(index, inputs, widened_pool, pool_keys)
         drawn = _map_around(index, hold, inputs, widened_pool, pool_keys)
     return HudPanel(
-        player=inputs.player,
+        funestra=inputs.funestra,
         locked=inputs.locked,
         hud_corner=inputs.hud_corner,
         hud_edge=inputs.hud_edge,
@@ -507,7 +507,7 @@ def build_hud_panel(
 
 
 def _satellite_panel(
-    inputs: SatelliteInputs, metadata_root: Path | None, active_player: str,
+    inputs: SatelliteInputs, metadata_root: Path | None, active_funestra: str,
     satellites_mode: SatellitesMode | None = None, origenerator_ready: bool = True,
     in_vr: bool = False, crowned: str = "",
 ) -> HudPanel:
@@ -524,9 +524,9 @@ def _satellite_panel(
             must_contain=None,
         )
     return build_hud_panel(
-        inputs, index=index, active=active_player == inputs.player,
+        inputs, index=index, active=active_funestra == inputs.funestra,
         satellites_mode=satellites_mode, origenerator_ready=origenerator_ready, in_vr=in_vr,
-        crowned=crowned == inputs.player,
+        crowned=crowned == inputs.funestra,
     )
 
 
@@ -547,7 +547,7 @@ def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) ->
 
 def build_panels(
     portrait: SatelliteInputs, landscape: SatelliteInputs, *,
-    metadata_root: Path | None = None, active_player: str = "",
+    metadata_root: Path | None = None, active_funestra: str = "",
     satellites_mode: SatellitesMode | None = None, origenerator_ready: bool = True,
     in_vr: bool = False, crowned: str = "",
 ) -> tuple[HudPanel, HudPanel]:
@@ -560,15 +560,15 @@ def build_panels(
     ``nav_anchor`` while the live clip is still one of its map cells.
 
     F-mode rides in each side's own inputs, since each satellite has its own
-    button for it and the two can differ.  ``active_player`` is the one thing here
-    that is unsided, because it *names* exactly one player: at most one of these
-    two panels can claim it, and neither does while the main player holds it.  A name
+    button for it and the two can differ.  ``active_funestra`` is the one thing here
+    that is unsided, because it *names* exactly one Funestra: at most one of these
+    two panels can claim it, and neither does while the Main Funestra holds it.  A name
     rather than the dispatcher's slot number, because that is what a side is
     called everywhere else in here; the one translation lives where the number does.
     """
-    return (_satellite_panel(portrait, metadata_root, active_player, satellites_mode,
+    return (_satellite_panel(portrait, metadata_root, active_funestra, satellites_mode,
                         origenerator_ready, in_vr, crowned=crowned),
-            _satellite_panel(landscape, metadata_root, active_player, satellites_mode,
+            _satellite_panel(landscape, metadata_root, active_funestra, satellites_mode,
                         origenerator_ready, in_vr, crowned=crowned))
 
 
