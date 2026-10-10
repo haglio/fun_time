@@ -139,12 +139,12 @@ class TestItsVerbs:
     def test_a_length_named_rebuilds_the_list_and_is_written_down(self, tmp_path):
         world = World(tmp_path)
 
-        assert world.kino.apply_command("SET_LENGTH_MODE shorts") is True
+        assert world.kino.apply_command("SET_LENGTH_MODE clips") is True
         world.kino.tick()
 
-        assert world.source.asked == [LengthMode.SHORTS]
+        assert world.source.asked == [LengthMode.CLIPS]
         assert world.playback.current_video == world.second
-        assert world.memory.read().length_mode == LengthMode.SHORTS
+        assert world.memory.read().length_mode == LengthMode.CLIPS
 
 
 class TestItsPassEachFrame:

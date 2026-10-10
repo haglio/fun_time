@@ -85,9 +85,9 @@ class TestTheLibrary:
         controls, spies = _controls()
 
         assert apply_command("TOGGLE_LENGTH_MODE", controls) is True
-        assert apply_command("SET_LENGTH_MODE shorts", controls) is True
+        assert apply_command("SET_LENGTH_MODE clips", controls) is True
 
-        assert spies["modes"].calls == [("toggle_length",), ("set_length", "shorts")]
+        assert spies["modes"].calls == [("toggle_length",), ("set_length", "clips")]
 
     def test_end_compilation_goes_back_to_the_mode_that_was_running(self):
         controls, spies = _controls()
@@ -134,7 +134,7 @@ class TestTheLibrary:
 ACCEPTED_COMMANDS = [
     "RECORD_DOWN", "RECORD_UP", "RECORD_TAP", "LOOP_CANCEL", "SET_LOOP 1000 2000",
     "CYCLE_VERSION", "CYCLE_VERSION_BACK",
-    "RELOAD_PLAYLIST", "TOGGLE_LENGTH_MODE", "SET_LENGTH_MODE shorts", "END_COMPILATION",
+    "RELOAD_PLAYLIST", "TOGGLE_LENGTH_MODE", "SET_LENGTH_MODE clips", "END_COMPILATION",
     "SET_F_MODE 1",
     "PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP",
     "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED",
