@@ -123,9 +123,24 @@ class TestLibrarySource:
 
         assert PHASE_DISCOVER in seen
 
-    def test_flicks_dir_falls_back_to_top_level_config(self, tmp_path):
-        """Fun Time's config has no main_funestra.flicks_dir; shorts should still pick up
-        the saved flicks from the top-level flicks_dir Genaumacher writes to."""
+    def test_kino_plays_nothing_from_genaus_folder_in_any_length(self, tmp_path):
+        vids, scripts, flicks = tmp_path / "videos", tmp_path / "scripts", tmp_path / "flicks"
+        for folder in (vids, scripts, flicks / "2D" / "AI"):
+            folder.mkdir(parents=True)
+        scene = vids / "scene one.mp4"
+        genau_flick = flicks / "2D" / "AI" / "flick one.mp4"
+        for video in (scene, genau_flick):
+            video.write_text("x")
+        args = build_parser({}).parse_args([
+            "--videos-dir", str(vids), "--scripts-dir", str(scripts), "--flicks-dir", str(flicks),
+        ])
+        source = library_source(args, durations={scene: 300.0})
+
+        played = {video for mode in ("mixed", "shorts", "full") for video, _ in source.playlist_for(mode)}
+
+        assert played == {scene}
+
+    def test_genaus_folder_comes_from_the_top_level_config(self, tmp_path):
         flicks = tmp_path / "flicks"
         args = build_parser({"flicks_dir": str(flicks)}).parse_args([])
         assert args.flicks_dir == flicks
