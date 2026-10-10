@@ -48,7 +48,7 @@ from fun_time.overlay_progress import (
 )
 from fun_time.shared_state import BridgeState, shared_state_path
 from fun_time_vr import player, room
-from fun_time_vr.console_panel import PANEL_WIDTH_DEG, PANEL_WIDTH_PX
+from fun_time_vr.console_panel import DEG_PER_PX, PANEL_WIDTH_DEG, PANEL_WIDTH_PX
 from fun_time_vr.cover import (
     VR_SHUTDOWN_PHASES,
     VR_STARTUP_PHASES,
@@ -56,6 +56,9 @@ from fun_time_vr.cover import (
     CoverWatcher,
 )
 from fun_time_vr.dash_panel import DASH_WIDTH_PX, dash_actions, dash_height
+from fun_time_vr.hud_buttons import HudButtons
+from fun_time_vr.hud_sides import side_screen_name
+from fun_time_vr.hud_toggle import PANEL_GAP_DEG, toggle_screen_name
 from fun_time_vr.layout import (
     BANNER,
     DASH,
@@ -116,12 +119,13 @@ from fun_time_vr.projection import (
 )
 from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
 from fun_time_vr.render import immersive_wrap
-from fun_time_vr.satellite_hud import HUD_GAP_DEG, hud_screen_name
+from fun_time_vr.satellite_hud import hud_screen_name
 from fun_time_vr.scene import (
     MAIN_WIDTH_DEG,
     RADIUS,
     Placement,
     attached_below,
+    attached_to,
     surface_vertices,
     widened,
 )
@@ -887,11 +891,13 @@ class TestThePanelUnderTheSlot:
     under whichever picture fills the main slot -- and, while the video wraps
     the viewer and there is nothing to dock to, under the dashboard."""
 
-    def _unit(self, *, wrapped=False, showing=False, edge=HudEdge.LOWER):
+    def _unit(self, *, wrapped=False, showing=False, edge=HudEdge.LOWER, minimized=False):
         projection = EQUIRECT_180_SBS if wrapped else FLAT
+        posted: list[str] = []
         main_unit = _like(_MainUnit, _AMainStandIn(
             owns_the_slot=not showing,
-            funestra=SimpleNamespace(panel_edge=edge),
+            funestra=SimpleNamespace(panel_edge=edge, panel_minimized=minimized),
+            _post=posted.append,
             panel=PanelBitmap(width=PANEL_WIDTH_PX),
             verbs=SimpleNamespace(projection_of=lambda _video: projection, **_NEVER_DIALED),
             target=SimpleNamespace(ready=True, aspect=16 / 9, video=None),
@@ -903,8 +909,13 @@ class TestThePanelUnderTheSlot:
                                screen=SimpleNamespace(placement=SPOTS[PANEL]))
         with patch("fun_time_vr.player.FrameTexture", _FakePanelTexture):
             unit = _PanelUnit(main_unit, dash)
-        main_unit.panel.overlay(10, 8, 8, np.zeros((120, PANEL_WIDTH_PX, 4), dtype=np.uint8))
-        return SimpleNamespace(unit=unit, main_unit=main_unit, dash=dash)
+        if not minimized:
+            main_unit.panel.overlay(10, 8, 8, np.zeros((120, PANEL_WIDTH_PX, 4), dtype=np.uint8))
+        return SimpleNamespace(unit=unit, main_unit=main_unit, dash=dash, posted=posted)
+
+    @staticmethod
+    def _hanging_names(unit) -> list[str]:
+        return [hanging.screen.name for hanging in unit.hangings()]
 
     @staticmethod
     def _placed(unit) -> Placement:
@@ -945,7 +956,8 @@ class TestThePanelUnderTheSlot:
         clip = p.main_unit.users_picture_texture.aspect
         assert placed == attached_below(
             shown_at(MAIN, p.main_unit.screen.placement, clip), aspect=clip,
-            width_deg=PANEL_WIDTH_DEG, hanging_aspect=_FakePanelTexture.aspect, gap_deg=HUD_GAP_DEG)
+            width_deg=PANEL_WIDTH_DEG, hanging_aspect=_FakePanelTexture.aspect,
+            gap_deg=PANEL_GAP_DEG)
 
     def test_it_hangs_along_the_edge_the_room_moved_it_to(self):
         p = self._unit(edge=HudEdge.UPPER)
@@ -963,24 +975,60 @@ class TestThePanelUnderTheSlot:
 
         assert placed == attached_below(
             p.dash.screen.placement, aspect=p.dash.texture.aspect,
-            width_deg=PANEL_WIDTH_DEG, hanging_aspect=_FakePanelTexture.aspect)
+            width_deg=PANEL_WIDTH_DEG, hanging_aspect=_FakePanelTexture.aspect,
+            gap_deg=PANEL_GAP_DEG)
 
-    def test_it_meets_the_dashboard_with_nothing_between_them(self):
-        """The strip is left off there -- empty, it read as a gap the width of a
-        handle between the two panels, which is what a handle looks like."""
+    @pytest.mark.parametrize("wrapped", [False, True])
+    def test_its_minus_hangs_outside_it(self, wrapped):
+        p = self._unit(wrapped=wrapped)
+
+        self._placed(p.unit)
+
+        assert toggle_screen_name(MAIN) in self._hanging_names(p.unit)
+
+    def test_under_the_dashboard_its_minus_hangs_between_the_two(self):
         p = self._unit(wrapped=True)
 
         placed = self._placed(p.unit)
 
-        console = surface_vertices(placed, aspect=_FakePanelTexture.aspect)
+        minus, = (hanging for hanging in p.unit.hangings()
+                  if hanging.screen.name == toggle_screen_name(MAIN))
         over = surface_vertices(p.dash.screen.placement, aspect=p.dash.texture.aspect)
-        assert console[:, 1].max() == pytest.approx(over[:, 1].min(), abs=1e-6)
+        button = surface_vertices(minus.screen.placement, aspect=1.0)
+        console = surface_vertices(placed, aspect=_FakePanelTexture.aspect)
+        assert over[:, 1].min() > button[:, 1].max() > button[:, 1].min() > console[:, 1].max()
+
+    def test_beside_a_wrapped_video_there_is_no_side_to_move_it_to(self):
+        p = self._unit(wrapped=True)
+
+        self._placed(p.unit)
+
+        assert side_screen_name(MAIN, HudEdge.UPPER) not in self._hanging_names(p.unit)
+
+    def test_minimized_only_its_plus_hangs_with_the_sides_it_could_open_on(self):
+        p = self._unit(minimized=True)
+
+        self._placed(p.unit)
+
+        names = self._hanging_names(p.unit)
+        assert PANEL not in names
+        assert toggle_screen_name(MAIN) in names
+        assert side_screen_name(MAIN, HudEdge.UPPER) in names
+
+    def test_a_squeeze_on_its_minus_asks_the_room_to_minimize_it(self):
+        p = self._unit()
+        self._placed(p.unit)
+
+        p.unit.point(Frame(events=(PressEvent(PRESS, toggle_screen_name(MAIN)),)))
+        p.unit.pump(threading.Event(), 0.0)
+
+        assert p.posted == ["main_hud_minimize"]
 
     def test_it_is_pressed_and_never_dragged(self):
         p = self._unit()
         self._placed(p.unit)
 
-        (hanging,) = p.unit.hangings()
+        hanging, = (one for one in p.unit.hangings() if one.screen.name == PANEL)
 
         assert hanging.screen.name == PANEL
         assert hanging.screen.pressable and not hanging.screen.movable
@@ -994,6 +1042,56 @@ class TestThePanelUnderTheSlot:
         self._placed(p.unit)
 
         assert p.unit.hangings() == ()
+
+
+class TestASatellitesButtonsInTheHeadset:
+    """Beside a satellite's picture hang its HUD, the minus between the two, and
+    a plus beside each side the HUD is not against."""
+
+    @staticmethod
+    def _unit(tmp_path, *, minimized=False):
+        unit = _a_satellite_unit(tmp_path, PORTRAIT, {})
+        unit.funestra = SimpleNamespace(panel_edge=HudEdge.LEFT, panel_minimized=minimized,
+                                        tick=lambda window: None,
+                                        motion=lambda x, y, held, window: None)
+        unit.video = SimpleNamespace(show_newest=lambda _target: False)
+        unit.target = SimpleNamespace(ready=True, aspect=16 / 9, width=640, height=480)
+        unit.hud_texture = _FakePanelTexture()
+        if not minimized:
+            unit.panel.overlay(10, 0, 0, np.zeros((120, 280, 4), dtype=np.uint8))
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            unit.render_latest_frame()
+        return unit
+
+    @staticmethod
+    def _hanging_names(unit) -> list[str]:
+        return [hanging.screen.name for hanging in unit.hangings()]
+
+    def test_its_hud_hangs_past_the_minus_beside_the_picture(self, tmp_path, faked_collaborators):
+        unit = self._unit(tmp_path)
+
+        assert unit.hud_screen.placement == attached_to(
+            HudEdge.LEFT, unit.shown, aspect=16 / 9,
+            width_deg=_FakePanelTexture.width * DEG_PER_PX,
+            hanging_aspect=_FakePanelTexture.aspect, gap_deg=PANEL_GAP_DEG)
+        assert {toggle_screen_name(PORTRAIT), hud_screen_name(PORTRAIT)} <= set(self._hanging_names(unit))
+
+    def test_minimized_its_plus_hangs_where_the_minus_was_and_the_hud_does_not(
+            self, tmp_path, faked_collaborators):
+        unit = self._unit(tmp_path, minimized=True)
+
+        names = self._hanging_names(unit)
+        assert hud_screen_name(PORTRAIT) not in names
+        assert toggle_screen_name(PORTRAIT) in names
+
+    def test_a_squeeze_on_a_side_asks_the_room_for_the_hud_there(
+            self, tmp_path, faked_collaborators):
+        unit = self._unit(tmp_path)
+
+        unit.point(Frame(events=(PressEvent(PRESS, side_screen_name(PORTRAIT, HudEdge.RIGHT)),)))
+        unit.pump(threading.Event(), 0.0)
+
+        assert _dashboard_asked(tmp_path) == ["portrait_hud_restore_at|right"]
 
 
 # --- The cover the roles arrive and leave under ---------------------------
@@ -1868,6 +1966,7 @@ class TestEveryHangingScreenIsDrawn:
         main_unit.target.texture = object()
         main_unit.screen = SimpleNamespace(ready=True, mesh=MAIN, placement=SPOTS[MAIN])
         panel = _like(_PanelUnit, _hanging(PANEL, 1.2))
+        panel._buttons, panel._shown = _buttons_not_hanging_names(MAIN), True
         dash = _like(_DashUnit, _hanging(DASH, 2.5))
         reference = _like(_ReferenceUnit, _hanging(REFERENCE, 1.7))
         reference.showing = showing
@@ -1968,11 +2067,16 @@ class TestWhatThePointerDraws:
 
 
 
+def _buttons_not_hanging_names(player: str) -> HudButtons:
+    return HudButtons(player, player, post=lambda _command: None, texture=object, mesh=object)
+
+
 def _a_panel(*, ready=True):
     """The console as the pointer reads it: pressed, never dragged."""
     return _like(_PanelUnit, SimpleNamespace(
         texture=SimpleNamespace(ready=ready, aspect=1.2),
         screen=SimpleNamespace(placement=SPOTS[PANEL]),
+        _buttons=_buttons_not_hanging_names(MAIN), _shown=True,
     ))
 
 
@@ -2350,6 +2454,7 @@ def _a_satellite(player: str, *, hud: bool = False):
         hud_screen=SimpleNamespace(placement=attached_below(
             placement, aspect=16 / 9, width_deg=20.0, hanging_aspect=6.0)),
         hud_texture=SimpleNamespace(aspect=6.0),
+        _buttons=_buttons_not_hanging_names(player),
     ))
 
 
