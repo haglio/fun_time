@@ -57,7 +57,7 @@ from fun_time.voice_control import say_the_mic_is_off
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from fun_time_vr import orchestrator, player, vr_runtime
-from fun_time_vr.cover import CLOSING_STATUS, scene_ready_file
+from fun_time_vr.cover import CLOSING_STATUS, SHUTDOWN_STALE_TIMEOUT_S, scene_ready_file
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
     _closing_cover,
@@ -76,6 +76,7 @@ from fun_time_vr.orchestrator import (
     vr_main_sources,
 )
 from fun_time_vr.player import VrSettings
+from tests.cover_beats import heard_from_again_once_stale
 
 
 @pytest.fixture
@@ -1400,6 +1401,19 @@ class TestTheClosingCover:
             cleared.append(stale.exists())
 
         assert cleared == [False]
+
+    def test_a_part_slow_to_end_does_not_let_the_headset_cover_go(self, tmp_path):
+        """The desktop's closing screen went away over a dashboard still waiting
+        its turn: a part took longer to end than the cover's guard, and nothing
+        said the teardown was still going."""
+        (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
+        heard: list[bool] = []
+
+        with _closing_cover(tmp_path, _AlivePlayer(), enabled=True):
+            heard.append(heard_from_again_once_stale(
+                tmp_path / SHUTDOWN_PROGRESS_FILENAME, stale_after_s=SHUTDOWN_STALE_TIMEOUT_S))
+
+        assert heard == [True]
 
     def test_a_session_the_player_ended_gets_no_cover(self, tmp_path):
         """Nothing is left that can put a picture in the headset -- and nothing

@@ -274,11 +274,14 @@ down. The timeouts differ because what they are waiting out differs:
   orchestrator's own patience with the player: startup's last phase writes
   nothing for the length of it, and the cover cannot appear at all before the
   player holds an OpenXR session, well into "Waiting for players...".
-- **The VR shutdown cover** (20s) covers a teardown that is over in seconds.
+- **The VR shutdown cover** (20s), like the desktop's closing screen, is kept
+  up by the teardown itself: it moves the file's time once a second for as long
+  as it runs, however long a part takes to end, so twenty seconds without that
+  means the orchestrator died.
 - **A held cover** is exempt: nothing is writing its file, because the session
   that would have is gone.
-- **The crossing cover** on the monitors allows minutes, because a crossing
-  takes them and its own relay bounds it far shorter.
+- **The crossing cover** on the monitors waits 20s too, kept up the same way by
+  each process the crossing passes through.
 
 `SceneReady` is a different question — whether the room is on screen, which a
 desktop orchestrator sees for itself and a headset cannot report. Its grace

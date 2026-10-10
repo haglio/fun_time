@@ -428,6 +428,26 @@ class TestGivingUp:
 
         assert watcher.read() is None
 
+    def test_a_teardown_still_saying_it_is_going_keeps_the_headset_covered(
+            self, tmp_path: Path):
+        """A part slow to end holds one line on the file for longer than the
+        guard, while the orchestrator moves the file's time once a second to say
+        it is still at work.  The desktop's closing screen went away over a
+        dashboard still waiting its turn when nothing said so."""
+        clock = _Clock()
+        _shutdown_writer(tmp_path).advance("players")
+        shutdown_file = tmp_path / SHUTDOWN_PROGRESS_FILENAME
+        written_at = shutdown_file.stat().st_mtime
+        watcher = CoverWatcher(tmp_path, clock=clock)
+        watcher.read()
+
+        for beat in range(1, round(SHUTDOWN_STALE_TIMEOUT_S * 2)):
+            clock.now += 1
+            os.utime(shutdown_file, (written_at + beat, written_at + beat))
+            watcher.read()
+
+        assert watcher.read() is not None
+
     def test_an_end_given_up_on_stays_given_up(self, tmp_path: Path):
         """As the desktop's does: its cover is a destroyed window by then, and a
         room half revealed cannot be covered back up."""

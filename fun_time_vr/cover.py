@@ -104,7 +104,7 @@ class CoverWatcher:
         self._closing_locally = False
         self._cancelling = False
         self._held: dict[str, tuple[float, str]] = {}
-        self._seen: dict[str, tuple[str, float]] = {}
+        self._seen: dict[str, tuple[tuple[str, float], float]] = {}
         self._gave_up: set[str] = set()
 
     def closing_now(self) -> None:
@@ -152,12 +152,13 @@ class CoverWatcher:
             return None
         try:
             text = path.read_text(encoding="utf-8")
+            moved_at = path.stat().st_mtime
         except OSError:
             return None  # no file: that end of the session is not running
         progress = parse_progress(text)
         if progress.done:
             return None
-        if self._went_stale(key, text, stale_timeout_s):
+        if self._went_stale(key, (text, moved_at), stale_timeout_s):
             logger.warning("%s progress has not moved in %.0fs; taking the cover down",
                            key, stale_timeout_s)
             self._gave_up.add(key)
@@ -176,14 +177,14 @@ class CoverWatcher:
             self._cancelling = what_the_flag_asks(self.cancel_file) == CANCEL_WORD
         return self._cancelling
 
-    def _went_stale(self, key: str, text: str, stale_timeout_s: float) -> bool:
-        """Whether the file has said the same thing for too long -- judged on
-        what it SAYS, since two steps written inside one filesystem timestamp
-        tick share an mtime, and a clock keyed on that never restarts."""
+    def _went_stale(self, key: str, said: tuple[str, float], stale_timeout_s: float) -> bool:
+        """Whether the file has said the same thing, at the same time, for too
+        long: two steps written inside one filesystem timestamp tick share an
+        mtime, and a step slow to finish moves only its time."""
         now = self._clock()
         seen = self._seen.get(key)
-        if seen is None or seen[0] != text:
-            self._seen[key] = (text, now)
+        if seen is None or seen[0] != said:
+            self._seen[key] = (said, now)
             return False
         return now - seen[1] > stale_timeout_s
 
