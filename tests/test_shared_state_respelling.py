@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from player_core.modes import MainMode, SatellitesMode
+from funestra_core.modes import MainMode, SatellitesMode
 
-from fun_time.players import Player
+from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import resume_shared_state
 from fun_time.shared_state import (
     SHARED_STATE_FILENAME,
@@ -21,7 +21,7 @@ from fun_time.shared_state import (
 )
 
 # The state file as a session of that day wrote it: the two locks by slot
-# number, the active player as a side, one F-mode name for two filters, and two
+# number, the active Funestra as a side, one F-mode name for two filters, and two
 # mode words the app has since dropped.
 _LAST_SESSIONS_STATE = (
     "[state]\nmain_mode = hybrid\nsatellites_mode = player\nmain_f_mode = 1\n"
@@ -45,15 +45,15 @@ class TestTheSharedStateFile:
         assert migrate_shared_state(state_file) is True
 
         state = read_shared_state(state_file)
-        assert state.satellite(Player.PORTRAIT).locked is True
-        assert state.satellite(Player.LANDSCAPE).locked is False
-        assert state.active_player == 3
+        assert state.satellite(RoomFunestra.PORTRAIT).locked is True
+        assert state.satellite(RoomFunestra.LANDSCAPE).locked is False
+        assert state.active_funestra == 3
         assert state.main_scripted_filter is True
-        assert state.satellite(Player.PORTRAIT).favorites_filter is True
-        assert state.satellite(Player.LANDSCAPE).favorites_filter is False
+        assert state.satellite(RoomFunestra.PORTRAIT).favorites_filter is True
+        assert state.satellite(RoomFunestra.LANDSCAPE).favorites_filter is False
         assert (state.volume, state.muted) == (40, True)
-        assert state.satellite(Player.PORTRAIT).filter == "alpha"
-        assert state.satellite(Player.LANDSCAPE).latest is True
+        assert state.satellite(RoomFunestra.PORTRAIT).filter == "alpha"
+        assert state.satellite(RoomFunestra.LANDSCAPE).latest is True
 
     def test_the_old_keys_are_gone_from_the_file_afterwards(self, tmp_path: Path):
         state_file = tmp_path / SHARED_STATE_FILENAME
@@ -78,7 +78,7 @@ class TestTheSharedStateFile:
 
     def test_a_file_already_in_todays_spelling_is_left_untouched(self, tmp_path: Path):
         state_file = tmp_path / SHARED_STATE_FILENAME
-        write_shared_state(state_file, BridgeState(active_player=2))
+        write_shared_state(state_file, BridgeState(active_funestra=2))
         before = state_file.read_text(encoding="utf-8")
 
         assert migrate_shared_state(state_file) is False
@@ -101,7 +101,7 @@ class TestTheSharedStateFile:
 
         state = resume_shared_state(state_file, resumed=True)
 
-        assert state.satellite(Player.PORTRAIT).locked is True
+        assert state.satellite(RoomFunestra.PORTRAIT).locked is True
         assert state.main_scripted_filter is True
         assert "locked2" not in state_file.read_text(encoding="utf-8")
 

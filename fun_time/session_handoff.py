@@ -94,9 +94,9 @@ VR = HandoffTarget(
 TARGETS: dict[str, HandoffTarget] = {target.key: target for target in (DESKTOP, VR)}
 
 
-def this_session(*, vr_main_player: bool) -> HandoffTarget:
-    """Which of the two a session is, by where its main player lives."""
-    return VR if vr_main_player else DESKTOP
+def this_session(*, vr_main_funestra: bool) -> HandoffTarget:
+    """Which of the two a session is, by where its Main Funestra lives."""
+    return VR if vr_main_funestra else DESKTOP
 
 
 def handoff_request_path(state_dir: str | Path) -> Path:
@@ -175,7 +175,7 @@ def headset_hold_stops_the_runtime(state_dir: str | Path) -> bool:
 
 
 def report_the_headset_held(state_dir: str | Path) -> None:
-    """The player's answer: every channel let go of, only the cover left."""
+    """The Funestra's answer: every channel let go of, only the cover left."""
     (Path(state_dir) / HEADSET_HELD_NAME).write_text("", encoding="utf-8")
 
 
@@ -184,7 +184,7 @@ def headset_is_held(state_dir: str | Path) -> bool:
 
 
 def release_the_headset(state_dir: str | Path) -> None:
-    """Let a held player go: the room it covered for is on screen."""
+    """Let a held Funestra go: the room it covered for is on screen."""
     for name in (HEADSET_HOLD_NAME, HEADSET_HELD_NAME):
         (Path(state_dir) / name).unlink(missing_ok=True)
 

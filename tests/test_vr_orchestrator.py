@@ -14,10 +14,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from player_core.drive_readout import DriveHud, drive_text
-from player_core.modes import MainMode
+from funestra_core.drive_readout import DriveHud, drive_text
+from funestra_core.modes import MainMode
 
-from fun_time import player_deaths, win32_taskbar
+from fun_time import funestra_deaths, win32_taskbar
 from fun_time.config import load_config
 from fun_time.genau_config import GenauSettings
 from fun_time.hosted_origenerator import HostedApp
@@ -32,8 +32,8 @@ from fun_time.overlay_progress import (
     StartupCancelled,
     parse_progress,
 )
-from fun_time.players import Player
 from fun_time.project_paths import PROJECT_DIR
+from fun_time.room_funestras import RoomFunestra
 from fun_time.satellites_mode import OPEN_SHOWS, ORIGENERATOR_MODE
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import SessionEnvironment
@@ -57,31 +57,31 @@ from fun_time.shared_state import (
 from fun_time.voice_control import say_the_mic_is_off
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
-from fun_time_vr import orchestrator, player, vr_runtime
+from fun_time_vr import funestras, orchestrator, vr_runtime
 from fun_time_vr.cover import (
     CLOSING_STATUS,
     SHUTDOWN_STALE_TIMEOUT_S,
     STARTUP_STALE_TIMEOUT_S,
     scene_ready_file,
 )
+from fun_time_vr.funestras import VrSettings
 from fun_time_vr.orchestrator import (
-    VR_PLAYER_MODULE,
+    VR_FUNESTRAS_MODULE,
     _closing_cover,
     _Cover,
     _release_vr_runtime,
-    _wait_for_player,
+    _wait_for_funestra,
     _wait_for_session_end,
     _wait_for_the_headset_hold,
     _wait_for_the_room,
     build_vr_manifest,
-    launch_vr_player,
+    launch_vr_funestras,
     main_playlist_has_vr,
     resume_genau_shapes,
     stock_the_playlists,
     validate_vr_config,
     vr_main_sources,
 )
-from fun_time_vr.player import VrSettings
 from tests.cover_beats import heard_from_again_once_stale
 
 
@@ -176,9 +176,9 @@ class TestVrManifest:
 
     def test_manifest_overrides_primary_sources_and_adds_the_vr_section(self, config):
         manifest = build_vr_manifest(config)
-        assert manifest["media"]["main_player_library_sources"] == vr_main_sources(config)
+        assert manifest["media"]["main_funestra_library_sources"] == vr_main_sources(config)
         vr = manifest["vr"]
-        assert vr["player_module"] == VR_PLAYER_MODULE
+        assert vr["funestra_module"] == VR_FUNESTRAS_MODULE
         assert vr["library_dirs"] == str(config.vr.library_dirs[0])
         assert vr["tcode_udp_host"] == "127.0.0.1"
         assert vr["tcode_udp_port"] == "50557"
@@ -192,8 +192,8 @@ class TestVrManifest:
         this one on purpose, so nothing checked that the two ends of the section
         FunTimeVR writes to itself still agreed — and they had already stopped:
         ``audio_device`` was written every launch and had no field to be read
-        into, which is how the VR main player lost its audio-device routing.
-        ``player_module`` is the one key with no reader by design: the launcher
+        into, which is how the VR Main Funestra lost its audio-device routing.
+        ``funestra_module`` is the one key with no reader by design: the launcher
         starts the module it names from its own constant.
         """
         written = set(build_vr_manifest(config)["vr"])
@@ -201,7 +201,7 @@ class TestVrManifest:
         # Genau's numbers ride flat and land together, in the one `genau` field.
         genau_keys = set(GenauSettings().manifest_fields())
 
-        assert written - {"player_module"} - genau_keys == read_back - {"genau"}
+        assert written - {"funestra_module"} - genau_keys == read_back - {"genau"}
         assert genau_keys <= written
 
     def test_manifest_carries_a_layers_opt_in(self, config):
@@ -213,7 +213,7 @@ class TestVrManifest:
     def test_everything_else_is_the_desktop_manifest(self, config):
         manifest = build_vr_manifest(config)
         assert manifest["modules"]["satellite_module"] == "satellite"
-        assert Path(manifest["commands"]["main_player_cmd_file"]).name == "main_player_cmd.txt"
+        assert Path(manifest["commands"]["main_funestra_cmd_file"]).name == "main_player_cmd.txt"
 
 
 class TestOrigeneratorInVr:
@@ -223,8 +223,8 @@ class TestOrigeneratorInVr:
     The mode's shows were windows of their own once, laid over the satellites,
     and a VR session has no windows: it declared the mode off, and a session
     resumed out of a desktop session's origenerator mode was pulled back to
-    video.  The shows are the satellite PLAYERS' own playlists now
-    (``fun_time.player_handover``) and the headset's satellites are players, so
+    video.  The shows are the satellite FUNESTRAS' own playlists now
+    (``fun_time.funestra_handover``) and the headset's satellites are Funestras, so
     the only thing left on the monitors is the app's own window -- which boots
     parked and, in a headset session, is never restored.
     """
@@ -258,17 +258,17 @@ class TestOrigeneratorInVr:
         answers the switch with the mode instead of a notice."""
         path = write_manifest_data(build_vr_manifest(hosted), tmp_path / "launch.ini")
         bridge = build_bridge_config_from_manifest(
-            LaunchManifest.read(path), vr_main_player=True)
+            LaunchManifest.read(path), vr_main_funestra=True)
 
         assert bridge.origenerator_enabled is True
 
-    def test_the_session_brings_the_app_up_before_the_player(self):
+    def test_the_session_brings_the_app_up_before_the_funestra(self):
         """Its boot is the slowest thing a session waits on and nothing waits on
         it, so it goes first here as it does on the desktop; a room left in the
         mode then has the least of it left to wait out under its cover."""
         calls = _call_lines_in_run_vr_bridge()
 
-        assert calls["bring_up_the_hosted_app"] < calls["launch_vr_player"]
+        assert calls["bring_up_the_hosted_app"] < calls["launch_vr_funestras"]
 
     def test_the_app_runs_the_checkouts_this_session_names(self):
         """It imports player_core too, so a branch of it reaches the app the way
@@ -285,13 +285,13 @@ class TestOrigeneratorInVr:
         monitors: a config naming none is a session without the mode."""
         path = write_manifest_data(build_vr_manifest(config), tmp_path / "launch.ini")
         bridge = build_bridge_config_from_manifest(
-            LaunchManifest.read(path), vr_main_player=True)
+            LaunchManifest.read(path), vr_main_funestra=True)
 
         assert bridge.origenerator_enabled is False
 
     def test_a_room_left_in_the_mode_asks_for_the_shows_as_it_opens(self, hosted, tmp_path):
         """The desktop's own comeback, in the headset: the room holds its cover up
-        for the hosted app and opens with the shows on the players."""
+        for the hosted app and opens with the shows on the Funestras."""
         state_dir = hosted.paths.state_dir
         state_dir.mkdir(parents=True, exist_ok=True)
         write_shared_state(shared_state_path(state_dir),
@@ -344,7 +344,7 @@ class TestOrigeneratorInVr:
 
     def test_the_mode_is_taken_up_before_the_room_is_shown(self):
         """The headset's cover comes down on the DONE, so a comeback after it would
-        rearrange both players under a room he is already using."""
+        rearrange both Funestras under a room he is already using."""
         calls = _call_lines_in_run_vr_bridge()
 
         assert (calls["open_in_origenerator_mode"]
@@ -403,19 +403,19 @@ class TestWaitForSessionEnd:
         assert "stop_hotkey_script" in calls
         assert calls.index("kill_recorded_child") < calls.index("stop_hotkey_script")
 
-    def test_player_exit_ends_the_session_too(self, tmp_path):
-        # The VR player's window is the session's only window, so closing it
+    def test_funestra_exit_ends_the_session_too(self, tmp_path):
+        # The headset's window is the session's only window, so closing it
         # must end the whole session — an orchestrator that kept waiting on
         # AHK held the single-instance mutex and blocked every relaunch.
 
         assert _wait_for_session_end(
             _FakeProc(), _FakeProc(exits_after_polls=2), state_dir=tmp_path, poll_s=0.0
-        ) == "player"
+        ) == "funestras"
 
     def test_any_other_part_of_the_room_closing_ends_the_session(self, tmp_path, monkeypatch):
         """His rule (2026-10-08): if one part of Fun Time dies, the whole thing
         dies with it, rather than carrying on without it."""
-        monkeypatch.setattr(player_deaths, "get_process_creation_time", lambda pid: None)
+        monkeypatch.setattr(funestra_deaths, "get_process_creation_time", lambda pid: None)
 
         assert _wait_for_session_end(
             _FakeProc(), _FakeProc(), state_dir=tmp_path, poll_s=0.0,
@@ -454,8 +454,8 @@ class TestResumedMainPlaylist:
 
 
 class TestTheModeASessionComesBackIn:
-    """The desktop session shares this state dir, and the VR player hosts both
-    of the main slot's players now -- so the mode it was closed in comes across
+    """The desktop session shares this state dir, and the headset hosts both
+    of the main slot's Funestras now -- so the mode it was closed in comes across
     with everything else, and the session is seeded and revealed in it."""
 
     @staticmethod
@@ -497,15 +497,15 @@ class TestTheModeASessionComesBackIn:
         assert (given["main_plays_vr"], given["main_plays_flat"]) == (
             "carried.main_plays_vr", "carried.main_plays_flat")
 
-    def test_the_loop_the_main_player_was_running_is_queued_for_it(self):
-        """A loop lives nowhere but in the player holding it, so entering VR used
+    def test_the_loop_the_main_funestra_was_running_is_queued_for_it(self):
+        """A loop lives nowhere but in the Funestra holding it, so entering VR used
         to drop one even though the clip it was cut from came across."""
         (resume,) = self._calls("run_vr_bridge", "resume_main_loop")
 
         assert [ast.unparse(arg) for arg in resume.args] == [
-            "Path(commands.main_player_cmd_file)",
-            "main_player_status",
-            "main_player_playlist",
+            "Path(commands.main_funestra_cmd_file)",
+            "main_funestra_status",
+            "main_funestra_playlist",
         ]
 
     def test_it_is_queued_after_the_playlists_are_stocked(self):
@@ -521,38 +521,38 @@ class TestTheModeASessionComesBackIn:
 
         assert given["max_intensity"] == "carried.max_intensity"
 
-    def test_the_reveal_releases_the_players_the_mode_puts_to_work(self):
+    def test_the_reveal_releases_the_funestras_the_mode_puts_to_work(self):
         """The desktop's own reveal: the video in kino mode, Genau's hand and its
         music in genau mode -- rather than unpausing the video whatever the mode."""
-        (release,) = self._calls("run_vr_bridge", "release_the_players")
+        (release,) = self._calls("run_vr_bridge", "release_the_funestras")
 
         assert [ast.unparse(arg) for arg in release.args] == ["manifest", "carried.main_mode"]
         assert self._calls("run_vr_bridge", "write_flag_file") == []
 
 
-class TestLaunchVrPlayer:
-    def test_the_player_starts_on_the_named_python_against_the_manifest(self, tmp_path):
+class TestLaunchVrFunestras:
+    def test_the_funestra_starts_on_the_named_python_against_the_manifest(self, tmp_path):
         """The command line is the whole contract: OUR interpreter (the VR
-        player ships from this repo), the player module, and the manifest that
+        Funestra ships from this repo), the Funestra module, and the manifest that
         tells it everything else — with its console kept in a log, because
         under pythonw an import-time death is otherwise traceless."""
         with patch("fun_time_vr.orchestrator.subprocess.Popen") as popen:
-            launch_vr_player(
+            launch_vr_funestras(
                 python_exe=tmp_path / "python.exe",
                 manifest_path=tmp_path / "windows_bridge_launch.ini",
-                log_file=tmp_path / "vr_player.log",
+                log_file=tmp_path / "vr_funestras.log",
             )
 
         command = popen.call_args[0][0]
         assert command == [
-            str(tmp_path / "python.exe"), "-m", VR_PLAYER_MODULE,
+            str(tmp_path / "python.exe"), "-m", VR_FUNESTRAS_MODULE,
             "--manifest", str(tmp_path / "windows_bridge_launch.ini"),
         ]
         assert popen.call_args.kwargs["stdout"] is popen.call_args.kwargs["stderr"]
-        assert (tmp_path / "vr_player.log").exists()
+        assert (tmp_path / "vr_funestras.log").exists()
 
 
-class TestWaitForPlayer:
+class TestWaitForFunestra:
     """The startup readiness handshake: the first status write means ready,
     and both ways it can fail are reported at once, by name."""
 
@@ -572,20 +572,20 @@ class TestWaitForPlayer:
         status = tmp_path / "main_player_status.txt"
         status.write_text("video=C:\\v\\scene one.mp4\n", encoding="utf-8")
 
-        assert _wait_for_player(status, self._Alive()) is True
+        assert _wait_for_funestra(status, self._Alive()) is True
 
     def test_an_early_death_is_reported_at_once_not_after_the_timeout(self, tmp_path, caplog):
         with caplog.at_level(logging.ERROR, logger="fun_time_vr.orchestrator"):
-            ready = _wait_for_player(tmp_path / "main_player_status.txt", self._Dead())
+            ready = _wait_for_funestra(tmp_path / "main_player_status.txt", self._Dead())
 
         assert ready is False
         assert "exited during startup" in caplog.text
         assert "3" in caplog.text
 
-    def test_a_silent_player_is_given_up_on_at_the_deadline(self, tmp_path, caplog, monkeypatch):
-        monkeypatch.setattr(orchestrator, "PLAYER_READY_TIMEOUT_S", 0.0)
+    def test_a_silent_funestra_is_given_up_on_at_the_deadline(self, tmp_path, caplog, monkeypatch):
+        monkeypatch.setattr(orchestrator, "FUNESTRA_READY_TIMEOUT_S", 0.0)
         with caplog.at_level(logging.ERROR, logger="fun_time_vr.orchestrator"):
-            ready = orchestrator._wait_for_player(tmp_path / "main_player_status.txt", self._Alive())
+            ready = orchestrator._wait_for_funestra(tmp_path / "main_player_status.txt", self._Alive())
 
         assert ready is False
         assert "published no status" in caplog.text
@@ -659,8 +659,8 @@ class TestStockingThePlaylists:
             clip.write_bytes(b"")
         state = tmp_path / "state"
         state.mkdir(exist_ok=True)
-        main_player_playlist = state / "main_player_playlist.tsv"
-        main_player_playlist.write_text(f"{flat_one}\n{flat_two}\n", encoding="utf-8")
+        main_funestra_playlist = state / "main_player_playlist.tsv"
+        main_funestra_playlist.write_text(f"{flat_one}\n{flat_two}\n", encoding="utf-8")
 
         stock_the_playlists(
             self._manifest(config, tmp_path),
@@ -672,7 +672,7 @@ class TestStockingThePlaylists:
             main_video=str(flat_two),
         )
 
-        entries = main_player_playlist.read_text(encoding="utf-8").splitlines()
+        entries = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
         assert entries[0].split("\t")[0] == str(flat_two)
         # …and the headset's own library is in the queue under it.
         assert any("finished" in entry for entry in entries)
@@ -688,8 +688,8 @@ class TestStockingThePlaylists:
         flat.write_bytes(b"")
         state = tmp_path / "state"
         state.mkdir(exist_ok=True)
-        main_player_playlist = state / "main_player_playlist.tsv"
-        main_player_playlist.write_text(f"{flat}\n", encoding="utf-8")
+        main_funestra_playlist = state / "main_player_playlist.tsv"
+        main_funestra_playlist.write_text(f"{flat}\n", encoding="utf-8")
 
         stock_the_playlists(
             self._manifest(config, tmp_path),
@@ -701,7 +701,7 @@ class TestStockingThePlaylists:
             main_video=str(library / "2D" / "gone since.mp4"),
         )
 
-        entries = main_player_playlist.read_text(encoding="utf-8").splitlines()
+        entries = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
         assert entries and "gone since" not in entries[0]
 
     def test_a_playlist_that_already_holds_vr_is_left_exactly_as_it_was(
@@ -714,8 +714,8 @@ class TestStockingThePlaylists:
         vr_clip.write_bytes(b"")
         state = tmp_path / "state"
         state.mkdir(exist_ok=True)
-        main_player_playlist = state / "main_player_playlist.tsv"
-        main_player_playlist.write_text(f"{vr_clip}\n", encoding="utf-8")
+        main_funestra_playlist = state / "main_player_playlist.tsv"
+        main_funestra_playlist.write_text(f"{vr_clip}\n", encoding="utf-8")
 
         stock_the_playlists(
             self._manifest(config, tmp_path),
@@ -727,7 +727,7 @@ class TestStockingThePlaylists:
             main_video=str(vr_clip),
         )
 
-        assert main_player_playlist.read_text(encoding="utf-8") == f"{vr_clip}\n"
+        assert main_funestra_playlist.read_text(encoding="utf-8") == f"{vr_clip}\n"
 
     def test_a_crossing_rebuilds_under_the_shape_it_was_left_on(self, config, tmp_path):
         """The console carries "VR only" across; the rebuilt list has to hold it."""
@@ -738,8 +738,8 @@ class TestStockingThePlaylists:
             clip.write_bytes(b"")
         state = tmp_path / "state"
         state.mkdir(exist_ok=True)
-        main_player_playlist = state / "main_player_playlist.tsv"
-        main_player_playlist.write_text(f"{flat}\n", encoding="utf-8")
+        main_funestra_playlist = state / "main_player_playlist.tsv"
+        main_funestra_playlist.write_text(f"{flat}\n", encoding="utf-8")
 
         stock_the_playlists(
             self._manifest(config, tmp_path),
@@ -752,7 +752,7 @@ class TestStockingThePlaylists:
             main_video=str(flat),
         )
 
-        entries = main_player_playlist.read_text(encoding="utf-8").splitlines()
+        entries = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
         assert [entry.split("\t")[0] for entry in entries] == [str(vr_clip)]
 
     def test_a_session_left_on_flat_only_reopens_on_its_own_list(self, config, tmp_path):
@@ -764,8 +764,8 @@ class TestStockingThePlaylists:
         (library / "2D" / "scene three.mp4").write_bytes(b"")  # a rebuild would add it
         state = tmp_path / "state"
         state.mkdir(exist_ok=True)
-        main_player_playlist = state / "main_player_playlist.tsv"
-        main_player_playlist.write_text(f"{flat}\n", encoding="utf-8")
+        main_funestra_playlist = state / "main_player_playlist.tsv"
+        main_funestra_playlist.write_text(f"{flat}\n", encoding="utf-8")
 
         stock_the_playlists(
             self._manifest(config, tmp_path),
@@ -778,7 +778,7 @@ class TestStockingThePlaylists:
             main_video=str(flat),
         )
 
-        assert main_player_playlist.read_text(encoding="utf-8") == f"{flat}\n"
+        assert main_funestra_playlist.read_text(encoding="utf-8") == f"{flat}\n"
 
 
 class TestResumeGenausShapes:
@@ -870,13 +870,13 @@ class TestTheWayBackIntoVr:
 
         assert run_bridge.call_args.kwargs["cancelable"] is False
 
-    def test_a_player_left_holding_the_headset_is_gone_before_the_new_one_starts(
+    def test_a_funestra_left_holding_the_headset_is_gone_before_the_new_one_starts(
         self, config,
     ):
         """Let go of first, it would close its XR session and could stop the very
-        runtime this launch needs; its hold left on disk, the new player would
+        runtime this launch needs; its hold left on disk, the new Funestra would
         read itself as held and show "Returning to Fun Time..." for good."""
-        class PlayerLaunched(Exception):
+        class FunestraLaunched(Exception):
             pass
 
         state_dir = config.paths.state_dir
@@ -886,34 +886,34 @@ class TestTheWayBackIntoVr:
         held_at_launch: list[bool] = []
 
         def reap(module, _claimed):
-            if module == orchestrator.VR_PLAYER_MODULE:
+            if module == orchestrator.VR_FUNESTRAS_MODULE:
                 held_while_reaping.append(headset_hold_asked(state_dir))
 
         def launch(**_kwargs):
             held_at_launch.append(headset_hold_asked(state_dir))
-            raise PlayerLaunched
+            raise FunestraLaunched
 
         with _launch_stand_ins(
             orchestrator, [],
             reap_orphaned_satellites=MagicMock(side_effect=reap),
-            launch_vr_player=MagicMock(side_effect=launch),
+            launch_vr_funestras=MagicMock(side_effect=launch),
         ), patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
              patch("fun_time_vr.orchestrator.subprocess.Popen"), \
-             pytest.raises(PlayerLaunched):
+             pytest.raises(FunestraLaunched):
             orchestrator.run_vr_bridge(config, SessionEnvironment())
 
         assert held_while_reaping == [True]
         assert held_at_launch == [False]
 
 
-def _queued_when_the_player_launches(config, env: SessionEnvironment) -> dict[str, list[str]]:
-    class PlayerLaunched(Exception):
+def _queued_when_the_funestra_launches(config, env: SessionEnvironment) -> dict[str, list[str]]:
+    class FunestraLaunched(Exception):
         pass
 
     channels = {
-        "main": config.main_player_cmd_file,
-        "portrait": config.satellite(Player.PORTRAIT).cmd_file,
-        "landscape": config.satellite(Player.LANDSCAPE).cmd_file,
+        "main": config.main_funestra_cmd_file,
+        "portrait": config.satellite(RoomFunestra.PORTRAIT).cmd_file,
+        "landscape": config.satellite(RoomFunestra.LANDSCAPE).cmd_file,
         "genau": config.genau_cmd_file,
     }
     queued: dict[str, list[str]] = {}
@@ -921,12 +921,12 @@ def _queued_when_the_player_launches(config, env: SessionEnvironment) -> dict[st
     def launch(**_kwargs):
         for name, path in channels.items():
             queued[name] = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-        raise PlayerLaunched
+        raise FunestraLaunched
 
-    with _launch_stand_ins(orchestrator, [], launch_vr_player=MagicMock(side_effect=launch)), \
+    with _launch_stand_ins(orchestrator, [], launch_vr_funestras=MagicMock(side_effect=launch)), \
          patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
          patch("fun_time_vr.orchestrator.subprocess.Popen"), \
-         pytest.raises(PlayerLaunched):
+         pytest.raises(FunestraLaunched):
         orchestrator.run_vr_bridge(config, env)
     return queued
 
@@ -934,28 +934,28 @@ def _queued_when_the_player_launches(config, env: SessionEnvironment) -> dict[st
 def _left_playing_at(config, *, main: float, portrait: float, landscape: float) -> None:
     config.paths.state_dir.mkdir(parents=True, exist_ok=True)
     for status_file, speed in (
-        (config.main_player_status_file, main),
-        (config.satellite(Player.PORTRAIT).status_file, portrait),
-        (config.satellite(Player.LANDSCAPE).status_file, landscape),
+        (config.main_funestra_status_file, main),
+        (config.satellite(RoomFunestra.PORTRAIT).status_file, portrait),
+        (config.satellite(RoomFunestra.LANDSCAPE).status_file, landscape),
     ):
         status_file.write_text(f"video=\nspeed={speed:g}\n", encoding="utf-8")
 
 
 class TestWhatAReopenCarriesIntoTheHeadset:
-    def test_each_player_is_handed_the_rate_it_was_playing_at(self, config):
+    def test_each_funestra_is_handed_the_rate_it_was_playing_at(self, config):
         _left_playing_at(config, main=0.25, portrait=0.5, landscape=1.0)
 
-        queued = _queued_when_the_player_launches(config, SessionEnvironment())
+        queued = _queued_when_the_funestra_launches(config, SessionEnvironment())
 
         assert "SET_SPEED 0.25" in queued["main"]
         assert "SET_SPEED 0.5" in queued["portrait"]
         assert not any(verb.startswith("SET_SPEED") for verb in queued["landscape"])
 
-    def test_the_main_player_is_handed_back_the_unlock_it_was_left_in(self, config):
+    def test_the_main_funestra_is_handed_back_the_unlock_it_was_left_in(self, config):
         config.paths.state_dir.mkdir(parents=True, exist_ok=True)
-        config.main_player_status_file.write_text("video=\nlocked=0\n", encoding="utf-8")
+        config.main_funestra_status_file.write_text("video=\nlocked=0\n", encoding="utf-8")
 
-        queued = _queued_when_the_player_launches(config, SessionEnvironment())
+        queued = _queued_when_the_funestra_launches(config, SessionEnvironment())
 
         assert "LOCK_OFF" in queued["main"]
 
@@ -967,15 +967,15 @@ class TestWhatAReopenCarriesIntoTheHeadset:
             encoding="utf-8")
         (state_dir / GENAU_STATUS).write_text("cruise=1\n", encoding="utf-8")
 
-        queued = _queued_when_the_player_launches(config, SessionEnvironment())
+        queued = _queued_when_the_funestra_launches(config, SessionEnvironment())
 
         assert queued["genau"][0] == "PAUSE", "the fresh session's reset must still lead"
         assert queued["genau"][-2:] == ["SPEED 76", "CRUISE_ON"]
 
 class TestHandingTheHeadsetOver:
     """The wait is the point: the arriving desktop session claims the very
-    status and command files the held player's roles were driving, so the
-    orchestrator does not let go until the player says it has
+    status and command files the held Funestra's roles were driving, so the
+    orchestrator does not let go until the Funestra says it has
     (docs/entering-vr.md)."""
 
     class _Alive:
@@ -986,13 +986,13 @@ class TestHandingTheHeadsetOver:
         def poll(self):
             return 1
 
-    def test_a_player_that_takes_the_hold_is_left_running(self, tmp_path: Path):
+    def test_a_funestra_that_takes_the_hold_is_left_running(self, tmp_path: Path):
         with patch("fun_time_vr.orchestrator.headset_is_held", return_value=True):
             assert _wait_for_the_headset_hold(tmp_path, self._Alive()) is True
 
-    def test_a_player_that_never_answers_is_closed_as_before(self, tmp_path: Path):
+    def test_a_funestra_that_never_answers_is_closed_as_before(self, tmp_path: Path):
         """A hold that cannot be taken is never worth a session that will not
-        start, so the flag goes back off and the caller kills the player."""
+        start, so the flag goes back off and the caller kills the Funestra."""
         hold_the_headset(tmp_path, stop_runtime=False)
 
         with patch.object(orchestrator, "HEADSET_HOLD_ACK_TIMEOUT_S", 0.0):
@@ -1001,7 +1001,7 @@ class TestHandingTheHeadsetOver:
 
         assert headset_hold_asked(tmp_path) is False
 
-    def test_a_player_that_has_already_gone_is_not_waited_out(self, tmp_path: Path, caplog):
+    def test_a_funestra_that_has_already_gone_is_not_waited_out(self, tmp_path: Path, caplog):
         """It answered nothing because it was not there to answer: the wait ran
         its whole fifteen seconds anyway, on every crossing, and those seconds
         were the room not coming back."""
@@ -1035,7 +1035,7 @@ def test_a_session_leaves_a_vr_runtime_that_was_already_the_users(monkeypatch, t
 
 
 class TestGenausRoleInTheManifest:
-    """What the VR player needs to run Genau's engine, carried in the one file
+    """What the headset needs to run Genau's engine, carried in the one file
     it reads: the folder, the companion's address, and the engine's numbers."""
 
     def test_genaus_clips_folder_rides_whole(self, config):
@@ -1049,7 +1049,7 @@ class TestGenausRoleInTheManifest:
         """Where it decides whether the console offers Genau the VR and flat pair."""
         def bridge_config(session_config):
             path = write_manifest_data(build_vr_manifest(session_config), tmp_path / "launch.ini")
-            return build_bridge_config_from_manifest(LaunchManifest.read(path), vr_main_player=True)
+            return build_bridge_config_from_manifest(LaunchManifest.read(path), vr_main_funestra=True)
 
         assert bridge_config(config).genau_vr_clips == str(config.paths.clips_dir / "VR")
 
@@ -1070,7 +1070,7 @@ class TestGenausRoleInTheManifest:
         assert vr["beat_udp_port"] == "50999"
         assert vr["bpm_smoothing"] == str(GenauSettings().bpm_smoothing)
 
-    def test_the_player_reads_all_of_it_back(self, config, tmp_path):
+    def test_the_funestra_reads_all_of_it_back(self, config, tmp_path):
         path = write_manifest_data(build_vr_manifest(config), tmp_path / "manifest.ini")
 
         settings = VrSettings.read(path)
@@ -1086,10 +1086,10 @@ class TestTheOnePin:
     "enter VR" now, so a VR session is Fun Time in a headset and lights Fun
     Time's button."""
 
-    def test_the_vr_player_claims_fun_times_own_identity(self):
+    def test_the_vr_funestra_claims_fun_times_own_identity(self):
         """The claim is made before any window exists, so the id it names is
         what every window of the session ends up grouped under."""
-        source = inspect.getsource(player.main)
+        source = inspect.getsource(funestras.main)
         claimed = [
             ast.unparse(node.args[0])
             for node in ast.walk(ast.parse(source.lstrip()))
@@ -1139,7 +1139,7 @@ def _call_lines_in_run_vr_bridge() -> dict[str, int]:
 
 
 class TestTheAudioCompanionInVr:
-    """Launched as on the desktop, before the player so it is listening when
+    """Launched as on the desktop, before the Funestra so it is listening when
     Genau's role says which clip is up, and sent to the headset's output."""
 
     def test_it_is_launched_on_the_headsets_output(self):
@@ -1152,17 +1152,17 @@ class TestTheAudioCompanionInVr:
         assert given["audio_folder"] == "manifest.media.genau_audio"
         assert given["project_dirs"] == "manifest.runtime.genau_project_dirs"
 
-    def test_it_is_launched_before_the_player_and_killed_with_it(self):
+    def test_it_is_launched_before_the_funestra_and_killed_with_it(self):
         calls = _call_lines_in_run_vr_bridge()
 
-        assert calls["launch_audio_companion"] < calls["launch_vr_player"]
+        assert calls["launch_audio_companion"] < calls["launch_vr_funestras"]
         assert "for child in children.values():" in inspect.getsource(orchestrator.run_vr_bridge)
 
 
 class TestTheHeadsetsCover:
     """The orchestrator's half of the cover: the files it writes, the order it
     kills in, and the wait it holds the first kill for.  The panel itself is a
-    surface of the player -- see tests/test_vr_cover.py."""
+    surface of the Funestra -- see tests/test_vr_cover.py."""
 
     def test_a_stale_cancel_flag_cannot_abort_the_next_launch(self, tmp_path):
         """One left by a session that was called off would raise at this
@@ -1208,32 +1208,32 @@ class TestTheHeadsetsCover:
     def test_clearing_writes_no_done(self, tmp_path):
         """DONE is how a finished launch uncovers a room worth seeing.  The
         paths that clear without one have nothing to reveal, and the cover comes
-        down with the player instead."""
+        down with the Funestra instead."""
         cover = _Cover(tmp_path)
-        cover.progress.advance("players")
+        cover.progress.advance("funestras")
 
         cover.clear()
 
         assert not cover.progress_file.exists()
         assert not cover.cancel_file.exists()
 
-    def test_the_hotkey_script_is_up_before_the_player(self):
+    def test_the_hotkey_script_is_up_before_the_funestra(self):
         """Esc is the only way to call a launch off from inside a headset, and
         AHK's hook is the only route that does not need a window's focus -- so
         the script has to be up before there is anything to cancel."""
         calls = _call_lines_in_run_vr_bridge()
 
-        assert calls["subprocess.Popen"] < calls["launch_vr_player"]
+        assert calls["subprocess.Popen"] < calls["launch_vr_funestras"]
         # And the pids file, which is what takes the script's startup hold off,
         # is written only once there is a session for its keys to drive.
-        assert calls["launch_vr_player"] < calls["write_pids_file"]
+        assert calls["launch_vr_funestras"] < calls["write_pids_file"]
 
-    def test_the_players_are_released_after_the_cover_comes_down(self):
+    def test_the_funestras_are_released_after_the_cover_comes_down(self):
         """Released before it and the first seconds of a video play under a
         panel nobody can see through."""
         calls = _call_lines_in_run_vr_bridge()
 
-        assert calls["progress.finish"] < calls["release_the_players"]
+        assert calls["progress.finish"] < calls["release_the_funestras"]
 
 
 class TestCancellingALaunch:
@@ -1255,7 +1255,7 @@ class TestCancellingALaunch:
         if crossing:
             raise_crossing_cover(tmp_path, orchestrator.VR)
         cover = orchestrator._Cover(tmp_path)
-        cover.progress.advance("players")
+        cover.progress.advance("funestras")
         cover.cancel_file.write_text(
             "quit\n" if by_quit_chord else "cancel\n", encoding="utf-8")
         (tmp_path / SESSION_END_MARKER).write_text("the quit chord\n", encoding="utf-8")
@@ -1275,19 +1275,19 @@ class TestCancellingALaunch:
 
         assert pending_handoff(tmp_path) is None
 
-    def test_the_player_is_killed_last_whatever_order_it_was_recorded_in(
+    def test_the_funestra_is_killed_last_whatever_order_it_was_recorded_in(
             self, tmp_path, monkeypatch):
         """It is the thing wearing the "Cancelling..." panel: every other child
         goes while that is still in front of the eyes, so nothing half-started
         is ever revealed."""
         children = {
-            "vr_player_pid": ChildProcess(pid="player", created_at=1),
+            "vr_funestras_pid": ChildProcess(pid="funestras", created_at=1),
             "audio_pid": ChildProcess(pid="audio", created_at=1),
         }
 
         _code, order, _cover = self._cancel(tmp_path, monkeypatch, children)
 
-        assert order == ["hotkeys", "audio", "player"]
+        assert order == ["hotkeys", "audio", "funestras"]
 
     def test_a_part_slow_to_end_does_not_let_the_headset_cover_go(self, tmp_path, monkeypatch):
         """A quit's teardown, under the opening cover instead of the closing one:
@@ -1379,7 +1379,7 @@ class TestCancellingALaunch:
         assert "DONE" in crossing_progress_path(tmp_path).read_text(encoding="utf-8")
 
 
-class _AlivePlayer:
+class _AliveFunestra:
     def __init__(self, alive=True):
         self._alive = alive
 
@@ -1389,18 +1389,18 @@ class _AlivePlayer:
 
 class TestTheClosingCover:
     def test_teardown_holds_its_first_kill_until_the_cover_is_painted(self, tmp_path):
-        """The player reports the panel painted by dropping the desktop's own
+        """The Funestra reports the panel painted by dropping the desktop's own
         ready flag; until then, killing anything would show the very thing the
         cover exists to hide."""
         (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
         seen = []
 
-        with _closing_cover(tmp_path, _AlivePlayer(), enabled=True) as shutdown:
+        with _closing_cover(tmp_path, _AliveFunestra(), enabled=True) as shutdown:
             seen.append(parse_progress(
                 (tmp_path / SHUTDOWN_PROGRESS_FILENAME).read_text(encoding="utf-8")).message)
-            shutdown.advance("players")
+            shutdown.advance("funestras")
 
-        # The opening phase was on disk before the body ran, so the player had
+        # The opening phase was on disk before the body ran, so the Funestra had
         # something to read from its first poll.
         assert seen == [CLOSING_STATUS]
         assert not (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()
@@ -1409,7 +1409,7 @@ class TestTheClosingCover:
     def test_it_says_what_esc_would_cancel(self, tmp_path):
         (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
 
-        with _closing_cover(tmp_path, _AlivePlayer(), enabled=True,
+        with _closing_cover(tmp_path, _AliveFunestra(), enabled=True,
                             esc_cancels="Press Esc to cancel closing Fun Time VR"):
             line = parse_progress(
                 (tmp_path / SHUTDOWN_PROGRESS_FILENAME).read_text(encoding="utf-8"))
@@ -1422,7 +1422,7 @@ class TestTheClosingCover:
         stale.write_text("", encoding="utf-8")
         cleared = []
 
-        with _closing_cover(tmp_path, _AlivePlayer(alive=False), enabled=True):
+        with _closing_cover(tmp_path, _AliveFunestra(alive=False), enabled=True):
             cleared.append(stale.exists())
 
         assert cleared == [False]
@@ -1453,23 +1453,23 @@ class TestTheClosingCover:
         (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
         heard: list[bool] = []
 
-        with _closing_cover(tmp_path, _AlivePlayer(), enabled=True):
+        with _closing_cover(tmp_path, _AliveFunestra(), enabled=True):
             heard.append(heard_from_again_once_stale(
                 tmp_path / SHUTDOWN_PROGRESS_FILENAME,
                 stale_after_s=SHUTDOWN_STALE_TIMEOUT_S, within_s=2.5))
 
         assert heard == [False]
 
-    def test_a_session_the_player_ended_gets_no_cover(self, tmp_path):
+    def test_a_session_the_funestra_ended_gets_no_cover(self, tmp_path):
         """Nothing is left that can put a picture in the headset -- and nothing
         left to hide either, the cut to the runtime's own environment having
         already happened."""
-        with _closing_cover(tmp_path, _AlivePlayer(alive=False), enabled=False) as shutdown:
-            shutdown.advance("players")
+        with _closing_cover(tmp_path, _AliveFunestra(alive=False), enabled=False) as shutdown:
+            shutdown.advance("funestras")
 
         assert not (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()
 
-    def test_the_player_is_the_last_child_teardown_kills(self):
+    def test_the_funestra_is_the_last_child_teardown_kills(self):
         """It wears the cover, so it goes after everything it was hiding."""
         tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
         kills = [ast.unparse(n) for n in sorted(
@@ -1477,7 +1477,7 @@ class TestTheClosingCover:
              if isinstance(n, ast.Call) and ast.unparse(n.func) == "kill_recorded_child"),
             key=lambda n: n.lineno)]
 
-        assert kills[-1] == "kill_recorded_child(children['vr_player_pid'])"
+        assert kills[-1] == "kill_recorded_child(children['vr_funestras_pid'])"
         assert "kill_recorded_child(children['audio_pid'])" in kills
 
     def test_everything_stops_and_the_osr2_is_held_before_either_cover_goes_up(self):
@@ -1497,19 +1497,19 @@ class TestWaitingForTheRoom:
         marker = scene_ready_file(tmp_path)
         marker.write_text("", encoding="utf-8")
 
-        assert _wait_for_the_room(marker, _AlivePlayer())
+        assert _wait_for_the_room(marker, _AliveFunestra())
 
-    def test_a_player_that_died_is_not_waited_for(self, tmp_path):
-        assert not _wait_for_the_room(scene_ready_file(tmp_path), _AlivePlayer(alive=False))
+    def test_a_funestra_that_died_is_not_waited_for(self, tmp_path):
+        assert not _wait_for_the_room(scene_ready_file(tmp_path), _AliveFunestra(alive=False))
 
     def test_the_cap_gives_up_rather_than_hangs(self, tmp_path, monkeypatch):
         monkeypatch.setattr(orchestrator, "SCENE_READY_TIMEOUT_S", 0.0)
 
         assert not orchestrator._wait_for_the_room(
-            scene_ready_file(tmp_path), _AlivePlayer())
+            scene_ready_file(tmp_path), _AliveFunestra())
 
     def test_a_room_that_never_reported_is_revealed_rather_than_failed(self):
-        """The player caps its own wait, so a marker missing by now means
+        """The Funestra caps its own wait, so a marker missing by now means
         something stranger than a slow decode -- and holding a launch on it
         would be worse than a room with one screen still blank.  The answer is
         deliberately dropped: nothing downstream may branch on it."""
@@ -1524,7 +1524,7 @@ class TestWaitingForTheRoom:
     def test_the_room_is_waited_for_before_the_cover_comes_down(self):
         calls = _call_lines_in_run_vr_bridge()
 
-        assert calls["_wait_for_player"] < calls["_wait_for_the_room"]
+        assert calls["_wait_for_funestra"] < calls["_wait_for_the_room"]
         assert calls["_wait_for_the_room"] < calls["progress.finish"]
 
     def test_a_previous_sessions_marker_cannot_vouch_for_this_one(self):
@@ -1532,7 +1532,7 @@ class TestWaitingForTheRoom:
         source = inspect.getsource(orchestrator.run_vr_bridge)
 
         assert "room_ready_file.unlink(missing_ok=True)" in source
-        assert source.index("room_ready_file.unlink") < source.index("launch_vr_player(")
+        assert source.index("room_ready_file.unlink") < source.index("launch_vr_funestras(")
 
 
 class TestEscDuringTheLongWait:
@@ -1549,13 +1549,13 @@ class TestEscDuringTheLongWait:
         def finish(self):
             pass
 
-    def test_the_wait_for_the_player_gives_up_at_once(self, tmp_path):
+    def test_the_wait_for_the_funestra_gives_up_at_once(self, tmp_path):
         with pytest.raises(StartupCancelled):
-            _wait_for_player(tmp_path / "main_player_status.txt", _AlivePlayer(), self._Cancelled())
+            _wait_for_funestra(tmp_path / "main_player_status.txt", _AliveFunestra(), self._Cancelled())
 
     def test_the_wait_for_the_room_gives_up_at_once(self, tmp_path):
         with pytest.raises(StartupCancelled):
-            _wait_for_the_room(scene_ready_file(tmp_path), _AlivePlayer(), self._Cancelled())
+            _wait_for_the_room(scene_ready_file(tmp_path), _AliveFunestra(), self._Cancelled())
 
     def test_both_waits_are_handed_the_reporter_that_carries_the_flag(self):
         """Passed nothing they are plain waits, so a call site that forgot it is
@@ -1563,7 +1563,7 @@ class TestEscDuringTheLongWait:
         tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
         waits = [ast.unparse(n) for n in ast.walk(tree)
                  if isinstance(n, ast.Call)
-                 and ast.unparse(n.func) in ("_wait_for_player", "_wait_for_the_room")]
+                 and ast.unparse(n.func) in ("_wait_for_funestra", "_wait_for_the_room")]
 
         assert len(waits) == 2
         assert all(call.endswith(", progress)") for call in waits), waits
@@ -1624,9 +1624,9 @@ def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
         reap_orphaned_satellites=MagicMock(),
         stock_the_playlists=MagicMock(),
         launch_audio_companion=MagicMock(return_value=MagicMock(pid=101)),
-        launch_vr_player=MagicMock(return_value=MagicMock(pid=202)),
+        launch_vr_funestras=MagicMock(return_value=MagicMock(pid=202)),
         get_process_creation_time=MagicMock(return_value=7),
-        _wait_for_player=MagicMock(return_value=True),
+        _wait_for_funestra=MagicMock(return_value=True),
         _wait_for_the_room=MagicMock(),
         start_hud_priming=MagicMock(return_value=(None, threading.Event())),
         stop_hotkey_script=MagicMock(side_effect=lambda _proc, _file: torn_down.append("hotkeys")),
@@ -1650,10 +1650,10 @@ def _end_a_vr_session(
         offered.append(kwargs.get("esc_cancels", ""))
         return real_closing_cover(*args, **kwargs)
 
-    player = MagicMock(pid=202)
-    player.poll.return_value = None
+    funestras = MagicMock(pid=202)
+    funestras.poll.return_value = None
     stand_ins = dict(
-        launch_vr_player=MagicMock(return_value=player),
+        launch_vr_funestras=MagicMock(return_value=funestras),
         wait_for_cover_painted=MagicMock(return_value=True),
         DispatchLoopRunner=MagicMock(),
         start_voice_control=MagicMock(return_value=(None, None)),
@@ -1703,7 +1703,7 @@ class TestOpeningAVrSession:
         assert torn_down == ["hotkeys", 101, 202, "runtime"]
         assert pending_handoff(config.paths.state_dir) is None
 
-    def test_a_player_that_never_comes_up_is_ended_with_the_cover_kept_up(self, config):
+    def test_a_funestra_that_never_comes_up_is_ended_with_the_cover_kept_up(self, config):
         """What it launched is ended under the opening cover, and a part slow to
         end must not let it go over the half-built room."""
         config.paths.state_dir.mkdir(parents=True, exist_ok=True)
@@ -1716,7 +1716,7 @@ class TestOpeningAVrSession:
                     stale_after_s=STARTUP_STALE_TIMEOUT_S))
 
         with _launch_stand_ins(
-            orchestrator, [], _wait_for_player=MagicMock(return_value=False),
+            orchestrator, [], _wait_for_funestra=MagicMock(return_value=False),
             kill_recorded_child=MagicMock(side_effect=the_audio_companion_takes_its_time),
         ), patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
              patch("fun_time_vr.orchestrator.subprocess.Popen"):
@@ -1735,30 +1735,30 @@ class TestOpeningAVrSession:
         assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines()[-1] == "PAUSE"
         assert config.broker_cmd_file.read_text(encoding="utf-8") == "PARK"
 
-    def test_a_player_that_dies_mid_session_leaves_its_exit_code_in_the_log(self, config, caplog):
+    def test_a_funestra_that_dies_mid_session_leaves_its_exit_code_in_the_log(self, config, caplog):
         died = MagicMock(pid=202, returncode=3221225477)
         died.poll.return_value = None
 
         with caplog.at_level(logging.INFO, logger="fun_time_vr.orchestrator"):
-            _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "player",
-                              launch_vr_player=MagicMock(return_value=died))
+            _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "funestras",
+                              launch_vr_funestras=MagicMock(return_value=died))
 
         assert "3221225477" in caplog.text
 
     def test_a_session_that_brings_the_runtime_up_remembers_the_sound_devices_first(
             self, config):
         happened: list[str] = []
-        player = MagicMock(pid=202)
-        player.poll.return_value = None
+        funestras = MagicMock(pid=202)
+        funestras.poll.return_value = None
         with patch.object(orchestrator.vr_runtime, "remember_the_sound_devices",
                           side_effect=happened.append):
             _end_a_vr_session(
                 orchestrator, config, ended_by=lambda *_a, **_k: "asked",
                 runtime_was_running=False,
-                launch_vr_player=MagicMock(
-                    side_effect=lambda **_k: (happened.append("player"), player)[1]))
+                launch_vr_funestras=MagicMock(
+                    side_effect=lambda **_k: (happened.append("funestras"), funestras)[1]))
 
-        assert happened == [config.paths.state_dir, "player"]
+        assert happened == [config.paths.state_dir, "funestras"]
 
     def test_a_session_on_a_runtime_that_was_already_up_remembers_nothing(self, config):
         with patch.object(orchestrator.vr_runtime, "remember_the_sound_devices") as remembered:
@@ -1822,7 +1822,7 @@ class TestOpeningAVrSession:
     def test_on_the_way_back_into_vr_the_headset_stays_covered_and_the_runtime_up(
         self, config,
     ):
-        """The player keeps its cover in front of him until the next one is up,
+        """The Funestra keeps its cover in front of him until the next one is up,
         and a runtime stopped here would only have to be started again."""
         asked = MagicMock()
         _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
@@ -1843,7 +1843,7 @@ class TestOpeningAVrSession:
         assert released == []
 
     def test_on_the_way_back_into_vr_both_covers_say_it_is_canceling(self, config):
-        """The held player reads the crossing cover's words; with none up it
+        """The held Funestra reads the crossing cover's words; with none up it
         would go on saying "Returning to Fun Time..." on the way back into VR."""
         _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
                           _wait_for_the_headset_hold=MagicMock(return_value=True))
@@ -1852,8 +1852,8 @@ class TestOpeningAVrSession:
             crossing_progress_path(config.paths.state_dir).read_text(encoding="utf-8"))
         assert (line.message, line.hint) == (CANCELING, "")
 
-    def test_the_player_is_asked_to_hold_before_the_controls_come_down(self, config):
-        """Letting go is the player's longest act -- two worker threads joined
+    def test_the_funestra_is_asked_to_hold_before_the_controls_come_down(self, config):
+        """Letting go is the Funestra's longest act -- two worker threads joined
         and four videos closed -- and the session has its own controls and its
         companion to bring down.  Asked first, the two run side by side; asked
         after, the crossing paid for them one at a time."""
@@ -1870,9 +1870,9 @@ class TestOpeningAVrSession:
 
         assert asked_by_then == [True]
 
-    def test_a_crossing_hands_the_player_the_runtime_this_session_started(self, config):
+    def test_a_crossing_hands_the_funestra_the_runtime_this_session_started(self, config):
         """Nobody else knows it started one: the orchestrator is about to exit,
-        and the player outlives it holding the cover, so the runtime's fate
+        and the Funestra outlives it holding the cover, so the runtime's fate
         rides on the ask."""
         asked = MagicMock()
         _end_a_vr_session(
@@ -1910,8 +1910,8 @@ class TestOpeningAVrSession:
             orchestrator, [],
             DispatchLoopRunner=runner,
             prepare_voice_control=prepare_voice,
-            launch_vr_player=MagicMock(
-                side_effect=lambda **_kwargs: order.append("player") or MagicMock(pid=202)),
+            launch_vr_funestras=MagicMock(
+                side_effect=lambda **_kwargs: order.append("funestras") or MagicMock(pid=202)),
             start_voice_control=start_voice,
             _wait_for_session_end=MagicMock(return_value="ahk"),
         ), patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
@@ -1919,7 +1919,7 @@ class TestOpeningAVrSession:
             orchestrator.run_vr_bridge(config, SessionEnvironment())
 
         manifest = LaunchManifest.read(config.paths.state_dir / "windows_bridge_launch.ini")
-        assert order == ["voice", "player"], "voice was prepared after the player launched"
+        assert order == ["voice", "funestras"], "voice was prepared after the Funestra launched"
         prepare_voice.assert_called_once_with(manifest.runtime.config_path)
         start_voice.assert_called_once_with(
             prepared,

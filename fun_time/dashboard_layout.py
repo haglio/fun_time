@@ -58,9 +58,9 @@ def client_rect_filling_frame(
 
 
 # --- the control bar ---------------------------------------------------------
-# The bar carries what belongs to no one player: quit, pause everything, the
+# The bar carries what belongs to no one Funestra: quit, pause everything, the
 # reference popup, the microphone, the room's F-mode, the way into VR.  Anything
-# about ONE player is on that player's HUD, so the bar is not arranged like the room.
+# about ONE Funestra is on that Funestra's HUD, so the bar is not arranged like the room.
 
 # The family's own button square and gap, the HUDs' size: the bar sits directly
 # above them on one screen, and two sizes of one control read as two chromes.
@@ -108,7 +108,7 @@ class DashboardBarLayout:
 def compute_dashboard_bar_layout() -> DashboardBarLayout:
     """The control bar, laid out left to right at its natural size: the app's
     name and mark, the session's own four in one run, the pair that reaches
-    every player (F-mode and Reset All), then the crossing to the other session.
+    every Funestra (F-mode and Reset All), then the crossing to the other session.
     """
     height = PAD * 2 + BUTTON
     mid = lambda size: PAD + (BUTTON - size) // 2  # vertical centering

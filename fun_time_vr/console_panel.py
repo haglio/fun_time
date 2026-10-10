@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 
-from player_core.hud_placement import HudEdge
+from funestra_core.hud_placement import HudEdge
 from shared_ui.palette import AMBER, GREEN, RED, TEXT_MUTED, TEXT_PRIMARY
 
 from fun_time.event_log import FAVORITE, NOTICE

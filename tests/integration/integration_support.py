@@ -16,13 +16,17 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from player_core.clip_folder import SUPPORTED_VIDEO_EXTS
-from player_core.file_channel import append_command
+from funestra_core.clip_folder import SUPPORTED_VIDEO_EXTS
+from funestra_core.file_channel import append_command
 
 from fun_time.branch_session import _apply_genau_checkout_override
 from fun_time.checkout_overrides import STATE_DIRNAME
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, load_config
 from fun_time.event_log import EventRecord, event_log_path, is_announcement, read_events
+from fun_time.funestra_status import (
+    MainFunestraStatus,
+    read_main_funestra_status,
+)
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 from fun_time.modes import (
     LIBRARY_MARKER,
@@ -30,14 +34,10 @@ from fun_time.modes import (
     has_handcrafted_funscript,
     matching_funscript,
 )
-from fun_time.player_status import (
-    MainPlayerStatus,
-    read_main_player_status,
-)
-from fun_time.players import Player
 from fun_time.process_identity import NAMER
 from fun_time.process_sweep import processes_matching
 from fun_time.process_tree import kill_process_tree
+from fun_time.room_funestras import RoomFunestra
 from fun_time.win32_process import (
     command_line_of,
     get_process_creation_time,
@@ -95,7 +95,7 @@ INTEGRATION_CONFIG_NAME = "fun_time_integration_config.json"
 
 
 # The images the apps a session leaves actually run as: the two
-# satellites, the main player/Genau/the audio companion/the dashboard (each under its own
+# satellites, the Main Funestra/Genau/the audio companion/the dashboard (each under its own
 # ``FunTime-*`` copy of pythonw, or under plain pythonw where that copy could not
 # be made), and the AHK hotkey shell.  python.exe is deliberately absent — pytest
 # and the orchestrator both run as python.exe, and a reap that kills a pytest
@@ -117,7 +117,7 @@ def _is_leftover_app(pid: int) -> bool:
 
 
 def _kill_leftover_app_processes() -> None:
-    """Kill leftover players / AHK / pythonw from a prior session so the next
+    """Kill leftover Funestras / AHK / pythonw from a prior session so the next
     one starts clean.
 
     Bounded to the hidden integration desktop's own windows.  Nothing on that
@@ -129,7 +129,7 @@ def _kill_leftover_app_processes() -> None:
     Anywhere else there is nothing of ours to find and nothing safe to kill, so
     this does nothing at all.  It used to fall back to
     ``Get-Process pythonw,autohotkey64 | where StartTime > -5min | Stop-Process``
-    — every player, companion and AHK bridge of any session started in the last
+    — every Funestra, companion and AHK bridge of any session started in the last
     five minutes, the user's included.  That existed to serve bare
     ``pytest tests/integration/``, the one invocation the suite forbids and now
     refuses outright.
@@ -150,7 +150,7 @@ def _kill_leftover_hosted_apps(window_pids) -> None:
     the pass above deliberately never kills, because the pytest of a queued run
     is python.exe too.  The command line is what tells them apart: only the
     hosted app was launched ``-m origenerator``, and a leftover one owns real
-    windows on this desktop that can sit over a later session's players (a
+    windows on this desktop that can sit over a later session's Funestras (a
     stalled boot's splash covered a satellite for a whole test run).
     """
     for pid in sorted(set(window_pids)):
@@ -170,7 +170,7 @@ STARTUP_STOPPED = "Fun Time stopped starting up"
 
 CHILDREN_GONE_TIMEOUT_S = 20.0
 
-# How long a command is given to show in what a player publishes.
+# How long a command is given to show in what a Funestra publishes.
 COMMAND_BUDGET_S = 120.0
 
 
@@ -222,9 +222,9 @@ class FunTimeIntegrationSession:
     def weird_dir(self) -> Path:
         return self.config.paths.weird_dir
 
-    def read_main_player_status(self) -> MainPlayerStatus:
-        """Parse the main player's published status file."""
-        return published_status(read_main_player_status, self.config.main_player_status_file)
+    def read_main_funestra_status(self) -> MainFunestraStatus:
+        """Parse the Main Funestra's published status file."""
+        return published_status(read_main_funestra_status, self.config.main_funestra_status_file)
 
     def read_child_pids(self) -> dict[str, int]:
         """Read all child PIDs from bridge_pids.ini."""
@@ -375,7 +375,7 @@ class FunTimeIntegrationSession:
         """Every announcement in this session's event log so far.
 
         The overlay flashes exactly what clears :func:`is_announcement`, so a
-        record here with the right source is a notice over the right player —
+        record here with the right source is a notice over the right Funestra —
         assertable without a QApplication.
         """
         records, _offset = read_events(event_log_path(self.config.paths.state_dir))
@@ -450,9 +450,9 @@ class FunTimeIntegrationSession:
         return "; ".join(
             f"{name} {_published_ago(status_file, now)}"
             for name, status_file in (
-                ("main player", self.config.main_player_status_file),
-                ("portrait", self.config.satellite(Player.PORTRAIT).status_file),
-                ("landscape", self.config.satellite(Player.LANDSCAPE).status_file)))
+                ("Main Funestra", self.config.main_funestra_status_file),
+                ("portrait", self.config.satellite(RoomFunestra.PORTRAIT).status_file),
+                ("landscape", self.config.satellite(RoomFunestra.LANDSCAPE).status_file)))
 
     def _read_log_file(self, path: Path | None) -> str:
         if path is None or not path.exists():
@@ -487,7 +487,7 @@ class FunTimeIntegrationSession:
 
         stop() hard-terminates the orchestrator with TerminateProcess, so the
         orchestrator's own graceful _shutdown_children() never runs and the
-        processes it launched (the two satellites, plus main player/Genau/dashboard/
+        processes it launched (the two satellites, plus Main Funestra/Genau/dashboard/
         audio) are orphaned.  Kill them via the production kill_recorded_child,
         which taskkills a recorded PID only while its creation time still names
         the process the orchestrator launched — a child that has already died
@@ -510,9 +510,9 @@ class FunTimeIntegrationSession:
     ) -> None:
         """Hold until the killed children are off the machine, or *timeout_s*.
 
-        A test that opens a second session over this state dir hands it a player
+        A test that opens a second session over this state dir hands it a Funestra
         still publishing: the dying one holds the temp name its own status file is
-        written through, and the new player's first write of it raises the sharing
+        written through, and the new Funestra's first write of it raises the sharing
         violation, which takes that startup down.
         """
         budget = Budget(timeout_s)
@@ -646,9 +646,9 @@ def _isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
       meant for the user's.
     * The **broker's T-Code inlet** is the one output that reaches hardware.  The
       broker holds the OSR2's serial port, so a run that keeps the production
-      inlet drives the user's device while they are using it.  Genau, the main
-      player and the VR main player move to one sink together, so a run's stream
-      stays watchable where it lands.  Both players read their port from Fun
+      inlet drives the user's device while they are using it.  Genau, the Main
+      Funestra and the VR Main Funestra move to one sink together, so a run's stream
+      stays watchable where it lands.  Both Funestras read their port from Fun
       Time's own config and fall back to the broker's for a section that is
       missing, so theirs is set whether or not the section is there.
     """
@@ -660,8 +660,8 @@ def _isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
 
     tcode_port = _sink_udp_port()
     genau_config["genau"]["tcode_udp_port"] = tcode_port
-    for player in ("main_player", "vr"):
-        config.setdefault(player, {})["tcode_udp_port"] = tcode_port
+    for funestra in ("main_player", "vr"):
+        config.setdefault(funestra, {})["tcode_udp_port"] = tcode_port
 
 
 def real_config_path() -> Path:
@@ -755,7 +755,7 @@ def apply_checkout_project_dirs(config: dict) -> None:
 
     A run launches this checkout's code, so it has to launch this checkout's
     SIBLINGS too: a branch that leans on an unlanded ``player_core`` change —
-    the satellites' HUD moved there, say — otherwise starts players that import
+    the satellites' HUD moved there, say — otherwise starts Funestras that import
     a name the primary's install does not have, and every one of them dies at
     import with no window and no status file, which reads as a suite of
     timeouts rather than as a path problem.  Ordinary checkouts have no
@@ -780,10 +780,10 @@ def environment_with_this_checkouts_siblings() -> dict[str, str]:
     return {**os.environ, "PYTHONPATH": checkout_project_dirs()}
 
 
-def point_the_main_player_at(config: dict, videos_dir: Path) -> None:
-    main_player = config.setdefault("main_player", {})
-    main_player["videos_dir"] = str(videos_dir)
-    main_player["scripts_dir"] = str(videos_dir).replace(LIBRARY_MARKER, SCRIPTS_MARKER)
+def point_the_main_funestra_at(config: dict, videos_dir: Path) -> None:
+    main_funestra = config.setdefault("main_player", {})
+    main_funestra["videos_dir"] = str(videos_dir)
+    main_funestra["scripts_dir"] = str(videos_dir).replace(LIBRARY_MARKER, SCRIPTS_MARKER)
 
 
 def build_integration_config(tmp_path: Path) -> Path:
@@ -816,7 +816,7 @@ def build_integration_config(tmp_path: Path) -> Path:
     config["random_favs_browser"]["enabled"] = False
     apply_checkout_project_dirs(config)
 
-    point_the_main_player_at(config, primary_dir)
+    point_the_main_funestra_at(config, primary_dir)
     genau_config = json.loads(Path(config["paths"]["genau_config_path"]).read_text(encoding="utf-8"))
     isolate_shared_resources(config, genau_config)
     test_genau_config = integration_root / "genau_integration_config.json"
@@ -863,8 +863,8 @@ class RootsLeftBehind(OSError):
     """What a run could not take away again, and why."""
 
 
-# How long the end of a run waits for its last sessions' players to let go of
-# their logs.  stop() reaps them, but a player takes a while to finish going:
+# How long the end of a run waits for its last sessions' Funestras to let go of
+# their logs.  stop() reaps them, but a Funestra takes a while to finish going:
 # 22 to 59 seconds on a machine the flake gate kept busy, and a minute was once
 # not enough.
 RELEASE_BUDGET_S = 180.0
@@ -988,7 +988,7 @@ def readable_at_speed(path, *, budget_s: float = 2.0, size: int = 16 << 20, read
 
     The VR masters sit on the pCloud drive, which fetches a file from the
     internet the first time anything on this machine opens it, and a cold one
-    can take minutes: a player fed one stalls on the fetch, not on the code
+    can take minutes: a Funestra fed one stalls on the fetch, not on the code
     under test.  The read runs on a thread it may never return from, so a
     cold file costs the budget and nothing more.
     """
@@ -1017,7 +1017,7 @@ def _read_head(path, size: int) -> None:
 
 def _link_primary_samples(real_config, dest_dir: Path, *, count: int = 5) -> list[Path]:
     candidates = [(candidate, source_root)
-                  for source_root in real_config.paths.main_player_library_dirs
+                  for source_root in real_config.paths.main_funestra_library_dirs
                   for candidate in library_clips([source_root])
                   if has_handcrafted_funscript(str(candidate))]
     if not candidates:

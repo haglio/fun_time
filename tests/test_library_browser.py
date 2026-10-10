@@ -276,7 +276,7 @@ def test_the_rendition_playing_need_not_be_the_one_a_pick_would_play(browser, tm
 
 
 def test_the_playing_path_is_matched_however_it_is_spelled(browser, tmp_path: Path):
-    """The player publishes a path, not the library's own spelling of one, and
+    """The Funestra publishes a path, not the library's own spelling of one, and
     the disk beneath both does not distinguish their case."""
     handles = [_handle("Beta Scene", "C:/Videos/Big_Batch/beta.mp4", section="big_batch")]
     window = browser(
@@ -873,9 +873,9 @@ def test_the_grid_takes_the_focus_though_the_sidebar_stands_first(browser, tmp_p
     assert window.focusWidget() is window.grid
 
 
-def test_opening_the_browser_brings_it_in_front_of_the_players(tmp_path: Path):
-    """The regression: the browse used to come up under the main player, with
-    the arrows and Enter still going to the player, because the entry point
+def test_opening_the_browser_brings_it_in_front_of_the_funestras(tmp_path: Path):
+    """The regression: the browse used to come up under the Main Funestra, with
+    the arrows and Enter still going to the Funestra, because the entry point
     asked Qt to activate a window Windows would not let this process activate.
     """
     manifest = tmp_path / "windows_bridge_launch.ini"
@@ -895,7 +895,7 @@ def test_the_browser_reads_its_library_from_the_session_manifest(tmp_path: Path,
 
     browser_config = load_browser_config(manifest)
 
-    assert browser_config.sources == "|".join(str(path) for path in config.paths.main_player_library_dirs)
+    assert browser_config.sources == "|".join(str(path) for path in config.paths.main_funestra_library_dirs)
     assert browser_config.metadata_root == tmp_path / "videos" / "metadata"
     assert browser_config.thumbnail_cache.parent == manifest.parent
 

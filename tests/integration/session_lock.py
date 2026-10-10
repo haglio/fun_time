@@ -1,7 +1,7 @@
 """A machine-wide single-instance lock for serializing integration runs.
 
 Multiple worktree agents share this repo and may launch the integration suite
-at the same time.  Every run launches the players/AHK and reaps leftover app
+at the same time.  Every run launches the Funestras/AHK and reaps leftover app
 processes (``FunTimeIntegrationSession._reap_leftover_runtime_processes``) that
 force-kills *any* AutoHotkey64/pythonw it finds — including a concurrent
 run's freshly-spawned processes — and the AHK bridge runs under ``#SingleInstance

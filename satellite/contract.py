@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from player_core.funestra import Channels
+from funestra_core.funestra import Channels
 
 #: field, the flag it is given by -- none for the main slot's console, which no
 #: satellite is given -- and the manifest's kind of file, ``None`` where it has none.
@@ -73,7 +73,7 @@ class SatelliteChannels(Channels):
         )
 
     @classmethod
-    def from_manifest(cls, commands, player: str, *,
+    def from_manifest(cls, commands, funestra: str, *,
                       play_points: Path | None = None) -> SatelliteChannels:
         return cls(
             play_points=play_points,
@@ -81,7 +81,7 @@ class SatelliteChannels(Channels):
             drive=Path(commands.genau_drive_file),
             tcode_host=commands.tcode_udp_host,
             tcode_port=int(commands.tcode_udp_port),
-            **{field: Path(commands.player_file(player, kind))
+            **{field: Path(commands.funestra_file(funestra, kind))
                for field, _flag, kind in CHANNELS if kind is not None},
         )
 

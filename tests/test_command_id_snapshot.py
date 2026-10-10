@@ -1,12 +1,12 @@
 """The full dispatch-command id set, pinned byte-for-byte.
 
 Command ids are public surface: windows_bridge_hotkeys.ahk queues them, the
-player HUDs in player_core post them (``portrait_minimize``,
-``portrait_play_video|<path>``), the main player's console posts more, and the in-app
+Funestra HUDs in player_core post them (``portrait_minimize``,
+``portrait_play_video|<path>``), the Main Funestra's console posts more, and the in-app
 reference prints them.  The command-registry restructure (audit item 33) may
 move where an id is *defined*, but no id may change spelling — this snapshot
 is the gate.  It unions every id the three in-repo surfaces name (the spoken
-vocabulary, the AHK script, the reference) plus the handful only a player HUD
+vocabulary, the AHK script, the reference) plus the handful only a Funestra HUD
 or console posts, and holds the result to one literal list.
 
 The act-filter ids (``filter_<scope>_<act>``) come from the content overlay,
@@ -27,9 +27,9 @@ from fun_time.voice_commands import VOICE_COMMANDS
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Commands no spoken phrase, hotkey or reference row names: posted straight off
-# a player's own surface as a literal string in that player's repo.  The three
-# minimize buttons live on the HUDs (player_core / the main player's console); the
-# padlock on that console locks whichever player is on the main screen; the speed
+# a Funestra's own surface as a literal string in that Funestra's repo.  The three
+# minimize buttons live on the HUDs (player_core / the Main Funestra's console); the
+# padlock on that console locks whichever Funestra is on the main screen; the speed
 # pair is Genau's console's own ± marks beside its drive readout; the enhanced
 # filter is the switch the console draws over a hosted Origenerator's shows,
 # which the room hears as "enhanced only" rather than under this id.  The two
@@ -50,7 +50,7 @@ HUD_ONLY_COMMAND_IDS = (
 )
 
 # The argument-carrying forms, matched by prefix rather than listed whole: the
-# HUD thumbnail clicks and the main player's volume slider carry their payload after a "|".
+# HUD thumbnail clicks and the Main Funestra's volume slider carry their payload after a "|".
 PREFIXED_COMMAND_FORMS = (
     "audio_set_volume|",
     "landscape_lock_video|",
@@ -348,8 +348,8 @@ def _expected_numeric_ids() -> set[str]:
     }
     ids |= {f"genau_clip_seconds_{value}" for value in range(1, 61)}
     ids |= {
-        f"{player}_speed_{pct}"
-        for player in ("main_player", "active", "both", "portrait", "landscape")
+        f"{funestra}_speed_{pct}"
+        for funestra in ("main_player", "active", "both", "portrait", "landscape")
         for pct in (25, 50, 75, 100, 125, 150, 175, 200)
     }
     return ids
@@ -399,7 +399,7 @@ def test_the_snapshot_is_sorted_and_duplicate_free():
 def test_the_prefixed_forms_keep_their_spellings():
     """The payload-carrying prefixes are cross-repo surface too: the satellite
     HUDs build ``<side>_play_video|<path>`` / ``<side>_lock_video|<path>`` and
-    The main player's slider builds ``audio_set_volume|<level>`` in their own repos."""
+    The Main Funestra's slider builds ``audio_set_volume|<level>`` in their own repos."""
     assert PREFIXED_COMMAND_FORMS == (
         "audio_set_volume|",
         "landscape_lock_video|",

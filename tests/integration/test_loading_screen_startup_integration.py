@@ -46,7 +46,7 @@ pytestmark = [
     ),
 ]
 
-_SATELLITE_TITLES = ("Portrait AI Player", "Landscape AI Player")
+_SATELLITE_TITLES = ("Portrait AI Funestra", "Landscape AI Funestra")
 
 
 def test_the_satellites_end_startup_frontmost_over_their_rects():
@@ -61,8 +61,8 @@ def test_the_satellites_end_startup_frontmost_over_their_rects():
         #
         # Faked side-by-side monitors, because the hidden desktop reports one:
         # on a single screen the real layout collapses every window onto it and
-        # the players legitimately overlap each other, which makes "is each
-        # player frontmost over its own rect" unanswerable.  A landscape
+        # the Funestras legitimately overlap each other, which makes "is each
+        # Funestra frontmost over its own rect" unanswerable.  A landscape
         # primary and a portrait secondary, both inside the desktop's visible
         # area, give the plan the disjoint rects a real session has.
         session.start(wait_seconds=90.0,

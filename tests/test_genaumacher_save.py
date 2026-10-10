@@ -42,16 +42,16 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
         genau_status_file=state_dir / "genau_status.txt",
         audio_paused_file=state_dir / "audio_paused.txt",
         audio_volume_file=state_dir / "audio_volume.txt",
-        main_player_cmd_file=state_dir / "main_player_cmd.txt",
-        main_player_paused_file=state_dir / "main_player_paused.txt",
-        main_player_status_file=state_dir / "main_player_status.txt",
+        main_funestra_cmd_file=state_dir / "main_player_cmd.txt",
+        main_funestra_paused_file=state_dir / "main_player_paused.txt",
+        main_funestra_status_file=state_dir / "main_player_status.txt",
         dashboard_state_file=state_dir / "dashboard_state.ini",
     )
 
 
-def test_the_save_runs_genaumachers_venv_on_main_players_video_and_position(tmp_path: Path):
+def test_the_save_runs_genaumachers_venv_on_main_funestras_video_and_position(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.main_player_status_file.write_text(
+    config.main_funestra_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\nloop_state=normal\npaused=0\n",
         encoding="utf-8",
     )
@@ -82,7 +82,7 @@ def test_the_save_runs_genaumachers_venv_on_main_players_video_and_position(tmp_
 
 def test_a_failed_save_answers_empty(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.main_player_status_file.write_text(
+    config.main_funestra_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
@@ -104,7 +104,7 @@ def test_a_failed_save_is_logged_as_an_error(tmp_path: Path, caplog, failure):
     """The save that was asked for did not happen, and the log line is the only
     word of it that flashes, so it reads red rather than a warning's yellow."""
     config = _make_config(tmp_path)
-    config.main_player_status_file.write_text(
+    config.main_funestra_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
@@ -119,7 +119,7 @@ def test_a_failed_save_is_logged_as_an_error(tmp_path: Path, caplog, failure):
 
 def test_no_video_playing_means_no_subprocess_at_all(tmp_path: Path):
     config = _make_config(tmp_path)
-    # No main_player_status file → no current video → nothing to clip.
+    # No main_funestra_status file → no current video → nothing to clip.
 
     with patch("fun_time.genaumacher_save.subprocess") as mock_subprocess:
         message = save_clip_session(config)
@@ -130,7 +130,7 @@ def test_no_video_playing_means_no_subprocess_at_all(tmp_path: Path):
 
 def test_a_timeout_reads_as_a_failed_save_not_a_crash(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.main_player_status_file.write_text(
+    config.main_funestra_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
@@ -146,7 +146,7 @@ def test_a_bug_in_our_own_argument_building_surfaces(tmp_path: Path):
     """The old bare `except Exception` read a TypeError in our own code as
     "genaumacher failed"; only the OS and subprocess failures are genaumacher's."""
     config = _make_config(tmp_path)
-    config.main_player_status_file.write_text(
+    config.main_funestra_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
@@ -166,7 +166,7 @@ def _a_checkout_holding(root: Path, package: str) -> Path:
 def test_the_save_runs_the_package_the_checkout_holds(tmp_path: Path, package):
     checkout = _a_checkout_holding(tmp_path / "checkout", package)
     config = _make_config(tmp_path)
-    config.main_player_status_file.write_text(
+    config.main_funestra_status_file.write_text(
         "video=C:\videos\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 

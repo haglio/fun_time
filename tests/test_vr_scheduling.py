@@ -68,7 +68,7 @@ def _ahead(avrt=None, gdi32=None, kernel32=None, **kwargs):
         this_process=lambda: A_PROCESS, **kwargs)
 
 
-def test_the_block_runs_above_normal_priority_as_every_player_does():
+def test_the_block_runs_above_normal_priority_as_every_funestra_does():
     kernel32 = _FakeKernel32()
 
     with _ahead(kernel32=kernel32):

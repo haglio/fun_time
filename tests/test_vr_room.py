@@ -4,7 +4,7 @@ from __future__ import annotations
 import ast
 import inspect
 
-from fun_time_vr import layout, player, room
+from fun_time_vr import funestras, layout, room
 from fun_time_vr import room as under_test
 from fun_time_vr.pointer import Screen
 from fun_time_vr.room import Hanging
@@ -161,7 +161,7 @@ class TestWhereEachScreenHangs:
         assert moved.placement == ELSEWHERE
 
     def test_two_things_hanging_by_one_name_both_move(self):
-        """The main slot is two players' screens, whichever is showing."""
+        """The main slot is two Funestras' screens, whichever is showing."""
         one, other = _Moved(SOMEWHERE), _Moved(SOMEWHERE)
 
         where = room.where_they_hang([_Hanger({"main": room.Hangs((one,))}),
@@ -203,12 +203,12 @@ class TestTheGatesOnTheRoomsAssembly:
             node.attr for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Attribute)}
 
     def _kinds_of_screen(self) -> set[str]:
-        return {name for name, thing in vars(player).items()
+        return {name for name, thing in vars(funestras).items()
                 if isinstance(thing, type) and name.endswith("Unit")}
 
     def _kinds_the_room_holds(self) -> set[str]:
         """The kinds registered, which is every one of them but the shared base."""
-        kinds = {name: getattr(player, name) for name in self._kinds_of_screen()}
+        kinds = {name: getattr(funestras, name) for name in self._kinds_of_screen()}
         return {name for name, kind in kinds.items()
                 if not any(other is not kind and issubclass(other, kind)
                            for other in kinds.values())}
@@ -223,7 +223,7 @@ class TestTheGatesOnTheRoomsAssembly:
         assert len(self._screen_names()) >= 7
 
     def test_the_eye_pass_names_no_kind_of_screen(self):
-        assert self._kinds_of_screen() & self._names_in(self._source(player._draw_eyes)) == set()
+        assert self._kinds_of_screen() & self._names_in(self._source(funestras._draw_eyes)) == set()
 
     def test_the_assembly_names_no_kind_of_screen_and_no_screen(self):
         """It is handed what each thing hangs, and walks that."""
@@ -235,7 +235,7 @@ class TestTheGatesOnTheRoomsAssembly:
     def test_the_frame_loop_names_no_screen_of_its_own(self):
         """Every screen it works on comes from the room, so adding one is a
         registration rather than a line in here."""
-        (loop,) = [node for node in ast.walk(ast.parse(inspect.getsource(player._run)))
+        (loop,) = [node for node in ast.walk(ast.parse(inspect.getsource(funestras._run)))
                    if isinstance(node, ast.While)]
 
         assert self._screen_names() & self._names_in(ast.unparse(loop)) == set()
@@ -243,7 +243,7 @@ class TestTheGatesOnTheRoomsAssembly:
     def test_everything_the_room_holds_answers_every_question_it_is_asked(self):
         """Half a screen — pumped but never drawn, drawn but never closed — is
         what threading them by hand kept producing."""
-        tree = ast.parse(inspect.getsource(player._run))
+        tree = ast.parse(inspect.getsource(funestras._run))
         built = {node.targets[0].id: node.value for node in ast.walk(tree)
                  if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)}
 
@@ -258,7 +258,7 @@ class TestTheGatesOnTheRoomsAssembly:
             elif isinstance(expr, ast.ListComp):
                 yield from made_by(expr.elt)
             elif isinstance(expr, ast.Call):
-                yield getattr(player, ast.unparse(expr.func))
+                yield getattr(funestras, ast.unparse(expr.func))
 
         kinds = list(made_by(built["units"]))
 
@@ -278,16 +278,16 @@ class TestTheGatesOnTheRoomsAssembly:
         the layout module beside its unit.  Two branches adding unrelated
         screens met there; there is nowhere left for them to meet."""
         assert self._spots_held_by(layout) == {}
-        assert {name for name, kind in vars(player).items()
+        assert {name for name, kind in vars(funestras).items()
                 if isinstance(kind, type) and getattr(kind, "SPOTS", None)} == {
             "_MainUnit", "_SatelliteUnit", "_DashUnit", "_LibraryUnit"}
-        assert self._spots_held_by(player) == {}
+        assert self._spots_held_by(funestras) == {}
 
     def test_the_room_is_the_one_list_everything_is_read_off(self):
         """One registration per screen: the same list is what is closed, what
         is pumped (less the Main Funestra, on a worker of its own), what the
         pointer reaches, what is drawn and what a drag moves."""
-        tree = ast.parse(inspect.getsource(player._run))
+        tree = ast.parse(inspect.getsource(funestras._run))
         assigned = {ast.unparse(node.targets[0]): ast.unparse(node.value)
                     for node in ast.walk(tree) if isinstance(node, ast.Assign)}
         walked = {ast.unparse(node.iter) for node in ast.walk(tree) if isinstance(node, ast.For)}

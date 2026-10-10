@@ -7,11 +7,11 @@ from pathlib import Path
 from typing import Protocol
 
 from app_support.threading_utils import start_daemon_thread
-from player_core.file_channel import append_command
-from player_core.player_verbs import RELOAD_PLAYLIST, SET_F_MODE, play_file
+from funestra_core.file_channel import append_command
+from funestra_core.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE, play_file
 
 from .modes import (
-    PLAYLIST_MAIN_PLAYER,
+    PLAYLIST_MAIN_FUNESTRA,
     VideoShapes,
     build_main_playlist_paths,
     build_playlist_file_path,
@@ -27,7 +27,7 @@ class MainListBuild:
     scripted_filter: bool
     main_sources: str
     state_dir: Path
-    main_player_cmd_file: Path
+    main_funestra_cmd_file: Path
     recent: bool = False
     start_at_top: bool = False
     shapes: VideoShapes | None = None
@@ -38,13 +38,13 @@ class MainListBuild:
             self.main_sources, self.scripted_filter, recent=self.recent, shapes=self.shapes,
             metadata_root=self.metadata_root)
         write_playlist_file(
-            build_playlist_file_path(Path(self.state_dir), PLAYLIST_MAIN_PLAYER), paths,
+            build_playlist_file_path(Path(self.state_dir), PLAYLIST_MAIN_FUNESTRA), paths,
             metadata_root=self.metadata_root)
         verbs = [RELOAD_PLAYLIST, f"{SET_F_MODE} {int(self.scripted_filter)}"]
         if self.start_at_top and paths:
             verbs.append(play_file(scripted_item(paths[0], self.metadata_root)))
         for verb in verbs:
-            append_command(Path(self.main_player_cmd_file), verb)
+            append_command(Path(self.main_funestra_cmd_file), verb)
 
     def replacing(self, waiting: MainListBuild) -> MainListBuild:
         return replace(self, start_at_top=self.start_at_top or waiting.start_at_top)
@@ -99,4 +99,4 @@ class BuildsOffTheLoop:
             try:
                 build.run()
             except Exception:
-                logger.exception("The main player's list could not be rebuilt")
+                logger.exception("The Main Funestra's list could not be rebuilt")

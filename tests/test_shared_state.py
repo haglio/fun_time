@@ -11,11 +11,11 @@ from enum import Enum
 from pathlib import Path
 
 import pytest
-from player_core.modes import MainMode
+from funestra_core.modes import MainMode
 
 from fun_time import shared_state
 from fun_time.mode_plan import MAIN_KINO_MODE, MAIN_MODES
-from fun_time.players import Player
+from fun_time.room_funestras import RoomFunestra
 from fun_time.satellites_mode import KINO_MODE as SATELLITES_KINO_MODE
 from fun_time.shared_state import (
     _LAST_SESSIONS_KEYS,
@@ -73,10 +73,10 @@ def _shifted_state(state: BridgeState) -> BridgeState:
     shifted = replace(state, **{
         f.name: _shifted(getattr(state, f.name)) for f in fields(state)
         if not isinstance(getattr(state, f.name), SatelliteState)})
-    for player in Player.SATELLITES:
-        side = shifted.satellite(player)
+    for funestra in RoomFunestra.SATELLITES:
+        side = shifted.satellite(funestra)
         shifted = shifted.with_satellite(
-            player, **{f.name: _shifted(getattr(side, f.name)) for f in fields(side)})
+            funestra, **{f.name: _shifted(getattr(side, f.name)) for f in fields(side)})
     return shifted
 
 
@@ -118,19 +118,19 @@ class TestSharedState:
         state_file = tmp_path / "shared_state.ini"
         assert read_shared_state(state_file) is None
 
-    def test_active_player_roundtrips(self, tmp_path):
-        """active_player must persist: tick() reloads state from this file every
+    def test_active_funestra_roundtrips(self, tmp_path):
+        """active_funestra must persist: tick() reloads state from this file every
         iteration, so a side set by a nav command would be lost otherwise."""
         state_file = tmp_path / "shared_state.ini"
-        write_shared_state(state_file, BridgeState(active_player=3))
+        write_shared_state(state_file, BridgeState(active_funestra=3))
 
         loaded = read_shared_state(state_file)
 
         assert loaded is not None
-        assert loaded.active_player == 3
+        assert loaded.active_funestra == 3
 
-    def test_active_player_defaults_to_the_primary_for_legacy_files(self, tmp_path):
-        """An INI written before active_player existed loads as the main player (1) —
+    def test_active_funestra_defaults_to_the_primary_for_legacy_files(self, tmp_path):
+        """An INI written before active_funestra existed loads as the Main Funestra (1) —
         the same floor a fresh session opens on."""
         state_file = tmp_path / "shared_state.ini"
         state_file.write_text(
@@ -142,7 +142,7 @@ class TestSharedState:
         loaded = read_shared_state(state_file)
 
         assert loaded is not None
-        assert loaded.active_player == 1
+        assert loaded.active_funestra == 1
 
     def test_roundtrip_preserves_the_sound_level(self, tmp_path):
         """volume/muted must persist: tick() reloads state from this file every
@@ -166,8 +166,8 @@ class TestSharedState:
         write_shared_state(state_file, state)
         loaded = read_shared_state(state_file)
 
-        assert loaded.satellite(Player.PORTRAIT).filter == "beta gamma"
-        assert loaded.satellite(Player.LANDSCAPE).filter == "alpha"
+        assert loaded.satellite(RoomFunestra.PORTRAIT).filter == "beta gamma"
+        assert loaded.satellite(RoomFunestra.LANDSCAPE).filter == "alpha"
 
     def test_roundtrip_preserves_per_satellite_loops(self, tmp_path):
         """The HUD runs in its own process and reads its loop state from this
@@ -179,8 +179,8 @@ class TestSharedState:
         write_shared_state(state_file, state)
         loaded = read_shared_state(state_file)
 
-        assert loaded.satellite(Player.PORTRAIT).loop == "seed"
-        assert loaded.satellite(Player.LANDSCAPE).loop == "action"
+        assert loaded.satellite(RoomFunestra.PORTRAIT).loop == "seed"
+        assert loaded.satellite(RoomFunestra.LANDSCAPE).loop == "action"
 
     def test_roundtrip_preserves_the_map_anchor(self, tmp_path):
         """The HUD orders a running loop's map from the clip the loop started on,
@@ -192,8 +192,8 @@ class TestSharedState:
         write_shared_state(state_file, state)
         loaded = read_shared_state(state_file)
 
-        assert loaded.satellite(Player.PORTRAIT).map_anchor == "C:/v/a.mp4"
-        assert loaded.satellite(Player.LANDSCAPE).map_anchor == "C:/v/b.mp4"
+        assert loaded.satellite(RoomFunestra.PORTRAIT).map_anchor == "C:/v/a.mp4"
+        assert loaded.satellite(RoomFunestra.LANDSCAPE).map_anchor == "C:/v/b.mp4"
 
     def test_roundtrip_preserves_the_widen_clip(self, tmp_path):
         """The HUD reads which clip each side's seed row is widened around from
@@ -205,8 +205,8 @@ class TestSharedState:
         write_shared_state(state_file, state)
         loaded = read_shared_state(state_file)
 
-        assert loaded.satellite(Player.PORTRAIT).widen_clip == "C:/v/a.mp4"
-        assert loaded.satellite(Player.LANDSCAPE).widen_clip == "C:/v/b.mp4"
+        assert loaded.satellite(RoomFunestra.PORTRAIT).widen_clip == "C:/v/a.mp4"
+        assert loaded.satellite(RoomFunestra.LANDSCAPE).widen_clip == "C:/v/b.mp4"
 
     def test_roundtrip_preserves_the_nav_anchor(self, tmp_path):
         """The HUD reads which clip each side's map is frozen on for keyboard
@@ -218,8 +218,8 @@ class TestSharedState:
         write_shared_state(state_file, state)
         loaded = read_shared_state(state_file)
 
-        assert loaded.satellite(Player.PORTRAIT).nav_anchor == "C:/v/a.mp4"
-        assert loaded.satellite(Player.LANDSCAPE).nav_anchor == "C:/v/b.mp4"
+        assert loaded.satellite(RoomFunestra.PORTRAIT).nav_anchor == "C:/v/a.mp4"
+        assert loaded.satellite(RoomFunestra.LANDSCAPE).nav_anchor == "C:/v/b.mp4"
 
     def test_state_files_without_loop_keys_load_as_unlooped(self, tmp_path):
         # A state file written before loops were tracked must still load.
@@ -233,8 +233,8 @@ class TestSharedState:
         loaded = read_shared_state(state_file)
 
         assert loaded is not None
-        assert loaded.satellite(Player.PORTRAIT).loop == ""
-        assert loaded.satellite(Player.LANDSCAPE).loop == ""
+        assert loaded.satellite(RoomFunestra.PORTRAIT).loop == ""
+        assert loaded.satellite(RoomFunestra.LANDSCAPE).loop == ""
 
     def test_a_switch_that_starts_on_reads_on_from_a_file_written_before_it(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
@@ -256,8 +256,8 @@ class TestSharedState:
         loaded = read_shared_state(state_file)
 
         assert loaded is not None
-        assert loaded.satellite(Player.PORTRAIT).filter == ""
-        assert loaded.satellite(Player.LANDSCAPE).filter == ""
+        assert loaded.satellite(RoomFunestra.PORTRAIT).filter == ""
+        assert loaded.satellite(RoomFunestra.LANDSCAPE).filter == ""
 
 
 def test_reading_the_state_file_does_not_drag_in_the_dispatcher():
@@ -327,12 +327,12 @@ def test_no_satellite_value_is_a_field_of_the_whole_state():
 
     assert stray == [], (
         "these say a satellite's name in the state record: " + ", ".join(stray)
-        + " — put them on SatelliteState and reach them through BridgeState.player."
+        + " — put them on SatelliteState and reach them through BridgeState.Funestra."
     )
 
 
 class TestTheSideLens:
-    """BridgeState.player / with_satellite — how a caller holding one satellite reaches
+    """BridgeState.Funestra / with_satellite — how a caller holding one satellite reaches
     that satellite's state and nothing else."""
 
     def test_side_reads_the_state_of_that_satellite_alone(self):
@@ -342,45 +342,45 @@ class TestTheSideLens:
                 map_anchor="a.mp4", widen_clip="w.mp4", nav_anchor="n.mp4"),
             landscape=SatelliteState(filter="beta gamma"),
         )
-        portrait = state.satellite(Player.PORTRAIT)
+        portrait = state.satellite(RoomFunestra.PORTRAIT)
         assert (portrait.locked, portrait.filter, portrait.favorites_filter) == (True, "alpha", True)
         assert (portrait.latest, portrait.loop) == (True, "seed")
         assert (portrait.map_anchor, portrait.widen_clip, portrait.nav_anchor) == (
             "a.mp4", "w.mp4", "n.mp4")
-        landscape = state.satellite(Player.LANDSCAPE)
+        landscape = state.satellite(RoomFunestra.LANDSCAPE)
         assert landscape.filter == "beta gamma"
         assert landscape.locked is False
 
     def test_with_satellite_leaves_the_other_satellite_where_it_was(self):
         state = BridgeState(landscape=SatelliteState(filter="delta"))
 
-        state = state.with_satellite(Player.PORTRAIT, locked=True, loop="action",
+        state = state.with_satellite(RoomFunestra.PORTRAIT, locked=True, loop="action",
                                 map_anchor="x.mp4")
 
-        assert state.satellite(Player.PORTRAIT) == SatelliteState(
+        assert state.satellite(RoomFunestra.PORTRAIT) == SatelliteState(
             locked=True, loop="action", map_anchor="x.mp4")
-        assert state.satellite(Player.LANDSCAPE) == SatelliteState(filter="delta")
+        assert state.satellite(RoomFunestra.LANDSCAPE) == SatelliteState(filter="delta")
 
     def test_with_satellite_refuses_a_name_no_satellite_carries(self):
         """Every caller names the value it sets, so a misspelling is a write that
         goes nowhere at all unless the record refuses it."""
         with pytest.raises(TypeError):
-            BridgeState().with_satellite(Player.PORTRAIT, lokced=True)
+            BridgeState().with_satellite(RoomFunestra.PORTRAIT, lokced=True)
 
     def test_a_default_side_state_means_the_side_sits_at_its_defaults(self):
-        assert BridgeState().satellite(Player.LANDSCAPE) == SatelliteState()
+        assert BridgeState().satellite(RoomFunestra.LANDSCAPE) == SatelliteState()
         assert BridgeState(landscape=SatelliteState(loop="seed")).satellite(
-            Player.LANDSCAPE) != SatelliteState()
+            RoomFunestra.LANDSCAPE) != SatelliteState()
 
     def test_the_lens_survives_the_ini_round_trip(self, tmp_path):
         state_file = tmp_path / "shared_bridge_state.ini"
         state = BridgeState().with_satellite(
-            Player.LANDSCAPE, filter="delta", favorites_filter=True, latest=True)
+            RoomFunestra.LANDSCAPE, filter="delta", favorites_filter=True, latest=True)
 
         write_shared_state(state_file, state)
 
-        assert read_shared_state(state_file).satellite(Player.LANDSCAPE) == state.satellite(
-            Player.LANDSCAPE)
+        assert read_shared_state(state_file).satellite(RoomFunestra.LANDSCAPE) == state.satellite(
+            RoomFunestra.LANDSCAPE)
 
 
 def test_a_state_saved_under_an_old_name_of_the_mode_comes_back_in_kino_mode(tmp_path: Path):
@@ -388,7 +388,7 @@ def test_a_state_saved_under_an_old_name_of_the_mode_comes_back_in_kino_mode(tmp
     until it was renamed kino, and the satellites' player mode followed it both
     times.  A file saved under any of those words has to come back as the mode
     they are now: an unrecognized one used to answer False to every question and
-    quietly park the players, and now build_mode_switch_plan refuses it outright,
+    quietly park the Funestras, and now build_mode_switch_plan refuses it outright,
     so a resumed session would not switch at all."""
     state_file = tmp_path / SHARED_STATE_FILENAME
     for saved_main, saved_satellites in (("main_player", "player"), ("hybrid", "player"),
@@ -426,7 +426,7 @@ _EXPECTED_STATE_KEYS = {
     "main_latest": "0", "portrait_latest": "0", "landscape_latest": "0",
     "main_plays_vr": "1", "main_plays_flat": "1",
     "genau_latest": "0", "genau_plays_vr": "1", "genau_plays_flat": "1",
-    "active_player": "1",
+    "active_funestra": "1",
     "portrait_filter": "", "landscape_filter": "",
     "portrait_loop": "", "landscape_loop": "",
     "portrait_map_anchor": "", "landscape_map_anchor": "",
@@ -435,7 +435,7 @@ _EXPECTED_STATE_KEYS = {
     "volume": "100", "muted": "0", "max_intensity": "100",
     "osr2_control": "driving",
     "crowned": "main", "majority": "portrait",
-    "osr2_player": "1",
+    "osr2_funestra": "1",
 }
 
 

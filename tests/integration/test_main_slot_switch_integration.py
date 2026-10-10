@@ -37,8 +37,8 @@ def shared_integration_session():
         session.stop()
 
 
-def _main_player(s: FunTimeIntegrationSession) -> int:
-    return find_window_for_process(s.read_child_pids()["main_player_pid"], "Main Player")
+def _main_funestra(s: FunTimeIntegrationSession) -> int:
+    return find_window_for_process(s.read_child_pids()["main_funestra_pid"], "Main Funestra")
 
 
 def _nothing_over(hwnd: int) -> bool:
@@ -57,37 +57,37 @@ def _stays_up(hwnd: int, *, seconds: float) -> bool:
 SWITCHES = (("genau_activate", "genau"), ("main_kino_activate", "kino"))
 
 
-def test_a_switch_either_way_leaves_the_main_player_up_and_frontmost(
+def test_a_switch_either_way_leaves_the_main_funestra_up_and_frontmost(
         shared_integration_session: FunTimeIntegrationSession):
     """Kino and Genau run on the one window, so a switch has nothing to park and
-    nothing to stack: the Main Player stays up, stays frontmost over its rect,
+    nothing to stack: the Main Funestra stays up, stays frontmost over its rect,
     and no second window appears in the slot."""
     s = shared_integration_session
-    main_player = _main_player(s)
+    main_funestra = _main_funestra(s)
     for command, mode in SWITCHES:
         s.write_dashboard_command(command)
         s.wait_for_new_log(f"Switched to {mode} mode")
-        assert _stays_up(main_player, seconds=1.0), f"the main player was parked switching to {mode} mode"
-        s.wait_until(lambda: _nothing_over(main_player),
-                     description=f"the main player to be frontmost in {mode} mode")
+        assert _stays_up(main_funestra, seconds=1.0), f"the Main Funestra was parked switching to {mode} mode"
+        s.wait_until(lambda: _nothing_over(main_funestra),
+                     description=f"the Main Funestra to be frontmost in {mode} mode")
         assert find_window_by_title("Genau") == 0, "a second window took the main slot"
 
 
-def test_a_switch_while_paused_leaves_the_main_player_where_the_pause_put_it(
+def test_a_switch_while_paused_leaves_the_main_funestra_where_the_pause_put_it(
         shared_integration_session: FunTimeIntegrationSession):
     """OmniPause owns the window state while it holds: a switch under it changes
-    what plays on the Main Player and moves the window nowhere, and leaving the
+    what plays on the Main Funestra and moves the window nowhere, and leaving the
     pause brings it back frontmost."""
     s = shared_integration_session
-    main_player = _main_player(s)
+    main_funestra = _main_funestra(s)
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("Topmost [post-enter]")
     for command, mode in SWITCHES:
         s.write_dashboard_command(command)
         s.wait_for_new_log(f"Switched to {mode} mode")
-        assert _stays_up(main_player, seconds=0.5), f"the main player was parked switching to {mode} mode"
+        assert _stays_up(main_funestra, seconds=0.5), f"the Main Funestra was parked switching to {mode} mode"
 
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("Topmost [post-leave]")
-    s.wait_until(lambda: _nothing_over(main_player),
-                 description="the main player to come back frontmost after the pause")
+    s.wait_until(lambda: _nothing_over(main_funestra),
+                 description="the Main Funestra to come back frontmost after the pause")

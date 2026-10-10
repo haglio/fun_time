@@ -10,7 +10,7 @@ import math
 from dataclasses import dataclass, replace
 
 import numpy as np
-from player_core.hud_placement import HudEdge
+from funestra_core.hud_placement import HudEdge
 
 # The view matrix is rotation-only (no head translation reaches the scene), so
 # the radius sets apparent scale only.

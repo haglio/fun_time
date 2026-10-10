@@ -281,7 +281,7 @@ def test_the_f_mode_row_offers_favorites_only_with_a_side_named():
     assert "favorites" not in f_mode.voice
 
 
-def test_the_satellite_grid_carries_a_players_own_playback_speed():
+def test_the_satellite_grid_carries_a_funestras_own_playback_speed():
     rows = _satellite_section().rows
     nudge = next(r for r in rows if "portrait_speed_up" in r.commands)
     rate = next(r for r in rows if "portrait_speed_50" in r.commands)
@@ -322,9 +322,9 @@ def test_no_row_tells_you_to_say_genau_by_its_sound_alike():
     assert not [row.description for row in _all_rows() if '"go now' in row.description]
 
 
-def test_main_player_video_rows_show_main_nav_in_both_orders():
-    """The main player prev/next rows surface "main previous"/"main next" and the
-    reverse order, so the main player's navigation is visible in the
+def test_main_funestra_video_rows_show_main_nav_in_both_orders():
+    """The Main Funestra prev/next rows surface "main previous"/"main next" and the
+    reverse order, so the Main Funestra's navigation is visible in the
     legend."""
     rows = _all_rows()
     prev = next(r for r in rows if "main_prev" in r.commands)
@@ -337,9 +337,9 @@ def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
     """Two ways to move the rate, and the row order follows the Genau section's:
     the up/down nudge, then the line that sets it outright.  The nudge is spoken
     only — the keys say "speed up", which follows the OSR2's driver instead."""
-    main_player_rows = {s.title: s for s in build_reference_sections()}["Main Player"].rows
-    descs = [r.description for r in main_player_rows]
-    nudge = next(r for r in main_player_rows if "main_player_speed_up" in r.commands)
+    main_funestra_rows = {s.title: s for s in build_reference_sections()}["Main Funestra"].rows
+    descs = [r.description for r in main_funestra_rows]
+    nudge = next(r for r in main_funestra_rows if "main_player_speed_up" in r.commands)
     assert _keys(nudge) == ()
     assert nudge.voice == ("main playback speed up", "main playback slow down",
                            "main playback speed down")
@@ -384,10 +384,10 @@ def test_sound_rows_are_voice_only_and_list_both_words_of_each_pair():
     assert "audio_unmute" in mute.commands
 
     # One sound level reaches both of the primary display's sinks, so the steps
-    # are listed under each player that can own the display — the main player's video sound
+    # are listed under each Funestra that can own the display — the Main Funestra's video sound
     # and Genau's clip music are the same control from the speaker's side.
     by_title = {s.title: s for s in build_reference_sections()}
-    for title in ("Genau", "Main Player"):
+    for title in ("Genau", "Main Funestra"):
         steps = [r for r in by_title[title].rows if "audio_volume_up" in r.commands]
         assert len(steps) == 1, f"expected one volume row in {title}"
         assert "audio_volume_down" in steps[0].commands, "one row documents the pair"
@@ -420,10 +420,10 @@ def test_latest_is_spoken_only_and_the_older_names_are_gone():
     assert "recents" not in VOICE_COMMANDS
 
 
-def test_end_loop_follows_the_player_last_spoken_to():
+def test_end_loop_follows_the_funestra_last_spoken_to():
     """"end loop" is side-agnostic like every other bare command: it reaches whichever
-    player was last addressed, and means that player's kind of loop — the main player's A-B loop
-    on the main player, a satellite's group loop on portrait or landscape."""
+    Funestra was last addressed, and means that Funestra's kind of loop — the Main Funestra's A-B loop
+    on the Main Funestra, a satellite's group loop on portrait or landscape."""
     assert VOICE_COMMANDS["end loop"] == "active_no_loop"
     assert VOICE_COMMANDS["portrait end loop"] == "portrait_no_loop"
     assert VOICE_COMMANDS["end loop landscape"] == "landscape_no_loop"
@@ -493,14 +493,14 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
     assert any(key.lower() == "g" for key in _keys(row))
 
 
-def test_section_titles_run_global_robot_hand_genau_main_player_satellites():
+def test_section_titles_run_global_robot_hand_genau_main_funestra_satellites():
     """Five sections, in the order the room is built: what governs everything,
     then the engine driving the OSR2, then the clips it plays under, then the
-    video, then the two side players.  The hand leads because it drives in both
-    modes, Genau leads the main player because it owns the primary display in its own mode,
+    video, then the two side Funestras.  The hand leads because it drives in both
+    modes, Genau leads the Main Funestra because it owns the primary display in its own mode,
     and every satellite scope shares the last section."""
     titles = [s.title for s in build_reference_sections()]
-    assert titles == ["Global", "Robot Hand", "Genau", "Main Player", "Satellites"]
+    assert titles == ["Global", "Robot Hand", "Genau", "Main Funestra", "Satellites"]
     for retired in ("Portrait", "Landscape", "Both", "Active side",
                     "Filters (satellites)", "Modes", "Genau control"):
         assert retired not in titles, f"{retired!r} should be folded in"
@@ -508,14 +508,14 @@ def test_section_titles_run_global_robot_hand_genau_main_player_satellites():
 
 def test_the_backslash_key_offsets_the_hand_and_the_browser_has_its_own_key():
     """The backslash offsets the Robot Hand's motion in either mode — it used to
-    open the main player's library browser in kino mode, and that browser now has the key
+    open the Main Funestra's library browser in kino mode, and that browser now has the key
     the retired mode had."""
     sections = build_reference_sections()
     by_title = {s.title: s for s in sections}
     hand_backslash = [r for r in by_title["Robot Hand"].rows if "\\" in _keys(r)]
     assert [r.commands for r in hand_backslash] == [("quarter_button",)]
-    assert not [r for r in by_title["Main Player"].rows if "\\" in _keys(r)]
-    browser = [r for r in by_title["Main Player"].rows if "browse_library" in r.commands]
+    assert not [r for r in by_title["Main Funestra"].rows if "\\" in _keys(r)]
+    browser = [r for r in by_title["Main Funestra"].rows if "browse_library" in r.commands]
     assert len(browser) == 1 and _keys(browser[0]) == ("N",)
     assert "browse" in browser[0].voice
 
@@ -545,8 +545,8 @@ def test_loop_control_row_consolidates_record_and_cancel():
     assert "record" in row.voice
     assert "loop" in row.voice
     # Record and cancel are one row.  The cancel's phrase, "end loop", is no longer
-    # this row's own: it is the side-agnostic phrase, and reaches the main player's loop through
-    # the active-side resolution whenever the main player is the player last addressed.
+    # this row's own: it is the side-agnostic phrase, and reaches the Main Funestra's loop through
+    # the active-side resolution whenever the Main Funestra is the Funestra last addressed.
     assert "main_player_loop_cancel" in row.commands
 
 

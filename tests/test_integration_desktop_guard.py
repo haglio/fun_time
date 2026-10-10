@@ -29,7 +29,7 @@ def test_a_run_on_the_hidden_desktop_is_allowed():
 
 def test_a_run_on_the_users_own_desktop_is_refused():
     """The user's desktop is where their session lives.  A suite that launches
-    real windows, a real AHK bridge and real players there is a second session
+    real windows, a real AHK bridge and real Funestras there is a second session
     on top of theirs, however carefully the rest of it is scoped."""
     with pytest.raises(RuntimeError) as failure:
         require_hidden_desktop(desktop_name=lambda: "Default")
@@ -66,7 +66,7 @@ def test_a_run_that_merely_sweeps_the_directory_in_is_refused_too(pytestconfig):
     imported before the session starts.  A run that instead recurses in from
     ``tests`` imports that file partway through collection, long after
     sessionstart has passed, so nothing refused: the suite ran on the user's own
-    desktop and threw real players, a real main player and a real AHK bridge over his
+    desktop and threw real Funestras, a real Main Funestra and a real AHK bridge over his
     work.  That is what a config without the ``norecursedirs`` exclusion did.
 
     Reproduced here by dropping ``integration`` from that setting — the rest of
@@ -112,7 +112,7 @@ def test_the_unit_suite_never_inherits_the_integration_flag():
 def test_every_integration_module_stays_off_a_machine_that_is_not_windows():
     """Off Windows the session-start refusal returns early, so a module's own
     platform mark is all that keeps ``pytest tests/integration/`` from starting
-    the satellite and VR players there.  Two of the fourteen once carried none
+    the satellite and VR Funestras there.  Two of the fourteen once carried none
     (bug 35); this walks them all so a fifteenth cannot arrive without one."""
     integration = Path(__file__).resolve().parent / "integration"
     unguarded = [

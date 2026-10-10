@@ -30,8 +30,8 @@ from tests.role_window_fakes import (
     HOSTED_PID,
     LANDSCAPE_HWND,
     LANDSCAPE_PID,
-    MAIN_PLAYER_HWND,
-    MAIN_PLAYER_PID,
+    MAIN_FUNESTRA_HWND,
+    MAIN_FUNESTRA_PID,
     PORTRAIT_HWND,
     PORTRAIT_PID,
     RFB_HWND,
@@ -44,7 +44,7 @@ from tests.role_window_fakes import (
 
 
 def make_windows(**overrides) -> WindowRoles:
-    pids = dict(main_player=MAIN_PLAYER_PID, portrait=PORTRAIT_PID,
+    pids = dict(main_funestra=MAIN_FUNESTRA_PID, portrait=PORTRAIT_PID,
                 landscape=LANDSCAPE_PID, dashboard=DASHBOARD_PID)
     pids.update(overrides.pop("pids", {}))
     return WindowRoles(pids=ChildPids(**pids), **overrides)
@@ -55,13 +55,13 @@ def test_the_windows_object_needs_only_the_pids_and_the_startup_seed():
     map over; hidden windows are invisible to the pid/title lookups, so that
     seed is the only way back to one.  Nothing else is needed to answer for a
     role, which is what lets these windows be reasoned about on their own."""
-    windows = WindowRoles(pids=ChildPids(main_player=MAIN_PLAYER_PID), role_hwnds={"main_player": MAIN_PLAYER_HWND})
+    windows = WindowRoles(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID), role_hwnds={"main_player": MAIN_FUNESTRA_HWND})
 
-    assert windows.hwnd("main_player") == MAIN_PLAYER_HWND
+    assert windows.hwnd("main_player") == MAIN_FUNESTRA_HWND
 
 
 class TestResolveRole:
-    def test_main_player_falls_back_to_exact_title_when_pid_fails(self):
+    def test_main_funestra_falls_back_to_exact_title_when_pid_fails(self):
         """The venv pythonw launcher's PID differs from the interpreter that
         owns the SDL window, so resolution must fall back to an exact-title
         lookup — exact, so a caption merely containing the name cannot answer."""
@@ -71,13 +71,13 @@ class TestResolveRole:
 
         def title_lookup(title, exact=False):
             title_calls.append((title, exact))
-            return 2002 if (title == "Main Player" and exact) else 0
+            return 2002 if (title == "Main Funestra" and exact) else 0
 
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=title_lookup):
             hwnd = windows.hwnd("main_player")
 
-        assert ("Main Player", True) in title_calls, "must try the exact-title fallback"
+        assert ("Main Funestra", True) in title_calls, "must try the exact-title fallback"
         assert hwnd == 2002
 
     def test_dashboard_falls_back_to_title_when_pid_fails(self):
@@ -140,26 +140,26 @@ class TestResolveRole:
 class TestParking:
     """Which window goes down, when, and what brings it back."""
 
-    def test_a_mode_switch_holds_its_outgoing_player_up_for_the_settle(self):
+    def test_a_mode_switch_holds_its_outgoing_funestra_up_for_the_settle(self):
         """Minimizing freezes a window's Alt-Tab thumbnail — Windows stops
-        compositing it — so the player a switch is leaving must go down only
+        compositing it — so the Funestra a switch is leaving must go down only
         once the DISPLAY_OFF sent in the same breath is on screen.  Minimize in
         the frame or two that takes and the thumbnail keeps the video frame the
-        player was sitting on, which is the whole thing the blanking is for."""
+        Funestra was sitting on, which is the whole thing the blanking is for."""
         clock = FakeClock()
-        windows = make_windows(clock=clock, role_hwnds={"main_player": MAIN_PLAYER_HWND})
+        windows = make_windows(clock=clock, role_hwnds={"main_player": MAIN_FUNESTRA_HWND})
 
         minimized: list[int] = []
         with patch("fun_time.role_windows.minimize_window",
                    side_effect=lambda h, **kw: minimized.append(h)):
             windows.hide_after_settle("main_player")
             windows.flush_pending_hides()
-            assert minimized == [], "the main player minimized before it could paint the black"
+            assert minimized == [], "the Main Funestra minimized before it could paint the black"
 
             clock.advance(MAIN_BLANK_SETTLE_S)
             windows.flush_pending_hides()
 
-        assert minimized == [MAIN_PLAYER_HWND]
+        assert minimized == [MAIN_FUNESTRA_HWND]
 
 
 class TestTopmostBands:
@@ -181,7 +181,7 @@ class TestTopmostBands:
         return calls
 
     def test_remove_all_topmost_drops_every_managed_window(self):
-        """Omnipause enter frees the desktop entirely — the main player included, so it is
+        """Omnipause enter frees the desktop entirely — the Main Funestra included, so it is
         never left stranded on top."""
         windows = make_windows(rfb_hwnd=RFB_HWND)
 
@@ -190,7 +190,7 @@ class TestTopmostBands:
         assert {h for h, on in calls if on is False} == TOPMOST_HWNDS
 
     def test_restore_all_topmost_floats_every_window_with_a_rect_of_its_own(self):
-        """The main player among them: Kino and Genau share its one window, so it
+        """The Main Funestra among them: Kino and Genau share its one window, so it
         is never the hidden half of a pair."""
         windows = make_windows(rfb_hwnd=RFB_HWND)
 
@@ -221,7 +221,7 @@ class TestTopmostBands:
             "promotion pushes it back down"
         )
         # Everything the mode really does show still comes back.
-        assert {PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_PLAYER_HWND,
+        assert {PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_FUNESTRA_HWND,
                 HOSTED_HWND} <= set(promoted)
 
     def test_a_restack_while_paused_leaves_the_topmost_band_to_the_pause(self):
@@ -373,12 +373,12 @@ def test_a_window_nobody_has_found_yet_is_not_placed():
 
 
 def test_the_window_that_shrinks_moves_before_the_one_that_grows_into_its_room():
-    windows = make_windows(role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_PLAYER_HWND})
-    now = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_PLAYER_HWND: (2560, 2500, 1440, 940)}
+    windows = make_windows(role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_FUNESTRA_HWND})
+    now = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_FUNESTRA_HWND: (2560, 2500, 1440, 940)}
 
     with patch("fun_time.role_windows.window_rect", side_effect=now.get), \
          patch("fun_time.role_windows.is_window_minimized", return_value=False), \
          patch("fun_time.role_windows.place_window") as place:
         windows.place([("main_player", WindowRect(2560, 940, 1440, 2500)), ("portrait", TOP_STRIP)])
 
-    assert [call.args[0] for call in place.call_args_list] == [PORTRAIT_HWND, MAIN_PLAYER_HWND]
+    assert [call.args[0] for call in place.call_args_list] == [PORTRAIT_HWND, MAIN_FUNESTRA_HWND]

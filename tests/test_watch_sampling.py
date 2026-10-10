@@ -1,4 +1,4 @@
-"""Watch tracking: what each player is on, and how a departure is classified.
+"""Watch tracking: what each Funestra is on, and how a departure is classified.
 
 Driven directly, without a dispatch loop around it — the sampler's whole input
 is three status files and a stats file, so nothing else needs to exist for it
@@ -15,7 +15,7 @@ from fun_time.watch_stats import load_watch_stats
 
 def make_sampler(tmp_path: Path) -> WatchSampler:
     return WatchSampler(
-        main_player_status_file=tmp_path / "main_player_status.txt",
+        main_funestra_status_file=tmp_path / "main_player_status.txt",
         satellite_status_files={2: tmp_path / "portrait_status.txt",
                                 3: tmp_path / "landscape_status.txt"},
         stats_file=tmp_path / "watch_stats.json",
@@ -23,7 +23,7 @@ def make_sampler(tmp_path: Path) -> WatchSampler:
 
 
 def _publish(path: Path, video, *, fraction: float) -> None:
-    """A satellite player's status file, the way its own writer publishes it."""
+    """A Satellite Funestra's status file, the way its own writer publishes it."""
     path.write_text(
         f"video={video}\nposition_ms={round(fraction * 1000)}\nduration_ms=1000\n"
         "paused=0\nlocked=0\n",
@@ -63,9 +63,9 @@ def test_satellites_playing_the_hosted_apps_pictures_book_nothing(tmp_path):
     assert normalize_path_key(str(picture)) not in load_watch_stats(tmp_path / "watch_stats.json")
 
 
-def _publish_main_player(path: Path, video, *, position_ms: int, duration_ms: int,
+def _publish_main_funestra(path: Path, video, *, position_ms: int, duration_ms: int,
                  paused: bool = False) -> None:
-    """The main player's status file, the way main_player/status.py writes it."""
+    """The Main Funestra's status file, the way main_funestra/status.py writes it."""
     path.write_text(
         f"video={video}\nposition_ms={position_ms}\nduration_ms={duration_ms}\n"
         f"loop_state=normal\npaused={'1' if paused else '0'}\n",
@@ -106,80 +106,80 @@ class TestSamplingCadence:
         assert load_watch_stats(tmp_path / "watch_stats.json") == {}
 
 
-class TestTheMainPlayer:
-    """The main player's status feed is watch-tracked just like a satellite's."""
+class TestTheMainFunestra:
+    """The Main Funestra's status feed is watch-tracked just like a satellite's."""
 
     def _sample(self, sampler, at: float) -> None:
         sampler.sample_due(now=at, paused=False)
 
-    def test_a_main_player_video_watched_to_the_end_then_departed_is_a_completion(self, tmp_path):
+    def test_a_main_funestra_video_watched_to_the_end_then_departed_is_a_completion(self, tmp_path):
         sampler = make_sampler(tmp_path)
         watched = _make_video(tmp_path, "watched.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
         status = tmp_path / "main_player_status.txt"
 
-        _publish_main_player(status, watched, position_ms=9000, duration_ms=10000)
+        _publish_main_funestra(status, watched, position_ms=9000, duration_ms=10000)
         self._sample(sampler, 100.0)
-        _publish_main_player(status, nextv, position_ms=0, duration_ms=10000)
+        _publish_main_funestra(status, nextv, position_ms=0, duration_ms=10000)
         self._sample(sampler, 101.0)
 
         stats = load_watch_stats(tmp_path / "watch_stats.json")
         assert stats[normalize_path_key(str(watched))]["completions"] == 1
 
     def test_an_unknown_duration_yields_no_sample(self, tmp_path):
-        """Before the main player knows the clip length it publishes duration_ms=0; no
+        """Before the Main Funestra knows the clip length it publishes duration_ms=0; no
         fraction can be formed, so the sample is dropped (never a divide-by-zero)."""
         sampler = make_sampler(tmp_path)
         early = _make_video(tmp_path, "early.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
         status = tmp_path / "main_player_status.txt"
 
-        _publish_main_player(status, early, position_ms=5000, duration_ms=0)
+        _publish_main_funestra(status, early, position_ms=5000, duration_ms=0)
         self._sample(sampler, 100.0)
-        _publish_main_player(status, nextv, position_ms=0, duration_ms=10000)
+        _publish_main_funestra(status, nextv, position_ms=0, duration_ms=10000)
         self._sample(sampler, 101.0)
 
         assert normalize_path_key(str(early)) not in load_watch_stats(tmp_path / "watch_stats.json")
 
-    def test_a_paused_main_player_is_not_watching(self, tmp_path):
+    def test_a_paused_main_funestra_is_not_watching(self, tmp_path):
         sampler = make_sampler(tmp_path)
         watched = _make_video(tmp_path, "watched.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
         status = tmp_path / "main_player_status.txt"
 
-        _publish_main_player(status, watched, position_ms=9000, duration_ms=10000, paused=True)
+        _publish_main_funestra(status, watched, position_ms=9000, duration_ms=10000, paused=True)
         self._sample(sampler, 100.0)
-        _publish_main_player(status, nextv, position_ms=0, duration_ms=10000)
+        _publish_main_funestra(status, nextv, position_ms=0, duration_ms=10000)
         self._sample(sampler, 101.0)
 
         assert normalize_path_key(str(watched)) not in load_watch_stats(tmp_path / "watch_stats.json")
 
     def test_the_blank_between_videos_is_not_a_departure(self, tmp_path):
-        """Between videos the main player can briefly publish an empty video path; that blank
+        """Between videos the Main Funestra can briefly publish an empty video path; that blank
         must not read as the watched video departing (a spurious completion)."""
         sampler = make_sampler(tmp_path)
         watched = _make_video(tmp_path, "watched.mp4")
         status = tmp_path / "main_player_status.txt"
 
-        _publish_main_player(status, watched, position_ms=9000, duration_ms=10000)
+        _publish_main_funestra(status, watched, position_ms=9000, duration_ms=10000)
         self._sample(sampler, 100.0)
-        _publish_main_player(status, "", position_ms=0, duration_ms=10000)
+        _publish_main_funestra(status, "", position_ms=0, duration_ms=10000)
         self._sample(sampler, 101.0)
 
         assert normalize_path_key(str(watched)) not in load_watch_stats(tmp_path / "watch_stats.json")
 
-    def test_next_marks_the_departed_main_player_video_as_a_skip(self, tmp_path):
-        """Pressing next on the main player is the "user nav" signal: a main player video
+    def test_next_marks_the_departed_main_funestra_video_as_a_skip(self, tmp_path):
+        """Pressing next on the Main Funestra is the "user nav" signal: a Main Funestra video
         left early right after a next counts as a skip, like a satellite next."""
         sampler = make_sampler(tmp_path)
         early = _make_video(tmp_path, "early.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
         status = tmp_path / "main_player_status.txt"
 
-        _publish_main_player(status, early, position_ms=1000, duration_ms=10000)
+        _publish_main_funestra(status, early, position_ms=1000, duration_ms=10000)
         self._sample(sampler, 100.0)
         sampler.note_command("main_next")
-        _publish_main_player(status, nextv, position_ms=0, duration_ms=10000)
+        _publish_main_funestra(status, nextv, position_ms=0, duration_ms=10000)
         self._sample(sampler, 101.0)
 
         stats = load_watch_stats(tmp_path / "watch_stats.json")

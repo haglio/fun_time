@@ -142,7 +142,7 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
         "paths": {
             "ahk_exe": paths.ahk_exe,
             "python_exe": paths.python_exe,
-            "main_player_library_dirs": paths.main_player_library_dirs,
+            "main_player_library_dirs": paths.main_funestra_library_dirs,
             "portrait_dirs": paths.portrait_dirs,
             "landscape_dirs": paths.landscape_dirs,
             "weird_dir": paths.weird_dir,
@@ -191,7 +191,7 @@ def _pin_paths_to_the_primary(raw: dict, real: ProjectConfig) -> None:
 def _apply_genau_checkout_override(raw: dict, state_dir: Path) -> None:
     """Let a worktree say for itself which checkout of ../genau its session runs.
 
-    ``paths.genau_project_dirs`` answers a per-SESSION question — the main player and Genau
+    ``paths.genau_project_dirs`` answers a per-SESSION question — the Main Funestra and Genau
     are launched with these directories in front of their venv's install — but it
     could only be said in the machine's one ``fun_time_config.json``, which every
     session reads.  A pin written there for one agent's genau branch reached the
@@ -315,7 +315,7 @@ def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
     older = sibling_checkouts_older_than_the_pin(worktree)
     if older:
         return _refuse(worktree, branch_label(worktree, current_branch(worktree)),
-                       PLAYERS_FROM_BEFORE_THE_PIN, str(OutOfDateSibling(older[0])))
+                       FUNESTRAS_FROM_BEFORE_THE_PIN, str(OutOfDateSibling(older[0])))
     config_path = build_branch_config(
         worktree, primary=primary, primary_config_path=primary_config_path)
     command = [sys.executable, "-m", ORCHESTRATOR_MODULES[vr], "--config", str(config_path)]
@@ -373,14 +373,14 @@ class OutOfDateSibling(RuntimeError):
     def __init__(self, older: SiblingOlderThanThePin):
         super().__init__(
             f"{older.checkout} does not carry {older.tag}, the {older.repo} this branch is "
-            "built against, so a Main Player run out of it would lack what the branch imports. "
+            "built against, so a Main Funestra run out of it would lack what the branch imports. "
             f"Rebase that checkout onto {older.repo}'s origin/main, or take it out of "
             f"state/{GENAU_DIRS_OVERRIDE_NAME}, first.")
 
 
-PLAYERS_FROM_BEFORE_THE_PIN = (
-    "That branch is set to run its players out of a player_core checkout older than the "
-    "one it was built against, so its Main player would not come up.")
+FUNESTRAS_FROM_BEFORE_THE_PIN = (
+    "That branch is set to run its Funestras out of a player_core checkout older than the "
+    "one it was built against, so its Main Funestra would not come up.")
 
 
 def sibling_checkouts_older_than_the_pin(worktree: Path) -> list[SiblingOlderThanThePin]:
@@ -449,7 +449,7 @@ def sibling_checkouts_line(
     _apply_origenerator_checkout_override(raw, worktree / STATE_DIRNAME)
     dirs = raw["paths"]["genau_project_dirs"]
     genau_line = (
-        "genau_project_dirs: (empty — Genau, the main player and player_core run "
+        "genau_project_dirs: (empty — Genau, the Main Funestra and player_core run "
         "from their venv installs, the primaries)"
         if not dirs else "genau_project_dirs: " + os.pathsep.join(dirs)
     )

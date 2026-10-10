@@ -11,13 +11,13 @@ import os
 import pygame
 from app_support.logging_utils import install_exception_logging
 from app_support.win32 import set_app_user_model_id
-from player_core.funestra import Funestra
-from player_core.playlist import PlaylistItem
-from player_core.sdl_hints import deliver_the_focusing_click
+from funestra_core.funestra import Funestra
+from funestra_core.playlist import PlaylistItem
+from funestra_core.sdl_hints import deliver_the_focusing_click
 
-from main_player.input import Input
-from main_player.player_priority import ahead_on_the_processor
-from main_player.player_window import take_outside_resizes, wear_the_icon
+from main_funestra.funestra_priority import ahead_on_the_processor
+from main_funestra.input import Input
+from main_funestra.window import take_outside_resizes, wear_the_icon
 
 from .cli import audio_muted, build_parser, resolve_playlist
 from .contract import SatelliteChannels, WindowPlacement
@@ -49,12 +49,12 @@ def _open_window(placement: WindowPlacement) -> int:
     order here is the whole content of the function, and each step says why."""
     # Before the window exists, and before pygame.init(): SDL otherwise eats the
     # click that focuses this window, so every press on a control had to be made
-    # twice.  The mechanism is written down in player_core.sdl_hints.
+    # twice.  The mechanism is written down in funestra_core.sdl_hints.
     deliver_the_focusing_click()
     # Also before the window: Windows reads a process's taskbar identity as each
     # window is created, and a satellite that claims none is filed under whatever
     # the shared interpreter's path is registered to — some unrelated program,
-    # wearing its icon.  Cosmetic, so a refusal never costs the player its start.
+    # wearing its icon.  Cosmetic, so a refusal never costs the Funestra its start.
     if placement.taskbar_identity:
         try:
             set_app_user_model_id(placement.taskbar_identity)

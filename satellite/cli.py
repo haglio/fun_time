@@ -1,8 +1,8 @@
-"""Argument parsing and playlist resolution for a satellite player — no pygame.
+"""Argument parsing and playlist resolution for a Satellite Funestra — no pygame.
 
 Kept apart from the run loop so what fun_time hands each satellite
 (:mod:`satellite.contract`) is importable and testable without an SDL display,
-exactly as the main player's own CLI is.  A satellite is always given an
+exactly as the Main Funestra's own CLI is.  A satellite is always given an
 explicit ``--playlist``, so there is no library discovery here.
 """
 from __future__ import annotations
@@ -11,13 +11,13 @@ import argparse
 import os
 from pathlib import Path
 
-from player_core.playlist import PlaylistItem, read_playlist
+from funestra_core.playlist import PlaylistItem, read_playlist
 
 from fun_time.win32_desktop import on_hidden_desktop
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="A native satellite video player")
+    p = argparse.ArgumentParser(description="A Satellite Funestra of Fun Time's room")
     p.add_argument("--playlist", type=Path, default=None,
                    help="Video or picture list to play, one per line; a funscript "
                         "column after a TAB is ignored")
@@ -28,15 +28,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--status-file", type=Path, default=None,
                    help="Publish playback status to this file")
     p.add_argument("--play-points-file", type=Path, default=None,
-                   help="Where this player writes down the point each clip was "
+                   help="Where this Funestra writes down the point each clip was "
                         "left at, so playing one again picks up there")
     p.add_argument("--hud-file", type=Path, default=None,
                    help="Lock-HUD panel fun_time publishes; drawn into the video")
     p.add_argument("--drive-file", type=Path, default=None,
                    help="The motion Genau publishes, drawn under the OSR2 line "
-                        "while this player has the OSR2")
+                        "while this Funestra has the OSR2")
     p.add_argument("--tcode-host", default=None,
-                   help="Where this player's funscript drives the OSR2 from, while it "
+                   help="Where this Funestra's funscript drives the OSR2 from, while it "
                         "has the OSR2: the broker's T-Code inlet")
     p.add_argument("--tcode-port", type=int, default=None)
     p.add_argument("--dashboard-cmd-file", type=Path, default=None,

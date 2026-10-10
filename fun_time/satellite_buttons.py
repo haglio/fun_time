@@ -1,15 +1,15 @@
 """The buttons Fun Time puts on a satellite's HUD, declared in
-:class:`player_core.hud_button.Button` off the player's own state.  Each verb is
-the dashboard command the dispatcher answers for that player; a mode button's
-names no player, the mode belonging to both satellites at once."""
+:class:`funestra_core.hud_button.Button` off the Funestra's own state.  Each verb is
+the dashboard command the dispatcher answers for that Funestra; a mode button's
+names no Funestra, the mode belonging to both satellites at once."""
 from __future__ import annotations
 
-from player_core.hud_button import FIT_THE_WORD, Button
-from player_core.hud_marks import FMODE_ICON
-from player_core.modes import SatellitesMode
+from funestra_core.hud_button import FIT_THE_WORD, Button
+from funestra_core.hud_marks import FMODE_ICON
+from funestra_core.modes import SatellitesMode
 
 from .crown import CROWN_ICON, Crown
-from .player_buttons import (
+from .funestra_buttons import (
     SATELLITE_NOUN,
     TRASH_ICON,
     browse_order_buttons,
@@ -26,14 +26,14 @@ MODE_BUTTONS = (
 )
 
 MODE_TOOLTIPS = {
-    "satellites_kino_activate": "Kino mode — the satellite players and the Random Favs Browser",
+    "satellites_kino_activate": "Kino mode — the Satellite Funestras and the Random Favs Browser",
     "origenerator_activate":
-        "Origenerator mode — Origenerator over the browser, its shows over the players",
+        "Origenerator mode — Origenerator over the browser, its shows over the Funestras",
 }
 STILL_STARTING_TOOLTIP = "Origenerator is still starting — this lights up when it is ready"
 
 
-def player_rows(player: str, *, locked: bool = False, favorites_filter: bool = False,
+def funestra_rows(funestra: str, *, locked: bool = False, favorites_filter: bool = False,
                 latest: bool | None = None,
                 satellites_mode: SatellitesMode | None = None,
                 origenerator_ready: bool = True,
@@ -44,46 +44,46 @@ def player_rows(player: str, *, locked: bool = False, favorites_filter: bool = F
                 crowned: bool = False) -> tuple[tuple[Button, ...], ...]:
     rows: list[tuple[Button, ...]] = []
     if satellites_mode is not None:
-        rows.append(mode_row(player, satellites_mode=satellites_mode,
+        rows.append(mode_row(funestra, satellites_mode=satellites_mode,
                              origenerator_ready=origenerator_ready, in_vr=in_vr,
                              crowned=crowned))
     rows.append((
-        *transport(player, noun=SATELLITE_NOUN, longer_than_a_step=longer_than_a_step),
-        lock_button(player, locked=locked, noun=SATELLITE_NOUN),
-        Button(f"{player}_trash", TRASH_ICON,
+        *transport(funestra, noun=SATELLITE_NOUN, longer_than_a_step=longer_than_a_step),
+        lock_button(funestra, locked=locked, noun=SATELLITE_NOUN),
+        Button(f"{funestra}_trash", TRASH_ICON,
                "Unfavorite it — or mark weird when it is not a favorite", danger=True),
-        Button(f"{player}_fmode", FMODE_ICON,
-               "F-Mode — browse only the favorites on this player",
+        Button(f"{funestra}_fmode", FMODE_ICON,
+               "F-Mode — browse only the favorites on this Funestra",
                lit=favorites_filter, favorite=True),
-        reset_button(player, nothing_to_reset=nothing_to_reset),
-        *browse_order_buttons(player, latest=latest),
-        versions_button(f"{player}_cycle_version", noun=SATELLITE_NOUN,
+        reset_button(funestra, nothing_to_reset=nothing_to_reset),
+        *browse_order_buttons(funestra, latest=latest),
+        versions_button(f"{funestra}_cycle_version", noun=SATELLITE_NOUN,
                         has_other_versions=has_other_versions),
         *(() if in_vr or satellites_mode is not None
-          else (minimize_button(player), *_crown(player, crowned))),
+          else (minimize_button(funestra), *_crown(funestra, crowned))),
     ))
     return tuple(rows)
 
 
-def mode_row(player: str, *, satellites_mode: SatellitesMode,
+def mode_row(funestra: str, *, satellites_mode: SatellitesMode,
              origenerator_ready: bool = True, in_vr: bool = False,
              crowned: bool = False) -> tuple[Button, ...]:
-    """The session's own row over a player: the mode pair, and minimize outside the headset."""
+    """The session's own row over a Funestra: the mode pair, and minimize outside the headset."""
     return (
         *(_mode_button(command, label, lit=satellites_mode is lit_mode,
                        dim=command == "origenerator_activate" and not origenerator_ready)
           for command, label, lit_mode in MODE_BUTTONS),
-        *(() if in_vr else (minimize_button(player), *_crown(player, crowned))),
+        *(() if in_vr else (minimize_button(funestra), *_crown(funestra, crowned))),
     )
 
 
-def _crown(player: str, crowned: bool) -> tuple[Button, ...]:
-    if player != Crown.PORTRAIT:
+def _crown(funestra: str, crowned: bool) -> tuple[Button, ...]:
+    if funestra != Crown.PORTRAIT:
         return ()
     return (Button(Crown.PORTRAIT.command, CROWN_ICON,
-                   "Crowned — this player keeps most of the secondary monitor" if crowned
-                   else "Give this player the crown — it keeps most of the secondary "
-                   "monitor, whatever the main player shows", lit=crowned),)
+                   "Crowned — this Funestra keeps most of the secondary monitor" if crowned
+                   else "Give this Funestra the crown — it keeps most of the secondary "
+                   "monitor, whatever the Main Funestra shows", lit=crowned),)
 
 
 def _mode_button(command: str, label: str, *, lit: bool, dim: bool) -> Button:

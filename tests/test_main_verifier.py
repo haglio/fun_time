@@ -83,7 +83,7 @@ class FakeBench:
 
     def take_back(self, commit, among, tests):
         self.taken_back.append((commit, list(among)))
-        return main_verifier.TakeBack(41, "Loop the row on the main player", 77)
+        return main_verifier.TakeBack(41, "Loop the row on the Main Funestra", 77)
 
     def start_fix_session(self, taken, tests, log):
         self.fixing.append((taken, list(tests), log))
@@ -133,7 +133,7 @@ def test_a_head_that_breaks_takes_the_change_back_and_starts_a_session_to_fix_it
     assert main_verifier.cycle(ledger, bench) == "broke main"
 
     assert bench.taken_back == [("c3", ["b2", "c3", "d4", "e5"])]
-    taken = main_verifier.TakeBack(41, "Loop the row on the main player", 77)
+    taken = main_verifier.TakeBack(41, "Loop the row on the Main Funestra", 77)
     assert bench.fixing == [(taken, ["tests/integration/test_x.py::test_y"], WHOLE_RUN)]
     assert bench.advanced == []
     assert ledger.failed_head == "e5"
@@ -200,18 +200,18 @@ class FakeShell:
 def test_taking_a_change_back_reverts_its_pull_requests_commits_newest_first_and_opens_a_pull_request(tmp_path):
     shell = FakeShell({
         "commits/b2/pulls": "40", "commits/c3/pulls": "41", "commits/d4/pulls": "41",
-        "pr view 41": "Loop the row on the main player",
+        "pr view 41": "Loop the row on the Main Funestra",
         "pr create": "https://github.com/haglio/fun_time/pull/77\n",
     })
     bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell)
 
     assert bench.take_back("c3", ["b2", "c3", "d4"], ["tests/integration/test_x.py::test_y"]) == main_verifier.TakeBack(
-        41, "Loop the row on the main player", 77)
+        41, "Loop the row on the Main Funestra", 77)
 
     reverts = [command for command, _ in shell.commands if command[:2] == ["git", "revert"]]
     assert reverts == [["git", "revert", "--no-edit", "d4", "c3"]]
     created = next(command for command, _ in shell.commands if command[:3] == ["gh", "pr", "create"])
-    assert "Take back #41: Loop the row on the main player" in created
+    assert "Take back #41: Loop the row on the Main Funestra" in created
 
 
 def test_a_run_checks_main_out_where_the_runner_keeps_it_and_names_the_tests_that_failed(tmp_path):
@@ -585,10 +585,10 @@ def test_only_the_libraries_main_pins_newer_than_this_machine_has_are_installed(
 
 def test_a_fix_session_starts_in_a_checkout_of_its_own_and_is_told_what_broke(tmp_path):
     shell = FakeShell({"auth status": '{"loggedIn": true}',
-                       "--bg": "backgrounded \xb7 812181fb \xb7 Fix #41: Loop the row on the main player\n"})
+                       "--bg": "backgrounded \xb7 812181fb \xb7 Fix #41: Loop the row on the Main Funestra\n"})
     primary = tmp_path / "fun_time"
     bench = main_verifier.MachineBench(primary=primary, shell=shell, claude="claude.exe")
-    taken = main_verifier.TakeBack(41, "Loop the row on the main player", 77)
+    taken = main_verifier.TakeBack(41, "Loop the row on the Main Funestra", 77)
 
     started = bench.start_fix_session(taken, ["tests/integration/test_x.py::test_y"], Path("C:/runs/d4.txt"))
 
@@ -599,9 +599,9 @@ def test_a_fix_session_starts_in_a_checkout_of_its_own_and_is_told_what_broke(tm
     command, cwd = next((command, cwd) for command, cwd in shell.commands if "--bg" in command)
     assert command[0] == "claude.exe" and cwd == place
     assert command[command.index("--permission-mode") + 1] == "auto"
-    assert command[command.index("--name") + 1] == "Fix #41: Loop the row on the main player"
+    assert command[command.index("--name") + 1] == "Fix #41: Loop the row on the Main Funestra"
     brief = command[-1]
-    for detail in ("#41", "Loop the row on the main player", "tests/integration/test_x.py::test_y", "#77",
+    for detail in ("#41", "Loop the row on the Main Funestra", "tests/integration/test_x.py::test_y", "#77",
                    str(Path("C:/runs/d4.txt")), "claude/fix-41"):
         assert detail in brief
 
@@ -617,7 +617,7 @@ def test_no_fix_session_starts_while_claude_code_is_not_signed_in(tmp_path):
     bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell, claude="claude.exe")
 
     with pytest.raises(main_verifier.CommandFailed, match="not signed in"):
-        bench.start_fix_session(main_verifier.TakeBack(41, "Loop the row on the main player", 77), [], Path("run.txt"))
+        bench.start_fix_session(main_verifier.TakeBack(41, "Loop the row on the Main Funestra", 77), [], Path("run.txt"))
 
     assert not [command for command, _ in shell.commands if command[:3] == ["git", "worktree", "add"]]
 

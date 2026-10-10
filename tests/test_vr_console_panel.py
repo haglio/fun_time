@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import logging
 
-from player_core.console import ConsoleModel, _row_width
-from player_core.console_hud import _PAD, ConsoleHud, ConsolePainter, ModeHud
-from player_core.drive_readout import DriveHud
-from player_core.hud_placement import HudEdge
+from funestra_core.console import ConsoleModel, _row_width
+from funestra_core.console_hud import _PAD, ConsoleHud, ConsolePainter, ModeHud
+from funestra_core.drive_readout import DriveHud
+from funestra_core.hud_placement import HudEdge
 from shared_ui.palette import AMBER, GREEN, RED, TEXT_MUTED, TEXT_PRIMARY
 
 from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
@@ -62,7 +62,7 @@ class TestTheHeldWidth:
 
 
 class TestWhichSideTheConsoleHangsOn:
-    """The keys move this panel round the sides of the main player.  A video that
+    """The keys move this panel round the sides of the Main Funestra.  A video that
     wraps the viewer leaves no picture edge to hang against, so there it hangs
     under the dashboard as it always has."""
 

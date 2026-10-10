@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 
 import numpy as np
-from player_core.clip_picture import Picture
+from funestra_core.clip_picture import Picture
 
 
 class PanelBitmap:

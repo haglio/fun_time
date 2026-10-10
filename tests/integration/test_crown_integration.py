@@ -1,6 +1,6 @@
-"""The crown on real windows: a portrait video or Genau clip on the crowned main
-player trades places with the portrait player on the secondary monitor, and
-crowning the portrait player trades them back -- the windows moved, and what
+"""The crown on real windows: a portrait video or Genau clip on the crowned Main
+Funestra trades places with the Portrait Funestra on the secondary monitor, and
+crowning the Portrait Funestra trades them back -- the windows moved, and what
 each draws resized with them.  The clips are synthetic test patterns made for
 the run."""
 from __future__ import annotations
@@ -17,9 +17,9 @@ from pathlib import Path
 
 import pytest
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from player_core.file_channel import append_command
-from player_core.player_verbs import play_file
-from player_core.playlist import PlaylistItem
+from funestra_core.file_channel import append_command
+from funestra_core.funestra_verbs import play_file
+from funestra_core.playlist import PlaylistItem
 
 from fun_time.crown import Crown
 from fun_time.win32 import wait_for_window_by_title, window_rect
@@ -84,30 +84,30 @@ def _wait_until_seated(session: FunTimeIntegrationSession,
             for name, (hwnd, rect) in seats.items()))
 
 
-def test_a_portrait_video_on_the_crowned_main_player_trades_places_with_the_portrait_player():
+def test_a_portrait_video_on_the_crowned_main_funestra_trades_places_with_the_portrait_funestra():
     temp_root = build_integration_temp_root()
     session = FunTimeIntegrationSession(build_integration_config(temp_root))
     tall_clip = _tall_test_pattern(temp_root, seconds=30)
     try:
         session.start(env_overrides={"FUN_TIME_FAKE_MONITORS": FAKE_MONITORS})
         portrait = wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=10, exact=True)
-        main = wait_for_window_by_title("Main Player", timeout_s=10, exact=True)
+        main = wait_for_window_by_title("Main Funestra", timeout_s=10, exact=True)
         rects = partial(secondary_monitor_rects, SECONDARY_MONITOR, session.config.layout)
 
-        append_command(session.config.main_player_cmd_file, play_file(PlaylistItem(tall_clip)))
+        append_command(session.config.main_funestra_cmd_file, play_file(PlaylistItem(tall_clip)))
         crowned = rects(majority=Crown.MAIN)
-        _wait_until_seated(session, main_player=(main, crowned.main),
-                           portrait_player=(portrait, crowned.portrait))
+        _wait_until_seated(session, main_funestra=(main, crowned.main),
+                           portrait_funestra=(portrait, crowned.portrait))
 
         session.write_dashboard_command(Crown.PORTRAIT.command)
         usual = rects(majority=Crown.PORTRAIT)
-        _wait_until_seated(session, main_player=(main, usual.main),
-                           portrait_player=(portrait, usual.portrait))
+        _wait_until_seated(session, main_funestra=(main, usual.main),
+                           portrait_funestra=(portrait, usual.portrait))
     finally:
         session.stop()
 
 
-def test_a_portrait_genau_clip_on_the_crowned_main_player_trades_places_with_the_portrait_player():
+def test_a_portrait_genau_clip_on_the_crowned_main_funestra_trades_places_with_the_portrait_funestra():
     temp_root = build_integration_temp_root()
     clip_folder = temp_root / "genau_clips"
     (clip_folder / "2D" / "AI").mkdir(parents=True)
@@ -120,14 +120,14 @@ def test_a_portrait_genau_clip_on_the_crowned_main_player_trades_places_with_the
 
         session.write_dashboard_command("genau_activate")
         session.wait_for_new_log("Switched to genau mode")
-        main = wait_for_window_by_title("Main Player", timeout_s=10, exact=True)
+        main = wait_for_window_by_title("Main Funestra", timeout_s=10, exact=True)
         crowned = rects(majority=Crown.MAIN)
-        _wait_until_seated(session, main_player=(main, crowned.main),
-                           portrait_player=(portrait, crowned.portrait))
+        _wait_until_seated(session, main_funestra=(main, crowned.main),
+                           portrait_funestra=(portrait, crowned.portrait))
 
         session.write_dashboard_command(Crown.PORTRAIT.command)
         usual = rects(majority=Crown.PORTRAIT)
-        _wait_until_seated(session, main_player=(main, usual.main),
-                           portrait_player=(portrait, usual.portrait))
+        _wait_until_seated(session, main_funestra=(main, usual.main),
+                           portrait_funestra=(portrait, usual.portrait))
     finally:
         session.stop()

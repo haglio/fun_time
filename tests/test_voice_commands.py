@@ -88,7 +88,7 @@ class TestTheSpokenCrossing:
 
 class TestTheVrReset:
     @pytest.mark.parametrize("phrase", ["vr reset", "v r reset"])
-    def test_both_spellings_put_the_players_back_and_read_as_vr_reset(self, phrase):
+    def test_both_spellings_put_the_funestras_back_and_read_as_vr_reset(self, phrase):
         assert VOICE_COMMANDS[phrase] == "vr_reset"
         assert friendly_voice(phrase) == "VR reset"
 
@@ -118,8 +118,8 @@ class TestVoiceCommands:
             "back": "active_nudge_prev",
             "record": "main_player_record_down",
             "loop": "main_player_record_up",
-            # "end loop" is side-agnostic — it reaches the main player's own loop through the
-            # active-side resolution, not by naming the player here.
+            # "end loop" is side-agnostic — it reaches the Main Funestra's own loop through the
+            # active-side resolution, not by naming the Funestra here.
             "end loop": "active_no_loop",
             # The bare axis word is the literal one; "cycle / next / change
             # version" are generated with the other cycle axes.
@@ -134,7 +134,7 @@ class TestVoiceCommands:
             "slow down": "speed_down",
             "speed down": "speed_down",
             "speed up": "speed_up",
-            # …and naming the playback moves the video of the player last addressed.
+            # …and naming the playback moves the video of the Funestra last addressed.
             "playback slow down": "active_speed_down",
             "playback speed down": "active_speed_down",
             "playback speed up": "active_speed_up",
@@ -178,7 +178,7 @@ class TestVoiceCommands:
 
     def test_holding_a_genau_clip_is_the_main_lock_and_nothing_of_its_own(self):
         """It was a phrase and a padlock beside auto advance's arming; the two
-        could disagree, and the console carried a second lock next to the main player's."""
+        could disagree, and the console carried a second lock next to the Main Funestra's."""
         assert "lock clip" not in VOICE_COMMANDS
         assert "auto advance" not in VOICE_COMMANDS
         assert "advance on" not in VOICE_COMMANDS
@@ -301,22 +301,22 @@ class TestVoiceCommands:
                         "satellites video mode"):
             assert retired not in VOICE_COMMANDS, retired
 
-    def test_main_player_version_is_spoken_like_every_other_cycle_axis(self):
+    def test_main_funestra_version_is_spoken_like_every_other_cycle_axis(self):
         """"version" is an axis like "action" and "seed": the bare word cycles
         it, and so does an explicit verb up front."""
         for phrase in ("version", "cycle version", "next version", "change version"):
             assert VOICE_COMMANDS[phrase] == "main_player_cycle_version"
 
     def test_a_side_version_is_said_of_that_side_and_never_bare(self):
-        """The bare word is the main player's own axis, so a satellite's
+        """The bare word is the Main Funestra's own axis, so a satellite's
         renditions are asked for by side — in either word order, "both" with
         them, as every other satellite action is."""
-        for player in ("portrait", "landscape", "both"):
-            assert VOICE_COMMANDS[f"{player} version"] == f"{player}_cycle_version"
-            assert VOICE_COMMANDS[f"version {player}"] == f"{player}_cycle_version"
+        for funestra in ("portrait", "landscape", "both"):
+            assert VOICE_COMMANDS[f"{funestra} version"] == f"{funestra}_cycle_version"
+            assert VOICE_COMMANDS[f"version {funestra}"] == f"{funestra}_cycle_version"
         assert VOICE_COMMANDS["version"] == "main_player_cycle_version"
 
-    def test_main_player_length_phrases(self):
+    def test_main_funestra_length_phrases(self):
         assert VOICE_COMMANDS["shorts"] == "main_player_length_shorts"
         assert VOICE_COMMANDS["full length"] == "main_player_length_full"
         assert VOICE_COMMANDS["mixed"] == "main_player_length_mixed"
@@ -327,13 +327,13 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["end compilation"] == "main_player_end_compilation"
 
     def test_main_reset_returns_the_playlist_to_the_default_browse(self):
-        """"reset" means for the main player what it means for a satellite — drop
+        """"reset" means for the Main Funestra what it means for a satellite — drop
         whatever is narrowing the playlist — and it is order-agnostic like the rest
         of that grid.
 
         Its own command rather than a bare "length mixed" forward, because half of
-        what narrows the main player is the F-mode flag, which is the
-        orchestrator's and not the main player's to hear about.
+        what narrows the Main Funestra is the F-mode flag, which is the
+        orchestrator's and not the Main Funestra's to hear about.
         """
         for phrase in ("main reset", "reset main"):
             assert VOICE_COMMANDS[phrase] == "main_reset"
@@ -358,9 +358,9 @@ class TestVoiceCommands:
                 assert VOICE_COMMANDS[f"{side} {word}"] == target  # side first
                 assert VOICE_COMMANDS[f"{word} {side}"] == target  # side last
 
-    def test_f_mode_is_sayable_per_player_in_either_order(self):
-        """Every player has its own F-mode, so each is sayable by naming it — in
-        either order, like the rest of the grid.  "main" names the player on the
+    def test_f_mode_is_sayable_per_funestra_in_either_order(self):
+        """Every Funestra has its own F-mode, so each is sayable by naming it — in
+        either order, like the rest of the grid.  "main" names the Funestra on the
         shared slot and "both" means the two satellites."""
         for word, act in (("f mode", "fmode"),
                           ("f mode on", "fmode_on"),
@@ -369,8 +369,8 @@ class TestVoiceCommands:
                 assert VOICE_COMMANDS[f"{side} {word}"] == f"{side}_{act}"
                 assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
 
-    def test_bare_f_mode_reaches_the_active_player(self):
-        """Bare means the active player here as it does everywhere else in the
+    def test_bare_f_mode_reaches_the_active_funestra(self):
+        """Bare means the active Funestra here as it does everywhere else in the
         grid — "lock", "next", "weird" all resolve that way, and F-mode reading
         as the whole room instead is what made a spoken "f mode" report
         "enabled" over a room that already looked narrowed."""
@@ -428,7 +428,7 @@ class TestVoiceCommands:
 
     def test_the_scope_named_all_is_gone_from_the_grid(self):
         """"lock all" and "loop all" read "all" as everything pinning the clip,
-        where the room's other "all" — "all f mode" — means all players.  Nothing
+        where the room's other "all" — "all f mode" — means all Funestras.  Nothing
         in the phrase says which sense is meant, and both were second spellings
         of "lock" and "reset", so they went instead of being disambiguated."""
         for phrase in ("lock all", "loop all", "same all"):
@@ -439,11 +439,11 @@ class TestVoiceCommands:
         # What they said is still sayable, under the names the grid already used.
         assert VOICE_COMMANDS["lock"] == "active_lock_on"
         assert VOICE_COMMANDS["reset"] == "active_reset"
-        # The surviving "all" is the whole-room one, and it means all players.
+        # The surviving "all" is the whole-room one, and it means all Funestras.
         assert VOICE_COMMANDS["all f mode"] == "fmode_toggle"
 
     def test_main_nav_phrases_both_orders(self):
-        """The main player joins the grid for navigation, in either order.  Bare
+        """The Main Funestra joins the grid for navigation, in either order.  Bare
         "next"/"previous" reach it via the active side."""
         assert VOICE_COMMANDS["main next"] == "main_next"
         assert VOICE_COMMANDS["next main"] == "main_next"
@@ -451,7 +451,7 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["previous main"] == "main_prev"
 
     def test_main_lock_phrases_both_orders(self):
-        """The main player's lock joins that grid too, and says there what it says
+        """The Main Funestra's lock joins that grid too, and says there what it says
         on a satellite: hold the video on screen, or let its end walk the playlist.
         Bare "lock"/"unlock" reach it via the active side."""
         assert VOICE_COMMANDS["main lock"] == "main_lock_on"
@@ -459,16 +459,16 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["main unlock"] == "main_lock_off"
         assert VOICE_COMMANDS["unlock main"] == "main_lock_off"
 
-    def test_primary_is_no_longer_a_spoken_word_for_the_player(self):
-        """It names a monitor in this room — the main player and the secondary — and one
-        word cannot be both a screen and a player, so the old synonym is gone rather
+    def test_primary_is_no_longer_a_spoken_word_for_the_funestra(self):
+        """It names a monitor in this room — the Main Funestra and the secondary — and one
+        word cannot be both a screen and a Funestra, so the old synonym is gone rather
         than kept alongside "main"."""
         spoken = {phrase for phrase in VOICE_COMMANDS if "primary" in phrase}
 
         assert spoken == set()
 
     def test_mode_named_navigation_both_orders(self):
-        """A mode's name + next/previous (either order) navigates its player:
+        """A mode's name + next/previous (either order) navigates its Funestra:
         Kino drives the main slot, Genau its own clip."""
         for base, (next_command, previous_command) in (
                 ("kino", ("main_next", "main_prev")),
@@ -514,7 +514,7 @@ class TestVoiceCommands:
     def test_reset_speed_snaps_to_normal(self):
         assert VOICE_COMMANDS["reset speed"] == "active_speed_100"
 
-    def test_a_playback_speed_phrase_reaches_the_player_last_addressed_or_the_one_named(self):
+    def test_a_playback_speed_phrase_reaches_the_funestra_last_addressed_or_the_one_named(self):
         grid = {
             "playback speed up": "speed_up",
             "playback speed down": "speed_down",
@@ -567,10 +567,10 @@ def test_shuffle_joins_the_order_agnostic_satellite_grid():
         assert VOICE_COMMANDS[f"shuffle {side}"] == f"{side}_shuffle"
 
 
-def test_skip_and_back_join_the_grid_for_every_player():
-    """Ten seconds either way is on every player's HUD now, so the words for it
-    are said the way every other shared action is: bare to the player last
-    addressed, or with the player named either side of them."""
+def test_skip_and_back_join_the_grid_for_every_funestra():
+    """Ten seconds either way is on every Funestra's HUD now, so the words for it
+    are said the way every other shared action is: bare to the Funestra last
+    addressed, or with the Funestra named either side of them."""
     for word, act in (("skip", "nudge_next"), ("back", "nudge_prev")):
         assert VOICE_COMMANDS[word] == f"active_{act}"
         for side in ("portrait", "landscape", "both", "main"):
@@ -585,7 +585,7 @@ def test_reset_joins_the_order_agnostic_satellite_grid():
         assert VOICE_COMMANDS[f"reset {side}"] == f"{side}_reset"
 
 
-def test_reset_all_reaches_every_player_in_either_order():
+def test_reset_all_reaches_every_funestra_in_either_order():
     for phrase in ("reset all", "all reset"):
         assert VOICE_COMMANDS[phrase] == "all_reset"
 
@@ -681,23 +681,23 @@ class TestBuildVoiceCommands:
             )
 
 
-def test_the_crown_is_given_by_naming_the_player_after_the_word_crown():
+def test_the_crown_is_given_by_naming_the_funestra_after_the_word_crown():
     assert (VOICE_COMMANDS["crown portrait"], VOICE_COMMANDS["crown main"]) == (
         "portrait_crown", "main_crown")
 
 
 class TestMinimizingAHudBySpeech:
-    """"minimize landscape HUD" and its way back, for each player and for
+    """"minimize landscape HUD" and its way back, for each Funestra and for
     whichever one was addressed last."""
 
-    def test_each_player_can_be_told_to_minimize_its_hud(self):
-        for side, player in (("portrait", "portrait"), ("landscape", "landscape"),
+    def test_each_funestra_can_be_told_to_minimize_its_hud(self):
+        for side, funestra in (("portrait", "portrait"), ("landscape", "landscape"),
                              ("main", "main")):
-            assert VOICE_COMMANDS[f"minimize {side} hud"] == f"{player}_hud_minimize"
-            assert VOICE_COMMANDS[f"un minimize {side} hud"] == f"{player}_hud_restore"
-            assert VOICE_COMMANDS[f"restore {side} hud"] == f"{player}_hud_restore"
+            assert VOICE_COMMANDS[f"minimize {side} hud"] == f"{funestra}_hud_minimize"
+            assert VOICE_COMMANDS[f"un minimize {side} hud"] == f"{funestra}_hud_restore"
+            assert VOICE_COMMANDS[f"restore {side} hud"] == f"{funestra}_hud_restore"
 
-    def test_a_bare_minimize_hud_reaches_the_player_addressed_last(self):
+    def test_a_bare_minimize_hud_reaches_the_funestra_addressed_last(self):
         assert VOICE_COMMANDS["minimize hud"] == "active_hud_minimize"
         assert VOICE_COMMANDS["un minimize hud"] == "active_hud_restore"
         assert VOICE_COMMANDS["restore hud"] == "active_hud_restore"

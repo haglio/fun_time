@@ -45,7 +45,7 @@ import pytest
 from fun_time.child_launch import no_child_log, no_console_window, open_child_log
 
 ROOT = Path(__file__).resolve().parent.parent
-PACKAGES = (ROOT / "fun_time", ROOT / "satellite", ROOT / "fun_time_vr", ROOT / "main_player")
+PACKAGES = (ROOT / "fun_time", ROOT / "satellite", ROOT / "fun_time_vr", ROOT / "main_funestra")
 
 # The one helper that supplies the pair by unpacking.  A call may instead name
 # stdout and stderr itself; anything else is the inherited default.
@@ -191,7 +191,7 @@ class TestOpenChildLog:
         assert "x" * 200 not in log_file.read_text(encoding="utf-8")
 
     def test_creates_the_state_directory(self, tmp_path: Path):
-        # A player can be launched before anything has created state/, and the
+        # A Funestra can be launched before anything has created state/, and the
         # log has to exist before the child it is capturing starts.
         log_file = tmp_path / "state" / "portrait_satellite.log"
 

@@ -154,7 +154,7 @@ def notice(logger: logging.Logger, message: str, *, source: str, level: int = NO
            flashes: bool = True, spoken_at: float | None = None) -> None:
     """Log a message meant for the person watching the screen: "Clip saved", "No
     other seeds".  The log panel lists it, and unless *flashes* is off it flashes
-    over the player *source* names (:mod:`fun_time.notice_feed`), or in the
+    over the Funestra *source* names (:mod:`fun_time.notice_feed`), or in the
     headset (:mod:`fun_time_vr.notices`).
 
     *level* defaults to NOTICE (a normal announcement, white); pass FAVORITE for

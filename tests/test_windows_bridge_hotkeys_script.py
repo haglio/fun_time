@@ -31,14 +31,14 @@ def test_script_builds_no_tray_menu():
 
 
 def test_ctrl_alt_q_ends_the_whole_session():
-    """The way out of a session, and the reason no player has one of its own.
+    """The way out of a session, and the reason no Funestra has one of its own.
 
     Every window a session opens comes down together, and this line is the whole
     mechanism: the orchestrator waits for the session-end marker (or the script
     going), so the chord marking the end is what releases ``_shutdown_children``.
-    Take the binding away and each player is on its own again — which is the
-    failure the satellites' "no key here ends this player" comment and genau's
-    ``quits_this_player`` are both written against.
+    Take the binding away and each Funestra is on its own again — which is the
+    failure the satellites' "no key here ends this Funestra" comment and genau's
+    ``quits_this_funestra`` are both written against.
 
     The integration suite cannot stand in for this: ``quit_gracefully`` puts
     ``exit`` in the AHK mailbox rather than pressing anything, so it exercises

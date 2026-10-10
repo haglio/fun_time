@@ -9,9 +9,9 @@ means the same window a test in the other one does.
 from __future__ import annotations
 
 # HWNDs the role lookups resolve to: portrait, landscape and dashboard by pid;
-# The main player by pid (with an exact-title fallback); RFB from the hwnd
+# The Main Funestra by pid (with an exact-title fallback); RFB from the hwnd
 # captured at startup.
-MAIN_PLAYER_HWND = 2001
+MAIN_FUNESTRA_HWND = 2001
 PORTRAIT_HWND = 3001
 LANDSCAPE_HWND = 4001
 DASHBOARD_HWND = 5001
@@ -21,13 +21,13 @@ RFB_HWND = 7777
 HOSTED_PID = 900
 HOSTED_HWND = 8001
 
-MAIN_PLAYER_PID = 200
+MAIN_FUNESTRA_PID = 200
 PORTRAIT_PID = 300
 LANDSCAPE_PID = 400
 DASHBOARD_PID = 500
 
 PID_TO_HWND = {
-    MAIN_PLAYER_PID: MAIN_PLAYER_HWND,
+    MAIN_FUNESTRA_PID: MAIN_FUNESTRA_HWND,
     PORTRAIT_PID: PORTRAIT_HWND,
     LANDSCAPE_PID: LANDSCAPE_HWND,
     DASHBOARD_PID: DASHBOARD_HWND,
@@ -36,7 +36,7 @@ PID_TO_HWND = {
 # The windows that are topmost in EVERY mode — the ones that own a rect and so
 # overlap nothing: every managed window but the hosted app's, which shares the
 # browser's rect.
-TOPMOST_HWNDS = {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_PLAYER_HWND}
+TOPMOST_HWNDS = {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_FUNESTRA_HWND}
 
 
 def lookup_pid(pid):

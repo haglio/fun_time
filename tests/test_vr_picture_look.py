@@ -22,7 +22,7 @@ def _run_now(*, target, args=(), name=None) -> None:
     target(*args)
 
 
-class _Player:
+class _Engine:
     """A video thread's surface: a still is asked for and turns up on a later look,
     painted by the thread that owns the GL context."""
 
@@ -41,21 +41,21 @@ class _Player:
         return self.frames.pop(0)
 
 
-def _looked(player) -> list[tuple[Path, str]]:
+def _looked(engine) -> list[tuple[Path, str]]:
     said: list[tuple[Path, str]] = []
-    look = PictureLook(player, start_thread=_run_now, sleep=lambda _seconds: None)
+    look = PictureLook(engine, start_thread=_run_now, sleep=lambda _seconds: None)
     look.look_at(VIDEO, lambda video, shape: said.append((video, shape)))
     return said
 
 
 def test_a_shape_seen_twice_is_what_the_video_is():
-    assert _looked(_Player([_bgra(CIRCLE), _bgra(CIRCLE)])) == [(VIDEO, FISHEYE_CIRCLE)]
+    assert _looked(_Engine([_bgra(CIRCLE), _bgra(CIRCLE)])) == [(VIDEO, FISHEYE_CIRCLE)]
 
 
 def test_one_look_alone_is_not_believed():
     looks = [_bgra(CIRCLE), _bgra(FULL), _bgra(FULL), _bgra(FULL)]
 
-    assert _looked(_Player(looks)) == [(VIDEO, FULL_FRAME)]
+    assert _looked(_Engine(looks)) == [(VIDEO, FULL_FRAME)]
 
 
 def test_a_picture_filling_the_frame_takes_a_third_look_to_believe():
@@ -63,24 +63,24 @@ def test_a_picture_filling_the_frame_takes_a_third_look_to_believe():
     lasts a few seconds; the circle under it shows up once it has gone."""
     looks = [_bgra(FULL), _bgra(FULL), _bgra(CIRCLE), _bgra(CIRCLE)]
 
-    assert _looked(_Player(looks)) == [(VIDEO, FISHEYE_CIRCLE)]
+    assert _looked(_Engine(looks)) == [(VIDEO, FISHEYE_CIRCLE)]
 
 
 def test_a_look_that_shows_nothing_is_passed_over():
     """Black between scenes, and no frame at all while the file is still opening."""
     looks = [_bgra(BLACK), None, _bgra(CIRCLE), _bgra(BLACK), _bgra(CIRCLE)]
 
-    assert _looked(_Player(looks)) == [(VIDEO, FISHEYE_CIRCLE)]
+    assert _looked(_Engine(looks)) == [(VIDEO, FISHEYE_CIRCLE)]
 
 
 def test_it_waits_before_each_look_so_the_file_asked_for_is_the_one_playing():
     """mpv takes a moment to let go of the last file, and its picture would be
     read as the new one's."""
     events: list[str] = []
-    player = _Player([_bgra(CIRCLE), _bgra(CIRCLE)])
-    grab = player.take_a_still
-    player.take_a_still = lambda: events.append("look") or grab()
-    look = PictureLook(player, start_thread=_run_now,
+    engine = _Engine([_bgra(CIRCLE), _bgra(CIRCLE)])
+    grab = engine.take_a_still
+    engine.take_a_still = lambda: events.append("look") or grab()
+    look = PictureLook(engine, start_thread=_run_now,
                        sleep=lambda _seconds: events.append("wait"))
 
     look.look_at(VIDEO, lambda video, shape: None)
@@ -88,27 +88,27 @@ def test_it_waits_before_each_look_so_the_file_asked_for_is_the_one_playing():
     assert events == ["wait", "look", "wait", "look"]
 
 
-def test_a_player_with_no_file_open_yet_is_not_asked_for_its_picture():
-    player = _Player([_bgra(CIRCLE), _bgra(CIRCLE)], duration_ms=0.0)
+def test_a_funestra_with_no_file_open_yet_is_not_asked_for_its_picture():
+    engine = _Engine([_bgra(CIRCLE), _bgra(CIRCLE)], duration_ms=0.0)
 
-    assert _looked(player) == []
-    assert len(player.frames) == 2
+    assert _looked(engine) == []
+    assert len(engine.frames) == 2
 
 
 def test_opening_another_video_ends_the_look_at_the_last_one():
     other = Path("scene two.mp4")
     said: list[tuple[Path, str]] = []
-    player = _Player([_bgra(CIRCLE), _bgra(FULL), _bgra(FULL), _bgra(FULL), _bgra(CIRCLE)])
-    look = PictureLook(player, start_thread=_run_now, sleep=lambda _seconds: None)
-    grab = player.take_a_still
+    engine = _Engine([_bgra(CIRCLE), _bgra(FULL), _bgra(FULL), _bgra(FULL), _bgra(CIRCLE)])
+    look = PictureLook(engine, start_thread=_run_now, sleep=lambda _seconds: None)
+    grab = engine.take_a_still
 
     def grab_then_move_on():
         frame = grab()
-        if len(player.frames) == 4:  # the first look at the first video, just taken
+        if len(engine.frames) == 4:  # the first look at the first video, just taken
             look.look_at(other, lambda video, shape: said.append((video, shape)))
         return frame
 
-    player.take_a_still = grab_then_move_on
+    engine.take_a_still = grab_then_move_on
 
     look.look_at(VIDEO, lambda video, shape: said.append((video, shape)))
 
@@ -117,17 +117,17 @@ def test_opening_another_video_ends_the_look_at_the_last_one():
 
 def test_a_video_opened_again_is_looked_at_once_not_twice_over():
     said: list[tuple[Path, str]] = []
-    player = _Player([_bgra(CIRCLE)] * 5)
-    look = PictureLook(player, start_thread=_run_now, sleep=lambda _seconds: None)
-    grab = player.take_a_still
+    engine = _Engine([_bgra(CIRCLE)] * 5)
+    look = PictureLook(engine, start_thread=_run_now, sleep=lambda _seconds: None)
+    grab = engine.take_a_still
 
     def grab_then_open_it_again():
         frame = grab()
-        if len(player.frames) == 4:
+        if len(engine.frames) == 4:
             look.look_at(VIDEO, lambda video, shape: said.append((video, shape)))
         return frame
 
-    player.take_a_still = grab_then_open_it_again
+    engine.take_a_still = grab_then_open_it_again
 
     look.look_at(VIDEO, lambda video, shape: said.append((video, shape)))
 
@@ -135,18 +135,18 @@ def test_a_video_opened_again_is_looked_at_once_not_twice_over():
 
 
 def test_a_video_that_never_shows_its_shape_is_given_up_on():
-    player = _Player([_bgra(BLACK)] * (LOOKS + 3))
+    engine = _Engine([_bgra(BLACK)] * (LOOKS + 3))
 
-    assert _looked(player) == []
-    assert len(player.frames) == 3
+    assert _looked(engine) == []
+    assert len(engine.frames) == 3
 
 
 def test_a_look_stopped_while_it_looks_says_nothing_of_the_video_it_was_on():
     """Stopped by the session closing, or by a video opening that needs no look:
     the picture on screen is that video's from then on."""
     said: list[tuple[Path, str]] = []
-    player = _Player([_bgra(CIRCLE), _bgra(CIRCLE)])
-    look = PictureLook(player, start_thread=_run_now, sleep=lambda _seconds: look.stop_looking())
+    engine = _Engine([_bgra(CIRCLE), _bgra(CIRCLE)])
+    look = PictureLook(engine, start_thread=_run_now, sleep=lambda _seconds: look.stop_looking())
 
     look.look_at(VIDEO, lambda video, shape: said.append((video, shape)))
 

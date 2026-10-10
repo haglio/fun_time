@@ -59,7 +59,7 @@ def _run_in_a_run_job(probe: str) -> None:
 
 
 def test_a_hidden_desktop_launch_is_muted_however_the_caller_leaves_the_environment():
-    """Off-screen hides a player's window, not its sound, and a repro that
+    """Off-screen hides a Funestra's window, not its sound, and a repro that
     borrowed this launcher without the mute played the real library aloud
     (2026-09-19).  So the launcher forces the switch on: passed nothing, passed
     an empty environment, or even handed the switch turned off."""
@@ -189,7 +189,7 @@ def test_a_repeat_run_hands_the_integration_dir_to_the_flake_gate():
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
 def test_the_flake_gate_runs_from_an_install_of_its_own_made_before_the_queue(tmp_path):
-    """This venv pins the app_support its players run on, and the gate may be in
+    """This venv pins the app_support its Funestras run on, and the gate may be in
     a newer one; the tests it repeats still run here, through --python.  Making
     that install can take a download, which no other session should queue for."""
     events = []
@@ -599,12 +599,12 @@ def test_a_run_ends_on_the_code_pytest_decided_though_windows_never_finishes_tak
 
 def test_main_hands_its_own_args_to_the_run_and_exits_on_its_verdict():
     with patch.object(hidden_desktop, "run_on_hidden_desktop", return_value=0) as run, \
-         patch.object(sys, "argv", ["hidden_desktop", "-k", "main_player"]):
+         patch.object(sys, "argv", ["hidden_desktop", "-k", "main_funestra"]):
         with pytest.raises(SystemExit) as exit_info:
             main()
 
     assert exit_info.value.code == 0
-    run.assert_called_once_with(["-k", "main_player"])
+    run.assert_called_once_with(["-k", "main_funestra"])
 
 
 def _wait_until_dead(pid: int, timeout: float = 5.0) -> bool:
@@ -620,7 +620,7 @@ def _wait_until_dead(pid: int, timeout: float = 5.0) -> bool:
 def test_a_process_launched_into_the_run_job_dies_when_the_job_closes(tmp_path):
     """The runner holds the job's only handle, so however the runner ends — a
     clean exit, a crash, a kill — Windows terminates whatever the run left
-    running.  No integration run can strand a player for the next one to trip on."""
+    running.  No integration run can strand a Funestra for the next one to trip on."""
     job = create_run_job()
     cmdline = subprocess.list2cmdline([sys.executable, "-c", "import time; time.sleep(60)"])
     pi = _launch_on_desktop(cmdline, None, str(tmp_path), job)

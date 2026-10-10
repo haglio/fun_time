@@ -180,7 +180,7 @@ class TestTheCoverThatSpansTheCrossing:
 
 class TestTheHeadsetHold:
     """The headset's half of a crossing: a handshake, because the arriving
-    desktop session claims the channels the held player was driving."""
+    desktop session claims the channels the held Funestra was driving."""
 
     def test_the_hold_carries_whether_to_stop_the_runtime(self, tmp_path: Path):
         """The orchestrator is the only thing that knows, and it exits first."""
@@ -191,7 +191,7 @@ class TestTheHeadsetHold:
         hold_the_headset(tmp_path, stop_runtime=False)
         assert headset_hold_stops_the_runtime(tmp_path) is False
 
-    def test_the_player_answers_only_once_it_has_let_go(self, tmp_path: Path):
+    def test_the_funestra_answers_only_once_it_has_let_go(self, tmp_path: Path):
         hold_the_headset(tmp_path, stop_runtime=False)
         assert headset_is_held(tmp_path) is False
 
@@ -200,7 +200,7 @@ class TestTheHeadsetHold:
         assert headset_is_held(tmp_path) is True
 
     def test_a_new_hold_never_reads_the_last_one_s_answer(self, tmp_path: Path):
-        """One stale ack and the outgoing session would walk away from a player
+        """One stale ack and the outgoing session would walk away from a Funestra
         that had not stopped writing the files the next one is claiming."""
         hold_the_headset(tmp_path, stop_runtime=False)
         report_the_headset_held(tmp_path)
@@ -261,11 +261,11 @@ class TestTheKeptOrigenerator:
 
 
 class TestWhichSessionIsWhich:
-    """Where the main player lives is the whole difference between the two."""
+    """Where the Main Funestra lives is the whole difference between the two."""
 
-    def test_a_session_hosting_its_main_player_in_vr_is_the_vr_one(self):
-        assert this_session(vr_main_player=True) is VR
-        assert this_session(vr_main_player=False) is DESKTOP
+    def test_a_session_hosting_its_main_funestra_in_vr_is_the_vr_one(self):
+        assert this_session(vr_main_funestra=True) is VR
+        assert this_session(vr_main_funestra=False) is DESKTOP
 
     def test_each_target_names_the_marker_its_orchestrator_really_writes(self):
         """The relay watches the file the incoming session drops, so a marker

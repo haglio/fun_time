@@ -5,14 +5,15 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from player_core.console import OSR2_DRIVING
-from player_core.file_channel import append_command
-from player_core.player_verbs import LOCK_OFF, RELOAD_PLAYLIST, play_file
+from funestra_core.console import OSR2_DRIVING
+from funestra_core.file_channel import append_command
+from funestra_core.funestra_verbs import LOCK_OFF, RELOAD_PLAYLIST, play_file
 
 logger = logging.getLogger(__name__)
 
 from .bridge_records import SatelliteChannel
 from .broker_control import write_broker_command
+from .funestra_handover import keep_aside
 from .main_list_builds import BUILDS_HERE, MainListBuild, MainListBuilds
 from .mode_plan import build_mode_switch_plan
 from .modes import (
@@ -26,9 +27,8 @@ from .modes import (
     write_playlist_file,
 )
 from .omnipause import build_omnipause_plan
-from .player_handover import keep_aside
-from .players import Player
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
+from .room_funestras import RoomFunestra
 from .satellites_mode import CLOSE_SHOWS, KINO_MODE, OPEN_SHOWS
 
 
@@ -57,16 +57,16 @@ class ModeSwitchFlowResult:
 
 
 # F-mode can be set on any of the three, each with its own flag, because it means
-# a different narrowing on each: the satellites drop to the favorites, the main
-# player to the videos a person hand-wrote a funscript for.
-FMODE_PLAYERS = (Player.MAIN, Player.PORTRAIT, Player.LANDSCAPE)
+# a different narrowing on each: the satellites drop to the favorites, the Main
+# Funestra to the videos a person hand-wrote a funscript for.
+FMODE_FUNESTRAS = (RoomFunestra.MAIN, RoomFunestra.PORTRAIT, RoomFunestra.LANDSCAPE)
 
 
 @dataclass(frozen=True)
 class FModeFlowResult:
-    """Which players were put into (or out of) F-mode, and what to say about it."""
+    """Which Funestras were put into (or out of) F-mode, and what to say about it."""
 
-    players: tuple[Player, ...]
+    funestras: tuple[RoomFunestra, ...]
     enabled: bool
     log_message: str
 
@@ -77,10 +77,10 @@ def apply_mode_switch(
     target_mode: str,
     omni_paused: bool,
     genau_cmd_file: str | Path,
-    main_player_paused_file: str | Path,
-    main_player_cmd_file: str | Path,
+    main_funestra_paused_file: str | Path,
+    main_funestra_cmd_file: str | Path,
 ) -> ModeSwitchFlowResult:
-    """Switch the main slot between kino and genau mode, sending each player
+    """Switch the main slot between kino and genau mode, sending each Funestra
     what :class:`fun_time.mode_plan.ModeSwitchPlan` says it is owed.
 
     Queued, never written whole: the files are queues shared with every other
@@ -93,10 +93,10 @@ def apply_mode_switch(
         omni_paused=omni_paused,
     )
     if plan.is_transition:
-        if plan.main_player_should_play is not None:
-            write_flag_file(main_player_paused_file, not plan.main_player_should_play)
+        if plan.main_funestra_should_play is not None:
+            write_flag_file(main_funestra_paused_file, not plan.main_funestra_should_play)
         for cmd_file, cmd in ((genau_cmd_file, plan.genau_cmd),
-                              (main_player_cmd_file, plan.show_cmd)):
+                              (main_funestra_cmd_file, plan.show_cmd)):
             if cmd is not None:
                 append_command(Path(cmd_file), cmd)
     return ModeSwitchFlowResult(
@@ -111,38 +111,38 @@ def apply_main_fmode(
     enabled: bool,
     main_sources: str,
     state_dir: str | Path,
-    main_player_cmd_file: str | Path,
+    main_funestra_cmd_file: str | Path,
     recent: bool = False,
     start_at_top: bool = False,
     shapes: VideoShapes | None = None,
     metadata_root: Path | None = None,
     builds: MainListBuilds = BUILDS_HERE,
 ) -> None:
-    """Rebuild the main player's playlist under *enabled* and hand it to the main player.
+    """Rebuild the Main Funestra's playlist under *enabled* and hand it to the Main Funestra.
 
-    The one place the main player's playlist is rewritten while a session runs,
+    The one place the Main Funestra's playlist is rewritten while a session runs,
     so everything narrowing it rides here: F-mode, the browse order, and the
     headset's shape filter.
 
-    F-mode narrows the main player to the videos a person hand-wrote a funscript
+    F-mode narrows the Main Funestra to the videos a person hand-wrote a funscript
     for — the OSR2 follows a script someone meant, not one a bulk run inferred.
 
     ``start_at_top`` is the reorder's, and means here what it means for a
-    satellite: the main player keeps the video on screen across a reload whenever the new list
+    satellite: the Main Funestra keeps the video on screen across a reload whenever the new list
     still holds it — which a reorder's always does — so a newest-first rebuild
     would otherwise apply only after it, and the new arrivals never come up.
     *builds* is where — see :class:`fun_time.main_list_builds.MainListBuilds`.
     """
     builds.build(MainListBuild(
         scripted_filter=enabled, main_sources=main_sources, state_dir=Path(state_dir),
-        main_player_cmd_file=Path(main_player_cmd_file), recent=recent,
+        main_funestra_cmd_file=Path(main_funestra_cmd_file), recent=recent,
         start_at_top=start_at_top, shapes=shapes, metadata_root=metadata_root,
     ))
 
 
 def apply_satellite_fmode(
     *,
-    player: Player,
+    funestra: RoomFunestra,
     enabled: bool,
     sources: str,
     favs_file: str | Path,
@@ -159,7 +159,7 @@ def apply_satellite_fmode(
     """
     build_one_satellite_playlist(
         sources=sources,
-        name=PLAYLIST_PORTRAIT if player == Player.PORTRAIT else PLAYLIST_LANDSCAPE,
+        name=PLAYLIST_PORTRAIT if funestra == RoomFunestra.PORTRAIT else PLAYLIST_LANDSCAPE,
         favs_file=Path(favs_file),
         state_dir=Path(state_dir),
         favorites_filter=enabled,
@@ -182,42 +182,42 @@ class SatelliteFmodeInputs:
 
 def apply_fmode(
     *,
-    players: Sequence[Player],
+    funestras: Sequence[RoomFunestra],
     enabled: bool,
     main_sources: str,
     favs_file: str | Path,
     state_dir: str | Path,
     main_recent: bool = False,
     main_shapes: VideoShapes | None = None,
-    main_player_cmd_file: str | Path,
+    main_funestra_cmd_file: str | Path,
     main_builds: MainListBuilds = BUILDS_HERE,
-    satellites: Mapping[Player, SatelliteFmodeInputs],
+    satellites: Mapping[RoomFunestra, SatelliteFmodeInputs],
     regen_metadata_root: Path | None = None,
 ) -> FModeFlowResult:
-    """Put each of *players* into F-mode, or take it out, and rebuild just those.
+    """Put each of *Funestras* into F-mode, or take it out, and rebuild just those.
 
-    A player not named is not touched at all — its playlist file is left exactly
+    A Funestra not named is not touched at all — its playlist file is left exactly
     as it is, so setting one side's F-mode cannot reshuffle the other's queue out
-    from under it.  That is the whole reason the rebuild is per player rather
+    from under it.  That is the whole reason the rebuild is per Funestra rather
     than one build of all three.
     """
-    named = tuple(player for player in FMODE_PLAYERS if player in players)
-    if Player.MAIN in named:
+    named = tuple(funestra for funestra in FMODE_FUNESTRAS if funestra in funestras)
+    if RoomFunestra.MAIN in named:
         apply_main_fmode(
             enabled=enabled,
             main_sources=main_sources,
             recent=main_recent,
             state_dir=state_dir,
-            main_player_cmd_file=main_player_cmd_file,
+            main_funestra_cmd_file=main_funestra_cmd_file,
             shapes=main_shapes,
             metadata_root=regen_metadata_root,
             builds=main_builds,
         )
-    for player in Player.SATELLITES:
-        if player in named:
-            satellite = satellites[player]
+    for funestra in RoomFunestra.SATELLITES:
+        if funestra in named:
+            satellite = satellites[funestra]
             apply_satellite_fmode(
-                player=player,
+                funestra=funestra,
                 enabled=enabled,
                 sources=satellite.sources,
                 favs_file=favs_file,
@@ -228,11 +228,11 @@ def apply_fmode(
                 regen_metadata_root=regen_metadata_root,
             )
     return FModeFlowResult(
-        players=named,
+        funestras=named,
         enabled=enabled,
         log_message=(
             f"F-mode {'enabled' if enabled else 'disabled'}: "
-            f"{', '.join(player.label for player in named) or 'nothing'}"
+            f"{', '.join(funestra.label for funestra in named) or 'nothing'}"
         ),
     )
 
@@ -267,7 +267,7 @@ class SatelliteFilterFlowResult:
 
 def apply_satellite_filter(
     *,
-    player: Player,
+    funestra: RoomFunestra,
     query: str,
     favorites_filter: bool,
     recent: bool,
@@ -285,7 +285,7 @@ def apply_satellite_filter(
     non-empty query that matches nothing leaves the current playlist in place
     rather than blanking the satellite; ``query == ""`` clears the filter.  The
     playlist file it writes is the one the satellite plays, so a RELOAD_PLAYLIST
-    verb makes the player pick it up.
+    verb makes the Funestra pick it up.
 
     That reload keeps the clip on screen playing while it survives the new list, and
     carries on from where it sits — which is right for a filter, and wrong for a
@@ -294,8 +294,8 @@ def apply_satellite_filter(
     newest arrivals never come up.  ``start_at_top`` follows the reload with a jump
     to the head of the list it just wrote.
     """
-    label = Player(player).label
-    name = PLAYLIST_PORTRAIT if player == Player.PORTRAIT else PLAYLIST_LANDSCAPE
+    label = RoomFunestra(funestra).label
+    name = PLAYLIST_PORTRAIT if funestra == RoomFunestra.PORTRAIT else PLAYLIST_LANDSCAPE
     paths = satellite_browse_paths(
         query=query, favorites_filter=favorites_filter, recent=recent,
         sources=sources, favs_file=favs_file, regen_metadata_root=regen_metadata_root,
@@ -328,12 +328,12 @@ def apply_satellites_switch(
     """Switch the satellite side between video and origenerator mode.
 
     Like the main slot's switch, nothing is torn down, and nothing pauses: in
-    origenerator mode the two players show the hosted app's slideshows.
-    Entering keeps each player's own list aside for the way back, lets go of the
-    session's hold on the player -- what holds is the app's to say now -- and
+    origenerator mode the two Funestras show the hosted app's slideshows.
+    Entering keeps each Funestra's own list aside for the way back, lets go of the
+    session's hold on the Funestra -- what holds is the app's to say now -- and
     tells the app to fill both, so the mode opens playing rather than empty.
-    Leaving tells it to let go; the players come home once it has (see
-    :mod:`fun_time.player_handover`).
+    Leaving tells it to let go; the Funestras come home once it has (see
+    :mod:`fun_time.funestra_handover`).
     """
     if current_mode == target_mode:
         return SatellitesSwitchFlowResult(
@@ -346,8 +346,8 @@ def apply_satellites_switch(
         for channel in channels:
             keep_aside(channel)
             append_command(Path(channel.cmd_file), LOCK_OFF)
-        # Both players come up playing, the way they are playing the moment
-        # kino mode is entered: a mode that opened onto two players with
+        # Both Funestras come up playing, the way they are playing the moment
+        # kino mode is entered: a mode that opened onto two Funestras with
         # nothing new on them asked the user to go and start it.  The hosted
         # app picks the sets -- its whole library, shuffled, one shape each.
         if origenerator_cmd_file is not None:
@@ -372,7 +372,7 @@ def apply_enter_omnipause(
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
     genau_cmd_file: str | Path,
-    main_player_paused_file: str | Path,
+    main_funestra_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
     origenerator_paused_file: str | Path | None = None,
 ) -> OmniPauseFlowResult:
@@ -384,7 +384,7 @@ def apply_enter_omnipause(
     )
     write_flag_file(genau_paused_file, True)
     write_flag_file(audio_paused_file, True)
-    write_flag_file(main_player_paused_file, True)
+    write_flag_file(main_funestra_paused_file, True)
     # The satellites obey their paused flag file each tick, so freezing playback
     # is a single flag write per side.  A paused native satellite simply cannot
     # auto-advance (its advance() returns early while paused), so OmniPause is a
@@ -414,25 +414,25 @@ def apply_leave_omnipause(
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
     genau_cmd_file: str | Path,
-    main_player_paused_file: str | Path,
+    main_funestra_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
     origenerator_paused_file: str | Path | None = None,
     osr2_control: str = OSR2_DRIVING,
-    osr2_player: Player = Player.MAIN,
+    osr2_funestra: RoomFunestra = RoomFunestra.MAIN,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "leave",
         omni_paused=omni_paused,
         main_mode=main_mode,
         osr2_control=osr2_control,
-        osr2_player=osr2_player,
+        osr2_funestra=osr2_funestra,
     )
     write_flag_file(genau_paused_file, False)
     write_flag_file(audio_paused_file, False)
     if plan.resume_genau_playback:
         append_command(Path(genau_cmd_file), "RESUME")
-    if plan.resume_main_player_playback:
-        write_flag_file(main_player_paused_file, False)
+    if plan.resume_main_funestra_playback:
+        write_flag_file(main_funestra_paused_file, False)
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
     # Unfreeze both satellites; a locked one holds its clip (its lock is

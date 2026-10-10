@@ -1,5 +1,5 @@
 """Opening a session on the headset, and what to say when it cannot be opened.
-Out of :mod:`fun_time_vr.player`, which needs glfw, OpenGL and xr to import."""
+Out of :mod:`fun_time_vr.funestras`, which needs glfw, OpenGL and xr to import."""
 from __future__ import annotations
 
 import logging

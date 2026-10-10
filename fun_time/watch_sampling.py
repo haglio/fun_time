@@ -1,6 +1,6 @@
-"""Watch tracking: which video each player is on, and what a departure meant.
+"""Watch tracking: which video each Funestra is on, and what a departure meant.
 
-Every player's current clip is sampled twice a second and fed to the trackers,
+Every Funestra's current clip is sampled twice a second and fed to the trackers,
 which classify playback into completions and skips for the stats file.  The two
 satellites also feed a timeline, which is what lets a spoken command be
 back-dated to the video that was on screen when the speaker started talking.
@@ -9,14 +9,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .command_dispatch import command_player
-from .player_status import read_main_player_status
+from .command_dispatch import command_funestra
+from .funestra_status import read_main_funestra_status
 from .satellite_control import read_satellite_status
 from .video_timeline import VideoTimeline
 from .watch_stats import WatchTracker, record_watch_event
 
-# Twice a second: the cadence for sampling every player's current clip (both
-# satellites and the main player feed).  A satellite video switch is only ever
+# Twice a second: the cadence for sampling every Funestra's current clip (both
+# satellites and the Main Funestra feed).  A satellite video switch is only ever
 # bracketed by two samples, so this also bounds how far a back-dated command can
 # misplace a switch (the timeline halves it again by dating the switch to the
 # bracket's midpoint).  Skipped under OmniPause, where playback is frozen.
@@ -24,7 +24,7 @@ SAMPLE_INTERVAL_S = 0.5
 
 # Commands that count as the user navigating away from a video — the signal
 # that classifies an early departure as a skip rather than a neutral advance.
-# The main player navigates with next/prev only; it has no lock/weird/cycle.
+# The Main Funestra navigates with next/prev only; it has no lock/weird/cycle.
 NAV_COMMANDS: dict[int, frozenset[str]] = {
     1: frozenset({"main_prev", "main_next"}),
     2: frozenset({"portrait_prev", "portrait_next", "portrait_cycle_action", "portrait_cycle_seed"}),
@@ -40,11 +40,11 @@ class WatchSampler:
     def __init__(
         self,
         *,
-        main_player_status_file: Path,
+        main_funestra_status_file: Path,
         satellite_status_files: dict[int, Path],
         stats_file: Path,
     ) -> None:
-        self.main_player_status_file = main_player_status_file
+        self.main_funestra_status_file = main_funestra_status_file
         self.satellite_status_files = satellite_status_files
         self.stats_file = stats_file
         self._trackers: dict[int, WatchTracker] = {1: WatchTracker(), 2: WatchTracker(),
@@ -53,7 +53,7 @@ class WatchSampler:
         self._last_sample = 0.0
 
     def sample_due(self, *, now: float, paused: bool, satellites: bool = True) -> None:
-        """Sample every player, if the cadence says it is time.
+        """Sample every Funestra, if the cadence says it is time.
 
         The clock advances whether or not the room is paused, so resuming does
         not fire an off-cadence sample the moment the pause lifts.
@@ -72,7 +72,7 @@ class WatchSampler:
 
     def _sample_satellites(self, *, now: float) -> None:
         """Sample each satellite's current video for the trackers and timelines,
-        from the status file its native player publishes."""
+        from the status file its native Funestra publishes."""
         for which, status_file in self.satellite_status_files.items():
             status = read_satellite_status(status_file)
             if status.fraction is None:
@@ -82,14 +82,14 @@ class WatchSampler:
                 record_watch_event(self.stats_file, video, event)
 
     def _sample_main(self) -> None:
-        """Sample the main player's current video for watch tracking.
+        """Sample the Main Funestra's current video for watch tracking.
 
-        The main player publishes its playback to the status file; the watched fraction is
-        position/duration.  A paused player, one with nothing loaded, or one
+        The Main Funestra publishes its playback to the status file; the watched fraction is
+        position/duration.  A paused Funestra, one with nothing loaded, or one
         whose duration is not yet known yields no usable sample, so those ticks
         are dropped rather than fed to the tracker.
         """
-        status = read_main_player_status(self.main_player_status_file)
+        status = read_main_funestra_status(self.main_funestra_status_file)
         if not status.video or status.paused or status.duration_ms <= 0:
             return
         fraction = status.position_ms / status.duration_ms
@@ -97,7 +97,7 @@ class WatchSampler:
             record_watch_event(self.stats_file, video, event)
 
     def note_command(self, command: str) -> None:
-        """Tell the trackers what the user just did to a player, so an early
+        """Tell the trackers what the user just did to a Funestra, so an early
         departure is classified as a skip (nav) or as nothing at all (a trash,
         whose file is going away and must not be booked against anyone)."""
         for which, nav_commands in NAV_COMMANDS.items():
@@ -118,7 +118,7 @@ class WatchSampler:
         """
         if spoken_at is None:
             return ""
-        timeline = self._timelines.get(command_player(command))
+        timeline = self._timelines.get(command_funestra(command))
         if timeline is None:
             return ""
         return timeline.path_at(spoken_at)

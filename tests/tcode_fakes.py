@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from player_core.funscript import Funscript
-from player_core.robot_hand import FULL_INTENSITY
+from funestra_core.funscript import Funscript
+from funestra_core.robot_hand import FULL_INTENSITY
 
 
 class FakeTCode:

@@ -222,12 +222,12 @@ class TestHandleHeard:
         ("main full length please", "main"),
         ("full length please landscape", "landscape"),
     ])
-    def test_an_unrecognized_phrase_reports_over_the_player_it_named(
+    def test_an_unrecognized_phrase_reports_over_the_funestra_it_named(
         self, tmp_path, monkeypatch, heard, source,
     ):
         """A phrase the grammar rejected can still say who it was for, in either
         order — that satellite is where the user is looking, so that is where the
-        report belongs, rather than on the main player."""
+        report belongs, rather than on the Main Funestra."""
         vc = self._controller(tmp_path)
         seen = []
         monkeypatch.setattr(voice_control, "notice",
@@ -239,8 +239,8 @@ class TestHandleHeard:
 
         assert seen == [source, source]
 
-    def test_a_player_word_inside_a_longer_word_does_not_claim_the_report(self):
-        """The player has to be *named* — matched whole, not as a fragment."""
+    def test_a_funestra_word_inside_a_longer_word_does_not_claim_the_report(self):
+        """The Funestra has to be *named* — matched whole, not as a fragment."""
         assert voice_control._source_for_heard_text("mainly landscaped") == "system"
 
     def test_unrecognized_speech_stays_silent_while_muted(self, tmp_path, monkeypatch):

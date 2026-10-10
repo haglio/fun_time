@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.file_channel import read_flag, write_flag
-from player_core.file_channel import append_command
+from funestra_core.file_channel import append_command
 from voice_core.commands import CommandRules
 from voice_core.listener import CommandListener, Engines, ListenerEvents, ListenerSettings
 from voice_core.listening import Heard
@@ -59,10 +59,10 @@ def take_whether_the_mic_was_off(state_dir: Path) -> bool:
     return was_off
 
 
-# The player words a speaker can put in any command, and which window a notice
-# about that player flashes over.  "both" is deliberately absent: it addresses
-# two players, and a notice flashes over one.
-_SPOKEN_PLAYER_SOURCES: dict[str, str] = {
+# The Funestra words a speaker can put in any command, and which window a notice
+# about that Funestra flashes over.  "both" is deliberately absent: it addresses
+# two Funestras, and a notice flashes over one.
+_SPOKEN_FUNESTRA_SOURCES: dict[str, str] = {
     "portrait": SOURCE_PORTRAIT,
     "landscape": SOURCE_LANDSCAPE,
     "main": SOURCE_MAIN,
@@ -70,16 +70,16 @@ _SPOKEN_PLAYER_SOURCES: dict[str, str] = {
 
 
 def _source_for_heard_text(text: str) -> str:
-    """The player an unrecognized utterance at least named, if it named one.
+    """The Funestra an unrecognized utterance at least named, if it named one.
 
     A phrase the grammar rejected can still say who it was for — "landscape full
     length please" is landscape's problem — so the report flashes over that
-    player rather than where a satellite's mis-hearing reads as the main
-    player's.  Whole words only: "portrait" has to be the word spoken and not a
-    fragment of a longer one, and the first player word wins.
+    Funestra rather than where a satellite's mis-hearing reads as the Main
+    Funestra's.  Whole words only: "portrait" has to be the word spoken and not a
+    fragment of a longer one, and the first Funestra word wins.
     """
     for word in text.lower().split():
-        source = _SPOKEN_PLAYER_SOURCES.get(word)
+        source = _SPOKEN_FUNESTRA_SOURCES.get(word)
         if source is not None:
             return source
     return SOURCE_SYSTEM
@@ -174,7 +174,7 @@ class VoiceController:
         self._not_sure_of: _NotSureOf | None = None
         self._not_sure_of_lock = threading.Lock()
         self._words_forming = False
-        self.active_player: Callable[[], int | None] = lambda: None
+        self.active_funestra: Callable[[], int | None] = lambda: None
         self.listener_settings = ListenerSettings(
             model_name=model_path,
             device_name=device_name,
@@ -279,7 +279,7 @@ class VoiceController:
         hold = self._hold
         if not written and hold is not None and not self._muted.is_set():
             notice(logger, f"ignored {hold.ignored_while}: {friendly_voice(phrase)}",
-                   source=notice_source(VOICE_COMMANDS[phrase], self.active_player()),
+                   source=notice_source(VOICE_COMMANDS[phrase], self.active_funestra()),
                    level=logging.WARNING)
 
     def _report_words(self, logged: str, shown: str, words: str, *, heard_text: str,

@@ -1,6 +1,6 @@
 # Resuming a session
 
-`fun_time.session_resume` brings a reopened session back to the clip each player
+`fun_time.session_resume` brings a reopened session back to the clip each Funestra
 was on, and the mode they were in. Both orchestrators call it, so a desktop
 reopen, a VR reopen and a crossing between the two
 ([entering-vr.md](entering-vr.md)) all resume the same way.
@@ -11,11 +11,11 @@ across a dozen docstrings it is free to drift apart in eleven of them.
 
 ## Why it exists
 
-Every player starts at the top of the playlist file fun_time hands it, and
+Every Funestra starts at the top of the playlist file fun_time hands it, and
 startup used to overwrite all three with a fresh weighted shuffle — so reopening
 Fun Time landed on three clips you had never chosen and lost whatever you were
 watching. Resume keeps last session's playlists and rotates each onto the clip
-that was on screen: the player's first entry is where you left off, and because
+that was on screen: the Funestra's first entry is where you left off, and because
 a playlist wraps, the clips that were coming up still come up in the same order.
 
 Keeping those files means keeping what *shaped* them. A playlist carries its
@@ -23,7 +23,7 @@ session's F-mode, filter, order and loop in it, so the session has to come back
 believing what its files say, or every HUD describes a session other than the
 one playing.
 
-Nothing is written at shutdown for either half. Each player publishes the video
+Nothing is written at shutdown for either half. Each Funestra publishes the video
 it is playing to its status file every tick, and the dispatch loop writes the
 state file after every command, so the last tick before the session ended is the
 record — one that survives the force-kill that ends a session, and a crash or a
@@ -32,7 +32,7 @@ power cut too, where a shutdown hook would not.
 ## What comes back, and why
 
 `RESUMED_FIELDS` is the list. Most of it is what shaped the playlist files that
-were just resumed: each player's own F-mode and each side's filter decide which
+were just resumed: each Funestra's own F-mode and each side's filter decide which
 clips are in them, Latest fixes their order, and a group loop *is* the group
 written out as the playlist, with the map anchored (and the seed row widened) on
 the clip it started from. The rest is what the session was simply *left* in —
@@ -46,15 +46,15 @@ a file a new process reads:
 - the sound level is seeded to both audio sinks at startup
   (`fun_time.audio_volume.publish_audio_level`),
 - the OSR2's max intensity, held below full, is seeded at startup to every
-  player that can drive the OSR2 (`fun_time.max_intensity.publish_max_intensity`),
+  Funestra that can drive the OSR2 (`fun_time.max_intensity.publish_max_intensity`),
 - each satellite lock is queued back on that satellite's command file
   (`resume_satellite_locks`),
 - Genau's choice between its VR and flat clips is queued back on Genau's
   command file in the headset (`fun_time_vr.orchestrator.resume_genau_shapes`), because Genau rescans
   its folders whole at every launch; a desktop Genau has only flat clips, so
   nothing is sent to it,
-- the main slot's mode is what startup seeds the two main-slot players and their
-  windows for (`fun_time.windows_bridge_startup.seed_startup_states`),
+- the main slot's mode is what startup seeds Kino, Genau and the Main Funestra's
+  window for (`fun_time.windows_bridge_startup.seed_startup_states`),
 - Genau's order goes on its launch line (`--latest`), beside the clip it opens
   on. Genau has no playlist file — it rescans its folder every launch, in the
   config's order unless told otherwise — and the LATEST verb is no way to tell
@@ -69,16 +69,16 @@ Carrying a flag whose world is not put back with it is the same lie as dropping
 one that was true.
 
 Nothing else survives, because nothing carries it into the new session:
-OmniPause's paused flags are cleared before the players launch, and a
+OmniPause's paused flags are cleared before the Funestras launch, and a
 keyboard-navigation selection was never a thing you could leave running.
 
-Nor does which player has most of the secondary monitor: startup opens both
+Nor does which Funestra has most of the secondary monitor: startup opens both
 windows where they always open, and the session's first ticks seat them from
-the crown, which does come back, and the shape of what the main player shows,
+the crown, which does come back, and the shape of what the Main Funestra shows,
 whether that is a video or one of Genau's clips.
 
 The satellite side's mode comes back, and it comes back UNDER THE COVER. Every
-room is built in Kino mode — the players are built as players and the browser has
+room is built in Kino mode — the Funestras are built as Funestras and the browser has
 the slot — so a room left in origenerator mode has to be switched into it, and
 switching it once the room is already his is what this must never do: both sides
 would rearrange themselves under whatever he had started in Kino mode, which was
@@ -108,38 +108,38 @@ beside its offer, in `fun_time_showing.txt`, naming its own process the way the
 offer does, so the mark of an app that has since closed is never believed.
 
 Coming back to the mode means putting back what the mode took. While the hosted app
-has a satellite, that player's playlist file holds the app's pictures and the
-session's own list waits beside it (`fun_time.player_handover`). A session quit
-there, or killed there, never brings the player home — so `resume_playlists`
+has a satellite, that Funestra's playlist file holds the app's pictures and the
+session's own list waits beside it (`fun_time.funestra_handover`). A session quit
+there, or killed there, never brings the Funestra home — so `resume_playlists`
 takes every kept list back before it reads anything, and a room built in video
 mode opens on video lists, at the clip each side was showing when it left.
 Without that, the session after a quit in Origenerator mode opened in Kino mode
 on two locked pictures, each with a one-square map and nothing to step to
 (2026-09-19). The kept lists are taken back even when the resume goes on to find
 nothing to resume: one that outlived the rebuild would be dealt over it the next
-time that player came home.
+time that Funestra came home.
 
 ## The things that have to be re-sent
 
-A satellite's lock is repeat-one in mpv's own `loop_file`, and the main player's
-A/B loop is a range inside one video. Both live in a player process that has
+A satellite's lock is repeat-one in mpv's own `loop_file`, and the Main Funestra's
+A/B loop is a range inside one video. Both live in a Funestra process that has
 just been replaced, so unlike a filter or an order neither can ride back in on a
-file the new player reads — each is queued on the player's command file before
-that player launches, and drains on its first tick. By then the player has
+file the new Funestra reads — each is queued on the Funestra's command file before
+that Funestra launches, and drains on its first tick. By then the Funestra has
 loaded the clip the resume put at the top of its playlist, which is the clip the
-lock was on and the video the loop was cut from. The main player holds the seek until mpv
+lock was on and the video the loop was cut from. The Main Funestra holds the seek until mpv
 has the file open (its `restore_loop`), so the loop lands however slowly the
 file opens.
 
-The loop is only handed back when the main player really did come back onto the
+The loop is only handed back when the Main Funestra really did come back onto the
 video it was cut from. A rebuilt playlist, or a clip deleted since, leaves some
 other video leading, and those bounds would then mark out a stretch of a video
 nobody chose — which is what `playlist_opens_on` is asked before the queue.
 
-## What a reopen re-sends because it lives in a player
+## What a reopen re-sends because it lives in a Funestra
 
-Three more things live only in a player process, so they are gone the moment a
-session ends: each player's playback rate, the main player's hold on the video it
+Three more things live only in a Funestra process, so they are gone the moment a
+session ends: each Funestra's playback rate, the Main Funestra's hold on the video it
 is playing, and Genau's Amp, Speed and Center bars, shape, flick seconds and three switches. Every
 session re-sends all of them off the status and drive files the last one
 published, so the room that opens is the room the last one was showing, whether
@@ -165,16 +165,16 @@ the top, opens on defaults.
 ## Where the video was left
 
 Resume puts the clip that was on screen back at the top of each playlist; the
-point inside that clip is the players' own, and is kept for every video rather
-than only the one a session ended on. `main_player.play_points` is the whole of
-it — a JSON file in the state dir keyed by video path, read when a player opens
-a file and written as it plays. Every player that shows a video takes it: the
-main player (`main_player.kino.Kino`, on the Main Funestra), both satellites
-(player_core's Funestra, on the satellite program's window), and the headset's
-three, which are the same Funestras again.
+point inside that clip is the Funestras' own, and is kept for every video rather
+than only the one a session ended on. `main_funestra.play_points` is the whole of
+it — a JSON file in the state dir keyed by video path, read when a Funestra opens
+a file and written as it plays. Every Funestra that shows a video takes it: the
+Main Funestra (with `main_funestra.kino.Kino` on it), both satellites (each one
+the satellite program's window), and the headset's three, which are the same
+Funestras again.
 
-Each player keeps its own file — `<who>_play_points.json`. One file between them
-would have each player's whole-file write erasing what the others had added
+Each Funestra keeps its own file — `<who>_play_points.json`. One file between them
+would have each Funestra's whole-file write erasing what the others had added
 since it started, which is the lost update `app_support.json_store` exists for
 elsewhere; separate files need no lock, and no clip is played by two of them.
 
@@ -188,7 +188,7 @@ Without that second one a satellite would be unplayable: its clips auto-advance
 at end-of-file, so every clip it had ever shown would open at its last frame and
 step straight on, and the playlist would race.
 
-Leaving a video — stepping off it, or closing the player — writes the exact
+Leaving a video — stepping off it, or closing the Funestra — writes the exact
 spot, so coming back lands where you left rather than near it. On top of that it
 is written every `WRITE_EVERY_S` while the video plays: a session is as often
 killed as closed (above), and that periodic record is what a killed one comes
@@ -201,7 +201,7 @@ reporting for a tick or two after it is told to open another. And `REMEMBERED`
 videos keep a point, the least recently watched dropping off the end, so a file
 rewritten while a video plays cannot grow without bound.
 
-The seek is held until the player reports a duration, the way the restored A/B
+The seek is held until the Funestra reports a duration, the way the restored A/B
 loop above is, so a video opens *at* its point rather than visibly jumping there
 once the file is up. A satellite rolls onto its prefetched next clip by itself,
 so there the seek lands a tick or two into the clip rather than before it.

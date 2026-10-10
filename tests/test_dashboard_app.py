@@ -151,15 +151,15 @@ def _fill(scene, rect):
 
 
 # --- the control bar ---------------------------------------------------------
-# Every player draws its own HUD, so what is left on the bar is the handful of
-# controls that belong to no player.
+# Every Funestra draws its own HUD, so what is left on the bar is the handful of
+# controls that belong to no Funestra.
 
 
-def test_the_bar_carries_only_what_belongs_to_no_player():
+def test_the_bar_carries_only_what_belongs_to_no_funestra():
     """Quit, pause everything, the reference popup, and the microphone — then the
     room's own F-mode and Reset All, and the way across to the headset.  Anything
-    about ONE player, the broker and that player's own F-mode and reset
-    included, is on that player's HUD."""
+    about ONE Funestra, the broker and that Funestra's own F-mode and reset
+    included, is on that Funestra's HUD."""
     scene = _scene()
 
     assert [action for action, _rect in scene.actions] == [
@@ -168,9 +168,9 @@ def test_the_bar_carries_only_what_belongs_to_no_player():
     ]
 
 
-def test_the_every_player_pair_and_the_crossing_each_stand_in_a_group_of_their_own():
+def test_the_every_funestra_pair_and_the_crossing_each_stand_in_a_group_of_their_own():
     """The four before them are the session's own chrome; F-mode and Reset All
-    reach into all three players and Enter VR ends the session altogether, so
+    reach into all three Funestras and Enter VR ends the session altogether, so
     none of them reads as one more of the four."""
     layout = compute_dashboard_bar_layout()
 
@@ -185,7 +185,7 @@ def test_reset_all_stands_beside_f_mode_in_its_group():
     assert layout.reset_all_button.x - (layout.fmode_button.x + layout.fmode_button.width) == GAP
 
 
-def test_the_bars_reset_all_resets_every_player():
+def test_the_bars_reset_all_resets_every_funestra():
     layout = compute_dashboard_bar_layout()
     scene = _scene()
 
@@ -196,7 +196,7 @@ def test_the_bars_reset_all_resets_every_player():
         layout.reset_all_button].startswith("Reset")
 
 
-def test_reset_all_takes_no_press_but_still_names_itself_when_every_player_is_at_its_defaults():
+def test_reset_all_takes_no_press_but_still_names_itself_when_every_funestra_is_at_its_defaults():
     layout = compute_dashboard_bar_layout()
     idle = _scene(_snapshot(nothing_to_reset=True))
 
@@ -368,7 +368,7 @@ def test_a_control_wearing_a_state_color_lightens_that_color_instead():
 
 
 def test_the_config_reads_only_what_the_bar_needs(tmp_path: Path):
-    """The dashboard used to read every player's status file to draw its panels.
+    """The dashboard used to read every Funestra's status file to draw its panels.
     It draws no panels, so it reads none of them."""
     config = load_config(Path("fun_time_config.example.json"))
     manifest_path = write_windows_bridge_manifest(config, tmp_path / "manifest.ini")
@@ -665,7 +665,7 @@ def test_dashboard_leaves_the_band_alone_when_there_is_no_cover(cfg_path: Path):
     """No cover to find is not a reason to move the panel around: it is shown
     where it already sits, exactly as it was before there was a cover to duck.
     The band drop exists only to duck one, and a panel dropped out of the band
-    with nothing to duck would be shown under every player instead."""
+    with nothing to duck would be shown under every Funestra instead."""
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
@@ -1419,7 +1419,7 @@ def test_closing_the_window_ends_the_listener(dashboard_app_config):
 
 # --- the notice feed ---------------------------------------------------------
 # A second, faster tail of the same event log the strip reads, flashing each
-# announcement over the player it is about.
+# announcement over the Funestra it is about.
 
 
 class _FakeOverlay:
@@ -1441,14 +1441,14 @@ def _monitors(primary=(0, 0, 1920, 1080), secondary=(1920, 0, 1080, 1920)):
     return [MonitorInfo(*primary), MonitorInfo(*secondary)]
 
 
-def test_the_player_rects_come_from_the_layout_startup_positions_with(
+def test_the_funestra_rects_come_from_the_layout_startup_positions_with(
         dashboard_app_config):
     """The notice has to land ON the window, not near it, so both ends compute
     the rect from the same two functions rather than from two descriptions."""
     with patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
     try:
-        rects = window._notices.player_rects
+        rects = window._notices.funestra_rects
     finally:
         window.close()
 
@@ -1475,7 +1475,7 @@ def test_monitors_that_cannot_be_read_leave_the_notices_off_rather_than_crash(
     with patch("fun_time.window_layout.enumerate_monitors", side_effect=failure):
         window = build_dashboard_window(dashboard_app_config)
     try:
-        assert window._notices.player_rects is None
+        assert window._notices.funestra_rects is None
         assert window._notices.overlay is None
         window._notices.poll()  # and polling is a no-op rather than an error
     finally:
@@ -1500,7 +1500,7 @@ def _write_event(app_config, message: str, *, level: int) -> None:
             {"ts": 1.0, "level": level, "source": SOURCE_DASH, "msg": message}) + "\n")
 
 
-def test_a_main_player_notice_lands_on_the_main_player_wherever_the_crown_has_put_it(
+def test_a_main_funestra_notice_lands_on_the_main_funestra_wherever_the_crown_has_put_it(
         dashboard_app_config):
     write_shared_state(shared_state_path(dashboard_app_config.state_dir),
                        BridgeState(majority=Crown.MAIN))
@@ -1590,7 +1590,7 @@ def test_an_event_that_is_not_an_announcement_is_read_past_not_flashed(
         window.close()
 
 
-def test_words_flashed_with_no_log_line_land_over_the_player_they_name(dashboard_app_config):
+def test_words_flashed_with_no_log_line_land_over_the_funestra_they_name(dashboard_app_config):
     window = _notice_window(dashboard_app_config, held=False)
     try:
         flash_unlogged(dashboard_app_config.state_dir, "unrecognized voice command: alpha beta",
@@ -1602,7 +1602,7 @@ def test_words_flashed_with_no_log_line_land_over_the_player_they_name(dashboard
 
         [(message, target)] = window._notices.overlay.flashed
         assert message == "unrecognized voice command: alpha beta"
-        assert target == window._notices.player_rects.portrait
+        assert target == window._notices.funestra_rects.portrait
     finally:
         window.close()
 

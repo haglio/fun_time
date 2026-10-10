@@ -1,4 +1,4 @@
-"""The banner a notice flashes over the player it names."""
+"""The banner a notice flashes over the Funestra it names."""
 from __future__ import annotations
 
 import logging
@@ -6,6 +6,7 @@ import logging
 import numpy as np
 
 from fun_time.event_log import FAVORITE, NOTICE
+from fun_time_vr.funestras import MAIN_VIDEO_CAP_PX, SATELLITE_VIDEO_CAP_PX
 from fun_time_vr.notice_banner import (
     MIN_FONT_PX,
     banner_bgra,
@@ -13,7 +14,6 @@ from fun_time_vr.notice_banner import (
     font_px,
     paint_banner,
 )
-from fun_time_vr.player import MAIN_VIDEO_CAP_PX, SATELLITE_VIDEO_CAP_PX
 
 
 def _banner(message="skip", level=NOTICE, *, max_width=1600, size=48):
@@ -53,7 +53,7 @@ class TestTheBanner:
 
 
 class TestItIsSizedToThePictureItGoesOn:
-    """A player decodes to 2048 or 8192 pixels, not to the size of a window, so
+    """A Funestra decodes to 2048 or 8192 pixels, not to the size of a window, so
     the desktop's own 19px type came out a tenth of the height it reads at
     there -- with a 1px border and a 4px corner nobody could see at all."""
 
@@ -89,7 +89,7 @@ class TestWhereItSits:
         assert 0 < y < 1080 // 10
 
     def test_it_sits_where_the_desktop_sits_it(self):
-        """The desktop puts its banner 28px down a player's window; on a picture
+        """The desktop puts its banner 28px down a Funestra's window; on a picture
         this tall that is the same place, and it was twice as far down."""
         _x, y = banner_placement(_banner(), 1920, 1000)
 

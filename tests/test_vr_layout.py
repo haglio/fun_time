@@ -2,7 +2,7 @@
 
 The spot a screen STARTS in belongs to the unit that hangs it, so a screen
 this file answers nothing for is not a screen with no place -- it is one that
-was never dragged.  ``tests/test_vr_player.py`` pins those spots."""
+was never dragged.  ``tests/test_vr_funestras.py`` pins those spots."""
 from __future__ import annotations
 
 import json
@@ -153,7 +153,7 @@ class TestTheLimits:
         assert clamp_width(MAIN_WIDTH_DEG * 1.5) == MAIN_WIDTH_DEG * 1.5
 
 
-class TestGrowingTheMainPlayer:
+class TestGrowingTheMainFunestra:
     def test_growing_it_widens_it_about_its_own_middle(self):
         assert grown(Placement(10.0, 5.0, 72.0), 1.5) == Placement(10.0, 5.0, 108.0)
 
@@ -162,74 +162,74 @@ class TestGrowingTheMainPlayer:
         assert grown(Placement(0.0, 0.0, 100.0), 2.0).width_deg == MAX_WIDTH_DEG
 
 
-class TestBringingThePlayersNearer:
-    def test_nearer_spreads_and_widens_all_three_about_the_main_player(self):
+class TestBringingTheFunestrasNearer:
+    def test_nearer_spreads_and_widens_all_three_about_the_main_funestra(self):
         main = Placement(10.0, 0.0, 72.0)
-        players = {MAIN: main, LANDSCAPE: Placement(-28.0, 10.0, 28.0),
+        funestras = {MAIN: main, LANDSCAPE: Placement(-28.0, 10.0, 28.0),
                    PORTRAIT: Placement(48.0, 10.0, 28.0)}
 
-        assert nearer(players, 1.5, about=main) == {
+        assert nearer(funestras, 1.5, about=main) == {
             MAIN: Placement(10.0, 0.0, 108.0),
             LANDSCAPE: Placement(-47.0, 15.0, 42.0),
             PORTRAIT: Placement(67.0, 15.0, 42.0),
         }
 
-    def test_the_players_stop_together_when_one_would_pass_the_edge_of_the_scene(self):
+    def test_the_funestras_stop_together_when_one_would_pass_the_edge_of_the_scene(self):
         main = Placement(0.0, 0.0, 72.0)
-        players = {MAIN: main, PORTRAIT: Placement(100.0, 0.0, 28.0)}
+        funestras = {MAIN: main, PORTRAIT: Placement(100.0, 0.0, 28.0)}
 
-        moved = nearer(players, 2.0, about=main)
+        moved = nearer(funestras, 2.0, about=main)
 
         assert moved[PORTRAIT].azimuth_deg == pytest.approx(AZIMUTH_LIMIT_DEG)
         assert moved[MAIN].width_deg == pytest.approx(72.0 * 1.5)
 
-    def test_the_players_stop_together_when_one_would_pass_the_top_of_the_scene(self):
+    def test_the_funestras_stop_together_when_one_would_pass_the_top_of_the_scene(self):
         main = Placement(0.0, 0.0, 72.0)
-        players = {MAIN: main, PORTRAIT: Placement(20.0, 50.0, 28.0)}
+        funestras = {MAIN: main, PORTRAIT: Placement(20.0, 50.0, 28.0)}
 
-        moved = nearer(players, 2.0, about=main)
+        moved = nearer(funestras, 2.0, about=main)
 
         assert moved[PORTRAIT].elevation_deg == pytest.approx(ELEVATION_LIMIT_DEG)
         assert moved[MAIN].width_deg == pytest.approx(72.0 * 1.5)
 
-    def test_the_players_stop_together_when_one_would_grow_past_the_widest(self):
+    def test_the_funestras_stop_together_when_one_would_grow_past_the_widest(self):
         main = Placement(0.0, 0.0, 100.0)
-        players = {MAIN: main, PORTRAIT: Placement(10.0, 0.0, 28.0)}
+        funestras = {MAIN: main, PORTRAIT: Placement(10.0, 0.0, 28.0)}
 
-        moved = nearer(players, 2.0, about=main)
+        moved = nearer(funestras, 2.0, about=main)
 
         assert moved[MAIN].width_deg == pytest.approx(MAX_WIDTH_DEG)
         assert moved[PORTRAIT].width_deg == pytest.approx(28.0 * 1.2)
 
     def test_further_off_they_stop_together_when_one_would_shrink_past_the_smallest(self):
         main = Placement(0.0, 0.0, 72.0)
-        players = {MAIN: main, PORTRAIT: Placement(30.0, 0.0, 20.0)}
+        funestras = {MAIN: main, PORTRAIT: Placement(30.0, 0.0, 20.0)}
 
-        moved = nearer(players, 0.25, about=main)
+        moved = nearer(funestras, 0.25, about=main)
 
         assert moved[PORTRAIT] == Placement(15.0, 0.0, MIN_WIDTH_DEG)
         assert moved[MAIN].width_deg == pytest.approx(36.0)
 
 
-class TestWhereTheControllersLeaveThePlayers:
-    _PLAYERS = {
+class TestWhereTheControllersLeaveTheFunestras:
+    _FUNESTRAS = {
         MAIN: Placement(0.0, 0.0, 72.0),
         LANDSCAPE: Placement(-38.0, 10.0, 28.0),
         PORTRAIT: Placement(38.0, 10.0, 28.0),
     }
 
-    def test_the_stick_alone_grows_the_main_player_and_the_satellites_stay(self):
-        moved = rearranged(self._PLAYERS, grow=1.5, nearer_by=1.0)
+    def test_the_stick_alone_grows_the_main_funestra_and_the_satellites_stay(self):
+        moved = rearranged(self._FUNESTRAS, grow=1.5, nearer_by=1.0)
 
         assert moved == {MAIN: Placement(0.0, 0.0, 108.0)}
 
     def test_the_stick_with_the_trigger_held_brings_all_three_nearer(self):
-        moved = rearranged(self._PLAYERS, grow=1.0, nearer_by=1.5)
+        moved = rearranged(self._FUNESTRAS, grow=1.0, nearer_by=1.5)
 
-        assert moved == nearer(self._PLAYERS, 1.5, about=self._PLAYERS[MAIN])
+        assert moved == nearer(self._FUNESTRAS, 1.5, about=self._FUNESTRAS[MAIN])
 
-    def test_a_still_stick_leaves_every_player_where_it_was(self):
-        assert rearranged(self._PLAYERS, grow=1.0, nearer_by=1.0) == {}
+    def test_a_still_stick_leaves_every_funestra_where_it_was(self):
+        assert rearranged(self._FUNESTRAS, grow=1.0, nearer_by=1.0) == {}
 
 
 def _area(placement: Placement, aspect: float) -> float:

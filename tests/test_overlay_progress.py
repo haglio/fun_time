@@ -100,7 +100,7 @@ class TestPhaseProgress:
         """One tenth of the wait moves the bar one tenth, not a third of it.
 
         A step counter gave every phase the same share, so the longest one — the
-        wait for the players' windows — held the bar at 83% for most of startup
+        wait for the Funestras' windows — held the bar at 83% for most of startup
         while four sub-second phases spent the rest of it.  Phases are weighted by
         how long they take, in hundredths of a second.
         """
@@ -185,7 +185,7 @@ class TestStartupPhases:
         assert STARTUP_PHASES[coming_back].weight > 0, "the bar would be full while it waits"
 
     def test_the_launch_names_its_own_work_before_the_room_arrives(self):
-        """Loading itself and checking the players' engine took seconds off an
+        """Loading itself and checking the Funestras' engine took seconds off an
         uncovered desktop; they run under the cover, so the cover says so."""
         assert (*LAUNCH_PHASES, *ROOM_PHASES) == STARTUP_PHASES
         assert [phase.key for phase in LAUNCH_PHASES] == ["starting", "engine"]

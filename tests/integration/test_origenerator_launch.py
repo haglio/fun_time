@@ -34,7 +34,7 @@ from fun_time.config import load_config
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.window_roles import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_startup import (
-    HandedPlayer,
+    HandedFunestra,
     origenerator_interpreter,
     origenerator_launch_command,
     origenerator_launch_kwargs,
@@ -57,10 +57,10 @@ _PLAN = WindowLayoutPlan(
 )
 
 
-def _players(tmp_path: Path) -> dict[str, HandedPlayer]:
-    """Both satellite players, handed over the way a session hands them."""
+def _funestras(tmp_path: Path) -> dict[str, HandedFunestra]:
+    """Both Satellite Funestras, handed over the way a session hands them."""
     return {
-        side: HandedPlayer(
+        side: HandedFunestra(
             playlist_file=tmp_path / f"{side}_playlist.tsv",
             cmd_file=tmp_path / f"{side}_cmd.txt",
             status_file=tmp_path / f"{side}_status.txt",
@@ -117,7 +117,7 @@ def _run_the_launch(tmp_path: Path, extra: list[str]) -> subprocess.CompletedPro
         paused_file=tmp_path / "origenerator_paused.txt",
         status_file=tmp_path / "origenerator_status.txt",
         dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-        players=_players(tmp_path),
+        funestras=_funestras(tmp_path),
     )
     # The same siblings the session would hand it: a branch of player_core on
     # its PYTHONPATH, exactly as launch_origenerator passes them along.
@@ -160,7 +160,7 @@ def test_a_launch_that_cannot_import_fails_here(tmp_path):
 def test_the_command_under_test_is_the_one_production_builds(tmp_path):
     """The contract that keeps this honest: what ran above is the production
     argv, not a copy of it that can drift.  A rect the app parses into its
-    session, the players it is handed, and the module the launcher runs."""
+    session, the Funestras it is handed, and the module the launcher runs."""
     checkout, python_exe = _hosted_checkout_and_python()
     command = origenerator_launch_command(
         python_exe=python_exe,
@@ -169,12 +169,12 @@ def test_the_command_under_test_is_the_one_production_builds(tmp_path):
         paused_file=tmp_path / "p.txt",
         status_file=tmp_path / "s.txt",
         dashboard_cmd_file=tmp_path / "d.txt",
-        players=_players(tmp_path),
+        funestras=_funestras(tmp_path),
     )
 
     assert command[1:3] == ["-m", "origenerator"]
     assert "--fun-time" in command
-    # The RFB's rect is the main window's, and both players are handed over.
+    # The RFB's rect is the main window's, and both Funestras are handed over.
     assert command[command.index("--width") + 1] == "854"
     assert command[command.index("--portrait-playlist") + 1] == str(
         tmp_path / "portrait_playlist.tsv")
@@ -202,7 +202,7 @@ def test_this_session_sends_exactly_the_flags_the_hosted_app_declares(tmp_path):
         python_exe=python_exe, layout_plan=_PLAN,
         command_file=tmp_path / "c.txt", paused_file=tmp_path / "p.txt",
         status_file=tmp_path / "s.txt", dashboard_cmd_file=tmp_path / "d.txt",
-        players=_players(tmp_path),
+        funestras=_funestras(tmp_path),
     )
     declared = {*published["required_flags"],
                 *(flag for group in ("region_flags", "player_flags")

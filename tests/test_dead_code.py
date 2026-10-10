@@ -23,7 +23,7 @@ from app_support.dead_code import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
-PACKAGES = (ROOT / "fun_time", ROOT / "main_player", ROOT / "satellite", ROOT / "fun_time_vr")
+PACKAGES = (ROOT / "fun_time", ROOT / "main_funestra", ROOT / "satellite", ROOT / "fun_time_vr")
 SCANNED = PACKAGES
 WHITELIST = ROOT / "vulture_whitelist.py"
 
@@ -41,7 +41,7 @@ def test_the_whitelist_still_suppresses_what_it_claims_to():
 
 
 def test_every_package_in_the_tree_is_scanned():
-    assert_every_package_is_scanned(ROOT, ("fun_time", "main_player", "satellite", "fun_time_vr"))
+    assert_every_package_is_scanned(ROOT, ("fun_time", "main_funestra", "satellite", "fun_time_vr"))
 
 
 def test_nothing_is_imported_or_assigned_and_left_unread():
@@ -49,8 +49,8 @@ def test_nothing_is_imported_or_assigned_and_left_unread():
 
 
 def test_no_function_takes_an_argument_it_never_reads():
-    # ARG001 alone, as before: a framework override (Qt's paintEvent, the satellite
-    # player's pump) is handed arguments it is free to ignore.
+    # ARG001 alone, as before: a framework override (Qt's paintEvent, the Satellite
+    # Funestra's pump) is handed arguments it is free to ignore.
     assert_no_function_takes_an_argument_it_never_reads(ROOT, *SCANNED, ROOT / "tools")
 
 
@@ -63,7 +63,7 @@ def test_no_constructor_parameter_is_stored_and_never_read():
 
 
 def test_no_dataclass_field_goes_unread():
-    # CommandFiles.player_file asks for a side's file by kind, so the two the
+    # CommandFiles.funestra_file asks for a side's file by kind, so the two the
     # satellites' channels now take that way are read by getattr rather than by
     # name. Their four neighbours escape this only because other modules happen
     # to spell them out.
@@ -128,15 +128,15 @@ def test_no_module_reaches_into_another_ones_privates():
 # 8054 since 2026-09-18, when the VR controllers stick stopped tilting the
 # scene and the reader that combined the two sticks gave its docstring to a
 # test class.
-# 8058 since 2026-09-18, when the VR main player learned its scenes and the
+# 8058 since 2026-09-18, when the VR Main Funestra learned its scenes and the
 # forwarder that carries them stopped restating the test that pins it.
-# 8123 since 2026-09-16, measured on the merged tree: every player began
+# 8123 since 2026-09-16, measured on the merged tree: every Funestra began
 # remembering where each video was left, and the memory arrived as constants and
 # tests rather than paragraphs -- paying its own way out of the session's
 # duplicates, the unscripted-video sentence its two owners already carried and
 # the volume bounds its property restates.
 # 8148 since 2026-09-15, measured on the merged tree: Fun Time declares the
-# players' buttons now, and the paragraphs the main player and the satellites
+# Funestras' buttons now, and the paragraphs the Main Funestra and the satellites
 # had folding the fixed rows in went with them.
 # 8171 since 2026-09-15, measured on the merged tree: the regenerate URL
 # stopped reading a list of Evolver's stamps and asked the sidecar for a prompt,
@@ -161,7 +161,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # 8250 since 2026-09-12, when the bridge log's append handler lost the paragraph
 # claiming the hotkey script needed the file to itself -- the script now opens it
 # shared.
-# 8255 since 2026-09-12, when the main player moved in from genau
+# 8255 since 2026-09-12, when the Main Funestra moved in from genau
 # under its new name with its own prose: the count grew by a package, not by a
 # paragraph, and from here it comes down again as before.
 # 6898 since 2026-09-12, when the desktop's startup stopped carrying the
@@ -210,12 +210,12 @@ def test_no_module_reaches_into_another_ones_privates():
 # guard's claim that a call it gives up on is dropped.
 # 7928 since 2026-09-19, measured on the merged tree: an Origenerator already
 # open has its mode opened at once, in names and tests.
-# 7916 since 2026-09-19, measured on the merged tree, when the side players
+# 7916 since 2026-09-19, measured on the merged tree, when the Satellite Funestras
 # learned their clips' other renditions: the satellite session's list, discard
 # and versions said in names and tests what three paragraphs had said, and the
 # note over the map's keyboard steps stopped counting four of them.
-# 7914 since 2026-09-19, measured on the merged tree, when the main player
-# joined the settle walk: which players it watches, and what each may sit
+# 7914 since 2026-09-19, measured on the merged tree, when the Main Funestra
+# joined the settle walk: which Funestras it watches, and what each may sit
 # under, is a helper's name and three tests rather than a paragraph.
 # 7912 since 2026-09-20, when the control bar learned its own width: which
 # rectangles it places, and that the width counts them all, is a property's name
@@ -232,22 +232,22 @@ def test_no_module_reaches_into_another_ones_privates():
 # 7827 the same day: what a satellite is launched with is one record rather than
 # three declarations, so the paragraphs telling each reader about the other two
 # are the record's name.
-# 7824 on 2026-09-25: the main lock's docstring said which player it reaches,
+# 7824 on 2026-09-25: the main lock's docstring said which Funestra it reaches,
 # which the lock's own tests in test_command_dispatch.py are named for.
-# 7805 the same day: the main player's window stopped answering keys of its
+# 7805 the same day: the Main Funestra's window stopped answering keys of its
 # own, Fun Time's hotkeys being the room's keyboard, so the table of them went.
 # 7787 the same day: the heatmap strip builds its colors across the track of
 # the frame it is handed, so the painter's paragraph telling its caller to do
 # that went, and the plain bar standing in for it is timeline_bgra's own branch.
 # 7786 the same day: what the headset's scrubber repaints on is the Scrubber's
 # state, held to the bar it draws by a test rather than a docstring.
-# 7772 on 2026-09-25: the heatmap's fill is the shared scrubber's, so the main
-# player's copy of that frame and its paragraphs went, and the side screens stopped
+# 7772 on 2026-09-25: the heatmap's fill is the shared scrubber's, so the Main
+# Funestra's copy of that frame and its paragraphs went, and the side screens stopped
 # being described as unscripted now that they color their bars too.
 # 7713 on 2026-09-26: the main slot's handover finishes a mode switch, so the
 # notes narrating the switch's steps went, and so did one guarding against an
 # overwrite nothing can do now that every writer queues its verbs.
-# 7698 the same day: both kinds of player drive the OSR2 through one object, so
+# 7698 the same day: both kinds of Funestra drive the OSR2 through one object, so
 # each session's paragraphs on its own driving went.
 # 7690 the same day: the screens' give-up wait is named and tested, so the
 # comments that walked through their poll went.
@@ -262,14 +262,14 @@ def test_no_module_reaches_into_another_ones_privates():
 # 7656 the same day: every sweep of the machine's processes runs through one
 # bounded function, so the satellite reap's account of the day it killed his own
 # pair went to the test that already tells that story.
-# 7655 the same day: both main players read one loop machine, so the paragraphs
+# 7655 the same day: both Main Funestras read one loop machine, so the paragraphs
 # the desktop session kept about the clock and the range went with it.
 # 7654 on 2026-09-27: a note on watch tracking that had drifted off the line it
 # described went, for the RFB slideshow's one line on how Chrome answers.
 # 7638 the same day: the engine check and the engine self-heal became one
 # module, and every paragraph of the two they replaced, and of the watch on a
-# player that dies while the room comes up, is a test in test_player_engine.py
-# or test_player_deaths.py.
+# Funestra that dies while the room comes up, is a test in test_funestra_engine.py
+# or test_funestra_deaths.py.
 # 7629 on 2026-09-28: the picture look, the still it asks the paint thread for and
 # the headset's browse each said why mpv's render context is thread-bound or a
 # drive is slow to list, and each now says it once; the projection ring's order,
@@ -277,7 +277,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # tests and the reference row's line, so their comments went.
 # 7402 on 2026-10-07: the satellites run on a Funestra, so the session, the verbs,
 # the status, the HUD overlay, the volume chip and the pointer went to player_core
-# with their paragraphs, and the Main Player's play points, seeking, scripted
+# with their paragraphs, and the Main Funestra's play points, seeking, scripted
 # device and heatmap went the same way.
 # 6720 on 2026-10-08: the Main Player became the Main Funestra, so its painter,
 # pointer, overlay, volume chip, published files, display, dashboard and session
@@ -449,7 +449,7 @@ def test_nothing_new_binds_win32_under_the_layer_that_exists_to():
     """A ceiling on coupling, not on size, held per file and as an equality.
 
     ``fun_time/win32.py`` wraps every cross-process window call in a guard
-    after a stalled player once wedged a whole session, and names the constants
+    after a stalled Funestra once wedged a whole session, and names the constants
     the family reads to learn its Win32 conventions.  A module that goes to
     ``ctypes.windll`` instead gets neither, and nothing said so: the dashboard
     made eleven such calls, five of the thirteen constants it restated inline

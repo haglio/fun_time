@@ -24,19 +24,19 @@ dwSize  # PROCESSENTRY32, for Toolhelp32
 _.LimitFlags  # JOBOBJECT_BASIC_LIMIT_INFORMATION, for a job's limits
 _.PriorityClass  # JOBOBJECT_BASIC_LIMIT_INFORMATION, for the integration run's job
 
-# CommandFiles reaches these by side, through player_file: a satellite's
+# CommandFiles reaches these by side, through funestra_file: a satellite's
 # channels are read as a group now (satellite.contract), so no module
 # spells either key.
 portrait_hud_file
 landscape_hud_file
 
 # --- Read from a sibling package, which is a scan of its own ---
-build_genau_engine  # main_player.genau builds Genau's engine with it
-_.current_clip  # main_player.genau, off the engine
-_.playhead  # main_player.genau, off the engine
+build_genau_engine  # main_funestra.genau builds Genau's engine with it
+_.current_clip  # main_funestra.genau, off the engine
+_.playhead  # main_funestra.genau, off the engine
 _.manifest_fields  # fun_time_vr.orchestrator carries Genau's settings into the manifest
-from_manifest  # satellite.contract; fun_time_vr's player and the sequencer
-top_block  # main_player.kino; player_core's Funestra heads its console with it
+from_manifest  # satellite.contract; fun_time_vr's Funestra and the sequencer
+top_block  # main_funestra.kino; player_core's Funestra heads its console with it
 to_argv  # satellite.contract; the session's satellite launcher
 tcode_udp_host  # fun_time_vr/orchestrator.py
 tcode_udp_port  # fun_time_vr/orchestrator.py
@@ -51,7 +51,7 @@ PROJECT_VR_ICON  # project_paths; read by fun_time_vr, a scan of its own
 set_window_icon  # win32; the VR session's window asks for it, a scan of its own
 draw_nothing_at_all  # win32; the VR session's window asks for it too
 # The headset hold's channel: written by fun_time_vr's orchestrator and read by
-# its player, each a scan of its own.
+# its Funestra, each a scan of its own.
 hold_the_headset
 headset_hold_asked
 headset_hold_stops_the_runtime

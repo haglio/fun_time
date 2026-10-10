@@ -16,8 +16,8 @@ from pathlib import Path
 from app_support import ports, state_files
 
 from .config import LayoutConfig, RegenConfig
-from .main_player_console import main_player_console_path
-from .players import Player
+from .main_funestra_console import main_funestra_console_path
+from .room_funestras import RoomFunestra
 
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
 
@@ -25,8 +25,8 @@ WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
 def _satellite_files(config) -> dict[str, str]:
     """Both satellites' channel files, under the keys the manifest always used."""
     return {
-        f"{player.label}_{name}": str(getattr(config.satellite(player), name))
-        for player in Player.SATELLITES
+        f"{funestra.label}_{name}": str(getattr(config.satellite(funestra), name))
+        for funestra in RoomFunestra.SATELLITES
         for name in ("cmd_file", "paused_file", "status_file", "playlist_file", "hud_file",
                      "origenerator_hud_file")
     }
@@ -40,7 +40,7 @@ def build_windows_bridge_manifest(
             "config_path": str(config.config_path),
             "windows_bridge_log_file": str(config.log_file("windows_bridge")),
             "genau_config_path": str(config.paths.genau_config_path or config.config_path),
-            # Where the Main Player is started from.  Empty means "wherever we
+            # Where the Main Funestra is started from.  Empty means "wherever we
             # are", resolving it through its venv's editable installs; named,
             # other checkouts run instead.
             "genau_project_dirs": config.paths.genau_project_path,
@@ -50,8 +50,8 @@ def build_windows_bridge_manifest(
         },
         "executables": {
             # Two interpreters: ours runs everything this repo ships (the
-            # dashboard, the audio companion, the satellite players), and
-            # genau's runs the Main Player, which Kino and Genau both run on.
+            # dashboard, the audio companion, the Satellite Funestras), and
+            # genau's runs the Main Funestra, which Kino and Genau both run on.
             "python_exe": str(config.paths.python_exe),
             "genau_python_exe": str(config.paths.genau_python_exe or config.paths.python_exe),
             # Origenerator has no venv; its deps live in a system install, so a
@@ -59,7 +59,7 @@ def build_windows_bridge_manifest(
             "origenerator_python_exe": str(config.paths.origenerator_python_exe or ""),
         },
         "media": {
-            "main_player_library_sources": "|".join(str(path) for path in config.paths.main_player_library_dirs),
+            "main_funestra_library_sources": "|".join(str(path) for path in config.paths.main_funestra_library_dirs),
             # Which sources hold VR masters — none out here.  FunTimeVR's own.
             "vr_library_dirs": "",
             "portrait_dirs": "|".join(str(path) for path in config.paths.portrait_dirs),
@@ -71,7 +71,7 @@ def build_windows_bridge_manifest(
             "genau_audio": str(config.paths.audio_dir),
         },
         "modules": {
-            "main_player_module": "main_player",
+            "main_funestra_module": "main_funestra",
             "satellite_module": "satellite",
             "audio_module": "fun_time.audio_companion_app",
             "dashboard_module": "fun_time.dashboard_app",
@@ -81,11 +81,11 @@ def build_windows_bridge_manifest(
             "genau_cmd_file": str(config.genau_cmd_file),
             "genau_paused_file": str(config.genau_paused_file),
             "genau_status_file": str(config.genau_status_file),
-            "main_player_cmd_file": str(config.main_player_cmd_file),
-            "main_player_paused_file": str(config.main_player_paused_file),
-            "main_player_status_file": str(config.main_player_status_file),
-            "main_player_console_file": str(main_player_console_path(config.paths.state_dir)),
-            "main_player_playlist_file": str(config.main_player_playlist_file),
+            "main_funestra_cmd_file": str(config.main_funestra_cmd_file),
+            "main_funestra_paused_file": str(config.main_funestra_paused_file),
+            "main_funestra_status_file": str(config.main_funestra_status_file),
+            "main_funestra_console_file": str(main_funestra_console_path(config.paths.state_dir)),
+            "main_funestra_playlist_file": str(config.main_funestra_playlist_file),
             **_satellite_files(config),
             "broker_cmd_file": str(config.broker_cmd_file),
             "broker_heartbeat_file": str(config.broker_heartbeat_file),
@@ -99,12 +99,12 @@ def build_windows_bridge_manifest(
             "dashboard_state_file": str(config.dashboard_state_file),
             "dashboard_cmd_file": str(config.dashboard_cmd_file),
             "state_dir": str(config.paths.state_dir),
-            "main_player_notice_file": str(config.main_player_notice_file),
+            "main_funestra_notice_file": str(config.main_funestra_notice_file),
             "origenerator_cmd_file": str(config.origenerator_cmd_file),
             "origenerator_paused_file": str(config.origenerator_paused_file),
             "origenerator_status_file": str(config.origenerator_status_file),
-            "tcode_udp_host": config.main_player_tcode.host,
-            "tcode_udp_port": str(config.main_player_tcode.port),
+            "tcode_udp_host": config.main_funestra_tcode.host,
+            "tcode_udp_port": str(config.main_funestra_tcode.port),
         },
         "dashboard": {
             "enabled": "1" if dashboard_enabled else "0",
@@ -170,7 +170,7 @@ class RuntimePaths:
     config_path: str
     windows_bridge_log_file: str
     genau_config_path: str
-    # Where the Main Player is started from.  Empty means "wherever we are".
+    # Where the Main Funestra is started from.  Empty means "wherever we are".
     genau_project_dirs: str = ""
     # The Origenerator checkout the session hosts, or "" for a session with
     # no origenerator mode at all.
@@ -188,9 +188,9 @@ class Executables:
 
 @dataclass(frozen=True)
 class MediaSources:
-    """[media]: the libraries and folders the players draw from."""
+    """[media]: the libraries and folders the Funestras draw from."""
 
-    main_player_library_sources: str
+    main_funestra_library_sources: str
     portrait_dirs: str
     landscape_dirs: str
     weird_dir: str
@@ -206,7 +206,7 @@ class MediaSources:
 class ChildModules:
     """[modules]: what each child is launched as (``python -m <module>``)."""
 
-    main_player_module: str
+    main_funestra_module: str
     satellite_module: str
     audio_module: str
     dashboard_module: str
@@ -220,11 +220,11 @@ class CommandFiles:
     genau_cmd_file: str
     genau_paused_file: str
     genau_status_file: str
-    main_player_cmd_file: str
-    main_player_paused_file: str
-    main_player_status_file: str
-    main_player_console_file: str
-    main_player_playlist_file: str
+    main_funestra_cmd_file: str
+    main_funestra_paused_file: str
+    main_funestra_status_file: str
+    main_funestra_console_file: str
+    main_funestra_playlist_file: str
     portrait_cmd_file: str
     portrait_paused_file: str
     portrait_status_file: str
@@ -242,7 +242,7 @@ class CommandFiles:
     dashboard_state_file: str
     dashboard_cmd_file: str
     state_dir: str
-    main_player_notice_file: str
+    main_funestra_notice_file: str
     origenerator_status_file: str
     # The ones a reader has always defaulted rather than demanded, kept
     # defaulted so this parse refuses nothing today's readers accept.
@@ -255,12 +255,12 @@ class CommandFiles:
     tcode_udp_host: str = "127.0.0.1"
     tcode_udp_port: str = str(ports.TCODE_UDP)
 
-    def player_file(self, player: str, kind: str) -> str:
+    def funestra_file(self, funestra: str, kind: str) -> str:
         """One satellite side's file of a given kind, asked for by side rather
-        than spelled out — ``player_file("portrait", "hud")`` is
-        ``portrait_hud_file``.  Both the HUD publisher and the VR player build
+        than spelled out — ``funestra_file("portrait", "hud")`` is
+        ``portrait_hud_file``.  Both the HUD publisher and the headset build
         their sides in a loop and have nowhere to write the key by hand."""
-        return getattr(self, f"{player}_{kind}_file")
+        return getattr(self, f"{funestra}_{kind}_file")
 
     @property
     def genau_drive_file(self) -> str:

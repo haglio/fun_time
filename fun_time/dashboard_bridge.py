@@ -10,7 +10,7 @@ class DashboardSnapshot:
 
     omni_paused: bool = False
     voice_active: bool = True
-    # The room's F-mode: every player narrowed at once.  Each player carries its
+    # The room's F-mode: every Funestra narrowed at once.  Each Funestra carries its
     # own switch on its own HUD, so the bar's one lights only when all three are
     # on — which is the only state a single button can honestly claim.
     f_mode: bool = False

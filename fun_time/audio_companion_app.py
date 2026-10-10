@@ -14,8 +14,8 @@ from typing import Any
 import pygame
 from app_support.cli import preparse_config_path
 from app_support.logging_utils import configure_logging, install_exception_logging
-from player_core.audio_outputs import Output, pick_output
-from player_core.file_channel import read_paused_state
+from funestra_core.audio_outputs import Output, pick_output
+from funestra_core.file_channel import read_paused_state
 from pygame._sdl2.audio import get_audio_device_names
 
 from .audio_companion_runtime import AudioCompanionRuntime
@@ -44,7 +44,7 @@ def build_parser(config) -> argparse.ArgumentParser:
 def init_mixer(wanted: str | None) -> str | None:
     """Open the mixer on *wanted*'s output (the headset, in VR) else the default,
     and say which -- by the family's rule, so the clip music lands where the
-    players beside it play.  Listing outputs needs the mixer already open or SDL
+    Funestras beside it play.  Listing outputs needs the mixer already open or SDL
     raises "Audio system not initialised" -- so open the default, list, reopen."""
     if not wanted:
         pygame.mixer.init(devicename=None)
@@ -284,7 +284,7 @@ def main(argv: list[str] | None = None) -> None:
     sock.bind((args.host, args.port))
     sock.settimeout(0.15)
 
-    # Both flag files, read the way every other player reads its own.
+    # Both flag files, read the way every other Funestra reads its own.
     def read_flag(path: Path) -> bool:
         return read_paused_state(path, logger=logger)
 

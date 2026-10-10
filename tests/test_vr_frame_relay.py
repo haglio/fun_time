@@ -1,13 +1,13 @@
 """Which picture the frame loop may show, and which texture a video may paint into.
 
-Every player paints on a thread and a GL context of its own, so the two sides
+Every Funestra paints on a thread and a GL context of its own, so the two sides
 have to agree on three textures without either waiting on the other.  This is
 that agreement, apart from the GL calls it is made of.
 """
 from __future__ import annotations
 
 from fun_time_vr.frame_relay import FrameRelay, StillAsked, capped_size
-from fun_time_vr.player import MAIN_VIDEO_CAP_PX
+from fun_time_vr.funestras import MAIN_VIDEO_CAP_PX
 
 WIDE = "C:/videos/wide.mp4"
 
@@ -85,8 +85,8 @@ def test_there_is_no_size_to_paint_until_mpv_says_what_the_video_is():
 class TestTheStillAVideoThreadIsAskedFor:
     """The picture check reads a frame to tell a fisheye recording from a 180 one.
     It used to ask mpv for a screenshot from its own thread, which on an offscreen
-    player is "No render context set" -- the render context belongs to the thread
-    that paints, and asking wedged the player instead (2026-09-20)."""
+    Funestra is "No render context set" -- the render context belongs to the thread
+    that paints, and asking wedged the Funestra instead (2026-09-20)."""
 
     def test_nothing_is_there_until_one_is_asked_for(self):
         assert StillAsked().take() is None

@@ -101,7 +101,7 @@ def _loop_args(tmp_path: Path, playlist: list[Path], *, no_audio: bool = False,
             "--command-file", str(tmp_path / "cmd.txt"),
             "--paused-file", str(tmp_path / "paused.txt"),
             "--status-file", str(tmp_path / "status.txt"),
-            "--title", "Portrait AI Player"]
+            "--title", "Portrait AI Funestra"]
     if no_audio:
         argv.append("--no-audio")
     if tile:

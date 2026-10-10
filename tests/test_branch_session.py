@@ -63,7 +63,7 @@ def _write_config(path: Path) -> Path:
             "state_dir": "state",
             "genau_python_exe": "C:/genau/.venv/Scripts/pythonw.exe",
             "genau_config_path": "C:/genau/genau_config.json",
-            # Relative on purpose: a checkout Genau and the main player are run out of sits
+            # Relative on purpose: a checkout Genau and the Main Funestra are run out of sits
             # one directory up from the primary, which from a worktree is a
             # different place entirely.
             "genau_project_dirs": ["../genau", "../player_core"],
@@ -247,7 +247,7 @@ def _write_genau_override(checkouts, text: str) -> None:
 
 
 def test_a_worktree_can_name_the_genau_checkout_its_own_session_runs(checkouts):
-    """Which checkout of ../genau the main player and Genau come from is a per-session fact,
+    """Which checkout of ../genau the Main Funestra and Genau come from is a per-session fact,
     and until this it could only be said in the machine's one config — where it
     reached the user's ordinary session and every other agent's branch session
     too."""
@@ -369,7 +369,7 @@ def repo_with_worktrees(tmp_path: Path) -> SimpleNamespace:
 
 
 def test_the_primary_is_found_from_a_worktree(repo_with_worktrees):
-    """Worktrees share the main player's git directory, so the launcher finds the
+    """Worktrees share the Main Funestra's git directory, so the launcher finds the
     machine's real config and overlays from any of them."""
     assert branch_session.primary_checkout(repo_with_worktrees.newer) == (
         repo_with_worktrees.primary.resolve()
@@ -411,7 +411,7 @@ def test_the_shortcut_lands_in_the_branchs_own_folder(primary_with_launcher):
 
 @pytestmark_shortcut
 def test_a_shortcut_runs_the_launcher_that_is_current_when_it_is_clicked(primary_with_launcher):
-    """It points at ``launch_branch.vbs`` in the main player rather than carrying
+    """It points at ``launch_branch.vbs`` in the Main Funestra rather than carrying
     the launch itself, so one made weeks ago picks up today's launcher instead
     of replaying an old one."""
     written = branch_session.write_launch_shortcut(
@@ -900,26 +900,26 @@ def engine_checkouts(tmp_path: Path) -> SimpleNamespace:
     return SimpleNamespace(current=current, before_the_tag=before_the_tag)
 
 
-def _built_against_player_core(worktree: Path, tag: str) -> None:
+def _built_against_funestra_core(worktree: Path, tag: str) -> None:
     (worktree / "pyproject.toml").write_text(
         '[project]\nname = "fun-time"\nversion = "0.1.0"\n'
         f'dependencies = ["player-core @ git+https://github.com/haglio/player_core@{tag}"]\n',
         encoding="utf-8")
 
 
-def _runs_its_players_out_of(worktree: Path, checkout: Path) -> None:
+def _runs_its_funestras_out_of(worktree: Path, checkout: Path) -> None:
     (worktree / "state").mkdir(exist_ok=True)
     (worktree / "state" / branch_session.GENAU_DIRS_OVERRIDE_NAME).write_text(
         f"{checkout}\n", encoding="utf-8")
 
 
-def test_a_shortcut_is_refused_while_a_pinned_player_core_checkout_predates_the_branchs_pin(
+def test_a_shortcut_is_refused_while_a_pinned_funestra_core_checkout_predates_the_branchs_pin(
         primary_with_launcher, engine_checkouts):
-    """The chain has no error state of its own: a stale checkout on the players'
-    path runs some other player_core, and the Main Player dies at import on a name
+    """The chain has no error state of its own: a stale checkout on the Funestras'
+    path runs some other player_core, and the Main Funestra dies at import on a name
     the branch was built against."""
-    _built_against_player_core(primary_with_launcher.newer, "v0.1.9")
-    _runs_its_players_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
+    _built_against_funestra_core(primary_with_launcher.newer, "v0.1.9")
+    _runs_its_funestras_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
 
     with pytest.raises(branch_session.OutOfDateSibling) as refused:
         branch_session.write_launch_shortcut(
@@ -932,8 +932,8 @@ def test_a_shortcut_is_refused_while_a_pinned_player_core_checkout_predates_the_
 
 def test_the_shortcut_command_reports_a_refusal_without_a_traceback(
         primary_with_launcher, engine_checkouts, monkeypatch, capsys):
-    _built_against_player_core(primary_with_launcher.newer, "v0.1.9")
-    _runs_its_players_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
+    _built_against_funestra_core(primary_with_launcher.newer, "v0.1.9")
+    _runs_its_funestras_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
     monkeypatch.setattr(branch_session, "primary_checkout",
                         lambda start=None: primary_with_launcher.primary)
 
@@ -945,16 +945,16 @@ def test_the_shortcut_command_reports_a_refusal_without_a_traceback(
 
 def test_a_pinned_checkout_carrying_the_branchs_pin_is_current(
         repo_with_worktrees, engine_checkouts):
-    _built_against_player_core(repo_with_worktrees.newer, "v0.1.9")
-    _runs_its_players_out_of(repo_with_worktrees.newer, engine_checkouts.current)
+    _built_against_funestra_core(repo_with_worktrees.newer, "v0.1.9")
+    _runs_its_funestras_out_of(repo_with_worktrees.newer, engine_checkouts.current)
 
     assert branch_session.sibling_checkouts_older_than_the_pin(repo_with_worktrees.newer) == []
 
 
 def test_a_launch_out_of_a_pinned_checkout_from_before_the_branchs_pin_is_refused_with_a_note(
         repo_with_worktrees, engine_checkouts, monkeypatch):
-    _built_against_player_core(repo_with_worktrees.newer, "v0.1.9")
-    _runs_its_players_out_of(repo_with_worktrees.newer, engine_checkouts.before_the_tag)
+    _built_against_funestra_core(repo_with_worktrees.newer, "v0.1.9")
+    _runs_its_funestras_out_of(repo_with_worktrees.newer, engine_checkouts.before_the_tag)
     sessions = _sessions_exit_with(monkeypatch, 0)
 
     returncode = branch_session.launch(

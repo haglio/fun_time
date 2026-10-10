@@ -18,7 +18,7 @@ from .checkout_overrides import (
 )
 
 # Before any other import of this package: a worktree's genau_project_dirs
-# override reaches Genau and the main player as subprocess PYTHONPATH, but THIS
+# override reaches Genau and the Main Funestra as subprocess PYTHONPATH, but THIS
 # process resolves player_core and shared_ui through the venv, which is the
 # primary's.  Without this a branch leaning on an unlanded sibling change
 # imports code the primary does not have and the session dies at launch.  A
@@ -31,9 +31,9 @@ from app_support.win32 import mutex_name, stamp_pinned_shortcuts
 from .branch_session import describe_the_session_on_the_taskbar
 from .config import DEFAULT_CONFIG_PATH, load_config  # noqa: E402
 from .event_log import open_event_log
+from .funestra_engine import engine_missing_abort  # noqa: E402
 from .loading_cover import LoadingCover, open_the_cover
 from .manifest import write_windows_bridge_manifest
-from .player_engine import engine_missing_abort  # noqa: E402
 from .process_identity import prepare_orchestrator_launcher
 from .project_paths import PROJECT_DIR
 from .session_environment import SessionEnvironment
@@ -82,8 +82,8 @@ def validate_config(config) -> None:
     require_file(config.paths.python_exe)
     if config.random_favs_browser.enabled:
         require_file(config.random_favs_browser.shortcut_path)
-    for main_player_library_dir in config.paths.main_player_library_dirs:
-        require_dir(main_player_library_dir)
+    for main_funestra_library_dir in config.paths.main_funestra_library_dirs:
+        require_dir(main_funestra_library_dir)
     for portrait_dir in config.paths.portrait_dirs:
         require_dir(portrait_dir)
     for landscape_dir in config.paths.landscape_dirs:

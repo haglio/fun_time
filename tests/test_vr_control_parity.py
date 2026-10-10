@@ -26,15 +26,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from player_core import funestra_controls
-from player_core.funestra import Channels, Funestra
-from player_core.funestra_controls import FunestraControls
-from player_core.funestra_controls import apply_command as apply_satellite_command
-from player_core.genau_controls import VERBS as GENAU_VERBS
-from player_core.modes import MainMode
-from player_core.playback import Playback
-from player_core.player_verbs import SHOW
-from player_core.playlist import read_playlist
+from funestra_core import funestra_controls
+from funestra_core.funestra import Channels, Funestra
+from funestra_core.funestra_controls import FunestraControls
+from funestra_core.funestra_controls import apply_command as apply_satellite_command
+from funestra_core.funestra_verbs import SHOW
+from funestra_core.genau_controls import VERBS as GENAU_VERBS
+from funestra_core.modes import MainMode
+from funestra_core.playback import Playback
+from funestra_core.playlist import read_playlist
 
 from fun_time.bridge_records import BridgeConfig, Op
 from fun_time.command_dispatch import dispatch_command
@@ -44,7 +44,7 @@ from fun_time.dashboard_actions import BROWSE_LIBRARY_CLOSE, HELP_REFERENCE_COMM
 from fun_time.manifest import LaunchManifest, write_manifest_data
 from fun_time.mode_plan import MAIN_KINO_MODE, MAIN_MODES
 from fun_time.modes import PLAYLIST_PORTRAIT, build_playlist_file_path
-from fun_time.players import Player
+from fun_time.room_funestras import RoomFunestra
 from fun_time.satellites_mode import KINO_MODE as SATELLITE_KINO_MODE
 from fun_time.satellites_mode import ORIGENERATOR_MODE
 from fun_time.shared_state import BridgeState, SatelliteState
@@ -56,22 +56,22 @@ from fun_time.windows_bridge_dispatch_loop import (
 from fun_time_vr import headset_verbs
 from fun_time_vr.headset_verbs import HeadsetVerbs
 from fun_time_vr.orchestrator import build_vr_manifest
-from main_player import controls as main_player_controls
-from main_player.clip_nav import ClipNav
-from main_player.kino import Kino
-from main_player.mode_memory import ModeMemory, RememberedMode
-from main_player.notice import NoticeWriter
+from main_funestra import controls as main_funestra_controls
+from main_funestra.clip_nav import ClipNav
+from main_funestra.kino import Kino
+from main_funestra.mode_memory import ModeMemory, RememberedMode
+from main_funestra.notice import NoticeWriter
 from tests.origenerator_contract import answers
-from tests.satellite_fakes import FakeSatellitePlayer
+from tests.satellite_fakes import FakeSatelliteEngine
 from tests.test_windows_bridge_dispatch_loop import make_runner
 
 # The channels a dispatch writes to.  The paused flags and the broker mailbox
-# carry no vocabulary of their own — the VR player and the broker read them
+# carry no vocabulary of their own — the headset and the broker read them
 # exactly as the desktop does — so they are drained here to be seen by the
 # sweep rather than checked verb by verb.
 _CHANNELS = (
-    "main_player_cmd_file", "genau_cmd_file", "portrait_cmd_file", "landscape_cmd_file",
-    "origenerator_cmd_file", "broker_cmd_file", "main_player_paused_file",
+    "main_funestra_cmd_file", "genau_cmd_file", "portrait_cmd_file", "landscape_cmd_file",
+    "origenerator_cmd_file", "broker_cmd_file", "main_funestra_paused_file",
     "genau_paused_file", "audio_paused_file", "portrait_paused_file",
     "landscape_paused_file", "origenerator_paused_file",
 )
@@ -93,16 +93,16 @@ _OPS_WITH_NO_WINDOWS = frozenset({
 # Ops that still act in a headset: the AHK bridge IS launched there, the genaumacher
 # is a subprocess of its own, an RFB tab is skipped rather than misdelivered
 # (a session with no browser window of its own opens none), and taking the
-# players back from a hosted app is file work on the players' own channels, as
+# Funestras back from a hosted app is file work on the Funestras' own channels, as
 # is sending the hosted gallery to the clip Genau's role says it has locked, and
 # the line that says a spoken command was ignored, which the loop writes in
 # place of what was heard.
 _OPS_THAT_STILL_ACT = frozenset({
     Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS, Op.SAVE_CLIP, Op.OPEN_RFB_TAB,
-    Op.TAKE_BACK_PLAYERS, Op.FOLLOW_GENAUS_LOCK, Op.IGNORED,
+    Op.TAKE_BACK_FUNESTRAS, Op.FOLLOW_GENAUS_LOCK, Op.IGNORED,
 })
 
-_OPS_A_HEADSET_NEVER_RAISES = frozenset({Op.MAIN_PLAYER_ANSWERS})
+_OPS_A_HEADSET_NEVER_RAISES = frozenset({Op.MAIN_FUNESTRA_ANSWERS})
 
 
 def _headset_config(root: Path, *, names_an_origenerator: bool = True) -> BridgeConfig:
@@ -145,7 +145,7 @@ def _headset_config(root: Path, *, names_an_origenerator: bool = True) -> Bridge
     }), encoding="utf-8")
     manifest = write_manifest_data(build_vr_manifest(load_config(config_file)),
                                    folders["state"] / "windows_bridge_launch.ini")
-    return build_bridge_config_from_manifest(LaunchManifest.read(manifest), vr_main_player=True)
+    return build_bridge_config_from_manifest(LaunchManifest.read(manifest), vr_main_funestra=True)
 
 
 def every_command() -> list[str]:
@@ -194,8 +194,8 @@ def _sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[s
     into its mode is a switch rather than a notice that it is still starting.
     """
     _drain(config)
-    for status_file in (config.main_player_status_file,
-                        *(config.satellite(player).status_file for player in Player.SATELLITES)):
+    for status_file in (config.main_funestra_status_file,
+                        *(config.satellite(funestra).status_file for funestra in RoomFunestra.SATELLITES)):
         status_file.parent.mkdir(parents=True, exist_ok=True)
         status_file.write_text("video=C:/v/scene one.mp4\nduration_ms=3600000\n",
                                encoding="utf-8")
@@ -231,10 +231,10 @@ def landed_hosting_none(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
     return _sweep(_headset_config(root, names_an_origenerator=False), (ORIGENERATOR_MODE,))
 
 
-def test_the_sweep_sends_every_player_its_ten_second_steps(landed):
+def test_the_sweep_sends_every_funestra_its_ten_second_steps(landed):
     """A step is refused on a video of ten seconds or shorter, so the sweep
-    plays a long one on every player; on none, it would never send a step."""
-    for channel in ("main_player_cmd_file", "portrait_cmd_file", "landscape_cmd_file"):
+    plays a long one on every Funestra; on none, it would never send a step."""
+    for channel in ("main_funestra_cmd_file", "portrait_cmd_file", "landscape_cmd_file"):
         assert {"SEEK_FWD", "SEEK_BACK"} <= set(_sent_to(landed, channel)), channel
 
 
@@ -271,9 +271,9 @@ class _TheHeadsetsMainFunestra:
         )
         channels.playlist.write_text(f"{first}\t{script}\n{second}\t\n", encoding="utf-8")
         self._command_file = channels.command
-        self.player = FakeSatellitePlayer(duration_ms=3_600_000.0)
+        self.engine = FakeSatelliteEngine(duration_ms=3_600_000.0)
         self.funestra = Funestra(
-            self.player, channels=channels, playlist=read_playlist(channels.playlist),
+            self.engine, channels=channels, playlist=read_playlist(channels.playlist),
             locked=True, sound_is_the_rooms=True,
             users={MainMode.KINO: partial(
                 Kino, source=None, clip_nav=ClipNav.build([], None),
@@ -299,11 +299,11 @@ class _TheHeadsetsMainFunestra:
 class _the_funestras_refusals:
     def __enter__(self):
         self._handler = _Refusals()
-        logging.getLogger("player_core.funestra").addHandler(self._handler)
+        logging.getLogger("funestra_core.funestra").addHandler(self._handler)
         return self._handler.refused
 
     def __exit__(self, *_exc):
-        logging.getLogger("player_core.funestra").removeHandler(self._handler)
+        logging.getLogger("funestra_core.funestra").removeHandler(self._handler)
 
 
 class _Refusals(logging.Handler):
@@ -316,7 +316,7 @@ class _Refusals(logging.Handler):
             self.refused.append(record.getMessage())
 
 
-class TestTheMainPlayer:
+class TestTheMainFunestra:
     """The one window a VR session builds for itself, and so the one that can
     quietly stop answering a key the desktop answers."""
 
@@ -333,7 +333,7 @@ class TestTheMainPlayer:
         window = _TheHeadsetsMainFunestra(tmp_path)
         dead = {
             verb: where
-            for verb, where in _sent_to(landed, "main_player_cmd_file").items()
+            for verb, where in _sent_to(landed, "main_funestra_cmd_file").items()
             if not window.answers(_a_whole_line(verb))
         }
         assert not dead, f"the headset's Main Funestra answers none of these: {dead}"
@@ -344,7 +344,7 @@ class TestTheMainPlayer:
         window.answers("SPEED_DOWN")
 
         dispatch_command("main_reset", BridgeState(main_mode=MAIN_KINO_MODE), config)
-        for line in config.main_player_cmd_file.read_text(encoding="utf-8").splitlines():
+        for line in config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines():
             window.answers(line)
 
         playback = window.funestra.playback
@@ -368,7 +368,7 @@ def _a_whole_line(verb: str) -> str:
 
 _VERBS_THAT_TAKE_A_VALUE = frozenset(
     spelling
-    for registry in (main_player_controls.VERBS, headset_verbs.VERBS, funestra_controls.VERBS)
+    for registry in (main_funestra_controls.VERBS, headset_verbs.VERBS, funestra_controls.VERBS)
     for spelling, (_control, verb) in registry.items()
     if verb.takes_a_value
 )
@@ -387,7 +387,7 @@ class TestTheSatellites:
         dead: dict[str, str] = {}
         for channel in ("portrait_cmd_file", "landscape_cmd_file"):
             for verb, where in _sent_to(landed, channel).items():
-                session = Playback(list(clips), player=FakeSatellitePlayer())
+                session = Playback(list(clips), engine=FakeSatelliteEngine())
                 handled = apply_satellite_command(
                     _a_satellite_line(verb, clips[0]),
                     FunestraControls(session, reload_playlist=lambda: None),
@@ -401,7 +401,7 @@ class TestTheSatellites:
         clips = [tmp_path / "portrait" / f"{name}.mp4" for name in ("alpha", "beta", "gamma")]
         for clip in clips:
             clip.write_bytes(b"")
-        session = Playback(list(clips), player=FakeSatellitePlayer())
+        session = Playback(list(clips), engine=FakeSatelliteEngine())
         session.set_locked(True)
         playlist = build_playlist_file_path(config.state_dir, PLAYLIST_PORTRAIT)
 
@@ -450,8 +450,8 @@ _UNANSWERED_BY_THE_HOSTED_APP: dict[str, str] = {
 
 
 def _said_after_the_side(line: str) -> str:
-    for player in Player.SATELLITES:
-        side = f"{player.label}_"
+    for funestra in RoomFunestra.SATELLITES:
+        side = f"{funestra.label}_"
         if line.lower().startswith(side):
             return line[len(side):].lower()
     return line
@@ -485,10 +485,10 @@ class TestTheHostedOrigenerator:
 
     def test_the_stated_exceptions_are_all_lines_it_really_refuses(self):
         answered = [
-            f"{player.label}_{said}"
+            f"{funestra.label}_{said}"
             for said in _UNANSWERED_BY_THE_HOSTED_APP
-            for player in Player.SATELLITES
-            if answers(f"{player.label}_{said}")
+            for funestra in RoomFunestra.SATELLITES
+            if answers(f"{funestra.label}_{said}")
         ]
         assert not answered, (
             f"_UNANSWERED_BY_THE_HOSTED_APP names lines the app now answers: {answered}"
@@ -516,7 +516,7 @@ class TestTheLoopInFrontOfTheDispatch:
         """The sweep walks the dispatch, so a command the loop rewrites on its
         way there is sent as something the sweep never saw.  The spoken "lock"
         and "unlock" were turned into the key's flip by the session's own idea
-        of whether a player was locked, which in Origenerator mode no show's
+        of whether a Funestra was locked, which in Origenerator mode no show's
         lock ever reached: said twice, "lock" let go, and "unlock" did nothing.
         """
         runner = make_runner(tmp_path)
@@ -561,12 +561,12 @@ class TestWhatAHeadsetDoesNotHost:
             f"window ops a VR session neither acts on nor states as a no-op: {unclassified}"
         )
 
-    def test_nothing_it_sends_waits_on_an_answer_its_main_player_never_gives(self, landed):
+    def test_nothing_it_sends_waits_on_an_answer_its_main_funestra_never_gives(self, landed):
         waiting = {
             where for where, written in landed.items()
             if set(written.get("__ops__", ())) & _OPS_A_HEADSET_NEVER_RAISES
         }
-        assert not waiting, f"these wait on the headset's main player to answer: {waiting}"
+        assert not waiting, f"these wait on the headset's Main Funestra to answer: {waiting}"
 
     def test_the_op_sets_between_them_cover_the_whole_vocabulary(self):
         """A new op added to the dispatcher must be placed in one of them,

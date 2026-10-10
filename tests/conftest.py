@@ -16,8 +16,8 @@ from pathlib import Path
 # tests/integration/conftest.py restore the native platform — the integration tests
 # inspect real windows and need real HWNDs, which the offscreen platform cannot give.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-# SDL the same way: the main player's window is pygame's, on the machine that
-# also runs the live players.  tests/integration/conftest.py takes both off
+# SDL the same way: the Main Funestra's window is pygame's, on the machine that
+# also runs the live Funestras.  tests/integration/conftest.py takes both off
 # again on the hidden desktop, where the real windows are the point.
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ["FUN_TIME_MUTE_AUDIO"] = "1"
@@ -76,7 +76,7 @@ def _qapp():
 # The window wrappers in fun_time.win32 all funnel through a few user32 calls, and
 # the same machine runs the user's live Fun Time.  So an unmocked window call in a
 # unit test lands on THEIR windows: a test that reaches the real ``set_always_on_top``
-# resolves the live "Main Player"/"Genau" window by title and forces it on top — the test
+# resolves the live "Main Funestra"/"Genau" window by title and forces it on top — the test
 # bleed under "the main player pops on top during OmniPause" (it looked like a runtime/OmniPause
 # bug for months because it WAS our code, run by a concurrent agent's test process).
 _MUTATING_USER32_CALLS = (

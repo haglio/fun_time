@@ -12,8 +12,8 @@ from fun_time import config
 from fun_time.config import PROJECT_DIR as CONFIG_ROOT
 from fun_time.config import ProjectConfig, load_config
 from fun_time.loopback_server import LOOPBACK_PORT
-from fun_time.players import Player
 from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
+from fun_time.room_funestras import RoomFunestra
 
 # ---------------------------------------------------------------------------
 # load_config
@@ -87,12 +87,12 @@ class TestLoadConfig:
         with pytest.raises(TypeError):
             load_config(cfg_file)
 
-    def test_raises_when_main_player_library_dirs_empty(self, cfg_factory):
+    def test_raises_when_main_funestra_library_dirs_empty(self, cfg_factory):
         path = cfg_factory({"paths": {"main_player_library_dirs": []}})
         with pytest.raises(ValueError, match="main_player_library_dirs"):
             load_config(path)
 
-    def test_main_player_library_dirs_not_a_list(self, cfg_factory):
+    def test_main_funestra_library_dirs_not_a_list(self, cfg_factory):
         path = cfg_factory({"paths": {"main_player_library_dirs": "not-a-list"}})
         with pytest.raises(TypeError, match="main_player_library_dirs"):
             load_config(path)
@@ -162,16 +162,16 @@ class TestLoadConfig:
         assert cfg.random_favs_browser.enabled is False
 
 
-class TestTheMainPlayersOsr2Inlet:
+class TestTheMainFunestrasOsr2Inlet:
     def test_is_the_brokers_own_where_the_config_names_none(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        assert (cfg.main_player_tcode.host, cfg.main_player_tcode.port) == (
+        assert (cfg.main_funestra_tcode.host, cfg.main_funestra_tcode.port) == (
             "127.0.0.1", ports.TCODE_UDP)
 
-    def test_is_the_one_the_main_player_section_names(self, cfg_factory):
+    def test_is_the_one_the_main_funestra_section_names(self, cfg_factory):
         cfg = load_config(cfg_factory(
             {"main_player": {"tcode_udp_host": "127.0.0.9", "tcode_udp_port": 50600}}))
-        assert (cfg.main_player_tcode.host, cfg.main_player_tcode.port) == ("127.0.0.9", 50600)
+        assert (cfg.main_funestra_tcode.host, cfg.main_funestra_tcode.port) == ("127.0.0.9", 50600)
 
 
 class TestRegenConfig:
@@ -250,7 +250,7 @@ class TestRegenConfig:
         assert cfg.paths.portrait_dirs == ((tmp_path / "videos" / "videos" / "portrait").resolve(),)
         assert cfg.paths.landscape_dirs == ((tmp_path / "videos" / "videos" / "landscape").resolve(),)
 
-    def test_multiple_main_player_library_dirs(self, tmp_path: Path, cfg_factory):
+    def test_multiple_main_funestra_library_dirs(self, tmp_path: Path, cfg_factory):
         extra = tmp_path / "extra"
         extra.mkdir()
         path = cfg_factory({"paths": {"main_player_library_dirs": [
@@ -258,7 +258,7 @@ class TestRegenConfig:
             str(extra),
         ]}})
         cfg = load_config(path)
-        assert len(cfg.paths.main_player_library_dirs) == 2
+        assert len(cfg.paths.main_funestra_library_dirs) == 2
 
     def test_multiple_portrait_and_landscape_dirs(self, tmp_path: Path, cfg_factory):
         portrait_extra = tmp_path / "portrait_extra"
@@ -434,9 +434,9 @@ class TestOrigeneratorPaths:
     def test_each_sides_hosted_panel_lives_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         state = (tmp_path / "state").resolve()
-        assert cfg.satellite(Player.PORTRAIT).origenerator_hud_file == (
+        assert cfg.satellite(RoomFunestra.PORTRAIT).origenerator_hud_file == (
             state / "origenerator_portrait_hud.json")
-        assert cfg.satellite(Player.LANDSCAPE).origenerator_hud_file == (
+        assert cfg.satellite(RoomFunestra.LANDSCAPE).origenerator_hud_file == (
             state / "origenerator_landscape_hud.json")
 
 

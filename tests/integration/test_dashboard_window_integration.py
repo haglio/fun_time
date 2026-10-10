@@ -156,7 +156,7 @@ def test_log_controls_fit_one_row_beside_the_bar_and_lines_word_wrap(cfg_path: P
         window.close()
 
 
-def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: Path):
+def test_a_notice_in_the_event_log_flashes_over_the_funestra_it_is_for(cfg_path: Path):
     """End to end over a real file: a NOTICE the dispatch loop would emit is
     picked up by the dashboard's tail and flashed, at the top-center of the
     window its source names — the overlay that replaced the AHK tooltip."""
@@ -175,8 +175,8 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
         assert overlay is not None
         assert overlay.isVisible()
         assert overlay.text() == "Clip saved"
-        # Centered across the portrait player's top, not the dashboard's.
-        portrait = window._notices.player_rects.portrait
+        # Centered across the Portrait Funestra's top, not the dashboard's.
+        portrait = window._notices.funestra_rects.portrait
         assert portrait.x <= overlay.x() <= portrait.x + portrait.width
         assert overlay.y() < portrait.y + portrait.height // 2
         # A normal notice reads white; a dead end (WARNING) reads yellow.  The
@@ -213,7 +213,7 @@ def test_omnipause_drops_the_reference_popup_from_the_topmost_band(cfg_path: Pat
         hwnd = int(dialog.winId())
         # The window we are banding is the one the user sees by name.
         assert find_window_by_title(REFERENCE_WINDOW_TITLE, exact=True) == hwnd
-        # It floats over the players while the desktop is live.
+        # It floats over the Funestras while the desktop is live.
         assert is_window_topmost(hwnd), "the popup should open topmost"
 
         window._do_render(_omnipause_snapshot(omni_paused=True), frozenset())
@@ -242,7 +242,7 @@ def test_the_reference_popup_opens_non_topmost_under_omnipause(cfg_path: Path):
 
 
 def test_closing_the_dashboard_stops_its_pollers_and_the_log_tail(cfg_path: Path):
-    """A dashboard left running keeps polling the players' status files twice a
+    """A dashboard left running keeps polling the Funestras' status files twice a
     second and holds a UDP socket.  Several dashboards are built and closed
     inside this one pytest process, so a leaked poller would keep reading — and
     keep its socket bound — for the rest of the run.  The embedded log widget's

@@ -1,4 +1,4 @@
-"""Whether this process is off-screen, so a player the user cannot see is one he cannot hear."""
+"""Whether this process is off-screen, so a Funestra the user cannot see is one he cannot hear."""
 from __future__ import annotations
 
 import ctypes

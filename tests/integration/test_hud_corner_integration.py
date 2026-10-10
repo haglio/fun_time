@@ -48,7 +48,7 @@ def _asked(dashboard_cmd) -> list[str]:
 def test_a_click_in_a_corner_its_hud_is_not_in_asks_for_the_hud_there(tmp_path):
     with launched(tmp_path, library_videos("portrait", 2), width=WIDTH, height=HEIGHT) as sat:
         sat.hud.write_text(json.dumps({"player": "portrait"}), encoding="utf-8")
-        hwnd = wait_for_window_by_title("Portrait AI Player", timeout_s=30.0)
+        hwnd = wait_for_window_by_title("Portrait AI Funestra", timeout_s=30.0)
         dashboard_cmd = tmp_path / "dashboard_cmd.txt"
 
         def asked_after_a_click() -> bool:

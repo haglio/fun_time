@@ -1,8 +1,8 @@
-"""Whether the main player has stopped advancing while it should be playing.
+"""Whether the Main Funestra has stopped advancing while it should be playing.
 
 It is the one mpv here that keeps an audio track, and mpv's clock follows audio:
 an output device that stops draining freezes its VIDEO on the frame it held.
-Every other player here runs with audio off instead (see route_audio).
+Every other Funestra here runs with audio off instead (see route_audio).
 """
 from __future__ import annotations
 

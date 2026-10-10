@@ -257,7 +257,7 @@ class TestWhatAPressDoes:
         assert not np.all(painted[rect.y + rect.height // 2, rect.x:rect.x + rect.width, :3]
                           == painted[rect.y + rect.height // 2, rect.x - 1, :3])
 
-    def test_reset_all_takes_no_press_when_every_player_is_at_its_defaults(self):
+    def test_reset_all_takes_no_press_when_every_funestra_is_at_its_defaults(self):
         pointer, posted = _pointer(nothing_to_reset=True)
 
         pointer.press(*_middle(RESET_ALL))
@@ -345,7 +345,7 @@ class TestWhatAPressDoes:
         assert pointer.state.voice_active is False
         assert pointer.state.sources == filtered
 
-    def test_the_session_says_when_every_player_is_already_at_its_defaults(self):
+    def test_the_session_says_when_every_funestra_is_already_at_its_defaults(self):
         pointer, posted = _pointer()
 
         pointer.session_state(omni_paused=False, voice_active=True, nothing_to_reset=True)
@@ -491,7 +491,7 @@ class TestWhatItDraws:
 
         assert not np.array_equal(running, held)
 
-    def test_reset_all_is_drawn_faded_when_every_player_is_at_its_defaults(self):
+    def test_reset_all_is_drawn_faded_when_every_funestra_is_at_its_defaults(self):
         rect = dash_actions()[RESET_ALL]
 
         def brightest(state: DashState) -> int:
@@ -528,7 +528,7 @@ class TestWhatItDraws:
 
 
 class TestTheVrReset:
-    def test_a_press_on_it_puts_the_players_back(self):
+    def test_a_press_on_it_puts_the_funestras_back(self):
         rect = dash_actions()[VR_RESET]
         pointer, posted = _pointer()
 

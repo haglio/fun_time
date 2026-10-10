@@ -1,4 +1,4 @@
-"""A state directory written before 2026-09-11 holds the main player's files under
+"""A state directory written before 2026-09-11 holds the Main Funestra's files under
 its old name; a session opening on it must resume from them, not from nothing."""
 from __future__ import annotations
 

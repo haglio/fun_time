@@ -1,7 +1,7 @@
 """Is the VR runtime ready — and if not, can we bring it up and back down?
 
 FunTimeVR launches hidden from a shortcut, so a startup that dies on its way to
-the headset leaves nothing on screen to read.  Asking before launching any player
+the headset leaves nothing on screen to read.  Asking before launching any Funestra
 keeps the failure fast and the answer specific: no runtime, a runtime whose
 headset is off, or ready to render.  It comes up hidden, so quitting it falls to
 us too: :func:`stop_the_runtime_a_session_started`.

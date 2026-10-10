@@ -4,7 +4,7 @@ The tree here is NOT the tree on disk.  The library's own folders record how far
 each file got through the pipeline — ``0 unsorted``, ``1 could use work/…``,
 ``3_good_to_go/processed`` — and those are the librarian's business, not the
 viewer's: a video's processing stage is an implementation detail Fun Time exists
-to hide, and its other stages are reachable from the player as versions anyway.
+to hide, and its other stages are reachable from the Funestra as versions anyway.
 
 So a folder here is a division of the *library*, never of the pipeline: the
 source folder a video came from, and beneath it the folder its cuts or its whole

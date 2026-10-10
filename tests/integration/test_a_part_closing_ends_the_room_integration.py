@@ -3,7 +3,7 @@ down with it, on a real session.
 
 His rule (2026-10-08): "If one component of Fun Time dies, the whole thing
 should die." The unit tests hold the decision; this holds that a real session
-acts on it: a player that goes is noticed, and every other window goes too.
+acts on it: a Funestra that goes is noticed, and every other window goes too.
 """
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def _still_up(child) -> bool:
     return bool(child.created_at) and get_process_creation_time(child.pid) == child.created_at
 
 
-def test_a_player_closing_mid_session_closes_the_whole_room():
+def test_a_funestra_closing_mid_session_closes_the_whole_room():
     config_path = build_integration_config(build_integration_temp_root())
     session = FunTimeIntegrationSession(config_path)
     try:
@@ -43,7 +43,7 @@ def test_a_player_closing_mid_session_closes_the_whole_room():
         kill_process_tree(children["landscape_pid"].pid)
 
         session._wait_for_own_log(
-            "The session ended because the Landscape player closed itself",
+            "The session ended because the Landscape Funestra closed itself",
             after=session._log_pos, timeout=ROOM_CLOSES_WITHIN_S)
         budget = Budget(ROOM_CLOSES_WITHIN_S)
         while not budget.expired() and any(map(_still_up, children.values())):

@@ -17,7 +17,7 @@ from fun_time.command_dispatch import dispatch_command
 from fun_time.config import load_config
 from fun_time.gallery_follows_genau import GalleryFollowsGenau
 from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
-from fun_time.players import Player
+from fun_time.room_funestras import RoomFunestra
 from fun_time.satellites_mode import ORIGENERATOR_MODE
 from fun_time.shared_state import BridgeState
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
@@ -50,11 +50,11 @@ def test_the_rooms_f_mode_reaching_each_hosted_show(cfg_factory, tmp_path):
     config = load_config(cfg_factory({"paths": {"origenerator_dir": str(checkout)}}))
     bridge = build_bridge_config_from_manifest(
         LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini")))
-    for player in Player.SATELLITES:
-        publish_the_show(bridge, player, f_mode=False)
+    for funestra in RoomFunestra.SATELLITES:
+        publish_the_show(bridge, funestra, f_mode=False)
 
     with patch("fun_time.command_dispatch.apply_fmode") as rebuild:
-        rebuild.return_value = SimpleNamespace(players=(), log_message="")
+        rebuild.return_value = SimpleNamespace(funestras=(), log_message="")
         dispatch_command("fmode_toggle", BridgeState(
             satellites_mode=ORIGENERATOR_MODE, origenerator_ready=True), bridge)
 

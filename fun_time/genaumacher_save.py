@@ -1,5 +1,5 @@
 """Saving a Genaumacher session — the one place the dispatcher's world shells out
-to a sibling repo, running genaumacher's own venv for the video the main player is showing."""
+to a sibling repo, running genaumacher's own venv for the video the Main Funestra is showing."""
 from __future__ import annotations
 
 import functools
@@ -11,7 +11,7 @@ from pathlib import Path
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from .bridge_records import BridgeConfig
-from .player_status import read_main_player_status
+from .funestra_status import read_main_funestra_status
 
 logger = logging.getLogger(__name__)
 
@@ -48,23 +48,23 @@ def _genaumacher_python() -> str:
 
 
 def _current_main_media(config: BridgeConfig) -> tuple[str, float]:
-    """The main player's current video path and playback time (seconds).
+    """The Main Funestra's current video path and playback time (seconds).
 
-    The main player owns the main slot in kino mode and
+    The Main Funestra owns the main slot in kino mode and
     publishes both in its status file; the path is empty when nothing is playing.
     """
-    status = read_main_player_status(config.main_player_status_file)
+    status = read_main_funestra_status(config.main_funestra_status_file)
     return status.video, status.position_ms / 1000
 
 
 def save_clip_session(config: BridgeConfig) -> str:
-    """Save a Genaumacher session for the main player's current video.
+    """Save a Genaumacher session for the Main Funestra's current video.
 
     Returns a short user-visible message on success, or empty string on failure.
     """
     video_path, playback_time = _current_main_media(config)
     if not video_path:
-        logger.warning("genaumacher_save: no video playing on the main player")
+        logger.warning("genaumacher_save: no video playing on the Main Funestra")
         return ""
     checkout = _genaumacher_project_dir()
     try:

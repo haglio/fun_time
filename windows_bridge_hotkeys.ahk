@@ -116,7 +116,7 @@ $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")
 
 \::QueueCommand("quarter_button")
-; The main player's library browser, on the key the retired mode had.
+; The Main Funestra's library browser, on the key the retired mode had.
 n::QueueCommand("browse_library")
 -::QueueCommand("main_nudge_prev")
 =::QueueCommand("main_nudge_next")
@@ -137,8 +137,8 @@ s::QueueCommand("landscape_lock")
 ; Landscape's half of the loop cycle above.
 e::QueueCommand("landscape_loop")
 ; The shifted step keys walk the versions of the clip on screen -- the upscale
-; the library plays and the original it was made from -- as they do on the main
-; player's own side (+[ / +] below).  The map's own row, which they used to walk,
+; the library plays and the original it was made from -- as they do on the Main
+; Funestra's own side (+[ / +] below).  The map's own row, which they used to walk,
 ; is still reachable by clicking a thumbnail.
 +Left::QueueCommand("portrait_cycle_version_back")
 +Right::QueueCommand("portrait_cycle_version")
@@ -153,9 +153,9 @@ e::QueueCommand("landscape_loop")
 +Down::QueueCommand("portrait_nav_down")
 +w::QueueCommand("landscape_nav_up")
 +s::QueueCommand("landscape_nav_down")
-; Where each player's HUD sits.  Ctrl and the side's own step keys move that
-; player's HUD: round the four corners of its picture on the desktop, against a
-; side of its player in the headset.  The main player has one pair of keys
+; Where each Funestra's HUD sits.  Ctrl and the side's own step keys move that
+; Funestra's HUD: round the four corners of its picture on the desktop, against a
+; side of its Funestra in the headset.  The Main Funestra has one pair of keys
 ; rather than a cluster, so its HUD walks the ring: Ctrl+[ against the clock,
 ; Ctrl+] with it.  The bracket scancodes are bound beside the characters for the
 ; same reason the step keys are.
@@ -174,13 +174,13 @@ e::QueueCommand("landscape_loop")
 
 ; The video's lock, while the video is on the main slot: it holds instead of
 ; walking the playlist.  Genau's clip has a lock key of its own in Genau's
-; cluster below, so each key holds the player whose keys sit around it.  The
+; cluster below, so each key holds the Funestra whose keys sit around it.  The
 ; apostrophe gave up Save clip to take this — that moved one key left, to the
 ; semicolon (bound by scancode because a bare ; opens a comment in AHK).
 '::QueueCommand("main_player_lock")
 SC027::QueueCommand("genaumacher_save")
 
-; The main player loop recording: hold R to mark, release to loop, press again to cancel.
+; The Main Funestra loop recording: hold R to mark, release to loop, press again to cancel.
 ; The held flag suppresses key-repeat so only one RECORD_DOWN is queued.
 global RecordHeld := false
 r:: {
@@ -196,7 +196,7 @@ r up:: {
     QueueCommand("main_player_record_up")
 }
 
-; The main player: cycle to another same-content version of the current video.
+; The Main Funestra: cycle to another same-content version of the current video.
 ; The shifted step keys walk the same versions either way, as the shifted step
 ; keys on each satellite side do.
 v::QueueCommand("main_player_cycle_version")
@@ -205,22 +205,22 @@ v::QueueCommand("main_player_cycle_version")
 +]::QueueCommand("main_player_cycle_version")
 +SC01B::QueueCommand("main_player_cycle_version")
 
-; The main player: cycle the length of what plays — mixed (everything) / shorts / full-length.
+; The Main Funestra: cycle the length of what plays — mixed (everything) / shorts / full-length.
 t::QueueCommand("main_player_toggle_length")
 
-; FunTimeVR: cycle the main player's video's projection.  Desktop main player ignores the verb.
+; FunTimeVR: cycle the Main Funestra's video's projection.  Desktop Main Funestra ignores the verb.
 p::QueueCommand("projection_cycle")
 !Left::QueueCommand("projection_narrower")
 !Right::QueueCommand("projection_wider")
 
 ; FunTimeVR: re-zero the scene onto wherever the headset is facing now (the
-; runtime's own recenter menu doesn't reach this app).  Desktop main player ignores it.
+; runtime's own recenter menu doesn't reach this app).  Desktop Main Funestra ignores it.
 z::QueueCommand("recenter_view")
 
 ; FunTimeVR: tilt the whole arrangement up and down, for watching from a
 ; recliner or flat on your back; Shift+Z stands it upright again beside Z's
 ; recenter.  Squeezing a controller's trigger and moving it turns and tilts the
-; whole arrangement — these are for the desk.  Desktop main player ignores all three.
+; whole arrangement — these are for the desk.  Desktop Main Funestra ignores all three.
 PgUp::QueueCommand("tilt_up")
 PgDn::QueueCommand("tilt_down")
 +z::QueueCommand("tilt_reset")

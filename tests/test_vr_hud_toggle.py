@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from player_core.hud_placement import HudEdge
+from funestra_core.hud_placement import HudEdge
 
 from fun_time_vr.hud_toggle import BUTTON_DEG, PANEL_GAP_DEG, HudToggle, toggle_screen_name
 from fun_time_vr.pointer import PRESS, RELEASE, PressEvent

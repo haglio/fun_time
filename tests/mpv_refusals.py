@@ -1,4 +1,4 @@
-"""What mpv does with a seek it cannot take yet, for the fake players to do too."""
+"""What mpv does with a seek it cannot take yet, for the fake Funestras to do too."""
 from __future__ import annotations
 
 

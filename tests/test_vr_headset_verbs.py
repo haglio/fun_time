@@ -9,14 +9,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from player_core.playback import Playback
+from funestra_core.playback import Playback
 
 from fun_time.event_log import NOTICE, SOURCE_MAIN
 from fun_time_vr.headset_verbs import ANGLE_STEP, DIAL_STILL_S, TILT_STEP_DEG, HeadsetVerbs
 from fun_time_vr.layout import TILT_LIMIT_DEG
 from fun_time_vr.picture_shape import FISHEYE_CIRCLE
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_180_SBS, FLAT, ProjectionMemory
-from tests.satellite_fakes import FakeSatellitePlayer
+from tests.satellite_fakes import FakeSatelliteEngine
 
 HOUR_MS = 3_600_000.0
 
@@ -57,10 +57,10 @@ def headset(tmp_path):
     three = vr_dir / "scene three.mp4"
     for video in (one, two, three):
         video.write_bytes(b"")
-    player = FakeSatellitePlayer(duration_ms=HOUR_MS)
-    playback = Playback([one, two, three], player=player, locked=True)
+    engine = FakeSatelliteEngine(duration_ms=HOUR_MS)
+    playback = Playback([one, two, three], engine=engine, locked=True)
     verbs = HeadsetVerbs(playback, metadata_root=metadata, vr_dirs=(vr_dir,))
-    return SimpleNamespace(verbs=verbs, playback=playback, player=player, metadata=metadata,
+    return SimpleNamespace(verbs=verbs, playback=playback, engine=engine, metadata=metadata,
                            files=(one, two, three))
 
 
@@ -188,7 +188,7 @@ class TestProjectionCycling:
         vr_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
         vr_dir.mkdir(parents=True)
         one, two = vr_dir / "scene one.mp4", vr_dir / "scene two.mp4"
-        playback = Playback([one, two], player=FakeSatellitePlayer(), locked=True)
+        playback = Playback([one, two], engine=FakeSatelliteEngine(), locked=True)
         verbs = HeadsetVerbs(playback, metadata_root=metadata, vr_dirs=(vr_dir,))
 
         verbs.apply("CYCLE_PROJECTION")
@@ -374,7 +374,7 @@ class TestLayoutReset:
 class TestTilt:
     def _opened_at(self, tmp_path, tilt_deg):
         feature = tmp_path / "feature.mp4"
-        return HeadsetVerbs(Playback([feature], player=FakeSatellitePlayer(), locked=True),
+        return HeadsetVerbs(Playback([feature], engine=FakeSatelliteEngine(), locked=True),
                             metadata_root=None, vr_dirs=(), tilt_deg=tilt_deg)
 
     def test_the_room_opens_at_the_tilt_the_last_session_was_left_at(self, tmp_path):
@@ -426,7 +426,7 @@ class TestScenes:
         sidecar.write_text(
             json.dumps({"scenes": [{"start": start} for start in starts_s]}), encoding="utf-8")
         _step(headset)
-        return headset.verbs, headset.player
+        return headset.verbs, headset.engine
 
     @staticmethod
     def _told(caplog) -> list[tuple[int, str]]:
@@ -434,56 +434,56 @@ class TestScenes:
                 if hasattr(record, "source")]
 
     def test_next_scene_seeks_to_where_the_next_one_begins(self, headset):
-        verbs, player = self._on_a_video_with_scenes_at(headset, 0, 120, 300)
-        player.position_ms = 45_000.0
+        verbs, engine = self._on_a_video_with_scenes_at(headset, 0, 120, 300)
+        engine.position_ms = 45_000.0
 
         assert verbs.apply("NEXT_SCENE") is True
-        assert player.seeks[-1] == 120_000.0
+        assert engine.seeks[-1] == 120_000.0
 
     def test_next_scene_from_where_a_jump_just_landed_goes_on_to_the_one_after(self, headset):
-        verbs, player = self._on_a_video_with_scenes_at(headset, 0, 120, 300)
-        player.position_ms = 119_960.0
+        verbs, engine = self._on_a_video_with_scenes_at(headset, 0, 120, 300)
+        engine.position_ms = 119_960.0
 
         verbs.apply("NEXT_SCENE")
 
-        assert player.seeks[-1] == 300_000.0
+        assert engine.seeks[-1] == 300_000.0
 
     def test_previous_scene_goes_back_to_where_this_one_began(self, headset):
-        verbs, player = self._on_a_video_with_scenes_at(headset, 0, 120, 300)
-        player.position_ms = 200_000.0
+        verbs, engine = self._on_a_video_with_scenes_at(headset, 0, 120, 300)
+        engine.position_ms = 200_000.0
 
         assert verbs.apply("PREV_SCENE") is True
-        assert player.seeks[-1] == 120_000.0
+        assert engine.seeks[-1] == 120_000.0
 
     def test_previous_scene_in_the_first_moments_of_one_goes_to_the_one_before(self, headset):
-        verbs, player = self._on_a_video_with_scenes_at(headset, 0, 120, 300)
-        player.position_ms = 121_000.0
+        verbs, engine = self._on_a_video_with_scenes_at(headset, 0, 120, 300)
+        engine.position_ms = 121_000.0
 
         verbs.apply("PREV_SCENE")
 
-        assert player.seeks[-1] == 0.0
+        assert engine.seeks[-1] == 0.0
 
     def test_a_video_with_no_scenes_marked_says_so_on_its_picture(self, headset, caplog):
-        headset.player.position_ms = 45_000.0
+        headset.engine.position_ms = 45_000.0
 
         with caplog.at_level(logging.DEBUG, logger="fun_time_vr.headset_verbs"):
             headset.verbs.apply("NEXT_SCENE")
             headset.verbs.apply("PREV_SCENE")
 
         assert self._told(caplog) == [(NOTICE, SOURCE_MAIN)] * 2
-        assert headset.player.seeks == []
+        assert headset.engine.seeks == []
 
     def test_no_scene_left_to_go_to_is_said_on_its_picture_too(self, headset, caplog):
-        verbs, player = self._on_a_video_with_scenes_at(headset, 0, 120, 300)
+        verbs, engine = self._on_a_video_with_scenes_at(headset, 0, 120, 300)
 
         with caplog.at_level(logging.DEBUG, logger="fun_time_vr.headset_verbs"):
-            player.position_ms = 400_000.0
+            engine.position_ms = 400_000.0
             verbs.apply("NEXT_SCENE")
-            player.position_ms = 1_000.0
+            engine.position_ms = 1_000.0
             verbs.apply("PREV_SCENE")
 
         assert self._told(caplog) == [(NOTICE, SOURCE_MAIN)] * 2
-        assert player.seeks == []
+        assert engine.seeks == []
 
     def test_a_video_in_a_vr_folder_kept_away_from_the_library_reads_its_scenes_off_its_record(
             self, tmp_path):
@@ -495,10 +495,10 @@ class TestScenes:
         sidecar = metadata / "VR" / "finished" / "scene one.json"
         sidecar.parent.mkdir(parents=True)
         sidecar.write_text(json.dumps({"scenes": [{"start": 90}]}), encoding="utf-8")
-        player = FakeSatellitePlayer(duration_ms=HOUR_MS)
-        verbs = HeadsetVerbs(Playback([video], player=player, locked=True),
+        engine = FakeSatelliteEngine(duration_ms=HOUR_MS)
+        verbs = HeadsetVerbs(Playback([video], engine=engine, locked=True),
                              metadata_root=metadata, vr_dirs=(vr_dir,))
 
         verbs.apply("NEXT_SCENE")
 
-        assert player.seeks == [90_000.0]
+        assert engine.seeks == [90_000.0]

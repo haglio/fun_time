@@ -125,10 +125,10 @@ class TestThePhases:
         assert weights[-1] == 0.0
         assert all(weight > 0 for weight in weights[:-1])
 
-    def test_the_player_is_the_last_thing_teardown_reports(self):
+    def test_the_funestra_is_the_last_thing_teardown_reports(self):
         """It is the thing wearing the cover, so its phase has to be last or the
         bar would claim the session was further along than it is."""
-        assert VR_SHUTDOWN_PHASES[-1].key == "players"
+        assert VR_SHUTDOWN_PHASES[-1].key == "funestras"
 
     def test_the_closing_cover_opens_on_its_first_phase_words(self):
         """Opening on anything else reads as a flicker on the first poll."""
@@ -140,12 +140,12 @@ class TestWhatTheCoverShows:
         assert CoverWatcher(tmp_path).read() is None
 
     def test_a_startup_phase_shows_its_words_a_bar_and_the_way_out(self, tmp_path: Path):
-        _startup_writer(tmp_path).advance("players")
+        _startup_writer(tmp_path).advance("funestras")
 
         cover = CoverWatcher(tmp_path).read()
 
         assert cover is not None
-        assert cover.status == "Waiting for players..."
+        assert cover.status == "Waiting for Funestras..."
         assert cover.hint == ESC_WORDS
         assert 0.0 < cover.fraction < 1.0
         assert not cover.closing
@@ -160,7 +160,7 @@ class TestWhatTheCoverShows:
 
     def test_done_takes_the_cover_down(self, tmp_path: Path):
         progress = _startup_writer(tmp_path)
-        progress.advance("players")
+        progress.advance("funestras")
         watcher = CoverWatcher(tmp_path)
         assert watcher.read() is not None
 
@@ -171,7 +171,7 @@ class TestWhatTheCoverShows:
     def test_a_torn_write_holds_the_last_readable_line(self, tmp_path: Path):
         """Snapping the bar back to zero mid-launch would read as the session
         starting over."""
-        _startup_writer(tmp_path).advance("players")
+        _startup_writer(tmp_path).advance("funestras")
         watcher = CoverWatcher(tmp_path)
         settled = watcher.read()
 
@@ -181,7 +181,7 @@ class TestWhatTheCoverShows:
 
     def test_the_cancel_flag_replaces_the_status_and_takes_the_hint_away(
             self, tmp_path: Path):
-        _startup_writer(tmp_path).advance("players")
+        _startup_writer(tmp_path).advance("funestras")
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
         cover = CoverWatcher(tmp_path).read()
@@ -191,30 +191,30 @@ class TestWhatTheCoverShows:
         assert cover.hint == ""
 
     def test_the_quit_chord_never_turns_it_to_canceling(self, tmp_path: Path):
-        _startup_writer(tmp_path).advance("players")
+        _startup_writer(tmp_path).advance("funestras")
         (tmp_path / CANCEL_FILENAME).write_text("quit\n", encoding="utf-8")
 
         cover = CoverWatcher(tmp_path).read()
 
         assert cover is not None
-        assert cover.status == "Waiting for players..."
+        assert cover.status == "Waiting for Funestras..."
         assert cover.hint == ESC_WORDS
 
     def test_a_cover_offering_no_esc_goes_on_showing_its_phases(self, tmp_path: Path):
         """The way back after an Esc offers no second one, and the flag that
         started it can still be lying there."""
-        _startup_writer(tmp_path, cancellable=False).advance("players")
+        _startup_writer(tmp_path, cancellable=False).advance("funestras")
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
         cover = CoverWatcher(tmp_path).read()
 
         assert cover is not None
-        assert cover.status == "Waiting for players..."
+        assert cover.status == "Waiting for Funestras..."
         assert cover.hint == ""
 
     def test_a_phase_still_in_flight_cannot_flip_the_words_back(self, tmp_path: Path):
         """The teardown a cancel starts writes no phases of its own, but one
-        already on its way must not put "Waiting for players..." back over a
+        already on its way must not put "Waiting for Funestras..." back over a
         launch that is being taken apart."""
         progress = _startup_writer(tmp_path)
         progress.advance("companions")
@@ -222,7 +222,7 @@ class TestWhatTheCoverShows:
         watcher = CoverWatcher(tmp_path)
         assert watcher.read().status == CANCELING
 
-        (tmp_path / PROGRESS_FILENAME).write_text("70/1030|Waiting for players...",
+        (tmp_path / PROGRESS_FILENAME).write_text("70/1030|Waiting for Funestras...",
                                                   encoding="utf-8")
 
         assert watcher.read().status == CANCELING
@@ -230,7 +230,7 @@ class TestWhatTheCoverShows:
     def test_the_cancelling_words_survive_the_flag_being_cleared(self, tmp_path: Path):
         """The orchestrator drops the flag at the END of the teardown it starts;
         the cover must not go back to offering a way out at that moment."""
-        _startup_writer(tmp_path).advance("players")
+        _startup_writer(tmp_path).advance("funestras")
         cancel_file = tmp_path / CANCEL_FILENAME
         cancel_file.write_text("cancel\n", encoding="utf-8")
         watcher = CoverWatcher(tmp_path)
@@ -241,7 +241,7 @@ class TestWhatTheCoverShows:
         assert watcher.read().status == CANCELING
 
     def test_a_teardown_outranks_a_startup_file_left_lying_around(self, tmp_path: Path):
-        _startup_writer(tmp_path).advance("players")
+        _startup_writer(tmp_path).advance("funestras")
         _shutdown_writer(tmp_path).advance("companions")
 
         cover = CoverWatcher(tmp_path).read()
@@ -269,7 +269,7 @@ class TestWhatTheCoverShows:
 
         assert cover == Cover(status=CANCELING, fraction=cover.fraction, closing=True)
 
-    def test_the_player_can_raise_the_closing_cover_with_no_file_at_all(
+    def test_the_funestra_can_raise_the_closing_cover_with_no_file_at_all(
             self, tmp_path: Path):
         """Its own window closed, or an interrupt: nobody is going to write a
         shutdown file, and its units are about to go down one at a time."""
@@ -302,10 +302,10 @@ class TestTheHeldCover:
 
     def test_it_outranks_whatever_the_teardown_file_still_says(self, tmp_path: Path):
         """The teardown that raised it has ended; its last phase would otherwise
-        go on reading "Closing players..." for the whole crossing."""
+        go on reading "Closing Funestras..." for the whole crossing."""
         watcher = CoverWatcher(tmp_path)
         PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
-                      phases=VR_SHUTDOWN_PHASES).advance("players")
+                      phases=VR_SHUTDOWN_PHASES).advance("funestras")
         assert watcher.read().status != HELD_STATUS
 
         hold_the_headset(tmp_path, stop_runtime=False)
@@ -375,7 +375,7 @@ class TestGivingUp:
         """The orchestrator died holding the cover up.  A headset must never be
         left under a panel that will never move."""
         clock = _Clock()
-        _startup_writer(tmp_path).advance("players")
+        _startup_writer(tmp_path).advance("funestras")
         watcher = CoverWatcher(tmp_path, clock=clock)
         assert watcher.read() is not None
 
@@ -391,7 +391,7 @@ class TestGivingUp:
         watcher.read()
 
         clock.now += STARTUP_STALE_TIMEOUT_S - 1
-        progress.advance("players")
+        progress.advance("funestras")
         watcher.read()
         clock.now += STARTUP_STALE_TIMEOUT_S - 1
 
@@ -410,7 +410,7 @@ class TestGivingUp:
         stamped = (tmp_path / PROGRESS_FILENAME).stat()
 
         clock.now += STARTUP_STALE_TIMEOUT_S - 1
-        progress.advance("players")
+        progress.advance("funestras")
         os.utime(tmp_path / PROGRESS_FILENAME, (stamped.st_atime, stamped.st_mtime))
         watcher.read()
         clock.now += STARTUP_STALE_TIMEOUT_S - 1
@@ -436,7 +436,7 @@ class TestGivingUp:
         it is still at work.  The desktop's closing screen went away over a
         dashboard still waiting its turn when nothing said so."""
         clock = _Clock()
-        _shutdown_writer(tmp_path).advance("players")
+        _shutdown_writer(tmp_path).advance("funestras")
         shutdown_file = tmp_path / SHUTDOWN_PROGRESS_FILENAME
         written_at = shutdown_file.stat().st_mtime
         watcher = CoverWatcher(tmp_path, clock=clock)
@@ -454,7 +454,7 @@ class TestGivingUp:
         room half revealed cannot be covered back up."""
         clock = _Clock()
         progress = _startup_writer(tmp_path)
-        progress.advance("players")
+        progress.advance("funestras")
         watcher = CoverWatcher(tmp_path, clock=clock)
         watcher.read()  # the clock starts when the cover first sees the file
         clock.now += STARTUP_STALE_TIMEOUT_S + 1
@@ -478,7 +478,7 @@ class TestTheReadyFlag:
         assert wait_for_cover_painted(
             ready, still_alive=lambda: True, timeout_s=5.0, sleep=lambda _s: None)
 
-    def test_a_player_that_is_already_gone_is_not_waited_for(self, tmp_path: Path):
+    def test_a_funestra_that_is_already_gone_is_not_waited_for(self, tmp_path: Path):
         """No flag is ever coming, and every second here is a second the quit
         the user asked for has not happened."""
         assert not wait_for_cover_painted(
@@ -486,7 +486,7 @@ class TestTheReadyFlag:
             still_alive=lambda: False, timeout_s=5.0, sleep=lambda _s: None,
         )
 
-    def test_a_silent_player_is_given_up_on_at_the_deadline(self, tmp_path: Path):
+    def test_a_silent_funestra_is_given_up_on_at_the_deadline(self, tmp_path: Path):
         clock = _Clock()
 
         def sleep(seconds: float) -> None:
@@ -500,9 +500,9 @@ class TestTheReadyFlag:
 
 class TestPainting:
     @pytest.mark.parametrize("cover", [
-        Cover(status="Waiting for players...", fraction=0.4, hint=ESC_WORDS),
+        Cover(status="Waiting for Funestras...", fraction=0.4, hint=ESC_WORDS),
         Cover(status=CANCELING, fraction=0.4),
-        Cover(status="Closing players...", fraction=1.0, closing=True),
+        Cover(status="Closing Funestras...", fraction=1.0, closing=True),
         Cover(status="", fraction=0.0),
     ])
     def test_every_cover_paints_at_the_one_size(self, cover: Cover):
@@ -522,7 +522,7 @@ class TestPainting:
     def test_it_is_the_familys_loading_panel_on_that_ground(self):
         """The same panel every app's loading screen shows: the words in the
         family's status tone, the bar's fill in its accent."""
-        image = paint_cover(Cover(status="Waiting for players...", fraction=0.5))
+        image = paint_cover(Cover(status="Waiting for Funestras...", fraction=0.5))
 
         pixels = image.load()
         tones = {pixels[x, y][:3] for y in range(image.height) for x in range(image.width)}
@@ -544,12 +544,12 @@ def test_a_checkpoint_still_raises_for_the_vr_phases(tmp_path: Path):
     (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
     with pytest.raises(StartupCancelled):
-        progress.advance("players")
+        progress.advance("funestras")
 
 
 class TestTheRoomComingUp:
     """The signal the orchestrator holds the cover for.  Without it the reveal
-    happens on the player's first STATUS write -- a role having picked a video,
+    happens on the Funestra's first STATUS write -- a role having picked a video,
     not a frame of one having reached the headset -- and the four pictures land
     in the open, one at a time, which is the whole thing the cover is for."""
 

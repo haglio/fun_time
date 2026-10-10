@@ -125,7 +125,7 @@ def _close(handle: int) -> None:
 def test_the_mutex_name_is_the_one_every_running_session_was_started_under():
     # Spelled out rather than derived: a session started before a change to
     # this string is not refused by a session started after it, and the two
-    # then drive the same players' channels together.
+    # then drive the same Funestras' channels together.
     assert MUTEX_ORCHESTRATOR == "Global\\FunTime.Orchestrator"
 
 

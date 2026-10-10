@@ -1,4 +1,4 @@
-"""Fun Time's own browser for the main player library.
+"""Fun Time's own browser for the Main Funestra library.
 
 The Windows file dialog this replaces browsed the library the way it sits on
 disk — stage folders nested several deep, the same video filed under three of
@@ -829,7 +829,7 @@ def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
     parser = _read_manifest(manifest_path)
     metadata_root = parser.get("regen", "metadata_root", fallback="")
     return BrowserConfig(
-        sources=parser.get("media", "main_player_library_sources", fallback=""),
+        sources=parser.get("media", "main_funestra_library_sources", fallback=""),
         vr_sources=parser.get("media", "vr_library_dirs", fallback=""),
         metadata_root=Path(metadata_root) if metadata_root else None,
         thumbnail_cache=Path(manifest_path).parent / THUMBNAIL_CACHE_DIRNAME,
@@ -855,7 +855,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--y", type=int)
     parser.add_argument("--width", type=int)
     parser.add_argument("--height", type=int)
-    parser.add_argument("--playing", help="What the main player has up — the browse opens there")
+    parser.add_argument("--playing", help="What the Main Funestra has up — the browse opens there")
     parser.add_argument(GENAU_FLAG, action="store_true", help="Browse Genau's clips instead")
     return parser.parse_args(argv)
 

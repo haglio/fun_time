@@ -17,7 +17,7 @@ a cover that leaves first turns it into a room sorting itself out in front of hi
 Whether anything is COVERING those windows is a separate question, and one
 ``test_loading_screen_startup_integration`` already asks of the satellites.  It is
 left there: the dashboard this session runs with brings its notice overlay, whose
-whole job is to flash over a player for a couple of seconds, so a coverage check
+whole job is to flash over a Funestra for a couple of seconds, so a coverage check
 here would go red on a notice doing exactly what it is for.
 """
 from __future__ import annotations
@@ -45,7 +45,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 # The windows a session puts on screen, by exact title.
-SHOWN_TITLES = ("Fun Time", "Portrait AI Player", "Landscape AI Player", "Main Player")
+SHOWN_TITLES = ("Fun Time", "Portrait AI Funestra", "Landscape AI Funestra", "Main Funestra")
 
 # What the orchestrator logs when the room has been banded and settled.
 BANDED = "Post-loading window state corrected"
@@ -109,7 +109,7 @@ def test_the_room_is_finished_when_the_cover_lifts():
         # few sessions that runs with it enabled.  Faked side-by-side monitors for
         # the reason the other overlay test fakes them: on the hidden desktop's
         # single screen the real layout collapses every window onto it, and a
-        # player landing on top of another one is then the layout's doing rather
+        # Funestra landing on top of another one is then the layout's doing rather
         # than the choreography's.
         session.start(wait_seconds=180.0, env_overrides={
             "FUN_TIME_INTEGRATION_OVERLAYS": "1",

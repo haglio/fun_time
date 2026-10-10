@@ -14,10 +14,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from player_core.file_channel import append_command
-from player_core.modes import MainMode
-from player_core.player_verbs import SET_F_MODE
-from player_core.robot_hand import FULL_INTENSITY
+from funestra_core.file_channel import append_command
+from funestra_core.funestra_verbs import SET_F_MODE
+from funestra_core.modes import MainMode
+from funestra_core.robot_hand import FULL_INTENSITY
 
 from satellite.contract import SatelliteChannels, WindowPlacement
 
@@ -28,10 +28,15 @@ from .checkout_overrides import genau_project_kwargs, is_a_worktree, primary_of
 from .child_launch import no_child_log, open_child_log
 from .config import load_config
 from .content import load_web_providers
+from .funestra_handover import take_back_the_list
+from .funestra_status import (
+    is_broker_heartbeat_fresh,
+    read_main_funestra_status,
+)
 from .max_intensity import publish_max_intensity
 from .mode_plan import STARTUP_MAIN_MODE, show_verb
 from .modes import (
-    PLAYLIST_MAIN_PLAYER,
+    PLAYLIST_MAIN_FUNESTRA,
     SatelliteBuild,
     build_all_playlists,
     build_main_playlist,
@@ -41,21 +46,16 @@ from .orchestrator_broker import (
     broker_launch_kwargs,
     subprocess_window_kwargs,
 )
-from .player_handover import take_back_the_list
-from .player_status import (
-    is_broker_heartbeat_fresh,
-    read_main_player_status,
-)
-from .players import Player
 from .process_identity import NAMER
 from .process_sweep import processes_matching
 from .process_tree import kill_process_tree
 from .project_paths import PROJECT_ICON
 from .random_favs_browser import build_manifest, write_manifest
 from .rfb_tab_page import tabs_dir, write_tab_pages
+from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
-from .satellite_slot import SatelliteSlot, for_player
+from .satellite_slot import SatelliteSlot, for_funestra
 from .session_resume import (
     playlist_fits_sources,
     resume_main_loop,
@@ -63,7 +63,7 @@ from .session_resume import (
     resume_playlists,
     resume_satellite_locks,
     resume_shared_state,
-    resume_what_lives_in_a_player,
+    resume_what_lives_in_a_funestra,
 )
 from .shared_state import shared_state_path
 from .win32_process import get_process_creation_time, unix_seconds
@@ -76,10 +76,10 @@ logger = logging.getLogger(__name__)
 # window to the other, which is the portrait/landscape visual swap.  They are
 # also what each window calls itself in Alt-Tab, so they name what the window
 # IS rather than this project's internal word for it.
-SATELLITE_PORTRAIT_TITLE = "Portrait AI Player"
-SATELLITE_LANDSCAPE_TITLE = "Landscape AI Player"
+SATELLITE_PORTRAIT_TITLE = "Portrait AI Funestra"
+SATELLITE_LANDSCAPE_TITLE = "Landscape AI Funestra"
 
-# Every player this launches is one of Fun Time's windows, not an application
+# Every Funestra this launches is one of Fun Time's windows, not an application
 # of its own, so each takes Fun Time's taskbar identity rather than claiming
 # one; without this the bar showed four apps.  Passed rather than shared as a
 # constant -- those apps are another repo's and must not know this one's name.
@@ -119,12 +119,12 @@ def stop_broker_processes(broker_tray_launcher: Path | str | None) -> None:
 def reap_orphaned_satellites(
     satellite_module: str, status_files: Sequence[str | Path],
 ) -> None:
-    """Kill satellite players stranded on the state files this session is claiming.
+    """Kill Satellite Funestras stranded on the state files this session is claiming.
 
     A hard crash leaves the pair alive on the files the new pair is about to use,
-    so on reopen four players race two of each.  *status_files* is what keeps the
+    so on reopen four Funestras race two of each.  *status_files* is what keeps the
     reap inside this session: every satellite on the machine runs
-    ``-m <satellite_module>``, and only a player already bound to one of our files
+    ``-m <satellite_module>``, and only a Funestra already bound to one of our files
     can be stranded on it.
     """
     if not status_files:
@@ -253,11 +253,11 @@ def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: s
 def seed_startup_states(
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
-    main_player_paused_file: str | Path,
+    main_funestra_paused_file: str | Path,
     audio_volume_file: str | Path,
     genau_cmd_file: str | Path,
     *,
-    main_player_cmd_file: str | Path,
+    main_funestra_cmd_file: str | Path,
     volume: int = MAX_VOLUME,
     muted: bool = False,
     max_intensity: int = FULL_INTENSITY,
@@ -269,54 +269,54 @@ def seed_startup_states(
     held until the sequencer's reveal starts whichever the mode puts on screen,
     and the sound, F-mode and mode this session comes back in.
 
-    All three of those last are the session's, not a fresh session's.  The main
-    player and the audio companion each launch unattenuated and neither reads a
+    All three of those last are the session's, not a fresh session's.  The Main
+    Funestra and the audio companion each launch unattenuated and neither reads a
     level from a file it already has, so seeding is the only way a resumed session
     comes up as loud as you left it -- and both sinks are told, through the one
     publisher the live volume commands use, which is what keeps a resumed mute
     explicable rather than a silence with nothing on screen backing it.
 
     *scripted_filter* is seeded for the same shape of reason: the playlist the
-    main player is handed has already been narrowed and a list of scripted videos
+    Main Funestra is handed has already been narrowed and a list of scripted videos
     looks like any other, so its HUD can only know from being told.  fun_time
     draws the satellites' HUD model itself, which is why a resumed F-mode session
-    showed F-Mode on every player except the one that had to be sent it.
+    showed F-Mode on every Funestra except the one that had to be sent it.
 
-    *mode* is which of Kino and Genau has the Main Player's window, seeded with
+    *mode* is which of Kino and Genau has the Main Funestra's window, seeded with
     the same verb a live switch into it says (see ``mode_plan``).  Never the
-    switch's RESUME, though: a live switch starts its player immediately and
+    switch's RESUME, though: a live switch starts its Funestra immediately and
     startup must not, the reveal being what hands Genau its RESUME.
 
     The defaults are a fresh session's: full, unmuted, unnarrowed, in kino mode.
     """
     Path(genau_cmd_file).parent.mkdir(parents=True, exist_ok=True)
-    # Written whole ONCE, here, before any player is running: the fresh
+    # Written whole ONCE, here, before any Funestra is running: the fresh
     # session's reset, clearing whatever a crashed predecessor left queued.
-    # Everything after it appends — the player drains the queue in order, so a
+    # Everything after it appends — the Funestra drains the queue in order, so a
     # later verb of the same kind supersedes an earlier one and none is lost.
     # The broker is left out on purpose — startup has already parked the OSR2.
     Path(genau_cmd_file).write_text("PAUSE\n", encoding="utf-8")
-    append_command(Path(main_player_cmd_file), show_verb(mode))
-    # Every player waits for the reveal: a live switch's flags would start its
-    # player the moment they landed, and here that is twenty seconds of the OSR2
+    append_command(Path(main_funestra_cmd_file), show_verb(mode))
+    # Every Funestra waits for the reveal: a live switch's flags would start its
+    # Funestra the moment they landed, and here that is twenty seconds of the OSR2
     # moving under a progress bar.  The flag does not hold the Robot Hand,
     # whose motion follows the PAUSE/RESUME verbs on Genau's channel and never
     # reads the paused flag at all — which is why the PAUSE above is written
     # whole and no RESUME follows it.
-    for path in (genau_paused_file, audio_paused_file, main_player_paused_file):
+    for path in (genau_paused_file, audio_paused_file, main_funestra_paused_file):
         write_flag_file(path, True)
     publish_audio_level(
-        main_player_cmd_file=Path(main_player_cmd_file),
+        main_funestra_cmd_file=Path(main_funestra_cmd_file),
         genau_cmd_file=Path(genau_cmd_file),
         audio_volume_file=Path(audio_volume_file),
         volume=volume,
         muted=muted,
     )
-    append_command(Path(main_player_cmd_file), f"{SET_F_MODE} {int(scripted_filter)}")
+    append_command(Path(main_funestra_cmd_file), f"{SET_F_MODE} {int(scripted_filter)}")
     if max_intensity < FULL_INTENSITY:
         publish_max_intensity(
             (Path(command_file) for command_file in
-             (genau_cmd_file, main_player_cmd_file, *satellite_cmd_files)),
+             (genau_cmd_file, main_funestra_cmd_file, *satellite_cmd_files)),
             max_intensity=max_intensity)
 
 
@@ -347,14 +347,14 @@ def start_core_session(
     genau_paused_file: str | Path,
     genau_cmd_file: str | Path | None = None,
     audio_paused_file: str | Path,
-    main_player_paused_file: str | Path,
+    main_funestra_paused_file: str | Path,
     audio_volume_file: str | Path,
-    main_player_cmd_file: str | Path,
+    main_funestra_cmd_file: str | Path,
     satellite_python_exe: str | Path,
     satellite_module: str,
     portrait: SatelliteSlot,
     landscape: SatelliteSlot,
-    main_player_status_file: str | Path,
+    main_funestra_status_file: str | Path,
     main_sources: str,
     favs_file: str | Path,
     state_dir: str | Path,
@@ -364,20 +364,20 @@ def start_core_session(
     project_dirs: str | None = None,
 ) -> str:
     """Launch the session's media stack, returning the mode its main slot
-    opens in — which the caller needs because parking the main player/Genau pair to match
+    opens in — which the caller needs because parking the Main Funestra/Genau pair to match
     takes window handles only the sequencer has."""
-    portrait = for_player(portrait, Player.PORTRAIT)
-    landscape = for_player(landscape, Player.LANDSCAPE)
+    portrait = for_funestra(portrait, RoomFunestra.PORTRAIT)
+    landscape = for_funestra(landscape, RoomFunestra.LANDSCAPE)
     # Clear any satellites stranded by a prior crash on the very files this
-    # session is about to claim, so four players never race the two command/status
+    # session is about to claim, so four Funestras never race the two command/status
     # file sets.  Bounded to those files: a session elsewhere on the machine (an
     # integration run) owns different ones and must be left alone.
     reap_orphaned_satellites(
         satellite_module, [portrait.channels.status, landscape.channels.status],
     )
     # Send the OSR2 home first, so it waits out startup parked rather than
-    # wherever the last session left it — the two native players decode their
-    # first frames while the main player and Genau scan their libraries, and that wait is
+    # wherever the last session left it — the two native Funestras decode their
+    # first frames while the Main Funestra and Genau scan their libraries, and that wait is
     # long.  The verb keeps in the file until the broker's next tick, so it does
     # not matter that ensure_broker may only now be starting one.
     write_broker_command(broker_cmd_file, PARK_CMD)
@@ -385,33 +385,33 @@ def start_core_session(
     state_path = Path(state_dir)
     # Come back to the clips this session was closed on, rather than three the
     # user never chose: last session's playlists are still on disk and each
-    # player's status file names the video it had on screen, so a reopen rotates
+    # Funestra's status file names the video it had on screen, so a reopen rotates
     # them instead of reshuffling.  Only a session with nothing to resume — a
     # first run, a wiped state dir — is built, by the same builder the F-mode
     # toggle uses.  Shuffle and Premiere still rebuild on demand, and that is
     # where videos added since come in.
-    main_player_playlist = build_playlist_file_path(state_path, PLAYLIST_MAIN_PLAYER)
-    main_player_status = read_main_player_status(Path(main_player_status_file))
+    main_funestra_playlist = build_playlist_file_path(state_path, PLAYLIST_MAIN_FUNESTRA)
+    main_funestra_status = read_main_funestra_status(Path(main_funestra_status_file))
     portrait_status = read_satellite_status(Path(portrait.channels.status))
     landscape_status = read_satellite_status(Path(landscape.channels.status))
     for slot in (portrait, landscape):
         if take_back_the_list(Path(slot.channels.playlist)):
-            logger.info("Took %s's own clips back from the hosted app", slot.player.label)
+            logger.info("Took %s's own clips back from the hosted app", slot.funestra.label)
     resumed = resume_playlists([
         (Path(portrait.channels.playlist), portrait_status.video),
         (Path(landscape.channels.playlist), landscape_status.video),
-        (main_player_playlist, main_player_status.video),
+        (main_funestra_playlist, main_funestra_status.video),
     ])
     # Come back to the state that session was in, too — F-mode, each side's
-    # filter, order and lock, any group loop, the sound level, which player had
+    # filter, order and lock, any group loop, the sound level, which Funestra had
     # the big display.  The dispatch loop opens on this file, so a session that
     # resumed the files and not the state described itself wrongly on every HUD.
     # It is read before the flags below are seeded, because several of them are
     # what those flags have to be seeded to.
     carried = resume_shared_state(shared_state_path(state_path), resumed=resumed)
     seed_startup_states(
-        genau_paused_file, audio_paused_file, main_player_paused_file, audio_volume_file,
-        genau_cmd_file, main_player_cmd_file=main_player_cmd_file,
+        genau_paused_file, audio_paused_file, main_funestra_paused_file, audio_volume_file,
+        genau_cmd_file, main_funestra_cmd_file=main_funestra_cmd_file,
         volume=carried.volume, muted=carried.muted, max_intensity=carried.max_intensity,
         satellite_cmd_files=(portrait.channels.command, landscape.channels.command),
         scripted_filter=carried.main_scripted_filter, mode=carried.main_mode,
@@ -428,18 +428,18 @@ def start_core_session(
             state_dir=state_path,
             metadata_root=regen_metadata_root,
         )
-    elif not playlist_fits_sources(main_player_playlist, main_sources):
+    elif not playlist_fits_sources(main_funestra_playlist, main_sources):
         # FunTimeVR left this playlist, and its VR videos must never reach the
         # primary monitor: rebuild from this app's library, under the order and
         # F-mode being carried forward, then rotate back onto the clip that was
         # on screen.  (The satellites' dirs are the same in either app, so their
         # resume stands.)
-        build_main_playlist(main_player_playlist, main_sources, scripted_filter=carried.main_scripted_filter,
+        build_main_playlist(main_funestra_playlist, main_sources, scripted_filter=carried.main_scripted_filter,
                             recent=carried.main_latest, metadata_root=regen_metadata_root)
         logger.info(
-            "Resumed playlists; rebuilt the main player's around the video it was on"
-            if resume_main_video(main_player_playlist, main_player_status.video)
-            else "Resumed playlists; rebuilt the main player's, which held another app's videos"
+            "Resumed playlists; rebuilt the Main Funestra's around the video it was on"
+            if resume_main_video(main_funestra_playlist, main_funestra_status.video)
+            else "Resumed playlists; rebuilt the Main Funestra's, which held another app's videos"
         )
     # Which of the two ran is the difference between the clips of the last
     # session and three new ones, so the log says outright which you are getting.
@@ -451,13 +451,13 @@ def start_core_session(
     # A lock has no file of its own to come back in, so queue it for each side
     # that was holding one — from here it is waiting when the satellite starts.
     resume_satellite_locks([
-        (Path(portrait.channels.command), carried.satellite(Player.PORTRAIT).locked),
-        (Path(landscape.channels.command), carried.satellite(Player.LANDSCAPE).locked),
+        (Path(portrait.channels.command), carried.satellite(RoomFunestra.PORTRAIT).locked),
+        (Path(landscape.channels.command), carried.satellite(RoomFunestra.LANDSCAPE).locked),
     ])
-    # The main player's loop is the same kind of thing, and queued the same way.
-    resume_main_loop(Path(main_player_cmd_file), main_player_status, main_player_playlist)
-    resume_what_lives_in_a_player(
-        main_player=(Path(main_player_cmd_file), main_player_status),
+    # The Main Funestra's loop is the same kind of thing, and queued the same way.
+    resume_main_loop(Path(main_funestra_cmd_file), main_funestra_status, main_funestra_playlist)
+    resume_what_lives_in_a_funestra(
+        main_funestra=(Path(main_funestra_cmd_file), main_funestra_status),
         satellites=[(Path(portrait.channels.command), portrait_status),
                     (Path(landscape.channels.command), landscape_status)],
         genau_cmd_file=Path(genau_cmd_file), state_dir=state_path,
@@ -474,7 +474,7 @@ def start_core_session(
     return carried.main_mode
 
 
-def _start_a_player(cmd: list[str], *, log_file: str | Path, project_dirs: str | None) -> int:
+def _start_a_funestra(cmd: list[str], *, log_file: str | Path, project_dirs: str | None) -> int:
     with open_child_log(log_file, cmd) as log:
         proc = subprocess.Popen(
             cmd, stdout=log, stderr=log,
@@ -483,10 +483,10 @@ def _start_a_player(cmd: list[str], *, log_file: str | Path, project_dirs: str |
 
 
 @dataclass(frozen=True)
-class HandedPlayer:
-    """One satellite player as the hosted app is handed it: the files the
-    player contract trades through, plus the one that app publishes the side's
-    panel to for the session to put on the player."""
+class HandedFunestra:
+    """One Satellite Funestra as the hosted app is handed it: the files the
+    Funestra contract trades through, plus the one that app publishes the side's
+    panel to for the session to put on the Funestra."""
 
     playlist_file: str | Path
     cmd_file: str | Path
@@ -507,19 +507,19 @@ def origenerator_session_args(
     paused_file: str | Path,
     status_file: str | Path,
     dashboard_cmd_file: str | Path,
-    players: Mapping[str, HandedPlayer],
+    funestras: Mapping[str, HandedFunestra],
 ) -> list[str]:
     args = ["--fun-time", *_rect_args("", layout_plan.random_favs_browser)]
     # The two satellite regions, for a show the hosted app opens itself where a
-    # session hands it no player.  Unsent, those fell to a rect of zeroes.
+    # session hands it no Funestra.  Unsent, those fell to a rect of zeroes.
     args.extend(_rect_args("portrait-", layout_plan.portrait))
     args.extend(_rect_args("landscape-", layout_plan.landscape))
-    for side, player in players.items():
+    for side, funestra in funestras.items():
         args.extend([
-            f"--{side}-playlist", str(player.playlist_file),
-            f"--{side}-cmd-file", str(player.cmd_file),
-            f"--{side}-status-file", str(player.status_file),
-            f"--{side}-hud-file", str(player.hud_file),
+            f"--{side}-playlist", str(funestra.playlist_file),
+            f"--{side}-cmd-file", str(funestra.cmd_file),
+            f"--{side}-status-file", str(funestra.status_file),
+            f"--{side}-hud-file", str(funestra.hud_file),
         ])
     args.extend(taskbar_identity_args())
     args.extend([
@@ -553,9 +553,9 @@ def origenerator_launch_kwargs(
     project_dirs: str | None = None,
 ) -> dict:
     """The environment that argv runs in — also shared with the launch test."""
-    # The same checkout choice Genau, the main player and the satellites get: named
+    # The same checkout choice Genau, the Main Funestra and the satellites get: named
     # project dirs ride the hosted app's PYTHONPATH, so a branch of
-    # player_core is the one its ensure_player_core_on_path finds (it defers
+    # player_core is the one its ensure_funestra_core_on_path finds (it defers
     # to an already-importable copy rather than walking up to the primary).
     kwargs: dict = {"cwd": str(origenerator_dir),
                     **genau_project_kwargs(project_dirs),
@@ -581,13 +581,13 @@ def launch_origenerator(
     paused_file: str | Path,
     status_file: str | Path,
     dashboard_cmd_file: str | Path,
-    players: Mapping[str, HandedPlayer],
+    funestras: Mapping[str, HandedFunestra],
     project_dirs: str | None = None,
 ) -> int:
     """Launch the hosted Origenerator, returning its PID.
 
     Its ``--fun-time`` contract (``origenerator.fun_time_mode``): the main
-    window takes the RFB's rect, its shows go to the two players it is handed,
+    window takes the RFB's rect, its shows go to the two Funestras it is handed,
     and the file trio is how the session drives and observes it.  Run with
     ``cwd`` in the checkout so ``-m`` resolves that checkout's code — the same
     way its own launcher picks a checkout, and what lets a worktree of it be
@@ -597,7 +597,7 @@ def launch_origenerator(
     cmd = origenerator_launch_command(
         python_exe=python_exe, layout_plan=layout_plan, command_file=command_file,
         paused_file=paused_file, status_file=status_file,
-        dashboard_cmd_file=dashboard_cmd_file, players=players,
+        dashboard_cmd_file=dashboard_cmd_file, funestras=funestras,
     )
     kwargs = origenerator_launch_kwargs(
         origenerator_dir=origenerator_dir, project_dirs=project_dirs)
@@ -605,10 +605,10 @@ def launch_origenerator(
     return proc.pid
 
 
-def launch_main_player(
+def launch_main_funestra(
     *,
     python_exe: str | Path,
-    main_player_module: str,
+    main_funestra_module: str,
     config_path: str | Path,
     playlist_file: str | Path,
     command_file: str | Path,
@@ -619,10 +619,10 @@ def launch_main_player(
     dashboard_cmd_file: str | Path,
     log_file: str | Path,
     state_dir: str | Path,
-    main_player_x: int,
-    main_player_y: int,
-    main_player_width: int,
-    main_player_height: int,
+    main_funestra_x: int,
+    main_funestra_y: int,
+    main_funestra_width: int,
+    main_funestra_height: int,
     genau_command_file: str | Path,
     genau_paused_file: str | Path,
     genau_status_file: str | Path,
@@ -633,23 +633,23 @@ def launch_main_player(
     genau_latest: bool = False,
     project_dirs: str | None = None,
 ) -> int:
-    """Launch the main player subprocess, returning its PID.
+    """Launch the Main Funestra subprocess, returning its PID.
 
     Kino and Genau both run on its window, so the launch names Genau's own files
-    and settings beside the player's: the channel the room's verbs for the hand
+    and settings beside the Funestra's: the channel the room's verbs for the hand
     and the clip arrive on, the flag that pauses its clip, the status it
     publishes, its config, and the clip and order it was left browsing.
 
     *project_dirs* names the checkouts it runs out of (see
     :func:`genau_project_kwargs`).  Its stdout and stderr go to *log_file* for
-    the same reason a satellite's do: the main player is the same mpv-backed
-    player under the same windowed ``pythonw``, which gives an unhandled
+    the same reason a satellite's do: the Main Funestra is the same mpv-backed
+    Funestra under the same windowed ``pythonw``, which gives an unhandled
     exception nowhere to print its traceback.
     """
     cmd = [
-        NAMER.named_exe(python_exe, "MainPlayer"),
+        NAMER.named_exe(python_exe, "MainFunestra"),
         "-m",
-        main_player_module,
+        main_funestra_module,
         "--config",
         str(config_path),
         "--playlist",
@@ -662,7 +662,7 @@ def launch_main_player(
         str(status_file),
         "--state-dir",
         str(state_dir),
-        # The main player's HUD is this session's console: it reads the panel we
+        # The Main Funestra's HUD is this session's console: it reads the panel we
         # publish, reads Genau's readout for the section under it, and posts a
         # press -- on a button or on the volume control -- back onto the
         # dashboard's command file.
@@ -673,13 +673,13 @@ def launch_main_player(
         "--dashboard-cmd-file",
         str(dashboard_cmd_file),
         "--x",
-        str(main_player_x),
+        str(main_funestra_x),
         "--y",
-        str(main_player_y),
+        str(main_funestra_y),
         "--width",
-        str(main_player_width),
+        str(main_funestra_width),
         "--height",
-        str(main_player_height),
+        str(main_funestra_height),
         # This window is one of ours, not an application of its own: see
         # taskbar_identity_args — and it wears Fun Time's icon.
         "--icon",
@@ -703,11 +703,11 @@ def launch_main_player(
         cmd += ["--genau-start-clip", genau_start_clip]
     if genau_latest:
         cmd.append("--genau-latest")
-    # Lets the main player group a video's versions from Evolver's metadata sidecars rather
+    # Lets the Main Funestra group a video's versions from Evolver's metadata sidecars rather
     # than guessing from clip names.
     if metadata_dir:
         cmd += ["--metadata-dir", str(metadata_dir)]
-    return _start_a_player(cmd, log_file=log_file, project_dirs=project_dirs)
+    return _start_a_funestra(cmd, log_file=log_file, project_dirs=project_dirs)
 
 
 def launch_audio_companion(
@@ -830,10 +830,10 @@ def launch_core_apps(
     dashboard_cmd_file: str | Path | None = None,
     project_dirs: str | None = None,
 ) -> None:
-    """Spawn the two native satellite players (portrait + landscape), each
+    """Spawn the two native Satellite Funestras (portrait + landscape), each
     straight into its rect, and the portrait one ready to tile."""
-    portrait = for_player(portrait, Player.PORTRAIT)
-    landscape = for_player(landscape, Player.LANDSCAPE)
+    portrait = for_funestra(portrait, RoomFunestra.PORTRAIT)
+    landscape = for_funestra(landscape, RoomFunestra.LANDSCAPE)
 
     def _launch(slot: SatelliteSlot, title: str, role: str, *, tiles: bool) -> int:
         return launch_satellite(
@@ -872,7 +872,7 @@ def _build_satellite_launch_command(
     channels: SatelliteChannels,
     placement: WindowPlacement,
 ) -> list[str]:
-    """The argv for a native satellite player (``python -m satellite ...``).
+    """The argv for a native Satellite Funestra (``python -m satellite ...``).
 
     It takes no ``--config``: the channels plus the placement fully specify it,
     and each spells its own flags (:mod:`satellite.contract`).  No
@@ -898,12 +898,12 @@ def launch_satellite(
     log_file: str | Path,
     project_dirs: str | None = None,
 ) -> int:
-    """Launch a native satellite player subprocess, returning its PID.
+    """Launch a native Satellite Funestra subprocess, returning its PID.
 
-    A sibling of :func:`launch_main_player`: our own mpv-backed process, opened
+    A sibling of :func:`launch_main_funestra`: our own mpv-backed process, opened
     where *placement* says and driven through *channels*.
 
-    *role* names this player in the task list, where the two are otherwise the
+    *role* names this Funestra in the task list, where the two are otherwise the
     same anonymous interpreter as each other and as everything else -- it is the
     caption's counterpart for the process the window belongs to.
 
@@ -914,4 +914,4 @@ def launch_satellite(
     cmd = _build_satellite_launch_command(
         NAMER.named_exe(python_exe, role), satellite_module,
         channels=channels, placement=placement)
-    return _start_a_player(cmd, log_file=log_file, project_dirs=project_dirs)
+    return _start_a_funestra(cmd, log_file=log_file, project_dirs=project_dirs)

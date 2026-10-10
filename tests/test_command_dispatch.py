@@ -10,14 +10,14 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 import pytest
-from player_core.console import (
+from funestra_core.console import (
     OSR2_CONTROL_BUTTONS,
     OSR2_DRIVING,
     OSR2_PARKED,
     OSR2_RETRACTED,
 )
-from player_core.hud_placement import HudCorner, HudEdge
-from player_core.modes import MainMode
+from funestra_core.hud_placement import HudCorner, HudEdge
+from funestra_core.modes import MainMode
 
 from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
@@ -38,12 +38,12 @@ from fun_time.main_list_builds import MainListBuild
 from fun_time.media_actions import ensure_in_favs, make_web_url_from_path
 from fun_time.media_metadata import load_metadata, metadata_path_for, normalize_path_key
 from fun_time.modes import write_playlist_file
-from fun_time.players import Player
+from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_groups import _satellite_group_index, cancel_lock
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
 from fun_time.watch_stats import load_watch_stats
-from fun_time.windows_bridge_dispatch_loop import resolve_active_player_command
+from fun_time.windows_bridge_dispatch_loop import resolve_active_funestra_command
 from tests.hosted_shows import publish_the_show
 
 
@@ -59,7 +59,7 @@ def _publish_drive(config: BridgeConfig, *, amplitude: int) -> None:
     config.genau_drive_file.write_text(text, encoding="utf-8")
 
 
-def _make_config(tmp_path: Path, *, vr_main_player: bool = False) -> BridgeConfig:
+def _make_config(tmp_path: Path, *, vr_main_funestra: bool = False) -> BridgeConfig:
     state_dir = tmp_path / "state"
     state_dir.mkdir(parents=True, exist_ok=True)
     favs_file = tmp_path / "favs.csv"
@@ -67,7 +67,7 @@ def _make_config(tmp_path: Path, *, vr_main_player: bool = False) -> BridgeConfi
     weird_dir = tmp_path / "weird"
     weird_dir.mkdir(exist_ok=True)
     return BridgeConfig(
-        vr_main_player=vr_main_player,
+        vr_main_funestra=vr_main_funestra,
         portrait_cmd_file=state_dir / "portrait_cmd.txt",
         portrait_paused_file=state_dir / "portrait_paused.txt",
         portrait_status_file=state_dir / "portrait_status.txt",
@@ -88,19 +88,19 @@ def _make_config(tmp_path: Path, *, vr_main_player: bool = False) -> BridgeConfi
         genau_status_file=state_dir / "genau_status.txt",
         audio_paused_file=state_dir / "audio_paused.txt",
         audio_volume_file=state_dir / "audio_volume.txt",
-        main_player_cmd_file=state_dir / "main_player_cmd.txt",
-        main_player_paused_file=state_dir / "main_player_paused.txt",
-        main_player_status_file=state_dir / "main_player_status.txt",
+        main_funestra_cmd_file=state_dir / "main_player_cmd.txt",
+        main_funestra_paused_file=state_dir / "main_player_paused.txt",
+        main_funestra_status_file=state_dir / "main_player_status.txt",
         dashboard_state_file=state_dir / "dashboard_state.ini",
         broker_cmd_file=state_dir / "broker_cmd.txt",
     )
 
 
-def _set_current(config: BridgeConfig, player: Player, video: str, *, locked: bool = False,
+def _set_current(config: BridgeConfig, funestra: RoomFunestra, video: str, *, locked: bool = False,
                  playlist_length: int = 0) -> None:
-    """Make read_satellite_status report *video* as satellite *player*'s current
+    """Make read_satellite_status report *video* as satellite *Funestra*'s current
     clip — the file-based stand-in for the old get_current_file_path mock."""
-    status = config.satellite(player).status_file
+    status = config.satellite(funestra).status_file
     status.parent.mkdir(parents=True, exist_ok=True)
     status.write_text(
         f"video={video}\nposition_ms=100\nduration_ms=1000\n"
@@ -109,17 +109,17 @@ def _set_current(config: BridgeConfig, player: Player, video: str, *, locked: bo
     )
 
 
-def _cmds(config: BridgeConfig, player: Player) -> list[str]:
-    """The verbs queued on satellite *player*'s command file, in order."""
-    cmd_file = config.satellite(player).cmd_file
+def _cmds(config: BridgeConfig, funestra: RoomFunestra) -> list[str]:
+    """The verbs queued on satellite *Funestra*'s command file, in order."""
+    cmd_file = config.satellite(funestra).cmd_file
     if not cmd_file.exists():
         return []
     return [line.strip() for line in cmd_file.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def _playlist(config: BridgeConfig, player: Player) -> list[str]:
-    """The video paths written to satellite *player*'s playlist file, in order."""
-    playlist = config.satellite(player).playlist_file
+def _playlist(config: BridgeConfig, funestra: RoomFunestra) -> list[str]:
+    """The video paths written to satellite *Funestra*'s playlist file, in order."""
+    playlist = config.satellite(funestra).playlist_file
     if not playlist.exists():
         return []
     return [
@@ -155,7 +155,7 @@ def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).locked is True
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
     assert _cmds(config, 2) == ["LOCK_ON"]
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
@@ -242,7 +242,7 @@ def test_portrait_lock_no_open_rfb_tab_op_for_unknown_video(tmp_path: Path):
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).locked is True
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
     assert not any(op.op == "open_rfb_tab" for op in ops)
 
 
@@ -253,7 +253,7 @@ def test_portrait_lock_no_open_rfb_tab_op_when_unlocking(tmp_path: Path):
     _set_current(config, 2, r"C:\videos\provider2\abc_123.mp4")
     new_state, ops = dispatch_command("portrait_lock", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).locked is False
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is False
     assert not any(op.op == "open_rfb_tab" for op in ops)
 
 
@@ -267,7 +267,7 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
-    assert new_state.satellite(Player.LANDSCAPE).locked is True
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).locked is True
     assert _cmds(config, 3) == ["LOCK_ON"]
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
@@ -316,8 +316,8 @@ def test_portrait_lock_toggles_lock_on(tmp_path: Path):
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).locked is True
-    assert new_state.satellite(Player.LANDSCAPE).locked is False
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).locked is False
     assert _cmds(config, 2) == ["LOCK_ON"]
 
 
@@ -328,7 +328,7 @@ def test_portrait_lock_toggles_lock_off(tmp_path: Path):
     _set_current(config, 2, "C:\\clips\\portrait.mp4")
     new_state, ops = dispatch_command("portrait_lock", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).locked is False
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is False
     assert _cmds(config, 2) == ["LOCK_OFF", "NEXT"]
 
 
@@ -343,38 +343,38 @@ def test_landscape_lock_toggles_lock_on(tmp_path: Path):
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
-    assert new_state.satellite(Player.LANDSCAPE).locked is True
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).locked is True
     assert _cmds(config, 3) == ["LOCK_ON"]
 
 
 # --- the spoken "lock" and "unlock": the state asked for, not a flip ---
 
 
-@pytest.mark.parametrize(("command", "player"), [
-    ("portrait_lock_on", Player.PORTRAIT), ("landscape_lock_on", Player.LANDSCAPE)])
-def test_a_spoken_lock_locks_an_unlocked_satellite(command, player, tmp_path: Path):
+@pytest.mark.parametrize(("command", "funestra"), [
+    ("portrait_lock_on", RoomFunestra.PORTRAIT), ("landscape_lock_on", RoomFunestra.LANDSCAPE)])
+def test_a_spoken_lock_locks_an_unlocked_satellite(command, funestra, tmp_path: Path):
     config = _make_config(tmp_path)
-    _set_current(config, player, "C:\\clips\\scene one.mp4")
+    _set_current(config, funestra, "C:\\clips\\scene one.mp4")
 
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, _ops = dispatch_command(command, _make_state(), config)
 
-    assert new_state.satellite(player).locked is True
-    assert _cmds(config, player) == ["LOCK_ON"]
+    assert new_state.satellite(funestra).locked is True
+    assert _cmds(config, funestra) == ["LOCK_ON"]
 
 
-@pytest.mark.parametrize(("command", "player"), [
-    ("portrait_lock_off", Player.PORTRAIT), ("landscape_lock_off", Player.LANDSCAPE)])
-def test_a_spoken_unlock_unlocks_a_locked_satellite(command, player, tmp_path: Path):
+@pytest.mark.parametrize(("command", "funestra"), [
+    ("portrait_lock_off", RoomFunestra.PORTRAIT), ("landscape_lock_off", RoomFunestra.LANDSCAPE)])
+def test_a_spoken_unlock_unlocks_a_locked_satellite(command, funestra, tmp_path: Path):
     config = _make_config(tmp_path)
-    _set_current(config, player, "C:\\clips\\scene one.mp4")
+    _set_current(config, funestra, "C:\\clips\\scene one.mp4")
     locked = SatelliteState(locked=True)
 
     new_state, _ops = dispatch_command(
         command, _make_state(portrait=locked, landscape=locked), config)
 
-    assert new_state.satellite(player).locked is False
-    assert _cmds(config, player) == ["LOCK_OFF", "NEXT"]
+    assert new_state.satellite(funestra).locked is False
+    assert _cmds(config, funestra) == ["LOCK_OFF", "NEXT"]
 
 
 @pytest.mark.parametrize(("command", "locked"), [
@@ -389,9 +389,9 @@ def test_a_spoken_lock_or_unlock_leaves_a_satellite_already_that_way_alone(
 
     new_state, ops = dispatch_command(command, state, config)
 
-    assert [new_state.satellite(side).locked for side in Player.SATELLITES] == [locked] * 2
+    assert [new_state.satellite(side).locked for side in RoomFunestra.SATELLITES] == [locked] * 2
     assert ops == []
-    assert _cmds(config, Player.PORTRAIT) == _cmds(config, Player.LANDSCAPE) == []
+    assert _cmds(config, RoomFunestra.PORTRAIT) == _cmds(config, RoomFunestra.LANDSCAPE) == []
 
 
 # --- back-dating a spoken command to the video it was meant for ---
@@ -413,7 +413,7 @@ def test_portrait_lock_returns_to_the_video_that_was_playing_when_spoken(tmp_pat
     # Back-dated: bring the spoken video back (PLAY_FILE) then LOCK_ON it.
     assert _cmds(config, 2) == [f"PLAY_FILE {meant}", "LOCK_ON"]
     assert favs.call_args[0][1] == meant
-    assert new_state.satellite(Player.PORTRAIT).locked is True
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
 
 
 def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path: Path):
@@ -452,12 +452,12 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
     ):
         new_state, ops = dispatch_command("portrait_trash", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).locked is False
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is False
     assert _cmds(config, 2) == ["LOCK_OFF", "TRASH"]
 
 
 def test_portrait_trash_queues_a_trash_verb_and_condemns_the_clip(tmp_path: Path):
-    """An unlocked discard queues a bare TRASH (the native player drops the
+    """An unlocked discard queues a bare TRASH (the native Funestra drops the
     current clip and plays the next) and condemns the clip — favs removal +
     weird, this clip not being a favorite (``test_lock`` covers that branch)."""
     config = _make_config(tmp_path)
@@ -484,8 +484,8 @@ def test_portrait_prev_cancels_lock_and_queues_prev(tmp_path: Path):
 
     new_state, ops = dispatch_command("portrait_prev", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).locked is False
-    # A locked player unlocks first (repeat-one off), then steps back.
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is False
+    # A locked Funestra unlocks first (repeat-one off), then steps back.
     assert _cmds(config, 2) == ["LOCK_OFF", "PREV"]
 
 
@@ -501,57 +501,57 @@ def test_portrait_next_queues_next(tmp_path: Path):
 # --- main_prev / main_next ---
 
 
-def test_primary_prev_in_kino_mode_writes_main_player_cmd(tmp_path: Path):
-    """Kino mode displays the main player, so navigation goes to the main player's command file, not a satellite's."""
+def test_primary_prev_in_kino_mode_writes_main_funestra_cmd(tmp_path: Path):
+    """Kino mode displays the Main Funestra, so navigation goes to the Main Funestra's command file, not a satellite's."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_prev", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PREV\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PREV\n"
 
 
-def test_primary_next_in_kino_mode_writes_main_player_cmd(tmp_path: Path):
+def test_primary_next_in_kino_mode_writes_main_funestra_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_next", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
 
-def test_primary_next_in_main_player_mode_writes_main_player_cmd(tmp_path: Path):
+def test_primary_next_in_main_funestra_mode_writes_main_funestra_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_next", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
 
-def test_primary_prev_in_genau_mode_writes_main_player_cmd(tmp_path: Path):
-    """Outside kino mode, the main player is the main player — even while Genau mode is
-    active, [ and ] navigate the paused main player in the background."""
+def test_primary_prev_in_genau_mode_writes_main_funestra_cmd(tmp_path: Path):
+    """Outside kino mode, the Main Funestra is the Main Funestra — even while Genau mode is
+    active, [ and ] navigate the paused Main Funestra in the background."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
     dispatch_command("main_prev", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PREV\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PREV\n"
 
 
 # --- main_lock ---
 
 
-def test_primary_lock_toggles_the_main_players_hold_on_the_video(tmp_path: Path):
-    """The apostrophe and the console's padlock both send the toggle; the main player holds
+def test_primary_lock_toggles_the_main_funestras_hold_on_the_video(tmp_path: Path):
+    """The apostrophe and the console's padlock both send the toggle; the Main Funestra holds
     the state, since only it knows what its own end of file is doing."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_lock", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
 
 
 def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
@@ -559,26 +559,26 @@ def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_lock_on", state, config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
     # Queued after the first, not overwriting it: the file is the same queue
     # the device arbiter's handoff verbs ride, and a whole-file write here is
     # what used to erase them.
     dispatch_command("main_lock_off", state, config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\nLOCK_OFF\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\nLOCK_OFF\n"
 
 
 def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
     """The lock is about what is on screen, and in genau mode that is Genau's
     clip — the same split the speed controls make.  One padlock on the console
-    rather than one per player, which is what left Kino mode with two."""
+    rather than one per Funestra, which is what left Kino mode with two."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
     dispatch_command("main_lock", state, config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
 
 
 def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
@@ -588,7 +588,7 @@ def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "LOCK_OFF\n"
 
     dispatch_command("main_lock_on", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
 
 def test_the_comma_holds_genaus_clip_while_genau_is_on_the_main_screen(tmp_path: Path):
@@ -599,7 +599,7 @@ def test_the_comma_holds_genaus_clip_while_genau_is_on_the_main_screen(tmp_path:
     dispatch_command("genau_lock", _make_state(main_mode=MainMode.GENAU), config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
 
 
 def test_the_apostrophe_holds_the_video_while_the_video_is_on_the_main_screen(tmp_path: Path):
@@ -607,7 +607,7 @@ def test_the_apostrophe_holds_the_video_while_the_video_is_on_the_main_screen(tm
 
     dispatch_command("main_player_lock", _make_state(main_mode=MainMode.KINO), config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
     assert not config.genau_cmd_file.exists()
 
 
@@ -615,13 +615,13 @@ def test_the_apostrophe_holds_the_video_while_the_video_is_on_the_main_screen(tm
     ("genau_lock", MainMode.KINO),
     ("main_player_lock", MainMode.GENAU),
 ])
-def test_a_lock_key_does_nothing_while_the_other_player_is_on_the_main_screen(
+def test_a_lock_key_does_nothing_while_the_other_funestra_is_on_the_main_screen(
         tmp_path: Path, key_command, main_mode):
     config = _make_config(tmp_path)
 
     dispatch_command(key_command, _make_state(main_mode=main_mode), config)
 
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
     assert not config.genau_cmd_file.exists()
 
 
@@ -632,17 +632,17 @@ def test_a_lock_key_does_nothing_while_the_other_player_is_on_the_main_screen(
 ])
 def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(
         tmp_path: Path, command, main_mode):
-    """A satellite's own lock key selects that player; the main player's do the same,
+    """A satellite's own lock key selects that Funestra; the Main Funestra's do the same,
     so a following bare "next" goes where the last thing you touched was."""
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=main_mode, active_player=2)
+    state = _make_state(main_mode=main_mode, active_funestra=2)
 
     state, _ops = dispatch_command(command, state, config)
 
-    assert state.active_player == 1
+    assert state.active_funestra == 1
 
 
-# --- projection_cycle, recenter_view and the tilt (FunTimeVR's main player) ---
+# --- projection_cycle, recenter_view and the tilt (FunTimeVR's Main Funestra) ---
 
 
 @pytest.mark.parametrize("command, verb", [
@@ -658,14 +658,14 @@ def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(
     ("main_scene_next", "NEXT_SCENE"),
     ("vr_reset", "LAYOUT_RESET"),
 ])
-def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path):
-    """A projection, a heading and a tilt are things only the VR player has."""
-    config = _make_config(tmp_path, vr_main_player=True)
+def test_a_vr_only_verb_reaches_the_vr_main_funestra(command, verb, tmp_path: Path):
+    """A projection, a heading and a tilt are things only the headset has."""
+    config = _make_config(tmp_path, vr_main_funestra=True)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command(command, state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
 
 
 @pytest.mark.parametrize(
@@ -676,10 +676,10 @@ def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path
 )
 @pytest.mark.parametrize("main_mode", ["kino", "genau"])
 def test_a_vr_only_verb_is_ignored_in_a_desktop_session(command, main_mode, tmp_path: Path):
-    """the main player has no projection and no headset to face, in any mode.
+    """the Main Funestra has no projection and no headset to face, in any mode.
 
-    The channel is the main player's, and the desktop main player answers a
-    smaller contract than the VR one -- so this is gated on which player the
+    The channel is the Main Funestra's, and the desktop Main Funestra answers a
+    smaller contract than the VR one -- so this is gated on which Funestra the
     session launched, not on which mode it is in.
     """
     config = _make_config(tmp_path)
@@ -687,29 +687,29 @@ def test_a_vr_only_verb_is_ignored_in_a_desktop_session(command, main_mode, tmp_
 
     _state, ops = dispatch_command(command, state, config)
 
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
     assert ops == [WindowOp(op=Op.IGNORED, key="outside VR")]
 
 
 # --- main_player cycle-version / length-mode ---
 
 
-def test_main_player_cycle_version_writes_main_player_cmd(tmp_path: Path):
+def test_main_funestra_cycle_version_writes_main_funestra_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_cycle_version", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION\n"
 
 
-def test_main_player_cycle_version_back_writes_the_other_way(tmp_path: Path):
+def test_main_funestra_cycle_version_back_writes_the_other_way(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="kino")
 
     dispatch_command("main_player_cycle_version_back", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION_BACK\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION_BACK\n"
 
 
 def _upscaled_with_an_original(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -725,16 +725,16 @@ def _upscaled_with_an_original(tmp_path: Path) -> tuple[Path, Path, Path]:
     return media_root, upscale, original
 
 
-def test_a_side_version_step_sends_the_clips_renditions_to_that_player(tmp_path: Path):
+def test_a_side_version_step_sends_the_clips_renditions_to_that_funestra(tmp_path: Path):
     media_root, upscale, original = _upscaled_with_an_original(tmp_path)
     config = _make_config(tmp_path)
     config.regen_media_root = media_root
-    _set_current(config, Player.PORTRAIT, str(upscale))
+    _set_current(config, RoomFunestra.PORTRAIT, str(upscale))
 
     dispatch_command("portrait_cycle_version", _make_state(), config)
     dispatch_command("portrait_cycle_version_back", _make_state(), config)
 
-    assert _cmds(config, Player.PORTRAIT) == [
+    assert _cmds(config, RoomFunestra.PORTRAIT) == [
         f"NEXT_VERSION {upscale}|{original}",
         f"PREV_VERSION {upscale}|{original}",
     ]
@@ -742,16 +742,16 @@ def test_a_side_version_step_sends_the_clips_renditions_to_that_player(tmp_path:
 
 def test_a_spoken_version_step_goes_back_to_the_clip_the_speaker_saw(tmp_path: Path):
     """A satellite can advance while a phrase is being recognized, so the step
-    names the clip that was on screen when it began: the player is brought back
+    names the clip that was on screen when it began: the Funestra is brought back
     to it first, and the versions carried are that clip's."""
     media_root, upscale, original = _upscaled_with_an_original(tmp_path)
     config = _make_config(tmp_path)
     config.regen_media_root = media_root
-    _set_current(config, Player.PORTRAIT, str(tmp_path / "moved on.mp4"))
+    _set_current(config, RoomFunestra.PORTRAIT, str(tmp_path / "moved on.mp4"))
 
     dispatch_command("portrait_cycle_version", _make_state(), config, target_path=str(upscale))
 
-    assert _cmds(config, Player.PORTRAIT) == [
+    assert _cmds(config, RoomFunestra.PORTRAIT) == [
         f"PLAY_FILE {upscale}",
         f"NEXT_VERSION {upscale}|{original}",
     ]
@@ -762,80 +762,80 @@ def test_a_side_version_step_says_so_when_the_clip_has_only_itself(tmp_path: Pat
     original.unlink()
     config = _make_config(tmp_path)
     config.regen_media_root = media_root
-    _set_current(config, Player.PORTRAIT, str(upscale))
+    _set_current(config, RoomFunestra.PORTRAIT, str(upscale))
 
     _state, ops = dispatch_command("portrait_cycle_version", _make_state(), config)
 
-    assert _cmds(config, Player.PORTRAIT) == []
+    assert _cmds(config, RoomFunestra.PORTRAIT) == []
     assert [op.key for op in ops] == ["No other version"]
 
 
-def test_main_player_toggle_length_writes_toggle_command(tmp_path: Path):
+def test_main_funestra_toggle_length_writes_toggle_command(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_toggle_length", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LENGTH_MODE\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LENGTH_MODE\n"
 
 
-def test_main_player_length_shorts_writes_set_length_mode(tmp_path: Path):
+def test_main_funestra_length_shorts_writes_set_length_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_length_shorts", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts\n"
 
 
-def test_main_player_length_full_writes_set_length_mode(tmp_path: Path):
+def test_main_funestra_length_full_writes_set_length_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_length_full", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE full\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE full\n"
 
 
 def test_end_compilation_writes_end_compilation(tmp_path: Path):
-    """Out of a compilation without naming a length — the main player goes back to whichever
+    """Out of a compilation without naming a length — the Main Funestra goes back to whichever
     mode it was in when it entered."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_end_compilation", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "END_COMPILATION\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "END_COMPILATION\n"
 
 
-def test_main_player_length_mixed_writes_set_length_mode(tmp_path: Path):
-    """The unfiltered mode the main player opens in, and the way back to it from either half."""
+def test_main_funestra_length_mixed_writes_set_length_mode(tmp_path: Path):
+    """The unfiltered mode the Main Funestra opens in, and the way back to it from either half."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_length_mixed", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE mixed\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE mixed\n"
 
 
-def test_main_player_length_mode_written_in_kino_mode(tmp_path: Path):
-    """the main player owns the display in kino mode too, so length/version actions apply."""
+def test_main_funestra_length_mode_written_in_kino_mode(tmp_path: Path):
+    """the Main Funestra owns the display in kino mode too, so length/version actions apply."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_length_shorts", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts\n"
 
 
-def test_main_player_length_mode_not_written_in_genau_mode(tmp_path: Path):
+def test_main_funestra_length_mode_not_written_in_genau_mode(tmp_path: Path):
     """Length/version actions are inert in genau mode, where Genau owns the display."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
     dispatch_command("main_player_length_shorts", state, config)
 
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
 
 
 # --- clip navigation (compilation / full vid / money shot) ---
@@ -844,45 +844,45 @@ def test_main_player_length_mode_not_written_in_genau_mode(tmp_path: Path):
 def test_compilation_writes_play_compilation(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_player_compilation", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PLAY_COMPILATION\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PLAY_COMPILATION\n"
 
 
 def test_full_vid_writes_play_full_vid(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_player_full_vid", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PLAY_FULL_VID\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PLAY_FULL_VID\n"
 
 
 def test_clip_jump_writes_play_clip_jump(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_player_clip_jump", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PLAY_CLIP_JUMP\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PLAY_CLIP_JUMP\n"
 
 
 def test_funscript_jump_writes_jump_to_funscript(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_player_funscript_jump", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT\n"
 
 
 def test_next_funscripted_writes_next_funscripted(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_player_next_funscripted", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "NEXT_FUNSCRIPTED\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "NEXT_FUNSCRIPTED\n"
 
 
 def test_clip_nav_inert_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_player_compilation", _make_state(main_mode=MainMode.GENAU), config)
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
 
 
 def test_funscript_nav_inert_in_genau_mode(tmp_path: Path):
-    """Genau owns the display and the device there; the main player's playlist and script are
+    """Genau owns the display and the device there; the Main Funestra's playlist and script are
     not what the room is watching, so a jump into them would be invisible."""
     config = _make_config(tmp_path)
     dispatch_command("main_player_next_funscripted", _make_state(main_mode=MainMode.GENAU), config)
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
 
 
 def test_clip_nav_voice_phrases():
@@ -912,27 +912,27 @@ def test_landscape_prev_cancels_lock_and_queues_prev(tmp_path: Path):
 
     new_state, ops = dispatch_command("landscape_prev", state, config)
 
-    assert new_state.satellite(Player.LANDSCAPE).locked is False
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).locked is False
     assert _cmds(config, 3) == ["LOCK_OFF", "PREV"]
 
 
 def test_landscape_next_drives_its_own_satellite_not_portrait(tmp_path: Path):
-    """The eight player branches are copy-paste siblings, so the mistake they
-    invite is a player mix-up: the D key advancing the portrait player nobody
+    """The eight Funestra branches are copy-paste siblings, so the mistake they
+    invite is a Funestra mix-up: the D key advancing the Portrait Funestra nobody
     was looking at while the landscape clip stays put."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(locked=True))
 
     new_state, _ops = dispatch_command("landscape_next", state, config)
 
-    assert new_state.satellite(Player.LANDSCAPE).locked is False
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).locked is False
     assert _cmds(config, 3) == ["LOCK_OFF", "NEXT"]
     assert _cmds(config, 2) == []
 
 
 def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: Path):
-    """Same player-mix-up pin for the destructive sibling: a swapped player here
-    would condemn whatever the portrait player happened to be showing."""
+    """Same player-mix-up pin for the destructive sibling: a swapped Funestra here
+    would condemn whatever the Portrait Funestra happened to be showing."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(locked=True))
 
@@ -943,7 +943,7 @@ def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: 
     ):
         new_state, _ops = dispatch_command("landscape_trash", state, config)
 
-    assert new_state.satellite(Player.LANDSCAPE).locked is False
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).locked is False
     assert _cmds(config, 3) == ["LOCK_OFF", "TRASH"]
     assert _cmds(config, 2) == []
 
@@ -971,87 +971,87 @@ def test_a_satellite_with_no_clip_on_screen_ignores_clip_scoped_commands(
     assert _cmds(config, 3) == []
 
 
-# --- active player tracking ---
+# --- active Funestra tracking ---
 
 
 def test_a_fresh_session_starts_with_the_primary_active():
-    """The main player is on the display the eye opens on, so it holds the floor at
+    """The Main Funestra is on the display the eye opens on, so it holds the floor at
     startup — a bare 'next' or 'lock' goes there, not to a satellite, until one is
     addressed."""
-    assert BridgeState().active_player == 1
+    assert BridgeState().active_funestra == 1
 
 
-def test_portrait_command_sets_active_player_to_portrait(tmp_path: Path):
-    """A portrait command marks portrait as the active player, so a later
-    player-agnostic command ('lock', 'next', ...) knows which player to hit."""
+def test_portrait_command_sets_active_funestra_to_portrait(tmp_path: Path):
+    """A portrait command marks portrait as the active Funestra, so a later
+    player-agnostic command ('lock', 'next', ...) knows which Funestra to hit."""
     config = _make_config(tmp_path)
-    state = _make_state(active_player=3)  # currently on landscape
+    state = _make_state(active_funestra=3)  # currently on landscape
 
     new_state, _ops = dispatch_command("portrait_next", state, config)
 
-    assert new_state.active_player == 2
+    assert new_state.active_funestra == 2
 
 
-def test_landscape_command_sets_active_player_to_landscape(tmp_path: Path):
+def test_landscape_command_sets_active_funestra_to_landscape(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(landscape=SatelliteState(locked=False), active_player=2)
+    state = _make_state(landscape=SatelliteState(locked=False), active_funestra=2)
 
     _set_current(config, 3, "C:\\clips\\l.mp4")
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, _ops = dispatch_command("landscape_lock", state, config)
 
-    assert new_state.active_player == 3
+    assert new_state.active_funestra == 3
 
 
-def test_primary_nav_sets_active_player_to_primary(tmp_path: Path):
-    """Navigating the main player (the main player) makes it the active player (slot 1), so bare
+def test_primary_nav_sets_active_funestra_to_primary(tmp_path: Path):
+    """Navigating the Main Funestra (the Main Funestra) makes it the active Funestra (slot 1), so bare
     'next'/'previous' then drive it too."""
     config = _make_config(tmp_path)
 
     for command in ("main_next", "main_prev"):
-        new_state, _ops = dispatch_command(command, _make_state(active_player=3), config)
-        assert new_state.active_player == 1, command
+        new_state, _ops = dispatch_command(command, _make_state(active_funestra=3), config)
+        assert new_state.active_funestra == 1, command
 
 
-def test_naming_a_players_f_mode_makes_it_the_active_one(tmp_path: Path):
-    """Bare "f mode" follows the active player, so naming one has to select it —
-    a satellite's does by its prefix, and the main player needs the same or "main
-    f mode" then "f mode" would land on whichever player was addressed before."""
+def test_naming_a_funestras_f_mode_makes_it_the_active_one(tmp_path: Path):
+    """Bare "f mode" follows the active Funestra, so naming one has to select it —
+    a satellite's does by its prefix, and the Main Funestra needs the same or "main
+    f mode" then "f mode" would land on whichever Funestra was addressed before."""
     config = _make_config(tmp_path)
 
     for suffix in ("", "_on", "_off"):
         new_state, _ops = dispatch_command(
-            f"main_fmode{suffix}", _make_state(active_player=3), config)
-        assert new_state.active_player == 1, suffix
+            f"main_fmode{suffix}", _make_state(active_funestra=3), config)
+        assert new_state.active_funestra == 1, suffix
         new_state, _ops = dispatch_command(
-            f"portrait_fmode{suffix}", _make_state(active_player=1), config)
-        assert new_state.active_player == 2, suffix
+            f"portrait_fmode{suffix}", _make_state(active_funestra=1), config)
+        assert new_state.active_funestra == 2, suffix
 
 
-def test_naming_a_players_playback_speed_makes_it_the_active_one(tmp_path: Path):
+def test_naming_a_funestras_playback_speed_makes_it_the_active_one(tmp_path: Path):
     config = _make_config(tmp_path)
 
     for command in ("main_player_speed_up", "main_player_speed_down", "main_player_speed_150"):
-        new_state, _ops = dispatch_command(command, _make_state(active_player=3), config)
-        assert new_state.active_player == 1, command
-    new_state, _ops = dispatch_command("portrait_speed_50", _make_state(active_player=1), config)
-    assert new_state.active_player == 2
+        new_state, _ops = dispatch_command(command, _make_state(active_funestra=3), config)
+        assert new_state.active_funestra == 1, command
+    new_state, _ops = dispatch_command("portrait_speed_50", _make_state(active_funestra=1), config)
+    assert new_state.active_funestra == 2
 
 
-def test_nudge_and_mode_commands_leave_active_player_unchanged(tmp_path: Path):
-    """Only next/prev nav marks the active player: nudges, mode, and genau
-    commands must not disturb the remembered player."""
+def test_nudge_and_mode_commands_leave_active_funestra_unchanged(tmp_path: Path):
+    """Only next/prev nav marks the active Funestra: nudges, mode, and genau
+    commands must not disturb the remembered Funestra."""
     config = _make_config(tmp_path)
 
     for command in ("main_nudge_next", "main_nudge_prev", "main_kino_activate"):
-        new_state, _ops = dispatch_command(command, _make_state(active_player=3), config)
-        assert new_state.active_player == 3, command
+        new_state, _ops = dispatch_command(command, _make_state(active_funestra=3), config)
+        assert new_state.active_funestra == 3, command
 
 
 # --- the crown ---
 
 
-def test_crowning_the_portrait_player_takes_the_crown_from_the_main_player(tmp_path: Path):
+def test_crowning_the_portrait_funestra_takes_the_crown_from_the_main_funestra(tmp_path: Path):
     new_state, ops = dispatch_command(
         "portrait_crown", _make_state(crowned=Crown.MAIN), _make_config(tmp_path))
 
@@ -1059,27 +1059,27 @@ def test_crowning_the_portrait_player_takes_the_crown_from_the_main_player(tmp_p
     assert ops == []
 
 
-def test_crowning_the_main_player_takes_the_crown_back_from_the_portrait_player(tmp_path: Path):
+def test_crowning_the_main_funestra_takes_the_crown_back_from_the_portrait_funestra(tmp_path: Path):
     new_state, _ops = dispatch_command(
         "main_crown", _make_state(crowned=Crown.PORTRAIT), _make_config(tmp_path))
 
     assert new_state.crowned is Crown.MAIN
 
 
-def test_crowning_the_portrait_player_leaves_bare_commands_where_they_were(tmp_path: Path):
+def test_crowning_the_portrait_funestra_leaves_bare_commands_where_they_were(tmp_path: Path):
     new_state, _ops = dispatch_command(
-        "portrait_crown", _make_state(active_player=Player.MAIN), _make_config(tmp_path))
+        "portrait_crown", _make_state(active_funestra=RoomFunestra.MAIN), _make_config(tmp_path))
 
-    assert new_state.active_player == Player.MAIN
+    assert new_state.active_funestra == RoomFunestra.MAIN
 
 
 # --- the HUD's own minimize button ---
 
 
-def test_minimize_parks_that_players_window(tmp_path: Path):
+def test_minimize_parks_that_funestras_window(tmp_path: Path):
     """A satellite's HUD minimize button asks for one window and nothing else: the
-    op names the role, and the player's playback — its lock, its loop, its playlist —
-    is untouched, because the player goes on running where it cannot be seen."""
+    op names the role, and the Funestra's playback — its lock, its loop, its playlist —
+    is untouched, because the Funestra goes on running where it cannot be seen."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True))
 
@@ -1098,8 +1098,8 @@ def test_minimize_names_each_side_its_own_window(tmp_path: Path):
     assert ops == [WindowOp(op="minimize_role", key="landscape")]
 
 
-def test_the_main_players_button_parks_its_window_in_either_mode(tmp_path: Path):
-    """Kino and Genau both run on the Main Player's window, so the console's
+def test_the_main_funestras_button_parks_its_window_in_either_mode(tmp_path: Path):
+    """Kino and Genau both run on the Main Funestra's window, so the console's
     button parks that one window whichever of them has it."""
     config = _make_config(tmp_path)
 
@@ -1109,15 +1109,15 @@ def test_the_main_players_button_parks_its_window_in_either_mode(tmp_path: Path)
         assert ops == [WindowOp(op="minimize_role", key="main_player")], mode
 
 
-def test_minimizing_a_player_does_not_make_it_the_active_player(tmp_path: Path):
-    """Every other "<player>_" command marks that player active, and this one must not:
-    a bare "lock" or "next" after it would go to the player just taken off the
+def test_minimizing_a_funestra_does_not_make_it_the_active_funestra(tmp_path: Path):
+    """Every other "<Funestra>_" command marks that Funestra active, and this one must not:
+    a bare "lock" or "next" after it would go to the Funestra just taken off the
     screen, which is the one place the words cannot be seen to land."""
     config = _make_config(tmp_path)
 
     for command in ("portrait_minimize", "landscape_minimize"):
-        new_state, _ops = dispatch_command(command, _make_state(active_player=1), config)
-        assert new_state.active_player == 1, command
+        new_state, _ops = dispatch_command(command, _make_state(active_funestra=1), config)
+        assert new_state.active_funestra == 1, command
 
 
 # --- quarter_button ---
@@ -1156,25 +1156,25 @@ def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
 
     assert new_state.omni_paused is False
     assert any(op.op == "unsuspend_hotkeys" for op in ops)
-    # Leaving OmniPause clears both satellites' paused flags and resumes the main player.
+    # Leaving OmniPause clears both satellites' paused flags and resumes the Main Funestra.
     assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
     assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
-    assert config.main_player_paused_file.read_text(encoding="utf-8") == "0"
+    assert config.main_funestra_paused_file.read_text(encoding="utf-8") == "0"
 
 
 # --- F-mode ---
 
 
 def _fmode_result(**kwargs):
-    """Stand in for the real flow: it reports back exactly the players it was
+    """Stand in for the real flow: it reports back exactly the Funestras it was
     handed, in the order the module lists them."""
-    players = tuple(kwargs["players"])
+    funestras = tuple(kwargs["funestras"])
     enabled = kwargs["enabled"]
     return type("R", (), {
-        "players": players,
+        "funestras": funestras,
         "enabled": enabled,
         "log_message": f"F-mode {'enabled' if enabled else 'disabled'}: "
-                       f"{', '.join(player.label for player in players)}",
+                       f"{', '.join(funestra.label for funestra in funestras)}",
     })()
 
 
@@ -1186,20 +1186,20 @@ def _dispatch_fmode(command: str, state: BridgeState, config: BridgeConfig):
     return new_state, ops, mock_fmode
 
 
-def test_fmode_toggle_enables_every_player_from_disabled(tmp_path: Path):
+def test_fmode_toggle_enables_every_funestra_from_disabled(tmp_path: Path):
     """The bare command is still the whole-room gesture the F key always was."""
     config = _make_config(tmp_path)
 
     new_state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", _make_state(), config)
 
-    assert mock_fmode.call_args.kwargs["players"] == (
-        Player.MAIN, Player.PORTRAIT, Player.LANDSCAPE)
-    assert (new_state.main_scripted_filter, new_state.satellite(Player.PORTRAIT).favorites_filter,
-            new_state.satellite(Player.LANDSCAPE).favorites_filter) == (True, True, True)
+    assert mock_fmode.call_args.kwargs["funestras"] == (
+        RoomFunestra.MAIN, RoomFunestra.PORTRAIT, RoomFunestra.LANDSCAPE)
+    assert (new_state.main_scripted_filter, new_state.satellite(RoomFunestra.PORTRAIT).favorites_filter,
+            new_state.satellite(RoomFunestra.LANDSCAPE).favorites_filter) == (True, True, True)
 
 
 def test_fmode_toggle_narrows_the_rest_rather_than_lifting_what_is_narrowed(tmp_path: Path):
-    """With one player already in F-mode, the key that means "narrow everything"
+    """With one Funestra already in F-mode, the key that means "narrow everything"
     must finish the job, not undo the half of it that is done — otherwise one press
     leaves the room in the split state it was pressed to resolve."""
     config = _make_config(tmp_path)
@@ -1207,40 +1207,40 @@ def test_fmode_toggle_narrows_the_rest_rather_than_lifting_what_is_narrowed(tmp_
 
     new_state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
-    assert (new_state.main_scripted_filter, new_state.satellite(Player.PORTRAIT).favorites_filter,
-            new_state.satellite(Player.LANDSCAPE).favorites_filter) == (True, True, True)
-    # …and the player that was already narrowed is left out of the rebuild, so its
+    assert (new_state.main_scripted_filter, new_state.satellite(RoomFunestra.PORTRAIT).favorites_filter,
+            new_state.satellite(RoomFunestra.LANDSCAPE).favorites_filter) == (True, True, True)
+    # …and the Funestra that was already narrowed is left out of the rebuild, so its
     # queue is not reshuffled for nothing.
-    assert mock_fmode.call_args.kwargs["players"] == (Player.MAIN, Player.LANDSCAPE)
+    assert mock_fmode.call_args.kwargs["funestras"] == (RoomFunestra.MAIN, RoomFunestra.LANDSCAPE)
 
 
-def test_fmode_toggle_lifts_it_once_every_player_is_in_it(tmp_path: Path):
+def test_fmode_toggle_lifts_it_once_every_funestra_is_in_it(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(favorites_filter=True), portrait=SatelliteState(favorites_filter=True), main_scripted_filter=True)
 
     new_state, _ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
 
-    assert (new_state.main_scripted_filter, new_state.satellite(Player.PORTRAIT).favorites_filter,
-            new_state.satellite(Player.LANDSCAPE).favorites_filter) == (False, False, False)
+    assert (new_state.main_scripted_filter, new_state.satellite(RoomFunestra.PORTRAIT).favorites_filter,
+            new_state.satellite(RoomFunestra.LANDSCAPE).favorites_filter) == (False, False, False)
 
 
 def _f_modes(state: BridgeState) -> tuple[bool, bool, bool]:
-    """F-mode on each of the three players, in Player order."""
-    return (state.main_scripted_filter, state.satellite(Player.PORTRAIT).favorites_filter,
-            state.satellite(Player.LANDSCAPE).favorites_filter)
+    """F-mode on each of the three Funestras, in Funestra order."""
+    return (state.main_scripted_filter, state.satellite(RoomFunestra.PORTRAIT).favorites_filter,
+            state.satellite(RoomFunestra.LANDSCAPE).favorites_filter)
 
 
-@pytest.mark.parametrize("player", list(Player))
-def test_a_named_player_goes_into_f_mode_alone(tmp_path: Path, player: Player):
-    """What each HUD's own F button posts: that player and no other."""
+@pytest.mark.parametrize("funestra", list(RoomFunestra))
+def test_a_named_funestra_goes_into_f_mode_alone(tmp_path: Path, funestra: RoomFunestra):
+    """What each HUD's own F button posts: that Funestra and no other."""
     config = _make_config(tmp_path)
 
     new_state, _ops, mock_fmode = _dispatch_fmode(
-        f"{player.label}_fmode", _make_state(), config)
+        f"{funestra.label}_fmode", _make_state(), config)
 
     assert list(_f_modes(new_state)).count(True) == 1
-    assert _f_modes(new_state)[list(Player).index(player)] is True
-    assert mock_fmode.call_args.kwargs["players"] == (player,)
+    assert _f_modes(new_state)[list(RoomFunestra).index(funestra)] is True
+    assert mock_fmode.call_args.kwargs["funestras"] == (funestra,)
 
 
 def test_the_on_and_off_forms_assert_a_state_rather_than_toggling(tmp_path: Path):
@@ -1252,11 +1252,11 @@ def test_the_on_and_off_forms_assert_a_state_rather_than_toggling(tmp_path: Path
     stays_off, _ops, _mock = _dispatch_fmode(
         "portrait_fmode_off", _make_state(portrait=SatelliteState(favorites_filter=False)), config)
 
-    assert stays_on.satellite(Player.PORTRAIT).favorites_filter is True
-    assert stays_off.satellite(Player.PORTRAIT).favorites_filter is False
+    assert stays_on.satellite(RoomFunestra.PORTRAIT).favorites_filter is True
+    assert stays_off.satellite(RoomFunestra.PORTRAIT).favorites_filter is False
 
 
-def test_asserting_the_state_a_player_is_already_in_rebuilds_nothing(tmp_path: Path):
+def test_asserting_the_state_a_funestra_is_already_in_rebuilds_nothing(tmp_path: Path):
     """The rebuild replaces the queue, so "portrait f mode on" said twice would
     reshuffle what the first one built."""
     config = _make_config(tmp_path)
@@ -1264,7 +1264,7 @@ def test_asserting_the_state_a_player_is_already_in_rebuilds_nothing(tmp_path: P
     _state, _ops, mock_fmode = _dispatch_fmode(
         "portrait_fmode_on", _make_state(portrait=SatelliteState(favorites_filter=True)), config)
 
-    assert mock_fmode.call_args.kwargs["players"] == ()
+    assert mock_fmode.call_args.kwargs["funestras"] == ()
 
 
 def test_fmode_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Path):
@@ -1295,7 +1295,7 @@ def test_fmode_flashes_a_plain_white_notice_when_it_turns_off(tmp_path: Path):
     ]
 
 
-def test_a_sided_fmode_flashes_on_that_players_own_display(tmp_path: Path):
+def test_a_sided_fmode_flashes_on_that_funestras_own_display(tmp_path: Path):
     config = _make_config(tmp_path)
 
     _state, ops, _mock = _dispatch_fmode("landscape_fmode", _make_state(), config)
@@ -1304,32 +1304,32 @@ def test_a_sided_fmode_flashes_on_that_players_own_display(tmp_path: Path):
                             level=FAVORITE)]
 
 
-@pytest.mark.parametrize("player", Player.SATELLITES)
+@pytest.mark.parametrize("funestra", RoomFunestra.SATELLITES)
 def test_favorites_said_to_a_side_in_kino_mode_flips_its_f_mode_as_a_show_does(
-        tmp_path: Path, player: Player):
+        tmp_path: Path, funestra: RoomFunestra):
     config = _make_config(tmp_path)
 
-    on, ops, mock_fmode = _dispatch_fmode(f"{player.label}_say_favorites", _make_state(), config)
-    off, _ops, _mock = _dispatch_fmode(f"{player.label}_say_favorites", on, config)
+    on, ops, mock_fmode = _dispatch_fmode(f"{funestra.label}_say_favorites", _make_state(), config)
+    off, _ops, _mock = _dispatch_fmode(f"{funestra.label}_say_favorites", on, config)
 
-    assert mock_fmode.call_args.kwargs["players"] == (player,)
-    assert (on.satellite(player).favorites_filter, off.satellite(player).favorites_filter) == (
+    assert mock_fmode.call_args.kwargs["funestras"] == (funestra,)
+    assert (on.satellite(funestra).favorites_filter, off.satellite(funestra).favorites_filter) == (
         True, False)
-    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source=player.label,
+    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source=funestra.label,
                             level=FAVORITE)]
 
 
 def test_fmode_passes_each_sides_current_order(tmp_path: Path):
-    """A rebuild has to keep the player's order, and the two satellites can be in
-    different ones, so each player's own ordering goes with it."""
+    """A rebuild has to keep the Funestra's order, and the two satellites can be in
+    different ones, so each Funestra's own ordering goes with it."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(latest=False), portrait=SatelliteState(latest=True))
 
     _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
     satellites = mock_fmode.call_args.kwargs["satellites"]
-    assert satellites[Player.PORTRAIT].recent is True
-    assert satellites[Player.LANDSCAPE].recent is False
+    assert satellites[RoomFunestra.PORTRAIT].recent is True
+    assert satellites[RoomFunestra.LANDSCAPE].recent is False
 
 
 def test_fmode_passes_the_metadata_root_for_group_collapse(tmp_path: Path):
@@ -1356,11 +1356,11 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
         mock_filter.return_value = _filter_result()
         new_state, ops = dispatch_command("filter_portrait_alpha", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).filter == "alpha"
-    assert new_state.satellite(Player.LANDSCAPE).filter == ""  # the other satellite is untouched
+    assert new_state.satellite(RoomFunestra.PORTRAIT).filter == "alpha"
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).filter == ""  # the other satellite is untouched
     assert mock_filter.call_count == 1
     kwargs = mock_filter.call_args.kwargs
-    assert kwargs["player"] is Player.PORTRAIT
+    assert kwargs["funestra"] is RoomFunestra.PORTRAIT
     assert kwargs["query"] == "alpha"
     assert kwargs["cmd_file"] == config.satellite(2).cmd_file
     assert kwargs["sources"] == config.portrait_sources
@@ -1378,15 +1378,15 @@ def test_no_loop_returns_to_browse_keeping_the_filter(tmp_path: Path):
 
     # The browse is built with the CURRENT filter (kept), not cleared to "".
     assert mock_browse.call_args.kwargs["query"] == "alpha"
-    assert new_state.satellite(Player.PORTRAIT).filter == "alpha"
+    assert new_state.satellite(RoomFunestra.PORTRAIT).filter == "alpha"
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
 
 def test_play_video_command_switches_the_satellite_to_the_path(tmp_path: Path):
-    """A HUD thumbnail click sends "<player>_play_video|<path>"; the satellite
+    """A HUD thumbnail click sends "<Funestra>_play_video|<path>"; the satellite
     switches straight to that clip via the same play helper cycling uses, and
-    clicking it makes that satellite the active player."""
+    clicking it makes that satellite the active Funestra."""
     config = _make_config(tmp_path)
     state = _make_state()
     path = r"C:\vids\portrait\pick_me.mp4"
@@ -1394,7 +1394,7 @@ def test_play_video_command_switches_the_satellite_to_the_path(tmp_path: Path):
     new_state, ops = dispatch_command(f"portrait_play_video|{path}", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {path}"]
-    assert new_state.active_player == 2
+    assert new_state.active_funestra == 2
     assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
 
 
@@ -1411,7 +1411,7 @@ def test_a_clip_sent_to_a_side_screen_carries_its_funscript(tmp_path: Path):
 
 
 def test_lock_video_command_when_already_locked_switches_and_stays_locked(tmp_path: Path):
-    """A HUD double-click sends "<player>_lock_video|<path>": on an already-locked
+    """A HUD double-click sends "<Funestra>_lock_video|<path>": on an already-locked
     satellite (repeat-one) it just plays the picked clip, which keeps it locked."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True))
@@ -1421,7 +1421,7 @@ def test_lock_video_command_when_already_locked_switches_and_stays_locked(tmp_pa
 
     # Already repeat-one: the double-click just moves the lock onto the picked clip.
     assert _cmds(config, 2) == [f"PLAY_FILE {path}"]
-    assert new_state.satellite(Player.PORTRAIT).locked is True
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
 
 
 # --- HUD keyboard navigation ---
@@ -1448,8 +1448,8 @@ def test_nav_down_switches_to_the_first_action_and_freezes_the_anchor(tmp_path: 
     new_state, ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a_zeta']}"]
-    assert new_state.satellite(Player.PORTRAIT).nav_anchor == paths["subject_a"]
-    assert new_state.active_player == 2
+    assert new_state.satellite(RoomFunestra.PORTRAIT).nav_anchor == paths["subject_a"]
+    assert new_state.active_funestra == 2
     assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
 
 
@@ -1468,7 +1468,7 @@ def test_nav_continues_down_the_column_from_the_frozen_anchor(tmp_path: Path):
     new_state, _ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a_zeta']}"]
-    assert new_state.satellite(Player.PORTRAIT).nav_anchor == paths["subject_a"]  # the anchor held
+    assert new_state.satellite(RoomFunestra.PORTRAIT).nav_anchor == paths["subject_a"]  # the anchor held
 
 
 def test_nav_past_the_last_action_wraps_round_to_the_anchor(tmp_path: Path):
@@ -1485,7 +1485,7 @@ def test_nav_past_the_last_action_wraps_round_to_the_anchor(tmp_path: Path):
     new_state, _ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a']}"]
-    assert new_state.satellite(Player.PORTRAIT).nav_anchor == paths["subject_a"]  # the ring kept its head
+    assert new_state.satellite(RoomFunestra.PORTRAIT).nav_anchor == paths["subject_a"]  # the ring kept its head
 
 
 def test_nav_onto_an_axis_with_nowhere_to_go_is_a_dead_end(tmp_path: Path):
@@ -1521,7 +1521,7 @@ def test_nav_down_from_a_seed_dives_into_that_seeds_own_acts(tmp_path: Path):
     new_state, _ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b_zeta']}"]
-    assert new_state.satellite(Player.PORTRAIT).nav_anchor == paths["subject_b"]  # re-rooted on the seed
+    assert new_state.satellite(RoomFunestra.PORTRAIT).nav_anchor == paths["subject_b"]  # re-rooted on the seed
 
 
 def test_nav_down_from_a_seed_with_no_other_acts_is_a_dead_end(tmp_path: Path):
@@ -1539,7 +1539,7 @@ def test_nav_down_from_a_seed_with_no_other_acts_is_a_dead_end(tmp_path: Path):
     new_state, ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == []
-    assert new_state.satellite(Player.PORTRAIT).nav_anchor == paths["subject_a"]  # the map held still
+    assert new_state.satellite(RoomFunestra.PORTRAIT).nav_anchor == paths["subject_a"]  # the map held still
     dead_end = [op for op in ops if op.op == "notice"]
     assert dead_end and dead_end[0].level == logging.WARNING
 
@@ -1557,15 +1557,15 @@ def test_nav_re_anchors_after_the_satellite_drifts_off_the_map(tmp_path: Path):
     new_state, _ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a_zeta']}"]
-    assert new_state.satellite(Player.PORTRAIT).nav_anchor == paths["subject_a"]  # re-anchored on the live clip
+    assert new_state.satellite(RoomFunestra.PORTRAIT).nav_anchor == paths["subject_a"]  # re-anchored on the live clip
 
 
 def test_a_non_nav_side_command_clears_the_nav_anchor(tmp_path: Path):
-    """Any player command that is not a navigation step ends navigation, so the map
+    """Any Funestra command that is not a navigation step ends navigation, so the map
     stops freezing and re-homes on the live clip.
 
     Enter once had its own command for this — it locked the selection and dropped
-    the anchor — but the player's own lock key already lands here, so the extra key
+    the anchor — but the Funestra's own lock key already lands here, so the extra key
     was retired rather than kept as a second way in.
     """
     config = _make_config(tmp_path)
@@ -1573,17 +1573,17 @@ def test_a_non_nav_side_command_clears_the_nav_anchor(tmp_path: Path):
 
     new_state, _ops = dispatch_command("portrait_next", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).nav_anchor == ""
+    assert new_state.satellite(RoomFunestra.PORTRAIT).nav_anchor == ""
 
 
 @pytest.mark.parametrize("command", ["main_next", "main_prev", "main_lock"])
-def test_a_main_player_command_leaves_both_satellite_anchors_alone(
+def test_a_main_funestra_command_leaves_both_satellite_anchors_alone(
         tmp_path: Path, command: str):
-    """Only the player a command names may end its own keyboard navigation.
+    """Only the Funestra a command names may end its own keyboard navigation.
 
-    The main player has no anchor of its own, and every one of its commands was
+    The Main Funestra has no anchor of its own, and every one of its commands was
     dropping the LANDSCAPE satellite's — an old binary helper read "not
-    portrait" as landscape, and the main player inherited the landscape half.
+    portrait" as landscape, and the Main Funestra inherited the landscape half.
     So a map frozen on that screen re-homed on a key press aimed at another one
     (bug 71).
     """
@@ -1592,19 +1592,19 @@ def test_a_main_player_command_leaves_both_satellite_anchors_alone(
 
     new_state, _ops = dispatch_command(command, state, config)
 
-    assert new_state.satellite(Player.LANDSCAPE).nav_anchor == "C:/vids/landscape/anchor.mp4"
-    assert new_state.satellite(Player.PORTRAIT).nav_anchor == "C:/vids/portrait/anchor.mp4"
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).nav_anchor == "C:/vids/landscape/anchor.mp4"
+    assert new_state.satellite(RoomFunestra.PORTRAIT).nav_anchor == "C:/vids/portrait/anchor.mp4"
 
 
-def test_landscape_nav_sets_the_active_player(tmp_path: Path):
-    """A landscape nav key (Shift+W / Shift+S) makes landscape the active player, so a
+def test_landscape_nav_sets_the_active_funestra(tmp_path: Path):
+    """A landscape nav key (Shift+W / Shift+S) makes landscape the active Funestra, so a
     later bare command ("lock", "next") resolves to it."""
     config = _make_config(tmp_path)
     state = _make_state()
 
     new_state, _ops = dispatch_command("landscape_nav_down", state, config)
 
-    assert new_state.active_player == 3
+    assert new_state.active_funestra == 3
 
 
 def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
@@ -1615,9 +1615,9 @@ def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
         mock_filter.return_value = _filter_result()
         new_state, _ops = dispatch_command("filter_both_beta_gamma", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).filter == "beta gamma"
-    assert new_state.satellite(Player.LANDSCAPE).filter == "beta gamma"
-    assert {call.kwargs["player"] for call in mock_filter.call_args_list} == set(Player.SATELLITES)
+    assert new_state.satellite(RoomFunestra.PORTRAIT).filter == "beta gamma"
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).filter == "beta gamma"
+    assert {call.kwargs["funestra"] for call in mock_filter.call_args_list} == set(RoomFunestra.SATELLITES)
 
 
 def test_filter_command_both_scope_notices_each_satellite_under_its_own_source(tmp_path: Path):
@@ -1644,11 +1644,11 @@ def test_zero_match_filter_is_not_recorded_in_state(tmp_path: Path):
         mock_filter.return_value = _filter_result(count=0, applied=False)
         new_state, _ops = dispatch_command("filter_portrait_alpha", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).filter == ""
+    assert new_state.satellite(RoomFunestra.PORTRAIT).filter == ""
 
 
 def test_clear_filter_command_resets_only_its_scope(tmp_path: Path):
-    """Clearing one player is "portrait no filter" — the grid's own command, which
+    """Clearing one Funestra is "portrait no filter" — the grid's own command, which
     "portrait clear filter" now reaches too.  It had a second command family of
     its own (``filter_portrait_clear``) that did exactly this; two ways in for one
     action is how the two drift, so the phrases joined the grid instead."""
@@ -1659,8 +1659,8 @@ def test_clear_filter_command_resets_only_its_scope(tmp_path: Path):
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_no_filter", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).filter == ""
-    assert new_state.satellite(Player.LANDSCAPE).filter == "twirling"  # untouched
+    assert new_state.satellite(RoomFunestra.PORTRAIT).filter == ""
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).filter == "twirling"  # untouched
     assert mock_filter.call_args.kwargs["query"] == ""
 
 
@@ -1671,8 +1671,8 @@ def test_fmode_passes_active_filters(tmp_path: Path):
     _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
     satellites = mock_fmode.call_args.kwargs["satellites"]
-    assert satellites[Player.PORTRAIT].filter_query == "alpha"
-    assert satellites[Player.LANDSCAPE].filter_query == "twirling"
+    assert satellites[RoomFunestra.PORTRAIT].filter_query == "alpha"
+    assert satellites[RoomFunestra.LANDSCAPE].filter_query == "twirling"
 
 
 def test_recents_passes_the_sides_filter_and_roots(tmp_path: Path):
@@ -1701,14 +1701,14 @@ def test_recents_reorders_only_the_side_it_names(tmp_path: Path):
         mock_filter.return_value = _filter_result(applied=True)
         state, ops = dispatch_command("portrait_latest", _make_state(), config)
 
-    assert [call.kwargs["player"] for call in mock_filter.call_args_list] == [Player.PORTRAIT]
-    assert state.satellite(Player.PORTRAIT).latest is True
-    assert state.satellite(Player.LANDSCAPE).latest is False
+    assert [call.kwargs["funestra"] for call in mock_filter.call_args_list] == [RoomFunestra.PORTRAIT]
+    assert state.satellite(RoomFunestra.PORTRAIT).latest is True
+    assert state.satellite(RoomFunestra.LANDSCAPE).latest is False
     assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
 
 
 def test_shuffle_puts_one_side_back_without_touching_the_other(tmp_path: Path):
-    """Latest' counterpart has to be sided too, or a player reloaded newest-first
+    """Latest' counterpart has to be sided too, or a Funestra reloaded newest-first
     could never be shuffled back on its own."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(latest=True), portrait=SatelliteState(latest=True))
@@ -1718,12 +1718,12 @@ def test_shuffle_puts_one_side_back_without_touching_the_other(tmp_path: Path):
         new_state, _ops = dispatch_command("landscape_shuffle", state, config)
 
     assert mock_filter.call_args.kwargs["recent"] is False
-    assert new_state.satellite(Player.LANDSCAPE).latest is False
-    assert new_state.satellite(Player.PORTRAIT).latest is True  # the other player keeps its order
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).latest is False
+    assert new_state.satellite(RoomFunestra.PORTRAIT).latest is True  # the other Funestra keeps its order
 
 
 def test_a_sided_reorder_drops_that_sides_lock_and_loop(tmp_path: Path):
-    """The rebuild replaces the queue, so whatever the player was holding — a lock, a
+    """The rebuild replaces the queue, so whatever the Funestra was holding — a lock, a
     group loop, a widened row — goes with it."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True, loop="seed", map_anchor="C:/v/a.mp4", widen_clip="C:/v/a.mp4"))
@@ -1732,14 +1732,14 @@ def test_a_sided_reorder_drops_that_sides_lock_and_loop(tmp_path: Path):
         mock_filter.return_value = _filter_result(applied=True)
         new_state, _ops = dispatch_command("portrait_latest", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).locked is False
-    assert new_state.satellite(Player.PORTRAIT).loop == ""
-    assert new_state.satellite(Player.PORTRAIT).map_anchor == ""
-    assert new_state.satellite(Player.PORTRAIT).widen_clip == ""
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is False
+    assert new_state.satellite(RoomFunestra.PORTRAIT).loop == ""
+    assert new_state.satellite(RoomFunestra.PORTRAIT).map_anchor == ""
+    assert new_state.satellite(RoomFunestra.PORTRAIT).widen_clip == ""
 
 
 def test_a_reorder_starts_the_side_at_the_top_of_the_new_order(tmp_path: Path):
-    """The bug this fixes: "portrait latest" did reorder the queue, but the player
+    """The bug this fixes: "portrait latest" did reorder the queue, but the Funestra
     kept playing the clip it was on and carried on from there — so the new order only
     ever applied after it and the newest arrivals, the whole point of asking, were
     never reached."""
@@ -1765,7 +1765,7 @@ def test_a_filter_leaves_the_clip_on_screen_where_it_is(tmp_path: Path):
 
 
 def test_reset_returns_the_side_to_every_default(tmp_path: Path):
-    """"reset" puts the whole player back, not just its filter: the lock released, the
+    """"reset" puts the whole Funestra back, not just its filter: the lock released, the
     order shuffled, F-mode dropped, any loop / widened row / frozen map dropped, and
     playing from the top of a fresh browse."""
     config = _make_config(tmp_path)
@@ -1775,14 +1775,14 @@ def test_reset_returns_the_side_to_every_default(tmp_path: Path):
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_reset", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).locked is False
-    assert new_state.satellite(Player.PORTRAIT).filter == ""
-    assert new_state.satellite(Player.PORTRAIT).latest is False
-    assert new_state.satellite(Player.PORTRAIT).favorites_filter is False
-    assert new_state.satellite(Player.PORTRAIT).loop == ""
-    assert new_state.satellite(Player.PORTRAIT).map_anchor == ""
-    assert new_state.satellite(Player.PORTRAIT).widen_clip == ""
-    assert new_state.satellite(Player.PORTRAIT).nav_anchor == ""
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is False
+    assert new_state.satellite(RoomFunestra.PORTRAIT).filter == ""
+    assert new_state.satellite(RoomFunestra.PORTRAIT).latest is False
+    assert new_state.satellite(RoomFunestra.PORTRAIT).favorites_filter is False
+    assert new_state.satellite(RoomFunestra.PORTRAIT).loop == ""
+    assert new_state.satellite(RoomFunestra.PORTRAIT).map_anchor == ""
+    assert new_state.satellite(RoomFunestra.PORTRAIT).widen_clip == ""
+    assert new_state.satellite(RoomFunestra.PORTRAIT).nav_anchor == ""
     assert mock_filter.call_args.kwargs["query"] == ""
     assert mock_filter.call_args.kwargs["recent"] is False
     assert mock_filter.call_args.kwargs["start_at_top"] is True
@@ -1791,7 +1791,7 @@ def test_reset_returns_the_side_to_every_default(tmp_path: Path):
 
 def test_reset_rebuilds_the_side_wide_rather_than_still_in_f_mode(tmp_path: Path):
     """Dropping the flag is not enough — the rebuild reads it back to decide how
-    wide to build.  Cleared after the rebuild, a player reset out of F-mode came back
+    wide to build.  Cleared after the rebuild, a Funestra reset out of F-mode came back
     still holding a browse of the favorites alone while the HUD said the filter
     was off."""
     config = _make_config(tmp_path)
@@ -1818,7 +1818,7 @@ def test_reset_leaves_a_side_that_is_already_at_its_defaults_alone(tmp_path: Pat
     assert mock_filter.call_count == 0
     assert ops == []
     assert _cmds(config, 2) == []
-    assert state.active_player == 2  # still the player a bare "next" would reach
+    assert state.active_funestra == 2  # still the Funestra a bare "next" would reach
 
 
 @pytest.mark.parametrize("narrowed", [
@@ -1833,7 +1833,7 @@ def test_reset_leaves_a_side_that_is_already_at_its_defaults_alone(tmp_path: Pat
 def test_reset_still_fires_for_any_one_thing_left_narrowing_the_side(
     tmp_path: Path, narrowed: SatelliteState
 ):
-    """Every one of these is something a reset takes off, so a player holding any
+    """Every one of these is something a reset takes off, so a Funestra holding any
     one of them is not at its defaults.  A skip that read too few of them would
     be the worse failure of the two: the press would do nothing while there was
     something to undo."""
@@ -1855,40 +1855,40 @@ def _publish_status(status_file: Path, **fields) -> None:
                            encoding="utf-8")
 
 
-def _publish_speed(config: BridgeConfig, player: Player, speed: float) -> None:
-    _publish_status(config.satellite(player).status_file, speed=speed)
+def _publish_speed(config: BridgeConfig, funestra: RoomFunestra, speed: float) -> None:
+    _publish_status(config.satellite(funestra).status_file, speed=speed)
 
 
-def test_reset_puts_the_sides_speed_back_to_normal_as_the_main_players_does(tmp_path: Path):
+def test_reset_puts_the_sides_speed_back_to_normal_as_the_main_funestras_does(tmp_path: Path):
     config = _make_config(tmp_path)
-    _publish_speed(config, Player.PORTRAIT, 1.0)
+    _publish_speed(config, RoomFunestra.PORTRAIT, 1.0)
     state = _make_state(portrait=SatelliteState(locked=True))
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         dispatch_command("portrait_reset", state, config)
 
-    assert _cmds(config, Player.PORTRAIT)[-1] == "SET_SPEED 1"
+    assert _cmds(config, RoomFunestra.PORTRAIT)[-1] == "SET_SPEED 1"
 
 
 def test_a_side_whose_speed_alone_is_off_resets_it_without_reshuffling(tmp_path: Path):
     """The browse is already the one a reset would build, so rebuilding it would
-    only move the clip on screen -- the main player's reset leaves its browse
+    only move the clip on screen -- the Main Funestra's reset leaves its browse
     alone for the same reason."""
     config = _make_config(tmp_path)
-    _publish_speed(config, Player.PORTRAIT, 1.5)
+    _publish_speed(config, RoomFunestra.PORTRAIT, 1.5)
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         _state, ops = dispatch_command("portrait_reset", _make_state(), config)
 
     assert mock_filter.call_count == 0
-    assert _cmds(config, Player.PORTRAIT) == ["SET_SPEED 1"]
+    assert _cmds(config, RoomFunestra.PORTRAIT) == ["SET_SPEED 1"]
     assert [op.key for op in ops] == ["Reset"]
 
 
 def test_reset_skips_only_the_side_that_has_nothing_to_put_back(tmp_path: Path):
-    """Each player is judged on its own, so "both reset" with one player narrowed
+    """Each Funestra is judged on its own, so "both reset" with one Funestra narrowed
     rebuilds that one and leaves the other's browse where it is."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(filter="alpha"))
@@ -1911,14 +1911,14 @@ def test_reset_leaves_the_other_side_alone(tmp_path: Path):
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_reset", state, config)
 
-    assert new_state.satellite(Player.LANDSCAPE).locked is True
-    assert new_state.satellite(Player.LANDSCAPE).filter == "alpha"
-    assert new_state.satellite(Player.LANDSCAPE).latest is True
-    assert new_state.satellite(Player.LANDSCAPE).favorites_filter is True
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).locked is True
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).filter == "alpha"
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).latest is True
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).favorites_filter is True
 
 
 def test_no_filter_drops_the_filter_and_nothing_else(tmp_path: Path):
-    """The narrow gesture: the filter goes and the player keeps the order it was
+    """The narrow gesture: the filter goes and the Funestra keeps the order it was
     browsing in, so it is not a way to lose your place in a Latest browse."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(filter="alpha", latest=True))
@@ -1927,8 +1927,8 @@ def test_no_filter_drops_the_filter_and_nothing_else(tmp_path: Path):
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_no_filter", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).filter == ""
-    assert new_state.satellite(Player.PORTRAIT).latest is True          # still its Latest order
+    assert new_state.satellite(RoomFunestra.PORTRAIT).filter == ""
+    assert new_state.satellite(RoomFunestra.PORTRAIT).latest is True          # still its Latest order
     assert mock_filter.call_args.kwargs["query"] == ""
     assert mock_filter.call_args.kwargs["recent"] is True
 
@@ -1944,16 +1944,16 @@ def _cycle_meta(image_seed: str, action: str) -> dict:
 
 
 def _make_grouped_config(
-    tmp_path: Path, videos: dict[str, dict | None], player: int = 2,
+    tmp_path: Path, videos: dict[str, dict | None], funestra: int = 2,
 ) -> tuple[BridgeConfig, dict[str, str]]:
-    """A BridgeConfig whose *player*'s source dir holds *videos* (+ sidecars).
+    """A BridgeConfig whose *Funestra*'s source dir holds *videos* (+ sidecars).
 
-    Only the named player's sources point at the dir, so a command that reads
-    the wrong player's library comes up empty instead of silently passing.
+    Only the named Funestra's sources point at the dir, so a command that reads
+    the wrong Funestra's library comes up empty instead of silently passing.
     """
     media_root = tmp_path / "videos" / "videos"  # the metadata tree mirrors this
     metadata_root = tmp_path / "videos" / "metadata"
-    side_dir = media_root / ("portrait" if player == 2 else "landscape")
+    side_dir = media_root / ("portrait" if funestra == 2 else "landscape")
     side_dir.mkdir(parents=True, exist_ok=True)
     paths: dict[str, str] = {}
     for name, meta in videos.items():
@@ -1964,7 +1964,7 @@ def _make_grouped_config(
             sidecar = metadata_path_for(video, metadata_root)
             sidecar.parent.mkdir(parents=True, exist_ok=True)
             sidecar.write_text(json.dumps(meta), encoding="utf-8")
-    sources_key = "portrait_sources" if player == 2 else "landscape_sources"
+    sources_key = "portrait_sources" if funestra == 2 else "landscape_sources"
     config = replace(
         _make_config(tmp_path),
         regen_media_root=media_root,
@@ -2061,7 +2061,7 @@ def test_portrait_cycle_action_keeps_an_active_lock(tmp_path: Path):
     _set_current(config, 2, paths["subject_zeta"])
     new_state, _ops = dispatch_command("portrait_cycle_action", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).locked is True
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
     # Cycling is "show this differently", not "move on": it switches the clip but
     # never releases the lock, so no UNLOCK is queued.
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_alpha']}"]
@@ -2077,7 +2077,7 @@ def test_portrait_cycle_seed_keeps_an_active_lock(tmp_path: Path):
     _set_current(config, 2, paths["subject_a"])
     new_state, _ops = dispatch_command("portrait_cycle_seed", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).locked is True
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
 
 
@@ -2171,7 +2171,7 @@ def test_more_seeds_widens_the_display_without_switching_the_video(tmp_path: Pat
 
     assert not any(cmd.startswith("PLAY_FILE") for cmd in _cmds(config, 2))  # no jump
     assert _playlist(config, 2)[0] == c   # the clip on screen leads the looped queue
-    assert state.satellite(Player.PORTRAIT).widen_clip == c
+    assert state.satellite(RoomFunestra.PORTRAIT).widen_clip == c
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
 
 
@@ -2189,7 +2189,7 @@ def test_more_seeds_dead_ends_when_nothing_else_does_this_act(tmp_path: Path):
     _set_current(config, 2, c)
     state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
-    assert state.satellite(Player.PORTRAIT).widen_clip == ""  # nothing widened
+    assert state.satellite(RoomFunestra.PORTRAIT).widen_clip == ""  # nothing widened
     notices = [op for op in ops if op.op == "notice"]
     assert [op.key for op in notices] == ["Widening net failed"]
     assert notices[0].level == logging.WARNING
@@ -2202,7 +2202,7 @@ def test_more_seeds_reports_widening_failed_when_the_library_holds_one_clip(tmp_
     _set_current(config, 2, paths["only"])
     state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
-    assert state.satellite(Player.PORTRAIT).widen_clip == ""  # nothing widened
+    assert state.satellite(RoomFunestra.PORTRAIT).widen_clip == ""  # nothing widened
     notices = [op for op in ops if op.op == "notice"]
     assert [op.key for op in notices] == ["Widening net failed"]
     assert notices[0].level == logging.WARNING
@@ -2219,8 +2219,8 @@ def test_more_seeds_starts_looping_the_seeds_it_widened(tmp_path: Path):
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, b])   # looping the widened pool
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
-    assert state.satellite(Player.PORTRAIT).loop == "seed"
-    assert state.satellite(Player.PORTRAIT).widen_clip == a
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == "seed"
+    assert state.satellite(RoomFunestra.PORTRAIT).widen_clip == a
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
 
 
@@ -2248,7 +2248,7 @@ def test_more_seeds_never_queues_a_clip_of_another_action(tmp_path: Path):
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, c])  # b does something else
     assert b not in _playlist(config, 2)
-    assert state.satellite(Player.PORTRAIT).widen_clip == a
+    assert state.satellite(RoomFunestra.PORTRAIT).widen_clip == a
 
 
 def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):
@@ -2262,8 +2262,8 @@ def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, b])  # re-looped wide
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
-    assert new_state.satellite(Player.PORTRAIT).widen_clip == a
-    assert new_state.satellite(Player.PORTRAIT).loop == "seed"
+    assert new_state.satellite(RoomFunestra.PORTRAIT).widen_clip == a
+    assert new_state.satellite(RoomFunestra.PORTRAIT).loop == "seed"
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]  # keeps its own notice
 
 
@@ -2291,7 +2291,7 @@ def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
     assert [op.key for op in ops if op.op == "notice"] == ["Next seed"]
 
 
-def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
+def test_landscape_cycle_commands_target_the_landscape_funestra(tmp_path: Path):
     """The landscape variants must hit the landscape port and lock flag."""
     config, paths = _make_grouped_config(tmp_path, {})
     media_root = config.regen_media_root
@@ -2314,10 +2314,10 @@ def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
     _set_current(config, 3, videos["subject_zeta"])
     new_state, _ops = dispatch_command("landscape_cycle_action", state, config)
 
-    assert new_state.satellite(Player.LANDSCAPE).locked is True, "cycling must not release the landscape lock"
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).locked is True, "cycling must not release the landscape lock"
     # Targets the landscape command file, keeping the lock (no UNLOCK queued)...
     assert _cmds(config, 3) == [f"PLAY_FILE {videos['subject_alpha']}"]
-    assert _cmds(config, 2) == []  # ...and never touches the portrait player.
+    assert _cmds(config, 2) == []  # ...and never touches the Portrait Funestra.
 
 
 # --- portrait/landscape wrong action ---
@@ -2379,7 +2379,7 @@ def test_wrong_action_judges_the_clip_that_was_playing_when_it_was_spoken(tmp_pa
 
 
 def test_landscape_wrong_action_strikes_the_landscape_clip(tmp_path: Path):
-    """Each player judges its own clip: the landscape command must never reach
+    """Each Funestra judges its own clip: the landscape command must never reach
     across to whatever portrait happens to be playing."""
     config, paths = _make_grouped_config(tmp_path, {
         "on_portrait": _cycle_meta("111", "Zeta Massage"),
@@ -2428,8 +2428,8 @@ def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
         mock_filter.return_value = _filter_result(applied=True)
         new_state, _ops = dispatch_command("portrait_latest", state, config)
 
-    assert new_state.satellite(Player.PORTRAIT).latest is True
-    assert new_state.satellite(Player.PORTRAIT).locked is False
+    assert new_state.satellite(RoomFunestra.PORTRAIT).latest is True
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is False
     kwargs = mock_filter.call_args.kwargs
     assert kwargs["recent"] is True
     assert kwargs["favorites_filter"] is False
@@ -2441,8 +2441,8 @@ def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
 # --- mode switch (genau_activate / main_kino_activate / main_kino_activate) ---
 
 
-def test_a_switch_brings_the_main_players_window_back_and_hands_it_the_focus(tmp_path: Path):
-    """Kino and Genau share the Main Player's one window, so the switch has no
+def test_a_switch_brings_the_main_funestras_window_back_and_hands_it_the_focus(tmp_path: Path):
+    """Kino and Genau share the Main Funestra's one window, so the switch has no
     window to swap: it brings that window back if it was parked and gives it
     the focus, so focus never falls through to another application."""
     config = _make_config(tmp_path)
@@ -2459,17 +2459,17 @@ def test_a_switch_brings_the_main_players_window_back_and_hands_it_the_focus(tmp
         ]
 
 
-def test_a_mode_switch_tells_the_main_player_which_of_kino_and_genau_has_its_window(tmp_path: Path):
-    """The window is the Main Player's; the room says which of the two running on
+def test_a_mode_switch_tells_the_main_funestra_which_of_kino_and_genau_has_its_window(tmp_path: Path):
+    """The window is the Main Funestra's; the room says which of the two running on
     it is to show, with the same verb a startup seeds."""
     config = _make_config(tmp_path)
 
     dispatch_command("genau_activate", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW genau"]
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW genau"]
 
-    config.main_player_cmd_file.unlink()
+    config.main_funestra_cmd_file.unlink()
     dispatch_command("main_kino_activate", _make_state(main_mode=MainMode.GENAU), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW kino"]
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW kino"]
 
 
 # --- genau command forwarding (_GENAU_CMD_MAP) ---
@@ -2489,7 +2489,7 @@ def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
 def test_the_motion_rate_reaches_the_robot_hand_in_either_mode(tmp_path: Path):
     """The hand is at work in both modes — driving outright in genau
     mode, filling the funscript's gaps in kino mode — so its own rate keys
-    never land on the main player's video rate."""
+    never land on the Main Funestra's video rate."""
     for mode in ("kino", "genau"):
         config = _make_config(tmp_path / mode)
         state = _make_state(main_mode=mode)
@@ -2497,15 +2497,15 @@ def test_the_motion_rate_reaches_the_robot_hand_in_either_mode(tmp_path: Path):
         new_state, ops = dispatch_command("robot_hand_speed_up", state, config)
 
         assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n", mode
-        assert not config.main_player_cmd_file.exists()
+        assert not config.main_funestra_cmd_file.exists()
         assert new_state == state
         assert ops == []
 
 
-def _set_main_player_driving(config, *, driving: bool) -> None:
-    """Publish a main player status so the speed arbiter sees the funscript
+def _set_main_funestra_driving(config, *, driving: bool) -> None:
+    """Publish a Main Funestra status so the speed arbiter sees the funscript
     driving (scripted, not resting) or not."""
-    config.main_player_status_file.write_text(
+    config.main_funestra_status_file.write_text(
         f"has_funscript={'1' if driving else '0'}\nfunscript_resting=0\n",
         encoding="utf-8",
     )
@@ -2517,26 +2517,26 @@ def test_the_motion_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
     from when one shared pair made pressing Genau's − move the playback rate
     across the panel instead."""
     config = _make_config(tmp_path)
-    _set_main_player_driving(config, driving=True)
+    _set_main_funestra_driving(config, driving=True)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("robot_hand_speed_up", state, config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
 
 
-def test_the_bare_nudge_routes_to_main_player_in_kino_mode_while_the_funscript_drives(tmp_path: Path):
+def test_the_bare_nudge_routes_to_main_funestra_in_kino_mode_while_the_funscript_drives(tmp_path: Path):
     """Kino mode, actively scripted stretch: the funscript drives the OSR2 and Genau
-    is paused, so "speed up" tunes the main player's video — whose clock scales the script.
+    is paused, so "speed up" tunes the Main Funestra's video — whose clock scales the script.
     Sent to Genau it moved a number on a dimmed readout and nothing else."""
     config = _make_config(tmp_path)
-    _set_main_player_driving(config, driving=True)
+    _set_main_funestra_driving(config, driving=True)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("speed_up", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.genau_cmd_file.exists()
 
 
@@ -2544,13 +2544,13 @@ def test_the_bare_nudge_routes_to_genau_in_kino_mode_while_genau_drives(tmp_path
     # Kino mode, unscripted stretch (no funscript / lead-in / gap): Genau drives the
     # OSR2, so the bare nudge tunes Genau's motion rate.
     config = _make_config(tmp_path)
-    _set_main_player_driving(config, driving=False)
+    _set_main_funestra_driving(config, driving=False)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("speed_down", state, config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
 
 
 def test_the_bare_nudge_reaches_the_video_while_the_osr2_is_held(tmp_path: Path):
@@ -2561,7 +2561,7 @@ def test_the_bare_nudge_reaches_the_video_while_the_osr2_is_held(tmp_path: Path)
     dispatch_command("speed_up",
                      _make_state(main_mode=MainMode.KINO, osr2_control=OSR2_PARKED), config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.genau_cmd_file.exists()
 
 
@@ -2570,40 +2570,40 @@ def test_the_bare_nudge_follows_the_only_engine_running_in_genau_mode(tmp_path: 
     config = _make_config(tmp_path / "genau")
     dispatch_command("speed_up", _make_state(main_mode=MainMode.GENAU), config)
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
 
 
-def test_the_main_players_min_and_max_route_to_the_active_engine(tmp_path: Path):
+def test_the_main_funestras_min_and_max_route_to_the_active_engine(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_player_speed_min", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
 
     config = _make_config(tmp_path)
     dispatch_command("main_player_speed_max", _make_state(main_mode=MainMode.GENAU), config)
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 100\n"
 
 
-def test_main_player_multiplier_sets_main_player_speed(tmp_path: Path):
+def test_main_funestra_multiplier_sets_main_funestra_speed(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_player_speed_150", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
 
 
-def test_main_player_speed_up_down_nudge_the_video_rate_where_main_player_is_on_screen(tmp_path: Path):
+def test_main_funestra_speed_up_down_nudge_the_video_rate_where_main_funestra_is_on_screen(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_player_speed_up", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.genau_cmd_file.exists()
 
 
 @pytest.mark.parametrize("command", [
     "main_player_speed_up", "main_player_speed_down", "main_player_speed_150"])
-def test_the_main_players_video_rate_is_ignored_in_genau_mode(tmp_path: Path, command: str):
+def test_the_main_funestras_video_rate_is_ignored_in_genau_mode(tmp_path: Path, command: str):
     config = _make_config(tmp_path)
 
     _state, ops = dispatch_command(command, _make_state(main_mode=MainMode.GENAU), config)
 
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
     assert not config.genau_cmd_file.exists()
     assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
 
@@ -2613,39 +2613,39 @@ def test_naming_the_playback_reaches_the_video_while_genau_holds_the_osr2(tmp_pa
     the playback is the only way to move the video's rate — and it has to land
     there rather than follow whichever engine happens to be driving."""
     config = _make_config(tmp_path)
-    _set_main_player_driving(config, driving=False)
+    _set_main_funestra_driving(config, driving=False)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_speed_down", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
     assert not config.genau_cmd_file.exists()
 
 
-def test_absolute_speed_reaches_main_player_video_in_kino_mode_even_when_genau_drives(tmp_path: Path):
-    # Absolute video-speed sets (multiplier, min/max) tune whatever the main player shows, so
-    # they land on the main player's video even during a Genau-driven stretch — they must not
+def test_absolute_speed_reaches_main_funestra_video_in_kino_mode_even_when_genau_drives(tmp_path: Path):
+    # Absolute video-speed sets (multiplier, min/max) tune whatever the Main Funestra shows, so
+    # they land on the Main Funestra's video even during a Genau-driven stretch — they must not
     # silently vanish the way a driver-routed command would.
     config = _make_config(tmp_path)
-    _set_main_player_driving(config, driving=False)  # Genau owns the OSR2 this stretch
+    _set_main_funestra_driving(config, driving=False)  # Genau owns the OSR2 this stretch
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_player_speed_150", state, config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
     assert not config.genau_cmd_file.exists()
 
 
-def test_the_main_players_max_sets_its_video_in_kino_mode(tmp_path: Path):
+def test_the_main_funestras_max_sets_its_video_in_kino_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    _set_main_player_driving(config, driving=False)
+    _set_main_funestra_driving(config, driving=False)
     dispatch_command("main_player_speed_max", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
 
 
 def test_reset_speed_command_maps_to_normal_rate(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_player_speed_100", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1\n"
 
 
 def test_a_satellites_speed_pair_steps_that_satellite_alone(tmp_path: Path):
@@ -2656,7 +2656,7 @@ def test_a_satellites_speed_pair_steps_that_satellite_alone(tmp_path: Path):
 
     assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert config.landscape_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
 
 
 def test_a_rate_named_for_a_satellite_is_set_on_that_satellite_alone(tmp_path: Path):
@@ -2667,7 +2667,7 @@ def test_a_rate_named_for_a_satellite_is_set_on_that_satellite_alone(tmp_path: P
 
     assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 0.5\n"
     assert config.landscape_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 2\n"
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
 
 
 def test_either_end_of_the_range_named_for_a_satellite_is_set_on_that_satellite_alone(tmp_path: Path):
@@ -2678,7 +2678,7 @@ def test_either_end_of_the_range_named_for_a_satellite_is_set_on_that_satellite_
 
     assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
     assert config.landscape_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
 
 
 def test_volume_down_steps_both_audio_sinks_down(tmp_path: Path):
@@ -2687,7 +2687,7 @@ def test_volume_down_steps_both_audio_sinks_down(tmp_path: Path):
     new_state, ops = dispatch_command("audio_volume_down", _make_state(), config)
 
     assert new_state.volume == 90
-    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 90 0"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 90 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "90"
     assert ops == [WindowOp(op="notice", key="Volume 90%", source="main")]
 
@@ -2698,7 +2698,7 @@ def test_volume_up_steps_both_audio_sinks_up(tmp_path: Path):
     new_state, _ops = dispatch_command("audio_volume_up", _make_state(volume=40), config)
 
     assert new_state.volume == 50
-    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 50 0"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 50 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "50"
 
 
@@ -2713,19 +2713,19 @@ def test_volume_clamps_at_silent_and_at_full(tmp_path: Path):
 
 
 def test_the_primary_is_told_the_mute_as_well_as_the_level(tmp_path: Path):
-    """The audio companion is a sink and a level of zero is all it needs.  The main player
+    """The audio companion is a sink and a level of zero is all it needs.  The Main Funestra
     also *draws* the level, and from zero alone it cannot tell muted from turned
     all the way down — nor what unmuting should return to."""
     config = _make_config(tmp_path)
 
     dispatch_command("audio_mute", _make_state(volume=70), config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "0", "the sink stays dumb"
 
 
 def test_setting_the_volume_outright_lands_on_both_sinks(tmp_path: Path):
-    """What either player's slider asks for: an absolute level, not a step.  It
+    """What either Funestra's slider asks for: an absolute level, not a step.  It
     lifts a mute for the same reason reaching for the volume does in the Windows
     mixer."""
     config = _make_config(tmp_path)
@@ -2734,13 +2734,13 @@ def test_setting_the_volume_outright_lands_on_both_sinks(tmp_path: Path):
         "audio_set_volume|35", _make_state(volume=70, muted=True), config)
 
     assert (new_state.volume, new_state.muted) == (35, False)
-    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 35 0"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 35 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "35"
     assert ops == [WindowOp(op="notice", key="Volume 35%", source="main")]
 
 
-def test_the_level_reaches_both_players_that_draw_it(tmp_path: Path):
-    """the main player and Genau each draw the primary display's volume chip, and each is told
+def test_the_level_reaches_both_funestras_that_draw_it(tmp_path: Path):
+    """the Main Funestra and Genau each draw the primary display's volume chip, and each is told
     the level and the mute as two facts — the sink gets a mute as a zero, which
     cannot say whether the speaker is off or turned all the way down.
 
@@ -2752,7 +2752,7 @@ def test_the_level_reaches_both_players_that_draw_it(tmp_path: Path):
     dispatch_command("audio_mute", _make_state(volume=70, main_mode=MainMode.KINO), config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
-    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
 
 
 def test_setting_the_volume_clamps_and_ignores_nonsense(tmp_path: Path):
@@ -2766,13 +2766,13 @@ def test_setting_the_volume_clamps_and_ignores_nonsense(tmp_path: Path):
     assert unchanged.volume == 70
 
 
-def test_the_max_intensity_slider_reaches_every_player_that_can_drive_the_device(tmp_path: Path):
+def test_the_max_intensity_slider_reaches_every_funestra_that_can_drive_the_device(tmp_path: Path):
     config = _make_config(tmp_path)
 
     new_state, ops = dispatch_command("max_intensity_35", _make_state(), config)
 
     assert new_state.max_intensity == 35
-    for command_file in (config.genau_cmd_file, config.main_player_cmd_file,
+    for command_file in (config.genau_cmd_file, config.main_funestra_cmd_file,
                          config.portrait_cmd_file, config.landscape_cmd_file):
         assert command_file.read_text(encoding="utf-8").strip() == "SET_MAX_INTENSITY 35"
     assert ops == [WindowOp(op="notice", key="Max intensity 35%", source="main")]
@@ -2794,7 +2794,7 @@ def test_mute_silences_both_sinks_and_remembers_the_level(tmp_path: Path):
 
     assert new_state.muted is True
     assert new_state.volume == 70  # remembered, so unmuting restores it
-    # What the main player is told is its own test; here the companion, which only has to
+    # What the Main Funestra is told is its own test; here the companion, which only has to
     # be quiet, gets the plain zero.
     assert config.audio_volume_file.read_text(encoding="utf-8") == "0"
     assert ops == [WindowOp(op="notice", key="Muted", source="main")]
@@ -2808,7 +2808,7 @@ def test_unmute_restores_the_level_the_mute_interrupted(tmp_path: Path):
     )
 
     assert new_state.muted is False
-    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 0"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 0"
     assert ops == [WindowOp(op="notice", key="Volume 70%", source="main")]
 
 
@@ -2834,7 +2834,7 @@ def test_stepping_the_volume_lifts_a_mute(tmp_path: Path):
 
     assert new_state.muted is False
     assert new_state.volume == 80
-    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 80 0"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 80 0"
 
 
 def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
@@ -2932,7 +2932,7 @@ class TestOsr2ControlState:
 
         assert config.broker_cmd_file.read_text(encoding="utf-8") == PARK_CMD
         assert not config.genau_cmd_file.exists()
-        assert not config.main_player_cmd_file.exists()
+        assert not config.main_funestra_cmd_file.exists()
 
     def test_a_hold_sends_the_device_to_the_end_it_names(self, tmp_path: Path):
         """The broker walks it there and swallows the script feed on the way;
@@ -2963,56 +2963,56 @@ class TestOsr2ControlState:
 
 
 class TestTakingTheOsr2:
-    @pytest.mark.parametrize(("command", "player", "had_it"), [
-        ("portrait_take_osr2", Player.PORTRAIT, Player.MAIN),
-        ("landscape_take_osr2", Player.LANDSCAPE, Player.PORTRAIT),
-        ("main_take_osr2", Player.MAIN, Player.LANDSCAPE),
+    @pytest.mark.parametrize(("command", "funestra", "had_it"), [
+        ("portrait_take_osr2", RoomFunestra.PORTRAIT, RoomFunestra.MAIN),
+        ("landscape_take_osr2", RoomFunestra.LANDSCAPE, RoomFunestra.PORTRAIT),
+        ("main_take_osr2", RoomFunestra.MAIN, RoomFunestra.LANDSCAPE),
     ])
-    def test_the_player_whose_button_was_pressed_has_it_and_the_others_do_not(
-            self, command, player, had_it, tmp_path: Path):
-        after, ops = dispatch_command(command, _make_state(osr2_player=had_it),
+    def test_the_funestra_whose_button_was_pressed_has_it_and_the_others_do_not(
+            self, command, funestra, had_it, tmp_path: Path):
+        after, ops = dispatch_command(command, _make_state(osr2_funestra=had_it),
                                       _make_config(tmp_path))
 
-        assert after.osr2_player == player
+        assert after.osr2_funestra == funestra
         assert ops == []
 
-    def test_a_side_player_takes_it_in_origenerator_mode_too(self, tmp_path: Path):
+    def test_a_side_funestra_takes_it_in_origenerator_mode_too(self, tmp_path: Path):
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
 
         assert not routes_to_origenerator("portrait_take_osr2", state, config)
-        assert dispatch_command("portrait_take_osr2", state, config)[0].osr2_player == Player.PORTRAIT
+        assert dispatch_command("portrait_take_osr2", state, config)[0].osr2_funestra == RoomFunestra.PORTRAIT
 
-    def test_the_rooms_resume_in_genau_mode_leaves_the_robot_hand_to_the_side_players_script(
+    def test_the_rooms_resume_in_genau_mode_leaves_the_robot_hand_to_the_side_funestras_script(
             self, tmp_path: Path):
         config = _make_config(tmp_path)
         state = _make_state(main_mode=MainMode.GENAU, omni_paused=True,
-                            osr2_player=Player.PORTRAIT)
+                            osr2_funestra=RoomFunestra.PORTRAIT)
 
         after, _ops = dispatch_command("omnipause_toggle", state, config)
 
         assert after.omni_paused is False
         assert not config.genau_cmd_file.exists()
 
-    def test_the_bare_nudge_speeds_the_side_player_whose_script_has_the_osr2(self, tmp_path: Path):
+    def test_the_bare_nudge_speeds_the_side_funestra_whose_script_has_the_osr2(self, tmp_path: Path):
         config = _make_config(tmp_path)
         config.portrait_status_file.write_text("has_funscript=1\nfunscript_resting=0\n",
                                                encoding="utf-8")
 
         dispatch_command("speed_up", _make_state(main_mode=MainMode.GENAU,
-                                                 osr2_player=Player.PORTRAIT), config)
+                                                 osr2_funestra=RoomFunestra.PORTRAIT), config)
 
         assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
         assert not config.genau_cmd_file.exists()
 
-    def test_the_bare_nudge_speeds_the_robot_hand_while_a_side_player_has_it(self, tmp_path: Path):
+    def test_the_bare_nudge_speeds_the_robot_hand_while_a_side_funestra_has_it(self, tmp_path: Path):
         config = _make_config(tmp_path)
-        _set_main_player_driving(config, driving=True)
+        _set_main_funestra_driving(config, driving=True)
 
-        dispatch_command("speed_up", _make_state(osr2_player=Player.PORTRAIT), config)
+        dispatch_command("speed_up", _make_state(osr2_funestra=RoomFunestra.PORTRAIT), config)
 
         assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
-        assert not config.main_player_cmd_file.exists()
+        assert not config.main_funestra_cmd_file.exists()
 
 
 def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
@@ -3049,10 +3049,10 @@ def test_marking_genaus_clip_weird_flashes_marked_weird_over_the_main_slot(tmp_p
     "genau_clip_seconds_up",
     "genau_clip_seconds_30",
 ])
-def test_every_genau_command_is_ignored_with_video_in_the_main_player(
+def test_every_genau_command_is_ignored_with_video_in_the_main_funestra(
         tmp_path: Path, command: str):
     config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.KINO, active_player=2)
+    state = _make_state(main_mode=MainMode.KINO, active_funestra=2)
 
     new_state, ops = dispatch_command(command, state, config)
 
@@ -3067,7 +3067,7 @@ def test_every_genau_command_is_ignored_with_video_in_the_main_player(
     ("robot_hand_toggle_cruise", "TOGGLE_CRUISE"),
     ("robot_hand_center_50", "CENTER 50"),
 ])
-def test_the_robot_hands_commands_still_reach_it_with_video_in_the_main_player(
+def test_the_robot_hands_commands_still_reach_it_with_video_in_the_main_funestra(
         tmp_path: Path, command: str, verb: str):
     config = _make_config(tmp_path)
 
@@ -3174,7 +3174,7 @@ def test_relief_omnipause_is_omnipause_and_the_retract_hold_together(tmp_path: P
     assert any(op.op == "suspend_hotkeys" for op in ops)
     assert all(paused.read_text(encoding="utf-8") == "1" for paused in (
         config.portrait_paused_file, config.landscape_paused_file,
-        config.main_player_paused_file, config.genau_paused_file,
+        config.main_funestra_paused_file, config.genau_paused_file,
         config.audio_paused_file))
 
 
@@ -3227,8 +3227,8 @@ def test_a_leave_omnipause_verb_no_producer_can_send_is_inert(tmp_path: Path):
     assert new_state.omni_paused is True
 
 
-def test_leaving_omnipause_brings_back_the_players_a_button_parked(tmp_path: Path):
-    """Resuming is the room coming back, and a player minimized from its own HUD
+def test_leaving_omnipause_brings_back_the_funestras_a_button_parked(tmp_path: Path):
+    """Resuming is the room coming back, and a Funestra minimized from its own HUD
     took that HUD down with it — so it cannot ask for itself, and nothing else
     would have brought it back but the taskbar."""
     config = _make_config(tmp_path)
@@ -3293,7 +3293,7 @@ def test_leaving_omnipause_resumes_satellites_only(tmp_path: Path):
 
 
 @pytest.mark.parametrize("main_mode", list(MainMode))
-def test_leaving_omnipause_brings_the_main_player_forward_in_either_mode(
+def test_leaving_omnipause_brings_the_main_funestra_forward_in_either_mode(
         tmp_path: Path, main_mode):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True, main_mode=main_mode)
@@ -3307,24 +3307,24 @@ def test_leaving_omnipause_brings_the_main_player_forward_in_either_mode(
 
 
 @pytest.mark.parametrize("main_mode", list(MainMode))
-def test_the_main_players_nudge_pair_seeks_the_main_player_in_either_mode(
+def test_the_main_funestras_nudge_pair_seeks_the_main_funestra_in_either_mode(
         tmp_path: Path, main_mode: MainMode):
     config = _make_config(tmp_path)
-    _publish_status(config.main_player_status_file, duration_ms=60_000)
+    _publish_status(config.main_funestra_status_file, duration_ms=60_000)
     state = _make_state(main_mode=main_mode)
 
     _state, back_ops = dispatch_command("main_nudge_prev", state, config)
     _state, forward_ops = dispatch_command("main_nudge_next", state, config)
 
     assert back_ops == forward_ops == []
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\nSEEK_FWD\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\nSEEK_FWD\n"
 
 
 def test_a_satellites_nudge_pair_seeks_that_satellite_and_leaves_its_lock_alone(
         tmp_path: Path):
     config = _make_config(tmp_path)
-    for player in Player.SATELLITES:
-        _publish_status(config.satellite(player).status_file, duration_ms=60_000)
+    for funestra in RoomFunestra.SATELLITES:
+        _publish_status(config.satellite(funestra).status_file, duration_ms=60_000)
     state = _make_state(portrait=SatelliteState(locked=True))
 
     state, forward_ops = dispatch_command("portrait_nudge_next", state, config)
@@ -3332,16 +3332,16 @@ def test_a_satellites_nudge_pair_seeks_that_satellite_and_leaves_its_lock_alone(
     dispatch_command("landscape_nudge_next", state, config)
 
     assert forward_ops == back_ops == []
-    assert _cmds(config, Player.PORTRAIT) == ["SEEK_FWD", "SEEK_BACK"]
-    assert _cmds(config, Player.LANDSCAPE) == ["SEEK_FWD"]
-    assert state.satellite(Player.PORTRAIT).locked is True
-    assert not config.main_player_cmd_file.exists()
+    assert _cmds(config, RoomFunestra.PORTRAIT) == ["SEEK_FWD", "SEEK_BACK"]
+    assert _cmds(config, RoomFunestra.LANDSCAPE) == ["SEEK_FWD"]
+    assert state.satellite(RoomFunestra.PORTRAIT).locked is True
+    assert not config.main_funestra_cmd_file.exists()
 
 
 @pytest.mark.parametrize(("command", "status_of", "notice"), [
-    ("main_nudge_next", lambda config: config.main_player_status_file,
+    ("main_nudge_next", lambda config: config.main_funestra_status_file,
      ("This video is 10s or shorter", SOURCE_MAIN)),
-    ("portrait_nudge_prev", lambda config: config.satellite(Player.PORTRAIT).status_file,
+    ("portrait_nudge_prev", lambda config: config.satellite(RoomFunestra.PORTRAIT).status_file,
      ("This clip is 10s or shorter", SOURCE_PORTRAIT)),
 ])
 def test_a_ten_second_step_on_a_video_of_ten_seconds_or_shorter_does_nothing_and_says_why(
@@ -3354,14 +3354,14 @@ def test_a_ten_second_step_on_a_video_of_ten_seconds_or_shorter_does_nothing_and
     _state, ops = dispatch_command(command, _make_state(), config)
 
     assert [(op.op, op.key, op.source) for op in ops] == [("notice", *notice)]
-    assert not config.main_player_cmd_file.exists()
-    assert _cmds(config, Player.PORTRAIT) == []
+    assert not config.main_funestra_cmd_file.exists()
+    assert _cmds(config, RoomFunestra.PORTRAIT) == []
 
 
 # --- main_player record commands ---
 
 
-def test_main_player_record_commands_write_main_player_cmd_in_main_player_mode(tmp_path: Path):
+def test_main_funestra_record_commands_write_main_funestra_cmd_in_main_funestra_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
@@ -3372,29 +3372,29 @@ def test_main_player_record_commands_write_main_player_cmd_in_main_player_mode(t
         ("main_player_loop_cancel", "LOOP_CANCEL"),
     ]:
         new_state, ops = dispatch_command(command, state, config)
-        assert config.main_player_cmd_file.read_text(encoding="utf-8") == expected + "\n"
+        assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == expected + "\n"
         assert ops == []
-        config.main_player_cmd_file.unlink()
+        config.main_funestra_cmd_file.unlink()
 
 
-def test_main_player_record_commands_work_in_kino_mode(tmp_path: Path):
-    """Kino mode displays the main player, so loop recording works there too."""
+def test_main_funestra_record_commands_work_in_kino_mode(tmp_path: Path):
+    """Kino mode displays the Main Funestra, so loop recording works there too."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
     new_state, ops = dispatch_command("main_player_record_tap", state, config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "RECORD_TAP\n"
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "RECORD_TAP\n"
     assert ops == []
 
 
-def test_main_player_record_commands_are_ignored_in_genau_mode(tmp_path: Path):
+def test_main_funestra_record_commands_are_ignored_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
     new_state, ops = dispatch_command("main_player_record_tap", state, config)
 
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
     assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
 
 
@@ -3423,14 +3423,14 @@ def test_unknown_command_warns_instead_of_dying_silently(tmp_path: Path, caplog)
     assert any("bogus_command" in record.message for record in caplog.records)
 
 
-def test_an_active_command_with_no_main_player_meaning_is_ignored_on_the_main_player(
+def test_an_active_command_with_no_main_funestra_meaning_is_ignored_on_the_main_funestra(
         tmp_path: Path, caplog):
     config = _make_config(tmp_path)
 
     with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
         new_state, ops = dispatch_command("active_trash", _make_state(), config)
 
-    assert ops == [WindowOp(op=Op.IGNORED, key="on the main player")]
+    assert ops == [WindowOp(op=Op.IGNORED, key="on the Main Funestra")]
     assert new_state == _make_state()
     assert not any("active_trash" in record.message for record in caplog.records)
 
@@ -3474,8 +3474,8 @@ def test_genaumacher_save_is_ignored_in_genau_mode(tmp_path: Path):
 
 # --- group loops and lock-action --------------------------------------------
 
-def _loop_config(tmp_path: Path, *, axis: str, player: int = 2) -> tuple[BridgeConfig, str, str]:
-    """A config whose player holds a two-item group on the requested axis,
+def _loop_config(tmp_path: Path, *, axis: str, funestra: int = 2) -> tuple[BridgeConfig, str, str]:
+    """A config whose Funestra holds a two-item group on the requested axis,
     grouped by the real index over real sidecars."""
     if axis == "action":
         # Same subject (one source image), different acts.
@@ -3483,7 +3483,7 @@ def _loop_config(tmp_path: Path, *, axis: str, player: int = 2) -> tuple[BridgeC
     else:
         # Same act + params, different image seeds.
         videos = {"a": _subject_meta(image_seed="1"), "b": _subject_meta(image_seed="2")}
-    config, paths = _make_grouped_config(tmp_path, videos, player=player)
+    config, paths = _make_grouped_config(tmp_path, videos, funestra=funestra)
     return config, paths["a"], paths["b"]
 
 
@@ -3507,15 +3507,15 @@ def test_action_loop_reshapes_the_queue_to_the_subjects_action_group(tmp_path: P
     _set_current(config, 2, a)
     _state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
-    # The group is written as the player's playlist (current-first) and reloaded; the
-    # native player then loops it by auto-advance.
+    # The group is written as the Funestra's playlist (current-first) and reloaded; the
+    # native Funestra then loops it by auto-advance.
     assert sorted(_playlist(config, 2)) == sorted([a, b])
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
     assert any(op.op == "notice" and op.source == "portrait" for op in ops)
 
 
 def test_seed_loop_reshapes_the_queue_to_the_current_acts_seed_family(tmp_path: Path):
-    config, a, b = _loop_config(tmp_path, axis="seed", player=3)
+    config, a, b = _loop_config(tmp_path, axis="seed", funestra=3)
 
     _set_current(config, 3, a)
     dispatch_command("landscape_seed_loop", _make_state(), config)
@@ -3535,8 +3535,8 @@ def test_a_widened_seed_loop_loops_the_loose_family_and_keeps_the_widen_anchor(t
     new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, b])
-    assert new_state.satellite(Player.PORTRAIT).loop == "seed"
-    assert new_state.satellite(Player.PORTRAIT).widen_clip == a  # anchor kept so the HUD stays wide
+    assert new_state.satellite(RoomFunestra.PORTRAIT).loop == "seed"
+    assert new_state.satellite(RoomFunestra.PORTRAIT).widen_clip == a  # anchor kept so the HUD stays wide
 
 
 def test_a_non_widened_seed_loop_clears_a_stale_widen_anchor(tmp_path: Path):
@@ -3550,8 +3550,8 @@ def test_a_non_widened_seed_loop_clears_a_stale_widen_anchor(tmp_path: Path):
     new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
 
     assert sorted(_playlist(config, 2)) == sorted([a, b])  # exact family only
-    assert new_state.satellite(Player.PORTRAIT).loop == "seed"
-    assert new_state.satellite(Player.PORTRAIT).widen_clip == ""  # stale anchor dropped
+    assert new_state.satellite(RoomFunestra.PORTRAIT).loop == "seed"
+    assert new_state.satellite(RoomFunestra.PORTRAIT).widen_clip == ""  # stale anchor dropped
 
 
 def test_a_clip_marked_weird_stops_being_drawn_on_the_map(tmp_path: Path):
@@ -3561,11 +3561,11 @@ def test_a_clip_marked_weird_stops_being_drawn_on_the_map(tmp_path: Path):
     """
     config, a, b = _loop_config(tmp_path, axis="seed")
     _set_current(config, 2, a)
-    assert hud_map_cells(_satellite_group_index(Player.PORTRAIT, config, b), b)[0] == [a]
+    assert hud_map_cells(_satellite_group_index(RoomFunestra.PORTRAIT, config, b), b)[0] == [a]
 
     _discard(2, _make_state(), config)            # "weird" on the clip on screen
 
-    index = _satellite_group_index(Player.PORTRAIT, config, b)
+    index = _satellite_group_index(RoomFunestra.PORTRAIT, config, b)
     assert hud_map_cells(index, b)[0] == []
 
 
@@ -3580,8 +3580,8 @@ def test_marking_clips_weird_until_one_is_left_turns_the_loop_into_a_lock(tmp_pa
     state, ops = _discard(2, state, config)       # "weird" on the clip on screen
 
     assert _cmds(config, 2) == ["RELOAD_PLAYLIST", "TRASH", "LOCK_ON"]
-    assert state.satellite(Player.PORTRAIT).locked is True
-    assert state.satellite(Player.PORTRAIT).loop == ""
+    assert state.satellite(RoomFunestra.PORTRAIT).locked is True
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == ""
     # Plain, not the favorites' green: nothing was starred, nothing was pressed.
     assert [(op.op, op.key, op.source, op.level) for op in ops
             if op.key == "Locked"] == [("notice", "Locked", "portrait", NOTICE)]
@@ -3598,7 +3598,7 @@ def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
 
     assert _playlist(config, 2) == []  # no queue reshape for a group of one
     assert _cmds(config, 2) == ["LOCK_ON"]  # a group of one is really a single-video lock
-    assert new_state.satellite(Player.PORTRAIT).locked is True
+    assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
     notices = [op for op in ops if op.op == "notice"]
     assert [op.key for op in notices] == ["Locked"]
     # Green, because a lock puts the clip in the favorites.
@@ -3613,18 +3613,18 @@ def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):
     _set_current(config, 2, a)
     state, _ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
-    assert state.satellite(Player.PORTRAIT).loop == "action"
-    assert state.satellite(Player.LANDSCAPE).loop == ""
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == "action"
+    assert state.satellite(RoomFunestra.LANDSCAPE).loop == ""
 
 
 def test_seed_loop_records_the_loop_axis_in_state(tmp_path: Path):
-    config, a, _b = _loop_config(tmp_path, axis="seed", player=3)
+    config, a, _b = _loop_config(tmp_path, axis="seed", funestra=3)
 
     _set_current(config, 3, a)
     state, _ops = dispatch_command("landscape_seed_loop", _make_state(), config)
 
-    assert state.satellite(Player.LANDSCAPE).loop == "seed"
-    assert state.satellite(Player.PORTRAIT).loop == ""
+    assert state.satellite(RoomFunestra.LANDSCAPE).loop == "seed"
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == ""
 
 
 def test_a_loop_anchors_on_the_clip_it_started_on(tmp_path: Path):
@@ -3640,12 +3640,12 @@ def test_a_loop_anchors_on_the_clip_it_started_on(tmp_path: Path):
     _set_current(config, 2, b)  # the loop starts on the group's *second* item
     state, _ops = dispatch_command("portrait_seed_loop", _make_state(), config)
 
-    assert state.satellite(Player.PORTRAIT).map_anchor == b
+    assert state.satellite(RoomFunestra.PORTRAIT).map_anchor == b
     assert _playlist(config, 2) == [b, a]  # the map's order is the queue's order
 
 
 def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
-    """The one-item "loop" is really a lock, so it must drop any loop the player
+    """The one-item "loop" is really a lock, so it must drop any loop the Funestra
     was running instead of leaving a stale flag."""
     config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
     only = Path(paths["only"])
@@ -3656,15 +3656,15 @@ def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
         _make_state(portrait=SatelliteState(loop="seed", widen_clip=str(only))), config,
     )
 
-    assert state.satellite(Player.PORTRAIT).loop == ""
-    assert state.satellite(Player.PORTRAIT).widen_clip == ""  # the lock drops the widened row too
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == ""
+    assert state.satellite(RoomFunestra.PORTRAIT).widen_clip == ""  # the lock drops the widened row too
 
 
 def test_locking_holds_your_place_in_a_loop_rather_than_ending_it(tmp_path: Path):
     """A lock inside a loop is a hold at one position in it, not the end of it.
 
     LOCK repeats the clip on screen and leaves the loop's queue untouched, so the
-    player really is still looping — dropping the flag only stopped the HUD from
+    Funestra really is still looping — dropping the flag only stopped the HUD from
     saying so, and then unlocking put you back into a loop the panel had disowned.
     """
     config = _make_config(tmp_path)
@@ -3678,10 +3678,10 @@ def test_locking_holds_your_place_in_a_loop_rather_than_ending_it(tmp_path: Path
             config,
         )
 
-    assert state.satellite(Player.PORTRAIT).locked is True
-    assert state.satellite(Player.PORTRAIT).loop == "action"      # still looping, just held
-    assert state.satellite(Player.PORTRAIT).map_anchor == clip    # …over the same map
-    assert state.satellite(Player.PORTRAIT).widen_clip == clip    # …and the same widened row
+    assert state.satellite(RoomFunestra.PORTRAIT).locked is True
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == "action"      # still looping, just held
+    assert state.satellite(RoomFunestra.PORTRAIT).map_anchor == clip    # …over the same map
+    assert state.satellite(RoomFunestra.PORTRAIT).widen_clip == clip    # …and the same widened row
 
 
 def test_unlocking_leaves_the_loop_running(tmp_path: Path):
@@ -3698,8 +3698,8 @@ def test_unlocking_leaves_the_loop_running(tmp_path: Path):
         config,
     )
 
-    assert state.satellite(Player.PORTRAIT).locked is False
-    assert state.satellite(Player.PORTRAIT).loop == "seed"
+    assert state.satellite(RoomFunestra.PORTRAIT).locked is False
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == "seed"
     assert "LOCK_OFF" in _cmds(config, 2)
 
 
@@ -3715,8 +3715,8 @@ def test_an_applied_filter_clears_a_running_loop(tmp_path: Path):
             _make_state(portrait=SatelliteState(loop="seed", widen_clip="C:/v/anchor.mp4")), config,
         )
 
-    assert state.satellite(Player.PORTRAIT).loop == ""
-    assert state.satellite(Player.PORTRAIT).widen_clip == ""
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == ""
+    assert state.satellite(RoomFunestra.PORTRAIT).widen_clip == ""
 
 
 def test_a_zero_match_filter_leaves_a_running_loop_alone(tmp_path: Path):
@@ -3731,8 +3731,8 @@ def test_a_zero_match_filter_leaves_a_running_loop_alone(tmp_path: Path):
             _make_state(portrait=SatelliteState(loop="seed", widen_clip="C:/v/anchor.mp4")), config,
         )
 
-    assert state.satellite(Player.PORTRAIT).loop == "seed"
-    assert state.satellite(Player.PORTRAIT).widen_clip == "C:/v/anchor.mp4"
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == "seed"
+    assert state.satellite(RoomFunestra.PORTRAIT).widen_clip == "C:/v/anchor.mp4"
 
 
 def test_no_loop_clears_the_loop_but_leaves_the_map_where_it_hangs(tmp_path: Path):
@@ -3751,9 +3751,9 @@ def test_no_loop_clears_the_loop_but_leaves_the_map_where_it_hangs(tmp_path: Pat
             _make_state(portrait=SatelliteState(loop="action", map_anchor="C:/v/anchor.mp4", widen_clip="C:/v/anchor.mp4")), config,
         )
 
-    assert state.satellite(Player.PORTRAIT).loop == ""                            # the loop is off
-    assert state.satellite(Player.PORTRAIT).map_anchor == "C:/v/anchor.mp4"       # the map stays put
-    assert state.satellite(Player.PORTRAIT).widen_clip == "C:/v/anchor.mp4"       # …and stays widened
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == ""                            # the loop is off
+    assert state.satellite(RoomFunestra.PORTRAIT).map_anchor == "C:/v/anchor.mp4"       # the map stays put
+    assert state.satellite(RoomFunestra.PORTRAIT).widen_clip == "C:/v/anchor.mp4"       # …and stays widened
 
 
 def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):
@@ -3766,7 +3766,7 @@ def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", _make_state(), config)
 
-    # The browse is written as the player's playlist and reloaded in place.
+    # The browse is written as the Funestra's playlist and reloaded in place.
     assert _playlist(config, 2) == browse
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
 
@@ -3774,7 +3774,7 @@ def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):
 def test_no_loop_keeps_the_clip_on_screen_by_heading_the_restored_browse(tmp_path: Path):
     """Turning a loop OFF must not interrupt the clip playing.
 
-    The player keeps its clip across a reload only when that clip is still in the
+    The Funestra keeps its clip across a reload only when that clip is still in the
     new list, and a loop item usually is NOT in the browse — the browse holds one
     representative per group, and the loop was cycling the others.  Without this the
     reload fell through to "restart at the top" and yanked the user onto another
@@ -3816,7 +3816,7 @@ def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path)
 
     assert _playlist(config, 2) == []  # empty browse never blanks the live queue
     assert "RELOAD_PLAYLIST" not in _cmds(config, 2)
-    assert state.satellite(Player.PORTRAIT).loop == ""
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == ""
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
 
@@ -3851,7 +3851,7 @@ def test_next_in_a_loop_of_several_clips_moves_on_within_the_loop(tmp_path: Path
 # --- the loop key's cycle: seeds, actions, off -------------------------------
 
 def _cycle_config(tmp_path: Path, *, seed_family: bool = True,
-                  action_group: bool = True, player: int = 2) -> tuple[BridgeConfig, str, str, str]:
+                  action_group: bool = True, funestra: int = 2) -> tuple[BridgeConfig, str, str, str]:
     """A three-clip library where the clip on screen (a) has both loops to
     offer: an action group {a, b} and a seed family {a, c}.  Either can be
     collapsed to a group of one — a subject with a single act (b rendered from
@@ -3863,18 +3863,18 @@ def _cycle_config(tmp_path: Path, *, seed_family: bool = True,
               else _subject_meta(prompt="another scene", image_seed="7", action="Beta")),
         "c": _subject_meta(image_seed="2", action="Alpha" if seed_family else "Gamma"),
     }
-    config, paths = _make_grouped_config(tmp_path, videos, player=player)
+    config, paths = _make_grouped_config(tmp_path, videos, funestra=funestra)
     return config, paths["a"], paths["b"], paths["c"]
 
 
 def test_the_loop_key_starts_a_seed_loop_when_nothing_is_looping(tmp_path: Path):
-    """The cycle's first stop: a player that is not looping starts on the seed family."""
+    """The cycle's first stop: a Funestra that is not looping starts on the seed family."""
     config, a, _b, c = _cycle_config(tmp_path)
 
     _set_current(config, 2, a)
     state, ops = dispatch_command("portrait_loop", _make_state(), config)
 
-    assert state.satellite(Player.PORTRAIT).loop == "seed"
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == "seed"
     assert _playlist(config, 2) == [a, c]
     assert [op.key for op in ops if op.op == "notice"] == ["Loop portrait: 2 seeds"]
 
@@ -3885,7 +3885,7 @@ def test_the_loop_key_steps_a_seed_loop_on_to_the_action_loop(tmp_path: Path):
     _set_current(config, 2, a)
     state, _ops = dispatch_command("portrait_loop", _make_state(portrait=SatelliteState(loop="seed")), config)
 
-    assert state.satellite(Player.PORTRAIT).loop == "action"
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == "action"
     assert _playlist(config, 2) == [a, b]
 
 
@@ -3898,7 +3898,7 @@ def test_the_loop_key_steps_an_action_loop_off(tmp_path: Path):
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         state, ops = dispatch_command("portrait_loop", _make_state(portrait=SatelliteState(loop="action")), config)
 
-    assert state.satellite(Player.PORTRAIT).loop == ""
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == ""
     assert _playlist(config, 2) == [a, *browse]
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
@@ -3913,7 +3913,7 @@ def test_the_loop_key_wraps_from_off_back_round_to_the_seeds(tmp_path: Path):
         axes = []
         for _press in range(4):
             state, _ops = dispatch_command("portrait_loop", state, config)
-            axes.append(state.satellite(Player.PORTRAIT).loop)
+            axes.append(state.satellite(RoomFunestra.PORTRAIT).loop)
 
     assert axes == ["seed", "action", "", "seed"]
 
@@ -3922,7 +3922,7 @@ def test_the_loop_key_steps_over_an_axis_with_no_second_clip(tmp_path: Path):
     """A clip nobody re-seeded has no seed loop to offer, so the press lands on the
     action loop instead of on the single-video lock a "loop seeds" would mean.
 
-    Landing on that lock left the player's loop flag empty, so the very next press
+    Landing on that lock left the Funestra's loop flag empty, so the very next press
     tried the seeds again and locked again — the action loop was unreachable from
     the keyboard on every clip with a family of one.
     """
@@ -3931,7 +3931,7 @@ def test_the_loop_key_steps_over_an_axis_with_no_second_clip(tmp_path: Path):
     _set_current(config, 2, a)
     state, _ops = dispatch_command("portrait_loop", _make_state(), config)
 
-    assert state.satellite(Player.PORTRAIT).loop == "action"
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == "action"
     assert _playlist(config, 2) == [a, b]
     assert "LOCK_ON" not in _cmds(config, 2)
 
@@ -3948,8 +3948,8 @@ def test_the_loop_key_locks_when_neither_group_holds_a_second_clip(tmp_path: Pat
 
     browse.assert_not_called()  # the browse is never rebuilt by a press that locks
     assert _cmds(config, 2) == ["LOCK_ON"]
-    assert state.satellite(Player.PORTRAIT).locked is True
-    assert state.satellite(Player.PORTRAIT).loop == ""
+    assert state.satellite(RoomFunestra.PORTRAIT).locked is True
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == ""
     assert [op.key for op in ops if op.op == "notice"] == ["Locked"]
 
 
@@ -3969,7 +3969,7 @@ def test_the_loop_key_lets_go_of_the_clip_it_locked(tmp_path: Path):
 
     browse.assert_not_called()
     assert _cmds(config, 2) == ["LOCK_ON", "LOCK_OFF"]  # let go where it stands, no NEXT
-    assert state.satellite(Player.PORTRAIT).locked is False
+    assert state.satellite(RoomFunestra.PORTRAIT).locked is False
     assert [op.key for op in ops if op.op == "notice"] == ["Unlocked"]
 
 
@@ -3982,17 +3982,17 @@ def test_the_loop_key_ends_a_loop_the_clip_has_drifted_out_of(tmp_path: Path):
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=[a]):
         state, ops = dispatch_command("portrait_loop", _make_state(portrait=SatelliteState(loop="seed")), config)
 
-    assert state.satellite(Player.PORTRAIT).loop == ""
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == ""
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
 
 def test_the_loop_key_drives_only_its_own_side(tmp_path: Path):
-    config, a, _b, c = _cycle_config(tmp_path, player=3)
+    config, a, _b, c = _cycle_config(tmp_path, funestra=3)
 
     _set_current(config, 3, a)
     state, _ops = dispatch_command("landscape_loop", _make_state(), config)
 
-    assert (state.satellite(Player.LANDSCAPE).loop, state.satellite(Player.PORTRAIT).loop) == ("seed", "")
+    assert (state.satellite(RoomFunestra.LANDSCAPE).loop, state.satellite(RoomFunestra.PORTRAIT).loop) == ("seed", "")
     assert _playlist(config, 3) == [a, c]
     assert _playlist(config, 2) == []
 
@@ -4006,13 +4006,13 @@ def test_the_loop_key_does_nothing_with_no_clip_on_screen(tmp_path: Path):
         state, ops = dispatch_command("portrait_loop", _make_state(portrait=SatelliteState(loop="seed")), config)
 
     browse.assert_not_called()
-    assert state.satellite(Player.PORTRAIT).loop == "seed"
+    assert state.satellite(RoomFunestra.PORTRAIT).loop == "seed"
     assert ops == []
 
 
 def test_a_reorder_clears_only_its_own_sides_loop(tmp_path: Path):
-    """A reorder rebuilds the player it names, so that player's loop goes — and the
-    other player, which was not rebuilt, keeps looping."""
+    """A reorder rebuilds the Funestra it names, so that Funestra's loop goes — and the
+    other Funestra, which was not rebuilt, keeps looping."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
@@ -4023,8 +4023,8 @@ def test_a_reorder_clears_only_its_own_sides_loop(tmp_path: Path):
             config,
         )
 
-    assert (state.satellite(Player.PORTRAIT).loop, state.satellite(Player.PORTRAIT).widen_clip) == ("", "")
-    assert (state.satellite(Player.LANDSCAPE).loop, state.satellite(Player.LANDSCAPE).widen_clip) == ("action", "C:/v/l.mp4")
+    assert (state.satellite(RoomFunestra.PORTRAIT).loop, state.satellite(RoomFunestra.PORTRAIT).widen_clip) == ("", "")
+    assert (state.satellite(RoomFunestra.LANDSCAPE).loop, state.satellite(RoomFunestra.LANDSCAPE).widen_clip) == ("action", "C:/v/l.mp4")
 
 
 def test_fmode_clears_the_loop_of_every_side_it_rebuilds(tmp_path: Path):
@@ -4036,12 +4036,12 @@ def test_fmode_clears_the_loop_of_every_side_it_rebuilds(tmp_path: Path):
         config,
     )
 
-    assert (state.satellite(Player.PORTRAIT).loop, state.satellite(Player.LANDSCAPE).loop) == ("", "")
-    assert (state.satellite(Player.PORTRAIT).widen_clip, state.satellite(Player.LANDSCAPE).widen_clip) == ("", "")
+    assert (state.satellite(RoomFunestra.PORTRAIT).loop, state.satellite(RoomFunestra.LANDSCAPE).loop) == ("", "")
+    assert (state.satellite(RoomFunestra.PORTRAIT).widen_clip, state.satellite(RoomFunestra.LANDSCAPE).widen_clip) == ("", "")
 
 
 def test_a_sided_fmode_leaves_the_other_sides_loop_running(tmp_path: Path):
-    """Only the rebuilt player lost its queue, so only its loop goes with it."""
+    """Only the rebuilt Funestra lost its queue, so only its loop goes with it."""
     config = _make_config(tmp_path)
 
     state, _ops, _mock = _dispatch_fmode(
@@ -4050,8 +4050,8 @@ def test_a_sided_fmode_leaves_the_other_sides_loop_running(tmp_path: Path):
         config,
     )
 
-    assert (state.satellite(Player.PORTRAIT).loop, state.satellite(Player.PORTRAIT).widen_clip) == ("", "")
-    assert (state.satellite(Player.LANDSCAPE).loop, state.satellite(Player.LANDSCAPE).widen_clip) == ("action", "C:/v/l.mp4")
+    assert (state.satellite(RoomFunestra.PORTRAIT).loop, state.satellite(RoomFunestra.PORTRAIT).widen_clip) == ("", "")
+    assert (state.satellite(RoomFunestra.LANDSCAPE).loop, state.satellite(RoomFunestra.LANDSCAPE).widen_clip) == ("action", "C:/v/l.mp4")
 
 
 def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
@@ -4065,8 +4065,8 @@ def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
         new_state, _ops = dispatch_command("portrait_lock_action", _make_state(), config)
 
     assert mock_filter.call_args.kwargs["query"] == "beta gamma"
-    assert new_state.satellite(Player.PORTRAIT).filter == "beta gamma"
-    assert new_state.satellite(Player.LANDSCAPE).filter == ""
+    assert new_state.satellite(RoomFunestra.PORTRAIT).filter == "beta gamma"
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).filter == ""
 
 
 def test_action_loop_groups_the_video_that_was_playing_when_spoken(tmp_path: Path):
@@ -4105,7 +4105,7 @@ def test_lock_action_without_metadata_says_so(tmp_path: Path):
         new_state, ops = dispatch_command("landscape_lock_action", _make_state(), config)
 
     mock_filter.assert_not_called()
-    assert new_state.satellite(Player.LANDSCAPE).filter == ""
+    assert new_state.satellite(RoomFunestra.LANDSCAPE).filter == ""
     assert any(
         op.op == "notice" and "No action metadata" in op.key and op.source == "landscape"
         for op in ops
@@ -4188,8 +4188,8 @@ def test_every_main_list_rebuild_is_handed_to_the_sessions_builder(tmp_path, com
     assert not (config.state_dir / "main_player_playlist.tsv").exists()
 
 
-def test_main_latest_reloads_the_main_player_newest_first(tmp_path, monkeypatch):
-    """The main player had only the shuffle, so a video that arrived an hour ago sat
+def test_main_latest_reloads_the_main_funestra_newest_first(tmp_path, monkeypatch):
+    """The Main Funestra had only the shuffle, so a video that arrived an hour ago sat
     somewhere in a thousand-clip rotation with no way to ask for it.  It browses in
     the satellites' two orders now, and the order is remembered — an F-mode rebuild
     afterwards has to reload it the same way round rather than quietly reshuffling."""
@@ -4210,8 +4210,8 @@ def test_main_latest_reloads_the_main_player_newest_first(tmp_path, monkeypatch)
 
 
 def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path, monkeypatch):
-    """The bug this fixes: "main latest" in genau mode rewrote a playlist for the main player,
-    which was neither on screen nor playing, and Genau — the player actually
+    """The bug this fixes: "main latest" in genau mode rewrote a playlist for the Main Funestra,
+    which was neither on screen nor playing, and Genau — the Funestra actually
     showing — carried on in the order it launched in.  Two notices and nothing
     happening.  The reorder goes to whoever owns the slot's screen, as the lock
     does."""
@@ -4223,7 +4223,7 @@ def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path, mo
     state, ops = dispatch_command("main_latest", _make_state(main_mode=MainMode.GENAU), config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8").split() == ["LATEST"]
-    assert calls == []  # the main player's playlist is left exactly as it was
+    assert calls == []  # the Main Funestra's playlist is left exactly as it was
     assert [op.key for op in ops if op.op == "notice"] == ["Latest"]
 
     dispatch_command("main_shuffle", state, config)
@@ -4232,9 +4232,9 @@ def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path, mo
 
 
 def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_path, monkeypatch):
-    """``main_latest`` says which order the playlist file we built for the main player is in —
+    """``main_latest`` says which order the playlist file we built for the Main Funestra is in —
     an F-mode rebuild reads it to reload the same way round — so setting it for a
-    Genau reorder would light "Latest" over a main player playlist nobody reordered.  Genau
+    Genau reorder would light "Latest" over a Main Funestra playlist nobody reordered.  Genau
     keeps its own, which is what the console draws while Genau is showing."""
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode", lambda **kwargs: None)
     config = _make_config(tmp_path)
@@ -4248,9 +4248,9 @@ def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_pa
     assert state.genau_latest is False
 
 
-def test_a_main_reorder_in_kino_mode_still_reaches_main_player(tmp_path, monkeypatch):
-    """Kino mode is the main player on screen with Genau driving the OSR2, so the video being
-    browsed is the main player's — Genau's clips are not what a reorder there is about."""
+def test_a_main_reorder_in_kino_mode_still_reaches_main_funestra(tmp_path, monkeypatch):
+    """Kino mode is the Main Funestra on screen with Genau driving the OSR2, so the video being
+    browsed is the Main Funestra's — Genau's clips are not what a reorder there is about."""
     calls: list[dict] = []
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
                         lambda **kwargs: calls.append(kwargs))
@@ -4309,12 +4309,12 @@ def test_neither_shape_holds_the_video_instead_of_rebuilding(tmp_path, monkeypat
     assert (state.main_plays_vr, state.main_plays_flat) == (False, False)
     assert ops[0].key == "No videos left"
     assert calls == []
-    assert "LOCK_ON" in config.main_player_cmd_file.read_text(encoding="utf-8")
+    assert "LOCK_ON" in config.main_funestra_cmd_file.read_text(encoding="utf-8")
 
 
 def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path, monkeypatch):
     """Every session outside the headset: no VR library among its sources, so
-    narrowing to either half would leave the player with nothing or with what it
+    narrowing to either half would leave the Funestra with nothing or with what it
     already had.  Its console draws no buttons for it either."""
     calls: list[dict] = []
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
@@ -4392,19 +4392,19 @@ def test_a_genau_with_only_flat_clips_ignores_the_filter(tmp_path):
     assert ops == [] and not config.genau_cmd_file.exists()
 
 
-def test_main_reset_puts_back_the_defaults_the_main_player_holds_itself(tmp_path):
+def test_main_reset_puts_back_the_defaults_the_main_funestra_holds_itself(tmp_path):
     config = _make_config(tmp_path)
 
     dispatch_command("main_reset", _make_state(), config)
 
-    assert config.main_player_cmd_file.read_text(encoding="utf-8").splitlines() == [
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
         "SET_LENGTH_MODE mixed", "LOOP_CANCEL", "LOCK_OFF", "SET_SPEED 1"]
 
 
-def test_main_reset_does_nothing_to_a_main_player_already_at_every_default(tmp_path):
+def test_main_reset_does_nothing_to_a_main_funestra_already_at_every_default(tmp_path):
     config = _make_config(tmp_path)
-    config.main_player_status_file.parent.mkdir(parents=True, exist_ok=True)
-    config.main_player_status_file.write_text(
+    config.main_funestra_status_file.parent.mkdir(parents=True, exist_ok=True)
+    config.main_funestra_status_file.write_text(
         "video=C:/v/scene one.mp4\nlocked=0\nloop_state=normal\nspeed=1.0\n"
         "length_mode=mixed\ncompilation=\n",
         encoding="utf-8",
@@ -4413,7 +4413,7 @@ def test_main_reset_does_nothing_to_a_main_player_already_at_every_default(tmp_p
     _state, ops = dispatch_command("main_reset", _make_state(), config)
 
     assert ops == []
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
 
 
 @pytest.mark.parametrize("off_default", [
@@ -4435,7 +4435,7 @@ def test_main_reset_rebuilds_an_off_default_browse_as_a_fresh_shuffle_from_the_t
             for call in calls] == [(False, False, True, True, True)]
 
 
-def test_main_reset_does_not_reshuffle_a_player_already_at_its_defaults(tmp_path, monkeypatch):
+def test_main_reset_does_not_reshuffle_a_funestra_already_at_its_defaults(tmp_path, monkeypatch):
     calls: list[dict] = []
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
                         lambda **kwargs: calls.append(kwargs))
@@ -4457,7 +4457,7 @@ def test_main_reset_leaves_the_browse_alone_over_a_shape_filter_the_session_does
     assert calls == []
 
 
-def test_main_reset_leaves_what_the_main_player_holds_alone_while_genau_owns_the_slot(
+def test_main_reset_leaves_what_the_main_funestra_holds_alone_while_genau_owns_the_slot(
         tmp_path, monkeypatch):
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode", lambda **kwargs: None)
     config = _make_config(tmp_path)
@@ -4466,29 +4466,29 @@ def test_main_reset_leaves_what_the_main_player_holds_alone_while_genau_owns_the
         "main_reset", _make_state(main_mode=MainMode.GENAU, main_scripted_filter=True), config)
 
     assert state.main_scripted_filter is False
-    assert not config.main_player_cmd_file.exists()
+    assert not config.main_funestra_cmd_file.exists()
 
 
-def test_main_reset_flashes_reset_over_the_main_player(tmp_path):
+def test_main_reset_flashes_reset_over_the_main_funestra(tmp_path):
     _state, ops = dispatch_command("main_reset", _make_state(), _make_config(tmp_path))
 
     assert ops == [WindowOp(op="notice", key="Reset", source="main")]
 
 
-def test_main_reset_makes_the_main_player_the_one_a_bare_word_reaches(tmp_path, monkeypatch):
-    """Resetting a player is addressing it, the way locking it or naming its F-mode
+def test_main_reset_makes_the_main_funestra_the_one_a_bare_word_reaches(tmp_path, monkeypatch):
+    """Resetting a Funestra is addressing it, the way locking it or naming its F-mode
     is — so a bare "next" after it lands here rather than on whichever satellite was
     touched last."""
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode", lambda **kwargs: None)
     config = _make_config(tmp_path)
 
-    state, _ops = dispatch_command("main_reset", _make_state(active_player=2), config)
+    state, _ops = dispatch_command("main_reset", _make_state(active_funestra=2), config)
 
-    assert state.active_player == 1
+    assert state.active_funestra == 1
 
 
-def test_reordering_the_main_player_starts_it_at_the_top(tmp_path, monkeypatch):
-    """A reorder filters nothing out, so the main player keeps the video on screen across the
+def test_reordering_the_main_funestra_starts_it_at_the_top(tmp_path, monkeypatch):
+    """A reorder filters nothing out, so the Main Funestra keeps the video on screen across the
     reload and carries on from wherever it now sits — leaving the newest-first list
     to apply only after it, and the arrivals that were asked for never coming up.
     The satellites' reorder starts at the top for exactly this reason; so does this."""
@@ -4530,14 +4530,14 @@ def _origenerator_cmds(config: BridgeConfig) -> list[str]:
 
 
 class TestSatellitesModeSwitch:
-    def test_origenerator_activate_hands_the_players_to_the_hosted_app(self, tmp_path):
-        """The players are what shows the hosted app's slideshows now, so the
-        switch hands them over playing: each player's own list is kept aside for
+    def test_origenerator_activate_hands_the_funestras_to_the_hosted_app(self, tmp_path):
+        """The Funestras are what shows the hosted app's slideshows now, so the
+        switch hands them over playing: each Funestra's own list is kept aside for
         the way back, and its hold is let go so the app decides what holds."""
         config = _origenerator_config(tmp_path)
-        for player in Player.SATELLITES:
-            write_playlist_file(config.satellite(player).playlist_file,
-                                [str(tmp_path / f"{player.label}.mp4")])
+        for funestra in RoomFunestra.SATELLITES:
+            write_playlist_file(config.satellite(funestra).playlist_file,
+                                [str(tmp_path / f"{funestra.label}.mp4")])
         state, ops = dispatch_command("origenerator_activate", _up(), config)
         assert state.satellites_mode == "origenerator"
         assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
@@ -4546,16 +4546,16 @@ class TestSatellitesModeSwitch:
             ("restack_rfb", ""),
         ]
         assert _origenerator_cmds(config) == ["OPEN_SHOWS"]
-        for player in Player.SATELLITES:
-            channel = config.satellite(player)
+        for funestra in RoomFunestra.SATELLITES:
+            channel = config.satellite(funestra)
             assert not channel.paused_file.exists()          # they go on playing
-            assert _cmds(config, player) == ["LOCK_OFF"]
+            assert _cmds(config, funestra) == ["LOCK_OFF"]
             assert channel.playlist_file.with_name(
                 f"{channel.playlist_file.stem}.kept.tsv").exists()
 
-    def test_players_activate_asks_the_hosted_app_to_let_go_of_them(self, tmp_path):
-        """The players come home once the app has let go of them -- the loop
-        takes them back (take_back_players) -- and nothing pauses on the way."""
+    def test_funestras_activate_asks_the_hosted_app_to_let_go_of_them(self, tmp_path):
+        """The Funestras come home once the app has let go of them -- the loop
+        takes them back (take_back_funestras) -- and nothing pauses on the way."""
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
         state, ops = dispatch_command("satellites_kino_activate", state, config)
@@ -4565,7 +4565,7 @@ class TestSatellitesModeSwitch:
         assert not config.landscape_paused_file.exists()
         assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
             ("hide_role", "origenerator"),
-            ("take_back_players", ""),
+            ("take_back_funestras", ""),
             ("restack_rfb", ""),
         ]
 
@@ -4598,24 +4598,24 @@ class TestSatellitesModeSwitch:
                 ("notice", "Origenerator is still starting")]
             assert _origenerator_cmds(config) == []
 
-    def test_a_switch_clicked_while_paused_still_hands_the_players_to_the_hosted_app(
+    def test_a_switch_clicked_while_paused_still_hands_the_funestras_to_the_hosted_app(
             self, tmp_path):
         config = _origenerator_config(tmp_path)
-        for player in Player.SATELLITES:
-            write_playlist_file(config.satellite(player).playlist_file,
-                                [str(tmp_path / f"{player.label}.mp4")])
+        for funestra in RoomFunestra.SATELLITES:
+            write_playlist_file(config.satellite(funestra).playlist_file,
+                                [str(tmp_path / f"{funestra.label}.mp4")])
         state, _ops = dispatch_command("origenerator_activate", _up(omni_paused=True), config)
         assert state.satellites_mode == "origenerator"
         assert _origenerator_cmds(config) == ["OPEN_SHOWS"]
-        for player in Player.SATELLITES:
-            assert _cmds(config, player) == ["LOCK_OFF"]
+        for funestra in RoomFunestra.SATELLITES:
+            assert _cmds(config, funestra) == ["LOCK_OFF"]
 
 
 class TestOrigeneratorTransport:
-    def test_side_transport_reaches_the_hosted_app_not_the_player(self, tmp_path):
-        """The hosted app drives its own player: a press on its panel is its to
+    def test_side_transport_reaches_the_hosted_app_not_the_funestra(self, tmp_path):
+        """The hosted app drives its own Funestra: a press on its panel is its to
         answer, so it goes there as the panel posted it, and the session does
-        not step the player on its own account."""
+        not step the Funestra on its own account."""
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
         state, _ = dispatch_command("portrait_next", state, config)
@@ -4623,7 +4623,7 @@ class TestOrigeneratorTransport:
         assert _cmds(config, 2) == []
 
     def test_every_press_on_a_hosted_side_routes_as_it_was_posted(self, tmp_path):
-        """The buttons on that player's panel are the hosted app's own, and so is
+        """The buttons on that Funestra's panel are the hosted app's own, and so is
         the map under them -- whatever it declared, it answers, so the session
         routes every one of them without needing to know what it means."""
         config = _origenerator_config(tmp_path)
@@ -4639,7 +4639,7 @@ class TestOrigeneratorTransport:
 
     def test_a_side_filter_goes_to_the_hosted_app_rather_than_into_a_rebuild(self, tmp_path):
         """A rebuild would write the session's own list over the one the hosted
-        app handed that player."""
+        app handed that Funestra."""
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
 
@@ -4652,7 +4652,7 @@ class TestOrigeneratorTransport:
     def test_an_act_said_to_no_side_narrows_both_hosted_shows(self, tmp_path):
         """Said with no side named, an act filters both satellites; over two
         hosted shows that is both shows, each told in its own side's words --
-        and never a rebuild of the players the hosted app is feeding."""
+        and never a rebuild of the Funestras the hosted app is feeding."""
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
 
@@ -4663,9 +4663,9 @@ class TestOrigeneratorTransport:
         assert _origenerator_cmds(config) == [
             "filter_portrait_scene_one", "filter_landscape_scene_one"]
 
-    def test_the_players_own_controls_stay_the_sessions(self, tmp_path):
-        """Minimize parks the player's window and speed is the rate it plays at:
-        both are the player's, whoever is handing it what to play."""
+    def test_the_funestras_own_controls_stay_the_sessions(self, tmp_path):
+        """Minimize parks the Funestra's window and speed is the rate it plays at:
+        both are the Funestra's, whoever is handing it what to play."""
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
 
@@ -4678,34 +4678,34 @@ class TestOrigeneratorTransport:
 
     def test_the_rooms_f_mode_turns_each_hosted_shows_own_f_mode_on(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        for player in Player.SATELLITES:
-            publish_the_show(config, player, f_mode=False)
+        for funestra in RoomFunestra.SATELLITES:
+            publish_the_show(config, funestra, f_mode=False)
         state = _up(satellites_mode="origenerator")
 
         with patch("fun_time.command_dispatch.apply_fmode") as fmode:
-            fmode.return_value = SimpleNamespace(players=(Player.MAIN,), log_message="")
+            fmode.return_value = SimpleNamespace(funestras=(RoomFunestra.MAIN,), log_message="")
             state, _ = dispatch_command("fmode_toggle", state, config)
 
-        assert fmode.call_args.kwargs["players"] == (Player.MAIN,)
+        assert fmode.call_args.kwargs["funestras"] == (RoomFunestra.MAIN,)
         assert _origenerator_cmds(config) == ["portrait_fmode_on", "landscape_fmode_on"]
-        assert not state.satellite(Player.PORTRAIT).favorites_filter
+        assert not state.satellite(RoomFunestra.PORTRAIT).favorites_filter
 
-    def test_the_rooms_f_mode_lifts_the_hosted_shows_once_every_player_is_in_it(self, tmp_path):
+    def test_the_rooms_f_mode_lifts_the_hosted_shows_once_every_funestra_is_in_it(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        for player in Player.SATELLITES:
-            publish_the_show(config, player, f_mode=True)
+        for funestra in RoomFunestra.SATELLITES:
+            publish_the_show(config, funestra, f_mode=True)
         state = _up(satellites_mode="origenerator", main_scripted_filter=True)
 
         state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
-        assert mock_fmode.call_args.kwargs["players"] == (Player.MAIN,)
+        assert mock_fmode.call_args.kwargs["funestras"] == (RoomFunestra.MAIN,)
         assert state.main_scripted_filter is False
         assert _origenerator_cmds(config) == ["portrait_fmode_off", "landscape_fmode_off"]
 
     def test_a_hosted_show_already_in_the_asked_for_f_mode_is_sent_nothing(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        publish_the_show(config, Player.PORTRAIT, f_mode=True)
-        publish_the_show(config, Player.LANDSCAPE, f_mode=False)
+        publish_the_show(config, RoomFunestra.PORTRAIT, f_mode=True)
+        publish_the_show(config, RoomFunestra.LANDSCAPE, f_mode=False)
 
         _dispatch_fmode("fmode_on", _up(satellites_mode="origenerator"), config)
 
@@ -4713,8 +4713,8 @@ class TestOrigeneratorTransport:
 
     def test_a_side_with_no_show_up_has_no_say_in_the_rooms_f_mode(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        publish_the_show(config, Player.PORTRAIT, f_mode=True)
-        config.satellite(Player.LANDSCAPE).origenerator_hud_file.write_text("", encoding="utf-8")
+        publish_the_show(config, RoomFunestra.PORTRAIT, f_mode=True)
+        config.satellite(RoomFunestra.LANDSCAPE).origenerator_hud_file.write_text("", encoding="utf-8")
         state = _up(satellites_mode="origenerator", main_scripted_filter=True)
 
         state, _ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
@@ -4741,22 +4741,22 @@ class TestOrigeneratorTransport:
         ]
 
     def test_no_filter_reaches_the_hosted_show_as_clear_filter(self, tmp_path):
-        """"portrait no filter" drops a player's act filter; over a hosted show
+        """"portrait no filter" drops a Funestra's act filter; over a hosted show
         the same words drop both switches on its HUD.  One phrase, one meaning
-        per mode -- and in kino mode the player keeps it."""
+        per mode -- and in kino mode the Funestra keeps it."""
         config = _origenerator_config(tmp_path)
         state = _up(portrait=SatelliteState(filter="alpha"), satellites_mode="origenerator")
 
         state, _ = dispatch_command("portrait_no_filter", state, config)
 
         assert _origenerator_cmds(config) == ["PORTRAIT_SAY:clear filter"]
-        assert state.satellite(Player.PORTRAIT).filter == "alpha"     # the blacked player's own is left alone
+        assert state.satellite(RoomFunestra.PORTRAIT).filter == "alpha"     # the blacked Funestra's own is left alone
 
         with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
             mock_filter.return_value = _filter_result(count=10)
-            player_state, _ = dispatch_command(
+            funestra_state, _ = dispatch_command(
                 "portrait_no_filter", BridgeState(portrait=SatelliteState(filter="alpha")), config)
-        assert player_state.satellite(Player.PORTRAIT).filter == ""
+        assert funestra_state.satellite(RoomFunestra.PORTRAIT).filter == ""
         assert _origenerator_cmds(config) == ["PORTRAIT_SAY:clear filter"]  # nothing more
 
     def test_every_spoken_phrase_has_a_command_to_dispatch(self, tmp_path):
@@ -4765,9 +4765,9 @@ class TestOrigeneratorTransport:
         with nowhere to go would be heard and silently dropped."""
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
-        for player in ("portrait", "landscape"):
+        for funestra in ("portrait", "landscape"):
             for phrase in ORIGENERATOR_PHRASES:
-                command = VOICE_COMMANDS[f"{player} {phrase}"]
+                command = VOICE_COMMANDS[f"{funestra} {phrase}"]
                 assert routes_to_origenerator(command, state, config), command
 
     def test_the_consoles_enhanced_filter_reaches_the_hosted_shows(self, tmp_path):
@@ -4782,7 +4782,7 @@ class TestOrigeneratorTransport:
         assert _origenerator_cmds(config) == ["FILTER_ENHANCED"]
 
     def test_the_enhanced_filter_is_dropped_where_no_show_is_hosted(self, tmp_path):
-        """In kino mode the satellites are players, which have no enhancements
+        """In kino mode the satellites are Funestras, which have no enhancements
         to narrow to: the verb goes nowhere rather than onto a channel nothing
         is draining."""
         config = _origenerator_config(tmp_path)
@@ -4791,7 +4791,7 @@ class TestOrigeneratorTransport:
 
         assert _origenerator_cmds(config) == []
 
-    def test_player_mode_routes_nothing_to_origenerator(self, tmp_path):
+    def test_funestra_mode_routes_nothing_to_origenerator(self, tmp_path):
         config = _origenerator_config(tmp_path)
         state, _ = dispatch_command("portrait_next", BridgeState(), config)
         assert _origenerator_cmds(config) == []
@@ -4806,8 +4806,8 @@ class TestOmniPauseWithOrigenerator:
         assert state.omni_paused
         assert config.origenerator_paused_file.read_text(encoding="utf-8") == "1"
 
-    def test_leave_sets_the_players_going_again_in_origenerator_mode(self, tmp_path):
-        """The players show the hosted app's slideshows through the mode, so the
+    def test_leave_sets_the_funestras_going_again_in_origenerator_mode(self, tmp_path):
+        """The Funestras show the hosted app's slideshows through the mode, so the
         room resuming resumes them as it does in kino mode."""
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator", omni_paused=True)
@@ -4835,7 +4835,7 @@ def test_toggle_lock_locks_and_favorites_when_unlocked(tmp_path: Path, caplog):
     ):
         state, _ops = _toggle_lock(2, _make_state(portrait=SatelliteState(locked=False)), config)
 
-    assert state.satellite(Player.PORTRAIT).locked is True
+    assert state.satellite(RoomFunestra.PORTRAIT).locked is True
     # Locking holds the current clip (LOCK) and does not advance past it.
     assert _cmds(config, 2) == ["LOCK_ON"]
     assert favs.call_args[0][1] == "clip.mp4"
@@ -4849,7 +4849,7 @@ def test_toggle_lock_unlocks_and_advances_when_locked(tmp_path: Path, caplog):
     with caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"):
         state, _ops = _toggle_lock(3, _make_state(landscape=SatelliteState(locked=True)), config)
 
-    assert state.satellite(Player.LANDSCAPE).locked is False
+    assert state.satellite(RoomFunestra.LANDSCAPE).locked is False
     # Unlocking releases the hold (UNLOCK) and moves on rather than replaying (NEXT).
     assert _cmds(config, 3) == ["LOCK_OFF", "NEXT"]
     assert "Unlocked landscape satellite" in caplog.text
@@ -4860,8 +4860,8 @@ def test_cancel_lock_writes_unlock_only_when_currently_locked(tmp_path: Path):
 
     state = cancel_lock(2, _make_state(portrait=SatelliteState(locked=True)), config)
 
-    assert state.satellite(Player.PORTRAIT).locked is False
-    # A locked player is repeat-one; cancelling it queues UNLOCK to restore advance.
+    assert state.satellite(RoomFunestra.PORTRAIT).locked is False
+    # A locked Funestra is repeat-one; cancelling it queues UNLOCK to restore advance.
     assert _cmds(config, 2) == ["LOCK_OFF"]
 
 
@@ -4870,7 +4870,7 @@ def test_cancel_lock_writes_nothing_when_not_locked(tmp_path: Path):
 
     state = cancel_lock(2, _make_state(portrait=SatelliteState(locked=False)), config)
 
-    assert state.satellite(Player.PORTRAIT).locked is False
+    assert state.satellite(RoomFunestra.PORTRAIT).locked is False
     # Nothing was locked, so there is no hold to release — no verb is queued.
     assert _cmds(config, 2) == []
 
@@ -4906,13 +4906,13 @@ def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_weird(tmp_path:
     ):
         state, ops = _discard(3, _make_state(landscape=SatelliteState(locked=True)), config)
 
-    assert state.satellite(Player.LANDSCAPE).locked is False
+    assert state.satellite(RoomFunestra.LANDSCAPE).locked is False
     # A locked discard drops the repeat-one hold (UNLOCK) then trashes the clip,
     # which advances into the playlist (TRASH).
     assert _cmds(config, 3) == ["LOCK_OFF", "TRASH"]
     assert favs.call_args[0][1] == "odd.mp4"
     assert weird.call_args[0][1] == Path("odd.mp4")
-    assert "Discarding from player 3: odd.mp4" in caplog.text
+    assert "Discarding from Funestra 3: odd.mp4" in caplog.text
     assert [(op.op, op.key, op.source) for op in ops] == [
         ("notice", "Marked weird", "landscape")
     ]
@@ -4928,7 +4928,7 @@ def test_unlocked_discard_trashes_without_unlocking(tmp_path: Path):
     ):
         state, _ops = _discard(3, _make_state(landscape=SatelliteState(locked=False)), config)
 
-    assert state.satellite(Player.LANDSCAPE).locked is False
+    assert state.satellite(RoomFunestra.LANDSCAPE).locked is False
     # Nothing to release, so discard is a bare TRASH (drop current, play next).
     assert _cmds(config, 3) == ["TRASH"]
 
@@ -4952,14 +4952,14 @@ def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path
     with caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"):
         state, ops = _discard(3, _make_state(landscape=SatelliteState(locked=False)), config)
 
-    assert state.satellite(Player.LANDSCAPE).locked is False
+    assert state.satellite(RoomFunestra.LANDSCAPE).locked is False
     # NEXT, not TRASH: it moves on from the clip but leaves it in the playlist,
     # so PREV comes straight back to it.
     assert _cmds(config, 3) == ["NEXT"]
     assert str(video) not in config.favs_file.read_text(encoding="utf-8")
     assert video.exists()
     assert list(config.weird_dir.iterdir()) == []
-    assert f"Removed from favorites on player 3: {video}" in caplog.text
+    assert f"Removed from favorites on Funestra 3: {video}" in caplog.text
     # The demotion and the condemnation look the same on screen otherwise, so
     # each says which one it was.
     assert [(op.op, op.key, op.source) for op in ops] == [
@@ -4967,7 +4967,7 @@ def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path
     ]
 
 
-def test_demoting_a_favorite_the_player_already_left_does_not_drag_it_back(tmp_path: Path):
+def test_demoting_a_favorite_the_funestra_already_left_does_not_drag_it_back(tmp_path: Path):
     """Back-dating exists so a condemned clip is the one dropped.  A demotion
     drops nothing, so a satellite that has moved on is left where it is."""
     config = _make_config(tmp_path)
@@ -4981,18 +4981,18 @@ def test_demoting_a_favorite_the_player_already_left_does_not_drag_it_back(tmp_p
     assert [op.key for op in ops] == ["Unfavorited"]
 
 
-def test_a_discard_before_the_player_has_named_its_clip_leaves_the_player_alone(tmp_path: Path):
+def test_a_discard_before_the_funestra_has_named_its_clip_leaves_the_funestra_alone(tmp_path: Path):
     config = _make_config(tmp_path)
-    assert not config.satellite(Player.LANDSCAPE).status_file.exists()
+    assert not config.satellite(RoomFunestra.LANDSCAPE).status_file.exists()
 
     state, ops = _discard(3, _make_state(landscape=SatelliteState(locked=True)), config)
 
     assert _cmds(config, 3) == []
     assert ops == []
-    assert state.satellite(Player.LANDSCAPE).locked is True
+    assert state.satellite(RoomFunestra.LANDSCAPE).locked is True
 
 
-def test_a_spoken_discard_still_demotes_its_clip_before_the_player_has_named_one(tmp_path: Path):
+def test_a_spoken_discard_still_demotes_its_clip_before_the_funestra_has_named_one(tmp_path: Path):
     config = _make_config(tmp_path)
     video = _favorite_clip(tmp_path, config, "spoken_about.mp4")
 
@@ -5028,7 +5028,7 @@ def test_discarding_a_demoted_clip_again_marks_it_weird(tmp_path: Path):
 
 
 class TestASessionThatHostsNoOrigenerator:
-    def test_a_resumed_origenerator_mode_still_drives_the_players(self, tmp_path):
+    def test_a_resumed_origenerator_mode_still_drives_the_funestras(self, tmp_path):
         """A config naming no Origenerator hosts none while its manifest still
         names the app's command file, and the shared state file can carry
         origenerator mode over from a session that hosted one: every satellite
@@ -5045,19 +5045,19 @@ class TestASessionThatHostsNoOrigenerator:
 
 
 class TestWhereEachHudSits:
-    """The Ctrl keys move a player's HUD: round the corners of its picture on the
-    desktop, against a side of its player in the headset."""
+    """The Ctrl keys move a Funestra's HUD: round the corners of its picture on the
+    desktop, against a side of its Funestra in the headset."""
 
-    def test_a_side_key_moves_that_players_hud_to_that_corner(self, tmp_path):
+    def test_a_side_key_moves_that_funestras_hud_to_that_corner(self, tmp_path):
         config = _make_config(tmp_path)
 
         state, _ops = dispatch_command("portrait_hud_right", BridgeState(), config)
         state, _ops = dispatch_command("portrait_hud_down", state, config)
 
-        assert state.satellite(Player.PORTRAIT).hud_corner is HudCorner.LOWER_RIGHT
-        assert state.satellite(Player.LANDSCAPE).hud_corner is HudCorner.UPPER_LEFT
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_corner is HudCorner.LOWER_RIGHT
+        assert state.satellite(RoomFunestra.LANDSCAPE).hud_corner is HudCorner.UPPER_LEFT
 
-    def test_the_main_players_pair_of_keys_walks_its_hud_round(self, tmp_path):
+    def test_the_main_funestras_pair_of_keys_walks_its_hud_round(self, tmp_path):
         config = _make_config(tmp_path)
 
         state, _ops = dispatch_command("main_hud_clockwise", BridgeState(), config)
@@ -5067,32 +5067,32 @@ class TestWhereEachHudSits:
         assert state.main_hud_corner is HudCorner.UPPER_LEFT
 
     def test_in_the_headset_the_same_keys_put_the_hud_against_a_side(self, tmp_path):
-        config = _make_config(tmp_path, vr_main_player=True)
+        config = _make_config(tmp_path, vr_main_funestra=True)
 
         state, _ops = dispatch_command("landscape_hud_up", BridgeState(), config)
         state, _ops = dispatch_command("main_hud_clockwise", state, config)
 
-        assert state.satellite(Player.LANDSCAPE).hud_edge is HudEdge.UPPER
+        assert state.satellite(RoomFunestra.LANDSCAPE).hud_edge is HudEdge.UPPER
         assert state.main_hud_edge is HudEdge.LEFT
-        assert state.satellite(Player.LANDSCAPE).hud_corner is HudCorner.UPPER_LEFT
+        assert state.satellite(RoomFunestra.LANDSCAPE).hud_corner is HudCorner.UPPER_LEFT
         assert state.main_hud_corner is HudCorner.UPPER_LEFT
 
     def test_a_hud_starts_against_the_lower_side_in_the_headset(self):
         assert BridgeState().main_hud_edge is HudEdge.LOWER
-        assert BridgeState().satellite(Player.PORTRAIT).hud_edge is HudEdge.LOWER
+        assert BridgeState().satellite(RoomFunestra.PORTRAIT).hud_edge is HudEdge.LOWER
 
 
 class TestAClickInACorner:
-    def test_it_moves_that_players_hud_there_and_opens_it(self, tmp_path):
+    def test_it_moves_that_funestras_hud_there_and_opens_it(self, tmp_path):
         config = _make_config(tmp_path)
         state, _ops = dispatch_command("portrait_hud_minimize", BridgeState(), config)
 
         state, _ops = dispatch_command("portrait_hud_restore_at|lower_right", state, config)
 
-        assert state.satellite(Player.PORTRAIT).hud_corner is HudCorner.LOWER_RIGHT
-        assert state.satellite(Player.PORTRAIT).hud_minimized is False
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_corner is HudCorner.LOWER_RIGHT
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_minimized is False
 
-    def test_on_the_main_player_it_moves_the_console_there_and_opens_it(self, tmp_path):
+    def test_on_the_main_funestra_it_moves_the_console_there_and_opens_it(self, tmp_path):
         config = _make_config(tmp_path)
         state, _ops = dispatch_command("main_hud_minimize", BridgeState(), config)
 
@@ -5111,14 +5111,14 @@ class TestAClickInACorner:
                                               "landscape_hud_minimized|0"]
 
     def test_in_the_headset_it_names_a_side_and_hangs_the_panel_there_open(self, tmp_path):
-        config = _make_config(tmp_path, vr_main_player=True)
+        config = _make_config(tmp_path, vr_main_funestra=True)
         state, _ops = dispatch_command("portrait_hud_minimize", BridgeState(), config)
 
         state, _ops = dispatch_command("portrait_hud_restore_at|left", state, config)
         state, _ops = dispatch_command("main_hud_restore_at|upper", state, config)
 
-        assert state.satellite(Player.PORTRAIT).hud_edge is HudEdge.LEFT
-        assert state.satellite(Player.PORTRAIT).hud_minimized is False
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_edge is HudEdge.LEFT
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_minimized is False
         assert state.main_hud_edge is HudEdge.UPPER
 
     @pytest.mark.parametrize("place", ["left", "", "middle"])
@@ -5135,17 +5135,17 @@ class TestMinimizingAHud:
     """The minus on a HUD collapses it to a square with a plus; the plus brings
     the panel back.  Said as well as pressed, and kept across a mode switch."""
 
-    def test_a_players_minus_collapses_its_hud_and_its_plus_brings_it_back(self, tmp_path):
+    def test_a_funestras_minus_collapses_its_hud_and_its_plus_brings_it_back(self, tmp_path):
         config = _make_config(tmp_path)
 
         state, _ops = dispatch_command("landscape_hud_minimize", BridgeState(), config)
-        assert state.satellite(Player.LANDSCAPE).hud_minimized is True
-        assert state.satellite(Player.PORTRAIT).hud_minimized is False
+        assert state.satellite(RoomFunestra.LANDSCAPE).hud_minimized is True
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_minimized is False
 
         state, _ops = dispatch_command("landscape_hud_restore", state, config)
-        assert state.satellite(Player.LANDSCAPE).hud_minimized is False
+        assert state.satellite(RoomFunestra.LANDSCAPE).hud_minimized is False
 
-    def test_the_main_players_panel_collapses_the_same_way(self, tmp_path):
+    def test_the_main_funestras_panel_collapses_the_same_way(self, tmp_path):
         config = _make_config(tmp_path)
 
         state, _ops = dispatch_command("main_hud_minimize", BridgeState(), config)
@@ -5154,8 +5154,8 @@ class TestMinimizingAHud:
         state, _ops = dispatch_command("main_hud_restore", state, config)
         assert state.main_hud_minimized is False
 
-    def test_a_bare_minimize_hud_reaches_whichever_player_was_addressed_last(self):
-        assert resolve_active_player_command("active_hud_minimize", 1) == "main_hud_minimize"
-        assert resolve_active_player_command("active_hud_restore", 1) == "main_hud_restore"
-        assert (resolve_active_player_command("active_hud_minimize", 3)
+    def test_a_bare_minimize_hud_reaches_whichever_funestra_was_addressed_last(self):
+        assert resolve_active_funestra_command("active_hud_minimize", 1) == "main_hud_minimize"
+        assert resolve_active_funestra_command("active_hud_restore", 1) == "main_hud_restore"
+        assert (resolve_active_funestra_command("active_hud_minimize", 3)
                 == "landscape_hud_minimize")

@@ -5,7 +5,7 @@ import logging
 from fun_time.dashboard_layout import Rect, Size
 from fun_time.event_log import NOTICE, EventRecord, is_announcement
 from fun_time.notice_placement import (
-    PlayerRects,
+    FunestraRects,
     notice_target_rect,
     top_center_position,
 )
@@ -23,26 +23,26 @@ class TestIsAnnouncement:
 
 
 class TestNoticeTargetRect:
-    def _rects(self) -> PlayerRects:
-        return PlayerRects(
+    def _rects(self) -> FunestraRects:
+        return FunestraRects(
             main=Rect(2560, 1000, 1440, 2440),
             portrait=Rect(2560, 0, 1440, 1000),
             landscape=Rect(1700, 0, 860, 1392),
             dash=Rect(0, 0, 540, 399),
         )
 
-    def test_each_player_source_maps_to_its_own_rect(self):
+    def test_each_funestra_source_maps_to_its_own_rect(self):
         rects = self._rects()
         assert notice_target_rect("main", rects) == rects.main
         assert notice_target_rect("portrait", rects) == rects.portrait
         assert notice_target_rect("landscape", rects) == rects.landscape
         assert notice_target_rect("dash", rects) == rects.dash
 
-    def test_a_system_notice_has_no_player_so_it_falls_back_to_the_main_player(self):
+    def test_a_system_notice_has_no_funestra_so_it_falls_back_to_the_main_funestra(self):
         rects = self._rects()
         assert notice_target_rect("system", rects) == rects.main
 
-    def test_an_unknown_source_falls_back_to_the_main_player(self):
+    def test_an_unknown_source_falls_back_to_the_main_funestra(self):
         rects = self._rects()
         assert notice_target_rect("nonsense", rects) == rects.main
 

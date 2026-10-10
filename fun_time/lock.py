@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .players import Player
+from .room_funestras import RoomFunestra
 
 MARKED_WEIRD = "Marked weird"
 
@@ -20,7 +20,7 @@ class LockActionPlan:
     move_to_weird: bool
     open_rfb_tab: bool
     log_message: str
-    # The glanceable version of ``log_message``, flashed over the player the
+    # The glanceable version of ``log_message``, flashed over the Funestra the
     # action was about.  Empty when there is nothing to announce — the action
     # was a no-op, or the log line is all it warrants.
     notice_message: str = ""
@@ -31,7 +31,7 @@ class LockActionPlan:
     notice_about_favorites: bool = False
 
     @classmethod
-    def lock(cls, player_name: str, *, current_path: str) -> LockActionPlan:
+    def lock(cls, funestra_name: str, *, current_path: str) -> LockActionPlan:
         return cls(
             next_locked=True,
             ensure_in_favs=bool(current_path),
@@ -40,11 +40,11 @@ class LockActionPlan:
             drop_from_playlist=False,
             move_to_weird=False,
             open_rfb_tab=True,
-            log_message=f"Locked {player_name} satellite",
+            log_message=f"Locked {funestra_name} satellite",
         )
 
     @classmethod
-    def unlock(cls, player_name: str) -> LockActionPlan:
+    def unlock(cls, funestra_name: str) -> LockActionPlan:
         return cls(
             next_locked=False,
             ensure_in_favs=False,
@@ -53,11 +53,11 @@ class LockActionPlan:
             drop_from_playlist=False,
             move_to_weird=False,
             open_rfb_tab=False,
-            log_message=f"Unlocked {player_name} satellite",
+            log_message=f"Unlocked {funestra_name} satellite",
         )
 
     @classmethod
-    def demote(cls, player: Player, current_path: str) -> LockActionPlan:
+    def demote(cls, funestra: RoomFunestra, current_path: str) -> LockActionPlan:
         return cls(
             next_locked=False,
             ensure_in_favs=False,
@@ -66,13 +66,13 @@ class LockActionPlan:
             drop_from_playlist=False,
             move_to_weird=False,
             open_rfb_tab=False,
-            log_message=f"Removed from favorites on player {player}: {current_path}",
+            log_message=f"Removed from favorites on Funestra {funestra}: {current_path}",
             notice_message="Unfavorited",
             notice_about_favorites=True,
         )
 
     @classmethod
-    def condemn(cls, player: Player, current_path: str) -> LockActionPlan:
+    def condemn(cls, funestra: RoomFunestra, current_path: str) -> LockActionPlan:
         return cls(
             next_locked=False,
             ensure_in_favs=False,
@@ -81,25 +81,25 @@ class LockActionPlan:
             drop_from_playlist=True,
             move_to_weird=True,
             open_rfb_tab=False,
-            log_message=f"Discarding from player {player}: {current_path}",
+            log_message=f"Discarding from Funestra {funestra}: {current_path}",
             notice_message=MARKED_WEIRD,
         )
 
 
-def build_lock_toggle_plan(*, player: Player, locked: bool, current_path: str) -> LockActionPlan:
-    player_name = Player(player).label
+def build_lock_toggle_plan(*, funestra: RoomFunestra, locked: bool, current_path: str) -> LockActionPlan:
+    funestra_name = RoomFunestra(funestra).label
     if locked:
-        return LockActionPlan.unlock(player_name)
-    return LockActionPlan.lock(player_name, current_path=current_path)
+        return LockActionPlan.unlock(funestra_name)
+    return LockActionPlan.lock(funestra_name, current_path=current_path)
 
 
 def build_discard_plan(
-    *, player: Player, current_path: str, is_favorite: bool = False
+    *, funestra: RoomFunestra, current_path: str, is_favorite: bool = False
 ) -> LockActionPlan:
     """Two steps, not one verdict: locking is what put a clip in the favs list,
     so a first discard only takes it back out, and a second — the clip no longer
     a favorite — condemns it.
     """
     if is_favorite:
-        return LockActionPlan.demote(player, current_path)
-    return LockActionPlan.condemn(player, current_path)
+        return LockActionPlan.demote(funestra, current_path)
+    return LockActionPlan.condemn(funestra, current_path)

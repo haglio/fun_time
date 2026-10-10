@@ -260,7 +260,7 @@ def _without_hanging(call, hwnd, *args, what: str) -> bool:
 
     ``SetWindowPos`` and ``ShowWindow`` do not merely set state: each SENDS
     messages to the thread that owns the window and waits for it to handle them,
-    with no timeout and no flag on our side that changes that — so a player
+    with no timeout and no flag on our side that changes that — so a Funestra
     whose own loop has stalled blocks the caller forever.  One did, and took the
     session with it; ``TestAWindowThatHasStoppedAnswering`` tells that story and
     holds every rule below.
@@ -268,7 +268,7 @@ def _without_hanging(call, hwnd, *args, what: str) -> bool:
     So the call is made on a throwaway thread and waited on for
     STALLED_WINDOW_TIMEOUT_S.  A healthy window answers in microseconds and nothing
     changes — including the ORDER the caller makes these calls in, which is what
-    stacks Genau's HUD above the main player's video and which posting the requests
+    stacks Genau's HUD above the Main Funestra's video and which posting the requests
     (SWP_ASYNCWINDOWPOS) would have given up.  A window that does not answer is
     named in the log, and the call it gave up on is still carried out once that
     window takes messages again — after everything placed meanwhile.
@@ -326,7 +326,7 @@ def window_rect(hwnd: int) -> tuple[int, int, int, int] | None:
     """Where *hwnd* sits, as (x, y, width, height), or None if it is gone.
 
     Read so a second window can be stood exactly on a first — the library
-    browser fills the main player's rect, since that is where the video it
+    browser fills the Main Funestra's rect, since that is where the video it
     picks will play.
     """
     rect = Win32Rect()
@@ -342,8 +342,8 @@ def set_always_on_top(hwnd: int, on_top: bool, *, under: int = 0) -> None:
     the top of the band, so the window is never over it.  Windows makes the
     window topmost there only if another topmost window sits below *under*.
 
-    Through :func:`_without_hanging`: this is the call a stalled player froze the
-    whole session on, because it waits for that player's own thread.
+    Through :func:`_without_hanging`: this is the call a stalled Funestra froze the
+    whole session on, because it waits for that Funestra's own thread.
     """
     if not on_top:
         insert_after = HWND_NOTOPMOST
@@ -392,7 +392,7 @@ class StackedWindow:
 # Framed windows carry an INVISIBLE resize border (~7-8px per edge on Windows
 # 10/11) that GetWindowRect includes: a maximized Chrome reports itself 8px
 # onto the neighboring monitor, and a docked dashboard reports 8px into the
-# player beside it.  An intersection this thin is that ghost frame, not
+# Funestra beside it.  An intersection this thin is that ghost frame, not
 # anything the eye can see covered, so the overlap test ignores it.
 _FRAME_GHOST_PX = 12
 
@@ -401,11 +401,11 @@ def _rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -
     """Whether two (x, y, w, h) rectangles share VISIBLE interior area.
 
     A shared edge (touching but not crossing) is not overlap — the portrait
-    satellite's lower edge meets the main player's top edge, and that abutment must not
+    satellite's lower edge meets the Main Funestra's top edge, and that abutment must not
     read as coverage.  Nor is an intersection thinner than a window's
     invisible resize frame (see ``_FRAME_GHOST_PX``): those slivers had the
     startup log warning that a maximized Chrome on one monitor "covered" the
-    player on the next monitor over.
+    Funestra on the next monitor over.
     """
     ax, ay, aw, ah = a
     bx, by, bw, bh = b
@@ -425,7 +425,7 @@ def windows_obscuring(
 
     This is what ``is_window_topmost`` cannot tell you: a window may carry the
     topmost flag yet still be buried under another overlapping window that was
-    promoted after it.  Only the real stacking order answers "is the main player visible."
+    promoted after it.  Only the real stacking order answers "is the Main Funestra visible."
     """
     idx = next((i for i, w in enumerate(stack) if w.hwnd == target_hwnd), None)
     if idx is None:
@@ -551,8 +551,8 @@ def minimize_window(hwnd: int, *, activate: bool = True) -> None:
     stealing when minimizing multiple windows in sequence.
 
     Through :func:`_without_hanging` for the reason set_always_on_top is: a
-    player that has stopped pumping would otherwise freeze whoever parked it —
-    the mode switch, omniminimize, or that player's own HUD button.
+    Funestra that has stopped pumping would otherwise freeze whoever parked it —
+    the mode switch, omniminimize, or that Funestra's own HUD button.
     """
     _without_hanging(
         _user32.ShowWindow, hwnd, SW_MINIMIZE if activate else SW_SHOWMINNOACTIVE,
@@ -591,7 +591,7 @@ def restore_window(hwnd: int, *, activate: bool = True) -> None:
     When *activate* is False, uses SW_SHOWNOACTIVATE so restoring several
     windows in sequence never yanks focus from one to the next.
 
-    Through :func:`_without_hanging`, so one player that has stopped answering
+    Through :func:`_without_hanging`, so one Funestra that has stopped answering
     cannot hold up the mode switch, the omnipause resume, or the rest of the
     windows coming back with it.
     """

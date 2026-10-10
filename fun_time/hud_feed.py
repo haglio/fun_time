@@ -1,4 +1,4 @@
-"""What the players draw for themselves: the lock HUDs and the main console.
+"""What the Funestras draw for themselves: the lock HUDs and the main console.
 
 The dispatch loop holds the state these are drawn from (locks, filters, loops)
 and already ticks, so it is what feeds them — but building a panel is a question
@@ -9,34 +9,34 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from player_core.console import aim_row, console_text
-from player_core.drive_readout import read_drive
-from player_core.satellite_hud import HudModel, hud_text, parse_hud
+from funestra_core.console import aim_row, console_text
+from funestra_core.drive_readout import read_drive
+from funestra_core.satellite_hud import HudModel, hud_text, parse_hud
 
-from main_player.controls import longer_than_a_step
+from main_funestra.controls import longer_than_a_step
 
 from .bridge_records import BridgeConfig
 from .command_dispatch import (
     genau_clip_shapes,
-    main_player_at_defaults,
+    main_funestra_at_defaults,
     main_video_shapes,
     satellite_at_defaults,
 )
 from .console_buttons import osr2_controls
 from .crown import Crown
-from .hud_transport import HudPublisher, hosted_model
-from .lock_hud import SatelliteInputs, build_panels
-from .main_player_console import MainSlotInputs, console_model, device_word
-from .media_renditions import renditions
-from .modes import is_favorite_path, read_favs_content
-from .osr2_section import DeviceBlock, player_with_the_osr2
-from .player_status import (
+from .funestra_status import (
     is_broker_heartbeat_fresh,
     is_osr2_device_on,
     read_genau_status,
-    read_main_player_status,
+    read_main_funestra_status,
 )
-from .players import Player
+from .hud_transport import HudPublisher, hosted_model
+from .lock_hud import SatelliteInputs, build_panels
+from .main_funestra_console import MainSlotInputs, console_model, device_word
+from .media_renditions import renditions
+from .modes import is_favorite_path, read_favs_content
+from .osr2_section import DeviceBlock, funestra_with_the_osr2
+from .room_funestras import RoomFunestra
 from .runtime_flow import read_flag_file
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .satellites_mode import origenerator_shows
@@ -61,7 +61,7 @@ class HudFeed:
         self._favs_text = ""
         self._favs_stamp: tuple[int, int] | None = None
         self._last_satellite_status: dict[str, SatelliteStatus] = {}
-        self._hosted_panels: dict[Player, HudModel | None] = {}
+        self._hosted_panels: dict[RoomFunestra, HudModel | None] = {}
 
     def publish_due(self, state: BridgeState, *, now: float) -> None:
         """Publish, if the cadence says it is time."""
@@ -83,12 +83,12 @@ class HudFeed:
         broker = (is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
                   if self.config.broker_heartbeat_file else False)
         osr2_mode = self.osr2_mode()
-        with_the_osr2 = player_with_the_osr2(state)
+        with_the_osr2 = funestra_with_the_osr2(state)
 
-        def device(player: Player) -> DeviceBlock:
-            if player is not with_the_osr2:
-                return DeviceBlock.offered_to(player)
-            scripted = read_satellite_status(self.config.satellite(player).status_file)
+        def device(funestra: RoomFunestra) -> DeviceBlock:
+            if funestra is not with_the_osr2:
+                return DeviceBlock.offered_to(funestra)
+            scripted = read_satellite_status(self.config.satellite(funestra).status_file)
             return DeviceBlock(
                 rows=(aim_row(cruise=genau.cruise_active, learned=genau.learned_active,
                               shape=genau.shape, control=state.osr2_control),),
@@ -97,12 +97,12 @@ class HudFeed:
                 controls=osr2_controls(broker=broker),
                 max_intensity=state.max_intensity)
 
-        def satellite(name: str, player: Player, *, sources: str, status_file: Path) -> SatelliteInputs:
+        def satellite(name: str, funestra: RoomFunestra, *, sources: str, status_file: Path) -> SatelliteInputs:
             status = self._satellite_status(name, status_file)
             current = status.video
-            values = state.satellite(player)
+            values = state.satellite(funestra)
             return SatelliteInputs(
-                player=name, sources=sources, current=current, locked=values.locked,
+                funestra=name, sources=sources, current=current, locked=values.locked,
                 hud_corner=values.hud_corner, hud_edge=values.hud_edge,
                 hud_minimized=values.hud_minimized,
                 filter_query=values.filter,
@@ -119,16 +119,16 @@ class HudFeed:
             )
 
         if self.config.origenerator_enabled and origenerator_shows(state.satellites_mode):
-            for player in Player.SATELLITES:
-                self.publisher.publish_text(player.label, hud_text(hosted_model(
-                    player.label, self._hosted_panel(player),
-                    active=state.active_player == player,
+            for funestra in RoomFunestra.SATELLITES:
+                self.publisher.publish_text(funestra.label, hud_text(hosted_model(
+                    funestra.label, self._hosted_panel(funestra),
+                    active=state.active_funestra == funestra,
                     origenerator_ready=state.origenerator_ready,
-                    in_vr=self.config.vr_main_player,
-                    crowned=state.crowned == player.label, device=device(player),
-                    hud_corner=state.satellite(player).hud_corner,
-                    hud_edge=state.satellite(player).hud_edge,
-                    hud_minimized=state.satellite(player).hud_minimized)))
+                    in_vr=self.config.vr_main_funestra,
+                    crowned=state.crowned == funestra.label, device=device(funestra),
+                    hud_corner=state.satellite(funestra).hud_corner,
+                    hud_edge=state.satellite(funestra).hud_edge,
+                    hud_minimized=state.satellite(funestra).hud_minimized)))
         else:
             portrait, landscape = build_panels(
                 satellite("portrait", 2, sources=self.config.portrait_sources,
@@ -136,21 +136,21 @@ class HudFeed:
                 satellite("landscape", 3, sources=self.config.landscape_sources,
                      status_file=self.config.landscape_status_file),
                 metadata_root=self.config.regen_metadata_root,
-                active_player=Player.label_of(state.active_player),
+                active_funestra=RoomFunestra.label_of(state.active_funestra),
                 # None for a session hosting no Origenerator — the HUDs then draw
                 # no mode pair at all, rather than a switch that can only dead-end.
                 satellites_mode=(state.satellites_mode
                                  if self.config.origenerator_enabled else None),
                 origenerator_ready=state.origenerator_ready,
-                in_vr=self.config.vr_main_player,
+                in_vr=self.config.vr_main_funestra,
                 crowned=state.crowned,
             )
-            self.publisher.publish("portrait", portrait, device(Player.PORTRAIT))
-            self.publisher.publish("landscape", landscape, device(Player.LANDSCAPE))
-        # The main console: the controls for whichever player owns the slot,
-        # what has the OSR2, whether the broker is up, and which player a bare
-        # command reaches -- none of which the player can see for itself.
-        main_player = read_main_player_status(self.config.main_player_status_file)
+            self.publisher.publish("portrait", portrait, device(RoomFunestra.PORTRAIT))
+            self.publisher.publish("landscape", landscape, device(RoomFunestra.LANDSCAPE))
+        # The main console: the controls for whichever Funestra owns the slot,
+        # what has the OSR2, whether the broker is up, and which Funestra a bare
+        # command reaches -- none of which the Funestra can see for itself.
+        main_funestra = read_main_funestra_status(self.config.main_funestra_status_file)
         main_shapes = main_video_shapes(state, self.config)
         genau_shapes = genau_clip_shapes(state, self.config)
         self.publisher.publish_text("main_player", console_text(console_model(MainSlotInputs(
@@ -158,7 +158,7 @@ class HudFeed:
             hud_corner=state.main_hud_corner,
             hud_edge=state.main_hud_edge,
             hud_minimized=state.main_hud_minimized,
-            active=state.active_player == Player.MAIN,
+            active=state.active_funestra == RoomFunestra.MAIN,
             scripted_filter=state.main_scripted_filter,
             latest=state.main_latest,
             genau_latest=state.genau_latest,
@@ -169,22 +169,22 @@ class HudFeed:
             osr2_mode=osr2_mode,
             osr2_control=state.osr2_control,
             broker=broker,
-            # The console's buttons are lit and named from what each player
-            # published, since the player drawing it is not always their subject.
-            main_player=main_player,
+            # The console's buttons are lit and named from what each Funestra
+            # published, since the Funestra drawing it is not always their subject.
+            main_funestra=main_funestra,
             genau=genau,
             genau_pace_s=self._genau_pace_s(),
-            nothing_to_reset=main_player_at_defaults(state, self.config, main_player),
-            in_vr=self.config.vr_main_player,
+            nothing_to_reset=main_funestra_at_defaults(state, self.config, main_funestra),
+            in_vr=self.config.vr_main_funestra,
             crowned=state.crowned is Crown.MAIN,
-            has_osr2=with_the_osr2 is Player.MAIN,
+            has_osr2=with_the_osr2 is RoomFunestra.MAIN,
             max_intensity=state.max_intensity,
         ))))
 
-    def _hosted_panel(self, player: Player) -> HudModel | None:
-        """The hosted app's panel for *player*'s side, or None; one it is
+    def _hosted_panel(self, funestra: RoomFunestra) -> HudModel | None:
+        """The hosted app's panel for *Funestra*'s side, or None; one it is
         replacing this instant leaves the panel read before it standing."""
-        path = self.config.satellite(player).origenerator_hud_file
+        path = self.config.satellite(funestra).origenerator_hud_file
         if path is None:
             return None
         try:
@@ -192,8 +192,8 @@ class HudFeed:
         except FileNotFoundError:
             text = ""
         except OSError:
-            return self._hosted_panels.get(player)
-        panel = self._hosted_panels[player] = parse_hud(text)
+            return self._hosted_panels.get(funestra)
+        panel = self._hosted_panels[funestra] = parse_hud(text)
         return panel
 
     def _genau_pace_s(self) -> int:
@@ -218,13 +218,13 @@ class HudFeed:
             self._favs_text = read_favs_content(self.config.favs_file)
         return self._favs_text
 
-    def _satellite_status(self, player: str, status_file: Path) -> SatelliteStatus:
-        """What *player* last said about itself, held over a read that comes back
+    def _satellite_status(self, funestra: str, status_file: Path) -> SatelliteStatus:
+        """What *Funestra* last said about itself, held over a read that comes back
         blank.
 
         A satellite always has a clip — it cannot discard its way to an empty
         playlist — so once one has named a clip, a blank status means the read
-        lost a race with the player's own republish, not that the player has
+        lost a race with the Funestra's own republish, not that the Funestra has
         nothing.  Believing the blank builds an empty panel, and publishing that
         blanks the map on screen until the next tick puts it back.  Before a
         satellite's first status there is nothing to hold, and an empty map is
@@ -232,9 +232,9 @@ class HudFeed:
         """
         status = read_satellite_status(status_file)
         if status.video:
-            self._last_satellite_status[player] = status
+            self._last_satellite_status[funestra] = status
             return status
-        return self._last_satellite_status.get(player, status)
+        return self._last_satellite_status.get(funestra, status)
 
     def osr2_mode(self) -> str:
         """What the device is doing: "off" when nothing is on the wire at all,

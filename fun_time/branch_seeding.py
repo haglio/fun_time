@@ -18,7 +18,7 @@ PRIVATE_OVERLAYS = (
     Path("fun_time") / "static" / "regen_autofill.user.js",
 )
 
-# The main player's per-video durations, merged rather than copied.  Startup waits
+# The Main Funestra's per-video durations, merged rather than copied.  Startup waits
 # for it to report the video it is opening, it reports nothing until it has that
 # video's duration, and against a cold cache it probes the whole library first:
 # measured at 20s where a warm one is 0.1s.
@@ -50,7 +50,7 @@ def mirror_private_overlays(primary: Path, worktree: Path) -> list[Path]:
 def merge_duration_cache(live_state: Path, branch_state: Path) -> int:
     """Union the live session's durations into the branch's; return the total.
 
-    Copy-if-newer cannot work here: the main player rewrites the file with what
+    Copy-if-newer cannot work here: the Main Funestra rewrites the file with what
     it loaded plus what it probed, so a branch's copy shrinks to its own view of
     the library and is then newer than the live session's.  Both are partial
     views of one library, and a stale entry costs nothing -- every entry is

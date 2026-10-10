@@ -40,4 +40,4 @@ jobs:
         git clone --quiet --depth 1 --branch "$tag" \
           https://github.com/haglio/player_core.git "$RUNNER_TEMP/player_core"
         python "$RUNNER_TEMP/player_core/tools/fetch_libmpv.py" --require
-        python -c "import app_support, shared_ui; from player_core.mpv_player import _import_mpv; _import_mpv(); print('imports OK')"
+        python -c "import app_support, shared_ui; from funestra_core.mpv_engine import _import_mpv; _import_mpv(); print('imports OK')"

@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from itertools import pairwise
 
-from player_core.hud_button import FIT_THE_WORD, Button
-from player_core.hud_marks import FMODE_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
-from player_core.modes import SatellitesMode
+from funestra_core.hud_button import FIT_THE_WORD, Button
+from funestra_core.hud_marks import FMODE_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
+from funestra_core.modes import SatellitesMode
 from shared_ui.icon_geometry import glyph_names
 
-from fun_time.satellite_buttons import player_rows
+from fun_time.satellite_buttons import funestra_rows
 from tests.symbol_face import typed_in_the_symbol_face
 
 
 def _band(**fields) -> tuple[Button, ...]:
-    return player_rows("portrait", **fields)[-1]
+    return funestra_rows("portrait", **fields)[-1]
 
 
 def _names(buttons: tuple[Button, ...]) -> list[str]:
@@ -26,7 +26,7 @@ def _faces() -> dict[str, str]:
     return dict(zip(_names(band), (button.glyph for button in band)))
 
 
-def test_the_band_is_the_players_own_controls_in_the_consoles_order():
+def test_the_band_is_the_funestras_own_controls_in_the_consoles_order():
     """The browse pair with the ten-second steps between them, then the three about
     the clip on screen and the library it came from, then the reset, then the
     browse order, then another rendition of the clip, as the console ends its own
@@ -37,12 +37,12 @@ def test_the_band_is_the_players_own_controls_in_the_consoles_order():
         "shuffle", "latest", "cycle_version", "minimize", "crown"]
 
 
-def test_every_button_posts_that_players_own_verb():
+def test_every_button_posts_that_funestras_own_verb():
     """"portrait_prev", "landscape_trash": the dispatch loop needs no new verbs
     for a button, only for the thing it does."""
-    for player in ("portrait", "landscape"):
-        for button in player_rows(player, latest=True)[-1]:
-            assert button.command.startswith(f"{player}_"), button.command
+    for funestra in ("portrait", "landscape"):
+        for button in funestra_rows(funestra, latest=True)[-1]:
+            assert button.command.startswith(f"{funestra}_"), button.command
             assert button.tooltip, button.command
 
 
@@ -90,27 +90,27 @@ def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
     """A row of its own above the band, like the console's Kino/Genau row: the
     side's current mode lit, minimize riding the row a group apart, and no such
     row at all for a session hosting no Origenerator."""
-    rows = player_rows("portrait", satellites_mode=SatellitesMode.ORIGENERATOR)
+    rows = funestra_rows("portrait", satellites_mode=SatellitesMode.ORIGENERATOR)
 
     assert len(rows) == 2
     assert [b.command for b in rows[0]] == [
         "satellites_kino_activate", "origenerator_activate", "portrait_minimize",
         "portrait_crown"]
     assert [b.glyph for b in rows[0][:2]] == ["Kino", "Origenerator"]
-    assert rows[0][0].tooltip == "Kino mode — the satellite players and the Random Favs Browser"
+    assert rows[0][0].tooltip == "Kino mode — the Satellite Funestras and the Random Favs Browser"
     assert [b.lit for b in rows[0]][:3] == [False, True, False]
     assert [b.width for b in rows[0][:2]] == [FIT_THE_WORD, FIT_THE_WORD]
     assert rows[0][2].group_break and rows[0][2].glyph == MINIMIZE_ICON
     assert "minimize" not in _names(rows[1])
-    assert len(player_rows("portrait")) == 1
+    assert len(funestra_rows("portrait")) == 1
 
 
-def test_a_player_in_the_headset_has_no_window_to_minimize():
-    """Minimize parks a player's window, and in the headset a player is a
+def test_a_funestra_in_the_headset_has_no_window_to_minimize():
+    """Minimize parks a Funestra's window, and in the headset a Funestra is a
     screen in the scene rather than a window of its own: there is nothing for
     it to park, so it is left off the band and off the session's row alike."""
-    plain = player_rows("portrait", latest=False, in_vr=True)
-    hosting = player_rows("portrait", latest=False, satellites_mode=SatellitesMode.KINO,
+    plain = funestra_rows("portrait", latest=False, in_vr=True)
+    hosting = funestra_rows("portrait", latest=False, satellites_mode=SatellitesMode.KINO,
                           in_vr=True)
 
     assert _names(plain[-1])[-1] == "cycle_version"
@@ -122,12 +122,12 @@ def test_a_player_in_the_headset_has_no_window_to_minimize():
 def test_the_origenerator_button_is_dim_until_that_app_is_up():
     """The room opens without waiting out the hosted app's boot, so for the
     first half-minute the switch would land on windows that do not exist.  Dim
-    is this family's unpressable state: the player draws it faded, posts
+    is this family's unpressable state: the Funestra draws it faded, posts
     nothing for a press on it, and still answers a hover -- with what it is
     waiting for, since knowing why it cannot be pressed is the point."""
-    starting = {b.command: b for b in player_rows(
+    starting = {b.command: b for b in funestra_rows(
         "portrait", satellites_mode=SatellitesMode.KINO, origenerator_ready=False)[0]}
-    ready = {b.command: b for b in player_rows(
+    ready = {b.command: b for b in funestra_rows(
         "portrait", satellites_mode=SatellitesMode.KINO, origenerator_ready=True)[0]}
 
     assert starting["origenerator_activate"].dim
@@ -179,7 +179,7 @@ def test_the_ten_second_steps_are_dim_on_a_clip_of_ten_seconds_or_shorter():
 
 def test_the_versions_button_is_dim_where_the_clip_has_only_itself():
     """The console's own versions mark, and dim where there is nothing to step
-    to — the way the main player's is, with the hover saying so."""
+    to — the way the Main Funestra's is, with the hover saying so."""
     alone = {b.command: b for b in _band()}["portrait_cycle_version"]
     paired = {b.command: b for b in _band(has_other_versions=True)}["portrait_cycle_version"]
 
@@ -188,7 +188,7 @@ def test_the_versions_button_is_dim_where_the_clip_has_only_itself():
     assert shared_mark_name(_faces()["cycle_version"]) == "versions"
 
 
-def test_the_portrait_players_crown_is_lit_while_it_holds_the_crown():
+def test_the_portrait_funestras_crown_is_lit_while_it_holds_the_crown():
     held = _band(crowned=True)[-1]
     given_away = _band(crowned=False)[-1]
 
@@ -196,8 +196,8 @@ def test_the_portrait_players_crown_is_lit_while_it_holds_the_crown():
     assert held.tooltip.startswith("Crowned")
 
 
-def test_only_the_portrait_player_wears_a_crown():
+def test_only_the_portrait_funestra_wears_a_crown():
     assert "landscape_crown" not in [
-        button.command for row in player_rows("landscape", latest=False,
+        button.command for row in funestra_rows("landscape", latest=False,
                                                satellites_mode=SatellitesMode.KINO)
         for button in row]

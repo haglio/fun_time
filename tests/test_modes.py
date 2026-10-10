@@ -161,15 +161,15 @@ def test_build_all_playlists_writes_satellite_playlist_files(tmp_path: Path):
         rng=random.Random(1),
     )
 
-    # Each player reads a playlist of its own.  One video from each source survives
-    # the favorites filter, and only the main player's has a script beside it.
+    # Each Funestra reads a playlist of its own.  One video from each source survives
+    # the favorites filter, and only the Main Funestra's has a script beside it.
     assert _lines(state_dir / "portrait_playlist.tsv") == [str(portrait_video)]
     assert _lines(state_dir / "landscape_playlist.tsv") == [str(landscape_video)]
     assert _lines(state_dir / "main_player_playlist.tsv") == [f"{main_video}\t{mirrored}"]
     assert not (state_dir / "main_playlist.tsv").exists()
 
 
-def test_build_all_playlists_writes_main_player_playlist_with_funscript_pairs(tmp_path: Path):
+def test_build_all_playlists_writes_main_funestra_playlist_with_funscript_pairs(tmp_path: Path):
     primary_root = tmp_path / "videos" / "videos" / "primary"
     primary_root.mkdir(parents=True)
     scripted_video = primary_root / "scripted.mp4"
@@ -349,7 +349,7 @@ def test_a_side_screens_playlist_pairs_each_video_with_its_funscript(tmp_path: P
     assert _lines(playlist) == [f"{scripted}\t{script}", str(plain)]
 
 
-def test_the_main_players_playlist_pairs_a_kept_video_with_the_librarys_script(tmp_path: Path):
+def test_the_main_funestras_playlist_pairs_a_kept_video_with_the_librarys_script(tmp_path: Path):
     library = tmp_path / "library" / "videos"
     kept = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished" / "scene one.mp4"
     script = library / "scripts" / "scripts" / "VR" / "finished" / "scene one.funscript"

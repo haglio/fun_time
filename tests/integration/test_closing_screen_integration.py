@@ -48,7 +48,7 @@ def test_the_real_cover_is_on_screen_for_the_whole_teardown(tmp_path: Path):
         )
         # The flag teardown waited on came from the screen itself, not from us.
         assert ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
-        progress.advance("players")
+        progress.advance("funestras")
 
     assert not find_window_by_title(WINDOW_TITLE, exact=True), (
         "the cover outlived the teardown it was hiding"
@@ -65,7 +65,7 @@ def test_the_real_cover_stays_up_while_a_part_takes_longer_than_its_guard_to_end
 
     with _closing_screen(state_dir, enabled=True,
                          project_dirs=checkout_project_dirs()) as progress:
-        progress.advance("players")
+        progress.advance("funestras")
         with progress.cover_kept_up():
             time.sleep(STALE_TIMEOUT_S + 2)
         still_up = bool(find_window_by_title(WINDOW_TITLE, exact=True))

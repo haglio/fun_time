@@ -1,4 +1,4 @@
-"""The browsable handles of the main player library — one per version group."""
+"""The browsable handles of the Main Funestra library — one per version group."""
 from __future__ import annotations
 
 import json

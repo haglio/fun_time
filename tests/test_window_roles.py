@@ -25,7 +25,7 @@ class TestRoleTopmost:
                 assert role_topmost(role, satellites_mode) is True, (role, satellites_mode)
 
     def test_role_groups_partition_the_managed_set(self):
-        """The Main Player is among the windows with a rect of their own: Kino
+        """The Main Funestra is among the windows with a rect of their own: Kino
         and Genau both run on it, so the main slot has no hidden half to keep
         out of the band."""
         assert set(MANAGED_ROLES) == {

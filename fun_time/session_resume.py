@@ -1,4 +1,4 @@
-"""Bring a reopened session back to the clip each player was on, and the state
+"""Bring a reopened session back to the clip each Funestra was on, and the state
 that shaped its playlists: ``docs/resuming-a-session.md``."""
 from __future__ import annotations
 
@@ -7,21 +7,21 @@ from dataclasses import fields, replace
 from pathlib import Path
 
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from player_core.clip_advance import ClipAdvanceState
-from player_core.drive_readout import read_drive
-from player_core.file_channel import append_command
-from player_core.player_verbs import LOCK_OFF, LOCK_ON, SET_SPEED
-from player_core.playlist import PlaylistItem, read_playlist, write_playlist
-from player_core.robot_hand import RobotHandState, WaveformShape
-from player_core.status import PlayerStatus
+from funestra_core.clip_advance import ClipAdvanceState
+from funestra_core.drive_readout import read_drive
+from funestra_core.file_channel import append_command
+from funestra_core.funestra_verbs import LOCK_OFF, LOCK_ON, SET_SPEED
+from funestra_core.playlist import PlaylistItem, read_playlist, write_playlist
+from funestra_core.robot_hand import RobotHandState, WaveformShape
+from funestra_core.status import FunestraStatus
 
-from main_player.loop_verbs import SET_LOOP
+from main_funestra.loop_verbs import SET_LOOP
 
+from .funestra_handover import take_back_the_list
+from .funestra_status import MainFunestraStatus, read_genau_status
 from .media_metadata import normalize_path_key
 from .modes import rotated_onto, source_roots
-from .player_handover import take_back_the_list
-from .player_status import MainPlayerStatus, read_genau_status
-from .players import Player
+from .room_funestras import RoomFunestra
 from .shared_state import (
     BridgeState,
     SatelliteState,
@@ -45,7 +45,7 @@ LEARNED_ON = "LEARNED_ON"
 # each, is docs/resuming-a-session.md.
 NOT_RESUMED = frozenset({
     "omni_paused",
-    "active_player",
+    "active_funestra",
     "origenerator_ready",
     "majority",
 })
@@ -92,8 +92,8 @@ def _is_within(video: Path, root: Path) -> bool:
 
 
 def playlist_opens_on(playlist_file: Path, video: str) -> bool:
-    """Whether the player handed *playlist_file* will load *video*, every player
-    starting at the top.  Asked before the main player's loop is handed back."""
+    """Whether the Funestra handed *playlist_file* will load *video*, every Funestra
+    starting at the top.  Asked before the Main Funestra's loop is handed back."""
     return playlist_leads_with(read_playlist(playlist_file), video)
 
 
@@ -109,9 +109,9 @@ def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
 
 
 def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
-    """Rotate each playlist file onto the video its player last had on screen.
+    """Rotate each playlist file onto the video its Funestra last had on screen.
 
-    *resumptions* pairs a playlist file with the video named in that player's
+    *resumptions* pairs a playlist file with the video named in that Funestra's
     status file; the answer is whether there was a session to come back to.
     """
     for playlist_file, _ in resumptions:
@@ -177,9 +177,9 @@ def resume_genau(genau_cmd_file: Path, state_dir: Path) -> None:
         append_command(Path(genau_cmd_file), verb)
 
 
-def resume_main_lock(main_player_cmd_file: Path, *, locked: bool) -> None:
+def resume_main_lock(main_funestra_cmd_file: Path, *, locked: bool) -> None:
     if not locked:
-        append_command(Path(main_player_cmd_file), LOCK_OFF)
+        append_command(Path(main_funestra_cmd_file), LOCK_OFF)
 
 
 def resume_rates(rates: Sequence[tuple[Path, float]]) -> None:
@@ -188,24 +188,24 @@ def resume_rates(rates: Sequence[tuple[Path, float]]) -> None:
             append_command(Path(command_file), f"{SET_SPEED} {rate:g}")
 
 
-def resume_what_lives_in_a_player(
+def resume_what_lives_in_a_funestra(
     *,
-    main_player: tuple[Path, MainPlayerStatus],
-    satellites: Sequence[tuple[Path, PlayerStatus]],
+    main_funestra: tuple[Path, MainFunestraStatus],
+    satellites: Sequence[tuple[Path, FunestraStatus]],
     genau_cmd_file: Path,
     state_dir: Path,
 ) -> None:
-    """What any reopen re-sends because it lives in a player: ``docs/entering-vr.md``."""
-    main_player_cmd_file, main_player_status = main_player
+    """What any reopen re-sends because it lives in a Funestra: ``docs/entering-vr.md``."""
+    main_funestra_cmd_file, main_funestra_status = main_funestra
     resume_rates([
-        (main_player_cmd_file, main_player_status.speed),
+        (main_funestra_cmd_file, main_funestra_status.speed),
         *((command_file, status.speed) for command_file, status in satellites),
     ])
-    resume_main_lock(main_player_cmd_file, locked=main_player_status.locked)
+    resume_main_lock(main_funestra_cmd_file, locked=main_funestra_status.locked)
     resume_genau(genau_cmd_file, state_dir)
 
 
-def resume_main_loop(main_player_cmd_file: Path, status: MainPlayerStatus,
+def resume_main_loop(main_funestra_cmd_file: Path, status: MainFunestraStatus,
                      playlist_file: Path) -> None:
     """Queue SET_LOOP for the loop *status* was left running.
 
@@ -217,7 +217,7 @@ def resume_main_loop(main_player_cmd_file: Path, status: MainPlayerStatus,
         return
     bounds = status.loop_bounds
     if bounds is not None:
-        append_command(Path(main_player_cmd_file), f"{SET_LOOP} {bounds[0]} {bounds[1]}")
+        append_command(Path(main_funestra_cmd_file), f"{SET_LOOP} {bounds[0]} {bounds[1]}")
 
 
 def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:
@@ -229,8 +229,8 @@ def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:
     previous = read_shared_state(state_file) if resumed else None
     state = BridgeState() if previous is None else replace(
         BridgeState(**{field: getattr(previous, field) for field in RESUMED_FIELDS}),
-        portrait=_resumed_satellite(previous.satellite(Player.PORTRAIT)),
-        landscape=_resumed_satellite(previous.satellite(Player.LANDSCAPE)),
+        portrait=_resumed_satellite(previous.satellite(RoomFunestra.PORTRAIT)),
+        landscape=_resumed_satellite(previous.satellite(RoomFunestra.LANDSCAPE)),
     )
     write_shared_state(state_file, state)
     return state

@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
+from fun_time.funestra_status import read_genau_status
 from fun_time.lock import MARKED_WEIRD
-from fun_time.player_status import read_genau_status
 
 from .integration_support import (
     FunTimeIntegrationSession,
@@ -57,7 +57,7 @@ def _genaus_clip(session: FunTimeIntegrationSession) -> str:
     return read_genau_status(session.config.genau_status_file).clip
 
 
-def test_genaus_keys_do_nothing_with_video_on_the_main_player_and_mark_weird_says_so_in_genau_mode():
+def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_weird_says_so_in_genau_mode():
     clips = build_integration_temp_root() / "genau" / "clips"
     (clips / "2D" / "non_AI").mkdir(parents=True)
     for name in ("alpha one.mp4", "beta two.mp4", "gamma three.mp4"):

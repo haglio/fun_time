@@ -19,9 +19,9 @@
     the user's desktop — it is just much shorter there, because starting a
     tkinter window is not starting a VR runtime.
   - What IS ours in that stretch is already handled: the cover goes up before
-    the players are built rather than after (the compositor holds that frame
+    the Funestras are built rather than after (the compositor holds that frame
     through the seconds of mpv bring-up), and its progress file is written
-    before the player is launched, so the bar is where the launch actually is
+    before the Funestra is launched, so the bar is where the launch actually is
     from the very first frame the headset can show.
 
 ## FunTimeVR: What a VR Session Does Not Launch
@@ -34,9 +34,9 @@
     headset's output) all run in VR as of 2026-09-04, on the engine that moved to
     `player_core` for it; GenauVR, the standalone headset app, is retired with that.
   - The hosted Origenerator IS launched, as of 2026-09-20, so origenerator mode
-    runs in the headset: the mode's shows are the satellite players' own
-    playlists (`fun_time.player_handover`), and the headset's satellites are
-    players. `fun_time.hosted_origenerator` brings the app up for either shape
+    runs in the headset: the mode's shows are the Satellite Funestras' own
+    playlists (`fun_time.funestra_handover`), and the headset's satellites are
+    Funestras. `fun_time.hosted_origenerator` brings the app up for either shape
     of session and sees it out of either teardown. What a headset has nowhere to
     show is the app's own window, which shares the Random Favs Browser's rect:
     it boots parked and nothing in a VR session restores it, so the gallery and
@@ -63,8 +63,8 @@
     screens in) everything draws in one layer and the chrome sits on top.
   - For the same reason a squeeze cannot bring a screen forward across that
     split: with it on, the videos taken as quads stay in front of the console,
-    the dashboard and the reference, and the satellites in front of the main
-    player, whichever of them was taken hold of last.
+    the dashboard and the reference, and the satellites in front of the Main
+    Funestra, whichever of them was taken hold of last.
 - Notes:
   - Recorded here rather than in module docstrings (2026-08-30, audit item 25):
     the same deferral was once written out in five places, free to drift apart,
@@ -91,7 +91,7 @@
   - Several controller-side attempts were made to force topmost off during OmniPause.
   - Those attempts did not resolve the issue reliably enough to justify carrying more AHK-specific complexity while the Windows bridge is actively being reduced toward a thinner hotkey/window listener.
   - This should be revisited after more window-management responsibility has been extracted out of `windows_bridge.ahk`.
-- Resolution: Window management now lives entirely in the Python bridge, whose OmniPause pass (`_remove_all_topmost`) drops every topmost-flagged window. The last window that stayed pinned was the main player: startup blanket-promoted every window to topmost, but OmniPause consulted a per-role policy where the main player is intentionally non-topmost (it rides under Genau's HUD), so the un-topmost pass skipped it and never released it. Both sides now read one shared `ROLE_TOPMOST` policy (`fun_time/window_roles.py`), and startup applies each window's own flag instead of forcing all-topmost — so startup and OmniPause can no longer disagree. (MFP no longer exists.)
+- Resolution: Window management now lives entirely in the Python bridge, whose OmniPause pass (`_remove_all_topmost`) drops every topmost-flagged window. The last window that stayed pinned was the Main Funestra: startup blanket-promoted every window to topmost, but OmniPause consulted a per-role policy where the Main Funestra is intentionally non-topmost (it rides under Genau's HUD), so the un-topmost pass skipped it and never released it. Both sides now read one shared `ROLE_TOPMOST` policy (`fun_time/window_roles.py`), and startup applies each window's own flag instead of forcing all-topmost — so startup and OmniPause can no longer disagree. (MFP no longer exists.)
 
 ## Python Dashboard Text Rendering Is Ugly
 

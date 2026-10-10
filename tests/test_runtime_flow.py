@@ -5,13 +5,13 @@ import os
 from pathlib import Path
 
 import pytest
-from player_core.console import OSR2_CONTROL_OFF, OSR2_DRIVING
-from player_core.modes import MainMode
+from funestra_core.console import OSR2_CONTROL_OFF, OSR2_DRIVING
+from funestra_core.modes import MainMode
 
 from fun_time.media_metadata import metadata_path_for
-from fun_time.players import Player
+from fun_time.room_funestras import RoomFunestra
 from fun_time.runtime_flow import (
-    FMODE_PLAYERS,
+    FMODE_FUNESTRAS,
     SatelliteFmodeInputs,
     apply_enter_omnipause,
     apply_fmode,
@@ -38,12 +38,12 @@ def _make_action_video(
     return str(video)
 
 
-def _satellite_lines(state_dir: Path, player: str) -> list[str]:
+def _satellite_lines(state_dir: Path, funestra: str) -> list[str]:
     """The plain video-path lines a satellite's playlist file holds.
 
-    The native player reads a plain one-path-per-line file, with no header,
-    written to ``state_dir/{player}_playlist.tsv``."""
-    return (state_dir / f"{player}_playlist.tsv").read_text(encoding="utf-8").splitlines()
+    The native Funestra reads a plain one-path-per-line file, with no header,
+    written to ``state_dir/{Funestra}_playlist.tsv``."""
+    return (state_dir / f"{funestra}_playlist.tsv").read_text(encoding="utf-8").splitlines()
 
 
 def _reloaded(cmd_file: Path) -> bool:
@@ -61,8 +61,8 @@ def flow_files(tmp_path: Path) -> dict[str, Path]:
         "genau_paused_file": tmp_path / "genau_paused.txt",
         "audio_paused_file": tmp_path / "audio_paused.txt",
         "genau_cmd_file": tmp_path / "genau_cmd.txt",
-        "main_player_paused_file": tmp_path / "main_player_paused.txt",
-        "main_player_cmd_file": tmp_path / "main_player_cmd.txt",
+        "main_funestra_paused_file": tmp_path / "main_player_paused.txt",
+        "main_funestra_cmd_file": tmp_path / "main_player_cmd.txt",
         "broker_cmd_file": tmp_path / "broker_cmd.txt",
     }
 
@@ -73,14 +73,14 @@ def _mode_switch(files, *, current, target, omni_paused=False):
         target_mode=target,
         omni_paused=omni_paused,
         genau_cmd_file=files["genau_cmd_file"],
-        main_player_paused_file=files["main_player_paused_file"],
-        main_player_cmd_file=files["main_player_cmd_file"],
+        main_funestra_paused_file=files["main_funestra_paused_file"],
+        main_funestra_cmd_file=files["main_funestra_cmd_file"],
     )
 
 
-def _main_player_cmds(files) -> list[str]:
-    """What the switch queued for the main player, one verb per line as it drains them."""
-    cmd_file = files["main_player_cmd_file"]
+def _main_funestra_cmds(files) -> list[str]:
+    """What the switch queued for the Main Funestra, one verb per line as it drains them."""
+    cmd_file = files["main_funestra_cmd_file"]
     return cmd_file.read_text(encoding="utf-8").split("\n")[:-1] if cmd_file.exists() else []
 
 
@@ -90,8 +90,8 @@ def test_kino_to_genau_resumes_genau_hands_it_the_window_and_holds_the_video(flo
     assert result.next_mode == "genau"
     assert result.is_transition is True
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
-    assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "1"
-    assert _main_player_cmds(flow_files) == ["SHOW genau"]
+    assert flow_files["main_funestra_paused_file"].read_text(encoding="utf-8") == "1"
+    assert _main_funestra_cmds(flow_files) == ["SHOW genau"]
 
 
 def test_genau_to_kino_starts_the_video_and_hands_kino_the_window(flow_files):
@@ -101,20 +101,20 @@ def test_genau_to_kino_starts_the_video_and_hands_kino_the_window(flow_files):
 
     assert result.next_mode == "kino"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
-    assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "0"
-    assert _main_player_cmds(flow_files) == ["SHOW kino"]
+    assert flow_files["main_funestra_paused_file"].read_text(encoding="utf-8") == "0"
+    assert _main_funestra_cmds(flow_files) == ["SHOW kino"]
 
 
-def test_a_mode_switch_leaves_the_paused_flags_and_main_players_tcode_alone(flow_files):
+def test_a_mode_switch_leaves_the_paused_flags_and_main_funestras_tcode_alone(flow_files):
     """Genau and its audio run in both modes (the paused flags are OmniPause's
-    and the startup hold's), and the arbiter owns the main player's T-Code lever inside
+    and the startup hold's), and the arbiter owns the Main Funestra's T-Code lever inside
     kino mode — so the switch touches neither."""
     for current, target in (("kino", "genau"), ("genau", "kino")):
         _mode_switch(flow_files, current=current, target=target)
 
     assert not flow_files["genau_paused_file"].exists()
     assert not flow_files["audio_paused_file"].exists()
-    assert "SET_TCODE_ENABLED 1" not in _main_player_cmds(flow_files)
+    assert "SET_TCODE_ENABLED 1" not in _main_funestra_cmds(flow_files)
 
 
 def test_a_mode_switch_during_omnipause_hands_over_the_window_and_resumes_nothing(flow_files):
@@ -122,11 +122,11 @@ def test_a_mode_switch_during_omnipause_hands_over_the_window_and_resumes_nothin
 
     assert result.next_mode == "genau"
     assert not flow_files["genau_cmd_file"].exists()
-    assert _main_player_cmds(flow_files) == ["SHOW genau"]
-    assert not flow_files["main_player_paused_file"].exists()
+    assert _main_funestra_cmds(flow_files) == ["SHOW genau"]
+    assert not flow_files["main_funestra_paused_file"].exists()
 
 
-def test_toggle_fmode_replaces_playlists_and_reloads_main_player(tmp_path: Path):
+def test_toggle_fmode_replaces_playlists_and_reloads_main_funestra(tmp_path: Path):
     primary_root = tmp_path / "videos" / "videos" / "primary"
     portrait_root = tmp_path / "portrait"
     landscape_root = tmp_path / "landscape"
@@ -148,40 +148,40 @@ def test_toggle_fmode_replaces_playlists_and_reloads_main_player(tmp_path: Path)
     state_dir = tmp_path / "state"
     portrait_cmd_file = tmp_path / "portrait_cmd.txt"
     landscape_cmd_file = tmp_path / "landscape_cmd.txt"
-    main_player_cmd_file = tmp_path / "main_player_cmd.txt"
+    main_funestra_cmd_file = tmp_path / "main_player_cmd.txt"
 
     result = apply_fmode(
         satellites={
-            Player.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=portrait_cmd_file),
-            Player.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources=str(landscape_root), cmd_file=landscape_cmd_file),
+            RoomFunestra.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=portrait_cmd_file),
+            RoomFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources=str(landscape_root), cmd_file=landscape_cmd_file),
         },
-        players=FMODE_PLAYERS,
+        funestras=FMODE_FUNESTRAS,
         enabled=True,
         main_sources=str(primary_root),
         favs_file=favs_file,
         state_dir=state_dir,
-        main_player_cmd_file=main_player_cmd_file,
+        main_funestra_cmd_file=main_funestra_cmd_file,
     )
 
-    assert result.players == FMODE_PLAYERS
+    assert result.funestras == FMODE_FUNESTRAS
     assert result.enabled is True
-    # Each satellite is told to re-read its playlist file; the main player reloads via its own
+    # Each satellite is told to re-read its playlist file; the Main Funestra reloads via its own
     # command file too.  All three playlist files are rewritten in place.
     assert portrait_cmd_file.read_text(encoding="utf-8").splitlines() == ["RELOAD_PLAYLIST"]
     assert landscape_cmd_file.read_text(encoding="utf-8").splitlines() == ["RELOAD_PLAYLIST"]
-    # …and what else rides along on the main player's write is that test's business.
-    assert "RELOAD_PLAYLIST" in main_player_cmd_file.read_text(encoding="utf-8").splitlines()
+    # …and what else rides along on the Main Funestra's write is that test's business.
+    assert "RELOAD_PLAYLIST" in main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()
     assert (state_dir / "portrait_playlist.tsv").exists()
     assert (state_dir / "landscape_playlist.tsv").exists()
     assert (state_dir / "main_player_playlist.tsv").exists()
 
 
-def test_fmode_on_one_player_leaves_the_others_playlists_untouched(tmp_path: Path):
-    """F-mode is per player, so naming one must rebuild that one alone.
+def test_fmode_on_one_funestra_leaves_the_others_playlists_untouched(tmp_path: Path):
+    """F-mode is per Funestra, so naming one must rebuild that one alone.
 
-    Rebuilding a player that was not asked for would reshuffle its queue out from
+    Rebuilding a Funestra that was not asked for would reshuffle its queue out from
     under it — which is exactly what the old all-three build did, and the reason
-    the rebuild is per player now.
+    the rebuild is per Funestra now.
     """
     portrait_root, landscape_root = tmp_path / "portrait", tmp_path / "landscape"
     for root in (portrait_root, landscape_root):
@@ -189,61 +189,61 @@ def test_fmode_on_one_player_leaves_the_others_playlists_untouched(tmp_path: Pat
         (root / "clip.mp4").write_text("x", encoding="utf-8")
     state_dir = tmp_path / "state"
     landscape_cmd_file = tmp_path / "landscape_cmd.txt"
-    main_player_cmd_file = tmp_path / "main_player_cmd.txt"
+    main_funestra_cmd_file = tmp_path / "main_player_cmd.txt"
 
     result = apply_fmode(
         satellites={
-            Player.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
-            Player.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources=str(landscape_root), cmd_file=landscape_cmd_file),
+            RoomFunestra.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
+            RoomFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources=str(landscape_root), cmd_file=landscape_cmd_file),
         },
-        players=(Player.PORTRAIT,),
+        funestras=(RoomFunestra.PORTRAIT,),
         enabled=True,
         main_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
-        main_player_cmd_file=main_player_cmd_file,
+        main_funestra_cmd_file=main_funestra_cmd_file,
     )
 
-    assert result.players == (Player.PORTRAIT,)
+    assert result.funestras == (RoomFunestra.PORTRAIT,)
     assert (state_dir / "portrait_playlist.tsv").exists()
     assert not (state_dir / "landscape_playlist.tsv").exists()
     assert not (state_dir / "main_player_playlist.tsv").exists()
     assert not landscape_cmd_file.exists()
-    assert not main_player_cmd_file.exists()
+    assert not main_funestra_cmd_file.exists()
 
 
-def test_toggle_fmode_tells_main_player_the_flag_on_the_same_write_as_the_reload(tmp_path: Path):
-    """The main player cannot read F-mode off the playlist it is handed — a list of scripted
+def test_toggle_fmode_tells_main_funestra_the_flag_on_the_same_write_as_the_reload(tmp_path: Path):
+    """The Main Funestra cannot read F-mode off the playlist it is handed — a list of scripted
     videos looks like any other — so its HUD only knows because it is told: the
     flag is queued right after the reload it belongs to."""
     root = tmp_path / "videos" / "videos" / "primary"
     root.mkdir(parents=True)
     (root / "main.mp4").write_text("x", encoding="utf-8")
-    main_player_cmd_file = tmp_path / "main_player_cmd.txt"
+    main_funestra_cmd_file = tmp_path / "main_player_cmd.txt"
 
     def told(enabled: bool) -> list[str]:
-        main_player_cmd_file.unlink(missing_ok=True)   # each call reads its own queue
+        main_funestra_cmd_file.unlink(missing_ok=True)   # each call reads its own queue
         apply_fmode(
             satellites={
-                Player.PORTRAIT: SatelliteFmodeInputs(
+                RoomFunestra.PORTRAIT: SatelliteFmodeInputs(
                     sources="", cmd_file=tmp_path / "p_cmd.txt"),
-                Player.LANDSCAPE: SatelliteFmodeInputs(
+                RoomFunestra.LANDSCAPE: SatelliteFmodeInputs(
                     sources="", cmd_file=tmp_path / "l_cmd.txt"),
             },
-            players=FMODE_PLAYERS,
+            funestras=FMODE_FUNESTRAS,
             enabled=enabled,
             main_sources=str(root),
             favs_file=tmp_path / "favs.csv", state_dir=tmp_path / "state",
-            main_player_cmd_file=main_player_cmd_file,
+            main_funestra_cmd_file=main_funestra_cmd_file,
         )
-        return main_player_cmd_file.read_text(encoding="utf-8").splitlines()
+        return main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()
 
     assert told(True) == ["RELOAD_PLAYLIST", "SET_F_MODE 1"]
     assert told(False) == ["RELOAD_PLAYLIST", "SET_F_MODE 0"]
 
 
-def test_the_main_player_can_be_started_at_the_top_of_the_new_list(tmp_path: Path):
-    """The main player keeps the video on screen across a reload whenever the new list still
+def test_the_main_funestra_can_be_started_at_the_top_of_the_new_list(tmp_path: Path):
+    """The Main Funestra keeps the video on screen across a reload whenever the new list still
     holds it — and a reorder, filtering nothing out, always does.  So "main latest"
     would rebuild newest-first and change nothing anyone could see: the new order
     applied only after the video playing, and the arrivals asked for never came up.
@@ -257,19 +257,19 @@ def test_the_main_player_can_be_started_at_the_top_of_the_new_list(tmp_path: Pat
     for path, mtime in ((old, 1000), (new, 2000)):
         path.write_text("x", encoding="utf-8")
         os.utime(path, (mtime, mtime))
-    # The head carries its funscript, exactly as the playlist line does: the main player drives
+    # The head carries its funscript, exactly as the playlist line does: the Main Funestra drives
     # the OSR2 off that column.
     script = tmp_path / "videos" / "scripts" / "scripts" / "primary" / "new.funscript"
     script.parent.mkdir(parents=True)
     script.write_text("{}", encoding="utf-8")
-    main_player_cmd_file = tmp_path / "main_player_cmd.txt"
+    main_funestra_cmd_file = tmp_path / "main_player_cmd.txt"
 
     apply_main_fmode(
         enabled=False, main_sources=str(root), recent=True, start_at_top=True,
-        state_dir=tmp_path / "state", main_player_cmd_file=main_player_cmd_file,
+        state_dir=tmp_path / "state", main_funestra_cmd_file=main_funestra_cmd_file,
     )
 
-    assert main_player_cmd_file.read_text(encoding="utf-8").splitlines() == [
+    assert main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
         "RELOAD_PLAYLIST", "SET_F_MODE 0", f"PLAY_FILE {new}\t{script}",
     ]
 
@@ -294,15 +294,15 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path
 
     apply_fmode(
         satellites={
-            Player.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
-            Player.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources="", cmd_file=tmp_path / "landscape_cmd.txt"),
+            RoomFunestra.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
+            RoomFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources="", cmd_file=tmp_path / "landscape_cmd.txt"),
         },
-        players=FMODE_PLAYERS,
+        funestras=FMODE_FUNESTRAS,
         enabled=False,
         main_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        main_player_cmd_file=tmp_path / "main_player_cmd.txt",
+        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
         regen_metadata_root=metadata_root,
     )
 
@@ -321,15 +321,15 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
     # Turning F-mode off must keep the satellite playlists newest-first, not reshuffle.
     apply_fmode(
         satellites={
-            Player.PORTRAIT: SatelliteFmodeInputs(recent=True, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
-            Player.LANDSCAPE: SatelliteFmodeInputs(recent=True, sources="", cmd_file=tmp_path / "landscape_cmd.txt"),
+            RoomFunestra.PORTRAIT: SatelliteFmodeInputs(recent=True, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
+            RoomFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=True, sources="", cmd_file=tmp_path / "landscape_cmd.txt"),
         },
-        players=FMODE_PLAYERS,
+        funestras=FMODE_FUNESTRAS,
         enabled=False,
         main_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        main_player_cmd_file=tmp_path / "main_player_cmd.txt",
+        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
     )
 
     assert _satellite_lines(tmp_path / "state", "portrait") == [str(p_new), str(p_old)]
@@ -339,7 +339,7 @@ def test_a_rebuild_can_start_the_side_at_the_top_of_the_new_list(tmp_path: Path)
     """"Latest" means "show me what has just arrived", and a plain reload keeps the
     clip on screen and carries on from where it sat — so the new order only ever
     applied *after* it and the newest clips were never reached.  A caller that means
-    "start over" asks for the head, which the player takes as PLAY_FILE."""
+    "start over" asks for the head, which the Funestra takes as PLAY_FILE."""
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
     old, new = portrait_root / "old.mp4", portrait_root / "new.mp4"
@@ -349,7 +349,7 @@ def test_a_rebuild_can_start_the_side_at_the_top_of_the_new_list(tmp_path: Path)
     cmd_file = tmp_path / "portrait_cmd.txt"
 
     apply_satellite_filter(
-        player=2, query="", favorites_filter=False, recent=True, start_at_top=True,
+        funestra=2, query="", favorites_filter=False, recent=True, start_at_top=True,
         sources=str(portrait_root), favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state", cmd_file=cmd_file,
     )
@@ -368,7 +368,7 @@ def test_a_rebuild_leaves_the_clip_on_screen_alone_by_default(tmp_path: Path):
     cmd_file = tmp_path / "portrait_cmd.txt"
 
     apply_satellite_filter(
-        player=2, query="", favorites_filter=False, recent=False,
+        funestra=2, query="", favorites_filter=False, recent=False,
         sources=str(portrait_root), favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state", cmd_file=cmd_file,
     )
@@ -379,7 +379,7 @@ def test_a_rebuild_leaves_the_clip_on_screen_alone_by_default(tmp_path: Path):
 def _reorder(tmp_path: Path, sources: Path, *, recent: bool, query: str = "", **roots) -> None:
     """Reload the portrait satellite in one order — what "latest"/"shuffle" run."""
     apply_satellite_filter(
-        player=2,
+        funestra=2,
         query=query,
         favorites_filter=False,
         recent=recent,
@@ -404,7 +404,7 @@ def test_recents_orders_one_satellite_newest_first(tmp_path: Path):
     _reorder(tmp_path, portrait_root, recent=True)
 
     assert _reloaded(tmp_path / "portrait_cmd.txt")
-    assert not (tmp_path / "landscape_cmd.txt").exists()  # the other player is untouched
+    assert not (tmp_path / "landscape_cmd.txt").exists()  # the other Funestra is untouched
     assert _satellite_lines(tmp_path / "state", "portrait") == [str(new), str(old)]
 
 
@@ -462,15 +462,15 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
 
     apply_fmode(
         satellites={
-            Player.PORTRAIT: SatelliteFmodeInputs(recent=True, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt", filter_query="alpha"),
-            Player.LANDSCAPE: SatelliteFmodeInputs(recent=True, sources=str(landscape_root), cmd_file=tmp_path / "landscape_cmd.txt", filter_query="twirling"),
+            RoomFunestra.PORTRAIT: SatelliteFmodeInputs(recent=True, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt", filter_query="alpha"),
+            RoomFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=True, sources=str(landscape_root), cmd_file=tmp_path / "landscape_cmd.txt", filter_query="twirling"),
         },
-        players=FMODE_PLAYERS,
+        funestras=FMODE_FUNESTRAS,
         enabled=False,  # F-mode OFF, so only the metadata filter applies
         main_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        main_player_cmd_file=tmp_path / "main_player_cmd.txt",
+        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
         regen_metadata_root=metadata_root,
     )
 
@@ -506,7 +506,7 @@ def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     landscape_cmd_file = tmp_path / "landscape_cmd.txt"
 
     result = apply_satellite_filter(
-        player=2,
+        funestra=2,
         query="alpha",
         favorites_filter=False,
         recent=True,
@@ -537,7 +537,7 @@ def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path:
     cmd_file = tmp_path / "portrait_cmd.txt"
 
     result = apply_satellite_filter(
-        player=2,
+        funestra=2,
         query="alpha",
         favorites_filter=False,
         recent=True,
@@ -561,7 +561,7 @@ def test_apply_satellite_filter_clear_restores_everything(tmp_path: Path):
     _make_action_video(portrait_root, metadata_root, "pt", "Twirling")
 
     result = apply_satellite_filter(
-        player=2,
+        funestra=2,
         query="",
         favorites_filter=False,
         recent=True,
@@ -606,14 +606,14 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
         genau_paused_file=flow_files["genau_paused_file"],
         audio_paused_file=flow_files["audio_paused_file"],
         genau_cmd_file=flow_files["genau_cmd_file"],
-        main_player_paused_file=flow_files["main_player_paused_file"],
+        main_funestra_paused_file=flow_files["main_funestra_paused_file"],
         broker_cmd_file=flow_files["broker_cmd_file"],
     )
 
     assert result.next_omni_paused is True
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "1"
+    assert flow_files["main_funestra_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nPARK\n"
     assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "PARK"
     # Both satellites are frozen via their paused flag file — a paused native
@@ -631,7 +631,7 @@ def test_with_no_broker_to_park_the_device_genau_is_only_paused(flow_files):
         genau_paused_file=flow_files["genau_paused_file"],
         audio_paused_file=flow_files["audio_paused_file"],
         genau_cmd_file=flow_files["genau_cmd_file"],
-        main_player_paused_file=flow_files["main_player_paused_file"],
+        main_funestra_paused_file=flow_files["main_funestra_paused_file"],
     )
 
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\n"
@@ -648,19 +648,19 @@ def _leave_omnipause(files, *, main_mode, broker=True,
         genau_paused_file=files["genau_paused_file"],
         audio_paused_file=files["audio_paused_file"],
         genau_cmd_file=files["genau_cmd_file"],
-        main_player_paused_file=files["main_player_paused_file"],
+        main_funestra_paused_file=files["main_funestra_paused_file"],
         broker_cmd_file=files["broker_cmd_file"] if broker else None,
     )
 
 
-def test_apply_leave_omnipause_in_kino_mode_resumes_main_player_and_lifts_the_hand(flow_files):
+def test_apply_leave_omnipause_in_kino_mode_resumes_main_funestra_and_lifts_the_hand(flow_files):
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
-    flow_files["main_player_paused_file"].write_text("1", encoding="utf-8")
+    flow_files["main_funestra_paused_file"].write_text("1", encoding="utf-8")
 
     result = _leave_omnipause(flow_files, main_mode=MainMode.KINO)
 
     assert result.next_omni_paused is False
-    assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "0"
+    assert flow_files["main_funestra_paused_file"].read_text(encoding="utf-8") == "0"
     # The hand's flag lifts with everyone's; which of it and the funscript
     # drives is the arbiter's call on its next tick, so no RESUME is sent here.
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
@@ -679,14 +679,14 @@ def test_apply_leave_omnipause_in_kino_mode_leaves_genaus_motion_to_the_arbiter(
     once, which the user felt as the OSR2 fighting itself."""
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
-    flow_files["main_player_paused_file"].write_text("1", encoding="utf-8")
+    flow_files["main_funestra_paused_file"].write_text("1", encoding="utf-8")
 
     _leave_omnipause(flow_files, main_mode=MainMode.KINO)
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert not flow_files["genau_cmd_file"].exists()
-    # Kino mode displays the main player, so the main player resumes too (Genau just drives the OSR2).
-    assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "0"
+    # Kino mode displays the Main Funestra, so the Main Funestra resumes too (Genau just drives the OSR2).
+    assert flow_files["main_funestra_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 
@@ -711,7 +711,7 @@ def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
-    assert not flow_files["main_player_paused_file"].exists(), "the main player pause state untouched"
+    assert not flow_files["main_funestra_paused_file"].exists(), "the Main Funestra pause state untouched"
     # Both satellites are unfrozen regardless of the main slot's mode.
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"

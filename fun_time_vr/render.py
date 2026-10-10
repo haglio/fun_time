@@ -1,8 +1,8 @@
 """GL rendering for the VR scene: video targets, screens, and immersive wraps.
 
-Two ways a player reaches the eye.  Windowed surfaces (a flat 2D primary, the
+Two ways a Funestra reaches the eye.  Windowed surfaces (a flat 2D primary, the
 two satellites) are flat screens from :mod:`fun_time_vr.scene`, textured with
-the player's rendered frame.  An immersive projection wraps the whole view: a
+the Funestra's rendered frame.  An immersive projection wraps the whole view: a
 full-screen pass reconstructs each pixel's world ray and maps it into the video
 by the :data:`_WRAPS` entry that projection carries.
 
@@ -13,7 +13,7 @@ sampled through an sRGB texture without re-encoding, which darkened everything
 and forced its brightness=1.4 hack; this pipeline needs none.)
 
 A GL shell: what it draws comes tested from scene.py/matrices.py, and the
-offscreen pixel path is MpvRenderPlayer's.  See CLAUDE.md, "Standing rules".
+offscreen pixel path is MpvRenderEngine's.  See CLAUDE.md, "Standing rules".
 """
 from __future__ import annotations
 
@@ -233,7 +233,7 @@ def _compile_program(vert_src: str, frag_src: str) -> int:
 
 
 class RenderTarget:
-    """A player's picture as a texture, with the FBO that fills it.
+    """A Funestra's picture as a texture, with the FBO that fills it.
 
     Plain RGBA8 (not sRGB) on purpose — see the module docstring's color note.
     Reallocated whenever the video's size changes, so the texture always holds

@@ -1,4 +1,4 @@
-"""Open and close the players' engine with faulthandler armed, as a host arms it.
+"""Open and close the Funestras' engine with faulthandler armed, as a host arms it.
 
 A child process, not a test body, because what it is watching for is a crash: a
 structured exception raised inside libmpv is answered by faulthandler's vectored
@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 import glfw
-from player_core.render_player import MpvRenderPlayer
+from funestra_core.render_engine import MpvRenderEngine
 
 from fun_time_vr.gl_contexts import hidden_gl_window
 
@@ -33,7 +33,7 @@ def main() -> int:
     glfw.make_context_current(window)
     try:
         for _ in range(rounds):
-            MpvRenderPlayer(glfw.get_proc_address, muted=True).close()
+            MpvRenderEngine(glfw.get_proc_address, muted=True).close()
     finally:
         glfw.destroy_window(window)
         glfw.terminate()

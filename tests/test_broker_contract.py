@@ -49,8 +49,8 @@ MACHINE = [
     (23, "wscript.exe", r'wscript.exe "C:\relay\launch_relay_tray.vbs"', 800.0),
     (24, "pythonw.exe", r"pythonw.exe -m relay_pkg.app --config r.json", 1500.0),
     (25, "pythonw.exe", r"pythonw.exe -m wire.app", 1200.0),
-    (31, "FunTime-MainPlayer.exe", r"FunTime-MainPlayer.exe -m main_player --config c.json", 100.0),
-    (32, "pythonw.exe", r"pythonw.exe -m satellite --title Portrait AI Player", 100.0),
+    (31, "FunTime-MainFunestra.exe", r"FunTime-MainFunestra.exe -m main_funestra --config c.json", 100.0),
+    (32, "pythonw.exe", r"pythonw.exe -m satellite --title Portrait AI Funestra", 100.0),
     (33, "wscript.exe", r'wscript.exe "C:\Fun Time\launch.vbs"', 100.0),
 ]
 
@@ -90,7 +90,7 @@ class TestTheImagePattern:
         the image half must not be the thing that saves us."""
         pattern = broker_contract.read(_a_broker_checkout(tmp_path)).image_pattern
 
-        for name in ("FunTime-MainPlayer.exe", "FunTime-Dashboard.exe", "notepad.exe"):
+        for name in ("FunTime-MainFunestra.exe", "FunTime-Dashboard.exe", "notepad.exe"):
             assert not re.match(pattern, name), name
 
 

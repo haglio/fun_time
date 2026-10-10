@@ -10,12 +10,12 @@ omit =
     fun_time/chrome_accessibility.py
     # listens to the presses and carets of a real desktop
     fun_time/win32_events.py
-    # a player's shell: needs the playback engine's library
+    # a Funestra's shell: needs the playback engine's library
     satellite/app.py
     # needs a graphics context
     fun_time_vr/gl_contexts.py
-    # the VR player's shell: needs a headset
-    fun_time_vr/player.py
+    # the headset's shell: needs a headset
+    fun_time_vr/funestras.py
     # needs a graphics context
     fun_time_vr/render.py
     # needs a graphics context

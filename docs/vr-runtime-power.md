@@ -45,8 +45,8 @@ broken session: every step is best-effort and bounded by `QUIT_TIMEOUT_S`.
 Since Pimax Play 2.0.4 (installed 2026-09-25) the client starts the services
 again whenever it sees them stop, so a client that outlives the quit turns the
 headset straight back on. From then to 2026-10-09 that happened in every
-session whose player went before the session did: the client is the player's
-child, so killing the player took it along, but with the player already gone
+session whose Funestra went before the session did: the client is the Funestra's
+child, so killing the Funestra took it along, but with the Funestra already gone
 nothing did -- the session asked `tasklist` whether the client ran, and voice
 control's sound library had left the session unable to start a program that
 inherits its error output, so the answer was always "no". The session now reads
@@ -73,6 +73,6 @@ client could mistake an already-lit headset for one of its own. A runtime that
 was already up is the user's and is left alone.
 
 In FunTimeVR the reading and the quit both live in `fun_time_vr.orchestrator`,
-not in the player: the orchestrator kills the player outright at session end,
-so nothing in the player's own teardown can be relied on to run. GenauVR's app
+not in the Funestra: the orchestrator kills the Funestra outright at session end,
+so nothing in the Funestra's own teardown can be relied on to run. GenauVR's app
 is one process that exits normally, so it does both itself.

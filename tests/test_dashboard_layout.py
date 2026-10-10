@@ -24,7 +24,7 @@ from fun_time.window_layout import MonitorRect, WindowRect
 
 def test_the_bar_reads_left_to_right_in_the_order_it_is_written():
     """The app's mark, then the controls — grouped by what they are rather than
-    by which player they used to stand for."""
+    by which Funestra they used to stand for."""
     layout = compute_dashboard_bar_layout()
 
     xs = [rect.x for rect in layout.every_rect]
@@ -61,7 +61,7 @@ def test_nothing_in_the_bar_overlaps_anything_else():
 
 
 def test_the_microphone_is_one_of_the_buttons_not_a_light_beside_them():
-    """F-mode was the other light, and it has gone to the players' own HUDs.  A
+    """F-mode was the other light, and it has gone to the Funestras' own HUDs.  A
     lone chip past a group gap read as adrift from the bar, so the microphone is
     a button in the same run, at the same size and the same spacing."""
     layout = compute_dashboard_bar_layout()
@@ -97,7 +97,7 @@ def test_client_rect_filling_frame_insets_by_the_chrome():
 
 
 def test_the_bar_uses_the_familys_button_metrics():
-    """A control here is the same object a control on a player's HUD is -- the
+    """A control here is the same object a control on a Funestra's HUD is -- the
     HUDs' square, since the bar sits directly above them on the same screen and
     two sizes of one control, one above the other, read as two kinds of chrome."""
     assert BUTTON == BUTTON_SIZE_HUD

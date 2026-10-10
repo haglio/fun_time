@@ -137,7 +137,7 @@ class TestSetAlwaysOnTop:
 
     def test_a_band_change_moves_and_resizes_nothing(self):
         """Only the z-order: the panel's reveal runs this over a window already
-        sized and placed, and the players' bands over windows on their rects."""
+        sized and placed, and the Funestras' bands over windows on their rects."""
         with patch("fun_time.win32._user32") as mock:
             set_always_on_top(111, True, under=99)
 
@@ -149,9 +149,9 @@ class TestSetAlwaysOnTop:
 
 class TestAWindowThatHasStoppedAnswering:
     """SetWindowPos and ShowWindow SEND messages to the thread owning the window
-    and wait for it to handle them, with no timeout — so a player whose own loop
+    and wait for it to handle them, with no timeout — so a Funestra whose own loop
     has stalled froze the session that called them.  Startup's topmost pass wedged
-    on Genau's window: no main player, no hotkey script, and no way to quit.
+    on Genau's window: no Main Funestra, no hotkey script, and no way to quit.
     """
 
     @staticmethod
@@ -217,7 +217,7 @@ class TestAWindowThatHasStoppedAnswering:
     def test_a_window_that_answers_is_not_slowed_down(self, monkeypatch):
         """The wait is only ever spent on a window that has stalled: a healthy one
         returns in microseconds, and the call order the caller made — which is what
-        stacks Genau's HUD above the main player's video — is unchanged."""
+        stacks Genau's HUD above the Main Funestra's video — is unchanged."""
         monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 30)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
         order: list[int] = []
@@ -379,7 +379,7 @@ class TestProcessTable:
 
 
 class TestWindowsObscuring:
-    """The pure z-order analysis under the startup 'what's covering the main player' log.
+    """The pure z-order analysis under the startup 'what's covering the Main Funestra' log.
 
     Given the visible windows front-to-back and a target hwnd, report which
     windows sit ABOVE the target AND overlap its rect — the ones actually
@@ -393,41 +393,41 @@ class TestWindowsObscuring:
         return StackedWindow(hwnd=hwnd, title=title, topmost=topmost, rect=rect)
 
     def test_frontmost_target_is_unobscured(self):
-        main_player = self._w(1, (0, 0, 100, 100))
+        main_funestra = self._w(1, (0, 0, 100, 100))
         below = self._w(2, (0, 0, 100, 100))
-        assert windows_obscuring(1, [main_player, below]) == []
+        assert windows_obscuring(1, [main_funestra, below]) == []
 
     def test_overlapping_window_above_is_reported(self):
         cover = self._w(9, (50, 50, 100, 100))
-        main_player = self._w(1, (0, 0, 100, 100))
-        assert windows_obscuring(1, [cover, main_player]) == [cover]
+        main_funestra = self._w(1, (0, 0, 100, 100))
+        assert windows_obscuring(1, [cover, main_funestra]) == [cover]
 
     def test_non_overlapping_window_above_is_ignored(self):
-        # A window on another monitor sits above the main player in the topmost band but
+        # A window on another monitor sits above the Main Funestra in the topmost band but
         # never covers it — dashboard/logs/rfb are exactly this case.
         elsewhere = self._w(9, (5000, 0, 100, 100))
-        main_player = self._w(1, (0, 0, 100, 100))
-        assert windows_obscuring(1, [elsewhere, main_player]) == []
+        main_funestra = self._w(1, (0, 0, 100, 100))
+        assert windows_obscuring(1, [elsewhere, main_funestra]) == []
 
     def test_overlapping_window_below_is_ignored(self):
-        main_player = self._w(1, (0, 0, 100, 100))
+        main_funestra = self._w(1, (0, 0, 100, 100))
         under = self._w(2, (0, 0, 100, 100))
-        assert windows_obscuring(1, [main_player, under]) == []
+        assert windows_obscuring(1, [main_funestra, under]) == []
 
     def test_target_absent_reports_nothing(self):
         assert windows_obscuring(1, [self._w(2, (0, 0, 100, 100))]) == []
 
     def test_edge_touching_rects_do_not_count_as_overlap(self):
-        # The main player's rect starts exactly where the portrait satellite's ends; a
+        # The Main Funestra's rect starts exactly where the portrait satellite's ends; a
         # shared edge is not coverage.
         adjacent = self._w(9, (0, 0, 100, 100))
-        main_player = self._w(1, (100, 0, 100, 100))
-        assert windows_obscuring(1, [adjacent, main_player]) == []
+        main_funestra = self._w(1, (100, 0, 100, 100))
+        assert windows_obscuring(1, [adjacent, main_funestra]) == []
 
     def test_a_ghost_frame_sliver_does_not_count_as_overlap(self):
         # A maximized window's GetWindowRect includes its INVISIBLE resize
         # frame, hanging ~8px onto the neighboring monitor — the startup log
-        # warned that a maximized Chrome on one monitor "covered" the player
+        # warned that a maximized Chrome on one monitor "covered" the Funestra
         # on the monitor next to it, over pixels nobody can see.
         chrome = self._w(9, (-8, -8, 2576, 1426))     # maximized on 2560x1410
         portrait = self._w(1, (2560, 0, 1440, 2560))  # the next monitor over
@@ -440,14 +440,14 @@ class TestWindowsObscuring:
 
     def test_the_ghost_frame_rule_holds_on_the_vertical_axis_too(self):
         """Vertically stacked windows are the NORMAL case on the portrait
-        monitor — the portrait satellite sits directly above the main player —
+        monitor — the portrait satellite sits directly above the Main Funestra —
         so this is the axis the startup diagnostic actually runs on.  Every
         other fixture here stands side by side, which left the vertical half
         of the tolerance deletable with the class green."""
         # A maximized window above, its invisible frame hanging ~8px down
         # onto the window below it: a sliver, not coverage.
         upper = self._w(9, (0, -8, 1440, 2516))       # lower edge at y=2508
-        lower = self._w(1, (0, 2500, 1440, 940))      # the player beneath
+        lower = self._w(1, (0, 2500, 1440, 940))      # the Funestra beneath
         assert windows_obscuring(1, [upper, lower]) == []
 
         # Past the frame it is real coverage again.
@@ -470,7 +470,7 @@ class TestLiveWindowMutationGuard:
     """The autouse guard in tests/conftest.py must keep a unit test from moving,
     topmosting, activating or closing a REAL window — the test bleed that surfaced for
     months as "the main player pops on top during OmniPause" (a concurrent agent's unit run
-    resolving the live 'main player'/'Genau' window by title and forcing it topmost)."""
+    resolving the live 'Main Funestra'/'Genau' window by title and forcing it topmost)."""
 
     def test_mutating_user32_calls_are_inert(self):
         for name in ("SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW",
@@ -578,9 +578,9 @@ class TestFindWindowByTitle:
 
         with patch("fun_time.win32._user32") as mock:
             mock.EnumWindows.side_effect = enum
-            mock.GetWindowTextW.side_effect = lambda _h, buf, _c: setattr(buf, "value", "Main Player")
+            mock.GetWindowTextW.side_effect = lambda _h, buf, _c: setattr(buf, "value", "Main Funestra")
             mock.IsWindowVisible.return_value = 1
-            assert win32.find_window_by_title("Main Player") == 11
+            assert win32.find_window_by_title("Main Funestra") == 11
         assert seen == [11]
 
     def test_every_title_is_read_into_ONE_buffer_of_256(self):
@@ -592,11 +592,11 @@ class TestFindWindowByTitle:
         caps: list[int] = []
 
         with patch("fun_time.win32._user32") as mock:
-            self._enumerating(mock, [(11, "Genau"), (12, "Main Player")])
+            self._enumerating(mock, [(11, "Genau"), (12, "Main Funestra")])
             mock.GetWindowTextW.side_effect = lambda hwnd, buf, cap: (
                 buffers.append(id(buf)), caps.append(cap),
-                setattr(buf, "value", "Main Player" if hwnd == 12 else "Genau"))[0]
-            assert win32.find_window_by_title("Main Player", exact=True) == 12
+                setattr(buf, "value", "Main Funestra" if hwnd == 12 else "Genau"))[0]
+            assert win32.find_window_by_title("Main Funestra", exact=True) == 12
 
         assert caps == [256, 256]
         assert len(set(buffers)) == 1, "a buffer per window, not one for the walk"
@@ -614,7 +614,7 @@ class TestWaitForWindowByTitle:
         monkeypatch.setattr(win32, "find_window_by_title", lambda *_a, **_k: 77)
 
         with sleeps_in(win32) as slept:
-            assert win32.wait_for_window_by_title("Main Player", timeout_s=5.0) == 77
+            assert win32.wait_for_window_by_title("Main Funestra", timeout_s=5.0) == 77
 
         slept.assert_not_called()
 
@@ -622,14 +622,14 @@ class TestWaitForWindowByTitle:
         monkeypatch.setattr(win32, "find_window_by_title", lambda *_a, **_k: 0)
 
         with sleeps_in(win32):
-            assert win32.wait_for_window_by_title("Main Player", timeout_s=0.0) == 0
+            assert win32.wait_for_window_by_title("Main Funestra", timeout_s=0.0) == 0
 
     def test_it_keeps_asking_until_the_window_opens(self, monkeypatch):
         answers = iter([0, 0, 42])
         monkeypatch.setattr(win32, "find_window_by_title", lambda *_a, **_k: next(answers))
 
         with sleeps_in(win32):
-            assert win32.wait_for_window_by_title("Main Player", timeout_s=5.0) == 42
+            assert win32.wait_for_window_by_title("Main Funestra", timeout_s=5.0) == 42
 
     def test_both_switches_reach_the_lookup(self, monkeypatch):
         asked: list[tuple] = []
@@ -677,9 +677,9 @@ class TestFindWindowForProcess:
     def test_the_window_of_that_pid_with_that_exact_title(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         with patch("fun_time.win32._user32") as mock:
-            self._enumerating(mock, [(11, 500, "Portrait AI Player"),
-                                     (12, 500, "Landscape AI Player")])
-            assert win32.find_window_for_process(500, "Landscape AI Player") == 12
+            self._enumerating(mock, [(11, 500, "Portrait AI Funestra"),
+                                     (12, 500, "Landscape AI Funestra")])
+            assert win32.find_window_for_process(500, "Landscape AI Funestra") == 12
 
     def test_a_title_that_merely_contains_the_name_is_not_it(self, monkeypatch):
         """The match is the whole caption, not a substring of it — this lookup
@@ -747,7 +747,7 @@ class TestFindWindowForProcess:
     def test_no_pid_is_no_window_and_no_enumeration(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         with patch("fun_time.win32._user32") as mock:
-            assert win32.find_window_for_process(0, "Main Player") == 0
+            assert win32.find_window_for_process(0, "Main Funestra") == 0
             mock.EnumWindows.assert_not_called()
 
     def test_a_hidden_window_is_skipped_when_nothing_names_the_one_wanted(self, monkeypatch):
@@ -843,7 +843,7 @@ class TestProcessRunning:
 class TestIterZorder:
     """The real stacking order, which EnumWindows does not give.
 
-    This is what the startup diagnostic's "what is covering the main player" reads, and the
+    This is what the startup diagnostic's "what is covering the Main Funestra" reads, and the
     only walk in the module that uses GetTopWindow + GW_HWNDNEXT.
     """
 
@@ -875,13 +875,13 @@ class TestIterZorder:
     def test_the_walk_reports_front_to_back(self):
         with patch("fun_time.win32._user32") as mock:
             self._stack(mock, [
-                (11, "Main Player", True, False, (0, 0, 100, 200)),
+                (11, "Main Funestra", True, False, (0, 0, 100, 200)),
                 (12, "Fun Time", True, False, (100, 0, 300, 400)),
             ])
             stacked = win32.iter_zorder()
 
         assert [w.hwnd for w in stacked] == [11, 12]
-        assert [w.title for w in stacked] == ["Main Player", "Fun Time"]
+        assert [w.title for w in stacked] == ["Main Funestra", "Fun Time"]
         assert stacked[1].rect == (100, 0, 300, 400)
 
     def test_hidden_minimized_and_untitled_windows_are_left_out(self):
@@ -892,13 +892,13 @@ class TestIterZorder:
                 (11, "Hidden", False, False, (0, 0, 10, 10)),
                 (12, "Minimized", True, True, (0, 0, 10, 10)),
                 (13, "", True, False, (0, 0, 10, 10)),
-                (14, "Main Player", True, False, (0, 0, 10, 10)),
+                (14, "Main Funestra", True, False, (0, 0, 10, 10)),
             ])
             assert [w.hwnd for w in win32.iter_zorder()] == [14]
 
     def test_each_window_carries_whether_it_rides_the_topmost_band(self):
         with patch("fun_time.win32._user32") as mock:
-            self._stack(mock, [(11, "Main Player", True, False, (0, 0, 10, 10))])
+            self._stack(mock, [(11, "Main Funestra", True, False, (0, 0, 10, 10))])
             mock.GetWindowLongW.return_value = win32.WS_EX_TOPMOST
             assert win32.iter_zorder()[0].topmost is True
 

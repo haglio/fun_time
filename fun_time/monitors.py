@@ -52,8 +52,8 @@ def enumerate_monitors() -> list[MonitorInfo]:
 
     ``FUN_TIME_FAKE_MONITORS`` (``x,y,w,h;x,y,w,h``) overrides it outright, for
     the integration suite's hidden desktop: that reports ONE monitor, on which
-    the real layout collapses every window onto one screen and the players
-    legitimately overlap, so "is each player frontmost over its own rect?" had
+    the real layout collapses every window onto one screen and the Funestras
+    legitimately overlap, so "is each Funestra frontmost over its own rect?" had
     nothing true to assert.  Windows place fine at coordinates no display backs.
     """
     fake = os.environ.get("FUN_TIME_FAKE_MONITORS", "").strip()
@@ -110,7 +110,7 @@ def get_logical_monitor_rects(
 
     The rules, one test each: landscape wins over portrait, else leftmost wins.
     The two indices are the 1-based monitor numbers the config carries, and
-    "primary" is its word: not the main player's monitor, which is the secondary.
+    "primary" is its word: not the Main Funestra's monitor, which is the secondary.
     """
     if not monitors:
         raise ValueError("No monitors detected")

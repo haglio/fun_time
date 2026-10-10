@@ -3,32 +3,32 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from player_core.hud_button import Button
+from funestra_core.hud_button import Button
 from shared_ui.spacing import BUTTON_WORD_W
 
-from .players import Player
+from .room_funestras import RoomFunestra
 
 if TYPE_CHECKING:
-    from player_core.satellite_hud import HudModel
+    from funestra_core.satellite_hud import HudModel
 
 
-def take_osr2_command(player: Player) -> str:
-    return f"{player.label}_take_osr2"
+def take_osr2_command(funestra: RoomFunestra) -> str:
+    return f"{funestra.label}_take_osr2"
 
 
-TAKE_OSR2_COMMANDS: dict[str, Player] = {take_osr2_command(player): player for player in Player}
+TAKE_OSR2_COMMANDS: dict[str, RoomFunestra] = {take_osr2_command(funestra): funestra for funestra in RoomFunestra}
 
 
-def player_with_the_osr2(state) -> Player:
+def funestra_with_the_osr2(state) -> RoomFunestra:
     try:
-        return Player(state.osr2_player)
+        return RoomFunestra(state.osr2_funestra)
     except ValueError:
-        return Player.MAIN
+        return RoomFunestra.MAIN
 
 
-def take_osr2_button(player: Player) -> Button:
-    return Button(take_osr2_command(player), "OSR2",
-                  "Take over the OSR2 — it follows this player's funscripts, "
+def take_osr2_button(funestra: RoomFunestra) -> Button:
+    return Button(take_osr2_command(funestra), "OSR2",
+                  "Take over the OSR2 — it follows this Funestra's funscripts, "
                   "and its controls move here",
                   width=BUTTON_WORD_W)
 
@@ -42,8 +42,8 @@ class DeviceBlock:
     max_intensity: int | None = None
 
     @classmethod
-    def offered_to(cls, player: Player) -> DeviceBlock:
-        return cls(rows=((take_osr2_button(player),),))
+    def offered_to(cls, funestra: RoomFunestra) -> DeviceBlock:
+        return cls(rows=((take_osr2_button(funestra),),))
 
     def worn_by(self, model: HudModel) -> HudModel:
         return replace(model, osr2_rows=self.rows, osr2=self.osr2,
