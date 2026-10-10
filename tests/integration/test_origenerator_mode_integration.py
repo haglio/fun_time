@@ -59,6 +59,7 @@ from fun_time.windows_bridge_startup import (
 
 from .integration_support import (
     COMMAND_BUDGET_S,
+    QUIT_BUDGET_S,
     START_BUDGET_S,
     FunTimeIntegrationSession,
     build_integration_config,
@@ -293,11 +294,12 @@ _A_START_THAT_WAITS_FOR_THE_APP_S = (
     _A_START_WITH_EVERY_CORE_BUSY_S + ORIGENERATOR_BOOT_BUDGET_S)
 # Every wait the two-session check makes, at its own budget: both starts and
 # both players' pictures in the second one.
-_A_TAKEOVER_AND_EVERY_WAIT_IT_MAKES_S = (
-    COMMAND_BUDGET_S + _A_START_WITH_EVERY_CORE_BUSY_S + 2 * COMMAND_BUDGET_S)
 _TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S = (
     _A_START_WITH_EVERY_CORE_BUSY_S + _A_START_THAT_WAITS_FOR_THE_APP_S
     + 2 * COMMAND_BUDGET_S)
+_A_SESSION_A_QUIT_AND_FIVE_WAITS_S = (
+    _A_START_WITH_EVERY_CORE_BUSY_S + QUIT_BUDGET_S + 5 * COMMAND_BUDGET_S)
+_THAT_AND_THE_SHARED_SESSIONS_QUIT_S = _A_SESSION_A_QUIT_AND_FIVE_WAITS_S + QUIT_BUDGET_S
 _PLAYER_TITLES = (SATELLITE_PORTRAIT_TITLE, SATELLITE_LANDSCAPE_TITLE)
 
 
@@ -516,6 +518,7 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
                  desc=f"the {player} player to be put back in the topmost band")
 
 
+@pytest.mark.timeout(_A_SESSION_A_QUIT_AND_FIVE_WAITS_S)
 def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
     """The one he kept reporting: the mode puts a picture on each side and then
     something buries it a few seconds later.
@@ -543,7 +546,7 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
         "FUN_TIME_FAKE_MONITORS": "0,0,1280,720;1280,0,720,1440",
     }
     try:
-        session.start(wait_seconds=180.0, env_overrides=overlay_env)
+        session.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S, env_overrides=overlay_env)
         _enter_the_mode(session)
         events = event_log_path(session.config.paths.state_dir)
         text = events.read_text(encoding="utf-8", errors="replace") if events.exists() else ""
@@ -633,7 +636,7 @@ def test_a_room_left_in_the_mode_opens_in_it():
         second.stop()
 
 
-@pytest.mark.timeout(_A_TAKEOVER_AND_EVERY_WAIT_IT_MAKES_S)
+@pytest.mark.timeout(_A_SESSION_A_QUIT_AND_FIVE_WAITS_S)
 def test_an_origenerator_open_on_a_slideshow_is_taken_into_a_room_that_opens_in_its_mode():
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
@@ -656,6 +659,7 @@ def test_an_origenerator_open_on_a_slideshow_is_taken_into_a_room_that_opens_in_
         kill_process_tree(open_app.pid)
 
 
+@pytest.mark.timeout(_THAT_AND_THE_SHARED_SESSIONS_QUIT_S)
 def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doubled():
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
@@ -672,7 +676,7 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
         # is a launcher, and the app is the interpreter it starts.
         offered_pid = int(wait_for(lambda: offer.exists() and offer.read_text(
             encoding="utf-8").split(), desc="the open app to offer itself")[0])
-        session.start()
+        session.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S)
 
         assert session.read_child_pids().get("origenerator_pid") == offered_pid
         state_file = shared_state_path(session.config.paths.state_dir)
