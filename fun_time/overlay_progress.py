@@ -12,9 +12,14 @@ a keypress, and stays up reading "Canceling..." until the teardown finishes.
 """
 from __future__ import annotations
 
+import os
+import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, runtime_checkable
+
+from app_support.threading_utils import start_daemon_thread
 
 PROGRESS_FILENAME = "startup_progress.txt"
 SHUTDOWN_PROGRESS_FILENAME = "shutdown_progress.txt"
@@ -248,3 +253,31 @@ class NullProgress:  # silent no-op reporter, for integration mode
 
     def finish(self) -> None:
         pass
+
+
+COVER_HEARTBEAT_S = 1.0  # how often the work under a cover says it is still going
+
+
+def keep_the_cover_up(progress_file: Path, *, name: str) -> Callable[[], None]:
+    """Say the work under a cover is still going, once a second, until it is
+    stopped.  The cover takes ITSELF down when this stops -- its one way out
+    that needs nobody else alive -- and slow work outlasts that timeout."""
+    stopped = threading.Event()
+
+    def beat() -> None:
+        while True:
+            try:  # not past DONE: a file the cover never tidied is no work going on
+                if not parse_progress(progress_file.read_text(encoding="utf-8")).done:
+                    os.utime(progress_file, None)
+            except OSError:
+                pass  # no work going on
+            if stopped.wait(COVER_HEARTBEAT_S):
+                return
+
+    heartbeat = start_daemon_thread(target=beat, name=name)
+
+    def stop() -> None:
+        stopped.set()
+        heartbeat.join()
+
+    return stop

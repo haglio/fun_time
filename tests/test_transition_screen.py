@@ -22,8 +22,8 @@ from pathlib import Path
 from fun_time import orchestrator as desktop_orchestrator
 from fun_time import session_handoff, transition_screen
 from fun_time.child_launch import open_child_log
+from fun_time.overlay_progress import COVER_HEARTBEAT_S
 from fun_time.session_handoff import (
-    COVER_HEARTBEAT_S,
     COVER_STALE_S,
     crossing_progress_path,
     drop_crossing_cover,

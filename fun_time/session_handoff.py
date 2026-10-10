@@ -3,10 +3,8 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import subprocess
 import sys
-import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -15,7 +13,6 @@ from typing import NamedTuple
 
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import mutex_name
 
 from fun_time import preview_marker
@@ -29,7 +26,7 @@ from fun_time.overlay_progress import (
     CANCELING,
     QUIT_WORD,
     cancel_file_for,
-    parse_progress,
+    keep_the_cover_up,
     what_the_flag_asks,
 )
 from fun_time.process_identity import NAMER
@@ -48,8 +45,7 @@ HANDOFF_REQUEST_NAME = "session_handoff.txt"
 
 # What the monitors read while the room changes shape.
 CROSSING_PROGRESS_NAME = "crossing_progress.txt"
-COVER_HEARTBEAT_S = 1.0  # how often a session says the crossing is under way
-COVER_STALE_S = 20.0  # and how long it may stop saying before the cover is gone
+COVER_STALE_S = 20.0  # how long a crossing may stop saying so before its cover is gone
 KEPT_ORIGENERATOR_NAME = "origenerator_kept.txt"
 
 HEADSET_HOLD_NAME = "vr_headset_hold.flag"  # the headset's half, a handshake
@@ -243,29 +239,7 @@ def returning_from_a_crossing(state_dir: str | Path) -> bool:
 
 
 def keep_the_crossing_cover(state_dir: str | Path) -> Callable[[], None]:
-    """Say the crossing is still under way, once a second, until it is
-    stopped.  The cover takes ITSELF down when this stops -- its one way out
-    that needs nobody else alive -- and a crossing outlasts that timeout."""
-    path = crossing_progress_path(state_dir)
-    stopped = threading.Event()
-
-    def beat() -> None:
-        while True:
-            try:  # not past DONE: a file the cover never tidied is not a crossing
-                if not parse_progress(path.read_text(encoding="utf-8")).done:
-                    os.utime(path, None)
-            except OSError:
-                pass  # no crossing under way
-            if stopped.wait(COVER_HEARTBEAT_S):
-                return
-
-    heartbeat = start_daemon_thread(target=beat, name="crossing-cover")
-
-    def stop() -> None:
-        stopped.set()
-        heartbeat.join()
-
-    return stop
+    return keep_the_cover_up(crossing_progress_path(state_dir), name="crossing-cover")
 
 
 _CANCELED_LINE = f"1/2|{CANCELING}\n"
