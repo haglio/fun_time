@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import pygame
 import pytest
+from shared_ui.loading_panel import LoadingPanel
+from shared_ui.palette import LOADING_ACCENT, LOADING_GROUND, LOADING_TROUGH
 
 from main_player.library_source import PHASE_DISCOVER, PHASE_DURATIONS
 from main_player.loading import (
     REPAINT_INTERVAL_S,
     LoadingCanceled,
+    paint_panel,
     progress_fraction,
     progress_text,
     quit_requested,
@@ -102,3 +105,15 @@ class TestGivingUpOnTheWait:
         stop_if_asked()
 
         assert pumped == [1]
+
+
+class TestWhatThePlayerPaintsWhileItReads:
+    def test_it_is_the_familys_loading_panel_in_the_middle_of_the_window(self):
+        surface = pygame.Surface((800, 600))
+
+        paint_panel(surface, LoadingPanel(wordmark="Main Player", status="Finding videos...", fraction=0.5))
+
+        assert surface.get_at((0, 0))[:3] == LOADING_GROUND
+        tones = {tuple(surface.get_at((x, y))[:3]) for y in range(0, 600, 2) for x in range(0, 800, 2)}
+        assert LOADING_ACCENT in tones
+        assert LOADING_TROUGH in tones
