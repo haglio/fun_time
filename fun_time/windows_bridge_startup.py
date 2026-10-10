@@ -48,7 +48,8 @@ from .player_status import (
 )
 from .players import Player
 from .process_identity import NAMER
-from .process_sweep import sweep_processes
+from .process_sweep import processes_matching
+from .process_tree import kill_process_tree
 from .project_paths import PROJECT_ICON
 from .random_favs_browser import build_manifest, write_manifest
 from .rfb_tab_page import tabs_dir, write_tab_pages
@@ -65,6 +66,7 @@ from .session_resume import (
     resume_what_lives_in_a_player,
 )
 from .shared_state import shared_state_path
+from .win32_process import get_process_creation_time, unix_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -109,18 +111,9 @@ def stop_broker_processes(broker_tray_launcher: Path | str | None) -> None:
     contract = broker_contract.read(broker_tray_launcher)
     if contract is None:
         return
-    ps_command = (
-        "$targets = Get-CimInstance Win32_Process | Where-Object { "
-        "(($_.Name -match '" + contract.image_pattern + "') -and $_.CommandLine -match '"
-        + contract.command_line_pattern
-        + "') -or "
-        "(($_.Name -match '^wscript\\.exe$') -and $_.CommandLine -match '"
-        + contract.launcher_pattern
-        + "') "
-        "}; "
-        "$targets | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
-    )
-    sweep_processes(ps_command)
+    for found in (*processes_matching(contract.image_pattern, contract.command_line_pattern),
+                  *processes_matching(r"^wscript\.exe$", contract.launcher_pattern)):
+        kill_process_tree(found.pid)
 
 
 def reap_orphaned_satellites(
@@ -136,19 +129,11 @@ def reap_orphaned_satellites(
     """
     if not status_files:
         return
-    module_pattern = re.escape(satellite_module)
-    # PowerShell single-quoted literals: only ' needs doubling, so a Windows path's
-    # backslashes and brackets stay literal (no regex or -like wildcard surprises).
-    claimed = ",".join("'" + str(path).replace("'", "''") + "'" for path in status_files)
-    ps_command = (
-        f"$claimed = @({claimed}); "
-        "Get-CimInstance Win32_Process | Where-Object { $p = $_; "
-        f"($p.Name -match '{NAMER.process_name_pattern}') -and $p.CommandLine -and "
-        f"($p.CommandLine -match '-m\\s+{module_pattern}(\\s|$)') -and "
-        "($claimed | Where-Object { $p.CommandLine.Contains($_) }) "
-        "} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
-    )
-    sweep_processes(ps_command)
+    claimed = [str(path) for path in status_files]
+    for found in processes_matching(NAMER.process_name_pattern,
+                                    rf"-m\s+{re.escape(satellite_module)}(\s|$)"):
+        if any(path in found.command_line for path in claimed):
+            kill_process_tree(found.pid)
 
 
 def launch_broker_tray(broker_tray_launcher: Path | None) -> None:
@@ -201,18 +186,10 @@ def broker_process_started_at(broker_tray_launcher: Path | str | None) -> float 
     contract = broker_contract.read(broker_tray_launcher)
     if contract is None:
         return None
-    ps_command = (
-        "Get-CimInstance Win32_Process | Where-Object { "
-        "($_.Name -match '" + contract.image_pattern + "') -and $_.CommandLine -match '"
-        + contract.broker_command_line_pattern
-        + "' } | ForEach-Object { "
-        "[int64]($_.CreationDate.ToUniversalTime() - [datetime]'1970-01-01').TotalSeconds "
-        "} | Sort-Object | Select-Object -First 1"
-    )
-    try:
-        return float(sweep_processes(ps_command, read_output=True).strip())
-    except ValueError:
-        return None
+    started = [created for found in processes_matching(
+                   contract.image_pattern, contract.broker_command_line_pattern)
+               if (created := get_process_creation_time(found.pid)) is not None]
+    return unix_seconds(min(started)) if started else None
 
 
 def ensure_broker(

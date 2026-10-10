@@ -294,7 +294,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # left them alone went with it.
 # 6507 then: whether a program is running is read off the process list instead
 # of asked of tasklist, and the paragraph counting the module's queries went.
-MAX_PROSE_LINES = 6507
+# 6501 then: the process sweeps stopped spelling out PowerShell's quoting
+# rules, and the module that ran them its own reason for existing.
+MAX_PROSE_LINES = 6501
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
