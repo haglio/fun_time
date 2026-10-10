@@ -415,7 +415,7 @@ _SECTIONS: tuple[_Section, ...] = (
                  ("main_shuffle",)),
             _Row(
                 "Length of what plays: \"mixed\" (the default, everything), "
-                "\"shorts\", or \"full length\" — \"mixed\" leaves any "
+                "\"clips\", or \"full\" — \"mixed\" leaves any "
                 "compilation with it; the console's own pair reaches a fourth "
                 "state, neither, which holds the video on screen",
                 ("T",),
