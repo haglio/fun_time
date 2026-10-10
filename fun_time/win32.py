@@ -19,6 +19,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from fun_time.win32_loader import Win32Rect, load_dll, win_functype
 from fun_time.win32_process import list_child_pids
