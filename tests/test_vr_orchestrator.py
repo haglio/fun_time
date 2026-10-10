@@ -26,6 +26,7 @@ from fun_time.modes import VideoShapes
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCELING,
+    PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     SHUTDOWN_READY_FILENAME,
     StartupCancelled,
@@ -57,7 +58,12 @@ from fun_time.voice_control import say_the_mic_is_off
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from fun_time_vr import orchestrator, player, vr_runtime
-from fun_time_vr.cover import CLOSING_STATUS, SHUTDOWN_STALE_TIMEOUT_S, scene_ready_file
+from fun_time_vr.cover import (
+    CLOSING_STATUS,
+    SHUTDOWN_STALE_TIMEOUT_S,
+    STARTUP_STALE_TIMEOUT_S,
+    scene_ready_file,
+)
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
     _closing_cover,
@@ -1232,12 +1238,16 @@ class TestTheHeadsetsCover:
 
 class TestCancellingALaunch:
     def _cancel(self, tmp_path, monkeypatch, children, *, by_quit_chord=False,
-                crossing=True, taken_over=False):
+                crossing=True, taken_over=False, while_ending=lambda child: None):
         order: list = []
+
+        def end(child):
+            order.append(child.pid)
+            while_ending(child)
+
         monkeypatch.setattr(orchestrator, "stop_hotkey_script",
                             lambda _proc, _file: order.append("hotkeys"))
-        monkeypatch.setattr(orchestrator, "kill_recorded_child",
-                            lambda child: order.append(child.pid))
+        monkeypatch.setattr(orchestrator, "kill_recorded_child", end)
         # The monitors as the crossing left them, before this session started: a
         # full-screen window belonging to the session that has already gone.  And
         # the marker a crossing's own exit leaves, which is why the flag's word is
@@ -1278,6 +1288,21 @@ class TestCancellingALaunch:
         _code, order, _cover = self._cancel(tmp_path, monkeypatch, children)
 
         assert order == ["hotkeys", "audio", "player"]
+
+    def test_a_part_slow_to_end_does_not_let_the_headset_cover_go(self, tmp_path, monkeypatch):
+        """A quit's teardown, under the opening cover instead of the closing one:
+        a part slow to end must not let it go over the half-built room."""
+        heard: list[bool] = []
+
+        def the_audio_companion_takes_its_time(child):
+            if child.pid == "audio":
+                heard.append(heard_from_again_once_stale(
+                    tmp_path / PROGRESS_FILENAME, stale_after_s=STARTUP_STALE_TIMEOUT_S))
+
+        self._cancel(tmp_path, monkeypatch, {"audio_pid": ChildProcess(pid="audio", created_at=1)},
+                     while_ending=the_audio_companion_takes_its_time)
+
+        assert heard == [True]
 
     def test_it_leaves_no_files_behind_and_reads_as_a_clean_exit(
             self, tmp_path, monkeypatch):

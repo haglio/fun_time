@@ -2091,6 +2091,31 @@ class TestStartupCancellation:
         # The overlay is brought down after teardown.
         fake_loading_proc.wait.assert_called()
 
+    def test_a_part_slow_to_end_does_not_let_the_loading_screen_take_itself_down(
+            self, cfg_factory, tmp_path):
+        """A quit's teardown, under the loading screen instead of the closing
+        one: a part slow to end must not let it go over the half-built room."""
+        manifest_path = write_windows_bridge_manifest(
+            load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        state_dir = tmp_path / "state"
+        heard: list[bool] = []
+
+        def the_main_player_takes_its_time(pid):
+            if pid == 200:
+                heard.append(heard_from_again_once_stale(
+                    state_dir / PROGRESS_FILENAME, stale_after_s=STALE_TIMEOUT_S))
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   side_effect=StartupCancelled(launched_pids=[300, 200], rfb_hwnd=0)), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen"), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
+                   side_effect=the_main_player_takes_its_time), \
+             patch("fun_time.windows_bridge_orchestrator.close_window"):
+            _a_session(manifest_path=manifest_path, ahk_exe="ahk.exe",
+                       hotkey_script="hotkeys.ahk", state_dir=state_dir, project_dir=tmp_path)
+
+        assert heard == [True]
+
     def test_esc_on_a_launch_arriving_from_vr_goes_back_into_vr_offering_no_esc(
         self, cfg_factory, tmp_path,
     ):
