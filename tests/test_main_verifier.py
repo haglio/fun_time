@@ -444,8 +444,8 @@ def test_a_process_ended_part_way_through_saving_costs_the_map_only_what_that_pr
     _tear_the_lines_saved_in(str(torn))
 
     with caplog.at_level("WARNING", logger="main_verifier"):
-        ran = main_verifier._measured_sources(measuring / ".coverage", checkout,
-                                              frozenset({"fun_time/x.py", "fun_time/y.py"}))
+        ran = main_verifier.measured_sources(measuring / ".coverage", checkout,
+                                             frozenset({"fun_time/x.py", "fun_time/y.py"}))
 
     assert ran == {"fun_time/x.py"}
     assert torn.name in caplog.text
