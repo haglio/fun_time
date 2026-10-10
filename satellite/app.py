@@ -15,6 +15,7 @@ from player_core.funestra import Funestra
 from player_core.playlist import PlaylistItem
 from player_core.sdl_hints import deliver_the_focusing_click
 
+from main_player.input import Input
 from main_player.player_window import take_outside_resizes, wear_the_icon
 
 from .cli import audio_muted, build_parser, resolve_playlist
@@ -80,17 +81,12 @@ def _run(args, playlist: list[PlaylistItem]) -> int:
         audible=not audio_muted(args), tiles=placement.tiles,
     )
     clock = pygame.time.Clock()
+    window_input = Input(funestra)
     while not funestra.stopped:
         # Before the events, which have to be placed against the window they
         # landed in; the sequencer can move this one between passes.
         window = pygame.display.get_window_size()
-        for ev in pygame.event.get():
-            if ev.type == pygame.QUIT:
-                funestra.close_requested()
-            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-                funestra.press(*ev.pos, window=window)
-            elif ev.type == pygame.MOUSEMOTION:
-                funestra.motion(*ev.pos, held=bool(ev.buttons[0]), window=window)
+        window_input.deal(pygame.event.get(), window)
         funestra.tick(window=window)
         clock.tick(60)
     funestra.close()

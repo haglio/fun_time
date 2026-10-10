@@ -5023,6 +5023,55 @@ class TestWhereEachHudSits:
         assert BridgeState().satellite(Player.PORTRAIT).hud_edge is HudEdge.LOWER
 
 
+class TestAClickInACorner:
+    def test_it_moves_that_players_hud_there_and_opens_it(self, tmp_path):
+        config = _make_config(tmp_path)
+        state, _ops = dispatch_command("portrait_hud_minimize", BridgeState(), config)
+
+        state, _ops = dispatch_command("portrait_hud_restore_at|lower_right", state, config)
+
+        assert state.satellite(Player.PORTRAIT).hud_corner is HudCorner.LOWER_RIGHT
+        assert state.satellite(Player.PORTRAIT).hud_minimized is False
+
+    def test_on_the_main_player_it_moves_the_console_there_and_opens_it(self, tmp_path):
+        config = _make_config(tmp_path)
+        state, _ops = dispatch_command("main_hud_minimize", BridgeState(), config)
+
+        state, _ops = dispatch_command("main_hud_restore_at|upper_right", state, config)
+
+        assert state.main_hud_corner is HudCorner.UPPER_RIGHT
+        assert state.main_hud_minimized is False
+
+    def test_in_origenerator_mode_the_show_wearing_the_hud_is_told_both(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+
+        dispatch_command("landscape_hud_restore_at|lower_left",
+                         _up(satellites_mode="origenerator"), config)
+
+        assert _origenerator_cmds(config) == ["landscape_hud_corner|lower_left",
+                                              "landscape_hud_minimized|0"]
+
+    def test_in_the_headset_it_names_a_side_and_hangs_the_panel_there_open(self, tmp_path):
+        config = _make_config(tmp_path, vr_main_player=True)
+        state, _ops = dispatch_command("portrait_hud_minimize", BridgeState(), config)
+
+        state, _ops = dispatch_command("portrait_hud_restore_at|left", state, config)
+        state, _ops = dispatch_command("main_hud_restore_at|upper", state, config)
+
+        assert state.satellite(Player.PORTRAIT).hud_edge is HudEdge.LEFT
+        assert state.satellite(Player.PORTRAIT).hud_minimized is False
+        assert state.main_hud_edge is HudEdge.UPPER
+
+    @pytest.mark.parametrize("place", ["left", "", "middle"])
+    def test_a_place_that_is_no_corner_leaves_the_hud_as_it_was(self, tmp_path, place):
+        config = _make_config(tmp_path)
+        state, _ops = dispatch_command("portrait_hud_minimize", BridgeState(), config)
+
+        moved, ops = dispatch_command(f"portrait_hud_restore_at|{place}", state, config)
+
+        assert (moved, ops) == (state, [])
+
+
 class TestMinimizingAHud:
     """The minus on a HUD collapses it to a square with a plus; the plus brings
     the panel back.  Said as well as pressed, and kept across a mode switch."""
