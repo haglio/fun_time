@@ -22,6 +22,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.win32_loader import load_dll
 from fun_time.win32_process import is_process_alive
@@ -40,7 +41,7 @@ from tests.integration.hidden_desktop import (
     create_run_job,
     main,
 )
-from tests.integration.main_verifier import measured_sources
+from tests.integration.main_verifier import measured_run_environment, measured_sources
 from tests.integration.session_lock import SingleInstanceLock, Waiting, hold_integration_lock
 
 
@@ -105,20 +106,19 @@ def test_a_process_a_measured_run_ends_without_warning_keeps_what_it_ran(tmp_pat
     rcfile = tmp_path / "coveragerc"
     rcfile.write_text(f"[run]\nsource = {measured}\ndata_file = {data_file}\nparallel = true\n",
                       encoding="utf-8")
-    probe = f"import sys, time; sys.path.insert(0, {str(measured)!r}); import ran; ran.it(); time.sleep(600)"
-    job = create_run_job()
-    pi = _launch_on_desktop(subprocess.list2cmdline([sys.executable, "-c", probe]), None,
-                            str(_repo_root()), job,
-                            environment={**os.environ, "COVERAGE_PROCESS_START": str(rcfile)})
+    probe = subprocess.Popen(
+        [sys.executable, "-c",
+         f"import sys, time; sys.path.insert(0, {str(measured)!r}); import ran; ran.it(); time.sleep(600)"],
+        cwd=_repo_root(), env=_child_environment(measured_run_environment(rcfile)),
+        **hidden_subprocess_kwargs())
     try:
         deadline = time.monotonic() + A_STARVED_CHILDS_START_S
         while not measured_sources(data_file, measured, frozenset({"ran.py"})):
             assert time.monotonic() < deadline, "nothing the probe ran was saved while it ran"
             time.sleep(0.25)
     finally:
-        close_run_job(job)
-        hidden_desktop._wait_for_the_run(pi.hProcess, ceiling_s=A_STARVED_CHILDS_START_S)
-        _close_process_handles(pi)
+        probe.kill()
+        probe.wait()
 
     assert measured_sources(data_file, measured, frozenset({"ran.py"})) == {"ran.py"}
 
