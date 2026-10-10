@@ -28,7 +28,7 @@ pytestmark = [
 ]
 
 CLIP_FPS = 60
-CLIP_SECONDS = 10
+FLICK_SECONDS = 10
 MEASURED_S = 5.0
 HEADSET_HZ = 72.0
 PAINTED_PER_S_AT_LEAST = 45
@@ -42,7 +42,7 @@ def _sixty_fps_test_pattern(folder: Path) -> Path:
     subprocess.run(
         [ffmpeg, "-v", "error", "-y", "-f", "lavfi",
          "-i", f"testsrc2=size=1280x720:rate={CLIP_FPS}",
-         "-t", str(CLIP_SECONDS), "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)],
+         "-t", str(FLICK_SECONDS), "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)],
         check=True, timeout=60, **hidden_subprocess_kwargs())
     return clip
 

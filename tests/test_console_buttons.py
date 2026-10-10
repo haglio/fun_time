@@ -140,7 +140,7 @@ class TestOsr2Controls:
 
 
 class TestTransport:
-    """Prev/next step the Main Funestra's video where the Main Funestra is on screen, Genau's clips where it
+    """Prev/next step the Main Funestra's video where the Main Funestra is on screen, Genau's flicks where it
     is — with the actions that only make sense for each."""
 
     def test_kino_mode_steps_the_video_and_acts_on_it(self):
@@ -159,25 +159,25 @@ class TestTransport:
         narrows is not what is playing — the same reason nudge and record go."""
         assert "main_fmode" not in _actions(MainSlot(main_mode=MainMode.GENAU))
 
-    def test_genau_steps_its_own_clips_and_can_mark_one_weird(self):
+    def test_genau_steps_its_own_flicks_and_can_mark_one_weird(self):
         actions = _actions(MainSlot(main_mode=MainMode.GENAU))
 
-        assert "genau_prev_clip" in actions
-        assert "genau_next_clip" in actions
-        assert "genau_weird_clip" in actions
+        assert "genau_prev_flick" in actions
+        assert "genau_next_flick" in actions
+        assert "genau_weird_flick" in actions
 
-    def test_genau_can_flip_the_clip_up_half_a_loop(self):
+    def test_genau_can_flip_the_flick_up_half_a_loop(self):
         flip = _button(MainSlot(main_mode=MainMode.GENAU), "genau_flip_ends")
 
         assert shared_mark_name(flip.glyph) == "flip_ends"
         assert flip.lit is False
         assert _button(MainSlot(main_mode=MainMode.GENAU, flipped=True), "genau_flip_ends").lit is True
 
-    def test_a_video_has_no_clip_to_flip(self):
+    def test_a_video_has_no_flick_to_flip(self):
         assert "genau_flip_ends" not in _actions(MainSlot(main_mode=MainMode.KINO))
 
     def test_genau_offers_no_video_only_actions(self):
-        """Nudge, clip and record act on a video; Genau's clips are not one."""
+        """Nudge, flick and record act on a video; Genau's flicks are not one."""
         actions = _actions(MainSlot(main_mode=MainMode.GENAU))
 
         for action in ("main_nudge_prev", "genaumacher_save",
@@ -197,7 +197,7 @@ class TestTransport:
 
         held, loose = tips(locked=True, pace_s=7), tips(locked=False, pace_s=7)
 
-        assert (held["genau_prev_clip"], held["genau_next_clip"]) == ("Previous pip", "Next pip")
+        assert (held["genau_prev_flick"], held["genau_next_flick"]) == ("Previous pip", "Next pip")
         assert held["main_lock"] == "Locked — this pip repeats; press to move on every 7s"
         assert loose["main_lock"] == "Unlocked — moving on every 7s; press to hold this pip"
         assert tips(flipped=True)["genau_flip_ends"] == "Flipped — this pip stays that way; press to put it back"
@@ -368,7 +368,7 @@ class TestProjectionPair:
 
 
 class TestGenausProjectionPair:
-    """The same pair over Genau's clips, where its folders hold both shapes."""
+    """The same pair over Genau's flicks, where its folders hold both shapes."""
 
     def _pair(self, plays_vr, plays_flat):
         rows = console_rows(MainSlot(main_mode=MainMode.GENAU, latest=False,
@@ -527,17 +527,17 @@ class TestLock:
 
 
 class TestPaceRows:
-    """The video's playback rate under a video, Genau's clip pace in genau mode:
+    """The video's playback rate under a video, Genau's flick pace in genau mode:
     a named row, a read-out the drawing host fills, and the pair around it."""
 
     def test_the_video_rate_has_controls_where_main_funestra_is_on_screen(self):
         actions = _actions(MainSlot(main_mode=MainMode.KINO))
         assert "main_player_speed_down" in actions and "main_player_speed_up" in actions
-        assert "genau_clip_seconds_down" not in actions
+        assert "genau_flick_seconds_down" not in actions
 
     def test_genau_has_the_pace_and_no_video_rate(self):
         actions = _actions(MainSlot(main_mode=MainMode.GENAU))
-        assert "genau_clip_seconds_down" in actions and "genau_clip_seconds_up" in actions
+        assert "genau_flick_seconds_down" in actions and "genau_flick_seconds_up" in actions
         assert "main_player_speed_down" not in actions
 
     def test_the_rate_is_a_read_out_between_the_arrows_that_the_funestra_fills(self):
@@ -549,7 +549,7 @@ class TestPaceRows:
 
     def test_the_seconds_are_a_read_out_between_the_arrows_that_genau_fills(self, pips):
         row = next(row for row in console_rows(MainSlot(main_mode=MainMode.GENAU))
-                   if any(b.command == "genau_clip_seconds_down" for b in row))
+                   if any(b.command == "genau_flick_seconds_down" for b in row))
 
         assert [b.glyph or b.host_value for b in row] == [
             "Pip seconds", _MINUS, "advance_interval", _PLUS]
@@ -768,4 +768,4 @@ class TestFaces:
         assert not named & set(RENAMED_MARKS)
 
     def test_the_bin_takes_something_away(self):
-        assert _button(MainSlot(main_mode=MainMode.GENAU), "genau_weird_clip").danger is True
+        assert _button(MainSlot(main_mode=MainMode.GENAU), "genau_weird_flick").danger is True

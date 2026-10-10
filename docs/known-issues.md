@@ -30,7 +30,7 @@
 - Scope:
   - Not launched in VR: the Qt dashboard and its log panel, the Random Favs Browser,
     and the loopback server. The main slot's two modes,
-    Genau's clips and the Robot Hand's stretches, and the audio companion (on the
+    Genau's flicks and the Robot Hand's stretches, and the audio companion (on the
     headset's output) all run in VR as of 2026-09-04, on the engine that moved to
     `player_core` for it; GenauVR, the standalone headset app, is retired with that.
   - The hosted Origenerator IS launched, as of 2026-09-20, so origenerator mode

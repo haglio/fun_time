@@ -39,7 +39,7 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                         "the defaults below")
     p.add_argument("--videos-dir", type=Path, default=main_funestra.get("videos_dir"))
     p.add_argument("--scripts-dir", type=Path, default=main_funestra.get("scripts_dir"))
-    p.add_argument("--clips-dir", type=Path, default=main_funestra.get("clips_dir") or config.get("clips_dir"),
+    p.add_argument("--flicks-dir", type=Path, default=main_funestra.get("flicks_dir") or config.get("flicks_dir"),
                    help="Genau's delivery folder: its loops, played as shorts "
                         "however long they run")
     p.add_argument("--state-dir", type=Path, default=config.get("state_dir"),
@@ -75,17 +75,17 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                    help="Poll this file for the room's verbs to Genau, which runs on "
                         "this window beside Kino; left off, Kino runs alone")
     p.add_argument("--genau-paused-file", type=Path, default=None,
-                   help="Flag file that pauses Genau's clip under the OSR2's own beat")
+                   help="Flag file that pauses Genau's flick under the OSR2's own beat")
     p.add_argument("--genau-status-file", type=Path, default=None,
-                   help="Where Genau publishes what the hand and the clip are doing")
+                   help="Where Genau publishes what the hand and the flick are doing")
     p.add_argument("--genau-config", type=Path, default=None,
                    help="Genau's own config, whose genau section tunes its engine")
-    p.add_argument("--genau-start-clip", default=None,
-                   help="The clip Genau opens on: where the last session left it")
+    p.add_argument("--genau-start-flick", default=None,
+                   help="The flick Genau opens on: where the last session left it")
     p.add_argument("--genau-latest", action="store_true", default=False,
-                   help="Browse Genau's clips newest-first from the start")
+                   help="Browse Genau's flicks newest-first from the start")
     p.add_argument("--notify-host", default=audio_companion.get("host", "127.0.0.1"),
-                   help="Where Genau tells the audio companion which clip is up")
+                   help="Where Genau tells the audio companion which flick is up")
     p.add_argument("--notify-port", type=int,
                    default=audio_companion.get("port", ports.AUDIO_COMPANION))
     p.add_argument("--no-audio", action="store_true", default=False,
@@ -154,7 +154,7 @@ def library_source(
     return build_library_source(
         Path(args.videos_dir),
         Path(args.scripts_dir),
-        Path(args.clips_dir) if args.clips_dir else None,
+        Path(args.flicks_dir) if args.flicks_dir else None,
         rng=rng or random.Random(),
         duration_cache=None if durations is not None else DurationCache(_duration_cache_path(args)),
         durations=durations,

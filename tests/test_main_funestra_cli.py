@@ -123,12 +123,12 @@ class TestLibrarySource:
 
         assert PHASE_DISCOVER in seen
 
-    def test_clips_dir_falls_back_to_top_level_config(self, tmp_path):
-        """Fun Time's config has no main_funestra.clips_dir; shorts should still pick up
-        the saved clips from the top-level clips_dir the genaumacher writes to."""
-        clips = tmp_path / "clips"
-        args = build_parser({"clips_dir": str(clips)}).parse_args([])
-        assert args.clips_dir == clips
+    def test_flicks_dir_falls_back_to_top_level_config(self, tmp_path):
+        """Fun Time's config has no main_funestra.flicks_dir; shorts should still pick up
+        the saved flicks from the top-level flicks_dir Genaumacher writes to."""
+        flicks = tmp_path / "flicks"
+        args = build_parser({"flicks_dir": str(flicks)}).parse_args([])
+        assert args.flicks_dir == flicks
 
 
 class TestAudioMuted:
@@ -173,7 +173,7 @@ FUN_TIME_ARGV = [
     "--genau-paused-file", "C:/example/state/genau_paused.txt",
     "--genau-status-file", "C:/example/state/genau_status.txt",
     "--genau-config", "C:/example/genau/genau_config.json",
-    "--genau-start-clip", "C:/example/library/clips/2D/alpha one.mp4",
+    "--genau-start-flick", "C:/example/library/flicks/2D/alpha one.mp4",
     "--genau-latest",
 ]
 
@@ -202,7 +202,7 @@ LANDS_AS = {
     "genau_paused_file": Path("C:/example/state/genau_paused.txt"),
     "genau_status_file": Path("C:/example/state/genau_status.txt"),
     "genau_config": Path("C:/example/genau/genau_config.json"),
-    "genau_start_clip": "C:/example/library/clips/2D/alpha one.mp4",
+    "genau_start_flick": "C:/example/library/flicks/2D/alpha one.mp4",
     "genau_latest": True,
 }
 
@@ -254,7 +254,7 @@ class TestTheRestOfTheFlags:
         args = build_parser({}).parse_args([
             "--videos-dir", str(tmp_path / "videos"),
             "--scripts-dir", str(tmp_path / "scripts"),
-            "--clips-dir", str(tmp_path / "clips"),
+            "--flicks-dir", str(tmp_path / "flicks"),
             "--state-dir", str(tmp_path / "state"),
             "--notice-file", str(tmp_path / "notice.txt"),
             "--no-audio",
@@ -262,7 +262,7 @@ class TestTheRestOfTheFlags:
 
         assert args.videos_dir == tmp_path / "videos"
         assert args.scripts_dir == tmp_path / "scripts"
-        assert args.clips_dir == tmp_path / "clips"
+        assert args.flicks_dir == tmp_path / "flicks"
         assert args.state_dir == tmp_path / "state"
         assert args.notice_file == tmp_path / "notice.txt"
         assert audio_muted(args) is True
@@ -275,7 +275,7 @@ EVERY_FLAG_ARGV = [
     "--config", "C:/example/genau_config.json",
     "--videos-dir", "C:/example/library/videos",
     "--scripts-dir", "C:/example/library/scripts",
-    "--clips-dir", "C:/example/library/clips",
+    "--flicks-dir", "C:/example/library/flicks",
     "--state-dir", "C:/example/state",
     "--metadata-dir", "C:/example/library/metadata",
     "--notice-file", "C:/example/state/main_player_notice.txt",
@@ -296,7 +296,7 @@ EVERY_FLAG_ARGV = [
     "--genau-paused-file", "C:/example/state/genau_paused.txt",
     "--genau-status-file", "C:/example/state/genau_status.txt",
     "--genau-config", "C:/example/genau/genau_config.json",
-    "--genau-start-clip", "C:/example/library/clips/2D/alpha one.mp4",
+    "--genau-start-flick", "C:/example/library/flicks/2D/alpha one.mp4",
     "--genau-latest",
     "--notify-host", "10.0.0.8",
     "--notify-port", "51001",
@@ -309,7 +309,7 @@ EVERY_FLAG_LANDS_AS = {
     "config": Path("C:/example/genau_config.json"),
     "videos_dir": Path("C:/example/library/videos"),
     "scripts_dir": Path("C:/example/library/scripts"),
-    "clips_dir": Path("C:/example/library/clips"),
+    "flicks_dir": Path("C:/example/library/flicks"),
     "state_dir": Path("C:/example/state"),
     "metadata_dir": Path("C:/example/library/metadata"),
     "notice_file": Path("C:/example/state/main_player_notice.txt"),
@@ -330,7 +330,7 @@ EVERY_FLAG_LANDS_AS = {
     "genau_paused_file": Path("C:/example/state/genau_paused.txt"),
     "genau_status_file": Path("C:/example/state/genau_status.txt"),
     "genau_config": Path("C:/example/genau/genau_config.json"),
-    "genau_start_clip": "C:/example/library/clips/2D/alpha one.mp4",
+    "genau_start_flick": "C:/example/library/flicks/2D/alpha one.mp4",
     "genau_latest": True,
     "notify_host": "10.0.0.8",
     "notify_port": 51001,
@@ -343,7 +343,7 @@ NO_FLAGS_LANDS_AS = {
     "config": None,
     "videos_dir": None,
     "scripts_dir": None,
-    "clips_dir": None,
+    "flicks_dir": None,
     "state_dir": None,
     "metadata_dir": None,
     "notice_file": None,
@@ -364,7 +364,7 @@ NO_FLAGS_LANDS_AS = {
     "genau_paused_file": None,
     "genau_status_file": None,
     "genau_config": None,
-    "genau_start_clip": None,
+    "genau_start_flick": None,
     "genau_latest": False,
     "notify_host": "127.0.0.1",
     "notify_port": 50556,
@@ -405,7 +405,7 @@ class TestTheConfigsOwnDefaults:
     """The main_player section of the config stands in for flags nobody passes."""
 
     CONFIG = {
-        "clips_dir": "C:/example/library/clips",
+        "flicks_dir": "C:/example/library/flicks",
         "state_dir": "C:/example/state",
         "main_player": {
             "videos_dir": "C:/example/library/videos",
@@ -420,7 +420,7 @@ class TestTheConfigsOwnDefaults:
         ("videos_dir", Path("C:/example/library/videos")),
         ("scripts_dir", Path("C:/example/library/scripts")),
         ("metadata_dir", Path("C:/example/library/metadata")),
-        ("clips_dir", Path("C:/example/library/clips")),
+        ("flicks_dir", Path("C:/example/library/flicks")),
         ("state_dir", Path("C:/example/state")),
         ("tcode_host", "10.0.0.7"),
         ("tcode_port", 51000),
@@ -441,12 +441,12 @@ class TestTheConfigsOwnDefaults:
 
         assert args.tcode_port == 50999
 
-    def test_the_clips_dir_falls_back_to_the_shared_one(self):
+    def test_the_flicks_dir_falls_back_to_the_shared_one(self):
         """The Main Funestra's own section may not name one, and the library's top-level
-        clips_dir is what every app in the family reads."""
-        args = build_parser({"clips_dir": "C:/example/library/clips"}).parse_args([])
+        flicks_dir is what every app in the family reads."""
+        args = build_parser({"flicks_dir": "C:/example/library/flicks"}).parse_args([])
 
-        assert args.clips_dir == Path("C:/example/library/clips")
+        assert args.flicks_dir == Path("C:/example/library/flicks")
 
 
 class TestWhereMainFunestraKeepsItsState:

@@ -409,9 +409,9 @@ def _launch_the_main_funestra(
         secondary_monitor=layout.secondary_monitor, layout_config=layout.config,
     )
     # Genau's resume, read before this session's Genau writes over its status
-    # file: the clip it was left showing, and whether it was browsing Latest off
+    # file: the flick it was left showing, and whether it was browsing Latest off
     # the state the core session just resumed.
-    genau_clip = read_genau_status(Path(m.commands.genau_status_file)).clip
+    genau_flick = read_genau_status(Path(m.commands.genau_status_file)).flick
     state = read_shared_state(shared_state_path(state_dir))
     genau_latest = False if state is None else state.genau_latest
     # The Main Funestra's status file is how startup learns the Main Funestra has finished loading, and it
@@ -444,9 +444,9 @@ def _launch_the_main_funestra(
         genau_paused_file=m.commands.genau_paused_file,
         genau_status_file=m.commands.genau_status_file,
         genau_config_path=m.runtime.genau_config_path,
-        clips_dir=m.media.genau_clips,
+        flicks_dir=m.media.genau_flicks,
         metadata_dir=regen_metadata_raw or None,
-        genau_start_clip=genau_clip,
+        genau_start_flick=genau_flick,
         genau_latest=genau_latest,
         project_dirs=project_dirs,
     )

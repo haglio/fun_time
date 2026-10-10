@@ -44,8 +44,8 @@ from app_support.file_channel import read_flag
 from app_support.logging_utils import install_exception_logging
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import set_app_user_model_id
-from funestra_core.clip_folder import vr_clips_in
 from funestra_core.file_channel import append_command
+from funestra_core.flick_folder import vr_flicks_in
 from funestra_core.funestra import Channels, Funestra
 from funestra_core.funestra_verbs import play_file
 from funestra_core.genau_notifier import GenauNotifier
@@ -212,7 +212,7 @@ LIBRARY_READING_SHOWN_AFTER_S = 0.3
 # at ~20Hz, so 30Hz loses no responsiveness.
 PUMP_HZ = 30.0
 # The Main Funestra's own cadence, Genau's: a slower tick shows fewer of a
-# clip's frames per cycle of the motion.
+# flick's frames per cycle of the motion.
 MAIN_TICK_HZ = 120.0
 
 OFF_THE_PANEL = (-1, -1)
@@ -256,8 +256,8 @@ class VrSettings:
     library_dirs: tuple[Path, ...]
     audio_device: str
     compositor_layers: bool
-    # Genau's role: its clips folder, its companion's address, its engine's numbers.
-    clips_folder: Path | None = None
+    # Genau's role: its flicks folder, its companion's address, its engine's numbers.
+    flicks_folder: Path | None = None
     notify_host: str = "127.0.0.1"
     notify_port: int = ports.AUDIO_COMPANION
     genau: GenauSettings = field(default_factory=GenauSettings)
@@ -275,7 +275,7 @@ class VrSettings:
             audio_device=parser.get("vr", "audio_device", fallback=""),
             compositor_layers=parser.get(
                 "vr", "compositor_layers", fallback="0").strip() == "1",
-            clips_folder=Path(vr["clips_folder"]) if vr.get("clips_folder") else None,
+            flicks_folder=Path(vr["flicks_folder"]) if vr.get("flicks_folder") else None,
             notify_host=vr.get("notify_host", "127.0.0.1"),
             notify_port=int(vr.get("notify_port", ports.AUDIO_COMPANION)),
             genau=GenauSettings.from_manifest(vr),
@@ -483,8 +483,8 @@ class _TheLibrary:
         config_path = Path(manifest.runtime.config_path)
         argv = ["--config", str(config_path), "--playlist", commands.main_funestra_playlist_file,
                 "--state-dir", commands.state_dir]
-        if vr.clips_folder is not None:
-            argv += ["--clips-dir", str(vr.clips_folder)]
+        if vr.flicks_folder is not None:
+            argv += ["--flicks-dir", str(vr.flicks_folder)]
         metadata_root = _metadata_root(manifest)
         if metadata_root is not None:
             argv += ["--metadata-dir", str(metadata_root)]
@@ -500,7 +500,7 @@ class _TheLibrary:
         entries = source.entries if source is not None else []
         clip_nav = ClipNav.build(
             [entry.video for entry in entries] + [
-                clip.video for clip in (source.genau_clips if source is not None else [])],
+                flick.video for flick in (source.genau_flicks if source is not None else [])],
             source.metadata_root if source is not None else None,
         )
         return partial(
@@ -532,12 +532,12 @@ class _MainUnit(_VideoUnit):
         self._watch = PlaybackWatch()
         self._readout = WrapReadout()
         self._presses = _Presses(MAIN, PANEL)
-        self._vr_dirs = () if vr.clips_folder is None else (vr_clips_in(vr.clips_folder),)
+        self._vr_dirs = () if vr.flicks_folder is None else (vr_flicks_in(vr.flicks_folder),)
         self.panel = PanelBitmap(width=PANEL_WIDTH_PX)
         self.users_picture = LatestPicture()
         self.users_picture_texture = FrameTexture()
         self._uploaded_frame = None
-        self._clip_projection: tuple[Path | None, str] = (None, "")
+        self._flick_projection: tuple[Path | None, str] = (None, "")
         library = _TheLibrary(manifest, vr, while_reading=while_reading)
         self.verbs: HeadsetVerbs | None = None
         self.funestra = Funestra(
@@ -592,7 +592,7 @@ class _MainUnit(_VideoUnit):
         if not self.users_picture_texture.ready:
             return ()
         return _in_the_slot(self.screen, self.users_picture_texture,
-                            immersive_wrap(self._clip_projection[1]))
+                            immersive_wrap(self._flick_projection[1]))
 
     @property
     def wraps_the_viewer(self) -> bool:
@@ -641,7 +641,7 @@ class _MainUnit(_VideoUnit):
 
     def _show_the_users_picture(self) -> None:
         """The frame the User in front put up -- Genau's, scrubbed to the OSR2
-        -- uploaded untouched, and wrapped the way its clip is."""
+        -- uploaded untouched, and wrapped the way its flick is."""
         if self.owns_the_slot:
             return
         picture = self.users_picture.picture
@@ -650,9 +650,9 @@ class _MainUnit(_VideoUnit):
         if picture.frame is not self._uploaded_frame:
             self.users_picture_texture.upload(picture.frame)
             self._uploaded_frame = picture.frame
-            if picture.clip != self._clip_projection[0]:
-                self._clip_projection = (
-                    picture.clip, default_projection(str(picture.clip), self._vr_dirs))
+            if picture.flick != self._flick_projection[0]:
+                self._flick_projection = (
+                    picture.flick, default_projection(str(picture.flick), self._vr_dirs))
         if self.users_picture_texture.ready:
             self.screen.rehang_at(
                 shown_at(MAIN, self.screen.placement, self.users_picture_texture.aspect),
@@ -717,14 +717,14 @@ class _MainUnit(_VideoUnit):
 
 def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, kino):
     """What runs on the Main Funestra: Kino, and Genau where the session names
-    its clips folder -- as the desktop's Main Funestra runs them."""
+    its flicks folder -- as the desktop's Main Funestra runs them."""
     users = {MainMode.KINO: kino}
-    if vr.clips_folder is None:
+    if vr.flicks_folder is None:
         return users
     commands = manifest.commands
     resumed = read_shared_state(shared_state_path(Path(commands.state_dir)))
     users[MainMode.GENAU] = lambda _playback: GenauInTheHeadset(
-        clips_folder=vr.clips_folder,
+        flicks_folder=vr.flicks_folder,
         settings=vr.genau,
         channels=GenauChannels(
             command=Path(commands.genau_cmd_file), paused=Path(commands.genau_paused_file),
@@ -733,7 +733,7 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
         tcode_sink=_SaysWhenItFirstMoves(
             UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "genau"),
         stop_event=stop,
-        start_clip=read_genau_status(Path(commands.genau_status_file)).clip or None,
+        start_flick=read_genau_status(Path(commands.genau_status_file)).flick or None,
         latest=False if resumed is None else resumed.genau_latest,
         metadata_root=_metadata_root(manifest),
     )
@@ -1155,7 +1155,7 @@ class _LibraryUnit:
         self._genau_cmd_file = genau_cmd_file
         self._genau_status_file = genau_status_file
         self._genau_has_the_slot = genau_has_the_slot
-        self._browsing_clips = False
+        self._browsing_flicks = False
         self._dashboard_cmd_file = dashboard_cmd_file
         self._shown = ShownWhileAsked()
         self._presses = _Presses(LIBRARY)
@@ -1202,7 +1202,7 @@ class _LibraryUnit:
     def pump(self, stop: threading.Event, now: float) -> None:
         for answer in self._host.answers():
             said, _, video = answer.partition(" ")
-            if said == PICKED and self._browsing_clips:
+            if said == PICKED and self._browsing_flicks:
                 append_command(self._genau_cmd_file, play_file(PlaylistItem(Path(video))))
             elif said == PICKED:
                 append_command(self._main_funestra_cmd_file,
@@ -1214,10 +1214,10 @@ class _LibraryUnit:
             self._token += 1
             self._opened_at = now
             self._drawn = False
-            self._browsing_clips = self._genau_has_the_slot()
-            playing = (read_genau_status(self._genau_status_file).clip if self._browsing_clips
+            self._browsing_flicks = self._genau_has_the_slot()
+            playing = (read_genau_status(self._genau_status_file).flick if self._browsing_flicks
                        else read_main_funestra_status(self._main_funestra_status_file).video)
-            self._host.send(open_line(self._token, playing, clips=self._browsing_clips))
+            self._host.send(open_line(self._token, playing, flicks=self._browsing_flicks))
         events = list(self._presses.drain())
         if not self._shown.showing:
             return

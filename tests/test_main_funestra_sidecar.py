@@ -9,6 +9,7 @@ from main_funestra.sidecar import (
     read_video_type,
     sidecar_for,
 )
+from main_funestra.video_kind import GENAU_FLICK
 
 
 def _write(lib: Path, meta: Path, rel: str, payload: dict) -> Path:
@@ -28,12 +29,12 @@ class TestSidecarFor:
         assert sidecar_for(lib / "w" / "x.mp4", meta) == meta / "w" / "x.json"
 
     def test_a_genau_loop_mirrors_from_beside_the_library(self):
-        """Genau's clips sit next to the video tree rather than inside it, and
+        """Genau's flicks sit next to the video tree rather than inside it, and
         Evolver files their records the same way."""
         meta = Path("D:/suite/videos/metadata")
 
-        assert sidecar_for(Path("D:/suite/videos/genau/clips/loop.mp4"), meta) == (
-            meta / "genau" / "clips" / "loop.json"
+        assert sidecar_for(Path("D:/suite/videos/genau/flicks/loop.mp4"), meta) == (
+            meta / "genau" / "flicks" / "loop.json"
         )
 
     def test_a_video_outside_the_library_has_none(self, tmp_path):
@@ -72,6 +73,12 @@ class TestReadVideoType:
         video = _write(lib, meta, "w/y.mp4", {"version": {"group": "y"}})
 
         assert read_video_type(video, meta) == ""
+
+    def test_a_flick_evolver_recorded_before_the_rename_reads_as_a_flick(self, tmp_path):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        video = _write(lib, meta, "w/z.mp4", {"video": {"type": "genau_clip"}})
+
+        assert read_video_type(video, meta) == GENAU_FLICK
 
 
 class TestReadVersionGroup:

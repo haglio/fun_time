@@ -570,7 +570,7 @@ def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
 
 def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
     """The lock is about what is on screen, and in genau mode that is Genau's
-    clip — the same split the speed controls make.  One padlock on the console
+    flick — the same split the speed controls make.  One padlock on the console
     rather than one per Funestra, which is what left Kino mode with two."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
@@ -591,7 +591,7 @@ def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
 
-def test_the_comma_holds_genaus_clip_while_genau_is_on_the_main_screen(tmp_path: Path):
+def test_the_comma_holds_genaus_flick_while_genau_is_on_the_main_screen(tmp_path: Path):
     """The comma sits under K in Genau's own cluster of keys, the way S and Down
     sit under W and Up in the satellites'."""
     config = _make_config(tmp_path)
@@ -2837,11 +2837,11 @@ def test_stepping_the_volume_lifts_a_mute(tmp_path: Path):
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 80 0"
 
 
-def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
+def test_genau_next_flick_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
-    new_state, ops = dispatch_command("genau_next_clip", state, config)
+    new_state, ops = dispatch_command("genau_next_flick", state, config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
@@ -3015,12 +3015,12 @@ class TestTakingTheOsr2:
         assert not config.main_funestra_cmd_file.exists()
 
 
-def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
+def test_genau_flick_commands_write_cmd_file(tmp_path: Path):
     """What is left of auto-advance is its pace: the arming and the hold it could
     disagree with are one padlock now (see the main lock tests above)."""
     for command, verb in (
-        ("genau_clip_seconds_down", "CLIP_SECONDS_DOWN"),
-        ("genau_clip_seconds_up", "CLIP_SECONDS_UP"),
+        ("genau_flick_seconds_down", "FLICK_SECONDS_DOWN"),
+        ("genau_flick_seconds_up", "FLICK_SECONDS_UP"),
         ("genau_flip_ends", "FLIP_ENDS"),
     ):
         config = _make_config(tmp_path / command)
@@ -3030,24 +3030,24 @@ def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
         assert ops == []
 
 
-def test_marking_genaus_clip_weird_flashes_marked_weird_over_the_main_slot(tmp_path: Path):
+def test_marking_genaus_flick_weird_flashes_marked_weird_over_the_main_slot(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    _, ops = dispatch_command("genau_weird_clip", _make_state(main_mode=MainMode.GENAU), config)
+    _, ops = dispatch_command("genau_weird_flick", _make_state(main_mode=MainMode.GENAU), config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "WEIRD\n"
     assert [(op.op, op.key, op.source) for op in ops] == [("notice", "Marked weird", "main")]
 
 
 @pytest.mark.parametrize("command", [
-    "genau_prev_clip",
-    "genau_next_clip",
-    "genau_weird_clip",
+    "genau_prev_flick",
+    "genau_next_flick",
+    "genau_weird_flick",
     "genau_lock",
     "genau_flip_ends",
-    "genau_clip_seconds_down",
-    "genau_clip_seconds_up",
-    "genau_clip_seconds_30",
+    "genau_flick_seconds_down",
+    "genau_flick_seconds_up",
+    "genau_flick_seconds_30",
 ])
 def test_every_genau_command_is_ignored_with_video_in_the_main_funestra(
         tmp_path: Path, command: str):
@@ -3076,13 +3076,13 @@ def test_the_robot_hands_commands_still_reach_it_with_video_in_the_main_funestra
     assert config.genau_cmd_file.read_text(encoding="utf-8") == verb + "\n"
 
 
-def test_genau_clip_seconds_writes_a_numeric_cmd(tmp_path: Path):
+def test_genau_flick_seconds_writes_a_numeric_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
-    dispatch_command("genau_clip_seconds_30", state, config)
+    dispatch_command("genau_flick_seconds_30", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CLIP_SECONDS 30\n"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "FLICK_SECONDS 30\n"
 
 
 def test_robot_hand_cmd_reaches_genau_in_kino_mode(tmp_path: Path):
@@ -4250,7 +4250,7 @@ def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_pa
 
 def test_a_main_reorder_in_kino_mode_still_reaches_main_funestra(tmp_path, monkeypatch):
     """Kino mode is the Main Funestra on screen with Genau driving the OSR2, so the video being
-    browsed is the Main Funestra's — Genau's clips are not what a reorder there is about."""
+    browsed is the Main Funestra's — Genau's flicks are not what a reorder there is about."""
     calls: list[dict] = []
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
                         lambda **kwargs: calls.append(kwargs))
@@ -4327,13 +4327,13 @@ def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path, monkeypa
 
 
 def _genau_vr_config(tmp_path):
-    """A headset session, whose Genau browses a folder of VR clips beside its flat one."""
+    """A headset session, whose Genau browses a folder of VR flicks beside its flat one."""
     config = _vr_config(tmp_path)
-    config.genau_vr_clips = str(tmp_path / "vr_clips")
+    config.genau_vr_flicks = str(tmp_path / "vr_flicks")
     return config
 
 
-def test_a_shape_press_in_genau_mode_narrows_genaus_clips(tmp_path, monkeypatch):
+def test_a_shape_press_in_genau_mode_narrows_genaus_flicks(tmp_path, monkeypatch):
     calls: list[dict] = []
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
                         lambda **kwargs: calls.append(kwargs))
@@ -4381,8 +4381,8 @@ def test_asking_genau_for_the_shapes_it_already_plays_sends_it_nothing(tmp_path)
     assert ops == [] and not config.genau_cmd_file.exists()
 
 
-def test_a_genau_with_only_flat_clips_ignores_the_filter(tmp_path):
-    """The desktop's Genau, and a headset whose config names no VR clips folder."""
+def test_a_genau_with_only_flat_flicks_ignores_the_filter(tmp_path):
+    """The desktop's Genau, and a headset whose config names no VR flicks folder."""
     config = _vr_config(tmp_path)
 
     state, ops = dispatch_command(

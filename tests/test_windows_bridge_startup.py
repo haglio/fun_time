@@ -1156,23 +1156,23 @@ def test_the_main_funestra_is_handed_genaus_own_files_and_settings(tmp_path: Pat
     assert command[command.index("--genau-config") + 1] == "a-genau-checkout/genau_config.json"
 
 
-def test_the_main_funestra_opens_genau_on_the_clip_it_was_left_showing(tmp_path: Path):
-    """Genau rescans its clips folder every launch and starts at the top of it,
-    so the clip a session was left on comes back only by being named — on the
-    command line, since it has to be in hand before the first clip decodes."""
-    command = _launched_main_funestra(tmp_path, genau_start_clip="C:/clips/alpha.mp4")
+def test_the_main_funestra_opens_genau_on_the_flick_it_was_left_showing(tmp_path: Path):
+    """Genau rescans its flicks folder every launch and starts at the top of it,
+    so the flick a session was left on comes back only by being named — on the
+    command line, since it has to be in hand before the first flick decodes."""
+    command = _launched_main_funestra(tmp_path, genau_start_flick="C:/flicks/alpha.mp4")
 
-    assert command[command.index("--genau-start-clip") + 1] == "C:/clips/alpha.mp4"
+    assert command[command.index("--genau-start-flick") + 1] == "C:/flicks/alpha.mp4"
 
 
-def test_the_main_funestra_names_no_clip_for_a_session_with_none_to_resume(tmp_path: Path):
+def test_the_main_funestra_names_no_flick_for_a_session_with_none_to_resume(tmp_path: Path):
     """A first run, or a Genau that published nothing: the flag is left off
     rather than passed empty, so Genau opens where its own scan starts."""
-    assert "--genau-start-clip" not in _launched_main_funestra(tmp_path, genau_start_clip="")
+    assert "--genau-start-flick" not in _launched_main_funestra(tmp_path, genau_start_flick="")
 
 
 def test_the_launch_names_latest_only_for_a_session_left_browsing_it(tmp_path: Path):
-    """Genau's order comes back on the launch line, beside the clip: left off,
+    """Genau's order comes back on the launch line, beside the flick: left off,
     Genau's config decides, which is the shuffled order a session that was not
     on Latest wants."""
     assert "--genau-latest" in _launched_main_funestra(tmp_path, genau_latest=True)
@@ -1278,7 +1278,7 @@ def test_launch_main_funestra_omits_metadata_dir_when_absent(tmp_path: Path):
     assert "--metadata-dir" not in popen.call_args.args[0]
 
 
-def test_launch_main_funestra_forwards_clips_dir_when_given(tmp_path: Path):
+def test_launch_main_funestra_forwards_flicks_dir_when_given(tmp_path: Path):
     """Genau's loop folder used to reach the Main Funestra through genau's config;
     Fun Time hands it explicitly now, since the Funestra reads Fun Time's config."""
     class FakeProc:
@@ -1296,14 +1296,14 @@ def test_launch_main_funestra_forwards_clips_dir_when_given(tmp_path: Path):
             log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
             main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
             **GENAUS_FILES,
-            clips_dir="C:/videos/genau/clips",
+            flicks_dir="C:/videos/genau/flicks",
         )
 
     command = popen.call_args.args[0]
-    assert command[command.index("--clips-dir") + 1] == "C:/videos/genau/clips"
+    assert command[command.index("--flicks-dir") + 1] == "C:/videos/genau/flicks"
 
 
-def test_launch_main_funestra_omits_clips_dir_when_absent(tmp_path: Path):
+def test_launch_main_funestra_omits_flicks_dir_when_absent(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1321,7 +1321,7 @@ def test_launch_main_funestra_omits_clips_dir_when_absent(tmp_path: Path):
         **GENAUS_FILES,
         )
 
-    assert "--clips-dir" not in popen.call_args.args[0]
+    assert "--flicks-dir" not in popen.call_args.args[0]
 
 
 def test_launch_main_funestra_hands_it_fun_times_icon(tmp_path: Path):

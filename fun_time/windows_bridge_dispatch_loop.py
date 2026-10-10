@@ -937,9 +937,9 @@ class DispatchLoopRunner:
                 self.manifest_path,
                 self.config.python_exe,
                 over=window_rect(funestra_hwnd) if funestra_hwnd else None,
-                playing=(read_genau_status(self.config.genau_status_file).clip if genau
+                playing=(read_genau_status(self.config.genau_status_file).flick if genau
                          else read_main_funestra_status(self.config.main_funestra_status_file).video),
-                clips=genau,
+                flicks=genau,
                 runner=self._run_browser,
             )
             if selected and genau:
@@ -1135,7 +1135,7 @@ def build_bridge_config_from_manifest(
         loopback_port=manifest.loopback_port,
         main_sources=manifest.media.main_funestra_library_sources,
         vr_library_dirs=manifest.media.vr_library_dirs,
-        genau_vr_clips=manifest.media.genau_vr_clips,
+        genau_vr_flicks=manifest.media.genau_vr_flicks,
         python_exe=manifest.executables.python_exe,
         portrait_sources=manifest.media.portrait_dirs,
         landscape_sources=manifest.media.landscape_dirs,

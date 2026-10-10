@@ -27,7 +27,7 @@ from fun_time.library_browser import (
     alphabetical_index,
     browse_library,
     load_browser_config,
-    load_clip_browser_config,
+    load_flick_browser_config,
     main,
     name_of,
     pick_file_for,
@@ -446,7 +446,7 @@ def test_the_top_level_is_named_as_the_library(browser, tmp_path: Path):
     assert _header_words(window) == TOP_LEVEL_NAME
 
 
-def test_a_browse_of_genaus_clips_is_named_for_genau_from_the_top_down(browser, tmp_path: Path):
+def test_a_browse_of_genaus_flicks_is_named_for_genau_from_the_top_down(browser, tmp_path: Path):
     window = browser(
         [_handle("scene one", section="VR")],
         thumbnail_cache=tmp_path,
@@ -913,24 +913,24 @@ def test_the_browser_reads_which_of_its_library_is_vr_from_the_session_manifest(
     assert load_browser_config(headset).vr_sources == "D:/vr_one|D:/vr_two"
 
 
-def test_the_clip_browser_offers_the_vr_clips_in_either_room(tmp_path: Path, cfg_factory):
+def test_the_flick_browser_offers_the_vr_flicks_in_either_room(tmp_path: Path, cfg_factory):
     config = load_config(cfg_factory({}))
     desktop = write_windows_bridge_manifest(config)
     headset = tmp_path / "headset" / "windows_bridge_launch.ini"
     headset.parent.mkdir()
-    headset.write_text("[media]\ngenau_clips = D:/clips\ngenau_vr_clips = D:/clips/VR\n",
+    headset.write_text("[media]\ngenau_flicks = D:/flicks\ngenau_vr_flicks = D:/flicks/VR\n",
                        encoding="utf-8")
 
-    desktop_clips = load_clip_browser_config(desktop)
-    headset_clips = load_clip_browser_config(headset)
+    desktop_flicks = load_flick_browser_config(desktop)
+    headset_flicks = load_flick_browser_config(headset)
 
-    clips = config.paths.clips_dir
-    assert (desktop_clips.sources, desktop_clips.vr_sources) == (
-        f"{clips / 'VR'}|{clips / '2D'}", str(clips / "VR"))
-    assert (headset_clips.sources, headset_clips.vr_sources) == (
-        f"{Path('D:/clips') / 'VR'}|{Path('D:/clips') / '2D'}", str(Path("D:/clips") / "VR"))
-    assert (desktop_clips.top_level_name, desktop_clips.metadata_root) == ("Genau", None)
-    assert desktop_clips.thumbnail_cache == load_browser_config(desktop).thumbnail_cache
+    flicks = config.paths.flicks_dir
+    assert (desktop_flicks.sources, desktop_flicks.vr_sources) == (
+        f"{flicks / 'VR'}|{flicks / '2D'}", str(flicks / "VR"))
+    assert (headset_flicks.sources, headset_flicks.vr_sources) == (
+        f"{Path('D:/flicks') / 'VR'}|{Path('D:/flicks') / '2D'}", str(Path("D:/flicks") / "VR"))
+    assert (desktop_flicks.top_level_name, desktop_flicks.metadata_root) == ("Genau", None)
+    assert desktop_flicks.thumbnail_cache == load_browser_config(desktop).thumbnail_cache
 
 
 def test_browsing_runs_the_browser_and_plays_what_was_picked(tmp_path: Path):
@@ -966,12 +966,12 @@ def test_the_browser_is_told_what_the_session_has_up(tmp_path: Path):
     assert commands[0][-2:] == ["--playing", r"C:\videos\beta.mp4"]
 
 
-def test_a_browse_of_genaus_clips_says_so_to_the_browser(tmp_path: Path):
+def test_a_browse_of_genaus_flicks_says_so_to_the_browser(tmp_path: Path):
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text("", encoding="utf-8")
     commands: list[list[str]] = []
 
-    browse_library(manifest, r"C:\python.exe", clips=True,
+    browse_library(manifest, r"C:\python.exe", flicks=True,
                    runner=lambda command, **_k: commands.append(command))
     browse_library(manifest, r"C:\python.exe",
                    runner=lambda command, **_k: commands.append(command))
@@ -994,13 +994,13 @@ def test_a_browse_runs_on_the_checkouts_the_session_runs(tmp_path: Path):
     assert launched[0]["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
 
 
-def test_the_desktops_genau_browse_forks_into_vr_and_2d_with_the_ai_clips_apart_in_2d(
+def test_the_desktops_genau_browse_forks_into_vr_and_2d_with_the_ai_flicks_apart_in_2d(
     tmp_path: Path, cfg_factory,
 ):
     config = load_config(cfg_factory({}))
     for place in ("2D/AI/loop one.mp4", "2D/non_AI/scene one.mp4", "VR/scene two_180.mp4"):
-        (config.paths.clips_dir / place).parent.mkdir(parents=True, exist_ok=True)
-        (config.paths.clips_dir / place).touch()
+        (config.paths.flicks_dir / place).parent.mkdir(parents=True, exist_ok=True)
+        (config.paths.flicks_dir / place).touch()
     manifest = write_windows_bridge_manifest(config)
 
     with patch("fun_time.library_browser.LibraryBrowserWindow.show"), \

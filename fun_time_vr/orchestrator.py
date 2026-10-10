@@ -34,14 +34,14 @@ from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path, genau_proj
 apply_genau_dirs_to_sys_path()
 
 from app_support.win32 import mutex_name
-from funestra_core.clip_folder import vr_clips_in
 from funestra_core.file_channel import append_command
+from funestra_core.flick_folder import vr_flicks_in
 from funestra_core.playlist import read_playlist
 
 from fun_time.branch_session import describe_the_session_on_the_taskbar
 from fun_time.broker_control import PARK_CMD, write_broker_command
 from fun_time.child_launch import no_child_log, no_console_window, open_child_log
-from fun_time.command_dispatch import genau_clip_shapes
+from fun_time.command_dispatch import genau_flick_shapes
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.event_log import open_event_log
 from fun_time.funestra_deaths import (
@@ -219,7 +219,7 @@ def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, di
     # browse can be narrowed to one shape or the other.
     manifest["media"]["vr_library_dirs"] = "|".join(
         str(path) for path in config.vr.library_dirs)
-    manifest["media"]["genau_vr_clips"] = str(vr_clips_in(config.paths.clips_dir))
+    manifest["media"]["genau_vr_flicks"] = str(vr_flicks_in(config.paths.flicks_dir))
     manifest["vr"] = {
         "funestra_module": VR_FUNESTRAS_MODULE,
         "library_dirs": "|".join(str(path) for path in config.vr.library_dirs),
@@ -227,9 +227,9 @@ def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, di
         "tcode_udp_port": str(config.vr.tcode_udp_port),
         "audio_device": config.vr.audio_device or "",
         "compositor_layers": "1" if config.vr.compositor_layers else "0",
-        # Genau's role: its clips folder, its companion's address, and its
+        # Genau's role: its flicks folder, its companion's address, and its
         # engine's numbers off Genau's own config.
-        "clips_folder": str(config.paths.clips_dir),
+        "flicks_folder": str(config.paths.flicks_dir),
         "notify_host": config.audio_companion.host,
         "notify_port": str(config.audio_companion.port),
         **GenauSettings.read(config.paths.genau_config_path).manifest_fields(),
@@ -364,7 +364,7 @@ def stock_the_playlists(
 def resume_genau_shapes(genau_cmd_file: Path, shapes: VideoShapes) -> None:
     """Genau rescans its folders whole at every launch, so the one shape it was
     narrowed to is queued back, as a satellite's lock is; neither needs nothing,
-    Genau launching locked on the clip it was left showing."""
+    Genau launching locked on the flick it was left showing."""
     if shapes.narrows and (shapes.plays_vr or shapes.plays_flat):
         append_command(genau_cmd_file,
                        shapes_verb(plays_vr=shapes.plays_vr, plays_flat=shapes.plays_flat))
@@ -591,7 +591,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             (Path(commands.portrait_cmd_file), carried.satellite(RoomFunestra.PORTRAIT).locked),
             (Path(commands.landscape_cmd_file), carried.satellite(RoomFunestra.LANDSCAPE).locked),
         ])
-        resume_genau_shapes(Path(commands.genau_cmd_file), genau_clip_shapes(carried, bridge_config))
+        resume_genau_shapes(Path(commands.genau_cmd_file), genau_flick_shapes(carried, bridge_config))
         resume_what_lives_in_a_funestra(
             main_funestra=(Path(commands.main_funestra_cmd_file), main_funestra_status),
             satellites=[(Path(commands.portrait_cmd_file), portrait_status),
@@ -614,7 +614,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
 
         # --- The children: the audio companion, then the headset ---
         # The companion first, as on the desktop, so it is listening when Genau's
-        # role says which clip is up; on the headset's output, like every sound here.
+        # role says which flick is up; on the headset's output, like every sound here.
         progress.advance("companions")
         # First of them, as on the desktop: the slowest boot, waited on by nothing.
         hosted = bring_up_the_hosted_app(

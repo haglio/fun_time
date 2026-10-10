@@ -19,7 +19,7 @@ from pathlib import Path
 from funestra_core.modes import LengthMode
 from funestra_core.playlist import PlaylistItem
 
-from .video_kind import EXCERPT, FULL_LENGTH, GENAU_CLIP, SHORT
+from .video_kind import EXCERPT, FULL_LENGTH, GENAU_FLICK, SHORT
 
 # Tunable heuristic: tokens dropped anywhere in a title because they mark a
 # quality/upscaler/codec/resolution/container variant rather than content.
@@ -342,7 +342,7 @@ NONE = LengthMode.NONE
 # scene carved out of a longer one are shorts however long they run: the loop
 # is a couple of seconds by construction, and a carved scene is an excerpt of
 # something, which is what "full length" means the absence of.
-SHORTS_KINDS = frozenset({SHORT, EXCERPT, GENAU_CLIP})
+SHORTS_KINDS = frozenset({SHORT, EXCERPT, GENAU_FLICK})
 FULL_KINDS = frozenset({FULL_LENGTH})
 
 
@@ -351,7 +351,7 @@ def kind_of_video(
     *,
     kind_of: Callable[[Path], str] | None,
     durations: dict[Path, float],
-    genau_clips: set[Path],
+    genau_flicks: set[Path],
 ) -> str:
     """What *video* is: what Evolver recorded, or what can be told without it.
 
@@ -364,8 +364,8 @@ def kind_of_video(
     recorded = kind_of(video) if kind_of is not None else ""
     if recorded:
         return recorded
-    if video in genau_clips:
-        return GENAU_CLIP
+    if video in genau_flicks:
+        return GENAU_FLICK
     seconds = durations.get(video)
     if seconds is None:
         return ""
@@ -377,7 +377,7 @@ def select_library(
     *,
     mode: str,
     durations: dict[Path, float],
-    genau_clips: list[LibraryEntry],
+    genau_flicks: list[LibraryEntry],
     kind_of: Callable[[Path], str] | None = None,
 ) -> list[LibraryEntry]:
     """Filter *entries* by length *mode*, then version-dedup the survivors.
@@ -391,7 +391,7 @@ def select_library(
     modes filters as full-length, which is what it has always done.
 
     *kind_of* reads what Evolver recorded (``main_funestra.sidecar.read_video_type``); the
-    *durations* are the fallback for what it has not reached, and *genau_clips*
+    *durations* are the fallback for what it has not reached, and *genau_flicks*
     — the videos discovered in Genau's own delivery folder — are loops by where
     they came from.  Not the other sense of "clip" in this package: a scene
     carved out of a compilation is an ``EXCERPT``, and lives in its sidecar.
@@ -401,14 +401,14 @@ def select_library(
     if mode == NONE:
         kept = []
     elif mode == MIXED:
-        kept = [*entries, *genau_clips]
+        kept = [*entries, *genau_flicks]
     else:
         wanted = SHORTS_KINDS if mode == SHORTS else FULL_KINDS
-        delivered = {clip.video for clip in genau_clips}
+        delivered = {flick.video for flick in genau_flicks}
         kept = [
-            entry for entry in (*entries, *genau_clips)
+            entry for entry in (*entries, *genau_flicks)
             if kind_of_video(entry.video, kind_of=kind_of, durations=durations,
-                             genau_clips=delivered) in wanted
+                             genau_flicks=delivered) in wanted
         ]
     return [group.canonical for group in group_versions(kept)]
 
@@ -441,7 +441,7 @@ def library_playlist(
     *,
     mode: str,
     durations: dict[Path, float],
-    genau_clips: list[LibraryEntry],
+    genau_flicks: list[LibraryEntry],
     rng: random.Random,
     kind_of: Callable[[Path], str] | None = None,
 ) -> list[PlaylistItem]:
@@ -452,7 +452,7 @@ def library_playlist(
     consistent.
     """
     selected = select_library(
-        entries, mode=mode, durations=durations, genau_clips=genau_clips,
+        entries, mode=mode, durations=durations, genau_flicks=genau_flicks,
         kind_of=kind_of,
     )
     return entries_to_items(canonical_playlist(selected, rng))

@@ -5,9 +5,9 @@ from dataclasses import fields
 from pathlib import Path
 
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from funestra_core.clip_advance import ClipAdvanceState
 from funestra_core.console import OSR2_CONTROL_OFF, OSR2_RETRACTED
 from funestra_core.drive_readout import DriveHud, drive_text
+from funestra_core.flick_advance import FlickAdvanceState
 from funestra_core.genau_controls import VERBS as GENAU_VERBS
 from funestra_core.modes import LoopState, MainMode
 from funestra_core.robot_hand import RobotHandState
@@ -18,9 +18,9 @@ from fun_time.funestra_handover import hand_back, keep_aside
 from fun_time.funestra_status import MainFunestraStatus
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import (
-    CLIP_SECONDS,
     CRUISE_ON,
     CYCLE_SHAPE,
+    FLICK_SECONDS,
     HAND_AMPLITUDE,
     HAND_CENTER,
     HAND_SPEED,
@@ -508,7 +508,7 @@ class TestResumeGenau:
     @staticmethod
     def _drive(**bars: object) -> str:
         """A readout of a hand left where a fresh one opens, bar what a test moves."""
-        hand, advance = RobotHandState(), ClipAdvanceState()
+        hand, advance = RobotHandState(), FlickAdvanceState()
         return drive_text(DriveHud(**{
             "speed": hand.speed, "amplitude": hand.amplitude, "center": hand.center,
             "shape": hand.shape.value, "advance_interval": advance.interval, **bars,
@@ -521,7 +521,7 @@ class TestResumeGenau:
         resume_genau(genau_cmd, tmp_path)
 
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
-            "SPEED 76", "AMP 60", "CENTER 30", "CLIP_SECONDS 25",
+            "SPEED 76", "AMP 60", "CENTER 30", "FLICK_SECONDS 25",
         ]
 
     def test_queues_nothing_for_a_hand_left_where_the_next_one_opens(self, tmp_path: Path):
@@ -567,7 +567,7 @@ class TestResumeGenau:
     def test_every_verb_it_sends_is_one_genau_answers(self):
         """Genau's own verbs are spelled beside its registry rather than in the
         family's shared list, so this side's copy is held to that registry."""
-        assert {HAND_SPEED, HAND_AMPLITUDE, HAND_CENTER, CLIP_SECONDS, CYCLE_SHAPE,
+        assert {HAND_SPEED, HAND_AMPLITUDE, HAND_CENTER, FLICK_SECONDS, CYCLE_SHAPE,
                 CRUISE_ON, LEARNED_ON, "LOCK_OFF"} <= set(GENAU_VERBS)
 
     def test_a_session_that_published_no_readout_still_carries_its_switches(self, tmp_path: Path):

@@ -67,8 +67,8 @@ from .checkout_overrides import genau_project_kwargs
 from .folder_listings import FolderListings
 from .library_handles import (
     LibraryHandle,
-    genau_clip_sources,
-    genau_vr_clips,
+    genau_flick_sources,
+    genau_vr_flicks,
     handle_for,
     handles_by_shape,
 )
@@ -78,7 +78,7 @@ from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnai
 
 WINDOW_TITLE = "Fun Time Library"
 TOP_LEVEL_NAME = "Library"
-CLIPS_TOP_LEVEL_NAME = "Genau"
+FLICKS_TOP_LEVEL_NAME = "Genau"
 GENAU_FLAG = "--genau"
 
 # Tile size. Wide enough for a 16:9 still at the thumbnail cache's own longest
@@ -764,7 +764,7 @@ def browse_library(
     *,
     over: tuple[int, int, int, int] | None = None,
     playing: str | None = None,
-    clips: bool = False,
+    flicks: bool = False,
     runner: Callable[..., object] = subprocess.run,
 ) -> str | None:
     """Browse the library and return the video picked, or None if none was.
@@ -787,7 +787,7 @@ def browse_library(
         command += ["--x", str(x), "--y", str(y), "--width", str(width), "--height", str(height)]
     if playing:
         command += ["--playing", playing]
-    if clips:
+    if flicks:
         command.append(GENAU_FLAG)
     session_checkouts = _read_manifest(manifest_path).get(
         "runtime", "genau_project_dirs", fallback="")
@@ -836,14 +836,14 @@ def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
     )
 
 
-def load_clip_browser_config(manifest_path: str | Path) -> BrowserConfig:
-    clips_folder = _read_manifest(manifest_path).get("media", "genau_clips", fallback="")
+def load_flick_browser_config(manifest_path: str | Path) -> BrowserConfig:
+    flicks_folder = _read_manifest(manifest_path).get("media", "genau_flicks", fallback="")
     return BrowserConfig(
-        sources=genau_clip_sources(clips_folder),
-        vr_sources=genau_vr_clips(clips_folder),
+        sources=genau_flick_sources(flicks_folder),
+        vr_sources=genau_vr_flicks(flicks_folder),
         metadata_root=None,
         thumbnail_cache=Path(manifest_path).parent / THUMBNAIL_CACHE_DIRNAME,
-        top_level_name=CLIPS_TOP_LEVEL_NAME,
+        top_level_name=FLICKS_TOP_LEVEL_NAME,
     )
 
 
@@ -856,7 +856,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--width", type=int)
     parser.add_argument("--height", type=int)
     parser.add_argument("--playing", help="What the Main Funestra has up — the browse opens there")
-    parser.add_argument(GENAU_FLAG, action="store_true", help="Browse Genau's clips instead")
+    parser.add_argument(GENAU_FLAG, action="store_true", help="Browse Genau's flicks instead")
     return parser.parse_args(argv)
 
 
@@ -874,7 +874,7 @@ def main(argv: list[str] | None = None) -> int:
     # and only a sheet set here reaches it.
     app.setStyleSheet(family_stylesheet())
 
-    config = (load_clip_browser_config if args.genau else load_browser_config)(args.manifest_path)
+    config = (load_flick_browser_config if args.genau else load_browser_config)(args.manifest_path)
     result_file = Path(args.result_file)
     window = LibraryBrowserWindow(
         config.handles(),

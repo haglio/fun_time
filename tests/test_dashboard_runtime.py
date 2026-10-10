@@ -149,15 +149,15 @@ def test_read_genau_status_says_whether_genau_is_the_hud_and_only_when_genau_sai
     status_file.write_text("cruise=0\n", encoding="utf-8")
 
 
-def test_read_genau_status_parses_the_clip_lock(tmp_path: Path):
+def test_read_genau_status_parses_the_flick_lock(tmp_path: Path):
     status_file = tmp_path / "genau_status.txt"
     status_file.write_text("locked=0\n", encoding="utf-8")
 
     assert read_genau_status(status_file).locked is False
 
 
-def test_read_genau_status_defaults_the_clip_lock_to_on(tmp_path: Path):
-    """A clip repeating is where Genau opens, so a status that says nothing about
+def test_read_genau_status_defaults_the_flick_lock_to_on(tmp_path: Path):
+    """A flick repeating is where Genau opens, so a status that says nothing about
     the lock — or none at all — must not light the console's padlock the wrong
     way."""
     status_file = tmp_path / "genau_status.txt"
@@ -275,28 +275,35 @@ def test_read_main_funestra_status_reads_no_published_rate_as_normal_speed(tmp_p
     assert read_main_funestra_status(tmp_path / "missing.txt").speed == 1.0
 
 
-def test_read_genau_status_names_the_clip_on_screen(tmp_path: Path):
+def test_read_genau_status_names_the_flick_on_screen(tmp_path: Path):
     """Genau rescans its folder every launch and opens at the top of it, so the
-    clip it was left showing survives only by being published and handed back."""
+    flick it was left showing survives only by being published and handed back."""
     status_file = tmp_path / "genau_status.txt"
-    status_file.write_text("cruise=0\nclip=C:\\clips\\alpha.mp4\n", encoding="utf-8")
+    status_file.write_text("cruise=0\nflick=C:\\flicks\\alpha.mp4\n", encoding="utf-8")
 
-    assert read_genau_status(status_file).clip == "C:\\clips\\alpha.mp4"
+    assert read_genau_status(status_file).flick == "C:\\flicks\\alpha.mp4"
 
 
-def test_read_genau_status_reads_no_clip_before_one_is_up(tmp_path: Path):
-    """Genau publishes from its refresh loop, which can run before the first clip
+def test_read_genau_status_reads_the_flick_a_genau_from_before_the_rename_names_as_clip(tmp_path: Path):
+    status_file = tmp_path / "genau_status.txt"
+    status_file.write_text("clip=C:\\flicks\\alpha.mp4\n", encoding="utf-8")
+
+    assert read_genau_status(status_file).flick == "C:\\flicks\\alpha.mp4"
+
+
+def test_read_genau_status_reads_no_flick_before_one_is_up(tmp_path: Path):
+    """Genau publishes from its refresh loop, which can run before the first flick
     is decoded — and an older Genau does not publish the key at all."""
     status_file = tmp_path / "genau_status.txt"
-    status_file.write_text("cruise=0\nclip=\n", encoding="utf-8")
+    status_file.write_text("cruise=0\nflick=\n", encoding="utf-8")
 
-    assert read_genau_status(status_file).clip == ""
-    assert read_genau_status(tmp_path / "missing.txt").clip == ""
+    assert read_genau_status(status_file).flick == ""
+    assert read_genau_status(tmp_path / "missing.txt").flick == ""
 
 
-def test_read_genau_status_says_whether_the_clip_up_is_flipped(tmp_path: Path):
+def test_read_genau_status_says_whether_the_flick_up_is_flipped(tmp_path: Path):
     status_file = tmp_path / "genau_status.txt"
-    status_file.write_text("clip=C:\\clips\\alpha.mp4\nflipped=1\n", encoding="utf-8")
+    status_file.write_text("flick=C:\\flicks\\alpha.mp4\nflipped=1\n", encoding="utf-8")
 
     assert read_genau_status(status_file).flipped is True
     assert read_genau_status(tmp_path / "missing.txt").flipped is False
@@ -421,8 +428,8 @@ def test_the_main_funestras_video_is_portrait_where_it_says_so(tmp_path: Path):
     assert read_main_funestra_status(status_file).portrait is True
 
 
-def test_genaus_clip_is_portrait_where_it_says_so(tmp_path: Path):
+def test_genaus_flick_is_portrait_where_it_says_so(tmp_path: Path):
     status_file = tmp_path / "genau_status.txt"
-    status_file.write_text("clip=C:/clips/alpha.mp4\nportrait=1\n", encoding="utf-8")
+    status_file.write_text("flick=C:/flicks/alpha.mp4\nportrait=1\n", encoding="utf-8")
 
     assert read_genau_status(status_file).portrait is True

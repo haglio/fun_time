@@ -331,7 +331,7 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "portrait_dir": str(tmp_path / "videos" / "videos" / "portrait"),
             "landscape_dir": str(tmp_path / "videos" / "videos" / "landscape"),
             "weird_dir": str(tmp_path / "weird"),
-            "clips_dir": str(tmp_path / "clips"),
+            "flicks_dir": str(tmp_path / "clips"),
             "audio_dir": str(tmp_path / "audio"),
             "favs_file": str(tmp_path / "favs.csv"),
             "state_dir": str(tmp_path / "state"),

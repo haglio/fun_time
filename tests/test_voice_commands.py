@@ -161,9 +161,9 @@ class TestVoiceCommands:
         said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
 
         assert {phrase: said[phrase] for phrase in ("previous pip", "next pip", "weird pip")} == {
-            "previous pip": "genau_prev_clip",
-            "next pip": "genau_next_clip",
-            "weird pip": "genau_weird_clip",
+            "previous pip": "genau_prev_flick",
+            "next pip": "genau_next_flick",
+            "weird pip": "genau_weird_flick",
         }
         assert [phrase for phrase, command in said.items()
                 if command.startswith("genau_") and "clip" in phrase.split()] == []
@@ -171,12 +171,12 @@ class TestVoiceCommands:
     def test_marking_a_flick_weird_names_it_where_bare_weird_means_the_active_satellite(self):
         said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
 
-        assert (said["weird pip"], said["weird"]) == ("genau_weird_clip", "active_trash")
+        assert (said["weird pip"], said["weird"]) == ("genau_weird_flick", "active_trash")
 
-    def test_the_overlay_says_the_words_that_flip_genaus_clip(self):
-        assert build_voice_commands(clip_flip_phrases=("flip alpha",))["flip alpha"] == "genau_flip_ends"
+    def test_the_overlay_says_the_words_that_flip_genaus_flick(self):
+        assert build_voice_commands(flick_flip_phrases=("flip alpha",))["flip alpha"] == "genau_flip_ends"
 
-    def test_holding_a_genau_clip_is_the_main_lock_and_nothing_of_its_own(self):
+    def test_holding_a_genau_flick_is_the_main_lock_and_nothing_of_its_own(self):
         """It was a phrase and a padlock beside auto advance's arming; the two
         could disagree, and the console carried a second lock next to the Main Funestra's."""
         assert "lock clip" not in VOICE_COMMANDS
@@ -192,12 +192,12 @@ class TestVoiceCommands:
             ("one", 1), ("five", 5), ("nine", 9), ("fifteen", 15),
             ("thirty", 30), ("forty five", 45), ("sixty", 60),
         ):
-            assert said[f"pip seconds {word}"] == f"genau_clip_seconds_{seconds}"
+            assert said[f"pip seconds {word}"] == f"genau_flick_seconds_{seconds}"
         assert not any(p.startswith("auto advance") for p in said)
 
     def test_no_spoken_clip_interval_is_zero_seconds(self):
         """A zero-second interval would step the clip every frame."""
-        assert not any(cmd == "genau_clip_seconds_0" for cmd in VOICE_COMMANDS.values())
+        assert not any(cmd == "genau_flick_seconds_0" for cmd in VOICE_COMMANDS.values())
 
     def test_audio_phrases_mute_and_step_the_volume(self):
         """Both words of each pair mean the same thing, so a speaker never has to
@@ -469,11 +469,11 @@ class TestVoiceCommands:
 
     def test_mode_named_navigation_both_orders(self):
         """A mode's name + next/previous (either order) navigates its Funestra:
-        Kino drives the main slot, Genau its own clip."""
+        Kino drives the main slot, Genau its own flick."""
         for base, (next_command, previous_command) in (
                 ("kino", ("main_next", "main_prev")),
-                ("genau", ("genau_next_clip", "genau_prev_clip")),
-                ("go now", ("genau_next_clip", "genau_prev_clip"))):
+                ("genau", ("genau_next_flick", "genau_prev_flick")),
+                ("go now", ("genau_next_flick", "genau_prev_flick"))):
             assert VOICE_COMMANDS[f"{base} next"] == next_command
             assert VOICE_COMMANDS[f"next {base}"] == next_command
             assert VOICE_COMMANDS[f"{base} previous"] == previous_command

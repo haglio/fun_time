@@ -29,15 +29,15 @@ __path__.append(next(real for real in _where_the_real_modules_could_be
 """
 
 
-def _a_funestra_core_whose_clip_folder_dies_importing(root: Path) -> Path:
-    """A checkout whose funestra_core is the real one under a clip_folder that
+def _a_funestra_core_whose_flick_folder_dies_importing(root: Path) -> Path:
+    """A checkout whose funestra_core is the real one under a flick_folder that
     raises on import.  The Main Funestra imports that module as Genau's engine
     comes up; the satellites never do, and the room's check of the video engine
     reads the real loader -- so the one death is the Main Funestra's."""
-    package = root / "a_checkout_whose_clip_folder_dies_importing" / "funestra_core"
+    package = root / "a_checkout_whose_flick_folder_dies_importing" / "funestra_core"
     package.mkdir(parents=True)
     (package / "__init__.py").write_text(_THE_REAL_PACKAGE_UNDER_IT, encoding="utf-8")
-    (package / "clip_folder.py").write_text(
+    (package / "flick_folder.py").write_text(
         f"raise ImportError({WHAT_IT_SAID!r})\n", encoding="utf-8")
     return package.parent
 
@@ -52,7 +52,7 @@ def _run_the_funestras_out_of(config_path: Path, checkout: Path) -> None:
 def test_a_funestra_that_dies_importing_stops_the_startup_saying_what_it_said():
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
-    _run_the_funestras_out_of(config_path, _a_funestra_core_whose_clip_folder_dies_importing(temp_root))
+    _run_the_funestras_out_of(config_path, _a_funestra_core_whose_flick_folder_dies_importing(temp_root))
     session = FunTimeIntegrationSession(config_path)
     try:
         logged = session.start_one_that_stops_starting_up(

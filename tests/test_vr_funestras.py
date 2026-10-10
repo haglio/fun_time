@@ -18,8 +18,8 @@ from unittest.mock import DEFAULT, patch
 import numpy as np
 import pytest
 from app_support.file_channel import write_flag
-from funestra_core.clip_picture import Picture
 from funestra_core.console_hud import ModeHud
+from funestra_core.flick_picture import Picture
 from funestra_core.hud_placement import HudEdge
 from funestra_core.modes import MainMode
 from funestra_core.outside_buttons import OutsideButtons
@@ -338,16 +338,16 @@ def test_the_main_slot_drives_the_headsets_osr2_inlet(tmp_path, faked_collaborat
 
 class TestGenauOnTheMainFunestra:
     """Genau runs on the headset's Main Funestra as it runs on the desktop's,
-    where the session names its clips folder."""
+    where the session names its flicks folder."""
 
-    def _users(self, tmp_path, *, clips_folder, resumed=None):
+    def _users(self, tmp_path, *, flicks_folder, resumed=None):
         manifest = _manifest_for_a_vr_session(tmp_path)
-        vr = replace(_A_SESSION, clips_folder=clips_folder)
+        vr = replace(_A_SESSION, flicks_folder=flicks_folder)
         stop = threading.Event()
         with patch.multiple("fun_time_vr.funestras", GenauInTheHeadset=DEFAULT,
                             GenauNotifier=DEFAULT, UdpTCodeSink=DEFAULT) as fakes, \
                 patch("fun_time_vr.funestras.read_genau_status",
-                      return_value=SimpleNamespace(clip="")), \
+                      return_value=SimpleNamespace(flick="")), \
                 patch("fun_time_vr.funestras.read_shared_state", return_value=resumed) as read_state:
             users = _users(manifest, vr, stop, kino="kino")
             if MainMode.GENAU in users:
@@ -355,16 +355,16 @@ class TestGenauOnTheMainFunestra:
         return SimpleNamespace(users=users, manifest=manifest, stop=stop, fakes=fakes,
                                read_state=read_state)
 
-    def test_a_session_naming_no_clips_folder_runs_kino_alone(self, tmp_path):
-        assert self._users(tmp_path, clips_folder=None).users == {MainMode.KINO: "kino"}
+    def test_a_session_naming_no_flicks_folder_runs_kino_alone(self, tmp_path):
+        assert self._users(tmp_path, flicks_folder=None).users == {MainMode.KINO: "kino"}
 
     def test_a_session_naming_one_puts_genau_beside_kino(self, tmp_path):
-        built = self._users(tmp_path, clips_folder=tmp_path)
+        built = self._users(tmp_path, flicks_folder=tmp_path)
 
         assert set(built.users) == {MainMode.KINO, MainMode.GENAU}
         handed = built.fakes["GenauInTheHeadset"].call_args.kwargs
         commands = built.manifest.commands
-        assert handed["clips_folder"] == tmp_path
+        assert handed["flicks_folder"] == tmp_path
         assert handed["channels"] == GenauChannels(
             command=Path(commands.genau_cmd_file), paused=Path(commands.genau_paused_file),
             status=Path(commands.genau_status_file), drive=Path(commands.genau_drive_file))
@@ -372,10 +372,10 @@ class TestGenauOnTheMainFunestra:
         assert handed["metadata_root"] == Path(built.manifest.regen.metadata_root)
 
     def test_it_opens_in_the_order_the_last_session_left_it_browsing(self, tmp_path):
-        """Latest is handed to Genau beside the clip, off the state the
+        """Latest is handed to Genau beside the flick, off the state the
         orchestrator just resumed into the session's state dir: as a verb once
-        Genau is up, LATEST would browse the new order from its top, over that clip."""
-        built = self._users(tmp_path, clips_folder=tmp_path, resumed=BridgeState(genau_latest=True))
+        Genau is up, LATEST would browse the new order from its top, over that flick."""
+        built = self._users(tmp_path, flicks_folder=tmp_path, resumed=BridgeState(genau_latest=True))
 
         assert built.read_state.call_args.args == (
             shared_state_path(Path(built.manifest.commands.state_dir)),)
@@ -904,7 +904,7 @@ class TestThePanelUnderTheSlot:
             verbs=SimpleNamespace(projection_of=lambda _video: projection, **_NEVER_DIALED),
             target=SimpleNamespace(ready=True, aspect=16 / 9, video=None),
             users_picture_texture=SimpleNamespace(ready=True, aspect=4 / 3),
-            _clip_projection=(Path("clip.mp4"), projection),
+            _flick_projection=(Path("flick.mp4"), projection),
             screen=SimpleNamespace(placement=SPOTS[MAIN]),
         ))
         dash = SimpleNamespace(texture=SimpleNamespace(ready=True, aspect=560 / 218),
@@ -950,14 +950,14 @@ class TestThePanelUnderTheSlot:
         assert followed.elevation_deg < docked.elevation_deg  # a bigger Funestra hangs lower
         assert followed.width_deg == docked.width_deg == PANEL_WIDTH_DEG
 
-    def test_it_rides_under_genaus_picture_at_the_clips_own_shape(self):
+    def test_it_rides_under_genaus_picture_at_the_flicks_own_shape(self):
         p = self._unit(showing=True)
 
         placed = self._placed(p.unit)
 
-        clip = p.main_unit.users_picture_texture.aspect
+        flick = p.main_unit.users_picture_texture.aspect
         assert placed == attached_below(
-            shown_at(MAIN, p.main_unit.screen.placement, clip), aspect=clip,
+            shown_at(MAIN, p.main_unit.screen.placement, flick), aspect=flick,
             width_deg=PANEL_WIDTH_DEG, hanging_aspect=_FakePanelTexture.aspect,
             gap_deg=PANEL_GAP_DEG)
 
@@ -1562,8 +1562,8 @@ class _AMainStandIn(SimpleNamespace):
     picture_in_the_slot = _MainUnit.picture_in_the_slot
 
 
-def _a_main_slot(*, picture=True, projection=FLAT, showing=False, clip=True,
-                 clip_projection=FLAT, video=None, fov=None, height=None, verbs=None):
+def _a_main_slot(*, picture=True, projection=FLAT, showing=False, flick=True,
+                 flick_projection=FLAT, video=None, fov=None, height=None, verbs=None):
     """The main slot as the room reads it: the video or Genau's picture in it."""
     return _like(_MainUnit, _AMainStandIn(
         target=SimpleNamespace(ready=picture, aspect=16 / 9, video=video),
@@ -1571,8 +1571,8 @@ def _a_main_slot(*, picture=True, projection=FLAT, showing=False, clip=True,
             projection_of=lambda _video: projection,
             fov_of=lambda _video: fov, height_of=lambda _video: height),
         funestra=SimpleNamespace(playback=SimpleNamespace(current_video=Path(video or "v.mp4"))),
-        users_picture_texture=SimpleNamespace(ready=clip, aspect=4 / 3),
-        _clip_projection=(Path("clip.mp4"), clip_projection),
+        users_picture_texture=SimpleNamespace(ready=flick, aspect=4 / 3),
+        _flick_projection=(Path("flick.mp4"), flick_projection),
         screen=SimpleNamespace(placement=SPOTS[MAIN]),
         owns_the_slot=not showing,
     ))
@@ -1631,7 +1631,7 @@ class TestDialingTheMainFunestrasWrap:
 
             assert _MainUnit.can_dial_the_wrap.fget(main_unit) is dialed, projection
 
-    def test_the_picture_is_left_alone_while_a_clip_holds_the_slot(self):
+    def test_the_picture_is_left_alone_while_a_flick_holds_the_slot(self):
         main_unit, _ = self._main_unit(showing=True)
 
         assert _MainUnit.can_dial_the_wrap.fget(main_unit) is False
@@ -1677,7 +1677,7 @@ class TestTheReadoutOfAWrappedPicture:
 
         assert _MainUnit.wrap_readout.fget(unit) == "Fisheye · 158° · height 1.20"
 
-    def test_it_reads_nothing_while_a_clip_holds_the_slot(self):
+    def test_it_reads_nothing_while_a_flick_holds_the_slot(self):
         assert _MainUnit.wrap_readout.fget(self._main_unit(showing=True)) is None
 
     def test_each_new_reading_flashes_over_the_main_screen_and_a_repeat_does_not(self):
@@ -1778,7 +1778,7 @@ class TestTheMainSlotUnderThePointer:
     def test_a_flat_main_funestra_is_a_picture_a_squeeze_clicks_or_carries(self):
         assert self._slot().picture
 
-    def test_genaus_clip_is_what_the_pointer_finds_there_while_it_has_the_scene(self):
+    def test_genaus_flick_is_what_the_pointer_finds_there_while_it_has_the_scene(self):
         """It hangs in the same slot, at its own shape — so the handles stay
         under the hand through a switch into kino mode and back."""
         screen = self._slot(showing=True)
@@ -1786,7 +1786,7 @@ class TestTheMainSlotUnderThePointer:
         assert screen.name == MAIN
         assert screen.aspect == 4 / 3
 
-    def test_genaus_clip_is_offered_at_the_width_it_hangs_at_to_keep_the_slots_area(self):
+    def test_genaus_flick_is_offered_at_the_width_it_hangs_at_to_keep_the_slots_area(self):
         screen = self._slot(showing=True)
 
         assert screen.placement == shown_at(MAIN, SPOTS[MAIN], 4 / 3)
@@ -1794,7 +1794,7 @@ class TestTheMainSlotUnderThePointer:
 
     @pytest.mark.parametrize("state", [
         {"projection": EQUIRECT_180_SBS},
-        {"showing": True, "clip_projection": EQUIRECT_180_SBS},
+        {"showing": True, "flick_projection": EQUIRECT_180_SBS},
     ])
     def test_a_wrapped_video_has_no_edges_to_take_hold_of(self, state):
         """It is round the viewer rather than hanging in the slot, so there is
@@ -1813,7 +1813,7 @@ class TestTheMainSlotUnderThePointer:
 
     @pytest.mark.parametrize("state", [
         {"picture": False},
-        {"showing": True, "clip": False},
+        {"showing": True, "flick": False},
     ])
     def test_a_slot_with_no_picture_in_it_is_not_in_the_scene_at_all(self, state):
         """Still waiting for its first frame, or standing aside for the other
@@ -1860,7 +1860,7 @@ class TestTheMainSlotUnderThePointer:
 class TestGenausPictureInTheSlot:
     """Genau is handed finished pictures rather than decoding its own: the
     frame its engine chose, handed over by the Funestra as a User's own
-    picture, is uploaded untouched and wrapped the way its clip is."""
+    picture, is uploaded untouched and wrapped the way its flick is."""
 
     def _unit(self, *, showing=True, vr_dirs=()):
         unit = _MainUnit.__new__(_MainUnit)
@@ -1868,49 +1868,49 @@ class TestGenausPictureInTheSlot:
         unit.users_picture = LatestPicture()
         unit.users_picture_texture = _FakeTexture()
         unit._uploaded_frame = None
-        unit._clip_projection = (None, "")
+        unit._flick_projection = (None, "")
         unit._vr_dirs = vr_dirs
         unit.screen = SimpleNamespace(placement=SPOTS[MAIN],
                                       rehang_at=lambda _placement, _aspect: None)
         return unit
 
-    def _handed(self, unit, clip: Path):
+    def _handed(self, unit, flick: Path):
         frame = np.zeros((360, 640, 3), dtype=np.uint8)
-        unit.users_picture.show(Picture(frame=frame, clip=clip), (640, 360))
+        unit.users_picture.show(Picture(frame=frame, flick=flick), (640, 360))
         unit._show_the_users_picture()
         return frame
 
     def test_the_frame_is_uploaded_untouched(self):
         unit = self._unit()
 
-        frame = self._handed(unit, Path("C:/clips/VR/alpha_180.mp4"))
+        frame = self._handed(unit, Path("C:/flicks/VR/alpha_180.mp4"))
 
         assert unit.users_picture_texture.uploads == [frame]
 
     def test_a_frame_is_uploaded_once_however_many_frames_the_loop_runs(self):
         unit = self._unit()
 
-        self._handed(unit, Path("C:/clips/VR/alpha_180.mp4"))
+        self._handed(unit, Path("C:/flicks/VR/alpha_180.mp4"))
         unit._show_the_users_picture()
 
         assert len(unit.users_picture_texture.uploads) == 1
 
-    def test_a_clip_in_the_vr_folder_wraps_the_viewer_and_a_flat_one_hangs_on_the_screen(self):
-        vr = Path("C:/clips/VR")
+    def test_a_flick_in_the_vr_folder_wraps_the_viewer_and_a_flat_one_hangs_on_the_screen(self):
+        vr = Path("C:/flicks/VR")
         unit = self._unit(vr_dirs=(vr,))
 
         self._handed(unit, vr / "scene one.mp4")
-        assert unit._clip_projection[1] == EQUIRECT_180_SBS
+        assert unit._flick_projection[1] == EQUIRECT_180_SBS
         assert unit.hangings()[0].wrap == immersive_wrap(EQUIRECT_180_SBS)
 
-        self._handed(unit, Path("C:/clips/2D/scene two.mp4"))
-        assert unit._clip_projection[1] == FLAT
+        self._handed(unit, Path("C:/flicks/2D/scene two.mp4"))
+        assert unit._flick_projection[1] == FLAT
         assert unit.hangings()[0].wrap is None
 
     def test_nothing_is_uploaded_while_the_video_has_the_slot(self):
         unit = self._unit(showing=False)
 
-        self._handed(unit, Path("C:/clips/VR/alpha_180.mp4"))
+        self._handed(unit, Path("C:/flicks/VR/alpha_180.mp4"))
 
         assert unit.users_picture_texture.uploads == []
 
@@ -1965,7 +1965,7 @@ class TestEveryHangingScreenIsDrawn:
         session = SimpleNamespace(
             bind_eye_framebuffer=lambda _i: None, release_eye_framebuffer=lambda _i: None)
         main_unit = _a_main_slot(picture=projection is not None, projection=projection or FLAT,
-                                 clip=False)
+                                 flick=False)
         main_unit.target.texture = object()
         main_unit.screen = SimpleNamespace(ready=True, mesh=MAIN, placement=SPOTS[MAIN])
         panel = _like(_PanelUnit, _hanging(PANEL, 1.2))
@@ -2241,28 +2241,28 @@ class TestTheLibraryUnderThePointer:
             BROWSE_LIBRARY_CLOSE)
         assert not unit.showing
 
-    def test_with_genau_in_the_main_slot_it_opens_genaus_clips_on_the_clip_up(self, tmp_path):
+    def test_with_genau_in_the_main_slot_it_opens_genaus_flicks_on_the_flick_up(self, tmp_path):
         host = _FakeLibraryHost()
         unit = _a_library(tmp_path, host, genau_has_the_slot=True)
         (tmp_path / "genau_status.txt").write_text(
-            "clip=C:/clips/Loop One.mp4\n", encoding="utf-8")
+            "flick=C:/flicks/Loop One.mp4\n", encoding="utf-8")
         write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
 
         unit.pump(threading.Event(), 0.0)
 
-        assert host.sent == ["clips 1 C:/clips/Loop One.mp4"]
+        assert host.sent == ["flicks 1 C:/flicks/Loop One.mp4"]
 
-    def test_a_clip_picked_plays_on_genau_and_puts_the_browse_away(self, tmp_path):
+    def test_a_flick_picked_plays_on_genau_and_puts_the_browse_away(self, tmp_path):
         host = _FakeLibraryHost()
         unit = _a_library(tmp_path, host, genau_has_the_slot=True)
         write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
         unit.pump(threading.Event(), 0.0)
 
-        host.said.append("picked C:/clips/Loop Two.mp4")
+        host.said.append("picked C:/flicks/Loop Two.mp4")
         unit.pump(threading.Event(), 0.0)
 
         assert (tmp_path / "genau_cmd.txt").read_text(encoding="utf-8").strip() == (
-            f"PLAY_FILE {Path('C:/clips/Loop Two.mp4')}")
+            f"PLAY_FILE {Path('C:/flicks/Loop Two.mp4')}")
         assert not (tmp_path / "main_player_cmd.txt").exists()
         assert not unit.showing
 

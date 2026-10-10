@@ -460,7 +460,7 @@ class TestHudPublishing:
         assert broker["osr2"] != "off"
 
     def test_the_consoles_lock_names_genaus_pace_off_its_drive_readout(self, tmp_path):
-        """In genau mode the lock says how long an unheld clip stays up, and the
+        """In genau mode the lock says how long an unheld flick stays up, and the
         one place Genau says its pace is the drive readout it publishes."""
         feed, state = make_feed(tmp_path), BridgeState(main_mode=MainMode.GENAU)
         publish_drive(feed.config.genau_drive_file,
@@ -504,7 +504,7 @@ class TestHudPublishing:
                     if button.get("command", "").startswith("main_projection")}
 
         assert shape_buttons(make_config(tmp_path)) == set()
-        assert shape_buttons(make_config(tmp_path, genau_vr_clips=str(tmp_path / "vr_clips"))) == {
+        assert shape_buttons(make_config(tmp_path, genau_vr_flicks=str(tmp_path / "vr_flicks"))) == {
             ("main_projection_both", False), ("main_projection_none", True)}
 
     def test_the_consoles_ten_second_steps_are_dim_on_a_video_of_ten_seconds_or_shorter(

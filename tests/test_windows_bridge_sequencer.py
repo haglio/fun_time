@@ -372,13 +372,13 @@ class TestRunStartupSequence:
             "genau_status_file": str(cfg.genau_status_file),
             "genau_config_path": str(cfg.paths.genau_config_path or cfg.config_path),
             # Genau's loop-delivery folder, played as shorts by Kino and browsed by Genau.
-            "clips_dir": str(cfg.paths.clips_dir),
+            "flicks_dir": str(cfg.paths.flicks_dir),
             # This manifest has no regen.metadata_root, so the Main Funestra is left to
             # group by name; launch_main_funestra's --metadata-dir wiring is covered in
             # test_windows_bridge_startup.
             "metadata_dir": None,
             # Nothing to resume Genau onto: no status file from a session before.
-            "genau_start_clip": "",
+            "genau_start_flick": "",
             "genau_latest": False,
             # Where a press on the Main Funestra's volume control posts its command — the same
             # file the dashboard and each satellite's HUD write to.
@@ -410,7 +410,7 @@ class TestRunStartupSequence:
 
         assert main_funestra_kwargs["config_path"] == str(cfg.config_path)
         assert main_funestra_kwargs["config_path"] != str(genau_config)
-        assert main_funestra_kwargs["clips_dir"] == str(cfg.paths.clips_dir)
+        assert main_funestra_kwargs["flicks_dir"] == str(cfg.paths.flicks_dir)
         # And Genau's own config beside it, for the engine's numbers.
         assert main_funestra_kwargs["genau_config_path"] == str(genau_config)
 
@@ -476,13 +476,13 @@ class TestRunStartupSequence:
         assert main_funestra_paused.read_text(encoding="utf-8").strip() == "0"
 
     def test_genau_is_launched_onto_the_clip_it_was_left_showing(self, cfg_factory, tmp_path):
-        """Genau's status file is the only record of which clip was up — it
+        """Genau's status file is the only record of which flick was up — it
         rescans its folder every launch — so it is read before Genau is started
         and handed straight back on the command line."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         cfg.genau_status_file.parent.mkdir(parents=True, exist_ok=True)
         cfg.genau_status_file.write_text(
-            "cruise=0\nclip=C:\\clips\\alpha.mp4\n", encoding="utf-8",
+            "cruise=0\nflick=C:\\flicks\\alpha.mp4\n", encoding="utf-8",
         )
 
         with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
@@ -490,7 +490,7 @@ class TestRunStartupSequence:
 
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert launch.call_args.kwargs["genau_start_clip"] == "C:\\clips\\alpha.mp4"
+        assert launch.call_args.kwargs["genau_start_flick"] == "C:\\flicks\\alpha.mp4"
 
     def test_genau_is_launched_in_the_order_it_was_left_browsing(self, cfg_factory, tmp_path):
         """Whether Genau was on Latest is in the state the core session just

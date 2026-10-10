@@ -1,6 +1,6 @@
 """Genau as it runs on the headset's Main Funestra: the desktop's own, browsing
-its VR clips with the desktop's flat ones, narrowed to a shape when the room
-asks, and handing each frame over with the clip it is a frame of."""
+its VR flicks with the desktop's flat ones, narrowed to a shape when the room
+asks, and handing each frame over with the flick it is a frame of."""
 from __future__ import annotations
 
 import logging
@@ -32,12 +32,12 @@ class FakeSink:
 
 class FakeNotifier:
     def __init__(self) -> None:
-        self.clips: list[Path] = []
+        self.flicks: list[Path] = []
         self.visible: list[bool] = []
         self.closed = False
 
-    def notify_clip(self, path: Path) -> None:
-        self.clips.append(path)
+    def notify_flick(self, path: Path) -> None:
+        self.flicks.append(path)
 
     def notify_visible(self, is_visible: bool) -> None:
         self.visible.append(is_visible)
@@ -60,7 +60,7 @@ def _run_now(*, target, args=(), name=""):
 
 class HeldDecodes:
     """A thread starter that runs a decode on the spot until told to hold them,
-    for a clip whose frames are still coming while another's are on screen."""
+    for a flick whose frames are still coming while another's are on screen."""
 
     def __init__(self) -> None:
         self.holding = False
@@ -82,22 +82,22 @@ class HeldDecodes:
 
 
 class World:
-    """Genau wired the way the headset wires it, over a fabricated clips
-    folder: its VR clips, and its flat ones a folder deeper."""
+    """Genau wired the way the headset wires it, over a fabricated flicks
+    folder: its VR flicks, and its flat ones a folder deeper."""
 
-    def __init__(self, tmp_path: Path, *, clips=("alpha_180.mp4", "beta_180.mp4", "gamma.mp4"),
-                 flat_clips=(), start_clip=None, latest=False, start_thread=_run_now) -> None:
-        self.clips_folder = tmp_path / "clips"
-        self.vr_dir = self.clips_folder / "VR"
+    def __init__(self, tmp_path: Path, *, flicks=("alpha_180.mp4", "beta_180.mp4", "gamma.mp4"),
+                 flat_flicks=(), start_flick=None, latest=False, start_thread=_run_now) -> None:
+        self.flicks_folder = tmp_path / "flicks"
+        self.vr_dir = self.flicks_folder / "VR"
         self.vr_dir.mkdir(parents=True)
-        for arrived, name in enumerate(clips, start=1):
-            clip = self.vr_dir / name
-            clip.write_bytes(b"clip")
-            os.utime(clip, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
-        self.flat_dir = self.clips_folder / "2D" / "AI"
+        for arrived, name in enumerate(flicks, start=1):
+            flick = self.vr_dir / name
+            flick.write_bytes(b"flick")
+            os.utime(flick, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
+        self.flat_dir = self.flicks_folder / "2D" / "AI"
         self.flat_dir.mkdir(parents=True)
-        for name in flat_clips:
-            (self.flat_dir / name).write_bytes(b"clip")
+        for name in flat_flicks:
+            (self.flat_dir / name).write_bytes(b"flick")
         state = tmp_path / "state"
         state.mkdir()
         self.channels = GenauChannels(
@@ -107,19 +107,19 @@ class World:
         self.notifier = FakeNotifier()
         self.stop = threading.Event()
         self.genau = GenauInTheHeadset(
-            clips_folder=self.clips_folder,
+            flicks_folder=self.flicks_folder,
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
             notifier=self.notifier,
             tcode_sink=self.sink,
             stop_event=self.stop,
-            start_clip=start_clip,
+            start_flick=start_flick,
             latest=latest,
             decode=lambda _path: _frames(),
             start_thread=start_thread,
             log=logging.getLogger("test.genau_in_the_headset"),
         )
-        self.genau.tick()  # the first pass puts the first clip's frame up
+        self.genau.tick()  # the first pass puts the first flick's frame up
 
     def send(self, line: str) -> None:
         self.channels.command.write_text(line + "\n", encoding="utf-8")
@@ -127,51 +127,51 @@ class World:
         self.genau.tick()
 
     def on_screen(self) -> Path | None:
-        return self.genau.picture().clip
+        return self.genau.picture().flick
 
 
 def test_genau_in_the_headset_is_a_thing_a_funestra_runs(tmp_path):
     assert isinstance(World(tmp_path).genau, User)
 
 
-class TestTheClipOnScreen:
-    def test_it_opens_on_the_first_vr_clip_of_the_folder(self, tmp_path):
+class TestTheFlickOnScreen:
+    def test_it_opens_on_the_first_vr_flick_of_the_folder(self, tmp_path):
         world = World(tmp_path)
 
         assert world.on_screen() == world.vr_dir / "alpha_180.mp4"
-        assert world.notifier.clips == [world.vr_dir / "alpha_180.mp4"]
+        assert world.notifier.flicks == [world.vr_dir / "alpha_180.mp4"]
 
-    def test_it_opens_on_the_clip_an_orchestrator_names_in_the_order_it_names(self, tmp_path):
-        world = World(tmp_path, latest=True, start_clip=tmp_path / "clips" / "VR" / "beta_180.mp4")
+    def test_it_opens_on_the_flick_an_orchestrator_names_in_the_order_it_names(self, tmp_path):
+        world = World(tmp_path, latest=True, start_flick=tmp_path / "flicks" / "VR" / "beta_180.mp4")
 
         assert world.on_screen() == world.vr_dir / "beta_180.mp4"
         world.send("NEXT")
         assert world.on_screen() == world.vr_dir / "alpha_180.mp4"
 
-    def test_the_frame_handed_over_says_which_clip_it_is_of(self, tmp_path):
+    def test_the_frame_handed_over_says_which_flick_it_is_of(self, tmp_path):
         world = World(tmp_path)
 
         picture = world.genau.picture()
 
         assert picture.frame is not None
-        assert picture.clip == world.vr_dir / "alpha_180.mp4"
+        assert picture.flick == world.vr_dir / "alpha_180.mp4"
 
 
-class TestTheDesktopsClipsAreBrowsedToo:
-    """The headset browses its VR clips and the desktop's flat ones as one
+class TestTheDesktopsFlicksAreBrowsedToo:
+    """The headset browses its VR flicks and the desktop's flat ones as one
     sequence, the way the main rotation joins the VR library to the desktop's."""
 
     def _both(self, tmp_path):
-        return World(tmp_path, clips=("alpha_180.mp4",), flat_clips=("scene one.mp4",))
+        return World(tmp_path, flicks=("alpha_180.mp4",), flat_flicks=("scene one.mp4",))
 
-    def test_the_desktops_clips_follow_the_vr_ones(self, tmp_path):
+    def test_the_desktops_flicks_follow_the_vr_ones(self, tmp_path):
         world = self._both(tmp_path)
 
         world.send("NEXT")
 
         assert world.on_screen() == world.flat_dir / "scene one.mp4"
 
-    def test_weird_moves_a_2d_clip_to_its_own_place_in_the_pile(self, tmp_path):
+    def test_weird_moves_a_2d_flick_to_its_own_place_in_the_pile(self, tmp_path):
         world = self._both(tmp_path)
         world.send("NEXT")
 
@@ -184,8 +184,8 @@ class TestTheDesktopsClipsAreBrowsedToo:
 class TestNarrowingToAShape:
     """The console's VR and flat pair, said to Genau as SHAPES."""
 
-    def test_a_vr_clip_on_screen_gives_way_to_the_flat_ones(self, tmp_path):
-        world = World(tmp_path, flat_clips=("delta.mp4", "epsilon.mp4"))
+    def test_a_vr_flick_on_screen_gives_way_to_the_flat_ones(self, tmp_path):
+        world = World(tmp_path, flat_flicks=("delta.mp4", "epsilon.mp4"))
 
         world.send("SHAPES flat")
 
@@ -195,22 +195,22 @@ class TestNarrowingToAShape:
         world.send("NEXT")
         assert world.on_screen() == world.flat_dir / "delta.mp4"
 
-    def test_a_clip_on_screen_of_the_shape_kept_stays_up(self, tmp_path):
-        world = World(tmp_path, flat_clips=("delta.mp4",),
-                      start_clip=tmp_path / "clips" / "VR" / "beta_180.mp4")
-        up_before = list(world.notifier.clips)
+    def test_a_flick_on_screen_of_the_shape_kept_stays_up(self, tmp_path):
+        world = World(tmp_path, flat_flicks=("delta.mp4",),
+                      start_flick=tmp_path / "flicks" / "VR" / "beta_180.mp4")
+        up_before = list(world.notifier.flicks)
 
         world.send("SHAPES vr")
 
         assert world.on_screen() == world.vr_dir / "beta_180.mp4"
-        assert world.notifier.clips == up_before
+        assert world.notifier.flicks == up_before
         world.send("NEXT")
         world.send("NEXT")
         assert world.on_screen() == world.vr_dir / "alpha_180.mp4"
 
-    def test_a_clip_decoding_ahead_when_its_shape_is_kept_goes_up_once_decoded(self, tmp_path):
+    def test_a_flick_decoding_ahead_when_its_shape_is_kept_goes_up_once_decoded(self, tmp_path):
         decodes = HeldDecodes()
-        world = World(tmp_path, clips=("alpha_180.mp4",), flat_clips=("delta.mp4",),
+        world = World(tmp_path, flicks=("alpha_180.mp4",), flat_flicks=("delta.mp4",),
                       start_thread=decodes)
         decodes.holding = True
         world.genau.tick()
@@ -223,7 +223,7 @@ class TestNarrowingToAShape:
         assert world.genau.picture().frame is not None
 
     def test_a_reorder_rescans_under_the_shape_kept(self, tmp_path):
-        world = World(tmp_path, flat_clips=("delta.mp4",))
+        world = World(tmp_path, flat_flicks=("delta.mp4",))
         world.send("SHAPES flat")
 
         world.send("LATEST")
@@ -232,13 +232,13 @@ class TestNarrowingToAShape:
         assert world.on_screen() == world.flat_dir / "delta.mp4"
 
 
-class TestWhatThePanelCallsTheClip:
-    def test_the_clip_on_screen_by_its_name(self, tmp_path):
+class TestWhatThePanelCallsTheFlick:
+    def test_the_flick_on_screen_by_its_name(self, tmp_path):
         assert World(tmp_path).genau.top_block() == ModeHud(video="alpha_180")
 
     def test_the_one_still_decoding_while_the_last_stays_up(self, tmp_path):
         """The headset's panel names what is on its way rather than what is
-        still up, as it always has there.  The clip after the first is decoded
+        still up, as it always has there.  The flick after the first is decoded
         ahead by the first pass; the one after that is not, so a step onto it
         waits for its decode."""
         decodes = HeldDecodes()
@@ -255,4 +255,4 @@ class TestWhatThePanelCallsTheClip:
 class TestAFolderWithNothingToShow:
     def test_is_refused_at_once(self, tmp_path):
         with pytest.raises(RuntimeError, match="No video flicks"):
-            World(tmp_path, clips=())
+            World(tmp_path, flicks=())

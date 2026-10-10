@@ -173,7 +173,7 @@ e::QueueCommand("landscape_loop")
 ^SC01B::QueueCommand("main_hud_clockwise")
 
 ; The video's lock, while the video is on the main slot: it holds instead of
-; walking the playlist.  Genau's clip has a lock key of its own in Genau's
+; walking the playlist.  Genau's flick has a lock key of its own in Genau's
 ; cluster below, so each key holds the Funestra whose keys sit around it.  The
 ; apostrophe gave up Save clip to take this — that moved one key left, to the
 ; semicolon (bound by scancode because a bare ; opens a comment in AHK).
@@ -237,20 +237,20 @@ o::QueueCommand("robot_hand_center_up")
 ; Genau's motion otherwise.
 j::QueueCommand("speed_down")
 l::QueueCommand("speed_up")
-; Cruise varies the motion; moving on from a clip is what an unlocked Genau does
+; Cruise varies the motion; moving on from a flick is what an unlocked Genau does
 ; by itself, so it is the apostrophe's lock rather than a switch of its own.
 c::QueueCommand("robot_hand_toggle_cruise")
 ; Human-inspired motion: real scripting in place of the waveform, never on with cruise.
 y::QueueCommand("robot_hand_toggle_learned")
 
-; Genau's clip cluster, laid out like the arrow keys are for the portrait side:
-; K above to condemn the clip, M and . either side for previous and next, and the
+; Genau's flick cluster, laid out like the arrow keys are for the portrait side:
+; K above to condemn the flick, M and . either side for previous and next, and the
 ; comma under K to hold it, where Down sits under Up and S under W.  Comma and
 ; period by scancode, the way the semicolon is.
-k::QueueCommand("genau_weird_clip")
-m::QueueCommand("genau_prev_clip")
+k::QueueCommand("genau_weird_flick")
+m::QueueCommand("genau_prev_flick")
 SC033::QueueCommand("genau_lock")
-SC034::QueueCommand("genau_next_clip")
+SC034::QueueCommand("genau_next_flick")
 
 ; -------------------- CORE FUNCTIONS --------------------
 

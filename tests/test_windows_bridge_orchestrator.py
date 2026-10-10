@@ -2933,7 +2933,7 @@ class TestTheFinishingPassFitsUnderTheCover:
 
 
 class TestTheFunestrasStartWhenTheCoverIsGone:
-    """The Main Funestra's video and Genau's clips must not run under the cover.
+    """The Main Funestra's video and Genau's flicks must not run under the cover.
 
     The phase walk used to release them as its last act, which was also the
     moment the cover came down {D} so they lined up.  Now the cover is held
@@ -3351,7 +3351,7 @@ class TestTheHudPublisherASessionStarts:
         self, cfg_factory, tmp_path: Path,
     ):
         config = load_config(cfg_factory({}))
-        clip = config.paths.clips_dir / "2D" / "non_AI" / "scene one.mp4"
+        clip = config.paths.flicks_dir / "2D" / "non_AI" / "scene one.mp4"
         clip.parent.mkdir(parents=True)
         clip.touch()
         manifest = LaunchManifest.read(write_windows_bridge_manifest(

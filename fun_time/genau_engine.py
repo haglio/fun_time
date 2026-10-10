@@ -11,18 +11,18 @@ from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
 from funestra_core.broker_feed import BrokerFeed, udp_reader
-from funestra_core.clip_advance import ClipAdvanceState
-from funestra_core.clip_cache import ClipCacheStore, DecodeRequestState
-from funestra_core.clip_decode import load_clip_frames
-from funestra_core.clip_flip import ClipFlip
-from funestra_core.clip_folder import move_clip_to_weird
-from funestra_core.clip_loader import ClipLoadController
-from funestra_core.clip_renderer import ClipRenderController
-from funestra_core.clip_selection import ClipSelectionController
-from funestra_core.clip_sequence import ClipSequenceController
 from funestra_core.cruise_control import CruiseControlState
 from funestra_core.file_channel import read_paused_state
 from funestra_core.flag import Flag
+from funestra_core.flick_advance import FlickAdvanceState
+from funestra_core.flick_cache import DecodeRequestState, FlickCacheStore
+from funestra_core.flick_decode import load_flick_frames
+from funestra_core.flick_flip import FlickFlip
+from funestra_core.flick_folder import move_flick_to_weird
+from funestra_core.flick_loader import FlickLoadController
+from funestra_core.flick_renderer import FlickRenderController
+from funestra_core.flick_selection import FlickSelectionController
+from funestra_core.flick_sequence import FlickSequenceController
 from funestra_core.genau_controls import GenauControls
 from funestra_core.genau_refresh import GenauRefreshController
 from funestra_core.learned_motion import LearnedMotionState, load_default_model
@@ -40,15 +40,15 @@ Narrow = Callable[[bool, bool], list[Path]]
 class GenauEngine:
     controls: GenauControls
     controller: GenauRefreshController
-    renderer: ClipRenderController
+    renderer: FlickRenderController
     driver: RobotHandTCodeDriver
 
     @property
-    def current_clip(self) -> Path | None:
-        return self.renderer.current_clip_path
+    def current_flick(self) -> Path | None:
+        return self.renderer.current_flick_path
 
     def playhead(self) -> tuple[int, int]:
-        entry = self.renderer.current_clip_entry()
+        entry = self.renderer.current_flick_entry()
         frames = entry.get("frames") if entry else None
         count = len(frames) if frames else 0
         index = self.renderer.current_frame_index
@@ -58,7 +58,7 @@ class GenauEngine:
         self.controller.refresh()
 
     def seek(self, fraction: float) -> None:
-        self.controller.seek_the_clip(fraction)
+        self.controller.seek_the_flick(fraction)
 
     def close(self) -> None:
         self.driver.close()
@@ -66,7 +66,7 @@ class GenauEngine:
 
 def build_genau_engine(
     *,
-    clips: list[Path],
+    flicks: list[Path],
     settings,
     command_file: Path,
     paused_file: Path,
@@ -81,35 +81,35 @@ def build_genau_engine(
     narrow: Narrow | None = None,
     set_volume: Callable[[int, bool], None] | None = None,
     stop_event: threading.Event | None = None,
-    start_clip: Path | None = None,
+    start_flick: Path | None = None,
     metadata_root: Path | None = None,
-    decode: Callable[[Path], list] = load_clip_frames,
+    decode: Callable[[Path], list] = load_flick_frames,
     start_thread=start_daemon_thread,
     clock: Callable[[], float] = time.monotonic,
     log: logging.Logger = logger,
 ) -> GenauEngine:
-    sequence = ClipSequenceController(clips, start_at=start_clip)
-    clip_store = ClipCacheStore(limit=settings.clip_cache_size)
-    renderer = ClipRenderController(
-        clip_store=clip_store,
-        blit_frame=lambda frame: blit_frame(frame, renderer.current_clip_path))
-    loader = ClipLoadController(
-        clip_store=clip_store,
+    sequence = FlickSequenceController(flicks, start_at=start_flick)
+    flick_store = FlickCacheStore(limit=settings.flick_cache_size)
+    renderer = FlickRenderController(
+        flick_store=flick_store,
+        blit_frame=lambda frame: blit_frame(frame, renderer.current_flick_path))
+    loader = FlickLoadController(
+        flick_store=flick_store,
         load_state=DecodeRequestState(),
         prefetch_state=DecodeRequestState(),
-        current_clip_path_getter=lambda: renderer.current_clip_path,
-        decode_clip=decode,
+        current_flick_path_getter=lambda: renderer.current_flick_path,
+        decode_flick=decode,
         start_thread=start_thread,
         logger=log,
-        on_active_clip_loaded=renderer.prepare_active_clip_for_current_size,
+        on_active_flick_loaded=renderer.prepare_active_flick_for_current_size,
     )
-    selection = ClipSelectionController(
+    selection = FlickSelectionController(
         sequence=sequence,
-        clip_store=clip_store,
+        flick_store=flick_store,
         loader=loader,
         renderer=renderer,
         notifier=notifier,
-        condemn_clip=lambda clip: _condemn(clip, condemned_to(clip), log),
+        condemn_flick=lambda flick: _condemn(flick, condemned_to(flick), log),
     )
     robot_hand = RobotHandState(playing=False, speed=50, bpm=bpm_for_speed(50))
     cruise = CruiseControlState()
@@ -124,21 +124,21 @@ def build_genau_engine(
     controls = GenauControls(
         engine=BeatEngine(last_tick=clock()),
         paused=Flag(),
-        step_clip=selection.step,
-        condemn_clip=selection.condemn_current,
+        step_flick=selection.step,
+        condemn_flick=selection.condemn_current,
         robot_hand=robot_hand,
         cruise_control_state=cruise,
         learned_motion_state=learned,
         set_motion_phase=driver.set_motion_phase,
-        clip_advance_state=ClipAdvanceState(),
+        flick_advance_state=FlickAdvanceState(),
         stop_event=stop_event,
         hud=Flag(),
         set_volume=set_volume,
-        reorder_clips=lambda recent: _reorder(selection, rescan, recent, log),
+        reorder_flicks=lambda recent: _reorder(selection, rescan, recent, log),
         keep_shapes=None if narrow is None else (
             lambda plays_vr, plays_flat: _narrow(selection, narrow, plays_vr, plays_flat, log)),
         play_file=selection.play,
-        clip_flip=ClipFlip(metadata_root),
+        flick_flip=FlickFlip(metadata_root),
     )
     controller = GenauRefreshController(
         controls=controls,
@@ -160,7 +160,7 @@ def build_genau_engine(
         status_file=status_file,
         drive_file=Path(drive_file),
     )
-    selection.set_current_clip(selection.current_path)
+    selection.set_current_flick(selection.current_path)
     return GenauEngine(controls=controls, controller=controller, renderer=renderer,
                        driver=driver)
 
@@ -169,30 +169,30 @@ def _rescanned(rescan: Callable[[], list[Path]], log: logging.Logger) -> list[Pa
     try:
         return rescan()
     except (OSError, RuntimeError):
-        log.warning("Could not rescan the clips folder; keeping the sequence", exc_info=True)
+        log.warning("Could not rescan the flicks folder; keeping the sequence", exc_info=True)
         return []
 
 
-def _reorder(selection: ClipSelectionController, rescan: Rescan, recent: bool,
+def _reorder(selection: FlickSelectionController, rescan: Rescan, recent: bool,
              log: logging.Logger) -> None:
-    if clips := _rescanned(lambda: rescan(recent), log):
-        selection.reorder(clips)
-        log.info("Browsing %s (%d clips)", "newest-first" if recent else "reshuffled", len(clips))
+    if flicks := _rescanned(lambda: rescan(recent), log):
+        selection.reorder(flicks)
+        log.info("Browsing %s (%d flicks)", "newest-first" if recent else "reshuffled", len(flicks))
 
 
-def _narrow(selection: ClipSelectionController, narrow: Narrow, plays_vr: bool,
+def _narrow(selection: FlickSelectionController, narrow: Narrow, plays_vr: bool,
             plays_flat: bool, log: logging.Logger) -> None:
-    if clips := _rescanned(lambda: narrow(plays_vr, plays_flat), log):
-        selection.narrow(clips)
+    if flicks := _rescanned(lambda: narrow(plays_vr, plays_flat), log):
+        selection.narrow(flicks)
 
 
-def _condemn(clip: Path, weird_dir: Path, log: logging.Logger) -> None:
+def _condemn(flick: Path, weird_dir: Path, log: logging.Logger) -> None:
     try:
-        landed = move_clip_to_weird(clip, weird_dir)
+        landed = move_flick_to_weird(flick, weird_dir)
     except OSError:
-        log.error("Could not move %s to %s", clip.name, weird_dir, exc_info=True)
+        log.error("Could not move %s to %s", flick.name, weird_dir, exc_info=True)
         return
     if landed is None:
-        log.info("Clip %s was already gone; nothing to condemn", clip.name)
+        log.info("Flick %s was already gone; nothing to condemn", flick.name)
     else:
-        log.info("Condemned %s to %s", clip.name, weird_dir)
+        log.info("Condemned %s to %s", flick.name, weird_dir)

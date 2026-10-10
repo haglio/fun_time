@@ -3,7 +3,7 @@
 A shell: it opens the window, reads the library while the loading screen says
 so, and hands the window to a Funestra that plays the list and draws the
 console, with Kino in the same process answering what only the library side
-knows and Genau scrubbing its clips to the OSR2 -- the room says which of the
+knows and Genau scrubbing its flicks to the OSR2 -- the room says which of the
 two has the window.  What is tested here is the window and the wiring
 (tests/test_main_funestra_app.py); the Funestra, Kino and Genau are tested on
 their own.
@@ -62,11 +62,11 @@ def _genau(args):
         command=args.genau_command_file, paused=args.genau_paused_file,
         status=args.genau_status_file, drive=args.drive_file)
     return lambda _playback: Genau(
-        clips_folder=args.clips_dir, settings=GenauSettings.read(args.genau_config),
+        flicks_folder=args.flicks_dir, settings=GenauSettings.read(args.genau_config),
         channels=channels,
         notifier=GenauNotifier(args.notify_host, args.notify_port),
         tcode_sink=UdpTCodeSink(host=args.tcode_host, port=args.tcode_port),
-        start_clip=Path(args.genau_start_clip) if args.genau_start_clip else None,
+        start_flick=Path(args.genau_start_flick) if args.genau_start_flick else None,
         latest=args.genau_latest,
         metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,
     )
@@ -124,7 +124,7 @@ def _run(args) -> int:
 
     entries = source.entries if source is not None else []
     clip_nav = ClipNav.build(
-        [e.video for e in entries] + [c.video for c in (source.genau_clips if source else [])],
+        [e.video for e in entries] + [c.video for c in (source.genau_flicks if source else [])],
         source.metadata_root if source is not None else None,
     )
     funestra = Funestra.on_window(

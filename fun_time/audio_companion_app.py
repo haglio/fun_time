@@ -232,8 +232,8 @@ class AudioPlaybackController:
         self.apply_state()
 
     def handle_udp_line(self, line: str) -> None:
-        if line.startswith("CLIP "):
-            stem = line[5:].strip()
+        if line.startswith("FLICK "):
+            stem = line[len("FLICK "):].strip()
             path = find_audio(self.audio_folder, stem)
 
             if path is not None:

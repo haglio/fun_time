@@ -135,13 +135,13 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "fmode_on",
     "fmode_toggle",
     "genau_activate",
-    "genau_clip_seconds_down",
-    "genau_clip_seconds_up",
+    "genau_flick_seconds_down",
+    "genau_flick_seconds_up",
     "genau_flip_ends",
     "genau_lock",
-    "genau_next_clip",
-    "genau_prev_clip",
-    "genau_weird_clip",
+    "genau_next_flick",
+    "genau_prev_flick",
+    "genau_weird_flick",
     "genaumacher_save",
     "help_reference",
     "help_reference_close",
@@ -346,7 +346,7 @@ def _expected_numeric_ids() -> set[str]:
         for axis in ("amp", "center", "speed")
         for value in range(0, 101, 10)
     }
-    ids |= {f"genau_clip_seconds_{value}" for value in range(1, 61)}
+    ids |= {f"genau_flick_seconds_{value}" for value in range(1, 61)}
     ids |= {
         f"{funestra}_speed_{pct}"
         for funestra in ("main_player", "active", "both", "portrait", "landscape")

@@ -49,7 +49,7 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
     "executables": {"python_exe", "genau_python_exe", "origenerator_python_exe"},
     "media": {
         "main_funestra_library_sources", "portrait_dirs", "landscape_dirs", "weird_dir",
-        "favs_file", "genau_clips", "genau_audio", "vr_library_dirs", "genau_vr_clips",
+        "favs_file", "genau_flicks", "genau_audio", "vr_library_dirs", "genau_vr_flicks",
     },
     "modules": {
         "main_funestra_module", "satellite_module", "audio_module",

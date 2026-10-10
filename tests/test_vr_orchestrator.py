@@ -108,7 +108,7 @@ def config(tmp_path, monkeypatch):
             "portrait_dirs": ["%(flat)s"],
             "landscape_dirs": ["%(flat)s"],
             "weird_dir": "%(weird)s",
-            "clips_dir": "%(clips)s",
+            "flicks_dir": "%(clips)s",
             "audio_dir": "%(audio)s",
             "favs_file": "%(favs)s",
             "state_dir": "%(state)s"
@@ -488,7 +488,7 @@ class TestTheModeASessionComesBackIn:
 
         assert resume.lineno > seed.lineno
         assert [ast.unparse(arg) for arg in resume.args] == [
-            "Path(commands.genau_cmd_file)", "genau_clip_shapes(carried, bridge_config)"]
+            "Path(commands.genau_cmd_file)", "genau_flick_shapes(carried, bridge_config)"]
 
     def test_the_playlists_are_stocked_under_the_shapes_the_session_was_left_on(self):
         (stock,) = self._calls("run_vr_bridge", "stock_the_playlists")
@@ -786,7 +786,7 @@ class TestResumeGenausShapes:
     left under has to be re-sent, the way a satellite's lock is."""
 
     def _shapes(self, tmp_path: Path, *, plays_vr: bool, plays_flat: bool) -> VideoShapes:
-        return VideoShapes(vr_dirs=str(tmp_path / "vr_clips"),
+        return VideoShapes(vr_dirs=str(tmp_path / "vr_flicks"),
                            plays_vr=plays_vr, plays_flat=plays_flat)
 
     def test_queues_the_one_shape_genau_was_narrowed_to(self, tmp_path: Path):
@@ -804,14 +804,14 @@ class TestResumeGenausShapes:
 
         assert not genau.exists()
 
-    def test_queues_nothing_for_neither_since_genau_launches_holding_its_clip(self, tmp_path: Path):
+    def test_queues_nothing_for_neither_since_genau_launches_holding_its_flick(self, tmp_path: Path):
         genau = tmp_path / "genau_cmd.txt"
 
         resume_genau_shapes(genau, self._shapes(tmp_path, plays_vr=False, plays_flat=False))
 
         assert not genau.exists()
 
-    def test_queues_nothing_to_a_genau_with_only_flat_clips(self, tmp_path: Path):
+    def test_queues_nothing_to_a_genau_with_only_flat_flicks(self, tmp_path: Path):
         """The desktop's, which the narrowing a headset session left carries over to."""
         genau = tmp_path / "genau_cmd.txt"
 
@@ -1038,20 +1038,20 @@ class TestGenausRoleInTheManifest:
     """What the headset needs to run Genau's engine, carried in the one file
     it reads: the folder, the companion's address, and the engine's numbers."""
 
-    def test_genaus_clips_folder_rides_whole(self, config):
+    def test_genaus_flicks_folder_rides_whole(self, config):
         """The headset plays its VR folder and its 2D folder both, and keeps a
-        condemned clip's place in the weird pile beside it."""
+        condemned flick's place in the weird pile beside it."""
         vr = build_vr_manifest(config)["vr"]
 
-        assert vr["clips_folder"] == str(config.paths.clips_dir)
+        assert vr["flicks_folder"] == str(config.paths.flicks_dir)
 
-    def test_the_dispatch_loop_is_told_which_folder_holds_the_vr_clips(self, config, tmp_path):
+    def test_the_dispatch_loop_is_told_which_folder_holds_the_vr_flicks(self, config, tmp_path):
         """Where it decides whether the console offers Genau the VR and flat pair."""
         def bridge_config(session_config):
             path = write_manifest_data(build_vr_manifest(session_config), tmp_path / "launch.ini")
             return build_bridge_config_from_manifest(LaunchManifest.read(path), vr_main_funestra=True)
 
-        assert bridge_config(config).genau_vr_clips == str(config.paths.clips_dir / "VR")
+        assert bridge_config(config).genau_vr_flicks == str(config.paths.flicks_dir / "VR")
 
     def test_the_companions_address_is_fun_times_own(self, config):
         vr = build_vr_manifest(config)["vr"]
@@ -1075,7 +1075,7 @@ class TestGenausRoleInTheManifest:
 
         settings = VrSettings.read(path)
 
-        assert settings.clips_folder == config.paths.clips_dir
+        assert settings.flicks_folder == config.paths.flicks_dir
         assert (settings.notify_host, settings.notify_port) == ("127.0.0.1", 50556)
         assert settings.genau == GenauSettings()
 
@@ -1140,7 +1140,7 @@ def _call_lines_in_run_vr_bridge() -> dict[str, int]:
 
 class TestTheAudioCompanionInVr:
     """Launched as on the desktop, before the Funestra so it is listening when
-    Genau's role says which clip is up, and sent to the headset's output."""
+    Genau's role says which flick is up, and sent to the headset's output."""
 
     def test_it_is_launched_on_the_headsets_output(self):
         tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))

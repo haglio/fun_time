@@ -16,8 +16,8 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from funestra_core.clip_folder import SUPPORTED_VIDEO_EXTS
 from funestra_core.file_channel import append_command
+from funestra_core.flick_folder import SUPPORTED_VIDEO_EXTS
 
 from fun_time.branch_session import _apply_genau_checkout_override
 from fun_time.checkout_overrides import STATE_DIRNAME

@@ -45,8 +45,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # in-repo surfaces cannot show.  HUD_ONLY_COMMAND_IDS is the subset the
 # reference does not list either; the rest it does.
 _CONSOLE_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {
-    "genau_clip_seconds_down",
-    "genau_clip_seconds_up",
+    "genau_flick_seconds_down",
+    "genau_flick_seconds_up",
     # Neither shape of video, and neither length: the browse with nothing in
     # it.  The reference names both, but no phrase asks for either -- each takes
     # a second, deliberate press on the button that is already the only one lit.
@@ -188,7 +188,7 @@ def _satellite_verbs() -> frozenset[str]:
 def test_every_verb_the_console_posts_lands_on_a_handler():
     """The sixth surface: the console the Funestras draw for the main slot posts
     the verbs of the buttons Fun Time declares into this dispatcher.  Nothing
-    held the two together once, which is how the clip-seconds pair came to
+    held the two together once, which is how the flick-seconds pair came to
     post a verb this table had renamed away -- both buttons inert in genau
     mode, and no test to say so (bug 19).  The enhanced-filter button was the
     last one carried here as dormant, unanswered because no session had a

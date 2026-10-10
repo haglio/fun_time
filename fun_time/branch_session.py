@@ -146,7 +146,7 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
             "portrait_dirs": paths.portrait_dirs,
             "landscape_dirs": paths.landscape_dirs,
             "weird_dir": paths.weird_dir,
-            "clips_dir": paths.clips_dir,
+            "flicks_dir": paths.flicks_dir,
             "audio_dir": paths.audio_dir,
             "favs_file": paths.favs_file,
             "state_dir": paths.state_dir,

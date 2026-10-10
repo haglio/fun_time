@@ -91,7 +91,7 @@ def build_voice_commands(
     *,
     filter_commands: Mapping[str, str] | None = None,
     clip_jump_phrases: tuple[str, ...] | None = None,
-    clip_flip_phrases: tuple[str, ...] | None = None,
+    flick_flip_phrases: tuple[str, ...] | None = None,
     origenerator_phrases: tuple[str, ...] | None = None,
     genau_flick_words: Noun | None = None,
 ) -> Mapping[str, str]:
@@ -226,13 +226,13 @@ def build_voice_commands(
         "human inspired": "robot_hand_toggle_learned",
         "human inspired on": "robot_hand_learned_on",
         "human inspired off": "robot_hand_learned_off",
-        f"previous {flick}": "genau_prev_clip",
-        f"next {flick}": "genau_next_clip",
+        f"previous {flick}": "genau_prev_flick",
+        f"next {flick}": "genau_next_flick",
         # Bare "weird" already addresses the active satellite, so Genau's own
         # action names the flick.  There is no spoken hold to go with it: holding
         # one is the Main Funestra's lock, said as "main lock" or bare while the
         # Main Funestra has the floor.
-        f"weird {flick}": "genau_weird_clip",
+        f"weird {flick}": "genau_weird_flick",
         "offset": "quarter_button",
         # "voice off" / "mic off" both mute voice control (there is no spoken way
         # back — a muted recognizer hears nothing; the dashboard mic button or a
@@ -254,9 +254,9 @@ def build_voice_commands(
     if clip_jump_phrases is None:
         clip_jump_phrases = tuple(load_content()["clip_jump_phrases"])
     commands.update(dict.fromkeys(clip_jump_phrases, "main_player_clip_jump"))
-    if clip_flip_phrases is None:
-        clip_flip_phrases = tuple(load_content()["clip_flip_phrases"])
-    commands.update(dict.fromkeys(clip_flip_phrases, "genau_flip_ends"))
+    if flick_flip_phrases is None:
+        flick_flip_phrases = tuple(load_content()["flick_flip_phrases"])
+    commands.update(dict.fromkeys(flick_flip_phrases, "genau_flip_ends"))
     commands.update({f"crown {crown}": crown.command for crown in Crown})
 
     # The hotkeys & voice reference popup toggles from several spoken names, and
@@ -423,11 +423,11 @@ def build_voice_commands(
 
     # Mode-named navigation: a mode's name + next/previous (either order) navigates
     # that mode's Funestra.  Kino drives the main slot's video; Genau steps its own
-    # clip.
+    # flick.
     _MODE_NAV: dict[str, tuple[str, str]] = {
         # recognizer base -> (next command, previous command)
         "kino": ("main_next", "main_prev"),
-        **dict.fromkeys(GENAU_SAID, ("genau_next_clip", "genau_prev_clip")),
+        **dict.fromkeys(GENAU_SAID, ("genau_next_flick", "genau_prev_flick")),
     }
     for _base, (_next_cmd, _prev_cmd) in _MODE_NAV.items():
         commands[f"{_base} next"] = _next_cmd
@@ -452,10 +452,10 @@ def build_voice_commands(
         for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
             commands[f"{_prefix} {_word}"] = f"{_cmd_prefix}_{_value}"
 
-    # "<flick> seconds five" -> genau_clip_seconds_5.  These are seconds, not a 0-100 axis,
+    # "<flick> seconds five" -> genau_flick_seconds_5.  These are seconds, not a 0-100 axis,
     # so they need finer granularity than the tens-only _NUMBER_WORDS above: a spoken
     # integer 1-60, single digits and compounds ("twenty five" -> 25) alike.  Zero is
-    # omitted — a nought-second interval would step the clip every frame.  Naming a
+    # omitted — a nought-second interval would step the flick every frame.  Naming a
     # small number was the whole point of the interval, and its absence from the
     # grammar was why the recognizer fell back to free capture ("otto advance five").
     # The phrase says what the number means — how many seconds a flick holds the
@@ -485,7 +485,7 @@ def build_voice_commands(
 
 
     for _word, _value in _spoken_seconds().items():
-        commands[f"{flick} seconds {_word}"] = f"genau_clip_seconds_{_value}"
+        commands[f"{flick} seconds {_word}"] = f"genau_flick_seconds_{_value}"
 
     # "min amp" -> robot_hand_amp_0, "max center" -> robot_hand_center_100.
     _EXTREMES: dict[str, int] = {"min": 0, "max": 100}

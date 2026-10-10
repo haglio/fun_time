@@ -1,5 +1,5 @@
 """Genau as it runs on the Main Funestra: its own channel, its own picture, its
-own status, over a fabricated clips folder whose decode hands back numbered frames."""
+own status, over a fabricated flicks folder whose decode hands back numbered frames."""
 from __future__ import annotations
 
 import logging
@@ -28,12 +28,12 @@ class FakeSink:
 
 class FakeNotifier:
     def __init__(self) -> None:
-        self.clips: list[Path] = []
+        self.flicks: list[Path] = []
         self.visible: list[bool] = []
         self.closed = False
 
-    def notify_clip(self, path: Path) -> None:
-        self.clips.append(path)
+    def notify_flick(self, path: Path) -> None:
+        self.flicks.append(path)
 
     def notify_visible(self, is_visible: bool) -> None:
         self.visible.append(is_visible)
@@ -63,15 +63,15 @@ def _run_now(*, target, args=(), name=""):
 
 
 class World:
-    def __init__(self, tmp_path: Path, *, clips=("alpha one.mp4", "beta two.mp4", "gamma three.mp4"),
-                 start_clip=None, latest=False, metadata_root=None) -> None:
-        self.clips_folder = tmp_path / "clips"
-        self.flat_dir = self.clips_folder / "2D" / "non_AI"
+    def __init__(self, tmp_path: Path, *, flicks=("alpha one.mp4", "beta two.mp4", "gamma three.mp4"),
+                 start_flick=None, latest=False, metadata_root=None) -> None:
+        self.flicks_folder = tmp_path / "flicks"
+        self.flat_dir = self.flicks_folder / "2D" / "non_AI"
         self.flat_dir.mkdir(parents=True)
-        for arrived, name in enumerate(clips, start=1):
-            clip = self.flat_dir / name
-            clip.write_bytes(b"clip")
-            os.utime(clip, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
+        for arrived, name in enumerate(flicks, start=1):
+            flick = self.flat_dir / name
+            flick.write_bytes(b"flick")
+            os.utime(flick, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
         state = tmp_path / "state"
         state.mkdir()
         self.channels = GenauChannels(
@@ -81,12 +81,12 @@ class World:
         self.notifier = FakeNotifier()
         self.clock = Clock()
         self.genau = Genau(
-            clips_folder=self.clips_folder,
+            flicks_folder=self.flicks_folder,
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
             notifier=self.notifier,
             tcode_sink=self.sink,
-            start_clip=start_clip,
+            start_flick=start_flick,
             latest=latest,
             metadata_root=metadata_root,
             decode=lambda _path: _frames(),
@@ -113,12 +113,12 @@ def test_genau_is_a_thing_a_funestra_runs(tmp_path):
     assert isinstance(World(tmp_path).genau, User)
 
 
-class TestTheClipOnScreen:
-    def test_it_opens_on_the_first_clip_of_the_folder_and_tells_the_audio_companion(self, tmp_path):
+class TestTheFlickOnScreen:
+    def test_it_opens_on_the_first_flick_of_the_folder_and_tells_the_audio_companion(self, tmp_path):
         world = World(tmp_path)
 
         assert world.genau.top_block() == ModeHud(video="alpha one")
-        assert world.notifier.clips == [world.flat_dir / "alpha one.mp4"]
+        assert world.notifier.flicks == [world.flat_dir / "alpha one.mp4"]
 
     def test_its_verbs_arrive_on_its_own_channel_and_never_on_the_funestras(self, tmp_path):
         world = World(tmp_path)
@@ -133,10 +133,10 @@ class TestTheClipOnScreen:
 
         world.tick()
 
-        assert world.status()["clip"] == str(world.flat_dir / "alpha one.mp4")
+        assert world.status()["flick"] == str(world.flat_dir / "alpha one.mp4")
         assert world.genau.status_fields() == {}
 
-    def test_weird_moves_the_clip_to_the_pile_beside_the_folder(self, tmp_path):
+    def test_weird_moves_the_flick_to_the_pile_beside_the_folder(self, tmp_path):
         world = World(tmp_path)
 
         world.send("WEIRD")
@@ -147,7 +147,7 @@ class TestTheClipOnScreen:
     def test_latest_rescans_the_folder_newest_first(self, tmp_path):
         world = World(tmp_path)
         newest = world.flat_dir / "delta four.mp4"
-        newest.write_bytes(b"clip")
+        newest.write_bytes(b"flick")
         os.utime(newest, (4_000_000_000, 4_000_000_000))
 
         world.send("LATEST")

@@ -15,7 +15,7 @@ from main_funestra.library_source import (
     PHASE_DURATIONS,
     LibrarySource,
     build_library_source,
-    discover_genau_clips,
+    discover_genau_flicks,
     length_mode_rebuilds,
     next_length_mode,
 )
@@ -82,23 +82,23 @@ class TestBuildLibrarySource:
         assert [v for v, _ in full] == [long_vid]
         assert [v for v, _ in shorts] == [short_vid]
 
-    def test_shorts_mode_includes_clips_dir(self, tmp_path):
+    def test_shorts_mode_includes_the_flicks_dir(self, tmp_path):
         vids = tmp_path / "videos"
         scripts = tmp_path / "scripts"
-        clips = tmp_path / "clips"
+        flicks = tmp_path / "flicks"
         vids.mkdir()
         scripts.mkdir()
-        (clips / "2D" / "AI").mkdir(parents=True)
+        (flicks / "2D" / "AI").mkdir(parents=True)
         long_vid = _make_video(vids / "long-1080p.mp4")
-        clip = _make_video(clips / "2D" / "AI" / "saved.mp4")
+        flick = _make_video(flicks / "2D" / "AI" / "saved.mp4")
         durations = {long_vid: 300.0}
 
         source = build_library_source(
-            vids, scripts, clips, rng=random.Random(0), durations=durations,
+            vids, scripts, flicks, rng=random.Random(0), durations=durations,
         )
 
         shorts_videos = {v for v, _ in source.playlist_for("shorts")}
-        assert clip in shorts_videos
+        assert flick in shorts_videos
 
     def test_version_index_covers_all_entries(self, tmp_path):
         vids = tmp_path / "videos"
@@ -161,7 +161,7 @@ class TestTheVersionIndexIsBuiltOnce:
             main_funestra.library_source, "read_version_group",
             lambda video, root: (reads.append(video), real(video, root))[1])
         source = LibrarySource(
-            entries=entries, genau_clips=[], durations={}, rng=random.Random(0),
+            entries=entries, genau_flicks=[], durations={}, rng=random.Random(0),
             metadata_root=meta,
         )
 
@@ -252,35 +252,35 @@ class TestBuildProgress:
 
 
 class TestDiscoverClips:
-    def test_finds_every_2d_clip_whatever_folder_it_is_in_and_no_vr_clip(self, tmp_path):
-        """The Main Funestra plays flat: the clips cut from real videos and the
+    def test_finds_every_2d_flick_whatever_folder_it_is_in_and_no_vr_flick(self, tmp_path):
+        """The Main Funestra plays flat: the flicks cut from real videos and the
         loops Origenerator made sit in folders of their own under 2D."""
-        clips = tmp_path / "clips"
+        flicks = tmp_path / "flicks"
         for place in ("2D/AI/loop one.mp4", "2D/non_AI/scene one.mp4", "VR/scene two_180.mp4"):
-            (clips / place).parent.mkdir(parents=True, exist_ok=True)
-            (clips / place).write_text("body")
+            (flicks / place).parent.mkdir(parents=True, exist_ok=True)
+            (flicks / place).write_text("body")
 
-        found = sorted(clip.video for clip in discover_genau_clips(clips))
+        found = sorted(flick.video for flick in discover_genau_flicks(flicks))
 
-        assert found == [clips / "2D" / "AI" / "loop one.mp4",
-                         clips / "2D" / "non_AI" / "scene one.mp4"]
+        assert found == [flicks / "2D" / "AI" / "loop one.mp4",
+                         flicks / "2D" / "non_AI" / "scene one.mp4"]
 
     def test_absent_dir_is_empty(self, tmp_path):
-        assert discover_genau_clips(tmp_path / "nope") == []
+        assert discover_genau_flicks(tmp_path / "nope") == []
 
     def test_none_dir_is_empty(self):
-        assert discover_genau_clips(None) == []
+        assert discover_genau_flicks(None) == []
 
-    def test_lists_clip_videos_with_size(self, tmp_path):
-        clips = tmp_path / "clips"
-        (clips / "2D").mkdir(parents=True)
-        (clips / "2D" / "a.mp4").write_text("body")
-        (clips / "2D" / "notes.txt").write_text("ignore me")
+    def test_lists_flick_videos_with_size(self, tmp_path):
+        flicks = tmp_path / "flicks"
+        (flicks / "2D").mkdir(parents=True)
+        (flicks / "2D" / "a.mp4").write_text("body")
+        (flicks / "2D" / "notes.txt").write_text("ignore me")
 
-        result = discover_genau_clips(clips)
+        result = discover_genau_flicks(flicks)
 
         assert len(result) == 1
-        assert result[0].video == clips / "2D" / "a.mp4"
+        assert result[0].video == flicks / "2D" / "a.mp4"
         assert result[0].funscript is None
         assert result[0].size == len("body")
 
@@ -292,7 +292,7 @@ def test_standalone_source_serves_all_videos_by_default():
     scripted = LibraryEntry(video=Path("Gigi-topaz.mp4"), funscript=Path("Gigi.funscript"), size=900)
     unscripted = LibraryEntry(video=Path("Hana-1080p.mp4"), funscript=None, size=900)
     src = LibrarySource(
-        entries=[scripted, unscripted], genau_clips=[],
+        entries=[scripted, unscripted], genau_flicks=[],
         durations={scripted.video: 300.0, unscripted.video: 300.0},
         rng=random.Random(0),
     )
@@ -320,7 +320,7 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
     ea = LibraryEntry(video=original, funscript=None, size=100)
     eb = LibraryEntry(video=upscale, funscript=None, size=900)
     source = LibrarySource(
-        entries=[ea, eb], genau_clips=[], durations={original: 300.0, upscale: 300.0},
+        entries=[ea, eb], genau_flicks=[], durations={original: 300.0, upscale: 300.0},
         rng=random.Random(0), metadata_root=meta,
     )
 
@@ -336,7 +336,7 @@ def test_version_index_falls_back_to_names_without_a_metadata_root(tmp_path):
     a = LibraryEntry(video=Path("Richard.mp4"), funscript=None, size=50)
     b = LibraryEntry(video=Path("Richard_topaz.mp4"), funscript=None, size=800)
     source = LibrarySource(
-        entries=[a, b], genau_clips=[], durations={a.video: 300.0, b.video: 300.0},
+        entries=[a, b], genau_flicks=[], durations={a.video: 300.0, b.video: 300.0},
         rng=random.Random(0),
     )
 
@@ -376,7 +376,7 @@ class TestACarvedSceneIsAShort:
         clip = self._clip_entry(lib, meta, "example/1 clips/Jane Doe - alpha scene two.mp4")
         plain = self._plain_entry(lib, "example/0/Long Movie.mp4")
         source = LibrarySource(
-            entries=[clip, plain], genau_clips=[],
+            entries=[clip, plain], genau_flicks=[],
             # Both well over the short cutoff, so only the sidecar can tell them apart.
             durations={clip.video: 120.0, plain.video: 120.0},
             rng=random.Random(0), metadata_root=meta,
@@ -394,7 +394,7 @@ class TestACarvedSceneIsAShort:
         lib = tmp_path / "videos" / "videos"
         long_plain = self._plain_entry(lib, "example/Long.mp4")
         source = LibrarySource(
-            entries=[long_plain], genau_clips=[], durations={long_plain.video: 120.0},
+            entries=[long_plain], genau_flicks=[], durations={long_plain.video: 120.0},
             rng=random.Random(0),
         )
 
