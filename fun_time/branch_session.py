@@ -30,6 +30,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,7 +44,7 @@ from app_support.win32 import TaskbarApp, describe_taskbar_app
 # module at call time rather than bound once at import.
 from . import config as config_module
 from . import preview_marker
-from .branch_seeding import mirror_private_overlays, seed_derived_caches
+from .branch_seeding import mirror_private_overlays, seed_derived_caches, top_up_thumbnails
 from .checkout_overrides import (
     GENAU_DIRS_OVERRIDE_NAME,
     ORIGENERATOR_DIR_OVERRIDE_NAME,
@@ -261,6 +262,16 @@ def build_branch_config(
     return destination
 
 
+def top_up_branch_thumbnails(
+    worktree: Path, *, primary: Path, primary_config_path: Path = DEFAULT_CONFIG_PATH
+) -> None:
+    live_state = load_config(primary_config_path, project_dir=primary).paths.state_dir
+    began = time.monotonic()
+    copied = len(top_up_thumbnails(live_state, worktree / STATE_DIRNAME))
+    print(f"Copied {copied} thumbnail{'' if copied == 1 else 's'} from {live_state} "
+          f"in {time.monotonic() - began:.1f}s", flush=True)
+
+
 ORCHESTRATOR_MODULES = {False: "fun_time.orchestrator", True: "fun_time_vr.orchestrator"}
 
 
@@ -277,14 +288,13 @@ def describe_the_session_on_the_taskbar(worktree: Path) -> None:
 
 
 def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
-           **kwargs) -> int:
+           primary_config_path: Path = DEFAULT_CONFIG_PATH) -> int:
     """Build the branch config and run a session on it out of *worktree*.
 
     The orchestrator starts on *this* interpreter — the primary checkout's venv,
     the only python that has fun_time's sibling packages — but with its working
-    directory in the worktree, and that is what swaps the code: ``fun_time`` is
-    not installed into the venv at all, so ``python -m fun_time.orchestrator``
-    resolves the package from the working directory.  Every child the session
+    directory in the worktree, and that is what swaps the code: ``python -m``
+    puts the working directory first on the import path.  Every child the session
     launches (the satellites, the dashboard, the audio companion, the loading
     and closing screens) inherits that directory and runs the branch's code too.
 
@@ -302,12 +312,19 @@ def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
     if older:
         return _refuse(worktree, branch_label(worktree, current_branch(worktree)),
                        PLAYERS_FROM_BEFORE_THE_PIN, str(OutOfDateSibling(older[0])))
-    config_path = build_branch_config(worktree, primary=primary, **kwargs)
+    config_path = build_branch_config(
+        worktree, primary=primary, primary_config_path=primary_config_path)
     command = [sys.executable, "-m", ORCHESTRATOR_MODULES[vr], "--config", str(config_path)]
     print(f"Running {subprocess.list2cmdline(command)}\n  in {worktree}", flush=True)
-    return subprocess.run(
-        command, cwd=str(worktree), check=False, env={**os.environ, preview_marker.FLAG: "1"},
-        **no_console_window()).returncode
+    session = subprocess.Popen(
+        command, cwd=str(worktree), env={**os.environ, preview_marker.FLAG: "1"},
+        stdout=sys.stdout, stderr=sys.stderr, **no_console_window())
+    try:
+        top_up_branch_thumbnails(
+            worktree, primary=primary, primary_config_path=primary_config_path)
+    finally:
+        returncode = session.wait()
+    return returncode
 
 
 def _older_than_the_fun_time_he_runs(missing: int) -> str:

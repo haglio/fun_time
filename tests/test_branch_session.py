@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -558,8 +559,7 @@ def test_the_launch_seeds_the_branchs_state_from_the_live_sessions(checkouts):
     launch runs it at all is this module's, and the wiring is what breaks when
     the two drift."""
     state = checkouts.primary / "state"
-    (state / "hud_thumbnails").mkdir(parents=True)
-    (state / "hud_thumbnails" / "abc123.jpg").write_bytes(b"thumbnail")
+    state.mkdir(parents=True)
     (state / "main_player_durations.json").write_text(
         json.dumps({"C:/library/main/one.mp4": {"ms": 1}}), encoding="utf-8"
     )
@@ -572,7 +572,40 @@ def test_the_launch_seeds_the_branchs_state_from_the_live_sessions(checkouts):
     assert json.loads(
         (branch_state / "main_player_durations.json").read_text(encoding="utf-8")
     ) == {"C:/library/main/one.mp4": {"ms": 1}}
-    assert (branch_state / "hud_thumbnails" / "abc123.jpg").read_bytes() == b"thumbnail"
+
+
+def _launch_with_one_live_thumbnail(checkouts, monkeypatch, start_the_session) -> None:
+    live_thumbnails = checkouts.primary / "state" / "hud_thumbnails"
+    live_thumbnails.mkdir(parents=True)
+    (live_thumbnails / "abc123.jpg").write_bytes(b"thumbnail")
+    monkeypatch.setattr(branch_session.subprocess, "Popen", start_the_session)
+    monkeypatch.setattr(branch_session, "commits_missing", lambda worktree, primary: 0)
+    branch_session.launch(checkouts.worktree, primary=checkouts.primary,
+                          primary_config_path=checkouts.config_path)
+
+
+def test_a_launch_starts_the_session_before_copying_the_thumbnails(checkouts, monkeypatch):
+    branch_thumbnails = checkouts.worktree / "state" / "hud_thumbnails"
+    thumbnails_as_the_session_started: list[list[str]] = []
+
+    def start_the_session(command, **kwargs):
+        thumbnails_as_the_session_started.append(
+            sorted(path.name for path in branch_thumbnails.glob("*")))
+        return SimpleNamespace(wait=lambda: 0)
+
+    _launch_with_one_live_thumbnail(checkouts, monkeypatch, start_the_session)
+
+    assert thumbnails_as_the_session_started == [[]]
+    assert (branch_thumbnails / "abc123.jpg").read_bytes() == b"thumbnail"
+
+
+def test_a_launch_logs_how_many_thumbnails_it_copied_and_how_long_that_took(
+        checkouts, monkeypatch, capsys):
+    _launch_with_one_live_thumbnail(
+        checkouts, monkeypatch, lambda command, **kwargs: SimpleNamespace(wait=lambda: 0))
+
+    assert re.search(r"^Copied 1 thumbnail from \S.* in \d+\.\ds$",
+                     capsys.readouterr().out, re.MULTILINE)
 
 
 @pytestmark_shortcut
@@ -665,27 +698,28 @@ def test_an_empty_origenerator_override_hosts_none_at_all(checkouts):
     assert branch.paths.origenerator_dir is None
 
 
-class _RecordedRun:
-    """Stands in for subprocess.run, keeping what launch() asked for."""
+class _RecordedStart:
+    """Stands in for subprocess.Popen, keeping what launch() asked for."""
 
     def __init__(self):
         self.command: list[str] | None = None
         self.cwd: str | None = None
         self.kwargs: dict = {}
 
-    def __call__(self, command, cwd=None, check=False, **kwargs):
+    def __call__(self, command, cwd=None, **kwargs):
         self.command, self.cwd, self.kwargs = list(command), cwd, kwargs
-        return SimpleNamespace(returncode=0)
+        return SimpleNamespace(wait=lambda: 0)
 
 
-def _launch_recorded(monkeypatch, tmp_path: Path, **kwargs) -> _RecordedRun:
-    recorded = _RecordedRun()
+def _launch_recorded(monkeypatch, tmp_path: Path, **kwargs) -> _RecordedStart:
+    recorded = _RecordedStart()
     monkeypatch.setattr(
         branch_session, "build_branch_config", lambda worktree, **_: tmp_path / "cfg.json"
     )
+    monkeypatch.setattr(branch_session, "top_up_branch_thumbnails", lambda worktree, **_: None)
     monkeypatch.setattr(branch_session, "primary_checkout", lambda start=None: tmp_path)
     monkeypatch.setattr(branch_session, "commits_missing", lambda worktree, primary: 0)
-    monkeypatch.setattr(branch_session.subprocess, "run", recorded)
+    monkeypatch.setattr(branch_session.subprocess, "Popen", recorded)
     branch_session.launch(tmp_path, **kwargs)
     return recorded
 
@@ -696,6 +730,13 @@ def test_a_branch_session_runs_the_desktop_orchestrator(monkeypatch, tmp_path: P
     assert "fun_time.orchestrator" in recorded.command
     assert recorded.cwd == str(tmp_path.resolve())
     assert recorded.kwargs["creationflags"] & subprocess.CREATE_NO_WINDOW
+
+
+def test_a_branch_session_writes_its_output_into_the_launchers_log(monkeypatch, tmp_path: Path):
+    recorded = _launch_recorded(monkeypatch, tmp_path)
+
+    assert recorded.kwargs["stdout"] is sys.stdout
+    assert recorded.kwargs["stderr"] is sys.stderr
 
 
 def test_every_process_of_a_branch_session_is_told_it_is_one(monkeypatch, tmp_path: Path):
@@ -717,18 +758,19 @@ def test_a_vr_branch_session_runs_the_vr_orchestrator(monkeypatch, tmp_path: Pat
 
 def _sessions_exit_with(monkeypatch, returncode: int) -> list[list[str]]:
     """Every session the launcher goes on to start, as the command it ran."""
-    real_run = subprocess.run
+    real_popen = subprocess.Popen
     sessions: list[list[str]] = []
 
-    def run(command, cwd=None, check=False, **kwargs):
+    def popen(command, *args, **kwargs):
         if command[0] == "git":
-            return real_run(command, cwd=cwd, check=check, **kwargs)
+            return real_popen(command, *args, **kwargs)
         sessions.append(list(command))
-        return SimpleNamespace(returncode=returncode)
+        return SimpleNamespace(wait=lambda: returncode)
 
     monkeypatch.setattr(branch_session, "build_branch_config",
                         lambda worktree, **_: worktree / "state" / "cfg.json")
-    monkeypatch.setattr(branch_session.subprocess, "run", run)
+    monkeypatch.setattr(branch_session, "top_up_branch_thumbnails", lambda worktree, **_: None)
+    monkeypatch.setattr(branch_session.subprocess, "Popen", popen)
     return sessions
 
 

@@ -24,6 +24,8 @@ PRIVATE_OVERLAYS = (
 # measured at 20s where a warm one is 0.1s.
 DURATION_CACHE_NAME = "main_player_durations.json"
 
+WATCH_STATS_NAME = "watch_stats.json"
+
 
 def mirror_private_overlays(primary: Path, worktree: Path) -> list[Path]:
     """Copy into *worktree* the git-ignored overlays a session reads from its
@@ -43,14 +45,6 @@ def mirror_private_overlays(primary: Path, worktree: Path) -> list[Path]:
         shutil.copyfile(source, destination)
         copied.append(destination)
     return copied
-
-
-def _seeded_state_names() -> tuple[str, ...]:
-    """The library-derived files copied across whole: cost paid after startup
-    rather than during it, where the duration cache above costs startup."""
-    from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME  # noqa: PLC0415  (pulls in cv2)
-
-    return ("watch_stats.json", THUMBNAIL_CACHE_DIRNAME)
 
 
 def merge_duration_cache(live_state: Path, branch_state: Path) -> int:
@@ -89,13 +83,26 @@ def seed_derived_caches(live_state: Path, branch_state: Path) -> list[Path]:
     seeded: list[Path] = []
     if merge_duration_cache(live_state, branch_state):
         seeded.append(branch_state / DURATION_CACHE_NAME)
-    for name in _seeded_state_names():
-        source = live_state / name
-        if source.is_dir():
-            seeded.extend(_seed_directory(source, branch_state / name))
-        elif source.is_file() and _seed_file(source, branch_state / name):
-            seeded.append(branch_state / name)
+    source = live_state / WATCH_STATS_NAME
+    if source.is_file() and _seed_file(source, branch_state / WATCH_STATS_NAME):
+        seeded.append(branch_state / WATCH_STATS_NAME)
     return seeded
+
+
+def top_up_thumbnails(live_state: Path, branch_state: Path) -> list[Path]:
+    from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME  # noqa: PLC0415  (pulls in cv2)
+
+    source = live_state / THUMBNAIL_CACHE_DIRNAME
+    if not source.is_dir():
+        return []
+    destination = branch_state / THUMBNAIL_CACHE_DIRNAME
+    destination.mkdir(parents=True, exist_ok=True)
+    copied: list[Path] = []
+    for entry in source.iterdir():
+        target = destination / entry.name
+        if entry.is_file() and not target.exists() and _copy_unless_made_meanwhile(entry, target):
+            copied.append(target)
+    return copied
 
 
 def _seed_file(source: Path, destination: Path) -> bool:
@@ -106,14 +113,12 @@ def _seed_file(source: Path, destination: Path) -> bool:
     return True
 
 
-def _seed_directory(source: Path, destination: Path) -> list[Path]:
-    """Copy the entries *destination* does not have yet: a thumbnail is named for
-    its video and that video's modification time, so it never needs refreshing."""
-    destination.mkdir(parents=True, exist_ok=True)
-    copied: list[Path] = []
-    for entry in source.iterdir():
-        target = destination / entry.name
-        if entry.is_file() and not target.exists():
-            shutil.copyfile(entry, target)
-            copied.append(target)
-    return copied
+def _copy_unless_made_meanwhile(source: Path, target: Path) -> bool:
+    partial = target.with_name(f"{target.stem}.partial.seed")
+    shutil.copyfile(source, partial)
+    try:
+        partial.rename(target)
+    except FileExistsError:
+        partial.unlink()
+        return False
+    return True
