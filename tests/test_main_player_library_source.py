@@ -8,14 +8,13 @@ import pytest
 
 import main_player.library_source
 from main_player.duration_cache import DurationCache
-from main_player.library import FULL, MIXED, SHORTS, LibraryEntry
+from main_player.library import CLIPS, FULL, MIXED, LibraryEntry
 from main_player.library_source import (
     DEFAULT_MODE,
     PHASE_DISCOVER,
     PHASE_DURATIONS,
     LibrarySource,
     build_library_source,
-    discover_genau_clips,
     length_mode_rebuilds,
     next_length_mode,
 )
@@ -28,8 +27,8 @@ class TestLengthModeCycle:
         assert DEFAULT_MODE == MIXED
 
     def test_the_toggle_walks_all_three_and_comes_back(self):
-        assert next_length_mode(MIXED) == SHORTS
-        assert next_length_mode(SHORTS) == FULL
+        assert next_length_mode(MIXED) == CLIPS
+        assert next_length_mode(CLIPS) == FULL
         assert next_length_mode(FULL) == MIXED
 
     def test_an_unknown_mode_lands_on_the_default(self):
@@ -43,7 +42,7 @@ class TestLengthModeRebuilds:
     for one that is already running is not free — it changes the video."""
 
     def test_a_different_mode_always_rebuilds(self):
-        assert length_mode_rebuilds(SHORTS, MIXED, in_compilation=False) is True
+        assert length_mode_rebuilds(CLIPS, MIXED, in_compilation=False) is True
         assert length_mode_rebuilds(MIXED, FULL, in_compilation=True) is True
 
     def test_the_mode_already_running_asks_for_nothing(self):
@@ -64,7 +63,7 @@ def _make_video(path: Path, body: str = "x") -> Path:
 
 
 class TestBuildLibrarySource:
-    def test_playlist_for_full_and_shorts(self, tmp_path):
+    def test_playlist_for_full_and_clips(self, tmp_path):
         vids = tmp_path / "videos"
         scripts = tmp_path / "scripts"
         vids.mkdir()
@@ -74,31 +73,13 @@ class TestBuildLibrarySource:
         durations = {long_vid: 300.0, short_vid: 10.0}
 
         source = build_library_source(
-            vids, scripts, None, rng=random.Random(0), durations=durations,
+            vids, scripts, rng=random.Random(0), durations=durations,
         )
 
         full = source.playlist_for("full")
-        shorts = source.playlist_for("shorts")
+        clips = source.playlist_for("clips")
         assert [v for v, _ in full] == [long_vid]
-        assert [v for v, _ in shorts] == [short_vid]
-
-    def test_shorts_mode_includes_clips_dir(self, tmp_path):
-        vids = tmp_path / "videos"
-        scripts = tmp_path / "scripts"
-        clips = tmp_path / "clips"
-        vids.mkdir()
-        scripts.mkdir()
-        (clips / "2D" / "AI").mkdir(parents=True)
-        long_vid = _make_video(vids / "long-1080p.mp4")
-        clip = _make_video(clips / "2D" / "AI" / "saved.mp4")
-        durations = {long_vid: 300.0}
-
-        source = build_library_source(
-            vids, scripts, clips, rng=random.Random(0), durations=durations,
-        )
-
-        shorts_videos = {v for v, _ in source.playlist_for("shorts")}
-        assert clip in shorts_videos
+        assert [v for v, _ in clips] == [short_vid]
 
     def test_version_index_covers_all_entries(self, tmp_path):
         vids = tmp_path / "videos"
@@ -110,30 +91,12 @@ class TestBuildLibrarySource:
         durations = {big: 300.0, small: 300.0}
 
         source = build_library_source(
-            vids, scripts, None, rng=random.Random(0), durations=durations,
+            vids, scripts, rng=random.Random(0), durations=durations,
         )
 
         # Both versions map to the same ordered pair list (canonical first).
         assert source.version_index[big] == source.version_index[small]
         assert source.version_index[big][0][0] == big
-
-    def test_version_index_includes_clips(self, tmp_path):
-        vids = tmp_path / "videos"
-        scripts = tmp_path / "scripts"
-        clips = tmp_path / "clips"
-        vids.mkdir()
-        scripts.mkdir()
-        (clips / "2D").mkdir(parents=True)
-        long_vid = _make_video(vids / "long-1080p.mp4")
-        clip = _make_video(clips / "2D" / "saved.mp4")
-        durations = {long_vid: 300.0}
-
-        source = build_library_source(
-            vids, scripts, clips, rng=random.Random(0), durations=durations,
-        )
-
-        assert clip in source.version_index
-
 
 class TestTheVersionIndexIsBuiltOnce:
     """It looks like an attribute and was a plain property, so every reader paid
@@ -161,7 +124,7 @@ class TestTheVersionIndexIsBuiltOnce:
             main_player.library_source, "read_version_group",
             lambda video, root: (reads.append(video), real(video, root))[1])
         source = LibrarySource(
-            entries=entries, genau_clips=[], durations={}, rng=random.Random(0),
+            entries=entries, durations={}, rng=random.Random(0),
             metadata_root=meta,
         )
 
@@ -185,7 +148,7 @@ class TestBuildProgress:
         seen: list[tuple[str, int, int]] = []
 
         build_library_source(
-            vids, scripts, None, rng=random.Random(0),
+            vids, scripts, rng=random.Random(0),
             duration_cache=DurationCache(tmp_path / "cache.json", prober=lambda p: 300.0),
             on_progress=lambda phase, done, total: seen.append((phase, done, total)),
         )
@@ -212,7 +175,7 @@ class TestBuildProgress:
         probed: list[Path] = []
 
         source = build_library_source(
-            vids, scripts, None, rng=random.Random(0), metadata_root=metadata,
+            vids, scripts, rng=random.Random(0), metadata_root=metadata,
             duration_cache=DurationCache(
                 tmp_path / "cache.json", prober=lambda p: probed.append(p) or 300.0,
             ),
@@ -241,7 +204,7 @@ class TestBuildProgress:
 
         with pytest.raises(GaveUp):
             build_library_source(
-                vids, scripts, None, rng=random.Random(0),
+                vids, scripts, rng=random.Random(0),
                 duration_cache=DurationCache(
                     tmp_path / "cache.json", prober=lambda p: probed.append(p) or 300.0,
                 ),
@@ -251,40 +214,6 @@ class TestBuildProgress:
         assert len(probed) == 1  # stopped at the raise, not after all three
 
 
-class TestDiscoverClips:
-    def test_finds_every_2d_clip_whatever_folder_it_is_in_and_no_vr_clip(self, tmp_path):
-        """The main player plays flat: the clips cut from real videos and the
-        loops Origenerator made sit in folders of their own under 2D."""
-        clips = tmp_path / "clips"
-        for place in ("2D/AI/loop one.mp4", "2D/non_AI/scene one.mp4", "VR/scene two_180.mp4"):
-            (clips / place).parent.mkdir(parents=True, exist_ok=True)
-            (clips / place).write_text("body")
-
-        found = sorted(clip.video for clip in discover_genau_clips(clips))
-
-        assert found == [clips / "2D" / "AI" / "loop one.mp4",
-                         clips / "2D" / "non_AI" / "scene one.mp4"]
-
-    def test_absent_dir_is_empty(self, tmp_path):
-        assert discover_genau_clips(tmp_path / "nope") == []
-
-    def test_none_dir_is_empty(self):
-        assert discover_genau_clips(None) == []
-
-    def test_lists_clip_videos_with_size(self, tmp_path):
-        clips = tmp_path / "clips"
-        (clips / "2D").mkdir(parents=True)
-        (clips / "2D" / "a.mp4").write_text("body")
-        (clips / "2D" / "notes.txt").write_text("ignore me")
-
-        result = discover_genau_clips(clips)
-
-        assert len(result) == 1
-        assert result[0].video == clips / "2D" / "a.mp4"
-        assert result[0].funscript is None
-        assert result[0].size == len("body")
-
-
 def test_standalone_source_serves_all_videos_by_default():
     """Standalone main player is a general player; scripted-focus is Fun Time's
     F-mode, so the default source serves scripted and unscripted alike."""
@@ -292,7 +221,7 @@ def test_standalone_source_serves_all_videos_by_default():
     scripted = LibraryEntry(video=Path("Gigi-topaz.mp4"), funscript=Path("Gigi.funscript"), size=900)
     unscripted = LibraryEntry(video=Path("Hana-1080p.mp4"), funscript=None, size=900)
     src = LibrarySource(
-        entries=[scripted, unscripted], genau_clips=[],
+        entries=[scripted, unscripted],
         durations={scripted.video: 300.0, unscripted.video: 300.0},
         rng=random.Random(0),
     )
@@ -306,21 +235,21 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
 
     lib = tmp_path / "videos" / "videos"
     meta = tmp_path / "videos" / "metadata"
-    original = lib / "larkin" / "2_orig" / "Scene-One-abc.mkv"
-    upscale = lib / "larkin" / "3_done" / "wholly-different-name_apo8_iris2.mp4"
+    original = lib / "example" / "2_orig" / "Scene-One-abc.mkv"
+    upscale = lib / "example" / "3_done" / "wholly-different-name_apo8_iris2.mp4"
     for clip, size in ((original, 100), (upscale, 900)):
         clip.parent.mkdir(parents=True, exist_ok=True)
         clip.write_bytes(b"x")
         side = (meta / clip.relative_to(lib)).with_suffix(".json")
         side.parent.mkdir(parents=True, exist_ok=True)
         side.write_text(
-            json.dumps({"version": {"group": "larkin/Scene-One-abc", "processed": clip is upscale}}),
+            json.dumps({"version": {"group": "example/Scene-One-abc", "processed": clip is upscale}}),
             encoding="utf-8",
         )
     ea = LibraryEntry(video=original, funscript=None, size=100)
     eb = LibraryEntry(video=upscale, funscript=None, size=900)
     source = LibrarySource(
-        entries=[ea, eb], genau_clips=[], durations={original: 300.0, upscale: 300.0},
+        entries=[ea, eb], durations={original: 300.0, upscale: 300.0},
         rng=random.Random(0), metadata_root=meta,
     )
 
@@ -336,7 +265,7 @@ def test_version_index_falls_back_to_names_without_a_metadata_root(tmp_path):
     a = LibraryEntry(video=Path("Richard.mp4"), funscript=None, size=50)
     b = LibraryEntry(video=Path("Richard_topaz.mp4"), funscript=None, size=800)
     source = LibrarySource(
-        entries=[a, b], genau_clips=[], durations={a.video: 300.0, b.video: 300.0},
+        entries=[a, b], durations={a.video: 300.0, b.video: 300.0},
         rng=random.Random(0),
     )
 
@@ -371,32 +300,32 @@ class TestACarvedSceneIsAShort:
         video.write_bytes(b"x")
         return LibraryEntry(video=video, funscript=None, size=100)
 
-    def test_it_surfaces_as_a_short_and_never_as_full_length(self, tmp_path):
+    def test_it_surfaces_among_the_clips_and_never_among_the_full_videos(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clip = self._clip_entry(lib, meta, "example/1 clips/Jane Doe - alpha scene two.mp4")
         plain = self._plain_entry(lib, "example/0/Long Movie.mp4")
         source = LibrarySource(
-            entries=[clip, plain], genau_clips=[],
+            entries=[clip, plain],
             # Both well over the short cutoff, so only the sidecar can tell them apart.
             durations={clip.video: 120.0, plain.video: 120.0},
             rng=random.Random(0), metadata_root=meta,
         )
 
-        shorts = {v for v, _ in source.playlist_for(SHORTS)}
+        clips = {v for v, _ in source.playlist_for(CLIPS)}
         full = {v for v, _ in source.playlist_for(FULL)}
 
-        assert clip.video in shorts
+        assert clip.video in clips
         assert clip.video not in full
         assert plain.video in full
-        assert plain.video not in shorts
+        assert plain.video not in clips
 
     def test_without_a_metadata_root_the_length_is_all_there_is(self, tmp_path):
         lib = tmp_path / "videos" / "videos"
         long_plain = self._plain_entry(lib, "example/Long.mp4")
         source = LibrarySource(
-            entries=[long_plain], genau_clips=[], durations={long_plain.video: 120.0},
+            entries=[long_plain], durations={long_plain.video: 120.0},
             rng=random.Random(0),
         )
 
         assert long_plain.video in {v for v, _ in source.playlist_for(FULL)}
-        assert long_plain.video not in {v for v, _ in source.playlist_for(SHORTS)}
+        assert long_plain.video not in {v for v, _ in source.playlist_for(CLIPS)}

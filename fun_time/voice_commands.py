@@ -170,8 +170,8 @@ def build_voice_commands(
         # way "action"/"seed" do on a satellite; the "cycle / next / change version"
         # verb forms come from the cycle-axis grid below.
         "version": "main_player_cycle_version",
-        "shorts": "main_player_length_shorts",
-        "full length": "main_player_length_full",
+        "clips": "main_player_length_clips",
+        "full": "main_player_length_full",
         # Which shape of video the player on the main screen may reach, in the
         # headset, where its library holds both.  "mixed" is taken by the length
         # above, so the both-shapes phrase names the shapes instead; neither
@@ -185,7 +185,7 @@ def build_voice_commands(
         # half.  "main reset" contains this and puts back every other default too
         # (see the main-player grid below); this is the narrow gesture of the pair.
         "mixed": "main_player_length_mixed",
-        # Clip navigation (Larkin-style clips carved from compilations); "full
+        # Clip navigation (clips carved from compilations); "full
         # video" is the reliable phrase, "full vid" a fallback.
         "compilation": "main_player_compilation",
         # …and back out of one, without having to name a length: the main player returns to

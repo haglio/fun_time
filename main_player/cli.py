@@ -40,8 +40,7 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--videos-dir", type=Path, default=main_player.get("videos_dir"))
     p.add_argument("--scripts-dir", type=Path, default=main_player.get("scripts_dir"))
     p.add_argument("--clips-dir", type=Path, default=main_player.get("clips_dir") or config.get("clips_dir"),
-                   help="Genau's delivery folder: its loops, played as shorts "
-                        "however long they run")
+                   help="Genau's delivery folder, which Genau mode plays from")
     p.add_argument("--state-dir", type=Path, default=config.get("state_dir"),
                    help="Where the duration cache is stored")
     p.add_argument("--metadata-dir", type=Path, default=main_player.get("metadata_dir"),
@@ -145,7 +144,7 @@ def library_source(
 
     Built whenever ``--videos-dir``/``--scripts-dir`` are known — including under
     Fun Time, which passes its own ``--playlist`` for the *initial* selection but
-    still needs this source for version cycling and the shorts/full-length
+    still needs this source for version cycling and the clips/full
     toggle.  *durations* is a test seam; production probes via the cache.
     *on_progress* goes straight through to the build, where the wait is.
     """
@@ -154,7 +153,6 @@ def library_source(
     return build_library_source(
         Path(args.videos_dir),
         Path(args.scripts_dir),
-        Path(args.clips_dir) if args.clips_dir else None,
         rng=rng or random.Random(),
         duration_cache=None if durations is not None else DurationCache(_duration_cache_path(args)),
         durations=durations,

@@ -264,8 +264,8 @@ The satellite side has a mode axis of its own, orthogonal to the two above: **Ki
 
 The main library is filed by pipeline stage, several folders deep, and the
 same video sits in three of them at different trims and upscales
-(`…/larkin/0 unsorted/`, `…/larkin/1 could use work/2_originals_good_trimwise_but_need_upscaling/`,
-`…/larkin/3_good_to_go/processed/`). Browsing that tree means knowing how far a
+(`…/<folder>/0 unsorted/`, `…/<folder>/1 could use work/2_originals_good_trimwise_but_need_upscaling/`,
+`…/<folder>/3_good_to_go/processed/`). Browsing that tree means knowing how far a
 video got through the pipeline before you can find it, which is the librarian's
 business and not the viewer's.
 
@@ -351,9 +351,8 @@ by the sidecar alone, and the sub-folders they share are pipeline stages, which
 can never stand in for a division of the library.
 
 Where those two sets have been filed into two folders on disk, each
-keeping its own copy of the pipeline stages, the tiles are named after those
-folders (the cuts folder's name and `full`); where the split is the sidecar's
-alone, the cuts take a `· clips` name instead.
+keeping its own copy of the pipeline stages, the browse names them after those
+folders; where the split is the sidecar's alone, they are `full` and `clips`.
 
 The families come from Evolver's metadata sidecar (`version.group`), which is
 the authority on "same video, other version" — the filenames alone cannot say
@@ -575,7 +574,7 @@ Commands (the full set `main_player/controls.py` answers to). The verbs every pl
 - `CYCLE_VERSION` / `CYCLE_VERSION_BACK`
 - `PLAY_FILE video[TAB]funscript`
 - `RELOAD_PLAYLIST`
-- `TOGGLE_LENGTH_MODE` / `SET_LENGTH_MODE mixed|shorts|full`
+- `TOGGLE_LENGTH_MODE` / `SET_LENGTH_MODE mixed|clips|full`
 - `PLAY_COMPILATION` / `END_COMPILATION` / `PLAY_FULL_VID` / `PLAY_CLIP_JUMP`
 - `JUMP_TO_FUNSCRIPT` / `NEXT_FUNSCRIPTED` — funscript navigation: seek past this video's quiet stretch to where its scripting starts up again, or leave for the next scripted video in the playlist, landing where its action begins. The main player alone can answer either, holding both the playlist's funscript column and the parsed script of what is playing
 - `SET_TCODE_ENABLED 0|1`

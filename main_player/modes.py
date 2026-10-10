@@ -1,7 +1,7 @@
 """The modes Kino is playing in, and what changes them.
 
 Three of them, and they are not the same kind of thing.  The *length mode* is
-the library's own filter -- mixed, shorts, full -- and changing it rebuilds the
+the library's own filter -- mixed, clips, full -- and changing it rebuilds the
 playlist.  The *compilation* is one anthology's clips standing in for the
 playlist, which :mod:`main_player.clip_jumps` owns because entering one is what puts you
 there.  *F-mode* is Fun Time's filter over whichever of those is running, and

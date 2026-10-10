@@ -123,8 +123,8 @@ class TestVoiceCommands:
             # The bare axis word is the literal one; "cycle / next / change
             # version" are generated with the other cycle axes.
             "version": "main_player_cycle_version",
-            "shorts": "main_player_length_shorts",
-            "full length": "main_player_length_full",
+            "clips": "main_player_length_clips",
+            "full": "main_player_length_full",
             "browse": "browse_library",
             "clip": "clipper_save",
             "save clip": "clipper_save",
@@ -309,9 +309,13 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["version"] == "main_player_cycle_version"
 
     def test_main_player_length_phrases(self):
-        assert VOICE_COMMANDS["shorts"] == "main_player_length_shorts"
-        assert VOICE_COMMANDS["full length"] == "main_player_length_full"
+        assert VOICE_COMMANDS["clips"] == "main_player_length_clips"
+        assert VOICE_COMMANDS["full"] == "main_player_length_full"
         assert VOICE_COMMANDS["mixed"] == "main_player_length_mixed"
+
+    def test_the_length_words_from_before_the_rename_are_gone(self):
+        assert "shorts" not in VOICE_COMMANDS
+        assert "full length" not in VOICE_COMMANDS
 
     def test_end_compilation_leaves_without_naming_a_length(self):
         """"compilation" gets you in; this gets you out, back to whichever length

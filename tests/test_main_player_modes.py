@@ -12,7 +12,7 @@ import pytest
 from player_core.playback import Playback
 from player_core.playlist import PlaylistItem
 
-from main_player.library_source import FULL, MIXED, SHORTS
+from main_player.library_source import CLIPS, FULL, MIXED
 from main_player.mode_memory import RememberedMode
 from main_player.modes import Modes, reload_playlist
 from main_player.versions import Versions
@@ -102,9 +102,9 @@ def _modes(*, remembered: str = MIXED, source: FakeSource | None = None,
 
 class TestWhatModeThisSessionOpensIn:
     def test_it_opens_in_the_mode_the_last_session_wrote_down(self):
-        modes, _playback, _jumps, _source = _modes(remembered=SHORTS)
+        modes, _playback, _jumps, _source = _modes(remembered=CLIPS)
 
-        assert modes.length_mode == SHORTS
+        assert modes.length_mode == CLIPS
 
     def test_a_session_that_was_never_told_opens_in_the_default(self):
         modes, _playback, _jumps, _source = _modes(remembered="")
@@ -112,7 +112,7 @@ class TestWhatModeThisSessionOpensIn:
         assert modes.length_mode == MIXED
 
     def test_with_no_library_behind_the_playlist_there_is_no_mode_to_name(self):
-        modes = Modes(None, FakePlayback(), FakeJumps(), FakeVersions(), remembered=SHORTS)
+        modes = Modes(None, FakePlayback(), FakeJumps(), FakeVersions(), remembered=CLIPS)
 
         assert modes.length_mode is None
 
@@ -121,11 +121,11 @@ class TestNamingALength:
     def test_it_rebuilds_the_playlist_from_the_library_and_plays_from_its_top(self):
         modes, playback, _jumps, source = _modes(remembered=MIXED)
 
-        modes.set_length(SHORTS)
+        modes.set_length(CLIPS)
 
-        assert modes.length_mode == SHORTS
-        assert source.asked == [SHORTS]
-        assert playback.loaded == [_built_for(SHORTS)]
+        assert modes.length_mode == CLIPS
+        assert source.asked == [CLIPS]
+        assert playback.loaded == [_built_for(CLIPS)]
 
     def test_naming_the_mode_already_running_asks_for_nothing(self):
         modes, playback, _jumps, source = _modes(remembered=MIXED)
@@ -159,13 +159,13 @@ class TestNamingALength:
         assert playback.locks == [True]
         assert (playback.loaded, source.asked) == ([], [])
 
-    @pytest.mark.parametrize("said", ["SHORTS", " shorts ", "Shorts"])
+    @pytest.mark.parametrize("said", ["CLIPS", " clips ", "Clips"])
     def test_the_mode_is_read_however_it_was_said(self, said):
         modes, _playback, _jumps, _source = _modes(remembered=MIXED)
 
         modes.set_length(said)
 
-        assert modes.length_mode == SHORTS
+        assert modes.length_mode == CLIPS
 
     @pytest.mark.parametrize("said", ["", "medium", "shorts full"])
     def test_a_length_the_library_does_not_have_changes_nothing(self, said):
@@ -179,7 +179,7 @@ class TestNamingALength:
         playback = FakePlayback()
         modes = Modes(None, playback, FakeJumps(), FakeVersions(), remembered=MIXED)
 
-        modes.set_length(SHORTS)
+        modes.set_length(CLIPS)
 
         assert (modes.length_mode, playback.loaded) == (None, [])
 
@@ -191,14 +191,14 @@ class TestNamingALength:
 
         modes, playback, _jumps, _source = _modes(remembered=MIXED, source=EmptySource())
 
-        modes.set_length(SHORTS)
+        modes.set_length(CLIPS)
 
         assert playback.loaded == []
 
 
 class TestTogglingTheLength:
     @pytest.mark.parametrize("from_mode, to_mode",
-                             [(MIXED, SHORTS), (SHORTS, FULL), (FULL, MIXED)])
+                             [(MIXED, CLIPS), (CLIPS, FULL), (FULL, MIXED)])
     def test_it_walks_the_cycle_and_wraps(self, from_mode, to_mode):
         modes, _playback, _jumps, _source = _modes(remembered=from_mode)
 
@@ -256,12 +256,12 @@ class TestFunTimesOwnFilter:
 
 class TestWhatTheConsoleIsToldToDraw:
     def test_it_names_the_video_the_mode_and_the_place_in_the_playlist(self):
-        modes, playback, _jumps, _source = _modes(remembered=SHORTS)
+        modes, playback, _jumps, _source = _modes(remembered=CLIPS)
         playback.index = 1
 
         hud = modes.hud
 
-        assert (hud.video, hud.length_mode) == ("Jane Doe - scene one", SHORTS)
+        assert (hud.video, hud.length_mode) == ("Jane Doe - scene one", CLIPS)
         assert (hud.position, hud.total) == (2, 2)
 
     def test_the_name_is_the_librarys_record_of_the_video_not_its_filename(self):
@@ -327,11 +327,11 @@ class TestWhatIsPublishedAboutThePlaceInTheLibrary:
     def test_the_versions_say_whether_the_version_button_has_anything_to_do(self):
         source, playback = FakeSource(), FakePlayback()
         modes = Modes(source, playback, FakeJumps("Vol6", jump_to="scene"),
-                      FakeVersions(has_other_versions=True), remembered=SHORTS)
+                      FakeVersions(has_other_versions=True), remembered=CLIPS)
 
         library = modes.library_status
 
-        assert (library.length_mode, library.compilation) == (SHORTS, "Vol6")
+        assert (library.length_mode, library.compilation) == (CLIPS, "Vol6")
         assert (library.has_compilation, library.has_other_versions, library.jump_to) == (True, True, "scene")
 
 
@@ -358,7 +358,7 @@ class TestWhatIsWrittenDownForTheNextSession:
 
         modes.toggle_length()
 
-        assert modes.remembered.length_mode == SHORTS
+        assert modes.remembered.length_mode == CLIPS
 
 
 class TestTakingUpAPlaylistFunTimeRewrote:

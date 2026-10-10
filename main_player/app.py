@@ -124,7 +124,7 @@ def _run(args) -> int:
 
     entries = source.entries if source is not None else []
     clip_nav = ClipNav.build(
-        [e.video for e in entries] + [c.video for c in (source.genau_clips if source else [])],
+        [e.video for e in entries],
         source.metadata_root if source is not None else None,
     )
     funestra = Funestra.on_window(

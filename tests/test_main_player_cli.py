@@ -12,7 +12,7 @@ from main_player.cli import (
     play_points_path,
     resolve_playlist,
 )
-from main_player.library import SHORTS
+from main_player.library import CLIPS
 from main_player.library_source import PHASE_DISCOVER
 from main_player.mode_memory import RememberedMode
 
@@ -123,9 +123,24 @@ class TestLibrarySource:
 
         assert PHASE_DISCOVER in seen
 
-    def test_clips_dir_falls_back_to_top_level_config(self, tmp_path):
-        """Fun Time's config has no main_player.clips_dir; shorts should still pick up
-        the saved clips from the top-level clips_dir the clipper writes to."""
+    def test_kino_plays_nothing_from_genaus_folder_in_any_length(self, tmp_path):
+        vids, scripts, clips = tmp_path / "videos", tmp_path / "scripts", tmp_path / "clips"
+        for folder in (vids, scripts, clips / "2D" / "AI"):
+            folder.mkdir(parents=True)
+        scene = vids / "scene one.mp4"
+        genau_clip = clips / "2D" / "AI" / "clip one.mp4"
+        for video in (scene, genau_clip):
+            video.write_text("x")
+        args = build_parser({}).parse_args([
+            "--videos-dir", str(vids), "--scripts-dir", str(scripts), "--clips-dir", str(clips),
+        ])
+        source = library_source(args, durations={scene: 300.0})
+
+        played = {video for mode in ("mixed", "clips", "full") for video, _ in source.playlist_for(mode)}
+
+        assert played == {scene}
+
+    def test_genaus_folder_comes_from_the_top_level_config(self, tmp_path):
         clips = tmp_path / "clips"
         args = build_parser({"clips_dir": str(clips)}).parse_args([])
         assert args.clips_dir == clips
@@ -453,7 +468,7 @@ class TestWhereMainPlayerKeepsItsState:
     def test_the_state_dir_holds_the_mode_it_was_last_in(self, tmp_path):
         args = build_parser({}).parse_args(["--state-dir", str(tmp_path)])
 
-        mode_memory(args).write(RememberedMode(length_mode=SHORTS))
+        mode_memory(args).write(RememberedMode(length_mode=CLIPS))
 
         assert (tmp_path / "main_player_mode.txt").exists()
 
@@ -469,6 +484,6 @@ class TestWhereMainPlayerKeepsItsState:
         config.write_text("{}", encoding="utf-8")
         args = build_parser({}).parse_args(["--config", str(config)])
 
-        mode_memory(args).write(RememberedMode(length_mode=SHORTS))
+        mode_memory(args).write(RememberedMode(length_mode=CLIPS))
 
         assert (tmp_path / "main_player_mode.txt").exists()

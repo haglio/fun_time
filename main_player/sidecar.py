@@ -71,7 +71,7 @@ def read_video_type(video: Path, metadata_root: Path) -> str:
     The one older record still read here is the ``clip`` object: it says a scene
     was carved out of a longer one, which is exactly what the kind now says, and
     it was on these sidecars before there was a kind to write.  So a library
-    Evolver has not been over since keeps its carved scenes out of full-length
+    Evolver has not been over since keeps its carved scenes out of full
     rather than waiting for the run that records them.
     """
     payload = read_sidecar(video, metadata_root)

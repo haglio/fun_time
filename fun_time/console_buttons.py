@@ -81,8 +81,8 @@ _GLYPHS = {
     "open": "📂", "record": "⏺", "save": "💾", "minus": "−", "plus": "+",
 }
 ENHANCE_FILTER_ICON = shared_mark("enhance_filter")
-FULL_LENGTH_ICON = shared_mark("full_length")
-SHORTS_ICON = shared_mark("shorts")
+FULL_ICON = shared_mark("full")
+CLIPS_ICON = shared_mark("clips")
 VR_ICON = shared_mark("vr_hemisphere")
 FLAT_ICON = shared_mark("flat_2d")
 COMPILATION_ICON = shared_mark("compilation")
@@ -184,17 +184,17 @@ def _length_buttons(slot: MainSlot, *, remembered: bool) -> tuple[Button, ...]:
     if slot.length_mode is None:
         return ()
     mixed = slot.length_mode is LengthMode.MIXED
-    shorts = mixed or slot.length_mode is LengthMode.SHORTS
+    clips = mixed or slot.length_mode is LengthMode.CLIPS
     full = mixed or slot.length_mode is LengthMode.FULL
     return (
         _inclusion_button(
-            ("main_player_length_full" if full else "main_player_length_none") if shorts
-            else ("main_player_length_mixed" if full else "main_player_length_shorts"),
-            SHORTS_ICON, "shorts", on=shorts, remembered=remembered, group_break=True),
+            ("main_player_length_full" if full else "main_player_length_none") if clips
+            else ("main_player_length_mixed" if full else "main_player_length_clips"),
+            CLIPS_ICON, "clips", on=clips, remembered=remembered, group_break=True),
         _inclusion_button(
-            ("main_player_length_shorts" if shorts else "main_player_length_none") if full
-            else ("main_player_length_mixed" if shorts else "main_player_length_full"),
-            FULL_LENGTH_ICON, "full-length scenes", on=full, remembered=remembered),
+            ("main_player_length_clips" if clips else "main_player_length_none") if full
+            else ("main_player_length_mixed" if clips else "main_player_length_full"),
+            FULL_ICON, "full videos", on=full, remembered=remembered),
     )
 
 

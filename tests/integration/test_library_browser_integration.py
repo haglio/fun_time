@@ -29,7 +29,7 @@ from fun_time.library_browser import (
     LibraryBrowserWindow,
     browse_library,
 )
-from fun_time.library_handles import CLIPS_SUFFIX, LibraryHandle
+from fun_time.library_handles import LibraryHandle
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.thumbnail_cache import thumbnail_path
 from fun_time.win32 import (
@@ -40,6 +40,7 @@ from fun_time.win32 import (
     windows_obscuring,
 )
 from fun_time.windows_bridge_dispatch_loop import keep_a_browse_on_top
+from tests.integration.integration_support import wait_for
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="paints a real Qt window"),
@@ -50,12 +51,12 @@ pytestmark = [
 ]
 
 TITLES = ("Alpha Studio - Scene One", "Beta Collective - The Long Afternoon 2")
-SECTIONS = ("big_batch", "big_batch" + CLIPS_SUFFIX)
+SECTIONS = ("big_batch", "small_batch")
 
 
 def _handles(tmp_path: Path, cache: Path) -> list[LibraryHandle]:
     """One handle per section, each with a still already cached, so nothing is
-    extracted — and so the grid has a header of each kind to paint."""
+    extracted."""
     handles = []
     for index, title in enumerate(TITLES):
         video = tmp_path / f"v{index}.mp4"
@@ -215,6 +216,11 @@ STAND_IN_TITLE = "FUNTIMEMARK-MAIN-PLAYER"
 _BROWSE_WINDOW_TIMEOUT_S = 90.0
 
 
+def _until_no_browse_is_open() -> None:
+    wait_for(lambda: not any(window.title == WINDOW_TITLE for window in iter_zorder()),
+             desc="the browse an earlier test opened to finish closing")
+
+
 def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, cfg_factory):
     """A real browse, launched the way the bridge launches it, ends up on top.
 
@@ -243,6 +249,7 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
     # only input a test must supply: the fixture config names a stub .exe, and
     # this launch has to really run.
     manifest = write_windows_bridge_manifest(config)
+    _until_no_browse_is_open()
 
     stand_in = QWidget(None)
     stand_in.setWindowTitle(STAND_IN_TITLE)
@@ -298,6 +305,7 @@ def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
     for name in ("alpha.mp4", "beta.mp4"):
         (library / name).write_bytes(b"\0" * 2048)
     manifest = write_windows_bridge_manifest(config)
+    _until_no_browse_is_open()
 
     stand_in = QWidget(None)
     stand_in.setWindowTitle(STAND_IN_TITLE)
@@ -331,9 +339,15 @@ def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
         covering = [w.hwnd for w in windows_obscuring(browse_hwnd, iter_zorder())]
         assert covering == [stand_in_hwnd], "the browse should be buried at this point"
 
+        wait_for(lambda: started, desc="the browse's process to be handed to the runner")
         assert keep_a_browse_on_top(started[0]) == browse_hwnd
 
-        assert windows_obscuring(browse_hwnd, iter_zorder()) == []
+        def browse_uncovered() -> bool:
+            QApplication.processEvents()
+            return not windows_obscuring(browse_hwnd, iter_zorder())
+
+        wait_for(browse_uncovered,
+                 desc="the browse to come back above the stand-in, however late its window answers")
     finally:
         set_always_on_top(stand_in_hwnd, False)
         if browse_hwnd:

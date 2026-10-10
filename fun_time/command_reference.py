@@ -415,11 +415,11 @@ _SECTIONS: tuple[_Section, ...] = (
                  ("main_shuffle",)),
             _Row(
                 "Length of what plays: \"mixed\" (the default, everything), "
-                "\"shorts\", or \"full length\" — \"mixed\" leaves any "
+                "\"clips\", or \"full\" — \"mixed\" leaves any "
                 "compilation with it; the console's own pair reaches a fourth "
                 "state, neither, which holds the video on screen",
                 ("T",),
-                ("main_player_toggle_length", "main_player_length_shorts", "main_player_length_full",
+                ("main_player_toggle_length", "main_player_length_clips", "main_player_length_full",
                  "main_player_length_mixed", "main_player_length_none"),
             ),
             _Row(
@@ -432,8 +432,8 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row(
                 "Clip navigation: \"compilation\" plays the clip's compilation "
                 "in order and \"end compilation\" leaves it for the length mode "
-                "you were in; \"full video\" jumps to its source scene; \"money "
-                "jump\" returns to the clip",
+                "you were in; \"full video\" plays the full scene the clip came "
+                "from, and the clip jump goes back to the clip",
                 (),
                 ("main_player_compilation", "main_player_end_compilation", "main_player_full_vid",
                  "main_player_clip_jump"),

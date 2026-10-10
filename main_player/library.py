@@ -6,7 +6,7 @@ Many files in the wild are the same content at different quality or upscale
 module folds those variants into a single *version group* keyed on the name —
 an upscale is almost always the original's name plus an appended tag — picks
 the largest file as the canonical one, and offers a canonical-only shuffle, a
-Fun-Time playlist collapse, and a full-length/shorts filter.
+Fun-Time playlist collapse, and a clips/full filter.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from pathlib import Path
 from player_core.modes import LengthMode
 from player_core.playlist import PlaylistItem
 
-from .video_kind import EXCERPT, FULL_LENGTH, GENAU_CLIP, SHORT
+from .video_kind import EXCERPT, FULL_LENGTH, SHORT
 
 # Tunable heuristic: tokens dropped anywhere in a title because they mark a
 # quality/upscaler/codec/resolution/container variant rather than content.
@@ -329,20 +329,16 @@ SHORT_MAX_S = 10.0
 
 # The three length modes.  MIXED applies no length filter at all — it is what a
 # playlist looks like before anyone asks for a length, and so what the player
-# opens in; FULL and SHORTS are the two halves it splits into.
+# opens in; FULL and CLIPS are the two halves it splits into.
 MIXED = LengthMode.MIXED
 FULL = LengthMode.FULL
-SHORTS = LengthMode.SHORTS
+CLIPS = LengthMode.CLIPS
 # Neither length: a browse with nothing in it.  Degenerate, and the console
 # offers it anyway rather than refusing the press -- what happens is that the
 # video on screen is held, which is a state you can see and undo.
 NONE = LengthMode.NONE
 
-# Which kinds each of the two filtering modes plays.  A delivered loop and a
-# scene carved out of a longer one are shorts however long they run: the loop
-# is a couple of seconds by construction, and a carved scene is an excerpt of
-# something, which is what "full length" means the absence of.
-SHORTS_KINDS = frozenset({SHORT, EXCERPT, GENAU_CLIP})
+CLIPS_KINDS = frozenset({SHORT, EXCERPT})
 FULL_KINDS = frozenset({FULL_LENGTH})
 
 
@@ -351,21 +347,17 @@ def kind_of_video(
     *,
     kind_of: Callable[[Path], str] | None,
     durations: dict[Path, float],
-    genau_clips: set[Path],
 ) -> str:
     """What *video* is: what Evolver recorded, or what can be told without it.
 
     The record is the answer wherever there is one.  The fallbacks are for a
     video Evolver has not reached — a library it has never run over, or a file
-    that arrived since its last run: a loop is known by the folder it was
-    delivered to, and everything else by its running time.  ``""`` is a video
+    that arrived since its last run, by its running time.  ``""`` is a video
     nothing could classify, which both length modes drop.
     """
     recorded = kind_of(video) if kind_of is not None else ""
     if recorded:
         return recorded
-    if video in genau_clips:
-        return GENAU_CLIP
     seconds = durations.get(video)
     if seconds is None:
         return ""
@@ -377,38 +369,32 @@ def select_library(
     *,
     mode: str,
     durations: dict[Path, float],
-    genau_clips: list[LibraryEntry],
     kind_of: Callable[[Path], str] | None = None,
 ) -> list[LibraryEntry]:
     """Filter *entries* by length *mode*, then version-dedup the survivors.
 
-    Mixed mode applies no length filter: every entry and every clip survives,
+    Mixed mode applies no length filter: every entry survives,
     including the ones nothing has classified, since nothing here has to.  NONE
     is its opposite and keeps nothing at all.  The
-    other two keep the kinds :data:`SHORTS_KINDS` and :data:`FULL_KINDS` name —
+    other two keep the kinds :data:`CLIPS_KINDS` and :data:`FULL_KINDS` name —
     :func:`kind_of_video` says what each video's kind is, and a video with no
     kind at all is dropped by both.  Anything that is not one of the three
-    modes filters as full-length, which is what it has always done.
+    modes filters as full, which is what it has always done.
 
     *kind_of* reads what Evolver recorded (``main_player.sidecar.read_video_type``); the
-    *durations* are the fallback for what it has not reached, and *genau_clips*
-    — the videos discovered in Genau's own delivery folder — are loops by where
-    they came from.  Not the other sense of "clip" in this package: a scene
-    carved out of a compilation is an ``EXCERPT``, and lives in its sidecar.
+    *durations* are the fallback for what it has not reached.
 
     Returns one canonical entry per surviving version group.
     """
     if mode == NONE:
         kept = []
     elif mode == MIXED:
-        kept = [*entries, *genau_clips]
+        kept = list(entries)
     else:
-        wanted = SHORTS_KINDS if mode == SHORTS else FULL_KINDS
-        delivered = {clip.video for clip in genau_clips}
+        wanted = CLIPS_KINDS if mode == CLIPS else FULL_KINDS
         kept = [
-            entry for entry in (*entries, *genau_clips)
-            if kind_of_video(entry.video, kind_of=kind_of, durations=durations,
-                             genau_clips=delivered) in wanted
+            entry for entry in entries
+            if kind_of_video(entry.video, kind_of=kind_of, durations=durations) in wanted
         ]
     return [group.canonical for group in group_versions(kept)]
 
@@ -441,7 +427,6 @@ def library_playlist(
     *,
     mode: str,
     durations: dict[Path, float],
-    genau_clips: list[LibraryEntry],
     rng: random.Random,
     kind_of: Callable[[Path], str] | None = None,
 ) -> list[PlaylistItem]:
@@ -451,8 +436,5 @@ def library_playlist(
     startup and the length-mode toggle use, so their playlists stay
     consistent.
     """
-    selected = select_library(
-        entries, mode=mode, durations=durations, genau_clips=genau_clips,
-        kind_of=kind_of,
-    )
+    selected = select_library(entries, mode=mode, durations=durations, kind_of=kind_of)
     return entries_to_items(canonical_playlist(selected, rng))
