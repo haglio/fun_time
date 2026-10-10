@@ -29,7 +29,7 @@ from fun_time.command_dispatch import (
     dispatch_command,
     routes_to_origenerator,
 )
-from fun_time.content import WebProvider, load_content, load_web_providers
+from fun_time.content import Noun, WebProvider, load_content, load_web_providers
 from fun_time.crown import Crown
 from fun_time.event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.lock_hud import hud_map_cells
@@ -4337,7 +4337,8 @@ def test_putting_genaus_other_shape_back_names_both(tmp_path):
     assert [op.key for op in ops] == ["2D + VR"]
 
 
-def test_neither_of_genaus_shapes_holds_its_clip(tmp_path):
+def test_neither_of_genaus_shapes_holds_its_flick(tmp_path, monkeypatch):
+    monkeypatch.setattr("fun_time.command_dispatch.genau_flick_noun", lambda: Noun(one="pip", many="pips"))
     config = _genau_vr_config(tmp_path)
     only_flat = _make_state(main_mode=MainMode.GENAU, genau_plays_vr=False)
 
@@ -4345,7 +4346,7 @@ def test_neither_of_genaus_shapes_holds_its_clip(tmp_path):
 
     assert (state.genau_plays_vr, state.genau_plays_flat) == (False, False)
     assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["LOCK_ON"]
-    assert [op.key for op in ops] == ["No clips left"]
+    assert [op.key for op in ops] == ["No pips left"]
 
 
 def test_asking_genau_for_the_shapes_it_already_plays_sends_it_nothing(tmp_path):

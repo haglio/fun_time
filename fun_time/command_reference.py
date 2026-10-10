@@ -35,6 +35,7 @@ from shared_ui.palette import (
     as_hex,
 )
 
+from fun_time.content import genau_flick_noun
 from fun_time.filter_vocab import display_forms, set_commands_for_scope
 from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS, friendly_voice
 
@@ -92,6 +93,7 @@ class _Section:
 _SCOPES = ("portrait", "landscape", "both", "active")
 
 _SPOKEN_COMMANDS = frozenset(VOICE_COMMANDS.values())
+_FLICK = genau_flick_noun()
 
 
 def _sided(*actions: str) -> tuple[str, ...]:
@@ -142,7 +144,7 @@ _SECTIONS: tuple[_Section, ...] = (
             # The modes are rows, not a section of their own: each is one key
             # and one phrase, like everything else here that reshapes the room.
             _Row(
-                "Genau mode — Genau's clips on the main player, the Robot Hand "
+                f"Genau mode — Genau's {_FLICK.many} on the main player, the Robot Hand "
                 "driving the OSR2",
                 ("G",),
                 ("genau_activate",),
@@ -185,7 +187,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 "\"landscape experiments\"), the show's controls "
                 "(\"landscape play slideshow\", \"portrait stop slideshow\"), "
                 "a targeted fix (\"portrait fix teeth\"), \"genau\" to "
-                "animate the picture as a Genau clip, or \"enhanced only\" to "
+                f"animate the picture as a Genau {_FLICK.one}, or \"enhanced only\" to "
                 "keep just the pictures the show has enhanced.  In this mode the "
                 "side's own \"shuffle\", \"latest\", \"trash\" and \"no filter\" reach the "
                 "show too",
@@ -285,30 +287,32 @@ _SECTIONS: tuple[_Section, ...] = (
     _Section(
         "Genau",
         (
-            _Row("Previous Genau clip", ("M",), ("genau_prev_clip",)),
-            _Row("Next Genau clip", (".",), ("genau_next_clip",)),
-            _Row("Mark the Genau clip weird — skip it, and out of rotation", ("K",), ("genau_weird_clip",)),
+            _Row(f"Previous Genau {_FLICK.one}", ("M",), ("genau_prev_clip",)),
+            _Row(f"Next Genau {_FLICK.one}", (".",), ("genau_next_clip",)),
+            _Row(f"Mark the Genau {_FLICK.one} weird — skip it, and out of rotation", ("K",),
+                 ("genau_weird_clip",)),
             _Row(
-                "Lock / unlock the Genau clip — locked (the default) it repeats; "
+                f"Lock / unlock the Genau {_FLICK.one} — locked (the default) it repeats; "
                 "unlocked Genau moves on every few seconds",
                 (",",),
                 ("genau_lock",),
             ),
             _Row(
-                "Flip the Genau clip half a loop, for a picture running opposite the "
+                f"Flip the Genau {_FLICK.one} half a loop, for a picture running opposite the "
                 "OSR2 — it stays flipped, and saying it again puts it back",
                 (),
                 ("genau_flip_ends",),
             ),
             # The same two commands the main player's section carries: one sound level reaches
             # both sinks, and which is audible is which mode owns the display.
-            _Row("Volume down / up, in tenths — the clip music", (), ("audio_volume_down", "audio_volume_up")),
+            _Row(f"Volume down / up, in tenths — the {_FLICK.one} music", (),
+                 ("audio_volume_down", "audio_volume_up")),
             _Row(
-                "Seconds a clip holds the screen before Genau moves on — only "
+                f"Seconds a {_FLICK.one} holds the screen before Genau moves on — only "
                 "while it is unlocked (the , key holds it)",
                 (),
                 ("genau_clip_seconds_down", "genau_clip_seconds_up"),
-                ("clip seconds 1–60",),
+                (f"{_FLICK.one} seconds 1–60",),
             ),
         ),
     ),
@@ -325,7 +329,7 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             _Row(
                 "Lock / unlock whichever player is on the main screen — the "
-                "video here, Genau's clip in Genau mode",
+                f"video here, Genau's {_FLICK.one} in Genau mode",
                 (),
                 ("main_lock_on", "main_lock_off"),
             ),
@@ -404,7 +408,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Latest main — reload it newest-first", (), ("main_latest",)),
             _Row(
                 "Shape of what plays in the headset, the video here and Genau's "
-                "clips in Genau mode: \"flat only\" (or \"2D only\"), \"VR only\" "
+                f"{_FLICK.many} in Genau mode: \"flat only\" (or \"2D only\"), \"VR only\" "
                 "or \"flat and VR\" — the console's own pair of buttons reaches a "
                 "fourth state, neither, which holds what is on screen",
                 (),

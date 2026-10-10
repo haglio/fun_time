@@ -551,7 +551,8 @@ the two are never on together), while the interval is how long a clip
 holds the screen before Genau moves on — 8–12 seconds unless `CLIP_SECONDS
 <seconds>` names a pace. It is spelled for what the number is rather than for
 the auto-advance that spends it, because that is the word the reference shows
-and the phrase a speaker says ("clip seconds thirty"). The interval keeps
+and the phrase a speaker says ("flick seconds thirty", in whatever word the
+content overlay's `genau_flick_words` gives Genau's clips). The interval keeps
 counting while the room is paused, so OmniPause leaves the clip on screen where
 the user left it. `TOGGLE_LOCK` (the `,` key) pins the current clip while the
 interval runs on around it; `WEIRD` condemns the clip, moving the file to the

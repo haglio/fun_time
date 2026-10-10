@@ -14,6 +14,7 @@ from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
 from fun_time import voice_control
+from fun_time.content import genau_flick_noun
 from fun_time.filter_vocab import filter_voice_commands
 from fun_time.voice_commands import VOICE_COMMANDS, parse_command_line
 from fun_time.voice_control import WHILE_NOT_WEARING_HEADSET, VoiceController, command_rules
@@ -85,8 +86,9 @@ class TestCommandRules:
 
         assert {rules.said_in(phrase) for phrase in
                 ("go now", "go now mode", "next go now", "portrait go now")} == {"de"}
+        flick = genau_flick_noun().one
         assert {rules.said_in(phrase) for phrase in
-                ("kino mode", "clip seconds five", "weird clip", "next")} == {None}
+                ("kino mode", f"{flick} seconds five", f"weird {flick}", "next")} == {None}
 
     def test_the_second_listener_is_handed_genau_whichever_spelling_the_first_heard(self):
         rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
