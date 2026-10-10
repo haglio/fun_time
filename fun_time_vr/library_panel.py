@@ -25,7 +25,7 @@ OUTPUT_FILENAME = "library_output.txt"
 FRAME_FILENAME = "library_frame.bin"
 
 OPEN = "open"
-OPEN_CLIPS = "clips"
+OPEN_FLICKS = "flicks"
 HOVER = "hover"
 SCROLL = "scroll"
 PICKED = "picked"
@@ -38,8 +38,8 @@ _READING = "Reading the library…"
 _READING_PX = 20
 
 
-def open_line(token: int, video: str, *, clips: bool = False) -> str:
-    return f"{OPEN_CLIPS if clips else OPEN} {token} {video}".rstrip()
+def open_line(token: int, video: str, *, flicks: bool = False) -> str:
+    return f"{OPEN_FLICKS if flicks else OPEN} {token} {video}".rstrip()
 
 
 def event_line(event: PressEvent) -> str:

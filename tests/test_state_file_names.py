@@ -46,7 +46,7 @@ def test_a_file_already_under_the_new_name_is_not_replaced_by_the_old_one(tmp_pa
 
 
 def test_the_other_files_in_the_directory_are_left_alone(tmp_path: Path):
-    (tmp_path / "genau_status.txt").write_text("clip=beta\n", encoding="utf-8")
+    (tmp_path / "genau_status.txt").write_text("flick=beta\n", encoding="utf-8")
     (tmp_path / "portrait_status.txt").write_text("video=\n", encoding="utf-8")
     (tmp_path / "nau_thumbs").mkdir()
 

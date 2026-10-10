@@ -64,7 +64,7 @@ def test_the_rooms_f_mode_reaching_each_hosted_show(cfg_factory, tmp_path):
 
 def test_the_gallery_following_a_lock_genau_took(tmp_path):
     status, channel = tmp_path / "genau_status.txt", tmp_path / "origenerator_cmd.txt"
-    status.write_text(f"locked=1\nclip={tmp_path / 'clips' / 'scene one.mp4'}\n",
+    status.write_text(f"locked=1\nflick={tmp_path / 'flicks' / 'scene one.mp4'}\n",
                       encoding="utf-8")
     follow = GalleryFollowsGenau(genau_status_file=status, origenerator_cmd_file=channel)
 

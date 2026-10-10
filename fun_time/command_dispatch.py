@@ -131,12 +131,12 @@ _GENAU_CMD_MAP = {
     "robot_hand_toggle_learned": "TOGGLE_LEARNED",
     "robot_hand_learned_on": "LEARNED_ON",
     "robot_hand_learned_off": "LEARNED_OFF",
-    # How long an unlocked Genau leaves each clip on screen, a second at a
+    # How long an unlocked Genau leaves each flick on screen, a second at a
     # time; the padlock (_MAIN_LOCK_COMMANDS) is the switch, this is its pace.
-    "genau_clip_seconds_down": "CLIP_SECONDS_DOWN",
-    "genau_clip_seconds_up": "CLIP_SECONDS_UP",
-    "genau_prev_clip": PREV,
-    "genau_next_clip": NEXT,
+    "genau_flick_seconds_down": "FLICK_SECONDS_DOWN",
+    "genau_flick_seconds_up": "FLICK_SECONDS_UP",
+    "genau_prev_flick": PREV,
+    "genau_next_flick": NEXT,
     "genau_flip_ends": "FLIP_ENDS",
     # The motion's rate as the console's own ± marks beside the wave send it —
     # Genau's alone; the unqualified pair is _SPEED_BY_DRIVER below.
@@ -144,14 +144,14 @@ _GENAU_CMD_MAP = {
     "robot_hand_speed_up": "SPEED_UP",
 }
 
-_GENAUS_CLIP_SECONDS = "genau_clip_seconds_"
-_GENAUS_CLIP_COMMANDS = frozenset({
-    "genau_prev_clip", "genau_next_clip", "genau_weird_clip", "genau_lock", "genau_flip_ends",
+_GENAUS_FLICK_SECONDS = "genau_flick_seconds_"
+_GENAUS_FLICK_COMMANDS = frozenset({
+    "genau_prev_flick", "genau_next_flick", "genau_weird_flick", "genau_lock", "genau_flip_ends",
 })
 
 
-def _about_genaus_clip(command: str) -> bool:
-    return command in _GENAUS_CLIP_COMMANDS or command.startswith(_GENAUS_CLIP_SECONDS)
+def _about_genaus_flick(command: str) -> bool:
+    return command in _GENAUS_FLICK_COMMANDS or command.startswith(_GENAUS_FLICK_SECONDS)
 
 
 # Speed control splits by which control said it: the console's ± marks move the
@@ -254,7 +254,7 @@ _NUMERIC_PREFIXES = {
     "robot_hand_center_": "CENTER",
     "robot_hand_speed_": "SPEED",
     # Seconds a clip holds the screen, unlike the 0-100 axes above.
-    _GENAUS_CLIP_SECONDS: "CLIP_SECONDS",
+    _GENAUS_FLICK_SECONDS: "FLICK_SECONDS",
 }
 
 
@@ -653,7 +653,7 @@ def _is_hud_nav_command(command: str) -> bool:
 
 
 # The main slot's lock: repeat what is on screen, or let it move on — the Main Funestra's
-# video into the next playlist entry, Genau's clip into the next clip after its
+# video into the next playlist entry, Genau's flick into the next flick after its
 # interval.  Both Funestras answer these three verbs and both open locked (the
 # routing is :func:`_main_lock`'s).  The toggle is the key and the button; the
 # absolute pair is what the spoken forms send, since a speaker asks for the
@@ -712,7 +712,7 @@ def notice_source(command: str, active_funestra: int | None) -> str:
 def _answered_without_making_a_funestra_active(
     command: str, state: BridgeState, config: BridgeConfig,
 ) -> tuple[BridgeState, list[WindowOp]] | None:
-    if _about_genaus_clip(command) and kino_shows(state.main_mode):
+    if _about_genaus_flick(command) and kino_shows(state.main_mode):
         return _ignored(state, _IN_KINO_MODE)
     minimize_ops = _minimize_ops(command)
     if minimize_ops is not None:
@@ -1107,8 +1107,8 @@ def main_video_shapes(state: BridgeState, config: BridgeConfig) -> VideoShapes:
                        plays_flat=state.main_plays_flat)
 
 
-def genau_clip_shapes(state: BridgeState, config: BridgeConfig) -> VideoShapes:
-    return VideoShapes(vr_dirs=config.genau_vr_clips,
+def genau_flick_shapes(state: BridgeState, config: BridgeConfig) -> VideoShapes:
+    return VideoShapes(vr_dirs=config.genau_vr_flicks,
                        plays_vr=state.genau_plays_vr,
                        plays_flat=state.genau_plays_flat)
 
@@ -1123,10 +1123,10 @@ def _dispatch_main_projection(
     that Funestra's library holds one shape.
     """
     on_main_funestra = kino_shows(state.main_mode)
-    shapes = (main_video_shapes if on_main_funestra else genau_clip_shapes)(state, config)
+    shapes = (main_video_shapes if on_main_funestra else genau_flick_shapes)(state, config)
     if not shapes.offered:
         logger.info("Nothing but flat %s in this session; shape filter ignored",
-                    "videos" if on_main_funestra else "clips")
+                    "videos" if on_main_funestra else "flicks")
         return state, []
     if (shapes.plays_vr, shapes.plays_flat) == (plays_vr, plays_flat):
         return state, []
@@ -1780,7 +1780,7 @@ def _speed(main_funestra_cmd: str | None, genau_cmd: str | None, by_driver: bool
     return state, []
 
 
-def _mark_genaus_clip_weird(state: BridgeState, config: BridgeConfig,
+def _mark_genaus_flick_weird(state: BridgeState, config: BridgeConfig,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     append_command(config.genau_cmd_file, "WEIRD")
     return state, [WindowOp(op="notice", key=MARKED_WEIRD, source=SOURCE_MAIN)]
@@ -1908,7 +1908,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_take_the_osr2, funestra)
                      for cmd, funestra in TAKE_OSR2_COMMANDS.items()})
     handlers["genaumacher_save"] = _save_clip
-    handlers["genau_weird_clip"] = _mark_genaus_clip_weird
+    handlers["genau_weird_flick"] = _mark_genaus_flick_weird
     handlers["genau_filter_enhanced"] = _filter_the_shows_enhanced
     handlers.update({cmd: _words_for_a_show_that_is_not_up
                      for cmd in _ORIGENERATOR_SPEECH if cmd not in handlers})

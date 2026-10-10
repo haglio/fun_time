@@ -1919,7 +1919,7 @@ class TestBrowseLibrary:
 
         mock_browse.assert_called_once_with(
             tmp_path / "launch.ini", r"C:\python.exe", over=(0, 400, 1080, 1520),
-            playing="", clips=False, runner=runner._run_browser,
+            playing="", flicks=False, runner=runner._run_browser,
         )
 
     def test_browses_from_the_folder_the_main_funestra_is_playing_in(self, tmp_path):
@@ -2021,7 +2021,7 @@ class TestBrowseLibrary:
         runner = make_runner(tmp_path, config=config, manifest_path=tmp_path / "launch.ini")
         runner.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
         runner.config.genau_status_file.write_text(
-            "clip=C:/library/genau/clips/Scene One.mp4\n", encoding="utf-8")
+            "flick=C:/library/genau/flicks/Scene One.mp4\n", encoding="utf-8")
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
@@ -2033,7 +2033,7 @@ class TestBrowseLibrary:
 
         mock_browse.assert_called_once_with(
             tmp_path / "launch.ini", r"C:\python.exe", over=(0, 400, 1080, 1520),
-            playing="C:/library/genau/clips/Scene One.mp4", clips=True, runner=runner._run_browser,
+            playing="C:/library/genau/flicks/Scene One.mp4", flicks=True, runner=runner._run_browser,
         )
 
     def test_a_clip_picked_in_genau_mode_goes_to_genau_not_the_main_funestra(self, tmp_path):
@@ -2044,11 +2044,11 @@ class TestBrowseLibrary:
              patch.object(runner.windows, "restore_all_topmost"), \
              patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library",
-                   return_value=r"C:\library\genau\clips\Scene One.mp4"):
+                   return_value=r"C:\library\genau\flicks\Scene One.mp4"):
             runner._handle_browse_library()
 
         assert runner.config.genau_cmd_file.read_text(
-            encoding="utf-8") == "PLAY_FILE C:\\library\\genau\\clips\\Scene One.mp4\n"
+            encoding="utf-8") == "PLAY_FILE C:\\library\\genau\\flicks\\Scene One.mp4\n"
         assert not runner.config.main_funestra_cmd_file.exists()
 
     def test_does_not_play_anything_on_cancel(self, tmp_path):
@@ -2381,7 +2381,7 @@ class TestWithTheHeadsetOff:
             runner._handle_command(HEADSET_ON)
         mock_dispatch.assert_not_called()
 
-    @pytest.mark.parametrize("command", ["genau_weird_clip", "play", "relief_omnipause"])
+    @pytest.mark.parametrize("command", ["genau_weird_flick", "play", "relief_omnipause"])
     def test_nothing_spoken_with_the_headset_off_is_acted_on_but_quit(self, tmp_path, command):
         runner = make_runner(tmp_path)
         runner._handle_command(HEADSET_OFF)
@@ -3103,9 +3103,9 @@ class TestOrigeneratorShows:
         assert runner._pending_rfb_urls == ["file:///tab.html"]  # held, not dropped
 
 
-def _genau_publishes(tmp_path, *, locked: bool, clip: str) -> None:
+def _genau_publishes(tmp_path, *, locked: bool, flick: str) -> None:
     (tmp_path / "genau_status.txt").write_text(
-        f"locked={int(locked)}\nclip={clip}\n", encoding="utf-8")
+        f"locked={int(locked)}\nflick={flick}\n", encoding="utf-8")
 
 
 def _what_the_gallery_heard(tmp_path) -> list[str]:
@@ -3113,15 +3113,15 @@ def _what_the_gallery_heard(tmp_path) -> list[str]:
     return heard.read_text(encoding="utf-8").splitlines() if heard.exists() else []
 
 
-class TestAGenauLockTakesTheGalleryToTheClip:
+class TestAGenauLockTakesTheGalleryToTheFlick:
     """In genau mode beside the hosted Origenerator, the main lock takes the
-    gallery to the clip -- the app makes some of Genau's clips, and a lock on
+    gallery to the flick -- the app makes some of Genau's flicks, and a lock on
     one of its own shows already goes there.  It follows what Genau reports
     holding rather than what was on screen at the press, since an unlocked
-    Genau can move on to the next clip between the two."""
+    Genau can move on to the next flick between the two."""
 
-    FIRST = r"C:\library\genau\clips\wan22_i2v_00007__topaz.mp4"
-    NEXT = r"C:\library\genau\clips\wan22_i2v_00008__topaz.mp4"
+    FIRST = r"C:\library\genau\flicks\wan22_i2v_00007__topaz.mp4"
+    NEXT = r"C:\library\genau\flicks\wan22_i2v_00008__topaz.mp4"
 
     def _genau_beside_the_gallery(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path), origenerator_pid=700)
@@ -3131,15 +3131,15 @@ class TestAGenauLockTakesTheGalleryToTheClip:
         return runner
 
     @pytest.mark.parametrize("press", ["main_lock", "genau_lock"])  # the padlock, the comma
-    def test_the_gallery_goes_to_the_clip_genau_holds_once_it_holds_it(self, tmp_path, press):
+    def test_the_gallery_goes_to_the_flick_genau_holds_once_it_holds_it(self, tmp_path, press):
         runner = self._genau_beside_the_gallery(tmp_path)
-        _genau_publishes(tmp_path, locked=False, clip=self.FIRST)
+        _genau_publishes(tmp_path, locked=False, flick=self.FIRST)
 
         runner._dispatch(press)
         runner.tick()
         assert _what_the_gallery_heard(tmp_path) == []
 
-        _genau_publishes(tmp_path, locked=True, clip=self.NEXT)
+        _genau_publishes(tmp_path, locked=True, flick=self.NEXT)
         runner.tick()
         assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.NEXT}"]
 
@@ -3147,17 +3147,17 @@ class TestAGenauLockTakesTheGalleryToTheClip:
         """Genau still says it is locked until it has read the press, so an
         unlock is the one press where waiting for "locked" would be wrong."""
         runner = self._genau_beside_the_gallery(tmp_path)
-        _genau_publishes(tmp_path, locked=True, clip=self.FIRST)
+        _genau_publishes(tmp_path, locked=True, flick=self.FIRST)
 
         runner._dispatch("main_lock")
         runner.tick()
 
         assert _what_the_gallery_heard(tmp_path) == []
 
-    def test_saying_lock_takes_the_gallery_there_though_genau_already_holds_the_clip(
+    def test_saying_lock_takes_the_gallery_there_though_genau_already_holds_the_flick(
             self, tmp_path):
         runner = self._genau_beside_the_gallery(tmp_path)
-        _genau_publishes(tmp_path, locked=True, clip=self.FIRST)
+        _genau_publishes(tmp_path, locked=True, flick=self.FIRST)
 
         runner._dispatch("main_lock_on")
         runner.tick()
@@ -3166,12 +3166,12 @@ class TestAGenauLockTakesTheGalleryToTheClip:
 
     def test_a_status_caught_half_written_is_waited_past(self, tmp_path):
         runner = self._genau_beside_the_gallery(tmp_path)
-        _genau_publishes(tmp_path, locked=False, clip=self.FIRST)
+        _genau_publishes(tmp_path, locked=False, flick=self.FIRST)
         runner._dispatch("main_lock")
 
         (tmp_path / "genau_status.txt").write_text("", encoding="utf-8")
         runner.tick()
-        _genau_publishes(tmp_path, locked=True, clip=self.FIRST)
+        _genau_publishes(tmp_path, locked=True, flick=self.FIRST)
         runner.tick()
 
         assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.FIRST}"]
@@ -3185,7 +3185,7 @@ class TestAGenauLockTakesTheGalleryToTheClip:
         runner = self._genau_beside_the_gallery(tmp_path)
         runner.state = replace(runner.state, main_mode=main_mode,
                                satellites_mode=satellites_mode)
-        _genau_publishes(tmp_path, locked=True, clip=self.FIRST)
+        _genau_publishes(tmp_path, locked=True, flick=self.FIRST)
 
         runner._dispatch("main_lock_on")
         runner.tick()
@@ -3604,11 +3604,11 @@ def test_a_landscape_video_hands_most_of_the_secondary_monitor_back_to_the_portr
         (MAIN_FUNESTRA_HWND, 2560, 2500, 1440, 940), (PORTRAIT_HWND, 2560, 0, 1440, 2500)]
 
 
-def test_in_genau_mode_a_portrait_clip_gives_the_main_funestra_most_of_the_secondary_monitor(
+def test_in_genau_mode_a_portrait_flick_gives_the_main_funestra_most_of_the_secondary_monitor(
         tmp_path, cfg_path):
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=False)
     runner.config.genau_status_file.write_text(
-        "clip=C:/fixtures/clip one.mp4\nportrait=1\n", encoding="utf-8")
+        "flick=C:/fixtures/flick one.mp4\nportrait=1\n", encoding="utf-8")
     runner.state = replace(runner.state, main_mode=MainMode.GENAU)
     usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_FUNESTRA_HWND: (2560, 2500, 1440, 940)}
 

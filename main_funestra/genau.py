@@ -1,5 +1,5 @@
 """Genau, as it runs on the Main Funestra: the room drives it through files of its
-own, and with the window it brings its own picture, a clip scrubbed to the OSR2."""
+own, and with the window it brings its own picture, a flick scrubbed to the OSR2."""
 from __future__ import annotations
 
 import logging
@@ -10,10 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
-from funestra_core.clip_decode import load_clip_frames
-from funestra_core.clip_folder import flat_clips_in, scan_clips, weird_folder_for
-from funestra_core.clip_picture import Picture
 from funestra_core.console_hud import ModeHud
+from funestra_core.flick_decode import load_flick_frames
+from funestra_core.flick_folder import flat_flicks_in, scan_flicks, weird_folder_for
+from funestra_core.flick_picture import Picture
 
 from fun_time.genau_config import GenauSettings
 from fun_time.genau_engine import Narrow, build_genau_engine
@@ -35,30 +35,30 @@ class Genau:
     def __init__(
         self,
         *,
-        clips_folder: Path,
+        flicks_folder: Path,
         settings: GenauSettings,
         channels: GenauChannels,
         notifier,
         tcode_sink,
-        start_clip: Path | None = None,
+        start_flick: Path | None = None,
         latest: bool = False,
         metadata_root: Path | None = None,
         narrow: Narrow | None = None,
         stop_event: threading.Event | None = None,
-        decode: Callable[[Path], list] = load_clip_frames,
+        decode: Callable[[Path], list] = load_flick_frames,
         start_thread=start_daemon_thread,
         clock: Callable[[], float] = time.monotonic,
         log: logging.Logger = logger,
     ) -> None:
-        self._clips_folder = Path(clips_folder)
+        self._flicks_folder = Path(flicks_folder)
         self._settings = settings
         self._recent = latest
         self._notifier = notifier
         self._frame = None
-        self._clip: Path | None = None
+        self._flick: Path | None = None
         self._loading: str | None = None
         self._engine = build_genau_engine(
-            clips=self._scan(),
+            flicks=self._scan(),
             settings=settings,
             command_file=channels.command,
             paused_file=channels.paused,
@@ -70,10 +70,10 @@ class Genau:
             set_loading_text=self._set_loading,
             rescan=self._rescan,
             narrow=narrow,
-            condemned_to=lambda clip: weird_folder_for(clip, self._clips_folder),
+            condemned_to=lambda flick: weird_folder_for(flick, self._flicks_folder),
             set_volume=self._the_rooms_level_is_the_funestras,
             stop_event=stop_event,
-            start_clip=start_clip,
+            start_flick=start_flick,
             metadata_root=metadata_root,
             decode=decode,
             start_thread=start_thread,
@@ -91,8 +91,8 @@ class Genau:
         return {}
 
     def top_block(self) -> ModeHud:
-        clip = self._engine.current_clip
-        return ModeHud(video="" if clip is None else clip.stem)
+        flick = self._engine.current_flick
+        return ModeHud(video="" if flick is None else flick.stem)
 
     def set_showing(self, showing: bool) -> None:
         self._engine.controls.hud.on = not showing
@@ -100,20 +100,20 @@ class Genau:
     def picture(self) -> Picture:
         played, count = self._engine.playhead()
         return Picture(frame=self._frame, played=played, count=count, loading=self._loading,
-                       seek=self._engine.seek, clip=self._clip)
+                       seek=self._engine.seek, flick=self._flick)
 
     def close(self) -> None:
         self._engine.close()
         self._notifier.close()
 
-    def _take_frame(self, frame, clip: Path | None) -> None:
-        self._frame, self._clip = frame, clip
+    def _take_frame(self, frame, flick: Path | None) -> None:
+        self._frame, self._flick = frame, flick
 
     def _set_loading(self, text: str | None) -> None:
         self._loading = text
 
     def _scan(self) -> list[Path]:
-        return scan_clips(flat_clips_in(self._clips_folder),
+        return scan_flicks(flat_flicks_in(self._flicks_folder),
                           shuffle_on_load=self._settings.shuffle_on_load, recent=self._recent)
 
     def _rescan(self, recent: bool) -> list[Path]:

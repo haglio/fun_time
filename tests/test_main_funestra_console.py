@@ -135,16 +135,16 @@ class TestPayload:
 
     def test_the_lock_reported_is_the_lock_of_whoever_is_showing(self):
         """One padlock on the console, so one flag: the Main Funestra's hold on its video where
-        The Main Funestra is on screen, Genau's hold on its clip where Genau is.  Publishing
+        The Main Funestra is on screen, Genau's hold on its flick where Genau is.  Publishing
         both is what left kino mode drawing two locks that meant different things."""
-        held_clip, loose_clip = GenauStatus(locked=True), GenauStatus(locked=False)
+        held_flick, loose_flick = GenauStatus(locked=True), GenauStatus(locked=False)
         held_video, loose_video = MainFunestraStatus(locked=True), MainFunestraStatus(locked=False)
 
         for mode, main_funestra, genau, expected in (
-            (MainMode.KINO, held_video, loose_clip, True),
-            (MainMode.KINO, loose_video, held_clip, False),
-            (MainMode.GENAU, loose_video, held_clip, True),
-            (MainMode.GENAU, held_video, loose_clip, False),
+            (MainMode.KINO, held_video, loose_flick, True),
+            (MainMode.KINO, loose_video, held_flick, False),
+            (MainMode.GENAU, loose_video, held_flick, True),
+            (MainMode.GENAU, held_video, loose_flick, False),
         ):
             payload = _payload(main_mode=mode, main_funestra=main_funestra, genau=genau)
             assert payload.locked is expected
@@ -157,7 +157,7 @@ class TestPayload:
         assert _button(_payload(main_mode=MainMode.GENAU), "genau_flip_ends").lit is False
 
     def test_genaus_pace_is_named_on_its_lock(self):
-        """Genau publishes how long an unheld clip stays up, and the lock in genau
+        """Genau publishes how long an unheld flick stays up, and the lock in genau
         mode says so on hover -- the only place the number is spelled out."""
         payload = _payload(main_mode=MainMode.GENAU, genau=GenauStatus(locked=False), genau_pace_s=7)
 
@@ -199,7 +199,7 @@ def test_f_mode_lights_off_what_the_orchestrator_holds():
 
 def test_the_order_reported_is_the_order_of_whoever_is_showing():
     """One slot on the console, so one flag, resolved the way the padlock is: the Main Funestra's
-    playlist order where the Main Funestra is on screen, the order Genau last rescanned its clips
+    playlist order where the Main Funestra is on screen, the order Genau last rescanned its flicks
     folder in where Genau is.  They are separate flags because a Genau reorder
     rewrites nothing of the Main Funestra's — reporting the Main Funestra's in genau mode said "Shuffle" at
     someone who had just asked Genau for the latest."""

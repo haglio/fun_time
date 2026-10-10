@@ -231,8 +231,8 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
         )
     flick = genau_flick_noun()
     return (
-        Button("genau_prev_clip", PREV_FACE, f"Previous {flick.one}"),
-        Button("genau_next_clip", NEXT_FACE, f"Next {flick.one}"),
+        Button("genau_prev_flick", PREV_FACE, f"Previous {flick.one}"),
+        Button("genau_next_flick", NEXT_FACE, f"Next {flick.one}"),
         Button("main_lock", LOCK_FACE,
                f"Locked — this {flick.one} repeats; press to move on every "
                f"{slot.pace_s}s" if slot.locked
@@ -257,7 +257,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
                f"Flipped — this {flick.one} stays that way; press to put it back" if slot.flipped
                else f"Flip this {flick.one}, for a picture running opposite the OSR2 — it stays flipped",
                lit=slot.flipped, group_break=True),
-        Button("genau_weird_clip", TRASH_ICON, "Mark weird — move it out", danger=True),
+        Button("genau_weird_flick", TRASH_ICON, "Mark weird — move it out", danger=True),
         *browse_order_buttons("main", latest=slot.latest),
         *_projection_buttons(slot, remembered=False, things=flick.many),
     )
@@ -277,9 +277,9 @@ def _flick_seconds_row() -> tuple[Button, ...]:
     flick = genau_flick_noun()
     return (
         Button("", f"{flick.one.capitalize()} seconds", "", width=ROW_LABEL_W),
-        Button("genau_clip_seconds_down", _GLYPHS["minus"], "Move on sooner", group_break=True),
+        Button("genau_flick_seconds_down", _GLYPHS["minus"], "Move on sooner", group_break=True),
         Button("", "", "", width=VALUE_W, host_value="advance_interval"),
-        Button("genau_clip_seconds_up", _GLYPHS["plus"], f"Leave each {flick.one} longer"),
+        Button("genau_flick_seconds_up", _GLYPHS["plus"], f"Leave each {flick.one} longer"),
     )
 
 

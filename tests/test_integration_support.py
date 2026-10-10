@@ -21,7 +21,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from funestra_core.clip_folder import SUPPORTED_VIDEO_EXTS
+from funestra_core.flick_folder import SUPPORTED_VIDEO_EXTS
 
 from fun_time import funestra_status, windows_bridge_orchestrator
 from fun_time.funestra_status import MainFunestraStatus

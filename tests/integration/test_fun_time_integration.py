@@ -965,29 +965,29 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
         second.stop()
 
 
-def _clips_oldest_to_newest(folder: Path, *names: str) -> list[Path]:
+def _flicks_oldest_to_newest(folder: Path, *names: str) -> list[Path]:
     """*names* as two-second test patterns in *folder*, the first the oldest arrival."""
     ffmpeg = shutil.which("ffmpeg")
     if ffmpeg is None:
-        pytest.fail("ffmpeg is what makes this test's clips, and it is not on PATH")
-    clips = []
+        pytest.fail("ffmpeg is what makes this test's flicks, and it is not on PATH")
+    flicks = []
     for arrived, name in enumerate(names, start=1):
-        clip = folder / name
+        flick = folder / name
         subprocess.run(
             [ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=160x120:rate=30",
-             "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)],
+             "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(flick)],
             check=True, timeout=60, **hidden_subprocess_kwargs())
-        os.utime(clip, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
-        clips.append(clip)
-    return clips
+        os.utime(flick, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
+        flicks.append(flick)
+    return flicks
 
 
-def _config_whose_genau_browses_in_folder_order(temp_root: Path, clip_folder: Path) -> Path:
-    """Genau on *clip_folder*, unshuffled, so the order it reopens in can be
+def _config_whose_genau_browses_in_folder_order(temp_root: Path, flick_folder: Path) -> Path:
+    """Genau on *flick_folder*, unshuffled, so the order it reopens in can be
     told from the order it was left in."""
     config_path = build_integration_config(temp_root)
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    config["paths"]["clips_dir"] = str(clip_folder)
+    config["paths"]["flicks_dir"] = str(flick_folder)
     genau_config_path = Path(config["paths"]["genau_config_path"])
     genau_config = json.loads(genau_config_path.read_text(encoding="utf-8"))
     genau_config["genau"]["shuffle_on_load"] = False
@@ -996,10 +996,10 @@ def _config_whose_genau_browses_in_folder_order(temp_root: Path, clip_folder: Pa
     return config_path
 
 
-def _wait_for_genau_on(session: FunTimeIntegrationSession, clip: Path, waiting_for: str) -> None:
+def _wait_for_genau_on(session: FunTimeIntegrationSession, flick: Path, waiting_for: str) -> None:
     def showing() -> bool:
-        published = read_genau_status(session.config.genau_status_file).clip
-        return bool(published) and Path(published).resolve() == clip.resolve()
+        published = read_genau_status(session.config.genau_status_file).flick
+        return bool(published) and Path(published).resolve() == flick.resolve()
 
     session.wait_until(showing, description=waiting_for)
 
@@ -1007,24 +1007,24 @@ def _wait_for_genau_on(session: FunTimeIntegrationSession, clip: Path, waiting_f
 @pytest.mark.timeout(TWO_SESSIONS_BUDGET_S)
 def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing():
     """Close Fun Time with Genau browsing Latest and it comes back browsing
-    Latest, on the clip it was on.
+    Latest, on the flick it was on.
 
     Genau has no playlist file to resume from: it rescans its folder every
-    launch, so its order and its clip are both named on its launch line, off
+    launch, so its order and its flick are both named on its launch line, off
     the state and the status the last session published.  Only a real session
     proves the two arrive together -- the LATEST verb sent after the launch
-    browses the new order from its top and loses the clip.
+    browses the new order from its top and loses the flick.
 
-    Three clips, oldest to newest: alpha, beta, gamma.  Latest is gamma, beta,
+    Three flicks, oldest to newest: alpha, beta, gamma.  Latest is gamma, beta,
     alpha, and the session closes on beta -- so a reopen that kept the order
     steps from beta to alpha, where the folder's order would step to gamma.
     """
     temp_root = build_integration_temp_root()
-    clip_folder = temp_root / "genau_clips"
-    (clip_folder / "2D" / "AI").mkdir(parents=True)
-    alpha, beta, gamma = _clips_oldest_to_newest(clip_folder / "2D" / "AI",
+    flick_folder = temp_root / "genau_flicks"
+    (flick_folder / "2D" / "AI").mkdir(parents=True)
+    alpha, beta, gamma = _flicks_oldest_to_newest(flick_folder / "2D" / "AI",
                                                  "alpha.mp4", "beta.mp4", "gamma.mp4")
-    config_path = _config_whose_genau_browses_in_folder_order(temp_root, clip_folder)
+    config_path = _config_whose_genau_browses_in_folder_order(temp_root, flick_folder)
 
     first = FunTimeIntegrationSession(config_path)
     try:
@@ -1032,9 +1032,9 @@ def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing():
         first.write_dashboard_command("genau_activate")
         first.wait_for_new_log("Switched to genau mode")
         first.write_dashboard_command("main_latest")
-        _wait_for_genau_on(first, gamma, "Latest to put the newest clip on screen")
-        first.write_dashboard_command("genau_next_clip")
-        _wait_for_genau_on(first, beta, "Genau to step on to the next-newest clip")
+        _wait_for_genau_on(first, gamma, "Latest to put the newest flick on screen")
+        first.write_dashboard_command("genau_next_flick")
+        _wait_for_genau_on(first, beta, "Genau to step on to the next-newest flick")
         first.quit_gracefully()
     finally:
         first.stop()
@@ -1043,10 +1043,10 @@ def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing():
     try:
         second.start()
         _wait_for_genau_on(
-            second, beta, "Genau to come back up on the clip the last session ended on")
+            second, beta, "Genau to come back up on the flick the last session ended on")
         assert read_shared_state(shared_state_path(second.config.paths.state_dir)).genau_latest, (
             "the reopened session must still say Genau is browsing Latest")
-        second.write_dashboard_command("genau_next_clip")
+        second.write_dashboard_command("genau_next_flick")
         _wait_for_genau_on(
             second, alpha, "the reopened Genau to step on in the order the last session left")
     finally:

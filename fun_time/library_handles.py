@@ -19,7 +19,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from funestra_core.clip_folder import flat_clips_in, vr_clips_in
+from funestra_core.flick_folder import flat_flicks_in, vr_flicks_in
 
 from .folder_listings import FolderListings
 from .media_metadata import (
@@ -326,11 +326,11 @@ def handles_by_shape(
     ]
 
 
-def genau_vr_clips(clips_folder: str) -> str:
-    return str(vr_clips_in(Path(clips_folder))) if clips_folder else ""
+def genau_vr_flicks(flicks_folder: str) -> str:
+    return str(vr_flicks_in(Path(flicks_folder))) if flicks_folder else ""
 
 
-def genau_clip_sources(clips_folder: str) -> str:
-    if not clips_folder:
+def genau_flick_sources(flicks_folder: str) -> str:
+    if not flicks_folder:
         return ""
-    return "|".join((genau_vr_clips(clips_folder), str(flat_clips_in(Path(clips_folder)))))
+    return "|".join((genau_vr_flicks(flicks_folder), str(flat_flicks_in(Path(flicks_folder)))))

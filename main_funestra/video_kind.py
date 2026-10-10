@@ -12,7 +12,7 @@ both need them and neither owns them.
 
 from __future__ import annotations
 
-GENAU_CLIP = "genau_clip"
+GENAU_FLICK = "genau_flick"
 EXCERPT = "excerpt"
 SHORT = "short"
 FULL_LENGTH = "full_length"

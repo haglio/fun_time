@@ -19,7 +19,7 @@ from fun_time.voice_commands import VOICE_COMMANDS, friendly_voice
 from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
 from tests.ahk_script import script_text, suspend_exempt_block
 
-_NUMERIC_RE = re.compile(r"^(robot_hand_(amp|center|speed)|genau_clip_seconds)_\d+$")
+_NUMERIC_RE = re.compile(r"^(robot_hand_(amp|center|speed)|genau_flick_seconds)_\d+$")
 _QUEUED_RE = re.compile(r'QueueCommand\("([^"]+)"\)')
 
 
@@ -309,7 +309,7 @@ def test_mode_named_nav_shows_friendly_names_in_the_legend():
     rows = _all_rows()
     main_next_row = next(r for r in rows if "main_next" in r.commands)
     assert {"kino next", "next kino"} <= set(main_next_row.voice)
-    genau_next_row = next(r for r in rows if "genau_next_clip" in r.commands)
+    genau_next_row = next(r for r in rows if "genau_next_flick" in r.commands)
     assert {"genau next", "next genau"} <= set(genau_next_row.voice)
     # The raw sound-alikes must never leak into any Say column.
     for row in rows:
@@ -385,7 +385,7 @@ def test_sound_rows_are_voice_only_and_list_both_words_of_each_pair():
 
     # One sound level reaches both of the primary display's sinks, so the steps
     # are listed under each Funestra that can own the display — the Main Funestra's video sound
-    # and Genau's clip music are the same control from the speaker's side.
+    # and Genau's flick music are the same control from the speaker's side.
     by_title = {s.title: s for s in build_reference_sections()}
     for title in ("Genau", "Main Funestra"):
         steps = [r for r in by_title[title].rows if "audio_volume_up" in r.commands]
@@ -472,7 +472,7 @@ def test_the_genau_row_shows_each_phrase_once_though_the_recognizer_hears_two_sp
 def test_the_reference_names_genaus_flicks_in_the_overlays_word():
     flick = genau_flick_noun()
     genau = next(section for section in build_reference_sections() if section.title == "Genau")
-    seconds = next(row for row in genau.rows if "genau_clip_seconds_up" in row.commands)
+    seconds = next(row for row in genau.rows if "genau_flick_seconds_up" in row.commands)
 
     assert [row.description for row in genau.rows[:2]] == [
         f"Previous Genau {flick.one}", f"Next Genau {flick.one}"]

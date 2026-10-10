@@ -134,16 +134,16 @@ def _status_touch(values: dict) -> int | None:
 class GenauStatus:
     cruise_active: bool = False
     learned_active: bool = False
-    # Whether Genau is holding the clip on screen rather than letting its interval
-    # carry it on — the same lock the Main Funestra has, and on for the same reason: a clip
+    # Whether Genau is holding the flick on screen rather than letting its interval
+    # carry it on — the same lock the Main Funestra has, and on for the same reason: a flick
     # repeating is where Genau opens.  Cruise is a separate thing entirely; it
-    # varies the motion, never which clip plays.
+    # varies the motion, never which flick plays.
     locked: bool = True
     shape: str = "sine"
-    # The clip on screen, as Genau published it — "" before the first one is up,
+    # The flick on screen, as Genau published it — "" before the first one is up,
     # and from a Genau too old to say.  Genau rescans its folder every launch and
     # opens at the top of it, so this is the only record of where a session was.
-    clip: str = ""
+    flick: str = ""
     flipped: bool = False
     portrait: bool | None = None
 
@@ -168,7 +168,7 @@ def read_genau_status(path: Path) -> GenauStatus:
             learned_active=_status_bool(values, "learned"),
             locked=_status_bool(values, "locked", default=True),
             shape=values.get("shape", "sine").strip(),
-            clip=values.get("clip", "").strip(),
+            flick=(values.get("flick") or values.get("clip") or "").strip(),
             flipped=_status_bool(values, "flipped"),
             portrait=_status_flag_or_none(values, "portrait"),
         )

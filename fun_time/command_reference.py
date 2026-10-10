@@ -220,7 +220,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("all_reset",),
             ),
             # The Main Funestra's sound, in whichever mode owns it — the Main Funestra's
-            # video in kino mode, Genau's clip audio in genau.  Its volume steps
+            # video in kino mode, Genau's flick audio in genau.  Its volume steps
             # sit with the Main Funestra's other playback controls.
             _Row("Mute / unmute the Main Funestra", (), ("audio_mute", "audio_unmute")),
             _Row("Disable voice control", (), ("voice_toggle", "voice_off")),
@@ -293,10 +293,10 @@ _SECTIONS: tuple[_Section, ...] = (
     _Section(
         "Genau",
         (
-            _Row(f"Previous Genau {_FLICK.one}", ("M",), ("genau_prev_clip",)),
-            _Row(f"Next Genau {_FLICK.one}", (".",), ("genau_next_clip",)),
+            _Row(f"Previous Genau {_FLICK.one}", ("M",), ("genau_prev_flick",)),
+            _Row(f"Next Genau {_FLICK.one}", (".",), ("genau_next_flick",)),
             _Row(f"Mark the Genau {_FLICK.one} weird — skip it, and out of rotation", ("K",),
-                 ("genau_weird_clip",)),
+                 ("genau_weird_flick",)),
             _Row(
                 f"Lock / unlock the Genau {_FLICK.one} — locked (the default) it repeats; "
                 "unlocked Genau moves on every few seconds",
@@ -317,7 +317,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 f"Seconds a {_FLICK.one} holds the screen before Genau moves on — only "
                 "while it is unlocked (the , key holds it)",
                 (),
-                ("genau_clip_seconds_down", "genau_clip_seconds_up"),
+                ("genau_flick_seconds_down", "genau_flick_seconds_up"),
                 (f"{_FLICK.one} seconds 1–60",),
             ),
         ),

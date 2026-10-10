@@ -24,7 +24,7 @@ def test_a_shape_not_known_for_a_moment_leaves_the_monitor_as_it_is():
     assert majority(Crown.MAIN, main_portrait=None, held=Crown.PORTRAIT) is Crown.PORTRAIT
 
 
-def test_in_genau_mode_the_crown_follows_the_shape_of_genaus_clip(tmp_path):
+def test_in_genau_mode_the_crown_follows_the_shape_of_genaus_flick(tmp_path):
     main_funestra_status = tmp_path / "main_player_status.txt"
     main_funestra_status.write_text("portrait=0\n", encoding="utf-8")
     genau_status = tmp_path / "genau_status.txt"

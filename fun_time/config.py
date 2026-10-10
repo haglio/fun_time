@@ -33,7 +33,7 @@ class PathsConfig:
     portrait_dirs: tuple[Path, ...]
     landscape_dirs: tuple[Path, ...]
     weird_dir: Path
-    clips_dir: Path
+    flicks_dir: Path
     audio_dir: Path
     favs_file: Path
     state_dir: Path
@@ -316,7 +316,7 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir
         portrait_dirs=_load_dir_list(paths_raw, "portrait_dirs", "portrait_dir", source_path, project_dir),
         landscape_dirs=_load_dir_list(paths_raw, "landscape_dirs", "landscape_dir", source_path, project_dir),
         weird_dir=require_path(paths_raw, "weird_dir", source_path, base=project_dir, context="config.paths"),
-        clips_dir=require_path(paths_raw, "clips_dir", source_path, base=project_dir, context="config.paths"),
+        flicks_dir=require_path(paths_raw, "flicks_dir", source_path, base=project_dir, context="config.paths"),
         audio_dir=require_path(paths_raw, "audio_dir", source_path, base=project_dir, context="config.paths"),
         favs_file=require_path(paths_raw, "favs_file", source_path, base=project_dir, context="config.paths"),
         state_dir=state_dir,

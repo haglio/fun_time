@@ -6,7 +6,7 @@ from funestra_core.funestra_verbs import SHOW
 from funestra_core.modes import MainMode
 
 # The main slot's two modes.  In both the Robot Hand is at work: in genau mode it
-# drives the OSR2 outright under Genau's clips, and in kino mode the arbiter
+# drives the OSR2 outright under Genau's flicks, and in kino mode the arbiter
 # hands the device between it and the video's funscript.  The axis is in the
 # name because the satellites' own "kino" mode is that same string, and
 # unprefixed the two were one name inside command_dispatch, which handles both.

@@ -142,7 +142,7 @@ class TestAudioPlaybackController:
         )
 
     def _running(self, tmp_path: Path, monkeypatch):
-        """A controller in genau mode with a real clip file, a remembering
+        """A controller in genau mode with a real flick file, a remembering
         mixer, and a hand-turned clock."""
         music = _FakeMusic()
         clock = {"now": 100.0}
@@ -244,7 +244,7 @@ class TestAudioPlaybackController:
         named = tmp_path / "Named.mp3"
         named.write_bytes(b"named")
 
-        controller.handle_udp_line("CLIP Named")
+        controller.handle_udp_line("FLICK Named")
 
         assert music.loaded == str(named)
         assert music.busy
@@ -254,7 +254,7 @@ class TestAudioPlaybackController:
         controller.switch_clip(clip)
 
         with caplog.at_level(logging.WARNING, logger="test.audio"):
-            controller.handle_udp_line("CLIP Missing")
+            controller.handle_udp_line("FLICK Missing")
 
         assert music.events[-1] == "stop"
         assert controller.current_path is None

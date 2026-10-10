@@ -43,7 +43,7 @@ from .funestra_deaths import (
     the_part_that_closed,
 )
 from .hud_transport import HudPublisher
-from .library_handles import build_library_handles, genau_clip_sources
+from .library_handles import build_library_handles, genau_flick_sources
 from .loading_cover import LoadingCover
 from .lock_hud import prime_group_indexes
 from .loopback_inbox import PRESS_PORT_FILENAME
@@ -720,7 +720,7 @@ def start_hud_priming(
             if source:
                 prewarm_thumbnails(collect_video_files(source), cache_dir)
         prewarm_thumbnails(_main_browse_stills(bridge_config), cache_dir)
-        prewarm_thumbnails(collect_video_files(genau_clip_sources(manifest.media.genau_clips)),
+        prewarm_thumbnails(collect_video_files(genau_flick_sources(manifest.media.genau_flicks)),
                            cache_dir)
 
     threading.Thread(target=_warm, daemon=True, name="hud-warm").start()

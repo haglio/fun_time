@@ -49,17 +49,17 @@ a file a new process reads:
   Funestra that can drive the OSR2 (`fun_time.max_intensity.publish_max_intensity`),
 - each satellite lock is queued back on that satellite's command file
   (`resume_satellite_locks`),
-- Genau's choice between its VR and flat clips is queued back on Genau's
+- Genau's choice between its VR and flat flicks is queued back on Genau's
   command file in the headset (`fun_time_vr.orchestrator.resume_genau_shapes`), because Genau rescans
-  its folders whole at every launch; a desktop Genau has only flat clips, so
+  its folders whole at every launch; a desktop Genau has only flat flicks, so
   nothing is sent to it,
 - the main slot's mode is what startup seeds Kino, Genau and the Main Funestra's
   window for (`fun_time.windows_bridge_startup.seed_startup_states`),
-- Genau's order goes on its launch line (`--latest`), beside the clip it opens
+- Genau's order goes on its launch line (`--latest`), beside the flick it opens
   on. Genau has no playlist file — it rescans its folder every launch, in the
   config's order unless told otherwise — and the LATEST verb is no way to tell
   it, since that browses the new order from its top and would throw away the
-  clip just resumed. The headset's Genau is handed the same two at construction,
+  flick just resumed. The headset's Genau is handed the same two at construction,
 - the OSR2's control state is carried out by the device arbiter
   (`fun_time.device_arbiter`) on the new session's first tick and every tick
   after, exactly as it is after a press. Startup sends the device home first,
@@ -75,7 +75,7 @@ keyboard-navigation selection was never a thing you could leave running.
 Nor does which Funestra has most of the secondary monitor: startup opens both
 windows where they always open, and the session's first ticks seat them from
 the crown, which does come back, and the shape of what the Main Funestra shows,
-whether that is a video or one of Genau's clips.
+whether that is a video or one of Genau's flicks.
 
 The satellite side's mode comes back, and it comes back UNDER THE COVER. Every
 room is built in Kino mode — the Funestras are built as Funestras and the browser has

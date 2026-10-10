@@ -14,7 +14,7 @@ from pathlib import Path
 
 from app_support.mirrored_tree import library_roots_beside, mirrored_path
 
-from .video_kind import EXCERPT
+from .video_kind import EXCERPT, GENAU_FLICK
 
 
 def sidecar_for(video: Path, metadata_root: Path) -> Path | None:
@@ -59,6 +59,9 @@ def read_version_group(video: Path, metadata_root: Path) -> str | None:
     return str(group) if group else None
 
 
+_RECORDED_BEFORE_THE_RENAME = {"genau_clip": GENAU_FLICK}
+
+
 def read_video_type(video: Path, metadata_root: Path) -> str:
     """The kind Evolver recorded for *video*, or ``""`` when it recorded none.
 
@@ -77,5 +80,6 @@ def read_video_type(video: Path, metadata_root: Path) -> str:
     payload = read_sidecar(video, metadata_root)
     video_block = payload.get("video")
     if isinstance(video_block, dict) and video_block.get("type"):
-        return str(video_block["type"])
+        recorded = str(video_block["type"])
+        return _RECORDED_BEFORE_THE_RENAME.get(recorded, recorded)
     return EXCERPT if isinstance(payload.get("clip"), dict) else ""

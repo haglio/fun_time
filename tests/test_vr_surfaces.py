@@ -3,7 +3,7 @@ beside the picture, and a User's own picture as a frame to hang in the slot."""
 from __future__ import annotations
 
 import numpy as np
-from funestra_core.clip_picture import Picture
+from funestra_core.flick_picture import Picture
 from funestra_core.funestra import PanelSurface, UsersPicture
 from funestra_core.satellite_hud import MARGIN
 

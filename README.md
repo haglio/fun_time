@@ -4,7 +4,7 @@ Fun Time is a Windows desktop setup that launches and coordinates:
 
 - the Main Funestra, which plays the main library's funscript videos (this repo's `main_funestra` package, launched as `python -m main_funestra`)
 - two Satellite Funestras, portrait and landscape (this repo's own mpv-based `satellite` package, launched as `python -m satellite`)
-- Genau, a clip-based visualizer for OSR2 auto mode (the separate `../genau` project)
+- Genau, a visualizer for OSR2 auto mode: short looping videos, its flicks, scrubbed to wherever the OSR2 is, on the Main Funestra (`main_funestra/genau.py`; the layout of its flicks folder is `../genau`'s contract). The apps show and hear the flicks under the word the content overlay's `genau_flick_words` gives them
 - a Genau audio companion
 - a minimal AutoHotkey hotkey shell (window placement and command dispatch run in Python)
 
@@ -13,7 +13,7 @@ It uses a serial broker for the OSR2 — the separate `../broker` project — th
 The main stack runs in one of two modes (startup mode is **video**):
 
 - in **Kino mode**, the Main Funestra owns the main slot and plays the whole main library, with Genau's HUD as a see-through layer over it. The OSR2 goes to the video's funscript while it has action (the Main Funestra sends funscript-derived T-Code over UDP to the broker), and to the **Robot Hand** — the family's own motion generator, run from Genau's process — through the quiet stretches and for videos without a script
-- in **Genau mode** (OSR2 auto/free mode), Genau clips own the main slot and the Robot Hand drives the OSR2 outright
+- in **Genau mode** (OSR2 auto/free mode), Genau flicks own the main slot and the Robot Hand drives the OSR2 outright
 
 ## Folder layout
 
@@ -370,20 +370,20 @@ HUD maps paint from — and warmed in the background at startup, one per handle,
 taken off the *smallest* rendition: a 2.7 GB upscale and the original it came
 from make the same picture, and only one of them is cheap to open.
 
-In Genau mode the same key, word and button browse **Genau's clips** instead,
-under a header that starts at **Genau**: one tile per clip, named for its file,
-over Genau's own window, opening on the clip Genau has up, the way the video
-browse opens on the video playing. Genau's clips folder (`paths.clips_dir`) is
-laid out as the library's videos are: a `2D` folder split into `AI` (the loops
-Origenerator makes) and `non_AI` (the clips Genaumacher cuts), and a `VR` folder.
+In Genau mode the same key, word and button browse **Genau's flicks** instead,
+under a header that starts at **Genau**: one tile per flick, named for its file,
+over Genau's own window, opening on the flick Genau has up, the way the video
+browse opens on the video playing. Genau's flicks folder (`paths.flicks_dir`) is
+laid out as the library's videos are: a `2D` folder split into `AI` (the flicks
+Origenerator makes) and `non_AI` (the flicks Genaumacher cuts), and a `VR` folder.
 Either room's browse holds `VR` and `2D`, the way the headset's video browse
-does. The desktop's Genau cycles through the 2D clips alone, and a VR clip
-picked on the desktop plays there as it is, both eyes side by side. A clip
+does. The desktop's Genau cycles through the 2D flicks alone, and a VR flick
+picked on the desktop plays there as it is, both eyes side by side. A flick
 picked goes up in Genau at once and Genau carries on from it in the order it
-was browsing; one that is not in that order, a VR clip on the desktop or one
-that arrived after Genau last read its folders, is put in after the clip that
-was up. The clips are read
-afresh at every browse, so a clip Evolver delivered a minute ago is there, and
+was browsing; one that is not in that order, a VR flick on the desktop or one
+that arrived after Genau last read its folders, is put in after the flick that
+was up. The flicks are read
+afresh at every browse, so a flick Evolver delivered a minute ago is there, and
 their stills are warmed at startup with the library's.
 
 ### Loop recording (Kino mode)
@@ -409,7 +409,7 @@ A press posts `max_intensity_<0-100>` to the dashboard command file; the bridge 
 - `Esc` toggles OmniPause; `Space` enters it.
 - Clicking into a text field in the Random Favs Browser or in Origenerator enters it too, so what you type goes into the field instead of to the hotkeys. A click anywhere else in those windows leaves the room playing.
 - While OmniPaused, the global hotkeys are suspended — only `Esc` (toggle OmniPause), `Shift+Esc` (Relief Omnipause) and `Ctrl+Alt+Q` (quit) stay active.
-- Entering it parks the OSR2, and in Genau mode Genau's picture goes home with the device: it holds for the second the broker waits, then glides to the clip's parked end as the device settles there. `Shift+Esc` is OmniPause and Retract together: the OSR2 goes to the far end, the picture with it, the OSR2 buttons show Retracted, and it stays retracted after the room resumes until you drive it again. Control off, park and retract hold the picture with the device the same way, and when the Robot Hand takes the device back the picture eases onto its motion as the device does.
+- Entering it parks the OSR2, and in Genau mode Genau's picture goes home with the device: it holds for the second the broker waits, then glides to the flick's parked end as the device settles there. `Shift+Esc` is OmniPause and Retract together: the OSR2 goes to the far end, the picture with it, the OSR2 buttons show Retracted, and it stays retracted after the room resumes until you drive it again. Control off, park and retract hold the picture with the device the same way, and when the Robot Hand takes the device back the picture eases onto its motion as the device does.
 
 ### With the headset off
 
@@ -545,20 +545,20 @@ The verbs it may carry are the registry in `../player_core`'s `player_core/genau
 
 `OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
 
-Cruise control and the clip interval are separate: cruise wanders the motion's
+Cruise control and the flick interval are separate: cruise wanders the motion's
 amplitude, center, speed and waveform (and human-inspired motion replaces the waveform
 with what real scripts do, inside the Amp and Center bars' range and at the Speed bar's pace;
-the two are never on together), while the interval is how long a clip
-holds the screen before Genau moves on — 8–12 seconds unless `CLIP_SECONDS
+the two are never on together), while the interval is how long a flick
+holds the screen before Genau moves on — 8–12 seconds unless `FLICK_SECONDS
 <seconds>` names a pace. It is spelled for what the number is rather than for
 the auto-advance that spends it, because that is the word the reference shows
 and the phrase a speaker says ("flick seconds thirty", in whatever word the
-content overlay's `genau_flick_words` gives Genau's clips). The interval keeps
-counting while the room is paused, so OmniPause leaves the clip on screen where
-the user left it. `TOGGLE_LOCK` (the `,` key) pins the current clip while the
-interval runs on around it; `WEIRD` condemns the clip, moving the file to the
-same place in `videos/genau/weird/` that it had in the clips folder (a
-`2D/AI` loop to `weird/2D/AI`) and taking up its successor.
+content overlay's `genau_flick_words` gives Genau's flicks). The interval keeps
+counting while the room is paused, so OmniPause leaves the flick on screen where
+the user left it. `TOGGLE_LOCK` (the `,` key) pins the current flick while the
+interval runs on around it; `WEIRD` condemns the flick, moving the file to the
+same place in `videos/genau/weird/` that it had in the flicks folder (a
+`2D/AI` flick to `weird/2D/AI`) and taking up its successor.
 
 Genau (the `../genau` project) consumes and clears this file.
 
@@ -618,8 +618,8 @@ side, exactly as it was said (`portrait_next`, `landscape_lock`,
 them — plus `OPEN_SHOWS` (entering the mode, which fills both Funestras with
 their base state), `CLOSE_SHOWS`, `FILTER_ENHANCED` (the console's
 enhanced-only switch), `QUIT` and `RELEASE`, `PORTRAIT_SAY:<phrase>` for a
-spoken command the session heard about one side, and `GO_TO|<clip>` once Genau
-has locked on a clip, which takes the gallery to that clip when the app made
+spoken command the session heard about one side, and `GO_TO|<flick>` once Genau
+has locked on a flick, which takes the gallery to that flick when the app made
 it. The paused flag freezes its shows for OmniPause. The status file says only
 that the app is up (`ready=1`), which is what opens the mode. A side the app
 has let go of is one whose panel it has published empty; the session waits for
@@ -731,13 +731,13 @@ Check:
 
 The broker is the `../broker` project — check its logs and config there. Also confirm that current serial ports still include the real OSR2 on `COM4`.
 
-### `M` and `.` do not switch Genau clips
+### `M` and `.` do not switch Genau flicks
 
 Check:
 
 - `state/broker_mode.txt` is `1`
 - `state/genau_cmd.txt` is being written
-- clip files exist in the `2D` folder of the configured Genau clips folder (`paths.clips_dir`)
+- flick files exist in the `2D` folder of the configured Genau flicks folder (`paths.flicks_dir`)
 - `state/windows_bridge.log` shows the hotkey write
 - Genau's log (in `../genau`) shows command-file consumption errors
 

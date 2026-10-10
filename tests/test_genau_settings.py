@@ -17,9 +17,9 @@ def _write(tmp_path: Path, payload) -> Path:
 
 class TestReadingGenausConfig:
     def test_the_genau_section_is_what_is_read(self, tmp_path):
-        path = _write(tmp_path, {"clips_dir": "C:/example/clips", "genau": {
+        path = _write(tmp_path, {"flicks_dir": "C:/example/flicks", "genau": {
             "beats_per_loop": 2.0, "bpm_smoothing": 0.5, "sync_strength": 0.1,
-            "clip_cache_size": 4, "shuffle_on_load": False,
+            "flick_cache_size": 4, "shuffle_on_load": False,
             "udp_host": "127.0.0.2", "udp_port": 50999,
         }})
 
@@ -27,7 +27,7 @@ class TestReadingGenausConfig:
 
         assert settings == GenauSettings(
             beats_per_loop=2.0, bpm_smoothing=0.5, sync_strength=0.1,
-            clip_cache_size=4, shuffle_on_load=False,
+            flick_cache_size=4, shuffle_on_load=False,
             udp_host="127.0.0.2", udp_port=50999,
         )
 
@@ -58,7 +58,7 @@ class TestTheRideThroughTheManifest:
     def test_what_goes_out_comes_back_the_same(self):
         settings = GenauSettings(
             beats_per_loop=2.5, bpm_smoothing=0.2, sync_strength=0.4,
-            clip_cache_size=3, shuffle_on_load=False,
+            flick_cache_size=3, shuffle_on_load=False,
             udp_host="127.0.0.9", udp_port=50560,
         )
 

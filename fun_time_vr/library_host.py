@@ -16,11 +16,11 @@ from PyQt6.QtWidgets import QApplication, QWidget
 from shared_ui.chrome import family_stylesheet
 
 from fun_time.library_browser import (
-    CLIPS_TOP_LEVEL_NAME,
+    FLICKS_TOP_LEVEL_NAME,
     TOP_LEVEL_NAME,
     LibraryBrowserWindow,
     load_browser_config,
-    load_clip_browser_config,
+    load_flick_browser_config,
 )
 from fun_time.library_handles import LibraryHandle, handles_by_shape
 from fun_time.modes import collect_video_files
@@ -33,7 +33,7 @@ from .library_panel import (
     HOVER,
     LIBRARY_SIZE_PX,
     OPEN,
-    OPEN_CLIPS,
+    OPEN_FLICKS,
     SCROLL,
     picked_line,
 )
@@ -53,13 +53,13 @@ class HeadsetBrowse:
 
     def __init__(
         self, *, thumbnail_cache: Path, frames: FrameWriter, say: Callable[[str], None],
-        clips: Callable[[], Sequence[LibraryHandle]] = tuple,
+        flicks: Callable[[], Sequence[LibraryHandle]] = tuple,
     ) -> None:
         self._thumbnail_cache = thumbnail_cache
         self._say = say
-        self._read_clips = clips
+        self._read_flicks = flicks
         self._library: LibraryBrowserWindow | None = None
-        self._clips: LibraryBrowserWindow | None = None
+        self._flicks: LibraryBrowserWindow | None = None
         self.window: LibraryBrowserWindow | None = None
         self._frames = frames
         self._token = 0
@@ -91,11 +91,11 @@ class HeadsetBrowse:
         window.resize(*LIBRARY_SIZE_PX)
         return window
 
-    def _browse_clips_afresh(self) -> LibraryBrowserWindow:
-        if self._clips is not None:
-            self._clips.deleteLater()
-        self._clips = self._browser(self._read_clips(), CLIPS_TOP_LEVEL_NAME)
-        return self._clips
+    def _browse_flicks_afresh(self) -> LibraryBrowserWindow:
+        if self._flicks is not None:
+            self._flicks.deleteLater()
+        self._flicks = self._browser(self._read_flicks(), FLICKS_TOP_LEVEL_NAME)
+        return self._flicks
 
     def _put_away(self) -> None:
         if self.window is not None:
@@ -114,12 +114,12 @@ class HeadsetBrowse:
                 return
             self.window = self._library
             self._open(int(token), video)
-        elif kind == OPEN_CLIPS:
-            token, _, clip = rest.partition(" ")
+        elif kind == OPEN_FLICKS:
+            token, _, flick = rest.partition(" ")
             self._open_when_it_lands = None
             self._put_away()
-            self.window = self._browse_clips_afresh()
-            self._open(int(token), clip)
+            self.window = self._browse_flicks_afresh()
+            self._open(int(token), flick)
         elif self.window is None:
             return  # nothing to aim at yet; the headset draws its own reading panel
         elif kind in (PRESS, DRAG, HOVER):
@@ -210,7 +210,7 @@ def read_the_library(config, kept: Path, *, afresh: bool = False) -> list[Librar
         return []
 
 
-def read_the_clips(config) -> list[LibraryHandle]:
+def read_the_flicks(config) -> list[LibraryHandle]:
     try:
         return config.handles()
     except OSError:
@@ -242,13 +242,13 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication([sys.argv[0], "-platform", "offscreen"])
     app.setStyleSheet(family_stylesheet())
     config = load_browser_config(args.manifest_path)
-    clips = load_clip_browser_config(args.manifest_path)
+    flicks = load_flick_browser_config(args.manifest_path)
     width, height = LIBRARY_SIZE_PX
     frames = FrameWriter(args.frames, max_pixels=width * height)
     browse = HeadsetBrowse(
         thumbnail_cache=config.thumbnail_cache, frames=frames,
         say=lambda line: append_command(args.output, line),
-        clips=lambda: read_the_clips(clips),
+        flicks=lambda: read_the_flicks(flicks),
     )
     kept = args.input.with_name(LISTING_FILENAME)
     landed: list[Sequence[LibraryHandle]] = []

@@ -20,6 +20,6 @@ class GalleryFollowsGenau:
         if not self._expecting_a_lock:
             return
         genau = read_genau_status(self._genau_status_file)
-        if genau.locked and genau.clip:
+        if genau.locked and genau.flick:
             self._expecting_a_lock = False
-            append_command(self._origenerator_cmd_file, f"GO_TO|{genau.clip}")
+            append_command(self._origenerator_cmd_file, f"GO_TO|{genau.flick}")

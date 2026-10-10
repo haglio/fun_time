@@ -1,4 +1,4 @@
-"""The crown on real windows: a portrait video or Genau clip on the crowned Main
+"""The crown on real windows: a portrait video or Genau flick on the crowned Main
 Funestra trades places with the Portrait Funestra on the secondary monitor, and
 crowning the Portrait Funestra trades them back -- the windows moved, and what
 each draws resized with them.  The clips are synthetic test patterns made for
@@ -56,10 +56,10 @@ def _tall_test_pattern(folder: Path, *, seconds: int) -> Path:
     return clip
 
 
-def _config_whose_genau_plays(temp_root: Path, clip_folder: Path) -> Path:
+def _config_whose_genau_plays(temp_root: Path, flick_folder: Path) -> Path:
     config_path = build_integration_config(temp_root)
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    config["paths"]["clips_dir"] = str(clip_folder)
+    config["paths"]["flicks_dir"] = str(flick_folder)
     config_path.write_text(json.dumps(config), encoding="utf-8")
     return config_path
 
@@ -107,12 +107,12 @@ def test_a_portrait_video_on_the_crowned_main_funestra_trades_places_with_the_po
         session.stop()
 
 
-def test_a_portrait_genau_clip_on_the_crowned_main_funestra_trades_places_with_the_portrait_funestra():
+def test_a_portrait_genau_flick_on_the_crowned_main_funestra_trades_places_with_the_portrait_funestra():
     temp_root = build_integration_temp_root()
-    clip_folder = temp_root / "genau_clips"
-    (clip_folder / "2D" / "AI").mkdir(parents=True)
-    _tall_test_pattern(clip_folder / "2D" / "AI", seconds=2)
-    session = FunTimeIntegrationSession(_config_whose_genau_plays(temp_root, clip_folder))
+    flick_folder = temp_root / "genau_flicks"
+    (flick_folder / "2D" / "AI").mkdir(parents=True)
+    _tall_test_pattern(flick_folder / "2D" / "AI", seconds=2)
+    session = FunTimeIntegrationSession(_config_whose_genau_plays(temp_root, flick_folder))
     try:
         session.start(env_overrides={"FUN_TIME_FAKE_MONITORS": FAKE_MONITORS})
         portrait = wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=10, exact=True)

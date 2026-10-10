@@ -7,9 +7,9 @@ from dataclasses import fields, replace
 from pathlib import Path
 
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from funestra_core.clip_advance import ClipAdvanceState
 from funestra_core.drive_readout import read_drive
 from funestra_core.file_channel import append_command
+from funestra_core.flick_advance import FlickAdvanceState
 from funestra_core.funestra_verbs import LOCK_OFF, LOCK_ON, SET_SPEED
 from funestra_core.playlist import PlaylistItem, read_playlist, write_playlist
 from funestra_core.robot_hand import RobotHandState, WaveformShape
@@ -35,7 +35,7 @@ PlaylistEntries = list[PlaylistItem]
 HAND_SPEED = "SPEED"
 HAND_AMPLITUDE = "AMP"
 HAND_CENTER = "CENTER"
-CLIP_SECONDS = "CLIP_SECONDS"
+FLICK_SECONDS = "FLICK_SECONDS"
 CYCLE_SHAPE = "CYCLE_SHAPE"
 CRUISE_ON = "CRUISE_ON"
 LEARNED_ON = "LEARNED_ON"
@@ -159,12 +159,12 @@ def resume_genau(genau_cmd_file: Path, state_dir: Path) -> None:
     drive = read_drive(state_dir / GENAU_DRIVE)
     verbs: list[str] = []
     if drive is not None:
-        hand, advance = RobotHandState(), ClipAdvanceState()
+        hand, advance = RobotHandState(), FlickAdvanceState()
         verbs += [f"{verb} {value}" for verb, value, opens_at in (
             (HAND_SPEED, drive.speed, hand.speed),
             (HAND_AMPLITUDE, drive.amplitude, hand.amplitude),
             (HAND_CENTER, drive.center, hand.center),
-            (CLIP_SECONDS, drive.advance_interval, advance.interval),
+            (FLICK_SECONDS, drive.advance_interval, advance.interval),
         ) if value != opens_at]
         verbs += _shape_steps(drive.shape)
     if status.cruise_active:

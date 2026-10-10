@@ -627,9 +627,9 @@ def launch_main_funestra(
     genau_paused_file: str | Path,
     genau_status_file: str | Path,
     genau_config_path: str | Path,
-    clips_dir: str | Path | None = None,
+    flicks_dir: str | Path | None = None,
     metadata_dir: str | Path | None = None,
-    genau_start_clip: str = "",
+    genau_start_flick: str = "",
     genau_latest: bool = False,
     project_dirs: str | None = None,
 ) -> int:
@@ -637,8 +637,8 @@ def launch_main_funestra(
 
     Kino and Genau both run on its window, so the launch names Genau's own files
     and settings beside the Funestra's: the channel the room's verbs for the hand
-    and the clip arrive on, the flag that pauses its clip, the status it
-    publishes, its config, and the clip and order it was left browsing.
+    and the flick arrive on, the flag that pauses its flick, the status it
+    publishes, its config, and the flick and order it was left browsing.
 
     *project_dirs* names the checkouts it runs out of (see
     :func:`genau_project_kwargs`).  Its stdout and stderr go to *log_file* for
@@ -694,13 +694,13 @@ def launch_main_funestra(
         "--genau-config",
         str(genau_config_path),
     ]
-    if clips_dir:
-        cmd += ["--clips-dir", str(clips_dir)]
-    # Both on the command line rather than the command channel: the first clip is
+    if flicks_dir:
+        cmd += ["--flicks-dir", str(flicks_dir)]
+    # Both on the command line rather than the command channel: the first flick is
     # decoding before the channel is first read, and the order as a verb would
-    # browse the new order from its top, over the clip just resumed.
-    if genau_start_clip:
-        cmd += ["--genau-start-clip", genau_start_clip]
+    # browse the new order from its top, over the flick just resumed.
+    if genau_start_flick:
+        cmd += ["--genau-start-flick", genau_start_flick]
     if genau_latest:
         cmd.append("--genau-latest")
     # Lets the Main Funestra group a video's versions from Evolver's metadata sidecars rather

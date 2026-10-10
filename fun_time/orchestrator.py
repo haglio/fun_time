@@ -88,7 +88,7 @@ def validate_config(config) -> None:
         require_dir(portrait_dir)
     for landscape_dir in config.paths.landscape_dirs:
         require_dir(landscape_dir)
-    require_dir(config.paths.clips_dir)
+    require_dir(config.paths.flicks_dir)
     require_dir(config.paths.audio_dir)
     require_file(config.project_dir / "windows_bridge_hotkeys.ahk")
     if config.paths.genau_config_path:

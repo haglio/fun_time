@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.clip_folder import SUPPORTED_VIDEO_EXTS
+from funestra_core.flick_folder import SUPPORTED_VIDEO_EXTS
 
 from .library import LibraryEntry
 

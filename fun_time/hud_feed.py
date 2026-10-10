@@ -17,7 +17,7 @@ from main_funestra.controls import longer_than_a_step
 
 from .bridge_records import BridgeConfig
 from .command_dispatch import (
-    genau_clip_shapes,
+    genau_flick_shapes,
     main_funestra_at_defaults,
     main_video_shapes,
     satellite_at_defaults,
@@ -152,7 +152,7 @@ class HudFeed:
         # command reaches -- none of which the Funestra can see for itself.
         main_funestra = read_main_funestra_status(self.config.main_funestra_status_file)
         main_shapes = main_video_shapes(state, self.config)
-        genau_shapes = genau_clip_shapes(state, self.config)
+        genau_shapes = genau_flick_shapes(state, self.config)
         self.publisher.publish_text("main_player", console_text(console_model(MainSlotInputs(
             main_mode=state.main_mode,
             hud_corner=state.main_hud_corner,

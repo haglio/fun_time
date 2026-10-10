@@ -57,7 +57,7 @@ def _write_config(path: Path) -> Path:
             "portrait_dirs": ["C:/library/portrait"],
             "landscape_dirs": ["C:/library/landscape"],
             "weird_dir": "C:/library/misc",
-            "clips_dir": "C:/clips",
+            "flicks_dir": "C:/clips",
             "audio_dir": "C:/audio",
             "favs_file": "favs.csv",
             "state_dir": "state",

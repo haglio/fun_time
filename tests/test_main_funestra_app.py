@@ -84,14 +84,14 @@ class TestWhatTheFunestraIsHanded:
 
 
 class TestGenauRunsOnItToo:
-    """Beside Kino, on the files Fun Time named: the window's own clips folder and
+    """Beside Kino, on the files Fun Time named: the window's own flicks folder and
     drive file, the audio companion's address, and the OSR2's inlet."""
 
     def test_it_is_built_from_the_flags_fun_time_passes(self):
         given = _keywords(_call(_function("_genau"), "Genau"))
         channels = _keywords(_call(_function("_genau"), "GenauChannels"))
 
-        assert given["clips_folder"] == "args.clips_dir"
+        assert given["flicks_folder"] == "args.flicks_dir"
         assert given["settings"] == "GenauSettings.read(args.genau_config)"
         assert given["notifier"] == "GenauNotifier(args.notify_host, args.notify_port)"
         assert given["tcode_sink"] == "UdpTCodeSink(host=args.tcode_host, port=args.tcode_port)"
