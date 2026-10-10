@@ -69,6 +69,7 @@ from .session_lock import (
 
 HIDDEN_DESKTOP_NAME = "FunTimeIntegration"
 INTEGRATION_DIR = "tests/integration/"
+MEASURED_PROCESS_STARTUP = Path(__file__).with_name("measured_process_startup")
 
 # Distinct from pytest's own codes (1 failed, 2 interrupted) so a caller can tell
 # "the suite was invoked wrongly" from "the tests failed".
@@ -308,17 +309,11 @@ def _close_process_handles(pi: _PROCESS_INFORMATION) -> None:
 
 
 def _child_environment(environment: Mapping[str, str] | None) -> dict[str, str]:
-    """The environment a hidden-desktop child runs in — always muted.
-
-    The hidden desktop hides a player's window, not its sound: a session started
-    here would otherwise be heard over whatever the user is doing, with no window
-    to trace it to or stop it from.  Forcing the mute switch at the launch itself
-    makes off-screen mean silent whatever the caller passed — a hand-rolled repro
-    that borrowed this launcher without it played the real library aloud
-    (2026-09-19).  ``None`` inherits this process's environment, then mutes that.
-    """
     resolved = dict(os.environ if environment is None else environment)
     resolved["FUN_TIME_MUTE_AUDIO"] = "1"
+    if resolved.get("COVERAGE_PROCESS_START"):
+        resolved["PYTHONPATH"] = os.pathsep.join(
+            filter(None, (str(MEASURED_PROCESS_STARTUP), resolved.get("PYTHONPATH"))))
     return resolved
 
 

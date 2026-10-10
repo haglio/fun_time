@@ -112,7 +112,7 @@ def _run_suite(command: Sequence[str], cwd: Path, log: Path, environment: Mappin
                               **hidden_subprocess_kwargs()).returncode
 
 
-def _measured_sources(data_file: Path, checkout: Path, sources: frozenset[str]) -> frozenset[str]:
+def measured_sources(data_file: Path, checkout: Path, sources: frozenset[str]) -> frozenset[str]:
     by_path = {os.path.normcase(str(checkout / source)): source for source in sources}
     ran: set[str] = set()
     for one_process in data_file.parent.glob(f"{data_file.name}.*"):
@@ -205,7 +205,7 @@ class MachineBench:
             for left_over in measuring.glob(".coverage*"):
                 left_over.unlink()
             self.suite(self._runner(test_file, "--no-cov"), self.checkout, self._log_for(commit), measuring_everything)
-            ran[test_file] = _measured_sources(measuring / ".coverage", self.checkout, sources)
+            ran[test_file] = measured_sources(measuring / ".coverage", self.checkout, sources)
         CoverageMap(commit, ran).save(the_machine_s_map(self.primary))
 
     def _runner(self, *arguments: str) -> list[str]:
