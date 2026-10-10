@@ -20,6 +20,8 @@ omit =
     fun_time_vr/video_thread.py
     # needs a headset and a graphics context
     fun_time_vr/vr_session.py
+    # sets Windows' default sound devices: a test would change the machine's
+    fun_time_vr/windows_sound.py
 relative_files = true
 
 [report]

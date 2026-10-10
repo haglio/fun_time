@@ -4,23 +4,30 @@ FunTimeVR launches hidden from a shortcut, so a startup that dies on its way to
 the headset leaves nothing on screen to read.  Asking before launching any player
 keeps the failure fast and the answer specific: no runtime, a runtime whose
 headset is off, or ready to render.  It comes up hidden, so quitting it falls to
-us too: :func:`stop_runtime`.
+us too: :func:`stop_the_runtime_a_session_started`.
 """
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
 import time
 import winreg
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
 
+from app_support.file_channel import write_whole
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.child_launch import no_child_log
 
+from . import windows_sound
+from .windows_sound import Defaults, SoundDevice
+
 logger = logging.getLogger(__name__)
+
+SOUND_DEVICES_BEFORE_NAME = "vr_sound_devices_before.json"
 
 APP_NAME = "FunTimeVR"
 
@@ -156,7 +163,6 @@ def runtime_launcher() -> Path | None:
 
 
 def process_running(image_name: str) -> bool:
-    """Whether any process with this image name is running."""
     try:
         output = subprocess.check_output(
             ["tasklist", "/FI", f"IMAGENAME eq {image_name}", "/NH", "/FO", "CSV"],
@@ -178,7 +184,6 @@ def start_runtime(launcher: Path) -> None:
 
 
 def runtime_was_running() -> bool:
-    """Whether the VR runtime was already up before this session asked for it."""
     return process_running(_DISPLAY_SERVER_NAME)
 
 
@@ -204,6 +209,42 @@ def stop_runtime() -> None:
     for service in _QUIT_SERVICES:
         logger.info("Quitting VR runtime service: %s", service)
         _run_quietly([str(tool), service, "quit"], cwd=tool.parent)
+
+
+def remember_the_sound_devices(state_dir: Path) -> None:
+    try:
+        write_whole(Path(state_dir) / SOUND_DEVICES_BEFORE_NAME, json.dumps({
+            f"{flow}/{role}": asdict(device)
+            for (flow, role), device in windows_sound.default_devices().items()}))
+    except OSError:
+        logger.warning("Could not write down Windows' default sound devices", exc_info=True)
+
+
+def _the_sound_devices_remembered(state_dir: Path) -> Defaults:
+    remembered = Path(state_dir) / SOUND_DEVICES_BEFORE_NAME
+    try:
+        saved = json.loads(remembered.read_text(encoding="utf-8"))
+        remembered.unlink()
+        return {tuple(choice.split("/")): SoundDevice(**device)
+                for choice, device in saved.items()}
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError, TypeError, AttributeError):
+        logger.warning("Could not read back Windows' default sound devices", exc_info=True)
+        return {}
+
+
+def stop_the_runtime_a_session_started(state_dir: Path) -> None:
+    before = _the_sound_devices_remembered(state_dir)
+    during = windows_sound.default_devices()
+    stop_runtime()
+    after = windows_sound.default_devices()
+    for (flow, role), device in before.items():
+        left_on = during.get((flow, role))
+        if left_on not in (None, device) and after.get((flow, role)) == left_on:
+            logger.info("The VR runtime left Windows' %s %s device on %s; putting back %s",
+                        role, flow, left_on.name, device.name)
+            windows_sound.make_default(device, role)
 
 
 def _run_quietly(command: list[str], *, cwd: Path | None = None) -> None:

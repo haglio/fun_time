@@ -2084,7 +2084,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
         session.close()
         logger.info("Shutdown complete")
         if stop_runtime:  # the orchestrator that knew this exited under the hold
-            vr_runtime.stop_runtime()
+            vr_runtime.stop_the_runtime_a_session_started(state_dir)
     return 0
 
 
