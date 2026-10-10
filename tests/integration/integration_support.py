@@ -46,11 +46,13 @@ from fun_time.win32_process import (
 from fun_time.windows_bridge_orchestrator import ChildProcess, kill_recorded_child
 from tests.scratch import remove_scratch
 
+from . import run_clock
 from .hidden_desktop import (
     HIDDEN_DESKTOP_NAME,
     current_desktop_name,
     pids_with_window_on_current_desktop,
 )
+from .run_clock import Budget
 
 
 def read_recorded_children(state_dir: Path) -> dict[str, ChildProcess]:
@@ -77,7 +79,7 @@ def read_recorded_children(state_dir: Path) -> dict[str, ChildProcess]:
 
 
 def published_status(read, path: Path, *, budget_s: float = 2.0,
-                     now=time.monotonic, sleep=time.sleep):
+                     now=run_clock.now, sleep=time.sleep):
     deadline = now() + budget_s
     status = read(path)
     while status == type(status)() and now() < deadline:
@@ -159,32 +161,25 @@ def _kill_leftover_hosted_apps(window_pids) -> None:
 
 
 
-# How long a session is given to close itself after the quit verb.  A teardown
-# ends six players, the hotkey script and any app the session took over, and on
-# a machine carrying several agents' runs -- this one's ordinary state -- the
-# gap between one session closing and the next opening has run 20 to 30 seconds.
+# Every budget below is counted in the seconds the run could run (run_clock), so
+# the minutes other agents' normal-priority work holds every processor are not
+# spent: a session that opens in 5 to 10 seconds took 24 to 101 on the wall
+# beside them, and on 2026-10-10 the ones that missed 120 were still starting.
 QUIT_BUDGET_S = 60.0
-
-# How long a session is given to come up.  A run's processes start below normal
-# priority, so on that same busy machine a session that opens in 5 to 10 seconds
-# alone has taken 24 to 41, and two were still starting, not stuck, at 45.
 START_BUDGET_S = 120.0
 
 STARTUP_STOPPED = "Fun Time stopped starting up"
 
-# Long enough for Windows to reap a force-killed player under a loaded run.
 CHILDREN_GONE_TIMEOUT_S = 20.0
 
-# How long a command is given to show in what a player publishes.  When other
-# sessions' normal-priority work held every core, the dispatch loop went 66
-# seconds between two passes and every command still landed afterwards.
+# How long a command is given to show in what a player publishes.
 COMMAND_BUDGET_S = 120.0
 
 
 def wait_for(predicate, *, desc: str, timeout: float = COMMAND_BUDGET_S):
-    deadline = time.monotonic() + timeout
+    budget = Budget(timeout)
     last = None
-    while time.monotonic() < deadline:
+    while not budget.expired():
         last = predicate()
         if last:
             return last
@@ -263,14 +258,14 @@ class FunTimeIntegrationSession:
         if not self._proc or self._proc.poll() is not None:
             raise RuntimeError("Orchestrator is not running")
         ahk_cmd = self.config.paths.state_dir / "ahk_cmd.txt"
-        deadline = time.monotonic() + timeout
+        budget = Budget(timeout)
         while True:
             ahk_cmd.write_text("exit", encoding="utf-8")
             try:
-                exit_code = self._proc.wait(timeout=min(1.0, max(deadline - time.monotonic(), 0.0)))
+                exit_code = self._proc.wait(timeout=min(1.0, budget.left()))
                 break
             except subprocess.TimeoutExpired:
-                if time.monotonic() >= deadline:
+                if budget.expired():
                     raise AssertionError(
                         f"Orchestrator did not exit within {timeout:g}s after it was told to quit"
                         f"\n{self._log_tail()}"
@@ -340,8 +335,8 @@ class FunTimeIntegrationSession:
 
     def _wait_for_own_log(self, needle: str, *, after: int, timeout: float) -> None:
         """Wait for *needle* among the log characters written past *after*."""
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+        budget = Budget(timeout)
+        while not budget.expired():
             if needle in self._read_windows_bridge_log()[after:]:
                 return
             time.sleep(0.2)
@@ -390,8 +385,8 @@ class FunTimeIntegrationSession:
 
     def wait_until(self, predicate, *, timeout: float = COMMAND_BUDGET_S,
                    description: str | Callable[[], str] = "condition") -> None:
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+        budget = Budget(timeout)
+        while not budget.expired():
             if predicate():
                 return
             time.sleep(0.2)
@@ -401,8 +396,8 @@ class FunTimeIntegrationSession:
         )
 
     def wait_for_log(self, needle: str, timeout: float = COMMAND_BUDGET_S) -> str:
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+        budget = Budget(timeout)
+        while not budget.expired():
             text = self._read_windows_bridge_log()
             if needle in text:
                 return text
@@ -412,8 +407,8 @@ class FunTimeIntegrationSession:
         )
 
     def wait_for_new_log(self, needle: str, timeout: float = COMMAND_BUDGET_S) -> str:
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+        budget = Budget(timeout)
+        while not budget.expired():
             chunk = self._read_windows_bridge_log_chunk()
             if needle in chunk:
                 return chunk
@@ -423,8 +418,8 @@ class FunTimeIntegrationSession:
         )
 
     def wait_for_any_log(self, needles: list[str], timeout: float = COMMAND_BUDGET_S) -> str:
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+        budget = Budget(timeout)
+        while not budget.expired():
             text = self._read_windows_bridge_log()
             for needle in needles:
                 if needle in text:
@@ -522,11 +517,11 @@ class FunTimeIntegrationSession:
         written through, and the new player's first write of it raises the sharing
         violation, which takes that startup down.
         """
-        deadline = time.time() + timeout_s
+        budget = Budget(timeout_s)
         for child in children:
             if not child.pid:
                 continue
-            while time.time() < deadline and is_process_alive(child.pid):
+            while not budget.expired() and is_process_alive(child.pid):
                 time.sleep(0.2)
 
     def _reap_leftover_runtime_processes(self) -> None:
@@ -550,8 +545,8 @@ class FunTimeIntegrationSession:
         nothing to do with.
         """
         an_integration_orchestrator = rf"fun_time\.orchestrator .*{re.escape(INTEGRATION_CONFIG_NAME)}"
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+        budget = Budget(timeout)
+        while not budget.expired():
             if not processes_matching(r"^pythonw?\.exe$", an_integration_orchestrator):
                 return
             time.sleep(0.5)
@@ -879,9 +874,9 @@ RELEASE_BUDGET_S = 180.0
 
 def clear_run_roots(*, budget_s: float = RELEASE_BUDGET_S, sleep=time.sleep) -> None:
     """Delete every root this run built, and say which ones would not go."""
-    deadline = time.monotonic() + budget_s
+    budget = Budget(budget_s)
     refused = _remove_each(RUN_ROOTS)
-    while refused and time.monotonic() < deadline:
+    while refused and not budget.expired():
         sleep(0.5)
         refused = _remove_each(root for root, _refusal in refused)
     RUN_ROOTS.clear()
@@ -898,9 +893,9 @@ def identify_child(pid: int) -> ChildProcess:
 def end_satellite(satellite: ChildProcess, log: Path, *, budget_s: float = RELEASE_BUDGET_S,
                   sleep=time.sleep) -> None:
     kill_recorded_child(satellite)
-    deadline = time.monotonic() + budget_s
+    budget = Budget(budget_s)
     while not _let_go(log):
-        if time.monotonic() >= deadline:
+        if budget.expired():
             raise AssertionError(
                 f"the satellite (pid {satellite.pid}) still holds {log} "
                 f"{budget_s:g}s after its process tree was ended")
@@ -946,7 +941,7 @@ def library_clips(roots) -> list[Path]:
 
 
 def sample_library_clips(candidates, count: int, *, desc: str, readable=None,
-                         budget_s: float = PROBE_BUDGET_S, now=time.monotonic) -> list:
+                         budget_s: float = PROBE_BUDGET_S, now=run_clock.now) -> list:
     """*count* clips drawn at random from *candidates*, reproducibly.
 
     A fresh draw each run — the same clips every run masks bugs that only one
@@ -1010,7 +1005,11 @@ def readable_at_speed(path, *, budget_s: float = 2.0, size: int = 16 << 20, read
         arrived.set()
 
     threading.Thread(target=attempt, daemon=True).start()
-    return arrived.wait(budget_s)
+    budget = Budget(budget_s)
+    while not arrived.wait(min(0.1, budget.left())):
+        if budget.expired():
+            return False
+    return True
 
 
 def _read_head(path, size: int) -> None:
