@@ -275,9 +275,10 @@ down. The timeouts differ because what they are waiting out differs:
   nothing for the length of it, and the cover cannot appear at all before the
   player holds an OpenXR session, well into "Waiting for players...".
 - **The VR shutdown cover** (20s), like the desktop's closing screen, is kept
-  up by the teardown itself: it moves the file's time once a second for as long
-  as it runs, however long a part takes to end, so twenty seconds without that
-  means the orchestrator died.
+  up by the teardown itself while it waits for a part to end: it moves the
+  file's time once a second then, so a part slow to end never uncovers the room.
+  Anywhere else twenty seconds without a new step means the orchestrator died or
+  is stuck, and the cover goes rather than hold him in front of it for good.
 - **A held cover** is exempt: nothing is writing its file, because the session
   that would have is gone.
 - **The crossing cover** on the monitors waits 20s too, kept up the same way by

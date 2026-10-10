@@ -1752,6 +1752,24 @@ class TestClosingScreenLifecycle:
 
         assert heard == [True]
 
+    def test_a_teardown_stuck_anywhere_but_ending_a_part_still_lets_the_closing_screen_go(
+            self, cfg_factory, tmp_path):
+        """The closing screen covers every monitor and keeps itself on top, so one
+        that never went would lock him out of the machine.  Only a wait for a part
+        to end, which always ends, may keep it up past its guard."""
+        heard: list[bool] = []
+
+        def a_hotkey_script_that_will_not_go(_proc, _mailbox):
+            heard.append(heard_from_again_once_stale(
+                tmp_path / "state" / SHUTDOWN_PROGRESS_FILENAME,
+                stale_after_s=closing_screen.STALE_TIMEOUT_S, within_s=2.5))
+
+        with patch("fun_time.windows_bridge_orchestrator.stop_hotkey_script",
+                   side_effect=a_hotkey_script_that_will_not_go):
+            _run_a_session(cfg_factory, tmp_path, events=[])
+
+        assert heard == [False]
+
     def test_a_crossing_wears_the_transition_cover_and_leaves_it_standing(
         self, cfg_factory, tmp_path,
     ):
