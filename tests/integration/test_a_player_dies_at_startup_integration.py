@@ -22,12 +22,10 @@ WHAT_IT_SAID = "a clip folder that dies importing, on purpose"
 _THE_REAL_PACKAGE_UNDER_IT = """import os
 import sys
 
-_here = os.path.dirname(os.path.abspath(__file__))
-for _entry in sys.path:
-    _real = os.path.join(_entry or os.getcwd(), "player_core")
-    if os.path.isdir(_real) and os.path.abspath(_real) != _here:
-        __path__.append(_real)
-        break
+_where_the_modules_are = (os.path.join(entry or os.getcwd(), name)
+                          for entry in sys.path for name in ("funestra_core", "player_core"))
+__path__.append(next(found for found in _where_the_modules_are
+                     if os.path.isfile(os.path.join(found, "mpv_player.py"))))
 """
 
 
