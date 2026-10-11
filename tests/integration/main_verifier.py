@@ -31,6 +31,7 @@ ONE_COPY = r"Global\fun_time_main_verifier"
 POLL_S = 300
 COVERAGE_MAP_LASTS = timedelta(days=1)
 NO_SUCH_TEST = pytest.ExitCode.USAGE_ERROR
+_PASSED = frozenset({"passed", "flaky"})
 _log = logging.getLogger("main_verifier")
 _SUMMARY_LINE = re.compile(r"^(?:FAILED|ERROR) (\S+)", re.MULTILINE)
 _BACKGROUNDED = re.compile(r"backgrounded\W+([0-9a-f]{8})\b")
@@ -330,7 +331,8 @@ def _mark_passed(ledger: Ledger, bench: Bench, head: str) -> None:
 def keep_verifying(ledger: Ledger, bench: Bench, nap: Callable[[float], None] = time.sleep) -> None:
     while True:
         try:
-            cycle(ledger, bench)
+            if cycle(ledger, bench) in _PASSED:
+                return
         except CommandFailed as error:
             _log.warning("could not check main: %s", error)
         nap(POLL_S)
