@@ -6,8 +6,10 @@ import numpy as np
 import pytest
 from PIL import Image
 from shared_ui.palette import BG_BUTTON, BG_PRIMARY, BLUE, TEXT_PRIMARY
+from shared_ui.spacing import BUTTON_GAP
 
 from fun_time.dashboard_layout import Rect
+from fun_time_vr.dropdown import ARROW_PX
 from fun_time_vr.projection import (
     EQUIRECT_180_SBS,
     EQUIRECT_360,
@@ -28,6 +30,19 @@ from fun_time_vr.projection_controls import (
 BLOCK = Rect(10, 300, 360, HEIGHT)
 PLACED = (BLOCK.x, BLOCK.y, BLOCK.width, BLOCK.height)
 NARROWED = Angle(160.0, 40.0, 180.0)
+
+
+@pytest.mark.parametrize("projection", PROJECTIONS)
+def test_its_name_ends_short_of_the_fields_arrow(projection):
+    image = Image.new("RGBA", (BLOCK.x + BLOCK.width + 10, BLOCK.y + BLOCK.height + 10),
+                      (*BG_PRIMARY, 255))
+    ProjectionControls(projection, None).draw(image, PLACED)
+    field = field_at(BLOCK)
+    arrow_starts = field.width - ARROW_PX - BUTTON_GAP
+    written = np.asarray(image)[field.y:field.y + field.height, field.x:field.x + arrow_starts, :3]
+    inked = np.flatnonzero((np.abs(written.astype(int) - TEXT_PRIMARY).sum(axis=2) < 90).any(axis=0))
+
+    assert inked.max() < arrow_starts - 1
 
 
 class _Verbs:
