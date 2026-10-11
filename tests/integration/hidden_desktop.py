@@ -34,11 +34,11 @@ exception: it is a service that outlives the session, and it breaks away (see
 
 Usage (default integration command):
 
-    .venv/Scripts/python.exe -m tests.integration.hidden_desktop
-    .venv/Scripts/python.exe -m tests.integration.hidden_desktop -k main_player   # extra args pass through
-    .venv/Scripts/python.exe -m tests.integration.hidden_desktop tests/integration/test_x.py   # that file alone
-    .venv/Scripts/python.exe -m tests.integration.hidden_desktop --repeat-changed   # each changed file whole, then ten runs of each changed test
-    .venv/Scripts/python.exe -m tests.integration.hidden_desktop --changed   # the tests that run what this branch changed
+    .venv/Scripts/python.exe -m tests.integration.hidden_desktop -x
+    .venv/Scripts/python.exe -m tests.integration.hidden_desktop -x -k main_funestra   # extra args pass through
+    .venv/Scripts/python.exe -m tests.integration.hidden_desktop -x tests/integration/test_x.py   # that file alone
+    .venv/Scripts/python.exe -m tests.integration.hidden_desktop --repeat-changed   # each changed file whole, then ten runs of each changed test, to the first failure
+    .venv/Scripts/python.exe -m tests.integration.hidden_desktop --changed   # the tests that run what this branch changed, to the first failure
 """
 from __future__ import annotations
 
@@ -78,6 +78,7 @@ REFUSED_EXIT_CODE = 4
 
 
 REPEAT_CHANGED = "--repeat-changed"
+STOP_AT_THE_FIRST_FAILURE = "-x"
 CHANGED = "--changed"
 REPEAT_RUNS = 10
 # What a repeat may spend on runs, the whole-file runs before its repeats
@@ -482,7 +483,8 @@ def _run_what_this_change_needs(base: str) -> int:
         return 0
     files = [] if picked.everything else sorted(picked.files)
     with _a_place_in_line(short=bool(files)):
-        return _run_the_suite(build_run_argv(files), sys.executable, RUN_CEILING_S)
+        return _run_the_suite(build_run_argv([*files, STOP_AT_THE_FIRST_FAILURE]), sys.executable,
+                              RUN_CEILING_S)
 
 
 def _is_short(extra_args: list[str]) -> bool:
@@ -510,7 +512,8 @@ def _repeat_what_changed(base: str) -> int:
 def _run_each_file_whole(files: list[str]) -> int:
     print(f"[hidden-desktop] before repeating the new and changed tests, running each "
           f"file that holds one whole, once: {', '.join(files)}", file=sys.stderr, flush=True)
-    code = _run_the_suite(build_run_argv(files), sys.executable, RUN_CEILING_S)
+    code = _run_the_suite(build_run_argv([*files, STOP_AT_THE_FIRST_FAILURE]), sys.executable,
+                          RUN_CEILING_S)
     if code:
         print("[hidden-desktop] a test failed with its whole file running, so the "
               "repeats were not started", file=sys.stderr, flush=True)
