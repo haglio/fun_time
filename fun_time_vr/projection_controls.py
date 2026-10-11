@@ -7,11 +7,11 @@ from typing import Protocol
 from funestra.hud_panel import load_font
 from PIL import Image, ImageDraw
 from shared_ui.palette import TEXT_MUTED, TEXT_PRIMARY
-from shared_ui.spacing import BUTTON_GAP, BUTTON_SIZE_HUD
+from shared_ui.spacing import BUTTON_GAP, BUTTON_PAD_H_TIGHT, BUTTON_SIZE_HUD
 
 from fun_time.dashboard_layout import Rect
 
-from .dropdown import paint_field, paint_list
+from .dropdown import ARROW_PX, paint_field, paint_list
 from .projection import PROJECTIONS
 from .render import angle_limits, immersive_wrap
 from .wrap_readout import label
@@ -20,7 +20,8 @@ ANGLE_LABEL = "Angle"
 HEIGHT = BUTTON_SIZE_HUD
 
 _FONT = load_font(8)
-_FIELD_W = 100
+_FIELD_W = round(BUTTON_PAD_H_TIGHT + max(_FONT.getlength(label(p)) for p in PROJECTIONS)
+                 + BUTTON_GAP + ARROW_PX + BUTTON_GAP)
 _GROUP_GAP = 12
 _ANGLE_WORDS_W = round(_FONT.getlength(ANGLE_LABEL) + BUTTON_GAP + _FONT.getlength("000°"))
 _LEAST_BAR_W = 60

@@ -20,7 +20,7 @@ from fun_time_vr.wrap_readout import READOUT_EVERY_S, WrapReadout, label, readou
 def test_every_projection_is_named_in_the_apps_own_words():
     assert {projection: label(projection) for projection in NAMED_PROJECTIONS} == {
         FLAT: "Flat",
-        EQUIRECT_180_SBS: "180° SBS",
+        EQUIRECT_180_SBS: "Equirectangular",
         FISHEYE_180_SBS: "Fisheye",
         FISHEYE_200_STEREOGRAPHIC_SBS: "Stereographic",
         FISHEYE_200_EQUISOLID_SBS: "Equisolid",
@@ -39,7 +39,7 @@ def test_a_wrapped_picture_reads_its_projection_angle_and_height():
 
 
 def test_a_picture_nobody_dialed_reads_what_its_projection_carries():
-    assert readout(EQUIRECT_180_SBS, immersive_wrap(EQUIRECT_180_SBS)) == "180° SBS · 180° · height 1.00"
+    assert readout(EQUIRECT_180_SBS, immersive_wrap(EQUIRECT_180_SBS)) == "Equirectangular · 180° · height 1.00"
 
 
 def test_a_flat_picture_and_the_360_read_their_name_alone():

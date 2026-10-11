@@ -18,7 +18,7 @@ READOUT_EVERY_S = 0.1
 
 _LABELS = {
     FLAT: "Flat",
-    EQUIRECT_180_SBS: "180° SBS",
+    EQUIRECT_180_SBS: "Equirectangular",
     FISHEYE_180_SBS: "Fisheye",
     FISHEYE_200_STEREOGRAPHIC_SBS: "Stereographic",
     FISHEYE_200_EQUISOLID_SBS: "Equisolid",

@@ -343,7 +343,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Nudge forward 10 seconds", ("=",), ("main_nudge_next",)),
             _Row("Volume down / up, in tenths — the video's sound", (), ("audio_volume_down", "audio_volume_up")),
             _Row(
-                "Cycle the video's VR projection — flat screen, 180° SBS, "
+                "Cycle the video's VR projection — flat screen, equirectangular, "
                 "fisheye, stereographic, equisolid, rectilinear, 360 — remembered per "
                 "video; a controller's stick pushed right or left steps forward or "
                 "back through them, and while the picture wraps the view its up and "
