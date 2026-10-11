@@ -16,6 +16,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from player_core.clip_folder import SUPPORTED_VIDEO_EXTS
 from player_core.file_channel import append_command
 
 from fun_time.branch_session import _apply_genau_checkout_override
@@ -86,9 +87,6 @@ def published_status(read, path: Path, *, budget_s: float = 2.0,
         sleep(0.01)
         status = read(path)
     return status
-
-
-VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
 
 # Every integration config is written under this name, in a temp tree of its own.
 # It is also what tells an integration orchestrator apart from the user's on a
@@ -936,7 +934,7 @@ def library_clips(roots) -> list[Path]:
         for root in roots
         for dirpath, _dirs, filenames in os.walk(root)
         for name in filenames
-        if Path(name).suffix.lower() in VIDEO_EXTENSIONS
+        if Path(name).suffix.lower() in SUPPORTED_VIDEO_EXTS
     ]
 
 
@@ -1018,13 +1016,10 @@ def _read_head(path, size: int) -> None:
 
 
 def _link_primary_samples(real_config, dest_dir: Path, *, count: int = 5) -> list[Path]:
-    candidates: list[tuple[Path, Path]] = []  # (candidate, source_root)
-    for source_root in real_config.paths.main_player_library_dirs:
-        for candidate in source_root.rglob("*"):
-            if candidate.suffix.lower() not in VIDEO_EXTENSIONS or not candidate.is_file():
-                continue
-            if has_handcrafted_funscript(str(candidate)):
-                candidates.append((candidate, source_root))
+    candidates = [(candidate, source_root)
+                  for source_root in real_config.paths.main_player_library_dirs
+                  for candidate in library_clips([source_root])
+                  if has_handcrafted_funscript(str(candidate))]
     if not candidates:
         raise FileNotFoundError(
             "Could not find a main-library video with a hand-authored funscript for "
@@ -1055,21 +1050,10 @@ def _link_primary_samples(real_config, dest_dir: Path, *, count: int = 5) -> lis
 
 
 def _link_sample_files(source_dirs: tuple[Path, ...], dest_dir: Path, *, count: int) -> list[Path]:
-    candidates: list[Path] = []
-    for source_dir in source_dirs:
-        for candidate in source_dir.rglob("*"):
-            if candidate.suffix.lower() not in VIDEO_EXTENSIONS or not candidate.is_file():
-                continue
-            candidates.append(candidate)
-    if len(candidates) < count:
-        raise FileNotFoundError(f"Could not find {count} sample media files in {source_dirs}")
-    chosen = sample_library_clips(candidates, count, desc="sample media files")
-    selected: list[Path] = []
+    chosen = sample_library_clips(library_clips(source_dirs), count, desc="sample media files")
     for candidate in chosen:
-        target = dest_dir / candidate.name
-        _safe_link(candidate, target)
-        selected.append(target)
-    return selected
+        _safe_link(candidate, dest_dir / candidate.name)
+    return [dest_dir / candidate.name for candidate in chosen]
 
 
 def _safe_link(src: Path, dest: Path) -> None:
