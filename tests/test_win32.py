@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+from app_support import win32 as shared_win32
 
 from fun_time import win32, win32_process
 from fun_time.win32 import (
@@ -357,6 +358,16 @@ class TestForceForegroundWindow:
                 force_foreground_window(111)
 
         assert user32.AttachThreadInput.call_args_list[-1] == call(7001, 7002, False)
+
+
+@pytest.mark.parametrize("name", ["force_foreground_window", "window_exists"])
+def test_fun_time_brings_windows_forward_with_the_familys_own_helper_once_app_support_has_it(name):
+    shared = getattr(shared_win32, name, None)
+
+    assert shared is None or getattr(win32, name) is shared, (
+        f"app_support.win32 now offers {name}: delete fun_time/win32.py's own copy, "
+        "import app_support's in its place, and drop its tests here, which "
+        "app_support's own tests now cover")
 
 
 class TestMinimizeWindow:
