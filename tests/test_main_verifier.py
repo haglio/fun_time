@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import sys
 from contextlib import closing
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +12,7 @@ from unittest.mock import patch
 import coverage
 import pytest
 
+from fun_time.win32_process import is_process_alive
 from tests.integration import main_verifier
 from tests.integration.coverage_map import CoverageMap
 
@@ -54,9 +56,10 @@ WHOLE_RUN = Path("whole-run.txt")
 
 class FakeBench:
     def __init__(self, head, commits, broken_from=None, tests=("tests/integration/test_x.py::test_y",),
-                 flaky=False, stale_map=False):
+                 flaky=False, stale_map=False, restart_asked=False):
         self.head_commit, self.commits, self.broken_from = head, commits, broken_from
         self.tests, self.flaky, self.stale_map = list(tests), flaky, stale_map
+        self.restart_asked = restart_asked
         self.advanced, self.recorded, self.taken_back, self.measured = [], [], [], []
         self.fixing, self.events = [], []
 
@@ -97,6 +100,14 @@ class FakeBench:
 
     def measure_coverage(self, commit):
         self.measured.append(commit)
+
+    def take_restart_request(self):
+        asked, self.restart_asked = self.restart_asked, False
+        return asked
+
+
+def never_naps(seconds):
+    raise AssertionError("the runner went back to sleep")
 
 
 def a_ledger(tmp_path, verified=None):
@@ -207,8 +218,8 @@ def test_a_run_checks_main_out_where_the_runner_keeps_it_and_names_the_tests_tha
     shell = FakeShell({})
     suites = []
 
-    def suite(command, cwd, log):
-        suites.append((command, cwd))
+    def suite(command, cwd, log, asked_to_restart):
+        suites.append((command, cwd, asked_to_restart))
         log.write_text("FAILED tests\\integration\\test_x.py::test_y - AssertionError\n", encoding="utf-8")
         return 1
 
@@ -220,9 +231,10 @@ def test_a_run_checks_main_out_where_the_runner_keeps_it_and_names_the_tests_tha
     place = primary / ".claude" / "worktrees" / "verifying-main"
     assert ["git", "worktree", "add", "--detach", str(place), "c3"] in [command for command, _ in shell.commands]
     assert (place / "state" / "genau_project_dirs.txt").read_text(encoding="utf-8") == ""
-    command, cwd = suites[0]
+    command, cwd, asked_to_restart = suites[0]
     assert command[1:] == ["-m", "tests.integration.hidden_desktop", "tests/integration/test_x.py::test_y"]
     assert cwd == place
+    assert asked_to_restart == bench.asked_to_restart
     assert result.exit_code == 1 and result.failed == ["tests/integration/test_x.py::test_y"]
     assert "test_x.py::test_y" in result.log.read_text(encoding="utf-8")
 
@@ -321,6 +333,31 @@ def test_taking_a_change_back_removes_the_checkout_it_made_for_it(tmp_path):
     assert (["git", "worktree", "remove", "--force", str(place)], primary) in shell.commands
 
 
+def test_a_restart_is_asked_for_with_a_file_in_the_production_checkouts_state(tmp_path):
+    primary = tmp_path / "fun_time"
+    bench = main_verifier.MachineBench(primary=primary, shell=FakeShell({}))
+    assert not bench.take_restart_request()
+
+    (primary / "state").mkdir(parents=True)
+    (primary / "state" / "main_verifier.restart").write_text("", encoding="utf-8")
+
+    assert bench.asked_to_restart()
+    assert bench.take_restart_request()
+    assert not bench.asked_to_restart() and not bench.take_restart_request()
+
+
+def test_a_suite_running_when_a_restart_is_asked_for_ends_with_everything_it_started(tmp_path, monkeypatch):
+    monkeypatch.setattr(main_verifier, "_ASKED_EVERY_S", 0.05)
+    its_pid = tmp_path / "pid.txt"
+    sleeper = f"import os, pathlib, time; pathlib.Path(r'{its_pid}').write_text(str(os.getpid())); time.sleep(60)"
+
+    with pytest.raises(main_verifier.RestartRequested):
+        main_verifier._run_suite([sys.executable, "-c", sleeper], tmp_path, tmp_path / "run.txt",
+                                 asked_to_restart=its_pid.exists)
+
+    assert not is_process_alive(int(its_pid.read_text(encoding="utf-8")))
+
+
 def stop_after_two_naps():
     naps = []
 
@@ -348,12 +385,32 @@ def test_the_runner_ends_once_a_head_passes_so_that_it_starts_again_running_the_
         tmp_path, how_it_passed):
     bench = FakeBench("c3", ["a1", "b2", "c3"], **how_it_passed)
 
-    def nap(seconds):
-        raise AssertionError("the runner went back to sleep on the code it had before main moved")
-
-    main_verifier.keep_verifying(a_ledger(tmp_path, verified="a1"), bench, nap=nap)
+    main_verifier.keep_verifying(a_ledger(tmp_path, verified="a1"), bench, nap=never_naps)
 
     assert bench.advanced == ["c3"]
+
+
+def test_the_runner_ends_without_checking_main_once_it_is_asked_to_restart(tmp_path):
+    bench = FakeBench("c3", ["a1", "b2", "c3"], restart_asked=True)
+
+    main_verifier.keep_verifying(a_ledger(tmp_path, verified="a1"), bench, nap=never_naps)
+
+    assert bench.events == [] and bench.restart_asked is False
+
+
+def test_a_run_cut_short_by_a_restart_request_ends_the_runner_without_judging_main(tmp_path):
+    class AskedMidRun(FakeBench):
+        def run(self, commit, tests=()):
+            self.restart_asked = True
+            raise main_verifier.RestartRequested
+
+    bench = AskedMidRun("c3", ["a1", "b2", "c3"])
+    ledger = a_ledger(tmp_path, verified="a1")
+
+    main_verifier.keep_verifying(ledger, bench, nap=never_naps)
+
+    assert (ledger.verified, ledger.failed_head) == ("a1", None)
+    assert bench.recorded == [] and bench.restart_asked is False
 
 
 def test_a_check_that_could_not_reach_main_is_logged_and_tried_again_next_time(tmp_path, caplog):
@@ -427,8 +484,9 @@ def test_coverage_is_measured_one_integration_test_file_at_a_time_and_kept_for_b
                                            "tests/integration/test_b.py\ntests/test_unit.py\n"})
     runs = []
 
-    def suite(command, cwd, log, environment=None):
+    def suite(command, cwd, log, environment, asked_to_restart):
         runs.append(command[3:])
+        assert asked_to_restart == bench.asked_to_restart
         with patch.dict(os.environ, environment, clear=True):
             data_file = coverage.Coverage(config_file=environment["COVERAGE_PROCESS_START"]).config.data_file
         data = coverage.CoverageData(basename=data_file, suffix=True)
@@ -439,9 +497,10 @@ def test_coverage_is_measured_one_integration_test_file_at_a_time_and_kept_for_b
         log.write_text("", encoding="utf-8")
         return 0
 
-    main_verifier.MachineBench(primary=primary, shell=shell, suite=suite).measure_coverage("c3")
+    bench = main_verifier.MachineBench(primary=primary, shell=shell, suite=suite)
+    bench.measure_coverage("c3")
 
-    assert runs == [["tests/integration/test_a.py", "--no-cov"], ["tests/integration/test_b.py", "--no-cov"]]
+    assert runs ==[["tests/integration/test_a.py", "--no-cov"], ["tests/integration/test_b.py", "--no-cov"]]
     assert CoverageMap.load(primary / "state" / "integration_coverage_map.json") == CoverageMap(
         commit="c3",
         ran={"tests/integration/test_a.py": frozenset({"fun_time/x.py"}),

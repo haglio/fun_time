@@ -22,6 +22,7 @@ from app_support.logging_utils import configure_logging, install_exception_loggi
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.checkout_overrides import GENAU_DIRS_OVERRIDE_NAME, STATE_DIRNAME, primary_of
+from fun_time.process_tree import kill_process_tree
 
 from .coverage_map import CoverageMap, source_files, the_machine_s_map
 from .session_lock import SingleInstanceLock
@@ -29,6 +30,8 @@ from .session_lock import SingleInstanceLock
 REPO = "haglio/fun_time"
 ONE_COPY = r"Global\fun_time_main_verifier"
 POLL_S = 300
+RESTART_REQUEST_NAME = "main_verifier.restart"
+_ASKED_EVERY_S = 5
 COVERAGE_MAP_LASTS = timedelta(days=1)
 NO_SUCH_TEST = pytest.ExitCode.USAGE_ERROR
 _PASSED = frozenset({"passed", "flaky"})
@@ -94,9 +97,14 @@ class Bench(Protocol):
     def record(self, incident: dict) -> None: ...
     def coverage_map_is_stale(self) -> bool: ...
     def measure_coverage(self, commit: str) -> None: ...
+    def take_restart_request(self) -> bool: ...
 
 
 class CommandFailed(Exception):
+    pass
+
+
+class RestartRequested(Exception):
     pass
 
 
@@ -108,10 +116,18 @@ def _shell(command: Sequence[str], cwd: Path | None = None) -> str:
     return done.stdout
 
 
-def _run_suite(command: Sequence[str], cwd: Path, log: Path, environment: Mapping[str, str] | None = None) -> int:
+def _run_suite(command: Sequence[str], cwd: Path, log: Path, environment: Mapping[str, str] | None = None, *,
+               asked_to_restart: Callable[[], bool]) -> int:
     with log.open("w", encoding="utf-8") as sink:
-        return subprocess.run(list(command), cwd=cwd, stdout=sink, stderr=subprocess.STDOUT, env=environment,
-                              **hidden_subprocess_kwargs()).returncode
+        suite = subprocess.Popen(list(command), cwd=cwd, stdout=sink, stderr=subprocess.STDOUT, env=environment,
+                                 **hidden_subprocess_kwargs())
+        while True:
+            try:
+                return suite.wait(timeout=_ASKED_EVERY_S)
+            except subprocess.TimeoutExpired:
+                if asked_to_restart():
+                    kill_process_tree(suite.pid)
+                    raise RestartRequested from None
 
 
 def measured_run_environment(rcfile: Path) -> dict[str, str]:
@@ -169,6 +185,17 @@ class MachineBench:
         self.python = primary / ".venv" / "Scripts" / "python.exe"
         self.checkout = primary / ".claude" / "worktrees" / "verifying-main"
         self.state = primary / STATE_DIRNAME
+        self.restart_request = self.state / RESTART_REQUEST_NAME
+
+    def asked_to_restart(self) -> bool:
+        return self.restart_request.exists()
+
+    def take_restart_request(self) -> bool:
+        try:
+            self.restart_request.unlink()
+        except FileNotFoundError:
+            return False
+        return True
 
     def bring_the_libraries_up_to(self, commit: str) -> None:
         pyproject = self.shell(["git", "show", f"{commit}:pyproject.toml"], cwd=self.primary)
@@ -184,7 +211,7 @@ class MachineBench:
     def run(self, commit: str, tests: Sequence[str] = ()) -> RunResult:
         self._check_out(commit)
         log = self._log_for(commit)
-        exit_code = self.suite(self._runner(*tests), self.checkout, log)
+        exit_code = self.suite(self._runner(*tests), self.checkout, log, asked_to_restart=self.asked_to_restart)
         return RunResult(exit_code, failed_tests(log.read_text(encoding="utf-8", errors="replace")), log)
 
     def coverage_map_is_stale(self) -> bool:
@@ -209,7 +236,7 @@ class MachineBench:
             for left_over in measuring.glob(".coverage*"):
                 left_over.unlink()
             self.suite(self._runner(test_file, "--no-cov"), self.checkout, self._log_for(commit),
-                       measured_run_environment(rcfile))
+                       measured_run_environment(rcfile), asked_to_restart=self.asked_to_restart)
             ran[test_file] = measured_sources(measuring / ".coverage", self.checkout, sources)
         CoverageMap(commit, ran).save(the_machine_s_map(self.primary))
 
@@ -329,13 +356,16 @@ def _mark_passed(ledger: Ledger, bench: Bench, head: str) -> None:
 
 
 def keep_verifying(ledger: Ledger, bench: Bench, nap: Callable[[float], None] = time.sleep) -> None:
-    while True:
+    while not bench.take_restart_request():
         try:
             if cycle(ledger, bench) in _PASSED:
                 return
         except CommandFailed as error:
             _log.warning("could not check main: %s", error)
+        except RestartRequested:
+            continue
         nap(POLL_S)
+    _log.info("restarting, as asked")
 
 
 def cycle(ledger: Ledger, bench: Bench) -> str:
