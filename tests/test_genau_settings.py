@@ -17,7 +17,7 @@ def _write(tmp_path: Path, payload) -> Path:
 
 class TestReadingGenausConfig:
     def test_the_genau_section_is_what_is_read(self, tmp_path):
-        path = _write(tmp_path, {"flicks_dir": "C:/example/flicks", "genau": {
+        path = _write(tmp_path, {"genau": {
             "beats_per_loop": 2.0, "bpm_smoothing": 0.5, "sync_strength": 0.1,
             "flick_cache_size": 4, "shuffle_on_load": False,
             "udp_host": "127.0.0.2", "udp_port": 50999,

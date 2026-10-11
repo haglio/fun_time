@@ -140,11 +140,6 @@ class TestLibrarySource:
 
         assert played == {scene}
 
-    def test_genaus_folder_comes_from_the_top_level_config(self, tmp_path):
-        flicks = tmp_path / "flicks"
-        args = build_parser({"flicks_dir": str(flicks)}).parse_args([])
-        assert args.flicks_dir == flicks
-
 
 class TestAudioMuted:
     def test_default_is_unmuted(self, unmuted):
@@ -420,8 +415,6 @@ class TestTheConfigsOwnDefaults:
     """The main_player section of the config stands in for flags nobody passes."""
 
     CONFIG = {
-        "flicks_dir": "C:/example/library/flicks",
-        "state_dir": "C:/example/state",
         "main_player": {
             "videos_dir": "C:/example/library/videos",
             "scripts_dir": "C:/example/library/scripts",
@@ -435,8 +428,6 @@ class TestTheConfigsOwnDefaults:
         ("videos_dir", Path("C:/example/library/videos")),
         ("scripts_dir", Path("C:/example/library/scripts")),
         ("metadata_dir", Path("C:/example/library/metadata")),
-        ("flicks_dir", Path("C:/example/library/flicks")),
-        ("state_dir", Path("C:/example/state")),
         ("tcode_host", "10.0.0.7"),
         ("tcode_port", 51000),
     ])
@@ -456,12 +447,11 @@ class TestTheConfigsOwnDefaults:
 
         assert args.tcode_port == 50999
 
-    def test_the_flicks_dir_falls_back_to_the_shared_one(self):
-        """The Main Funestra's own section may not name one, and the library's top-level
-        flicks_dir is what every app in the family reads."""
-        args = build_parser({"flicks_dir": "C:/example/library/flicks"}).parse_args([])
+    def test_genaus_folder_and_the_state_folder_come_only_from_the_launch(self):
+        args = build_parser({"flicks_dir": "C:/example/a", "state_dir": "C:/example/b",
+                             "main_player": {"flicks_dir": "C:/example/c"}}).parse_args([])
 
-        assert args.flicks_dir == Path("C:/example/library/flicks")
+        assert (args.flicks_dir, args.state_dir) == (None, None)
 
 
 class TestWhereMainFunestraKeepsItsState:

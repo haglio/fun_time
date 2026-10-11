@@ -43,9 +43,9 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                         "the defaults below")
     p.add_argument("--videos-dir", type=Path, default=main_funestra.get("videos_dir"))
     p.add_argument("--scripts-dir", type=Path, default=main_funestra.get("scripts_dir"))
-    p.add_argument("--flicks-dir", type=Path, default=main_funestra.get("flicks_dir") or config.get("flicks_dir"),
+    p.add_argument("--flicks-dir", type=Path,
                    help="Genau's delivery folder, which Genau mode plays from")
-    p.add_argument("--state-dir", type=Path, default=config.get("state_dir"),
+    p.add_argument("--state-dir", type=Path,
                    help="Where the duration cache is stored")
     p.add_argument("--metadata-dir", type=Path, default=main_funestra.get("metadata_dir"),
                    help="Metadata sidecar root; when set, version families come "
