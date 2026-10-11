@@ -21,17 +21,14 @@ from shared_ui.palette import (
     BG_TERTIARY,
     BLUE,
     BORDER_SUBTLE,
-    TEXT_MUTED,
     TEXT_PRIMARY,
     WHITE,
-    hovered,
 )
 from shared_ui.preview import Preview
 from shared_ui.spacing import (
     BUTTON_GAP,
     BUTTON_GROUP_GAP,
     BUTTON_PAD_H_TIGHT,
-    BUTTON_RADIUS_HUD,
     BUTTON_SIZE_HUD,
 )
 
@@ -48,9 +45,10 @@ from fun_time.event_log import (
 from fun_time.project_paths import PROJECT_ICON
 
 from .console_panel import level_color
+from .dropdown import paint_field, paint_list
+from .slab import button, slab
 
 _DIAL_W = 92  # the name and the arrow beside it
-_ARROW_PX = 10
 _ROW_H = 16
 _FONT_PX = 13
 _SMALL_PX = 11
@@ -156,22 +154,8 @@ def dash_height() -> int:
     return _log_top() + LOG_ROWS * _ROW_H + PAD
 
 
-def _slab(draw, rect: Rect, ground, edge) -> None:
-    draw.rounded_rectangle(
-        (rect.x, rect.y, rect.x + rect.width - 1, rect.y + rect.height - 1),
-        radius=BUTTON_RADIUS_HUD, fill=(*ground, 255), outline=(*edge, 255),
-    )
-
-
-def _button(draw, rect: Rect, fill, hover: tuple[int, int] | None) -> None:
-    edge = TEXT_MUTED if fill == BG_BUTTON else fill
-    _slab(draw, rect, hovered(fill) if _on(rect, hover) else fill, edge)
-
-
-def _label(draw, rect: Rect, text: str, font, ink, *, left: bool = False) -> None:
-    length = font.getlength(text)
-    x = (rect.x + BUTTON_PAD_H_TIGHT if left
-         else rect.x + max(2, round((rect.width - length) / 2)))
+def _label(draw, rect: Rect, text: str, font, ink) -> None:
+    x = rect.x + max(2, round((rect.width - font.getlength(text)) / 2))
     draw.text((x, rect.y + 3), text, font=font, fill=(*ink, 255))
 
 
@@ -187,51 +171,19 @@ _TIP_PAD = 4
 def _paint_tip(draw, under: Rect, text: str, font) -> None:
     tip = Rect(under.x, under.y + under.height + 2,
                round(font.getlength(text)) + 2 * _TIP_PAD, _ROW_H + _TIP_PAD)
-    _slab(draw, tip, BG_TERTIARY, BORDER_SUBTLE)
+    slab(draw, tip, BG_TERTIARY, BORDER_SUBTLE)
     draw.text((tip.x + _TIP_PAD, tip.y + _TIP_PAD // 2), text, font=font,
               fill=(*TEXT_PRIMARY, 255))
 
 
-def _arrow_down(size: int) -> Image.Image:
-    """The family's chevron turned DOWN -- Pillow rotates counter-clockwise, so
-    the sign is what decides which way it ends up."""
-    return glyph_image("chevron_right", size, TEXT_MUTED).rotate(-90, expand=False)
-
-
-def _paint_dial(panel, draw, state: DashState, font,
-                hover: tuple[int, int] | None = None) -> None:  # chrome's field
-    rect = dial_rect()
-    _button(draw, rect, BG_BUTTON, hover)
-    _label(draw, rect, verbosity_name(state.verbosity), font, TEXT_PRIMARY, left=True)
-    panel.alpha_composite(
-        _arrow_down(_ARROW_PX),
-        (rect.x + rect.width - _ARROW_PX - BUTTON_GAP,
-         rect.y + (rect.height - _ARROW_PX) // 2),
-    )
-
-
-def _paint_open_list(draw, state: DashState, font) -> None:
-    """The list, as chrome's menu rules dress a popup: its own ground inside one
-    border, the row it is on in the dropdown blue."""
-    stops = dial_stops()
-    rects = list(stops.values())
-    frame = Rect(rects[0].x, rects[0].y, rects[0].width,
-                 rects[-1].y + rects[-1].height - rects[0].y)
-    _slab(draw, frame, BG_TERTIARY, BORDER_SUBTLE)
-    for action, rect in stops.items():
-        name = action[len(VERBOSITY_STOP):]
-        chosen = LEVELS_BY_NAME[name] == state.verbosity
-        if chosen:
-            draw.rectangle(
-                (rect.x + 1, rect.y, rect.x + rect.width - 2, rect.y + rect.height - 1),
-                fill=(*BLUE, 255),
-            )
-        _label(draw, rect, name, font, TEXT_PRIMARY, left=True)
+def _open_list(state: DashState) -> list[tuple[Rect, str, bool]]:
+    named = ((action[len(VERBOSITY_STOP):], rect) for action, rect in dial_stops().items())
+    return [(rect, name, LEVELS_BY_NAME[name] == state.verbosity) for name, rect in named]
 
 
 def _chip(draw, rect: Rect, label: str, *, on: bool, font,
           hover: tuple[int, int] | None) -> None:
-    _button(draw, rect, BLUE if on else BG_BUTTON, hover)
+    button(draw, rect, BLUE if on else BG_BUTTON, lit=_on(rect, hover))
     _label(draw, rect, label, font, WHITE if on else TEXT_PRIMARY)
 
 
@@ -258,14 +210,15 @@ def paint_dash(state: DashState, records,
               font=wordmark, fill=preview_marker.wordmark_ink(shown_as))
     for control in state.controls():
         rect = control.rect
-        _button(draw, rect, control.lit or BG_BUTTON, None if control.dim else hover)
+        button(draw, rect, control.lit or BG_BUTTON, lit=not control.dim and _on(rect, hover))
         size = mark_side(rect)
         panel.alpha_composite(
             glyph_image(control.mark, size, control.ink),
             (rect.x + (rect.width - size) // 2, rect.y + (rect.height - size) // 2),
         )
 
-    _paint_dial(panel, draw, state, small, hover=hover)
+    paint_field(panel, dial_rect(), verbosity_name(state.verbosity), small,
+                lit=_on(dial_rect(), hover))
     for source, rect in source_chips().items():
         on = source in state.sources
         _chip(draw, rect, SOURCE_LABELS[source], on=on, font=small, hover=hover)
@@ -276,7 +229,7 @@ def paint_dash(state: DashState, records,
                   font=small, fill=(*level_color(record.level), 255))
 
     if state.dial_open:
-        _paint_open_list(draw, state, small)
+        paint_list(panel, _open_list(state), small)
     if shown_as is not None and _on(bar.app_title, hover):
         _paint_tip(draw, bar.app_title, preview_marker.app_title(shown_as), small)
     return panel

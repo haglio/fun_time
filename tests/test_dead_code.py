@@ -307,7 +307,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # on how Genau's clips counted as shorts went with the code that counted them.
 # 6409 the same day: a folder that never divided its cuts shows them as full
 # and clips, and the note on the old suffix went with it.
-MAX_PROSE_LINES = 6409
+# 6405 then: the dashboard's dropdown is drawn by the module the headset's
+# projection list shares with it, so its notes on which way the chevron turns
+# and what ground the open list sits on are the tests' alone.
+MAX_PROSE_LINES = 6405
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
