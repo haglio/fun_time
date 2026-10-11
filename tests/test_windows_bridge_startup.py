@@ -1182,8 +1182,9 @@ def test_the_launch_names_latest_only_for_a_session_left_browsing_it(tmp_path: P
 def test_what_the_main_player_says_as_it_dies_importing_is_what_the_alert_quotes(tmp_path: Path):
     checkout = tmp_path / "a-fun-time-checkout"
     checkout.mkdir()
+    (checkout / "a_sibling_without_the_name.py").write_text("", encoding="utf-8")
     (checkout / "a_main_player_that_dies_importing.py").write_text(
-        "from player_core.clip_folder import a_name_player_core_never_had\n", encoding="utf-8")
+        "from a_sibling_without_the_name import a_name_it_never_had\n", encoding="utf-8")
     log = tmp_path / "state" / "main_player.log"
     logs = logs_as_they_stand(log)
     real_popen = subprocess.Popen
@@ -1203,7 +1204,7 @@ def test_what_the_main_player_says_as_it_dies_importing_is_what_the_alert_quotes
     with pytest.raises(PlayerDied) as died:
         raise_if_a_player_died([LaunchedPlayer("the Main player", pid, logs)])
 
-    assert ("cannot import name 'a_name_player_core_never_had' from 'player_core.clip_folder'"
+    assert ("cannot import name 'a_name_it_never_had' from 'a_sibling_without_the_name'"
             in player_died_message(died.value.player, died.value.said))
 
 
