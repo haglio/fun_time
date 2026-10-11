@@ -12,9 +12,6 @@ import time
 from pathlib import Path
 from unittest.mock import call, patch
 
-import pytest
-from app_support import win32 as shared_win32
-
 from fun_time import win32, win32_process
 from fun_time.win32 import (
     GWL_EXSTYLE,
@@ -30,13 +27,11 @@ from fun_time.win32 import (
     activate_window,
     close_window,
     find_window_by_pid,
-    force_foreground_window,
     is_window_topmost,
     minimize_window,
     move_window,
     restore_window,
     set_always_on_top,
-    window_exists,
     window_rect,
     windows_obscuring,
 )
@@ -265,108 +260,6 @@ class TestActivateWindow:
             activate_window(111)
 
         mock.SetForegroundWindow.assert_called_once_with(111)
-
-
-class TestWindowExists:
-    """A handle outlives the window it named, so anything that must reach THAT
-    window and no other has to ask first."""
-
-    def test_zero_is_never_a_window(self):
-        with patch("fun_time.win32._user32") as mock:
-            mock.IsWindow.return_value = 1
-            assert window_exists(0) is False
-        mock.IsWindow.assert_not_called()
-
-    def test_follows_is_window(self):
-        with patch("fun_time.win32._user32") as mock:
-            mock.IsWindow.return_value = 0
-            assert window_exists(4321) is False
-            mock.IsWindow.return_value = 1
-            assert window_exists(4321) is True
-
-
-class TestForceForegroundWindow:
-    """Chrome gives a forwarded URL to the most recently activated window of the
-    profile, so the RFB tab handoff has to activate Fun Time's own Chrome window
-    first.  The bridge owns neither the foreground window nor the last input when
-    a lock hotkey lands, and Windows refuses SetForegroundWindow from there —
-    silently, with no WM_ACTIVATE — unless the input queues are attached."""
-
-    @staticmethod
-    def _mock(user32, kernel32, *, ends_up_foreground: int, was_foreground: int = 999):
-        user32.IsWindow.return_value = 1
-        user32.GetForegroundWindow.side_effect = [was_foreground, ends_up_foreground]
-        user32.GetWindowThreadProcessId.return_value = 7001
-        user32.AttachThreadInput.return_value = 1
-        kernel32.GetCurrentThreadId.return_value = 7002
-
-    def test_attaches_the_foreground_queue_activates_then_detaches(self):
-        with patch("fun_time.win32._user32") as user32, \
-             patch("fun_time.win32._kernel32") as kernel32:
-            self._mock(user32, kernel32, ends_up_foreground=111)
-
-            assert force_foreground_window(111) is True
-
-        assert user32.AttachThreadInput.call_args_list == [
-            call(7001, 7002, True),
-            call(7001, 7002, False),
-        ]
-        user32.SetForegroundWindow.assert_called_once_with(111)
-        user32.BringWindowToTop.assert_called_once_with(111)
-
-    def test_reports_false_when_the_window_did_not_take_the_foreground(self):
-        with patch("fun_time.win32._user32") as user32, \
-             patch("fun_time.win32._kernel32") as kernel32:
-            self._mock(user32, kernel32, ends_up_foreground=999)
-
-            assert force_foreground_window(111) is False
-
-    def test_dead_handle_activates_nothing(self):
-        with patch("fun_time.win32._user32") as user32, \
-             patch("fun_time.win32._kernel32") as kernel32:
-            self._mock(user32, kernel32, ends_up_foreground=111)
-            user32.IsWindow.return_value = 0
-
-            assert force_foreground_window(111) is False
-
-        user32.SetForegroundWindow.assert_not_called()
-        user32.AttachThreadInput.assert_not_called()
-
-    def test_with_no_foreground_to_attach_the_windows_own_queue_takes_the_activation(self):
-        with patch("fun_time.win32._user32") as user32, \
-             patch("fun_time.win32._kernel32") as kernel32:
-            self._mock(user32, kernel32, ends_up_foreground=0, was_foreground=0)
-            user32.GetWindowThreadProcessId.side_effect = lambda hwnd, _pid: {111: 7003}[hwnd]
-
-            assert force_foreground_window(111) is False
-
-        activation = [c for c in user32.mock_calls if c[0] in ("AttachThreadInput", "SetActiveWindow")]
-        assert activation == [
-            call.AttachThreadInput(7003, 7002, True),
-            call.SetActiveWindow(111),
-            call.AttachThreadInput(7003, 7002, False),
-        ]
-
-    def test_detaches_even_when_the_activation_raises(self):
-        with patch("fun_time.win32._user32") as user32, \
-             patch("fun_time.win32._kernel32") as kernel32:
-            self._mock(user32, kernel32, ends_up_foreground=111)
-            user32.SetForegroundWindow.side_effect = OSError("denied")
-
-            with pytest.raises(OSError):
-                force_foreground_window(111)
-
-        assert user32.AttachThreadInput.call_args_list[-1] == call(7001, 7002, False)
-
-
-@pytest.mark.parametrize("name", ["force_foreground_window", "window_exists"])
-def test_fun_time_brings_windows_forward_with_the_familys_own_helper_once_app_support_has_it(name):
-    shared = getattr(shared_win32, name, None)
-
-    assert shared is None or getattr(win32, name) is shared, (
-        f"app_support.win32 now offers {name}: delete fun_time/win32.py's own copy, "
-        "import app_support's in its place, and drop its tests here, which "
-        "app_support's own tests now cover")
 
 
 class TestMinimizeWindow:

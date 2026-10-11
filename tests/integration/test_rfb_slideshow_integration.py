@@ -12,10 +12,10 @@ import os
 import sys
 
 import pytest
+from app_support.win32 import force_foreground_window
 
 from fun_time.chrome_accessibility import open_chrome_window
 from fun_time.chrome_tabs import ChromeTabSwitcher
-from fun_time.win32 import force_foreground_window
 from tests.integration.throwaway_chrome import TAB_TIMEOUT_S, await_window
 
 pytestmark = [

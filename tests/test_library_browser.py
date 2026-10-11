@@ -25,7 +25,6 @@ from fun_time.library_browser import (
     IndexLine,
     LibraryBrowserWindow,
     alphabetical_index,
-    bring_the_browse_forward,
     browse_library,
     load_browser_config,
     load_clip_browser_config,
@@ -874,21 +873,6 @@ def test_the_grid_takes_the_focus_though_the_sidebar_stands_first(browser, tmp_p
     assert window.focusWidget() is window.grid
 
 
-def test_the_browse_takes_the_foreground_for_its_own_window(browser, tmp_path: Path):
-    """Qt's activation alone is refused here — see bring_the_browse_forward."""
-    window = browser(
-        [_handle("Beta Scene", section="main")],
-        thumbnail_cache=tmp_path,
-        on_pick=lambda _v: None,
-    )
-
-    with patch("fun_time.library_browser.force_foreground_window",
-               return_value=True) as forced:
-        assert bring_the_browse_forward(window) is True
-
-    forced.assert_called_once_with(int(window.winId()))
-
-
 def test_opening_the_browser_brings_it_in_front_of_the_players(tmp_path: Path):
     """The regression: the browse used to come up under the main player, with
     the arrows and Enter still going to the player, because the entry point
@@ -898,7 +882,7 @@ def test_opening_the_browser_brings_it_in_front_of_the_players(tmp_path: Path):
     manifest.write_text("", encoding="utf-8")
 
     with patch("fun_time.library_browser.LibraryBrowserWindow.show"), \
-         patch("fun_time.library_browser.bring_the_browse_forward") as forward, \
+         patch("fun_time.library_browser.bring_to_front") as forward, \
          patch.object(QApplication, "exec", return_value=0):
         assert main([str(manifest), str(tmp_path / "pick.txt")]) == 0
 
@@ -1020,7 +1004,7 @@ def test_the_desktops_genau_browse_forks_into_vr_and_2d_with_the_ai_clips_apart_
     manifest = write_windows_bridge_manifest(config)
 
     with patch("fun_time.library_browser.LibraryBrowserWindow.show"), \
-         patch("fun_time.library_browser.bring_the_browse_forward") as forward, \
+         patch("fun_time.library_browser.bring_to_front") as forward, \
          patch.object(QApplication, "exec", return_value=0):
         main([str(manifest), str(tmp_path / "pick.txt"), "--genau"])
 
