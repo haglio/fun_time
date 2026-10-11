@@ -240,6 +240,11 @@ def _never_inherit_the_integration_flag(monkeypatch):
     monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def _runs_record_their_place_in_line_away_from_the_machine(monkeypatch, tmp_path_factory):
+    monkeypatch.setenv("FUN_TIME_LINE_RECORDS", str(tmp_path_factory.getbasetemp() / "line_records"))
+
+
 @pytest.fixture
 def unmuted(monkeypatch):
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO")

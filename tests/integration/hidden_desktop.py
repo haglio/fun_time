@@ -48,18 +48,20 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable, Iterator, Mapping
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 from time import monotonic
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
+from fun_time.checkout_overrides import STATE_DIRNAME, primary_of
 from fun_time.win32_job import a_job_whose_processes_end_with_it
 from fun_time.win32_loader import load_dll, win_functype
 
 from .coverage_map import CoverageMap, Picked, changed_paths, tests_to_run, the_machine_s_map
 from .flake_gate_install import flake_gate_python
+from .line_record import Visit
 from .run_clock import WALL, Budget, RunClock, busy_seconds_of_job, keep_time_by
 from .session_lock import (
     FULL_RUN_GIVES_WAY_S,
@@ -473,8 +475,8 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
         return _repeat_what_changed(_base_of(extra_args))
     if extra_args[:1] == [CHANGED]:
         return _run_what_this_change_needs(_base_of(extra_args))
-    with _a_place_in_line(short=_is_short(extra_args)):
-        return _run_the_suite(build_run_argv(extra_args), sys.executable, RUN_CEILING_S)
+    with _a_place_in_line(short=_is_short(extra_args), what=extra_args) as visit:
+        return visit.ended_with(_run_the_suite(build_run_argv(extra_args), sys.executable, RUN_CEILING_S))
 
 
 def what_this_change_needs(base: str) -> Picked:
@@ -488,31 +490,52 @@ def _run_what_this_change_needs(base: str) -> int:
     if not (picked.everything or picked.files):
         return 0
     files = [] if picked.everything else sorted(picked.files)
-    with _a_place_in_line(short=bool(files)):
-        return _run_the_suite(build_run_argv([*files, STOP_AT_THE_FIRST_FAILURE]), sys.executable,
-                              RUN_CEILING_S)
+    with _a_place_in_line(short=bool(files), what=files) as visit:
+        return visit.ended_with(_run_the_suite(build_run_argv([*files, STOP_AT_THE_FIRST_FAILURE]),
+                                               sys.executable, RUN_CEILING_S))
 
 
 def _is_short(extra_args: list[str]) -> bool:
     return _names_its_tests(extra_args) or any(arg.startswith("-k") for arg in extra_args)
 
 
-def _a_place_in_line(*, short: bool) -> AbstractContextManager:
-    return hold_integration_lock(short=short, notify=_announce_waiting)
+LINE_RECORDS_ENV = "FUN_TIME_LINE_RECORDS"
+LINE_RECORDS_DIRNAME = "integration_runs"
+
+
+def _line_records() -> Path:
+    if elsewhere := os.environ.get(LINE_RECORDS_ENV):
+        return Path(elsewhere)
+    return primary_of(_repo_root()) / STATE_DIRNAME / LINE_RECORDS_DIRNAME
+
+
+def _branch_of(checkout: Path) -> str:
+    done = subprocess.run(["git", "-C", str(checkout), "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True,
+                          text=True, **hidden_subprocess_kwargs())
+    return done.stdout.strip()
+
+
+@contextmanager
+def _a_place_in_line(*, short: bool, what: list[str]) -> Iterator[Visit]:
+    root = _repo_root()
+    visit = Visit.join(_line_records(), checkout=root.name, branch=_branch_of(root), what=what, short=short)
+    with hold_integration_lock(short=short, notify=_announce_waiting):
+        visit.got_the_machine()
+        yield visit
 
 
 def _repeat_what_changed(base: str) -> int:
     gate_python = flake_gate_python(_repo_root() / "state")
     files = files_with_a_changed_test(gate_python, base, _repo_root())
-    with _a_place_in_line(short=True):
+    with _a_place_in_line(short=True, what=["--repeat-changed", base]) as visit:
         minutes_left = REPEAT_BUDGET_MINUTES
         if files:
             started = monotonic()
             if code := _run_each_file_whole(files):
-                return code
+                return visit.ended_with(code)
             minutes_left = max(0.0, minutes_left - (monotonic() - started) / 60)
-        return _run_the_suite(build_gate_argv(base, minutes_left), gate_python,
-                              minutes_left * 60 + RUN_CEILING_S)
+        return visit.ended_with(_run_the_suite(build_gate_argv(base, minutes_left), gate_python,
+                                               minutes_left * 60 + RUN_CEILING_S))
 
 
 def _run_each_file_whole(files: list[str]) -> int:
