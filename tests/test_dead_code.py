@@ -301,11 +301,11 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6439 on 2026-10-09: the browse names a band after the folder its cuts were
 # filed into only when each folder holds mostly its own band, and the two
 # paragraphs that described the older test went to tests naming its cases.
-# 6474 the same day: a clip that names no compilation has none to play, and the
+# 6433 the same day: a clip that names no compilation has none to play, and the
 # notes on the compilation playlist went to the tests that already state them.
-# 6453 the same day: Kino plays nothing from Genau's folder, so the paragraphs
+# 6412 the same day: Kino plays nothing from Genau's folder, so the paragraphs
 # on how Genau's clips counted as shorts went with the code that counted them.
-# 6450 the same day: a folder that never divided its cuts shows them as full
+# 6409 the same day: a folder that never divided its cuts shows them as full
 # and clips, and the note on the old suffix went with it.
 MAX_PROSE_LINES = 6409
 
