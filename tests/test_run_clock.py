@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.wintypes as wt
+import os
 import subprocess
 import sys
 import threading
+import time
 
 import pytest
 
@@ -13,6 +15,7 @@ from fun_time.win32_job import a_job_whose_processes_end_with_it
 from tests.integration import run_clock
 from tests.integration.run_clock import (
     Budget,
+    OnTimeClock,
     RunClock,
     busy_seconds_of_job,
     keep_time_by,
@@ -168,3 +171,72 @@ def test_a_cancelled_timeout_never_fires(frozen):
     frozen.at = 240.0
 
     assert not timed_out.wait(0.2)
+
+
+class _Samples:
+    def __init__(self, *samples: tuple[float, set[int]]) -> None:
+        self.at = 0.0
+        self._samples = iter(samples)
+        self._waiting: set[int] = set()
+        self.done = threading.Event()
+
+    def wall(self) -> float:
+        return self.at
+
+    def waiting(self) -> set[int]:
+        return self._waiting
+
+    def nap(self, _seconds: float) -> None:
+        sample = next(self._samples, None)
+        if sample is None:
+            self.done.set()
+            time.sleep(0.001)
+            return
+        wait, self._waiting = sample
+        self.at += wait
+
+
+def _after(*samples: tuple[float, set[int]]) -> OnTimeClock:
+    script = _Samples(*samples)
+    with OnTimeClock(slack_s=1 / 60, nap_s=0.001, nap=script.nap, wall=script.wall,
+                     waiting=script.waiting) as clock:
+        assert script.done.wait(5.0)
+        return clock
+
+
+def test_a_run_whose_thread_gets_the_processor_within_the_slack_has_every_second_on_time():
+    assert _after((0.001, set()), (0.002, set()), (0.015, set())).seconds() == pytest.approx(0.018)
+
+
+def test_a_stretch_the_runs_thread_waited_longer_than_the_slack_for_is_not_on_time():
+    assert _after((0.001, set()), (0.4, set()), (0.001, set())).seconds() == pytest.approx(0.002)
+
+
+def test_a_stretch_in_which_another_thread_of_the_run_waited_longer_than_the_slack_is_not_on_time():
+    clock = _after((0.002, set()), (0.002, {7}), (0.010, {7}), (0.010, {7}), (0.002, set()))
+
+    assert clock.seconds() == pytest.approx(0.016)
+
+
+def test_an_on_time_clock_counts_the_real_seconds_its_thread_is_given_until_it_is_closed():
+    with OnTimeClock(slack_s=1 / 60) as clock:
+        given_up_at = time.monotonic() + 30.0
+        while clock.seconds() < 0.05 and time.monotonic() < given_up_at:
+            time.sleep(0.01)
+        assert clock.seconds() >= 0.05
+
+    assert not [thread for thread in threading.enumerate() if thread.name == "on-time clock"]
+
+
+def test_the_run_is_held_while_a_thread_of_it_has_waited_longer_than_the_slack():
+    assert _after((0.002, {7}), (0.020, {7})).held()
+    assert not _after((0.002, {7}), (0.010, {7})).held()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 scheduler")
+def test_the_on_time_clock_reads_this_processes_threads_and_their_states_from_windows():
+    kernel32 = ctypes.WinDLL("kernel32")
+    kernel32.GetCurrentThread.restype = wt.HANDLE
+
+    assert threading.get_native_id() in run_clock._thread_ids_of(os.getpid())
+    assert run_clock._scheduler_state(kernel32.GetCurrentThread()) == 2  # Running
