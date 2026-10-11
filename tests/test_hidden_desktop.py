@@ -261,6 +261,18 @@ def _runs_launched_into(launched: list[tuple[str, str]], *, changed_files=(), ex
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_every_run_records_when_it_joined_the_line_got_the_machine_and_how_it_ended(tmp_path, monkeypatch):
+    monkeypatch.setenv("FUN_TIME_LINE_RECORDS", str(tmp_path))
+    with _runs_launched_into([], exit_codes=[1]):
+        hidden_desktop.run_on_hidden_desktop(["-k", "test_x"])
+
+    [written] = tmp_path.glob("*.json")
+    record = json.loads(written.read_text(encoding="utf-8"))
+    assert (record["what"], record["short"], record["exit_code"]) == (["-k", "test_x"], True, 1)
+    assert record["joined"] <= record["got_the_machine"] <= record["ended"]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
 @pytest.mark.parametrize("args, short", [
     (["-k", "test_x"], True), (["-ktest_x"], True), (["tests/integration/test_x.py"], True),
     (["--repeat-changed"], True), ([], False), (["-x", "--maxfail", "1"], False),
