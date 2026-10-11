@@ -12,6 +12,8 @@ from __future__ import annotations
 _.do_GET  # http.server dispatches by getattr
 _.set_showing  # the Funestra (funestra) tells each User whether it has the window
 _.picture  # the Funestra asks the User in front for the picture it brings
+_.drawing  # the Funestra's console asks the headset's projection controls what to draw
+_.least_width  # the Funestra's console widens to the projection controls' least width
 _.leaveEvent  # Qt calls it when the pointer leaves the dashboard bar
 _.mouseMoveEvent  # Qt event override
 _.ERROR_CHECKING  # PyOpenGL reads it once, when OpenGL.GL is first imported
