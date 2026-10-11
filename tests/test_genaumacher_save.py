@@ -56,7 +56,7 @@ def test_the_save_runs_genaumachers_venv_on_main_funestras_video_and_position(tm
         encoding="utf-8",
     )
 
-    checkout = _a_checkout_holding(tmp_path / "checkout", "genaumacher")
+    checkout = tmp_path / "genaumacher"
     with patch("fun_time.genaumacher_save._genaumacher_project_dir", return_value=checkout), \
          patch("fun_time.genaumacher_save._genaumacher_python", return_value="python"), \
          patch("fun_time.genaumacher_save.subprocess") as mock_subprocess:
@@ -70,6 +70,7 @@ def test_the_save_runs_genaumachers_venv_on_main_funestras_video_and_position(tm
     assert cmd[0] == "python"
     assert "-m" in cmd
     assert "genaumacher.create_session" in cmd
+    assert mock_subprocess.run.call_args.kwargs["cwd"] == str(checkout)
     assert "--video" in cmd
     assert r"C:\videos\test.mp4" in cmd
     assert "--time" in cmd
@@ -154,27 +155,3 @@ def test_a_bug_in_our_own_argument_building_surfaces(tmp_path: Path):
          patch("fun_time.genaumacher_save.subprocess.run", side_effect=TypeError("bug")), \
          pytest.raises(TypeError):
         save_clip_session(config)
-
-
-def _a_checkout_holding(root: Path, package: str) -> Path:
-    (root / package).mkdir(parents=True)
-    (root / package / "create_session.py").touch()
-    return root
-
-
-@pytest.mark.parametrize("package", ["genaumacher", "clipper"])
-def test_the_save_runs_the_package_the_checkout_holds(tmp_path: Path, package):
-    checkout = _a_checkout_holding(tmp_path / "checkout", package)
-    config = _make_config(tmp_path)
-    config.main_funestra_status_file.write_text(
-        "video=C:\videos\test.mp4\nposition_ms=42500\n", encoding="utf-8",
-    )
-
-    with patch("fun_time.genaumacher_save._genaumacher_project_dir", return_value=checkout), \
-         patch("fun_time.genaumacher_save._genaumacher_python", return_value="python"), \
-         patch("fun_time.genaumacher_save.subprocess") as mock_subprocess:
-        mock_subprocess.run.return_value.returncode = 0
-        mock_subprocess.run.return_value.stdout = r"C:\checkout\sessions\test.json"
-        save_clip_session(config)
-
-    assert f"{package}.create_session" in mock_subprocess.run.call_args[0][0]

@@ -4127,25 +4127,8 @@ def test_the_genaumacher_sibling_is_found_beside_the_primary_not_beside_a_worktr
     finally:
         _genaumacher_project_dir.cache_clear()
 
-    assert resolved.name in genaumacher_save.NAMES_NEWEST_FIRST
+    assert resolved.name == "genaumacher"
     assert "worktrees" not in resolved.parts
-
-
-@pytest.mark.parametrize(("folders", "found"), [
-    (("genaumacher", "clipper"), "genaumacher"),
-    (("clipper",), "clipper"),
-])
-def test_the_sibling_is_the_folder_the_checkout_has_now(tmp_path, folders, found):
-    for name in folders:
-        (tmp_path / name).mkdir()
-    _genaumacher_project_dir.cache_clear()
-    try:
-        with patch("fun_time.branch_session.primary_checkout", return_value=tmp_path / "fun_time"):
-            resolved = _genaumacher_project_dir()
-    finally:
-        _genaumacher_project_dir.cache_clear()
-
-    assert resolved == tmp_path / found
 
 
 def test_the_genaumacher_sibling_falls_back_to_this_checkout_without_git():
