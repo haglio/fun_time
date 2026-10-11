@@ -103,7 +103,10 @@ def _saved_so_far(data_file: Path, measured: Path, copy: Path) -> frozenset[str]
     shutil.rmtree(copy, ignore_errors=True)
     if not data_file.parent.exists():
         return frozenset()
-    shutil.copytree(data_file.parent, copy)
+    try:
+        shutil.copytree(data_file.parent, copy)
+    except shutil.Error:
+        return frozenset()
     return measured_sources(copy / data_file.name, measured, frozenset({"ran.py"}))
 
 
