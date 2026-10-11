@@ -333,14 +333,27 @@ def stop_after_two_naps():
 
 
 def test_main_is_checked_and_the_outcome_logged_each_time_the_runner_wakes(tmp_path, caplog):
-    bench = FakeBench("c3", ["a1", "b2", "c3"])
+    bench = FakeBench("c3", ["a1", "b2", "c3"], broken_from="c3")
     ledger = a_ledger(tmp_path, verified="a1")
     naps, nap = stop_after_two_naps()
     with caplog.at_level("INFO"), pytest.raises(KeyboardInterrupt):
         main_verifier.keep_verifying(ledger, bench, nap=nap)
 
     assert naps == [main_verifier.POLL_S] * 2
-    assert [record.getMessage() for record in caplog.records] == ["main at c3: passed", "main at c3: nothing"]
+    assert [record.getMessage() for record in caplog.records] == ["main at c3: broke main", "main at c3: wait"]
+
+
+@pytest.mark.parametrize("how_it_passed", [{}, {"broken_from": "c3", "flaky": True}], ids=["passed", "flaky"])
+def test_the_runner_ends_once_a_head_passes_so_that_it_starts_again_running_the_code_it_passed(
+        tmp_path, how_it_passed):
+    bench = FakeBench("c3", ["a1", "b2", "c3"], **how_it_passed)
+
+    def nap(seconds):
+        raise AssertionError("the runner went back to sleep on the code it had before main moved")
+
+    main_verifier.keep_verifying(a_ledger(tmp_path, verified="a1"), bench, nap=nap)
+
+    assert bench.advanced == ["c3"]
 
 
 def test_a_check_that_could_not_reach_main_is_logged_and_tried_again_next_time(tmp_path, caplog):
