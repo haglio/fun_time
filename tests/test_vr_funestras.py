@@ -320,10 +320,16 @@ def test_kino_runs_on_it_through_the_library_and_the_memory_the_desktop_reads(
     assert library.call_args.args == (manifest, _A_SESSION)
     users = faked_collaborators["Funestra"].call_args.kwargs["users"]
     assert users == {MainMode.KINO: library.return_value.kino.return_value}
-    assert library.return_value.kino.call_args.args == (
-        Path(manifest.commands.main_funestra_notice_file),)
     assert (faked_collaborators["Funestra"].call_args.kwargs["playlist"]
             is library.return_value.playlist.return_value)
+
+
+def test_the_library_names_the_sessions_notice_file_to_kino(tmp_path):
+    manifest = _manifest_for_a_vr_session(tmp_path)
+
+    library = funestras._TheLibrary(manifest, _A_SESSION, while_reading=lambda: None)
+
+    assert library.args.notice_file == Path(manifest.commands.main_funestra_notice_file)
 
 
 def test_the_main_slot_drives_the_headsets_osr2_inlet(tmp_path, faked_collaborators):
@@ -491,7 +497,7 @@ class _ALibrary:
     def playlist(self) -> list[PlaylistItem]:
         return [PlaylistItem(self._video)]
 
-    def kino(self, _notice_file):
+    def kino(self):
         return _AKino
 
 
@@ -1362,6 +1368,17 @@ def test_the_cover_goes_up_before_the_funestras_are_built():
     assert calls["_raise_the_cover"] < calls["_MainUnit"]
     assert calls["_raise_the_cover"] < calls["_SatelliteUnit"]
     assert calls["_raise_the_cover"] < calls["_PanelUnit"]
+
+
+def test_the_headset_builds_kino_with_the_desktops_own_builder():
+    """The Main player's Kino in the headset comes off the very function the
+    desktop's Main player builds its own with, so a change to one cannot miss
+    the other: the headset's own copy went on asking the library for Genau's
+    clips after the desktop had stopped playing them."""
+    tree = ast.parse(inspect.getsource(funestras._TheLibrary.kino).lstrip())
+    calls = {ast.unparse(node.func) for node in ast.walk(tree) if isinstance(node, ast.Call)}
+
+    assert "kino_on" in calls
 
 
 def _keyword_given(source_of, call: str, keyword: str) -> str:

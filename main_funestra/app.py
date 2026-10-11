@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import os
-from functools import partial
 from pathlib import Path
 
 import pygame
@@ -28,19 +27,17 @@ from fun_time.genau_config import GenauSettings
 from .cli import (
     audio_muted,
     build_parser,
+    kino_on,
     library_source,
     load_config,
     mode_memory,
     resolve_playlist,
 )
-from .clip_nav import ClipNav
 from .contract import MainChannels
 from .funestra_priority import ahead_on_the_processor
 from .genau import Genau, GenauChannels
 from .input import Input
-from .kino import Kino
 from .loading import LoadingCanceled, LoadingScreen
-from .notice import NoticeWriter
 from .window import take_outside_resizes, wear_the_icon
 
 logger = logging.getLogger(__name__)
@@ -106,7 +103,6 @@ def _run(args) -> int:
     screen = _open_window(args)
     wid = pygame.display.get_wm_info()["window"]
     memory = mode_memory(args)
-    remembered = memory.read()
     loading = LoadingScreen(screen, icon=args.icon)
     try:
         source = library_source(args, on_progress=loading.update)
@@ -122,18 +118,10 @@ def _run(args) -> int:
     scripted = sum(1 for item in items if item.funscript is not None)
     logger.info("Found %d item(s), %d with funscripts", len(items), scripted)
 
-    entries = source.entries if source is not None else []
-    clip_nav = ClipNav.build(
-        [e.video for e in entries],
-        source.metadata_root if source is not None else None,
-    )
     funestra = Funestra.on_window(
         wid, channels=MainChannels.from_args(args), playlist=items,
         audible=not audio_muted(args), tiles=True, locked=True, sound_is_the_rooms=True,
-        users=_users(args, kino=partial(
-            Kino, source=source, clip_nav=clip_nav, notices=NoticeWriter(args.notice_file),
-            memory=memory, remembered=remembered,
-            resolve_playlist=partial(resolve_playlist, args, source=source))),
+        users=_users(args, kino=kino_on(args, source=source, memory=memory)),
     )
     window_input = Input(funestra)
     clock = pygame.time.Clock()

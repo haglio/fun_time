@@ -6,10 +6,11 @@ import json
 from pathlib import Path
 
 from funestra_core.funestra import User
-from funestra_core.modes import LengthMode, LoopState
+from funestra_core.modes import LengthMode, LoopState, NoticeLevel
 from funestra_core.playback import Playback
 from funestra_core.playlist import PlaylistItem
 
+from main_funestra.cli import build_parser, kino_on
 from main_funestra.clip_nav import ClipNav
 from main_funestra.kino import Kino
 from main_funestra.library import LibraryEntry
@@ -215,3 +216,33 @@ class TestWhatItSays:
 
         assert world.kino.status_fields()["compilation"] == "Vol6"
         assert world.playback.current_video == world.second
+
+
+class TestKinoOnTheLibrary:
+    """The one Kino the desktop's Main player and the headset's both run: built
+    off the Main player's own flags, the library and the mode it remembers."""
+
+    def _args(self, tmp_path):
+        return build_parser({}).parse_args([
+            "--playlist", str(tmp_path / "main_player_playlist.tsv"),
+            "--state-dir", str(tmp_path), "--notice-file", str(tmp_path / "notice.json")])
+
+    def test_its_clip_navigation_is_the_librarys_own_videos(self, tmp_path):
+        world = World(tmp_path)
+
+        made = kino_on(self._args(tmp_path), source=world.source, memory=world.memory)
+
+        assert made.keywords["clip_nav"].compilation_playlist(world.first) == [world.first, world.second]
+
+    def test_it_reads_and_tells_through_the_files_the_main_player_was_given(self, tmp_path):
+        world = World(tmp_path)
+        (tmp_path / "main_player_playlist.tsv").write_text(f"{world.second}\n", encoding="utf-8")
+
+        made = kino_on(self._args(tmp_path), source=world.source, memory=world.memory)
+        made.keywords["notices"].say("a notice", level=NoticeLevel.NOTICE)
+
+        assert made.keywords["source"] is world.source
+        assert made.keywords["memory"] is world.memory
+        assert made.keywords["remembered"] == world.memory.read()
+        assert made.keywords["resolve_playlist"]() == [PlaylistItem(world.second)]
+        assert "message=a notice" in (tmp_path / "notice.json").read_text(encoding="utf-8")

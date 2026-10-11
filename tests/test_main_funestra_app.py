@@ -57,18 +57,10 @@ class TestWhatTheFunestraIsHanded:
 
         assert given["channels"] == "MainChannels.from_args(args)"
 
-    def test_kino_runs_on_it_with_the_library_the_memory_and_the_notices(self):
+    def test_kino_runs_on_it_with_the_library_and_the_memory(self):
         given = _keywords(_call(_function("_run"), "Funestra.on_window"))
-        kino = _keywords(next(n for n in ast.walk(_function("_run"))
-                              if isinstance(n, ast.Call) and _said(n.func) == "partial"
-                              and _said(n.args[0]) == "Kino"))
 
-        assert given["users"].startswith("_users(args, kino=partial(Kino,")
-        assert kino["source"] == "source"
-        assert kino["memory"] == "memory"
-        assert kino["remembered"] == "remembered"
-        assert kino["notices"] == "NoticeWriter(args.notice_file)"
-        assert kino["resolve_playlist"] == "partial(resolve_playlist, args, source=source)"
+        assert given["users"] == "_users(args, kino=kino_on(args, source=source, memory=memory))"
 
     def test_the_window_is_measured_once_a_frame_and_both_parts_are_given_it(self):
         loop = next(n for n in ast.walk(_function("_run")) if isinstance(n, ast.While))
