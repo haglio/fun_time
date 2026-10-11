@@ -546,12 +546,23 @@ def test_a_shortcut_is_refused_for_a_worktree_missing_work_the_primary_has(prima
     git(primary_with_launcher.primary, "commit", "--allow-empty", "-m",
          "Work that landed after the branch was cut", when="2026-04-01T12:00:00")
 
-    with pytest.raises(branch_session.OutOfDateWorktree, match=r"missing 1 commit\b"):
+    with pytest.raises(branch_session.OutOfDateWorktree, match=r"missing 1 commit\b.*origin/main"):
         branch_session.write_launch_shortcut(
             primary_with_launcher.newer, primary=primary_with_launcher.primary
         )
 
     assert not (primary_with_launcher.primary / "Verify example-newer.lnk").exists()
+
+
+def test_a_shortcut_is_refused_for_a_branch_built_on_a_library_newer_than_this_computer_has(
+        primary_with_launcher, monkeypatch):
+    _pin(primary_with_launcher.newer, "shared_ui", "v0.1.185")
+    monkeypatch.setattr(branch_session, "installed_version", {"shared_ui": "0.1.180"}.get)
+
+    with pytest.raises(branch_session.OutOfDateLibrary, match=r"shared_ui v0\.1\.185"):
+        branch_session.write_launch_shortcut(
+            primary_with_launcher.newer, primary=primary_with_launcher.primary
+        )
 
 
 def test_the_launch_seeds_the_branchs_state_from_the_live_sessions(checkouts):
@@ -579,7 +590,6 @@ def _launch_with_one_live_thumbnail(checkouts, monkeypatch, start_the_session) -
     live_thumbnails.mkdir(parents=True)
     (live_thumbnails / "abc123.jpg").write_bytes(b"thumbnail")
     monkeypatch.setattr(branch_session.subprocess, "Popen", start_the_session)
-    monkeypatch.setattr(branch_session, "commits_missing", lambda worktree, primary: 0)
     branch_session.launch(checkouts.worktree, primary=checkouts.primary,
                           primary_config_path=checkouts.config_path)
 
@@ -718,7 +728,6 @@ def _launch_recorded(monkeypatch, tmp_path: Path, **kwargs) -> _RecordedStart:
     )
     monkeypatch.setattr(branch_session, "top_up_branch_thumbnails", lambda worktree, **_: None)
     monkeypatch.setattr(branch_session, "primary_checkout", lambda start=None: tmp_path)
-    monkeypatch.setattr(branch_session, "commits_missing", lambda worktree, primary: 0)
     monkeypatch.setattr(branch_session.subprocess, "Popen", recorded)
     branch_session.launch(tmp_path, **kwargs)
     return recorded
@@ -783,23 +792,64 @@ def _note_left_in(worktree: Path) -> Path:
     return worktree / "state" / branch_session.OUT_OF_DATE_NOTE_NAME
 
 
-def test_a_worktree_missing_work_the_primary_has_is_refused_before_a_room_opens(
-        repo_with_worktrees, monkeypatch):
-    """The sibling checkouts a session runs against move with the primary, so a
-    branch left on an older Fun Time can start things this computer no longer has; refused, it
-    says so in his words instead of opening a room that dies."""
+def test_a_worktree_missing_work_the_primary_has_still_starts(repo_with_worktrees, monkeypatch):
     _land_work_on_the_primary(repo_with_worktrees)
     sessions = _sessions_exit_with(monkeypatch, 0)
 
     returncode = branch_session.launch(
         repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
 
-    assert returncode == 1
-    assert sessions == []
+    assert returncode == 0
+    assert len(sessions) == 1
+    assert not _note_left_in(repo_with_worktrees.newer).exists()
+
+
+def _pin(worktree: Path, repo: str, tag: str) -> None:
+    (worktree / "pyproject.toml").write_text(
+        '[project]\nname = "fun-time"\ndependencies = [\n'
+        f'    "{repo.replace("_", "-")} @ git+https://github.com/haglio/{repo}@{tag}",\n]\n',
+        encoding="utf-8")
+
+
+def test_a_branch_built_on_a_library_newer_than_this_computer_has_is_refused_before_a_room_opens(
+        repo_with_worktrees, monkeypatch):
+    _pin(repo_with_worktrees.newer, "shared_ui", "v0.1.185")
+    monkeypatch.setattr(branch_session, "installed_version", {"shared_ui": "0.1.180"}.get)
+    sessions = _sessions_exit_with(monkeypatch, 0)
+
+    returncode = branch_session.launch(
+        repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
+
+    assert (returncode, sessions) == (1, [])
     note = _note_left_in(repo_with_worktrees.newer).read_text(encoding="utf-8")
-    assert "Fun Time couldn't start on example/newer" in note
-    assert "1 change older than the one you normally run" in note
-    assert "bring its branch up to date and make you a new launcher" in note
+    assert "built on shared_ui v0.1.185, and this computer has v0.1.180" in note
+
+
+@pytest.mark.parametrize("installed", ["0.1.472", "0.1.480"])
+def test_a_branch_built_on_a_library_this_computer_has_or_has_newer_still_starts(
+        repo_with_worktrees, monkeypatch, installed):
+    _pin(repo_with_worktrees.newer, "player_core", "v0.1.472")
+    monkeypatch.setattr(branch_session, "installed_version", {"player_core": installed}.get)
+    sessions = _sessions_exit_with(monkeypatch, 0)
+
+    returncode = branch_session.launch(
+        repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
+
+    assert (returncode, len(sessions)) == (0, 1)
+
+
+def test_a_library_the_branch_runs_out_of_its_own_checkout_is_not_asked_of_this_computer(
+        repo_with_worktrees, monkeypatch, tmp_path):
+    _pin(repo_with_worktrees.newer, "shared_ui", "v0.1.185")
+    checkout = tmp_path / "shared_ui"
+    checkout.mkdir()
+    (checkout / "pyproject.toml").write_text('[project]\nname = "shared-ui"\n', encoding="utf-8")
+    (repo_with_worktrees.newer / "state").mkdir(exist_ok=True)
+    (repo_with_worktrees.newer / "state" / branch_session.GENAU_DIRS_OVERRIDE_NAME).write_text(
+        f"{checkout}\n", encoding="utf-8")
+    monkeypatch.setattr(branch_session, "installed_version", {"shared_ui": "0.1.180"}.get)
+
+    assert branch_session.libraries_older_than_the_pin(repo_with_worktrees.newer) == []
 
 
 def _stop_part_way_through(worktree: Path, left_behind: str = "rebase-merge") -> None:
@@ -842,18 +892,6 @@ def test_one_part_way_through_a_merge_is_refused_the_same_way(
         repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
 
     assert (returncode, sessions) == (1, [])
-
-
-def test_the_refusal_tells_the_agent_to_rebase(repo_with_worktrees, monkeypatch, capsys):
-    _land_work_on_the_primary(repo_with_worktrees)
-    _sessions_exit_with(monkeypatch, 0)
-
-    branch_session.launch(repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
-
-    printed = capsys.readouterr().out
-    assert "Refused: " in printed
-    assert "missing 1 commit the primary checkout has" in printed
-    assert "origin/main" in printed
 
 
 def test_a_worktree_carrying_everything_the_primary_has_launches(

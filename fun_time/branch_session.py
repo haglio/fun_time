@@ -24,6 +24,7 @@ which never learns a session moved, so they stay pinned to the primary's.
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import os
 import re
@@ -307,11 +308,10 @@ def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
         return _refuse(worktree, branch_label(worktree, current_branch(worktree)),
                        BEING_REBUILT, f"{worktree} is part way through a rebase or a merge; "
                        "finish it first.")
-    missing = commits_missing(worktree, primary)
-    if missing:
+    lacking = libraries_older_than_the_pin(worktree)
+    if lacking:
         return _refuse(worktree, branch_label(worktree, current_branch(worktree)),
-                       _older_than_the_fun_time_he_runs(missing),
-                       str(OutOfDateWorktree(worktree, missing)))
+                       _built_on_a_newer_library(lacking[0]), str(OutOfDateLibrary(lacking[0])))
     older = sibling_checkouts_older_than_the_pin(worktree)
     if older:
         return _refuse(worktree, branch_label(worktree, current_branch(worktree)),
@@ -350,10 +350,54 @@ def _git_dir(checkout: Path) -> Path:
     return dot_git
 
 
-def _older_than_the_fun_time_he_runs(missing: int) -> str:
-    return (f"That branch's copy of Fun Time is {missing} change{'' if missing == 1 else 's'} "
-            "older than the one you normally run, and a branch that old can start things this "
-            "computer no longer has.")
+def installed_version(repo: str) -> str | None:
+    try:
+        return importlib.metadata.version(repo)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+@dataclass(frozen=True)
+class LibraryOlderThanThePin:
+    repo: str
+    tag: str
+    installed: str | None
+
+    @property
+    def installed_text(self) -> str:
+        return f"v{self.installed}" if self.installed else "no copy of it"
+
+
+class OutOfDateLibrary(RuntimeError):
+    def __init__(self, older: LibraryOlderThanThePin):
+        super().__init__(
+            f"This branch is built on {older.repo} {older.tag}, and the venv its session runs on has "
+            f"{older.installed_text}, so the session would stop at its first import. Run it out of a "
+            f"{older.repo} checkout at {older.tag} named in state/{GENAU_DIRS_OVERRIDE_NAME}, or rebase it "
+            "onto a main whose pins this computer has installed, first.")
+
+
+def _built_on_a_newer_library(older: LibraryOlderThanThePin) -> str:
+    return (f"That branch is built on {older.repo} {older.tag}, and this computer has "
+            f"{older.installed_text}, so its room would stop as it starts.")
+
+
+def _version(text: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in re.findall(r"\d+", text))
+
+
+def libraries_older_than_the_pin(worktree: Path) -> list[LibraryOlderThanThePin]:
+    pyproject = worktree / "pyproject.toml"
+    if not pyproject.is_file():
+        return []
+    run_from_checkouts = {_family_repo_of(Path(entry)) for entry in
+                          override_lines(worktree / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME) or []}
+    older = []
+    for repo, tag in pinned_siblings(pyproject).items():
+        installed = installed_version(repo)
+        if repo not in run_from_checkouts and (installed is None or _version(installed) < _version(tag)):
+            older.append(LibraryOlderThanThePin(repo, tag, installed))
+    return older
 
 
 def _carries(checkout: Path, commit: str) -> bool:
@@ -555,6 +599,9 @@ def write_launch_shortcut(
     missing = commits_missing(worktree, primary)
     if missing:
         raise OutOfDateWorktree(worktree, missing)
+    lacking = libraries_older_than_the_pin(worktree)
+    if lacking:
+        raise OutOfDateLibrary(lacking[0])
     older = sibling_checkouts_older_than_the_pin(worktree)
     if older:
         raise OutOfDateSibling(older[0])
@@ -642,7 +689,7 @@ def main(argv: list[str] | None = None) -> int:
         target = config_module.PROJECT_DIR if args.shortcut == "." else Path(args.shortcut)
         try:
             print(write_launch_shortcut(target, vr=args.vr))
-        except (OutOfDateWorktree, OutOfDateSibling) as refused:
+        except (OutOfDateWorktree, OutOfDateLibrary, OutOfDateSibling) as refused:
             print(f"No launcher written: {refused}", file=sys.stderr)
             return 1
         print(sibling_checkouts_line(target, primary_checkout()))
