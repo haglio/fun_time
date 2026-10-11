@@ -18,7 +18,7 @@ import os
 import subprocess
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 from app_support.logging_utils import configure_logging, install_exception_logging
@@ -197,15 +197,10 @@ def vr_main_sources(config) -> str:
     return "|".join(str(path) for path in dirs)
 
 
-def why_the_main_list_does_not_fit(playlist_file: Path, shapes: VideoShapes) -> str | None:
-    if not (shapes.plays_vr or shapes.plays_flat):
-        return None
-    paths = [str(item.path) for item in read_playlist(playlist_file)]
-    if shapes.plays_vr and not any(is_vr_video(path, source_roots(shapes.vr_dirs)) for path in paths):
-        return "held no VR video"
-    if shapes.keep(paths) != paths:
-        return "held videos its shape filter leaves out"
-    return None
+def main_playlist_has_vr(playlist_file: Path, vr_dirs: Sequence[Path]) -> bool:
+    return any(
+        is_vr_video(item.path, vr_dirs) for item in read_playlist(playlist_file)
+    )
 
 
 def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, dict[str, str]]:
@@ -330,9 +325,9 @@ def stock_the_playlists(
     main_video: str = "",
 ) -> None:
     """The three playlists a VR session opens on: built fresh with nothing to
-    resume, else left alone -- but a primary that does not fit the shapes carried
-    across is rebuilt from the merged sources and rotated back onto *main_video*,
-    the clip that was on screen (resume_main_video).
+    resume, else left alone -- but a primary carried over from a desktop session
+    holds no VR video, and is rebuilt from the merged sources and rotated back
+    onto *main_video*, the clip that was on screen (resume_main_video).
     """
     main_funestra_playlist = build_playlist_file_path(state_dir, PLAYLIST_MAIN_FUNESTRA)
     if not resumed:
@@ -346,20 +341,21 @@ def stock_the_playlists(
         )
         logger.info("Nothing to resume; built fresh playlists")
         return
-    shapes = VideoShapes(vr_dirs=manifest.media.vr_library_dirs,
-                         plays_vr=main_plays_vr, plays_flat=main_plays_flat)
-    misfit = why_the_main_list_does_not_fit(main_funestra_playlist, shapes)
-    if misfit is None:
+    vr_dirs = manifest.media.vr_library_dirs
+    if main_plays_vr and not main_playlist_has_vr(main_funestra_playlist, source_roots(vr_dirs)):
+        build_main_playlist(
+            main_funestra_playlist, manifest.media.main_funestra_library_sources,
+            scripted_filter=main_scripted_filter, recent=main_recent,
+            shapes=VideoShapes(vr_dirs=vr_dirs, plays_vr=main_plays_vr, plays_flat=main_plays_flat),
+            metadata_root=metadata_root,
+        )
+        logger.info(
+            "Resumed playlists; rebuilt the Main Funestra's around the video it was on"
+            if resume_main_video(main_funestra_playlist, main_video)
+            else "Resumed playlists; rebuilt the Main Funestra's, which held no VR video"
+        )
+    else:
         logger.info("Resumed last session's playlists")
-        return
-    build_main_playlist(
-        main_funestra_playlist, manifest.media.main_funestra_library_sources,
-        scripted_filter=main_scripted_filter, recent=main_recent, shapes=shapes,
-        metadata_root=metadata_root,
-    )
-    around = resume_main_video(main_funestra_playlist, main_video)
-    logger.info("Resumed playlists; rebuilt the Main Funestra's, which %s%s", misfit,
-                ", around the video it was on" if around else "")
 
 
 def resume_genau_shapes(genau_cmd_file: Path, shapes: VideoShapes) -> None:
