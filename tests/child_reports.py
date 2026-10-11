@@ -31,8 +31,13 @@ def with_what_it_started(pid: int) -> list[StartedProcess]:
     deadline = time.monotonic() + 5.0
     while not list_child_pids(pid) and time.monotonic() < deadline:
         time.sleep(0.1)
-    return [StartedProcess(each, get_process_creation_time(each))
-            for each in (pid, *list_child_pids(pid))]
+    parent = StartedProcess(pid, get_process_creation_time(pid))
+    children = [StartedProcess(each, get_process_creation_time(each)) for each in list_child_pids(pid)]
+    return [parent, *(child for child in children if _born_after(child, parent))]
+
+
+def _born_after(child: StartedProcess, parent: StartedProcess) -> bool:
+    return None in (child.started_at, parent.started_at) or child.started_at >= parent.started_at
 
 
 def running(process: StartedProcess) -> bool:
