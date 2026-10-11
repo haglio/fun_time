@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from funestra_core.hud_placement import HudEdge
+from funestra_core.outside_buttons import OutsideButtons
 
 from fun_time_vr.hud_toggle import BUTTON_DEG, PANEL_GAP_DEG, HudToggle, toggle_screen_name
 from fun_time_vr.pointer import PRESS, RELEASE, PressEvent
@@ -30,13 +31,13 @@ class _Mesh:
 
 def _toggle():
     posted: list[str] = []
-    toggle = HudToggle("portrait", "portrait", post=posted.append, mesh=_Mesh(),
+    toggle = HudToggle("portrait", post=posted.append, mesh=_Mesh(),
                        texture=_Texture(), tip_mesh=_Mesh(), tip_texture=_Texture())
     return toggle, posted
 
 
 def _hung(toggle: HudToggle, edge: HudEdge = HudEdge.LOWER, *, minimized: bool = False):
-    toggle.hang(PICTURE, ASPECT, edge=edge, minimized=minimized)
+    toggle.hang(OutsideButtons("portrait", minimized=minimized), PICTURE, ASPECT, edge=edge)
     button, *_tip = toggle.hangings()
     return button
 
@@ -126,7 +127,7 @@ class TestWhatItSays:
 
     def test_it_is_painted_once_while_nothing_about_it_changes(self):
         texture = _Texture()
-        toggle = HudToggle("portrait", "portrait", post=lambda _command: None, mesh=_Mesh(),
+        toggle = HudToggle("portrait", post=lambda _command: None, mesh=_Mesh(),
                            texture=texture, tip_mesh=_Mesh(), tip_texture=_Texture())
 
         _hung(toggle)

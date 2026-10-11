@@ -16,21 +16,21 @@ def hud_button_names(screen_name: str) -> tuple[str, ...]:
 
 
 class HudButtons:
-    def __init__(self, funestra: str, screen_name: str, *, post: Callable[[str], None],
+    def __init__(self, screen_name: str, *, post: Callable[[str], None],
                  texture: Callable[[], object], mesh: Callable[[], object]) -> None:
         side_texture, toggle_texture, tip_texture = texture(), texture(), texture()
         side_mesh, toggle_mesh, tip_mesh = mesh(), mesh(), mesh()
         self._made = (side_texture, toggle_texture, tip_texture, side_mesh, toggle_mesh, tip_mesh)
-        self._sides = HudSides(funestra, screen_name, post=post, mesh=side_mesh, texture=side_texture)
-        self._toggle = HudToggle(funestra, screen_name, post=post, mesh=toggle_mesh,
+        self._sides = HudSides(screen_name, post=post, mesh=side_mesh, texture=side_texture)
+        self._toggle = HudToggle(screen_name, post=post, mesh=toggle_mesh,
                                  texture=toggle_texture, tip_mesh=tip_mesh,
                                  tip_texture=tip_texture)
 
-    def hang(self, picture: Placement, aspect: float, *, edge: HudEdge, minimized: bool,
+    def hang(self, outside, picture: Placement, aspect: float, *, edge: HudEdge,
              with_sides: bool = True) -> None:
-        self._toggle.hang(picture, aspect, edge=edge, minimized=minimized)
+        self._toggle.hang(outside, picture, aspect, edge=edge)
         if with_sides:
-            self._sides.hang(picture, aspect, panel_edge=edge, minimized=minimized)
+            self._sides.hang(outside, picture, aspect, panel_edge=edge)
         else:
             self._sides.unhang()
 

@@ -1,24 +1,21 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from functools import lru_cache
 
 import numpy as np
-from funestra_core.hud_corners import tooltip_size
-from funestra_core.hud_minimize import BUTTON, mark_font, minimize_button, restore_button
-from funestra_core.hud_panel import draw_button, draw_tooltip
 from funestra_core.hud_placement import HudEdge
-from PIL import Image, ImageDraw
+from shared_ui.spacing import BUTTON_SIZE_HUD
 
 from .console_panel import DEG_PER_PX
 from .pointer import PRESS, PressEvent, Screen
 from .room import Hanging
 from .satellite_hud import HUD_GAP_DEG
 from .scene import Placement, attached_to
+from .surfaces import red_and_blue_swapped
 
 TOGGLE = "toggle"
 TIP = "tip"
-BUTTON_DEG = BUTTON * DEG_PER_PX
+BUTTON_DEG = BUTTON_SIZE_HUD * DEG_PER_PX
 PANEL_GAP_DEG = HUD_GAP_DEG + BUTTON_DEG + HUD_GAP_DEG
 
 _TIP_GAP_DEG = HUD_GAP_DEG / 2
@@ -26,26 +23,6 @@ _TIP_GAP_DEG = HUD_GAP_DEG / 2
 
 def toggle_screen_name(screen_name: str) -> str:
     return f"{screen_name}/{TOGGLE}"
-
-
-def _button(funestra: str, minimized: bool):
-    return restore_button(funestra) if minimized else minimize_button(funestra)
-
-
-@lru_cache(maxsize=16)
-def _button_rgba(funestra: str, minimized: bool, pointed: bool) -> np.ndarray:
-    image = Image.new("RGBA", (BUTTON, BUTTON), (0, 0, 0, 0))
-    draw_button(image, ImageDraw.Draw(image), (0, 0, BUTTON, BUTTON), _button(funestra, minimized),
-                hovered=pointed, glyph_font=mark_font(), word_font=mark_font())
-    return np.asarray(image).copy()
-
-
-@lru_cache(maxsize=8)
-def _tip_rgba(text: str) -> np.ndarray:
-    size = tooltip_size(text)
-    image = Image.new("RGBA", size, (0, 0, 0, 0))
-    draw_tooltip(ImageDraw.Draw(image), mark_font(), text, (0, 0), size)
-    return np.asarray(image).copy()
 
 
 def _beside(button: Placement, edge: HudEdge, tip: np.ndarray) -> Placement:
@@ -59,42 +36,39 @@ def _beside(button: Placement, edge: HudEdge, tip: np.ndarray) -> Placement:
 
 
 class HudToggle:
-    def __init__(self, funestra: str, screen_name: str, *, post: Callable[[str], None],
+    def __init__(self, screen_name: str, *, post: Callable[[str], None],
                  mesh=None, texture=None, tip_mesh=None, tip_texture=None) -> None:
-        self._funestra = funestra
         self._screen_name = screen_name
         self._post = post
         self._mesh, self._texture = mesh, texture
         self._tip_mesh, self._tip_texture = tip_mesh, tip_texture
         self._pointed = False
-        self._minimized = False
+        self._outside = None
         self._button: Screen | None = None
         self._tip: Screen | None = None
-        self._painted: tuple | None = None
-        self._tip_painted: str | None = None
+        self._painted: np.ndarray | None = None
+        self._tip_painted: np.ndarray | None = None
 
-    def hang(self, picture: Placement, aspect: float, *, edge: HudEdge,
-             minimized: bool) -> None:
-        self._minimized = minimized
+    def hang(self, outside, picture: Placement, aspect: float, *, edge: HudEdge) -> None:
+        self._outside = outside
         placement = attached_to(edge, picture, aspect=aspect, width_deg=BUTTON_DEG,
                                 hanging_aspect=1.0, gap_deg=HUD_GAP_DEG)
         self._button = Screen(toggle_screen_name(self._screen_name), placement, 1.0,
                               pressable=True)
-        painted = (minimized, self._pointed)
-        if painted != self._painted:
-            self._texture.upload(_button_rgba(self._funestra, minimized, self._pointed))
+        painted = outside.toggle(pointed=self._pointed).bgra
+        if painted is not self._painted:
+            self._texture.upload(red_and_blue_swapped(painted))
             self._painted = painted
         self._mesh.rehang_at(placement, 1.0)
         self._tip = None
         if self._pointed:
-            text = _button(self._funestra, minimized).tooltip
-            tip = _tip_rgba(text)
+            tip = outside.toggle_tip()
             beside = _beside(placement, edge, tip)
             self._tip = Screen(f"{toggle_screen_name(self._screen_name)}/{TIP}", beside,
                                tip.shape[1] / tip.shape[0], pressable=False)
-            if text != self._tip_painted:
-                self._tip_texture.upload(tip)
-                self._tip_painted = text
+            if tip is not self._tip_painted:
+                self._tip_texture.upload(red_and_blue_swapped(tip))
+                self._tip_painted = tip
             self._tip_mesh.rehang_at(beside, self._tip.aspect)
 
     def unhang(self) -> None:
@@ -117,5 +91,5 @@ class HudToggle:
         if event.screen != toggle_screen_name(self._screen_name):
             return False
         if event.kind == PRESS:
-            self._post(_button(self._funestra, self._minimized).command)
+            self._post(self._outside.toggle(pointed=True).command)
         return True

@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 
 from funestra_core.hud_placement import HudEdge
+from funestra_core.outside_buttons import OutsideButtons
 
 from fun_time_vr.hud_sides import HudSides, side_named, side_screen_name, sides
 from fun_time_vr.pointer import HANDLE_DEG, PRESS, RELEASE, PressEvent
@@ -12,8 +13,8 @@ PICTURE = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
 
 
 def _sides(panel_edge: HudEdge = HudEdge.LOWER, *, minimized: bool = False):
-    return sides("portrait", "portrait", PICTURE, 16 / 9,
-                 panel_edge=panel_edge, minimized=minimized)
+    return sides(OutsideButtons("portrait", minimized=minimized), "portrait", PICTURE, 16 / 9,
+                 panel_edge=panel_edge)
 
 
 class TestTheSidesThePanelIsNotAgainst:
@@ -39,7 +40,9 @@ class TestAFunestrasSides:
     @staticmethod
     def _sides():
         posted: list[str] = []
-        return HudSides("landscape", "landscape", post=posted.append), posted
+        hud_sides = HudSides("landscape", post=posted.append, mesh=_Mesh(), texture=_Texture())
+        hud_sides.hang(OutsideButtons("landscape"), PICTURE, 16 / 9, panel_edge=HudEdge.LOWER)
+        return hud_sides, posted
 
     def test_a_squeeze_on_one_asks_for_the_panel_there_open(self):
         hud_sides, posted = self._sides()
@@ -93,13 +96,13 @@ class TestHangingThem:
     @staticmethod
     def _sides():
         texture, mesh = _Texture(), _Mesh()
-        hud_sides = HudSides("portrait", "portrait", post=lambda _command: None,
+        hud_sides = HudSides("portrait", post=lambda _command: None,
                              mesh=mesh, texture=texture)
         return hud_sides, texture, mesh
 
     @staticmethod
     def _hang(hud_sides) -> None:
-        hud_sides.hang(PICTURE, 16 / 9, panel_edge=HudEdge.LOWER, minimized=False)
+        hud_sides.hang(OutsideButtons("portrait"), PICTURE, 16 / 9, panel_edge=HudEdge.LOWER)
 
     def test_only_the_side_pointed_at_is_drawn(self):
         hud_sides, texture, mesh = self._sides()
