@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from app_support.flick_folder import audio_in
 
 from fun_time import orchestrator
 from fun_time.config import load_config
@@ -337,6 +338,14 @@ class TestValidateConfig:
         cfg = self._make_config_with_stubs(cfg_path)
 
         validate_config(cfg)
+
+    def test_names_genaus_folder_when_nothing_in_it_is_laid_out_as_flicks_are(self, cfg_factory, tmp_path: Path):
+        genau = tmp_path / "bare_genau"
+        audio_in(genau).mkdir(parents=True)
+        cfg = self._make_config_with_stubs(cfg_factory({"paths": {"genau_dir": str(genau)}}))
+
+        with pytest.raises(FileNotFoundError, match="bare_genau"):
+            validate_config(cfg)
 
     def test_raises_when_random_favs_browser_shortcut_missing_if_enabled(self, cfg_factory: Path):
         cfg = load_config(

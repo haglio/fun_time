@@ -83,6 +83,7 @@ from fun_time_vr.orchestrator import (
     vr_main_sources,
 )
 from tests.cover_beats import heard_from_again_once_stale
+from tests.made_up_genau import made_up_genau
 
 
 @pytest.fixture
@@ -91,7 +92,7 @@ def config(tmp_path, monkeypatch):
     library = tmp_path / "library"
     vr_dir = library / "VR" / "finished"
     flat_dir = library / "2D"
-    for directory in (vr_dir, flat_dir, tmp_path / "clips", tmp_path / "audio", tmp_path / "weird"):
+    for directory in (vr_dir, flat_dir, tmp_path / "weird"):
         directory.mkdir(parents=True)
     ahk = tmp_path / "AutoHotkey64.exe"
     python = tmp_path / "python.exe"
@@ -108,8 +109,7 @@ def config(tmp_path, monkeypatch):
             "portrait_dirs": ["%(flat)s"],
             "landscape_dirs": ["%(flat)s"],
             "weird_dir": "%(weird)s",
-            "flicks_dir": "%(clips)s",
-            "audio_dir": "%(audio)s",
+            "genau_dir": "%(genau)s",
             "favs_file": "%(favs)s",
             "state_dir": "%(state)s"
           },
@@ -130,8 +130,7 @@ def config(tmp_path, monkeypatch):
             "python": str(python).replace("\\", "/"),
             "flat": str(flat_dir).replace("\\", "/"),
             "weird": str(tmp_path / "weird").replace("\\", "/"),
-            "clips": str(tmp_path / "clips").replace("\\", "/"),
-            "audio": str(tmp_path / "audio").replace("\\", "/"),
+            "genau": str(made_up_genau(tmp_path)).replace("\\", "/"),
             "favs": str(tmp_path / "favs.csv").replace("\\", "/"),
             "state": str(tmp_path / "state").replace("\\", "/"),
             "vr": str(vr_dir).replace("\\", "/"),

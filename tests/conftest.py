@@ -55,6 +55,7 @@ from fun_time.config import DEFAULT_CONFIG_PATH
 from fun_time.media_metadata import reset_group_index_cache
 from fun_time_vr import orchestrator as vr_orchestrator
 from tests.logging_state import logging_given_back
+from tests.made_up_genau import made_up_genau
 from tests.scratch import scratch_dir
 from tests.thread_state import no_thread_outlives_this
 
@@ -321,8 +322,7 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
     """Write a minimal valid config JSON to tmp_path and return the path."""
     # Create stub directories / files that config validation expects.
     (tmp_path / "state").mkdir(exist_ok=True)
-    (tmp_path / "clips").mkdir(exist_ok=True)
-    (tmp_path / "audio").mkdir(exist_ok=True)
+    genau = made_up_genau(tmp_path)
     (tmp_path / "videos" / "videos" / "portrait").mkdir(parents=True, exist_ok=True)
     (tmp_path / "videos" / "videos" / "landscape").mkdir(parents=True, exist_ok=True)
     (tmp_path / "weird").mkdir(exist_ok=True)
@@ -336,8 +336,7 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "portrait_dir": str(tmp_path / "videos" / "videos" / "portrait"),
             "landscape_dir": str(tmp_path / "videos" / "videos" / "landscape"),
             "weird_dir": str(tmp_path / "weird"),
-            "flicks_dir": str(tmp_path / "clips"),
-            "audio_dir": str(tmp_path / "audio"),
+            "genau_dir": str(genau),
             "favs_file": str(tmp_path / "favs.csv"),
             "state_dir": str(tmp_path / "state"),
         },

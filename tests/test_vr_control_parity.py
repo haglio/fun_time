@@ -61,6 +61,7 @@ from main_funestra.clip_nav import ClipNav
 from main_funestra.kino import Kino
 from main_funestra.mode_memory import ModeMemory, RememberedMode
 from main_funestra.notice import NoticeWriter
+from tests.made_up_genau import made_up_genau
 from tests.origenerator_contract import answers
 from tests.satellite_fakes import FakeSatelliteEngine
 from tests.test_windows_bridge_dispatch_loop import make_runner
@@ -114,7 +115,7 @@ def _headset_config(root: Path, *, names_an_origenerator: bool = True) -> Bridge
     does, unless told not to.
     """
     folders = {name: root / name for name in (
-        "primary", "portrait", "landscape", "vr", "weird", "clips", "audio", "state")}
+        "primary", "portrait", "landscape", "vr", "weird", "state")}
     for folder in folders.values():
         folder.mkdir(parents=True, exist_ok=True)
     favs_file = root / "favs.csv"
@@ -126,8 +127,7 @@ def _headset_config(root: Path, *, names_an_origenerator: bool = True) -> Bridge
         "portrait_dirs": [str(folders["portrait"])],
         "landscape_dirs": [str(folders["landscape"])],
         "weird_dir": str(folders["weird"]),
-        "flicks_dir": str(folders["clips"]),
-        "audio_dir": str(folders["audio"]),
+        "genau_dir": str(made_up_genau(root)),
         "favs_file": str(favs_file),
         "state_dir": str(folders["state"]),
     }

@@ -135,6 +135,7 @@ from fun_time_vr.surfaces import LatestPicture, PanelBitmap
 from fun_time_vr.video_thread import VideoThread
 from fun_time_vr.wrap_readout import WrapReadout
 from main_funestra.genau import GenauChannels
+from tests.made_up_genau import made_up_genau
 from tests.satellite_fakes import FakeSatelliteEngine
 
 
@@ -223,7 +224,8 @@ def _manifest_for_a_vr_session(tmp_path) -> LaunchManifest:
     writes into, and a command it left there reached a unit under test."""
     config = load_config(Path("fun_time_config.example.json"))
     config = replace(config, paths=replace(config.paths, state_dir=tmp_path,
-                                           broker_state_dir=tmp_path))
+                                           broker_state_dir=tmp_path,
+                                           genau_dir=made_up_genau(tmp_path)))
     path = write_manifest_data(
         build_vr_manifest(config), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
     return LaunchManifest.read(path)

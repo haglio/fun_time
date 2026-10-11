@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 from app_support.file_channel import read_key_values, write_flag
+from app_support.flick_folder import flat_flicks_in, flicks_folder_in
 from app_support.funscript import document, write
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from funestra.file_channel import append_command
@@ -38,6 +39,7 @@ from fun_time.win32 import (
 )
 from fun_time.win32_process import is_process_alive
 from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
+from tests.made_up_genau import made_up_genau
 
 from .integration_support import (
     COMMAND_BUDGET_S,
@@ -982,17 +984,15 @@ def _flicks_oldest_to_newest(folder: Path, *names: str) -> list[Path]:
     return flicks
 
 
-def _config_whose_genau_browses_in_folder_order(temp_root: Path, flick_folder: Path) -> Path:
-    """Genau on *flick_folder*, unshuffled, so the order it reopens in can be
+def _config_whose_genau_browses_in_folder_order(temp_root: Path, genau: Path) -> Path:
+    """Genau on *genau*, unshuffled, so the order it reopens in can be
     told from the order it was left in."""
-    config_path = build_integration_config(temp_root)
+    config_path = build_integration_config(temp_root, genau_dir=genau)
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    config["paths"]["flicks_dir"] = str(flick_folder)
     genau_config_path = Path(config["paths"]["genau_config_path"])
     genau_config = json.loads(genau_config_path.read_text(encoding="utf-8"))
     genau_config["genau"]["shuffle_on_load"] = False
     genau_config_path.write_text(json.dumps(genau_config), encoding="utf-8")
-    config_path.write_text(json.dumps(config), encoding="utf-8")
     return config_path
 
 
@@ -1020,11 +1020,11 @@ def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing():
     steps from beta to alpha, where the folder's order would step to gamma.
     """
     temp_root = build_integration_temp_root()
-    flick_folder = temp_root / "genau_flicks"
-    (flick_folder / "2D" / "AI").mkdir(parents=True)
-    alpha, beta, gamma = _flicks_oldest_to_newest(flick_folder / "2D" / "AI",
-                                                 "alpha.mp4", "beta.mp4", "gamma.mp4")
-    config_path = _config_whose_genau_browses_in_folder_order(temp_root, flick_folder)
+    genau = made_up_genau(temp_root)
+    played_from = flat_flicks_in(flicks_folder_in(genau)) / "AI"
+    played_from.mkdir()
+    alpha, beta, gamma = _flicks_oldest_to_newest(played_from, "alpha.mp4", "beta.mp4", "gamma.mp4")
+    config_path = _config_whose_genau_browses_in_folder_order(temp_root, genau)
 
     first = FunTimeIntegrationSession(config_path)
     try:

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.wintypes as wt
-import json
 import os
 import shutil
 import subprocess
@@ -16,6 +15,7 @@ from functools import partial
 from pathlib import Path
 
 import pytest
+from app_support.flick_folder import flat_flicks_in, flicks_folder_in
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import play_file
@@ -26,6 +26,7 @@ from fun_time.win32 import wait_for_window_by_title, window_rect
 from fun_time.win32_loader import Win32Rect
 from fun_time.window_layout import MonitorRect, WindowRect, secondary_monitor_rects
 from fun_time.windows_bridge_startup import SATELLITE_PORTRAIT_TITLE
+from tests.made_up_genau import made_up_genau
 
 from .integration_support import (
     FunTimeIntegrationSession,
@@ -54,14 +55,6 @@ def _tall_test_pattern(folder: Path, *, seconds: int) -> Path:
          "-t", str(seconds), "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)],
         check=True, timeout=60, **hidden_subprocess_kwargs())
     return clip
-
-
-def _config_whose_genau_plays(temp_root: Path, flick_folder: Path) -> Path:
-    config_path = build_integration_config(temp_root)
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    config["paths"]["flicks_dir"] = str(flick_folder)
-    config_path.write_text(json.dumps(config), encoding="utf-8")
-    return config_path
 
 
 def _client_size(hwnd: int) -> tuple[int, int]:
@@ -109,10 +102,11 @@ def test_a_portrait_video_on_the_crowned_main_funestra_trades_places_with_the_po
 
 def test_a_portrait_genau_flick_on_the_crowned_main_funestra_trades_places_with_the_portrait_funestra():
     temp_root = build_integration_temp_root()
-    flick_folder = temp_root / "genau_flicks"
-    (flick_folder / "2D" / "AI").mkdir(parents=True)
-    _tall_test_pattern(flick_folder / "2D" / "AI", seconds=2)
-    session = FunTimeIntegrationSession(_config_whose_genau_plays(temp_root, flick_folder))
+    genau = made_up_genau(temp_root)
+    played_from = flat_flicks_in(flicks_folder_in(genau)) / "AI"
+    played_from.mkdir()
+    _tall_test_pattern(played_from, seconds=2)
+    session = FunTimeIntegrationSession(build_integration_config(temp_root, genau_dir=genau))
     try:
         session.start(env_overrides={"FUN_TIME_FAKE_MONITORS": FAKE_MONITORS})
         portrait = wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=10, exact=True)
