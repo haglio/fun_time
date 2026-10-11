@@ -17,9 +17,11 @@ import socket
 import textwrap
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from player_core.clip_folder import SUPPORTED_VIDEO_EXTS
 
 from fun_time import player_status, windows_bridge_orchestrator
 from fun_time.loopback_server import LOOPBACK_PORT
@@ -688,12 +690,54 @@ def test_a_sample_gives_up_probing_once_its_budget_is_spent(monkeypatch):
     assert len(probed) == 2
 
 
-def test_the_listing_keeps_only_the_video_files(tmp_path):
-    (tmp_path / "clip.mp4").write_bytes(b"")
-    (tmp_path / "clip.funscript").write_bytes(b"")
-    (tmp_path / "notes.txt").write_bytes(b"")
+def test_the_listing_keeps_only_what_the_players_play(tmp_path):
+    for suffix in (*SUPPORTED_VIDEO_EXTS, ".wmv", ".funscript", ".txt"):
+        (tmp_path / f"clip{suffix}").write_bytes(b"")
 
-    assert [p.name for p in library_clips([tmp_path])] == ["clip.mp4"]
+    assert sorted(p.suffix for p in library_clips([tmp_path])) == sorted(SUPPORTED_VIDEO_EXTS)
+
+
+def _a_library_whose_videos_never_answer(library: Path, monkeypatch) -> None:
+    asked_elsewhere = Path.is_file
+
+    def is_file(path, *args, **kwargs):
+        if library in path.parents:
+            raise AssertionError(f"the draw asked {path.name} about itself, and a video that never answers holds the run")
+        return asked_elsewhere(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "is_file", is_file)
+
+
+def test_the_main_players_draw_never_waits_on_a_video_it_lists(tmp_path, monkeypatch):
+    library = tmp_path / "drawn" / "videos" / "videos"
+    scripts = tmp_path / "drawn" / "videos" / "scripts" / "scripts"
+    library.mkdir(parents=True)
+    scripts.mkdir(parents=True)
+    for name in ("one", "two"):
+        (library / f"{name}.mp4").write_bytes(b"")
+        (scripts / f"{name}.funscript").write_text("{}", encoding="utf-8")
+    _a_library_whose_videos_never_answer(library, monkeypatch)
+    room = tmp_path / "room" / "videos" / "videos"
+    room.mkdir(parents=True)
+
+    linked = integration_support._link_primary_samples(
+        SimpleNamespace(paths=SimpleNamespace(main_player_library_dirs=[library])), room, count=2)
+
+    assert sorted(path.name for path in linked) == ["one.mp4", "two.mp4"]
+
+
+def test_a_sides_draw_never_waits_on_a_video_it_lists(tmp_path, monkeypatch):
+    library = tmp_path / "drawn"
+    library.mkdir()
+    for name in ("one", "two"):
+        (library / f"{name}.mp4").write_bytes(b"")
+    _a_library_whose_videos_never_answer(library, monkeypatch)
+    room = tmp_path / "room"
+    room.mkdir()
+
+    linked = integration_support._link_sample_files((library,), room, count=2)
+
+    assert sorted(path.name for path in linked) == ["one.mp4", "two.mp4"]
 
 
 def test_the_vr_test_draws_nothing_from_the_vr_library():
