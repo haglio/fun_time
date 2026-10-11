@@ -57,6 +57,7 @@ from shared_ui.colors import (
     hovered,
 )
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, make_font
+from shared_ui.foreground import bring_to_front
 from shared_ui.icons import glyph_icon
 from shared_ui.mark_button import fill_square_with_mark
 from shared_ui.spacing import BUTTON_RADIUS, MARGIN_STANDARD
@@ -74,7 +75,6 @@ from .library_handles import (
 from .library_tree import Folder, SubFolder, folder_at, folder_of
 from .process_identity import NAMER
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
-from .win32 import force_foreground_window
 
 WINDOW_TITLE = "Fun Time Library"
 TOP_LEVEL_NAME = "Library"
@@ -860,11 +860,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def bring_the_browse_forward(window: QWidget) -> bool:
-    # activateWindow is refused for this process; force_foreground_window says why.
-    return force_foreground_window(int(window.winId()))
-
-
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     # Claim Fun Time's identity before any window exists, so the browse is never
@@ -892,7 +887,7 @@ def main(argv: list[str] | None = None) -> int:
     if None not in {args.x, args.y, args.width, args.height}:
         window.setGeometry(args.x, args.y, args.width, args.height)
     window.show()
-    bring_the_browse_forward(window)
+    bring_to_front(window)
     return app.exec()
 
 

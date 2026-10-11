@@ -13,6 +13,8 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
+from app_support.win32 import window_exists
+
 from . import preview_marker
 from .satellites_mode import origenerator_shows
 from .win32 import (
@@ -26,7 +28,6 @@ from .win32 import (
     place_window,
     restore_window,
     set_always_on_top,
-    window_exists,
     window_rect,
 )
 from .window_layout import SecondaryMonitorRects, WindowRect

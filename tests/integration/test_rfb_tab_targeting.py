@@ -25,8 +25,8 @@ import os
 import sys
 
 import pytest
+from app_support.win32 import force_foreground_window
 
-from fun_time.win32 import force_foreground_window
 from fun_time.windows_bridge_random_favs_browser import open_rfb_tab
 from tests.integration.throwaway_chrome import TAB_TIMEOUT_S, await_window
 

@@ -5,13 +5,14 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Protocol
 
+from app_support.win32 import window_exists
+
 from .chrome_accessibility import open_chrome_window
 from .chrome_tabs import ChromeTabSwitcher
 from .win32 import (
     foreground_window,
     is_window_minimized,
     seconds_since_input,
-    window_exists,
     window_under_cursor,
 )
 

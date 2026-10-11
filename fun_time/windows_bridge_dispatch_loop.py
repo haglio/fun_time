@@ -14,6 +14,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from app_support.file_channel import consume_command_file, read_flag
+from app_support.win32 import force_foreground_window, window_exists
 from player_core.file_channel import append_command
 from player_core.modes import NoticeLevel, read_mode
 from player_core.player_verbs import LOCK_OFF, LOCK_ON, play_file
@@ -86,9 +87,7 @@ from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
 from .win32 import (
     find_window_for_process,
-    force_foreground_window,
     set_always_on_top,
-    window_exists,
     window_process,
     window_rect,
 )

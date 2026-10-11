@@ -296,7 +296,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # of asked of tasklist, and the paragraph counting the module's queries went.
 # 6501 then: the process sweeps stopped spelling out PowerShell's quoting
 # rules, and the module that ran them its own reason for existing.
-MAX_PROSE_LINES = 6501
+# 6466 then: a window is put in front with the keyboard by app_support's helper
+# alone, so Fun Time's copy of it went, paragraphs and all.
+MAX_PROSE_LINES = 6466
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
