@@ -10,6 +10,7 @@ import json
 import os
 import random
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 
 from app_support import ports
@@ -18,10 +19,13 @@ from funestra_core.playlist import PlaylistItem, read_playlist
 
 from fun_time.win32_desktop import on_hidden_desktop
 
+from .clip_nav import ClipNav
 from .duration_cache import DurationCache
+from .kino import Kino
 from .library import collapse_playlist_versions
 from .library_source import LibrarySource, build_library_source
 from .mode_memory import ModeMemory
+from .notice import NoticeWriter
 
 
 def load_config(config_path: Path) -> dict:
@@ -175,3 +179,13 @@ def resolve_playlist(
     if source is not None:
         items = collapse_playlist_versions(items, source.version_index)
     return items
+
+
+def kino_on(args, *, source: LibrarySource | None, memory: ModeMemory) -> Callable[[object], Kino]:
+    return partial(
+        Kino, source=source,
+        clip_nav=ClipNav.build(
+            [entry.video for entry in source.entries] if source is not None else [],
+            source.metadata_root if source is not None else None),
+        notices=NoticeWriter(args.notice_file), memory=memory, remembered=memory.read(),
+        resolve_playlist=partial(resolve_playlist, args, source=source))

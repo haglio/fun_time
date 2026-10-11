@@ -35,7 +35,6 @@ import threading
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -77,11 +76,9 @@ from fun_time.session_handoff import (
 from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.unlogged_notices import UnloggedNotices
 from main_funestra.cli import build_parser as build_main_funestra_parser
-from main_funestra.cli import library_source, load_config, mode_memory, resolve_playlist
-from main_funestra.clip_nav import ClipNav
+from main_funestra.cli import kino_on, library_source, load_config, mode_memory, resolve_playlist
 from main_funestra.genau import GenauChannels
 from main_funestra.kino import Kino
-from main_funestra.notice import NoticeWriter
 from satellite.contract import SatelliteChannels
 
 from . import room, vr_runtime
@@ -482,7 +479,7 @@ class _TheLibrary:
         commands = manifest.commands
         config_path = Path(manifest.runtime.config_path)
         argv = ["--config", str(config_path), "--playlist", commands.main_funestra_playlist_file,
-                "--state-dir", commands.state_dir]
+                "--state-dir", commands.state_dir, "--notice-file", commands.main_funestra_notice_file]
         if vr.flicks_folder is not None:
             argv += ["--flicks-dir", str(vr.flicks_folder)]
         metadata_root = _metadata_root(manifest)
@@ -495,18 +492,8 @@ class _TheLibrary:
     def playlist(self) -> list[PlaylistItem]:
         return resolve_playlist(self.args, source=self.source)
 
-    def kino(self, notice_file: Path) -> Callable[[object], Kino]:
-        source = self.source
-        entries = source.entries if source is not None else []
-        clip_nav = ClipNav.build(
-            [entry.video for entry in entries] + [
-                flick.video for flick in (source.genau_flicks if source is not None else [])],
-            source.metadata_root if source is not None else None,
-        )
-        return partial(
-            Kino, source=source, clip_nav=clip_nav, notices=NoticeWriter(notice_file),
-            memory=self.memory, remembered=self.memory.read(),
-            resolve_playlist=self.playlist)
+    def kino(self) -> Callable[[object], Kino]:
+        return kino_on(self.args, source=self.source, memory=self.memory)
 
 
 class _MainUnit(_VideoUnit):
@@ -557,7 +544,7 @@ class _MainUnit(_VideoUnit):
                 UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "main")),
             locked=True, sound_is_the_rooms=True,
             users=_users(manifest, vr, stop,
-                         kino=library.kino(Path(commands.main_funestra_notice_file))),
+                         kino=library.kino()),
             panel_surface=self.panel, users_picture=self.users_picture,
             window_verbs=self._apply_the_headsets_verb,
         )
