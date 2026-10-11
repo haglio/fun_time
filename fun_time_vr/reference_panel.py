@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 
 from PIL import Image, ImageDraw
 from shared_ui.icons_pil import glyph_image
-from shared_ui.lettering import fit_text, load_font
+from shared_ui.lettering import fit_text, load_font, wrap_text
 from shared_ui.palette import (
     BG_BUTTON,
     BG_PRIMARY,
@@ -18,7 +18,7 @@ from shared_ui.palette import (
 )
 from shared_ui.spacing import BUTTON_MARK, BUTTON_RADIUS, BUTTON_SIZE
 
-from fun_time.command_reference import build_reference_sections
+from fun_time.command_reference import ReferenceSection, build_reference_sections
 from fun_time.dashboard_layout import Rect
 
 __all__ = [
@@ -28,6 +28,7 @@ __all__ = [
     "REFERENCE_WIDTH_PX",
     "ReferencePointer",
     "ReferenceState",
+    "note_lines",
     "page_of",
     "paint_reference",
     "reference_actions",
@@ -46,12 +47,24 @@ _TITLE_PX = 17
 _ROW_PX = 12
 _ROW_H = 17
 _HEAD_H = BUTTON_SIZE + _PAD
+_NOTE_LINES_AT_MOST = 3
 # The desktop table's three columns: press, say, and what it does.
 _KEY_X, _SAY_X, _WHAT_X = _PAD, 210, 400
 
 
 def sections():
     return build_reference_sections()
+
+
+def note_lines(section: ReferenceSection) -> list[str]:
+    if not section.note:
+        return []
+    return wrap_text(load_font(_ROW_PX), section.note, REFERENCE_WIDTH_PX - 2 * _PAD,
+                     max_lines=_NOTE_LINES_AT_MOST)
+
+
+def _note_lines_every_page_keeps() -> int:
+    return max((len(note_lines(section)) for section in sections()), default=0)
 
 
 @dataclass(frozen=True)
@@ -67,7 +80,7 @@ def page_of(state: ReferenceState) -> int:  # held inside the list, however far
 
 def reference_height() -> int:  # the longest section's, so walking never resizes
     longest = max((len(section.rows) for section in sections()), default=0)
-    return _HEAD_H + _ROW_H * (longest + 2) + _PAD
+    return _HEAD_H + _ROW_H * (1 + _note_lines_every_page_keeps() + longest) + _PAD
 
 
 def reference_actions() -> dict[str, Rect]:  # the two, at the top right
@@ -105,10 +118,10 @@ def paint_reference(state: ReferenceState) -> Image.Image:
     for x, head in zip((_KEY_X, _SAY_X, _WHAT_X), heads, strict=True):
         draw.text((x, y), head, font=row_font, fill=(*TEXT_MUTED, 255))
     y += _ROW_H
-    if section.note:
-        draw.text((_PAD, y), fit_text(row_font, section.note, REFERENCE_WIDTH_PX - 2 * _PAD),
-                  font=row_font, fill=(*TEXT_MUTED, 255))
-    y += _ROW_H
+    for line in note_lines(section):
+        draw.text((_PAD, y), line, font=row_font, fill=(*TEXT_MUTED, 255))
+        y += _ROW_H
+    y += _ROW_H * (_note_lines_every_page_keeps() - len(note_lines(section)))
 
     for row in section.rows:
         keys = "  ".join(" ".join(column) for column in row.key_columns)

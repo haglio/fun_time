@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 
+from fun_time.command_dispatch import _MAIN_FUNESTRA_CMD_MAP, _about_genaus_flick
 from fun_time.command_reference import (
     _SECTIONS,
     CommandRef,
@@ -137,16 +138,14 @@ def test_cycle_action_and_seed_are_spoken_only():
         "landscape_cycle_action": ("landscape action", "action"),
         "landscape_cycle_seed": ("landscape seed", "seed"),
     }
-    rows = _all_rows()
     queued = _ahk_hotkey_commands()
     for cmd, (phrase, shown) in expected.items():
         assert VOICE_COMMANDS[phrase] == cmd
         assert cmd not in queued, f"{cmd} is spoken-only and must hold no key"
-        owning = [r for r in rows if cmd in r.commands]
-        assert len(owning) == 1, f"expected exactly one row for {cmd}"
-        assert _keys(owning[0]) == ()
-        # The scopes share one row, so the Say column shows the folded phrase.
-        assert shown in owning[0].voice
+        for row in _one_row_per_satellite_mode(cmd):
+            assert _keys(row) == ()
+            # The scopes share one row, so the Say column shows the folded phrase.
+            assert shown in row.voice
 
 
 def test_the_group_loops_are_cycled_by_one_key_per_side():
@@ -158,25 +157,45 @@ def test_the_group_loops_are_cycled_by_one_key_per_side():
     Ending a loop outright stays spoken ("portrait end loop"), and holds no key.
     """
     expected = {"portrait_loop": ("Home", 0), "landscape_loop": ("E", 1)}
-    rows = _all_rows()
     for cmd, (key, column) in expected.items():
         bound = _ahk_binding_for(cmd)
         assert bound is not None, f"{cmd} must be bound in the AHK hotkey script"
         # AHK writes letter hotkeys lowercase; the reference labels them uppercase.
         assert bound.lower() == key.lower(), f"{cmd} is on {bound!r}, expected {key!r}"
-        owning = [r for r in rows if cmd in r.commands]
-        assert len(owning) == 1, f"expected exactly one row for {cmd}"
-        # The sides share a row, each key under its own column.
-        assert owning[0].key_columns[column] == (key,)
+        for row in _one_row_per_satellite_mode(cmd):
+            # The sides share a row, each key under its own column.
+            assert row.key_columns[column] == (key,)
     for cmd in ("portrait_no_loop", "landscape_no_loop"):
         assert _ahk_binding_for(cmd) is None, f"{cmd} gave its key to the cycle"
-        owning = [r for r in rows if cmd in r.commands]
-        assert len(owning) == 1, f"expected exactly one row for {cmd}"
-        assert _keys(owning[0]) == ()
+        for row in _one_row_per_satellite_mode(cmd):
+            assert _keys(row) == ()
+
+
+def _section(title: str) -> ReferenceSection:
+    return {s.title: s for s in build_reference_sections()}[title]
+
+
+def _satellite_sections() -> tuple[ReferenceSection, ...]:
+    return tuple(s for s in build_reference_sections() if s.title.startswith("Satellite Funestras"))
+
+
+def _satellite_mode_sections() -> tuple[ReferenceSection, ...]:
+    return tuple(s for s in _satellite_sections() if " mode" in s.title)
 
 
 def _satellite_section() -> ReferenceSection:
-    return {s.title: s for s in build_reference_sections()}["Satellites"]
+    return _section("Satellite Funestras in Kino mode")
+
+
+def _one_row_per_satellite_mode(cmd: str) -> list[CommandRef]:
+    """What a satellite's keys and words do differs by its mode, so a command
+    of theirs has one row in each mode's section and none anywhere else."""
+    owning = [row for row in _all_rows() if cmd in row.commands]
+    per_section = [[row for row in section.rows if cmd in row.commands]
+                   for section in _satellite_mode_sections()]
+    assert [len(rows) for rows in per_section] == [1] * len(per_section), cmd
+    assert len(owning) == len(per_section), f"{cmd} has a row outside the mode sections"
+    return owning
 
 
 def test_every_scope_shares_one_grid_with_a_key_column_per_side():
@@ -184,26 +203,26 @@ def test_every_scope_shares_one_grid_with_a_key_column_per_side():
     actions, so they are one grid now: a row names every scope that has the
     action, and puts each side's key in its own column.  Five sections said it
     all five times and were free to drift apart."""
-    section = _satellite_section()
-    assert section.key_headers == ("Portrait", "Landscape")
-    for row in section.rows:
-        by_scope = {
-            scope: {c[len(scope) + 1:] for c in row.commands if c.startswith(f"{scope}_")}
-            for scope in ("portrait", "landscape", "both", "active")
-        }
-        assert by_scope["portrait"] == by_scope["landscape"], (
-            f"row {row.description!r} names different actions per side"
-        )
-        # Every scope the action exists in must be named — the grid is uniform
-        # apart from the exceptions each carries a comment for.
-        for scope, actions in by_scope.items():
-            for action in by_scope["portrait"] | actions:
-                command = f"{scope}_{action}"
-                if command in VOICE_COMMANDS.values():
-                    assert command in row.commands, (
-                        f"row {row.description!r} omits {command}"
-                    )
-        assert len(row.key_columns) == 2
+    for section in _satellite_sections():
+        assert section.key_headers == ("Portrait", "Landscape")
+        for row in section.rows:
+            by_scope = {
+                scope: {c[len(scope) + 1:] for c in row.commands if c.startswith(f"{scope}_")}
+                for scope in ("portrait", "landscape", "both", "active")
+            }
+            assert by_scope["portrait"] == by_scope["landscape"], (
+                f"row {row.description!r} names different actions per side"
+            )
+            # Every scope the action exists in must be named — the grid is uniform
+            # apart from the exceptions each carries a comment for.
+            for scope, actions in by_scope.items():
+                for action in by_scope["portrait"] | actions:
+                    command = f"{scope}_{action}"
+                    if command in VOICE_COMMANDS.values():
+                        assert command in row.commands, (
+                            f"row {row.description!r} omits {command}"
+                        )
+            assert len(row.key_columns) == 2
 
 
 def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
@@ -211,29 +230,30 @@ def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
     "next" without printing its own action four times, so the Say column keeps the
     action alone and the section's note explains how to aim it."""
     section = _satellite_section()
-    for word in ("portrait", "landscape", "both"):
-        assert word in section.note
     nxt = next(r for r in section.rows if "portrait_next" in r.commands)
     assert nxt.voice == ("next",)
     assert nxt.key_columns == (("Right",), ("D",))
     lock = next(r for r in section.rows if "portrait_lock_on" in r.commands)
     assert lock.voice == ("lock", "unlock")
     sayable_bare = {friendly_voice(phrase) for phrase in VOICE_COMMANDS}
-    for row in section.rows:
-        if row.description.startswith(("Filter by act", "Drop the filter")):
-            continue  # the filter phrases scope themselves differently; see below
-        for phrase in row.voice:
-            if _collapse_scopes(phrase) not in sayable_bare:
-                continue
-            assert not {"portrait", "landscape", "both"} & set(phrase.split()), (
-                f"{phrase!r} still carries a scope word"
-            )
+    for section in _satellite_sections():
+        for word in ("portrait", "landscape", "both"):
+            assert word in section.note
+        for row in section.rows:
+            if row.description.startswith(("Filter by act", "Drop ")):
+                continue  # the filter phrases scope themselves differently; see below
+            for phrase in row.voice:
+                if _collapse_scopes(phrase) not in sayable_bare:
+                    continue
+                assert not {"portrait", "landscape", "both"} & set(phrase.split()), (
+                    f"{phrase!r} still carries a scope word"
+                )
 
 
 def test_the_grid_carries_every_both_and_active_command():
     """Nothing was dropped in the consolidation: each command the retired "Both",
     "Active side" and "Filters" sections documented is on a row of the grid."""
-    covered = {c for row in _satellite_section().rows for c in row.commands}
+    covered = {c for section in _satellite_sections() for row in section.rows for c in row.commands}
     assert {
         "both_prev", "both_next", "both_trash",
         "both_lock_on", "both_lock_off",
@@ -282,7 +302,7 @@ def test_the_f_mode_row_offers_favorites_only_with_a_side_named():
 
 
 def test_the_satellite_grid_carries_a_funestras_own_playback_speed():
-    rows = _satellite_section().rows
+    rows = _section("Satellite Funestras").rows
     nudge = next(r for r in rows if "portrait_speed_up" in r.commands)
     rate = next(r for r in rows if "portrait_speed_50" in r.commands)
 
@@ -337,7 +357,7 @@ def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
     """Two ways to move the rate, and the row order follows the Genau section's:
     the up/down nudge, then the line that sets it outright.  The nudge is spoken
     only — the keys say "speed up", which follows the OSR2's driver instead."""
-    main_funestra_rows = {s.title: s for s in build_reference_sections()}["Main Funestra"].rows
+    main_funestra_rows = _section("Main Funestra in Kino mode").rows
     descs = [r.description for r in main_funestra_rows]
     nudge = next(r for r in main_funestra_rows if "main_player_speed_up" in r.commands)
     assert _keys(nudge) == ()
@@ -383,16 +403,15 @@ def test_sound_rows_are_voice_only_and_list_both_words_of_each_pair():
     assert mute.voice == ("mute", "unmute")
     assert "audio_unmute" in mute.commands
 
-    # One sound level reaches both of the primary display's sinks, so the steps
-    # are listed under each Funestra that can own the display — the Main Funestra's video sound
-    # and Genau's flick music are the same control from the speaker's side.
-    by_title = {s.title: s for s in build_reference_sections()}
-    for title in ("Genau", "Main Funestra"):
-        steps = [r for r in by_title[title].rows if "audio_volume_up" in r.commands]
-        assert len(steps) == 1, f"expected one volume row in {title}"
-        assert "audio_volume_down" in steps[0].commands, "one row documents the pair"
-        assert _keys(steps[0]) == ()
-        assert set(steps[0].voice) == {"quiet", "quieter", "loud", "louder"}
+    # One sound level reaches both of the main slot's sinks — the video's sound
+    # and Genau's flick music — so the steps are one row, in the section that
+    # holds in either of the Main Funestra's modes.
+    steps = [r for r in _all_rows() if "audio_volume_up" in r.commands]
+    assert steps == [r for r in _section("Main Funestra").rows if "audio_volume_up" in r.commands]
+    assert len(steps) == 1, "expected one volume row"
+    assert "audio_volume_down" in steps[0].commands, "one row documents the pair"
+    assert _keys(steps[0]) == ()
+    assert set(steps[0].voice) == {"quiet", "quieter", "loud", "louder"}
 
 
 def test_no_say_column_leaks_the_raw_un_mute_form():
@@ -408,14 +427,12 @@ def test_latest_is_spoken_only_and_the_older_names_are_gone():
     Both older names are gone rather than kept as synonyms — "recents" especially,
     which the small vosk model has no word for and heard as "reset".
     """
-    rows = [r for r in _all_rows() if "both_latest" in r.commands]
-    assert len(rows) == 1, "expected exactly one Latest row"
-    row = rows[0]
-    assert _keys(row) == ()
-    # It sits in the satellite grid like every other action, so its Say column
-    # is the bare "latest" and "both latest" comes from the section's note.
-    assert row.voice == ("latest",)
-    assert {"portrait_latest", "landscape_latest", "active_latest"} <= set(row.commands)
+    for row in _one_row_per_satellite_mode("both_latest"):
+        assert _keys(row) == ()
+        # It sits in the satellite grid like every other action, so its Say column
+        # is the bare "latest" and "both latest" comes from the section's note.
+        assert row.voice == ("latest",)
+        assert {"portrait_latest", "landscape_latest", "active_latest"} <= set(row.commands)
     assert "premiere" not in VOICE_COMMANDS
     assert "recents" not in VOICE_COMMANDS
 
@@ -471,7 +488,7 @@ def test_the_genau_row_shows_each_phrase_once_though_the_recognizer_hears_two_sp
 
 def test_the_reference_names_genaus_flicks_in_the_overlays_word():
     flick = genau_flick_noun()
-    genau = next(section for section in build_reference_sections() if section.title == "Genau")
+    genau = _section("Main Funestra in Genau mode")
     seconds = next(row for row in genau.rows if "genau_flick_seconds_up" in row.commands)
 
     assert [row.description for row in genau.rows[:2]] == [
@@ -493,29 +510,72 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
     assert any(key.lower() == "g" for key in _keys(row))
 
 
-def test_section_titles_run_global_robot_hand_genau_main_funestra_satellites():
-    """Five sections, in the order the room is built: what governs everything,
-    then the engine driving the OSR2, then the clips it plays under, then the
-    video, then the two side Funestras.  The hand leads because it drives in both
-    modes, Genau leads the Main Funestra because it owns the primary display in its own mode,
-    and every satellite scope shares the last section."""
+def test_the_sections_are_the_room_the_osr2_and_each_funestra_with_its_modes():
+    """The room's parts, each with what runs on it: the whole room, the OSR2,
+    then the Main Funestra and the two Satellite Funestras, each with the rows
+    that hold in both of its modes first and one section per mode after."""
     titles = [s.title for s in build_reference_sections()]
-    assert titles == ["Global", "Robot Hand", "Genau", "Main Funestra", "Satellites"]
-    for retired in ("Portrait", "Landscape", "Both", "Active side",
-                    "Filters (satellites)", "Modes", "Genau control"):
-        assert retired not in titles, f"{retired!r} should be folded in"
+    assert titles == [
+        "The whole room",
+        "OSR2",
+        "Main Funestra",
+        "Main Funestra in Kino mode",
+        "Main Funestra in Genau mode",
+        "Satellite Funestras",
+        "Satellite Funestras in Kino mode",
+        "Satellite Funestras in Origenerator mode",
+    ]
+
+
+def test_genaus_flick_commands_are_the_genau_mode_section_and_nothing_else_is():
+    """The dispatch ignores a flick command in Kino mode, so the rows it owns
+    are the Genau-mode section's, and nothing that holds in both modes or in
+    Kino mode is there."""
+    in_genau = {cmd for row in _section("Main Funestra in Genau mode").rows for cmd in row.commands}
+    elsewhere = {cmd for section in build_reference_sections()
+                 if section.title != "Main Funestra in Genau mode"
+                 for row in section.rows for cmd in row.commands}
+
+    assert in_genau and all(_about_genaus_flick(cmd) for cmd in in_genau)
+    assert not [cmd for cmd in elsewhere if _about_genaus_flick(cmd)]
+
+
+def test_what_only_kino_answers_is_the_kino_mode_section_and_nothing_else_is():
+    """The dispatch ignores these in Genau mode -- the video's own lock, loop,
+    versions, length and jumps, and the clip save -- so their rows are the
+    Kino-mode section's alone."""
+    kino_only = set(_MAIN_FUNESTRA_CMD_MAP) | {"main_player_lock", "genaumacher_save"}
+    in_kino = {cmd for row in _section("Main Funestra in Kino mode").rows for cmd in row.commands}
+    elsewhere = {cmd for section in build_reference_sections()
+                 if section.title != "Main Funestra in Kino mode"
+                 for row in section.rows for cmd in row.commands}
+
+    assert kino_only <= in_kino
+    assert not kino_only & elsewhere
+
+
+def test_a_satellite_key_means_something_in_each_mode_and_sits_on_the_same_key():
+    """What a satellite's key does changes with the side's mode -- a clip in
+    Kino mode, a slide of the show in Origenerator mode -- and the key itself
+    does not, so each mode's section carries the key under the same command."""
+    keyed = {}
+    for section in _satellite_mode_sections():
+        keyed[section.title] = {cmd: row.key_columns for row in section.rows
+                                for cmd in row.commands if _keys(row)}
+    kino, origenerator = keyed.values()
+
+    assert kino == origenerator
+    assert {"portrait_next", "landscape_trash", "portrait_lock", "landscape_loop"} <= set(kino)
 
 
 def test_the_backslash_key_offsets_the_hand_and_the_browser_has_its_own_key():
     """The backslash offsets the Robot Hand's motion in either mode — it used to
     open the Main Funestra's library browser in kino mode, and that browser now has the key
     the retired mode had."""
-    sections = build_reference_sections()
-    by_title = {s.title: s for s in sections}
-    hand_backslash = [r for r in by_title["Robot Hand"].rows if "\\" in _keys(r)]
+    hand_backslash = [r for r in _section("OSR2").rows if "\\" in _keys(r)]
     assert [r.commands for r in hand_backslash] == [("quarter_button",)]
-    assert not [r for r in by_title["Main Funestra"].rows if "\\" in _keys(r)]
-    browser = [r for r in by_title["Main Funestra"].rows if "browse_library" in r.commands]
+    assert not [r for r in _all_rows() if "\\" in _keys(r) and "quarter_button" not in r.commands]
+    browser = [r for r in _section("Main Funestra").rows if "browse_library" in r.commands]
     assert len(browser) == 1 and _keys(browser[0]) == ("N",)
     assert "browse" in browser[0].voice
 
@@ -567,8 +627,8 @@ def test_min_max_value_live_on_their_own_consecutive_set_lines():
     # The up/down line must NOT carry min/max/value phrases.
     assert not any(("min" in v or "max" in v or "0–100" in v) for v in amp_updown.voice)
 
-    genau_rows = {s.title: s for s in build_reference_sections()}["Robot Hand"].rows
-    descs = [r.description for r in genau_rows]
+    osr2_rows = _section("OSR2").rows
+    descs = [r.description for r in osr2_rows]
     for updown, setname in (
         ("Amplitude up / down", "Set amplitude"),
         ("Center up / down", "Set center"),
@@ -578,7 +638,7 @@ def test_min_max_value_live_on_their_own_consecutive_set_lines():
         # says which engine the nudge reaches in kino mode).
         at = next(i for i, d in enumerate(descs) if d.startswith(updown))
         assert descs.index(setname) == at + 1, "Set line must follow its up/down line"
-    set_amp = next(r for r in genau_rows if r.description == "Set amplitude")
+    set_amp = next(r for r in osr2_rows if r.description == "Set amplitude")
     assert "min amp" in set_amp.voice and "max amp" in set_amp.voice
 
 

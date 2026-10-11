@@ -329,22 +329,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6166 on 2026-10-13: cruise control left Fun Time, and its notes with it.
 # 6165 the same day: the reveal's two dwells are named, so the comment saying
 # which frames counted went with them.
-# 6145 the same day: Fun Time starts the Main Funestra from its own venv, and the
-# notes on starting it from Genau's went with it.
-# 6105 when the OSR2's four control buttons became one switch, it counted as
-# off once it went quiet, and the broker's verbs came from app_support, so the
-# notes on Control off, on what was sent to it and on a one-verb channel went.
-# 6099 on 2026-10-16: a paused room hears enter VR, exit VR, recenter and VR
-# reset too, and the note on why it heard only three went.
-# 6097 the same day: the desk and the headset start their hotkey script through
-# one function, and the headset's copy of why it goes up first went.
-# 6075 the same day: the checkouts of the shared code a session runs are
-# called its sibling checkouts rather than Genau's project dirs, and the notes
-# that said Genau and the Main Funestra were run out of them went with the
-# old name.
-# 6072 the same day: the dispatch loop reads the room it was left in once.
-# 6068 the same day: the headset's layout file stopped being rewritten in place.
-MAX_PROSE_LINES = 6068
+# 6380 on 2026-10-11: the hotkeys and voice reference's sections now say which
+# part of the room and which mode each row belongs to, and the comments that
+# said so row by row went.
+MAX_PROSE_LINES = 6380
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

@@ -5,11 +5,13 @@ import numpy as np
 
 from fun_time.command_reference import build_reference_sections
 from fun_time_vr.reference_panel import (
+    _PAD,
     NEXT_PAGE,
     PREV_PAGE,
     REFERENCE_WIDTH_PX,
     ReferencePointer,
     ReferenceState,
+    note_lines,
     page_of,
     paint_reference,
     reference_actions,
@@ -43,6 +45,26 @@ class TestItIsTheSameReference:
                  for index in range(len(build_reference_sections()))}
 
         assert sizes == {(REFERENCE_WIDTH_PX, reference_height())}
+
+    def test_a_sections_note_is_painted_whole_on_as_many_lines_as_it_takes(self):
+        """The satellite sections' notes run well past one line of the panel,
+        and a note cut off at the first line loses the rule it carries."""
+        noted = [section for section in build_reference_sections() if section.note]
+
+        assert noted
+        for section in noted:
+            lines = note_lines(section)
+            assert " ".join(lines) == " ".join(section.note.split())
+            assert 1 <= len(lines) <= 3
+
+    def test_no_page_runs_its_rows_past_its_lower_edge(self):
+        """A longer note pushes the rows down, and the page has to grow with
+        it rather than paint the last rows off its edge."""
+        for index in range(len(build_reference_sections())):
+            panel = np.asarray(paint_reference(ReferenceState(open=True, page=index)))
+            lower_edge = panel[reference_height() - _PAD:, :, :3]
+
+            assert not (lower_edge.max(axis=2) > 128).any(), index
 
 
 class TestWalkingTheSections:
