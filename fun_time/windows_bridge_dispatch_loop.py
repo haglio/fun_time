@@ -32,6 +32,7 @@ from .command_dispatch import (
 from .crown import majority_now
 from .dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
+    ENTER_OMNIPAUSE,
     HEADSET_OFF,
     HEADSET_SIGNALS,
     HELP_REFERENCE,
@@ -451,7 +452,7 @@ class DispatchLoopRunner:
             return
         if not self.state.omni_paused:
             logger.info("A click into a text field enters OmniPause")
-            self._handle_command("enter_omnipause")
+            self._handle_command(ENTER_OMNIPAUSE)
 
     def _watches_for_typing(self, seen: Seen) -> bool:
         if self.windows.rfb_hwnd and seen.window == self.windows.rfb_hwnd:
@@ -616,9 +617,9 @@ class DispatchLoopRunner:
             self._handle_omnirestore()
         elif cmd == "omnipause_toggle":
             self._handle_omnipause_toggle()
-        elif cmd == "enter_omnipause":
+        elif cmd == ENTER_OMNIPAUSE:
             if not self.state.omni_paused:
-                self._handle_enter_omnipause("enter_omnipause")
+                self._handle_enter_omnipause(ENTER_OMNIPAUSE)
         elif cmd == "relief_omnipause":
             # No already-paused guard, unlike Space above: a session can be paused
             # with the device still on the user, which is the case relief exists

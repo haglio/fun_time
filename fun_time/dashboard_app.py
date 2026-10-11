@@ -20,17 +20,20 @@ from shared_ui.colors import (
     TEXT_PRIMARY,
     hovered,
 )
+from shared_ui.find_bar import FindBar
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
+from shared_ui.foreground import bring_to_front
 from shared_ui.icon_geometry import tooltip_for
 from shared_ui.icons import glyph_pixmap
 from shared_ui.preview import Preview
 from shared_ui.preview_icon import app_icon
-from shared_ui.spacing import BUTTON_RADIUS_HUD
+from shared_ui.spacing import BUTTON_RADIUS_HUD, MARGIN_STANDARD
 
 from fun_time import preview_marker
 from fun_time.command_reference import render_reference_html
 from fun_time.config import LayoutConfig
 from fun_time.dashboard_actions import (
+    ENTER_OMNIPAUSE,
     ENTER_VR,
     EXIT_VR,
     FMODE_TOGGLE,
@@ -298,7 +301,7 @@ def build_dashboard_scene(
 # PyQt6 rendering widget
 # ---------------------------------------------------------------------------
 from PyQt6.QtCore import QEvent, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QBrush, QPainter, QPen, QPixmap
+from PyQt6.QtGui import QBrush, QKeySequence, QPainter, QPen, QPixmap, QShortcut
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QTextBrowser, QToolTip, QVBoxLayout, QWidget
 
 
@@ -415,6 +418,8 @@ class ReferenceDialog(QDialog):
     Random Favs Browser's rect.
     """
 
+    typing_invited = pyqtSignal()
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle(REFERENCE_WINDOW_TITLE)
@@ -425,12 +430,20 @@ class ReferenceDialog(QDialog):
             | Qt.WindowType.WindowCloseButtonHint
         )
         self.setWindowIcon(app_icon(PROJECT_ICON, preview_marker.shown_as()))
-        browser = QTextBrowser(self)
-        browser.setOpenExternalLinks(False)
-        browser.setHtml(render_reference_html())
+        self._browser = QTextBrowser(self)
+        self._browser.setOpenExternalLinks(False)
+        self._browser.setHtml(render_reference_html())
+        self._find_bar = FindBar("Find:", "a key or a word…")
+        self._find_bar.setContentsMargins(MARGIN_STANDARD, 0, MARGIN_STANDARD, MARGIN_STANDARD)
+        self._find_bar.typing_invited.connect(self.typing_invited)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(browser)
+        layout.addWidget(self._browser)
+        layout.addWidget(self._find_bar)
+        QShortcut(QKeySequence.StandardKey.Find, self).activated.connect(self.open_find)
+
+    def open_find(self) -> None:
+        self._find_bar.open_find([self._browser])
 
     def sync_topmost(self, omni_paused: bool) -> None:
         """Follow the same OmniPause band policy as every other Fun Time window.
@@ -457,10 +470,12 @@ class ReferencePopup:
     """
 
     def __init__(self, parent: QWidget, rfb_rect: Rect | None, *,
-                 on_change: Callable[[], None]) -> None:
+                 on_change: Callable[[], None],
+                 on_typing_invited: Callable[[], None]) -> None:
         self._parent = parent
         self._rfb_rect = rfb_rect
         self._on_change = on_change
+        self._on_typing_invited = on_typing_invited
         self.dialog: ReferenceDialog | None = None
 
     @property
@@ -483,11 +498,11 @@ class ReferencePopup:
         if self.dialog is None:
             self.dialog = ReferenceDialog(self._parent)
             self.dialog.finished.connect(lambda _result: self._on_change())
+            self.dialog.typing_invited.connect(self._on_typing_invited)
             if self._rfb_rect is not None:
                 self._fit_to(self._rfb_rect)
         self.dialog.show()
-        self.dialog.raise_()
-        self.dialog.activateWindow()
+        bring_to_front(self.dialog)
         # Qt applies the StaysOnTop hint on show, so a band set before this
         # would be undone by the show and the popup would be stranded above a
         # desktop OmniPause had freed.  After, not before.
@@ -585,7 +600,8 @@ class DashboardWindow(QMainWindow):
         self._bar_layout = bar_layout
         self._launch_geometry = launch_geometry
         # The reference popup opens over the Random Favs Browser's screen rect.
-        self._reference = ReferencePopup(self, rfb_rect, on_change=self._repaint_bar)
+        self._reference = ReferencePopup(self, rfb_rect, on_change=self._repaint_bar,
+                                         on_typing_invited=self._pause_for_typing)
         # Read once; the notice feed below is seeded from this same answer.
         self._reveal = LoadingReveal(app_config.state_dir)
 
@@ -778,6 +794,9 @@ class DashboardWindow(QMainWindow):
 
     def _repaint_bar(self) -> None:
         self._widget.set_scene(self._bar_scene(self._compute_pressed()))
+
+    def _pause_for_typing(self) -> None:
+        write_dashboard_command(self._app_config.dashboard_cmd_file, ENTER_OMNIPAUSE)
 
     def _on_action(self, action_id: str) -> None:
         if action_id == HELP_REFERENCE:
