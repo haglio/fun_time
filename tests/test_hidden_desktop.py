@@ -44,7 +44,7 @@ from tests.integration.hidden_desktop import (
 )
 from tests.integration.main_verifier import measured_run_environment, measured_sources
 from tests.integration.run_clock import keep_time_by
-from tests.integration.session_lock import SingleInstanceLock, Waiting, hold_integration_lock
+from tests.integration.session_lock import Place, SingleInstanceLock, Waiting, hold_integration_lock
 
 
 def _run_in_a_run_job(probe: str) -> None:
@@ -360,13 +360,16 @@ def test_the_files_run_whole_are_the_integration_files_holding_a_test_the_branch
         "tests/integration/test_b.py", "tests/integration/test_c.py"]
 
 
-def test_the_waiting_message_says_whether_the_run_is_short_or_full(capsys):
-    hidden_desktop._announce_waiting(True, Waiting(12.0))
-    hidden_desktop._announce_waiting(False, Waiting(30.0))
-    hidden_desktop._announce_waiting(False, Waiting(40.0, goes_next=True))
+def test_the_waiting_message_says_where_the_run_stands_in_line(capsys):
+    hidden_desktop._announce_waiting(Waiting(12.0, Place.AHEAD_OF_FULL_RUNS))
+    hidden_desktop._announce_waiting(Waiting(20.0, Place.AFTER_THE_FULL_RUN_GOING_NEXT))
+    hidden_desktop._announce_waiting(Waiting(30.0, Place.GIVING_WAY_TO_SHORT_RUNS))
+    hidden_desktop._announce_waiting(Waiting(40.0, Place.GOING_NEXT))
 
-    short, full, full_going_next = capsys.readouterr().err.splitlines()
+    short, short_after_a_full, full, full_going_next = capsys.readouterr().err.splitlines()
     assert "this short run waits for it, ahead of any full run (12s elapsed)" in short
+    assert ("this short run waits for it, then for the full run that goes next (20s elapsed)"
+            in short_after_a_full)
     assert "lets short runs go first until they have held the line for 20 minutes (30s elapsed)" in full
     assert "this full run waits for it, and short runs now wait for this one (40s elapsed)" in full_going_next
 
@@ -379,7 +382,7 @@ def test_the_waiting_message_reads_what_the_line_reports():
     announced = threading.Event()
 
     def announce(waiting: Waiting) -> None:
-        hidden_desktop._announce_waiting(False, waiting)
+        hidden_desktop._announce_waiting(waiting)
         announced.set()
 
     def wait_in_line() -> None:
