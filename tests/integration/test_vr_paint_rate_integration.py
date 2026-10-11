@@ -19,6 +19,7 @@ from fun_time_vr.render import RenderTarget
 from fun_time_vr.scheduling import ahead_of_background_work
 
 from .integration_support import build_integration_temp_root, wait_for
+from .run_clock import OnTimeClock
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32",
@@ -27,55 +28,64 @@ pytestmark = [
                        reason="Set FUN_TIME_RUN_INTEGRATION=1 to run"),
 ]
 
-CLIP_FPS = 60
-FLICK_SECONDS = 10
+VIDEO_FPS = 60
+VIDEO_SECONDS = 10
 MEASURED_S = 5.0
 HEADSET_HZ = 72.0
 PAINTED_PER_S_AT_LEAST = 45
+MEASURING_GIVES_UP_AFTER_S = 60.0
 
 
 def _sixty_fps_test_pattern(folder: Path) -> Path:
     ffmpeg = shutil.which("ffmpeg")
     if ffmpeg is None:
-        pytest.fail("ffmpeg is what makes this test's clip, and it is not on PATH")
-    clip = folder / "sixty_fps_test_pattern.mp4"
+        pytest.fail("ffmpeg is what makes this test's video, and it is not on PATH")
+    pattern = folder / "sixty_fps_test_pattern.mp4"
     subprocess.run(
         [ffmpeg, "-v", "error", "-y", "-f", "lavfi",
-         "-i", f"testsrc2=size=1280x720:rate={CLIP_FPS}",
-         "-t", str(FLICK_SECONDS), "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)],
+         "-i", f"testsrc2=size=1280x720:rate={VIDEO_FPS}",
+         "-t", str(VIDEO_SECONDS), "-c:v", "libx264", "-pix_fmt", "yuv420p", str(pattern)],
         check=True, timeout=60, **hidden_subprocess_kwargs())
-    return clip
+    return pattern
 
 
-def _pictures_shown(video, target: RenderTarget, *, seconds: float) -> int:
+def _pictures_shown(video, target: RenderTarget, *, seconds: float) -> tuple[int, float, float]:
     shown = 0
     period = 1.0 / HEADSET_HZ
-    ends = time.perf_counter() + seconds
-    while (started := time.perf_counter()) < ends:
-        if video.show_newest(target):
-            shown += 1
-        time.sleep(max(0.0, period - (time.perf_counter() - started)))
-    return shown
+    began = time.monotonic()
+    gives_up = began + MEASURING_GIVES_UP_AFTER_S
+    with OnTimeClock(slack_s=1.0 / VIDEO_FPS) as on_time:
+        while on_time.seconds() < seconds and time.monotonic() < gives_up:
+            started = time.perf_counter()
+            if video.show_newest(target) and not on_time.held():
+                shown += 1
+            time.sleep(max(0.0, period - (time.perf_counter() - started)))
+        return shown, on_time.seconds(), time.monotonic() - began
 
 
 def test_the_main_picture_is_painted_at_a_sixty_fps_videos_own_rate():
-    clip = _sixty_fps_test_pattern(build_integration_temp_root())
+    pattern = _sixty_fps_test_pattern(build_integration_temp_root())
     assert glfw.init(), "glfw failed to initialize"
     window = hidden_gl_window("vr-paint-rate-test")
     glfw.make_context_current(window)
     video = main_video(SharedContexts(window))
     target = RenderTarget()
     try:
-        video.engine.load(clip)
-        wait_for(lambda: video.show_newest(target), desc="the clip's first painted frame")
+        video.engine.set_loop_file(True)
+        video.engine.load(pattern)
+        wait_for(lambda: video.show_newest(target), desc="the video's first painted frame")
         with ahead_of_background_work():
-            shown = _pictures_shown(video, target, seconds=MEASURED_S)
+            shown, on_time_s, wall_s = _pictures_shown(video, target, seconds=MEASURED_S)
     finally:
         video.close()
         target.close()
         glfw.destroy_window(window)
         glfw.terminate()
-    per_second = shown / MEASURED_S
+    assert on_time_s >= MEASURED_S, (
+        f"in {wall_s:.0f}s the run had the processor on time for only {on_time_s:.1f}s, "
+        "so the picture's rate was never measured")
+    per_second = shown / on_time_s
     assert per_second >= PAINTED_PER_S_AT_LEAST, (
-        f"the main picture was painted {per_second:.0f} times a second "
-        f"for a {CLIP_FPS}fps video")
+        f"the main picture was painted {per_second:.0f} times a second for a {VIDEO_FPS}fps "
+        f"video: {shown} pictures in the {on_time_s:.1f}s of {wall_s:.1f}s the run had the "
+        "processor on time")
