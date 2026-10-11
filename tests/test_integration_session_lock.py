@@ -334,6 +334,35 @@ def test_a_full_run_counts_toward_giving_way_only_the_time_short_runs_hold_the_l
     assert order == ["short", "full"]
 
 
+def test_a_full_run_counts_toward_giving_way_only_once_it_is_next_in_line():
+    name = _unique_name()
+    first_short_in, first_short_may_leave = threading.Event(), threading.Event()
+
+    def first_short() -> None:
+        with hold_integration_lock(name=name, short=True, notify_every_s=0.05):
+            first_short_in.set()
+            first_short_may_leave.wait(timeout=10)
+
+    holder = threading.Thread(target=first_short, daemon=True)
+    holder.start()
+    assert first_short_in.wait(timeout=10)
+    order: list[str] = []
+    first_full, first_full_goes_next = _start_run(name, order, "first full", full_run_gives_way_s=0.2,
+                                                  once=lambda state: state.goes_next)
+    assert first_full_goes_next.wait(timeout=10)
+    second_full, second_full_waited = _start_run(name, order, "second full", full_run_gives_way_s=0.2,
+                                                 once=lambda state: state.seconds > 0.5)
+    assert second_full_waited.wait(timeout=10)
+    short, short_waiting = _start_run(name, order, "second short", short=True)
+    assert short_waiting.wait(timeout=10)
+
+    first_short_may_leave.set()
+    for run in (holder, first_full, second_full, short):
+        run.join(timeout=10)
+
+    assert order == ["first full", "second short", "second full"]
+
+
 def test_only_the_full_run_next_in_line_makes_short_runs_wait_for_it():
     name = _unique_name()
     blocker = _held_by_the_test(name)

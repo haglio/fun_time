@@ -144,7 +144,7 @@ def hold_integration_lock(
     arrived, instead of clobbering — then releases it on exit even if the block
     raises.  A *short* run goes ahead of full runs; a full run lets short runs
     go first until they have held the lock for *full_run_gives_way_s* while it
-    waited, and from then on they wait for it.  While waiting, calls ``notify``
+    was next in line, and from then on they wait for it.  While waiting, calls ``notify``
     every *notify_every_s* so a queuing run can surface that it is waiting
     rather than hanging silently.
     """
@@ -218,9 +218,11 @@ class _Patience:
         return self._given_way >= self._gives_way_s
 
     def waited(self, seconds: float) -> bool:
+        if not self._at_the_head.is_set():
+            return False
         if _held_elsewhere(self._short_running):
             self._given_way += seconds
-        if self.spent() and self._at_the_head.is_set() and not self._going_next:
+        if self.spent() and not self._going_next:
             self._going_next = self._goes_next.acquire(timeout=0)
         return self._going_next
 
