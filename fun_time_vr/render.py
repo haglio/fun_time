@@ -190,17 +190,25 @@ void main() {{
 }}
 """
 
+def angle_limits(projection: str) -> tuple[float, float] | None:
+    wrap = _WRAPS.get(projection)
+    if wrap is None or wrap.mode not in _MAX_FOV_DEG:
+        return None
+    return MIN_FOV_DEG, _MAX_FOV_DEG[wrap.mode]
+
+
 def immersive_wrap(
     projection: str, *, fov_deg: float | None = None, height: float | None = None,
 ) -> Wrap | None:
     """How *projection* wraps the viewer, or None when it draws as a screen."""
     wrap = _WRAPS.get(projection)
-    if wrap is None or wrap.mode == _EQUIRECT_360_MODE:
+    limits = angle_limits(projection)
+    if limits is None:
         return wrap
+    low, high = limits
     return replace(
         wrap,
-        fov_deg=wrap.fov_deg if fov_deg is None else min(
-            max(fov_deg, MIN_FOV_DEG), _MAX_FOV_DEG[wrap.mode]),
+        fov_deg=wrap.fov_deg if fov_deg is None else min(max(fov_deg, low), high),
         height=wrap.height if height is None else min(max(height, MIN_HEIGHT), MAX_HEIGHT),
     )
 

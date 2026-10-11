@@ -166,6 +166,7 @@ from .pointer import (
     surface_pixel,
 )
 from .projection import default_projection
+from .projection_controls import ProjectionPointer
 from .reference_panel import (
     REFERENCE_WIDTH_DEG,
     REFERENCE_WIDTH_PX,
@@ -527,6 +528,8 @@ class _MainUnit(_VideoUnit):
         self._flick_projection: tuple[Path | None, str] = (None, "")
         library = _TheLibrary(manifest, vr, while_reading=while_reading)
         self.verbs: HeadsetVerbs | None = None
+        self.projection = ProjectionPointer(verbs=lambda: self.verbs,
+                                            showing=lambda: self.owns_the_slot)
         self.funestra = Funestra(
             self.engine,
             channels=Channels(
@@ -546,7 +549,7 @@ class _MainUnit(_VideoUnit):
             users=_users(manifest, vr, stop,
                          kino=library.kino()),
             panel_surface=self.panel, users_picture=self.users_picture,
-            window_verbs=self._apply_the_headsets_verb,
+            window_verbs=self._apply_the_headsets_verb, host_block=self.projection,
         )
         self.verbs = HeadsetVerbs(
             self.funestra.playback, metadata_root=_metadata_root(manifest),

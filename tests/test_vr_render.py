@@ -33,6 +33,7 @@ from fun_time_vr.render import (
     _CURVE_STEREOGRAPHIC,
     _FISHEYE_MODE,
     _IMMERSIVE_FRAGMENT_SHADER,
+    angle_limits,
     immersive_wrap,
 )
 
@@ -108,6 +109,13 @@ class TestAWrapDrawnAtAFieldOfViewAndHeightOfItsOwn:
     def test_a_rectilinear_window_opens_at_a_hundred_twenty_and_stays_under_a_hundred_eighty(self):
         assert immersive_wrap(RECTILINEAR_SBS).fov_deg == 120.0
         assert immersive_wrap(RECTILINEAR_SBS, fov_deg=1000.0).fov_deg == 170.0
+
+    def test_a_projection_says_the_angles_it_can_be_drawn_between(self):
+        assert angle_limits(EQUIRECT_180_SBS) == (40.0, 180.0)
+        assert angle_limits(FISHEYE_200_EQUISOLID_SBS) == (40.0, 240.0)
+        assert angle_limits(RECTILINEAR_SBS) == (40.0, 170.0)
+        assert angle_limits(EQUIRECT_360) is None
+        assert angle_limits(FLAT) is None
 
     def test_the_shader_stretches_every_wrap_but_the_360_by_its_height(self):
         assert "uniform float height;" in _IMMERSIVE_FRAGMENT_SHADER

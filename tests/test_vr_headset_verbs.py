@@ -15,7 +15,13 @@ from fun_time.event_log import NOTICE, SOURCE_MAIN
 from fun_time_vr.headset_verbs import ANGLE_STEP, DIAL_STILL_S, TILT_STEP_DEG, HeadsetVerbs
 from fun_time_vr.layout import TILT_LIMIT_DEG
 from fun_time_vr.picture_shape import FISHEYE_CIRCLE
-from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_180_SBS, FLAT, ProjectionMemory
+from fun_time_vr.projection import (
+    EQUIRECT_180_SBS,
+    FISHEYE_180_SBS,
+    FLAT,
+    RECTILINEAR_SBS,
+    ProjectionMemory,
+)
 from tests.satellite_fakes import FakeSatelliteEngine
 
 HOUR_MS = 3_600_000.0
@@ -206,12 +212,25 @@ class TestProjectionCycling:
         sidecar = headset.metadata / "VR" / "finished" / "scene one.json"
         assert json.loads(sidecar.read_text(encoding="utf-8"))["vr"]["projection"] == "flat"
 
+    def test_one_picked_off_the_list_is_watched_in_and_persists_too(self, headset):
+        headset.verbs.watch_in(RECTILINEAR_SBS)
+
+        assert headset.verbs.projection == RECTILINEAR_SBS
+        sidecar = headset.metadata / "VR" / "finished" / "scene one.json"
+        assert json.loads(sidecar.read_text(encoding="utf-8"))["vr"]["projection"] == (
+            RECTILINEAR_SBS)
+
 
 class TestDialingAWrappedPicture:
     def test_a_video_nobody_has_dialed_has_neither_a_field_of_view_nor_a_height(self, headset):
         one, *_ = headset.files
         assert headset.verbs.fov_of(str(one)) is None
         assert headset.verbs.height_of(str(one)) is None
+
+    def test_the_video_in_front_says_the_angle_it_is_dialed_to(self, headset):
+        headset.verbs.set_fov(150.0)
+
+        assert headset.verbs.fov == 150.0
 
     def test_what_is_dialed_belongs_to_the_video_playing_and_no_other(self, headset):
         one, two, *_ = headset.files

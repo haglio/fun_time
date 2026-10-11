@@ -118,6 +118,7 @@ from fun_time_vr.projection import (
     FLAT,
     RECTILINEAR_SBS,
 )
+from fun_time_vr.projection_controls import Angle, ProjectionControls
 from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
 from fun_time_vr.render import immersive_wrap
 from fun_time_vr.satellite_hud import hud_screen_name
@@ -310,6 +311,21 @@ def test_the_main_funestra_is_the_desktops_with_the_headsets_own_surfaces(
     assert handed["users_picture"] is unit.users_picture
     handed["window_verbs"]("TILT_UP")
     unit.verbs.apply.assert_called_once_with("TILT_UP")
+
+
+def test_its_console_carries_the_projection_dropdown_and_angle_slider_for_kinos_video(
+        tmp_path, faked_collaborators):
+    unit = _a_main_unit(tmp_path)
+    block = faked_collaborators["Funestra"].call_args.kwargs["host_block"]
+    unit.verbs.projection, unit.verbs.fov = EQUIRECT_180_SBS, 160.0
+
+    unit.funestra.showing = MainMode.KINO
+    with_kino = block.drawing()
+    unit.funestra.showing = MainMode.GENAU
+    with_genau = block.drawing()
+
+    assert with_kino == ProjectionControls(EQUIRECT_180_SBS, Angle(160.0, 40.0, 180.0))
+    assert with_genau is None
 
 
 def test_kino_runs_on_it_through_the_library_and_the_memory_the_desktop_reads(

@@ -107,6 +107,10 @@ class HeadsetVerbs:
     def projection_of(self, video: str | None) -> str:
         return self._projections.get(video, "")
 
+    @property
+    def fov(self) -> float | None:
+        return self.fov_of(str(self._video))
+
     def fov_of(self, video: str | None) -> float | None:
         return self._fovs.get(video)
 
@@ -208,12 +212,12 @@ class HeadsetVerbs:
             notice(logger, "No scenes are marked in this video yet", source=SOURCE_MAIN)
 
     def cycle_projection(self) -> None:
-        self._watch_in(next_projection(self.projection))
+        self.watch_in(next_projection(self.projection))
 
     def cycle_projection_back(self) -> None:
-        self._watch_in(previous_projection(self.projection))
+        self.watch_in(previous_projection(self.projection))
 
-    def _watch_in(self, projection: str) -> None:
+    def watch_in(self, projection: str) -> None:
         self._projections[str(self._video)] = projection
         self._remembered.save(str(self._video), projection)
         logger.info("Projection: %s (%s)", projection, self._video.name)
