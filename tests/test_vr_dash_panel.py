@@ -58,7 +58,6 @@ from fun_time_vr.dash_panel import (
     VERBOSITY_STOP,
     DashPointer,
     DashState,
-    _arrow_down,
     dash_actions,
     dash_height,
     dial_stops,
@@ -66,6 +65,7 @@ from fun_time_vr.dash_panel import (
     paint_dash,
     verbosity_name,
 )
+from fun_time_vr.dropdown import arrow_down
 
 _A_PREVIEW = Preview(feature="the new reference popup")
 
@@ -382,7 +382,7 @@ class TestItLooksLikeADropdown:
         """Pillow rotates counter-clockwise, so the first turn put the family's
         chevron on its back pointing UP -- an arrow that says the list opens
         somewhere it does not."""
-        arrow = np.asarray(_arrow_down(24))[:, :, 3]
+        arrow = np.asarray(arrow_down(24))[:, :, 3]
         rows = [(r, int((arrow[r] > 40).sum())) for r in range(arrow.shape[0])
                 if (arrow[r] > 40).any()]
         apex = min(rows, key=lambda row: row[1])[0]
