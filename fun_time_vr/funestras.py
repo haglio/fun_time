@@ -778,7 +778,7 @@ class _SatelliteUnit(_VideoUnit):
         self.hud_screen = _HangingScreen(self.screen.placement)
         self._hud_version = -1
         self._hud_shown = False
-        self._buttons = HudButtons(funestra, funestra, post=self._post, texture=FrameTexture,
+        self._buttons = HudButtons(funestra, post=self._post, texture=FrameTexture,
                                    mesh=lambda: _HangingScreen(self.screen.placement))
         self._presses = _Presses(funestra, hud_screen_name(funestra), *hud_button_names(funestra))
 
@@ -817,8 +817,8 @@ class _SatelliteUnit(_VideoUnit):
                 self.hud_texture.upload(rgba)
         minimized = self.funestra.panel_minimized
         if self.target.ready and (self._hud_shown or minimized):
-            self._buttons.hang(self.shown, self.target.aspect, edge=self.funestra.panel_edge,
-                               minimized=minimized)
+            self._buttons.hang(self.funestra.outside_buttons, self.shown, self.target.aspect,
+                               edge=self.funestra.panel_edge)
         else:
             self._buttons.unhang()
         if self._hud_shown and self.target.ready:
@@ -907,7 +907,7 @@ class _PanelUnit:
         self._shown = False
         self.texture = FrameTexture()
         self.screen = _HangingScreen(main_unit.screen.placement)
-        self._buttons = HudButtons(MAIN, MAIN, post=main_unit._post, texture=FrameTexture,
+        self._buttons = HudButtons(MAIN, post=main_unit._post, texture=FrameTexture,
                                    mesh=lambda: _HangingScreen(main_unit.screen.placement))
         self._presses = _Presses(*hud_button_names(MAIN))
 
@@ -949,7 +949,7 @@ class _PanelUnit:
         edge = panel_hangs_from(self._main_unit.funestra.panel_edge, wrapped=wrapped)
         minimized = self._main_unit.funestra.panel_minimized
         if self._shown or minimized:
-            self._buttons.hang(under, aspect, edge=edge, minimized=minimized,
+            self._buttons.hang(self._main_unit.funestra.outside_buttons, under, aspect, edge=edge,
                                with_sides=not wrapped)
         else:
             self._buttons.unhang()

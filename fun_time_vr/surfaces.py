@@ -8,6 +8,10 @@ import numpy as np
 from funestra_core.clip_picture import Picture
 
 
+def red_and_blue_swapped(pixels: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(pixels[:, :, [2, 1, 0, 3]])
+
+
 class PanelBitmap:
     def __init__(self, width: int | None = None) -> None:
         self.width = width
@@ -17,7 +21,7 @@ class PanelBitmap:
         self._origin = (0, 0)
 
     def overlay(self, _ident: int, x: int, y: int, bgra: np.ndarray) -> None:
-        rgba = np.ascontiguousarray(bgra[:, :, [2, 1, 0, 3]])
+        rgba = red_and_blue_swapped(bgra)
         with self._lock:
             self._rgba = rgba
             self._origin = (x, y)

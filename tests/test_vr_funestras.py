@@ -22,6 +22,7 @@ from funestra_core.clip_picture import Picture
 from funestra_core.console_hud import ModeHud
 from funestra_core.hud_placement import HudEdge
 from funestra_core.modes import MainMode
+from funestra_core.outside_buttons import OutsideButtons
 from funestra_core.play_points import play_points_filename
 from funestra_core.playlist import PlaylistItem
 from shared_ui.palette import BLUE
@@ -896,7 +897,8 @@ class TestThePanelUnderTheSlot:
         posted: list[str] = []
         main_unit = _like(_MainUnit, _AMainStandIn(
             owns_the_slot=not showing,
-            funestra=SimpleNamespace(panel_edge=edge, panel_minimized=minimized),
+            funestra=SimpleNamespace(panel_edge=edge, panel_minimized=minimized,
+                                     outside_buttons=OutsideButtons(MAIN, minimized=minimized)),
             _post=posted.append,
             panel=PanelBitmap(width=PANEL_WIDTH_PX),
             verbs=SimpleNamespace(projection_of=lambda _video: projection, **_NEVER_DIALED),
@@ -1052,6 +1054,7 @@ class TestASatellitesButtonsInTheHeadset:
     def _unit(tmp_path, *, minimized=False):
         unit = _a_satellite_unit(tmp_path, PORTRAIT, {})
         unit.funestra = SimpleNamespace(panel_edge=HudEdge.LEFT, panel_minimized=minimized,
+                                        outside_buttons=OutsideButtons(PORTRAIT, minimized=minimized),
                                         tick=lambda window: None,
                                         motion=lambda x, y, held, window: None)
         unit.video = SimpleNamespace(show_newest=lambda _target: False)
@@ -2068,7 +2071,7 @@ class TestWhatThePointerDraws:
 
 
 def _buttons_not_hanging_names(funestra: str) -> HudButtons:
-    return HudButtons(funestra, funestra, post=lambda _command: None, texture=object, mesh=object)
+    return HudButtons(funestra, post=lambda _command: None, texture=object, mesh=object)
 
 
 def _a_panel(*, ready=True):

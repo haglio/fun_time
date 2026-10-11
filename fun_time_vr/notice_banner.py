@@ -18,6 +18,7 @@ from shared_ui.lettering import load_font, wrap_text
 from shared_ui.palette import BG_SECONDARY
 
 from .console_panel import level_color
+from .surfaces import red_and_blue_swapped
 
 # The type as a fraction of the height, never under the desktop's own; the rest
 # of the shape is in multiples of it (the desktop's 16/8 padding, 1px border and
@@ -80,5 +81,4 @@ def banner_bgra(message: str, level: int, *, width: int, height: int):
         message, level, max_width=round(width * WIDTH_FRACTION), size=font_px(height),
     )
     x, y = banner_placement(banner, width, height)
-    rgba = np.asarray(banner)
-    return x, y, np.ascontiguousarray(rgba[:, :, [2, 1, 0, 3]])
+    return x, y, red_and_blue_swapped(np.asarray(banner))
