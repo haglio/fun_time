@@ -14,8 +14,8 @@ from typing import Any
 import pygame
 from app_support.cli import preparse_config_path
 from app_support.logging_utils import configure_logging, install_exception_logging
-from funestra_core.audio_outputs import Output, pick_output
-from funestra_core.file_channel import read_paused_state
+from funestra.audio_outputs import Output, pick_output
+from funestra.file_channel import read_paused_state
 from pygame._sdl2.audio import get_audio_device_names
 
 from .audio_companion_runtime import AudioCompanionRuntime

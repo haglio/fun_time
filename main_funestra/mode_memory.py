@@ -19,8 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from funestra_core.file_channel import publish_whole
-from funestra_core.modes import LengthMode, read_mode
+from funestra.file_channel import publish_whole
+from funestra.modes import LengthMode, read_mode
 
 
 @dataclass(frozen=True)

@@ -379,7 +379,7 @@ class OutOfDateSibling(RuntimeError):
 
 
 FUNESTRAS_FROM_BEFORE_THE_PIN = (
-    "That branch is set to run its Funestras out of a player_core checkout older than the "
+    "That branch is set to run its Funestras out of a funestra checkout older than the "
     "one it was built against, so its Main Funestra would not come up.")
 
 
@@ -427,7 +427,7 @@ def _leave_note(worktree: Path, label: str, why_it_could_not_start: str) -> None
 def sibling_checkouts_line(
     worktree: Path, primary: Path, *, config_path: Path | None = None
 ) -> str:
-    """One line saying which genau/player_core checkouts *worktree*'s next
+    """One line saying which genau/funestra checkouts *worktree*'s next
     launch runs.
 
     Printed with every ``--shortcut``, because this part of the chain has no
@@ -449,7 +449,7 @@ def sibling_checkouts_line(
     _apply_origenerator_checkout_override(raw, worktree / STATE_DIRNAME)
     dirs = raw["paths"]["genau_project_dirs"]
     genau_line = (
-        "genau_project_dirs: (empty — Genau, the Main Funestra and player_core run "
+        "genau_project_dirs: (empty — Genau, the Main Funestra and funestra run "
         "from their venv installs, the primaries)"
         if not dirs else "genau_project_dirs: " + os.pathsep.join(dirs)
     )

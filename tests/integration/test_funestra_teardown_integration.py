@@ -11,7 +11,7 @@ before pytest printed its summary, so an earlier failure in that run was never
 reported at all.
 
 Only reachable here: it takes the real DLL and a real GL context, which is why
-player_core's own suite cannot ask this question.
+funestra's own suite cannot ask this question.
 """
 from __future__ import annotations
 

@@ -26,15 +26,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from funestra_core import funestra_controls
-from funestra_core.funestra import Channels, Funestra
-from funestra_core.funestra_controls import FunestraControls
-from funestra_core.funestra_controls import apply_command as apply_satellite_command
-from funestra_core.funestra_verbs import SHOW
-from funestra_core.genau_controls import VERBS as GENAU_VERBS
-from funestra_core.modes import MainMode
-from funestra_core.playback import Playback
-from funestra_core.playlist import read_playlist
+from funestra import funestra_controls
+from funestra.funestra import Channels, Funestra
+from funestra.funestra_controls import FunestraControls
+from funestra.funestra_controls import apply_command as apply_satellite_command
+from funestra.funestra_verbs import SHOW
+from funestra.genau_controls import VERBS as GENAU_VERBS
+from funestra.modes import MainMode
+from funestra.playback import Playback
+from funestra.playlist import read_playlist
 
 from fun_time.bridge_records import BridgeConfig, Op
 from fun_time.command_dispatch import dispatch_command
@@ -299,11 +299,11 @@ class _TheHeadsetsMainFunestra:
 class _the_funestras_refusals:
     def __enter__(self):
         self._handler = _Refusals()
-        logging.getLogger("funestra_core.funestra").addHandler(self._handler)
+        logging.getLogger("funestra.funestra").addHandler(self._handler)
         return self._handler.refused
 
     def __exit__(self, *_exc):
-        logging.getLogger("funestra_core.funestra").removeHandler(self._handler)
+        logging.getLogger("funestra.funestra").removeHandler(self._handler)
 
 
 class _Refusals(logging.Handler):
@@ -433,7 +433,7 @@ class TestGenau:
             for verb, where in _sent_to(landed, "genau_cmd_file").items()
             if verb not in GENAU_VERBS
         }
-        assert not dead, f"player_core's control registry answers none of these: {dead}"
+        assert not dead, f"funestra's control registry answers none of these: {dead}"
 
 
 # Said to a side in origenerator mode, where what a side is told is the hosted

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.console import OSR2_PARKED, OSR2_RETRACTED
+from funestra.console import OSR2_PARKED, OSR2_RETRACTED
 
 # Send the OSR2 home and hold it there.  The broker fires the park a second
 # later (``L00000I500``: position 0 over half a second) and mutes the script

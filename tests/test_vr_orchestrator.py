@@ -14,8 +14,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from funestra_core.drive_readout import DriveHud, drive_text
-from funestra_core.modes import MainMode
+from funestra.drive_readout import DriveHud, drive_text
+from funestra.modes import MainMode
 
 from fun_time import funestra_deaths, win32_taskbar
 from fun_time.config import load_config
@@ -271,7 +271,7 @@ class TestOrigeneratorInVr:
         assert calls["bring_up_the_hosted_app"] < calls["launch_vr_funestras"]
 
     def test_the_app_runs_the_checkouts_this_session_names(self):
-        """It imports player_core too, so a branch of it reaches the app the way
+        """It imports funestra too, so a branch of it reaches the app the way
         it reaches every other child."""
         tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
         (call,) = [n for n in ast.walk(tree) if isinstance(n, ast.Call)

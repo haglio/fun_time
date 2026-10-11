@@ -10,7 +10,7 @@ from __future__ import annotations
 
 # --- Called by a framework, not by us ---
 _.do_GET  # http.server dispatches by getattr
-_.set_showing  # the Funestra (player_core) tells each User whether it has the window
+_.set_showing  # the Funestra (funestra) tells each User whether it has the window
 _.picture  # the Funestra asks the User in front for the picture it brings
 _.leaveEvent  # Qt calls it when the pointer leaves the dashboard bar
 _.mouseMoveEvent  # Qt event override
@@ -37,7 +37,7 @@ _.playhead  # main_funestra.genau, off the engine
 _.time_on_screen  # main_funestra.genau, off the engine
 _.manifest_fields  # fun_time_vr.orchestrator carries Genau's settings into the manifest
 from_manifest  # satellite.contract; fun_time_vr's Funestra and the sequencer
-top_block  # main_funestra.kino; player_core's Funestra heads its console with it
+top_block  # main_funestra.kino; funestra's Funestra heads its console with it
 to_argv  # satellite.contract; the session's satellite launcher
 tcode_udp_host  # fun_time_vr/orchestrator.py
 tcode_udp_port  # fun_time_vr/orchestrator.py

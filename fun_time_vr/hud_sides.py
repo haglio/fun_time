@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
-from funestra_core.hud_placement import HudEdge
+from funestra.hud_placement import HudEdge
 
 from .console_panel import DEG_PER_PX
 from .pointer import HANDLE_DEG, PRESS, PressEvent, Screen

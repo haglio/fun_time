@@ -15,10 +15,10 @@ from urllib.request import url2pathname
 
 import pytest
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from funestra_core.drive_readout import DriveHud, drive_text
-from funestra_core.modes import MainMode
-from funestra_core.playlist import PlaylistItem, write_playlist
-from funestra_core.robot_hand import FULL_INTENSITY
+from funestra.drive_readout import DriveHud, drive_text
+from funestra.modes import MainMode
+from funestra.playlist import PlaylistItem, write_playlist
+from funestra.robot_hand import FULL_INTENSITY
 from shared_ui.preview import Preview
 
 from fun_time import preview_marker
@@ -583,7 +583,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     # The whole launch bundle travels as the two slots — each side's file
     # quartet, log, playlist, rect and HUD file in one value — plus the shared
     # settings.  project_dirs names the sibling checkouts, because the
-    # satellites import player_core like Genau and the Main Funestra do.
+    # satellites import funestra like Genau and the Main Funestra do.
     launch.assert_called_once_with(
         python_exe="fun_time_python.exe",
         satellite_module="satellite",
@@ -1444,7 +1444,7 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
 class TestTheCheckoutsTheFunestraRunsOutOf:
     """Which checkouts Genau and the Main Funestra are run out of.
 
-    Every package they import — their own, and ``player_core`` under them —
+    Every package they import — their own, and ``funestra`` under them —
     resolves through the genau venv's editable installs, which name the primary
     checkout of each repo for good.  Naming a directory puts it on their
     ``PYTHONPATH``, ahead of site-packages, so a worktree of either can be run;
@@ -1479,9 +1479,9 @@ class TestTheCheckoutsTheFunestraRunsOutOf:
 
     def test_several_checkouts_are_run_against_each_other(self, tmp_path: Path):
         """A change is often in two of these repos at once — Fun Time's Main
-        Funestra on a channel in ../player_core — and running one branch against
+        Funestra on a channel in ../funestra — and running one branch against
         the other's landed code is not running the change."""
-        fun_time, core = tmp_path / "fun_time", tmp_path / "player_core"
+        fun_time, core = tmp_path / "fun_time", tmp_path / "funestra"
         fun_time.mkdir()
         core.mkdir()
 
@@ -1678,9 +1678,9 @@ def test_launch_ui_companions_launches_dashboard_and_audio(tmp_path: Path):
 
 def test_launch_ui_companions_sends_both_companions_to_the_named_checkouts(tmp_path: Path):
     """The dashboard has always run the checkouts a session names, and the
-    companion reads the same player_core beside it -- the flag files, and which
+    companion reads the same funestra beside it -- the flag files, and which
     output the session's named device is."""
-    checkout = tmp_path / "player_core"
+    checkout = tmp_path / "funestra"
     checkout.mkdir()
     result_file = tmp_path / "ui_companions.ini"
 
@@ -2256,11 +2256,11 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
         assert "--audio-device" not in argv
 
     def test_it_runs_the_checkouts_this_session_names(self, tmp_path: Path):
-        """It reaches into player_core like every other child -- for the flag
+        """It reaches into funestra like every other child -- for the flag
         files, and for which output a named device is -- so a branch of that
         checkout has to reach it too, or the companion answers a session with
         the landed copy while the Funestras beside it run the branch."""
-        checkout = tmp_path / "player_core"
+        checkout = tmp_path / "funestra"
         checkout.mkdir()
 
         _proc, _argv, kwargs = self._launch(project_dirs=str(checkout))

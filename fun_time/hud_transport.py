@@ -3,10 +3,10 @@
 The HUD's *model* has to live here: only fun_time knows the library's seed
 families, action groups and thumbnails.  The *drawing* lives in the Satellite
 Funestra, which composites it straight into the video with mpv — so the HUD has no
-window of its own and no z-order to fight (see :mod:`funestra_core.satellite_hud`).
+window of its own and no z-order to fight (see :mod:`funestra.satellite_hud`).
 
 This module is the seam between the two: it turns a :class:`~fun_time.lock_hud.HudPanel`
-into the :class:`~funestra_core.satellite_hud.HudModel` the Funestra parses back, and
+into the :class:`~funestra.satellite_hud.HudModel` the Funestra parses back, and
 writes its text only when it actually changed, so a Funestra polling the file
 re-renders per clip change rather than per tick.  The Main Funestra's console
 rides the same publisher, and so does a side the hosted Origenerator holds —
@@ -17,9 +17,9 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
-from funestra_core.file_channel import publish_whole
-from funestra_core.hud_placement import HudCorner, HudEdge
-from funestra_core.satellite_hud import HudCell, HudModel, hud_text
+from funestra.file_channel import publish_whole
+from funestra.hud_placement import HudCorner, HudEdge
+from funestra.satellite_hud import HudCell, HudModel, hud_text
 
 from .folder_listings import FolderListings
 from .lock_hud import ACTION_LIMIT, SEED_LIMIT, HudPanel, locate_cell, panel_thumbnails

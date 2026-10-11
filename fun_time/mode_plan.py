@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from funestra_core.funestra_verbs import SHOW
-from funestra_core.modes import MainMode
+from funestra.funestra_verbs import SHOW
+from funestra.modes import MainMode
 
 # The main slot's two modes.  In both the Robot Hand is at work: in genau mode it
 # drives the OSR2 outright under Genau's flicks, and in kino mode the arbiter

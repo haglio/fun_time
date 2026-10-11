@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 
 import numpy as np
-from funestra_core.flick_picture import Picture
+from funestra.flick_picture import Picture
 
 
 def red_and_blue_swapped(pixels: np.ndarray) -> np.ndarray:

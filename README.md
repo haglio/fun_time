@@ -189,7 +189,7 @@ the real thing on purpose. See `fun_time/branch_session.py`.
 Genau comes out of `../genau`, and which checkout of it is a per-session
 fact: `paths.genau_project_dirs` puts directories in front of that repo's own
 install — and in front of every Funestra's — so a branch of *genau* or of
-*player_core* can be judged the same way. That is per session
+*funestra* can be judged the same way. That is per session
 and must be said per session — written into the machine's `fun_time_config.json`
 it reaches the ordinary `launch.vbs` session and every other agent's branch
 session too, each then silently running someone's unlanded branch of another
@@ -436,7 +436,7 @@ There is no window of a session you can close on its own. Every Funestra answers
 
 However a session ends — any of those, or a crossing into or out of the headset — the room stops before the closing cover goes up: every Funestra pauses, the Robot Hand stops, and the OSR2 parks, the way entering OmniPause parks it, or stays at the far end if Relief Omnipause or Retract had sent it there. From then on nothing said or pressed reaches the room; Esc on the cover still calls the quit off.
 
-The alternative was worse than it sounds: a Funestra that closed itself left the sequencer's layout with a gap nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the Funestras out one press at a time while the dashboard and the audio companion carried on. Launched by hand, outside a session, a satellite or the Main Funestra still closes on its own close, because then that is the whole application; Genau runs only inside a session. See `funestra_core.session_quit`.
+The alternative was worse than it sounds: a Funestra that closed itself left the sequencer's layout with a gap nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the Funestras out one press at a time while the dashboard and the audio companion carried on. Launched by hand, outside a session, a satellite or the Main Funestra still closes on its own close, because then that is the whole application; Genau runs only inside a session. See `funestra.session_quit`.
 
 ### F-Mode
 
@@ -540,7 +540,7 @@ The audio companion and the Python dispatch loop both read this file as the auth
 
 Written by `fun_time/command_dispatch.py` when Genau or Robot Hand commands are dispatched.
 
-The verbs it may carry are the registry in `../player_core`'s `player_core/genau_controls.py`, written down as a contract in `../genau`'s `tests/test_genau_vocabulary.py`.
+The verbs it may carry are the registry in `../funestra`'s `funestra/genau_controls.py`, written down as a contract in `../genau`'s `tests/test_genau_vocabulary.py`.
 
 `OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
 
@@ -565,7 +565,7 @@ Genau (the `../genau` project) consumes and clears this file.
 
 Written by the Python dispatch loop when the Main Funestra control commands are dispatched; the Main Funestra consumes and clears it.
 
-Commands (the full set `main_funestra/controls.py` answers to). The verbs every Funestra in the family shares — stepping, the hold, `PLAY_FILE`, `RELOAD_PLAYLIST`, the sound, the rate, the display, `QUIT` — are spelled once in `funestra_core.funestra_verbs` (see "The Funestra contract" in `../player_core`'s README) and the satellites answer the part of that set that is about the list and the clip: `NEXT`, `PREV`, `SEEK_FWD`, `SEEK_BACK`, `LOCK_ON`, `LOCK_OFF`, `TRASH`, `PLAY_FILE`, `RELOAD_PLAYLIST`, `QUIT`, and `NEXT_VERSION` / `PREV_VERSION`, each carrying the clip's renditions as `path|path` so the Funestra steps from the file it has up and puts the one it lands on in the clip's own place in the list. The Main Funestra's own verbs are spelled in its registry:
+Commands (the full set `main_funestra/controls.py` answers to). The verbs every Funestra in the family shares — stepping, the hold, `PLAY_FILE`, `RELOAD_PLAYLIST`, the sound, the rate, the display, `QUIT` — are spelled once in `funestra.funestra_verbs` (see "The Funestra contract" in `../funestra`'s README) and the satellites answer the part of that set that is about the list and the clip: `NEXT`, `PREV`, `SEEK_FWD`, `SEEK_BACK`, `LOCK_ON`, `LOCK_OFF`, `TRASH`, `PLAY_FILE`, `RELOAD_PLAYLIST`, `QUIT`, and `NEXT_VERSION` / `PREV_VERSION`, each carrying the clip's renditions as `path|path` so the Funestra steps from the file it has up and puts the one it lands on in the clip's own place in the list. The Main Funestra's own verbs are spelled in its registry:
 
 - `NEXT` / `PREV`
 - `SEEK_FWD` / `SEEK_BACK`
@@ -606,12 +606,12 @@ Cleared before every browse, so abandoning one never replays the last pick.
 
 ### `main_player_playlist.tsv`
 
-One video per line, with a TAB plus the funscript path when one exists. Written by `build_all_playlists` at startup and by `apply_fmode` whenever the Main Funestra's F-mode changes (which also queues `RELOAD_PLAYLIST` and `SET_F_MODE` on the Main Funestra's command file). Every playlist is written and read through `funestra_core.playlist`, one `PlaylistItem` per line.
+One video per line, with a TAB plus the funscript path when one exists. Written by `build_all_playlists` at startup and by `apply_fmode` whenever the Main Funestra's F-mode changes (which also queues `RELOAD_PLAYLIST` and `SET_F_MODE` on the Main Funestra's command file). Every playlist is written and read through `funestra.playlist`, one `PlaylistItem` per line.
 
 ### `origenerator_cmd.txt`, `origenerator_paused.txt`, `origenerator_status.txt`, `origenerator_portrait_hud.json`, `origenerator_landscape_hud.json`
 
 The hosted Origenerator's channel, spoken in the same idioms as the satellites'
-(`funestra_core.file_channel`). The command file carries whatever is said to a
+(`funestra.file_channel`). The command file carries whatever is said to a
 side, exactly as it was said (`portrait_next`, `landscape_lock`,
 `portrait_fmode`, …) — the app declared those buttons, so it is what answers
 them — plus `OPEN_SHOWS` (entering the mode, which fills both Funestras with

@@ -276,12 +276,12 @@ def test_no_module_reaches_into_another_ones_privates():
 # its restart on an unknown name and the stops the voice command listed are
 # tests and the reference row's line, so their comments went.
 # 7402 on 2026-10-07: the satellites run on a Funestra, so the session, the verbs,
-# the status, the HUD overlay, the volume chip and the pointer went to player_core
+# the status, the HUD overlay, the volume chip and the pointer went to funestra
 # with their paragraphs, and the Main Funestra's play points, seeking, scripted
 # device and heatmap went the same way.
 # 6720 on 2026-10-08: the Main Player became the Main Funestra, so its painter,
 # pointer, overlay, volume chip, published files, display, dashboard and session
-# went to player_core with their paragraphs, and what stayed as Kino says what
+# went to funestra with their paragraphs, and what stayed as Kino says what
 # it does in names and tests.
 # 6605 on 2026-10-08: Genau runs on the Main Funestra, so its window's launch,
 # the main-slot handover and the pairing of two windows on one rect went, with

@@ -21,7 +21,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from funestra_core.flick_folder import SUPPORTED_VIDEO_EXTS
+from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 
 from fun_time import funestra_status, windows_bridge_orchestrator
 from fun_time.funestra_status import MainFunestraStatus
@@ -598,7 +598,7 @@ def test_a_run_launches_this_checkouts_siblings(tmp_path, monkeypatch):
     """A run launches this checkout's code, so it has to launch this
     checkout's SIBLINGS too.
 
-    A branch that leans on an unlanded ``player_core`` change — the satellites'
+    A branch that leans on an unlanded ``funestra`` change — the satellites'
     HUD moved there, say — otherwise starts Funestras that import a name the
     primary's install does not have.  Every one of them dies at import, with no
     window and no status file, and the suite reads as a wall of timeouts rather
@@ -607,7 +607,7 @@ def test_a_run_launches_this_checkouts_siblings(tmp_path, monkeypatch):
     """
     state_dir = tmp_path / "state"
     state_dir.mkdir(exist_ok=True)
-    branch = tmp_path / "player_core_branch"
+    branch = tmp_path / "funestra_branch"
     branch.mkdir(exist_ok=True)
     (state_dir / "genau_project_dirs.txt").write_text(
         f"# a branch of a sibling\n{branch}\n", encoding="utf-8")

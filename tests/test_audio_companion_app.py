@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pygame
 import pytest
-from funestra_core.file_channel import read_paused_state
+from funestra.file_channel import read_paused_state
 
 from fun_time import audio_companion_app
 from fun_time.audio_companion_app import AudioPlaybackController, find_audio, init_mixer
@@ -27,7 +27,7 @@ class TestFindAudio:
 
 
 class TestTheFlagFilesThisProcessReads:
-    """Both are read through `funestra_core.file_channel.read_paused_state`, which
+    """Both are read through `funestra.file_channel.read_paused_state`, which
     every other Funestra in the family already reads its own with.  This module
     carried two byte-identical copies of that body, differing only in name."""
 
@@ -385,7 +385,7 @@ class TestWhenTheSoundWillNotDoWhatItIsAsked:
 class TestTheOutputItPlaysOn:
     """In VR the clip music belongs on the headset with everything else the
     session plays; the default device is the room's speakers.  Which output a
-    name means is player_core's rule, the one the Funestras follow -- what is
+    name means is funestra's rule, the one the Funestras follow -- what is
     tested here is that the companion asks it and opens on the answer."""
 
     STREAMING = "Speakers (Example AirLink)"
@@ -405,7 +405,7 @@ class TestTheOutputItPlaysOn:
         """The headset maker's own streaming driver carries its name too and
         Windows lists it first, so taking the first match left the room silent.
         """
-        with patch("funestra_core.audio_outputs.software_outputs",
+        with patch("funestra.audio_outputs.software_outputs",
                    return_value=frozenset({self.STREAMING})), \
              patch("fun_time.audio_companion_app.get_audio_device_names",
                    return_value=[self.STREAMING, self.HEADSET]), \

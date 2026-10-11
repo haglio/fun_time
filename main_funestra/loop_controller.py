@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from funestra_core.funscript import Funscript, snap_loop
-from funestra_core.modes import LoopState
+from funestra.funscript import Funscript, snap_loop
+from funestra.modes import LoopState
 
 
 class LoopController:

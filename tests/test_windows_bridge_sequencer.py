@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from funestra_core.modes import MainMode
+from funestra.modes import MainMode
 
 from fun_time import windows_bridge_sequencer
 from fun_time.config import LayoutConfig, load_config
@@ -781,7 +781,7 @@ class TestAFunestraThatDiesWhileTheRoomComesUp:
         def a_main_funestra_that_cannot_load_its_engine(**kwargs):
             with Path(kwargs["log_file"]).open("a", encoding="utf-8") as log:
                 log.write("OSError: The engine (libmpv) could not be loaded. Looked in: "
-                          "C:\\player_core\\vendor (no libmpv-2.dll in it)\n")
+                          "C:\\funestra\\vendor (no libmpv-2.dll in it)\n")
             return MAIN_FUNESTRA_PID
 
         with _sequencer_stubs(
@@ -1353,7 +1353,7 @@ class TestOrigeneratorLaunch:
 
     def test_an_origenerator_with_no_interpreter_named_runs_from_its_own_install(
             self, cfg_factory, tmp_path):
-        """Its own install is where its pinned player_core lives, and the
+        """Its own install is where its pinned funestra lives, and the
         libraries its own icon and its tests run it on."""
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator"),

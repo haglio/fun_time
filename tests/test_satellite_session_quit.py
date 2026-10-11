@@ -10,7 +10,7 @@ The close is the one that bit.  Opt+Cmd+Q on a Mac keyboard arrives as Alt+F4, s
 it took out the Main Funestra, then the portrait satellite, then the landscape one, a press at
 a time, while the dashboard, Genau and the audio companion carried on and the
 session had to be ended by voice.  The gesture itself is
-``funestra_core.session_quit``'s, and tested there; what is here is that the
+``funestra.session_quit``'s, and tested there; what is here is that the
 loop hands the close on, and that the verb it posts is the dashboard's.
 
 The satellite reads its window's events through ``main_funestra.input``, the Main
@@ -24,7 +24,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from funestra_core.session_quit import SESSION_QUIT
+from funestra.session_quit import SESSION_QUIT
 
 from fun_time.dashboard_actions import QUIT_BUTTON
 

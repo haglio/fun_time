@@ -4,7 +4,7 @@ import math
 
 import numpy as np
 import pytest
-from funestra_core.hud_placement import HudEdge
+from funestra.hud_placement import HudEdge
 
 from fun_time_vr.matrices import pitch_rotation_matrix, yaw_rotation_matrix
 from fun_time_vr.scene import (

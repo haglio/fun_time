@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 import glfw
-from funestra_core.render_engine import MpvRenderEngine
+from funestra.render_engine import MpvRenderEngine
 
 from fun_time_vr.gl_contexts import hidden_gl_window
 

@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from funestra_core.file_channel import append_command
-from funestra_core.funestra_verbs import SET_SPEED
+from funestra.file_channel import append_command
+from funestra.funestra_verbs import SET_SPEED
 
 from .funestra_status import MainFunestraStatus, read_main_funestra_status
 

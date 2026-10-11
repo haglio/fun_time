@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from funestra_core.modes import SatellitesMode
-from funestra_core.satellite_hud import HudCell
+from funestra.modes import SatellitesMode
+from funestra.satellite_hud import HudCell
 
 from fun_time.hud_transport import HudPublisher, hud_model
 from fun_time.lock_hud import ACTION_LIMIT, HudPanel
@@ -239,7 +239,7 @@ def test_publish_republishes_a_panel_whose_write_never_landed(tmp_path: Path):
     locked satellite can be a very long time.
 
     (Getting the panel onto disk whole, and riding out a reader's hold on the
-    file, is ``funestra_core.file_channel.publish_whole`` and is covered there.)"""
+    file, is ``funestra.file_channel.publish_whole`` and is covered there.)"""
     hud_file = tmp_path / "portrait_hud.json"
     publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs", ())
 

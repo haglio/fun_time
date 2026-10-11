@@ -16,8 +16,8 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from funestra_core.file_channel import append_command
-from funestra_core.flick_folder import SUPPORTED_VIDEO_EXTS
+from funestra.file_channel import append_command
+from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 
 from fun_time.branch_session import _apply_genau_checkout_override
 from fun_time.checkout_overrides import STATE_DIRNAME
@@ -754,7 +754,7 @@ def apply_checkout_project_dirs(config: dict) -> None:
     way a branch session's own config generator does.
 
     A run launches this checkout's code, so it has to launch this checkout's
-    SIBLINGS too: a branch that leans on an unlanded ``player_core`` change —
+    SIBLINGS too: a branch that leans on an unlanded ``funestra`` change —
     the satellites' HUD moved there, say — otherwise starts Funestras that import
     a name the primary's install does not have, and every one of them dies at
     import with no window and no status file, which reads as a suite of

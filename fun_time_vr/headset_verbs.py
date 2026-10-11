@@ -11,7 +11,7 @@ import threading
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from funestra_core.control_registry import Control, Verb, bind, look_up
+from funestra.control_registry import Control, Verb, bind, look_up
 
 from fun_time.event_log import SOURCE_MAIN, notice
 from fun_time.media_metadata import load_metadata, metadata_path_for

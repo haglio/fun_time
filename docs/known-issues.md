@@ -32,7 +32,7 @@
     and the loopback server. The main slot's two modes,
     Genau's flicks and the Robot Hand's stretches, and the audio companion (on the
     headset's output) all run in VR as of 2026-09-04, on the engine that moved to
-    `player_core` for it; GenauVR, the standalone headset app, is retired with that.
+    `funestra` for it; GenauVR, the standalone headset app, is retired with that.
   - The hosted Origenerator IS launched, as of 2026-09-20, so origenerator mode
     runs in the headset: the mode's shows are the Satellite Funestras' own
     playlists (`fun_time.funestra_handover`), and the headset's satellites are

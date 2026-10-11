@@ -1,5 +1,5 @@
 """The buttons Fun Time puts on the main console, row by row, declared in
-:class:`funestra_core.hud_button.Button` off what the room knows and what the
+:class:`funestra.hud_button.Button` off what the room knows and what the
 Main Funestra published about its video.  Each button's command is a dashboard
 command verbatim: a press goes onto the command file, and the dispatcher
 routes it to the Funestra the mode says owns it.
@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from funestra_core.console import OSR2_DRIVING, ROW_LABEL_W, VALUE_W, aim_row
-from funestra_core.hud_button import Button
-from funestra_core.hud_marks import BROKER_ICON, FMODE_ICON, shared_mark
-from funestra_core.modes import LengthMode, LoopState, MainMode
+from funestra.console import OSR2_DRIVING, ROW_LABEL_W, VALUE_W, aim_row
+from funestra.hud_button import Button
+from funestra.hud_marks import BROKER_ICON, FMODE_ICON, shared_mark
+from funestra.modes import LengthMode, LoopState, MainMode
 from shared_ui.spacing import BUTTON_WORD_W
 
 from .content import genau_flick_noun

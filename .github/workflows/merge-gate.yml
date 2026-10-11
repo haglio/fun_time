@@ -28,16 +28,16 @@ jobs:
       sdl-video: dummy
       sdl-audio: dummy
       extras: "dev,windows"
-      # The video engine, at the build player_core's `tools/libmpv.lock` names and
+      # The video engine, at the build funestra's `tools/libmpv.lock` names and
       # whose digest its fetcher verifies -- the same one this repo's own startup
       # preflight tells a developer to fetch. The fetcher and the lock sit outside
       # the installed package, so the pinned tag is cloned for them; the tag is
       # this repo's own, read back off the pyproject that pins it.
       prepare: |
         set -euo pipefail
-        tag="$(python -c 'from pathlib import Path; from app_support.dependencies import pinned_siblings; print(pinned_siblings(Path("pyproject.toml"))["player_core"])')"
-        echo "libmpv from player_core $tag"
+        tag="$(python -c 'from pathlib import Path; from app_support.dependencies import pinned_siblings; print(pinned_siblings(Path("pyproject.toml"))["funestra"])')"
+        echo "libmpv from funestra $tag"
         git clone --quiet --depth 1 --branch "$tag" \
-          https://github.com/haglio/player_core.git "$RUNNER_TEMP/player_core"
-        python "$RUNNER_TEMP/player_core/tools/fetch_libmpv.py" --require
-        python -c "import app_support, shared_ui; from funestra_core.mpv_engine import _import_mpv; _import_mpv(); print('imports OK')"
+          https://github.com/haglio/funestra.git "$RUNNER_TEMP/funestra"
+        python "$RUNNER_TEMP/funestra/tools/fetch_libmpv.py" --require
+        python -c "import app_support, shared_ui; from funestra.mpv_engine import _import_mpv; _import_mpv(); print('imports OK')"

@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
-from funestra_core.file_channel import append_command
+from funestra.file_channel import append_command
 from voice_core.listener import why_unavailable
 from voice_core.whisper_reader import WhisperReader
 

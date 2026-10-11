@@ -16,8 +16,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from funestra_core.modes import LengthMode
-from funestra_core.playlist import PlaylistItem
+from funestra.modes import LengthMode
+from funestra.playlist import PlaylistItem
 
 from .video_kind import EXCERPT, FULL_LENGTH, SHORT
 

@@ -2,7 +2,7 @@
 
 The library groups a video with its other qualities (a 540p copy, an upscale);
 the Funestra puts whichever one is asked for up in the clip's own place
-(:meth:`funestra_core.playback.Playback.step_version`).  What Kino adds is which
+(:meth:`funestra.playback.Playback.step_version`).  What Kino adds is which
 files those are, read off the library's index, and whether the one showing is
 the one the playlist named.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.playlist import PlaylistItem
+from funestra.playlist import PlaylistItem
 
 
 class Versions:

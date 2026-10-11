@@ -569,17 +569,17 @@ def test_the_coverage_map_is_out_of_date_when_missing_or_a_day_old(tmp_path):
 
 def test_only_the_libraries_main_pins_newer_than_this_machine_has_are_installed(tmp_path):
     pyproject = ('    "app-support @ git+https://github.com/haglio/app_support@v0.1.182",\n'
-                 '    "player-core @ git+https://github.com/haglio/player_core@v0.1.410",\n'
+                 '    "funestra @ git+https://github.com/haglio/funestra@v0.1.410",\n'
                  '    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.159",\n')
     shell = FakeShell({"c3:pyproject.toml": pyproject})
-    have = {"app-support": "0.1.183", "player-core": "0.1.408"}
+    have = {"app-support": "0.1.183", "funestra": "0.1.408"}
     primary = tmp_path / "fun_time"
 
     main_verifier.MachineBench(primary=primary, shell=shell, installed=have.get).bring_the_libraries_up_to("c3")
 
     installs = [command for command, _ in shell.commands if command[1:4] == ["-m", "pip", "install"]]
     assert installs == [[str(primary / ".venv" / "Scripts" / "python.exe"), "-m", "pip", "install",
-                         "player-core @ git+https://github.com/haglio/player_core@v0.1.410",
+                         "funestra @ git+https://github.com/haglio/funestra@v0.1.410",
                          "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.159"]]
 
 

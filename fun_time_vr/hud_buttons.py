@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from funestra_core.hud_placement import HudEdge
+from funestra.hud_placement import HudEdge
 
 from .hud_sides import HudSides, side_screen_names
 from .hud_toggle import HudToggle, toggle_screen_name

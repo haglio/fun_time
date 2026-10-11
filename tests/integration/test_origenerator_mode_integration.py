@@ -24,9 +24,9 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from funestra_core.modes import MainMode
-from funestra_core.playlist import read_playlist
-from funestra_core.satellite_hud import parse_hud
+from funestra.modes import MainMode
+from funestra.playlist import read_playlist
+from funestra.satellite_hud import parse_hud
 from PIL import Image
 from shared_ui.preview import Preview, window_title
 
@@ -105,13 +105,13 @@ _STUB_MAIN = textwrap.dedent(
     from ctypes import wintypes
     from pathlib import Path
 
-    from funestra_core.file_channel import (
+    from funestra.file_channel import (
         append_command,
         consume_command_file,
         publish_whole,
     )
-    from funestra_core.playlist import PlaylistItem, write_playlist
-    from funestra_core.satellite_hud import HudModel, hud_text
+    from funestra.playlist import PlaylistItem, write_playlist
+    from funestra.satellite_hud import HudModel, hud_text
 
     SIDES = ("portrait", "landscape")
     PICTURES = Path(__file__).resolve().parent.parent / "pictures"
@@ -323,7 +323,7 @@ def _write_stub_checkout(destination: Path) -> Path:
 def _host_stub(config_path: Path, stub_root: Path) -> None:
     raw = json.loads(config_path.read_text(encoding="utf-8"))
     raw["paths"]["origenerator_dir"] = str(stub_root)
-    # The stub is plain tkinter over player_core, so the suite's own
+    # The stub is plain tkinter over funestra, so the suite's own
     # interpreter runs it.
     raw["paths"]["origenerator_python_exe"] = sys.executable
     config_path.write_text(json.dumps(raw), encoding="utf-8")

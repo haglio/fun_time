@@ -18,13 +18,13 @@ from unittest.mock import DEFAULT, patch
 import numpy as np
 import pytest
 from app_support.file_channel import write_flag
-from funestra_core.console_hud import ModeHud
-from funestra_core.flick_picture import Picture
-from funestra_core.hud_placement import HudEdge
-from funestra_core.modes import MainMode
-from funestra_core.outside_buttons import OutsideButtons
-from funestra_core.play_points import play_points_filename
-from funestra_core.playlist import PlaylistItem
+from funestra.console_hud import ModeHud
+from funestra.flick_picture import Picture
+from funestra.hud_placement import HudEdge
+from funestra.modes import MainMode
+from funestra.outside_buttons import OutsideButtons
+from funestra.play_points import play_points_filename
+from funestra.playlist import PlaylistItem
 from shared_ui.palette import BLUE
 
 from fun_time.config import load_config

@@ -6,8 +6,8 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from funestra_core.flick_folder import SUPPORTED_VIDEO_EXTS
-from funestra_core.playlist import PlaylistItem, write_playlist
+from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
+from funestra.playlist import PlaylistItem, write_playlist
 
 from .folder_listings import FolderListings
 from .media_metadata import GroupIndex, build_group_index, normalize_path_key, path_matches_query

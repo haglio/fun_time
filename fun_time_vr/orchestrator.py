@@ -28,15 +28,15 @@ from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path, genau_proj
 
 # Before anything that reaches the dispatch loop: a worktree's
 # genau_project_dirs override reaches Genau and the Main Funestra as subprocess PYTHONPATH,
-# but a launcher's own process resolves player_core through the venv, which is
+# but a launcher's own process resolves funestra through the venv, which is
 # the primary's.  (Every entry point needs it — see CLAUDE.md, "Standing
 # rules".)
 apply_genau_dirs_to_sys_path()
 
 from app_support.win32 import mutex_name
-from funestra_core.file_channel import append_command
-from funestra_core.flick_folder import vr_flicks_in
-from funestra_core.playlist import read_playlist
+from funestra.file_channel import append_command
+from funestra.flick_folder import vr_flicks_in
+from funestra.playlist import read_playlist
 
 from fun_time.branch_session import describe_the_session_on_the_taskbar
 from fun_time.broker_control import PARK_CMD, write_broker_command
@@ -247,7 +247,7 @@ def launch_vr_funestras(
     project_dirs: str | None = None,
 ) -> subprocess.Popen:
     """Start the process that IS this session's four Funestras.  *project_dirs*
-    has to reach it: it draws every HUD and both panels out of ``player_core``
+    has to reach it: it draws every HUD and both panels out of ``funestra``
     and ``shared_ui``, and would otherwise run the landed copies."""
     command = [str(python_exe), "-m", VR_FUNESTRAS_MODULE, "--manifest", str(manifest_path)]
     with open_child_log(log_file, command) as log:

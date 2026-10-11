@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from app_support.logging_utils import install_exception_logging
-from funestra_core.file_channel import append_command
+from funestra.file_channel import append_command
 from PyQt6.QtGui import QColor, QFont
 from shared_ui.chrome import family_stylesheet
 from shared_ui.colors import (

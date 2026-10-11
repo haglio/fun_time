@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.modes import LengthMode
+from funestra.modes import LengthMode
 
 from fun_time.dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from fun_time.dashboard_runtime import load_dashboard_snapshot

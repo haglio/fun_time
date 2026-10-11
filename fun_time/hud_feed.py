@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.console import aim_row, console_text
-from funestra_core.drive_readout import read_drive
-from funestra_core.satellite_hud import HudModel, hud_text, parse_hud
+from funestra.console import aim_row, console_text
+from funestra.drive_readout import read_drive
+from funestra.satellite_hud import HudModel, hud_text, parse_hud
 
 from main_funestra.controls import longer_than_a_step
 

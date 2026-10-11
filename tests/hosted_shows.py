@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from funestra_core.hud_button import Button
-from funestra_core.hud_marks import FMODE_ICON
-from funestra_core.hud_status import F_MODE_LABEL
-from funestra_core.satellite_hud import HudModel, hud_text
+from funestra.hud_button import Button
+from funestra.hud_marks import FMODE_ICON
+from funestra.hud_status import F_MODE_LABEL
+from funestra.satellite_hud import HudModel, hud_text
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.room_funestras import RoomFunestra

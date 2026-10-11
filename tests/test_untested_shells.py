@@ -15,8 +15,8 @@ import importlib
 import inspect
 from pathlib import Path
 
-from funestra_core.funestra import Funestra
-from funestra_core.render_engine import MpvRenderEngine
+from funestra.funestra import Funestra
+from funestra.render_engine import MpvRenderEngine
 
 from fun_time_vr.headset_engine import HeadsetEngine
 from fun_time_vr.headset_verbs import HeadsetVerbs

@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.file_channel import consume_command_file, publish_whole
-from funestra_core.playlist import PlaylistItem, read_playlist, write_playlist
+from funestra.file_channel import consume_command_file, publish_whole
+from funestra.playlist import PlaylistItem, read_playlist, write_playlist
 
 from fun_time.bridge_records import SatelliteChannel
 from fun_time.funestra_handover import hand_back, keep_aside, let_go_since, panel_stamp

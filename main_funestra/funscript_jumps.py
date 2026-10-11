@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-from funestra_core.modes import NoticeLevel
+from funestra.modes import NoticeLevel
 
 logger = logging.getLogger(__name__)
 

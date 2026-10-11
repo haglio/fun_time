@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from app_support.json_store import locked_update
-from funestra_core.satellite_hud import label_is_filtered
+from funestra.satellite_hud import label_is_filtered
 
 from fun_time.media_metadata import (
     GroupIndexCache,
@@ -802,8 +802,8 @@ def test_reject_action_is_a_no_op_when_there_is_no_act(tmp_path: Path):
 def test_the_satellite_hud_lights_a_row_for_exactly_the_clips_this_filter_keeps():
     """The lock HUD's lit filter button and this matcher must not drift apart.
 
-    player_core owns the HUD now and carries its own table of the rule, but its
-    suite runs with player_core alone on the path, so it cannot reach the
+    funestra owns the HUD now and carries its own table of the rule, but its
+    suite runs with funestra alone on the path, so it cannot reach the
     authority it mirrors.  This side can: fun_time is the repo that wears the
     HUD and applies the filter, so the agreement is pinned here.  The empty
     query is the one deliberate difference — it keeps every clip, and lights no

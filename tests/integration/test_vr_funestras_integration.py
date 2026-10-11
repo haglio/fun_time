@@ -24,8 +24,8 @@ from pathlib import Path
 import glfw
 import numpy as np
 import pytest
-from funestra_core.file_channel import append_command
-from funestra_core.modes import LoopState
+from funestra.file_channel import append_command
+from funestra.modes import LoopState
 from OpenGL import GL, _configflags
 
 import fun_time_vr.funestras as vrp
@@ -352,7 +352,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         # libmpv — and freeing a render context and terminating a core under a
         # live `mpv_get_property` faulted the reader every single time it was
         # staged.  Each Funestra now bars its own gate, waits out the call in
-        # flight and no-ops the rest (`funestra_core.mpv_gate`), so this order is
+        # flight and no-ops the rest (`funestra.mpv_gate`), so this order is
         # safe; staging it here is what makes a regression fail deterministically
         # rather than once in nine full-suite runs.  It fails LOUDLY — a
         # reintroduced use-after-free takes the whole pytest process down here.

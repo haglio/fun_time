@@ -12,12 +12,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from funestra_core.console import OSR2_CONTROL_OFF
-from funestra_core.drive_readout import DriveHud, publish_drive
-from funestra_core.hud_button import Button
-from funestra_core.hud_placement import HudCorner
-from funestra_core.modes import MainMode, Osr2State
-from funestra_core.satellite_hud import HudCell, HudModel, hud_text, parse_hud
+from funestra.console import OSR2_CONTROL_OFF
+from funestra.drive_readout import DriveHud, publish_drive
+from funestra.hud_button import Button
+from funestra.hud_placement import HudCorner
+from funestra.modes import MainMode, Osr2State
+from funestra.satellite_hud import HudCell, HudModel, hud_text, parse_hud
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.crown import Crown

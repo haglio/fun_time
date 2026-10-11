@@ -1,7 +1,7 @@
 """The full dispatch-command id set, pinned byte-for-byte.
 
 Command ids are public surface: windows_bridge_hotkeys.ahk queues them, the
-Funestra HUDs in player_core post them (``portrait_minimize``,
+Funestra HUDs in funestra post them (``portrait_minimize``,
 ``portrait_play_video|<path>``), the Main Funestra's console posts more, and the in-app
 reference prints them.  The command-registry restructure (audit item 33) may
 move where an id is *defined*, but no id may change spelling — this snapshot
@@ -28,7 +28,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Commands no spoken phrase, hotkey or reference row names: posted straight off
 # a Funestra's own surface as a literal string in that Funestra's repo.  The three
-# minimize buttons live on the HUDs (player_core / the Main Funestra's console); the
+# minimize buttons live on the HUDs (funestra / the Main Funestra's console); the
 # padlock on that console locks whichever Funestra is on the main screen; the speed
 # pair is Genau's console's own ± marks beside its drive readout; the enhanced
 # filter is the switch the console draws over a hosted Origenerator's shows,

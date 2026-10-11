@@ -15,9 +15,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from funestra_core.modes import NoticeLevel
-from funestra_core.playback import funscripts_of
-from funestra_core.playlist import PlaylistItem
+from funestra.modes import NoticeLevel
+from funestra.playback import funscripts_of
+from funestra.playlist import PlaylistItem
 
 logger = logging.getLogger(__name__)
 

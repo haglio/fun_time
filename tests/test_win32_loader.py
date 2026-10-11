@@ -57,7 +57,7 @@ def _run_without_the_win32_ctypes_surface(body: str) -> subprocess.CompletedProc
     child cannot pick up a shim that fakes that surface back in, the way a run
     on a developer's non-Windows machine does -- and the checkout's own sibling
     override still applies, as it does at every launch: a branch leaning on an
-    unlanded player_core imports that one.
+    unlanded funestra imports that one.
     """
     return subprocess.run(
         [sys.executable, "-c", _STRIP_WIN32_FROM_CTYPES + body],

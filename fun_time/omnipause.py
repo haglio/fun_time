@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from funestra_core.console import OSR2_CONTROL_OFF, OSR2_DRIVING
+from funestra.console import OSR2_CONTROL_OFF, OSR2_DRIVING
 
 from .broker_control import HOLD_VERB, PARK_CMD, RESUME_CMD
 from .mode_plan import MAIN_GENAU_MODE, kino_shows

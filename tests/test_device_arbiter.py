@@ -9,14 +9,14 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-from funestra_core.console import (
+from funestra.console import (
     OSR2_CONTROL_OFF,
     OSR2_DRIVING,
     OSR2_PARKED,
     OSR2_RETRACTED,
 )
-from funestra_core.file_channel import append_command as real_append
-from funestra_core.funscript import PARK_TOUCH_WAIT_CAP_MS
+from funestra.file_channel import append_command as real_append
+from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from fun_time.device_arbiter import REASSERT_S, TCODE_OFF, TCODE_ON, DeviceArbiter, SatelliteLine
 from fun_time.mode_plan import build_mode_switch_plan

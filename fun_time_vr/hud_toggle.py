@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import numpy as np
-from funestra_core.hud_placement import HudEdge
+from funestra.hud_placement import HudEdge
 from shared_ui.spacing import BUTTON_SIZE_HUD
 
 from .console_panel import DEG_PER_PX

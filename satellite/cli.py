@@ -11,7 +11,7 @@ import argparse
 import os
 from pathlib import Path
 
-from funestra_core.playlist import PlaylistItem, read_playlist
+from funestra.playlist import PlaylistItem, read_playlist
 
 from fun_time.win32_desktop import on_hidden_desktop
 

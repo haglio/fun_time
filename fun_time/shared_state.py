@@ -21,10 +21,10 @@ from dataclasses import MISSING, dataclass, field, fields, replace
 from enum import Enum
 from pathlib import Path
 
-from funestra_core.console import OSR2_DRIVING
-from funestra_core.hud_placement import HudCorner, HudEdge
-from funestra_core.modes import MainMode, SatellitesMode, read_mode
-from funestra_core.robot_hand import FULL_INTENSITY
+from funestra.console import OSR2_DRIVING
+from funestra.hud_placement import HudCorner, HudEdge
+from funestra.modes import MainMode, SatellitesMode, read_mode
+from funestra.robot_hand import FULL_INTENSITY
 
 from .audio_volume import MAX_VOLUME
 from .crown import Crown

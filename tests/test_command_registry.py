@@ -19,7 +19,7 @@ import ast
 import itertools
 from pathlib import Path
 
-from funestra_core.modes import LengthMode, MainMode, SatellitesMode
+from funestra.modes import LengthMode, MainMode, SatellitesMode
 
 from fun_time import command_dispatch, dashboard_actions, windows_bridge_dispatch_loop
 from fun_time.command_reference import build_reference_sections
@@ -41,7 +41,7 @@ from tests.test_command_id_snapshot import (
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Commands posted straight off a Funestra's own surface, as literal strings in
-# player_core (the satellite HUDs and the main console) — the reachability the
+# funestra (the satellite HUDs and the main console) — the reachability the
 # in-repo surfaces cannot show.  HUD_ONLY_COMMAND_IDS is the subset the
 # reference does not list either; the rest it does.
 _CONSOLE_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {

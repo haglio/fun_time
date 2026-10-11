@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from funestra_core.funestra import User
-from funestra_core.modes import LengthMode, LoopState, NoticeLevel
-from funestra_core.playback import Playback
-from funestra_core.playlist import PlaylistItem
+from funestra.funestra import User
+from funestra.modes import LengthMode, LoopState, NoticeLevel
+from funestra.playback import Playback
+from funestra.playlist import PlaylistItem
 
 from main_funestra.cli import build_parser, kino_on
 from main_funestra.clip_nav import ClipNav

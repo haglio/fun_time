@@ -7,7 +7,7 @@ nothing down, and what a session opens in is ``docs/resuming-a-session.md``.
 """
 from __future__ import annotations
 
-from funestra_core.modes import SatellitesMode
+from funestra.modes import SatellitesMode
 
 KINO_MODE = SatellitesMode.KINO
 ORIGENERATOR_MODE = SatellitesMode.ORIGENERATOR

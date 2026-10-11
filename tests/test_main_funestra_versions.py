@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.playback import Playback
-from funestra_core.playlist import PlaylistItem
+from funestra.playback import Playback
+from funestra.playlist import PlaylistItem
 
 from main_funestra.versions import Versions
 from tests.satellite_fakes import FakeSatelliteEngine

@@ -49,7 +49,7 @@ class PathsConfig:
     genau_python_exe: Path | None = None
     genau_config_path: Path | None = None
     # Which checkouts Genau and the Main Funestra are run out of, put on their PYTHONPATH.
-    # Absent, every package they import — their own, and ``player_core`` under
+    # Absent, every package they import — their own, and ``funestra`` under
     # them — resolves through the genau venv's editable installs, which name the
     # primary checkout of each repo for good: so a *worktree* of either could not
     # be run at all, and a branch of one could only be judged by landing it.

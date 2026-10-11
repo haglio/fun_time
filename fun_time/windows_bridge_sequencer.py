@@ -13,9 +13,9 @@ import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from funestra_core.file_channel import append_command
-from funestra_core.modes import MainMode
-from funestra_core.play_points import play_points_filename
+from funestra.file_channel import append_command
+from funestra.modes import MainMode
+from funestra.play_points import play_points_filename
 
 from satellite.contract import SatelliteChannels
 
@@ -365,7 +365,7 @@ def _launch_the_satellites(
         state_dir=state_dir,
         result_file=str(core_result_file),
         regen_metadata_root=Path(regen_metadata_raw) if regen_metadata_raw else None,
-        # The satellites import player_core, so a named player_core checkout
+        # The satellites import funestra, so a named funestra checkout
         # must reach them exactly as it reaches Genau and the Main Funestra — without this
         # they quietly ran the venv's primary while everything else ran the
         # branch.
@@ -484,7 +484,7 @@ def _launch_core_media(
     """
     # Read before the first launch that needs it: every child below takes the
     # named checkouts, the satellites and the hosted app included, because they
-    # all import player_core.
+    # all import funestra.
     project_dirs = m.runtime.genau_project_dirs
     origenerator_pid = _launch_the_hosted_origenerator(
         m, plan=layout.plan, project_dirs=project_dirs, launched=launched)

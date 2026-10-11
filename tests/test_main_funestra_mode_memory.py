@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.modes import LengthMode
+from funestra.modes import LengthMode
 
 from main_funestra.library import CLIPS, FULL, MIXED
 from main_funestra.mode_memory import ModeMemory, RememberedMode

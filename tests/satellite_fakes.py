@@ -34,7 +34,7 @@ class FakeSatelliteEngine(RefusesSeeks):
         self.showing_picture = False
         # How many times the loop has asked for a still's move to be
         # carried on — the Funestra's own account of where it has got to lives
-        # in player_core, and this only counts the asking.
+        # in funestra, and this only counts the asking.
         self.pushes = 0
         self.tiled_to: list[tuple[int, int]] = []
         self.swapped: list[Path] = []

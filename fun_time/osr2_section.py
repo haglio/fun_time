@@ -3,13 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from funestra_core.hud_button import Button
+from funestra.hud_button import Button
 from shared_ui.spacing import BUTTON_WORD_W
 
 from .room_funestras import RoomFunestra
 
 if TYPE_CHECKING:
-    from funestra_core.satellite_hud import HudModel
+    from funestra.satellite_hud import HudModel
 
 
 def take_osr2_command(funestra: RoomFunestra) -> str:

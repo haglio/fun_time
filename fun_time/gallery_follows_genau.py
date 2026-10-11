@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.file_channel import append_command
+from funestra.file_channel import append_command
 
 from .funestra_status import read_genau_status
 

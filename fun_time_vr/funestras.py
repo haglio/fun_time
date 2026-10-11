@@ -3,7 +3,7 @@ OpenXR scene.
 
 The desktop session runs the Main Funestra and the two satellites as processes
 owning windows; an OpenXR runtime gives the headset to one rendering process, so
-in VR all three are player_core Funestras in this one, each playing through
+in VR all three are funestra Funestras in this one, each playing through
 :class:`fun_time_vr.headset_engine.HeadsetEngine` into a texture.  Kino and
 Genau run on the Main Funestra as they do on the desktop, with the headset's
 own verbs beside them (:mod:`fun_time_vr.headset_verbs`); each Funestra draws
@@ -43,17 +43,17 @@ from app_support.file_channel import read_flag
 from app_support.logging_utils import install_exception_logging
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import set_app_user_model_id
-from funestra_core.file_channel import append_command
-from funestra_core.flick_folder import vr_flicks_in
-from funestra_core.funestra import Channels, Funestra
-from funestra_core.funestra_verbs import play_file
-from funestra_core.genau_notifier import GenauNotifier
-from funestra_core.modes import MainMode
-from funestra_core.play_points import play_points_filename
-from funestra_core.playlist import PlaylistItem, read_playlist
-from funestra_core.pointer import OMNIPAUSE_TOGGLE
-from funestra_core.tcode import UdpTCodeSink
-from funestra_core.tcode_driver import FunscriptTCodeDriver
+from funestra.file_channel import append_command
+from funestra.flick_folder import vr_flicks_in
+from funestra.funestra import Channels, Funestra
+from funestra.funestra_verbs import play_file
+from funestra.genau_notifier import GenauNotifier
+from funestra.modes import MainMode
+from funestra.play_points import play_points_filename
+from funestra.playlist import PlaylistItem, read_playlist
+from funestra.pointer import OMNIPAUSE_TOGGLE
+from funestra.tcode import UdpTCodeSink
+from funestra.tcode_driver import FunscriptTCodeDriver
 
 from fun_time import preview_marker
 from fun_time.dashboard_actions import (
@@ -1598,7 +1598,7 @@ def _pump_channels(units: list, stop: threading.Event, perf: FramePerf,
                    hz: float = PUMP_HZ) -> None:
     """The file-channel worker: every unit's flags, drains, status writes and
     repaints — file I/O that can stall under a sync client, so never the frame
-    loop's thread.  Two threads on one mpv is its design; see funestra_core.mpv_gate.
+    loop's thread.  Two threads on one mpv is its design; see funestra.mpv_gate.
     Guarded per unit: the OSR2 is driven from here (:class:`_PumpFaults`)."""
     period = 1.0 / hz
     faults = _PumpFaults()
@@ -2088,7 +2088,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     finally:
         _cover_the_teardown(session, renderer, cover)
         stop.set()
-        # Only to settle the file channels — funestra_core.mpv_gate makes the closes safe.
+        # Only to settle the file channels — funestra.mpv_gate makes the closes safe.
         pump_thread.join(timeout=2.0)
         main_thread.join(timeout=2.0)
         held = headset_hold_asked(state_dir)

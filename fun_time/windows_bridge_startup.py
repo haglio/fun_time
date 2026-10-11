@@ -14,10 +14,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from funestra_core.file_channel import append_command
-from funestra_core.funestra_verbs import SET_F_MODE
-from funestra_core.modes import MainMode
-from funestra_core.robot_hand import FULL_INTENSITY
+from funestra.file_channel import append_command
+from funestra.funestra_verbs import SET_F_MODE
+from funestra.modes import MainMode
+from funestra.robot_hand import FULL_INTENSITY
 
 from satellite.contract import SatelliteChannels, WindowPlacement
 
@@ -554,9 +554,8 @@ def origenerator_launch_kwargs(
 ) -> dict:
     """The environment that argv runs in — also shared with the launch test."""
     # The same checkout choice Genau, the Main Funestra and the satellites get: named
-    # project dirs ride the hosted app's PYTHONPATH, so a branch of
-    # player_core is the one its ensure_funestra_core_on_path finds (it defers
-    # to an already-importable copy rather than walking up to the primary).
+    # project dirs ride the hosted app's PYTHONPATH, so a branch of funestra
+    # named there is the one the hosted app imports.
     kwargs: dict = {"cwd": str(origenerator_dir),
                     **genau_project_kwargs(project_dirs),
                     **subprocess_window_kwargs()}

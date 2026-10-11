@@ -1,7 +1,7 @@
 """The console panel Fun Time publishes for the Main Funestra's HUD to draw."""
 from __future__ import annotations
 
-from funestra_core.console import (
+from funestra.console import (
     OSR2_CONTROL_OFF,
     OSR2_DRIVING,
     ConsoleModel,
@@ -9,11 +9,11 @@ from funestra_core.console import (
     parse_console,
     read_console,
 )
-from funestra_core.console_hud import ConsoleHud, ConsolePainter, hud_xy
-from funestra_core.drive_layout import MAX_INTENSITY
-from funestra_core.drive_readout import DriveHud
-from funestra_core.hud_button import Button
-from funestra_core.modes import LengthMode, LoopState, MainMode, Osr2State
+from funestra.console_hud import ConsoleHud, ConsolePainter, hud_xy
+from funestra.drive_layout import MAX_INTENSITY
+from funestra.drive_readout import DriveHud
+from funestra.hud_button import Button
+from funestra.modes import LengthMode, LoopState, MainMode, Osr2State
 
 from fun_time.funestra_status import GenauStatus, MainFunestraStatus
 from fun_time.main_funestra_console import MainSlotInputs, console_model, osr2_state

@@ -10,14 +10,14 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 import pytest
-from funestra_core.console import (
+from funestra.console import (
     OSR2_CONTROL_BUTTONS,
     OSR2_DRIVING,
     OSR2_PARKED,
     OSR2_RETRACTED,
 )
-from funestra_core.hud_placement import HudCorner, HudEdge
-from funestra_core.modes import MainMode
+from funestra.hud_placement import HudCorner, HudEdge
+from funestra.modes import MainMode
 
 from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp

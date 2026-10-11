@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from funestra_core.funscript import Funscript
+from funestra.funscript import Funscript
 
 from main_funestra.loop_controller import LoopController, LoopState
 

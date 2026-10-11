@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.file_channel import append_command
-from funestra_core.funestra_verbs import RELOAD_PLAYLIST
-from funestra_core.playlist import read_playlist, write_playlist
-from funestra_core.satellite_hud import parse_hud
+from funestra.file_channel import append_command
+from funestra.funestra_verbs import RELOAD_PLAYLIST
+from funestra.playlist import read_playlist, write_playlist
+from funestra.satellite_hud import parse_hud
 
 from .bridge_records import SatelliteChannel
 from .modes import rotated_onto

@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from funestra_core.funestra_controls import SEEK_STEP_MS
-from funestra_core.funestra_verbs import SEEK_BACK, SEEK_FWD
+from funestra.funestra_controls import SEEK_STEP_MS
+from funestra.funestra_verbs import SEEK_BACK, SEEK_FWD
 
 from fun_time.runtime_flow import write_flag_file
 from fun_time.satellite_control import read_satellite_status

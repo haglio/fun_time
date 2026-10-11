@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from funestra_core.hud_panel import SYMBOL_FONT, load_font
+from funestra.hud_panel import SYMBOL_FONT, load_font
 from PIL import Image, ImageDraw, ImageFont
 
 _NO_FONT_HAS = "\U0010ffff"

@@ -1,12 +1,12 @@
 """The buttons Fun Time puts on a satellite's HUD, declared in
-:class:`funestra_core.hud_button.Button` off the Funestra's own state.  Each verb is
+:class:`funestra.hud_button.Button` off the Funestra's own state.  Each verb is
 the dashboard command the dispatcher answers for that Funestra; a mode button's
 names no Funestra, the mode belonging to both satellites at once."""
 from __future__ import annotations
 
-from funestra_core.hud_button import FIT_THE_WORD, Button
-from funestra_core.hud_marks import FMODE_ICON
-from funestra_core.modes import SatellitesMode
+from funestra.hud_button import FIT_THE_WORD, Button
+from funestra.hud_marks import FMODE_ICON
+from funestra.modes import SatellitesMode
 
 from .crown import CROWN_ICON, Crown
 from .funestra_buttons import (

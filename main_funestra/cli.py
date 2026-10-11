@@ -14,8 +14,8 @@ from functools import partial
 from pathlib import Path
 
 from app_support import ports
-from funestra_core.play_points import play_points_filename
-from funestra_core.playlist import PlaylistItem, read_playlist
+from funestra.play_points import play_points_filename
+from funestra.playlist import PlaylistItem, read_playlist
 
 from fun_time.win32_desktop import on_hidden_desktop
 

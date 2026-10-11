@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 
 import pytest
-from funestra_core.console import OSR2_CONTROL_OFF, OSR2_DRIVING
-from funestra_core.modes import MainMode
+from funestra.console import OSR2_CONTROL_OFF, OSR2_DRIVING
+from funestra.modes import MainMode
 
 from fun_time.media_metadata import metadata_path_for
 from fun_time.room_funestras import RoomFunestra

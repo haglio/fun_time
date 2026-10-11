@@ -17,9 +17,9 @@ from pathlib import Path
 
 import pytest
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from funestra_core.file_channel import append_command
-from funestra_core.funestra_verbs import play_file
-from funestra_core.playlist import PlaylistItem
+from funestra.file_channel import append_command
+from funestra.funestra_verbs import play_file
+from funestra.playlist import PlaylistItem
 
 from fun_time.crown import Crown
 from fun_time.win32 import wait_for_window_by_title, window_rect

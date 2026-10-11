@@ -123,8 +123,8 @@ def test_the_sys_path_override_still_sits_between_the_two_import_blocks():
 
     ``apply_genau_dirs_to_sys_path()`` must run AFTER ``checkout_overrides`` is
     imported (it is what provides it) and BEFORE the bridge is, because this
-    process resolves ``player_core`` through the venv — the primary's — and a
-    branch leaning on an unlanded player_core change then imports code the
+    process resolves ``funestra`` through the venv — the primary's — and a
+    branch leaning on an unlanded funestra change then imports code the
     primary does not have.  That is a session that dies at launch, and it
     reached him that way on 2026-08-13.  An import tidied above the call, or the
     call slid below one, puts it back; this says so instead of a comment hoping
@@ -146,7 +146,7 @@ def test_the_sys_path_override_still_sits_between_the_two_import_blocks():
 
     assert provides and applies and uses, "the launch path's import shape has moved"
     assert provides < applies < uses, (
-        "the genau/player_core override has to be applied after "
+        "the genau/funestra override has to be applied after "
         "checkout_overrides is imported and before the bridge is"
     )
     own_imports_above_the_call = [

@@ -15,8 +15,8 @@ import time
 from pathlib import Path
 
 import pytest
-from funestra_core.file_channel import append_command
-from funestra_core.funestra_verbs import LOCK_ON, NEXT, QUIT, SET_PACE, SET_SPEED, SHOW_FRAME
+from funestra.file_channel import append_command
+from funestra.funestra_verbs import LOCK_ON, NEXT, QUIT, SET_PACE, SET_SPEED, SHOW_FRAME
 from PIL import Image
 
 from fun_time.config import load_config
@@ -79,7 +79,7 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
         role="Portrait",
         log_file=tmp_path / "portrait_satellite.log",
         # This checkout's siblings, as a session launches them: a Funestra
-        # importing an unlanded player_core name dies at import.
+        # importing an unlanded funestra name dies at import.
         project_dirs=checkout_project_dirs(),
     )
     satellite_process = identify_child(pid)
@@ -145,7 +145,7 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone(tmp_path):
         role="Portrait",
         log_file=tmp_path / "portrait_satellite.log",
         # This checkout's siblings, as a session launches them: a Funestra
-        # importing an unlanded player_core name dies at import.
+        # importing an unlanded funestra name dies at import.
         project_dirs=checkout_project_dirs(),
     )
     satellite_process = identify_child(pid)
@@ -224,7 +224,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
         role="Portrait",
         log_file=tmp_path / "portrait_satellite.log",
         # This checkout's siblings, as a session launches them: a Funestra
-        # importing an unlanded player_core name dies at import.
+        # importing an unlanded funestra name dies at import.
         project_dirs=checkout_project_dirs(),
     )
     satellite_process = identify_child(pid)
