@@ -802,6 +802,48 @@ def test_a_worktree_missing_work_the_primary_has_is_refused_before_a_room_opens(
     assert "bring its branch up to date and make you a new launcher" in note
 
 
+def _stop_part_way_through(worktree: Path, left_behind: str = "rebase-merge") -> None:
+    marker = Path(worktree, _git_path(worktree, left_behind))
+    if left_behind.startswith("rebase-"):
+        marker.mkdir(parents=True)
+    else:
+        marker.write_text("0" * 40, encoding="utf-8")
+
+
+def _git_path(worktree: Path, name: str) -> str:
+    return subprocess.run(["git", "rev-parse", "--git-path", name], cwd=str(worktree),
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+def test_a_worktree_part_way_through_a_rebase_is_refused_before_a_room_opens(
+        repo_with_worktrees, monkeypatch):
+    """His click runs whatever is on disk, and a rebase stopped on a conflict leaves the
+    branch's code half changed; refused, it says so instead of opening a room that dies
+    when the half-changed part is reached."""
+    _stop_part_way_through(repo_with_worktrees.newer)
+    sessions = _sessions_exit_with(monkeypatch, 0)
+
+    returncode = branch_session.launch(
+        repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
+
+    assert returncode == 1
+    assert sessions == []
+    note = _note_left_in(repo_with_worktrees.newer).read_text(encoding="utf-8")
+    assert "is being rebuilt right now" in note
+
+
+@pytest.mark.parametrize("left_behind", ["rebase-apply", "MERGE_HEAD", "CHERRY_PICK_HEAD"])
+def test_one_part_way_through_a_merge_is_refused_the_same_way(
+        repo_with_worktrees, monkeypatch, left_behind):
+    _stop_part_way_through(repo_with_worktrees.newer, left_behind)
+    sessions = _sessions_exit_with(monkeypatch, 0)
+
+    returncode = branch_session.launch(
+        repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
+
+    assert (returncode, sessions) == (1, [])
+
+
 def test_the_refusal_tells_the_agent_to_rebase(repo_with_worktrees, monkeypatch, capsys):
     _land_work_on_the_primary(repo_with_worktrees)
     _sessions_exit_with(monkeypatch, 0)
