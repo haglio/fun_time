@@ -103,23 +103,15 @@ Esc::PauseOrCancelStartup()
 Space::QueueCommand("enter_omnipause")
 Enter::QueueCommand("voice_accept")
 NumpadEnter::QueueCommand("voice_accept")
-[::QueueCommand("main_prev")
-SC01A::QueueCommand("main_prev")
-]::QueueCommand("main_next")
-SC01B::QueueCommand("main_next")
-; Mode activation hotkeys: the main slot's two modes.
 g::QueueCommand("genau_activate")
-h::QueueCommand("main_kino_activate")
-; Both Satellite Funestras' mode at once: Kino <-> Origenerator.
+; The satellite side's own switch: kino mode <-> Origenerator over the RFB.
 x::QueueCommand("satellites_toggle")
 $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")
 
 \::QueueCommand("quarter_button")
-; The Main Funestra's library browser, on the key the retired mode had.
-n::QueueCommand("browse_library")
 -::QueueCommand("main_nudge_prev")
-=::QueueCommand("main_nudge_next")
++=::QueueCommand("main_nudge_next")
 Left::QueueCommand("portrait_prev")
 Right::QueueCommand("portrait_next")
 Up::QueueCommand("portrait_trash")
@@ -172,12 +164,7 @@ e::QueueCommand("landscape_loop")
 ^]::QueueCommand("main_hud_clockwise")
 ^SC01B::QueueCommand("main_hud_clockwise")
 
-; The video's lock, while the video is on the main slot: it holds instead of
-; walking the playlist.  Genau's flick has a lock key of its own in Genau's
-; cluster below, so each key holds the Funestra whose keys sit around it.  The
-; apostrophe gave up Save clip to take this — that moved one key left, to the
-; semicolon (bound by scancode because a bare ; opens a comment in AHK).
-'::QueueCommand("main_player_lock")
+; Save clip is the semicolon, bound by scancode because a bare ; opens a comment in AHK.
 SC027::QueueCommand("genaumacher_save")
 
 ; The Main Funestra loop recording: hold R to mark, release to loop, press again to cancel.
@@ -237,17 +224,20 @@ o::QueueCommand("robot_hand_center_up")
 ; Genau's motion otherwise.
 j::QueueCommand("speed_down")
 l::QueueCommand("speed_up")
-; Human-inspired motion: real scripting in place of the waveform.
-y::QueueCommand("robot_hand_toggle_learned")
+; Cruise varies the motion; moving on from a flick is what an unlocked Genau does
+; by itself, so it is the apostrophe's lock rather than a switch of its own.
+c::QueueCommand("robot_hand_toggle_cruise")
 
-; Genau's flick cluster, laid out like the arrow keys are for the portrait side:
-; K above to condemn the flick, M and . either side for previous and next, and the
-; comma under K to hold it, where Down sits under Up and S under W.  Comma and
-; period by scancode, the way the semicolon is.
+; The Main Funestra's cluster, laid out like the arrow keys are for the portrait
+; side: M and . either side for previous and next, the comma to hold, each
+; reaching whatever is on the Main Funestra -- the video in Kino mode, Genau's
+; flick in Genau mode -- and K above the comma to condemn the flick, where Up
+; sits over Down and W over S.  Comma and period by scancode, the way the
+; semicolon is.
 k::QueueCommand("genau_weird_flick")
-m::QueueCommand("genau_prev_flick")
-SC033::QueueCommand("genau_lock")
-SC034::QueueCommand("genau_next_flick")
+m::QueueCommand("main_prev")
+SC033::QueueCommand("main_lock")
+SC034::QueueCommand("main_next")
 
 ; -------------------- CORE FUNCTIONS --------------------
 

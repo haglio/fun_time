@@ -27,7 +27,7 @@ pytestmark = [
 ]
 
 GENAU_TAKES_A_VERB_WITHIN_S = 2.0
-GENAUS_KEYS = ("genau_next_flick", "genau_prev_flick", "genau_lock", "genau_weird_flick")
+GENAUS_KEYS = ("genau_next_flick", "genau_prev_flick", "genau_weird_flick")
 
 
 def _condemned(weird: Path) -> list[Path]:

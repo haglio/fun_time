@@ -521,15 +521,30 @@ def test_primary_next_in_main_funestra_mode_writes_main_funestra_cmd(tmp_path: P
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
 
-def test_primary_prev_in_genau_mode_writes_main_funestra_cmd(tmp_path: Path):
-    """Outside kino mode, the Main Funestra is the Main Funestra — even while Genau mode is
-    active, [ and ] navigate the paused Main Funestra in the background."""
+def test_primary_prev_and_next_step_genaus_flick_in_genau_mode(tmp_path: Path):
+    """M and . step whatever is on the Main Funestra, the way the comma holds
+    it: the video in Kino mode, Genau's flick in Genau mode.  They used to step
+    the paused video behind the flick, which nothing on screen showed."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
     dispatch_command("main_prev", state, config)
+    dispatch_command("main_next", state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PREV\n"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "PREV\nNEXT\n"
+    assert not config.main_funestra_cmd_file.exists()
+
+
+def test_the_kino_named_steps_reach_the_video_in_either_mode(tmp_path: Path):
+    """"kino next" names the video, so it steps the video even while Genau has
+    the screen -- where "next" and "main next" follow whatever is on it."""
+    config = _make_config(tmp_path)
+
+    dispatch_command("kino_prev", _make_state(main_mode=MainMode.GENAU), config)
+    dispatch_command("kino_next", _make_state(main_mode=MainMode.KINO), config)
+
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PREV\nNEXT\n"
+    assert not config.genau_cmd_file.exists()
 
 
 # --- main_lock ---
@@ -583,44 +598,11 @@ def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
 
-def test_the_comma_holds_genaus_flick_while_genau_is_on_the_main_screen(tmp_path: Path):
-    """The comma sits under K in Genau's own cluster of keys, the way S and Down
-    sit under W and Up in the satellites'."""
-    config = _make_config(tmp_path)
-
-    dispatch_command("genau_lock", _make_state(main_mode=MainMode.GENAU), config)
-
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
-    assert not config.main_funestra_cmd_file.exists()
-
-
-def test_the_apostrophe_holds_the_video_while_the_video_is_on_the_main_screen(tmp_path: Path):
-    config = _make_config(tmp_path)
-
-    dispatch_command("main_player_lock", _make_state(main_mode=MainMode.KINO), config)
-
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
-    assert not config.genau_cmd_file.exists()
-
-
-@pytest.mark.parametrize(("key_command", "main_mode"), [
-    ("genau_lock", MainMode.KINO),
-    ("main_player_lock", MainMode.GENAU),
-])
-def test_a_lock_key_does_nothing_while_the_other_funestra_is_on_the_main_screen(
-        tmp_path: Path, key_command, main_mode):
-    config = _make_config(tmp_path)
-
-    dispatch_command(key_command, _make_state(main_mode=main_mode), config)
-
-    assert not config.main_funestra_cmd_file.exists()
-    assert not config.genau_cmd_file.exists()
 
 
 @pytest.mark.parametrize(("command", "main_mode"), [
     ("main_lock", MainMode.KINO),
-    ("main_player_lock", MainMode.KINO),
-    ("genau_lock", MainMode.GENAU),
+    ("main_lock", MainMode.GENAU),
 ])
 def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(
         tmp_path: Path, command, main_mode):
@@ -3011,7 +2993,6 @@ def test_marking_genaus_flick_weird_flashes_marked_weird_over_the_main_slot(tmp_
     "genau_prev_flick",
     "genau_next_flick",
     "genau_weird_flick",
-    "genau_lock",
     "genau_flip_ends",
     "genau_flick_seconds_down",
     "genau_flick_seconds_up",

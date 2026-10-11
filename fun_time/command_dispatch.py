@@ -151,7 +151,7 @@ _GENAU_CMD_MAP = {
 
 _GENAUS_FLICK_SECONDS = "genau_flick_seconds_"
 _GENAUS_FLICK_COMMANDS = frozenset({
-    "genau_prev_flick", "genau_next_flick", "genau_weird_flick", "genau_lock", "genau_flip_ends",
+    "genau_prev_flick", "genau_next_flick", "genau_weird_flick", "genau_flip_ends",
 })
 
 
@@ -683,7 +683,7 @@ _MAIN_FUNESTRA_RESET_VERBS = (
 # without the F-mode forms here, "main f mode" would be the one way of
 # addressing a Funestra that did not leave it addressed.
 _MAIN_SELECTING_COMMANDS = frozenset(
-    {"main_next", "main_prev", MAIN_RESET, "main_player_lock", "genau_lock",
+    {"main_next", "main_prev", "kino_next", "kino_prev", MAIN_RESET,
      take_osr2_command(RoomFunestra.MAIN)}
     | set(_MAIN_LOCK_COMMANDS)
     | {f"main_fmode{suffix}" for suffix in ("", "_on", "_off")}
@@ -1646,11 +1646,15 @@ def _no_loop(funestra: RoomFunestra, state: BridgeState, config: BridgeConfig,
 
 def _forward_to_main_funestra(verb: str, state: BridgeState, config: BridgeConfig,
                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """The Main Funestra owns the main slot in kino mode; in genau mode the paused Main Funestra
-    still navigates in the background, and its SEEK commands apply to a live
-    local clock, so rapid nudges stack naturally."""
     append_command(config.main_funestra_cmd_file, verb)
     return state, []
+
+
+def _forward_to_whatever_is_on_the_main_funestra(
+    verb: str, state: BridgeState, config: BridgeConfig, _target_path: str,
+) -> tuple[BridgeState, list[WindowOp]]:
+    forward = _forward_to_main_funestra if kino_shows(state.main_mode) else _forward_to_genau
+    return forward(verb, state, config, _target_path)
 
 
 def _forward_to_main_funestra_on_screen(verb: str, state: BridgeState, config: BridgeConfig,
@@ -1924,12 +1928,12 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, funestra in _NO_LOOP_SIDES.items()})
     handlers.update({cmd: partial(_dispatch_lock_action, funestra)
                      for cmd, funestra in _LOCK_ACTION_SIDES.items()})
-    handlers["main_prev"] = partial(_forward_to_main_funestra, PREV)
-    handlers["main_next"] = partial(_forward_to_main_funestra, NEXT)
+    handlers["main_prev"] = partial(_forward_to_whatever_is_on_the_main_funestra, PREV)
+    handlers["main_next"] = partial(_forward_to_whatever_is_on_the_main_funestra, NEXT)
+    handlers["kino_prev"] = partial(_forward_to_main_funestra, PREV)
+    handlers["kino_next"] = partial(_forward_to_main_funestra, NEXT)
     handlers.update({cmd: partial(_main_lock, verb)
                      for cmd, verb in _MAIN_LOCK_COMMANDS.items()})
-    handlers["genau_lock"] = partial(_main_lock, TOGGLE_LOCK)
-    handlers["main_player_lock"] = partial(_forward_to_main_funestra_on_screen, TOGGLE_LOCK)
     handlers["projection_cycle"] = partial(_forward_to_the_vr_main_funestra, "CYCLE_PROJECTION")
     handlers["projection_cycle_back"] = partial(
         _forward_to_the_vr_main_funestra, "CYCLE_PROJECTION_BACK")

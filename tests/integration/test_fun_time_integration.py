@@ -941,7 +941,7 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
             description="the Main Funestra to be playing",
         )
         first.write_dashboard_command("main_player_speed_150")
-        first.write_dashboard_command("main_player_lock")
+        first.write_dashboard_command("main_lock")
         first.wait_until(
             lambda: (first.read_main_funestra_status().speed == 1.5
                      and not first.read_main_funestra_status().locked),

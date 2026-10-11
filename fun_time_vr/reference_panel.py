@@ -78,8 +78,12 @@ def page_of(state: ReferenceState) -> int:  # held inside the list, however far
     return state.page % total if total else 0
 
 
+def _lines_of(section: ReferenceSection) -> int:  # a title line per group, then its rows
+    return len(section.groups) + len(section.rows)
+
+
 def reference_height() -> int:  # the longest section's, so walking never resizes
-    longest = max((len(section.rows) for section in sections()), default=0)
+    longest = max((_lines_of(section) for section in sections()), default=0)
     return _HEAD_H + _ROW_H * (1 + _note_lines_every_page_keeps() + longest) + _PAD
 
 
@@ -123,17 +127,20 @@ def paint_reference(state: ReferenceState) -> Image.Image:
         y += _ROW_H
     y += _ROW_H * (_note_lines_every_page_keeps() - len(note_lines(section)))
 
-    for row in section.rows:
-        keys = "  ".join(" ".join(column) for column in row.key_columns)
-        cells = (
-            (_KEY_X, keys, _SAY_X - _KEY_X - 8),
-            (_SAY_X, ", ".join(row.voice), _WHAT_X - _SAY_X - 8),
-            (_WHAT_X, row.description, REFERENCE_WIDTH_PX - _WHAT_X - _PAD),
-        )
-        for x, text, width in cells:
-            draw.text((x, y), fit_text(row_font, text, width), font=row_font,
-                      fill=(*TEXT_PRIMARY, 255))
+    for group in section.groups:
+        draw.text((_PAD, y), group.title, font=row_font, fill=(*MAGENTA, 255))
         y += _ROW_H
+        for row in group.rows:
+            keys = "  ".join(" ".join(column) for column in row.key_columns)
+            cells = (
+                (_KEY_X, keys, _SAY_X - _KEY_X - 8),
+                (_SAY_X, ", ".join(row.voice), _WHAT_X - _SAY_X - 8),
+                (_WHAT_X, row.description, REFERENCE_WIDTH_PX - _WHAT_X - _PAD),
+            )
+            for x, text, width in cells:
+                draw.text((x, y), fit_text(row_font, text, width), font=row_font,
+                          fill=(*TEXT_PRIMARY, 255))
+            y += _ROW_H
     return panel
 
 

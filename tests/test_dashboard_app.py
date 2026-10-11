@@ -28,6 +28,7 @@ from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
 from fun_time import load_config, preview_marker
+from fun_time.command_reference import build_reference_sections
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import (
     ENTER_VR,
@@ -46,6 +47,7 @@ from fun_time.dashboard_app import (
     DashboardLaunchGeometry,
     DashboardWidget,
     MarkCache,
+    ReferenceBrowser,
     ReferenceDialog,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
@@ -828,6 +830,27 @@ def test_every_render_drives_the_dashboards_band_off_the_snapshot(dashboard_wind
     # True, from the snapshot: rendering with None and asserting False
     # was satisfied by an implementation that hardcodes False.
     mock_sync.assert_called_once_with(True)
+
+
+def test_the_reference_shows_a_rows_detail_as_a_tooltip_over_its_action():
+    """What a row explains waits in a tooltip over its action, so the popup
+    stays a list of actions; an action with nothing more to say has none."""
+    rows = [row for section in build_reference_sections() for row in section.rows]
+    relief = next(row for row in rows if "relief_omnipause" in row.commands)
+    pause = next(row for row in rows if "omnipause_toggle" in row.commands)
+    browser = ReferenceBrowser()
+    try:
+        browser.resize(1000, 800)
+        browser.show()
+        for row, detail in ((relief, relief.detail), (pause, "")):
+            cursor = browser.document().find(row.description)
+            assert not cursor.isNull(), row.description
+            cursor.setPosition(cursor.selectionStart() + 1)
+            assert browser.detail_at(browser.cursorRect(cursor).center()) == detail
+        assert relief.detail
+        assert not browser.openLinks()
+    finally:
+        browser.close()
 
 
 def test_reference_dialog_syncs_topmost_with_omnipause():

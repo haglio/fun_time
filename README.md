@@ -255,9 +255,9 @@ Every Funestra has its own playback speed: the Main Funestra's row on its consol
 
 ### Modes
 
-The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Kino** (`H`) and **Genau** (`G`). `\` offsets the Robot Hand's motion by a quarter cycle in either. `N` opens the **library browser** (see below); the chosen video plays in the Main Funestra, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
+The main stack runs in one of two modes: **Kino** and **Genau** (`G`; Kino by its button on the Main Funestra's HUD or the spoken "main kino mode"). `\` offsets the Robot Hand's motion by a quarter cycle in either. "browse" opens the **library browser** (see below); the chosen video plays in the Main Funestra, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
 
-The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive the Main Funestra in every mode (in Genau mode the paused Main Funestra still navigates in the background). A ten-second step has nothing to step through in a video of 10 seconds or shorter, so there every Funestra's HUD draws its back and forward 10s buttons faded, and a key or a spoken "skip" or "back" does nothing but say so over that Funestra. The `;` clip-save key reads the current video/time from the Main Funestra's status file in Kino mode.
+`M`, `.` and `,` step and hold whatever is on the Main Funestra -- the video in Kino mode, Genau's flick in Genau mode -- and `-`/`+` nudge the video ten seconds. A ten-second step has nothing to step through in a video of 10 seconds or shorter, so there every Funestra's HUD draws its back and forward 10s buttons faded, and a key or a spoken "skip" or "back" does nothing but say so over that Funestra. The `;` clip-save key reads the current video/time from the Main Funestra's status file in Kino mode.
 
 Spoken, "kino mode" puts both sides in Kino mode at once; "main kino mode" and "satellite kino mode" do one side, and "genau mode" or "origenerator mode" puts a side back. Genau is heard said either way, the German word or "go now"; "origenerator" is in no dictionary, so the recognizer listens for "aura generator mode".
 
@@ -272,7 +272,7 @@ same video sits in three of them at different trims and upscales
 video got through the pipeline before you can find it, which is the librarian's
 business and not the viewer's.
 
-So `N` opens Fun Time's own browser instead of a file dialog. It shows one tile
+So "browse" opens Fun Time's own browser instead of a file dialog. It shows one tile
 per **video** rather than per file — every rendition of one video collapsed into
 a single *handle* — with a still off each, named after the video, and no stage
 folders anywhere. Arrow keys move the selection, typing jumps to a title,
@@ -294,7 +294,7 @@ since the dispatch loop that launched it holds it until it ends.
 
 In the headset the browser is the desktop's own. Nothing in the headset can see
 a window on the monitors, so a VR session runs the same browser with no window
-at all and hangs what it draws in front of you as a panel. `N`, "browse" and
+at all and hangs what it draws in front of you as a panel. "browse" and
 the console's browse button open it, and the same again puts it away. It is the
 window described below, header, letters and tiles alike, with three differences
 a pointer needs: one trigger press opens a tile, the stick scrolls whichever

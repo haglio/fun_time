@@ -3175,12 +3175,12 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
                                rfb_slot=RfbSlot.ORIGENERATOR, origenerator_ready=True)
         return runner
 
-    @pytest.mark.parametrize("press", ["main_lock", "genau_lock"])  # the padlock, the comma
-    def test_the_gallery_goes_to_the_flick_genau_holds_once_it_holds_it(self, tmp_path, press):
+    def test_the_gallery_goes_to_the_flick_genau_holds_once_it_holds_it(self, tmp_path):
+        """The padlock and the comma both send main_lock."""
         runner = self._genau_beside_the_gallery(tmp_path)
         _genau_publishes(tmp_path, locked=False, flick=self.FIRST)
 
-        runner._dispatch(press)
+        runner._dispatch("main_lock")
         runner.tick()
         assert _what_the_gallery_heard(tmp_path) == []
 

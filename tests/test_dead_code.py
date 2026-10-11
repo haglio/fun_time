@@ -332,7 +332,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6380 on 2026-10-11: the hotkeys and voice reference's sections now say which
 # part of the room and which mode each row belongs to, and the comments that
 # said so row by row went.
-MAX_PROSE_LINES = 6380
+# 6376 the same day: the Main Funestra's keys reach whatever is on it, and the
+# note on the video navigating behind Genau's flick went with that behavior.
+MAX_PROSE_LINES = 6376
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

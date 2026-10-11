@@ -469,10 +469,10 @@ class TestVoiceCommands:
         assert spoken == set()
 
     def test_mode_named_navigation_both_orders(self):
-        """A mode's name + next/previous (either order) navigates its Funestra:
-        Kino drives the main slot, Genau its own flick."""
+        """A mode's name + next/previous (either order) steps that mode's own:
+        Kino the video, whichever mode has the screen, Genau its flick."""
         for base, (next_command, previous_command) in (
-                ("kino", ("main_next", "main_prev")),
+                ("kino", ("kino_next", "kino_prev")),
                 ("genau", ("genau_next_flick", "genau_prev_flick")),
                 ("go now", ("genau_next_flick", "genau_prev_flick"))):
             assert VOICE_COMMANDS[f"{base} next"] == next_command

@@ -423,7 +423,7 @@ def build_voice_commands(
     # flick.
     _MODE_NAV: dict[str, tuple[str, str]] = {
         # recognizer base -> (next command, previous command)
-        "kino": ("main_next", "main_prev"),
+        "kino": ("kino_next", "kino_prev"),
         **dict.fromkeys(GENAU_SAID, ("genau_next_flick", "genau_prev_flick")),
     }
     for _base, (_next_cmd, _prev_cmd) in _MODE_NAV.items():
