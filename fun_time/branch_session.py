@@ -303,6 +303,10 @@ def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
     """
     worktree = worktree.resolve()
     primary = (primary or primary_checkout()).resolve()
+    if being_rebuilt(worktree):
+        return _refuse(worktree, branch_label(worktree, current_branch(worktree)),
+                       BEING_REBUILT, f"{worktree} is part way through a rebase or a merge; "
+                       "finish it first.")
     missing = commits_missing(worktree, primary)
     if missing:
         return _refuse(worktree, branch_label(worktree, current_branch(worktree)),
@@ -325,6 +329,25 @@ def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
     finally:
         returncode = session.wait()
     return returncode
+
+
+BEING_REBUILT = ("That branch is being rebuilt right now, so its code is only part way "
+                 "changed, and a room opened on it would stop where the change is.")
+
+
+_LEFT_PART_WAY = ("rebase-merge", "rebase-apply", "MERGE_HEAD", "CHERRY_PICK_HEAD")
+
+
+def being_rebuilt(worktree: Path) -> bool:
+    git_dir = _git_dir(worktree)
+    return any((git_dir / left).exists() for left in _LEFT_PART_WAY)
+
+
+def _git_dir(checkout: Path) -> Path:
+    dot_git = checkout / ".git"
+    if dot_git.is_file():
+        return checkout / dot_git.read_text(encoding="utf-8").split(":", 1)[1].strip()
+    return dot_git
 
 
 def _older_than_the_fun_time_he_runs(missing: int) -> str:
