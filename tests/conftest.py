@@ -39,6 +39,10 @@ from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
 
 apply_genau_dirs_to_sys_path()
 
+from app_support import haglio_settings
+
+os.environ[haglio_settings.SETTINGS_ENV] = haglio_settings.THE_EXAMPLE
+
 from fun_time import (
     chrome_accessibility,
     closing_screen,

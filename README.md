@@ -552,7 +552,7 @@ holds the screen before Genau moves on — 8–12 seconds unless `FLICK_SECONDS
 <seconds>` names a pace. It is spelled for what the number is rather than for
 the auto-advance that spends it, because that is the word the reference shows
 and the phrase a speaker says ("flick seconds thirty", in whatever word the
-content overlay's `genau_flick_words` gives Genau's flicks). The interval keeps
+`genau_flick_words` in `~/.haglio/settings.json` gives Genau's flicks). The interval keeps
 counting while the room is paused, so OmniPause leaves the flick on screen where
 the user left it. `TOGGLE_LOCK` (the `,` key) pins the current flick while the
 interval runs on around it; `WEIRD` condemns the flick, moving the file to the

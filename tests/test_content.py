@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from app_support import haglio_settings
 
 from fun_time.content import (
     EXAMPLE_CONTENT,
@@ -81,12 +82,13 @@ class TestLoadContent:
 
 
 class TestGenauFlickNoun:
-    def test_a_local_overlay_names_genaus_flicks_its_own_way(self, tmp_path: Path):
-        local = tmp_path / "content.local.json"
-        local.write_text(json.dumps({"genau_flick_words": {"one": "pip", "many": "pips"}}),
-                         encoding="utf-8")
+    def test_the_settings_all_of_haglio_shares_name_genaus_flicks(self, tmp_path: Path, monkeypatch):
+        settings = tmp_path / "settings.json"
+        settings.write_text(json.dumps({"genau_flick_words": {"one": "pip", "many": "pips"}}),
+                            encoding="utf-8")
+        monkeypatch.setenv(haglio_settings.SETTINGS_ENV, str(settings))
 
-        assert genau_flick_noun(local, EXAMPLE_CONTENT) == Noun(one="pip", many="pips")
+        assert genau_flick_noun() == Noun(one="pip", many="pips")
 
 
 class TestLoadWebProviders:

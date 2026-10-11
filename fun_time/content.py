@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from app_support import haglio_settings
 from app_support.overlay import backfilled
 
 _PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -65,11 +66,8 @@ class Noun:
     many: str
 
 
-def genau_flick_noun(
-    local_path: Path = LOCAL_CONTENT,
-    example_path: Path = EXAMPLE_CONTENT,
-) -> Noun:
-    words = load_content(local_path, example_path)["genau_flick_words"]
+def genau_flick_noun() -> Noun:
+    words = haglio_settings.value("genau_flick_words")
     return Noun(one=words["one"], many=words["many"])
 
 
