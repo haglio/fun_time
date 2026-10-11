@@ -1,6 +1,6 @@
 """The modes Kino is in, what changes them, and what they change about the playlist.
 
-Three modes walk in a cycle -- mixed, shorts, full -- and each rebuild reshuffles
+Three modes walk in a cycle -- mixed, clips, full -- and each rebuild reshuffles
 the library and lands on the first entry, which is why "the mode already running"
 has to be a no-op and why "inside a compilation" is the one case where it is not.
 """
