@@ -8,6 +8,7 @@ import re
 import shutil
 import sqlite3
 import subprocess
+import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -31,6 +32,8 @@ REPO = "haglio/fun_time"
 ONE_COPY = r"Global\fun_time_main_verifier"
 POLL_S = 300
 RESTART_REQUEST_NAME = "main_verifier.restart"
+INCIDENTS_NAME = "main_verifier_incidents.jsonl"
+FIX_NOTICES_NAME = "main_verifier_fix_notices.json"
 _ASKED_EVERY_S = 5
 COVERAGE_MAP_LASTS = timedelta(days=1)
 NO_SUCH_TEST = pytest.ExitCode.USAGE_ERROR
@@ -313,7 +316,7 @@ class MachineBench:
 
     def record(self, incident: dict) -> None:
         self.state.mkdir(parents=True, exist_ok=True)
-        with (self.state / "main_verifier_incidents.jsonl").open("a", encoding="utf-8") as sink:
+        with (self.state / INCIDENTS_NAME).open("a", encoding="utf-8") as sink:
             sink.write(json.dumps({"at": datetime.now().isoformat(timespec="seconds"), **incident}, default=str) + "\n")
 
 
@@ -344,6 +347,67 @@ def fix_brief(taken: TakeBack, branch: str, tests: list[str], log: Path) -> str:
         "what he would see differently, and stop.",
     ])
 
+
+
+@dataclass(frozen=True)
+class FixNotice:
+    session: str
+    resume: str
+    cwd: str
+    state: str
+    title: str
+    body: str
+
+
+_TELLS_HIM = frozenset({"blocked", "done"})
+_WAITS_FOR = {"input needed": "answer", "permission prompt": "permission"}
+
+
+def fix_notices(incidents: Sequence[dict], sessions: Sequence[dict], told: Mapping[str, str]) -> list[FixNotice]:
+    by_id = {session.get("id"): session for session in sessions}
+    notices = []
+    for incident in incidents:
+        session = by_id.get(incident.get("fix_session"))
+        if session is None or session.get("state") not in _TELLS_HIM or told.get(session["id"]) == session["state"]:
+            continue
+        name = session.get("name") or f"The fix for #{incident.get('pull_request')}"
+        if session["state"] == "blocked":
+            title = f"{name} is waiting for you"
+            body = f"It needs your {_WAITS_FOR.get(session.get('waitingFor'), 'answer')}. Click to open it in Claude Desktop."
+        else:
+            title, body = f"{name} finished", "Click to open it in Claude Desktop and read what it did."
+        notices.append(FixNotice(session["id"], session.get("sessionId", session["id"]), session.get("cwd", ""),
+                                 session["state"], title, body))
+    return notices
+
+
+def _start_notice(notice: FixNotice) -> None:
+    subprocess.Popen([str(Path(sys.executable).with_name("pythonw.exe")), "-m", "tests.integration.fix_session_notice",
+                      notice.session, notice.resume, notice.cwd, notice.title, notice.body],
+                     cwd=Path(__file__).resolve().parents[2], **hidden_subprocess_kwargs())
+
+
+def _incidents(state: Path) -> list[dict]:
+    try:
+        lines = (state / INCIDENTS_NAME).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    return [json.loads(line) for line in lines if line.strip()]
+
+
+def tell_him_about_fix_sessions(state: Path, claude: str, shell=_shell,
+                                start: Callable[[FixNotice], None] = _start_notice) -> None:
+    told_path = state / FIX_NOTICES_NAME
+    try:
+        told = json.loads(told_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        told = {}
+    notices = fix_notices(_incidents(state), json.loads(shell([claude, "agents", "--json", "--all"])), told)
+    for notice in notices:
+        start(notice)
+        told[notice.session] = notice.state
+    if notices:
+        write_whole(told_path, json.dumps(told, indent=1))
 
 def _mark_passed(ledger: Ledger, bench: Bench, head: str) -> None:
     ledger.passed(head)
@@ -436,12 +500,17 @@ def first_bad(commits: Sequence[str], fails_at: Callable[[str], bool]) -> str:
 
 
 def main() -> None:
+    primary = primary_of(Path(__file__).resolve().parents[2])
+    state = primary / STATE_DIRNAME
+    install_exception_logging(configure_logging("main_verifier", state / "main_verifier.log"))
+    try:
+        tell_him_about_fix_sessions(state, claude_command())
+    except (CommandFailed, OSError, ValueError) as why:
+        _log.warning("could not check the fix sessions: %s", why)
     one_copy = SingleInstanceLock(ONE_COPY)
     if not one_copy.acquire(timeout=0):
         return
-    primary = primary_of(Path(__file__).resolve().parents[2])
-    install_exception_logging(configure_logging("main_verifier", primary / STATE_DIRNAME / "main_verifier.log"))
-    keep_verifying(Ledger(primary / STATE_DIRNAME / "main_verifier.json"), MachineBench(primary))
+    keep_verifying(Ledger(state / "main_verifier.json"), MachineBench(primary))
 
 
 if __name__ == "__main__":
