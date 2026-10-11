@@ -32,6 +32,9 @@ from funestra.robot_hand_driver import RobotHandTCodeDriver
 
 logger = logging.getLogger(__name__)
 
+CONDEMN_RETRY_S = 0.25
+CONDEMN_PATIENCE_S = 30.0
+
 Rescan = Callable[[bool], list[Path]]
 Narrow = Callable[[bool, bool], list[Path]]
 
@@ -117,7 +120,7 @@ def build_genau_engine(
         loader=loader,
         renderer=renderer,
         notifier=notifier,
-        condemn_flick=lambda flick: _condemn(flick, condemned_to(flick), log),
+        condemn_flick=lambda flick: _condemn(flick, condemned_to(flick), log, start_thread),
     )
     robot_hand = RobotHandState(playing=False, speed=50, bpm=bpm_for_speed(50))
     cruise = CruiseControlState()
@@ -194,13 +197,32 @@ def _narrow(selection: FlickSelectionController, narrow: Narrow, plays_vr: bool,
         selection.narrow(flicks)
 
 
-def _condemn(flick: Path, weird_dir: Path, log: logging.Logger) -> None:
+def _condemn(flick: Path, weird_dir: Path, log: logging.Logger, start_thread) -> None:
+    if not _still_open_after_trying(flick, weird_dir, log):
+        return
+    log.info("%s is still open; condemning it once it is let go", flick.name)
+    start_thread(target=_condemn_once_let_go, args=(flick, weird_dir, log), name="genau-condemn")
+
+
+def _condemn_once_let_go(flick: Path, weird_dir: Path, log: logging.Logger) -> None:
+    give_up_at = time.monotonic() + CONDEMN_PATIENCE_S
+    while time.monotonic() < give_up_at:
+        time.sleep(CONDEMN_RETRY_S)
+        if not _still_open_after_trying(flick, weird_dir, log):
+            return
+    log.error("%s was still open after %gs, so it was not condemned", flick.name, CONDEMN_PATIENCE_S)
+
+
+def _still_open_after_trying(flick: Path, weird_dir: Path, log: logging.Logger) -> bool:
     try:
         landed = move_flick_to_weird(flick, weird_dir)
+    except PermissionError:
+        return True
     except OSError:
         log.error("Could not move %s to %s", flick.name, weird_dir, exc_info=True)
-        return
+        return False
     if landed is None:
         log.info("Flick %s was already gone; nothing to condemn", flick.name)
     else:
         log.info("Condemned %s to %s", flick.name, weird_dir)
+    return False

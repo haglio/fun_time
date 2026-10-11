@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from pathlib import Path
 
 import numpy as np
 from funestra.console_hud import ModeHud
 from funestra.funestra import User
 
+from fun_time import genau_engine
 from fun_time.genau_config import GenauSettings
 from main_funestra.genau import Genau, GenauChannels
 
@@ -62,9 +64,22 @@ def _run_now(*, target, args=(), name=""):
     target(*args)
 
 
+class _CondemningInTheBackground:
+    def __init__(self) -> None:
+        self.threads: list[threading.Thread] = []
+
+    def __call__(self, *, target, args=(), name=""):
+        if name != "genau-condemn":
+            _run_now(target=target, args=args, name=name)
+            return
+        thread = threading.Thread(target=target, args=args, name=name)
+        self.threads.append(thread)
+        thread.start()
+
+
 class World:
     def __init__(self, tmp_path: Path, *, flicks=("alpha one.mp4", "beta two.mp4", "gamma three.mp4"),
-                 start_flick=None, latest=False, metadata_root=None) -> None:
+                 start_flick=None, latest=False, metadata_root=None, start_thread=_run_now) -> None:
         self.flicks_folder = tmp_path / "flicks"
         self.flat_dir = self.flicks_folder / "2D" / "non_AI"
         self.flat_dir.mkdir(parents=True)
@@ -90,7 +105,7 @@ class World:
             latest=latest,
             metadata_root=metadata_root,
             decode=lambda _path: _frames(),
-            start_thread=_run_now,
+            start_thread=start_thread,
             clock=self.clock,
             log=logging.getLogger("test.genau"),
         )
@@ -143,6 +158,34 @@ class TestTheFlickOnScreen:
 
         assert (tmp_path / "weird" / "2D" / "non_AI" / "alpha one.mp4").is_file()
         assert world.genau.top_block() == ModeHud(video="beta two")
+
+    def test_weird_moves_a_flick_still_being_read_once_it_is_let_go(self, tmp_path):
+        condemning = _CondemningInTheBackground()
+        world = World(tmp_path, start_thread=condemning)
+        flick = world.flat_dir / "alpha one.mp4"
+
+        with flick.open("rb"):
+            world.send("WEIRD")
+            assert flick.is_file()
+        for thread in condemning.threads:
+            thread.join(5)
+
+        assert (tmp_path / "weird" / "2D" / "non_AI" / "alpha one.mp4").is_file()
+        assert not flick.exists()
+
+    def test_weird_gives_up_on_a_flick_that_stays_open_and_says_so(self, tmp_path, monkeypatch, caplog):
+        monkeypatch.setattr(genau_engine, "CONDEMN_PATIENCE_S", 0.5)
+        condemning = _CondemningInTheBackground()
+        world = World(tmp_path, start_thread=condemning)
+        flick = world.flat_dir / "alpha one.mp4"
+
+        with flick.open("rb"), caplog.at_level(logging.ERROR, logger="test.genau"):
+            world.send("WEIRD")
+            for thread in condemning.threads:
+                thread.join(5)
+
+        assert flick.is_file()
+        assert "alpha one.mp4 was still open" in caplog.text
 
     def test_latest_rescans_the_folder_newest_first(self, tmp_path):
         world = World(tmp_path)
