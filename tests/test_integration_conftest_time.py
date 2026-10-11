@@ -48,10 +48,14 @@ def test_a_test_times_out_on_the_seconds_the_run_could_run(frozen, monkeypatch):
         item.cancel_timeout()
 
 
+def _a_config(cleanups: list) -> SimpleNamespace:
+    return SimpleNamespace(add_cleanup=cleanups.append, stash=pytest.Stash())
+
+
 def test_a_run_on_the_hidden_desktop_keeps_time_by_a_clock_of_its_own(monkeypatch):
     cleanups = []
     monkeypatch.setattr(integration_conftest, "on_hidden_desktop", lambda: True)
-    integration_conftest.pytest_configure(SimpleNamespace(add_cleanup=cleanups.append))
+    integration_conftest.pytest_configure(_a_config(cleanups))
     try:
         assert isinstance(run_clock._clock, RunClock)
     finally:
@@ -61,20 +65,25 @@ def test_a_run_on_the_hidden_desktop_keeps_time_by_a_clock_of_its_own(monkeypatc
     assert run_clock._clock is run_clock.WALL
 
 
-def test_a_run_says_how_much_of_its_time_it_could_run(monkeypatch, capsys):
+def test_a_run_says_how_much_of_its_time_it_could_run_before_its_process_is_ended(monkeypatch, capsys):
     cleanups = []
     monkeypatch.setattr(integration_conftest, "on_hidden_desktop", lambda: True)
-    integration_conftest.pytest_configure(SimpleNamespace(add_cleanup=cleanups.append))
+    monkeypatch.setattr(integration_conftest, "clear_run_roots", lambda: None)
+    config = _a_config(cleanups)
+    integration_conftest.pytest_configure(config)
+    try:
+        integration_conftest.pytest_sessionfinish(SimpleNamespace(config=config), 0)
+        said = capsys.readouterr().err
+    finally:
+        for cleanup in cleanups:
+            cleanup()
 
-    for cleanup in reversed(cleanups):
-        cleanup()
-
-    assert "[integration] the run could run for" in capsys.readouterr().err
+    assert "[integration] the run could run for" in said
 
 
 def test_a_run_off_the_hidden_desktop_keeps_the_walls_time(monkeypatch):
     monkeypatch.setattr(integration_conftest, "on_hidden_desktop", lambda: False)
 
-    integration_conftest.pytest_configure(SimpleNamespace(add_cleanup=lambda _cleanup: None))
+    integration_conftest.pytest_configure(_a_config([]))
 
     assert run_clock._clock is run_clock.WALL

@@ -60,10 +60,13 @@ def _refuse_a_run_off_the_hidden_desktop() -> None:
         pytest.exit(str(wrong_desktop), returncode=REFUSED_EXIT_CODE)
 
 
+_THE_RUNS_CLOCK = pytest.StashKey[tuple[run_clock.RunClock, float]]()
+
+
 def pytest_configure(config):
     if on_hidden_desktop():
         clock = run_clock.RunClock()
-        config.add_cleanup(partial(_say_how_much_of_the_run_was_its_own, clock, time.monotonic()))
+        config.stash[_THE_RUNS_CLOCK] = (clock, time.monotonic())
         config.add_cleanup(partial(run_clock.keep_time_by, run_clock.WALL))
         run_clock.keep_time_by(clock)
 
@@ -119,6 +122,8 @@ FAILURE_EVIDENCE = Path(__file__).resolve().parents[2] / "state" / "integration_
 
 
 def pytest_sessionfinish(session, exitstatus):
+    if (kept_time := session.config.stash.get(_THE_RUNS_CLOCK, None)) is not None:
+        _say_how_much_of_the_run_was_its_own(*kept_time)
     if exitstatus != 0:
         kept = keep_every_sessions_logs(FAILURE_EVIDENCE)
         if kept is not None:

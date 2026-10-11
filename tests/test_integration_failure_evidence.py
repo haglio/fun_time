@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -113,13 +114,17 @@ def test_two_failed_runs_keep_their_logs_apart(tmp_path: Path):
     assert (first.parent == second.parent == tmp_path / "kept")
 
 
+def _a_session() -> SimpleNamespace:
+    return SimpleNamespace(config=SimpleNamespace(stash=pytest.Stash()))
+
+
 def test_only_a_failed_run_keeps_its_logs_and_either_way_its_roots_go():
     with (
         patch.object(conftest, "keep_every_sessions_logs", return_value=None) as keep,
         patch.object(conftest, "clear_run_roots") as clear,
     ):
-        conftest.pytest_sessionfinish(session=None, exitstatus=1)
-        conftest.pytest_sessionfinish(session=None, exitstatus=0)
+        conftest.pytest_sessionfinish(session=_a_session(), exitstatus=1)
+        conftest.pytest_sessionfinish(session=_a_session(), exitstatus=0)
 
     assert [call.args for call in keep.call_args_list] == [(conftest.FAILURE_EVIDENCE,)]
     assert clear.call_count == 2
@@ -129,7 +134,7 @@ def test_a_root_left_behind_ends_the_run_saying_which():
     refusal = RootsLeftBehind("C:/Temp/fun_time_integration_abc: still open")
     with patch.object(conftest, "clear_run_roots", side_effect=refusal):
         with pytest.raises(pytest.exit.Exception, match="fun_time_integration_abc") as ended:
-            conftest.pytest_sessionfinish(session=None, exitstatus=0)
+            conftest.pytest_sessionfinish(session=_a_session(), exitstatus=0)
 
     assert ended.value.returncode == pytest.ExitCode.TESTS_FAILED
 
