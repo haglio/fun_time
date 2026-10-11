@@ -140,7 +140,7 @@ Two listeners hear every command (the family's shared listener, `../voice_core`)
 
 - Python (currently launched via Miniconda `pythonw.exe`)
 - Python dependencies are declared in `pyproject.toml` — notably PyQt6 (dashboard), pygame-ce (audio companion), voice_core (the family's listener, which brings vosk + sounddevice; the `voice` extra adds faster-whisper for the second listener), and Pillow / numpy / opencv-python.
-- Genau runs out of the `../genau` project's venv (`paths.genau_python_exe`), launched as `python -m genau`; the Main Funestra runs out of this project's venv like the satellites, launched as `python -m main_funestra`, and reads its library folders and device port from the `main_funestra` section of the genau config file (`paths.genau_config_path`).
+- Kino and Genau are both the Main Funestra, launched as `python -m main_funestra` out of the `../genau` project's venv (`paths.genau_python_exe`), and it reads its library folders and device port from the `main_funestra` section of the genau config file (`paths.genau_config_path`). The `../genau` repo itself ships no code: it is that venv, Genau's settings and the clips-folder layout it promises (`genau_contract.json`).
 
 Install the declared dependencies into the project venv before first use.
 
