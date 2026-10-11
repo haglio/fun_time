@@ -15,8 +15,6 @@ from .funestra_status import read_main_funestra_status
 
 logger = logging.getLogger(__name__)
 
-NAMES_NEWEST_FIRST = ("genaumacher", "clipper")
-
 
 @functools.lru_cache(maxsize=1)
 def _genaumacher_project_dir() -> Path:
@@ -31,13 +29,7 @@ def _genaumacher_project_dir() -> Path:
         beside = primary_checkout().parent
     except (OSError, subprocess.SubprocessError):
         beside = Path(__file__).resolve().parents[1].parent
-    return next((beside / name for name in NAMES_NEWEST_FIRST if (beside / name).is_dir()),
-                beside / NAMES_NEWEST_FIRST[0])
-
-
-def _package_in(checkout: Path) -> str:
-    return next((name for name in NAMES_NEWEST_FIRST
-                 if (checkout / name / "create_session.py").is_file()), NAMES_NEWEST_FIRST[0])
+    return beside / "genaumacher"
 
 
 def _genaumacher_python() -> str:
@@ -66,18 +58,17 @@ def save_clip_session(config: BridgeConfig) -> str:
     if not video_path:
         logger.warning("genaumacher_save: no video playing on the Main Funestra")
         return ""
-    checkout = _genaumacher_project_dir()
     try:
         result = subprocess.run(
             [
-                _genaumacher_python(), "-m", f"{_package_in(checkout)}.create_session",
+                _genaumacher_python(), "-m", "genaumacher.create_session",
                 "--video", video_path,
                 "--time", str(playback_time),
             ],
             capture_output=True,
             text=True,
             timeout=10,
-            cwd=str(checkout),
+            cwd=str(_genaumacher_project_dir()),
             **hidden_subprocess_kwargs(),
         )
         if result.returncode == 0:
