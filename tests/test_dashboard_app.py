@@ -15,13 +15,15 @@ import pytest
 from app_support import file_channel
 from PyQt6.QtCore import QPoint, QRect, Qt
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QApplication, QTextBrowser, QWidget
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QTextBrowser, QWidget
 from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY
+from shared_ui.find_bar import FindBar
 from shared_ui.icon_geometry import GLYPHS, tooltip_for
 from shared_ui.icons import glyph_pixmap
 from shared_ui.palette import LOADING_ACCENT, PREVIEW_INK, as_hex
 from shared_ui.preview import Preview
-from shared_ui.spacing import BUTTON_MARK_INSET, BUTTON_RADIUS_HUD
+from shared_ui.spacing import BUTTON_MARK_INSET, BUTTON_RADIUS_HUD, MARGIN_STANDARD
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
@@ -982,6 +984,30 @@ def test_the_question_mark_is_lit_exactly_while_the_reference_is_open(dashboard_
     assert edge() == TEXT_MUTED
 
 
+def test_opening_the_reference_find_pauses_the_room_so_typing_reaches_it(
+        dashboard_window, dashboard_app_config):
+    commands = dashboard_app_config.dashboard_cmd_file
+    commands.unlink(missing_ok=True)
+    dashboard_window._on_action("help_reference")
+    try:
+        dashboard_window._reference.dialog.open_find()
+
+        assert commands.read_text(encoding="utf-8").split() == ["enter_omnipause"]
+    finally:
+        dashboard_window._reference.dialog.close()
+
+
+def test_the_reference_takes_the_keyboard_however_it_was_opened(dashboard_window):
+    # Opened by voice, the dashboard's process is one Windows will not hand the
+    # foreground to, and Ctrl+F would go to whatever window the reference covers.
+    with patch("fun_time.dashboard_app.bring_to_front") as bring:
+        dashboard_window._apply_presses(["help_reference"])
+    try:
+        bring.assert_called_once_with(dashboard_window._reference.dialog)
+    finally:
+        dashboard_window._reference.dialog.close()
+
+
 def test_toggle_reference_dialog_opens_then_closes(dashboard_window, dashboard_app_config):
     """The same trigger opens the popup, then closes it on the next invocation."""
     window = dashboard_window
@@ -1086,6 +1112,40 @@ def test_reference_dialog_renders_hotkeys_and_voice():
         assert "Esc" in text
         assert "genau" in text
         assert "Genau" in text
+    finally:
+        dialog.close()
+
+
+def test_ctrl_f_in_the_reference_opens_a_find_over_its_text():
+    dialog = ReferenceDialog()
+    try:
+        dialog.show()
+        dialog.activateWindow()
+        assert QTest.qWaitForWindowActive(dialog)
+
+        QTest.keyClick(dialog, Qt.Key.Key_F, Qt.KeyboardModifier.ControlModifier)
+        dialog.findChild(QLineEdit).setText("Ctrl+Alt+Q")
+
+        assert dialog.findChild(QLineEdit).isVisible()
+        assert dialog.findChild(QLabel, "findCount").text().startswith("1 of ")
+        assert dialog.findChild(QTextBrowser).extraSelections()
+    finally:
+        dialog.close()
+
+
+def test_the_reference_find_keeps_off_the_windows_edges():
+    dialog = ReferenceDialog()
+    try:
+        dialog.resize(640, 480)
+        dialog.show()
+        dialog.open_find()
+        QApplication.processEvents()
+
+        strip = dialog.findChild(FindBar)
+        held = strip.childrenRect().translated(strip.mapTo(dialog, QPoint(0, 0)))
+        assert held.left() >= MARGIN_STANDARD
+        assert dialog.width() - held.right() - 1 >= MARGIN_STANDARD
+        assert dialog.height() - held.y() - held.height() >= MARGIN_STANDARD
     finally:
         dialog.close()
 
