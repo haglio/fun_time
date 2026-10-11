@@ -24,7 +24,6 @@ from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.tcode import UdpTCodeSink
 
 from fun_time.genau_config import GenauSettings
-from fun_time.win32 import run_ahead_of_background_work
 
 from .cli import (
     audio_muted,
@@ -41,6 +40,7 @@ from .input import Input
 from .kino import Kino
 from .loading import LoadingCanceled, LoadingScreen
 from .notice import NoticeWriter
+from .player_priority import ahead_on_the_processor
 from .player_window import take_outside_resizes, wear_the_icon
 
 logger = logging.getLogger(__name__)
@@ -51,8 +51,8 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser({}).parse_args(argv)
     if args.config is not None:
         args = build_parser(load_config(args.config)).parse_args(argv)
-    run_ahead_of_background_work()
-    return _run(args)
+    with ahead_on_the_processor():
+        return _run(args)
 
 
 def _genau(args):

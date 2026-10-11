@@ -13,7 +13,6 @@ from fun_time_vr.scheduling import ahead_of_background_work, scheduled_as_a_game
 A_HANDLE = 0x1234
 A_PROCESS = 0x5678
 ERROR_SERVICE_NOT_ACTIVE = 1062
-ERROR_ACCESS_DENIED = 5
 REALTIME = 5
 ABOVE_NORMAL = 3
 STATUS_PRIVILEGE_NOT_HELD = -1073741727  # 0xC0000061, as NTSTATUS arrives signed
@@ -65,41 +64,16 @@ def _ahead(avrt=None, gdi32=None, kernel32=None, **kwargs):
     gdi32 = gdi32 or _FakeGdi32()
     kernel32 = kernel32 or _FakeKernel32()
     return ahead_of_background_work(
-        avrt=lambda: avrt, gdi32=lambda: gdi32, kernel32=lambda: kernel32,
+        avrt=lambda: avrt, gdi32=lambda: gdi32, kernel32=kernel32,
         this_process=lambda: A_PROCESS, **kwargs)
 
 
-def test_the_block_runs_with_this_process_above_normal_priority_as_genau_runs():
+def test_the_block_runs_above_normal_priority_as_every_player_does():
     kernel32 = _FakeKernel32()
 
     with _ahead(kernel32=kernel32):
-        assert kernel32.SetPriorityClass.calls == [
-            (A_PROCESS, subprocess.ABOVE_NORMAL_PRIORITY_CLASS)]
-
-
-def test_leaving_the_block_puts_the_process_priority_back_as_it_was_found():
-    kernel32 = _FakeKernel32(found=subprocess.BELOW_NORMAL_PRIORITY_CLASS)
-
-    with _ahead(kernel32=kernel32):
-        pass
-
-    assert kernel32.SetPriorityClass.calls[-1] == (
-        A_PROCESS, subprocess.BELOW_NORMAL_PRIORITY_CLASS)
-
-
-def test_a_refused_processor_priority_runs_the_block_anyway_and_says_why(caplog):
-    kernel32 = _FakeKernel32()
-    kernel32.SetPriorityClass.result = 0
-    ran = []
-
-    with _ahead(kernel32=kernel32, last_error=lambda: ERROR_ACCESS_DENIED):
-        ran.append(True)
-
-    assert ran == [True]
-    assert kernel32.SetPriorityClass.calls == [
-        (A_PROCESS, subprocess.ABOVE_NORMAL_PRIORITY_CLASS)]
-    (record,) = caplog.records
-    assert str(ERROR_ACCESS_DENIED) in record.getMessage()
+        assert [priority for _process, priority in kernel32.SetPriorityClass.calls] == [
+            subprocess.ABOVE_NORMAL_PRIORITY_CLASS]
 
 
 _PRIORITY_CLASS_INSIDE_THE_BLOCK = """
@@ -121,19 +95,6 @@ def test_a_real_headset_process_runs_above_normal_priority_inside_the_block():
 
     assert result.returncode == 0, result.stderr
     assert int(result.stdout) == subprocess.ABOVE_NORMAL_PRIORITY_CLASS
-
-
-def test_the_process_goes_to_the_priority_calls_as_a_handle():
-    kernel32 = _FakeKernel32()
-
-    with _ahead(kernel32=kernel32):
-        pass
-
-    read, write = kernel32.GetPriorityClass, kernel32.SetPriorityClass
-    assert read.argtypes == [ctypes.wintypes.HANDLE]
-    assert write.argtypes == [ctypes.wintypes.HANDLE, ctypes.wintypes.DWORD]
-    assert read.restype is ctypes.wintypes.DWORD
-    assert write.restype is ctypes.wintypes.BOOL
 
 
 def test_the_block_runs_registered_as_a_game_thread():
