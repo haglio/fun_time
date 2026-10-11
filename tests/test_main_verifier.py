@@ -630,3 +630,42 @@ def test_fix_sessions_run_on_the_newest_claude_code_the_claude_app_keeps(tmp_pat
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
 
     assert main_verifier.claude_command() == str(kept / "2.1.293" / "83cb0bd7fed4" / "claude.exe")
+
+
+FIX = {"kind": "broke main", "commit": "aaaa1111", "pull_request": 398, "fix_session": "1a2b3c4d"}
+
+
+def a_fix_session(state, **more):
+    return {"id": "1a2b3c4d", "sessionId": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d", "kind": "background",
+            "name": "Fix #398: Keep the crown lit",
+            "cwd": "C:/fun_time/.claude/worktrees/fix-398", "state": state, **more}
+
+
+def test_he_is_told_once_when_a_fix_session_waits_for_him_and_once_when_it_finishes():
+    waiting = a_fix_session("blocked", waitingFor="input needed")
+
+    [notice] = main_verifier.fix_notices([FIX], [waiting], told={})
+    assert (notice.title, notice.state) == ("Fix #398: Keep the crown lit is waiting for you", "blocked")
+    assert notice.resume == "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+    assert notice.body == "It needs your answer. Click to open it in Claude Desktop."
+    assert main_verifier.fix_notices([FIX], [waiting], told={"1a2b3c4d": "blocked"}) == []
+    [finished] = main_verifier.fix_notices([FIX], [a_fix_session("done")], told={"1a2b3c4d": "blocked"})
+    assert finished.title == "Fix #398: Keep the crown lit finished"
+    assert main_verifier.fix_notices([FIX], [a_fix_session("busy")], told={}) == []
+
+
+def test_each_new_state_of_a_fix_session_is_told_once_however_often_the_verifier_starts(tmp_path):
+    (tmp_path / "main_verifier_incidents.jsonl").write_text(json.dumps(FIX) + "\n", encoding="utf-8")
+    sessions = [a_fix_session("blocked", waitingFor="input needed")]
+    told = []
+
+    def shell(command, cwd=None):
+        assert command == ["claude.exe", "agents", "--json", "--all"]
+        return json.dumps(sessions)
+
+    for _ in range(2):
+        main_verifier.tell_him_about_fix_sessions(tmp_path, "claude.exe", shell=shell, start=told.append)
+    sessions[0] = a_fix_session("done")
+    main_verifier.tell_him_about_fix_sessions(tmp_path, "claude.exe", shell=shell, start=told.append)
+
+    assert [notice.state for notice in told] == ["blocked", "done"]
