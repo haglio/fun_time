@@ -16,6 +16,7 @@ from player_core.playlist import PlaylistItem
 from player_core.sdl_hints import deliver_the_focusing_click
 
 from main_player.input import Input
+from main_player.player_priority import ahead_on_the_processor
 from main_player.player_window import take_outside_resizes, wear_the_icon
 
 from .cli import audio_muted, build_parser, resolve_playlist
@@ -39,7 +40,8 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("No videos to play (need --playlist)")
         return 1
     logger.info("Satellite playing %d clip(s)", len(playlist))
-    return _run(args, playlist)
+    with ahead_on_the_processor():
+        return _run(args, playlist)
 
 
 def _open_window(placement: WindowPlacement) -> int:

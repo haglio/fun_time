@@ -7,6 +7,7 @@ and the close -- is read back off a fake Funestra.
 """
 from __future__ import annotations
 
+import contextlib
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,6 +15,7 @@ from unittest.mock import patch
 
 import pygame
 
+import satellite.app
 from fun_time.project_paths import PROJECT_ICON
 from satellite.app import _run
 from satellite.cli import build_parser, resolve_playlist
@@ -220,3 +222,23 @@ def test_the_window_takes_the_size_fun_time_gives_it_from_outside(tmp_path):
     _code, _opens, fake = _run_loop(tmp_path, args)
 
     assert fake.window.resizable is True
+
+
+def test_the_satellite_plays_ahead_of_background_work(tmp_path, monkeypatch):
+    playlist = tmp_path / "playlist.tsv"
+    playlist.write_text(f"{_clips(tmp_path, 'v0')[0]}\n", encoding="utf-8")
+    order = []
+
+    @contextlib.contextmanager
+    def ahead_on_the_processor():
+        order.append("ahead")
+        yield
+        order.append("back")
+
+    monkeypatch.setattr(satellite.app, "set_up_logging", lambda: None)
+    monkeypatch.setattr(satellite.app, "ahead_on_the_processor", ahead_on_the_processor)
+    monkeypatch.setattr(satellite.app, "_run",
+                        lambda _args, _playlist: order.append("plays") or 0)
+
+    assert satellite.app.main(["--playlist", str(playlist)]) == 0
+    assert order == ["ahead", "plays", "back"]
