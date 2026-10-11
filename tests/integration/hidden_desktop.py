@@ -444,6 +444,8 @@ def _exit_code(process: int) -> int:
 _WHERE_IT_WAITS = {
     Place.AHEAD_OF_FULL_RUNS: "this short run waits for it, ahead of any full run",
     Place.AFTER_THE_FULL_RUN_GOING_NEXT: "this short run waits for it, then for the full run that goes next",
+    Place.BEHIND_OTHER_FULL_RUNS:
+        "this full run waits for it, and for the full runs that joined the line before it",
     Place.GIVING_WAY_TO_SHORT_RUNS: (f"this full run waits for it, and lets short runs go first until "
                                      f"they have held the line for {FULL_RUN_GIVES_WAY_S / 60:g} minutes"),
     Place.GOING_NEXT: "this full run waits for it, and short runs now wait for this one",

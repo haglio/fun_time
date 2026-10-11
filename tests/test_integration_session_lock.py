@@ -387,8 +387,10 @@ def test_only_the_full_run_next_in_line_makes_short_runs_wait_for_it():
     order: list[str] = []
     first_full, first_full_waiting = _start_run(name, order, "first full")
     assert first_full_waiting.wait(timeout=10)
-    second_full, second_full_waiting = _start_run(name, order, "second full", full_run_gives_way_s=0)
-    assert second_full_waiting.wait(timeout=10)
+    second_full, second_full_behind = _start_run(
+        name, order, "second full", full_run_gives_way_s=0,
+        once=lambda state: state.place is Place.BEHIND_OTHER_FULL_RUNS)
+    assert second_full_behind.wait(timeout=10)
     short, short_waiting = _start_run(name, order, "short", short=True)
     assert short_waiting.wait(timeout=10)
 

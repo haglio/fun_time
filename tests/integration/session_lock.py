@@ -52,6 +52,7 @@ FULL_RUN_GIVES_WAY_S = 20 * 60
 class Place(Enum):
     AHEAD_OF_FULL_RUNS = auto()
     AFTER_THE_FULL_RUN_GOING_NEXT = auto()
+    BEHIND_OTHER_FULL_RUNS = auto()
     GIVING_WAY_TO_SHORT_RUNS = auto()
     GOING_NEXT = auto()
 
@@ -228,11 +229,12 @@ class _Patience:
         return self._given_way >= self._gives_way_s
 
     def waited(self) -> Place:
-        if self._at_the_head.is_set():
-            if _held_elsewhere(self._short_running):
-                self._given_way += self._looks_every_s
-            if self.spent() and not self._going_next:
-                self._going_next = self._goes_next.acquire(timeout=0)
+        if not self._at_the_head.is_set():
+            return Place.BEHIND_OTHER_FULL_RUNS
+        if _held_elsewhere(self._short_running):
+            self._given_way += self._looks_every_s
+        if self.spent() and not self._going_next:
+            self._going_next = self._goes_next.acquire(timeout=0)
         return Place.GOING_NEXT if self._going_next else Place.GIVING_WAY_TO_SHORT_RUNS
 
     def close(self) -> None:
