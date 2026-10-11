@@ -247,7 +247,11 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   player_core, which is how you get the plain install even if his config is
   pinned to someone else's worktree. Cost the main-player minimize button a round trip on
   2026-08-13: it had landed in genau, and the pinned checkout predated it, so it
-  was on neither the demo nor his app.
+  was on neither the demo nor his app. Every path in that file also goes onto the
+  hosted Origenerator's path, so a sibling named there must be at least as new as
+  what production Origenerator pins: an app_support and a shared_ui named there at
+  the versions a pin move wanted, older than Origenerator's own, kept Origenerator
+  from booting and cost a whole integration run (2026-10-11).
 
 - **That chain has no error state, so prove it at handoff time and re-prove it
   before ever suspecting your code.** An override that is missing, empty, or
