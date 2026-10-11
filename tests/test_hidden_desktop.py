@@ -277,8 +277,17 @@ def test_a_repeat_first_runs_each_file_holding_a_changed_test_whole_in_this_venv
     with _runs_launched_into(launched, changed_files=files):
         hidden_desktop.run_on_hidden_desktop(["--repeat-changed"])
 
-    assert launched[0] == (subprocess.list2cmdline(build_run_argv(files)), sys.executable)
+    assert launched[0] == (subprocess.list2cmdline(build_run_argv([*files, "-x"])), sys.executable)
     assert "app_support.flake_gate" in launched[1][0]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_the_files_a_repeat_runs_whole_stop_at_their_first_failure():
+    launched: list[tuple[str, str]] = []
+    with _runs_launched_into(launched, changed_files=["tests/integration/test_a.py"]):
+        hidden_desktop.run_on_hidden_desktop(["--repeat-changed"])
+
+    assert "-x" in launched[0][0].split()
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
@@ -673,7 +682,7 @@ def test_a_run_of_what_a_change_needs_runs_the_tests_the_coverage_map_picks_as_a
         hidden_desktop.run_on_hidden_desktop(["--changed"])
 
     files = ["tests/integration/test_a.py", "tests/integration/test_b.py"]
-    assert launched == [(subprocess.list2cmdline(build_run_argv(files)), sys.executable)]
+    assert launched == [(subprocess.list2cmdline(build_run_argv([*files, "-x"])), sys.executable)]
     assert [place["short"] for place in places] == [True]
 
 
@@ -685,8 +694,20 @@ def test_a_change_the_coverage_map_cannot_place_runs_the_whole_suite_in_line_as_
           patch.object(hidden_desktop, "what_this_change_needs", lambda base: Picked(because="launch.vbs"))):
         hidden_desktop.run_on_hidden_desktop(["--changed"])
 
-    assert launched == [(subprocess.list2cmdline(build_run_argv([])), sys.executable)]
+    assert launched == [(subprocess.list2cmdline(build_run_argv(["-x"])), sys.executable)]
     assert [place["short"] for place in places] == [False]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+@pytest.mark.parametrize("picked", [Picked(files=frozenset({"tests/integration/test_a.py"})),
+                                    Picked(because="launch.vbs")])
+def test_a_run_of_what_a_change_needs_stops_at_its_first_failure(picked):
+    launched: list[tuple[str, str]] = []
+    with (_runs_launched_into(launched),
+          patch.object(hidden_desktop, "what_this_change_needs", lambda base: picked)):
+        hidden_desktop.run_on_hidden_desktop(["--changed"])
+
+    assert "-x" in launched[0][0].split()
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
