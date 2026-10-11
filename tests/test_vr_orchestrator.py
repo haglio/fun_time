@@ -76,11 +76,11 @@ from fun_time_vr.orchestrator import (
     _wait_for_the_room,
     build_vr_manifest,
     launch_vr_funestras,
+    main_playlist_has_vr,
     resume_genau_shapes,
     stock_the_playlists,
     validate_vr_config,
     vr_main_sources,
-    why_the_main_list_does_not_fit,
 )
 from tests.cover_beats import heard_from_again_once_stale
 from tests.made_up_genau import made_up_genau
@@ -423,10 +423,11 @@ class TestWaitForSessionEnd:
 
 
 class TestResumedMainPlaylist:
-    def _both(self, config) -> VideoShapes:
-        return VideoShapes(vr_dirs="|".join(str(d) for d in config.vr.library_dirs))
+    """A desktop session's main playlist is 2D only; resuming it into a VR
+    session would give the headset nothing but flat screens, so the VR session
+    checks before honoring the resume."""
 
-    def test_a_desktop_playlist_does_not_fit_for_holding_no_vr(self, config, tmp_path):
+    def test_a_desktop_playlist_reads_as_holding_no_vr(self, config, tmp_path):
         playlist = tmp_path / "main_player_playlist.tsv"
         playlist.write_text(
             f"{tmp_path / 'library' / '2D' / 'scene one.mp4'}\n"
@@ -434,9 +435,9 @@ class TestResumedMainPlaylist:
             encoding="utf-8",
         )
 
-        assert why_the_main_list_does_not_fit(playlist, self._both(config)) == "held no VR video"
+        assert main_playlist_has_vr(playlist, config.vr.library_dirs) is False
 
-    def test_one_vr_entry_is_enough_to_fit_both_shapes(self, config, tmp_path):
+    def test_one_vr_entry_is_enough(self, config, tmp_path):
         vr_dir = tmp_path / "library" / "VR" / "finished"
         playlist = tmp_path / "main_player_playlist.tsv"
         playlist.write_text(
@@ -445,11 +446,10 @@ class TestResumedMainPlaylist:
             encoding="utf-8",
         )
 
-        assert why_the_main_list_does_not_fit(playlist, self._both(config)) is None
+        assert main_playlist_has_vr(playlist, config.vr.library_dirs) is True
 
-    def test_a_missing_playlist_does_not_fit_for_holding_no_vr(self, config, tmp_path):
-        assert why_the_main_list_does_not_fit(
-            tmp_path / "absent.tsv", self._both(config)) == "held no VR video"
+    def test_a_missing_playlist_reads_as_holding_no_vr(self, config, tmp_path):
+        assert main_playlist_has_vr(tmp_path / "absent.tsv", config.vr.library_dirs) is False
 
 
 class TestTheModeASessionComesBackIn:
@@ -749,33 +749,6 @@ class TestStockingThePlaylists:
             main_recent=False,
             main_plays_flat=False,
             main_video=str(flat),
-        )
-
-        entries = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
-        assert [entry.split("\t")[0] for entry in entries] == [str(vr_clip)]
-
-    def test_a_list_still_holding_flat_videos_under_vr_only_is_rebuilt_without_them(
-        self, config, tmp_path,
-    ):
-        library = tmp_path / "library"
-        vr_clip = library / "VR" / "finished" / "scene one.mp4"
-        flat = library / "2D" / "scene two.mp4"
-        for clip in (vr_clip, flat):
-            clip.write_bytes(b"")
-        state = tmp_path / "state"
-        state.mkdir(exist_ok=True)
-        main_funestra_playlist = state / "main_player_playlist.tsv"
-        main_funestra_playlist.write_text(f"{vr_clip}\n{flat}\n", encoding="utf-8")
-
-        stock_the_playlists(
-            self._manifest(config, tmp_path),
-            state_dir=state,
-            metadata_root=tmp_path / "metadata",
-            resumed=True,
-            main_scripted_filter=False,
-            main_recent=False,
-            main_plays_flat=False,
-            main_video=str(vr_clip),
         )
 
         entries = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
