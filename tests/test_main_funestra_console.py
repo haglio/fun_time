@@ -269,7 +269,8 @@ class TestTheReadoutTheWordLeaves:
 
     @staticmethod
     def _readouts_own(painter):
-        return [track for track in painter.tracks if track.axis != MAX_INTENSITY]
+        return [track for track in painter.tracks
+                if track.axis != MAX_INTENSITY and track.handle_of is None]
 
     @staticmethod
     def _center(rect, origin):
