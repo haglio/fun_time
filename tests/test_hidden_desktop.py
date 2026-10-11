@@ -363,13 +363,17 @@ def test_the_files_run_whole_are_the_integration_files_holding_a_test_the_branch
 def test_the_waiting_message_says_where_the_run_stands_in_line(capsys):
     hidden_desktop._announce_waiting(Waiting(12.0, Place.AHEAD_OF_FULL_RUNS))
     hidden_desktop._announce_waiting(Waiting(20.0, Place.AFTER_THE_FULL_RUN_GOING_NEXT))
+    hidden_desktop._announce_waiting(Waiting(25.0, Place.BEHIND_OTHER_FULL_RUNS))
     hidden_desktop._announce_waiting(Waiting(30.0, Place.GIVING_WAY_TO_SHORT_RUNS))
     hidden_desktop._announce_waiting(Waiting(40.0, Place.GOING_NEXT))
 
-    short, short_after_a_full, full, full_going_next = capsys.readouterr().err.splitlines()
+    short, short_after_a_full, full_behind, full, full_going_next = (
+        capsys.readouterr().err.splitlines())
     assert "this short run waits for it, ahead of any full run (12s elapsed)" in short
     assert ("this short run waits for it, then for the full run that goes next (20s elapsed)"
             in short_after_a_full)
+    assert ("this full run waits for it, and for the full runs that joined the line before it "
+            "(25s elapsed)" in full_behind)
     assert "lets short runs go first until they have held the line for 20 minutes (30s elapsed)" in full
     assert "this full run waits for it, and short runs now wait for this one (40s elapsed)" in full_going_next
 
