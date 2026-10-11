@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from funestra_core.modes import NoticeLevel
+from funestra.modes import NoticeLevel
 
 from main_funestra.notice import NoticeWriter
 

@@ -7,8 +7,8 @@ import os
 from pathlib import Path
 
 import numpy as np
-from funestra_core.console_hud import ModeHud
-from funestra_core.funestra import User
+from funestra.console_hud import ModeHud
+from funestra.funestra import User
 
 from fun_time.genau_config import GenauSettings
 from main_funestra.genau import Genau, GenauChannels

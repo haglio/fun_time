@@ -45,7 +45,7 @@ def test_the_funestra_that_died_is_named_with_what_it_said(tmp_path: Path):
            "Traceback (most recent call last):",
            '  File "<string>", line 1, in <module>',
            "OSError: The engine (libmpv) could not be loaded. Looked in: "
-           "C:\\player_core\\vendor (no libmpv-2.dll in it)")
+           "C:\\funestra\\vendor (no libmpv-2.dll in it)")
     funestras = [LaunchedFunestra("the Portrait Funestra", 30),
                LaunchedFunestra("the Main Funestra", 25, logs)]
 

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import math
 
-from funestra_core.hud_placement import HudEdge
-from funestra_core.outside_buttons import OutsideButtons
+from funestra.hud_placement import HudEdge
+from funestra.outside_buttons import OutsideButtons
 
 from fun_time_vr.hud_sides import HudSides, side_named, side_screen_name, sides
 from fun_time_vr.pointer import HANDLE_DEG, PRESS, RELEASE, PressEvent

@@ -21,9 +21,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from funestra_core.file_channel import append_command
-from funestra_core.funestra_verbs import LOCK_ON, QUIT, play_file
-from funestra_core.playlist import read_playlist
+from funestra.file_channel import append_command
+from funestra.funestra_verbs import LOCK_ON, QUIT, play_file
+from funestra.playlist import read_playlist
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
@@ -281,7 +281,7 @@ def _drained(satellite: _Satellite) -> None:
 
     No file at all is the drained state, and the usual one: the Funestra claims the
     queue by renaming it aside and deletes what it read
-    (``funestra_core.file_channel.consume_command_file``), so a fully drained queue
+    (``funestra.file_channel.consume_command_file``), so a fully drained queue
     leaves nothing.  Reading it outright raised FileNotFoundError from
     inside the wait — a drain looked like a hang.
 

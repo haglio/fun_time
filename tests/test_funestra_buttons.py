@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 import pytest
-from funestra_core.modes import MainMode
+from funestra.modes import MainMode
 
 from fun_time.console_buttons import MainSlot, console_rows
 from fun_time.satellite_buttons import funestra_rows

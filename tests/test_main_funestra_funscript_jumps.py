@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.funscript import Funscript
-from funestra_core.modes import NoticeLevel
+from funestra.funscript import Funscript
+from funestra.modes import NoticeLevel
 
 from main_funestra.funscript_jumps import FunscriptJumps
 

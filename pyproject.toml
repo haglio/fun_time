@@ -8,7 +8,7 @@ version = "0.1.0"
 # The version every gate runs, and the one the family's machine runs: a floor
 # lower than what a run proves is a promise nothing backs.
 requires-python = ">=3.14"
-# The three family siblings -- player_core (the Funestras' engine, which brings
+# The three family siblings -- funestra (the Funestras' engine, which brings
 # python-mpv; its DLL lives in %USERPROFILE%\.haglio\libmpv), app_support and
 # shared_ui -- are listed first below, each at the tag this repo was built
 # against, and [tool.haglio] siblings still names them for the gates.
@@ -23,12 +23,12 @@ requires-python = ">=3.14"
 # other half had not landed turned all of them red at once. Moving to a newer
 # one is this repo's own commit, with its own suite to answer for it.
 dependencies = [
-    "app-support @ git+https://github.com/haglio/app_support@v0.1.187",
-    "player-core @ git+https://github.com/haglio/player_core@v0.1.472",
-    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.176",
+    "app-support @ git+https://github.com/haglio/app_support@v0.1.193",
+    "funestra @ git+https://github.com/haglio/funestra@v0.1.477",
+    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.180",
     # The family's listener: it brings vosk and sounddevice, and hears for this
     # app, Evolver's backfill tool and Origenerator alike.
-    "voice-core @ git+https://github.com/haglio/voice_core@v0.1.39",
+    "voice-core @ git+https://github.com/haglio/voice_core@v0.1.41",
     "numpy>=2.4,<3",
     "opencv-python>=4.8,<5",
     "pillow>=12,<13",
@@ -72,7 +72,7 @@ windows = [
 # can go in [project.dependencies]; tests/test_dependency_completeness.py holds
 # this list against the tree, counting what a declared sibling needs in turn.
 [tool.haglio]
-siblings = ["app_support", "player_core", "shared_ui", "voice_core"]
+siblings = ["app_support", "funestra", "shared_ui", "voice_core"]
 
 # What Fun Time's three launchers start: launch.vbs, the file the pinned shortcut
 # runs; launch_vr.vbs, FunTimeVR's; and launch_branch.vbs, which a

@@ -13,7 +13,7 @@ from __future__ import annotations
 from functools import partial
 from pathlib import Path
 
-from funestra_core.console_hud import ModeHud
+from funestra.console_hud import ModeHud
 
 from .clip_jumps import ClipJumps
 from .controls import KinoControls, apply_command

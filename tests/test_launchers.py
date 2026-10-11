@@ -1,10 +1,10 @@
 """The ways a session is started: the Windows launchers and the shell wrapper.
 
 Both must run the orchestrator on the project venv.  ``fun_time`` imports its
-sibling packages â€” ``app_support``, ``player_core`` â€” and those are editable
+sibling packages â€” ``app_support``, ``funestra`` â€” and those are editable
 installs that exist only in ``.venv``.  A python taken from PATH finds the
 sibling *repo* directories as namespace packages instead and dies on
-``No module named 'funestra_core.playlist'`` while importing, which is before the
+``No module named 'funestra.playlist'`` while importing, which is before the
 orchestrator has configured any logging: the app never appears and no log
 anywhere says why.
 

@@ -4,7 +4,7 @@ import random
 from pathlib import Path
 
 import pytest
-from funestra_core.playlist import PlaylistItem
+from funestra.playlist import PlaylistItem
 
 from main_funestra.library import (
     EXCERPT,

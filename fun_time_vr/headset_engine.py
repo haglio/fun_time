@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from funestra_core.render_engine import MpvRenderEngine
+from funestra.render_engine import MpvRenderEngine
 
 
 class HeadsetEngine(MpvRenderEngine):

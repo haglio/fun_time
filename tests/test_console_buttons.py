@@ -4,7 +4,7 @@ from __future__ import annotations
 import itertools
 
 import pytest
-from funestra_core.console import (
+from funestra.console import (
     GAP,
     GROUP_GAP,
     OSR2_CONTROL_BUTTONS,
@@ -16,12 +16,12 @@ from funestra_core.console import (
     place_rows,
     tooltip_at,
 )
-from funestra_core.hud_button import BUTTON, Button
-from funestra_core.hud_marks import BROKER_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
-from funestra_core.modes import LengthMode, LoopState, MainMode
-from funestra_core.robot_hand import WaveformShape
-from funestra_core.satellite_hud import HudModel
-from funestra_core.satellite_hud_paint import HudRenderer
+from funestra.hud_button import BUTTON, Button
+from funestra.hud_marks import BROKER_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
+from funestra.modes import LengthMode, LoopState, MainMode
+from funestra.robot_hand import WaveformShape
+from funestra.satellite_hud import HudModel
+from funestra.satellite_hud_paint import HudRenderer
 from shared_ui.icon_geometry import RENAMED_MARKS, glyph_names
 
 from fun_time import console_buttons

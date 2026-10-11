@@ -3,9 +3,9 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
-from funestra_core.drive_layout import MAX_INTENSITY
-from funestra_core.file_channel import append_command
-from funestra_core.funestra_verbs import SET_MAX_INTENSITY
+from funestra.drive_layout import MAX_INTENSITY
+from funestra.file_channel import append_command
+from funestra.funestra_verbs import SET_MAX_INTENSITY
 
 from .room_funestras import RoomFunestra
 

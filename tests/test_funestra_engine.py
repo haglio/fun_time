@@ -67,23 +67,23 @@ def _shared_engine(tmp_path: Path, contents: bytes = b"engine") -> Path:
 
 
 def test_a_funestra_that_cannot_load_gets_the_shared_copy_where_it_looks_first(tmp_path: Path):
-    """The engine is fetched rather than tracked, so a player_core checkout a session
+    """The engine is fetched rather than tracked, so a funestra checkout a session
     pins has no ``vendor/`` of its own and the Funestra dies on import.  The shared
     copy goes where that checkout looks first and the Funestra is asked again, instead
     of the launch refusing over a gap it can close."""
-    looks_in = tmp_path / "player_core" / "vendor"
+    looks_in = tmp_path / "funestra" / "vendor"
     funestras = _Funestras(looks_in, _shared_engine(tmp_path))
 
     assert engine_missing_abort(_config(), run=funestras, alert=lambda _text: None) is False
     assert (looks_in / "libmpv-2.dll").read_bytes() == b"engine"
 
 
-def test_where_the_shared_copy_is_comes_from_the_funestra_core_this_repo_pins(tmp_path: Path):
-    """The session's own pin is left off that one question.  A player_core checkout
+def test_where_the_shared_copy_is_comes_from_the_funestra_this_repo_pins(tmp_path: Path):
+    """The session's own pin is left off that one question.  A funestra checkout
     from before 2026-09-26 answers it with a folder under AppData, which is private
     to the app an agent's shell runs inside and empty for everything the user
     launches -- so asking the pinned checkout would name a source that is not there."""
-    pinned = tmp_path / "player_core"
+    pinned = tmp_path / "funestra"
     pinned.mkdir()
     funestras = _Funestras(pinned / "vendor", _shared_engine(tmp_path))
 
@@ -96,12 +96,12 @@ def test_where_the_shared_copy_is_comes_from_the_funestra_core_this_repo_pins(tm
 
 
 def test_each_funestra_is_probed_with_the_pythonpath_it_is_launched_with(tmp_path: Path):
-    """A session pins its player_core by putting a checkout of it first on every
-    Funestra's PYTHONPATH, so a probe without that tests the venv's player_core and
+    """A session pins its funestra by putting a checkout of it first on every
+    Funestra's PYTHONPATH, so a probe without that tests the venv's funestra and
     not the one the Funestra imports.  It passed while every Funestra died looking for
     the engine, and the room came up under a loading screen that never lifted
     (2026-09-22)."""
-    pinned = tmp_path / "player_core"
+    pinned = tmp_path / "funestra"
     pinned.mkdir()
     run = _runner([0, 0])
 
@@ -131,12 +131,12 @@ def test_the_alert_carries_what_the_funestra_itself_said(tmp_path: Path):
     said = ('Traceback (most recent call last):\n'
             '  File "<string>", line 1, in <module>\n'
             "OSError: The engine (libmpv) could not be loaded. Looked in: "
-            "C:\\player_core\\vendor (no libmpv-2.dll in it)")
+            "C:\\funestra\\vendor (no libmpv-2.dll in it)")
     funestras = _Funestras(tmp_path / "vendor", tmp_path / "no-shared-copy", reason=said)
     shown: list[str] = []
 
     assert engine_missing_abort(_config(), run=funestras, alert=shown.append) is True
-    assert "Looked in: C:\\player_core\\vendor (no libmpv-2.dll in it)" in shown[0]
+    assert "Looked in: C:\\funestra\\vendor (no libmpv-2.dll in it)" in shown[0]
     assert "the Main Funestra" in shown[0]
     assert 'File "<string>"' not in shown[0]
 
@@ -176,7 +176,7 @@ def test_a_funestra_whose_interpreter_cannot_say_where_it_looks_is_not_given_a_c
             return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="no engine")
         if "machine_libmpv_dir" in cmd[2]:
             return subprocess.CompletedProcess(cmd, 0, stdout=f"{shared.parent}\n", stderr="")
-        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="cannot import player_core")
+        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="cannot import funestra")
 
     assert engine_missing_abort(_config(), run=run, alert=lambda _text: None) is True
     assert list(tmp_path.rglob("libmpv-2.dll")) == [shared / "libmpv-2.dll"]

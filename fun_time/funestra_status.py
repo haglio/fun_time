@@ -10,8 +10,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from app_support.file_channel import read_key_values, stamp_age
-from funestra_core.modes import LengthMode, LoopState, read_mode
-from funestra_core.status import FunestraStatus, parse_status
+from funestra.modes import LengthMode, LoopState, read_mode
+from funestra.status import FunestraStatus, parse_status
 
 
 @dataclass(frozen=True)

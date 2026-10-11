@@ -8,8 +8,8 @@ what each tick of the playhead does to a mark that is still open.
 """
 from __future__ import annotations
 
-from funestra_core.funscript import Funscript
-from funestra_core.modes import LoopState
+from funestra.funscript import Funscript
+from funestra.modes import LoopState
 
 from main_funestra.loop_machine import LoopMachine
 

@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Protocol
 
 from app_support.threading_utils import start_daemon_thread
-from funestra_core.file_channel import append_command
-from funestra_core.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE, play_file
+from funestra.file_channel import append_command
+from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE, play_file
 
 from .modes import (
     PLAYLIST_MAIN_FUNESTRA,

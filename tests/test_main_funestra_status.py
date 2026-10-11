@@ -1,7 +1,7 @@
 """The lines Kino adds to the Main Funestra's status file."""
 from __future__ import annotations
 
-from funestra_core.modes import LengthMode, LoopState
+from funestra.modes import LengthMode, LoopState
 
 from main_funestra.status import LibraryStatus, status_fields
 

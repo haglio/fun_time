@@ -13,11 +13,11 @@ from fun_time.project_paths import PROJECT_ICON
 
 ENGINE_DLL = "libmpv-2.dll"
 
-_IMPORT_THE_ENGINE = "from funestra_core.mpv_engine import _import_mpv; _import_mpv()"
+_IMPORT_THE_ENGINE = "from funestra.mpv_engine import _import_mpv; _import_mpv()"
 _WHERE_IT_LOOKS_FIRST = (
-    "from funestra_core.libmpv_loader import libmpv_dirs; print(libmpv_dirs()[0])")
+    "from funestra.libmpv_loader import libmpv_dirs; print(libmpv_dirs()[0])")
 _WHERE_THE_SHARED_COPY_IS = (
-    "from funestra_core.libmpv_loader import machine_libmpv_dir; print(machine_libmpv_dir())")
+    "from funestra.libmpv_loader import machine_libmpv_dir; print(machine_libmpv_dir())")
 
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 

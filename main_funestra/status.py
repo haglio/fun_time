@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from funestra_core.modes import LengthMode
+from funestra.modes import LengthMode
 
 
 @dataclass(frozen=True)

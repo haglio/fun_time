@@ -5,9 +5,9 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from funestra_core.console import OSR2_DRIVING
-from funestra_core.file_channel import append_command
-from funestra_core.funestra_verbs import LOCK_OFF, RELOAD_PLAYLIST, play_file
+from funestra.console import OSR2_DRIVING
+from funestra.file_channel import append_command
+from funestra.funestra_verbs import LOCK_OFF, RELOAD_PLAYLIST, play_file
 
 logger = logging.getLogger(__name__)
 

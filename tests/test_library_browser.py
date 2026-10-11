@@ -982,7 +982,7 @@ def test_a_browse_of_genaus_flicks_says_so_to_the_browser(tmp_path: Path):
 def test_a_browse_runs_on_the_checkouts_the_session_runs(tmp_path: Path):
     """A preview's session names its own checkouts of the shared packages; a
     browse it opens runs on them, as every other window of the session does."""
-    checkout = tmp_path / "a-player-core-checkout"
+    checkout = tmp_path / "a-funestra-checkout"
     checkout.mkdir()
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text(f"[runtime]\ngenau_project_dirs = {checkout}\n", encoding="utf-8")

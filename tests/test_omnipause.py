@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from funestra_core.console import OSR2_CONTROL_OFF, OSR2_PARKED, OSR2_RETRACTED
-from funestra_core.modes import MainMode
+from funestra.console import OSR2_CONTROL_OFF, OSR2_PARKED, OSR2_RETRACTED
+from funestra.modes import MainMode
 
 from fun_time.broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
 from fun_time.omnipause import build_omnipause_plan

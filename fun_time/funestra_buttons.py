@@ -2,9 +2,9 @@
 once so a control reads and looks the same whichever Funestra wears it."""
 from __future__ import annotations
 
-from funestra_core.hud_button import Button
-from funestra_core.hud_marks import MINIMIZE_ICON, shared_mark
-from funestra_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL
+from funestra.hud_button import Button
+from funestra.hud_marks import MINIMIZE_ICON, shared_mark
+from funestra.hud_status import LATEST_LABEL, SHUFFLE_LABEL
 
 PREV_FACE = "⏮"
 NEXT_FACE = "⏭"

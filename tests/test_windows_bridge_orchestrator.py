@@ -16,8 +16,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support.file_channel import read_flag, write_flag
-from funestra_core.console import OSR2_RETRACTED
-from funestra_core.modes import MainMode
+from funestra.console import OSR2_RETRACTED
+from funestra.modes import MainMode
 from shared_ui.preview import Preview, window_title
 
 from fun_time import closing_screen, device_arbiter, windows_bridge_orchestrator

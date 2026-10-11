@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.modes import MainMode, SatellitesMode
+from funestra.modes import MainMode, SatellitesMode
 
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import resume_shared_state

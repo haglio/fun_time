@@ -5,7 +5,7 @@ import threading
 from contextlib import contextmanager
 from pathlib import Path
 
-from funestra_core.playlist import read_playlist
+from funestra.playlist import read_playlist
 
 from fun_time import polled_files
 from fun_time.modes import write_playlist_file

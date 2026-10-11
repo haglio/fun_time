@@ -30,7 +30,7 @@ import pytest
 from PyQt6.QtWidgets import QApplication
 
 # The same sibling-checkout override the orchestrator applies at launch: in a
-# worktree whose branch leans on unlanded genau/player_core changes, the suite
+# worktree whose branch leans on unlanded genau/funestra changes, the suite
 # must test against those checkouts — they are what the verification session
 # runs — and without this the imports below resolve the primaries and a
 # cross-repo branch cannot even collect.  A no-op in the primary and in CI,

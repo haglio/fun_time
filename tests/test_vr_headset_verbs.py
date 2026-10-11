@@ -9,7 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from funestra_core.playback import Playback
+from funestra.playback import Playback
 
 from fun_time.event_log import NOTICE, SOURCE_MAIN
 from fun_time_vr.headset_verbs import ANGLE_STEP, DIAL_STILL_S, TILT_STEP_DEG, HeadsetVerbs

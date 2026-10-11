@@ -16,8 +16,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from funestra_core.modes import LoopState
-from funestra_core.scripted_device import REWIND_MS
+from funestra.modes import LoopState
+from funestra.scripted_device import REWIND_MS
 
 from .loop_controller import LoopController
 

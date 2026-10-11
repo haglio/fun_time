@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from funestra_core.funestra import Channels
+from funestra.funestra import Channels
 
 #: field, the flag it is given by -- none for the main slot's console, which no
 #: satellite is given -- and the manifest's kind of file, ``None`` where it has none.

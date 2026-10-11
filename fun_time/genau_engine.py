@@ -10,25 +10,25 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
-from funestra_core.broker_feed import BrokerFeed, udp_reader
-from funestra_core.cruise_control import CruiseControlState
-from funestra_core.file_channel import read_paused_state
-from funestra_core.flag import Flag
-from funestra_core.flick_advance import FlickAdvanceState
-from funestra_core.flick_cache import DecodeRequestState, FlickCacheStore
-from funestra_core.flick_decode import load_flick_frames
-from funestra_core.flick_flip import FlickFlip
-from funestra_core.flick_folder import move_flick_to_weird
-from funestra_core.flick_loader import FlickLoadController
-from funestra_core.flick_renderer import FlickRenderController
-from funestra_core.flick_selection import FlickSelectionController
-from funestra_core.flick_sequence import FlickSequenceController
-from funestra_core.genau_controls import GenauControls
-from funestra_core.genau_refresh import GenauRefreshController
-from funestra_core.learned_motion import LearnedMotionState, load_default_model
-from funestra_core.robot_hand import RobotHandState, bpm_for_speed
-from funestra_core.robot_hand_beat import BeatEngine
-from funestra_core.robot_hand_driver import RobotHandTCodeDriver
+from funestra.broker_feed import BrokerFeed, udp_reader
+from funestra.cruise_control import CruiseControlState
+from funestra.file_channel import read_paused_state
+from funestra.flag import Flag
+from funestra.flick_advance import FlickAdvanceState
+from funestra.flick_cache import DecodeRequestState, FlickCacheStore
+from funestra.flick_decode import load_flick_frames
+from funestra.flick_flip import FlickFlip
+from funestra.flick_folder import move_flick_to_weird
+from funestra.flick_loader import FlickLoadController
+from funestra.flick_renderer import FlickRenderController
+from funestra.flick_selection import FlickSelectionController
+from funestra.flick_sequence import FlickSequenceController
+from funestra.genau_controls import GenauControls
+from funestra.genau_refresh import GenauRefreshController
+from funestra.learned_motion import LearnedMotionState, load_default_model
+from funestra.robot_hand import RobotHandState, bpm_for_speed
+from funestra.robot_hand_beat import BeatEngine
+from funestra.robot_hand_driver import RobotHandTCodeDriver
 
 logger = logging.getLogger(__name__)
 

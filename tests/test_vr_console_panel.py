@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import logging
 
-from funestra_core.console import ConsoleModel, _row_width
-from funestra_core.console_hud import _PAD, ConsoleHud, ConsolePainter, ModeHud
-from funestra_core.drive_readout import DriveHud
-from funestra_core.hud_placement import HudEdge
+from funestra.console import ConsoleModel, _row_width
+from funestra.console_hud import _PAD, ConsoleHud, ConsolePainter, ModeHud
+from funestra.drive_readout import DriveHud
+from funestra.hud_placement import HudEdge
 from shared_ui.palette import AMBER, GREEN, RED, TEXT_MUTED, TEXT_PRIMARY
 
 from fun_time.console_buttons import MainSlot, console_rows, osr2_controls

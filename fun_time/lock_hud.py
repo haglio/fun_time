@@ -4,7 +4,7 @@ Assembles the panel drawn over each satellite: the side's own state — locked,
 looping, filtered, favorite — and the other videos reachable in the current
 clip's action group and seed family.  Only fun_time has the library metadata this
 needs, so the model lives here — :mod:`fun_time.hud_transport` publishes it, and
-each Satellite Funestra draws it straight into its own video (:mod:`funestra_core.satellite_hud`).
+each Satellite Funestra draws it straight into its own video (:mod:`funestra.satellite_hud`).
 """
 from __future__ import annotations
 
@@ -12,9 +12,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from funestra_core.hud_placement import HudCorner, HudEdge
-from funestra_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL, looping_label, status_line
-from funestra_core.modes import SatellitesMode
+from funestra.hud_placement import HudCorner, HudEdge
+from funestra.hud_status import LATEST_LABEL, SHUFFLE_LABEL, looping_label, status_line
+from funestra.modes import SatellitesMode
 
 from fun_time.media_metadata import (
     GroupIndex,
@@ -33,7 +33,7 @@ def _status_label(
 ) -> str:
     """The HUD's one status line — everything the side is in, at a glance.
 
-    This side's words in the slots :func:`funestra_core.hud_status.status_line` lays
+    This side's words in the slots :func:`funestra.hud_status.status_line` lays
     out, which is where the grammar lives and why "Locked", "Unlocked" and "F-Mode"
     are not spelled here: every Funestra in the room says this line, and a reader
     glancing between two screens is reading one sentence in two places.

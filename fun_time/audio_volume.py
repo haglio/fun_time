@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.file_channel import append_command
-from funestra_core.funestra_verbs import SET_VOLUME
+from funestra.file_channel import append_command
+from funestra.funestra_verbs import SET_VOLUME
 
 MIN_VOLUME = 0
 MAX_VOLUME = 100

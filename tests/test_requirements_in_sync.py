@@ -71,7 +71,7 @@ def test_requirements_matches_pyproject():
 def test_requirements_names_the_same_sibling_tags():
     """Names alone cannot see a stale pin, and all three drifted under that:
     ``requirements.txt`` named app_support v0.1.140, shared_ui v0.1.123 and
-    player_core v0.1.264 while pyproject had moved on by thirteen, four and one
+    funestra v0.1.264 while pyproject had moved on by thirteen, four and one
     tag, so ``pip install -r requirements.txt`` built against three versions of
     the family that nothing here was tested on."""
     assert _tags(_requirements_specs()) == _tags(_pyproject_specs())

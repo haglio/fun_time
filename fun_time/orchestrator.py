@@ -19,7 +19,7 @@ from .checkout_overrides import (
 
 # Before any other import of this package: a worktree's genau_project_dirs
 # override reaches Genau and the Main Funestra as subprocess PYTHONPATH, but THIS
-# process resolves player_core and shared_ui through the venv, which is the
+# process resolves funestra and shared_ui through the venv, which is the
 # primary's.  Without this a branch leaning on an unlanded sibling change
 # imports code the primary does not have and the session dies at launch.  A
 # no-op in every ordinary session, where no override file exists.

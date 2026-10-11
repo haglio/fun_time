@@ -10,8 +10,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from funestra_core.console_hud import ModeHud
-from funestra_core.funestra import User
+from funestra.console_hud import ModeHud
+from funestra.funestra import User
 
 from fun_time.genau_config import GenauSettings
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset

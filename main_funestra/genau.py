@@ -10,10 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
-from funestra_core.console_hud import ModeHud
-from funestra_core.flick_decode import load_flick_frames
-from funestra_core.flick_folder import flat_flicks_in, scan_flicks, weird_folder_for
-from funestra_core.flick_picture import Picture
+from funestra.console_hud import ModeHud
+from funestra.flick_decode import load_flick_frames
+from funestra.flick_folder import flat_flicks_in, scan_flicks, weird_folder_for
+from funestra.flick_picture import Picture
 
 from fun_time.genau_config import GenauSettings
 from fun_time.genau_engine import Narrow, build_genau_engine

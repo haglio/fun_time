@@ -52,7 +52,7 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 
 ## Standing rules a comment cannot enforce
 
-- **A Funestra is one of the room's three slots, never the app in it, and "player" in his words means the same thing.** The Main, Portrait and Landscape Funestras are the slots; Kino, Genau and Origenerator are what plays in them. Kino is the mode that used to be called Video, renamed so that "video" can only ever mean a video file; older notes and memories still say "video mode", and none of it reaches him. A feature he gives "the Main Funestra" holds in Genau mode too, although `main_funestra/` is only Kino's: the crown shipped Kino-only and he answered that Genau was the main reason for it (2026-09-26). A Funestra is funestra_core's window, which plays what it is handed and draws its own HUD; the code called it a player until 2026-10-10. Kino, Genau and an Origenerator Slideshow run on a Funestra, and nothing sits between the two: never a player that "runs on" or "has" one. The near miss that still counts: "the satellites run on a Funestra" -- the satellite program is the window, so each satellite is one.
+- **A Funestra is one of the room's three slots, never the app in it, and "player" in his words means the same thing.** The Main, Portrait and Landscape Funestras are the slots; Kino, Genau and Origenerator are what plays in them. Kino is the mode that used to be called Video, renamed so that "video" can only ever mean a video file; older notes and memories still say "video mode", and none of it reaches him. A feature he gives "the Main Funestra" holds in Genau mode too, although `main_funestra/` is only Kino's: the crown shipped Kino-only and he answered that Genau was the main reason for it (2026-09-26). A Funestra is funestra's window, which plays what it is handed and draws its own HUD; the code called it a player until 2026-10-10. Kino, Genau and an Origenerator Slideshow run on a Funestra, and nothing sits between the two: never a player that "runs on" or "has" one. The near miss that still counts: "the satellites run on a Funestra" -- the satellite program is the window, so each satellite is one.
 
 - **The two controllers are interchangeable: nothing in the headset gives the left and right hand different jobs, and a control the sticks and buttons cannot spare goes on the keyboard, on a key found by feel.** He uses one controller at a time; a wrapped picture's angle sat on the left stick and its height on the right, and he answered "I can't use both controllers at once. I treat the controllers in Fun Time as interchangeable, and the code should too" (2026-09-27). The angle went to Alt with Left and Right, in the arrow cluster.
 
@@ -64,7 +64,7 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 - **Nothing is reported on the loading screen after the line that fills the bar.** A wait added at the end -- the hosted app's boot, say -- shows as a step past "Finalizing..." with the bar already full, which reads as a room that is finished and still working. So a wait under the cover gets its own phase before the final weightless one, carrying weight, and that weightless line stays last: the dashboard shows itself when the bar fills and the post-loading window pass waits for that window, so the line has to come before the pass.
 - **Every launch entry point calls `apply_genau_dirs_to_sys_path()` before importing anything that reaches the dispatch loop.** `tests/test_launch_smoke.py` imports each the way its `.vbs` runs it and goes red for whichever one is missing it.
 - **No key inside a satellite or a headset ends that Funestra.** A satellite is one of a set the sequencer placed, and killing one leaves the session running around a gap; the session ends as a whole, through Ctrl+Alt+Q. Do not add a per-window quit handler back.
-- **The shells are not unit-tested, on purpose:** `satellite/app.py`, `fun_time_vr/funestras.py`, `fun_time_vr/render.py`, `fun_time_vr/vr_session.py`, `fun_time_vr/video_thread.py`, `fun_time_vr/gl_contexts.py`, `fun_time/chrome_accessibility.py`, `fun_time_vr/windows_sound.py` need the libmpv DLL, a GL context, a headset or a real Chrome, or would change the machine's default sound devices. Logic that can be tested lives outside them — `fun_time.chrome_tabs`, `fun_time_vr.vr_runtime`, `satellite.contract`, `fun_time_vr.headset_verbs`, `fun_time_vr.genau_in_the_headset`, `fun_time_vr.surfaces`, `fun_time_vr.console_panel`, `fun_time_vr.pointer`, `fun_time_vr.layout`, `fun_time_vr.frame_relay`, `funestra_core.funestra` — and is tested against fakes. Put new logic there, not in a shell.
+- **The shells are not unit-tested, on purpose:** `satellite/app.py`, `fun_time_vr/funestras.py`, `fun_time_vr/render.py`, `fun_time_vr/vr_session.py`, `fun_time_vr/video_thread.py`, `fun_time_vr/gl_contexts.py`, `fun_time/chrome_accessibility.py`, `fun_time_vr/windows_sound.py` need the libmpv DLL, a GL context, a headset or a real Chrome, or would change the machine's default sound devices. Logic that can be tested lives outside them — `fun_time.chrome_tabs`, `fun_time_vr.vr_runtime`, `satellite.contract`, `fun_time_vr.headset_verbs`, `fun_time_vr.genau_in_the_headset`, `fun_time_vr.surfaces`, `fun_time_vr.console_panel`, `fun_time_vr.pointer`, `fun_time_vr.layout`, `fun_time_vr.frame_relay`, `funestra.funestra` — and is tested against fakes. Put new logic there, not in a shell.
 
 ## AHK bridge constraints
 
@@ -79,7 +79,7 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 
 ## The shared repos
 
-- No app may reach into another's repo. What we share lives in siblings installed editable into this venv, and a change to any of it belongs there: `../player_core` (the Funestras' engine, and the Funestra contract: the playlist, the verbs, the paused flag, the status a Funestra publishes and the HUD it is handed — each written and read there), `../app_support` (logging setup and exception hooks, `start_daemon_thread`, `preparse_config_path`, `hidden_subprocess_kwargs`), `../shared_ui` (Qt widgets).
+- No app may reach into another's repo. What we share lives in siblings installed editable into this venv, and a change to any of it belongs there: `../funestra` (the Funestras' engine, and the Funestra contract: the playlist, the verbs, the paused flag, the status a Funestra publishes and the HUD it is handed — each written and read there), `../app_support` (logging setup and exception hooks, `start_daemon_thread`, `preparse_config_path`, `hidden_subprocess_kwargs`), `../shared_ui` (Qt widgets).
 - Install each with `--config-settings editable_mode=compat`; their READMEs say why, and each carries a `tests/test_install.py` that goes red without it.
 - `satellite/` is a second top-level package in this repo, launched as `python -m satellite` with **our** python (`paths.python_exe`), not genau's. It resolves through the working directory `launch.vbs` sets, the same way `-m fun_time.dashboard_app` does.
 
@@ -215,7 +215,7 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   gave him nothing to click (2026-08-19).
 
 - **A launcher runs its branch only while that branch carries everything the
-  production checkout has, and only out of player_core checkouts that carry the
+  production checkout has, and only out of funestra checkouts that carry the
   tag the branch pins.** Every shortcut ever handed out runs the primary's
   `fun_time.branch_session`, which refuses either case before a room opens and
   says so in a message box: how many changes older the branch is, or which pinned
@@ -235,7 +235,7 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   relative one for you), before handing him the shortcut. Cost the broker/OSR2
   indicator fix a whole round trip on 2026-07-28.
 
-- **Which checkout of `../player_core` your session's Funestras run is NOT one of
+- **Which checkout of `../funestra` your session's Funestras run is NOT one of
   those — say it in your worktree, never in his config.** `paths.genau_project_dirs`
   (named for the Genau window it once launched; the Main Funestra and the
   satellites read it now) looks like an ordinary key, but it is per session:
@@ -244,7 +244,7 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   long as it sits there, and nothing sweeps it back out. Write
   `state/genau_project_dirs.txt` in your own worktree instead — one absolute path
   per line, and an **empty** file when your branch has nothing to do with
-  player_core, which is how you get the plain install even if his config is
+  funestra, which is how you get the plain install even if his config is
   pinned to someone else's worktree. Cost the main-player minimize button a round trip on
   2026-08-13: it had landed in genau, and the pinned checkout predated it, so it
   was on neither the demo nor his app. Every path in that file also goes onto the
@@ -255,7 +255,7 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
 
 - **That chain has no error state, so prove it at handoff time and re-prove it
   before ever suspecting your code.** An override that is missing, empty, or
-  naming a stale checkout silently runs some other player_core: the session comes up
+  naming a stale checkout silently runs some other funestra: the session comes up
   fine, and he sits watching code that is not your branch believing he is
   judging it — a whole verification round demoed nothing on 2026-08-13.
   `--shortcut` prints the checkouts the next launch will carry, read exactly
@@ -266,23 +266,23 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   ran.
 
 - **The Main Funestra runs out of Genau's venv, so a change here that makes
-  `main_funestra` import a new player_core name needs Genau's pin moved first.**
+  `main_funestra` import a new funestra name needs Genau's pin moved first.**
   `FunTime-MainFunestra.exe` is `../genau/.venv`'s, and that venv holds the
-  player_core Genau's `pyproject.toml` names, not this repo's; the satellites
+  funestra Genau's `pyproject.toml` names, not this repo's; the satellites
   and the orchestrator run out of this venv. Moving this repo's pin alone
   leaves the Main Funestra dying at import on a name its venv does not have,
   which the hidden-desktop suite reports as every session failing to start
-  (2026-10-07: `play_points` moved to player_core, the pin moved here, and
+  (2026-10-07: `play_points` moved to funestra, the pin moved here, and
   the Main Funestra could not find it until genau took the same tag). So land
   Genau's pin bump first, reinstall that venv, then this repo's.
-- **A player_core worktree named on that chain needs nothing copied in, and a
+- **A funestra worktree named on that chain needs nothing copied in, and a
   launch proves that before it opens a window.** The DLL is fetched rather than
   tracked, so a worktree of that repo has no `vendor/` of its own; every launch
   asks each Funestra's own interpreter, with the PYTHONPATH that Funestra is launched
   with, whether it can load the engine, puts the shared copy
   (`%USERPROFILE%\.haglio\libmpv`) where a Funestra that cannot looks first, and
   refuses to open the room — saying which Funestra and what it said — if one still
-  cannot (`fun_time/funestra_engine.py`). A worktree pinned at a player_core from
+  cannot (`fun_time/funestra_engine.py`). A worktree pinned at a funestra from
   before v0.1.331 still looks under `AppData`, which is private to the app an
   agent's shell runs inside and empty for anything he launches; that is the case
   the copy exists for.

@@ -66,7 +66,7 @@ def _write_config(path: Path) -> Path:
             # Relative on purpose: a checkout Genau and the Main Funestra are run out of sits
             # one directory up from the primary, which from a worktree is a
             # different place entirely.
-            "genau_project_dirs": ["../genau", "../player_core"],
+            "genau_project_dirs": ["../genau", "../funestra"],
             "broker_tray_launcher": "../broker/launch_broker_tray.vbs",
         },
         "layout": {
@@ -138,7 +138,7 @@ def test_the_shortcut_line_names_the_sibling_checkouts_the_launch_will_run(check
     line = branch_session.sibling_checkouts_line(
         checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
 
-    assert "genau" in line and "player_core" in line
+    assert "genau" in line and "funestra" in line
 
 
 def test_the_shortcut_line_says_when_the_chain_is_empty(checkouts):
@@ -166,7 +166,7 @@ def test_the_shortcut_line_reads_the_worktrees_own_override_first(checkouts):
         checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
 
     assert "genau-fix" in line
-    assert "player_core" not in line  # the override replaces, never augments
+    assert "funestra" not in line  # the override replaces, never augments
 
 
 def test_every_path_a_branch_session_reads_is_the_one_the_live_session_reads(checkouts):
@@ -883,16 +883,16 @@ def test_a_session_that_fails_on_a_current_worktree_is_not_blamed_on_its_age(
 
 @pytest.fixture
 def engine_checkouts(tmp_path: Path) -> SimpleNamespace:
-    """A stand-in player_core repo at a tag, and a second checkout of it left before
+    """A stand-in funestra repo at a tag, and a second checkout of it left before
     the tag -- what a worktree pinned by an agent looks like once main moves on."""
-    current = tmp_path / "player_core"
+    current = tmp_path / "funestra"
     current.mkdir()
     git(current, "-c", "init.defaultBranch=main", "init")
     (current / "pyproject.toml").write_text(
-        '[project]\nname = "player-core"\nversion = "0.1.0"\n', encoding="utf-8")
+        '[project]\nname = "funestra"\nversion = "0.1.0"\n', encoding="utf-8")
     git(current, "add", "pyproject.toml")
     git(current, "commit", "-m", "The engine", when="2026-01-01T12:00:00")
-    before_the_tag = tmp_path / "player_core_before_the_tag"
+    before_the_tag = tmp_path / "funestra_before_the_tag"
     git(current, "worktree", "add", "--detach", str(before_the_tag))
     git(current, "commit", "--allow-empty", "-m", "What the branch imports",
         when="2026-02-01T12:00:00")
@@ -900,10 +900,10 @@ def engine_checkouts(tmp_path: Path) -> SimpleNamespace:
     return SimpleNamespace(current=current, before_the_tag=before_the_tag)
 
 
-def _built_against_funestra_core(worktree: Path, tag: str) -> None:
+def _built_against_funestra(worktree: Path, tag: str) -> None:
     (worktree / "pyproject.toml").write_text(
         '[project]\nname = "fun-time"\nversion = "0.1.0"\n'
-        f'dependencies = ["player-core @ git+https://github.com/haglio/player_core@{tag}"]\n',
+        f'dependencies = ["funestra @ git+https://github.com/haglio/funestra@{tag}"]\n',
         encoding="utf-8")
 
 
@@ -913,12 +913,12 @@ def _runs_its_funestras_out_of(worktree: Path, checkout: Path) -> None:
         f"{checkout}\n", encoding="utf-8")
 
 
-def test_a_shortcut_is_refused_while_a_pinned_funestra_core_checkout_predates_the_branchs_pin(
+def test_a_shortcut_is_refused_while_a_pinned_funestra_checkout_predates_the_branchs_pin(
         primary_with_launcher, engine_checkouts):
     """The chain has no error state of its own: a stale checkout on the Funestras'
-    path runs some other player_core, and the Main Funestra dies at import on a name
+    path runs some other funestra, and the Main Funestra dies at import on a name
     the branch was built against."""
-    _built_against_funestra_core(primary_with_launcher.newer, "v0.1.9")
+    _built_against_funestra(primary_with_launcher.newer, "v0.1.9")
     _runs_its_funestras_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
 
     with pytest.raises(branch_session.OutOfDateSibling) as refused:
@@ -932,7 +932,7 @@ def test_a_shortcut_is_refused_while_a_pinned_funestra_core_checkout_predates_th
 
 def test_the_shortcut_command_reports_a_refusal_without_a_traceback(
         primary_with_launcher, engine_checkouts, monkeypatch, capsys):
-    _built_against_funestra_core(primary_with_launcher.newer, "v0.1.9")
+    _built_against_funestra(primary_with_launcher.newer, "v0.1.9")
     _runs_its_funestras_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
     monkeypatch.setattr(branch_session, "primary_checkout",
                         lambda start=None: primary_with_launcher.primary)
@@ -945,7 +945,7 @@ def test_the_shortcut_command_reports_a_refusal_without_a_traceback(
 
 def test_a_pinned_checkout_carrying_the_branchs_pin_is_current(
         repo_with_worktrees, engine_checkouts):
-    _built_against_funestra_core(repo_with_worktrees.newer, "v0.1.9")
+    _built_against_funestra(repo_with_worktrees.newer, "v0.1.9")
     _runs_its_funestras_out_of(repo_with_worktrees.newer, engine_checkouts.current)
 
     assert branch_session.sibling_checkouts_older_than_the_pin(repo_with_worktrees.newer) == []
@@ -953,7 +953,7 @@ def test_a_pinned_checkout_carrying_the_branchs_pin_is_current(
 
 def test_a_launch_out_of_a_pinned_checkout_from_before_the_branchs_pin_is_refused_with_a_note(
         repo_with_worktrees, engine_checkouts, monkeypatch):
-    _built_against_funestra_core(repo_with_worktrees.newer, "v0.1.9")
+    _built_against_funestra(repo_with_worktrees.newer, "v0.1.9")
     _runs_its_funestras_out_of(repo_with_worktrees.newer, engine_checkouts.before_the_tag)
     sessions = _sessions_exit_with(monkeypatch, 0)
 
@@ -964,7 +964,7 @@ def test_a_launch_out_of_a_pinned_checkout_from_before_the_branchs_pin_is_refuse
     assert sessions == []
     note = _note_left_in(repo_with_worktrees.newer).read_text(encoding="utf-8")
     assert "Fun Time couldn't start on example/newer" in note
-    assert "player_core checkout older than the one it was built against" in note
+    assert "funestra checkout older than the one it was built against" in note
 
 
 class TestTheSessionOnTheTaskbar:

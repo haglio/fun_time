@@ -5,12 +5,12 @@ from dataclasses import fields
 from pathlib import Path
 
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from funestra_core.console import OSR2_CONTROL_OFF, OSR2_RETRACTED
-from funestra_core.drive_readout import DriveHud, drive_text
-from funestra_core.flick_advance import FlickAdvanceState
-from funestra_core.genau_controls import VERBS as GENAU_VERBS
-from funestra_core.modes import LoopState, MainMode
-from funestra_core.robot_hand import RobotHandState
+from funestra.console import OSR2_CONTROL_OFF, OSR2_RETRACTED
+from funestra.drive_readout import DriveHud, drive_text
+from funestra.flick_advance import FlickAdvanceState
+from funestra.genau_controls import VERBS as GENAU_VERBS
+from funestra.modes import LoopState, MainMode
+from funestra.robot_hand import RobotHandState
 
 from fun_time.bridge_records import SatelliteChannel
 from fun_time.crown import Crown

@@ -8,7 +8,7 @@ its library.
 from __future__ import annotations
 
 import pytest
-from funestra_core.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE
+from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE
 
 from main_funestra.controls import VERBS, KinoControls, apply_command
 from main_funestra.loop_verbs import LOOP_CANCEL, RECORD_DOWN, RECORD_TAP, RECORD_UP, SET_LOOP

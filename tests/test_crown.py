@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from funestra_core.modes import MainMode
+from funestra.modes import MainMode
 
 from fun_time.crown import Crown, majority, majority_now
 from fun_time.shared_state import BridgeState

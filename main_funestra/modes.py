@@ -15,9 +15,9 @@ from __future__ import annotations
 
 import logging
 
-from funestra_core.console_hud import ModeHud
-from funestra_core.modes import LengthMode, read_mode
-from funestra_core.playback import funscripts_of
+from funestra.console_hud import ModeHud
+from funestra.modes import LengthMode, read_mode
+from funestra.playback import funscripts_of
 
 from .library_source import DEFAULT_MODE, length_mode_rebuilds, next_length_mode
 from .mode_memory import RememberedMode

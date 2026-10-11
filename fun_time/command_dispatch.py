@@ -9,14 +9,14 @@ from dataclasses import replace
 from functools import partial
 from pathlib import Path
 
-from funestra_core.console import (
+from funestra.console import (
     OSR2_CONTROL_BUTTONS,
     OSR2_CONTROL_OFF,
     OSR2_DRIVING,
     OSR2_RETRACTED,
 )
-from funestra_core.file_channel import append_command
-from funestra_core.funestra_verbs import (
+from funestra.file_channel import append_command
+from funestra.funestra_verbs import (
     LOCK_OFF,
     LOCK_ON,
     NEXT,
@@ -29,10 +29,10 @@ from funestra_core.funestra_verbs import (
     TOGGLE_LOCK,
     TRASH,
 )
-from funestra_core.hud_placement import HudCorner, HudEdge
-from funestra_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
-from funestra_core.modes import LengthMode, LoopState
-from funestra_core.robot_hand import FULL_INTENSITY
+from funestra.hud_placement import HudCorner, HudEdge
+from funestra.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
+from funestra.modes import LengthMode, LoopState
+from funestra.robot_hand import FULL_INTENSITY
 
 from main_funestra.controls import longer_than_a_step
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra_core.playlist import PlaylistItem
+from funestra.playlist import PlaylistItem
 
 from satellite.cli import audio_muted, build_parser, resolve_playlist
 

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from itertools import pairwise
 
-from funestra_core.hud_button import FIT_THE_WORD, Button
-from funestra_core.hud_marks import FMODE_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
-from funestra_core.modes import SatellitesMode
+from funestra.hud_button import FIT_THE_WORD, Button
+from funestra.hud_marks import FMODE_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
+from funestra.modes import SatellitesMode
 from shared_ui.icon_geometry import glyph_names
 
 from fun_time.satellite_buttons import funestra_rows

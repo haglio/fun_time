@@ -3,7 +3,7 @@
 A Funestra is never the focused window — the sequencer places every one with
 SWP_NOACTIVATE — so the click that lands on a HUD button is also the click that
 focuses the window, and SDL drops that one unless
-``funestra_core.sdl_hints.deliver_the_focusing_click`` has run.  Without it every
+``funestra.sdl_hints.deliver_the_focusing_click`` has run.  Without it every
 press on the map or the console has to be made twice.
 
 Read off the source rather than exercised: both shells need a real window and

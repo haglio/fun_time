@@ -119,7 +119,7 @@ def _run_the_launch(tmp_path: Path, extra: list[str]) -> subprocess.CompletedPro
         dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
         funestras=_funestras(tmp_path),
     )
-    # The same siblings the session would hand it: a branch of player_core on
+    # The same siblings the session would hand it: a branch of funestra on
     # its PYTHONPATH, exactly as launch_origenerator passes them along.
     kwargs = origenerator_launch_kwargs(
         origenerator_dir=checkout, project_dirs=checkout_project_dirs() or None)

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from funestra_core.funestra import Channels
+from funestra.funestra import Channels
 
 from .cli import play_points_path
 

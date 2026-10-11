@@ -11,7 +11,7 @@ from enum import Enum
 from pathlib import Path
 
 import pytest
-from funestra_core.modes import MainMode
+from funestra.modes import MainMode
 
 from fun_time import shared_state
 from fun_time.mode_plan import MAIN_KINO_MODE, MAIN_MODES

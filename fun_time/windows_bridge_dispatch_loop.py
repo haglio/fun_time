@@ -15,10 +15,10 @@ from pathlib import Path
 
 from app_support.file_channel import consume_command_file, read_flag
 from app_support.win32 import force_foreground_window, window_exists
-from funestra_core.file_channel import append_command
-from funestra_core.funestra_verbs import LOCK_OFF, LOCK_ON, play_file
-from funestra_core.modes import NoticeLevel, read_mode
-from funestra_core.playlist import PlaylistItem
+from funestra.file_channel import append_command
+from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, play_file
+from funestra.modes import NoticeLevel, read_mode
+from funestra.playlist import PlaylistItem
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log

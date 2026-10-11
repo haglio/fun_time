@@ -12,9 +12,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from funestra_core.control_registry import Control, Verb, bind, look_up
-from funestra_core.funestra_controls import SEEK_STEP_MS
-from funestra_core.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE
+from funestra.control_registry import Control, Verb, bind, look_up
+from funestra.funestra_controls import SEEK_STEP_MS
+from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE
 
 from .loop_verbs import LOOP_CANCEL, RECORD_DOWN, RECORD_TAP, RECORD_UP, SET_LOOP
 

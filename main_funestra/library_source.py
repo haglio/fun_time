@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
-from funestra_core.modes import LengthMode
-from funestra_core.playlist import PlaylistItem
+from funestra.modes import LengthMode
+from funestra.playlist import PlaylistItem
 
 from .discovery import discover_entries
 from .duration_cache import DurationCache

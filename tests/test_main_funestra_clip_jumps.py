@@ -4,8 +4,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from funestra_core.modes import NoticeLevel
-from funestra_core.playlist import PlaylistItem
+from funestra.modes import NoticeLevel
+from funestra.playlist import PlaylistItem
 
 from main_funestra.clip_jumps import ClipJumps
 from main_funestra.clip_nav import ClipNav

@@ -16,8 +16,8 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from funestra_core.file_channel import publish_whole
-from funestra_core.modes import NoticeLevel
+from funestra.file_channel import publish_whole
+from funestra.modes import NoticeLevel
 
 
 class NoticeWriter:

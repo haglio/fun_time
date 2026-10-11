@@ -69,14 +69,14 @@ def test_the_declared_python_floor_is_the_one_ci_actually_runs():
     assert_the_declared_floor_is_the_one_the_gate_runs(PYPROJECT, MERGE_GATE)
 
 
-def test_the_gate_takes_the_video_engine_from_the_build_funestra_core_pins():
+def test_the_gate_takes_the_video_engine_from_the_build_funestra_pins():
     """The engine is ~117 MB, ships in no package, and every Funestra stands on it.
 
     This gate used to ask a community repository's releases feed for the newest
     asset matching a glob and copy the result next to the interpreter -- no
     version, no checksum, no signature, in a job holding the workflow token --
     with a fallback to a second, unrelated publisher.  ``libmpv.lock`` in
-    player_core names the build and its digest and refuses a mismatch, and this
+    funestra names the build and its digest and refuses a mismatch, and this
     repo already runs that fetcher's twin at startup; the gate is the last place
     that was still taking whatever the feed served that morning.
     """

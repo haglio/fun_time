@@ -62,8 +62,8 @@ def apply_genau_dirs_to_sys_path() -> list[str]:
 
     The override reaches Genau and the Main Funestra as subprocess PYTHONPATH, but the
     orchestrator's own process — and the device arbiter inside it — resolves
-    ``player_core`` through the venv, which is the primary checkout's.  A branch
-    that leans on an unlanded player_core change therefore imports names the
+    ``funestra`` through the venv, which is the primary checkout's.  A branch
+    that leans on an unlanded funestra change therefore imports names the
     primary does not have yet, and the session dies at launch.  Called at the top
     of every launch entry point, ahead of the bridge imports.  Returns what it
     added.
@@ -97,7 +97,7 @@ def genau_project_kwargs(project_dirs: str | Path | None) -> dict:
     """The ``Popen`` environment that decides which checkouts Genau and the Main Funestra run.
 
     Both are started as ``python -m genau`` / ``-m main_funestra`` out of the genau venv,
-    and every package they import — their own, and ``player_core`` under them —
+    and every package they import — their own, and ``funestra`` under them —
     resolves through that venv's editable installs, which name the primary
     checkout of each repo for good.  So a *worktree* of either could not be run
     at all, and a branch of one could only be judged by landing it first.  Named
@@ -105,7 +105,7 @@ def genau_project_kwargs(project_dirs: str | Path | None) -> dict:
     site-packages, and a session runs the branch.
 
     Several, because a change is often in two of them at once — a HUD in
-    ``../genau`` on a channel in ``../player_core`` — and running one branch
+    ``../genau`` on a channel in ``../funestra`` — and running one branch
     against the other's landed code is not running the change.
 
     Left alone rather than pointed at the primary in ordinary use: empty means

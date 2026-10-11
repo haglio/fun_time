@@ -7,13 +7,13 @@ from dataclasses import fields, replace
 from pathlib import Path
 
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from funestra_core.drive_readout import read_drive
-from funestra_core.file_channel import append_command
-from funestra_core.flick_advance import FlickAdvanceState
-from funestra_core.funestra_verbs import LOCK_OFF, LOCK_ON, SET_SPEED
-from funestra_core.playlist import PlaylistItem, read_playlist, write_playlist
-from funestra_core.robot_hand import RobotHandState, WaveformShape
-from funestra_core.status import FunestraStatus
+from funestra.drive_readout import read_drive
+from funestra.file_channel import append_command
+from funestra.flick_advance import FlickAdvanceState
+from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, SET_SPEED
+from funestra.playlist import PlaylistItem, read_playlist, write_playlist
+from funestra.robot_hand import RobotHandState, WaveformShape
+from funestra.status import FunestraStatus
 
 from main_funestra.loop_verbs import SET_LOOP
 

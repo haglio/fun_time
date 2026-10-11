@@ -1,6 +1,6 @@
 """Fun Time's satellite program: a Funestra on a borderless window the session places.
 
-A shell: the Funestra it runs on that window is player_core's, and what is
+A shell: the Funestra it runs on that window is funestra's, and what is
 tested here is the window and the loop (tests/test_satellite_app_loop.py).
 """
 from __future__ import annotations
@@ -11,9 +11,9 @@ import os
 import pygame
 from app_support.logging_utils import install_exception_logging
 from app_support.win32 import set_app_user_model_id
-from funestra_core.funestra import Funestra
-from funestra_core.playlist import PlaylistItem
-from funestra_core.sdl_hints import deliver_the_focusing_click
+from funestra.funestra import Funestra
+from funestra.playlist import PlaylistItem
+from funestra.sdl_hints import deliver_the_focusing_click
 
 from main_funestra.funestra_priority import ahead_on_the_processor
 from main_funestra.input import Input
@@ -49,7 +49,7 @@ def _open_window(placement: WindowPlacement) -> int:
     order here is the whole content of the function, and each step says why."""
     # Before the window exists, and before pygame.init(): SDL otherwise eats the
     # click that focuses this window, so every press on a control had to be made
-    # twice.  The mechanism is written down in funestra_core.sdl_hints.
+    # twice.  The mechanism is written down in funestra.sdl_hints.
     deliver_the_focusing_click()
     # Also before the window: Windows reads a process's taskbar identity as each
     # window is created, and a satellite that claims none is filed under whatever

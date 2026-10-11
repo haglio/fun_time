@@ -9,8 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from funestra_core.playback import Playback
-from funestra_core.playlist import PlaylistItem
+from funestra.playback import Playback
+from funestra.playlist import PlaylistItem
 
 from main_funestra.library_source import CLIPS, FULL, MIXED
 from main_funestra.mode_memory import RememberedMode

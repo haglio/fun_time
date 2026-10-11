@@ -107,7 +107,7 @@ def bring_up_the_hosted_app(
         python_exe=(m.executables.origenerator_python_exe.strip()
                     or origenerator_interpreter(origenerator_dir)),
         origenerator_dir=origenerator_dir,
-        # It imports player_core too (the shows' HUD is the Funestras'
+        # It imports funestra too (the shows' HUD is the Funestras'
         # shared one), so a named checkout reaches it like everyone else.
         project_dirs=project_dirs,
         **contract,

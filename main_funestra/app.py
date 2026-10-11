@@ -16,11 +16,11 @@ from pathlib import Path
 
 import pygame
 from app_support.win32 import set_app_user_model_id
-from funestra_core.funestra import Funestra
-from funestra_core.genau_notifier import GenauNotifier
-from funestra_core.modes import MainMode
-from funestra_core.sdl_hints import deliver_the_focusing_click
-from funestra_core.tcode import UdpTCodeSink
+from funestra.funestra import Funestra
+from funestra.genau_notifier import GenauNotifier
+from funestra.modes import MainMode
+from funestra.sdl_hints import deliver_the_focusing_click
+from funestra.tcode import UdpTCodeSink
 
 from fun_time.genau_config import GenauSettings
 

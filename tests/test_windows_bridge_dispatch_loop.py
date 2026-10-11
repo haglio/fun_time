@@ -13,9 +13,9 @@ from unittest.mock import Mock, patch
 import pytest
 from app_support.file_channel import read_flag
 from app_support.threading_utils import wait_until
-from funestra_core.file_channel import publish_whole
-from funestra_core.modes import MainMode
-from funestra_core.playlist import PlaylistItem, write_playlist
+from funestra.file_channel import publish_whole
+from funestra.modes import MainMode
+from funestra.playlist import PlaylistItem, write_playlist
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 

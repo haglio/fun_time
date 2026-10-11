@@ -14,11 +14,11 @@ import pytest
 from app_support.file_channel import read_key_values, write_flag
 from app_support.funscript import document, write
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from funestra_core.file_channel import append_command
-from funestra_core.funestra_controls import SEEK_STEP_MS
-from funestra_core.funestra_verbs import RELOAD_PLAYLIST, SET_SPEED, play_file
-from funestra_core.modes import LoopState
-from funestra_core.playlist import PlaylistItem
+from funestra.file_channel import append_command
+from funestra.funestra_controls import SEEK_STEP_MS
+from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_SPEED, play_file
+from funestra.modes import LoopState
+from funestra.playlist import PlaylistItem
 
 from fun_time.config import SatelliteFiles
 from fun_time.funestra_status import (

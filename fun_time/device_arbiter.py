@@ -17,12 +17,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
-from funestra_core.console import (
+from funestra.console import (
     OSR2_CONTROL_OFF,
     OSR2_DRIVING,
 )
-from funestra_core.file_channel import append_command
-from funestra_core.funscript import PARK_TOUCH_WAIT_CAP_MS
+from funestra.file_channel import append_command
+from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from .broker_control import HOLD_VERB, PARK_CMD
 from .funestra_status import ScriptedStatus, read_main_funestra_status

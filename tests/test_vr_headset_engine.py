@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
-from funestra_core.render_engine import MpvRenderEngine
+from funestra.render_engine import MpvRenderEngine
 
 from fun_time_vr.headset_engine import HeadsetEngine
 

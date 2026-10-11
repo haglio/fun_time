@@ -1,16 +1,16 @@
 """What the main console shows about the room, and the file it reaches on: a
-:class:`~funestra_core.console.ConsoleModel` carrying the buttons Fun Time
+:class:`~funestra.console.ConsoleModel` carrying the buttons Fun Time
 declares (:mod:`fun_time.console_buttons`), published as text and parsed back
-by ``funestra_core.console``."""
+by ``funestra.console``."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 
-from funestra_core.console import OSR2_DRIVING, ConsoleModel
-from funestra_core.hud_placement import HudCorner, HudEdge
-from funestra_core.modes import MainMode, Osr2State
-from funestra_core.robot_hand import FULL_INTENSITY
+from funestra.console import OSR2_DRIVING, ConsoleModel
+from funestra.hud_placement import HudCorner, HudEdge
+from funestra.modes import MainMode, Osr2State
+from funestra.robot_hand import FULL_INTENSITY
 
 from main_funestra.controls import longer_than_a_step
 

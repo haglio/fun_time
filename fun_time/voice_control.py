@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.file_channel import read_flag, write_flag
-from funestra_core.file_channel import append_command
+from funestra.file_channel import append_command
 from voice_core.commands import CommandRules
 from voice_core.listener import CommandListener, Engines, ListenerEvents, ListenerSettings
 from voice_core.listening import Heard

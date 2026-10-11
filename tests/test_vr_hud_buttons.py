@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from funestra_core.hud_placement import HudEdge
-from funestra_core.outside_buttons import OutsideButtons
+from funestra.hud_placement import HudEdge
+from funestra.outside_buttons import OutsideButtons
 
 from fun_time_vr.hud_buttons import HudButtons, hud_button_names
 from fun_time_vr.hud_sides import side_screen_name

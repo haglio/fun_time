@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from funestra_core.hud_placement import HudEdge
-from funestra_core.outside_buttons import OutsideButtons
+from funestra.hud_placement import HudEdge
+from funestra.outside_buttons import OutsideButtons
 
 from fun_time_vr.hud_toggle import BUTTON_DEG, PANEL_GAP_DEG, HudToggle, toggle_screen_name
 from fun_time_vr.pointer import PRESS, RELEASE, PressEvent
