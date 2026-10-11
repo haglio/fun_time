@@ -22,6 +22,7 @@ from fun_time_vr.projection import (
     RECTILINEAR_SBS,
     ProjectionMemory,
 )
+from fun_time_vr.render import immersive_wrap
 from tests.satellite_fakes import FakeSatelliteEngine
 
 HOUR_MS = 3_600_000.0
@@ -231,6 +232,15 @@ class TestDialingAWrappedPicture:
         headset.verbs.set_fov(150.0)
 
         assert headset.verbs.fov == 150.0
+
+    def test_the_wrap_in_front_is_answered_while_another_thread_swaps_the_list_under_it(
+            self, headset):
+        one, *_ = headset.files
+        _step(headset, 2)
+        headset.verbs.set_fov(150.0)
+        headset.playback._playlist = [one]
+
+        assert headset.verbs.wrap == immersive_wrap(headset.verbs.projection, fov_deg=150.0)
 
     def test_what_is_dialed_belongs_to_the_video_playing_and_no_other(self, headset):
         one, two, *_ = headset.files

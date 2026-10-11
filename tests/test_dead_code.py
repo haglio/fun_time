@@ -310,7 +310,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6405 then: the dashboard's dropdown is drawn by the module the headset's
 # projection list shares with it, so its notes on which way the chevron turns
 # and what ground the open list sits on are the tests' alone.
-MAX_PROSE_LINES = 6405
+# 6401 on 2026-10-11: a headset session asks one question of the list it
+# reopens, whether it fits the shapes carried across, and the paragraph on the
+# older has-it-any-VR check went with it.
+MAX_PROSE_LINES = 6401
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

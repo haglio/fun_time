@@ -79,6 +79,7 @@ from fun_time_vr.funestras import (
     _VideoUnit,
     build_parser,
 )
+from fun_time_vr.headset_verbs import HeadsetVerbs
 from fun_time_vr.hud_buttons import HudButtons
 from fun_time_vr.hud_sides import side_screen_name
 from fun_time_vr.hud_toggle import PANEL_GAP_DEG, toggle_screen_name
@@ -582,6 +583,16 @@ class TestTheMainFunestrasPass:
 
         assert _dashboard_asked(tmp_path) == []
 
+    def test_what_the_frame_loop_asks_is_answered_while_the_list_is_swapped_under_it(
+            self, tmp_path, a_fake_engine):
+        unit = _a_main_unit(tmp_path)
+        unit.pump(threading.Event(), 0.0)
+        answers = (unit.can_dial_the_wrap, unit.wrap_readout)
+
+        unit.funestra.playback._playlist = []
+
+        assert (unit.can_dial_the_wrap, unit.wrap_readout) == answers
+
     def test_quit_stops_the_room(self, tmp_path, a_fake_engine):
         manifest = _manifest_for_a_vr_session(tmp_path)
         unit = _a_main_unit(tmp_path, manifest=manifest)
@@ -925,7 +936,7 @@ class TestThePanelUnderTheSlot:
                                      outside_buttons=OutsideButtons(MAIN, minimized=minimized)),
             _post=posted.append,
             panel=PanelBitmap(width=PANEL_WIDTH_PX),
-            verbs=SimpleNamespace(projection_of=lambda _video: projection, **_NEVER_DIALED),
+            verbs=_VerbsStandIn(projection_of=lambda _video: projection, **_NEVER_DIALED),
             target=SimpleNamespace(ready=True, aspect=16 / 9, video=None),
             users_picture_texture=SimpleNamespace(ready=True, aspect=4 / 3),
             _flick_projection=(Path("flick.mp4"), projection),
@@ -1590,6 +1601,13 @@ def _like(kind, stand_in):
 _NEVER_DIALED = {"fov_of": lambda _video: None, "height_of": lambda _video: None}
 
 
+class _VerbsStandIn(SimpleNamespace):
+    _video = Path("v.mp4")
+    projection = HeadsetVerbs.projection
+    wrap = HeadsetVerbs.wrap
+    wrap_of = HeadsetVerbs.wrap_of
+
+
 class _AMainStandIn(SimpleNamespace):
     """A stand-in with the main unit's own answers about what fills the slot."""
 
@@ -1602,10 +1620,10 @@ def _a_main_slot(*, picture=True, projection=FLAT, showing=False, flick=True,
     """The main slot as the room reads it: the video or Genau's picture in it."""
     return _like(_MainUnit, _AMainStandIn(
         target=SimpleNamespace(ready=picture, aspect=16 / 9, video=video),
-        verbs=verbs or SimpleNamespace(
+        verbs=verbs or _VerbsStandIn(
             projection_of=lambda _video: projection,
-            fov_of=lambda _video: fov, height_of=lambda _video: height),
-        funestra=SimpleNamespace(playback=SimpleNamespace(current_video=Path(video or "v.mp4"))),
+            fov_of=lambda _video: fov, height_of=lambda _video: height,
+            _video=Path(video or "v.mp4")),
         users_picture_texture=SimpleNamespace(ready=flick, aspect=4 / 3),
         _flick_projection=(Path("flick.mp4"), flick_projection),
         screen=SimpleNamespace(placement=SPOTS[MAIN]),
@@ -1620,9 +1638,9 @@ class TestTheMainFunestrasPictureIsWrappedAsItsOwnVideo:
     WIDE, FLAT_VIDEO = "C:/videos/wide.mp4", "C:/videos/flat.mp4"
 
     def _showing(self, video):
-        return _a_main_slot(video=video, verbs=SimpleNamespace(
+        return _a_main_slot(video=video, verbs=_VerbsStandIn(
             projection_of={self.WIDE: EQUIRECT_180_SBS, self.FLAT_VIDEO: FLAT}.get,
-            **_NEVER_DIALED))
+            _video=Path(video), **_NEVER_DIALED))
 
     def test_a_vr_videos_picture_stays_round_the_viewer_while_a_flat_one_opens(self):
         (hanging,) = self._showing(self.WIDE).hangings()
@@ -1640,12 +1658,13 @@ class TestDialingTheMainFunestrasWrap:
 
     def _main_unit(self, *, projection=FISHEYE_180_SBS, fov=None, height=None, showing=False):
         dialed = {}
-        verbs = SimpleNamespace(
+        verbs = _VerbsStandIn(
             projection_of=lambda _video: projection,
             fov_of=lambda _video: dialed.get("fov", fov),
             height_of=lambda _video: dialed.get("height", height),
             set_fov=lambda degrees: dialed.update(fov=degrees),
             set_height=lambda value: dialed.update(height=value),
+            _video=Path(self.VIDEO),
         )
         main_unit = _a_main_slot(video=self.VIDEO, verbs=verbs, showing=showing)
         main_unit.target.aspect = 1.0

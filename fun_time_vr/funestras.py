@@ -174,7 +174,15 @@ from .reference_panel import (
     paint_reference,
     reference_height,
 )
-from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, Wrap, immersive_wrap
+from .render import (
+    FrameTexture,
+    RenderTarget,
+    SceneRenderer,
+    ScreenMesh,
+    Wrap,
+    angle_limits,
+    immersive_wrap,
+)
 from .room import Hanging, Hangs
 from .satellite_hud import HUD, hud_screen_name, screen_kind
 from .scene import (
@@ -436,11 +444,6 @@ class _VideoUnit:
         self.screen.close()
 
 
-def _wrap_of(verbs, video: str | None) -> Wrap | None:
-    return immersive_wrap(
-        verbs.projection_of(video), fov_deg=verbs.fov_of(video), height=verbs.height_of(video))
-
-
 def _in_the_slot(screen, picture, wrap: Wrap | None) -> tuple[Hanging, ...]:
     """Round the viewer rather than on a screen leaves no rectangle to aim at."""
     if wrap is not None:
@@ -578,7 +581,7 @@ class _MainUnit(_VideoUnit):
         if self.owns_the_slot:
             if not self.target.ready:
                 return ()
-            return _in_the_slot(self.screen, self.target, _wrap_of(self.verbs, self.target.video))
+            return _in_the_slot(self.screen, self.target, self.verbs.wrap_of(self.target.video))
         if not self.users_picture_texture.ready:
             return ()
         return _in_the_slot(self.screen, self.users_picture_texture,
@@ -590,15 +593,13 @@ class _MainUnit(_VideoUnit):
 
     @property
     def can_dial_the_wrap(self) -> bool:
-        wrap = _wrap_of(self.verbs, str(self.funestra.playback.current_video))
-        return self.owns_the_slot and wrap is not None and wrap.fov_deg > 0
+        return self.owns_the_slot and angle_limits(self.verbs.projection) is not None
 
     @property
     def wrap_readout(self) -> str | None:
         if not self.owns_the_slot:
             return None
-        video = str(self.funestra.playback.current_video)
-        return readout(self.verbs.projection_of(video), _wrap_of(self.verbs, video))
+        return readout(self.verbs.projection, self.verbs.wrap)
 
     def banner_into_the_picture(self):
         """A banner drawn into a picture wrapped round the viewer lands on the seam
@@ -613,7 +614,7 @@ class _MainUnit(_VideoUnit):
             self._notices.flash(said, level=NOTICE, screen=self.screen_name, now=now)
 
     def dial_the_wrap(self, *, zoom: float, stretch: float) -> None:
-        wrap = _wrap_of(self.verbs, str(self.funestra.playback.current_video))
+        wrap = self.verbs.wrap
         if zoom != 1.0:
             self.verbs.set_fov(wrap.fov_deg * zoom)
         if stretch != 1.0:
