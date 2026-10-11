@@ -35,6 +35,7 @@ import ctypes
 import threading
 from collections.abc import Callable, Iterator
 from ctypes import wintypes
+from enum import Enum, auto
 from time import sleep
 from typing import NamedTuple
 
@@ -48,9 +49,16 @@ INTEGRATION_LOCK_NAME = r"Global\fun_time_integration_run"
 FULL_RUN_GIVES_WAY_S = 20 * 60
 
 
+class Place(Enum):
+    AHEAD_OF_FULL_RUNS = auto()
+    AFTER_THE_FULL_RUN_GOING_NEXT = auto()
+    GIVING_WAY_TO_SHORT_RUNS = auto()
+    GOING_NEXT = auto()
+
+
 class Waiting(NamedTuple):
     seconds: float
-    goes_next: bool = False
+    place: Place
 
 # WaitForSingleObject return codes (winbase.h).
 _WAIT_OBJECT_0 = 0x00000000
@@ -149,12 +157,13 @@ def hold_integration_lock(
     rather than hanging silently.
     """
     line = _Line(name)
-    patience = None if short else _Patience(name, full_run_gives_way_s)
     try:
-        with _saying_it_waits(notify, notify_every_s, patience):
-            if patience is None:
+        if short:
+            with _saying_it_waits(notify, notify_every_s, _ShortRunsPlace(name)):
                 line.wait_as_a_short_run()
-            else:
+        else:
+            patience = _Patience(name, full_run_gives_way_s, notify_every_s)
+            with _saying_it_waits(notify, notify_every_s, patience):
                 line.wait_as_a_full_run(patience)
         yield line.run
     finally:
@@ -203,10 +212,11 @@ class _Line:
 
 
 class _Patience:
-    def __init__(self, name: str, gives_way_s: float) -> None:
+    def __init__(self, name: str, gives_way_s: float, looks_every_s: float) -> None:
         self._short_running = SingleInstanceLock(f"{name}_short_running")
         self._goes_next = SingleInstanceLock(f"{name}_full_goes_next")
         self._gives_way_s = gives_way_s
+        self._looks_every_s = looks_every_s
         self._given_way = 0.0
         self._going_next = False
         self._at_the_head = threading.Event()
@@ -217,18 +227,30 @@ class _Patience:
     def spent(self) -> bool:
         return self._given_way >= self._gives_way_s
 
-    def waited(self, seconds: float) -> bool:
-        if not self._at_the_head.is_set():
-            return False
-        if _held_elsewhere(self._short_running):
-            self._given_way += seconds
-        if self.spent() and not self._going_next:
-            self._going_next = self._goes_next.acquire(timeout=0)
-        return self._going_next
+    def waited(self) -> Place:
+        if self._at_the_head.is_set():
+            if _held_elsewhere(self._short_running):
+                self._given_way += self._looks_every_s
+            if self.spent() and not self._going_next:
+                self._going_next = self._goes_next.acquire(timeout=0)
+        return Place.GOING_NEXT if self._going_next else Place.GIVING_WAY_TO_SHORT_RUNS
 
     def close(self) -> None:
         self._goes_next.close()
         self._short_running.close()
+
+
+class _ShortRunsPlace:
+    def __init__(self, name: str) -> None:
+        self._full_goes_next = SingleInstanceLock(f"{name}_full_goes_next")
+
+    def waited(self) -> Place:
+        if _held_elsewhere(self._full_goes_next):
+            return Place.AFTER_THE_FULL_RUN_GOING_NEXT
+        return Place.AHEAD_OF_FULL_RUNS
+
+    def close(self) -> None:
+        self._full_goes_next.close()
 
 
 def _held_elsewhere(lock: SingleInstanceLock) -> bool:
@@ -240,7 +262,7 @@ def _held_elsewhere(lock: SingleInstanceLock) -> bool:
 
 @contextlib.contextmanager
 def _saying_it_waits(notify: Callable[[Waiting], None] | None, every_s: float,
-                     patience: _Patience | None) -> Iterator[None]:
+                     place: _Patience | _ShortRunsPlace) -> Iterator[None]:
     stop = threading.Event()
 
     def say() -> None:
@@ -248,12 +270,11 @@ def _saying_it_waits(notify: Callable[[Waiting], None] | None, every_s: float,
         try:
             while not stop.wait(every_s):
                 waited += every_s
-                goes_next = patience is not None and patience.waited(every_s)
+                where = place.waited()
                 if notify is not None:
-                    notify(Waiting(waited, goes_next))
+                    notify(Waiting(waited, where))
         finally:
-            if patience is not None:
-                patience.close()
+            place.close()
 
     sayer = threading.Thread(target=say, name="integration-queue-notice", daemon=True)
     sayer.start()

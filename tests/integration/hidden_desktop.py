@@ -64,6 +64,7 @@ from .run_clock import WALL, Budget, RunClock, busy_seconds_of_job, keep_time_by
 from .session_lock import (
     FULL_RUN_GIVES_WAY_S,
     INTEGRATION_LOCK_NAME,
+    Place,
     Waiting,
     hold_integration_lock,
 )
@@ -440,16 +441,19 @@ def _exit_code(process: int) -> int:
     return int(code.value)
 
 
-def _announce_waiting(short: bool, waiting: Waiting) -> None:
-    if short:
-        place = "this short run waits for it, ahead of any full run"
-    elif waiting.goes_next:
-        place = "this full run waits for it, and short runs now wait for this one"
-    else:
-        place = (f"this full run waits for it, and lets short runs go first until they "
-                 f"have held the line for {FULL_RUN_GIVES_WAY_S / 60:g} minutes")
+_WHERE_IT_WAITS = {
+    Place.AHEAD_OF_FULL_RUNS: "this short run waits for it, ahead of any full run",
+    Place.AFTER_THE_FULL_RUN_GOING_NEXT: "this short run waits for it, then for the full run that goes next",
+    Place.GIVING_WAY_TO_SHORT_RUNS: (f"this full run waits for it, and lets short runs go first until "
+                                     f"they have held the line for {FULL_RUN_GIVES_WAY_S / 60:g} minutes"),
+    Place.GOING_NEXT: "this full run waits for it, and short runs now wait for this one",
+}
+
+
+def _announce_waiting(waiting: Waiting) -> None:
     print(f"[integration] another integration run holds {INTEGRATION_LOCK_NAME!r}; "
-          f"{place} ({waiting.seconds:.0f}s elapsed)", file=sys.stderr, flush=True)
+          f"{_WHERE_IT_WAITS[waiting.place]} ({waiting.seconds:.0f}s elapsed)",
+          file=sys.stderr, flush=True)
 
 
 def run_on_hidden_desktop(extra_args: list[str]) -> int:
@@ -492,7 +496,7 @@ def _is_short(extra_args: list[str]) -> bool:
 
 
 def _a_place_in_line(*, short: bool) -> AbstractContextManager:
-    return hold_integration_lock(short=short, notify=partial(_announce_waiting, short))
+    return hold_integration_lock(short=short, notify=_announce_waiting)
 
 
 def _repeat_what_changed(base: str) -> int:

@@ -24,6 +24,7 @@ import pytest
 from app_support.threading_utils import wait_until
 
 from tests.integration.session_lock import (
+    Place,
     SingleInstanceLock,
     hold_integration_lock,
 )
@@ -258,14 +259,30 @@ def _held_by_the_test(name: str) -> SingleInstanceLock:
     return blocker
 
 
+def _a_short_run_holding_the_line(name: str) -> tuple[threading.Thread, threading.Event]:
+    holding, may_leave = threading.Event(), threading.Event()
+
+    def hold() -> None:
+        with hold_integration_lock(name=name, short=True, notify_every_s=0.05):
+            holding.set()
+            may_leave.wait(timeout=10)
+
+    holder = threading.Thread(target=hold, daemon=True)
+    holder.start()
+    assert holding.wait(timeout=10)
+    return holder, may_leave
+
+
 def test_a_full_run_lets_a_short_run_that_came_after_it_go_first():
     name = _unique_name()
     blocker = _held_by_the_test(name)
     order: list[str] = []
-    full, full_waiting = _start_run(name, order, "full")
-    assert full_waiting.wait(timeout=10)
-    short, short_waiting = _start_run(name, order, "short", short=True)
-    assert short_waiting.wait(timeout=10)
+    full, full_giving_way = _start_run(
+        name, order, "full", once=lambda state: state.place is Place.GIVING_WAY_TO_SHORT_RUNS)
+    assert full_giving_way.wait(timeout=10)
+    short, short_ahead = _start_run(name, order, "short", short=True,
+                                    once=lambda state: state.place is Place.AHEAD_OF_FULL_RUNS)
+    assert short_ahead.wait(timeout=10)
 
     blocker.close()
     for run in (full, short):
@@ -293,19 +310,10 @@ def test_short_runs_get_the_lock_in_the_order_they_started_waiting():
 
 def test_a_full_run_goes_first_once_short_runs_have_held_the_lock_as_long_as_it_gives_way():
     name = _unique_name()
-    first_short_in, first_short_may_leave = threading.Event(), threading.Event()
-
-    def first_short() -> None:
-        with hold_integration_lock(name=name, short=True, notify_every_s=0.05):
-            first_short_in.set()
-            first_short_may_leave.wait(timeout=10)
-
-    holder = threading.Thread(target=first_short, daemon=True)
-    holder.start()
-    assert first_short_in.wait(timeout=10)
+    holder, first_short_may_leave = _a_short_run_holding_the_line(name)
     order: list[str] = []
     full, full_goes_next = _start_run(name, order, "full", full_run_gives_way_s=0.2,
-                                      once=lambda state: state.goes_next)
+                                      once=lambda state: state.place is Place.GOING_NEXT)
     assert full_goes_next.wait(timeout=10)
     short, short_waiting = _start_run(name, order, "second short", short=True)
     assert short_waiting.wait(timeout=10)
@@ -315,6 +323,25 @@ def test_a_full_run_goes_first_once_short_runs_have_held_the_lock_as_long_as_it_
         run.join(timeout=10)
 
     assert order == ["full", "second short"]
+
+
+def test_a_short_run_says_so_when_a_full_run_goes_before_it():
+    name = _unique_name()
+    holder, first_short_may_leave = _a_short_run_holding_the_line(name)
+    order: list[str] = []
+    full, full_goes_next = _start_run(name, order, "full", full_run_gives_way_s=0.2,
+                                      once=lambda state: state.place is Place.GOING_NEXT)
+    assert full_goes_next.wait(timeout=10)
+    short, short_behind_it = _start_run(
+        name, order, "second short", short=True,
+        once=lambda state: state.place is Place.AFTER_THE_FULL_RUN_GOING_NEXT)
+
+    try:
+        assert short_behind_it.wait(timeout=10)
+    finally:
+        first_short_may_leave.set()
+        for run in (holder, full, short):
+            run.join(timeout=10)
 
 
 def test_a_full_run_counts_toward_giving_way_only_the_time_short_runs_hold_the_lock():
@@ -336,19 +363,10 @@ def test_a_full_run_counts_toward_giving_way_only_the_time_short_runs_hold_the_l
 
 def test_a_full_run_counts_toward_giving_way_only_once_it_is_next_in_line():
     name = _unique_name()
-    first_short_in, first_short_may_leave = threading.Event(), threading.Event()
-
-    def first_short() -> None:
-        with hold_integration_lock(name=name, short=True, notify_every_s=0.05):
-            first_short_in.set()
-            first_short_may_leave.wait(timeout=10)
-
-    holder = threading.Thread(target=first_short, daemon=True)
-    holder.start()
-    assert first_short_in.wait(timeout=10)
+    holder, first_short_may_leave = _a_short_run_holding_the_line(name)
     order: list[str] = []
     first_full, first_full_goes_next = _start_run(name, order, "first full", full_run_gives_way_s=0.2,
-                                                  once=lambda state: state.goes_next)
+                                                  once=lambda state: state.place is Place.GOING_NEXT)
     assert first_full_goes_next.wait(timeout=10)
     second_full, second_full_waited = _start_run(name, order, "second full", full_run_gives_way_s=0.2,
                                                  once=lambda state: state.seconds > 0.5)
@@ -384,9 +402,9 @@ def test_only_the_full_run_next_in_line_makes_short_runs_wait_for_it():
 _WAIT_IN_LINE = """
 import pathlib, sys
 sys.path.insert(0, {root!r})
-from tests.integration.session_lock import hold_integration_lock
+from tests.integration.session_lock import Place, hold_integration_lock
 def waiting(state):
-    if state.seconds >= 0.15 and (state.goes_next or {short!r}):
+    if state.seconds >= 0.15 and (state.place is Place.GOING_NEXT or {short!r}):
         pathlib.Path({sentinel!r}).write_text("waiting")
 with hold_integration_lock(name={name!r}, short={short!r}, notify_every_s=0.05,
                            full_run_gives_way_s=0, notify=waiting):
