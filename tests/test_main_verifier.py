@@ -385,6 +385,18 @@ def test_failures_that_cannot_be_run_again_by_name_take_nothing_back(tmp_path):
     assert bench.taken_back == [] and ledger.failed_head == "c3"
 
 
+def test_tests_that_now_fail_where_main_last_passed_are_blamed_on_no_change_that_shipped_since(tmp_path):
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="a1")
+    ledger = a_ledger(tmp_path, verified="a1")
+
+    assert main_verifier.cycle(ledger, bench) == "broken outside main"
+
+    assert bench.taken_back == [] and bench.fixing == []
+    assert ledger.failed_head == "e5"
+    assert bench.recorded == [{"kind": "broken outside main", "commit": "e5", "last_passed": "a1",
+                               "tests": ["tests/integration/test_x.py::test_y"], "log": WHOLE_RUN}]
+
+
 @pytest.mark.parametrize("the_verifier_s_own_coverage_file", [None, "elsewhere.coverage"])
 def test_coverage_is_measured_one_integration_test_file_at_a_time_and_kept_for_branches_to_pick_from(
         tmp_path, monkeypatch, the_verifier_s_own_coverage_file):

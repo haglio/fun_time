@@ -360,8 +360,21 @@ def _verify(ledger: Ledger, bench: Bench, head: str) -> str:
         bench.record({"kind": "flaky", "commit": head, "tests": whole.failed, "log": whole.log})
         _mark_passed(ledger, bench, head)
         return "flaky"
-    shipped = bench.commits_since(ledger.verified, head)
-    culprit = first_bad(shipped, lambda commit: bench.run(commit, whole.failed).exit_code not in (0, NO_SUCH_TEST))
+    outcome = _blame(bench, ledger.verified, head, whole)
+    ledger.failed(head)
+    return outcome
+
+
+def _blame(bench: Bench, last_passed: str | None, head: str, whole: RunResult) -> str:
+    def still_fails(commit: str) -> bool:
+        return bench.run(commit, whole.failed).exit_code not in (0, NO_SUCH_TEST)
+
+    if last_passed and still_fails(last_passed):
+        bench.record({"kind": "broken outside main", "commit": head, "last_passed": last_passed,
+                      "tests": whole.failed, "log": whole.log})
+        return "broken outside main"
+    shipped = bench.commits_since(last_passed, head)
+    culprit = first_bad(shipped, still_fails)
     taken = bench.take_back(culprit, shipped, whole.failed)
     incident = {"kind": "broke main", "commit": culprit, "tests": whole.failed, "log": whole.log,
                 "taken_back_by": taken.by if taken else None}
@@ -372,7 +385,6 @@ def _verify(ledger: Ledger, bench: Bench, head: str) -> str:
         except CommandFailed as why:
             incident["fix_session_not_started"] = str(why)
     bench.record(incident)
-    ledger.failed(head)
     return "broke main"
 
 
