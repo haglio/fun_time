@@ -18,6 +18,7 @@ from fun_time.media_metadata import load_metadata, metadata_path_for
 
 from .layout import clamp_tilt
 from .projection import ProjectionMemory, next_projection, previous_projection
+from .render import Wrap, immersive_wrap
 from .video_scenes import scene_starts_ms
 
 logger = logging.getLogger(__name__)
@@ -116,6 +117,14 @@ class HeadsetVerbs:
 
     def height_of(self, video: str | None) -> float | None:
         return self._heights.get(video)
+
+    def wrap_of(self, video: str | None) -> Wrap | None:
+        return immersive_wrap(self.projection_of(video), fov_deg=self.fov_of(video),
+                              height=self.height_of(video))
+
+    @property
+    def wrap(self) -> Wrap | None:
+        return self.wrap_of(str(self._video))
 
     @property
     def tilt_deg(self) -> float:
