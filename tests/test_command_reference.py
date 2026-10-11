@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import importlib
 import re
 import subprocess
 import sys
 
+from fun_time import command_reference, content
 from fun_time.command_dispatch import _MAIN_FUNESTRA_CMD_MAP, _about_genaus_flick
 from fun_time.command_reference import (
     _SECTIONS,
@@ -14,7 +16,7 @@ from fun_time.command_reference import (
     build_reference_sections,
     render_reference_html,
 )
-from fun_time.content import genau_flick_noun
+from fun_time.content import Noun, genau_flick_noun
 from fun_time.filter_vocab import display_forms, filter_voice_commands, load_acts
 from fun_time.voice_commands import VOICE_COMMANDS, friendly_voice
 from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
@@ -553,6 +555,18 @@ def test_what_a_row_explains_is_its_detail_and_what_it_names_is_its_description(
     for row in _all_rows():
         assert " — " not in row.description, row.description
         assert not row.description.endswith(":"), row.description
+
+
+def test_the_genau_groups_title_takes_the_overlays_word_like_its_rows(monkeypatch):
+    monkeypatch.setattr(content, "genau_flick_noun", lambda: Noun(one="bloop", many="bloops"))
+    try:
+        genau = next(section for section in importlib.reload(command_reference).build_reference_sections()
+                     if section.title == "Main Funestra - Genau")
+        assert (genau.groups[0].title, genau.groups[0].rows[0].description) == ("Bloops", "Previous Genau bloop")
+    finally:
+        monkeypatch.undo()
+        importlib.reload(command_reference)
+
 
 
 def test_genaus_flick_commands_are_the_genau_mode_section_and_nothing_else_is():

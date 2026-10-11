@@ -456,7 +456,7 @@ _SECTIONS: tuple[_Section, ...] = (
             )),
             _Group("Headset", (
                 _Row(
-                    "Cycle the video's VR projection — flat screen, 180° SBS, "
+                    "Cycle the video's VR projection — flat screen, equirectangular, "
                     "fisheye, stereographic, equisolid, rectilinear, 360, remembered per "
                     "video; a controller's stick pushed right or left steps forward or "
                     "back through them, and while the picture wraps the view its up and "
@@ -476,7 +476,7 @@ _SECTIONS: tuple[_Section, ...] = (
     _Section(
         "Main Funestra - Genau",
         (
-            _Group("Flicks", (
+            _Group(_FLICK.many.capitalize(), (
                 _Row(f"Previous Genau {_FLICK.one}", (), ("genau_prev_flick",)),
                 _Row(f"Next Genau {_FLICK.one}", (), ("genau_next_flick",)),
                 _Row(f"Mark the Genau {_FLICK.one} weird — skip it, and out of rotation", ("K",),
