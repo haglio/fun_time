@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import subprocess
@@ -9,10 +8,12 @@ import time
 from pathlib import Path
 
 import pytest
+from app_support.flick_folder import flat_flicks_in, flicks_folder_in, weird_pile_in
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.funestra_status import read_genau_status
 from fun_time.lock import MARKED_WEIRD
+from tests.made_up_genau import made_up_genau
 
 from .integration_support import (
     FunTimeIntegrationSession,
@@ -41,14 +42,6 @@ def _test_pattern(folder: Path, name: str) -> None:
         check=True, timeout=60, **hidden_subprocess_kwargs())
 
 
-def _session_whose_genau_plays(flicks: Path) -> FunTimeIntegrationSession:
-    config_path = build_integration_config(flicks.parent.parent)
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    config["paths"]["flicks_dir"] = str(flicks)
-    config_path.write_text(json.dumps(config), encoding="utf-8")
-    return FunTimeIntegrationSession(config_path)
-
-
 def _condemned(weird: Path) -> list[Path]:
     return [path for path in weird.rglob("*") if path.is_file()] if weird.is_dir() else []
 
@@ -58,12 +51,14 @@ def _genaus_flick(session: FunTimeIntegrationSession) -> str:
 
 
 def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_weird_says_so_in_genau_mode():
-    flicks = build_integration_temp_root() / "genau" / "flicks"
-    (flicks / "2D" / "non_AI").mkdir(parents=True)
+    temp_root = build_integration_temp_root()
+    genau = made_up_genau(temp_root)
+    played_from = flat_flicks_in(flicks_folder_in(genau)) / "non_AI"
+    played_from.mkdir()
     for name in ("alpha one.mp4", "beta two.mp4", "gamma three.mp4"):
-        _test_pattern(flicks / "2D" / "non_AI", name)
-    weird = flicks.parent / "weird"
-    session = _session_whose_genau_plays(flicks)
+        _test_pattern(played_from, name)
+    weird = weird_pile_in(genau)
+    session = FunTimeIntegrationSession(build_integration_config(temp_root, genau_dir=genau))
     try:
         session.start()
         session.wait_until(lambda: _genaus_flick(session), timeout=15,

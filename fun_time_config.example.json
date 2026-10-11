@@ -12,8 +12,7 @@
       "C:/path/to/library/landscape"
     ],
     "weird_dir": "C:/path/to/library/misc",
-    "flicks_dir": "C:/path/to/flicks",
-    "audio_dir": "C:/path/to/audio",
+    "genau_dir": "C:/path/to/library/genau",
     "favs_file": "favs.csv",
     "state_dir": "state",
     "broker_state_dir": "state",

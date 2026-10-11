@@ -786,7 +786,7 @@ def point_the_main_funestra_at(config: dict, videos_dir: Path) -> None:
     main_funestra["scripts_dir"] = str(videos_dir).replace(LIBRARY_MARKER, SCRIPTS_MARKER)
 
 
-def build_integration_config(tmp_path: Path) -> Path:
+def build_integration_config(tmp_path: Path, *, genau_dir: Path | None = None) -> Path:
     real = load_config(real_config_path())
     integration_root = tmp_path.resolve() / "integration_runtime"
     state_dir = integration_root / "state"
@@ -814,6 +814,8 @@ def build_integration_config(tmp_path: Path) -> Path:
     config["paths"]["favs_file"] = str(favs_file)
     config["paths"]["state_dir"] = str(state_dir)
     config["random_favs_browser"]["enabled"] = False
+    if genau_dir is not None:
+        config["paths"]["genau_dir"] = str(genau_dir)
     apply_checkout_project_dirs(config)
 
     point_the_main_funestra_at(config, primary_dir)

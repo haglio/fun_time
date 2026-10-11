@@ -367,10 +367,10 @@ def test_a_control_wearing_a_state_color_lightens_that_color_instead():
     assert pressed == lighten_color(BLUE)
 
 
-def test_the_config_reads_only_what_the_bar_needs(tmp_path: Path):
+def test_the_config_reads_only_what_the_bar_needs(cfg_path: Path, tmp_path: Path):
     """The dashboard used to read every Funestra's status file to draw its panels.
     It draws no panels, so it reads none of them."""
-    config = load_config(Path("fun_time_config.example.json"))
+    config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config, tmp_path / "manifest.ini")
 
     app_config = load_dashboard_app_config(manifest_path)

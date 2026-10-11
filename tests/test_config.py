@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from app_support import ports
+from app_support.flick_folder import flat_flicks_in
 
 from fun_time import config
 from fun_time.config import PROJECT_DIR as CONFIG_ROOT
@@ -274,6 +275,16 @@ class TestRegenConfig:
         assert len(cfg.paths.landscape_dirs) == 2
         assert cfg.paths.portrait_dirs[0] == (tmp_path / "portrait").resolve()
         assert cfg.paths.landscape_dirs[0] == (tmp_path / "landscape").resolve()
+
+
+class TestGenausFolder:
+    def test_the_flicks_are_the_one_folder_in_it_laid_out_as_flicks_are(self, cfg_factory, tmp_path: Path):
+        genau = tmp_path / "another_genau"
+        flat_flicks_in(genau / "made_up_name").mkdir(parents=True)
+
+        cfg = load_config(cfg_factory({"paths": {"genau_dir": str(genau)}}))
+
+        assert cfg.paths.flicks_dir == cfg.paths.genau_dir / "made_up_name"
 
 
 # ---------------------------------------------------------------------------
