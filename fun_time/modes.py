@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from player_core.clip_folder import SUPPORTED_VIDEO_EXTS
 from player_core.playlist import PlaylistItem, write_playlist
 
 from .folder_listings import FolderListings
@@ -19,7 +20,7 @@ PLAYLIST_MAIN_PLAYER = "main_player_playlist"
 
 
 def is_supported_video_path(path: str) -> bool:
-    return Path(path).suffix.lower() in {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
+    return Path(path).suffix.lower() in SUPPORTED_VIDEO_EXTS
 
 
 def source_roots(source_spec: str) -> list[Path]:
