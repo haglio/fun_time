@@ -116,11 +116,11 @@ class TestGenauRunsOnItToo:
         assert list(users) == ["kino", "genau"]
         assert callable(users["genau"])
 
-    def test_the_process_runs_ahead_of_background_work_before_the_window_opens(self):
-        main = _function("main")
+    def test_the_process_plays_ahead_of_background_work_from_before_the_window_opens(self):
+        (ahead,) = [node for node in ast.walk(_function("main")) if isinstance(node, ast.With)
+                    and _said(node.items[0].context_expr) == "ahead_on_the_processor()"]
 
-        assert (_call(main, "run_ahead_of_background_work").lineno
-                < _call(main, "_run").lineno)
+        assert _call(ahead, "_run")
 
 
 class TestAWindowFunTimeResizes:
