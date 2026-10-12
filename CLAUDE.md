@@ -215,14 +215,18 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   gave him nothing to click (2026-08-19).
 
 - **A launcher runs its branch only while this computer has the libraries the
-  branch is built on, and only out of funestra checkouts that carry the tag the
-  branch pins.** Every shortcut ever handed out runs the primary's
-  `fun_time.branch_session`, which refuses either case before a room opens and
-  says so in a message box: which library the branch needs newer than this
-  computer has, or which pinned checkout is older than the branch was built
-  against. A branch that is merely behind main still starts: a launcher refused
-  one five changes behind that would have started, and he asked to "gamble a bit
-  on not having the latest work everywhere when doing acceptance" (2026-10-11).
+  branch is built on, and only out of checkouts that carry every tag the branch
+  and the Origenerator it hosts pin.** Every shortcut ever handed out runs the
+  primary's `fun_time.branch_session`, which refuses each case before a room
+  opens and says so in a message box: which library the branch needs newer than
+  this computer has, or which named checkout is older than what the branch or
+  the hosted Origenerator was built against, Origenerator's pyproject read at
+  launch because production Origenerator moves under a preview (on 2026-10-10 an
+  old funestra checkout killed Origenerator at import and closed the room, and
+  he was blocked from judging that preview for hours). A branch that is merely
+  behind main still starts: a launcher refused one five changes behind that
+  would have started, and he asked to "gamble a bit on not having the latest
+  work everywhere when doing acceptance" (2026-10-11).
   A break no library check sees (Genau leaving its own window, 8f27af7f, killed
   every launcher made before it) is why `--shortcut` still refuses a branch
   behind the production checkout and the landing-a-change skill's watcher
@@ -250,10 +254,10 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   pinned to someone else's worktree. Cost the main-player minimize button a round trip on
   2026-08-13: it had landed in genau, and the pinned checkout predated it, so it
   was on neither the demo nor his app. Every path in that file also goes onto the
-  hosted Origenerator's path, so a sibling named there must be at least as new as
-  what production Origenerator pins: an app_support and a shared_ui named there at
-  the versions a pin move wanted, older than Origenerator's own, kept Origenerator
-  from booting and cost a whole integration run (2026-10-11).
+  hosted Origenerator's path, which is why the launcher holds it to Origenerator's
+  pins as well; an integration run has no such check, and an app_support and a
+  shared_ui named there older than Origenerator's own kept Origenerator from
+  booting and cost a whole run (2026-10-11).
 
 - **That chain has no error state, so prove it at handoff time and re-prove it
   before ever suspecting your code.** An override that is missing, empty, or
