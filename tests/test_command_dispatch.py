@@ -4336,7 +4336,7 @@ def test_every_press_that_leaves_no_video_ends_the_same_way(tmp_path, caplog, co
     assert (sent[-1], sent.count("LOCK_ON")) == ("LOCK_ON", 1)
     assert [op.key for op in ops if op.op == "notice"] + [
         record.getMessage() for record in caplog.records if record.levelno == logging.WARNING
-    ] == ["No videos left"]
+    ] == ["Including no other videos"]
 
 
 def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path):
@@ -4391,7 +4391,7 @@ def test_neither_of_genaus_shapes_holds_its_flick(tmp_path, monkeypatch):
 
     assert (state.genau_plays_vr, state.genau_plays_flat) == (False, False)
     assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["LOCK_ON"]
-    assert [op.key for op in ops] == ["No pips left"]
+    assert [op.key for op in ops] == ["Including no other pips"]
 
 
 def test_asking_genau_for_the_shapes_it_already_plays_sends_it_nothing(tmp_path):

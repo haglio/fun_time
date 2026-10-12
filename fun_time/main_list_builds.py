@@ -16,7 +16,7 @@ from .modes import scripted_item
 
 logger = logging.getLogger(__name__)
 
-NO_VIDEOS_LEFT = "No videos left"
+NO_OTHER_VIDEOS = "Including no other videos"
 
 
 @dataclass(frozen=True)
@@ -33,7 +33,7 @@ class MainListBuild:
         verbs = [RELOAD_PLAYLIST, *self.settings.labels]
         if written.nothing_left:
             verbs.append(LOCK_ON)
-            notice(logger, NO_VIDEOS_LEFT, source=SOURCE_MAIN, level=logging.WARNING)
+            notice(logger, NO_OTHER_VIDEOS, source=SOURCE_MAIN, level=logging.WARNING)
         elif self.start_at_top:
             verbs.append(play_file(scripted_item(written.videos[0], self.main_list.metadata_root)))
         for verb in verbs:
