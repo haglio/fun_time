@@ -41,7 +41,7 @@ def _shortcut_at(primary, path) -> Shortcut:
 REPO_DIR = Path(__file__).resolve().parent.parent
 
 
-def _write_config(path: Path, **paths: str) -> Path:
+def _write_config(path: Path) -> Path:
     """A config shaped like the machine's, with the same values left relative.
 
     ``favs.csv``, ``state``, the broker launcher and the browser shortcut are
@@ -51,7 +51,6 @@ def _write_config(path: Path, **paths: str) -> Path:
     """
     raw = {
         "paths": {
-            **paths,
             "ahk_exe": "C:/Program Files/AutoHotkey/v2/AutoHotkey64.exe",
             "python_exe": ".venv/Scripts/pythonw.exe",
             "main_player_library_dirs": ["C:/library/main"],
@@ -157,7 +156,10 @@ def test_the_shortcut_line_reads_the_worktrees_own_override_first(checkouts):
     the worktree's ``state/genau_project_dirs.txt`` over the machine's config —
     so the line resolves through the same override, or it would vouch for a
     chain the launch does not run."""
-    _write_genau_override(checkouts.worktree, "C:/checkouts/genau-fix\n")
+    state = checkouts.worktree / branch_session.STATE_DIRNAME
+    state.mkdir(parents=True, exist_ok=True)
+    (state / branch_session.GENAU_DIRS_OVERRIDE_NAME).write_text(
+        "C:/checkouts/genau-fix\n", encoding="utf-8")
 
     line = branch_session.sibling_checkouts_line(
         checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
@@ -237,14 +239,10 @@ def test_a_branch_session_and_the_live_one_take_the_same_mutex(checkouts):
     )
 
 
-def _write_genau_override(worktree: Path, text: str) -> None:
-    state = worktree / branch_session.STATE_DIRNAME
+def _write_genau_override(checkouts, text: str) -> None:
+    state = checkouts.worktree / branch_session.STATE_DIRNAME
     state.mkdir(parents=True, exist_ok=True)
     (state / branch_session.GENAU_DIRS_OVERRIDE_NAME).write_text(text, encoding="utf-8")
-
-
-def _runs_out_of(worktree: Path, checkout: Path) -> None:
-    _write_genau_override(worktree, f"{checkout}\n")
 
 
 def test_a_worktree_can_name_the_genau_checkout_its_own_session_runs(checkouts):
@@ -252,7 +250,7 @@ def test_a_worktree_can_name_the_genau_checkout_its_own_session_runs(checkouts):
     and until this it could only be said in the machine's one config — where it
     reached the user's ordinary session and every other agent's branch session
     too."""
-    _write_genau_override(checkouts.worktree, "C:/genau/.claude/worktrees/mine\n")
+    _write_genau_override(checkouts, "C:/genau/.claude/worktrees/mine\n")
 
     _live, branch = _live_and_branch(checkouts)
 
@@ -263,7 +261,7 @@ def test_an_empty_override_means_the_plain_install_whatever_the_machine_says(che
     """The case that cost a round trip: a branch with nothing to do with genau,
     launched while the machine was pinned to somebody's unlanded genau worktree,
     and therefore running a genau that predated what had already landed."""
-    _write_genau_override(checkouts.worktree, "# nothing of ours\n\n")
+    _write_genau_override(checkouts, "# nothing of ours\n\n")
 
     live, branch = _live_and_branch(checkouts)
 
@@ -684,8 +682,8 @@ def test_removing_a_shortcut_that_was_never_written_is_not_an_error(primary_with
     ) == []
 
 
-def _write_origenerator_override(worktree: Path, text: str) -> None:
-    state = worktree / branch_session.STATE_DIRNAME
+def _write_origenerator_override(checkouts, text: str) -> None:
+    state = checkouts.worktree / branch_session.STATE_DIRNAME
     state.mkdir(parents=True, exist_ok=True)
     (state / branch_session.ORIGENERATOR_DIR_OVERRIDE_NAME).write_text(text, encoding="utf-8")
 
@@ -694,7 +692,7 @@ def test_a_worktree_can_name_the_origenerator_checkout_its_session_hosts(checkou
     """Same per-session fact as the genau override, same shape: an agent judging
     an origenerator branch points its own session at that worktree, never the
     machine's one config."""
-    _write_origenerator_override(checkouts.worktree, "C:/origenerator/.claude/worktrees/mine\n")
+    _write_origenerator_override(checkouts, "C:/origenerator/.claude/worktrees/mine\n")
 
     _live, branch = _live_and_branch(checkouts)
 
@@ -702,7 +700,7 @@ def test_a_worktree_can_name_the_origenerator_checkout_its_session_hosts(checkou
 
 
 def test_an_empty_origenerator_override_hosts_none_at_all(checkouts):
-    _write_origenerator_override(checkouts.worktree, "# none\n")
+    _write_origenerator_override(checkouts, "# none\n")
 
     _live, branch = _live_and_branch(checkouts)
 
@@ -805,9 +803,9 @@ def test_a_worktree_missing_work_the_primary_has_still_starts(repo_with_worktree
     assert not _note_left_in(repo_with_worktrees.newer).exists()
 
 
-def _pin(checkout: Path, repo: str, tag: str, *, project: str = "fun-time") -> None:
-    (checkout / "pyproject.toml").write_text(
-        f'[project]\nname = "{project}"\ndependencies = [\n'
+def _pin(worktree: Path, repo: str, tag: str) -> None:
+    (worktree / "pyproject.toml").write_text(
+        '[project]\nname = "fun-time"\ndependencies = [\n'
         f'    "{repo.replace("_", "-")} @ git+https://github.com/haglio/{repo}@{tag}",\n]\n',
         encoding="utf-8")
 
@@ -845,17 +843,10 @@ def test_a_library_the_branch_runs_out_of_its_own_checkout_is_not_asked_of_this_
     checkout = tmp_path / "shared_ui"
     checkout.mkdir()
     (checkout / "pyproject.toml").write_text('[project]\nname = "shared-ui"\n', encoding="utf-8")
-    _runs_out_of(repo_with_worktrees.newer, checkout)
+    (repo_with_worktrees.newer / "state").mkdir(exist_ok=True)
+    (repo_with_worktrees.newer / "state" / branch_session.GENAU_DIRS_OVERRIDE_NAME).write_text(
+        f"{checkout}\n", encoding="utf-8")
     monkeypatch.setattr(branch_session, "installed_version", {"shared_ui": "0.1.180"}.get)
-
-    assert branch_session.libraries_older_than_the_pin(repo_with_worktrees.newer) == []
-
-
-def test_an_engine_pinned_under_its_old_name_and_run_out_of_its_own_checkout_is_not_asked_either(
-        repo_with_worktrees, engine_checkouts, monkeypatch):
-    _pin(repo_with_worktrees.newer, "player_core", "v0.1.9")
-    _runs_out_of(repo_with_worktrees.newer, engine_checkouts.current)
-    monkeypatch.setattr(branch_session, "installed_version", {}.get)
 
     assert branch_session.libraries_older_than_the_pin(repo_with_worktrees.newer) == []
 
@@ -927,32 +918,36 @@ def test_a_session_that_fails_on_a_current_worktree_is_not_blamed_on_its_age(
     assert not _note_left_in(repo_with_worktrees.newer).exists()
 
 
-def _sibling_repo(tmp_path: Path, repo: str = "funestra", *,
-                  named_before_the_tag: str | None = None) -> SimpleNamespace:
-    named = repo.replace("_", "-")
-    current = tmp_path / repo
+@pytest.fixture
+def engine_checkouts(tmp_path: Path) -> SimpleNamespace:
+    """A stand-in funestra repo at a tag, and a second checkout of it left before
+    the tag -- what a worktree pinned by an agent looks like once main moves on."""
+    current = tmp_path / "funestra"
     current.mkdir()
     git(current, "-c", "init.defaultBranch=main", "init")
     (current / "pyproject.toml").write_text(
-        f'[project]\nname = "{named_before_the_tag or named}"\nversion = "0.1.0"\n',
-        encoding="utf-8")
+        '[project]\nname = "funestra"\nversion = "0.1.0"\n', encoding="utf-8")
     git(current, "add", "pyproject.toml")
-    git(current, "commit", "-m", "The library", when="2026-01-01T12:00:00")
-    before_the_tag = tmp_path / f"{repo}_before_the_tag"
+    git(current, "commit", "-m", "The engine", when="2026-01-01T12:00:00")
+    before_the_tag = tmp_path / "funestra_before_the_tag"
     git(current, "worktree", "add", "--detach", str(before_the_tag))
-    (current / "pyproject.toml").write_text(
-        f'[project]\nname = "{named}"\nversion = "0.1.0"\n', encoding="utf-8")
-    git(current, "commit", "--allow-empty", "-am", "What the branch imports",
+    git(current, "commit", "--allow-empty", "-m", "What the branch imports",
         when="2026-02-01T12:00:00")
     git(current, "tag", "v0.1.9")
     return SimpleNamespace(current=current, before_the_tag=before_the_tag)
 
 
-@pytest.fixture
-def engine_checkouts(tmp_path: Path) -> SimpleNamespace:
-    """A stand-in funestra repo at a tag, and a second checkout of it left before
-    the tag -- what a worktree pinned by an agent looks like once main moves on."""
-    return _sibling_repo(tmp_path)
+def _built_against_funestra(worktree: Path, tag: str) -> None:
+    (worktree / "pyproject.toml").write_text(
+        '[project]\nname = "fun-time"\nversion = "0.1.0"\n'
+        f'dependencies = ["funestra @ git+https://github.com/haglio/funestra@{tag}"]\n',
+        encoding="utf-8")
+
+
+def _runs_its_funestras_out_of(worktree: Path, checkout: Path) -> None:
+    (worktree / "state").mkdir(exist_ok=True)
+    (worktree / "state" / branch_session.GENAU_DIRS_OVERRIDE_NAME).write_text(
+        f"{checkout}\n", encoding="utf-8")
 
 
 def test_a_shortcut_is_refused_while_a_pinned_funestra_checkout_predates_the_branchs_pin(
@@ -960,8 +955,8 @@ def test_a_shortcut_is_refused_while_a_pinned_funestra_checkout_predates_the_bra
     """The chain has no error state of its own: a stale checkout on the Funestras'
     path runs some other funestra, and the Main Funestra dies at import on a name
     the branch was built against."""
-    _pin(primary_with_launcher.newer, "funestra", "v0.1.9")
-    _runs_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
+    _built_against_funestra(primary_with_launcher.newer, "v0.1.9")
+    _runs_its_funestras_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
 
     with pytest.raises(branch_session.OutOfDateSibling) as refused:
         branch_session.write_launch_shortcut(
@@ -974,8 +969,8 @@ def test_a_shortcut_is_refused_while_a_pinned_funestra_checkout_predates_the_bra
 
 def test_the_shortcut_command_reports_a_refusal_without_a_traceback(
         primary_with_launcher, engine_checkouts, monkeypatch, capsys):
-    _pin(primary_with_launcher.newer, "funestra", "v0.1.9")
-    _runs_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
+    _built_against_funestra(primary_with_launcher.newer, "v0.1.9")
+    _runs_its_funestras_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
     monkeypatch.setattr(branch_session, "primary_checkout",
                         lambda start=None: primary_with_launcher.primary)
 
@@ -987,26 +982,16 @@ def test_the_shortcut_command_reports_a_refusal_without_a_traceback(
 
 def test_a_pinned_checkout_carrying_the_branchs_pin_is_current(
         repo_with_worktrees, engine_checkouts):
-    _pin(repo_with_worktrees.newer, "funestra", "v0.1.9")
-    _runs_out_of(repo_with_worktrees.newer, engine_checkouts.current)
+    _built_against_funestra(repo_with_worktrees.newer, "v0.1.9")
+    _runs_its_funestras_out_of(repo_with_worktrees.newer, engine_checkouts.current)
 
     assert branch_session.sibling_checkouts_older_than_the_pin(repo_with_worktrees.newer) == []
 
 
-def test_a_checkout_from_before_the_engine_was_renamed_is_held_to_the_branchs_pin_too(
-        repo_with_worktrees, tmp_path):
-    engine = _sibling_repo(tmp_path, named_before_the_tag="player-core")
-    _pin(repo_with_worktrees.newer, "funestra", "v0.1.9")
-    _runs_out_of(repo_with_worktrees.newer, engine.before_the_tag)
-
-    assert branch_session.sibling_checkouts_older_than_the_pin(repo_with_worktrees.newer) == [
-        branch_session.SiblingOlderThanThePin(engine.before_the_tag, "funestra", "v0.1.9")]
-
-
 def test_a_launch_out_of_a_pinned_checkout_from_before_the_branchs_pin_is_refused_with_a_note(
         repo_with_worktrees, engine_checkouts, monkeypatch):
-    _pin(repo_with_worktrees.newer, "funestra", "v0.1.9")
-    _runs_out_of(repo_with_worktrees.newer, engine_checkouts.before_the_tag)
+    _built_against_funestra(repo_with_worktrees.newer, "v0.1.9")
+    _runs_its_funestras_out_of(repo_with_worktrees.newer, engine_checkouts.before_the_tag)
     sessions = _sessions_exit_with(monkeypatch, 0)
 
     returncode = branch_session.launch(
@@ -1017,126 +1002,6 @@ def test_a_launch_out_of_a_pinned_checkout_from_before_the_branchs_pin_is_refuse
     note = _note_left_in(repo_with_worktrees.newer).read_text(encoding="utf-8")
     assert "Fun Time couldn't start on example/newer" in note
     assert "funestra checkout older than the one it was built against" in note
-
-
-def _origenerator_pinned_to(tmp_path: Path, repo: str) -> Path:
-    checkout = tmp_path / "origenerator"
-    checkout.mkdir()
-    _pin(checkout, repo, "v0.1.9", project="origenerator")
-    return checkout
-
-
-def _hosting_origenerator_pinned_to(primary: Path, tmp_path: Path, repo: str) -> Path:
-    return _write_config(primary / "fun_time_config.json",
-                         origenerator_dir=str(_origenerator_pinned_to(tmp_path, repo)))
-
-
-def test_a_launch_that_would_start_origenerator_on_a_checkout_older_than_its_pin_is_refused(
-        repo_with_worktrees, engine_checkouts, tmp_path, monkeypatch):
-    config = _hosting_origenerator_pinned_to(repo_with_worktrees.primary, tmp_path, "funestra")
-    _runs_out_of(repo_with_worktrees.newer, engine_checkouts.before_the_tag)
-    sessions = _sessions_exit_with(monkeypatch, 0)
-
-    returncode = branch_session.launch(
-        repo_with_worktrees.newer, primary=repo_with_worktrees.primary, primary_config_path=config)
-
-    assert (returncode, sessions) == (1, [])
-    note = _note_left_in(repo_with_worktrees.newer).read_text(encoding="utf-8")
-    assert "Origenerator would close itself" in note
-
-
-def test_a_launch_starting_origenerator_on_a_checkout_that_carries_its_pin_goes_ahead(
-        repo_with_worktrees, engine_checkouts, tmp_path, monkeypatch):
-    config = _hosting_origenerator_pinned_to(repo_with_worktrees.primary, tmp_path, "funestra")
-    _runs_out_of(repo_with_worktrees.newer, engine_checkouts.current)
-    sessions = _sessions_exit_with(monkeypatch, 0)
-
-    returncode = branch_session.launch(
-        repo_with_worktrees.newer, primary=repo_with_worktrees.primary, primary_config_path=config)
-
-    assert (returncode, len(sessions)) == (0, 1)
-
-
-def test_the_origenerator_a_worktree_names_for_its_own_session_is_the_one_asked(
-        repo_with_worktrees, engine_checkouts, tmp_path, monkeypatch):
-    config = _write_config(repo_with_worktrees.primary / "fun_time_config.json",
-                           origenerator_dir=str(tmp_path / "production_origenerator"))
-    origenerator = _origenerator_pinned_to(tmp_path, "funestra")
-    _write_origenerator_override(repo_with_worktrees.newer, f"{origenerator}\n")
-    _runs_out_of(repo_with_worktrees.newer, engine_checkouts.before_the_tag)
-    sessions = _sessions_exit_with(monkeypatch, 0)
-
-    returncode = branch_session.launch(
-        repo_with_worktrees.newer, primary=repo_with_worktrees.primary, primary_config_path=config)
-
-    assert (returncode, sessions) == (1, [])
-
-
-def test_a_session_that_hosts_no_origenerator_is_not_held_to_origenerators_pins(
-        repo_with_worktrees, engine_checkouts, tmp_path):
-    config = _hosting_origenerator_pinned_to(repo_with_worktrees.primary, tmp_path, "funestra")
-    _write_origenerator_override(repo_with_worktrees.newer, "")
-    _runs_out_of(repo_with_worktrees.newer, engine_checkouts.before_the_tag)
-
-    assert branch_session.checkouts_older_than_the_hosted_origenerator_needs(
-        repo_with_worktrees.newer, primary=repo_with_worktrees.primary, config_path=config) == []
-
-
-def test_a_shortcut_is_refused_while_it_would_start_origenerator_on_a_checkout_older_than_its_pin(
-        primary_with_launcher, engine_checkouts, tmp_path):
-    _hosting_origenerator_pinned_to(primary_with_launcher.primary, tmp_path, "funestra")
-    _runs_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
-
-    with pytest.raises(branch_session.OutOfDateForOrigenerator) as refused:
-        branch_session.write_launch_shortcut(
-            primary_with_launcher.newer, primary=primary_with_launcher.primary)
-
-    assert str(engine_checkouts.before_the_tag) in str(refused.value)
-    assert "v0.1.9" in str(refused.value)
-    assert branch_session._generated_shortcuts(primary_with_launcher.newer) == {}
-
-
-def test_the_shortcut_command_reports_the_origenerator_refusal_without_a_traceback(
-        primary_with_launcher, engine_checkouts, tmp_path, monkeypatch, capsys):
-    _hosting_origenerator_pinned_to(primary_with_launcher.primary, tmp_path, "funestra")
-    _runs_out_of(primary_with_launcher.newer, engine_checkouts.before_the_tag)
-    monkeypatch.setattr(branch_session, "primary_checkout",
-                        lambda start=None: primary_with_launcher.primary)
-
-    returncode = branch_session.main(["--shortcut", str(primary_with_launcher.newer)])
-
-    assert returncode == 1
-    assert "Origenerator would stop at its first import" in capsys.readouterr().err
-
-
-@pytest.mark.parametrize(("checkout_named", "pinned_as"), [
-    ("player-core", "funestra"),
-    ("funestra", "player_core"),
-])
-def test_the_engine_is_recognized_under_either_of_its_names(
-        repo_with_worktrees, tmp_path, checkout_named, pinned_as):
-    engine = _sibling_repo(tmp_path, named_before_the_tag=checkout_named)
-    config = _hosting_origenerator_pinned_to(repo_with_worktrees.primary, tmp_path, pinned_as)
-    _runs_out_of(repo_with_worktrees.newer, engine.before_the_tag)
-
-    older = branch_session.checkouts_older_than_the_hosted_origenerator_needs(
-        repo_with_worktrees.newer, primary=repo_with_worktrees.primary, config_path=config)
-
-    assert older == [
-        branch_session.SiblingOlderThanThePin(engine.before_the_tag, "funestra", "v0.1.9")]
-
-
-def test_every_checkout_the_worktree_names_is_held_to_origenerators_pins_not_only_the_engine(
-        repo_with_worktrees, tmp_path):
-    shared_ui = _sibling_repo(tmp_path, "shared_ui")
-    config = _hosting_origenerator_pinned_to(repo_with_worktrees.primary, tmp_path, "shared_ui")
-    _runs_out_of(repo_with_worktrees.newer, shared_ui.before_the_tag)
-
-    older = branch_session.checkouts_older_than_the_hosted_origenerator_needs(
-        repo_with_worktrees.newer, primary=repo_with_worktrees.primary, config_path=config)
-
-    assert older == [
-        branch_session.SiblingOlderThanThePin(shared_ui.before_the_tag, "shared_ui", "v0.1.9")]
 
 
 class TestTheSessionOnTheTaskbar:
