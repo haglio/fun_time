@@ -312,7 +312,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # and what ground the open list sits on are the tests' alone.
 # 6401 on 2026-10-11: whether the Main list a headset session reopens holds
 # any VR video is said by the check's name, and its paragraph went.
-MAX_PROSE_LINES = 6401
+# 6375 the same day: the Main player's list is built in one module, and the
+# notes on the three builders it replaced went with them.
+MAX_PROSE_LINES = 6375
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

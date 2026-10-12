@@ -53,6 +53,7 @@ from fun_time.funestra_engine import engine_missing_abort
 from fun_time.funestra_status import read_main_funestra_status
 from fun_time.genau_config import GenauSettings
 from fun_time.hosted_origenerator import bring_up_the_hosted_app
+from fun_time.main_list import MainList, MainListSettings
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -64,9 +65,8 @@ from fun_time.modes import (
     PLAYLIST_PORTRAIT,
     SatelliteBuild,
     VideoShapes,
-    build_all_playlists,
-    build_main_playlist,
     build_playlist_file_path,
+    build_satellite_playlists,
     source_roots,
 )
 from fun_time.orchestrator import (
@@ -329,26 +329,25 @@ def stock_the_playlists(
     holds no VR video, and is rebuilt from the merged sources and rotated back
     onto *main_video*, the clip that was on screen (resume_main_video).
     """
-    main_funestra_playlist = build_playlist_file_path(state_dir, PLAYLIST_MAIN_FUNESTRA)
+    vr_dirs = manifest.media.vr_library_dirs
+    main_list = MainList(sources=manifest.media.main_funestra_library_sources,
+                         state_dir=state_dir, vr_dirs=vr_dirs, metadata_root=metadata_root)
+    main_funestra_playlist = main_list.file
     if not resumed:
-        build_all_playlists(
-            main_sources=manifest.media.main_funestra_library_sources,
+        build_satellite_playlists(
             portrait=SatelliteBuild(sources=manifest.media.portrait_dirs),
             landscape=SatelliteBuild(sources=manifest.media.landscape_dirs),
             favs_file=Path(manifest.media.favs_file),
             state_dir=state_dir,
             metadata_root=metadata_root,
         )
+        main_list.write(MainListSettings())
         logger.info("Nothing to resume; built fresh playlists")
         return
-    vr_dirs = manifest.media.vr_library_dirs
     if main_plays_vr and not main_playlist_has_vr(main_funestra_playlist, source_roots(vr_dirs)):
-        build_main_playlist(
-            main_funestra_playlist, manifest.media.main_funestra_library_sources,
-            scripted_filter=main_scripted_filter, recent=main_recent,
-            shapes=VideoShapes(vr_dirs=vr_dirs, plays_vr=main_plays_vr, plays_flat=main_plays_flat),
-            metadata_root=metadata_root,
-        )
+        main_list.write(MainListSettings(
+            plays_vr=main_plays_vr, plays_flat=main_plays_flat,
+            scripted_filter=main_scripted_filter, latest=main_recent))
         logger.info(
             "Resumed playlists; rebuilt the Main Funestra's around the video it was on"
             if resume_main_video(main_funestra_playlist, main_video)

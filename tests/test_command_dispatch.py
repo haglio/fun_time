@@ -34,6 +34,7 @@ from fun_time.event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.genaumacher_save import _genaumacher_project_dir
 from fun_time.lock_hud import hud_map_cells
 from fun_time.loopback_server import omnipause_url
+from fun_time.main_list import MainListSettings
 from fun_time.main_list_builds import MainListBuild
 from fun_time.media_actions import ensure_in_favs, make_web_url_from_path
 from fun_time.media_metadata import load_metadata, metadata_path_for, normalize_path_key
@@ -4152,75 +4153,73 @@ class _BuildsRecorded:
         self.asked.append(build)
 
 
+def _recording(config: BridgeConfig) -> tuple[BridgeConfig, _BuildsRecorded]:
+    builds = _BuildsRecorded()
+    return replace(config, main_list_builds=builds), builds
+
+
 @pytest.mark.parametrize(("command", "state", "asked"), [
-    ("main_latest", BridgeState(), dict(recent=True, start_at_top=True)),
-    ("main_shuffle", BridgeState(main_latest=True), dict(recent=False, start_at_top=True)),
+    ("main_latest", BridgeState(), dict(latest=True, start_at_top=True)),
+    ("main_shuffle", BridgeState(main_latest=True), dict(latest=False, start_at_top=True)),
     ("main_projection_vr", BridgeState(), dict(start_at_top=False)),
-    ("main_reset", BridgeState(main_latest=True), dict(recent=False, start_at_top=True)),
+    ("main_reset", BridgeState(main_latest=True), dict(latest=False, start_at_top=True)),
     ("main_fmode_on", BridgeState(), dict(scripted_filter=True)),
 ])
 def test_every_main_list_rebuild_is_handed_to_the_sessions_builder(tmp_path, command, state, asked):
-    builds = _BuildsRecorded()
-    config = replace(_make_config(tmp_path), vr_library_dirs=str(tmp_path / "vr"),
-                     main_list_builds=builds)
+    config, builds = _recording(replace(_make_config(tmp_path), vr_library_dirs=str(tmp_path / "vr")))
 
     dispatch_command(command, state, config)
 
     assert len(builds.asked) == 1
-    assert {field: getattr(builds.asked[0], field) for field in asked} == asked
+    build = builds.asked[0]
+    assert {field: getattr(build, field, getattr(build.settings, field, None))
+            for field in asked} == asked
     assert not (config.state_dir / "main_player_playlist.tsv").exists()
 
 
-def test_main_latest_reloads_the_main_funestra_newest_first(tmp_path, monkeypatch):
+def test_main_latest_reloads_the_main_funestra_newest_first(tmp_path):
     """The Main Funestra had only the shuffle, so a video that arrived an hour ago sat
     somewhere in a thousand-clip rotation with no way to ask for it.  It browses in
     the satellites' two orders now, and the order is remembered — an F-mode rebuild
     afterwards has to reload it the same way round rather than quietly reshuffling."""
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
-    config = _make_config(tmp_path)
+    config, builds = _recording(_make_config(tmp_path))
 
     state, ops = dispatch_command("main_latest", BridgeState(), config)
 
     assert state.main_latest is True
-    assert calls[-1]["recent"] is True
+    assert builds.asked[-1].settings.latest is True
     assert ops[0].op == "notice"
 
     state, _ops = dispatch_command("main_shuffle", state, config)
     assert state.main_latest is False
-    assert calls[-1]["recent"] is False
+    assert builds.asked[-1].settings.latest is False
 
 
-def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path, monkeypatch):
+def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path):
     """The bug this fixes: "main latest" in genau mode rewrote a playlist for the Main Funestra,
     which was neither on screen nor playing, and Genau — the Funestra actually
     showing — carried on in the order it launched in.  Two notices and nothing
     happening.  The reorder goes to whoever owns the slot's screen, as the lock
     does."""
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
-    config = _make_config(tmp_path)
+    config, builds = _recording(_make_config(tmp_path))
 
     state, ops = dispatch_command("main_latest", _make_state(main_mode=MainMode.GENAU), config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8").split() == ["LATEST"]
-    assert calls == []  # the Main Funestra's playlist is left exactly as it was
+    assert builds.asked == []  # the Main Funestra's playlist is left exactly as it was
     assert [op.key for op in ops if op.op == "notice"] == ["Latest"]
 
     dispatch_command("main_shuffle", state, config)
     assert config.genau_cmd_file.read_text(encoding="utf-8").split() == ["LATEST", "SHUFFLE"]
-    assert calls == []
+    assert builds.asked == []
 
 
-def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_path, monkeypatch):
+def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_path):
     """``main_latest`` says which order the playlist file we built for the Main Funestra is in —
     an F-mode rebuild reads it to reload the same way round — so setting it for a
     Genau reorder would light "Latest" over a Main Funestra playlist nobody reordered.  Genau
     keeps its own, which is what the console draws while Genau is showing."""
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode", lambda **kwargs: None)
-    config = _make_config(tmp_path)
+    config, _builds = _recording(_make_config(tmp_path))
 
     state, _ops = dispatch_command("main_latest", _make_state(main_mode=MainMode.GENAU), config)
 
@@ -4231,17 +4230,14 @@ def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_pa
     assert state.genau_latest is False
 
 
-def test_a_main_reorder_in_kino_mode_still_reaches_main_funestra(tmp_path, monkeypatch):
+def test_a_main_reorder_in_kino_mode_still_reaches_main_funestra(tmp_path):
     """Kino mode is the Main Funestra on screen with Genau driving the OSR2, so the video being
     browsed is the Main Funestra's — Genau's flicks are not what a reorder there is about."""
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
-    config = _make_config(tmp_path)
+    config, builds = _recording(_make_config(tmp_path))
 
     state, _ops = dispatch_command("main_latest", _make_state(main_mode=MainMode.KINO), config)
 
-    assert calls[-1]["recent"] is True
+    assert builds.asked[-1].settings.latest is True
     assert state.main_latest is True
     assert not config.genau_cmd_file.exists()
 
@@ -4253,60 +4249,50 @@ def _vr_config(tmp_path):
     return config
 
 
-def test_a_shape_press_narrows_the_browse_and_rebuilds_the_playlist(tmp_path, monkeypatch):
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
+def test_a_shape_press_narrows_the_browse_and_rebuilds_the_playlist(tmp_path):
+    config, builds = _recording(_vr_config(tmp_path))
 
-    state, ops = dispatch_command("main_projection_vr", _make_state(), _vr_config(tmp_path))
+    state, ops = dispatch_command("main_projection_vr", _make_state(), config)
 
     assert (state.main_plays_vr, state.main_plays_flat) == (True, False)
-    assert calls[-1]["shapes"].plays_flat is False
+    assert builds.asked[-1].settings.plays_flat is False
     assert ops[0].op == "notice" and ops[0].key == "VR only"
 
 
-def test_asking_for_the_shapes_already_running_rebuilds_nothing(tmp_path, monkeypatch):
+def test_asking_for_the_shapes_already_running_rebuilds_nothing(tmp_path):
     """A rebuild reshuffles, and this must not become a second "shuffle main"."""
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
+    config, builds = _recording(_vr_config(tmp_path))
 
-    _state, ops = dispatch_command(
-        "main_projection_both", _make_state(), _vr_config(tmp_path))
+    _state, ops = dispatch_command("main_projection_both", _make_state(), config)
 
-    assert calls == [] and ops == []
+    assert builds.asked == [] and ops == []
 
 
-def test_neither_shape_holds_the_video_instead_of_rebuilding(tmp_path, monkeypatch):
+def test_neither_shape_holds_the_video_instead_of_rebuilding(tmp_path):
     """Degenerate -- it plays nothing -- but it is what the second press on the
     last lit button asks for, so nothing refuses it.  There is no list to build,
     so the video on screen is locked: a state you can see and undo, where an
     empty playlist would look like a filter that did nothing."""
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
-    config = _vr_config(tmp_path)
+    config, builds = _recording(_vr_config(tmp_path))
 
     state, ops = dispatch_command("main_projection_none", _make_state(), config)
 
     assert (state.main_plays_vr, state.main_plays_flat) == (False, False)
     assert ops[0].key == "No videos left"
-    assert calls == []
+    assert builds.asked == []
     assert "LOCK_ON" in config.main_funestra_cmd_file.read_text(encoding="utf-8")
 
 
-def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path, monkeypatch):
+def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path):
     """Every session outside the headset: no VR library among its sources, so
     narrowing to either half would leave the Funestra with nothing or with what it
     already had.  Its console draws no buttons for it either."""
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
+    config, builds = _recording(_make_config(tmp_path))
 
-    state, ops = dispatch_command("main_projection_vr", _make_state(), _make_config(tmp_path))
+    state, ops = dispatch_command("main_projection_vr", _make_state(), config)
 
     assert state.main_plays_vr is True and state.main_plays_flat is True
-    assert calls == [] and ops == []
+    assert builds.asked == [] and ops == []
 
 
 def _genau_vr_config(tmp_path):
@@ -4316,11 +4302,8 @@ def _genau_vr_config(tmp_path):
     return config
 
 
-def test_a_shape_press_in_genau_mode_narrows_genaus_flicks(tmp_path, monkeypatch):
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
-    config = _genau_vr_config(tmp_path)
+def test_a_shape_press_in_genau_mode_narrows_genaus_flicks(tmp_path):
+    config, builds = _recording(_genau_vr_config(tmp_path))
 
     state, ops = dispatch_command(
         "main_projection_vr", _make_state(main_mode=MainMode.GENAU), config)
@@ -4328,7 +4311,7 @@ def test_a_shape_press_in_genau_mode_narrows_genaus_flicks(tmp_path, monkeypatch
     assert (state.genau_plays_vr, state.genau_plays_flat) == (True, False)
     assert (state.main_plays_vr, state.main_plays_flat) == (True, True)
     assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHAPES vr"]
-    assert calls == []
+    assert builds.asked == []
     assert [op.key for op in ops] == ["VR only"]
 
 
@@ -4403,47 +4386,38 @@ def test_main_reset_does_nothing_to_a_main_funestra_already_at_every_default(tmp
     {"main_scripted_filter": True}, {"main_latest": True}, {"main_plays_flat": False},
 ])
 def test_main_reset_rebuilds_an_off_default_browse_as_a_fresh_shuffle_from_the_top(
-        tmp_path, monkeypatch, off_default):
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
+        tmp_path, off_default):
+    config, builds = _recording(_vr_config(tmp_path))
 
-    state, _ops = dispatch_command(
-        "main_reset", _make_state(**off_default), _vr_config(tmp_path))
+    state, _ops = dispatch_command("main_reset", _make_state(**off_default), config)
 
     assert (state.main_scripted_filter, state.main_latest,
             state.main_plays_vr, state.main_plays_flat) == (False, False, True, True)
-    assert [(call["enabled"], call["recent"], call.get("start_at_top"),
-             call["shapes"].plays_vr, call["shapes"].plays_flat)
-            for call in calls] == [(False, False, True, True, True)]
+    assert [(build.settings, build.start_at_top) for build in builds.asked] == [
+        (MainListSettings(), True)]
 
 
-def test_main_reset_does_not_reshuffle_a_funestra_already_at_its_defaults(tmp_path, monkeypatch):
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
+def test_main_reset_does_not_reshuffle_a_funestra_already_at_its_defaults(tmp_path):
+    config, builds = _recording(_vr_config(tmp_path))
 
-    dispatch_command("main_reset", _make_state(), _vr_config(tmp_path))
+    dispatch_command("main_reset", _make_state(), config)
 
-    assert calls == []
+    assert builds.asked == []
 
 
 def test_main_reset_leaves_the_browse_alone_over_a_shape_filter_the_session_does_not_offer(
-    tmp_path, monkeypatch
+    tmp_path
 ):
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
+    config, builds = _recording(_make_config(tmp_path))
 
-    dispatch_command("main_reset", _make_state(main_plays_flat=False), _make_config(tmp_path))
+    dispatch_command("main_reset", _make_state(main_plays_flat=False), config)
 
-    assert calls == []
+    assert builds.asked == []
 
 
 def test_main_reset_leaves_what_the_main_funestra_holds_alone_while_genau_owns_the_slot(
-        tmp_path, monkeypatch):
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode", lambda **kwargs: None)
-    config = _make_config(tmp_path)
+        tmp_path):
+    config, _builds = _recording(_make_config(tmp_path))
 
     state, _ops = dispatch_command(
         "main_reset", _make_state(main_mode=MainMode.GENAU, main_scripted_filter=True), config)
@@ -4458,31 +4432,27 @@ def test_main_reset_flashes_reset_over_the_main_funestra(tmp_path):
     assert ops == [WindowOp(op="notice", key="Reset", source="main")]
 
 
-def test_main_reset_makes_the_main_funestra_the_one_a_bare_word_reaches(tmp_path, monkeypatch):
+def test_main_reset_makes_the_main_funestra_the_one_a_bare_word_reaches(tmp_path):
     """Resetting a Funestra is addressing it, the way locking it or naming its F-mode
     is — so a bare "next" after it lands here rather than on whichever satellite was
     touched last."""
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode", lambda **kwargs: None)
-    config = _make_config(tmp_path)
+    config, _builds = _recording(_make_config(tmp_path))
 
     state, _ops = dispatch_command("main_reset", _make_state(active_funestra=2), config)
 
     assert state.active_funestra == 1
 
 
-def test_reordering_the_main_funestra_starts_it_at_the_top(tmp_path, monkeypatch):
+def test_reordering_the_main_funestra_starts_it_at_the_top(tmp_path):
     """A reorder filters nothing out, so the Main Funestra keeps the video on screen across the
     reload and carries on from wherever it now sits — leaving the newest-first list
     to apply only after it, and the arrivals that were asked for never coming up.
     The satellites' reorder starts at the top for exactly this reason; so does this."""
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
-    config = _make_config(tmp_path)
+    config, builds = _recording(_make_config(tmp_path))
 
     dispatch_command("main_latest", BridgeState(), config)
 
-    assert calls[-1]["start_at_top"] is True
+    assert builds.asked[-1].start_at_top is True
 
 
 def _origenerator_config(tmp_path: Path) -> BridgeConfig:

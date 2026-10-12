@@ -11,6 +11,7 @@ from app_support import state_files
 from .config import RegenConfig
 from .event_log import NOTICE, SOURCE_SYSTEM
 from .loopback_server import LOOPBACK_PORT
+from .main_list import MainList
 from .main_list_builds import BUILDS_HERE, MainListBuilds
 from .room_funestras import RoomFunestra
 
@@ -112,6 +113,11 @@ class BridgeConfig:
             sources=self.landscape_sources,
             origenerator_hud_file=self.landscape_origenerator_hud_file,
         )
+
+    @property
+    def main_list(self) -> MainList:
+        return MainList(sources=self.main_sources, state_dir=self.state_dir,
+                        vr_dirs=self.vr_library_dirs, metadata_root=self.regen_metadata_root)
 
     @property
     def broker_state(self) -> Path:

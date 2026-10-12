@@ -10,39 +10,24 @@ from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE, play_file
 
-from .modes import (
-    PLAYLIST_MAIN_FUNESTRA,
-    VideoShapes,
-    build_main_playlist_paths,
-    build_playlist_file_path,
-    scripted_item,
-    write_playlist_file,
-)
+from .main_list import MainList, MainListSettings
+from .modes import scripted_item
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class MainListBuild:
-    scripted_filter: bool
-    main_sources: str
-    state_dir: Path
+    main_list: MainList
+    settings: MainListSettings
     main_funestra_cmd_file: Path
-    recent: bool = False
     start_at_top: bool = False
-    shapes: VideoShapes | None = None
-    metadata_root: Path | None = None
 
     def run(self) -> None:
-        paths = build_main_playlist_paths(
-            self.main_sources, self.scripted_filter, recent=self.recent, shapes=self.shapes,
-            metadata_root=self.metadata_root)
-        write_playlist_file(
-            build_playlist_file_path(Path(self.state_dir), PLAYLIST_MAIN_FUNESTRA), paths,
-            metadata_root=self.metadata_root)
-        verbs = [RELOAD_PLAYLIST, f"{SET_F_MODE} {int(self.scripted_filter)}"]
-        if self.start_at_top and paths:
-            verbs.append(play_file(scripted_item(paths[0], self.metadata_root)))
+        videos = self.main_list.write(self.settings)
+        verbs = [RELOAD_PLAYLIST, f"{SET_F_MODE} {int(self.settings.scripted_filter)}"]
+        if self.start_at_top and videos:
+            verbs.append(play_file(scripted_item(videos[0], self.main_list.metadata_root)))
         for verb in verbs:
             append_command(Path(self.main_funestra_cmd_file), verb)
 

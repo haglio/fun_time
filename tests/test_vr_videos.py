@@ -1,10 +1,9 @@
 """Which videos are VR masters, and the browse filter built on the answer."""
 from __future__ import annotations
 
-import random
 from pathlib import Path
 
-from fun_time.modes import VideoShapes, build_main_playlist_paths
+from fun_time.modes import VideoShapes
 from fun_time.vr_videos import is_vr_video, keep_shapes
 
 
@@ -69,19 +68,3 @@ class TestVideoShapes:
 
         for plays_vr, plays_flat in ((True, False), (False, True), (False, False)):
             assert VideoShapes(plays_vr=plays_vr, plays_flat=plays_flat).keep(paths) == paths
-
-    def test_the_main_build_narrows_to_the_shape_asked_for(self, tmp_path: Path):
-        vr_dir = tmp_path / "vr"
-        flat_dir = tmp_path / "flat"
-        for folder, name in ((vr_dir, "wrap.mp4"), (flat_dir, "screen.mp4")):
-            folder.mkdir(parents=True)
-            (folder / name).write_text("x", encoding="utf-8")
-        sources = f"{vr_dir}|{flat_dir}"
-
-        every = build_main_playlist_paths(sources, False, rng=random.Random(1))
-        vr_only = build_main_playlist_paths(
-            sources, False, rng=random.Random(1),
-            shapes=VideoShapes(vr_dirs=str(vr_dir), plays_flat=False))
-
-        assert len(every) == 2
-        assert [Path(p).name for p in vr_only] == ["wrap.mp4"]

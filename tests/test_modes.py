@@ -8,9 +8,7 @@ from pathlib import Path
 from fun_time.media_metadata import load_metadata, metadata_path_for
 from fun_time.modes import (
     SatelliteBuild,
-    build_all_playlists,
     build_generated_marker_path,
-    build_main_playlist_paths,
     build_mirrored_funscript_path,
     build_satellite_playlist_paths,
     build_satellite_playlists,
@@ -92,30 +90,6 @@ def test_build_mirrored_funscript_path_uses_video_path_directly(tmp_path: Path):
     assert result == str(tmp_path / "videos" / "scripts" / "scripts" / "primary" / "folder" / "clip.funscript")
 
 
-def test_build_primary_playlist_paths_filters_to_funscripted_items_in_f_mode(tmp_path: Path):
-    """F-mode keeps the hand-scripted video and drops the bulk-scripted one.
-
-    The bulk run is what made "has a funscript" stop meaning anything: ``b`` has
-    a script too, and is exactly what F-mode is now for excluding.
-    """
-    source_root = tmp_path / "videos" / "videos" / "primary"
-    first = source_root / "a.mp4"
-    second = source_root / "b.mp4"
-    third = source_root / "c.mp4"
-    first.parent.mkdir(parents=True)
-    for video in (first, second, third):
-        video.write_text("x", encoding="utf-8")
-    scripts_root = tmp_path / "videos" / "scripts" / "scripts" / "primary"
-    scripts_root.mkdir(parents=True, exist_ok=True)
-    for name in ("a", "b"):
-        (scripts_root / f"{name}.funscript").write_text("{}", encoding="utf-8")
-    _mark_generated(second)
-
-    paths = build_main_playlist_paths(str(source_root), True, rng=random.Random(1))
-
-    assert paths == [str(first)]
-
-
 def test_build_satellite_playlist_paths_filters_to_favorites_in_f_mode(tmp_path: Path):
     source_root = tmp_path / "portrait"
     first = source_root / "keep.mp4"
@@ -131,20 +105,15 @@ def test_build_satellite_playlist_paths_filters_to_favorites_in_f_mode(tmp_path:
     assert paths == [str(first)]
 
 
-def test_build_all_playlists_writes_satellite_playlist_files(tmp_path: Path):
-    primary_root = tmp_path / "videos" / "videos" / "primary"
+def test_build_satellite_playlists_writes_each_sides_own_favorites(tmp_path: Path):
     portrait_root = tmp_path / "portrait"
     landscape_root = tmp_path / "landscape"
-    for root in (primary_root, portrait_root, landscape_root):
+    for root in (portrait_root, landscape_root):
         root.mkdir(parents=True)
-    main_video = primary_root / "main.mp4"
     portrait_video = portrait_root / "portrait.mp4"
     landscape_video = landscape_root / "landscape.mp4"
-    for path in (main_video, portrait_video, landscape_video):
+    for path in (portrait_video, landscape_video, portrait_root / "skip.mp4"):
         path.write_text("x", encoding="utf-8")
-    mirrored = tmp_path / "videos" / "scripts" / "scripts" / "primary" / "main.funscript"
-    mirrored.parent.mkdir(parents=True, exist_ok=True)
-    mirrored.write_text("{}", encoding="utf-8")
     favs_file = tmp_path / "favs.csv"
     favs_file.write_text(
         f'local_file,web_url\r\n"x","{portrait_video}"\r\n"x","{landscape_video}"\r\n',
@@ -152,49 +121,16 @@ def test_build_all_playlists_writes_satellite_playlist_files(tmp_path: Path):
     )
     state_dir = tmp_path / "state"
 
-    build_all_playlists(
+    build_satellite_playlists(
         portrait=SatelliteBuild(sources=str(portrait_root), favorites_filter=True),
         landscape=SatelliteBuild(sources=str(landscape_root), favorites_filter=True),
-        main_sources=str(primary_root),
         favs_file=favs_file,
         state_dir=state_dir,
         rng=random.Random(1),
     )
 
-    # Each Funestra reads a playlist of its own.  One video from each source survives
-    # the favorites filter, and only the Main Funestra's has a script beside it.
     assert _lines(state_dir / "portrait_playlist.tsv") == [str(portrait_video)]
     assert _lines(state_dir / "landscape_playlist.tsv") == [str(landscape_video)]
-    assert _lines(state_dir / "main_player_playlist.tsv") == [f"{main_video}\t{mirrored}"]
-    assert not (state_dir / "main_playlist.tsv").exists()
-
-
-def test_build_all_playlists_writes_main_funestra_playlist_with_funscript_pairs(tmp_path: Path):
-    primary_root = tmp_path / "videos" / "videos" / "primary"
-    primary_root.mkdir(parents=True)
-    scripted_video = primary_root / "scripted.mp4"
-    plain_video = primary_root / "plain.mp4"
-    scripted_video.write_text("x", encoding="utf-8")
-    plain_video.write_text("x", encoding="utf-8")
-    mirrored = tmp_path / "videos" / "scripts" / "scripts" / "primary" / "scripted.funscript"
-    mirrored.parent.mkdir(parents=True, exist_ok=True)
-    mirrored.write_text("{}", encoding="utf-8")
-    favs_file = tmp_path / "favs.csv"
-    state_dir = tmp_path / "state"
-
-    build_all_playlists(
-        portrait=SatelliteBuild(sources=""),
-        landscape=SatelliteBuild(sources=""),
-        main_sources=str(primary_root),
-        favs_file=favs_file,
-        state_dir=state_dir,
-        rng=random.Random(1),
-    )
-
-    assert sorted(_lines(state_dir / "main_player_playlist.tsv")) == sorted([
-        f"{scripted_video}\t{mirrored}",
-        f"{plain_video}",
-    ])
 
 
 # --- collect_video_files edge cases ---
@@ -362,24 +298,6 @@ def test_the_main_funestras_playlist_pairs_a_kept_video_with_the_librarys_script
     assert str(script) in _lines(playlist)[0]
 
 
-def test_f_mode_keeps_a_kept_video_whose_hand_written_script_is_in_the_library(tmp_path: Path):
-    library = tmp_path / "library" / "videos"
-    kept_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
-    kept = kept_dir / "scene one.mp4"
-    unscripted = kept_dir / "scene two.mp4"
-    kept_dir.mkdir(parents=True)
-    for video in (kept, unscripted):
-        video.write_text("x", encoding="utf-8")
-    script = library / "scripts" / "scripts" / "VR" / "finished" / "scene one.funscript"
-    script.parent.mkdir(parents=True)
-    script.write_text("{}", encoding="utf-8")
-
-    paths = build_main_playlist_paths(str(kept_dir), True, rng=random.Random(1),
-                                      metadata_root=library / "metadata")
-
-    assert paths == [str(kept)]
-
-
 # --- read_favs_content / is_favorite_path edge cases ---
 
 
@@ -476,29 +394,6 @@ def test_build_satellite_playlists_writes_both_recency_ordered_files(tmp_path: P
     assert _lines(state_dir / "landscape_playlist.tsv") == [str(l_new), str(l_old)]
 
 
-def test_build_all_playlists_recent_orders_satellites(tmp_path: Path):
-    portrait_root = tmp_path / "portrait"
-    landscape_root = tmp_path / "landscape"
-    p_old, p_new = portrait_root / "p_old.mp4", portrait_root / "p_new.mp4"
-    l_old, l_new = landscape_root / "l_old.mp4", landscape_root / "l_new.mp4"
-    _touch_with_mtime(p_old, 1000)
-    _touch_with_mtime(p_new, 2000)
-    _touch_with_mtime(l_old, 1000)
-    _touch_with_mtime(l_new, 2000)
-    state_dir = tmp_path / "state"
-
-    build_all_playlists(
-        portrait=SatelliteBuild(sources=str(portrait_root), recent=True),
-        landscape=SatelliteBuild(sources=str(landscape_root), recent=True),
-        main_sources="",
-        favs_file=tmp_path / "favs.csv",
-        state_dir=state_dir,
-    )
-
-    assert _lines(state_dir / "portrait_playlist.tsv") == [str(p_new), str(p_old)]
-    assert _lines(state_dir / "landscape_playlist.tsv") == [str(l_new), str(l_old)]
-
-
 # --- shuffle_paths edge cases ---
 
 
@@ -513,15 +408,6 @@ def test_shuffling_one_clip_leaves_that_clip():
 # --- f_mode=False branches ---
 
 
-def test_with_f_mode_off_the_main_playlist_holds_every_video(tmp_path: Path):
-    d = tmp_path / "vids"
-    d.mkdir()
-    (d / "a.mp4").write_text("x", encoding="utf-8")
-    (d / "b.mp4").write_text("x", encoding="utf-8")
-    paths = build_main_playlist_paths(str(d), False, rng=random.Random(1))
-    assert len(paths) == 2
-
-
 def test_with_f_mode_off_a_satellites_playlist_holds_every_video(tmp_path: Path):
     d = tmp_path / "vids"
     d.mkdir()
@@ -529,23 +415,6 @@ def test_with_f_mode_off_a_satellites_playlist_holds_every_video(tmp_path: Path)
     (d / "b.mp4").write_text("x", encoding="utf-8")
     paths = build_satellite_playlist_paths(str(d), False, tmp_path / "favs.csv", rng=random.Random(1))
     assert len(paths) == 2
-
-
-def test_f_mode_main_playlist_takes_scripted_videos_from_sub_folders_too(tmp_path: Path):
-    primary_root = tmp_path / "videos" / "videos" / "2D" / "non_AI"
-    top_video = primary_root / "clip.mp4"
-    nested_video = primary_root / "batch" / "portrait" / "nested_clip.mp4"
-    scripts_root = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "non_AI"
-    for video, script in ((top_video, scripts_root / "clip.funscript"),
-                          (nested_video, scripts_root / "batch" / "portrait" / "nested_clip.funscript")):
-        video.parent.mkdir(parents=True, exist_ok=True)
-        video.write_text("x", encoding="utf-8")
-        script.parent.mkdir(parents=True, exist_ok=True)
-        script.write_text("{}", encoding="utf-8")
-
-    paths = build_main_playlist_paths(str(primary_root), True, rng=random.Random(1))
-
-    assert {str(p) for p in paths} == {str(top_video), str(nested_video)}
 
 
 # --- action-group collapse and watch weighting (satellites) ---
@@ -656,29 +525,6 @@ def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path:
         listed = _lines(state_dir / name)
         assert len(listed) == 1, "the two-action group must collapse to one entry"
         assert listed[0] in paths.values()
-
-
-def test_build_all_playlists_forwards_library_to_satellites(tmp_path: Path):
-    source_dir, metadata_root, _ = _grouped_library(tmp_path, {
-        "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
-        "subject1_alpha": _i2v_meta("111", "Alpha"),
-    })
-    primary_dir = tmp_path / "primary"
-    primary_dir.mkdir()
-    (primary_dir / "main.mp4").write_text("x", encoding="utf-8")
-
-    build_all_playlists(
-        portrait=SatelliteBuild(sources=str(source_dir)),
-        landscape=SatelliteBuild(sources=str(source_dir)),
-        main_sources=str(primary_dir),
-        favs_file=tmp_path / "favs.csv",
-        state_dir=tmp_path / "state",
-        rng=random.Random(5),
-        metadata_root=metadata_root,
-    )
-
-    listed = _lines(tmp_path / "state" / "portrait_playlist.tsv")
-    assert len(listed) == 1, "satellite collapse must apply on the F-mode/startup build"
 
 
 # --- metadata attribute filtering ------------------------------------------
