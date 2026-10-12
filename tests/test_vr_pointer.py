@@ -26,6 +26,7 @@ from fun_time_vr.pointer import (
     RELEASE_LEVEL,
     RESIZE,
     RIGHT,
+    RIGHT_CLICK,
     SURFACE,
     Grab,
     HandInput,
@@ -454,9 +455,11 @@ def _aim_turned(screen: Screen, degrees: float, v: float) -> tuple:
     return _aim_at(spot.azimuth_deg + degrees, spot.y)
 
 
-def _hands(right=None, left=None, *, right_trigger=0.0, left_trigger=0.0):
+def _hands(right=None, left=None, *, right_trigger=0.0, left_trigger=0.0,
+           right_stick_pressed=False):
     return {
-        RIGHT: HandInput(aim=right, trigger=right_trigger),
+        RIGHT: HandInput(aim=right, trigger=right_trigger,
+                         stick_pressed=right_stick_pressed),
         LEFT: HandInput(aim=left, trigger=left_trigger),
     }
 
@@ -466,6 +469,8 @@ _LANDSCAPE = Screen("landscape", Placement(38.0, 10.0, 28.0), aspect=16 / 9,
 _PORTRAIT = Screen("portrait", Placement(-38.0, 10.0, 28.0), aspect=9 / 16,
                    movable=True, resizable=True, pressable=True, picture=True)
 _PANEL = Screen("panel", Placement(0.0, 32.0, 24.0), aspect=1.3, pressable=True)
+_GALLERY = Screen("gallery", Placement(-68.0, 2.0, 26.0), aspect=0.7,
+                  movable=True, resizable=True, pressable=True, right_clicks=True)
 _WRAPPED = Screen("primary", Placement(0.0, 0.0, 72.0), aspect=16 / 9,
                   pressable=True, immersive=True)
 _SCENE = [_LANDSCAPE, _PANEL]
@@ -639,6 +644,34 @@ class TestThePointerOverTheScene:
         assert held.events == ()
         assert let_go.events == (PressEvent(PRESS, "primary", 0.5, 0.5),
                                  PressEvent(RELEASE, "primary"))
+
+    def test_a_trigger_pulled_with_the_stick_held_in_is_a_right_click(self):
+        """A controller has one trigger, so the room's second button is the
+        stick pushed in.  A right-click is a click of its own: nothing is held
+        down, and no release follows it."""
+        pointer = Pointer()
+        aimed = _aim_at_uv(_GALLERY, 0.25, 0.75)
+
+        held = self._frame(pointer, _hands(right=aimed, right_trigger=1.0,
+                                           right_stick_pressed=True), screens=[_GALLERY])
+        let_go = self._frame(pointer, _hands(right=aimed), screens=[_GALLERY])
+
+        (click,) = held.events
+        assert (click.kind, click.screen) == (RIGHT_CLICK, "gallery")
+        assert (click.u, click.v) == pytest.approx((0.25, 0.75), abs=1e-6)
+        assert let_go.events == ()
+
+    def test_a_screen_that_takes_no_right_click_is_pressed_as_ever(self):
+        """Only the hosted app's window has a menu to open on one, and every
+        other screen reads an event kind it has never heard of as a release."""
+        pointer = Pointer()
+        aimed = _aim_at_uv(_PANEL, 0.25, 0.75)
+
+        held = self._frame(pointer, _hands(right=aimed, right_trigger=1.0,
+                                           right_stick_pressed=True), screens=[_PANEL])
+
+        (press,) = held.events
+        assert (press.kind, press.screen) == (PRESS, "panel")
 
     def test_a_screen_hanging_in_front_of_the_wrap_still_takes_its_own_presses(self):
         frame = self._frame(Pointer(), _hands(right=_aim_at_uv(_PANEL, 0.25, 0.75),

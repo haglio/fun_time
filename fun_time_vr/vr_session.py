@@ -52,6 +52,7 @@ class QuadLayer:
 
 STICK_X = "thumbstick_x"
 STICK_Y = "thumbstick_y"
+STICK_CLICK = "thumbstick_click"
 AIM = "aim"
 TRIGGER = "trigger"
 FORWARD = "skip_forward"
@@ -73,6 +74,7 @@ CONTROLLER_BINDINGS: dict[str, dict[str, tuple[str, ...]]] = {
     "/interaction_profiles/oculus/touch_controller": {
         STICK_X: _either_hand("thumbstick/x"),
         STICK_Y: _either_hand("thumbstick/y"),
+        STICK_CLICK: _either_hand("thumbstick/click"),
         AIM: _either_hand("aim/pose"),
         TRIGGER: _either_hand("trigger/value"),
         FORWARD: _by_hand("a/click", "x/click"),
@@ -81,6 +83,7 @@ CONTROLLER_BINDINGS: dict[str, dict[str, tuple[str, ...]]] = {
     "/interaction_profiles/valve/index_controller": {
         STICK_X: _either_hand("thumbstick/x"),
         STICK_Y: _either_hand("thumbstick/y"),
+        STICK_CLICK: _either_hand("thumbstick/click"),
         AIM: _either_hand("aim/pose"),
         TRIGGER: _either_hand("trigger/value"),
         FORWARD: _either_hand("a/click"),
@@ -89,6 +92,7 @@ CONTROLLER_BINDINGS: dict[str, dict[str, tuple[str, ...]]] = {
     "/interaction_profiles/htc/vive_controller": {
         STICK_X: _either_hand("trackpad/x"),
         STICK_Y: _either_hand("trackpad/y"),
+        STICK_CLICK: _either_hand("trackpad/click"),
         AIM: _either_hand("aim/pose"),
         TRIGGER: _either_hand("trigger/value"),
     },
@@ -101,6 +105,7 @@ CONTROLLER_BINDINGS: dict[str, dict[str, tuple[str, ...]]] = {
 _ACTION_TYPES = {
     STICK_X: xr.ActionType.FLOAT_INPUT,
     STICK_Y: xr.ActionType.FLOAT_INPUT,
+    STICK_CLICK: xr.ActionType.BOOLEAN_INPUT,
     AIM: xr.ActionType.POSE_INPUT,
     TRIGGER: xr.ActionType.FLOAT_INPUT,
     FORWARD: xr.ActionType.BOOLEAN_INPUT,
@@ -336,6 +341,7 @@ class VRSession:
         return HandInput(
             aim=aim, trigger=self._float(TRIGGER, path),
             stick_x=self._float(STICK_X, path), stick_y=self._float(STICK_Y, path),
+            stick_pressed=self._pressed(STICK_CLICK, path),
             forward=self._pressed(FORWARD, path), back=self._pressed(BACK, path),
         )
 
