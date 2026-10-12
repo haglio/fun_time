@@ -982,6 +982,16 @@ def test_a_session_died_when_the_last_thing_it_said_was_an_error_from_the_claude
     assert fix_sessions.died_on_a_service_error(tmp_path, session) is died
 
 
+def test_a_record_that_started_no_session_is_never_matched_to_a_session_without_an_id():
+    interactive = {"pid": 145304, "kind": "interactive", "status": "idle",
+                   "sessionId": "9a8b7c6d-5e4f-3a2b-1c0d-9e8f7a6b5c4d"}
+
+    steps = fix_sessions.fix_session_steps([{"kind": "flaky", "commit": "c3"}, FIX], [interactive], told={},
+                                           restarts={}, died=lambda session: True)
+
+    assert steps == fix_sessions.FixSessionSteps(start_again=[], notices=[])
+
+
 @pytest.mark.parametrize("state", ["done", "blocked"])
 def test_a_session_fixing_a_change_the_verifier_shipped_again_is_neither_told_about_nor_started_again(state):
     shipped_again = {"kind": "unreliable check", "pull_request": 398, "shipped_again_by": 400}

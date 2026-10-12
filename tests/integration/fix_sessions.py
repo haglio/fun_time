@@ -46,7 +46,7 @@ def shipped_again(incidents: Sequence[dict]) -> set[int]:
 
 
 def _fix_sessions(incidents: Sequence[dict], sessions: Sequence[dict]) -> Iterator[tuple[dict, dict]]:
-    by_id = {session.get("id"): session for session in sessions}
+    by_id = {session["id"]: session for session in sessions if "id" in session}
     changes_shipped_again = shipped_again(incidents)
     for incident in incidents:
         session = by_id.get(incident.get("fix_session"))
