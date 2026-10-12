@@ -85,8 +85,8 @@ class FakeBench:
         self.taken_back.append((commit, list(among)))
         return main_verifier.TakeBack(41, "Loop the row on the Main Funestra", 77)
 
-    def start_fix_session(self, taken, tests, log):
-        self.fixing.append((taken, list(tests), log))
+    def start_fix_session(self, fix):
+        self.fixing.append(fix)
         return "812181fb"
 
     def bring_the_libraries_up_to(self, commit):
@@ -134,7 +134,7 @@ def test_a_head_that_breaks_takes_the_change_back_and_starts_a_session_to_fix_it
 
     assert bench.taken_back == [("c3", ["b2", "c3", "d4", "e5"])]
     taken = main_verifier.TakeBack(41, "Loop the row on the Main Funestra", 77)
-    assert bench.fixing == [(taken, ["tests/integration/test_x.py::test_y"], WHOLE_RUN)]
+    assert bench.fixing == [main_verifier.fixing_a_take_back(taken, ["tests/integration/test_x.py::test_y"], WHOLE_RUN)]
     assert bench.advanced == []
     assert ledger.failed_head == "e5"
     assert bench.recorded == [{"kind": "broke main", "commit": "c3", "tests": ["tests/integration/test_x.py::test_y"],
@@ -144,7 +144,7 @@ def test_a_head_that_breaks_takes_the_change_back_and_starts_a_session_to_fix_it
 
 def test_a_fix_session_that_could_not_start_is_recorded_with_why(tmp_path):
     class UnsignedBench(FakeBench):
-        def start_fix_session(self, taken, tests, log):
+        def start_fix_session(self, fix):
             raise main_verifier.CommandFailed("the Claude command line is not signed in")
 
     bench = UnsignedBench("c3", ["a1", "b2", "c3"], broken_from="c3")
@@ -590,7 +590,8 @@ def test_a_fix_session_starts_in_a_checkout_of_its_own_and_is_told_what_broke(tm
     bench = main_verifier.MachineBench(primary=primary, shell=shell, claude="claude.exe")
     taken = main_verifier.TakeBack(41, "Loop the row on the Main Funestra", 77)
 
-    started = bench.start_fix_session(taken, ["tests/integration/test_x.py::test_y"], Path("C:/runs/d4.txt"))
+    started = bench.start_fix_session(
+        main_verifier.fixing_a_take_back(taken, ["tests/integration/test_x.py::test_y"], Path("C:/runs/d4.txt")))
 
     assert started == "812181fb"
     place = primary / ".claude" / "worktrees" / "fix-41"
@@ -617,7 +618,8 @@ def test_no_fix_session_starts_while_claude_code_is_not_signed_in(tmp_path):
     bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell, claude="claude.exe")
 
     with pytest.raises(main_verifier.CommandFailed, match="not signed in"):
-        bench.start_fix_session(main_verifier.TakeBack(41, "Loop the row on the Main Funestra", 77), [], Path("run.txt"))
+        bench.start_fix_session(main_verifier.fixing_a_take_back(
+            main_verifier.TakeBack(41, "Loop the row on the Main Funestra", 77), [], Path("run.txt")))
 
     assert not [command for command, _ in shell.commands if command[:3] == ["git", "worktree", "add"]]
 
