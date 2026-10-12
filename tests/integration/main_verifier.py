@@ -11,7 +11,7 @@ import sqlite3
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path, PurePosixPath
@@ -104,8 +104,11 @@ class Bench(Protocol):
     def commits_since(self, base: str | None, head: str) -> list[str]: ...
     def run(self, commit: str, tests: Sequence[str] = ()) -> RunResult: ...
     def advance_production_checkout(self, commit: str) -> None: ...
+    def pull_request_of(self, commit: str) -> int | None: ...
     def take_back(self, commit: str, among: Sequence[str], tests: list[str]) -> TakeBack | None: ...
+    def ship_again(self, pull_request: int, take_back: Sequence[str], tests: list[str]) -> int | None: ...
     def start_fix_session(self, fix: FixSession) -> str: ...
+    def stop_fix_session(self, session: str) -> None: ...
     def fix_session_states(self) -> dict[str, str]: ...
     def bring_the_libraries_up_to(self, commit: str) -> None: ...
     def record(self, incident: dict) -> None: ...
@@ -188,6 +191,10 @@ def claude_command() -> str:
 
 def branch_of(checkout: str) -> str:
     return f"claude/{checkout}"
+
+
+def _listed(tests: list[str]) -> str:
+    return "\n".join(f"- `{test}`" for test in tests)
 
 
 def _use_the_plain_genau(checkout: Path) -> None:
@@ -285,22 +292,31 @@ class MachineBench:
         span = [f"{base}..{head}"] if base else ["--max-count=20", head]
         return self.shell(["git", "rev-list", "--first-parent", "--reverse", *span], cwd=self.primary).split()
 
-    def _pull_request_of(self, commit: str) -> int | None:
+    def pull_request_of(self, commit: str) -> int | None:
         answer = self.shell(["gh", "api", f"repos/{REPO}/commits/{commit}/pulls", "--jq", ".[0].number"]).strip()
         return int(answer) if answer.isdigit() else None
 
+    def _title_of(self, pull_request: int) -> str:
+        return self.shell(["gh", "pr", "view", str(pull_request), "--repo", REPO, "--json", "title",
+                           "--jq", ".title"]).strip()
+
     def take_back(self, commit: str, among: Sequence[str], tests: list[str]) -> TakeBack | None:
-        number = self._pull_request_of(commit)
+        number = self.pull_request_of(commit)
         if number is None:
             return None
-        its_commits = [each for each in among if self._pull_request_of(each) == number]
-        title = self.shell(["gh", "pr", "view", str(number), "--repo", REPO, "--json", "title",
-                            "--jq", ".title"]).strip()
+        its_commits = [each for each in among if self.pull_request_of(each) == number]
+        title = self._title_of(number)
         body = (f"#{number} failed the full integration suite on main, which these tests passed before it:\n\n"
-                + "\n".join(f"- `{test}`" for test in tests)
-                + f"\n\nThis takes #{number} back out of main until it is fixed and shipped again.")
+                + _listed(tests) + f"\n\nThis takes #{number} back out of main until it is fixed and shipped again.")
         by = self._revert_in_a_pull_request(its_commits, f"take-back-{number}", f"Take back #{number}: {title}", body)
         return TakeBack(number, title, by) if by else None
+
+    def ship_again(self, pull_request: int, take_back: Sequence[str], tests: list[str]) -> int | None:
+        body = (f"#{pull_request} was taken back out of main for failing these tests, and they failed again on "
+                f"main without it, so it was not what failed them:\n\n" + _listed(tests)
+                + f"\n\nThis ships #{pull_request} again.")
+        return self._revert_in_a_pull_request(take_back, f"ship-again-{pull_request}",
+                                              f"Ship #{pull_request} again: {self._title_of(pull_request)}", body)
 
     def _revert_in_a_pull_request(self, commits: Sequence[str], checkout: str, title: str, body: str) -> int | None:
         branch, place = branch_of(checkout), self.primary / ".claude" / "worktrees" / checkout
@@ -332,6 +348,9 @@ class MachineBench:
         if started is None:
             raise CommandFailed(f"the Claude command line did not say it started the session: {answer.strip()}")
         return started.group(1)
+
+    def stop_fix_session(self, session: str) -> None:
+        self.shell([self.claude, "stop", session])
 
     def record(self, incident: dict) -> None:
         self.state.mkdir(parents=True, exist_ok=True)
@@ -380,14 +399,12 @@ def fixing_a_take_back(taken: TakeBack, tests: list[str], log: Path) -> FixSessi
     ]))
 
 
-def fixing_unreliable_checks(head: str, tests: list[str], log: Path) -> FixSession:
+def fixing_unreliable_checks(head: str, tests: list[str], log: Path, why: str) -> FixSession:
     checkout = f"fix-unreliable-{head[:8]}"
     files = sorted({PurePosixPath(test.split("::")[0]).stem for test in tests})
     return FixSession(checkout, f"Fix the unreliable {' and '.join(files)}", "\n".join([
         *_what_failed(tests),
-        "Run again by themselves, they passed on some runs and failed on others, so the verifier could not pin "
-        f"them on any change and took nothing back. The failing run's output is in {log}, and each later run "
-        "of these tests is beside it.",
+        f"{why} The failing run's output is in {log}, and each later run of these tests is beside it.",
         "",
         "Make them pass every time:",
         f"1. Find why they fail only some of the time, and fix the cause on this branch, {branch_of(checkout)}. "
@@ -416,12 +433,23 @@ _TELLS_HIM = frozenset({"blocked", "done"})
 _WAITS_FOR = {"input needed": "answer", "permission prompt": "permission"}
 
 
-def fix_notices(incidents: Sequence[dict], sessions: Sequence[dict], told: Mapping[str, str]) -> list[FixNotice]:
+def _shipped_again(incidents: Sequence[dict]) -> set[int]:
+    return {incident.get("pull_request") for incident in incidents if incident.get("shipped_again_by")}
+
+
+def _fix_sessions(incidents: Sequence[dict], sessions: Sequence[dict]) -> Iterator[tuple[dict, dict]]:
     by_id = {session.get("id"): session for session in sessions}
-    notices = []
+    shipped_again = _shipped_again(incidents)
     for incident in incidents:
         session = by_id.get(incident.get("fix_session"))
-        if session is None or session.get("state") not in _TELLS_HIM or told.get(session["id"]) == session["state"]:
+        if session and not (incident.get("taken_back_by") and incident.get("pull_request") in shipped_again):
+            yield incident, session
+
+
+def fix_notices(incidents: Sequence[dict], sessions: Sequence[dict], told: Mapping[str, str]) -> list[FixNotice]:
+    notices = []
+    for incident, session in _fix_sessions(incidents, sessions):
+        if session.get("state") not in _TELLS_HIM or told.get(session["id"]) == session["state"]:
             continue
         name = session.get("name") or f"The fix for #{incident.get('pull_request')}"
         if session["state"] == "blocked":
@@ -530,17 +558,46 @@ def _blame(bench: Bench, last_passed: str | None, head: str, whole: RunResult) -
     def still_fails(commit: str) -> bool:
         return bench.run(commit, whole.failed).exit_code not in (0, NO_SUCH_TEST)
 
+    shipped = bench.commits_since(last_passed, head)
+    if wrongly := _taken_back_wrongly(bench, whole.failed, shipped):
+        return _ship_again(bench, head, whole, *wrongly)
     if last_passed and still_fails(last_passed):
         bench.record({"kind": "broken outside main", "commit": head, "last_passed": last_passed,
                       "tests": whole.failed, "log": whole.log})
         return "broken outside main"
-    shipped = bench.commits_since(last_passed, head)
     culprit = first_bad(shipped, still_fails)
     without = [last_passed, *shipped][shipped.index(culprit)]
     if (_on_every_run(lambda: still_fails(culprit))
             and (without is None or _on_every_run(lambda: not still_fails(without)))):
         return _take_back(bench, culprit, shipped, whole)
-    return _unreliable(bench, head, whole, culprit)
+    return _unreliable(bench, head, whole, {"suspected": culprit},
+                       "Run again by themselves, they passed on some runs and failed on others, so the verifier "
+                       "could not pin them on any change and took nothing back.")
+
+
+def _taken_back_wrongly(bench: Bench, failed: list[str], shipped: list[str]) -> tuple[dict, list[str]] | None:
+    incidents = bench.incidents()
+    shipped_again = _shipped_again(incidents)
+    for incident in incidents:
+        if (incident.get("taken_back_by") and incident.get("pull_request") not in shipped_again
+                and set(failed) <= set(incident.get("tests", ()))):
+            take_back = [commit for commit in shipped if bench.pull_request_of(commit) == incident["taken_back_by"]]
+            if take_back:
+                return incident, take_back
+    return None
+
+
+def _ship_again(bench: Bench, head: str, whole: RunResult, taken_back: dict, take_back: list[str]) -> str:
+    number, by = taken_back["pull_request"], taken_back["taken_back_by"]
+    facts = {"pull_request": number, "shipped_again_by": bench.ship_again(number, take_back, whole.failed)}
+    if facts["shipped_again_by"] and taken_back.get("fix_session"):
+        try:
+            bench.stop_fix_session(taken_back["fix_session"])
+        except CommandFailed as why:
+            facts["fix_session_not_stopped"] = str(why)
+    return _unreliable(bench, head, whole, facts,
+                       f"#{by} had taken #{number} back out of main for failing them, and they failed again on "
+                       f"main without #{number}, so #{number} was not what failed them.")
 
 
 def _on_every_run(holds: Callable[[], bool]) -> bool:
@@ -561,16 +618,16 @@ def _take_back(bench: Bench, culprit: str, shipped: list[str], whole: RunResult)
     return "broke main"
 
 
-def _unreliable(bench: Bench, head: str, whole: RunResult, suspected: str) -> str:
-    incident = {"kind": "unreliable check", "commit": head, "tests": whole.failed, "log": whole.log,
-                "suspected": suspected}
+def _unreliable(bench: Bench, head: str, whole: RunResult, facts: dict, why: str) -> str:
+    incident = {"kind": "unreliable check", "commit": head, "tests": whole.failed, "log": whole.log, **facts}
     try:
         if fixing := _session_fixing(bench, whole.failed):
             incident["being_fixed_by"] = fixing
         else:
-            incident["fix_session"] = bench.start_fix_session(fixing_unreliable_checks(head, whole.failed, whole.log))
-    except CommandFailed as why:
-        incident["fix_session_not_started"] = str(why)
+            incident["fix_session"] = bench.start_fix_session(
+                fixing_unreliable_checks(head, whole.failed, whole.log, why))
+    except CommandFailed as why_not:
+        incident["fix_session_not_started"] = str(why_not)
     bench.record(incident)
     return "unreliable check"
 

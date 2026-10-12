@@ -57,14 +57,15 @@ WHOLE_RUN = Path("whole-run.txt")
 class FakeBench:
     def __init__(self, head, commits, broken_from=None, tests=("tests/integration/test_x.py::test_y",),
                  flaky=False, stale_map=False, restart_asked=False, reruns_failing=None, incidents=(),
-                 sessions=None):
+                 sessions=None, pull_requests=None):
         self.head_commit, self.commits, self.broken_from = head, commits, broken_from
         self.tests, self.flaky, self.stale_map = list(tests), flaky, stale_map
         self.restart_asked = restart_asked
         self.reruns_failing = {commit: list(fails) for commit, fails in (reruns_failing or {}).items()}
         self.earlier, self.sessions = list(incidents), dict(sessions or {})
+        self.pull_requests = dict(pull_requests or {})
         self.advanced, self.recorded, self.taken_back, self.measured = [], [], [], []
-        self.fixing, self.events = [], []
+        self.fixing, self.events, self.shipped_again, self.stopped = [], [], [], []
 
     def head(self):
         return self.head_commit
@@ -90,9 +91,19 @@ class FakeBench:
         self.taken_back.append((commit, list(among)))
         return main_verifier.TakeBack(41, "Loop the row on the Main Funestra", 77)
 
+    def pull_request_of(self, commit):
+        return self.pull_requests.get(commit)
+
+    def ship_again(self, pull_request, take_back, tests):
+        self.shipped_again.append((pull_request, list(take_back)))
+        return 79
+
     def start_fix_session(self, fix):
         self.fixing.append(fix)
         return "812181fb"
+
+    def stop_fix_session(self, session):
+        self.stopped.append(session)
 
     def bring_the_libraries_up_to(self, commit):
         self.events.append(("libraries", commit))
@@ -223,6 +234,31 @@ def test_taking_a_change_back_reverts_its_pull_requests_commits_newest_first_and
     assert reverts == [["git", "revert", "--no-edit", "d4", "c3"]]
     created = next(command for command, _ in shell.commands if command[:3] == ["gh", "pr", "create"])
     assert "Take back #41: Loop the row on the Main Funestra" in created
+
+
+def test_shipping_a_change_again_reverts_what_took_it_back_newest_first_in_a_pull_request_of_its_own(tmp_path):
+    shell = FakeShell({"pr view 41": "Loop the row on the Main Funestra",
+                       "pr create": "https://github.com/haglio/fun_time/pull/79\n"})
+    primary = tmp_path / "fun_time"
+    bench = main_verifier.MachineBench(primary=primary, shell=shell)
+
+    assert bench.ship_again(41, ["d4", "e5"], ["tests/integration/test_x.py::test_y"]) == 79
+
+    place = primary / ".claude" / "worktrees" / "ship-again-41"
+    assert (["git", "worktree", "add", "-B", "claude/ship-again-41", str(place), "origin/main"], primary) in shell.commands
+    assert (["git", "revert", "--no-edit", "e5", "d4"], place) in shell.commands
+    created = next(command for command, _ in shell.commands if command[:3] == ["gh", "pr", "create"])
+    assert "Ship #41 again: Loop the row on the Main Funestra" in created
+    assert "tests/integration/test_x.py::test_y" in created[created.index("--body") + 1]
+
+
+def test_a_fix_session_is_stopped_with_the_claude_command_line(tmp_path):
+    shell = FakeShell({})
+
+    main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell, claude="claude.exe").stop_fix_session(
+        "1a2b3c4d")
+
+    assert shell.commands == [(["claude.exe", "stop", "1a2b3c4d"], None)]
 
 
 def test_a_run_checks_main_out_where_the_runner_keeps_it_and_names_the_tests_that_failed(tmp_path):
@@ -552,6 +588,75 @@ def test_a_new_session_starts_for_unreliable_tests_once_the_last_one_on_them_has
     assert len(bench.fixing) == 1 and bench.recorded[0]["fix_session"] == "812181fb"
 
 
+TAKEN_BACK = {"kind": "broke main", "commit": "c3", "tests": ["tests/integration/test_x.py::test_y"],
+              "taken_back_by": 77, "pull_request": 41, "fix_session": "1a2b3c4d"}
+
+
+def test_tests_that_had_a_change_taken_back_and_fail_again_without_it_ship_it_again_and_get_a_session_to_fix_them(
+        tmp_path):
+    bench = FakeBench("d4", ["a1", "c3", "d4"], broken_from="c3", incidents=[TAKEN_BACK],
+                      pull_requests={"c3": 41, "d4": 77})
+    ledger = a_ledger(tmp_path, verified="a1")
+
+    assert main_verifier.cycle(ledger, bench) == "unreliable check"
+
+    assert bench.shipped_again == [(41, ["d4"])] and bench.taken_back == []
+    assert bench.stopped == ["1a2b3c4d"]
+    assert ledger.failed_head == "d4"
+    [fix] = bench.fixing
+    assert "#41" in fix.brief
+    assert bench.recorded == [{"kind": "unreliable check", "commit": "d4",
+                               "tests": ["tests/integration/test_x.py::test_y"], "log": WHOLE_RUN,
+                               "pull_request": 41, "shipped_again_by": 79, "fix_session": "812181fb"}]
+
+
+SHIPPED_AGAIN = {"kind": "unreliable check", "commit": "d4", "tests": ["tests/integration/test_x.py::test_y"],
+                 "pull_request": 41, "shipped_again_by": 79}
+
+
+@pytest.mark.parametrize("earlier, pull_requests, tests", [
+    ([TAKEN_BACK, SHIPPED_AGAIN], {"c3": 41, "d4": 77}, ("tests/integration/test_x.py::test_y",)),
+    ([TAKEN_BACK], {"c3": 41, "d4": 50}, ("tests/integration/test_x.py::test_y",)),
+    ([TAKEN_BACK], {"c3": 41, "d4": 77}, ("tests/integration/test_x.py::test_y", "tests/integration/test_q.py::test_r")),
+], ids=["shipped again already", "taken back before main last passed", "failing other tests too"])
+def test_a_taken_back_change_is_shipped_again_only_when_its_tests_alone_fail_on_a_main_that_just_took_it_out(
+        tmp_path, earlier, pull_requests, tests):
+    bench = FakeBench("d4", ["a1", "c3", "d4"], broken_from="c3", tests=tests, incidents=earlier,
+                      pull_requests=pull_requests)
+
+    assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "broke main"
+
+    assert bench.shipped_again == [] and bench.stopped == []
+
+
+def test_a_change_that_could_not_be_shipped_again_leaves_the_session_fixing_it_running(tmp_path):
+    class NoPullRequestBench(FakeBench):
+        def ship_again(self, pull_request, take_back, tests):
+            return None
+
+    bench = NoPullRequestBench("d4", ["a1", "c3", "d4"], broken_from="c3", incidents=[TAKEN_BACK],
+                               pull_requests={"c3": 41, "d4": 77})
+
+    assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "unreliable check"
+
+    assert bench.stopped == []
+    assert bench.recorded[0]["shipped_again_by"] is None
+
+
+def test_a_session_fixing_a_change_shipped_again_that_could_not_be_stopped_is_recorded_with_why(tmp_path):
+    class UnstoppableBench(FakeBench):
+        def stop_fix_session(self, session):
+            raise main_verifier.CommandFailed("claude.exe stop 1a2b3c4d: no such session")
+
+    bench = UnstoppableBench("d4", ["a1", "c3", "d4"], broken_from="c3", incidents=[TAKEN_BACK],
+                             pull_requests={"c3": 41, "d4": 77})
+
+    assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "unreliable check"
+
+    assert bench.recorded[0]["fix_session_not_stopped"] == "claude.exe stop 1a2b3c4d: no such session"
+    assert bench.recorded[0]["fix_session"] == "812181fb"
+
+
 def test_unreliable_tests_whose_fixing_cannot_be_looked_up_are_recorded_with_why(tmp_path):
     class NoSessionsBench(FakeBench):
         def fix_session_states(self):
@@ -568,11 +673,13 @@ def test_unreliable_tests_whose_fixing_cannot_be_looked_up_are_recorded_with_why
 def test_a_session_to_fix_unreliable_tests_works_on_a_branch_of_its_own_and_is_told_which_fail_and_where(tmp_path):
     tests = ["tests/integration/test_x.py::test_y", "tests/integration/test_z.py::test_w"]
 
-    fix = main_verifier.fixing_unreliable_checks("e5f6a7b8c9", tests, Path("C:/runs/e5.txt"))
+    fix = main_verifier.fixing_unreliable_checks("e5f6a7b8c9", tests, Path("C:/runs/e5.txt"),
+                                                 "They passed on some runs and failed on others.")
 
     assert fix.checkout == "fix-unreliable-e5f6a7b8"
     assert fix.title == "Fix the unreliable test_x and test_z"
-    for detail in (*tests, str(Path("C:/runs/e5.txt")), "claude/fix-unreliable-e5f6a7b8", "took nothing back"):
+    for detail in (*tests, str(Path("C:/runs/e5.txt")), "claude/fix-unreliable-e5f6a7b8",
+                   "They passed on some runs and failed on others."):
         assert detail in fix.brief
 
 
@@ -761,7 +868,8 @@ def test_fix_sessions_run_on_the_newest_claude_code_the_claude_app_keeps(tmp_pat
     assert main_verifier.claude_command() == str(kept / "2.1.293" / "83cb0bd7fed4" / "claude.exe")
 
 
-FIX = {"kind": "broke main", "commit": "aaaa1111", "pull_request": 398, "fix_session": "1a2b3c4d"}
+FIX = {"kind": "broke main", "commit": "aaaa1111", "taken_back_by": 399, "pull_request": 398,
+       "fix_session": "1a2b3c4d"}
 
 
 def a_fix_session(state, **more):
@@ -781,6 +889,12 @@ def test_he_is_told_once_when_a_fix_session_waits_for_him_and_once_when_it_finis
     [finished] = main_verifier.fix_notices([FIX], [a_fix_session("done")], told={"1a2b3c4d": "blocked"})
     assert finished.title == "Fix #398: Keep the crown lit finished"
     assert main_verifier.fix_notices([FIX], [a_fix_session("busy")], told={}) == []
+
+
+def test_he_is_not_told_about_a_session_fixing_a_change_the_verifier_shipped_again():
+    shipped_again = {"kind": "unreliable check", "pull_request": 398, "shipped_again_by": 400}
+
+    assert main_verifier.fix_notices([FIX, shipped_again], [a_fix_session("done")], told={}) == []
 
 
 def test_each_new_state_of_a_fix_session_is_told_once_however_often_the_verifier_starts(tmp_path):
