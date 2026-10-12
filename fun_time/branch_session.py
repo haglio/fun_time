@@ -642,12 +642,12 @@ class HostedAppWithoutItsOwnState(RoomWouldNotStart):
             f"{checkout} hosts Origenerator for this session and carries no "
             f"{', no '.join(missing)}. Those are git-ignored, so that checkout opens as a "
             "fresh install: a library it cannot find, nothing open in the gallery. Copy each "
-            "from the primary Origenerator checkout, then make the shortcut again."
-        )
+            "from the production Origenerator checkout, then make the shortcut again.",
+            for_him="That branch starts an Origenerator that has none of your own settings, so "
+                    "it would open on no library at all with nothing in the gallery.")
 
 
 def hosted_origenerator_checkout(worktree: Path) -> Path | None:
-    """The Origenerator checkout *worktree*'s OWN override names, or None."""
     lines = override_lines(worktree / STATE_DIRNAME / ORIGENERATOR_DIR_OVERRIDE_NAME)
     return Path(lines[0]) if lines else None
 
