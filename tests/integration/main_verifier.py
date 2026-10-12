@@ -89,13 +89,20 @@ class TakeBack:
     by: int
 
 
+@dataclass(frozen=True)
+class FixSession:
+    checkout: str
+    title: str
+    brief: str
+
+
 class Bench(Protocol):
     def head(self) -> str: ...
     def commits_since(self, base: str | None, head: str) -> list[str]: ...
     def run(self, commit: str, tests: Sequence[str] = ()) -> RunResult: ...
     def advance_production_checkout(self, commit: str) -> None: ...
     def take_back(self, commit: str, among: Sequence[str], tests: list[str]) -> TakeBack | None: ...
-    def start_fix_session(self, taken: TakeBack, tests: list[str], log: Path) -> str: ...
+    def start_fix_session(self, fix: FixSession) -> str: ...
     def bring_the_libraries_up_to(self, commit: str) -> None: ...
     def record(self, incident: dict) -> None: ...
     def coverage_map_is_stale(self) -> bool: ...
@@ -172,6 +179,10 @@ def claude_command() -> str:
         "Packages/Claude_*/LocalCache/Roaming/Claude/claude-code/*/*/claude.exe")
     newest = max(kept, key=lambda copy: _version(copy.parent.parent.name), default=None)
     return str(newest) if newest else shutil.which("claude") or "claude"
+
+
+def branch_of(checkout: str) -> str:
+    return f"claude/{checkout}"
 
 
 def _use_the_plain_genau(checkout: Path) -> None:
@@ -280,35 +291,38 @@ class MachineBench:
         its_commits = [each for each in among if self._pull_request_of(each) == number]
         title = self.shell(["gh", "pr", "view", str(number), "--repo", REPO, "--json", "title",
                             "--jq", ".title"]).strip()
-        branch = f"claude/take-back-{number}"
-        place = self.primary / ".claude" / "worktrees" / f"take-back-{number}"
         body = (f"#{number} failed the full integration suite on main, which these tests passed before it:\n\n"
                 + "\n".join(f"- `{test}`" for test in tests)
                 + f"\n\nThis takes #{number} back out of main until it is fixed and shipped again.")
+        by = self._revert_in_a_pull_request(its_commits, f"take-back-{number}", f"Take back #{number}: {title}", body)
+        return TakeBack(number, title, by) if by else None
+
+    def _revert_in_a_pull_request(self, commits: Sequence[str], checkout: str, title: str, body: str) -> int | None:
+        branch, place = branch_of(checkout), self.primary / ".claude" / "worktrees" / checkout
         try:
             self.shell(["git", "worktree", "add", "-B", branch, str(place), "origin/main"], cwd=self.primary)
             try:
-                self.shell(["git", "revert", "--no-edit", *reversed(its_commits)], cwd=place)
+                self.shell(["git", "revert", "--no-edit", *reversed(commits)], cwd=place)
                 self.shell(["git", "push", "--force", "-u", "origin", branch], cwd=place)
             finally:
                 self.shell(["git", "worktree", "remove", "--force", str(place)], cwd=self.primary)
             url = self.shell(["gh", "pr", "create", "--repo", REPO, "--head", branch, "--base", "main",
-                              "--title", f"Take back #{number}: {title}", "--body", body])
+                              "--title", title, "--body", body])
         except CommandFailed:
             return None
-        return TakeBack(number, title, int(url.strip().rsplit("/", 1)[-1]))
+        return int(url.strip().rsplit("/", 1)[-1])
 
-    def start_fix_session(self, taken: TakeBack, tests: list[str], log: Path) -> str:
+    def start_fix_session(self, fix: FixSession) -> str:
         try:
             self.shell([self.claude, "auth", "status"])
         except CommandFailed:
             raise CommandFailed("the Claude command line is not signed in") from None
-        branch = f"claude/fix-{taken.pull_request}"
-        place = self.primary / ".claude" / "worktrees" / f"fix-{taken.pull_request}"
-        self.shell(["git", "worktree", "add", "-B", branch, str(place), "origin/main"], cwd=self.primary)
+        place = self.primary / ".claude" / "worktrees" / fix.checkout
+        self.shell(["git", "worktree", "add", "-B", branch_of(fix.checkout), str(place), "origin/main"],
+                   cwd=self.primary)
         _use_the_plain_genau(place)
-        answer = self.shell([self.claude, "--bg", "--name", f"Fix #{taken.pull_request}: {taken.title}",
-                             "--permission-mode", "auto", fix_brief(taken, branch, tests, log)], cwd=place)
+        answer = self.shell([self.claude, "--bg", "--name", fix.title, "--permission-mode", "auto", fix.brief],
+                            cwd=place)
         started = _BACKGROUNDED.search(answer)
         if started is None:
             raise CommandFailed(f"the Claude command line did not say it started the session: {answer.strip()}")
@@ -320,9 +334,11 @@ class MachineBench:
             sink.write(json.dumps({"at": datetime.now().isoformat(timespec="seconds"), **incident}, default=str) + "\n")
 
 
-def fix_brief(taken: TakeBack, branch: str, tests: list[str], log: Path) -> str:
+def fixing_a_take_back(taken: TakeBack, tests: list[str], log: Path) -> FixSession:
     number, by = taken.pull_request, taken.by
-    return "\n".join([
+    checkout = f"fix-{number}"
+    branch = branch_of(checkout)
+    return FixSession(checkout, f"Fix #{number}: {taken.title}", "\n".join([
         "Fun Time's main verifier started this session. It is a program on this machine, not him, so report "
         "the way the laws ask of work another agent assigned you.",
         "",
@@ -345,8 +361,7 @@ def fix_brief(taken: TakeBack, branch: str, tests: list[str], log: Path) -> str:
         f"compared with #{number}, ship it the way this repo's CLAUDE.md says, without asking him. If it does "
         "change something he would see, do not ship it: open it as a draft pull request, say in your reply "
         "what he would see differently, and stop.",
-    ])
-
+    ]))
 
 
 @dataclass(frozen=True)
@@ -477,7 +492,7 @@ def _blame(bench: Bench, last_passed: str | None, head: str, whole: RunResult) -
     if taken:
         incident["pull_request"] = taken.pull_request
         try:
-            incident["fix_session"] = bench.start_fix_session(taken, whole.failed, whole.log)
+            incident["fix_session"] = bench.start_fix_session(fixing_a_take_back(taken, whole.failed, whole.log))
         except CommandFailed as why:
             incident["fix_session_not_started"] = str(why)
     bench.record(incident)
