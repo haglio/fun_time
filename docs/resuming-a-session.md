@@ -14,9 +14,11 @@ across a dozen docstrings it is free to drift apart in eleven of them.
 Every Funestra starts at the top of the playlist file fun_time hands it, and
 startup used to overwrite all three with a fresh weighted shuffle — so reopening
 Fun Time landed on three clips you had never chosen and lost whatever you were
-watching. Resume keeps last session's playlists and rotates each onto the clip
-that was on screen: the Funestra's first entry is where you left off, and because
-a playlist wraps, the clips that were coming up still come up in the same order.
+watching. Resume keeps the satellites' last playlists and rotates each onto the
+clip that was on screen: the Funestra's first entry is where you left off, and
+because a playlist wraps, the clips that were coming up still come up in the
+same order. The Main Funestra's list is never kept; it is built again, from the
+video that was on screen ([below](#the-main-funestras-one-list)).
 
 Keeping those files means keeping what *shaped* them. A playlist carries its
 session's F-mode, filter, order and loop in it, so the session has to come back
@@ -31,11 +33,12 @@ power cut too, where a shutdown hook would not.
 
 ## What comes back, and why
 
-`RESUMED_FIELDS` is the list. Most of it is what shaped the playlist files that
-were just resumed: each Funestra's own F-mode and each side's filter decide which
-clips are in them, Latest fixes their order, and a group loop *is* the group
-written out as the playlist, with the map anchored (and the seed row widened) on
-the clip it started from. The rest is what the session was simply *left* in —
+`RESUMED_FIELDS` is the list. Most of it is what shaped the playlist files: each
+Funestra's own F-mode and each side's filter decide which clips are in them,
+Latest fixes their order, a group loop *is* the group written out as the
+playlist, with the map anchored (and the seed row widened) on the clip it
+started from, and the Main Funestra's buttons, with the number its shuffle is
+dealt from, are what its one list is built from. The rest is what the session was simply *left* in —
 the sound level, the OSR2's max intensity, each side's lock, whether the OSR2
 was let go of or held at one end, whether Genau was browsing Latest — and there
 is no more reason for those to reset overnight than for the clip on screen to.
@@ -119,6 +122,39 @@ on two locked pictures, each with a one-square map and nothing to step to
 nothing to resume: one that outlived the rebuild would be dealt over it the next
 time that Funestra came home.
 
+## The Main Funestra's one list
+
+The Main Funestra plays one list, and `fun_time.main_list` is the one place it is
+built. It is built from the Main Funestra's buttons — 2D and VR, clips and full
+videos, F-mode, Latest or Shuffle — every time one of them is pressed and every
+time a session starts, and no session reads back the list the last one left: a
+kept list is one more thing that can disagree with the buttons, and with the
+session's own library, which in the headset is the VR library and the desktop's
+together (2026-10-11: a headset session that kept the last list played a 2D
+video after Next with only VR lit).
+
+Every build starts from the video on screen. The whole library is put in its
+order — newest first under Latest, shuffled otherwise — turned round so that
+video comes first, and narrowed to what the buttons let through. A press that
+still lets that video through keeps it playing, and one that does not moves on
+to the next video it does let through, in the order they were coming up in.
+
+The shuffle is dealt from a number kept in the state file
+(`main_shuffle_seed`), not from chance at every build: the same number puts the
+same videos in the same order, so narrowing and widening never reshuffle, and a
+reopened session's videos come up in the order they were coming up in, with any
+that arrived since dealt in among them. Shuffle deals a new number, and so do
+the reset and a session that starts fresh.
+
+When the buttons let nothing through, the list is the video on screen alone. A
+session that starts with nothing let through and no video to hold puts the
+buttons back where a fresh session has them, keeping the shuffle's number.
+
+Whether a video is a clip or a full video is the kind Evolver recorded for it.
+A video with no record counts as a full video, and so does every video in a VR
+folder, which is never asked about at all: the VR library is on the cloud drive,
+where one question about one file can hang for hours.
+
 ## The things that have to be re-sent
 
 A satellite's lock is repeat-one in mpv's own `loop_file`, and the Main Funestra's
@@ -126,15 +162,16 @@ A/B loop is a range inside one video. Both live in a Funestra process that has
 just been replaced, so unlike a filter or an order neither can ride back in on a
 file the new Funestra reads — each is queued on the Funestra's command file before
 that Funestra launches, and drains on its first tick. By then the Funestra has
-loaded the clip the resume put at the top of its playlist, which is the clip the
+loaded the clip at the top of its playlist, which is the clip the
 lock was on and the video the loop was cut from. The Main Funestra holds the seek until mpv
 has the file open (its `restore_loop`), so the loop lands however slowly the
 file opens.
 
 The loop is only handed back when the Main Funestra really did come back onto the
-video it was cut from. A rebuilt playlist, or a clip deleted since, leaves some
-other video leading, and those bounds would then mark out a stretch of a video
-nobody chose — which is what `playlist_opens_on` is asked before the queue.
+video it was cut from. A video deleted since, or one the arriving session cannot
+play, leaves some other video leading, and those bounds would then mark out a
+stretch of a video nobody chose — which is what `playlist_opens_on` is asked
+before the queue.
 
 ## What a reopen re-sends because it lives in a Funestra
 
@@ -150,9 +187,9 @@ controller muted.
 
 ## Two rules that are easy to lose
 
-**Resuming the playlists is all or nothing.** One build writes all three, so
-every rotation is worked out before any of them is written: a session either
-resumes whole or is left exactly as the last build wrote it.
+**Resuming the satellites' playlists is all or nothing.** One build writes
+both, so both rotations are worked out before either is written: a session
+either resumes whole or is left exactly as the last build wrote it.
 
 **The state file is written either way.** The alternative was deleting it at
 startup, which is exactly how a session came back playing favorites while every
