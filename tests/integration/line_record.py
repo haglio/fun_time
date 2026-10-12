@@ -26,13 +26,13 @@ class Visit:
     record: dict = field(default_factory=dict)
 
     @classmethod
-    def join(cls, runs: Path, *, checkout: str, branch: str, what: list[str], short: bool,
+    def join(cls, runs: Path, *, checkout: str, branch: str, session: str, what: list[str], short: bool,
              now: datetime | None = None) -> Visit:
         joined = now or _now()
         runs.mkdir(parents=True, exist_ok=True)
         _forget_runs_before(runs, joined - KEPT_FOR)
         visit = cls(runs / f"{joined:%Y%m%d-%H%M%S}-{os.getpid()}.json",
-                    {"checkout": checkout, "branch": branch, "what": what, "short": short, "pid": os.getpid(),
+                    {"checkout": checkout, "branch": branch, "session": session, "what": what, "short": short, "pid": os.getpid(),
                      "joined": _stamp(joined)})
         visit._save()
         return visit

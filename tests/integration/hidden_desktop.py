@@ -21,9 +21,7 @@ bare ``pytest tests/integration/`` off the user's screen.
 What the desktop does *not* isolate is anything without a per-desktop version —
 sockets, devices, machine singletons.  Those are stripped out of the run's config
 instead (``integration_support.isolate_shared_resources``), and between the two a
-run reaches nothing of the user's.  That is why there is no longer a guard here
-asking whether Fun Time is open: a run and a live session no longer have anything
-to collide over, so they no longer have to take turns.
+run reaches nothing of the user's.
 
 pytest is also placed in a *job object* that this runner alone holds a handle to.
 Windows destroys a job when its last handle closes, and a job with
@@ -501,6 +499,7 @@ def _is_short(extra_args: list[str]) -> bool:
 
 LINE_RECORDS_ENV = "FUN_TIME_LINE_RECORDS"
 LINE_RECORDS_DIRNAME = "integration_runs"
+CLAUDE_SESSION_ENV = "CLAUDE_CODE_SESSION_ID"
 
 
 def _line_records() -> Path:
@@ -518,7 +517,8 @@ def _branch_of(checkout: Path) -> str:
 @contextmanager
 def _a_place_in_line(*, short: bool, what: list[str]) -> Iterator[Visit]:
     root = _repo_root()
-    visit = Visit.join(_line_records(), checkout=root.name, branch=_branch_of(root), what=what, short=short)
+    visit = Visit.join(_line_records(), checkout=root.name, branch=_branch_of(root),
+                       session=os.environ.get(CLAUDE_SESSION_ENV, ""), what=what, short=short)
     with hold_integration_lock(short=short, notify=_announce_waiting):
         visit.got_the_machine()
         yield visit
