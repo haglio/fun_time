@@ -273,6 +273,17 @@ def test_every_run_records_when_it_joined_the_line_got_the_machine_and_how_it_en
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_every_run_records_the_claude_session_that_asked_for_it(tmp_path, monkeypatch):
+    monkeypatch.setenv("FUN_TIME_LINE_RECORDS", str(tmp_path))
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "5e55-10n")
+    with _runs_launched_into([], exit_codes=[0]):
+        hidden_desktop.run_on_hidden_desktop(["-k", "test_x"])
+
+    [written] = tmp_path.glob("*.json")
+    assert json.loads(written.read_text(encoding="utf-8"))["session"] == "5e55-10n"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
 @pytest.mark.parametrize("args, short", [
     (["-k", "test_x"], True), (["-ktest_x"], True), (["tests/integration/test_x.py"], True),
     (["--repeat-changed"], True), ([], False), (["-x", "--maxfail", "1"], False),
