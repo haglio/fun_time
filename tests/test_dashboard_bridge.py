@@ -32,15 +32,16 @@ def test_the_snapshot_carries_only_the_sections_the_dashboard_reads():
     """A section nobody reads is republished on every sync tick, forever.
 
     The dashboard in its own process is the only reader of this file in the
-    family, and it asks for exactly five things -- whether the room is
+    family, and it asks for exactly six things -- whether the room is
     omnipaused, whether voice is listening, whether every Funestra is in F-mode,
-    whether every Funestra is already at its defaults, and whether this session
-    is the headset's.
+    whether every Funestra is already at its defaults, whether this session is
+    the headset's, and whether the headset's runtime is awake to cross into.
     """
     parser = configparser.ConfigParser()
     parser.read_string(build_dashboard_snapshot_text())
 
-    assert set(parser.sections()) == {"omnipause", "voice", "fmode", "reset", "session"}
+    assert set(parser.sections()) == {
+        "omnipause", "voice", "fmode", "reset", "session", "headset"}
 
 
 def test_build_dashboard_snapshot_text_matches_bridge_contract():
@@ -57,6 +58,8 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         "nothing=0\n"
         "[session]\n"
         "vr=0\n"
+        "[headset]\n"
+        "ready=1\n"
     )
 
 
@@ -158,3 +161,21 @@ class TestTheWriterSkipsAnUnchangedSnapshot:
         self._write_as_windows_would(path, build_dashboard_snapshot_text(DashboardSnapshot(omni_paused=True)))
 
         assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=False)) is True
+def test_whether_the_headset_is_ready_survives_the_round_trip(tmp_path):
+    """The bar offers Enter VR only once the headset's runtime is awake, and
+    the bar is drawn in another process than the one that knows."""
+    state_file = tmp_path / "dashboard_state.ini"
+    write_dashboard_snapshot(state_file, DashboardSnapshot(headset_ready=True))
+    assert load_dashboard_snapshot(state_file).headset_ready is True
+
+    write_dashboard_snapshot(state_file, DashboardSnapshot(headset_ready=False))
+    assert load_dashboard_snapshot(state_file).headset_ready is False
+
+
+def test_a_snapshot_from_a_session_that_never_knew_offers_the_crossing(tmp_path):
+    """An older session's file says nothing about the headset: the button it
+    draws has always worked, so it stays offered."""
+    state_file = tmp_path / "dashboard_state.ini"
+    state_file.write_text("[session]\nvr=0\n", encoding="utf-8")
+
+    assert load_dashboard_snapshot(state_file).headset_ready is True

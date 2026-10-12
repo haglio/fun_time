@@ -23,6 +23,8 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         f_mode=_read_bool(parser, "fmode", "active"),
         in_vr=_read_bool(parser, "session", "vr"),
         nothing_to_reset=_read_bool(parser, "reset", "nothing"),
+        headset_ready=(not parser.has_section("headset")
+                       or _read_bool(parser, "headset", "ready")),
     )
 
 

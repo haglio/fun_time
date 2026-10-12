@@ -28,7 +28,6 @@ class BarControl:
     mark: str
     ink: Color = TEXT_PRIMARY
     lit: Color | None = None
-    # Faded and unpressable: the act it offers would change nothing.
     dim: bool = False
 
 
@@ -39,7 +38,7 @@ def mark_side(rect: Rect) -> int:
 def bar_controls(
     layout: DashboardBarLayout, *, omni_paused: bool = False, voice_active: bool = False,
     f_mode: bool = False, in_vr: bool = False, reference_open: bool = False,
-    nothing_to_reset: bool = False,
+    nothing_to_reset: bool = False, headset_ready: bool = True,
 ) -> tuple[BarControl, ...]:
     return (
         BarControl(QUIT_BUTTON, layout.quit_button, "power"),
@@ -55,6 +54,8 @@ def bar_controls(
                    ink=TEXT_MUTED if nothing_to_reset else TEXT_PRIMARY,
                    dim=nothing_to_reset),
         BarControl(EXIT_VR if in_vr else ENTER_VR, layout.vr_button,
-                   "monitor" if in_vr else "headset"),
+                   "monitor" if in_vr else "headset",
+                   ink=TEXT_PRIMARY if in_vr or headset_ready else TEXT_MUTED,
+                   dim=not in_vr and not headset_ready),
         *((BarControl(VR_RESET, layout.vr_reset_button, "reset"),) if in_vr else ()),
     )

@@ -6,7 +6,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class DashboardSnapshot:
-    """The five facts the bar draws, written every tick and read back by the panel."""
+    """The six facts the bar draws, written every tick and read back by the panel."""
 
     omni_paused: bool = False
     voice_active: bool = True
@@ -18,6 +18,7 @@ class DashboardSnapshot:
     # across to the other one, and which way that is depends on where you are.
     in_vr: bool = False
     nothing_to_reset: bool = False
+    headset_ready: bool = True
 
 
 def build_dashboard_snapshot_text(snapshot: DashboardSnapshot | None = None) -> str:
@@ -33,6 +34,8 @@ def build_dashboard_snapshot_text(snapshot: DashboardSnapshot | None = None) -> 
         f"nothing={'1' if snapshot.nothing_to_reset else '0'}\n"
         "[session]\n"
         f"vr={'1' if snapshot.in_vr else '0'}\n"
+        "[headset]\n"
+        f"ready={'1' if snapshot.headset_ready else '0'}\n"
     )
 
 
