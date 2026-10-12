@@ -164,16 +164,13 @@ class TestPayload:
         assert "every 7s" in _button(payload, "main_lock").tooltip
 
     def test_declares_what_the_main_funestra_published_about_its_video(self):
-        """The compilation, version and clip-jump buttons, and the length pair,
-        are lit and named from the Main Funestra's own status lines: only it
-        knows them, and a Funestra that says nothing leaves them dim."""
+        """The compilation, version and clip-jump buttons are lit and named from
+        the Main Funestra's own status lines: only it knows them, and a Funestra
+        that says nothing leaves them dim."""
         known = _payload(main_funestra=MainFunestraStatus(
-            length_mode=LengthMode.FULL, compilation="Vol 3", has_compilation=True,
-            has_other_versions=True, jump_to="scene"))
+            compilation="Vol 3", has_compilation=True, has_other_versions=True, jump_to="scene"))
         unknown = _payload()
 
-        assert any(a.startswith("main_player_length") for a in _actions(known))
-        assert not any(a.startswith("main_player_length") for a in _actions(unknown))
         assert _button(known, "main_player_end_compilation").lit is True
         assert _button(unknown, "main_player_compilation").dim is True
         assert _button(known, "main_player_cycle_version").dim is False
@@ -195,6 +192,15 @@ def test_the_panel_carries_the_main_funestras_browse_order():
 def test_f_mode_lights_off_what_the_orchestrator_holds():
     assert _button(_payload(scripted_filter=True), "main_fmode").lit is True
     assert _button(_payload(), "main_fmode").lit is False
+
+
+def test_the_length_pair_lights_off_what_the_orchestrator_holds():
+    """The length narrows Fun Time's one list, so its pair is lit from Fun Time's
+    own state, as F-mode and the order are, whatever the Funestra has said."""
+    lit = [button.lit for button in _payload(length_mode=LengthMode.CLIPS).rows[1]
+           if button.command.startswith("main_player_length")]
+
+    assert lit == [True, False]
 
 
 def test_the_order_reported_is_the_order_of_whoever_is_showing():

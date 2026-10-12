@@ -54,7 +54,7 @@ from .funestra_buttons import MAIN_FUNESTRA_NOUN, SATELLITE_NOUN, too_short_to_s
 from .funestra_handover import show_f_mode
 from .funestra_status import MainFunestraStatus, read_genau_status, read_main_funestra_status
 from .lock import MARKED_WEIRD, build_discard_plan, build_lock_toggle_plan
-from .main_list import MainListSettings, new_shuffle_seed
+from .main_list import MainListSettings, new_shuffle_seed, next_length_mode
 from .max_intensity import (
     MAX_INTENSITY_COMMAND,
     funestras_that_can_drive_the_osr2,
@@ -219,8 +219,6 @@ def _speed_target(state: BridgeState, config: BridgeConfig, *,
     return None
 
 
-_DEFAULT_LENGTH_MODE = LengthMode.MIXED
-
 _MAIN_FUNESTRA_CMD_MAP = {
     "main_player_record_down": "RECORD_DOWN",
     "main_player_record_up": "RECORD_UP",
@@ -228,11 +226,6 @@ _MAIN_FUNESTRA_CMD_MAP = {
     "main_player_loop_cancel": "LOOP_CANCEL",
     "main_player_cycle_version": "CYCLE_VERSION",
     "main_player_cycle_version_back": "CYCLE_VERSION_BACK",
-    "main_player_toggle_length": "TOGGLE_LENGTH_MODE",
-    "main_player_length_clips": "SET_LENGTH_MODE clips",
-    "main_player_length_full": "SET_LENGTH_MODE full",
-    "main_player_length_mixed": f"SET_LENGTH_MODE {_DEFAULT_LENGTH_MODE}",
-    "main_player_length_none": "SET_LENGTH_MODE none",
     "main_player_compilation": "PLAY_COMPILATION",
     "main_player_end_compilation": "END_COMPILATION",
     "main_player_full_vid": "PLAY_FULL_VID",
@@ -585,6 +578,13 @@ _PROJECTION_COMMANDS: dict[str, tuple[bool, bool]] = {
     "main_projection_none": (False, False),
 }
 
+_LENGTH_COMMANDS: dict[str, LengthMode] = {
+    "main_player_length_clips": LengthMode.CLIPS,
+    "main_player_length_full": LengthMode.FULL,
+    "main_player_length_mixed": LengthMode.MIXED,
+    "main_player_length_none": LengthMode.NONE,
+}
+
 _PROJECTION_LABELS: dict[tuple[bool, bool], str] = {
     (True, True): "2D + VR",
     (True, False): "VR only",
@@ -668,7 +668,6 @@ _MAIN_LOCK_COMMANDS = {
 _NORMAL_SPEED = f"{SET_SPEED} 1"
 
 _MAIN_FUNESTRA_RESET_VERBS = (
-    _MAIN_FUNESTRA_CMD_MAP["main_player_length_mixed"],
     _MAIN_FUNESTRA_CMD_MAP["main_player_loop_cancel"],
     _MAIN_LOCK_COMMANDS["main_lock_off"],
     _NORMAL_SPEED,
@@ -1164,29 +1163,49 @@ def _narrow_genau(
     return state, []
 
 
+def _dispatch_main_length(
+    length: LengthMode, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    if not kino_shows(state.main_mode):
+        return _ignored(state, _IN_GENAU_MODE)
+    if (length is state.main_length_mode
+            and not read_main_funestra_status(config.main_funestra_status_file).compilation):
+        return state, []
+    state = replace(state, main_length_mode=length)
+    if length is LengthMode.NONE:
+        append_command(config.main_funestra_cmd_file, LOCK_ON)
+    _rebuild_the_main_list(state, config)
+    logger.info("Main Funestra length: %s", length)
+    return state, []
+
+
+def _the_main_list_is_narrowed_or_ordered(state: BridgeState, config: BridgeConfig) -> bool:
+    return (state.main_scripted_filter or state.main_latest
+            or main_video_shapes(state, config).narrows
+            or state.main_length_mode is not LengthMode.MIXED)
+
+
 def main_funestra_at_defaults(
     state: BridgeState, config: BridgeConfig, status: MainFunestraStatus
 ) -> bool:
-    if state.main_scripted_filter or state.main_latest or main_video_shapes(state, config).narrows:
+    if _the_main_list_is_narrowed_or_ordered(state, config):
         return False
     if not kino_shows(state.main_mode):
         return True
     return (not status.locked and status.loop_state is LoopState.NORMAL and status.speed == 1.0
-            and status.length_mode in (None, _DEFAULT_LENGTH_MODE) and not status.compilation)
+            and not status.compilation)
 
 
 def _dispatch_main_reset(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Put the Main Funestra back to its defaults, as a satellite's reset does."""
-    if main_funestra_at_defaults(
-            state, config, read_main_funestra_status(config.main_funestra_status_file)):
+    status = read_main_funestra_status(config.main_funestra_status_file)
+    if main_funestra_at_defaults(state, config, status):
         logger.info("Reset Main Funestra: already at its defaults")
         return state, []
-    if state.main_scripted_filter or state.main_latest or main_video_shapes(state, config).narrows:
-        state = replace(
-            state, main_scripted_filter=False, main_latest=False, main_plays_vr=True, main_plays_flat=True,
-            main_shuffle_seed=new_shuffle_seed())
+    if _the_main_list_is_narrowed_or_ordered(state, config) or status.compilation:
+        state = MainListSettings(shuffle_seed=new_shuffle_seed()).into(state)
         _rebuild_the_main_list(state, config, start_at_top=True)
     if kino_shows(state.main_mode):
         for verb in _MAIN_FUNESTRA_RESET_VERBS:
@@ -1725,6 +1744,16 @@ def _main_projection(plays_vr: bool, plays_flat: bool, state: BridgeState,
     return _dispatch_main_projection(plays_vr, plays_flat, state, config)
 
 
+def _main_length(length: LengthMode, state: BridgeState, config: BridgeConfig,
+                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_main_length(length, state, config)
+
+
+def _main_length_toggle(state: BridgeState, config: BridgeConfig,
+                        _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_main_length(next_length_mode(state.main_length_mode), state, config)
+
+
 def _main_reset(state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return _dispatch_main_reset(state, config)
@@ -1869,6 +1898,9 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, funestras in _RESET_SIDES.items()})
     handlers.update({cmd: partial(_main_projection, plays_vr, plays_flat)
                      for cmd, (plays_vr, plays_flat) in _PROJECTION_COMMANDS.items()})
+    handlers.update({cmd: partial(_main_length, length)
+                     for cmd, length in _LENGTH_COMMANDS.items()})
+    handlers["main_player_toggle_length"] = _main_length_toggle
     handlers[MAIN_RESET] = _main_reset
     handlers.update({cmd: partial(_set_filter, funestras, "")
                      for cmd, funestras in _NO_FILTER_SIDES.items()})

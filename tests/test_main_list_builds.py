@@ -4,6 +4,7 @@ import threading
 from dataclasses import replace
 
 from app_support.threading_utils import wait_until
+from funestra.modes import LengthMode
 
 from fun_time.main_list import MainList, MainListSettings
 from fun_time.main_list_builds import BuildsOffTheLoop, MainListBuild
@@ -27,6 +28,18 @@ def test_a_rebuild_writes_the_list_from_the_video_on_screen(tmp_path):
     build.run()
 
     assert build.main_list.file.read_text(encoding="utf-8").splitlines()[0] == str(videos[3])
+
+
+def test_a_rebuild_tells_the_main_funestra_what_its_buttons_built_it_under(tmp_path):
+    """Kino cannot read F-mode or the length off the list it is handed, so its
+    HUD only knows them because it is told, on the write the reload rides."""
+    build = _main_list_build(tmp_path, MainListSettings(scripted_filter=True,
+                                                        length=LengthMode.CLIPS))
+
+    build.run()
+
+    assert build.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
+        "RELOAD_PLAYLIST", "SET_F_MODE 1", "SET_LENGTH_MODE clips"]
 
 
 def test_a_build_replacing_one_that_owed_a_jump_to_the_top_still_owes_it(tmp_path):

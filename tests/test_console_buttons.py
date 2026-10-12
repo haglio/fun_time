@@ -398,7 +398,7 @@ class TestGenausProjectionPair:
 class TestLengthPair:
     """Clips and full, as the two lengths each button includes."""
 
-    def _clips_and_full(self, length_mode: LengthMode | None, **over) -> tuple[Button, ...]:
+    def _clips_and_full(self, length_mode: LengthMode, **over) -> tuple[Button, ...]:
         rows = console_rows(MainSlot(main_mode=MainMode.KINO, latest=False, length_mode=length_mode, **over))
         by_face = {b.glyph: b for row in rows for b in row if b.command.startswith("main_player_length")}
         return tuple(by_face[face] for face in (CLIPS_ICON, FULL_ICON) if face in by_face)
@@ -445,9 +445,6 @@ class TestLengthPair:
         clips, full = self._clips_and_full(LengthMode.CLIPS)
 
         assert (clips.tooltip, full.tooltip) == ("Including clips", "Not including full videos")
-
-    def test_no_pair_at_all_without_a_library_to_filter(self):
-        assert self._clips_and_full(None) == ()
 
 
 class TestCompilationAndJumps:

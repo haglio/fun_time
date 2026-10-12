@@ -60,8 +60,10 @@ def metadata_path_for(
 
 # Evolver records what kind every library video is on its sidecar, as
 # ``video.type``: one answer to "what kind of video is this", for the whole
-# library.  This app asks it one thing, so this is the one kind it names.
+# library.
 EXCERPT = "excerpt"
+SHORT = "short"
+FULL_LENGTH = "full_length"
 
 
 def video_type_of(payload: dict) -> str:

@@ -8,7 +8,7 @@ from typing import Protocol
 
 from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command
-from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE, play_file
+from funestra.funestra_verbs import RELOAD_PLAYLIST, play_file
 
 from .main_list import MainList, MainListSettings
 from .modes import scripted_item
@@ -26,7 +26,7 @@ class MainListBuild:
 
     def run(self) -> None:
         videos = self.main_list.write(self.settings, start_from=self.start_from)
-        verbs = [RELOAD_PLAYLIST, f"{SET_F_MODE} {int(self.settings.scripted_filter)}"]
+        verbs = [RELOAD_PLAYLIST, *self.settings.labels]
         if self.start_at_top and videos:
             verbs.append(play_file(scripted_item(videos[0], self.main_list.metadata_root)))
         for verb in verbs:

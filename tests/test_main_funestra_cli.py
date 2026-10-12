@@ -12,7 +12,6 @@ from main_funestra.cli import (
     play_points_path,
     resolve_playlist,
 )
-from main_funestra.library import CLIPS
 from main_funestra.library_source import PHASE_DISCOVER
 from main_funestra.mode_memory import RememberedMode
 
@@ -62,7 +61,7 @@ class TestResolvePlaylist:
             "--playlist", str(playlist),
             "--videos-dir", str(vids), "--scripts-dir", str(scripts),
         ])
-        source = library_source(args, durations={original: 300.0, upscale: 300.0})
+        source = library_source(args)
 
         pairs = resolve_playlist(args, source=source)
 
@@ -83,11 +82,11 @@ class TestLibrarySource:
         args = build_parser({}).parse_args([
             "--videos-dir", str(vids), "--scripts-dir", str(scripts),
         ])
-        assert library_source(args, durations={vid: 300.0}) is not None
+        assert library_source(args) is not None
 
     def test_built_even_when_playlist_given(self, tmp_path):
-        """Fun Time passes --playlist for its own selection, but the Main Funestra still needs
-        the source so cycle-version and length-mode work in Fun Time too."""
+        """Fun Time passes --playlist for the list it plays, but the Main Funestra still needs
+        the source for the other versions of a video and the compilations."""
         vids = tmp_path / "videos"
         scripts = tmp_path / "scripts"
         vids.mkdir()
@@ -100,7 +99,7 @@ class TestLibrarySource:
             "--playlist", str(playlist),
             "--videos-dir", str(vids), "--scripts-dir", str(scripts),
         ])
-        assert library_source(args, durations={vid: 300.0}) is not None
+        assert library_source(args) is not None
 
     def test_forwards_progress_to_the_build(self, tmp_path):
         """The loading screen hangs off this callback, so a source built without
@@ -116,14 +115,11 @@ class TestLibrarySource:
         ])
         seen = []
 
-        library_source(
-            args, durations={vid: 300.0},
-            on_progress=lambda phase, done, total: seen.append(phase),
-        )
+        library_source(args, on_progress=seen.append)
 
         assert PHASE_DISCOVER in seen
 
-    def test_kino_plays_nothing_from_genaus_folder_in_any_length(self, tmp_path):
+    def test_kino_knows_nothing_from_genaus_folder(self, tmp_path):
         vids, scripts, flicks = tmp_path / "videos", tmp_path / "scripts", tmp_path / "flicks"
         for folder in (vids, scripts, flicks / "2D" / "AI"):
             folder.mkdir(parents=True)
@@ -134,11 +130,9 @@ class TestLibrarySource:
         args = build_parser({}).parse_args([
             "--videos-dir", str(vids), "--scripts-dir", str(scripts), "--flicks-dir", str(flicks),
         ])
-        source = library_source(args, durations={scene: 300.0})
+        source = library_source(args)
 
-        played = {video for mode in ("mixed", "clips", "full") for video, _ in source.playlist_for(mode)}
-
-        assert played == {scene}
+        assert {entry.video for entry in source.entries} == {scene}
 
 
 class TestAudioMuted:
@@ -458,7 +452,7 @@ class TestWhereMainFunestraKeepsItsState:
     def test_the_state_dir_holds_the_mode_it_was_last_in(self, tmp_path):
         args = build_parser({}).parse_args(["--state-dir", str(tmp_path)])
 
-        mode_memory(args).write(RememberedMode(length_mode=CLIPS))
+        mode_memory(args).write(RememberedMode(compilation="Vol6"))
 
         assert (tmp_path / "main_player_mode.txt").exists()
 
@@ -474,6 +468,6 @@ class TestWhereMainFunestraKeepsItsState:
         config.write_text("{}", encoding="utf-8")
         args = build_parser({}).parse_args(["--config", str(config)])
 
-        mode_memory(args).write(RememberedMode(length_mode=CLIPS))
+        mode_memory(args).write(RememberedMode(compilation="Vol6"))
 
         assert (tmp_path / "main_player_mode.txt").exists()

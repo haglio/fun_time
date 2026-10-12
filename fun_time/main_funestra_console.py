@@ -9,7 +9,7 @@ from pathlib import Path
 
 from funestra.console import OSR2_DRIVING, ConsoleModel
 from funestra.hud_placement import HudCorner, HudEdge
-from funestra.modes import MainMode, Osr2State
+from funestra.modes import LengthMode, MainMode, Osr2State
 from funestra.robot_hand import FULL_INTENSITY
 
 from main_funestra.controls import longer_than_a_step
@@ -66,6 +66,7 @@ class MainSlotInputs:
     genau_latest: bool = False
     plays_vr: bool | None = None
     plays_flat: bool | None = None
+    length_mode: LengthMode = LengthMode.MIXED
     genau_plays_vr: bool | None = None
     genau_plays_flat: bool | None = None
     nothing_to_reset: bool = False
@@ -92,7 +93,7 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         plays_vr=inputs.plays_vr if video else inputs.genau_plays_vr,
         plays_flat=inputs.plays_flat if video else inputs.genau_plays_flat,
         pace_s=inputs.genau_pace_s,
-        length_mode=main_funestra.length_mode,
+        length_mode=inputs.length_mode,
         compilation=main_funestra.compilation,
         has_compilation=main_funestra.has_compilation,
         has_other_versions=main_funestra.has_other_versions,

@@ -23,11 +23,6 @@ class FakeSource:
         self.entries = entries
         self.version_index = version_index or {}
         self.metadata_root = metadata_root
-        self.asked: list[str] = []
-
-    def playlist_for(self, mode: str) -> list[PlaylistItem]:
-        self.asked.append(mode)
-        return [PlaylistItem(entry.video, entry.funscript) for entry in reversed(self.entries)]
 
 
 class FakeNotices:
@@ -147,17 +142,16 @@ class TestItsVerbs:
 
         assert world.playback.playlist == [world.first, elsewhere]
         assert world.kino.status_fields()["compilation"] == ""
-        assert world.source.asked == []
 
-    def test_a_length_named_rebuilds_the_list_and_is_written_down(self, tmp_path):
+    def test_a_length_named_is_what_its_console_says_and_moves_nothing(self, tmp_path):
+        """The Main player's list is Fun Time's, narrowed to the length before
+        Kino is told it."""
         world = World(tmp_path)
 
         assert world.kino.apply_command("SET_LENGTH_MODE clips") is True
-        world.kino.tick()
 
-        assert world.source.asked == [LengthMode.CLIPS]
-        assert world.playback.current_video == world.second
-        assert world.memory.read().length_mode == LengthMode.CLIPS
+        assert world.kino.top_block().length_mode is LengthMode.CLIPS
+        assert world.playback.current_video == world.first
 
 
 class TestItsPassEachFrame:
@@ -211,20 +205,18 @@ class TestWhatItSays:
 
         assert hud.video == "Jane Doe - scene 1"
         assert (hud.position, hud.total) == (1, 2)
-        assert hud.length_mode == LengthMode.MIXED
 
     def test_the_status_carries_the_videos_place_in_the_library(self, tmp_path):
         world = World(tmp_path)
 
         fields = world.kino.status_fields()
 
-        assert fields["length_mode"] == "mixed"
         assert fields["has_compilation"] == "1"
         assert fields["compilation"] == ""
 
     def test_a_remembered_compilation_is_re_entered_around_its_clip(self, tmp_path):
         world = World(tmp_path, remembered=RememberedMode(
-            length_mode=LengthMode.MIXED, compilation="Vol6", video=str(World(tmp_path).second)))
+            compilation="Vol6", video=str(World(tmp_path).second)))
 
         assert world.kino.status_fields()["compilation"] == "Vol6"
         assert world.playback.current_video == world.second

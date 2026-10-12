@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import random
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
@@ -20,7 +19,6 @@ from funestra.playlist import PlaylistItem, read_playlist
 from fun_time.win32_desktop import on_hidden_desktop
 
 from .clip_nav import ClipNav
-from .duration_cache import DurationCache
 from .kino import Kino
 from .library import collapse_playlist_versions
 from .library_source import LibrarySource, build_library_source
@@ -122,10 +120,6 @@ def _state_path(args, name: str) -> Path:
     return base / name
 
 
-def _duration_cache_path(args) -> Path:
-    return _state_path(args, "main_player_durations.json")
-
-
 def mode_memory(args) -> ModeMemory:
     """Where the Main Funestra writes down the mode it is in — the length filter and any
     compilation — so the next session, which Fun Time opens on this one's resumed
@@ -140,26 +134,20 @@ def play_points_path(args) -> Path:
 def library_source(
     args,
     *,
-    rng: random.Random | None = None,
-    durations: dict[Path, float] | None = None,
-    on_progress: Callable[[str, int, int], None] | None = None,
+    on_progress: Callable[[str], None] | None = None,
 ) -> LibrarySource | None:
     """Build the :class:`LibrarySource`, or None when the library dirs are absent.
 
     Built whenever ``--videos-dir``/``--scripts-dir`` are known — including under
-    Fun Time, which passes its own ``--playlist`` for the *initial* selection but
-    still needs this source for version cycling and the clips/full
-    toggle.  *durations* is a test seam; production probes via the cache.
-    *on_progress* goes straight through to the build, where the wait is.
+    Fun Time, which passes the list it plays as ``--playlist`` but whose versions
+    and compilations this source knows.  *on_progress* goes straight through to
+    the build, where the wait is.
     """
     if args.videos_dir is None or args.scripts_dir is None:
         return None
     return build_library_source(
         Path(args.videos_dir),
         Path(args.scripts_dir),
-        rng=rng or random.Random(),
-        duration_cache=None if durations is not None else DurationCache(_duration_cache_path(args)),
-        durations=durations,
         metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,
         on_progress=on_progress,
     )

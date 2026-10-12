@@ -316,7 +316,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # notes on the three builders it replaced went with them.
 # 6350 the same day: no session reopens the Main player's list, and the notes on
 # the checks that once decided whether it could went with them.
-MAX_PROSE_LINES = 6350
+# 6211 the same day: Kino builds no list of its own and measures no video, and
+# the notes on its length lists, its duration cache and its probe went with
+# them.
+MAX_PROSE_LINES = 6211
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

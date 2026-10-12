@@ -16,7 +16,7 @@ from urllib.request import url2pathname
 import pytest
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
 from funestra.drive_readout import DriveHud, drive_text
-from funestra.modes import MainMode
+from funestra.modes import LengthMode, MainMode
 from funestra.playlist import PlaylistItem, write_playlist
 from funestra.robot_hand import FULL_INTENSITY
 from shared_ui.preview import Preview
@@ -365,7 +365,8 @@ def test_seed_startup_states_gives_kino_the_window_for_a_fresh_session(tmp_path:
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd)
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SET_VOLUME 100 0"]
-    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0",
+                                          "SET_LENGTH_MODE mixed"]
 
 
 def _main_funestra_verbs(tmp_path: Path) -> list[str]:
@@ -383,7 +384,8 @@ def test_seed_startup_states_gives_genau_the_window_for_a_genau_session(tmp_path
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="genau")
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SET_VOLUME 100 0"]
-    assert _main_funestra_verbs(tmp_path) == ["SHOW genau", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _main_funestra_verbs(tmp_path) == ["SHOW genau", "SET_VOLUME 100 0", "SET_F_MODE 0",
+                                          "SET_LENGTH_MODE mixed"]
 
 
 def test_seed_startup_states_holds_every_funestra_for_the_reveal(tmp_path: Path):
@@ -429,7 +431,8 @@ def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path
     _seed_startup_states(tmp_path, audio_volume_file=volume_file)
 
     assert read_volume(volume_file) == MAX_VOLUME
-    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0",
+                                          "SET_LENGTH_MODE mixed"]
 
 
 def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: Path):
@@ -454,7 +457,7 @@ def test_seed_startup_states_tells_genau_the_level_too(tmp_path: Path):
 
     verbs = genau_cmd.read_text(encoding="utf-8").splitlines()
     assert verbs[-1] == "SET_VOLUME 40 1"
-    assert verbs[-1] == _main_funestra_verbs(tmp_path)[-2], "the two Funestras are told the same"
+    assert verbs[-1] == _main_funestra_verbs(tmp_path)[1], "the two Funestras are told the same"
 
 
 def test_seed_startup_states_holds_every_funestra_that_can_drive_the_osr2_to_its_max_intensity(
@@ -480,14 +483,16 @@ def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Pat
     assert _main_funestra_verbs(tmp_path)[1] == "SET_VOLUME 40 1"
 
 
-def test_seed_startup_states_tells_main_funestra_whether_f_mode_is_on(tmp_path: Path):
+def test_seed_startup_states_tells_main_funestra_what_its_list_is_narrowed_to(tmp_path: Path):
     """The playlist the Main Funestra is handed has already been narrowed and a list of
-    scripted videos looks like any other, so its HUD can only know from being
-    told — and it is told alongside the level, not instead of it: both verbs
-    have to survive on a channel nothing has drained yet."""
-    _seed_startup_states(tmp_path, scripted_filter=True)
+    scripted clips looks like any other, so its HUD can only know from being
+    told — and it is told alongside the level, not instead of it: every verb
+    has to survive on a channel nothing has drained yet."""
+    _seed_startup_states(tmp_path, main_list=MainListSettings(scripted_filter=True,
+                                                               length=LengthMode.CLIPS))
 
-    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 1"]
+    assert _main_funestra_verbs(tmp_path) == [
+        "SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 1", "SET_LENGTH_MODE clips"]
 
 
 def _start_core_session_kwargs(tmp_path: Path) -> dict:
@@ -564,7 +569,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         max_intensity=FULL_INTENSITY,
         satellite_cmd_files=(kwargs["portrait"].channels.command,
                              kwargs["landscape"].channels.command),
-        scripted_filter=False,
+        main_list=MainListSettings.of(read_shared_state(shared_state_path(state_dir))),
         mode="kino",
     )
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")

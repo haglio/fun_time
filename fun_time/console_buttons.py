@@ -52,7 +52,7 @@ class MainSlot:
     plays_vr: bool | None = None
     plays_flat: bool | None = None
     pace_s: int = 0
-    length_mode: LengthMode | None = None
+    length_mode: LengthMode = LengthMode.MIXED
     compilation: str = ""
     has_compilation: bool = False
     has_other_versions: bool = False
@@ -169,8 +169,6 @@ def _projection_buttons(slot: MainSlot, *, remembered: bool, things: str) -> tup
 
 
 def _length_buttons(slot: MainSlot, *, remembered: bool) -> tuple[Button, ...]:
-    if slot.length_mode is None:
-        return ()
     mixed = slot.length_mode is LengthMode.MIXED
     clips = mixed or slot.length_mode is LengthMode.CLIPS
     full = mixed or slot.length_mode is LengthMode.FULL

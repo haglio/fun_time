@@ -27,8 +27,11 @@ def is_vr_video(video_path: str | Path, vr_dirs: Sequence[Path | str]) -> bool:
     """
     path = Path(video_path)
     name = path.name.lower()
-    if any(token in name for token in VR_FILENAME_TOKENS):
-        return True
+    return any(token in name for token in VR_FILENAME_TOKENS) or in_a_vr_folder(path, vr_dirs)
+
+
+def in_a_vr_folder(video_path: str | Path, vr_dirs: Sequence[Path | str]) -> bool:
+    path = Path(video_path)
     for root in vr_dirs:
         try:
             path.relative_to(Path(root))

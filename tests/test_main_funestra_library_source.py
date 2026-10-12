@@ -1,60 +1,13 @@
 from __future__ import annotations
 
 import json
-import random
 from pathlib import Path
 
 import pytest
 
 import main_funestra.library_source
-from main_funestra.duration_cache import DurationCache
-from main_funestra.library import CLIPS, FULL, MIXED, LibraryEntry
-from main_funestra.library_source import (
-    DEFAULT_MODE,
-    PHASE_DISCOVER,
-    PHASE_DURATIONS,
-    LibrarySource,
-    build_library_source,
-    length_mode_rebuilds,
-    next_length_mode,
-)
-
-
-class TestLengthModeCycle:
-    def test_the_funestra_opens_unfiltered(self):
-        """Fun Time's own playlist has always been every video shuffled, so a
-        Funestra that opened claiming a length was claiming one it did not have."""
-        assert DEFAULT_MODE == MIXED
-
-    def test_the_toggle_walks_all_three_and_comes_back(self):
-        assert next_length_mode(MIXED) == CLIPS
-        assert next_length_mode(CLIPS) == FULL
-        assert next_length_mode(FULL) == MIXED
-
-    def test_an_unknown_mode_lands_on_the_default(self):
-        """Nothing sets one, but the toggle must land somewhere real rather than
-        raise into the run loop."""
-        assert next_length_mode("") == DEFAULT_MODE
-
-
-class TestLengthModeRebuilds:
-    """Naming a length reshuffles the playlist and lands on entry 0, so asking
-    for one that is already running is not free — it changes the video."""
-
-    def test_a_different_mode_always_rebuilds(self):
-        assert length_mode_rebuilds(CLIPS, MIXED, in_compilation=False) is True
-        assert length_mode_rebuilds(MIXED, FULL, in_compilation=True) is True
-
-    def test_the_mode_already_running_asks_for_nothing(self):
-        """Fun Time's reset says "mixed" on every press, and each rebuild landed
-        on a different video — so a control meaning "put it back" was the
-        quickest way to keep changing what played."""
-        assert length_mode_rebuilds(MIXED, MIXED, in_compilation=False) is False
-
-    def test_inside_a_compilation_the_same_mode_is_the_way_out(self):
-        """PLAY_COMPILATION swaps the playlist for one volume's clips and leaves
-        the mode alone, so naming that same length is what leaves it."""
-        assert length_mode_rebuilds(MIXED, MIXED, in_compilation=True) is True
+from main_funestra.library import LibraryEntry
+from main_funestra.library_source import PHASE_DISCOVER, LibrarySource, build_library_source
 
 
 def _make_video(path: Path, body: str = "x") -> Path:
@@ -63,24 +16,6 @@ def _make_video(path: Path, body: str = "x") -> Path:
 
 
 class TestBuildLibrarySource:
-    def test_playlist_for_full_and_clips(self, tmp_path):
-        vids = tmp_path / "videos"
-        scripts = tmp_path / "scripts"
-        vids.mkdir()
-        scripts.mkdir()
-        long_vid = _make_video(vids / "long-1080p.mp4")
-        short_vid = _make_video(vids / "teaser-1080p.mp4")
-        durations = {long_vid: 300.0, short_vid: 10.0}
-
-        source = build_library_source(
-            vids, scripts, rng=random.Random(0), durations=durations,
-        )
-
-        full = source.playlist_for("full")
-        clips = source.playlist_for("clips")
-        assert [v for v, _ in full] == [long_vid]
-        assert [v for v, _ in clips] == [short_vid]
-
     def test_version_index_covers_all_entries(self, tmp_path):
         vids = tmp_path / "videos"
         scripts = tmp_path / "scripts"
@@ -88,15 +23,13 @@ class TestBuildLibrarySource:
         scripts.mkdir()
         big = _make_video(vids / "Jane-1080p.mp4", body="a bigger body here")
         small = _make_video(vids / "Jane-540.mp4", body="sm")
-        durations = {big: 300.0, small: 300.0}
 
-        source = build_library_source(
-            vids, scripts, rng=random.Random(0), durations=durations,
-        )
+        source = build_library_source(vids, scripts)
 
         # Both versions map to the same ordered pair list (canonical first).
         assert source.version_index[big] == source.version_index[small]
         assert source.version_index[big][0][0] == big
+
 
 class TestTheVersionIndexIsBuiltOnce:
     """It looks like an attribute and was a plain property, so every reader paid
@@ -123,10 +56,7 @@ class TestTheVersionIndexIsBuiltOnce:
         monkeypatch.setattr(
             main_funestra.library_source, "read_version_group",
             lambda video, root: (reads.append(video), real(video, root))[1])
-        source = LibrarySource(
-            entries=entries, durations={}, rng=random.Random(0),
-            metadata_root=meta,
-        )
+        source = LibrarySource(entries=entries, metadata_root=meta)
 
         first = source.version_index
         second = source.version_index
@@ -135,100 +65,39 @@ class TestTheVersionIndexIsBuiltOnce:
         assert first == second
         assert second is first
 
-class TestBuildProgress:
-    """Startup's only long wait is probing durations, so the build reports it."""
 
-    def test_reports_each_probed_entry_against_the_total(self, tmp_path):
+class TestBuildProgress:
+    """Walking the library is the wait the loading screen covers, so the build
+    reports it."""
+
+    def test_reports_the_walk(self, tmp_path):
         vids = tmp_path / "videos"
         scripts = tmp_path / "scripts"
         vids.mkdir()
         scripts.mkdir()
-        for name in ("a.mp4", "b.mp4", "c.mp4"):
-            _make_video(vids / name)
-        seen: list[tuple[str, int, int]] = []
+        _make_video(vids / "a.mp4")
+        seen: list[str] = []
 
-        build_library_source(
-            vids, scripts, rng=random.Random(0),
-            duration_cache=DurationCache(tmp_path / "cache.json", prober=lambda p: 300.0),
-            on_progress=lambda phase, done, total: seen.append((phase, done, total)),
-        )
+        build_library_source(vids, scripts, on_progress=seen.append)
 
-        assert (PHASE_DISCOVER, 0, 0) in seen
-        assert [s for s in seen if s[0] == PHASE_DURATIONS] == [
-            (PHASE_DURATIONS, 0, 3), (PHASE_DURATIONS, 1, 3), (PHASE_DURATIONS, 2, 3),
-        ]
+        assert seen == [PHASE_DISCOVER]
 
-    def test_a_video_whose_kind_is_on_file_is_never_measured(self, tmp_path):
-        """The probe is startup's whole wait, and a recorded kind removes the
-        reason for it — a backfilled library opens without one ffprobe."""
-        vids = tmp_path / "videos" / "videos"
-        scripts = tmp_path / "scripts"
-        metadata = tmp_path / "videos" / "metadata"
-        vids.mkdir(parents=True)
-        scripts.mkdir()
-        metadata.mkdir(parents=True)
-        _make_video(vids / "recorded.mp4")
-        _make_video(vids / "unrecorded.mp4")
-        (metadata / "recorded.json").write_text(
-            json.dumps({"video": {"type": "full_length"}}), encoding="utf-8",
-        )
-        probed: list[Path] = []
-
-        source = build_library_source(
-            vids, scripts, rng=random.Random(0), metadata_root=metadata,
-            duration_cache=DurationCache(
-                tmp_path / "cache.json", prober=lambda p: probed.append(p) or 300.0,
-            ),
-        )
-
-        assert [p.name for p in probed] == ["unrecorded.mp4"]
-        assert vids / "recorded.mp4" not in source.durations
-
-    def test_a_raising_callback_stops_the_probing(self, tmp_path):
-        """Closing the window mid-probe has to end the wait, not be noticed once
+    def test_a_raising_callback_stops_the_build(self, tmp_path):
+        """Closing the window mid-wait has to end the wait, not be noticed once
         it is over — so the callback aborts the build by raising."""
         vids = tmp_path / "videos"
         scripts = tmp_path / "scripts"
         vids.mkdir()
         scripts.mkdir()
-        for name in ("a.mp4", "b.mp4", "c.mp4"):
-            _make_video(vids / name)
-        probed: list[Path] = []
 
         class GaveUp(Exception):
             """Whatever the caller raises — the build has no opinion on it."""
 
-        def give_up(phase, done, total):
-            if phase == PHASE_DURATIONS and done == 1:
-                raise GaveUp
+        def give_up(_phase):
+            raise GaveUp
 
         with pytest.raises(GaveUp):
-            build_library_source(
-                vids, scripts, rng=random.Random(0),
-                duration_cache=DurationCache(
-                    tmp_path / "cache.json", prober=lambda p: probed.append(p) or 300.0,
-                ),
-                on_progress=give_up,
-            )
-
-        assert len(probed) == 1  # stopped at the raise, not after all three
-
-
-def test_standalone_source_serves_all_videos_by_default():
-    """Standalone Main Funestra is a general Funestra; scripted-focus is Fun Time's
-    F-mode, so the default source serves scripted and unscripted alike."""
-
-    scripted = LibraryEntry(video=Path("Gigi-topaz.mp4"), funscript=Path("Gigi.funscript"), size=900)
-    unscripted = LibraryEntry(video=Path("Hana-1080p.mp4"), funscript=None, size=900)
-    src = LibrarySource(
-        entries=[scripted, unscripted],
-        durations={scripted.video: 300.0, unscripted.video: 300.0},
-        rng=random.Random(0),
-    )
-
-    vids = {v for v, _ in src.playlist_for("full")}
-
-    assert scripted.video in vids and unscripted.video in vids
+            build_library_source(vids, scripts, on_progress=give_up)
 
 
 def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_path):
@@ -248,10 +117,7 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
         )
     ea = LibraryEntry(video=original, funscript=None, size=100)
     eb = LibraryEntry(video=upscale, funscript=None, size=900)
-    source = LibrarySource(
-        entries=[ea, eb], durations={original: 300.0, upscale: 300.0},
-        rng=random.Random(0), metadata_root=meta,
-    )
+    source = LibrarySource(entries=[ea, eb], metadata_root=meta)
 
     index = source.version_index
 
@@ -260,72 +126,8 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
 
 
 def test_version_index_falls_back_to_names_without_a_metadata_root(tmp_path):
-
-
     a = LibraryEntry(video=Path("Richard.mp4"), funscript=None, size=50)
     b = LibraryEntry(video=Path("Richard_topaz.mp4"), funscript=None, size=800)
-    source = LibrarySource(
-        entries=[a, b], durations={a.video: 300.0, b.video: 300.0},
-        rng=random.Random(0),
-    )
+    source = LibrarySource(entries=[a, b])
 
     assert source.version_index[a.video] == source.version_index[b.video]
-
-
-class TestACarvedSceneIsAShort:
-    """Length is not the only thing that makes a short.
-
-    A scene Evolver carved out of a compilation is a short however long it
-    runs, and the ``clip`` record in its sidecar was how that was known before
-    there was a kind to write — so a library Evolver has not been over since
-    still has only that, and it is still read.
-    """
-
-    @staticmethod
-    def _clip_entry(lib: Path, meta: Path, rel: str) -> LibraryEntry:
-        video = lib / rel
-        video.parent.mkdir(parents=True, exist_ok=True)
-        video.write_bytes(b"x")
-        side = (meta / video.relative_to(lib)).with_suffix(".json")
-        side.parent.mkdir(parents=True, exist_ok=True)
-        side.write_text(json.dumps({"clip": {"compilation": "Volume Six", "index": 9,
-                                             "source": "alpha scene two",
-                                             "performer": "Jane Doe"}}))
-        return LibraryEntry(video=video, funscript=None, size=100)
-
-    @staticmethod
-    def _plain_entry(lib: Path, rel: str) -> LibraryEntry:
-        video = lib / rel
-        video.parent.mkdir(parents=True, exist_ok=True)
-        video.write_bytes(b"x")
-        return LibraryEntry(video=video, funscript=None, size=100)
-
-    def test_it_surfaces_among_the_clips_and_never_among_the_full_videos(self, tmp_path):
-        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = self._clip_entry(lib, meta, "example/1 clips/Jane Doe - alpha scene two.mp4")
-        plain = self._plain_entry(lib, "example/0/Long Movie.mp4")
-        source = LibrarySource(
-            entries=[clip, plain],
-            # Both well over the short cutoff, so only the sidecar can tell them apart.
-            durations={clip.video: 120.0, plain.video: 120.0},
-            rng=random.Random(0), metadata_root=meta,
-        )
-
-        clips = {v for v, _ in source.playlist_for(CLIPS)}
-        full = {v for v, _ in source.playlist_for(FULL)}
-
-        assert clip.video in clips
-        assert clip.video not in full
-        assert plain.video in full
-        assert plain.video not in clips
-
-    def test_without_a_metadata_root_the_length_is_all_there_is(self, tmp_path):
-        lib = tmp_path / "videos" / "videos"
-        long_plain = self._plain_entry(lib, "example/Long.mp4")
-        source = LibrarySource(
-            entries=[long_plain], durations={long_plain.video: 120.0},
-            rng=random.Random(0),
-        )
-
-        assert long_plain.video in {v for v, _ in source.playlist_for(FULL)}
-        assert long_plain.video not in {v for v, _ in source.playlist_for(CLIPS)}
