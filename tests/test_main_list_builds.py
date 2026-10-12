@@ -16,6 +16,19 @@ def _main_list_build(tmp_path, settings: MainListSettings, **build) -> MainListB
                          settings=settings, main_funestra_cmd_file=tmp_path / "cmd.txt", **build)
 
 
+def test_a_rebuild_writes_the_list_from_the_video_on_screen(tmp_path):
+    library = tmp_path / "library"
+    library.mkdir()
+    videos = [library / f"scene {number}.mp4" for number in range(5)]
+    for video in videos:
+        video.write_text("x", encoding="utf-8")
+    build = _main_list_build(tmp_path, MainListSettings(shuffle_seed=7), start_from=str(videos[3]))
+
+    build.run()
+
+    assert build.main_list.file.read_text(encoding="utf-8").splitlines()[0] == str(videos[3])
+
+
 def test_a_build_replacing_one_that_owed_a_jump_to_the_top_still_owes_it(tmp_path):
     owed = _main_list_build(tmp_path, MainListSettings(), start_at_top=True)
     newer = _main_list_build(tmp_path, MainListSettings(latest=True))

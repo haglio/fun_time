@@ -54,7 +54,7 @@ from .funestra_buttons import MAIN_FUNESTRA_NOUN, SATELLITE_NOUN, too_short_to_s
 from .funestra_handover import show_f_mode
 from .funestra_status import MainFunestraStatus, read_genau_status, read_main_funestra_status
 from .lock import MARKED_WEIRD, build_discard_plan, build_lock_toggle_plan
-from .main_list import MainListSettings
+from .main_list import MainListSettings, new_shuffle_seed
 from .max_intensity import (
     MAX_INTENSITY_COMMAND,
     funestras_that_can_drive_the_osr2,
@@ -1016,6 +1016,7 @@ def _dispatch_fmode(
         enabled=enabled,
         main_list=config.main_list,
         main_settings=MainListSettings.of(state),
+        main_start_from=_on_the_main_funestra(config),
         favs_file=config.favs_file,
         state_dir=config.state_dir,
         main_funestra_cmd_file=config.main_funestra_cmd_file,
@@ -1079,7 +1080,8 @@ def _dispatch_main_reorder(
     """
     on_main_funestra = kino_shows(state.main_mode)
     if on_main_funestra:
-        state = replace(state, main_latest=recent)
+        state = replace(state, main_latest=recent,
+                        main_shuffle_seed=state.main_shuffle_seed if recent else new_shuffle_seed())
         _rebuild_the_main_list(state, config, start_at_top=True)
     else:
         state = replace(state, genau_latest=recent)
@@ -1094,7 +1096,12 @@ def _rebuild_the_main_list(state: BridgeState, config: BridgeConfig, *,
                            start_at_top: bool = False) -> None:
     rebuild_main_list(config.main_list, MainListSettings.of(state),
                       main_funestra_cmd_file=config.main_funestra_cmd_file,
+                      start_from="" if start_at_top else _on_the_main_funestra(config),
                       start_at_top=start_at_top, builds=config.main_list_builds)
+
+
+def _on_the_main_funestra(config: BridgeConfig) -> str:
+    return read_main_funestra_status(config.main_funestra_status_file).video
 
 
 def main_video_shapes(state: BridgeState, config: BridgeConfig) -> VideoShapes:
@@ -1179,7 +1186,8 @@ def _dispatch_main_reset(
         return state, []
     if state.main_scripted_filter or state.main_latest or main_video_shapes(state, config).narrows:
         state = replace(
-            state, main_scripted_filter=False, main_latest=False, main_plays_vr=True, main_plays_flat=True)
+            state, main_scripted_filter=False, main_latest=False, main_plays_vr=True, main_plays_flat=True,
+            main_shuffle_seed=new_shuffle_seed())
         _rebuild_the_main_list(state, config, start_at_top=True)
     if kino_shows(state.main_mode):
         for verb in _MAIN_FUNESTRA_RESET_VERBS:

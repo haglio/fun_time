@@ -319,7 +319,8 @@ def build_playlist_file_path(state_dir: Path, name: str) -> Path:
     return state_dir / f"{name}.tsv"
 
 
-def rotated_onto(entries: list[PlaylistItem], last_video: str) -> list[PlaylistItem]:
+def rotated_onto[T](entries: list[T], last_video: str, *,
+                    path_of: Callable[[T], object] = lambda item: item.path) -> list[T]:
     """*entries* rotated so *last_video* leads them.
 
     Unchanged when that video is not among them — it was deleted since, or the
@@ -329,7 +330,7 @@ def rotated_onto(entries: list[PlaylistItem], last_video: str) -> list[PlaylistI
     """
     key = normalize_path_key(last_video)
     for position, item in enumerate(entries):
-        if normalize_path_key(str(item.path)) == key:
+        if normalize_path_key(str(path_of(item))) == key:
             return entries[position:] + entries[:position]
     return entries
 
