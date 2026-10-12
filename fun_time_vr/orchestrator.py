@@ -18,7 +18,7 @@ import os
 import subprocess
 import threading
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator
 from pathlib import Path
 
 from app_support.logging_utils import configure_logging, install_exception_logging
@@ -36,7 +36,6 @@ apply_genau_dirs_to_sys_path()
 from app_support.win32 import mutex_name
 from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
-from funestra.playlist import read_playlist
 
 from fun_time.branch_session import describe_the_session_on_the_taskbar
 from fun_time.broker_control import PARK_CMD, write_broker_command
@@ -53,7 +52,7 @@ from fun_time.funestra_engine import engine_missing_abort
 from fun_time.funestra_status import read_main_funestra_status
 from fun_time.genau_config import GenauSettings
 from fun_time.hosted_origenerator import bring_up_the_hosted_app
-from fun_time.main_list import MainList, MainListSettings
+from fun_time.main_list import MainList
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -61,13 +60,11 @@ from fun_time.manifest import (
 )
 from fun_time.modes import (
     PLAYLIST_LANDSCAPE,
-    PLAYLIST_MAIN_FUNESTRA,
     PLAYLIST_PORTRAIT,
     SatelliteBuild,
     VideoShapes,
     build_playlist_file_path,
     build_satellite_playlists,
-    source_roots,
 )
 from fun_time.orchestrator import (
     ensure_runtime_files,
@@ -114,14 +111,14 @@ from fun_time.session_handoff import (
     say_the_crossing_is_cancelled,
 )
 from fun_time.session_resume import (
+    open_the_main_list,
     resume_main_loop,
-    resume_main_video,
     resume_playlists,
     resume_satellite_locks,
     resume_shared_state,
     resume_what_lives_in_a_funestra,
 )
-from fun_time.shared_state import shared_state_path
+from fun_time.shared_state import BridgeState, shared_state_path
 from fun_time.single_instance import (
     MUTEX_ORCHESTRATOR,
     claim_the_session,
@@ -166,7 +163,6 @@ from .cover import (
     scene_ready_file,
     wait_for_cover_painted,
 )
-from .projection import is_vr_video
 
 VR_STARTUP_MARKER_NAME = "vr_launcher.ready"
 VR_FUNESTRAS_MODULE = "fun_time_vr.funestras"
@@ -195,12 +191,6 @@ def vr_main_sources(config) -> str:
     """The main rotation's sources: the VR library, then the desktop primary's dirs."""
     dirs = [*config.vr.library_dirs, *config.paths.main_funestra_library_dirs]
     return "|".join(str(path) for path in dirs)
-
-
-def main_playlist_has_vr(playlist_file: Path, vr_dirs: Sequence[Path]) -> bool:
-    return any(
-        is_vr_video(item.path, vr_dirs) for item in read_playlist(playlist_file)
-    )
 
 
 def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, dict[str, str]]:
@@ -318,21 +308,9 @@ def stock_the_playlists(
     state_dir: Path,
     metadata_root: Path,
     resumed: bool,
-    main_scripted_filter: bool,
-    main_recent: bool,
-    main_plays_vr: bool = True,
-    main_plays_flat: bool = True,
+    carried: BridgeState,
     main_video: str = "",
-) -> None:
-    """The three playlists a VR session opens on: built fresh with nothing to
-    resume, else left alone -- but a primary carried over from a desktop session
-    holds no VR video, and is rebuilt from the merged sources and rotated back
-    onto *main_video*, the clip that was on screen (resume_main_video).
-    """
-    vr_dirs = manifest.media.vr_library_dirs
-    main_list = MainList(sources=manifest.media.main_funestra_library_sources,
-                         state_dir=state_dir, vr_dirs=vr_dirs, metadata_root=metadata_root)
-    main_funestra_playlist = main_list.file
+) -> BridgeState:
     if not resumed:
         build_satellite_playlists(
             portrait=SatelliteBuild(sources=manifest.media.portrait_dirs),
@@ -341,20 +319,13 @@ def stock_the_playlists(
             state_dir=state_dir,
             metadata_root=metadata_root,
         )
-        main_list.write(MainListSettings())
-        logger.info("Nothing to resume; built fresh playlists")
-        return
-    if main_plays_vr and not main_playlist_has_vr(main_funestra_playlist, source_roots(vr_dirs)):
-        main_list.write(MainListSettings(
-            plays_vr=main_plays_vr, plays_flat=main_plays_flat,
-            scripted_filter=main_scripted_filter, latest=main_recent))
-        logger.info(
-            "Resumed playlists; rebuilt the Main Funestra's around the video it was on"
-            if resume_main_video(main_funestra_playlist, main_video)
-            else "Resumed playlists; rebuilt the Main Funestra's, which held no VR video"
-        )
-    else:
-        logger.info("Resumed last session's playlists")
+    logger.info("Resumed last session's playlists" if resumed
+                else "Nothing to resume; built fresh playlists")
+    main_list = MainList(sources=manifest.media.main_funestra_library_sources,
+                         state_dir=state_dir, vr_dirs=manifest.media.vr_library_dirs,
+                         metadata_root=metadata_root)
+    return open_the_main_list(main_list, carried, state_file=shared_state_path(state_dir),
+                              on_screen=main_video)
 
 
 def resume_genau_shapes(genau_cmd_file: Path, shapes: VideoShapes) -> None:
@@ -558,14 +529,12 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
 
         portrait_playlist = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
         landscape_playlist = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
-        main_funestra_playlist = build_playlist_file_path(state_dir, PLAYLIST_MAIN_FUNESTRA)
         main_funestra_status = read_main_funestra_status(Path(commands.main_funestra_status_file))
         portrait_status = read_satellite_status(Path(commands.portrait_status_file))
         landscape_status = read_satellite_status(Path(commands.landscape_status_file))
         resumed = resume_playlists([
             (portrait_playlist, portrait_status.video),
             (landscape_playlist, landscape_status.video),
-            (main_funestra_playlist, main_funestra_status.video),
         ])
         # And the state that session was in: F-mode, each side's filter, order and
         # lock, any group loop, the sound level.  The dispatch loop opens on this
@@ -573,6 +542,14 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         # different session.  Read before the flags below are seeded, because two of
         # them are what those flags have to be seeded to.
         carried = resume_shared_state(shared_state_path(state_dir), resumed=resumed)
+        carried = stock_the_playlists(
+            manifest,
+            state_dir=state_dir,
+            metadata_root=bridge_config.regen_metadata_root,
+            resumed=resumed,
+            carried=carried,
+            main_video=main_funestra_status.video,
+        )
         # The mode comes across with the rest: the headset hosts Genau too.
         seed_startup_states(
             commands.genau_paused_file, commands.audio_paused_file,
@@ -594,19 +571,8 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
                         (Path(commands.landscape_cmd_file), landscape_status)],
             genau_cmd_file=Path(commands.genau_cmd_file), state_dir=state_dir,
         )
-        stock_the_playlists(
-            manifest,
-            state_dir=state_dir,
-            metadata_root=bridge_config.regen_metadata_root,
-            resumed=resumed,
-            main_scripted_filter=carried.main_scripted_filter,
-            main_recent=carried.main_latest,
-            main_plays_vr=carried.main_plays_vr,
-            main_plays_flat=carried.main_plays_flat,
-            main_video=main_funestra_status.video,
-        )
         resume_main_loop(Path(commands.main_funestra_cmd_file), main_funestra_status,
-                         main_funestra_playlist)
+                         bridge_config.main_list.file)
 
         # --- The children: the audio companion, then the headset ---
         # The companion first, as on the desktop, so it is listening when Genau's

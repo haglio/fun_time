@@ -33,15 +33,10 @@ from .funestra_status import (
     is_broker_heartbeat_fresh,
     read_main_funestra_status,
 )
-from .main_list import MainList, MainListSettings
+from .main_list import MainList
 from .max_intensity import publish_max_intensity
 from .mode_plan import STARTUP_MAIN_MODE, show_verb
-from .modes import (
-    PLAYLIST_MAIN_FUNESTRA,
-    SatelliteBuild,
-    build_playlist_file_path,
-    build_satellite_playlists,
-)
+from .modes import SatelliteBuild, build_satellite_playlists
 from .orchestrator_broker import (
     broker_launch_kwargs,
     subprocess_window_kwargs,
@@ -57,9 +52,8 @@ from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot, for_funestra
 from .session_resume import (
-    playlist_fits_sources,
+    open_the_main_list,
     resume_main_loop,
-    resume_main_video,
     resume_playlists,
     resume_satellite_locks,
     resume_shared_state,
@@ -384,13 +378,10 @@ def start_core_session(
     ensure_broker(broker_heartbeat_file, broker_tray_launcher)
     state_path = Path(state_dir)
     # Come back to the clips this session was closed on, rather than three the
-    # user never chose: last session's playlists are still on disk and each
-    # Funestra's status file names the video it had on screen, so a reopen rotates
-    # them instead of reshuffling.  Only a session with nothing to resume — a
-    # first run, a wiped state dir — is built, by the same builder the F-mode
-    # toggle uses.  Shuffle and Premiere still rebuild on demand, and that is
-    # where videos added since come in.
-    main_funestra_playlist = build_playlist_file_path(state_path, PLAYLIST_MAIN_FUNESTRA)
+    # user never chose: each Funestra's status file names the video it had on
+    # screen, so a reopen rotates the satellites' playlists onto theirs, and opens
+    # the Main Funestra's list on its.  Only satellites with nothing to resume — a
+    # first run, a wiped state dir — are built fresh.
     main_funestra_status = read_main_funestra_status(Path(main_funestra_status_file))
     portrait_status = read_satellite_status(Path(portrait.channels.status))
     landscape_status = read_satellite_status(Path(landscape.channels.status))
@@ -400,7 +391,6 @@ def start_core_session(
     resumed = resume_playlists([
         (Path(portrait.channels.playlist), portrait_status.video),
         (Path(landscape.channels.playlist), landscape_status.video),
-        (main_funestra_playlist, main_funestra_status.video),
     ])
     # Come back to the state that session was in, too — F-mode, each side's
     # filter, order and lock, any group loop, the sound level, which Funestra had
@@ -409,6 +399,10 @@ def start_core_session(
     # It is read before the flags below are seeded, because several of them are
     # what those flags have to be seeded to.
     carried = resume_shared_state(shared_state_path(state_path), resumed=resumed)
+    main_list = MainList(sources=main_sources, state_dir=state_path,
+                         metadata_root=regen_metadata_root)
+    carried = open_the_main_list(main_list, carried, state_file=shared_state_path(state_path),
+                                 on_screen=main_funestra_status.video)
     seed_startup_states(
         genau_paused_file, audio_paused_file, main_funestra_paused_file, audio_volume_file,
         genau_cmd_file, main_funestra_cmd_file=main_funestra_cmd_file,
@@ -419,8 +413,6 @@ def start_core_session(
     # seed_startup_states does not touch the satellite paused files.
     reset_satellite_paused_states(portrait.channels.paused, landscape.channels.paused)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
-    main_list = MainList(sources=main_sources, state_dir=state_path,
-                         metadata_root=regen_metadata_root)
     if not resumed:
         build_satellite_playlists(
             portrait=SatelliteBuild(sources=portrait.sources),
@@ -429,22 +421,8 @@ def start_core_session(
             state_dir=state_path,
             metadata_root=regen_metadata_root,
         )
-        main_list.write(MainListSettings())
-    elif not playlist_fits_sources(main_funestra_playlist, main_sources):
-        # FunTimeVR left this playlist, and its VR videos must never reach the
-        # primary monitor: rebuild from this app's library, under the order and
-        # F-mode being carried forward, then rotate back onto the clip that was
-        # on screen.  (The satellites' dirs are the same in either app, so their
-        # resume stands.)
-        main_list.write(MainListSettings(scripted_filter=carried.main_scripted_filter,
-                                         latest=carried.main_latest))
-        logger.info(
-            "Resumed playlists; rebuilt the Main Funestra's around the video it was on"
-            if resume_main_video(main_funestra_playlist, main_funestra_status.video)
-            else "Resumed playlists; rebuilt the Main Funestra's, which held another app's videos"
-        )
     # Which of the two ran is the difference between the clips of the last
-    # session and three new ones, so the log says outright which you are getting.
+    # session and new ones, so the log says outright which you are getting.
     logger.info(
         "Resumed last session's playlists"
         if resumed
@@ -457,7 +435,7 @@ def start_core_session(
         (Path(landscape.channels.command), carried.satellite(RoomFunestra.LANDSCAPE).locked),
     ])
     # The Main Funestra's loop is the same kind of thing, and queued the same way.
-    resume_main_loop(Path(main_funestra_cmd_file), main_funestra_status, main_funestra_playlist)
+    resume_main_loop(Path(main_funestra_cmd_file), main_funestra_status, main_list.file)
     resume_what_lives_in_a_funestra(
         main_funestra=(Path(main_funestra_cmd_file), main_funestra_status),
         satellites=[(Path(portrait.channels.command), portrait_status),

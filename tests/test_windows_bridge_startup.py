@@ -891,41 +891,34 @@ def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_p
     assert replace(read_shared_state(state_file), main_shuffle_seed=0) == BridgeState()
 
 
-def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_path: Path):
-    """The rebuild for another app's playlist has to honor the F-mode the
-    satellites came back in — the Main Funestra's own reading of it, funscripted
-    clips only — or one Funestra quietly holds the whole library while the HUDs
-    say F-mode.  The order it came back in rides along for the same reason: the
-    state carried forward has to describe the file this writes."""
+def test_start_core_session_builds_the_main_list_under_the_settings_it_was_left_in(
+        tmp_path: Path):
+    """F-mode, the order and the shuffle the session was left in are what the
+    Main Funestra's list is built from, starting at the video it was left on --
+    or one Funestra quietly holds the whole library while the HUDs say F-mode."""
     kwargs = _start_core_session_kwargs(tmp_path)
     left_on = _seed_resumable_session(kwargs)
     state_dir = kwargs["state_dir"]
-    vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
-    vr_clip.parent.mkdir(parents=True, exist_ok=True)
-    vr_clip.write_bytes(b"")
-    (state_dir / "main_player_playlist.tsv").write_text(
-        f"{vr_clip}\n{left_on['main_player'][0]}\n", encoding="utf-8"
-    )
-    write_shared_state(
-        shared_state_path(state_dir), BridgeState(main_scripted_filter=True, main_latest=True)
-    )
+    left = BridgeState(main_scripted_filter=True, main_latest=True, main_shuffle_seed=7)
+    write_shared_state(shared_state_path(state_dir), left)
 
-    with patch.object(MainList, "write", autospec=True) as rebuild:
+    with patch.object(MainList, "write", autospec=True, return_value=["x"]) as build:
         _run_start_core_session(kwargs)
 
-    (the_list, settings), _ = rebuild.call_args
+    (the_list, settings), asked = build.call_args
     assert (the_list.sources, the_list.state_dir, the_list.metadata_root) == (
         kwargs["main_sources"], state_dir, kwargs["regen_metadata_root"])
-    assert settings == MainListSettings(scripted_filter=True, latest=True)
+    assert settings == MainListSettings.of(left)
+    assert asked == {"start_from": left_on["main_player"][1]}
 
 
-def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
+def test_start_core_session_never_reopens_a_main_list_another_app_left(
     tmp_path: Path, caplog
 ):
     """FunTimeVR writes its main playlist to the very file the desktop
-    session resumes from, and builds it from the VR library merged with this
-    one's — so reopening the desktop app inherited VR videos it must never
-    play.  Only the Main Funestra is rebuilt: both apps build the satellites from the
+    session opens, and builds it from the VR library merged with this
+    one's — so reopening that file put VR videos on a desktop that must never
+    play them.  The satellites are another matter: both apps build them from the
     same dirs, so their resume is still last session's and is kept."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
@@ -949,20 +942,20 @@ def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
     ), patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
     ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps"):
-        with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"):
+        with caplog.at_level("INFO", logger="fun_time"):
             start_core_session(**kwargs)
 
     # The Main Funestra comes back from this session's own library, and the foreign
     # video is gone from it.
     rebuilt = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
     assert sorted(line.split("\t")[0] for line in rebuilt) == sorted(left_on["main_player"])
-    # The satellites keep the resume; nothing rebuilt all three.
+    # The satellites keep the resume; nothing rebuilt them.
     build.assert_not_called()
     for name in ("portrait", "landscape"):
         first, second = left_on[name]
         playlist = state_dir / f"{name}_playlist.tsv"
         assert playlist.read_text(encoding="utf-8").splitlines() == [second, first]
-    assert "rebuilt the Main Funestra's" in caplog.text
+    assert "opens at the top of its list" in caplog.text
 
 
 def test_start_core_session_keeps_the_clip_when_it_leaves_the_headset(
@@ -971,10 +964,10 @@ def test_start_core_session_keeps_the_clip_when_it_leaves_the_headset(
     """Saying "exit VR" over a clip the desktop can play keeps it playing.
 
     FunTimeVR's rotation is the VR library merged with this one's, so the video
-    on screen is often one of this app's own — the playlist has to be rebuilt
-    all the same (the rest of it is foreign), and then rotated back onto that
-    video.  Rebuilding alone is what dropped the Main Funestra while both
-    satellites came back untouched (docs/entering-vr.md)."""
+    on screen is often one of this app's own — the list is built from this
+    app's library all the same, starting at that video.  Building alone is what
+    dropped the Main Funestra while both satellites came back untouched
+    (docs/entering-vr.md)."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     left_on = _seed_resumable_session(kwargs)
@@ -991,13 +984,13 @@ def test_start_core_session_keeps_the_clip_when_it_leaves_the_headset(
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
-        with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"):
+        with caplog.at_level("INFO", logger="fun_time"):
             start_core_session(**kwargs)
 
     rebuilt = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
     assert rebuilt[0].split("\t")[0] == watching
     assert str(vr_clip) not in [line.split("\t")[0] for line in rebuilt]
-    assert "around the video it was on" in caplog.text
+    assert "opens on the video it was left on" in caplog.text
 
 
 def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path: Path):
