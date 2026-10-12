@@ -37,7 +37,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.dependencies import pinned_siblings
-from app_support.siblings import RENAMED_SIBLINGS
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import TaskbarApp, describe_taskbar_app
 
@@ -305,12 +304,17 @@ def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
     worktree = worktree.resolve()
     primary = (primary or primary_checkout()).resolve()
     if being_rebuilt(worktree):
-        return _refuse(worktree, BEING_REBUILT,
-                       f"{worktree} is part way through a rebase or a merge; finish it first.")
-    stopped = _why_its_room_would_not_start(
-        worktree, primary=primary, config_path=primary_config_path)
-    if stopped:
-        return _refuse(worktree, stopped.for_him, str(stopped))
+        return _refuse(worktree, branch_label(worktree, current_branch(worktree)),
+                       BEING_REBUILT, f"{worktree} is part way through a rebase or a merge; "
+                       "finish it first.")
+    lacking = libraries_older_than_the_pin(worktree)
+    if lacking:
+        return _refuse(worktree, branch_label(worktree, current_branch(worktree)),
+                       _built_on_a_newer_library(lacking[0]), str(OutOfDateLibrary(lacking[0])))
+    older = sibling_checkouts_older_than_the_pin(worktree)
+    if older:
+        return _refuse(worktree, branch_label(worktree, current_branch(worktree)),
+                       FUNESTRAS_FROM_BEFORE_THE_PIN, str(OutOfDateSibling(older[0])))
     config_path = build_branch_config(
         worktree, primary=primary, primary_config_path=primary_config_path)
     command = [sys.executable, "-m", ORCHESTRATOR_MODULES[vr], "--config", str(config_path)]
@@ -363,41 +367,34 @@ class LibraryOlderThanThePin:
         return f"v{self.installed}" if self.installed else "no copy of it"
 
 
-class RoomWouldNotStart(RuntimeError):
-    def __init__(self, for_the_agent: str, *, for_him: str):
-        super().__init__(for_the_agent)
-        self.for_him = for_him
-
-
-class OutOfDateLibrary(RoomWouldNotStart):
+class OutOfDateLibrary(RuntimeError):
     def __init__(self, older: LibraryOlderThanThePin):
         super().__init__(
             f"This branch is built on {older.repo} {older.tag}, and the venv its session runs on has "
             f"{older.installed_text}, so the session would stop at its first import. Run it out of a "
             f"{older.repo} checkout at {older.tag} named in state/{GENAU_DIRS_OVERRIDE_NAME}, or rebase it "
-            "onto a main whose pins this computer has installed, first.",
-            for_him=f"That branch is built on {older.repo} {older.tag}, and this computer has "
-                    f"{older.installed_text}, so its room would stop as it starts.")
+            "onto a main whose pins this computer has installed, first.")
+
+
+def _built_on_a_newer_library(older: LibraryOlderThanThePin) -> str:
+    return (f"That branch is built on {older.repo} {older.tag}, and this computer has "
+            f"{older.installed_text}, so its room would stop as it starts.")
 
 
 def _version(text: str) -> tuple[int, ...]:
     return tuple(int(part) for part in re.findall(r"\d+", text))
 
 
-def _named_checkouts(worktree: Path) -> list[str]:
-    return override_lines(worktree / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME) or []
-
-
 def libraries_older_than_the_pin(worktree: Path) -> list[LibraryOlderThanThePin]:
     pyproject = worktree / "pyproject.toml"
     if not pyproject.is_file():
         return []
-    run_from_checkouts = {_family_repo_of(Path(entry)) for entry in _named_checkouts(worktree)}
+    run_from_checkouts = {_family_repo_of(Path(entry)) for entry in
+                          override_lines(worktree / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME) or []}
     older = []
     for repo, tag in pinned_siblings(pyproject).items():
         installed = installed_version(repo)
-        if _by_its_name_now(repo) not in run_from_checkouts and (
-                installed is None or _version(installed) < _version(tag)):
+        if repo not in run_from_checkouts and (installed is None or _version(installed) < _version(tag)):
             older.append(LibraryOlderThanThePin(repo, tag, installed))
     return older
 
@@ -415,76 +412,32 @@ class SiblingOlderThanThePin:
     tag: str
 
 
-def _bring_it_up_to_date(older: SiblingOlderThanThePin) -> str:
-    return (f"Rebase that checkout onto {older.repo}'s origin/main, or take it out of "
-            f"state/{GENAU_DIRS_OVERRIDE_NAME}, first.")
-
-
-class OutOfDateSibling(RoomWouldNotStart):
+class OutOfDateSibling(RuntimeError):
     def __init__(self, older: SiblingOlderThanThePin):
         super().__init__(
             f"{older.checkout} does not carry {older.tag}, the {older.repo} this branch is "
             "built against, so a Main Funestra run out of it would lack what the branch imports. "
-            + _bring_it_up_to_date(older),
-            for_him="That branch is set to run its Funestras out of a funestra checkout older "
-                    "than the one it was built against, so its Main Funestra would not come up.")
+            f"Rebase that checkout onto {older.repo}'s origin/main, or take it out of "
+            f"state/{GENAU_DIRS_OVERRIDE_NAME}, first.")
 
 
-class OutOfDateForOrigenerator(RoomWouldNotStart):
-    def __init__(self, older: SiblingOlderThanThePin):
-        super().__init__(
-            f"{older.checkout} does not carry {older.tag}, the {older.repo} the Origenerator this "
-            "session hosts is built against, and the session starts that Origenerator with it "
-            "ahead of its own install, so Origenerator would stop at its first import. "
-            + _bring_it_up_to_date(older),
-            for_him="That branch is set to start Origenerator on an older copy of the code the "
-                    "apps share than the one Origenerator is built on, so Origenerator would "
-                    "close itself as the room opens and end the session.")
+FUNESTRAS_FROM_BEFORE_THE_PIN = (
+    "That branch is set to run its Funestras out of a funestra checkout older than the "
+    "one it was built against, so its Main Funestra would not come up.")
 
 
-def _checkouts_older_than_the_pins(
-        checkouts: list[str], pyproject: Path) -> list[SiblingOlderThanThePin]:
+def sibling_checkouts_older_than_the_pin(worktree: Path) -> list[SiblingOlderThanThePin]:
+    pyproject = worktree / "pyproject.toml"
     if not pyproject.is_file():
         return []
-    pins = {_by_its_name_now(repo): tag for repo, tag in pinned_siblings(pyproject).items()}
+    pins = pinned_siblings(pyproject)
     older = []
-    for entry in checkouts:
+    for entry in override_lines(worktree / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME) or []:
         checkout = Path(entry)
         repo = _family_repo_of(checkout)
         if repo in pins and not _carries(checkout, pins[repo]):
             older.append(SiblingOlderThanThePin(checkout, repo, pins[repo]))
     return older
-
-
-def sibling_checkouts_older_than_the_pin(worktree: Path) -> list[SiblingOlderThanThePin]:
-    return _checkouts_older_than_the_pins(_named_checkouts(worktree), worktree / "pyproject.toml")
-
-
-def checkouts_older_than_the_hosted_origenerator_needs(
-        worktree: Path, *, primary: Path, config_path: Path) -> list[SiblingOlderThanThePin]:
-    named = _named_checkouts(worktree)
-    if not named:
-        return []
-    origenerator = _checkouts_the_next_launch_runs(
-        worktree, primary, config_path)["origenerator_dir"]
-    if not origenerator:
-        return []
-    return _checkouts_older_than_the_pins(named, Path(origenerator) / "pyproject.toml")
-
-
-def _why_its_room_would_not_start(
-        worktree: Path, *, primary: Path, config_path: Path) -> RoomWouldNotStart | None:
-    lacking = libraries_older_than_the_pin(worktree)
-    if lacking:
-        return OutOfDateLibrary(lacking[0])
-    older = sibling_checkouts_older_than_the_pin(worktree)
-    if older:
-        return OutOfDateSibling(older[0])
-    older = checkouts_older_than_the_hosted_origenerator_needs(
-        worktree, primary=primary, config_path=config_path)
-    if older:
-        return OutOfDateForOrigenerator(older[0])
-    return None
 
 
 def _family_repo_of(checkout: Path) -> str | None:
@@ -493,41 +446,25 @@ def _family_repo_of(checkout: Path) -> str | None:
             name = tomllib.load(handle).get("project", {}).get("name")
     except (OSError, tomllib.TOMLDecodeError):
         return None
-    return _by_its_name_now(name.replace("-", "_")) if name else None
+    return name.replace("-", "_") if name else None
 
 
-def _by_its_name_now(repo: str) -> str:
-    return RENAMED_SIBLINGS.get(repo, repo)
-
-
-def _refuse(worktree: Path, why_he_reads: str, what_the_agent_does: str) -> int:
-    label = branch_label(worktree, current_branch(worktree))
-    state_dir = worktree / STATE_DIRNAME
-    state_dir.mkdir(parents=True, exist_ok=True)
-    (state_dir / OUT_OF_DATE_NOTE_NAME).write_text(
-        f"Fun Time couldn't start on {label}.\n\n"
-        f"{why_he_reads}\n\n"
-        f"Ask the session working on {label} to bring its branch up to date and make "
-        "you a new launcher.\n",
-        encoding="utf-8",
-    )
+def _refuse(worktree: Path, label: str, why_he_reads: str, what_the_agent_does: str) -> int:
+    _leave_note(worktree, label, why_he_reads)
     print(f"Refused: {what_the_agent_does}", flush=True)
     return 1
 
 
-def _machine_config(primary: Path) -> Path:
-    return primary / DEFAULT_CONFIG_PATH.name
-
-
-def _checkouts_the_next_launch_runs(worktree: Path, primary: Path, config_path: Path) -> dict:
-    real = load_config(config_path, project_dir=primary)
-    raw = {"paths": {
-        "genau_project_dirs": [str(path) for path in real.paths.genau_project_dirs],
-        "origenerator_dir": str(real.paths.origenerator_dir or ""),
-    }}
-    _apply_genau_checkout_override(raw, worktree / STATE_DIRNAME)
-    _apply_origenerator_checkout_override(raw, worktree / STATE_DIRNAME)
-    return raw["paths"]
+def _leave_note(worktree: Path, label: str, why_it_could_not_start: str) -> None:
+    state_dir = worktree / STATE_DIRNAME
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / OUT_OF_DATE_NOTE_NAME).write_text(
+        f"Fun Time couldn't start on {label}.\n\n"
+        f"{why_it_could_not_start}\n\n"
+        f"Ask the session working on {label} to bring its branch up to date and make "
+        "you a new launcher.\n",
+        encoding="utf-8",
+    )
 
 
 def sibling_checkouts_line(
@@ -545,15 +482,21 @@ def sibling_checkouts_line(
     (:func:`_apply_genau_checkout_override`) — so what this says is what the
     click will do.
     """
-    checkouts = _checkouts_the_next_launch_runs(
-        worktree, primary, config_path or _machine_config(primary))
-    dirs = checkouts["genau_project_dirs"]
+    config_path = config_path or (primary / DEFAULT_CONFIG_PATH.name)
+    real = load_config(config_path, project_dir=primary)
+    raw = {"paths": {
+        "genau_project_dirs": [str(path) for path in real.paths.genau_project_dirs],
+        "origenerator_dir": str(real.paths.origenerator_dir or ""),
+    }}
+    _apply_genau_checkout_override(raw, worktree / STATE_DIRNAME)
+    _apply_origenerator_checkout_override(raw, worktree / STATE_DIRNAME)
+    dirs = raw["paths"]["genau_project_dirs"]
     genau_line = (
         "genau_project_dirs: (empty — Genau, the Main Funestra and funestra run "
         "from their venv installs, the primaries)"
         if not dirs else "genau_project_dirs: " + os.pathsep.join(dirs)
     )
-    origenerator = checkouts["origenerator_dir"]
+    origenerator = raw["paths"]["origenerator_dir"]
     origenerator_line = (
         "origenerator_dir: (none — the session hosts no Origenerator)"
         if not origenerator else f"origenerator_dir: {origenerator}"
@@ -655,10 +598,12 @@ def write_launch_shortcut(
     missing = commits_missing(worktree, primary)
     if missing:
         raise OutOfDateWorktree(worktree, missing)
-    stopped = _why_its_room_would_not_start(
-        worktree, primary=primary, config_path=_machine_config(primary))
-    if stopped:
-        raise stopped
+    lacking = libraries_older_than_the_pin(worktree)
+    if lacking:
+        raise OutOfDateLibrary(lacking[0])
+    older = sibling_checkouts_older_than_the_pin(worktree)
+    if older:
+        raise OutOfDateSibling(older[0])
     branch = current_branch(worktree)
     destination = worktree / shortcut_name(worktree, branch, vr=vr)
     arguments = [str(launcher), str(worktree), branch]
@@ -743,7 +688,7 @@ def main(argv: list[str] | None = None) -> int:
         target = config_module.PROJECT_DIR if args.shortcut == "." else Path(args.shortcut)
         try:
             print(write_launch_shortcut(target, vr=args.vr))
-        except (OutOfDateWorktree, RoomWouldNotStart) as refused:
+        except (OutOfDateWorktree, OutOfDateLibrary, OutOfDateSibling) as refused:
             print(f"No launcher written: {refused}", file=sys.stderr)
             return 1
         print(sibling_checkouts_line(target, primary_checkout()))
