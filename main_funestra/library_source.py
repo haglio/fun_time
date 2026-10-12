@@ -9,9 +9,10 @@ from pathlib import Path
 
 from funestra.playlist import PlaylistItem
 
+from fun_time.media_metadata import recorded_for, version_group_of
+
 from .discovery import discover_entries
 from .library import LibraryEntry, group_versions, version_index_from_groups
-from .sidecar import read_version_group
 
 # The wait a caller can cover with a loading screen.  Naming the phase (rather
 # than passing display text) keeps the wording where the screen is.
@@ -29,7 +30,7 @@ class LibrarySource:
         if self.metadata_root is None:
             return None
         metadata_root = self.metadata_root
-        return lambda video: read_version_group(video, metadata_root)
+        return lambda video: version_group_of(recorded_for(video, metadata_root)) or None
 
     @cached_property
     def version_index(self) -> dict[Path, list[PlaylistItem]]:

@@ -14,7 +14,7 @@ from pathlib import Path
 from funestra.control_registry import Control, Verb, bind, look_up
 
 from fun_time.event_log import SOURCE_MAIN, notice
-from fun_time.media_metadata import load_metadata, metadata_path_for
+from fun_time.media_metadata import recorded_for
 
 from .layout import clamp_tilt
 from .projection import ProjectionMemory, next_projection, previous_projection
@@ -150,7 +150,8 @@ class HeadsetVerbs:
         self._projections[video] = self._remembered.resolve(video)
         self._restore_fov_and_height(video)
         self._look_at_the_picture(self._video)
-        self._scene_starts = scene_starts_ms(self._recorded_for(self._video))
+        self._scene_starts = scene_starts_ms(
+            recorded_for(self._video, self._metadata_root, outlying_dirs=self._vr_dirs))
 
     def _restore_fov_and_height(self, video: str) -> None:
         self._fovs.pop(video, None)
@@ -195,10 +196,6 @@ class HeadsetVerbs:
         self._projections[str(video)] = self._remembered.resolve(str(video))
         logger.info(
             "Projection: %s (%s, off its picture)", self._projections[str(video)], video.name)
-
-    def _recorded_for(self, video: Path) -> dict:
-        sidecar = metadata_path_for(video, self._metadata_root, outlying_dirs=self._vr_dirs)
-        return {} if sidecar is None else load_metadata(sidecar)
 
     def next_scene(self) -> None:
         position = self._playback.position_ms

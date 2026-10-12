@@ -16,7 +16,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from fun_time.media_metadata import load_metadata, metadata_path_for
+from fun_time.media_metadata import load_metadata, metadata_path_for, recorded_for
 from fun_time.vr_videos import VR_FILENAME_TOKENS, is_vr_video
 
 from .picture_shape import FISHEYE_CIRCLE
@@ -149,10 +149,8 @@ class ProjectionMemory:
                 and not self._kept(video_path, _PICTURE_FIELD))
 
     def _kept(self, video_path: str, field: str) -> object:
-        sidecar = self._sidecar(video_path)
-        if sidecar is None or not sidecar.is_file():
-            return None
-        block = load_metadata(sidecar).get(_SIDECAR_BLOCK)
+        block = recorded_for(video_path, self.metadata_root,
+                             outlying_dirs=self.vr_dirs).get(_SIDECAR_BLOCK)
         return block.get(field) if isinstance(block, dict) else None
 
     def _keep(self, video_path: str, field: str, value: str | float) -> bool:
@@ -160,7 +158,7 @@ class ProjectionMemory:
         if sidecar is None:
             logger.info("No sidecar path for %s; its %s is not remembered", video_path, field)
             return False
-        payload = load_metadata(sidecar) if sidecar.is_file() else {}
+        payload = load_metadata(sidecar)
         payload.setdefault(_SIDECAR_BLOCK, {})[field] = value
         try:
             sidecar.parent.mkdir(parents=True, exist_ok=True)
