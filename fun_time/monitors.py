@@ -50,11 +50,9 @@ def virtual_desktop_rect() -> MonitorInfo | None:
 def enumerate_monitors() -> list[MonitorInfo]:
     """Return work-area rectangles for all monitors via Win32 EnumDisplayMonitors.
 
-    ``FUN_TIME_FAKE_MONITORS`` (``x,y,w,h;x,y,w,h``) overrides it outright, for
-    the integration suite's hidden desktop: that reports ONE monitor, on which
-    the real layout collapses every window onto one screen and the Funestras
-    legitimately overlap, so "is each Funestra frontmost over its own rect?" had
-    nothing true to assert.  Windows place fine at coordinates no display backs.
+    ``FUN_TIME_FAKE_MONITORS`` (``x,y,w,h;x,y,w,h``) overrides it outright: an
+    integration session lays its room out on the same two monitors whatever the
+    machine lists.  Windows place fine at coordinates no display backs.
     """
     fake = os.environ.get("FUN_TIME_FAKE_MONITORS", "").strip()
     if fake:

@@ -322,7 +322,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6208 the same day: the last notes naming that cache went too.
 # 6186 the same day: one reader of a video's record, and the Main Funestra's
 # copy of it went with its notes.
-MAX_PROSE_LINES = 6186
+# 6184 on 2026-10-12: every integration session lays its room out on the same
+# two monitors, and the note on why a session faked them went to that test.
+MAX_PROSE_LINES = 6184
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

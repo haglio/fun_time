@@ -90,14 +90,10 @@ def test_nothing_stays_over_the_cover_long_enough_to_be_seen():
     watcher.start()
     try:
         # With the dashboard, because it and its notice overlay are two of the
-        # topmost windows that can land over the cover.  Faked side-by-side
-        # monitors for the reason the other overlay tests fake them: on the
-        # hidden desktop's single screen the real layout collapses every window
-        # onto it.
+        # topmost windows that can land over the cover.
         session.start(wait_seconds=180.0, env_overrides={
             "FUN_TIME_INTEGRATION_OVERLAYS": "1",
             "FUN_TIME_DISABLE_DASHBOARD": "0",
-            "FUN_TIME_FAKE_MONITORS": "0,0,1280,720;1280,0,720,1440",
         })
         watcher.join(timeout=60.0)
 

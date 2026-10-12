@@ -106,15 +106,10 @@ def test_the_room_is_finished_when_the_cover_lifts():
     watcher.start()
     try:
         # The dashboard is the window this is mostly about, so this is one of the
-        # few sessions that runs with it enabled.  Faked side-by-side monitors for
-        # the reason the other overlay test fakes them: on the hidden desktop's
-        # single screen the real layout collapses every window onto it, and a
-        # Funestra landing on top of another one is then the layout's doing rather
-        # than the choreography's.
+        # few sessions that runs with it enabled.
         session.start(wait_seconds=180.0, env_overrides={
             "FUN_TIME_INTEGRATION_OVERLAYS": "1",
             "FUN_TIME_DISABLE_DASHBOARD": "0",
-            "FUN_TIME_FAKE_MONITORS": "0,0,1280,720;1280,0,720,1440",
         })
         watcher.join(timeout=60.0)
 
