@@ -319,7 +319,8 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6211 the same day: Kino builds no list of its own and measures no video, and
 # the notes on its length lists, its duration cache and its probe went with
 # them.
-MAX_PROSE_LINES = 6211
+# 6208 the same day: the last notes naming that cache went too.
+MAX_PROSE_LINES = 6208
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

@@ -44,7 +44,8 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--flicks-dir", type=Path,
                    help="Genau's delivery folder, which Genau mode plays from")
     p.add_argument("--state-dir", type=Path,
-                   help="Where the duration cache is stored")
+                   help="Where the compilation it is in and the point it left each "
+                        "video at are kept")
     p.add_argument("--metadata-dir", type=Path, default=main_funestra.get("metadata_dir"),
                    help="Metadata sidecar root; when set, version families come "
                         "from Evolver's sidecars instead of clip names")
@@ -121,9 +122,8 @@ def _state_path(args, name: str) -> Path:
 
 
 def mode_memory(args) -> ModeMemory:
-    """Where the Main Funestra writes down the mode it is in — the length filter and any
-    compilation — so the next session, which Fun Time opens on this one's resumed
-    playlist, can name it and re-enter the compilation."""
+    """Where the Main Funestra writes down the compilation it is in, so the next
+    session can re-enter it."""
     return ModeMemory(_state_path(args, "main_player_mode.txt"))
 
 

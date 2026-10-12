@@ -43,27 +43,24 @@ dispatch loop writes whenever the mute moves
 (`voice_control.take_whether_the_mic_was_off`).
 
 The Main Funestra is the one that needed work, and it is why this note exists.
-Each app refuses the other's main playlist: the desktop must never put a
-VR-mastered video on the primary monitor, and a desktop rotation resumed into a
-headset is nothing but flat screens. So a crossing rebuilds that one playlist
-from the arriving session's own sources — and rebuilding *alone* threw away the
-clip you were watching, in both directions, every time, while both satellites
-came back exactly as you left them.
-
-`session_resume.resume_main_video` is the other half: after the rebuild, the
-playlist is rotated onto the clip that was on screen. You keep watching what you
-were watching, and the queue under it is the arriving library — so entering VR
-carries the video into the headset and gives you VR video the moment it moves
-on.
+The desktop must never put a VR-mastered video on the primary monitor, and the
+headset's library is the VR library and the desktop's together, so no session
+opens on the list the last one left: every session builds the Main Funestra's
+one list again, from its own library and the buttons it carries
+([resuming-a-session.md](resuming-a-session.md#the-main-funestras-one-list)),
+starting from the clip that was on screen. You keep watching what you were
+watching, and the list under it is the arriving library narrowed the way the
+buttons say — so entering VR carries the video into the headset, and with only
+VR lit, the next video is a VR one.
 
 It cannot always be kept. A VR master on the way back to the desktop is not in
-the desktop's rebuild, because the desktop cannot play it; that crossing opens
-on the rebuild's own first clip. The log line says which of the two happened.
+the desktop's library, because the desktop cannot play it; that crossing opens
+at the top of the new list. The log line says which of the two happened.
 
 The A/B loop follows the clip, in both directions. It is a range inside one
 video and lives nowhere but in the Funestra holding it, so each session publishes
 it and the arriving one is sent it back on the command file — and only when the
-clip it was cut from is what the rebuilt playlist leads with, since otherwise
+clip it was cut from is what the new list leads with, since otherwise
 those bounds would mark out a stretch of a video nobody chose. Both
 orchestrators ask `session_resume.resume_main_loop` for it, which decides that
 for both.

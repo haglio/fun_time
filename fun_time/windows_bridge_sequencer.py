@@ -76,11 +76,9 @@ logger = logging.getLogger(__name__)
 # — so this is a ceiling for a machine under load, not a cost anyone pays.
 WINDOW_RESOLVE_TIMEOUT_S = 15.0
 
-# How long startup waits for the Main Funestra to finish loading.  Wide enough for the worst
-# case, a cold duration cache: one ffprobe per unprobed video, measured at 28s
-# for 525 of them, and paid once because the cache persists.  Its ceiling is the
-# overlay's own patience: the two waits in this phase run back to back under a
-# single progress write, and the overlay tears itself down when that file has
+# How long startup waits for the Main Funestra to finish loading.  Its ceiling is
+# the overlay's own patience: the two waits in this phase run back to back under
+# a single progress write, and the overlay tears itself down when that file has
 # gone ``loading_screen.STALE_TIMEOUT_S`` without changing.  A test pins the sum.
 MAIN_FUNESTRA_LOAD_TIMEOUT_S = 40.0
 
