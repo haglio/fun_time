@@ -1150,7 +1150,6 @@ def _narrow_the_main_funestra(
     state = replace(state, main_plays_vr=plays_vr, main_plays_flat=plays_flat)
     if not (plays_vr or plays_flat):
         append_command(config.main_funestra_cmd_file, LOCK_ON)
-        return state, []
     _rebuild_the_main_list(state, config)
     return state, []
 

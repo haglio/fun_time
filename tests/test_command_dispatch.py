@@ -4299,18 +4299,20 @@ def test_asking_for_the_shapes_already_running_rebuilds_nothing(tmp_path):
     assert builds.asked == [] and ops == []
 
 
-def test_neither_shape_holds_the_video_instead_of_rebuilding(tmp_path):
+def test_neither_shape_holds_the_video_on_screen_as_the_whole_list(tmp_path):
     """Degenerate -- it plays nothing -- but it is what the second press on the
-    last lit button asks for, so nothing refuses it.  There is no list to build,
-    so the video on screen is locked: a state you can see and undo, where an
-    empty playlist would look like a filter that did nothing."""
+    last lit button asks for, so nothing refuses it.  The list comes down to the
+    video on screen, locked: a state you can see and undo, where an empty
+    playlist would look like a filter that did nothing, and the list it had would
+    go on playing the videos both buttons say are left out."""
     config, builds = _recording(_vr_config(tmp_path))
 
     state, ops = dispatch_command("main_projection_none", _make_state(), config)
 
     assert (state.main_plays_vr, state.main_plays_flat) == (False, False)
     assert ops[0].key == "No videos left"
-    assert builds.asked == []
+    assert [(build.settings.plays_vr, build.settings.plays_flat) for build in builds.asked] == [
+        (False, False)]
     assert "LOCK_ON" in config.main_funestra_cmd_file.read_text(encoding="utf-8")
 
 

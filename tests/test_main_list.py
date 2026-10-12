@@ -176,6 +176,28 @@ class TestWhereItStarts:
         assert started == the_list.videos(MainListSettings(shuffle_seed=7))
 
 
+class TestWhenNothingIsLetThrough:
+    def test_the_video_on_screen_is_held_as_the_whole_list(self, tmp_path):
+        root = tmp_path / "vids"
+        (on_screen,) = _videos(root / "flat", "scene one.mp4")
+        the_list = _the_list(tmp_path, str(root), vr_dirs=str(root / "vr"))
+
+        held = the_list.videos(MainListSettings(plays_vr=False, plays_flat=False),
+                               start_from=str(on_screen))
+
+        assert held == [str(on_screen)]
+
+    def test_a_video_the_library_no_longer_holds_is_not(self, tmp_path):
+        root = tmp_path / "vids"
+        _videos(root / "flat", "scene one.mp4")
+        the_list = _the_list(tmp_path, str(root), vr_dirs=str(root / "vr"))
+
+        held = the_list.videos(MainListSettings(plays_vr=False, plays_flat=False),
+                               start_from=str(root / "flat" / "gone since.mp4"))
+
+        assert held == []
+
+
 class TestWritingIt:
     def test_each_video_rides_with_the_funscript_beside_it(self, tmp_path):
         root = tmp_path / "videos" / "videos" / "primary"

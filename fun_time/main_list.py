@@ -47,6 +47,13 @@ def _shuffled(videos: list[str], seed: int) -> list[str]:
     return sorted(videos, key=place)
 
 
+def _the_video_on_screen_alone(ordered: list[str], on_screen: str) -> list[str]:
+    leading = ordered[:1]
+    if leading and normalize_path_key(leading[0]) == normalize_path_key(on_screen):
+        return leading
+    return []
+
+
 @dataclass(frozen=True)
 class MainList:
     sources: str
@@ -68,10 +75,11 @@ class MainList:
         if settings.scripted_filter:
             let_through = {video for video in let_through
                            if has_handcrafted_funscript(video, self.metadata_root)}
-        ordered = (sort_paths_by_recency(every) if settings.latest
-                   else _shuffled(every, settings.shuffle_seed))
-        return [video for video in rotated_onto(ordered, start_from, path_of=str)
-                if video in let_through]
+        ordered = rotated_onto(sort_paths_by_recency(every) if settings.latest
+                               else _shuffled(every, settings.shuffle_seed),
+                               start_from, path_of=str)
+        return ([video for video in ordered if video in let_through]
+                or _the_video_on_screen_alone(ordered, start_from))
 
     def write(self, settings: MainListSettings, *, start_from: str = "") -> list[str]:
         videos = self.videos(settings, start_from=start_from)
