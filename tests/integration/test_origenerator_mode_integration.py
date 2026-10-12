@@ -541,14 +541,9 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
     config_path = build_integration_config(temp_root)
     _host_stub(config_path, stub_root)
     session = FunTimeIntegrationSession(config_path)
-    # Faked side-by-side monitors for the same reason the loading-screen test
-    # fakes them: on the hidden desktop's single screen the real layout
-    # collapses every window onto it and the Funestras legitimately overlap,
-    # which makes "is this Funestra frontmost over its rect" unanswerable.
     overlay_env = {
         "FUN_TIME_INTEGRATION_OVERLAYS": "1",
         "FUN_TIME_DISABLE_DASHBOARD": "0",
-        "FUN_TIME_FAKE_MONITORS": "0,0,1280,720;1280,0,720,1440",
     }
     try:
         session.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S, env_overrides=overlay_env)

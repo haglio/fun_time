@@ -26,11 +26,13 @@ from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from fun_time import funestra_status, windows_bridge_orchestrator
 from fun_time.funestra_status import MainFunestraStatus
 from fun_time.loopback_server import LOOPBACK_PORT
+from fun_time.monitors import enumerate_monitors
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from tests.integration import integration_support, run_clock
 from tests.integration.integration_support import (
     COMMAND_BUDGET_S,
     INTEGRATION_CONFIG_NAME,
+    SESSION_MONITORS,
     FunTimeIntegrationSession,
     close_udp_sinks,
     end_satellite,
@@ -235,6 +237,18 @@ def test_a_session_nobody_measures_is_ended_at_once(session, monkeypatch):
     session.stop()
 
     assert steps == ["terminate"]
+
+
+def test_every_session_lays_its_room_out_on_the_same_two_monitors_whatever_the_machine_lists(
+        session, monkeypatch):
+    launched = {}
+    monkeypatch.setattr(integration_support.subprocess, "Popen",
+                        lambda argv, **kwargs: launched.update(kwargs))
+    session._launch(project_dir=None, env_overrides=None)
+    session._stderr_fh.close()
+    monkeypatch.setenv("FUN_TIME_FAKE_MONITORS", launched["env"].get("FUN_TIME_FAKE_MONITORS", ""))
+
+    assert enumerate_monitors() == list(SESSION_MONITORS)
 
 
 def test_stop_survives_missing_bridge_pids(session):

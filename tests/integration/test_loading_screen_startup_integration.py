@@ -58,18 +58,8 @@ def test_the_satellites_end_startup_frontmost_over_their_rects():
         # process and holds for the reveal.  "Hotkey script started" (what
         # start waits for) comes after the post-overlay pass, so by the time
         # this returns the pass has run.
-        #
-        # Faked side-by-side monitors, because the hidden desktop reports one:
-        # on a single screen the real layout collapses every window onto it and
-        # the Funestras legitimately overlap each other, which makes "is each
-        # Funestra frontmost over its own rect" unanswerable.  A landscape
-        # primary and a portrait secondary, both inside the desktop's visible
-        # area, give the plan the disjoint rects a real session has.
         session.start(wait_seconds=90.0,
-                      env_overrides={
-                          "FUN_TIME_INTEGRATION_OVERLAYS": "1",
-                          "FUN_TIME_FAKE_MONITORS": "0,0,1280,720;1280,0,720,1440",
-                      })
+                      env_overrides={"FUN_TIME_INTEGRATION_OVERLAYS": "1"})
         # Prove the curtain actually ran — green through the overlay-less path
         # would be this test testing nothing.  The startup-phase messages land
         # in the session's event log (the windows-bridge routing begins later).

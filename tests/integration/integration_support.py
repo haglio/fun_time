@@ -34,6 +34,7 @@ from fun_time.modes import (
     has_handcrafted_funscript,
     matching_funscript,
 )
+from fun_time.monitors import MonitorRect
 from fun_time.process_identity import NAMER
 from fun_time.process_sweep import processes_matching
 from fun_time.process_tree import kill_process_tree
@@ -172,6 +173,9 @@ CHILDREN_GONE_TIMEOUT_S = 20.0
 
 # How long a command is given to show in what a Funestra publishes.
 COMMAND_BUDGET_S = 120.0
+
+# Windows leaves a monitor that is asleep out of the ones it lists.
+SESSION_MONITORS = (MonitorRect(0, 0, 1280, 720), MonitorRect(1280, 0, 720, 1440))
 
 
 def wait_for(predicate, *, desc: str, timeout: float = COMMAND_BUDGET_S):
@@ -312,6 +316,8 @@ class FunTimeIntegrationSession:
         env["FUN_TIME_DISABLE_DASHBOARD"] = "1"
         env["FUN_TIME_MUTE_AUDIO"] = "1"
         env["FUN_TIME_RUN_INTEGRATION"] = "1"
+        env["FUN_TIME_FAKE_MONITORS"] = ";".join(
+            f"{m.x},{m.y},{m.width},{m.height}" for m in SESSION_MONITORS)
         env.update(env_overrides or {})
         self._stderr_file = self.config.paths.state_dir / "orchestrator_stderr.log"
         self._stderr_file.parent.mkdir(parents=True, exist_ok=True)

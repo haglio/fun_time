@@ -24,11 +24,12 @@ from funestra.playlist import PlaylistItem
 from fun_time.crown import Crown
 from fun_time.win32 import wait_for_window_by_title, window_rect
 from fun_time.win32_loader import Win32Rect
-from fun_time.window_layout import MonitorRect, WindowRect, secondary_monitor_rects
+from fun_time.window_layout import WindowRect, secondary_monitor_rects
 from fun_time.windows_bridge_startup import SATELLITE_PORTRAIT_TITLE
 from tests.made_up_genau import made_up_genau
 
 from .integration_support import (
+    SESSION_MONITORS,
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
@@ -41,8 +42,7 @@ pytestmark = [
                        reason="Set FUN_TIME_RUN_INTEGRATION=1 to run"),
 ]
 
-SECONDARY_MONITOR = MonitorRect(1280, 0, 720, 1440)
-FAKE_MONITORS = "0,0,1280,720;1280,0,720,1440"
+_, SECONDARY_MONITOR = SESSION_MONITORS
 
 
 def _tall_test_pattern(folder: Path, *, seconds: int) -> Path:
@@ -82,7 +82,7 @@ def test_a_portrait_video_on_the_crowned_main_funestra_trades_places_with_the_po
     session = FunTimeIntegrationSession(build_integration_config(temp_root))
     tall_clip = _tall_test_pattern(temp_root, seconds=30)
     try:
-        session.start(env_overrides={"FUN_TIME_FAKE_MONITORS": FAKE_MONITORS})
+        session.start()
         portrait = wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=10, exact=True)
         main = wait_for_window_by_title("Main Funestra", timeout_s=10, exact=True)
         rects = partial(secondary_monitor_rects, SECONDARY_MONITOR, session.config.layout)
@@ -108,7 +108,7 @@ def test_a_portrait_genau_flick_on_the_crowned_main_funestra_trades_places_with_
     _tall_test_pattern(played_from, seconds=2)
     session = FunTimeIntegrationSession(build_integration_config(temp_root, genau_dir=genau))
     try:
-        session.start(env_overrides={"FUN_TIME_FAKE_MONITORS": FAKE_MONITORS})
+        session.start()
         portrait = wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=10, exact=True)
         rects = partial(secondary_monitor_rects, SECONDARY_MONITOR, session.config.layout)
 
