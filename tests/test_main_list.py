@@ -6,7 +6,7 @@ from pathlib import Path
 
 from funestra.modes import LengthMode
 
-from fun_time.main_list import MainList, MainListSettings, next_length_mode
+from fun_time.main_list import MainList, MainListSettings, WrittenList, next_length_mode
 from fun_time.media_metadata import metadata_path_for
 from fun_time.modes import build_generated_marker_path
 from tests.drive_fakes import files_that_never_answer
@@ -150,13 +150,11 @@ class TestLength:
 
         assert sorted(the_list.videos(MainListSettings())) == sorted(videos.values())
 
-    def test_neither_length_holds_only_the_video_on_screen(self, tmp_path):
+    def test_neither_length_lets_no_video_through(self, tmp_path):
         the_list, videos = self._kinds(tmp_path)
 
-        held = the_list.videos(MainListSettings(length=LengthMode.NONE),
-                               start_from=videos["whole"])
-
-        assert held == [videos["whole"]]
+        assert the_list.videos(MainListSettings(length=LengthMode.NONE),
+                               on_screen=videos["whole"]) == []
 
     def test_without_a_record_to_read_every_video_is_a_full_video(self, tmp_path):
         root = tmp_path / "vids"
@@ -254,7 +252,7 @@ class TestWhereItStarts:
         the_list = self._library(tmp_path)
         whole = the_list.videos(MainListSettings(shuffle_seed=7))
 
-        started = the_list.videos(MainListSettings(shuffle_seed=7), start_from=whole[5])
+        started = the_list.videos(MainListSettings(shuffle_seed=7), on_screen=whole[5])
 
         assert started == whole[5:] + whole[:5]
 
@@ -265,7 +263,7 @@ class TestWhereItStarts:
         after_it = whole[whole.index(on_screen):] + whole[:whole.index(on_screen)]
 
         vr_only = the_list.videos(MainListSettings(plays_flat=False, shuffle_seed=7),
-                                  start_from=on_screen)
+                                  on_screen=on_screen)
 
         assert vr_only == [video for video in after_it if "vr scene" in video]
 
@@ -275,7 +273,7 @@ class TestWhereItStarts:
         the_list = self._library(tmp_path)
         whole = the_list.videos(MainListSettings(shuffle_seed=7))
 
-        started = the_list.videos(MainListSettings(shuffle_seed=7), start_from=whole[5].upper())
+        started = the_list.videos(MainListSettings(shuffle_seed=7), on_screen=whole[5].upper())
 
         assert started[0] == whole[5]
 
@@ -283,31 +281,52 @@ class TestWhereItStarts:
         the_list = self._library(tmp_path)
 
         started = the_list.videos(MainListSettings(shuffle_seed=7),
-                                  start_from=str(tmp_path / "vids" / "gone since.mp4"))
+                                  on_screen=str(tmp_path / "vids" / "gone since.mp4"))
 
         assert started == the_list.videos(MainListSettings(shuffle_seed=7))
 
 
 class TestWhenNothingIsLetThrough:
-    def test_the_video_on_screen_is_held_as_the_whole_list(self, tmp_path):
+    """However the buttons got there, an empty list is written as the video on
+    screen alone, and said to be empty, for the press that emptied it to answer."""
+
+    def _library(self, tmp_path):
         root = tmp_path / "vids"
         (on_screen,) = _videos(root / "flat", "scene one.mp4")
-        the_list = _the_list(tmp_path, str(root), vr_dirs=str(root / "vr"))
+        return _the_list(tmp_path, str(root), vr_dirs=str(root / "vr")), str(on_screen)
 
-        held = the_list.videos(MainListSettings(plays_vr=False, plays_flat=False),
-                               start_from=str(on_screen))
+    def test_the_video_on_screen_is_held_as_the_whole_list(self, tmp_path):
+        the_list, on_screen = self._library(tmp_path)
 
-        assert held == [str(on_screen)]
+        written = the_list.write(MainListSettings(plays_vr=False, plays_flat=False),
+                                 on_screen=on_screen)
+
+        assert written == WrittenList([on_screen], nothing_left=True)
+        assert the_list.file.read_text(encoding="utf-8").splitlines() == [on_screen]
+
+    def test_it_is_held_for_a_list_asked_for_from_the_top_too(self, tmp_path):
+        """Latest and Shuffle start their list from its top, not from the video
+        on screen, and an empty one still holds that video."""
+        the_list, on_screen = self._library(tmp_path)
+
+        written = the_list.write(MainListSettings(plays_vr=False, plays_flat=False),
+                                 on_screen=on_screen, from_the_top=True)
+
+        assert written == WrittenList([on_screen], nothing_left=True)
 
     def test_a_video_the_library_no_longer_holds_is_not(self, tmp_path):
-        root = tmp_path / "vids"
-        _videos(root / "flat", "scene one.mp4")
-        the_list = _the_list(tmp_path, str(root), vr_dirs=str(root / "vr"))
+        the_list, on_screen = self._library(tmp_path)
 
-        held = the_list.videos(MainListSettings(plays_vr=False, plays_flat=False),
-                               start_from=str(root / "flat" / "gone since.mp4"))
+        written = the_list.write(MainListSettings(plays_vr=False, plays_flat=False),
+                                 on_screen=str(Path(on_screen).with_name("gone since.mp4")))
 
-        assert held == []
+        assert written == WrittenList([], nothing_left=True)
+
+    def test_a_list_with_videos_in_it_is_not_empty(self, tmp_path):
+        the_list, on_screen = self._library(tmp_path)
+
+        assert the_list.write(MainListSettings(), on_screen=on_screen) == WrittenList(
+            [on_screen], nothing_left=False)
 
 
 class TestWritingIt:

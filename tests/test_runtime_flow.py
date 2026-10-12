@@ -242,7 +242,7 @@ def test_toggle_fmode_tells_main_funestra_the_flag_on_the_same_write_as_the_relo
         )
         return main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()
 
-    assert told(True) == ["RELOAD_PLAYLIST", "SET_F_MODE 1", "SET_LENGTH_MODE mixed"]
+    assert told(True)[:3] == ["RELOAD_PLAYLIST", "SET_F_MODE 1", "SET_LENGTH_MODE mixed"]
     assert told(False) == ["RELOAD_PLAYLIST", "SET_F_MODE 0", "SET_LENGTH_MODE mixed"]
 
 

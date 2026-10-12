@@ -86,11 +86,17 @@ def _shuffled(videos: list[str], seed: int) -> list[str]:
     return sorted(videos, key=place)
 
 
-def _the_video_on_screen_alone(ordered: list[str], on_screen: str) -> list[str]:
-    leading = ordered[:1]
-    if leading and normalize_path_key(leading[0]) == normalize_path_key(on_screen):
-        return leading
-    return []
+def _the_one_on_screen(every: list[str], on_screen: str) -> list[str]:
+    if not on_screen:
+        return []
+    key = normalize_path_key(on_screen)
+    return [video for video in every if normalize_path_key(video) == key][:1]
+
+
+@dataclass(frozen=True)
+class WrittenList:
+    videos: list[str]
+    nothing_left: bool
 
 
 @dataclass(frozen=True)
@@ -118,7 +124,12 @@ class MainList:
             return True
         return self._kind_of(video) in _KINDS_OF_LENGTH.get(length, frozenset())
 
-    def videos(self, settings: MainListSettings, *, start_from: str = "") -> list[str]:
+    def videos(self, settings: MainListSettings, *, on_screen: str = "",
+               from_the_top: bool = False) -> list[str]:
+        return self._listed(settings, on_screen, from_the_top)[1]
+
+    def _listed(self, settings: MainListSettings, on_screen: str,
+                from_the_top: bool) -> tuple[list[str], list[str]]:
         every = collect_video_files(self.sources)
         let_through = {video for video in self.shapes(settings).keep(every)
                        if self._lets_through(video, settings.length)}
@@ -127,11 +138,13 @@ class MainList:
                            if has_handcrafted_funscript(video, self.metadata_root)}
         ordered = rotated_onto(sort_paths_by_recency(every) if settings.latest
                                else _shuffled(every, settings.shuffle_seed),
-                               start_from, path_of=str)
-        return ([video for video in ordered if video in let_through]
-                or _the_video_on_screen_alone(ordered, start_from))
+                               "" if from_the_top else on_screen, path_of=str)
+        return every, [video for video in ordered if video in let_through]
 
-    def write(self, settings: MainListSettings, *, start_from: str = "") -> list[str]:
-        videos = self.videos(settings, start_from=start_from)
-        write_playlist_file(self.file, videos, metadata_root=self.metadata_root)
-        return videos
+    def write(self, settings: MainListSettings, *, on_screen: str = "",
+              from_the_top: bool = False) -> WrittenList:
+        every, videos = self._listed(settings, on_screen, from_the_top)
+        written = (WrittenList(videos, nothing_left=False) if videos
+                   else WrittenList(_the_one_on_screen(every, on_screen), nothing_left=True))
+        write_playlist_file(self.file, written.videos, metadata_root=self.metadata_root)
+        return written

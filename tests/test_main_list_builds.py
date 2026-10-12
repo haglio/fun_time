@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 from dataclasses import replace
 
@@ -23,7 +24,7 @@ def test_a_rebuild_writes_the_list_from_the_video_on_screen(tmp_path):
     videos = [library / f"scene {number}.mp4" for number in range(5)]
     for video in videos:
         video.write_text("x", encoding="utf-8")
-    build = _main_list_build(tmp_path, MainListSettings(shuffle_seed=7), start_from=str(videos[3]))
+    build = _main_list_build(tmp_path, MainListSettings(shuffle_seed=7), on_screen=str(videos[3]))
 
     build.run()
 
@@ -38,8 +39,28 @@ def test_a_rebuild_tells_the_main_funestra_what_its_buttons_built_it_under(tmp_p
 
     build.run()
 
-    assert build.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
+    assert build.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()[:3] == [
         "RELOAD_PLAYLIST", "SET_F_MODE 1", "SET_LENGTH_MODE clips"]
+
+
+def test_a_press_that_leaves_no_video_holds_the_one_on_screen_locked_and_says_so(tmp_path, caplog):
+    """The one answer to an empty list, whichever buttons emptied it: here clips
+    alone, over a library of videos Evolver has no record of, which are all full."""
+    library = tmp_path / "library"
+    library.mkdir()
+    on_screen, other = library / "scene one.mp4", library / "scene two.mp4"
+    for video in (on_screen, other):
+        video.write_text("x", encoding="utf-8")
+    build = _main_list_build(tmp_path, MainListSettings(length=LengthMode.CLIPS),
+                             on_screen=str(on_screen))
+
+    with caplog.at_level(logging.WARNING):
+        build.run()
+
+    assert build.main_list.file.read_text(encoding="utf-8").splitlines() == [str(on_screen)]
+    assert build.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()[-1] == "LOCK_ON"
+    assert [record.getMessage() for record in caplog.records
+            if record.levelno == logging.WARNING] == ["No videos left"]
 
 
 def test_a_build_replacing_one_that_owed_a_jump_to_the_top_still_owes_it(tmp_path):

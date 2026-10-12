@@ -1015,7 +1015,7 @@ def _dispatch_fmode(
         enabled=enabled,
         main_list=config.main_list,
         main_settings=MainListSettings.of(state),
-        main_start_from=_on_the_main_funestra(config),
+        main_on_screen=_on_the_main_funestra(config),
         favs_file=config.favs_file,
         state_dir=config.state_dir,
         main_funestra_cmd_file=config.main_funestra_cmd_file,
@@ -1095,7 +1095,7 @@ def _rebuild_the_main_list(state: BridgeState, config: BridgeConfig, *,
                            start_at_top: bool = False) -> None:
     rebuild_main_list(config.main_list, MainListSettings.of(state),
                       main_funestra_cmd_file=config.main_funestra_cmd_file,
-                      start_from="" if start_at_top else _on_the_main_funestra(config),
+                      on_screen=_on_the_main_funestra(config),
                       start_at_top=start_at_top, builds=config.main_list_builds)
 
 
@@ -1134,21 +1134,20 @@ def _dispatch_main_projection(
         state, ops = _narrow_the_main_funestra(plays_vr, plays_flat, state, config)
     else:
         state, ops = _narrow_genau(plays_vr, plays_flat, state, config)
-    label = _PROJECTION_LABELS.get(
-        (plays_vr, plays_flat),
-        "No videos left" if on_main_funestra else f"No {genau_flick_noun().many} left")
-    logger.info("%s shapes: %s", "Main Funestra" if on_main_funestra else "Genau", label)
-    return state, [*ops, WindowOp(
-        op="notice", key=label, source=SOURCE_MAIN,
-        level=logging.WARNING if not (plays_vr or plays_flat) else NOTICE)]
+    label = _PROJECTION_LABELS.get((plays_vr, plays_flat))
+    logger.info("%s shapes: %s", "Main Funestra" if on_main_funestra else "Genau", label or "neither")
+    if label:
+        return state, [*ops, WindowOp(op="notice", key=label, source=SOURCE_MAIN, level=NOTICE)]
+    if on_main_funestra:
+        return state, ops
+    return state, [*ops, WindowOp(op="notice", key=f"No {genau_flick_noun().many} left",
+                                  source=SOURCE_MAIN, level=logging.WARNING)]
 
 
 def _narrow_the_main_funestra(
     plays_vr: bool, plays_flat: bool, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     state = replace(state, main_plays_vr=plays_vr, main_plays_flat=plays_flat)
-    if not (plays_vr or plays_flat):
-        append_command(config.main_funestra_cmd_file, LOCK_ON)
     _rebuild_the_main_list(state, config)
     return state, []
 
@@ -1172,8 +1171,6 @@ def _dispatch_main_length(
             and not read_main_funestra_status(config.main_funestra_status_file).compilation):
         return state, []
     state = replace(state, main_length_mode=length)
-    if length is LengthMode.NONE:
-        append_command(config.main_funestra_cmd_file, LOCK_ON)
     _rebuild_the_main_list(state, config)
     logger.info("Main Funestra length: %s", length)
     return state, []
