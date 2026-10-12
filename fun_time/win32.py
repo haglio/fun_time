@@ -434,6 +434,10 @@ def windows_obscuring(
     return [w for w in stack[:idx] if _rects_overlap(w.rect, target_rect)]
 
 
+def describe_windows(windows: list[StackedWindow]) -> str:
+    return "; ".join(f"{w.title!r} hwnd={w.hwnd} topmost={w.topmost} rect={w.rect}" for w in windows)
+
+
 def iter_zorder() -> list[StackedWindow]:
     """Every visible, titled, non-minimized top-level window, front-to-back.
 

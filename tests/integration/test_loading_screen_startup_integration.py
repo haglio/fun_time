@@ -24,6 +24,7 @@ import pytest
 
 from fun_time.event_log import event_log_path
 from fun_time.win32 import (
+    describe_windows,
     iter_zorder,
     wait_for_window_by_title,
     windows_obscuring,
@@ -91,12 +92,7 @@ def test_the_satellites_end_startup_frontmost_over_their_rects():
                 # nothing in the checkout.
                 _preserve_session_logs(session)
             assert not covering, (
-                f"{title} (hwnd={hwnd}) is covered after startup by: "
-                + "; ".join(
-                    f"{w.title!r} hwnd={w.hwnd} topmost={w.topmost} rect={w.rect}"
-                    for w in covering
-                )
-            )
+                f"{title} (hwnd={hwnd}) is covered after startup by: {describe_windows(covering)}")
     finally:
         session.stop()
 

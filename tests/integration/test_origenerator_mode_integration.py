@@ -41,6 +41,7 @@ from fun_time.shared_state import (
     write_shared_state,
 )
 from fun_time.win32 import (
+    describe_windows,
     is_window_minimized,
     is_window_topmost,
     iter_zorder,
@@ -580,11 +581,7 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
                             if w.hwnd not in siblings]
                 assert not covering, (
                     f"{title} (hwnd={hwnd}) was covered after the switch by: "
-                    + "; ".join(
-                        f"{w.title!r} hwnd={w.hwnd} topmost={w.topmost} rect={w.rect}"
-                        for w in covering
-                    )
-                )
+                    f"{describe_windows(covering)}")
             time.sleep(0.5)
     finally:
         session.stop()

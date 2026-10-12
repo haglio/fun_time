@@ -96,6 +96,7 @@ from .unlogged_notices import UNLOGGED_NOTICE_PORT_FILENAME
 from .voice_control import VoiceController, take_whether_the_mic_was_off
 from .win32 import (
     close_window,
+    describe_windows,
     find_window_by_pid,
     hide_window,
     iter_zorder,
@@ -551,10 +552,8 @@ def _log_window_obstruction(name: str, hwnd: int, *, ignore: int = 0) -> None:
         if w.hwnd != ignore
     ]
     if covering:
-        desc = "; ".join(
-            f"{w.title!r} hwnd={w.hwnd} topmost={w.topmost} rect={w.rect}" for w in covering
-        )
-        logger.warning("%s (hwnd=%d) is covered at startup by: %s", name, hwnd, desc)
+        logger.warning("%s (hwnd=%d) is covered at startup by: %s",
+                       name, hwnd, describe_windows(covering))
     else:
         logger.info("%s (hwnd=%d) is frontmost over its rect at startup", name, hwnd)
 
