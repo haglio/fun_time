@@ -56,10 +56,13 @@ WHOLE_RUN = Path("whole-run.txt")
 
 class FakeBench:
     def __init__(self, head, commits, broken_from=None, tests=("tests/integration/test_x.py::test_y",),
-                 flaky=False, stale_map=False, restart_asked=False):
+                 flaky=False, stale_map=False, restart_asked=False, reruns_failing=None, incidents=(),
+                 sessions=None):
         self.head_commit, self.commits, self.broken_from = head, commits, broken_from
         self.tests, self.flaky, self.stale_map = list(tests), flaky, stale_map
         self.restart_asked = restart_asked
+        self.reruns_failing = {commit: list(fails) for commit, fails in (reruns_failing or {}).items()}
+        self.earlier, self.sessions = list(incidents), dict(sessions or {})
         self.advanced, self.recorded, self.taken_back, self.measured = [], [], [], []
         self.fixing, self.events = [], []
 
@@ -75,6 +78,8 @@ class FakeBench:
         broken = self.broken_from is not None and self.commits.index(commit) >= self.commits.index(self.broken_from)
         if self.flaky and tests:
             broken = False
+        if tests and self.reruns_failing.get(commit):
+            broken = self.reruns_failing[commit].pop(0)
         failed = self.tests if broken else []
         return main_verifier.RunResult(1 if broken else 0, failed, WHOLE_RUN)
 
@@ -94,6 +99,12 @@ class FakeBench:
 
     def record(self, incident):
         self.recorded.append(incident)
+
+    def incidents(self):
+        return self.earlier + self.recorded
+
+    def fix_session_states(self):
+        return self.sessions
 
     def coverage_map_is_stale(self):
         return self.stale_map
@@ -323,6 +334,18 @@ def test_each_incident_is_added_to_the_runners_record_with_when_it_happened(tmp_
     assert datetime.fromisoformat(first["at"]) <= datetime.fromisoformat(second["at"])
 
 
+def test_the_incidents_recorded_are_read_back_in_order_past_a_line_cut_short(tmp_path):
+    primary = tmp_path / "fun_time"
+    bench = main_verifier.MachineBench(primary=primary, shell=FakeShell({}))
+    bench.record({"kind": "flaky", "commit": "c3"})
+    with (primary / "state" / "main_verifier_incidents.jsonl").open("a", encoding="utf-8") as sink:
+        sink.write('{"kind": "broke ma\n')
+    bench.record({"kind": "broken run", "commit": "d4"})
+
+    assert [(incident["kind"], incident["commit"]) for incident in bench.incidents()] == [
+        ("flaky", "c3"), ("broken run", "d4")]
+
+
 def test_taking_a_change_back_removes_the_checkout_it_made_for_it(tmp_path):
     shell = FakeShell({"commits/c3/pulls": "41", "pr create": "https://github.com/haglio/fun_time/pull/77\n"})
     primary = tmp_path / "fun_time"
@@ -467,6 +490,92 @@ def test_tests_that_now_fail_where_main_last_passed_are_blamed_on_no_change_that
                                "tests": ["tests/integration/test_x.py::test_y"], "log": WHOLE_RUN}]
 
 
+def test_a_change_is_taken_back_once_the_failing_tests_fail_every_run_with_it_and_pass_every_run_without_it(
+        tmp_path):
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3")
+
+    assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "broke main"
+
+    assert bench.taken_back[0][0] == "c3"
+    assert bench.events.count(("run", "c3")) == bench.events.count(("run", "b2")) == 1 + main_verifier.CONFIRMING_RUNS
+
+
+def test_the_first_change_main_has_not_passed_since_is_pinned_on_its_own_runs_when_no_commit_passed_before_it(
+        tmp_path):
+    bench = FakeBench("c3", ["a1", "b2", "c3"], broken_from="a1")
+
+    assert main_verifier.cycle(a_ledger(tmp_path), bench) == "broke main"
+
+    assert bench.taken_back[0][0] == "a1"
+    assert bench.events.count(("run", "a1")) == 1 + main_verifier.CONFIRMING_RUNS
+
+
+@pytest.mark.parametrize("reruns_failing", [{"c3": [True, True, False]}, {"b2": [False, False, True]}],
+                         ids=["passing once with the change", "failing once without it"])
+def test_tests_that_do_not_fail_every_run_with_the_change_and_pass_every_run_without_it_take_nothing_back(
+        tmp_path, reruns_failing):
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3", reruns_failing=reruns_failing)
+    ledger = a_ledger(tmp_path, verified="a1")
+
+    assert main_verifier.cycle(ledger, bench) == "unreliable check"
+
+    assert bench.taken_back == [] and bench.advanced == []
+    assert ledger.failed_head == "e5"
+    [fix] = bench.fixing
+    assert "tests/integration/test_x.py::test_y" in fix.brief
+    assert bench.recorded == [{"kind": "unreliable check", "commit": "e5",
+                               "tests": ["tests/integration/test_x.py::test_y"], "log": WHOLE_RUN,
+                               "suspected": "c3", "fix_session": "812181fb"}]
+
+
+UNRELIABLE = {"kind": "unreliable check", "commit": "b2", "tests": ["tests/integration/test_x.py::test_y"],
+              "fix_session": "1a2b3c4d"}
+
+
+@pytest.mark.parametrize("its_state", ["working", "blocked"])
+def test_no_second_session_starts_for_unreliable_tests_while_one_is_still_fixing_them(tmp_path, its_state):
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3", reruns_failing={"c3": [True, False]},
+                      incidents=[UNRELIABLE], sessions={"1a2b3c4d": its_state})
+
+    assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "unreliable check"
+
+    assert bench.fixing == []
+    assert bench.recorded[0]["being_fixed_by"] == "1a2b3c4d"
+
+
+def test_a_new_session_starts_for_unreliable_tests_once_the_last_one_on_them_has_finished(tmp_path):
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3", reruns_failing={"c3": [True, False]},
+                      incidents=[UNRELIABLE], sessions={"1a2b3c4d": "done"})
+
+    assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "unreliable check"
+
+    assert len(bench.fixing) == 1 and bench.recorded[0]["fix_session"] == "812181fb"
+
+
+def test_unreliable_tests_whose_fixing_cannot_be_looked_up_are_recorded_with_why(tmp_path):
+    class NoSessionsBench(FakeBench):
+        def fix_session_states(self):
+            raise main_verifier.CommandFailed("claude agents did not answer with a list of sessions: ")
+
+    bench = NoSessionsBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3", reruns_failing={"c3": [True, False]})
+
+    assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "unreliable check"
+
+    assert bench.fixing == []
+    assert bench.recorded[0]["fix_session_not_started"].startswith("claude agents did not answer")
+
+
+def test_a_session_to_fix_unreliable_tests_works_on_a_branch_of_its_own_and_is_told_which_fail_and_where(tmp_path):
+    tests = ["tests/integration/test_x.py::test_y", "tests/integration/test_z.py::test_w"]
+
+    fix = main_verifier.fixing_unreliable_checks("e5f6a7b8c9", tests, Path("C:/runs/e5.txt"))
+
+    assert fix.checkout == "fix-unreliable-e5f6a7b8"
+    assert fix.title == "Fix the unreliable test_x and test_z"
+    for detail in (*tests, str(Path("C:/runs/e5.txt")), "claude/fix-unreliable-e5f6a7b8", "took nothing back"):
+        assert detail in fix.brief
+
+
 @pytest.mark.parametrize("the_verifier_s_own_coverage_file", [None, "elsewhere.coverage"])
 def test_coverage_is_measured_one_integration_test_file_at_a_time_and_kept_for_branches_to_pick_from(
         tmp_path, monkeypatch, the_verifier_s_own_coverage_file):
@@ -605,6 +714,24 @@ def test_a_fix_session_starts_in_a_checkout_of_its_own_and_is_told_what_broke(tm
     for detail in ("#41", "Loop the row on the Main Funestra", "tests/integration/test_x.py::test_y", "#77",
                    str(Path("C:/runs/d4.txt")), "claude/fix-41"):
         assert detail in brief
+
+
+def test_each_background_session_s_state_is_read_off_the_claude_command_line(tmp_path):
+    sessions = [{"id": "1a2b3c4d", "kind": "background", "state": "working"},
+                {"pid": 145304, "kind": "interactive", "status": "idle"}]
+    shell = FakeShell({"agents --json --all": json.dumps(sessions)})
+    bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell, claude="claude.exe")
+
+    assert bench.fix_session_states() == {"1a2b3c4d": "working"}
+    assert shell.commands == [(["claude.exe", "agents", "--json", "--all"], None)]
+
+
+def test_a_session_list_that_is_not_one_fails_like_a_command_that_failed(tmp_path):
+    bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=FakeShell({"agents": "Not signed in"}),
+                                       claude="claude.exe")
+
+    with pytest.raises(main_verifier.CommandFailed, match="Not signed in"):
+        bench.fix_session_states()
 
 
 def test_no_fix_session_starts_while_claude_code_is_not_signed_in(tmp_path):

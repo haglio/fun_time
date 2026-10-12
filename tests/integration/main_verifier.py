@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.metadata
 import json
 import logging
@@ -13,7 +14,7 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Protocol
 
 import coverage
@@ -36,8 +37,10 @@ INCIDENTS_NAME = "main_verifier_incidents.jsonl"
 FIX_NOTICES_NAME = "main_verifier_fix_notices.json"
 _ASKED_EVERY_S = 5
 COVERAGE_MAP_LASTS = timedelta(days=1)
+CONFIRMING_RUNS = 3
 NO_SUCH_TEST = pytest.ExitCode.USAGE_ERROR
 _PASSED = frozenset({"passed", "flaky"})
+_STILL_FIXING = frozenset({"working", "blocked"})
 _log = logging.getLogger("main_verifier")
 _SUMMARY_LINE = re.compile(r"^(?:FAILED|ERROR) (\S+)", re.MULTILINE)
 _BACKGROUNDED = re.compile(r"backgrounded\W+([0-9a-f]{8})\b")
@@ -103,8 +106,10 @@ class Bench(Protocol):
     def advance_production_checkout(self, commit: str) -> None: ...
     def take_back(self, commit: str, among: Sequence[str], tests: list[str]) -> TakeBack | None: ...
     def start_fix_session(self, fix: FixSession) -> str: ...
+    def fix_session_states(self) -> dict[str, str]: ...
     def bring_the_libraries_up_to(self, commit: str) -> None: ...
     def record(self, incident: dict) -> None: ...
+    def incidents(self) -> list[dict]: ...
     def coverage_map_is_stale(self) -> bool: ...
     def measure_coverage(self, commit: str) -> None: ...
     def take_restart_request(self) -> bool: ...
@@ -333,17 +338,28 @@ class MachineBench:
         with (self.state / INCIDENTS_NAME).open("a", encoding="utf-8") as sink:
             sink.write(json.dumps({"at": datetime.now().isoformat(timespec="seconds"), **incident}, default=str) + "\n")
 
+    def incidents(self) -> list[dict]:
+        return _incidents(self.state)
+
+    def fix_session_states(self) -> dict[str, str]:
+        return {session["id"]: session.get("state") for session in background_sessions(self.claude, self.shell)
+                if "id" in session}
+
+
+def _what_failed(tests: list[str]) -> list[str]:
+    return ["Fun Time's main verifier started this session. It is a program on this machine, not him, so report "
+            "the way the laws ask of work another agent assigned you.",
+            "",
+            "The verifier ran Fun Time's whole integration suite on main, and these tests failed:",
+            *(f"- {test}" for test in tests)]
+
 
 def fixing_a_take_back(taken: TakeBack, tests: list[str], log: Path) -> FixSession:
     number, by = taken.pull_request, taken.by
     checkout = f"fix-{number}"
     branch = branch_of(checkout)
     return FixSession(checkout, f"Fix #{number}: {taken.title}", "\n".join([
-        "Fun Time's main verifier started this session. It is a program on this machine, not him, so report "
-        "the way the laws ask of work another agent assigned you.",
-        "",
-        "The verifier ran Fun Time's whole integration suite on main, and these tests failed:",
-        *(f"- {test}" for test in tests),
+        *_what_failed(tests),
         f'It traced the failure to #{number} ("{taken.title}") and opened #{by}, which takes #{number} back out '
         f"of main. The failing run's output is in {log}.",
         "",
@@ -361,6 +377,28 @@ def fixing_a_take_back(taken: TakeBack, tests: list[str], log: Path) -> FixSessi
         f"compared with #{number}, ship it the way this repo's CLAUDE.md says, without asking him. If it does "
         "change something he would see, do not ship it: open it as a draft pull request, say in your reply "
         "what he would see differently, and stop.",
+    ]))
+
+
+def fixing_unreliable_checks(head: str, tests: list[str], log: Path) -> FixSession:
+    checkout = f"fix-unreliable-{head[:8]}"
+    files = sorted({PurePosixPath(test.split("::")[0]).stem for test in tests})
+    return FixSession(checkout, f"Fix the unreliable {' and '.join(files)}", "\n".join([
+        *_what_failed(tests),
+        "Run again by themselves, they passed on some runs and failed on others, so the verifier could not pin "
+        f"them on any change and took nothing back. The failing run's output is in {log}, and each later run "
+        "of these tests is beside it.",
+        "",
+        "Make them pass every time:",
+        f"1. Find why they fail only some of the time, and fix the cause on this branch, {branch_of(checkout)}. "
+        "A test that turns out to be wrong is fixed like any other code, never deleted, skipped or loosened "
+        "to pass.",
+        "2. Run the unit suite, the integration tests this branch needs "
+        "(python -m tests.integration.hidden_desktop --changed) and the tests above by name, several times, "
+        "until every run passes.",
+        "3. If your fix changes nothing he would see, ship it the way this repo's CLAUDE.md says, without "
+        "asking him. If it does change something he would see, do not ship it: open it as a draft pull "
+        "request, say in your reply what he would see differently, and stop.",
     ]))
 
 
@@ -407,7 +445,19 @@ def _incidents(state: Path) -> list[dict]:
         lines = (state / INCIDENTS_NAME).read_text(encoding="utf-8").splitlines()
     except OSError:
         return []
-    return [json.loads(line) for line in lines if line.strip()]
+    incidents = []
+    for line in lines:
+        with contextlib.suppress(ValueError):
+            incidents.append(json.loads(line))
+    return incidents
+
+
+def background_sessions(claude: str, shell=_shell) -> list[dict]:
+    answer = shell([claude, "agents", "--json", "--all"])
+    try:
+        return json.loads(answer)
+    except ValueError:
+        raise CommandFailed(f"claude agents did not answer with a list of sessions: {answer.strip()[:200]}") from None
 
 
 def tell_him_about_fix_sessions(state: Path, claude: str, shell=_shell,
@@ -417,7 +467,7 @@ def tell_him_about_fix_sessions(state: Path, claude: str, shell=_shell,
         told = json.loads(told_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         told = {}
-    notices = fix_notices(_incidents(state), json.loads(shell([claude, "agents", "--json", "--all"])), told)
+    notices = fix_notices(_incidents(state), background_sessions(claude, shell), told)
     for notice in notices:
         start(notice)
         told[notice.session] = notice.state
@@ -486,6 +536,18 @@ def _blame(bench: Bench, last_passed: str | None, head: str, whole: RunResult) -
         return "broken outside main"
     shipped = bench.commits_since(last_passed, head)
     culprit = first_bad(shipped, still_fails)
+    without = [last_passed, *shipped][shipped.index(culprit)]
+    if (_on_every_run(lambda: still_fails(culprit))
+            and (without is None or _on_every_run(lambda: not still_fails(without)))):
+        return _take_back(bench, culprit, shipped, whole)
+    return _unreliable(bench, head, whole, culprit)
+
+
+def _on_every_run(holds: Callable[[], bool]) -> bool:
+    return all(holds() for _ in range(CONFIRMING_RUNS))
+
+
+def _take_back(bench: Bench, culprit: str, shipped: list[str], whole: RunResult) -> str:
     taken = bench.take_back(culprit, shipped, whole.failed)
     incident = {"kind": "broke main", "commit": culprit, "tests": whole.failed, "log": whole.log,
                 "taken_back_by": taken.by if taken else None}
@@ -497,6 +559,27 @@ def _blame(bench: Bench, last_passed: str | None, head: str, whole: RunResult) -
             incident["fix_session_not_started"] = str(why)
     bench.record(incident)
     return "broke main"
+
+
+def _unreliable(bench: Bench, head: str, whole: RunResult, suspected: str) -> str:
+    incident = {"kind": "unreliable check", "commit": head, "tests": whole.failed, "log": whole.log,
+                "suspected": suspected}
+    try:
+        if fixing := _session_fixing(bench, whole.failed):
+            incident["being_fixed_by"] = fixing
+        else:
+            incident["fix_session"] = bench.start_fix_session(fixing_unreliable_checks(head, whole.failed, whole.log))
+    except CommandFailed as why:
+        incident["fix_session_not_started"] = str(why)
+    bench.record(incident)
+    return "unreliable check"
+
+
+def _session_fixing(bench: Bench, tests: list[str]) -> str | None:
+    states = bench.fix_session_states()
+    return next((incident["fix_session"] for incident in bench.incidents()
+                 if incident.get("kind") == "unreliable check" and set(incident.get("tests", ())) & set(tests)
+                 and states.get(incident.get("fix_session")) in _STILL_FIXING), None)
 
 
 def failed_tests(run_output: str) -> list[str]:
