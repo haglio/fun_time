@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra.modes import LengthMode
-
 from fun_time.dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.funestra_status import (
@@ -347,26 +345,14 @@ def test_a_loop_state_without_bounds_is_no_loop(tmp_path: Path):
 def test_read_main_funestra_status_parses_what_a_reset_puts_back(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nspeed=1.25\nlength_mode=clips\ncompilation=Example Studio Volume One\n",
+        "video=C:\\clip.mp4\nspeed=1.25\ncompilation=Example Studio Volume One\n",
         encoding="utf-8",
     )
 
     status = read_main_funestra_status(status_file)
 
-    assert (status.speed, status.length_mode, status.compilation) == (
-        1.25, "clips", "Example Studio Volume One")
+    assert (status.speed, status.compilation) == (1.25, "Example Studio Volume One")
     assert read_main_funestra_status(tmp_path / "missing.txt").speed == 1.0
-
-
-def test_read_main_funestra_status_reads_the_length_mode_as_its_entry_or_as_none(tmp_path: Path):
-    """The length pair is drawn only for a Funestra that names a length mode this
-    session knows: no word, or one from a Funestra of another age, draws no pair
-    rather than lighting the wrong one."""
-    status_file = tmp_path / "main_player_status.txt"
-    for written, read in (("clips", LengthMode.CLIPS), ("", None), ("every", None)):
-        status_file.write_text(f"video=clip.mp4\nlength_mode={written}\n", encoding="utf-8")
-
-        assert read_main_funestra_status(status_file).length_mode is read
 
 
 def test_funscript_driving_is_scripted_and_not_resting():

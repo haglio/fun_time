@@ -14,8 +14,6 @@ from pathlib import Path
 
 from app_support.mirrored_tree import library_roots_beside, mirrored_path
 
-from .video_kind import EXCERPT, GENAU_FLICK
-
 
 def sidecar_for(video: Path, metadata_root: Path) -> Path | None:
     """Where Evolver's metadata for *video* lives, or None if *video* is outside.
@@ -57,29 +55,3 @@ def read_version_group(video: Path, metadata_root: Path) -> str | None:
         return None
     group = version.get("group")
     return str(group) if group else None
-
-
-_RECORDED_BEFORE_THE_RENAME = {"genau_clip": GENAU_FLICK}
-
-
-def read_video_type(video: Path, metadata_root: Path) -> str:
-    """The kind Evolver recorded for *video*, or ``""`` when it recorded none.
-
-    One field standing in for the several tests this Funestra used to run — a
-    running time against a threshold of its own, a folder the loops are
-    delivered to, the presence of a ``clip`` record.  Evolver settles all of
-    that once, for the whole library; empty means a video it has not reached
-    yet, and the caller falls back to measuring.
-
-    The one older record still read here is the ``clip`` object: it says a scene
-    was carved out of a longer one, which is exactly what the kind now says, and
-    it was on these sidecars before there was a kind to write.  So a library
-    Evolver has not been over since keeps its carved scenes out of full
-    rather than waiting for the run that records them.
-    """
-    payload = read_sidecar(video, metadata_root)
-    video_block = payload.get("video")
-    if isinstance(video_block, dict) and video_block.get("type"):
-        recorded = str(video_block["type"])
-        return _RECORDED_BEFORE_THE_RENAME.get(recorded, recorded)
-    return EXCERPT if isinstance(payload.get("clip"), dict) else ""

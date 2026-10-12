@@ -17,7 +17,7 @@ from funestra.console import (
     OSR2_RETRACTED,
 )
 from funestra.hud_placement import HudCorner, HudEdge
-from funestra.modes import MainMode
+from funestra.modes import LengthMode, MainMode
 
 from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
@@ -771,31 +771,72 @@ def test_a_side_version_step_says_so_when_the_clip_has_only_itself(tmp_path: Pat
     assert [op.key for op in ops] == ["No other version"]
 
 
-def test_main_funestra_toggle_length_writes_toggle_command(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.KINO)
-
-    dispatch_command("main_player_toggle_length", state, config)
-
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LENGTH_MODE\n"
+def _on_screen(config: BridgeConfig, video: str, **status: str) -> None:
+    config.main_funestra_status_file.parent.mkdir(parents=True, exist_ok=True)
+    config.main_funestra_status_file.write_text(
+        "".join(f"{key}={value}\n" for key, value in {"video": video, **status}.items()),
+        encoding="utf-8")
 
 
-def test_main_funestra_length_clips_writes_set_length_mode(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.KINO)
+@pytest.mark.parametrize(("command", "length"), [
+    ("main_player_length_clips", LengthMode.CLIPS),
+    ("main_player_length_full", LengthMode.FULL),
+    ("main_player_length_mixed", LengthMode.MIXED),
+])
+def test_a_length_button_narrows_the_one_main_list_from_the_video_on_screen(
+        tmp_path: Path, command, length):
+    config, builds = _recording(_make_config(tmp_path))
+    _on_screen(config, "C:/v/scene one.mp4")
+    state = _make_state(main_length_mode=LengthMode.NONE if length is LengthMode.MIXED
+                        else LengthMode.MIXED)
 
-    dispatch_command("main_player_length_clips", state, config)
+    state, _ops = dispatch_command(command, state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE clips\n"
+    assert state.main_length_mode is length
+    assert [(build.settings.length, build.start_from) for build in builds.asked] == [
+        (length, "C:/v/scene one.mp4")]
+    assert not config.main_funestra_cmd_file.exists()
 
 
-def test_main_funestra_length_full_writes_set_length_mode(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.KINO)
+def test_the_length_key_walks_mixed_clips_full_and_round_again(tmp_path: Path):
+    config, _builds = _recording(_make_config(tmp_path))
+    state = _make_state()
+    walked = []
 
-    dispatch_command("main_player_length_full", state, config)
+    for _ in range(3):
+        state, _ops = dispatch_command("main_player_toggle_length", state, config)
+        walked.append(state.main_length_mode)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE full\n"
+    assert walked == [LengthMode.CLIPS, LengthMode.FULL, LengthMode.MIXED]
+
+
+def test_neither_length_holds_the_video_on_screen(tmp_path: Path):
+    config, builds = _recording(_make_config(tmp_path))
+
+    state, _ops = dispatch_command("main_player_length_none", _make_state(), config)
+
+    assert state.main_length_mode is LengthMode.NONE
+    assert [build.settings.length for build in builds.asked] == [LengthMode.NONE]
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == ["LOCK_ON"]
+
+
+def test_naming_the_length_already_running_asks_for_nothing(tmp_path: Path):
+    config, builds = _recording(_make_config(tmp_path))
+
+    _state, ops = dispatch_command("main_player_length_mixed", _make_state(), config)
+
+    assert (builds.asked, ops) == ([], [])
+
+
+def test_inside_a_compilation_naming_the_length_running_is_the_way_back_out(tmp_path: Path):
+    """The compilation's clips stand in for the list without changing the
+    length, so naming the one running is how a voice leaves it."""
+    config, builds = _recording(_make_config(tmp_path))
+    _on_screen(config, "C:/v/clip one.mp4", compilation="Vol6")
+
+    dispatch_command("main_player_length_mixed", _make_state(), config)
+
+    assert [build.settings.length for build in builds.asked] == [LengthMode.MIXED]
 
 
 def test_end_compilation_writes_end_compilation(tmp_path: Path):
@@ -809,34 +850,16 @@ def test_end_compilation_writes_end_compilation(tmp_path: Path):
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "END_COMPILATION\n"
 
 
-def test_main_funestra_length_mixed_writes_set_length_mode(tmp_path: Path):
-    """The unfiltered mode the Main Funestra opens in, and the way back to it from either half."""
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.KINO)
-
-    dispatch_command("main_player_length_mixed", state, config)
-
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE mixed\n"
-
-
-def test_main_funestra_length_mode_written_in_kino_mode(tmp_path: Path):
-    """the Main Funestra owns the display in kino mode too, so length/version actions apply."""
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.KINO)
-
-    dispatch_command("main_player_length_clips", state, config)
-
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE clips\n"
-
-
-def test_main_funestra_length_mode_not_written_in_genau_mode(tmp_path: Path):
+def test_a_length_button_is_ignored_in_genau_mode(tmp_path: Path):
     """Length/version actions are inert in genau mode, where Genau owns the display."""
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.GENAU)
+    config, builds = _recording(_make_config(tmp_path))
 
-    dispatch_command("main_player_length_clips", state, config)
+    state, ops = dispatch_command("main_player_length_clips", _make_state(main_mode=MainMode.GENAU),
+                                  config)
 
-    assert not config.main_funestra_cmd_file.exists()
+    assert state.main_length_mode is LengthMode.MIXED
+    assert builds.asked == [] and not config.main_funestra_cmd_file.exists()
+    assert [op.op for op in ops] == [Op.IGNORED]
 
 
 # --- clip navigation (compilation / full vid / money shot) ---
@@ -4397,7 +4420,7 @@ def test_main_reset_puts_back_the_defaults_the_main_funestra_holds_itself(tmp_pa
     dispatch_command("main_reset", _make_state(), config)
 
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
-        "SET_LENGTH_MODE mixed", "LOOP_CANCEL", "LOCK_OFF", "SET_SPEED 1"]
+        "LOOP_CANCEL", "LOCK_OFF", "SET_SPEED 1"]
 
 
 def test_main_reset_does_nothing_to_a_main_funestra_already_at_every_default(tmp_path):
@@ -4417,6 +4440,7 @@ def test_main_reset_does_nothing_to_a_main_funestra_already_at_every_default(tmp
 
 @pytest.mark.parametrize("off_default", [
     {"main_scripted_filter": True}, {"main_latest": True}, {"main_plays_flat": False},
+    {"main_length_mode": LengthMode.CLIPS},
 ])
 def test_main_reset_rebuilds_an_off_default_browse_as_a_fresh_shuffle_from_the_top(
         tmp_path, off_default):
@@ -4430,6 +4454,15 @@ def test_main_reset_rebuilds_an_off_default_browse_as_a_fresh_shuffle_from_the_t
     assert state.main_shuffle_seed != 7
     assert [(build.settings, build.start_at_top) for build in builds.asked] == [
         (MainListSettings(shuffle_seed=state.main_shuffle_seed), True)]
+
+
+def test_main_reset_inside_a_compilation_takes_the_main_list_back_up(tmp_path):
+    config, builds = _recording(_make_config(tmp_path))
+    _on_screen(config, "C:/v/clip one.mp4", compilation="Vol6")
+
+    dispatch_command("main_reset", _make_state(), config)
+
+    assert [build.start_at_top for build in builds.asked] == [True]
 
 
 def test_main_reset_does_not_reshuffle_a_funestra_already_at_its_defaults(tmp_path):

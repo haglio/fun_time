@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
-from fun_time.main_list import MainList, MainListSettings
+from funestra.modes import LengthMode
+
+from fun_time.main_list import MainList, MainListSettings, next_length_mode
+from fun_time.media_metadata import metadata_path_for
 from fun_time.modes import build_generated_marker_path
+from tests.drive_fakes import files_that_never_answer
 
 
 def _videos(folder: Path, *names: str) -> list[Path]:
@@ -97,6 +102,103 @@ class TestShapes:
             MainListSettings(plays_vr=False))
 
         assert len(videos) == 2
+
+
+class TestLength:
+    """What Evolver recorded each video as decides the clips and full videos
+    buttons; a video it has no record of counts as a full video."""
+
+    def _library(self, tmp_path, kinds: dict[str, dict | None]) -> tuple[MainList, dict[str, str]]:
+        root = tmp_path / "videos" / "videos" / "main"
+        metadata_root = tmp_path / "videos" / "metadata"
+        videos = {}
+        for name, record in kinds.items():
+            (video,) = _videos(root, f"{name}.mp4")
+            videos[name] = str(video)
+            if record is not None:
+                sidecar = metadata_path_for(video, metadata_root)
+                sidecar.parent.mkdir(parents=True, exist_ok=True)
+                sidecar.write_text(json.dumps(record), encoding="utf-8")
+        return _the_list(tmp_path, str(root), metadata_root=metadata_root), videos
+
+    def _kinds(self, tmp_path):
+        return self._library(tmp_path, {
+            "short": {"video": {"type": "short"}},
+            "excerpt": {"video": {"type": "excerpt"}},
+            "carved": {"clip": {"compilation": "Vol6", "index": 1}},
+            "whole": {"video": {"type": "full_length"}},
+            "flick": {"video": {"type": "genau_flick"}},
+            "unrecorded": None,
+        })
+
+    def test_clips_are_the_short_videos_and_the_ones_carved_from_longer_ones(self, tmp_path):
+        the_list, videos = self._kinds(tmp_path)
+
+        clips = the_list.videos(MainListSettings(length=LengthMode.CLIPS))
+
+        assert sorted(clips) == sorted(videos[name] for name in ("short", "excerpt", "carved"))
+
+    def test_full_videos_are_the_whole_ones_and_the_ones_evolver_has_no_record_of(self, tmp_path):
+        the_list, videos = self._kinds(tmp_path)
+
+        full = the_list.videos(MainListSettings(length=LengthMode.FULL))
+
+        assert sorted(full) == sorted(videos[name] for name in ("whole", "unrecorded"))
+
+    def test_both_lengths_hold_every_video(self, tmp_path):
+        the_list, videos = self._kinds(tmp_path)
+
+        assert sorted(the_list.videos(MainListSettings())) == sorted(videos.values())
+
+    def test_neither_length_holds_only_the_video_on_screen(self, tmp_path):
+        the_list, videos = self._kinds(tmp_path)
+
+        held = the_list.videos(MainListSettings(length=LengthMode.NONE),
+                               start_from=videos["whole"])
+
+        assert held == [videos["whole"]]
+
+    def test_without_a_record_to_read_every_video_is_a_full_video(self, tmp_path):
+        root = tmp_path / "vids"
+        (video,) = _videos(root, "scene one.mp4")
+        the_list = _the_list(tmp_path, str(root))
+
+        assert the_list.videos(MainListSettings(length=LengthMode.FULL)) == [str(video)]
+        assert the_list.videos(MainListSettings(length=LengthMode.CLIPS)) == []
+
+    def test_a_video_outside_the_library_the_records_mirror_is_a_full_video(self, tmp_path):
+        root = tmp_path / "elsewhere"
+        (video,) = _videos(root, "scene one.mp4")
+        the_list = _the_list(tmp_path, str(root), metadata_root=tmp_path / "videos" / "metadata")
+
+        assert the_list.videos(MainListSettings(length=LengthMode.FULL)) == [str(video)]
+
+    def test_the_length_key_walks_both_clips_full_and_round_again(self):
+        walked = [LengthMode.MIXED]
+        for _ in range(3):
+            walked.append(next_length_mode(walked[-1]))
+
+        assert walked == [LengthMode.MIXED, LengthMode.CLIPS, LengthMode.FULL, LengthMode.MIXED]
+
+    def test_from_neither_the_length_key_puts_both_back(self):
+        assert next_length_mode(LengthMode.NONE) is LengthMode.MIXED
+
+    def test_a_list_nobody_narrowed_holds_both_lengths(self):
+        assert MainListSettings().length is LengthMode.MIXED
+
+    def test_a_vr_video_is_a_full_video_and_no_question_is_asked_about_it(self, tmp_path):
+        """The VR library lives on a drive that can take hours to answer about one
+        file, and Evolver keeps no record of it to look for."""
+        vr_dir = tmp_path / "VR"
+        (vr_video,) = _videos(vr_dir, "scene one.mp4")
+        the_list = _the_list(tmp_path, str(vr_dir), vr_dirs=str(vr_dir),
+                             metadata_root=tmp_path / "videos" / "metadata")
+
+        with files_that_never_answer(vr_dir):
+            full = the_list.videos(MainListSettings(length=LengthMode.FULL))
+            clips = the_list.videos(MainListSettings(length=LengthMode.CLIPS))
+
+        assert (full, clips) == ([str(vr_video)], [])
 
 
 class TestOrder:

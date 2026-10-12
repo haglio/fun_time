@@ -572,8 +572,8 @@ def test_the_launch_seeds_the_branchs_state_from_the_live_sessions(checkouts):
     the two drift."""
     state = checkouts.primary / "state"
     state.mkdir(parents=True)
-    (state / "main_player_durations.json").write_text(
-        json.dumps({"C:/library/main/one.mp4": {"ms": 1}}), encoding="utf-8"
+    (state / "watch_stats.json").write_text(
+        json.dumps({"C:/library/main/one.mp4": {"seconds": 90}}), encoding="utf-8"
     )
 
     branch_config = branch_session.build_branch_config(
@@ -582,8 +582,8 @@ def test_the_launch_seeds_the_branchs_state_from_the_live_sessions(checkouts):
 
     branch_state = branch_config.parent
     assert json.loads(
-        (branch_state / "main_player_durations.json").read_text(encoding="utf-8")
-    ) == {"C:/library/main/one.mp4": {"ms": 1}}
+        (branch_state / "watch_stats.json").read_text(encoding="utf-8")
+    ) == {"C:/library/main/one.mp4": {"seconds": 90}}
 
 
 def _launch_with_one_live_thumbnail(checkouts, monkeypatch, start_the_session) -> None:

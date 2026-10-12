@@ -15,7 +15,6 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from funestra.file_channel import append_command
-from funestra.funestra_verbs import SET_F_MODE
 from funestra.modes import MainMode
 from funestra.robot_hand import FULL_INTENSITY
 
@@ -33,7 +32,7 @@ from .funestra_status import (
     is_broker_heartbeat_fresh,
     read_main_funestra_status,
 )
-from .main_list import MainList
+from .main_list import MainList, MainListSettings
 from .max_intensity import publish_max_intensity
 from .mode_plan import STARTUP_MAIN_MODE, show_verb
 from .modes import SatelliteBuild, build_satellite_playlists
@@ -256,12 +255,12 @@ def seed_startup_states(
     muted: bool = False,
     max_intensity: int = FULL_INTENSITY,
     satellite_cmd_files: tuple[str | Path, ...] = (),
-    scripted_filter: bool = False,
+    main_list: MainListSettings | None = None,
     mode: MainMode = STARTUP_MAIN_MODE,
 ) -> None:
     """Seed the cross-process flags the main slot opens on: Kino and Genau both
     held until the sequencer's reveal starts whichever the mode puts on screen,
-    and the sound, F-mode and mode this session comes back in.
+    and the sound, the Main list's narrowing and mode this session comes back in.
 
     All three of those last are the session's, not a fresh session's.  The Main
     Funestra and the audio companion each launch unattenuated and neither reads a
@@ -270,11 +269,9 @@ def seed_startup_states(
     publisher the live volume commands use, which is what keeps a resumed mute
     explicable rather than a silence with nothing on screen backing it.
 
-    *scripted_filter* is seeded for the same shape of reason: the playlist the
-    Main Funestra is handed has already been narrowed and a list of scripted videos
-    looks like any other, so its HUD can only know from being told.  fun_time
-    draws the satellites' HUD model itself, which is why a resumed F-mode session
-    showed F-Mode on every Funestra except the one that had to be sent it.
+    *main_list* is seeded for the same shape of reason: the playlist the Main
+    Funestra is handed has already been narrowed and a narrowed list looks like
+    any other, so its HUD can only know F-mode and the length from being told.
 
     *mode* is which of Kino and Genau has the Main Funestra's window, seeded with
     the same verb a live switch into it says (see ``mode_plan``).  Never the
@@ -306,7 +303,8 @@ def seed_startup_states(
         volume=volume,
         muted=muted,
     )
-    append_command(Path(main_funestra_cmd_file), f"{SET_F_MODE} {int(scripted_filter)}")
+    for label in (main_list or MainListSettings()).labels:
+        append_command(Path(main_funestra_cmd_file), label)
     if max_intensity < FULL_INTENSITY:
         publish_max_intensity(
             (Path(command_file) for command_file in
@@ -408,7 +406,7 @@ def start_core_session(
         genau_cmd_file, main_funestra_cmd_file=main_funestra_cmd_file,
         volume=carried.volume, muted=carried.muted, max_intensity=carried.max_intensity,
         satellite_cmd_files=(portrait.channels.command, landscape.channels.command),
-        scripted_filter=carried.main_scripted_filter, mode=carried.main_mode,
+        main_list=MainListSettings.of(carried), mode=carried.main_mode,
     )
     # seed_startup_states does not touch the satellite paused files.
     reset_satellite_paused_states(portrait.channels.paused, landscape.channels.paused)

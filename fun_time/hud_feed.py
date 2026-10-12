@@ -164,6 +164,7 @@ class HudFeed:
             genau_latest=state.genau_latest,
             plays_vr=main_shapes.plays_vr if main_shapes.offered else None,
             plays_flat=main_shapes.plays_flat if main_shapes.offered else None,
+            length_mode=state.main_length_mode,
             genau_plays_vr=genau_shapes.plays_vr if genau_shapes.offered else None,
             genau_plays_flat=genau_shapes.plays_flat if genau_shapes.offered else None,
             osr2_mode=osr2_mode,

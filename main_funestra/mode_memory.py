@@ -1,18 +1,11 @@
-"""The mode the Main Funestra was last in, kept across sessions.
+"""The compilation the Main Funestra was last in, kept across sessions.
 
-Fun Time resumes the playlist a session closed on rather than rebuilding it (it
-rotates last session's file to the video that was on screen), so the videos the Main Funestra
-opens with are last session's — chosen by last session's mode.  A list of files
-does not say which mode chose it, so the Main Funestra writes the mode down and reads it back,
-and the HUD can name a mode the playlist is really in instead of assuming the
-default.
-
-The compilation rides along for a stronger reason: entering one swaps the Main Funestra's
-playlist *in memory only* — the file Fun Time resumes never sees it — so being
-inside a compilation is remembered here or not at all.  The clip that was on
-screen comes too, because it is the anchor the compilation is rebuilt around:
-Fun Time rotates the resumed playlist onto the video its Funestra last showed, but
-only when that video is *in* the file, and a compilation's clips often are not.
+Entering one swaps the Main Funestra's playlist *in memory only* — the list Fun
+Time writes never holds it — so being inside a compilation is remembered here or
+not at all.  The clip that was on screen comes too, because it is the anchor the
+compilation is rebuilt around: Fun Time opens its list on the video its Funestra
+last showed, but only when that video is *in* the list, and a compilation's
+clips often are not.
 """
 from __future__ import annotations
 
@@ -20,38 +13,29 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from funestra.file_channel import publish_whole
-from funestra.modes import LengthMode, read_mode
 
 
 @dataclass(frozen=True)
 class RememberedMode:
     """What the Main Funestra was in when it last wrote itself down."""
 
-    length_mode: LengthMode | None = None
     compilation: str = ""
     video: str = ""
 
 
 class ModeMemory:
-    """The Main Funestra's mode in a small key=value file beside its duration cache."""
+    """The Main Funestra's compilation in a small key=value file in its state dir."""
 
     def __init__(self, path: Path | None) -> None:
         self._path = path
         # What is already written down, so the Funestra can ask this every frame
-        # without rewriting the same three lines sixty times a second.  None
-        # until something has been read or written: the file may not exist.
+        # without rewriting the same lines sixty times a second.  None until
+        # something has been read or written: the file may not exist.
         self._written: RememberedMode | None = None
 
     def read(self) -> RememberedMode:
-        """What was remembered, with anything unrecognized left empty.
-
-        A length mode this build no longer knows reads as nothing: the file
-        outlives the code that wrote it, and a mode the library cannot filter by
-        would be a label over a playlist built some other way.
-        """
         fields = self._fields()
         self._written = RememberedMode(
-            length_mode=read_mode(LengthMode, fields.get("length_mode", ""), None),
             compilation=fields.get("compilation", ""),
             video=fields.get("video", ""),
         )
@@ -77,10 +61,7 @@ class ModeMemory:
         self._written = mode
         if self._path is None:
             return
-        publish_whole(
-            self._path,
-            f"length_mode={mode.length_mode or ''}\ncompilation={mode.compilation}\n"
-            f"video={mode.video}\n")
+        publish_whole(self._path, f"compilation={mode.compilation}\nvideo={mode.video}\n")
 
     def _fields(self) -> dict[str, str]:
         if self._path is None:

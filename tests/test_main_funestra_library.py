@@ -1,26 +1,15 @@
 from __future__ import annotations
 
-import random
 from pathlib import Path
 
-import pytest
 from funestra.playlist import PlaylistItem
 
 from main_funestra.library import (
-    EXCERPT,
-    FULL,
-    FULL_LENGTH,
-    MIXED,
-    NONE,
-    SHORT_MAX_S,
     LibraryEntry,
     VersionGroup,
-    canonical_playlist,
     collapse_playlist_versions,
     group_versions,
-    library_playlist,
     normalize_title,
-    select_library,
     version_index_from_groups,
 )
 
@@ -157,17 +146,6 @@ class TestGroupVersions:
 
 
 
-class TestNoLengthAtAll:
-    """Neither length: a browse with nothing in it, which the console offers
-    rather than refusing the press."""
-
-    def test_no_length_keeps_nothing(self):
-        kept = select_library(
-            [_entry("scene.mp4", 100)], mode=NONE, durations={Path("scene.mp4"): 600.0})
-
-        assert kept == []
-
-
 class TestRecordedFamiliesSplitByCopyIndex:
     """Evolver records one family id for every file whose name begins the same
     way, so a downloaded set comes back as one family when it is several scenes.
@@ -212,185 +190,6 @@ class TestRecordedFamiliesSplitByCopyIndex:
         assert len(groups) == 1
 
 
-class TestCanonicalPlaylist:
-    def test_one_canonical_entry_per_group(self):
-        entries = [
-            _entry("Jane-Doe-540.mp4", 100),
-            _entry("Jane-Doe-1080p.mp4", 900),  # canonical of its group
-            _entry("John-Roe-720p.mp4", 200),  # sole entry
-        ]
-
-        playlist = canonical_playlist(entries, random.Random(0))
-
-        videos = {e.video for e in playlist}
-        assert videos == {Path("Jane-Doe-1080p.mp4"), Path("John-Roe-720p.mp4")}
-        assert len(playlist) == 2
-
-    def test_deterministic_given_seeded_rng(self):
-        entries = [_entry(f"vid-{i}-1080p.mp4", 100) for i in range(8)]
-
-        first = canonical_playlist(entries, random.Random(42))
-        second = canonical_playlist(entries, random.Random(42))
-
-        assert [e.video for e in first] == [e.video for e in second]
-
-    def test_every_video_in_the_library_comes_back_as_an_entry(self):
-        playlist = canonical_playlist([_entry("solo-1080p.mp4", 100)], random.Random(1))
-
-        assert isinstance(playlist[0], LibraryEntry)
-
-
-class TestSelectLibrary:
-    def _durations(self, mapping):
-        return {Path(k): v for k, v in mapping.items()}
-
-    def test_full_mode_keeps_only_long_videos(self):
-        entries = [
-            _entry("long-1080p.mp4", 100),
-            _entry("clip-1080p.mp4", 100),
-        ]
-        durations = self._durations({"long-1080p.mp4": 300.0, "clip-1080p.mp4": 6.0})
-
-        result = select_library(entries, mode="full", durations=durations)
-
-        assert [e.video for e in result] == [Path("long-1080p.mp4")]
-
-    def test_clips_mode_keeps_only_short_videos(self):
-        entries = [
-            _entry("long-1080p.mp4", 100),
-            _entry("clip-1080p.mp4", 100),
-        ]
-        durations = self._durations({"long-1080p.mp4": 300.0, "clip-1080p.mp4": 6.0})
-
-        result = select_library(entries, mode="clips", durations=durations)
-
-        assert [e.video for e in result] == [Path("clip-1080p.mp4")]
-
-    def test_mixed_mode_keeps_everything(self):
-        """The mode the Funestra opens in: no length filter at all, which is what
-        Fun Time's own playlist has always been."""
-        entries = [_entry("long-1080p.mp4", 100), _entry("clip-1080p.mp4", 100)]
-        durations = self._durations({"long-1080p.mp4": 300.0, "clip-1080p.mp4": 6.0})
-
-        result = select_library(entries, mode=MIXED, durations=durations)
-
-        assert [e.video for e in result] == [Path("long-1080p.mp4"), Path("clip-1080p.mp4")]
-
-    def test_mixed_mode_keeps_a_video_whose_duration_never_probed(self):
-        """Length modes drop what they cannot classify; mixed classifies nothing,
-        so an unprobed video is still playable."""
-        entries = [_entry("unprobed-1080p.mp4", 100)]
-
-        assert select_library(entries, mode=MIXED, durations={})
-        assert not select_library(entries, mode="clips", durations={})
-        assert not select_library(entries, mode="full", durations={})
-
-    def test_the_boundary_second_is_short(self):
-        entries = [_entry("exactly-at-the-line-1080p.mp4", 100)]
-        durations = self._durations({"exactly-at-the-line-1080p.mp4": SHORT_MAX_S})
-
-        assert select_library(entries, mode="clips", durations=durations)
-        assert not select_library(entries, mode="full", durations=durations)
-
-    def test_long_compilation_is_not_a_short(self):
-        # Duration-driven only: a "compilation" name doesn't make it short.
-        entries = [_entry("mega-compilation-1080p.mp4", 100)]
-        durations = self._durations({"mega-compilation-1080p.mp4": 1800.0})
-
-        assert not select_library(entries, mode="clips", durations=durations)
-        assert select_library(entries, mode="full", durations=durations)
-
-    def test_missing_duration_excluded_from_length_filter(self):
-        # An unprobed video (no duration) can't be classified; leave it out.
-        entries = [_entry("unknown-1080p.mp4", 100)]
-
-        assert select_library(entries, mode="full", durations={}) == []
-        assert select_library(entries, mode="clips", durations={}) == []
-
-    def test_the_recorded_kind_decides_before_any_running_time(self):
-        """Evolver settles this for the whole library; the Funestra reads it."""
-        entries = [_entry("carved-scene-1080p.mp4", 100)]
-        durations = self._durations({"carved-scene-1080p.mp4": 300.0})
-        kinds = {Path("carved-scene-1080p.mp4"): EXCERPT}
-
-        assert select_library(entries, mode="clips", durations=durations,
-                              kind_of=kinds.get)
-        assert not select_library(entries, mode="full", durations=durations,
-                                  kind_of=kinds.get)
-
-    def test_a_long_scene_recorded_as_full_length_is_never_measured(self):
-        entries = [_entry("whole-scene-1080p.mp4", 100)]
-        kinds = {Path("whole-scene-1080p.mp4"): FULL_LENGTH}
-
-        assert select_library(entries, mode="full", durations={},
-                              kind_of=kinds.get)
-        assert not select_library(entries, mode="clips", durations={},
-                                  kind_of=kinds.get)
-
-    def test_a_video_evolver_has_not_reached_falls_back_to_its_running_time(self):
-        entries = [_entry("unrecorded-1080p.mp4", 100)]
-        durations = self._durations({"unrecorded-1080p.mp4": 4.0})
-
-        assert select_library(entries, mode="clips", durations=durations,
-                              kind_of=lambda _video: "")
-
-    def test_applies_version_dedup(self):
-        entries = [
-            _entry("Jane-540.mp4", 100),
-            _entry("Jane-1080p.mp4", 900),
-        ]
-        durations = self._durations({"Jane-540.mp4": 300.0, "Jane-1080p.mp4": 300.0})
-
-        result = select_library(entries, mode="full", durations=durations)
-
-        assert [e.video for e in result] == [Path("Jane-1080p.mp4")]
-
-
-class TestLibraryPlaylist:
-    def _durations(self, mapping):
-        return {Path(k): v for k, v in mapping.items()}
-
-    def test_full_pairs_are_deduped_and_shuffled(self):
-        entries = [
-            _entry("Jane-540.mp4", 100, funscript="Jane.funscript"),
-            _entry("Jane-1080p.mp4", 900),  # canonical (bigger), no funscript
-            _entry("John-720p.mp4", 200, funscript="John.funscript"),
-        ]
-        durations = self._durations({
-            "Jane-540.mp4": 300.0, "Jane-1080p.mp4": 300.0, "John-720p.mp4": 300.0,
-        })
-
-        pairs = library_playlist(
-            entries, mode="full", durations=durations,
-            rng=random.Random(0),
-        )
-
-        # One entry per title; canonical (largest) chosen; correct pairing.
-        as_dict = dict(pairs)
-        assert set(as_dict) == {Path("Jane-1080p.mp4"), Path("John-720p.mp4")}
-        assert as_dict[Path("Jane-1080p.mp4")] is None
-        assert as_dict[Path("John-720p.mp4")] == Path("John.funscript")
-
-    def test_each_entry_carries_its_video_and_its_funscript(self):
-        entries = [_entry("solo-1080p.mp4", 100, funscript="solo.funscript")]
-        durations = self._durations({"solo-1080p.mp4": 300.0})
-
-        pairs = library_playlist(
-            entries, mode="full", durations=durations,
-            rng=random.Random(0),
-        )
-
-        assert pairs == [(Path("solo-1080p.mp4"), Path("solo.funscript"))]
-
-    def test_deterministic_given_seed(self):
-        entries = [_entry(f"v{i}-1080p.mp4", 100) for i in range(6)]
-        durations = self._durations({f"v{i}-1080p.mp4": 300.0 for i in range(6)})
-
-        a = library_playlist(entries, mode="full", durations=durations, rng=random.Random(3))
-        b = library_playlist(entries, mode="full", durations=durations, rng=random.Random(3))
-        assert a == b
-
-
 class TestVersionIndex:
     def test_maps_every_member_to_ordered_group_pairs(self):
         big = _entry("Jane-1080p.mp4", 900)
@@ -411,25 +210,6 @@ class TestVersionIndex:
         index = version_index_from_groups(groups)
 
         assert index == {Path("solo-1080p.mp4"): [(Path("solo-1080p.mp4"), None)]}
-
-
-class TestEveryVideoIsServed:
-    def test_no_flag_can_narrow_the_library_to_scripted_videos(self):
-        """The Main Funestra standalone is a general Funestra; scripted-focus is Fun Time's
-        F-mode. A scripted_only flag threaded through four signatures drove a
-        real filter that no production path ever turned on, and its own two
-        docstrings disagreed about what it meant."""
-        with pytest.raises(TypeError):
-            select_library([], mode=FULL, durations={}, scripted_only=True)
-
-    def test_an_unscripted_video_is_kept(self):
-        unscripted = _entry("Eff-1080p.mp4", size=900)
-
-        kept = select_library(
-            [unscripted], mode=FULL, durations={unscripted.video: 300.0},
-        )
-
-        assert [e.video for e in kept] == [unscripted.video]
 
 
 class TestRealWorldNameGrouping:

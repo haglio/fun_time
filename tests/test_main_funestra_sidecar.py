@@ -3,13 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from main_funestra.sidecar import (
-    read_sidecar,
-    read_version_group,
-    read_video_type,
-    sidecar_for,
-)
-from main_funestra.video_kind import GENAU_FLICK
+from main_funestra.sidecar import read_sidecar, read_version_group, sidecar_for
 
 
 def _write(lib: Path, meta: Path, rel: str, payload: dict) -> Path:
@@ -59,26 +53,6 @@ class TestReadSidecar:
         (meta / "w" / "x.json").write_text("{ truncated", encoding="utf-8")
 
         assert read_sidecar(video, meta) == {}
-
-
-class TestReadVideoType:
-    def test_reads_the_kind_evolver_recorded(self, tmp_path):
-        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        video = _write(lib, meta, "w/x.mp4", {"video": {"type": "excerpt"}})
-
-        assert read_video_type(video, meta) == "excerpt"
-
-    def test_a_video_with_no_record_reads_as_nothing(self, tmp_path):
-        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        video = _write(lib, meta, "w/y.mp4", {"version": {"group": "y"}})
-
-        assert read_video_type(video, meta) == ""
-
-    def test_a_flick_evolver_recorded_before_the_rename_reads_as_a_flick(self, tmp_path):
-        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        video = _write(lib, meta, "w/z.mp4", {"video": {"type": "genau_clip"}})
-
-        assert read_video_type(video, meta) == GENAU_FLICK
 
 
 class TestReadVersionGroup:

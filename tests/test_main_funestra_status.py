@@ -1,7 +1,7 @@
 """The lines Kino adds to the Main Funestra's status file."""
 from __future__ import annotations
 
-from funestra.modes import LengthMode, LoopState
+from funestra.modes import LoopState
 
 from main_funestra.status import LibraryStatus, status_fields
 
@@ -16,7 +16,7 @@ class TestStatusFields:
     def test_key_order_is_the_published_file_order(self):
         assert list(status_fields(StubLoops())) == [
             "loop_state", "loop_in_ms", "loop_out_ms",
-            "length_mode", "compilation", "has_compilation", "has_other_versions", "jump_to",
+            "compilation", "has_compilation", "has_other_versions", "jump_to",
         ]
 
     def test_a_running_loop_publishes_the_range_it_holds(self):
@@ -41,18 +41,18 @@ class TestStatusFields:
         assert (fields["loop_in_ms"], fields["loop_out_ms"]) == ("0", "0")
 
     def test_the_videos_place_in_the_library_is_published_for_the_consoles_buttons(self):
-        """Fun Time lights the compilation, version and clip-jump buttons, and
-        draws the length pair, from these lines -- only Kino knows them, and a
-        Funestra that says nothing leaves them dim."""
-        library = LibraryStatus(length_mode=LengthMode.FULL, compilation="Vol 3",
-                                has_compilation=True, has_other_versions=True, jump_to="clip")
+        """Fun Time lights the compilation, version and clip-jump buttons from
+        these lines -- only Kino knows them, and a Funestra that says nothing
+        leaves them dim."""
+        library = LibraryStatus(compilation="Vol 3", has_compilation=True,
+                                has_other_versions=True, jump_to="clip")
 
         fields = status_fields(StubLoops(), library)
         unsaid = status_fields(StubLoops())
 
-        assert [fields[key] for key in ("length_mode", "compilation", "has_compilation",
+        assert [fields[key] for key in ("compilation", "has_compilation",
                                         "has_other_versions", "jump_to")] == [
-            "full", "Vol 3", "1", "1", "clip"]
-        assert [unsaid[key] for key in ("length_mode", "compilation", "has_compilation",
+            "Vol 3", "1", "1", "clip"]
+        assert [unsaid[key] for key in ("compilation", "has_compilation",
                                         "has_other_versions", "jump_to")] == [
-            "", "", "0", "0", ""]
+            "", "0", "0", ""]

@@ -19,11 +19,14 @@ from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE
 from .loop_verbs import LOOP_CANCEL, RECORD_DOWN, RECORD_TAP, RECORD_UP, SET_LOOP
 
 __all__ = [
+    "SET_LENGTH_MODE",
     "VERBS",
     "KinoControls",
     "apply_command",
     "longer_than_a_step",
 ]
+
+SET_LENGTH_MODE = "SET_LENGTH_MODE"
 
 
 def longer_than_a_step(duration_ms: float) -> bool:
@@ -90,11 +93,6 @@ def _reload_playlist(controls: KinoControls, _value: str) -> bool:
     return True
 
 
-def _toggle_length_mode(controls: KinoControls, _value: str) -> bool:
-    controls.modes.toggle_length()
-    return True
-
-
 def _set_length_mode(controls: KinoControls, value: str) -> bool:
     controls.modes.set_length(value)
     return True
@@ -157,8 +155,7 @@ CONTROLS: tuple[Control, ...] = (
     Control(
         name="length_mode",
         verbs=(
-            Verb("TOGGLE_LENGTH_MODE", _toggle_length_mode),
-            Verb("SET_LENGTH_MODE", _set_length_mode, takes_a_value=True),
+            Verb(SET_LENGTH_MODE, _set_length_mode, takes_a_value=True),
             Verb("END_COMPILATION", _end_compilation),
         ),
     ),

@@ -5,15 +5,12 @@ import pytest
 from shared_ui.loading_panel import LoadingPanel
 from shared_ui.palette import LOADING_ACCENT, LOADING_GROUND, LOADING_TROUGH
 
-from main_funestra.library_source import PHASE_DISCOVER, PHASE_DURATIONS
+from main_funestra.library_source import PHASE_DISCOVER
 from main_funestra.loading import (
-    REPAINT_INTERVAL_S,
     LoadingCanceled,
     paint_panel,
-    progress_fraction,
     progress_text,
     quit_requested,
-    repaint_due,
     stop_if_asked,
 )
 
@@ -36,41 +33,9 @@ class TestQuitRequested:
         assert not quit_requested([event])
 
 
-class TestRepaintDue:
-    """A warm cache reports all 525 entries in a fraction of a second; painting
-    every one of them would cost more than the work being reported."""
-
-    def test_holds_off_within_the_interval(self):
-        assert not repaint_due(
-            phase="durations", last_phase="durations", now=10.0, last_paint_s=10.0,
-        )
-
-    def test_paints_once_the_interval_has_passed(self):
-        assert repaint_due(
-            phase="durations", last_phase="durations",
-            now=10.0 + REPAINT_INTERVAL_S, last_paint_s=10.0,
-        )
-
-    def test_a_new_phase_always_paints(self):
-        assert repaint_due(
-            phase="durations", last_phase="discover", now=10.0, last_paint_s=10.0,
-        )
-
-
 class TestProgressText:
-    def test_counting_phase_shows_how_far(self):
-        assert progress_text(PHASE_DURATIONS, 128, 525) == "Reading video lengths... 128 of 525"
-
-    def test_uncounted_phase_is_just_the_message(self):
-        assert progress_text(PHASE_DISCOVER, 0, 0) == "Finding videos..."
-
-
-class TestProgressFraction:
-    def test_no_total_is_indeterminate(self):
-        assert progress_fraction(0, 0) is None
-
-    def test_counts_the_work_behind_it(self):
-        assert progress_fraction(1, 4) == 0.25
+    def test_the_walk_is_said_in_words(self):
+        assert progress_text(PHASE_DISCOVER) == "Finding videos..."
 
 
 class TestGivingUpOnTheWait:

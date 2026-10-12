@@ -424,7 +424,7 @@ _EXPECTED_STATE_KEYS = {
     "portrait_hud_minimized": "0", "landscape_hud_minimized": "0",
     "omni_paused": "0",
     "main_latest": "0", "portrait_latest": "0", "landscape_latest": "0",
-    "main_shuffle_seed": "0",
+    "main_shuffle_seed": "0", "main_length_mode": "mixed",
     "main_plays_vr": "1", "main_plays_flat": "1",
     "genau_latest": "0", "genau_plays_vr": "1", "genau_plays_flat": "1",
     "active_funestra": "1",

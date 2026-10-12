@@ -37,9 +37,9 @@ class Kino:
         self._jumps.resume(remembered.compilation,
                            Path(remembered.video) if remembered.video else None)
         self._modes = Modes(
-            source, playback, self._jumps,
+            playback, self._jumps,
             Versions(playback, source.version_index if source is not None else None),
-            remembered=remembered.length_mode, the_main_list=resolve_playlist)
+            the_main_list=resolve_playlist)
         self._controls = KinoControls(
             playback=playback, loops=self._loops, versions=self._modes.versions,
             modes=self._modes, jumps=self._jumps,

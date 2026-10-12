@@ -52,7 +52,7 @@ from fun_time.funestra_engine import engine_missing_abort
 from fun_time.funestra_status import read_main_funestra_status
 from fun_time.genau_config import GenauSettings
 from fun_time.hosted_origenerator import bring_up_the_hosted_app
-from fun_time.main_list import MainList
+from fun_time.main_list import MainList, MainListSettings
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -556,7 +556,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             commands.main_funestra_paused_file, commands.audio_volume_file,
             commands.genau_cmd_file, main_funestra_cmd_file=commands.main_funestra_cmd_file,
             volume=carried.volume, muted=carried.muted, max_intensity=carried.max_intensity,
-            scripted_filter=carried.main_scripted_filter, mode=carried.main_mode,
+            main_list=MainListSettings.of(carried), mode=carried.main_mode,
         )
         # A lock lives in the Funestra process, so it has to be re-sent; the roles read
         # the satellites' own command files, and the headset is not up yet.

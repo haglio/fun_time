@@ -490,7 +490,7 @@ class _TheLibrary:
         if metadata_root is not None:
             argv += ["--metadata-dir", str(metadata_root)]
         self.args = build_main_funestra_parser(load_config(config_path)).parse_args(argv)
-        self.source = library_source(self.args, on_progress=lambda *_: while_reading())
+        self.source = library_source(self.args, on_progress=lambda _phase: while_reading())
         self.memory = mode_memory(self.args)
 
     def playlist(self) -> list[PlaylistItem]:

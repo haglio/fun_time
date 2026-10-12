@@ -23,7 +23,7 @@ from pathlib import Path
 
 from funestra.console import OSR2_DRIVING
 from funestra.hud_placement import HudCorner, HudEdge
-from funestra.modes import MainMode, SatellitesMode, read_mode
+from funestra.modes import LengthMode, MainMode, SatellitesMode, read_mode
 from funestra.robot_hand import FULL_INTENSITY
 
 from .audio_volume import MAX_VOLUME
@@ -101,6 +101,7 @@ class BridgeState:
     omni_paused: bool = False
     main_latest: bool = False
     main_shuffle_seed: int = 0
+    main_length_mode: LengthMode = LengthMode.MIXED
     # Which shapes of video the Main Funestra's browse may reach: VR masters, flat
     # ones, or both -- the only answer outside the headset, holding one shape.
     main_plays_vr: bool = True

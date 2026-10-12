@@ -1,25 +1,21 @@
-"""Smart library layer for the Main Funestra: version grouping, quality dedup, and
-length-mode filtering — all pure logic, no pygame or I/O.
+"""Smart library layer for the Main Funestra: version grouping and quality
+dedup — all pure logic, no pygame or I/O.
 
 Many files in the wild are the same content at different quality or upscale
 (``...-1080p_60fps.mp4``, ``...-old_iris2.mp4``, ``..._topaz.mp4``). This
 module folds those variants into a single *version group* keyed on the name —
 an upscale is almost always the original's name plus an appended tag — picks
-the largest file as the canonical one, and offers a canonical-only shuffle, a
-Fun-Time playlist collapse, and a clips/full filter.
+the largest file as the canonical one, and folds Fun Time's playlist to one
+slot per group.
 """
 from __future__ import annotations
 
-import random
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from funestra.modes import LengthMode
 from funestra.playlist import PlaylistItem
-
-from .video_kind import EXCERPT, FULL_LENGTH, SHORT
 
 # Tunable heuristic: tokens dropped anywhere in a title because they mark a
 # quality/upscaler/codec/resolution/container variant rather than content.
@@ -309,96 +305,6 @@ def collapse_playlist_versions(
     return collapsed
 
 
-def canonical_playlist(
-    entries: list[LibraryEntry], rng: random.Random,
-) -> list[LibraryEntry]:
-    """One canonical entry per version group, shuffled with *rng*.
-
-    Deterministic for a given seeded ``random.Random`` so a session (and its
-    tests) can reproduce the order.
-    """
-    canonicals = [group.canonical for group in group_versions(entries)]
-    rng.shuffle(canonicals)
-    return canonicals
-
-
-# What "short" means for a video Evolver has not recorded yet, and the same
-# number it records by — one line through the family instead of this Funestra's
-# old 60 seconds and the phone's 10.
-SHORT_MAX_S = 10.0
-
-# The three length modes.  MIXED applies no length filter at all — it is what a
-# playlist looks like before anyone asks for a length, and so what the Funestra
-# opens in; FULL and CLIPS are the two halves it splits into.
-MIXED = LengthMode.MIXED
-FULL = LengthMode.FULL
-CLIPS = LengthMode.CLIPS
-# Neither length: a browse with nothing in it.  Degenerate, and the console
-# offers it anyway rather than refusing the press -- what happens is that the
-# video on screen is held, which is a state you can see and undo.
-NONE = LengthMode.NONE
-
-CLIPS_KINDS = frozenset({SHORT, EXCERPT})
-FULL_KINDS = frozenset({FULL_LENGTH})
-
-
-def kind_of_video(
-    video: Path,
-    *,
-    kind_of: Callable[[Path], str] | None,
-    durations: dict[Path, float],
-) -> str:
-    """What *video* is: what Evolver recorded, or what can be told without it.
-
-    The record is the answer wherever there is one.  The fallbacks are for a
-    video Evolver has not reached — a library it has never run over, or a file
-    that arrived since its last run, by its running time.  ``""`` is a video
-    nothing could classify, which both length modes drop.
-    """
-    recorded = kind_of(video) if kind_of is not None else ""
-    if recorded:
-        return recorded
-    seconds = durations.get(video)
-    if seconds is None:
-        return ""
-    return SHORT if seconds <= SHORT_MAX_S else FULL_LENGTH
-
-
-def select_library(
-    entries: list[LibraryEntry],
-    *,
-    mode: str,
-    durations: dict[Path, float],
-    kind_of: Callable[[Path], str] | None = None,
-) -> list[LibraryEntry]:
-    """Filter *entries* by length *mode*, then version-dedup the survivors.
-
-    Mixed mode applies no length filter: every entry survives,
-    including the ones nothing has classified, since nothing here has to.  NONE
-    is its opposite and keeps nothing at all.  The
-    other two keep the kinds :data:`CLIPS_KINDS` and :data:`FULL_KINDS` name —
-    :func:`kind_of_video` says what each video's kind is, and a video with no
-    kind at all is dropped by both.  Anything that is not one of the three
-    modes filters as full, which is what it has always done.
-
-    *kind_of* reads what Evolver recorded (``main_funestra.sidecar.read_video_type``); the
-    *durations* are the fallback for what it has not reached.
-
-    Returns one canonical entry per surviving version group.
-    """
-    if mode == NONE:
-        kept = []
-    elif mode == MIXED:
-        kept = list(entries)
-    else:
-        wanted = CLIPS_KINDS if mode == CLIPS else FULL_KINDS
-        kept = [
-            entry for entry in entries
-            if kind_of_video(entry.video, kind_of=kind_of, durations=durations) in wanted
-        ]
-    return [group.canonical for group in group_versions(kept)]
-
-
 def entries_to_items(entries: list[LibraryEntry]) -> list[PlaylistItem]:
     """Drop file sizes, leaving the playlist items the session wants."""
     return [PlaylistItem(e.video, e.funscript) for e in entries]
@@ -420,21 +326,3 @@ def version_index_from_groups(
         for entry in versions:
             index[entry.video] = items
     return index
-
-
-def library_playlist(
-    entries: list[LibraryEntry],
-    *,
-    mode: str,
-    durations: dict[Path, float],
-    rng: random.Random,
-    kind_of: Callable[[Path], str] | None = None,
-) -> list[PlaylistItem]:
-    """The library as a playlist: filter by *mode*, version-dedup, shuffle.
-
-    Deterministic for a seeded *rng*. This is the single composition both
-    startup and the length-mode toggle use, so their playlists stay
-    consistent.
-    """
-    selected = select_library(entries, mode=mode, durations=durations, kind_of=kind_of)
-    return entries_to_items(canonical_playlist(selected, rng))

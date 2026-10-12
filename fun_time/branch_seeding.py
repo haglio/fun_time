@@ -7,7 +7,6 @@ them from cold is work already done against thousands of files.
 """
 from __future__ import annotations
 
-import json
 import shutil
 from pathlib import Path
 
@@ -17,12 +16,6 @@ PRIVATE_OVERLAYS = (
     Path("content.local.json"),
     Path("fun_time") / "static" / "regen_autofill.user.js",
 )
-
-# The Main Funestra's per-video durations, merged rather than copied.  Startup waits
-# for it to report the video it is opening, it reports nothing until it has that
-# video's duration, and against a cold cache it probes the whole library first:
-# measured at 20s where a warm one is 0.1s.
-DURATION_CACHE_NAME = "main_player_durations.json"
 
 WATCH_STATS_NAME = "watch_stats.json"
 
@@ -47,33 +40,6 @@ def mirror_private_overlays(primary: Path, worktree: Path) -> list[Path]:
     return copied
 
 
-def merge_duration_cache(live_state: Path, branch_state: Path) -> int:
-    """Union the live session's durations into the branch's; return the total.
-
-    Copy-if-newer cannot work here: the Main Funestra rewrites the file with what
-    it loaded plus what it probed, so a branch's copy shrinks to its own view of
-    the library and is then newer than the live session's.  Both are partial
-    views of one library, and a stale entry costs nothing -- every entry is
-    checked against the file's mtime and size before it is trusted.
-    """
-    live = _read_json_dict(live_state / DURATION_CACHE_NAME)
-    branch = _read_json_dict(branch_state / DURATION_CACHE_NAME)
-    merged = {**live, **branch}
-    if merged and merged != branch:
-        branch_state.mkdir(parents=True, exist_ok=True)
-        (branch_state / DURATION_CACHE_NAME).write_text(json.dumps(merged), encoding="utf-8")
-    return len(merged)
-
-
-def _read_json_dict(path: Path) -> dict:
-    """*path* as a dict, or empty when it is missing, unreadable or not one."""
-    try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return loaded if isinstance(loaded, dict) else {}
-
-
 def seed_derived_caches(live_state: Path, branch_state: Path) -> list[Path]:
     """Start the library-derived caches from *live_state*; return what landed.
 
@@ -81,8 +47,6 @@ def seed_derived_caches(live_state: Path, branch_state: Path) -> list[Path]:
     unfinished code, and the live session's caches are not its to corrupt.
     """
     seeded: list[Path] = []
-    if merge_duration_cache(live_state, branch_state):
-        seeded.append(branch_state / DURATION_CACHE_NAME)
     source = live_state / WATCH_STATS_NAME
     if source.is_file() and _seed_file(source, branch_state / WATCH_STATS_NAME):
         seeded.append(branch_state / WATCH_STATS_NAME)

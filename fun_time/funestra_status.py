@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from app_support.file_channel import read_key_values, stamp_age
-from funestra.modes import LengthMode, LoopState, read_mode
+from funestra.modes import LoopState, read_mode
 from funestra.status import FunestraStatus, parse_status
 
 
@@ -61,7 +61,6 @@ class MainFunestraStatus(ScriptedStatus):
     # The video's place in the library, as only the Main Funestra knows it; the
     # console's buttons for these are lit from here, dim from a Funestra that
     # says nothing.
-    length_mode: LengthMode | None = None
     compilation: str = ""
     has_compilation: bool = False
     has_other_versions: bool = False
@@ -108,7 +107,6 @@ def read_main_funestra_status(path: Path, *, fallback: MainFunestraStatus | None
             **scripted_fields(values),
             loop_in_ms=int(values.get("loop_in_ms", "0").strip() or 0),
             loop_out_ms=int(values.get("loop_out_ms", "0").strip() or 0),
-            length_mode=read_mode(LengthMode, values.get("length_mode", "").strip(), None),
             compilation=values.get("compilation", "").strip(),
             has_compilation=_status_bool(values, "has_compilation"),
             has_other_versions=_status_bool(values, "has_other_versions"),
