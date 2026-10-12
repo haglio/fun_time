@@ -137,6 +137,18 @@ class TestItsVerbs:
         assert world.playback.playlist == [world.second, world.first]
         assert world.playback.current_video == world.first
 
+    def test_leaving_a_compilation_takes_up_the_list_fun_time_wrote(self, tmp_path):
+        world = World(tmp_path)
+        world.kino.apply_command("PLAY_COMPILATION")
+        elsewhere = tmp_path / "videos" / "x" / "Jane Doe - Scene Three.mp4"
+        world.resolved.append([PlaylistItem(world.first), PlaylistItem(elsewhere)])
+
+        assert world.kino.apply_command("END_COMPILATION") is True
+
+        assert world.playback.playlist == [world.first, elsewhere]
+        assert world.kino.status_fields()["compilation"] == ""
+        assert world.source.asked == []
+
     def test_a_length_named_rebuilds_the_list_and_is_written_down(self, tmp_path):
         world = World(tmp_path)
 

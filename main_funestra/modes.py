@@ -34,11 +34,13 @@ def reload_playlist(playback, jumps, resolve) -> None:
 
 
 class Modes:
-    def __init__(self, source, playback, jumps, versions, *, remembered: str) -> None:
+    def __init__(self, source, playback, jumps, versions, *, remembered: str,
+                 the_main_list) -> None:
         self._source = source
         self._playback = playback
         self._jumps = jumps
         self.versions = versions
+        self._the_main_list = the_main_list
         self._length_mode = (remembered or DEFAULT_MODE) if source is not None else None
         self._scripted_filter = False
 
@@ -76,9 +78,7 @@ class Modes:
         self.set_length(next_length_mode(self.length_mode))
 
     def end_compilation(self) -> None:
-        if self._source is None:
-            return
-        self._jumps.end_compilation(self._source.playlist_for(self.length_mode))
+        self._jumps.end_compilation(self._the_main_list())
 
     @property
     def hud(self) -> ModeHud:
