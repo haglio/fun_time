@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from funestra.console import OSR2_DRIVING
@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 from .bridge_records import SatelliteChannel
 from .broker_control import write_broker_command
 from .funestra_handover import keep_aside
+from .main_list import MainList, MainListSettings
 from .main_list_builds import BUILDS_HERE, MainListBuild, MainListBuilds
 from .mode_plan import build_mode_switch_plan
 from .modes import (
     PLAYLIST_LANDSCAPE,
     PLAYLIST_PORTRAIT,
-    VideoShapes,
     build_one_satellite_playlist,
     build_playlist_file_path,
     build_satellite_playlist_paths,
@@ -106,37 +106,22 @@ def apply_mode_switch(
     )
 
 
-def apply_main_fmode(
+def rebuild_main_list(
+    main_list: MainList,
+    settings: MainListSettings,
     *,
-    enabled: bool,
-    main_sources: str,
-    state_dir: str | Path,
     main_funestra_cmd_file: str | Path,
-    recent: bool = False,
     start_at_top: bool = False,
-    shapes: VideoShapes | None = None,
-    metadata_root: Path | None = None,
     builds: MainListBuilds = BUILDS_HERE,
 ) -> None:
-    """Rebuild the Main Funestra's playlist under *enabled* and hand it to the Main Funestra.
-
-    The one place the Main Funestra's playlist is rewritten while a session runs,
-    so everything narrowing it rides here: F-mode, the browse order, and the
-    headset's shape filter.
-
-    F-mode narrows the Main Funestra to the videos a person hand-wrote a funscript
-    for — the OSR2 follows a script someone meant, not one a bulk run inferred.
-
-    ``start_at_top`` is the reorder's, and means here what it means for a
+    """``start_at_top`` is the reorder's, and means here what it means for a
     satellite: the Main Funestra keeps the video on screen across a reload whenever the new list
     still holds it — which a reorder's always does — so a newest-first rebuild
     would otherwise apply only after it, and the new arrivals never come up.
-    *builds* is where — see :class:`fun_time.main_list_builds.MainListBuilds`.
     """
     builds.build(MainListBuild(
-        scripted_filter=enabled, main_sources=main_sources, state_dir=Path(state_dir),
-        main_funestra_cmd_file=Path(main_funestra_cmd_file), recent=recent,
-        start_at_top=start_at_top, shapes=shapes, metadata_root=metadata_root,
+        main_list=main_list, settings=settings,
+        main_funestra_cmd_file=Path(main_funestra_cmd_file), start_at_top=start_at_top,
     ))
 
 
@@ -184,11 +169,10 @@ def apply_fmode(
     *,
     funestras: Sequence[RoomFunestra],
     enabled: bool,
-    main_sources: str,
+    main_list: MainList,
+    main_settings: MainListSettings,
     favs_file: str | Path,
     state_dir: str | Path,
-    main_recent: bool = False,
-    main_shapes: VideoShapes | None = None,
     main_funestra_cmd_file: str | Path,
     main_builds: MainListBuilds = BUILDS_HERE,
     satellites: Mapping[RoomFunestra, SatelliteFmodeInputs],
@@ -203,15 +187,9 @@ def apply_fmode(
     """
     named = tuple(funestra for funestra in FMODE_FUNESTRAS if funestra in funestras)
     if RoomFunestra.MAIN in named:
-        apply_main_fmode(
-            enabled=enabled,
-            main_sources=main_sources,
-            recent=main_recent,
-            state_dir=state_dir,
-            main_funestra_cmd_file=main_funestra_cmd_file,
-            shapes=main_shapes,
-            metadata_root=regen_metadata_root,
-            builds=main_builds,
+        rebuild_main_list(
+            main_list, replace(main_settings, scripted_filter=enabled),
+            main_funestra_cmd_file=main_funestra_cmd_file, builds=main_builds,
         )
     for funestra in RoomFunestra.SATELLITES:
         if funestra in named:

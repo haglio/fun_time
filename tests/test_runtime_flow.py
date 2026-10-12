@@ -8,6 +8,7 @@ import pytest
 from funestra.console import OSR2_CONTROL_OFF, OSR2_DRIVING
 from funestra.modes import MainMode
 
+from fun_time.main_list import MainList, MainListSettings
 from fun_time.media_metadata import metadata_path_for
 from fun_time.room_funestras import RoomFunestra
 from fun_time.runtime_flow import (
@@ -16,9 +17,9 @@ from fun_time.runtime_flow import (
     apply_enter_omnipause,
     apply_fmode,
     apply_leave_omnipause,
-    apply_main_fmode,
     apply_mode_switch,
     apply_satellite_filter,
+    rebuild_main_list,
     satellite_browse_paths,
 )
 
@@ -157,7 +158,8 @@ def test_toggle_fmode_replaces_playlists_and_reloads_main_funestra(tmp_path: Pat
         },
         funestras=FMODE_FUNESTRAS,
         enabled=True,
-        main_sources=str(primary_root),
+        main_list=MainList(sources=str(primary_root), state_dir=tmp_path / "state"),
+        main_settings=MainListSettings(),
         favs_file=favs_file,
         state_dir=state_dir,
         main_funestra_cmd_file=main_funestra_cmd_file,
@@ -198,7 +200,8 @@ def test_fmode_on_one_funestra_leaves_the_others_playlists_untouched(tmp_path: P
         },
         funestras=(RoomFunestra.PORTRAIT,),
         enabled=True,
-        main_sources="",
+        main_list=MainList(sources="", state_dir=tmp_path / "state"),
+        main_settings=MainListSettings(),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         main_funestra_cmd_file=main_funestra_cmd_file,
@@ -232,7 +235,8 @@ def test_toggle_fmode_tells_main_funestra_the_flag_on_the_same_write_as_the_relo
             },
             funestras=FMODE_FUNESTRAS,
             enabled=enabled,
-            main_sources=str(root),
+            main_list=MainList(sources=str(root), state_dir=tmp_path / "state"),
+            main_settings=MainListSettings(),
             favs_file=tmp_path / "favs.csv", state_dir=tmp_path / "state",
             main_funestra_cmd_file=main_funestra_cmd_file,
         )
@@ -264,9 +268,9 @@ def test_the_main_funestra_can_be_started_at_the_top_of_the_new_list(tmp_path: P
     script.write_text("{}", encoding="utf-8")
     main_funestra_cmd_file = tmp_path / "main_player_cmd.txt"
 
-    apply_main_fmode(
-        enabled=False, main_sources=str(root), recent=True, start_at_top=True,
-        state_dir=tmp_path / "state", main_funestra_cmd_file=main_funestra_cmd_file,
+    rebuild_main_list(
+        MainList(sources=str(root), state_dir=tmp_path / "state"), MainListSettings(latest=True),
+        main_funestra_cmd_file=main_funestra_cmd_file, start_at_top=True,
     )
 
     assert main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
@@ -299,7 +303,8 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path
         },
         funestras=FMODE_FUNESTRAS,
         enabled=False,
-        main_sources="",
+        main_list=MainList(sources="", state_dir=tmp_path / "state"),
+        main_settings=MainListSettings(),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
@@ -326,7 +331,8 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
         },
         funestras=FMODE_FUNESTRAS,
         enabled=False,
-        main_sources="",
+        main_list=MainList(sources="", state_dir=tmp_path / "state"),
+        main_settings=MainListSettings(),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
@@ -467,7 +473,8 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
         },
         funestras=FMODE_FUNESTRAS,
         enabled=False,  # F-mode OFF, so only the metadata filter applies
-        main_sources="",
+        main_list=MainList(sources="", state_dir=tmp_path / "state"),
+        main_settings=MainListSettings(),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",

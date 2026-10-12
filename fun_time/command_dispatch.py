@@ -54,6 +54,7 @@ from .funestra_buttons import MAIN_FUNESTRA_NOUN, SATELLITE_NOUN, too_short_to_s
 from .funestra_handover import show_f_mode
 from .funestra_status import MainFunestraStatus, read_genau_status, read_main_funestra_status
 from .lock import MARKED_WEIRD, build_discard_plan, build_lock_toggle_plan
+from .main_list import MainListSettings
 from .max_intensity import (
     MAX_INTENSITY_COMMAND,
     funestras_that_can_drive_the_osr2,
@@ -75,10 +76,10 @@ from .runtime_flow import (
     apply_enter_omnipause,
     apply_fmode,
     apply_leave_omnipause,
-    apply_main_fmode,
     apply_mode_switch,
     apply_satellite_filter,
     apply_satellites_switch,
+    rebuild_main_list,
 )
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .satellite_groups import (
@@ -1013,9 +1014,8 @@ def _dispatch_fmode(
     result = apply_fmode(
         funestras=changed,
         enabled=enabled,
-        main_recent=state.main_latest,
-        main_shapes=main_video_shapes(state, config),
-        main_sources=config.main_sources,
+        main_list=config.main_list,
+        main_settings=MainListSettings.of(state),
         favs_file=config.favs_file,
         state_dir=config.state_dir,
         main_funestra_cmd_file=config.main_funestra_cmd_file,
@@ -1080,17 +1080,7 @@ def _dispatch_main_reorder(
     on_main_funestra = kino_shows(state.main_mode)
     if on_main_funestra:
         state = replace(state, main_latest=recent)
-        apply_main_fmode(
-            enabled=state.main_scripted_filter,
-            main_sources=config.main_sources,
-            recent=recent,
-            state_dir=config.state_dir,
-            main_funestra_cmd_file=config.main_funestra_cmd_file,
-            start_at_top=True,
-            shapes=main_video_shapes(state, config),
-            metadata_root=config.regen_metadata_root,
-            builds=config.main_list_builds,
-        )
+        _rebuild_the_main_list(state, config, start_at_top=True)
     else:
         state = replace(state, genau_latest=recent)
         append_command(config.genau_cmd_file, _GENAU_ORDER_CMD[recent])
@@ -1100,11 +1090,15 @@ def _dispatch_main_reorder(
     return state, [WindowOp(op="notice", key=label, source=SOURCE_MAIN)]
 
 
+def _rebuild_the_main_list(state: BridgeState, config: BridgeConfig, *,
+                           start_at_top: bool = False) -> None:
+    rebuild_main_list(config.main_list, MainListSettings.of(state),
+                      main_funestra_cmd_file=config.main_funestra_cmd_file,
+                      start_at_top=start_at_top, builds=config.main_list_builds)
+
+
 def main_video_shapes(state: BridgeState, config: BridgeConfig) -> VideoShapes:
-    """The shape filter the Main Funestra's next rebuild runs under."""
-    return VideoShapes(vr_dirs=config.vr_library_dirs,
-                       plays_vr=state.main_plays_vr,
-                       plays_flat=state.main_plays_flat)
+    return config.main_list.shapes(MainListSettings.of(state))
 
 
 def genau_flick_shapes(state: BridgeState, config: BridgeConfig) -> VideoShapes:
@@ -1150,16 +1144,7 @@ def _narrow_the_main_funestra(
     if not (plays_vr or plays_flat):
         append_command(config.main_funestra_cmd_file, LOCK_ON)
         return state, []
-    apply_main_fmode(
-        enabled=state.main_scripted_filter,
-        main_sources=config.main_sources,
-        recent=state.main_latest,
-        state_dir=config.state_dir,
-        main_funestra_cmd_file=config.main_funestra_cmd_file,
-        shapes=main_video_shapes(state, config),
-        metadata_root=config.regen_metadata_root,
-        builds=config.main_list_builds,
-    )
+    _rebuild_the_main_list(state, config)
     return state, []
 
 
@@ -1195,17 +1180,7 @@ def _dispatch_main_reset(
     if state.main_scripted_filter or state.main_latest or main_video_shapes(state, config).narrows:
         state = replace(
             state, main_scripted_filter=False, main_latest=False, main_plays_vr=True, main_plays_flat=True)
-        apply_main_fmode(
-            enabled=state.main_scripted_filter,
-            main_sources=config.main_sources,
-            recent=state.main_latest,
-            state_dir=config.state_dir,
-            main_funestra_cmd_file=config.main_funestra_cmd_file,
-            start_at_top=True,
-            shapes=main_video_shapes(state, config),
-            metadata_root=config.regen_metadata_root,
-            builds=config.main_list_builds,
-        )
+        _rebuild_the_main_list(state, config, start_at_top=True)
     if kino_shows(state.main_mode):
         for verb in _MAIN_FUNESTRA_RESET_VERBS:
             append_command(config.main_funestra_cmd_file, verb)

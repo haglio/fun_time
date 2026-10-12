@@ -5,20 +5,20 @@ from dataclasses import replace
 
 from app_support.threading_utils import wait_until
 
+from fun_time.main_list import MainList, MainListSettings
 from fun_time.main_list_builds import BuildsOffTheLoop, MainListBuild
 
 SETTLE_S = 5.0
 
 
-def _main_list_build(tmp_path, **settings) -> MainListBuild:
-    return MainListBuild(scripted_filter=False, main_sources=str(tmp_path / "library"),
-                         state_dir=tmp_path, main_funestra_cmd_file=tmp_path / "cmd.txt",
-                         **settings)
+def _main_list_build(tmp_path, settings: MainListSettings, **build) -> MainListBuild:
+    return MainListBuild(main_list=MainList(sources=str(tmp_path / "library"), state_dir=tmp_path),
+                         settings=settings, main_funestra_cmd_file=tmp_path / "cmd.txt", **build)
 
 
 def test_a_build_replacing_one_that_owed_a_jump_to_the_top_still_owes_it(tmp_path):
-    owed = _main_list_build(tmp_path, start_at_top=True)
-    newer = _main_list_build(tmp_path, recent=True)
+    owed = _main_list_build(tmp_path, MainListSettings(), start_at_top=True)
+    newer = _main_list_build(tmp_path, MainListSettings(latest=True))
 
     assert newer.replacing(owed) == replace(newer, start_at_top=True)
 

@@ -181,29 +181,6 @@ class VideoShapes:
                            plays_vr=self.plays_vr, plays_flat=self.plays_flat)
 
 
-def build_main_playlist_paths(main_sources: str, scripted_filter: bool, *,
-                              recent: bool = False,
-                              rng: random.Random | None = None,
-                              shapes: VideoShapes | None = None,
-                              metadata_root: Path | None = None) -> list[str]:
-    """The Main Funestra's playlist, narrowed as the session asks and in its order.
-
-    *recent* is Latest — newest-first — and its absence is Shuffle, the same two
-    orders a satellite browses in and the same words on the HUD.  The Main Funestra
-    had only the shuffle: a video that arrived an hour ago was somewhere in a
-    thousand-clip rotation with no way to ask for it, while either satellite could
-    be told "latest".
-
-    """
-    files = collect_video_files(main_sources)
-    if scripted_filter:
-        files = [full_path for full_path in files
-                 if has_handcrafted_funscript(full_path, metadata_root)]
-    if shapes is not None:
-        files = shapes.keep(files)
-    return order_paths(files, recent=recent, rng=rng)
-
-
 def _collapse_axis(
     index: GroupIndex,
     by_seed_family: bool,
@@ -422,55 +399,4 @@ def build_satellite_playlists(
         sources=landscape.sources, name=PLAYLIST_LANDSCAPE, favs_file=favs_file,
         state_dir=state_dir, favorites_filter=landscape.favorites_filter, recent=landscape.recent,
         filter_query=landscape.filter_query, rng=rng, metadata_root=metadata_root,
-    )
-
-
-def build_main_playlist(playlist_file: Path, main_sources: str, *, scripted_filter: bool,
-                        recent: bool = False, shapes: VideoShapes | None = None,
-                        metadata_root: Path | None = None) -> None:
-    """Build and write the Main Funestra's playlist alone.
-
-    The one-player counterpart to :func:`build_all_playlists`, for a startup
-    that keeps the satellites' resumed playlists and needs only the Main Funestra's
-    rebuilt — the satellites' library is the same whichever app is running,
-    while the Main Funestra's is what the two apps disagree about.
-
-    *scripted_filter* is the session's, not off: the satellites' playlists came back
-    built under it, and one Funestra quietly holding the whole library while the
-    HUDs say F-mode is what this rebuild would otherwise leave standing.
-    """
-    write_playlist_file(
-        playlist_file,
-        build_main_playlist_paths(main_sources, scripted_filter, recent=recent, shapes=shapes,
-                                  metadata_root=metadata_root),
-        metadata_root=metadata_root)
-
-
-def build_all_playlists(
-    *,
-    main_sources: str,
-    portrait: SatelliteBuild,
-    landscape: SatelliteBuild,
-    favs_file: Path,
-    state_dir: Path,
-    rng: random.Random | None = None,
-    metadata_root: Path | None = None,
-) -> None:
-    """Build and write all three playlists — both satellites' and the Main Funestra's.
-
-    Only a start with nothing to resume builds all three, so the Main Funestra's
-    is built whole; each satellite's build still carries its own F-mode flag.
-    """
-    build_satellite_playlists(
-        portrait=portrait,
-        landscape=landscape,
-        favs_file=favs_file,
-        state_dir=state_dir,
-        rng=rng,
-        metadata_root=metadata_root,
-    )
-    write_playlist_file(
-        build_playlist_file_path(state_dir, PLAYLIST_MAIN_FUNESTRA),
-        build_main_playlist_paths(main_sources, False, rng=rng, metadata_root=metadata_root),
-        metadata_root=metadata_root,
     )

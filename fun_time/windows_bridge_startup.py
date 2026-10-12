@@ -33,14 +33,14 @@ from .funestra_status import (
     is_broker_heartbeat_fresh,
     read_main_funestra_status,
 )
+from .main_list import MainList, MainListSettings
 from .max_intensity import publish_max_intensity
 from .mode_plan import STARTUP_MAIN_MODE, show_verb
 from .modes import (
     PLAYLIST_MAIN_FUNESTRA,
     SatelliteBuild,
-    build_all_playlists,
-    build_main_playlist,
     build_playlist_file_path,
+    build_satellite_playlists,
 )
 from .orchestrator_broker import (
     broker_launch_kwargs,
@@ -419,23 +419,25 @@ def start_core_session(
     # seed_startup_states does not touch the satellite paused files.
     reset_satellite_paused_states(portrait.channels.paused, landscape.channels.paused)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
+    main_list = MainList(sources=main_sources, state_dir=state_path,
+                         metadata_root=regen_metadata_root)
     if not resumed:
-        build_all_playlists(
-            main_sources=main_sources,
+        build_satellite_playlists(
             portrait=SatelliteBuild(sources=portrait.sources),
             landscape=SatelliteBuild(sources=landscape.sources),
             favs_file=Path(favs_file),
             state_dir=state_path,
             metadata_root=regen_metadata_root,
         )
+        main_list.write(MainListSettings())
     elif not playlist_fits_sources(main_funestra_playlist, main_sources):
         # FunTimeVR left this playlist, and its VR videos must never reach the
         # primary monitor: rebuild from this app's library, under the order and
         # F-mode being carried forward, then rotate back onto the clip that was
         # on screen.  (The satellites' dirs are the same in either app, so their
         # resume stands.)
-        build_main_playlist(main_funestra_playlist, main_sources, scripted_filter=carried.main_scripted_filter,
-                            recent=carried.main_latest, metadata_root=regen_metadata_root)
+        main_list.write(MainListSettings(scripted_filter=carried.main_scripted_filter,
+                                         latest=carried.main_latest))
         logger.info(
             "Resumed playlists; rebuilt the Main Funestra's around the video it was on"
             if resume_main_video(main_funestra_playlist, main_funestra_status.video)
