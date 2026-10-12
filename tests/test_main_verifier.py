@@ -219,6 +219,13 @@ class FakeShell:
         return ""
 
 
+class SignedOutShell(FakeShell):
+    def __call__(self, command, cwd=None):
+        if command[1:] == ["auth", "status"]:
+            raise main_verifier.CommandFailed('claude.exe auth status: {"loggedIn": false}')
+        return super().__call__(command, cwd)
+
+
 def test_taking_a_change_back_reverts_its_pull_requests_commits_newest_first_and_opens_a_pull_request(tmp_path):
     shell = FakeShell({
         "commits/b2/pulls": "40", "commits/c3/pulls": "41", "commits/d4/pulls": "41",
@@ -245,7 +252,8 @@ def test_shipping_a_change_again_reverts_what_took_it_back_newest_first_in_a_pul
     assert bench.ship_again(41, ["d4", "e5"], ["tests/integration/test_x.py::test_y"]) == 79
 
     place = primary / ".claude" / "worktrees" / "ship-again-41"
-    assert (["git", "worktree", "add", "-B", "claude/ship-again-41", str(place), "origin/main"], primary) in shell.commands
+    branched = ["git", "worktree", "add", "-B", "claude/ship-again-41", str(place), "origin/main"]
+    assert (branched, primary) in shell.commands
     assert (["git", "revert", "--no-edit", "e5", "d4"], place) in shell.commands
     created = next(command for command, _ in shell.commands if command[:3] == ["gh", "pr", "create"])
     assert "Ship #41 again: Loop the row on the Main Funestra" in created
@@ -417,6 +425,11 @@ def test_a_suite_running_when_a_restart_is_asked_for_ends_with_everything_it_sta
     assert not is_process_alive(int(its_pid.read_text(encoding="utf-8")))
 
 
+def test_a_command_that_cannot_start_fails_like_one_that_ran_and_failed(tmp_path):
+    with pytest.raises(main_verifier.CommandFailed, match="could not start"):
+        main_verifier._shell([sys.executable, "-c", "pass"], cwd=tmp_path / "a checkout since removed")
+
+
 def stop_after_two_naps():
     naps = []
 
@@ -568,7 +581,7 @@ UNRELIABLE = {"kind": "unreliable check", "commit": "b2", "tests": ["tests/integ
               "fix_session": "1a2b3c4d"}
 
 
-@pytest.mark.parametrize("its_state", ["working", "blocked"])
+@pytest.mark.parametrize("its_state", ["working", "blocked", "failed"])
 def test_no_second_session_starts_for_unreliable_tests_while_one_is_still_fixing_them(tmp_path, its_state):
     bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3", reruns_failing={"c3": [True, False]},
                       incidents=[UNRELIABLE], sessions={"1a2b3c4d": its_state})
@@ -617,7 +630,8 @@ SHIPPED_AGAIN = {"kind": "unreliable check", "commit": "d4", "tests": ["tests/in
 @pytest.mark.parametrize("earlier, pull_requests, tests", [
     ([TAKEN_BACK, SHIPPED_AGAIN], {"c3": 41, "d4": 77}, ("tests/integration/test_x.py::test_y",)),
     ([TAKEN_BACK], {"c3": 41, "d4": 50}, ("tests/integration/test_x.py::test_y",)),
-    ([TAKEN_BACK], {"c3": 41, "d4": 77}, ("tests/integration/test_x.py::test_y", "tests/integration/test_q.py::test_r")),
+    ([TAKEN_BACK], {"c3": 41, "d4": 77},
+     ("tests/integration/test_x.py::test_y", "tests/integration/test_q.py::test_r")),
 ], ids=["shipped again already", "taken back before main last passed", "failing other tests too"])
 def test_a_taken_back_change_is_shipped_again_only_when_its_tests_alone_fail_on_a_main_that_just_took_it_out(
         tmp_path, earlier, pull_requests, tests):
@@ -662,7 +676,8 @@ def test_unreliable_tests_whose_fixing_cannot_be_looked_up_are_recorded_with_why
         def fix_session_states(self):
             raise main_verifier.CommandFailed("claude agents did not answer with a list of sessions: ")
 
-    bench = NoSessionsBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3", reruns_failing={"c3": [True, False]})
+    bench = NoSessionsBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3",
+                            reruns_failing={"c3": [True, False]})
 
     assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "unreliable check"
 
@@ -842,12 +857,6 @@ def test_a_session_list_that_is_not_one_fails_like_a_command_that_failed(tmp_pat
 
 
 def test_no_fix_session_starts_while_claude_code_is_not_signed_in(tmp_path):
-    class SignedOutShell(FakeShell):
-        def __call__(self, command, cwd=None):
-            if command[1:] == ["auth", "status"]:
-                raise main_verifier.CommandFailed('claude.exe auth status: {"loggedIn": false}')
-            return super().__call__(command, cwd)
-
     shell = SignedOutShell({})
     bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell, claude="claude.exe")
 
@@ -878,23 +887,152 @@ def a_fix_session(state, **more):
             "cwd": "C:/fun_time/.claude/worktrees/fix-398", "state": state, **more}
 
 
+def notices_about(session, told):
+    return main_verifier.fix_session_steps([FIX], [session], told, restarts={}, died=lambda session: False).notices
+
+
 def test_he_is_told_once_when_a_fix_session_waits_for_him_and_once_when_it_finishes():
     waiting = a_fix_session("blocked", waitingFor="input needed")
 
-    [notice] = main_verifier.fix_notices([FIX], [waiting], told={})
+    [notice] = notices_about(waiting, told={})
     assert (notice.title, notice.state) == ("Fix #398: Keep the crown lit is waiting for you", "blocked")
     assert notice.resume == "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
     assert notice.body == "It needs your answer. Click to open it in Claude Desktop."
-    assert main_verifier.fix_notices([FIX], [waiting], told={"1a2b3c4d": "blocked"}) == []
-    [finished] = main_verifier.fix_notices([FIX], [a_fix_session("done")], told={"1a2b3c4d": "blocked"})
+    assert notices_about(waiting, told={"1a2b3c4d": "blocked"}) == []
+    [finished] = notices_about(a_fix_session("done"), told={"1a2b3c4d": "blocked"})
     assert finished.title == "Fix #398: Keep the crown lit finished"
-    assert main_verifier.fix_notices([FIX], [a_fix_session("busy")], told={}) == []
+    assert notices_about(a_fix_session("busy"), told={}) == []
 
 
-def test_he_is_not_told_about_a_session_fixing_a_change_the_verifier_shipped_again():
+def test_a_fix_session_that_stopped_on_an_error_from_the_claude_service_is_started_again_instead_of_told_about():
+    stopped = a_fix_session("blocked")
+
+    steps = main_verifier.fix_session_steps([FIX], [stopped], told={}, restarts={}, died=lambda session: True)
+
+    assert steps.start_again == [stopped] and steps.notices == []
+
+
+@pytest.mark.parametrize("waiting_for, needs", [(None, "answer"), ("input needed", "answer"),
+                                                ("permission prompt", "permission")])
+def test_a_fix_session_blocked_on_anything_but_an_error_is_waiting_for_him(waiting_for, needs):
+    session = a_fix_session("blocked", **({"waitingFor": waiting_for} if waiting_for else {}))
+
+    steps = main_verifier.fix_session_steps([FIX], [session], told={}, restarts={},
+                                            died=lambda session: "waitingFor" in session)
+
+    assert steps.start_again == []
+    assert [notice.body for notice in steps.notices] == [f"It needs your {needs}. Click to open it in Claude Desktop."]
+
+
+def test_a_fix_session_that_failed_is_started_again_like_one_that_stopped_on_an_error_from_the_service():
+    failed = a_fix_session("failed")
+
+    steps = main_verifier.fix_session_steps([FIX], [failed], told={}, restarts={}, died=lambda session: False)
+
+    assert steps.start_again == [failed] and steps.notices == []
+
+
+def test_he_is_told_a_fix_session_stopped_on_an_error_once_starting_it_again_has_not_helped():
+    steps = main_verifier.fix_session_steps([FIX], [a_fix_session("blocked")], told={},
+                                            restarts={"1a2b3c4d": main_verifier.RESTARTS}, died=lambda session: True)
+
+    assert steps.start_again == []
+    assert [(notice.title, notice.state) for notice in steps.notices] == [
+        ("Fix #398: Keep the crown lit stopped on an error", "blocked")]
+
+
+def test_a_stopped_fix_session_he_was_told_is_waiting_for_him_is_left_to_him():
+    steps = main_verifier.fix_session_steps([FIX], [a_fix_session("blocked")], told={"1a2b3c4d": "blocked"},
+                                            restarts={}, died=lambda session: True)
+
+    assert steps == main_verifier.FixSessionSteps(start_again=[], notices=[])
+
+
+def test_a_fix_session_that_stops_on_an_error_after_he_was_told_it_finished_is_told_about_not_started_again():
+    steps = main_verifier.fix_session_steps([FIX], [a_fix_session("blocked")], told={"1a2b3c4d": "done"},
+                                            restarts={}, died=lambda session: True)
+
+    assert steps.start_again == []
+    assert [notice.title for notice in steps.notices] == ["Fix #398: Keep the crown lit stopped on an error"]
+
+
+ASKED = {"type": "user", "message": {"role": "user", "content": "Fix the crown."}}
+ANSWERED = {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "Ship it?"}]}}
+FAILED_BY_THE_SERVICE = {"type": "assistant", "isApiErrorMessage": True, "error": "server_error",
+                         "message": {"role": "assistant", "content": [{"type": "text", "text": "API unavailable"}]}}
+TURN_ENDED = {"type": "system", "subtype": "turn_duration"}
+
+
+def write_transcript(transcripts, session, *records):
+    kept = transcripts / "C--fun-time--claude-worktrees-fix-398" / f"{session['sessionId']}.jsonl"
+    kept.parent.mkdir(parents=True, exist_ok=True)
+    kept.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
+
+
+@pytest.mark.parametrize("records, died", [
+    ((), False),
+    ((ASKED, FAILED_BY_THE_SERVICE, TURN_ENDED), True),
+    ((ASKED, FAILED_BY_THE_SERVICE, ASKED, ANSWERED, TURN_ENDED), False),
+], ids=["no transcript", "an error last", "an answer after an error"])
+def test_a_session_died_when_the_last_thing_it_said_was_an_error_from_the_claude_service(tmp_path, records, died):
+    session = a_fix_session("blocked")
+    if records:
+        write_transcript(tmp_path, session, *records)
+
+    assert main_verifier.died_on_a_service_error(tmp_path, session) is died
+
+
+@pytest.mark.parametrize("state", ["done", "blocked"])
+def test_a_session_fixing_a_change_the_verifier_shipped_again_is_neither_told_about_nor_started_again(state):
     shipped_again = {"kind": "unreliable check", "pull_request": 398, "shipped_again_by": 400}
 
-    assert main_verifier.fix_notices([FIX, shipped_again], [a_fix_session("done")], told={}) == []
+    steps = main_verifier.fix_session_steps([FIX, shipped_again], [a_fix_session(state)], told={}, restarts={},
+                                            died=lambda session: True)
+
+    assert steps == main_verifier.FixSessionSteps(start_again=[], notices=[])
+
+
+def a_stopped_fix_session_on_record(tmp_path):
+    state, transcripts = tmp_path / "state", tmp_path / "projects"
+    state.mkdir()
+    (state / "main_verifier_incidents.jsonl").write_text(json.dumps(FIX) + "\n", encoding="utf-8")
+    session = a_fix_session("blocked")
+    write_transcript(transcripts, session, ASKED, FAILED_BY_THE_SERVICE, TURN_ENDED)
+    return state, transcripts, session
+
+
+def test_a_fix_session_that_died_on_an_error_is_started_again_where_it_was_and_counted(tmp_path):
+    state, transcripts, session = a_stopped_fix_session_on_record(tmp_path)
+    shell = FakeShell({"agents --json --all": json.dumps([session]), "auth status": '{"loggedIn": true}'})
+    told = []
+
+    main_verifier.look_after_fix_sessions(state, "claude.exe", shell=shell, start=told.append,
+                                          transcripts=transcripts)
+
+    assert told == []
+    signed_in = (["claude.exe", "auth", "status"], None)
+    resumed = (["claude.exe", "--bg", "--resume", session["sessionId"], main_verifier.CARRY_ON], Path(session["cwd"]))
+    assert shell.commands.index(signed_in) < shell.commands.index(resumed)
+    assert json.loads((state / "main_verifier_fix_restarts.json").read_text(encoding="utf-8")) == {"1a2b3c4d": 1}
+
+
+def test_a_fix_session_that_cannot_be_started_again_is_tried_next_time_and_the_others_are_still_told(
+        tmp_path, caplog):
+    state, transcripts, session = a_stopped_fix_session_on_record(tmp_path)
+    with (state / "main_verifier_incidents.jsonl").open("a", encoding="utf-8") as sink:
+        sink.write(json.dumps({**UNRELIABLE, "fix_session": "9f8e7d6c"}) + "\n")
+    finished = {**a_fix_session("done"), "id": "9f8e7d6c", "name": "Fix the unreliable test_x"}
+    shell = SignedOutShell({"agents --json --all": json.dumps([session, finished])})
+    told = []
+
+    with caplog.at_level("WARNING", logger="main_verifier"):
+        main_verifier.look_after_fix_sessions(state, "claude.exe", shell=shell, start=told.append,
+                                              transcripts=transcripts)
+
+    assert [notice.title for notice in told] == ["Fix the unreliable test_x finished"]
+    assert not [command for command, _ in shell.commands if "--resume" in command]
+    assert not (state / "main_verifier_fix_restarts.json").exists()
+    assert "could not start fix session 1a2b3c4d again" in caplog.text
 
 
 def test_each_new_state_of_a_fix_session_is_told_once_however_often_the_verifier_starts(tmp_path):
@@ -907,8 +1045,8 @@ def test_each_new_state_of_a_fix_session_is_told_once_however_often_the_verifier
         return json.dumps(sessions)
 
     for _ in range(2):
-        main_verifier.tell_him_about_fix_sessions(tmp_path, "claude.exe", shell=shell, start=told.append)
+        main_verifier.look_after_fix_sessions(tmp_path, "claude.exe", shell=shell, start=told.append)
     sessions[0] = a_fix_session("done")
-    main_verifier.tell_him_about_fix_sessions(tmp_path, "claude.exe", shell=shell, start=told.append)
+    main_verifier.look_after_fix_sessions(tmp_path, "claude.exe", shell=shell, start=told.append)
 
     assert [notice.state for notice in told] == ["blocked", "done"]
