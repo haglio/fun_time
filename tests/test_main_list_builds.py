@@ -60,7 +60,7 @@ def test_a_press_that_leaves_no_video_holds_the_one_on_screen_locked_and_says_so
     assert build.main_list.file.read_text(encoding="utf-8").splitlines() == [str(on_screen)]
     assert build.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()[-1] == "LOCK_ON"
     assert [record.getMessage() for record in caplog.records
-            if record.levelno == logging.WARNING] == ["No videos left"]
+            if record.levelno == logging.WARNING] == ["Including no other videos"]
 
 
 def test_a_build_replacing_one_that_owed_a_jump_to_the_top_still_owes_it(tmp_path):

@@ -1140,8 +1140,9 @@ def _dispatch_main_projection(
         return state, [*ops, WindowOp(op="notice", key=label, source=SOURCE_MAIN, level=NOTICE)]
     if on_main_funestra:
         return state, ops
-    return state, [*ops, WindowOp(op="notice", key=f"No {genau_flick_noun().many} left",
-                                  source=SOURCE_MAIN, level=logging.WARNING)]
+    return state, [*ops, WindowOp(
+        op="notice", key=f"Including no other {genau_flick_noun().many}",
+        source=SOURCE_MAIN, level=logging.WARNING)]
 
 
 def _narrow_the_main_funestra(
