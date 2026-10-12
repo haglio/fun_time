@@ -24,9 +24,8 @@ from funestra.flick_folder import flat_flicks_in, vr_flicks_in
 from .folder_listings import FolderListings
 from .media_metadata import (
     EXCERPT,
-    load_metadata,
-    metadata_path_for,
     normalize_path_key,
+    recorded_for,
     recorded_group,
     video_title,
     video_type_of,
@@ -87,13 +86,6 @@ def handle_for(handles: Sequence[LibraryHandle], video: str) -> LibraryHandle | 
         ),
         None,
     )
-
-
-def _payload(video: str, metadata_root: Path | None) -> dict:
-    """Everything Evolver recorded about *video*, read once for every answer the
-    browse takes off it."""
-    sidecar = metadata_path_for(video, metadata_root)
-    return {} if sidecar is None else load_metadata(sidecar)
 
 
 FULL_FOLDER = "full"
@@ -225,7 +217,7 @@ def build_library_handles(
     """
     videos = listing(sources)
     sizes = FolderListings()
-    payloads = {video: _payload(video, metadata_root) for video in videos}
+    payloads = {video: recorded_for(video, metadata_root) for video in videos}
     paths = {video: source_path(video, sources) for video in videos}
     # Where each source folder files the cuts Evolver HAS recorded, so the ones
     # it has not reached can be recognized by the company they keep — see

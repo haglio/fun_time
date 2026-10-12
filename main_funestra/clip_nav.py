@@ -25,8 +25,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from fun_time.media_metadata import recorded_for, version_group_of
+
 from .library import stable_title
-from .sidecar import read_sidecar
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 
@@ -98,17 +99,14 @@ class ClipNav:
         groups: dict[Path, str] = {}
         titles: dict[Path, str] = {}
         for video in videos:
-            payload = read_sidecar(video, metadata_root) if metadata_root is not None else {}
+            payload = recorded_for(video, metadata_root)
             titles[video] = str(payload.get("title", "") or "").strip()
             meta = payload.get("clip")
             if isinstance(meta, dict):
                 clips[video] = meta
             else:
                 non_clips.append(video)
-                version = payload.get("version")
-                groups[video] = str(
-                    (version.get("group") or "") if isinstance(version, dict) else ""
-                )
+                groups[video] = version_group_of(payload)
         return cls(clips, tuple(non_clips), groups, titles)
 
     def _family(self, scene: Path) -> str:

@@ -22,9 +22,11 @@ from fun_time.media_metadata import (
     matches_query,
     metadata_path_for,
     path_matches_query,
+    recorded_for,
     reject_action,
     seed_family_items,
     seed_group_key,
+    version_group_of,
     video_title,
     watch_weight_of,
     widened_seed_items,
@@ -115,6 +117,15 @@ def test_a_library_folder_kept_on_another_drive_mirrors_as_the_same_tree_would_b
     assert result == metadata_root / "VR" / "finished" / "scene one.json"
 
 
+def test_a_genau_flick_mirrors_from_beside_the_library():
+    """Genau's flicks sit next to the video tree rather than inside it, and
+    Evolver files their records the same way."""
+    metadata_root = Path("D:/suite/videos/metadata")
+
+    assert metadata_path_for(Path("D:/suite/videos/genau/flicks/loop.mp4"), metadata_root) == (
+        metadata_root / "genau" / "flicks" / "loop.json")
+
+
 def test_an_outlying_folder_inside_no_library_folder_is_measured_from_the_folder_holding_it(
         tmp_path: Path):
     metadata_root = tmp_path / "local" / "videos" / "metadata"
@@ -155,6 +166,40 @@ def test_a_missing_or_unreadable_sidecar_reads_as_no_metadata(tmp_path: Path):
     bad = tmp_path / "bad.json"
     bad.write_text("{not json", encoding="utf-8")
     assert load_metadata(bad) == {}
+
+
+# --- recorded_for ---
+
+
+def test_what_was_recorded_for_a_video_is_read_from_its_mirrored_file(tmp_path: Path):
+    metadata_root = tmp_path / "videos" / "metadata"
+    video = tmp_path / "videos" / "videos" / "2D" / "scene one.mp4"
+    record = metadata_root / "2D" / "scene one.json"
+    record.parent.mkdir(parents=True)
+    record.write_text(json.dumps(VIDEO_ONLY_META), encoding="utf-8")
+
+    assert recorded_for(video, metadata_root) == VIDEO_ONLY_META
+    assert recorded_for(video.with_name("scene two.mp4"), metadata_root) == {}
+    assert recorded_for(tmp_path / "elsewhere" / "scene one.mp4", metadata_root) == {}
+    assert recorded_for(video, None) == {}
+
+
+def test_a_video_kept_on_another_drive_is_read_through_its_outlying_folder(tmp_path: Path):
+    metadata_root = tmp_path / "local" / "videos" / "metadata"
+    away = tmp_path / "cloud" / "videos" / "videos" / "VR"
+    record = metadata_root / "VR" / "scene one.json"
+    record.parent.mkdir(parents=True)
+    record.write_text(json.dumps(VIDEO_ONLY_META), encoding="utf-8")
+
+    assert recorded_for(away / "scene one.mp4", metadata_root, outlying_dirs=[away]) == VIDEO_ONLY_META
+
+
+# --- version_group_of ---
+
+
+def test_a_videos_version_family_is_the_group_evolver_recorded():
+    assert version_group_of({"version": {"group": "y", "processed": True}}) == "y"
+    assert version_group_of({"clip": {"compilation": "Vol6"}}) == ""
 
 
 # --- action_group_key ---

@@ -99,18 +99,22 @@ def clip_title(payload: dict) -> str:
 _COPY_INDEX = re.compile(r"\(\d+\)")
 
 
+def version_group_of(payload: dict) -> str:
+    version = payload.get("version")
+    if not isinstance(version, dict):
+        return ""
+    return str(version.get("group") or "")
+
+
 def recorded_group(payload: dict, video: str | Path) -> str:
     """The version family Evolver recorded for *video*, split by its copy index:
     the id pairs a hand-renamed re-encode with its original, and the number
     keeps "(2)" apart from "(3)".  ``""`` for no record."""
-    version = payload.get("version")
-    if not isinstance(version, dict):
-        return ""
-    group = version.get("group")
+    group = version_group_of(payload)
     if not group:
         return ""
     found = _COPY_INDEX.findall(Path(video).stem)
-    return f"{group} {found[-1]}" if found else str(group)
+    return f"{group} {found[-1]}" if found else group
 
 
 TITLE_FIELD = "title"
@@ -145,6 +149,16 @@ def load_metadata(json_path: str | Path) -> dict:
     except (OSError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def recorded_for(
+    video_path: str | Path,
+    metadata_root: str | Path | None,
+    *,
+    outlying_dirs: Iterable[str | Path] = (),
+) -> dict:
+    record = metadata_path_for(video_path, metadata_root, outlying_dirs=outlying_dirs)
+    return {} if record is None else load_metadata(record)
 
 
 # Where a struck-out act is kept once a viewer has said it is wrong.  Clearing
@@ -240,10 +254,7 @@ def path_matches_query(
     """
     if not _norm_text(query):
         return True
-    sidecar = metadata_path_for(video_path, metadata_root)
-    if sidecar is None or not sidecar.is_file():
-        return False
-    return matches_query(load_metadata(sidecar), query)
+    return matches_query(recorded_for(video_path, metadata_root), query)
 
 
 # Fields that pin down the generated image (subject(s) + situation).  "created"
@@ -547,9 +558,7 @@ def build_group_index(
     action_items: dict[str, list[str]] = {}
     seed_items: dict[str, list[str]] = {}
     for path in video_paths:
-        sidecar = metadata_path_for(path, metadata_root)
-        metadata = load_metadata(sidecar) if sidecar is not None and sidecar.is_file() else {}
-        entry = _entry_for(path, metadata)
+        entry = _entry_for(path, recorded_for(path, metadata_root))
         entries[normalize_path_key(path)] = entry
         if entry.action_key is not None:
             action_items.setdefault(entry.action_key, []).append(path)

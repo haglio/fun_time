@@ -320,7 +320,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # the notes on its length lists, its duration cache and its probe went with
 # them.
 # 6208 the same day: the last notes naming that cache went too.
-MAX_PROSE_LINES = 6208
+# 6186 the same day: one reader of a video's record, and the Main Funestra's
+# copy of it went with its notes.
+MAX_PROSE_LINES = 6186
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

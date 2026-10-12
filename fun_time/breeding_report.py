@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .config import load_config
-from .media_metadata import WATCH_BLOCK, load_metadata, metadata_path_for, watch_weight_of
+from .media_metadata import WATCH_BLOCK, recorded_for, watch_weight_of
 from .modes import collect_video_files
 
 
@@ -71,10 +71,7 @@ def build_breeding_rows(
     """Every stamped clip as a row, heaviest (most loved) first."""
     rows: list[BreedingRow] = []
     for path in video_paths:
-        sidecar = metadata_path_for(path, metadata_root)
-        if sidecar is None or not sidecar.is_file():
-            continue
-        metadata = load_metadata(sidecar)
+        metadata = recorded_for(path, metadata_root)
         block = metadata.get(WATCH_BLOCK)
         if not isinstance(block, dict):
             continue

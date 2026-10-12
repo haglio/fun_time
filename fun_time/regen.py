@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from .content import WebProvider, provider_that_made
-from .media_metadata import load_metadata, metadata_path_for
+from .media_metadata import recorded_for
 
 # (label, metadata key) in display order for the floating note / auto-fill.
 _IMAGE_SETTINGS = [
@@ -91,10 +91,7 @@ def regen_url_for_video(
     maker = provider_that_made(video_path, providers)
     if maker is None:
         return ""
-    meta_path = metadata_path_for(video_path, metadata_root)
-    if meta_path is None or not meta_path.is_file():
-        return ""
-    metadata = load_metadata(meta_path)
+    metadata = recorded_for(video_path, metadata_root)
     if not _records_a_prompt(metadata):
         return ""
     url = build_regen_url(metadata, video_url=video_url, image_url=image_url)

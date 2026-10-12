@@ -52,9 +52,9 @@ class TestTheVersionIndexIsBuiltOnce:
             video.write_bytes(b"x")
             entries.append(LibraryEntry(video=video, funscript=None, size=10))
         reads: list[Path] = []
-        real = main_funestra.library_source.read_version_group
+        real = main_funestra.library_source.recorded_for
         monkeypatch.setattr(
-            main_funestra.library_source, "read_version_group",
+            main_funestra.library_source, "recorded_for",
             lambda video, root: (reads.append(video), real(video, root))[1])
         source = LibrarySource(entries=entries, metadata_root=meta)
 

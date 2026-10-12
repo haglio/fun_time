@@ -17,9 +17,8 @@ from .media_metadata import (
     action_group_items,
     action_label,
     cached_group_index,
-    load_metadata,
-    metadata_path_for,
     normalize_path_key,
+    recorded_for,
     reject_action,
     reset_group_index_cache,
     seed_family_items,
@@ -153,10 +152,7 @@ def _next_seed_sibling(index: GroupIndex, current: str) -> str | None:
 
 def video_action_label(video_path: str, config: BridgeConfig) -> str:
     """The act recorded in *video_path*'s sidecar, or "" when it has none."""
-    meta_path = metadata_path_for(video_path, config.regen_metadata_root)
-    if meta_path is None or not meta_path.is_file():
-        return ""
-    video = load_metadata(meta_path).get("video") or {}
+    video = recorded_for(video_path, config.regen_metadata_root).get("video") or {}
     return str(video.get("action") or "").strip()
 
 

@@ -16,9 +16,8 @@ from .media_metadata import (
     EXCERPT,
     FULL_LENGTH,
     SHORT,
-    load_metadata,
-    metadata_path_for,
     normalize_path_key,
+    recorded_for,
     video_type_of,
 )
 from .modes import (
@@ -110,10 +109,9 @@ class MainList:
                            plays_flat=settings.plays_flat)
 
     def _kind_of(self, video: str) -> str:
-        if self.metadata_root is None or in_a_vr_folder(video, source_roots(self.vr_dirs)):
+        if in_a_vr_folder(video, source_roots(self.vr_dirs)):
             return FULL_LENGTH
-        record = metadata_path_for(video, self.metadata_root)
-        return (video_type_of(load_metadata(record)) if record is not None else "") or FULL_LENGTH
+        return video_type_of(recorded_for(video, self.metadata_root)) or FULL_LENGTH
 
     def _lets_through(self, video: str, length: LengthMode) -> bool:
         if length is LengthMode.MIXED:
