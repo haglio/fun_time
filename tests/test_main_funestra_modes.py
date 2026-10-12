@@ -93,11 +93,14 @@ class FakeJumps:
 
 
 def _modes(*, remembered: str = MIXED, source: FakeSource | None = None,
-           compilation: str = "", current: Path = FIRST, title: str = ""):
+           compilation: str = "", current: Path = FIRST, title: str = "",
+           the_main_list=list):
     source = FakeSource() if source is None else source
     playback = FakePlayback(current)
     jumps = FakeJumps(compilation, title=title or current.stem)
-    return Modes(source, playback, jumps, FakeVersions(), remembered=remembered), playback, jumps, source
+    modes = Modes(source, playback, jumps, FakeVersions(), remembered=remembered,
+                  the_main_list=the_main_list)
+    return modes, playback, jumps, source
 
 
 class TestWhatModeThisSessionOpensIn:
@@ -112,7 +115,7 @@ class TestWhatModeThisSessionOpensIn:
         assert modes.length_mode == MIXED
 
     def test_with_no_library_behind_the_playlist_there_is_no_mode_to_name(self):
-        modes = Modes(None, FakePlayback(), FakeJumps(), FakeVersions(), remembered=CLIPS)
+        modes = Modes(None, FakePlayback(), FakeJumps(), FakeVersions(), remembered=CLIPS, the_main_list=list)
 
         assert modes.length_mode is None
 
@@ -177,7 +180,7 @@ class TestNamingALength:
 
     def test_with_no_library_there_is_nothing_to_rebuild_from(self):
         playback = FakePlayback()
-        modes = Modes(None, playback, FakeJumps(), FakeVersions(), remembered=MIXED)
+        modes = Modes(None, playback, FakeJumps(), FakeVersions(), remembered=MIXED, the_main_list=list)
 
         modes.set_length(CLIPS)
 
@@ -216,13 +219,15 @@ class TestTogglingTheLength:
 
 
 class TestLeavingACompilationWithoutNamingALength:
-    def test_the_mode_still_held_is_what_next_reaches(self):
-        modes, _playback, jumps, source = _modes(remembered=FULL, compilation="Vol6")
+    def test_the_main_list_fun_time_wrote_is_what_next_reaches(self):
+        the_main_list = [PlaylistItem(Path("videos/vr scene.mp4"))]
+        modes, _playback, jumps, source = _modes(remembered=FULL, compilation="Vol6",
+                                                 the_main_list=lambda: the_main_list)
 
         modes.end_compilation()
 
-        assert source.asked == [FULL]
-        assert jumps.ended_with == [_built_for(FULL)]
+        assert source.asked == []
+        assert jumps.ended_with == [the_main_list]
 
     def test_the_clip_on_screen_keeps_playing(self):
         modes, playback, _jumps, _source = _modes(remembered=FULL, compilation="Vol6")
@@ -231,13 +236,15 @@ class TestLeavingACompilationWithoutNamingALength:
 
         assert playback.loaded == []
 
-    def test_with_no_library_there_is_no_playlist_to_come_back_to(self):
+    def test_the_main_list_comes_back_whether_or_not_kino_reads_a_library_of_its_own(self):
+        the_main_list = [PlaylistItem(SECOND)]
         jumps = FakeJumps("Vol6")
-        modes = Modes(None, FakePlayback(), jumps, FakeVersions(), remembered=MIXED)
+        modes = Modes(None, FakePlayback(), jumps, FakeVersions(), remembered=MIXED,
+                      the_main_list=lambda: the_main_list)
 
         modes.end_compilation()
 
-        assert jumps.ended_with == []
+        assert jumps.ended_with == [the_main_list]
 
 
 class TestFunTimesOwnFilter:
@@ -294,7 +301,7 @@ class TestTheFileNamedBesideAVideoWithVersions:
         family = [PlaylistItem(default), PlaylistItem(upscale)]
         playback = Playback([default, other], engine=FakeSatelliteEngine(), locked=True)
         versions = Versions(playback, {default: family, upscale: family})
-        return Modes(None, playback, FakeJumps(title=self.TITLE), versions, remembered=""), playback, versions
+        return Modes(None, playback, FakeJumps(title=self.TITLE), versions, remembered="", the_main_list=list), playback, versions
 
     def test_from_the_first_version_switch_on_every_press_names_the_file(self, tmp_path):
         modes, _playback, versions = self._switchable(tmp_path)
@@ -327,7 +334,7 @@ class TestWhatIsPublishedAboutThePlaceInTheLibrary:
     def test_the_versions_say_whether_the_version_button_has_anything_to_do(self):
         source, playback = FakeSource(), FakePlayback()
         modes = Modes(source, playback, FakeJumps("Vol6", jump_to="scene"),
-                      FakeVersions(has_other_versions=True), remembered=CLIPS)
+                      FakeVersions(has_other_versions=True), remembered=CLIPS, the_main_list=list)
 
         library = modes.library_status
 
