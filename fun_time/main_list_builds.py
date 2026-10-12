@@ -8,12 +8,15 @@ from typing import Protocol
 
 from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command
-from funestra.funestra_verbs import RELOAD_PLAYLIST, play_file
+from funestra.funestra_verbs import LOCK_ON, RELOAD_PLAYLIST, play_file
 
+from .event_log import SOURCE_MAIN, notice
 from .main_list import MainList, MainListSettings
 from .modes import scripted_item
 
 logger = logging.getLogger(__name__)
+
+NO_VIDEOS_LEFT = "No videos left"
 
 
 @dataclass(frozen=True)
@@ -21,14 +24,18 @@ class MainListBuild:
     main_list: MainList
     settings: MainListSettings
     main_funestra_cmd_file: Path
-    start_from: str = ""
+    on_screen: str = ""
     start_at_top: bool = False
 
     def run(self) -> None:
-        videos = self.main_list.write(self.settings, start_from=self.start_from)
+        written = self.main_list.write(self.settings, on_screen=self.on_screen,
+                                       from_the_top=self.start_at_top)
         verbs = [RELOAD_PLAYLIST, *self.settings.labels]
-        if self.start_at_top and videos:
-            verbs.append(play_file(scripted_item(videos[0], self.main_list.metadata_root)))
+        if written.nothing_left:
+            verbs.append(LOCK_ON)
+            notice(logger, NO_VIDEOS_LEFT, source=SOURCE_MAIN, level=logging.WARNING)
+        elif self.start_at_top:
+            verbs.append(play_file(scripted_item(written.videos[0], self.main_list.metadata_root)))
         for verb in verbs:
             append_command(Path(self.main_funestra_cmd_file), verb)
 

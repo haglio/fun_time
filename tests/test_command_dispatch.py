@@ -793,7 +793,7 @@ def test_a_length_button_narrows_the_one_main_list_from_the_video_on_screen(
     state, _ops = dispatch_command(command, state, config)
 
     assert state.main_length_mode is length
-    assert [(build.settings.length, build.start_from) for build in builds.asked] == [
+    assert [(build.settings.length, build.on_screen) for build in builds.asked] == [
         (length, "C:/v/scene one.mp4")]
     assert not config.main_funestra_cmd_file.exists()
 
@@ -808,16 +808,6 @@ def test_the_length_key_walks_mixed_clips_full_and_round_again(tmp_path: Path):
         walked.append(state.main_length_mode)
 
     assert walked == [LengthMode.CLIPS, LengthMode.FULL, LengthMode.MIXED]
-
-
-def test_neither_length_holds_the_video_on_screen(tmp_path: Path):
-    config, builds = _recording(_make_config(tmp_path))
-
-    state, _ops = dispatch_command("main_player_length_none", _make_state(), config)
-
-    assert state.main_length_mode is LengthMode.NONE
-    assert [build.settings.length for build in builds.asked] == [LengthMode.NONE]
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == ["LOCK_ON"]
 
 
 def test_naming_the_length_already_running_asks_for_nothing(tmp_path: Path):
@@ -4310,7 +4300,7 @@ def test_a_narrowing_carries_on_from_the_video_on_screen(tmp_path):
 
     dispatch_command("main_projection_vr", _make_state(), config)
 
-    assert builds.asked[-1].start_from == on_screen
+    assert builds.asked[-1].on_screen == on_screen
 
 
 def test_asking_for_the_shapes_already_running_rebuilds_nothing(tmp_path):
@@ -4322,21 +4312,31 @@ def test_asking_for_the_shapes_already_running_rebuilds_nothing(tmp_path):
     assert builds.asked == [] and ops == []
 
 
-def test_neither_shape_holds_the_video_on_screen_as_the_whole_list(tmp_path):
-    """Degenerate -- it plays nothing -- but it is what the second press on the
-    last lit button asks for, so nothing refuses it.  The list comes down to the
-    video on screen, locked: a state you can see and undo, where an empty
-    playlist would look like a filter that did nothing, and the list it had would
-    go on playing the videos both buttons say are left out."""
-    config, builds = _recording(_vr_config(tmp_path))
+@pytest.mark.parametrize(("command", "state"), [
+    ("main_projection_none", BridgeState()),
+    ("main_player_length_none", BridgeState()),
+    ("main_player_length_clips", BridgeState(main_plays_flat=False)),
+])
+def test_every_press_that_leaves_no_video_ends_the_same_way(tmp_path, caplog, command, state):
+    """Both shapes off, both lengths off, or a mix no video passes -- VR only with
+    clips only, since no VR video is a clip: the video on screen stays as the
+    whole list, locked, and the room says so once.  An empty list would leave
+    the Funestra playing the list it had, videos the buttons leave out."""
+    config = _vr_config(tmp_path)
+    on_screen = tmp_path / "primary" / "vr" / "scene one.mp4"
+    on_screen.parent.mkdir(parents=True)
+    on_screen.write_bytes(b"")
+    config.main_funestra_status_file.write_text(f"video={on_screen}\n", encoding="utf-8")
 
-    state, ops = dispatch_command("main_projection_none", _make_state(), config)
+    with caplog.at_level(logging.WARNING):
+        _state, ops = dispatch_command(command, state, config)
 
-    assert (state.main_plays_vr, state.main_plays_flat) == (False, False)
-    assert ops[0].key == "No videos left"
-    assert [(build.settings.plays_vr, build.settings.plays_flat) for build in builds.asked] == [
-        (False, False)]
-    assert "LOCK_ON" in config.main_funestra_cmd_file.read_text(encoding="utf-8")
+    sent = config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()
+    assert config.main_list.file.read_text(encoding="utf-8").splitlines() == [str(on_screen)]
+    assert (sent[-1], sent.count("LOCK_ON")) == ("LOCK_ON", 1)
+    assert [op.key for op in ops if op.op == "notice"] + [
+        record.getMessage() for record in caplog.records if record.levelno == logging.WARNING
+    ] == ["No videos left"]
 
 
 def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path):

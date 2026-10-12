@@ -33,7 +33,7 @@ from fun_time.funestra_deaths import (
     raise_if_a_funestra_died,
 )
 from fun_time.loopback_server import omnipause_url
-from fun_time.main_list import MainList, MainListSettings
+from fun_time.main_list import MainList, MainListSettings, WrittenList
 from fun_time.modes import SatelliteBuild
 from fun_time.process_identity import NAMER
 from fun_time.project_paths import PROJECT_ICON
@@ -907,14 +907,15 @@ def test_start_core_session_builds_the_main_list_under_the_settings_it_was_left_
     left = BridgeState(main_scripted_filter=True, main_latest=True, main_shuffle_seed=7)
     write_shared_state(shared_state_path(state_dir), left)
 
-    with patch.object(MainList, "write", autospec=True, return_value=["x"]) as build:
+    with patch.object(MainList, "write", autospec=True,
+                      return_value=WrittenList(["x"], nothing_left=False)) as build:
         _run_start_core_session(kwargs)
 
     (the_list, settings), asked = build.call_args
     assert (the_list.sources, the_list.state_dir, the_list.metadata_root) == (
         kwargs["main_sources"], state_dir, kwargs["regen_metadata_root"])
     assert settings == MainListSettings.of(left)
-    assert asked == {"start_from": left_on["main_player"][1]}
+    assert asked == {"on_screen": left_on["main_player"][1]}
 
 
 def test_start_core_session_never_reopens_a_main_list_another_app_left(

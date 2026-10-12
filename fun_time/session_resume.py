@@ -103,11 +103,11 @@ def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
 
 def open_the_main_list(main_list: MainList, carried: BridgeState, *, state_file: Path,
                        on_screen: str) -> BridgeState:
-    videos = main_list.write(MainListSettings.of(carried), start_from=on_screen)
+    videos = main_list.write(MainListSettings.of(carried), on_screen=on_screen).videos
     if not videos:
         carried = MainListSettings(shuffle_seed=carried.main_shuffle_seed).into(carried)
         write_shared_state(state_file, carried)
-        videos = main_list.write(MainListSettings.of(carried), start_from=on_screen)
+        videos = main_list.write(MainListSettings.of(carried), on_screen=on_screen).videos
     logger.info("The Main Funestra opens on the video it was left on"
                 if videos[:1] and normalize_path_key(videos[0]) == normalize_path_key(on_screen)
                 else "The Main Funestra opens at the top of its list")

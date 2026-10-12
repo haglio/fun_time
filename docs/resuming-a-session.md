@@ -146,9 +146,13 @@ reopened session's videos come up in the order they were coming up in, with any
 that arrived since dealt in among them. Shuffle deals a new number, and so do
 the reset and a session that starts fresh.
 
-When the buttons let nothing through, the list is the video on screen alone. A
-session that starts with nothing let through and no video to hold puts the
-buttons back where a fresh session has them, keeping the shuffle's number.
+When a press leaves the buttons letting nothing through -- both 2D and VR off,
+both lengths off, or a mix no video passes, such as only VR with only clips --
+the build answers it one way, whichever press it was: the list is the video on
+screen alone, the Main Funestra is locked on it, and the room says "No videos
+left". A session that starts with nothing let through holds the video on screen
+the same way; with no video to hold, it puts the buttons back where a fresh
+session has them, keeping the shuffle's number.
 
 Whether a video is a clip or a full video is the kind Evolver recorded for it.
 A video with no record counts as a full video, and so does every video in a VR
