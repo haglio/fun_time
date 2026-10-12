@@ -26,6 +26,7 @@ from fun_time.win32 import (
     StackedWindow,
     activate_window,
     close_window,
+    describe_windows,
     find_window_by_pid,
     is_window_topmost,
     minimize_window,
@@ -453,6 +454,13 @@ class TestWindowsObscuring:
         # Past the frame it is real coverage again.
         deeper = self._w(9, (0, -8, 1440, 2560))      # lower edge at y=2552
         assert windows_obscuring(1, [deeper, lower]) == [deeper]
+
+    def test_what_covers_a_window_is_named_one_window_at_a_time(self):
+        chrome = self._w(9, (0, 0, 2560, 1410), title="Example - Chrome")
+        landscape = self._w(222, (854, 0, 1706, 1410), topmost=True, title="Landscape AI Funestra")
+        assert describe_windows([chrome, landscape]) == (
+            "'Example - Chrome' hwnd=9 topmost=False rect=(0, 0, 2560, 1410); "
+            "'Landscape AI Funestra' hwnd=222 topmost=True rect=(854, 0, 1706, 1410)")
 
 
 class TestConstants:

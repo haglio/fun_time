@@ -6,6 +6,8 @@ import time
 import pytest
 
 from fun_time.win32 import (
+    StackedWindow,
+    describe_windows,
     find_window_by_title,
     find_window_for_process,
     is_window_minimized,
@@ -41,8 +43,8 @@ def _main_funestra(s: FunTimeIntegrationSession) -> int:
     return find_window_for_process(s.read_child_pids()["main_funestra_pid"], "Main Funestra")
 
 
-def _nothing_over(hwnd: int) -> bool:
-    return not windows_obscuring(hwnd, iter_zorder())
+def _over(hwnd: int) -> list[StackedWindow]:
+    return windows_obscuring(hwnd, iter_zorder())
 
 
 def _stays_up(hwnd: int, *, seconds: float) -> bool:
@@ -68,8 +70,9 @@ def test_a_switch_either_way_leaves_the_main_funestra_up_and_frontmost(
         s.write_dashboard_command(command)
         s.wait_for_new_log(f"Switched to {mode} mode")
         assert _stays_up(main_funestra, seconds=1.0), f"the Main Funestra was parked switching to {mode} mode"
-        s.wait_until(lambda: _nothing_over(main_funestra),
-                     description=f"the Main Funestra to be frontmost in {mode} mode")
+        s.wait_until(lambda: not _over(main_funestra),
+                     description=lambda: f"the Main Funestra to be frontmost in {mode} mode, "
+                                         f"with over it: {describe_windows(_over(main_funestra))}")
         assert find_window_by_title("Genau") == 0, "a second window took the main slot"
 
 
@@ -89,5 +92,6 @@ def test_a_switch_while_paused_leaves_the_main_funestra_where_the_pause_put_it(
 
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("Topmost [post-leave]")
-    s.wait_until(lambda: _nothing_over(main_funestra),
-                 description="the Main Funestra to come back frontmost after the pause")
+    s.wait_until(lambda: not _over(main_funestra),
+                 description=lambda: "the Main Funestra to come back frontmost after the pause, "
+                                     f"with over it: {describe_windows(_over(main_funestra))}")
