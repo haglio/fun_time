@@ -130,8 +130,12 @@ class TestOsr2Controls:
         (running,), (down,) = osr2_controls(broker=True), osr2_controls(broker=False)
 
         assert running.command == down.command == "broker_panel"
-        assert running.lit is True and "stop" in running.tooltip
-        assert down.lit is False and down.warn is True and "start" in down.tooltip
+        assert running.lit is True
+        assert down.lit is False and down.warn is True
+        assert (running.tooltip, down.tooltip) == (
+            "Broker is running — press to stop it",
+            "Broker is not running — press to start it",
+        )
 
     def test_the_broker_asks_for_its_own_icon_rather_than_the_word(self):
         (broker,) = osr2_controls(broker=True)

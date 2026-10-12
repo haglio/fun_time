@@ -122,8 +122,8 @@ def osr2_rows(slot: MainSlot) -> tuple[tuple[Button, ...], ...]:
 def osr2_controls(*, broker: bool) -> tuple[Button, ...]:
     return (
         Button("broker_panel", BROKER_ICON,
-               "OSR2 broker is running — press to stop it" if broker
-               else "OSR2 broker is not running — press to start it",
+               "Broker is running — press to stop it" if broker
+               else "Broker is not running — press to start it",
                lit=broker, warn=not broker),
     )
 
