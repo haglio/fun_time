@@ -242,6 +242,7 @@ def build_dashboard_scene(
         in_vr=snapshot is not None and snapshot.in_vr,
         reference_open=reference_open,
         nothing_to_reset=snapshot is not None and snapshot.nothing_to_reset,
+        headset_ready=snapshot is None or snapshot.headset_ready,
     )
 
     def _rect(control: BarControl) -> DashboardRectItem:

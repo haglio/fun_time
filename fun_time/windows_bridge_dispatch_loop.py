@@ -53,6 +53,7 @@ from .funestra_status import (
 )
 from .gallery_follows_genau import GalleryFollowsGenau
 from .genaumacher_save import save_clip_session
+from .headset_power import the_headset_is_ready
 from .hud_feed import HudFeed
 from .hud_transport import HudPublisher
 from .library_browser import browse_library
@@ -765,6 +766,7 @@ class DispatchLoopRunner:
                     nothing_to_reset=room_at_defaults(
                         self.state, self.config,
                         read_main_funestra_status(self.config.main_funestra_status_file)),
+                    headset_ready=the_headset_is_ready(self.config.state_dir),
                 ),
             )
         except OSError as exc:

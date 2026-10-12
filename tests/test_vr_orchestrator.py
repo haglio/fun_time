@@ -20,6 +20,7 @@ from funestra.modes import MainMode
 from fun_time import funestra_deaths, win32_taskbar
 from fun_time.config import load_config
 from fun_time.genau_config import GenauSettings
+from fun_time.headset_power import OUR_RUNTIME_NAME
 from fun_time.hosted_origenerator import HostedApp
 from fun_time.manifest import LaunchManifest, build_windows_bridge_manifest, write_manifest_data
 from fun_time.modes import VideoShapes
@@ -937,6 +938,20 @@ def test_a_session_leaves_a_vr_runtime_that_was_already_the_users(monkeypatch, t
         "fun_time_vr.orchestrator.vr_runtime.stop_the_runtime_a_session_started", stopped.append)
     _release_vr_runtime(was_up=True, state_dir=tmp_path)
     assert stopped == []
+
+
+def test_a_runtime_fun_time_woke_is_put_to_sleep_when_vr_is_the_last_room(
+        monkeypatch, tmp_path):
+    """He quits from inside the headset: the desktop session that woke the
+    runtime is long gone, so this one has to be what turns the headset off."""
+    stopped = []
+    monkeypatch.setattr(
+        "fun_time_vr.vr_runtime.stop_the_runtime_a_session_started", stopped.append)
+    (tmp_path / OUR_RUNTIME_NAME).write_text("", encoding="utf-8")
+
+    _release_vr_runtime(was_up=True, state_dir=tmp_path)
+
+    assert stopped == [tmp_path]
 
 
 class TestGenausRoleInTheManifest:

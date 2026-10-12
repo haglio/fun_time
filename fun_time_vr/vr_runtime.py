@@ -197,11 +197,13 @@ def stop_runtime() -> None:
         _run_quietly([str(tool), service, "quit"], cwd=tool.parent)
 
 
-def remember_the_sound_devices(state_dir: Path) -> None:
+def remember_the_sound_devices(state_dir: Path, defaults: Defaults | None = None) -> None:
+    if defaults is None:
+        defaults = windows_sound.default_devices()
     try:
         write_whole(Path(state_dir) / SOUND_DEVICES_BEFORE_NAME, json.dumps({
             f"{flow}/{role}": asdict(device)
-            for (flow, role), device in windows_sound.default_devices().items()}))
+            for (flow, role), device in defaults.items()}))
     except OSError:
         logger.warning("Could not write down Windows' default sound devices", exc_info=True)
 
@@ -220,17 +222,22 @@ def _the_sound_devices_remembered(state_dir: Path) -> Defaults:
         return {}
 
 
-def stop_the_runtime_a_session_started(state_dir: Path) -> None:
-    before = _the_sound_devices_remembered(state_dir)
-    during = windows_sound.default_devices()
-    stop_runtime()
-    after = windows_sound.default_devices()
+def what_the_runtime_moved_goes_back(
+        before: Defaults, during: Defaults, after: Defaults) -> None:
     for (flow, role), device in before.items():
         left_on = during.get((flow, role))
         if left_on not in (None, device) and after.get((flow, role)) == left_on:
             logger.info("The VR runtime left Windows' %s %s device on %s; putting back %s",
                         role, flow, left_on.name, device.name)
             windows_sound.make_default(device, role)
+
+
+def stop_the_runtime_a_session_started(state_dir: Path) -> None:
+    before = _the_sound_devices_remembered(state_dir)
+    during = windows_sound.default_devices()
+    stop_runtime()
+    what_the_runtime_moved_goes_back(
+        before, during, windows_sound.default_devices())
 
 
 def _run_quietly(command: list[str], *, cwd: Path | None = None) -> None:

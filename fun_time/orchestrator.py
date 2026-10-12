@@ -32,6 +32,7 @@ from .branch_session import describe_the_session_on_the_taskbar
 from .config import DEFAULT_CONFIG_PATH, load_config  # noqa: E402
 from .event_log import open_event_log
 from .funestra_engine import engine_missing_abort  # noqa: E402
+from .headset_power import put_the_headset_to_sleep, wake_the_headset
 from .loading_cover import LoadingCover, open_the_cover
 from .manifest import write_windows_bridge_manifest
 from .process_identity import prepare_orchestrator_launcher
@@ -230,11 +231,13 @@ def main(argv: list[str] | None = None) -> int:
         # Every child below is named as it is launched; this one process cannot be,
         # because it is the one doing the naming -- see prepare_orchestrator_launcher.
         prepare_orchestrator_launcher()
+        wake_the_headset(config.paths.state_dir, integration=env.integration)
         exit_code = run_windows_bridge(config, logger, env, cover)
     except BaseException:
         cover.take_it_down()  # else it stands out its staleness guard over the wreck
         raise
-    hand_over_if_asked(config, logger)  # last: the relay waits on the mutex above
+    crossing = hand_over_if_asked(config, logger)  # the relay waits on the mutex above
+    put_the_headset_to_sleep(config.paths.state_dir, crossing=crossing is not None)
     return exit_code
 
 

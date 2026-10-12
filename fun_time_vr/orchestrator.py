@@ -51,6 +51,7 @@ from fun_time.funestra_deaths import (
 from fun_time.funestra_engine import engine_missing_abort
 from fun_time.funestra_status import read_main_funestra_status
 from fun_time.genau_config import GenauSettings
+from fun_time.headset_power import put_the_headset_to_sleep
 from fun_time.hosted_origenerator import bring_up_the_hosted_app
 from fun_time.main_list import MainList, MainListSettings
 from fun_time.manifest import (
@@ -798,6 +799,9 @@ def _wait_for_the_headset_hold(state_dir: Path, funestra: subprocess.Popen) -> b
 
 
 def _release_vr_runtime(was_up: bool, state_dir: Path) -> None:
+    if put_the_headset_to_sleep(state_dir, crossing=False):
+        logger.info("Stopped the VR runtime Fun Time woke as it opened")
+        return
     if was_up:
         return
     logger.info("Stopping the VR runtime this session started")
