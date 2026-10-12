@@ -4195,6 +4195,26 @@ def test_main_latest_reloads_the_main_funestra_newest_first(tmp_path):
     assert builds.asked[-1].settings.latest is False
 
 
+def test_shuffle_deals_the_main_funestra_a_new_order_every_time_it_is_asked(tmp_path):
+    config, builds = _recording(_make_config(tmp_path))
+
+    once, _ops = dispatch_command("main_shuffle", BridgeState(), config)
+    twice, _ops = dispatch_command("main_shuffle", once, config)
+
+    assert once.main_shuffle_seed != twice.main_shuffle_seed
+    assert [build.settings.shuffle_seed for build in builds.asked] == [
+        once.main_shuffle_seed, twice.main_shuffle_seed]
+
+
+def test_narrowing_the_main_funestra_keeps_its_order(tmp_path):
+    config, builds = _recording(_vr_config(tmp_path))
+
+    state, _ops = dispatch_command("main_projection_vr", _make_state(main_shuffle_seed=7), config)
+
+    assert state.main_shuffle_seed == 7
+    assert builds.asked[-1].settings.shuffle_seed == 7
+
+
 def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path):
     """The bug this fixes: "main latest" in genau mode rewrote a playlist for the Main Funestra,
     which was neither on screen nor playing, and Genau — the Funestra actually
@@ -4257,6 +4277,17 @@ def test_a_shape_press_narrows_the_browse_and_rebuilds_the_playlist(tmp_path):
     assert (state.main_plays_vr, state.main_plays_flat) == (True, False)
     assert builds.asked[-1].settings.plays_flat is False
     assert ops[0].op == "notice" and ops[0].key == "VR only"
+
+
+def test_a_narrowing_carries_on_from_the_video_on_screen(tmp_path):
+    config, builds = _recording(_vr_config(tmp_path))
+    on_screen = str(tmp_path / "primary" / "scene one.mp4")
+    config.main_funestra_status_file.parent.mkdir(parents=True, exist_ok=True)
+    config.main_funestra_status_file.write_text(f"video={on_screen}\n", encoding="utf-8")
+
+    dispatch_command("main_projection_vr", _make_state(), config)
+
+    assert builds.asked[-1].start_from == on_screen
 
 
 def test_asking_for_the_shapes_already_running_rebuilds_nothing(tmp_path):
@@ -4389,12 +4420,14 @@ def test_main_reset_rebuilds_an_off_default_browse_as_a_fresh_shuffle_from_the_t
         tmp_path, off_default):
     config, builds = _recording(_vr_config(tmp_path))
 
-    state, _ops = dispatch_command("main_reset", _make_state(**off_default), config)
+    state, _ops = dispatch_command(
+        "main_reset", _make_state(main_shuffle_seed=7, **off_default), config)
 
     assert (state.main_scripted_filter, state.main_latest,
             state.main_plays_vr, state.main_plays_flat) == (False, False, True, True)
+    assert state.main_shuffle_seed != 7
     assert [(build.settings, build.start_at_top) for build in builds.asked] == [
-        (MainListSettings(), True)]
+        (MainListSettings(shuffle_seed=state.main_shuffle_seed), True)]
 
 
 def test_main_reset_does_not_reshuffle_a_funestra_already_at_its_defaults(tmp_path):

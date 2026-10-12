@@ -21,10 +21,11 @@ class MainListBuild:
     main_list: MainList
     settings: MainListSettings
     main_funestra_cmd_file: Path
+    start_from: str = ""
     start_at_top: bool = False
 
     def run(self) -> None:
-        videos = self.main_list.write(self.settings)
+        videos = self.main_list.write(self.settings, start_from=self.start_from)
         verbs = [RELOAD_PLAYLIST, f"{SET_F_MODE} {int(self.settings.scripted_filter)}"]
         if self.start_at_top and videos:
             verbs.append(play_file(scripted_item(videos[0], self.main_list.metadata_root)))

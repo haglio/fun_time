@@ -888,7 +888,7 @@ def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_p
 
     _run_start_core_session(kwargs)
 
-    assert read_shared_state(state_file) == BridgeState()
+    assert replace(read_shared_state(state_file), main_shuffle_seed=0) == BridgeState()
 
 
 def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_path: Path):

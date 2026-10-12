@@ -111,6 +111,7 @@ def rebuild_main_list(
     settings: MainListSettings,
     *,
     main_funestra_cmd_file: str | Path,
+    start_from: str = "",
     start_at_top: bool = False,
     builds: MainListBuilds = BUILDS_HERE,
 ) -> None:
@@ -121,7 +122,8 @@ def rebuild_main_list(
     """
     builds.build(MainListBuild(
         main_list=main_list, settings=settings,
-        main_funestra_cmd_file=Path(main_funestra_cmd_file), start_at_top=start_at_top,
+        main_funestra_cmd_file=Path(main_funestra_cmd_file),
+        start_from=start_from, start_at_top=start_at_top,
     ))
 
 
@@ -171,6 +173,7 @@ def apply_fmode(
     enabled: bool,
     main_list: MainList,
     main_settings: MainListSettings,
+    main_start_from: str = "",
     favs_file: str | Path,
     state_dir: str | Path,
     main_funestra_cmd_file: str | Path,
@@ -189,7 +192,8 @@ def apply_fmode(
     if RoomFunestra.MAIN in named:
         rebuild_main_list(
             main_list, replace(main_settings, scripted_filter=enabled),
-            main_funestra_cmd_file=main_funestra_cmd_file, builds=main_builds,
+            main_funestra_cmd_file=main_funestra_cmd_file, start_from=main_start_from,
+            builds=main_builds,
         )
     for funestra in RoomFunestra.SATELLITES:
         if funestra in named:

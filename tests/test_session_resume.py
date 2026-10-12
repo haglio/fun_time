@@ -1,7 +1,7 @@
 """Bringing a reopened session back to the clip each Funestra was on."""
 from __future__ import annotations
 
-from dataclasses import fields
+from dataclasses import fields, replace
 from pathlib import Path
 
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
@@ -373,7 +373,15 @@ class TestResumeSatelliteLocks:
 
         state = resume_shared_state(state_file, resumed=False)
 
-        assert state == BridgeState()
+        assert replace(state, main_shuffle_seed=0) == BridgeState()
+
+    def test_a_fresh_session_deals_the_main_funestra_a_shuffle_of_its_own(self, tmp_path: Path):
+        state_file = tmp_path / "shared_bridge_state.ini"
+
+        seeds = {resume_shared_state(state_file, resumed=False).main_shuffle_seed
+                 for _ in range(3)}
+
+        assert len(seeds) == 3
 
     def test_the_seeded_state_is_what_the_session_opens_on(self, tmp_path: Path):
         """The dispatch loop reads its state off this file every tick and never
@@ -393,7 +401,8 @@ class TestResumeSatelliteLocks:
         has to open on a state — a written default, not a missing file."""
         state_file = tmp_path / "shared_bridge_state.ini"
 
-        assert resume_shared_state(state_file, resumed=True) == BridgeState()
+        assert replace(resume_shared_state(state_file, resumed=True), main_shuffle_seed=0) == (
+            BridgeState())
         assert state_file.exists()
 
 

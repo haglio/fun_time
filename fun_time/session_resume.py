@@ -19,6 +19,7 @@ from main_funestra.loop_verbs import SET_LOOP
 
 from .funestra_handover import take_back_the_list
 from .funestra_status import MainFunestraStatus, read_genau_status
+from .main_list import new_shuffle_seed
 from .media_metadata import normalize_path_key
 from .modes import rotated_onto, source_roots
 from .room_funestras import RoomFunestra
@@ -227,7 +228,7 @@ def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:
     """
     migrate_shared_state(state_file)
     previous = read_shared_state(state_file) if resumed else None
-    state = BridgeState() if previous is None else replace(
+    state = BridgeState(main_shuffle_seed=new_shuffle_seed()) if previous is None else replace(
         BridgeState(**{field: getattr(previous, field) for field in RESUMED_FIELDS}),
         portrait=_resumed_satellite(previous.satellite(RoomFunestra.PORTRAIT)),
         landscape=_resumed_satellite(previous.satellite(RoomFunestra.LANDSCAPE)),

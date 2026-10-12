@@ -100,6 +100,7 @@ class BridgeState:
     main_hud_minimized: bool = False
     omni_paused: bool = False
     main_latest: bool = False
+    main_shuffle_seed: int = 0
     # Which shapes of video the Main Funestra's browse may reach: VR masters, flat
     # ones, or both -- the only answer outside the headset, holding one shape.
     main_plays_vr: bool = True
