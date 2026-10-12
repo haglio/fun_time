@@ -68,6 +68,7 @@ from fun_time.genau_config import GenauSettings
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item
 from fun_time.project_paths import PROJECT_VR_ICON
+from fun_time.satellites_mode import origenerator_shows
 from fun_time.session_handoff import (
     headset_hold_asked,
     headset_hold_stops_the_runtime,
@@ -98,6 +99,9 @@ from .cover import (
     scene_ready_file,
 )
 from .dash_panel import DASH_WIDTH_PX, DashPointer, dash_height, paint_dash
+from .gallery_panel import GalleryPanel
+from .gallery_panel import hover_line as gallery_hover_line
+from .gallery_panel import scroll_line as gallery_scroll_line
 from .genau_in_the_headset import GenauInTheHeadset
 from .headset_engine import HeadsetEngine
 from .headset_verbs import HeadsetVerbs
@@ -108,6 +112,7 @@ from .layout import (
     BANNER,
     DASH,
     FUNESTRAS,
+    GALLERY,
     LANDSCAPE,
     LAYOUT_FILENAME,
     LIBRARY,
@@ -1316,6 +1321,92 @@ class _BannerUnit:
         self.screen.close()
 
 
+class _GalleryUnit:  # the hosted app's window, shown in origenerator mode
+    SPOTS = {GALLERY: Placement(azimuth_deg=-71.0, elevation_deg=2.0, width_deg=37.0)}
+
+    def __init__(self, *, remembered: Mapping[str, Placement], state_dir: Path,
+                 shared_state_file: Path) -> None:
+        self._panel = GalleryPanel(Path(state_dir))
+        self._shared_state_file = shared_state_file
+        self._presses = _Presses(GALLERY)
+        self._lock = threading.Lock()
+        self._image = None
+        self._uploaded = None
+        self._hovered: tuple[int, int] | None = None
+        self._scrolled = 0.0
+        self.showing = False
+        self.texture = FrameTexture()
+        self.screen = _HangingScreen(remembered.get(GALLERY, self.SPOTS[GALLERY]))
+
+    @property
+    def takes_the_stick(self) -> bool:
+        return self.showing and self._presses.hover is not None
+
+    def hangings(self) -> tuple[Hanging, ...]:
+        if not (self.showing and self.texture.ready):
+            return ()
+        return (Hanging(
+            Screen(GALLERY, self.screen.placement, self.texture.aspect,
+                   movable=True, resizable=True, pressable=True, right_clicks=True),
+            mesh=self.screen, picture=self.texture, blend=True),)
+
+    def hangs_by(self) -> dict[str, Hangs]:
+        return {GALLERY: Hangs((self.screen,))}
+
+    def put_back(self) -> None:
+        self.screen.placement = self.SPOTS[GALLERY]
+
+    def point(self, frame: Frame) -> None:
+        self._presses.point(frame)
+
+    def scroll(self, notches: float) -> None:
+        with self._lock:
+            self._scrolled += notches
+
+    def pump(self, stop: threading.Event, now: float) -> None:
+        state = read_shared_state(self._shared_state_file)
+        wanted = state is not None and origenerator_shows(state.satellites_mode)
+        events = list(self._presses.drain())
+        self.showing = wanted
+        if not wanted:
+            self._hovered = None
+            return
+        for event in events:
+            self._panel.press(event)
+        self._send_the_pointer()
+        frame = self._panel.frame(now)
+        gone_quiet = self._panel.went_quiet(now)
+        if gone_quiet is not None:
+            logger.warning("%s", gone_quiet)
+        if frame is None:
+            return
+        width, height, pixels = frame
+        with self._lock:
+            self._image = np.frombuffer(pixels, np.uint8).reshape(height, width, 4)
+
+    def _send_the_pointer(self) -> None:
+        aim = self._presses.hover
+        size = self._panel.size
+        at = surface_pixel(*aim[1], size) if aim is not None and size is not None else None
+        if at is not None and at != self._hovered:
+            self._panel.send(gallery_hover_line(*at))
+        self._hovered = at
+        with self._lock:
+            notches = int(self._scrolled)
+            self._scrolled -= notches
+        if notches:
+            self._panel.send(gallery_scroll_line(notches))
+
+    def render_latest_frame(self) -> None:
+        if _upload(self):
+            self.screen.rehang(self.texture.aspect)
+
+    def close(self) -> None:
+        self._panel.close()
+        self.texture.close()
+        self.screen.close()
+
+
 class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
     SPOTS: dict[str, Placement] = {}
 
@@ -1724,11 +1815,14 @@ def _still_blank(main_unit, satellites: Sequence, panel) -> tuple[str, ...]:
 
 
 def _hands_for_the_funestras(
-    library: _LibraryUnit, hands: Mapping[str, HandInput], *, elapsed_s: float,
+    library: _LibraryUnit, gallery: _GalleryUnit, hands: Mapping[str, HandInput], *,
+    elapsed_s: float,
 ) -> Mapping[str, HandInput]:
-    if not library.takes_the_stick:
+    scrolling = next((unit for unit in (library, gallery) if unit.takes_the_stick), None)
+    if scrolling is None:
         return hands
-    library.scroll(scroll_from_stick(strongest(hand.stick_y for hand in hands.values()), elapsed_s))
+    scrolling.scroll(scroll_from_stick(
+        strongest(hand.stick_y for hand in hands.values()), elapsed_s))
     return {name: replace(hand, stick_x=0.0, stick_y=0.0) for name, hand in hands.items()}
 
 
@@ -1914,6 +2008,11 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
         metadata_root=_metadata_root(manifest),
     )
     banner = _BannerUnit(main_unit, notices)
+    gallery = _GalleryUnit(
+        remembered=remembered.placements,
+        state_dir=Path(state_dir),
+        shared_state_file=shared_state_path(Path(state_dir)),
+    )
     keeper = _LayoutKeeper(layout_path, remembered)
     scene_ready = SceneReady(scene_ready_file(state_dir))
     cover_on_screen = CoverDwell()
@@ -1922,7 +2021,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     wear = HeadsetWear()
     # The room, each thing saying for itself what it hangs there.  Dash before
     # panel: the console hangs off where the dashboard ended up.
-    units = [main_unit, *satellites, dash, panel, reference, library, banner, cover]
+    units = [main_unit, *satellites, dash, panel, reference, library,
+             banner, gallery, cover]
     closing = [notices, *units, keeper, posts]
     # The Main Funestra ticks on a worker of its own, at Genau's rate.
     pumped = [one for one in closing if one is not main_unit]
@@ -2027,7 +2127,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                     stacking.take(frame.taken)
                 dialing = main_unit.can_dial_the_wrap
                 thumb = thumbs.frame(
-                    _hands_for_the_funestras(library, session.hands, elapsed_s=frame_dt),
+                    _hands_for_the_funestras(
+                        library, gallery, session.hands, elapsed_s=frame_dt),
                     pointer, elapsed_s=frame_dt, dialing=dialing)
                 posts.post(thumb.commands)
                 zoom = main_unit.verbs.angle_asked.take()

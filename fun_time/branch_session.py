@@ -484,6 +484,11 @@ def _why_its_room_would_not_start(
         worktree, primary=primary, config_path=config_path)
     if older:
         return OutOfDateForOrigenerator(older[0])
+    hosted = hosted_origenerator_checkout(worktree)
+    if hosted is not None:
+        without = [name for name in HOSTED_APP_PRIVATE_STATE if not (hosted / name).exists()]
+        if without:
+            return HostedAppWithoutItsOwnState(hosted, without)
     return None
 
 
@@ -626,6 +631,25 @@ class OutOfDateWorktree(RuntimeError):
             "checkout has, so its launcher can break before it is clicked. Rebase it onto "
             "origin/main first."
         )
+
+
+HOSTED_APP_PRIVATE_STATE = ("content.local.json", "state/ui_state.json")
+
+
+class HostedAppWithoutItsOwnState(RoomWouldNotStart):
+    def __init__(self, checkout: Path, missing: list[str]):
+        super().__init__(
+            f"{checkout} hosts Origenerator for this session and carries no "
+            f"{', no '.join(missing)}. Those are git-ignored, so that checkout opens as a "
+            "fresh install: a library it cannot find, nothing open in the gallery. Copy each "
+            "from the primary Origenerator checkout, then make the shortcut again."
+        )
+
+
+def hosted_origenerator_checkout(worktree: Path) -> Path | None:
+    """The Origenerator checkout *worktree*'s OWN override names, or None."""
+    lines = override_lines(worktree / STATE_DIRNAME / ORIGENERATOR_DIR_OVERRIDE_NAME)
+    return Path(lines[0]) if lines else None
 
 
 def write_launch_shortcut(

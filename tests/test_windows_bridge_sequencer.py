@@ -42,6 +42,10 @@ from fun_time.shared_state import (
     write_shared_state,
 )
 from fun_time.shortcuts import Shortcut
+from fun_time.standalone_origenerator import (
+    take_it_over,
+    the_takeover_it_was_handed,
+)
 from fun_time.win32_process import get_process_creation_time
 from fun_time.window_layout import (
     MonitorRect,
@@ -1416,35 +1420,54 @@ class TestOrigeneratorLaunch:
             (checkout / "state" / "fun_time_showing.txt").write_text(offered, encoding="utf-8")
         return cfg, manifest_path, checkout, open_app
 
+    @contextlib.contextmanager
+    def _answering(self):
+        """The open app reading its takeover, as a live one does.
+
+        A session no longer believes a takeover nothing read, so an offer
+        standing for an app that reads nothing is a session whose app never
+        came up -- which is its own test below.
+        """
+        handed: dict = {}
+
+        def answer(checkout, **kw):
+            take_it_over(checkout, **kw)
+            waiting = the_takeover_it_was_handed(checkout)
+            handed.update(json.loads(waiting.read_text(encoding="utf-8")))
+            waiting.unlink()
+
+        with patch("fun_time.hosted_origenerator.take_it_over", side_effect=answer):
+            yield handed
+
     def test_an_origenerator_still_starting_is_taken_over_rather_than_launched(
         self, cfg_factory, tmp_path
     ):
-        _cfg, manifest_path, checkout, open_app = self._checkout_with_an_open_app(
+        cfg, manifest_path, checkout, open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path, starting=True)
 
-        with _sequencer_stubs(launch_origenerator=dict()) as stubs:
+        with _sequencer_stubs(launch_origenerator=dict()) as stubs, \
+                self._answering() as handed:
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         stubs.launch_origenerator.assert_not_called()
         assert result.origenerator_pid == open_app
-        assert json.loads((checkout / "state" / "fun_time_takeover.json").read_text(
-            encoding="utf-8"))["pid"] == open_app
+        assert handed["pid"] == open_app
 
     def test_a_session_hosting_a_worktree_takes_over_the_everyday_copy_open_on_its_library(
         self, cfg_factory, tmp_path
     ):
         worktree = tmp_path / "origenerator" / ".claude" / "worktrees" / "some-branch"
         worktree.mkdir(parents=True)
-        _cfg, manifest_path, everyday, open_app = self._checkout_with_an_open_app(
+        cfg, manifest_path, everyday, open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path, hosting=worktree)
 
-        with _sequencer_stubs(launch_origenerator=dict()) as stubs:
+        with _sequencer_stubs(launch_origenerator=dict()) as stubs, \
+                self._answering() as handed:
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         stubs.launch_origenerator.assert_not_called()
         assert result.origenerator_pid == open_app
-        assert json.loads((everyday / "state" / "fun_time_takeover.json").read_text(
-            encoding="utf-8"))["pid"] == open_app
+        assert handed["pid"] == open_app
 
     def test_a_room_that_took_over_an_app_still_starting_has_to_hear_from_it(
         self, cfg_factory, tmp_path
@@ -1452,7 +1475,7 @@ class TestOrigeneratorLaunch:
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path, starting=True)
 
-        with _sequencer_stubs(launch_origenerator=dict()):
+        with _sequencer_stubs(launch_origenerator=dict()), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert not result.origenerator_already_open
@@ -1461,10 +1484,10 @@ class TestOrigeneratorLaunch:
     def test_a_startup_canceled_after_taking_over_an_app_still_starting_leaves_it_off_the_kill_list(
         self, cfg_factory, tmp_path
     ):
-        _cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
+        cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path, starting=True)
 
-        with _sequencer_stubs(launch_origenerator=dict()), \
+        with _sequencer_stubs(launch_origenerator=dict()), self._answering(), \
              pytest.raises(StartupCancelled) as excinfo:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
                                  progress=_CancelOnAdvance(cancel_on=2))
@@ -1477,25 +1500,42 @@ class TestOrigeneratorLaunch:
     ):
         cfg, manifest_path, checkout, open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path)
-        stale_status = Path(cfg.origenerator_status_file)
-        stale_status.write_text("portrait_active=1\nlandscape_active=1\n", encoding="utf-8")
 
-        with _sequencer_stubs(launch_origenerator=dict()) as stubs:
+        with _sequencer_stubs(launch_origenerator=dict()) as stubs,                 self._answering() as handed:
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         stubs.launch_origenerator.assert_not_called()
         assert result.origenerator_pid == open_app
-        takeover = json.loads(
-            (checkout / "state" / "fun_time_takeover.json").read_text(encoding="utf-8"))
-        assert takeover["pid"] == open_app
-        args = takeover["args"]
+        assert handed["pid"] == open_app
+        args = handed["args"]
         assert args[0] == "--fun-time"
         for flag, path in (("--command-file", cfg.origenerator_cmd_file),
                            ("--paused-file", cfg.origenerator_paused_file),
                            ("--status-file", cfg.origenerator_status_file)):
             assert args[args.index(flag) + 1] == str(path), flag
-        assert not stale_status.exists()
         assert Path(cfg.origenerator_paused_file).read_text(encoding="utf-8") == "0"
+
+    def test_an_app_that_never_answers_the_takeover_is_replaced_by_one_we_launch(
+        self, cfg_factory, tmp_path
+    ):
+        """What a takeover reaches is an open window's poll, and a process that
+        has stopped answering keeps standing its offer.  One was handed a
+        takeover on 2026-09-28 and never read it: the session reported it hosted
+        and the room ran for five minutes with the Origenerator mode button grey.
+        Last session's status file is cleared first, so it cannot stand in for
+        this app answering."""
+        cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
+            cfg_factory, tmp_path)
+        stale_status = Path(cfg.origenerator_status_file)
+        stale_status.write_text("portrait_active=1\n", encoding="utf-8")
+
+        with _sequencer_stubs(launch_origenerator=dict(return_value=91)) as stubs, \
+             patch("fun_time.hosted_origenerator.ANSWER_BUDGET_S", 0.05):
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert not stale_status.exists()
+        assert stubs.launch_origenerator.called
+        assert result.origenerator_pid == 91 and not result.origenerator_taken_over
 
     def test_a_session_claims_the_osr2_of_the_checkout_it_names(
         self, cfg_factory, tmp_path
@@ -1550,7 +1590,7 @@ class TestOrigeneratorLaunch:
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path)
 
-        with _sequencer_stubs(launch_origenerator=dict()):
+        with _sequencer_stubs(launch_origenerator=dict()), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert result.origenerator_taken_over
@@ -1558,10 +1598,10 @@ class TestOrigeneratorLaunch:
     def test_a_startup_canceled_after_a_takeover_leaves_that_app_off_the_kill_list(
         self, cfg_factory, tmp_path
     ):
-        _cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
+        cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path)
 
-        with _sequencer_stubs(launch_origenerator=dict()), \
+        with _sequencer_stubs(launch_origenerator=dict()), self._answering(), \
              pytest.raises(StartupCancelled) as excinfo:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
                                  progress=_CancelOnAdvance(cancel_on=2))
@@ -1575,7 +1615,7 @@ class TestOrigeneratorLaunch:
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path)
 
-        with _sequencer_stubs(launch_origenerator=dict()):
+        with _sequencer_stubs(launch_origenerator=dict()), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert result.origenerator_already_open
@@ -1586,7 +1626,7 @@ class TestOrigeneratorLaunch:
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path, showing=True)
 
-        with _sequencer_stubs(launch_origenerator=dict()):
+        with _sequencer_stubs(launch_origenerator=dict()), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert result.origenerator_showing
@@ -1597,7 +1637,7 @@ class TestOrigeneratorLaunch:
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path)
 
-        with _sequencer_stubs(launch_origenerator=dict()):
+        with _sequencer_stubs(launch_origenerator=dict()), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert not result.origenerator_showing

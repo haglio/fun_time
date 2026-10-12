@@ -56,8 +56,12 @@ def _shows_a_slideshow(checkout: Path, pid: int, created_at: int) -> bool:
     return mark.split() == [str(pid), str(created_at)]
 
 
+def the_takeover_it_was_handed(origenerator_dir: str | Path) -> Path:
+    return _state_dir(origenerator_dir) / TAKEOVER_NAME
+
+
 def take_it_over(origenerator_dir: str | Path, *, pid: int, args: list[str]) -> None:
-    takeover = _state_dir(origenerator_dir) / TAKEOVER_NAME
+    takeover = the_takeover_it_was_handed(origenerator_dir)
     staged = takeover.with_name(f"{TAKEOVER_NAME}.tmp")
     staged.write_text(json.dumps({"pid": pid, "args": args}), encoding="utf-8")
     os.replace(staged, takeover)
