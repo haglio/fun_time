@@ -9,9 +9,8 @@ import re
 import shutil
 import sqlite3
 import subprocess
-import sys
 import time
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path, PurePosixPath
@@ -26,7 +25,9 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from fun_time.checkout_overrides import GENAU_DIRS_OVERRIDE_NAME, STATE_DIRNAME, primary_of
 from fun_time.process_tree import kill_process_tree
 
+from .commands import CommandFailed, run_command
 from .coverage_map import CoverageMap, source_files, the_machine_s_map
+from .fix_sessions import background_sessions, look_after_fix_sessions, shipped_again
 from .session_lock import SingleInstanceLock
 
 REPO = "haglio/fun_time"
@@ -34,15 +35,9 @@ ONE_COPY = r"Global\fun_time_main_verifier"
 POLL_S = 300
 RESTART_REQUEST_NAME = "main_verifier.restart"
 INCIDENTS_NAME = "main_verifier_incidents.jsonl"
-FIX_NOTICES_NAME = "main_verifier_fix_notices.json"
-FIX_RESTARTS_NAME = "main_verifier_fix_restarts.json"
-CLAUDE_TRANSCRIPTS = Path.home() / ".claude" / "projects"
-CARRY_ON = ("Your last turn ended on an error from the Claude service, not on anything you did. "
-            "Carry on with the work you were given.")
 _ASKED_EVERY_S = 5
 COVERAGE_MAP_LASTS = timedelta(days=1)
 CONFIRMING_RUNS = 3
-RESTARTS = 3
 NO_SUCH_TEST = pytest.ExitCode.USAGE_ERROR
 _PASSED = frozenset({"passed", "flaky"})
 _STILL_FIXING = frozenset({"working", "blocked", "failed"})
@@ -123,23 +118,8 @@ class Bench(Protocol):
     def take_restart_request(self) -> bool: ...
 
 
-class CommandFailed(Exception):
-    pass
-
-
 class RestartRequested(Exception):
     pass
-
-
-def _shell(command: Sequence[str], cwd: Path | None = None) -> str:
-    try:
-        done = subprocess.run(list(command), cwd=cwd, capture_output=True, text=True, encoding="utf-8",
-                              errors="replace", **hidden_subprocess_kwargs())
-    except OSError as error:
-        raise CommandFailed(f"{' '.join(command)} could not start: {error}") from None
-    if done.returncode:
-        raise CommandFailed(f"{' '.join(command)}: {done.stderr.strip() or done.stdout.strip()}")
-    return done.stdout
 
 
 def _run_suite(command: Sequence[str], cwd: Path, log: Path, environment: Mapping[str, str] | None = None, *,
@@ -212,7 +192,7 @@ def _use_the_plain_genau(checkout: Path) -> None:
 
 
 class MachineBench:
-    def __init__(self, primary: Path, shell=_shell, suite=_run_suite, claude: str | None = None,
+    def __init__(self, primary: Path, shell=run_command, suite=_run_suite, claude: str | None = None,
                  installed: Callable[[str], str | None] = _installed_version) -> None:
         self.primary, self.shell, self.suite, self.installed = primary, shell, suite, installed
         self.claude = claude or claude_command()
@@ -427,71 +407,6 @@ def fixing_unreliable_checks(head: str, tests: list[str], log: Path, why: str) -
     ]))
 
 
-@dataclass(frozen=True)
-class FixNotice:
-    session: str
-    resume: str
-    cwd: str
-    state: str
-    title: str
-    body: str
-
-
-_SETTLED = frozenset({"blocked", "done", "failed"})
-_WAITS_FOR = {"input needed": "answer", "permission prompt": "permission"}
-
-
-def _shipped_again(incidents: Sequence[dict]) -> set[int]:
-    return {incident.get("pull_request") for incident in incidents if incident.get("shipped_again_by")}
-
-
-def _fix_sessions(incidents: Sequence[dict], sessions: Sequence[dict]) -> Iterator[tuple[dict, dict]]:
-    by_id = {session.get("id"): session for session in sessions}
-    shipped_again = _shipped_again(incidents)
-    for incident in incidents:
-        session = by_id.get(incident.get("fix_session"))
-        if session and not (incident.get("taken_back_by") and incident.get("pull_request") in shipped_again):
-            yield incident, session
-
-
-@dataclass(frozen=True)
-class FixSessionSteps:
-    start_again: list[dict]
-    notices: list[FixNotice]
-
-
-def fix_session_steps(incidents: Sequence[dict], sessions: Sequence[dict], told: Mapping[str, str],
-                      restarts: Mapping[str, int], died: Callable[[dict], bool]) -> FixSessionSteps:
-    start_again, notices = [], []
-    for incident, session in _fix_sessions(incidents, sessions):
-        state, session_id = session.get("state"), session["id"]
-        if state not in _SETTLED or told.get(session_id) == state:
-            continue
-        name = session.get("name") or f"The fix for #{incident.get('pull_request')}"
-        if state == "done":
-            title, body = f"{name} finished", "Click to open it in Claude Desktop and read what it did."
-        elif state == "blocked" and (session.get("waitingFor") or not died(session)):
-            title = f"{name} is waiting for you"
-            body = (f"It needs your {_WAITS_FOR.get(session.get('waitingFor'), 'answer')}. "
-                    "Click to open it in Claude Desktop.")
-        elif session_id not in told and restarts.get(session_id, 0) < RESTARTS:
-            start_again.append(session)
-            continue
-        else:
-            title = f"{name} stopped on an error"
-            body = ("It stopped on an error from the Claude service. Click to open it in Claude Desktop "
-                    "and tell it to carry on.")
-        notices.append(FixNotice(session_id, session.get("sessionId", session_id), session.get("cwd", ""), state,
-                                 title, body))
-    return FixSessionSteps(start_again, notices)
-
-
-def _start_notice(notice: FixNotice) -> None:
-    subprocess.Popen([str(Path(sys.executable).with_name("pythonw.exe")), "-m", "tests.integration.fix_session_notice",
-                      notice.session, notice.resume, notice.cwd, notice.title, notice.body],
-                     cwd=Path(__file__).resolve().parents[2], **hidden_subprocess_kwargs())
-
-
 def _incidents(state: Path) -> list[dict]:
     try:
         lines = (state / INCIDENTS_NAME).read_text(encoding="utf-8").splitlines()
@@ -502,62 +417,6 @@ def _incidents(state: Path) -> list[dict]:
         with contextlib.suppress(ValueError):
             incidents.append(json.loads(line))
     return incidents
-
-
-def died_on_a_service_error(transcripts: Path, session: dict) -> bool:
-    kept = next(transcripts.glob(f"*/{session.get('sessionId')}.jsonl"), None)
-    if kept is None:
-        return False
-    last_said = {}
-    for line in kept.read_text(encoding="utf-8", errors="replace").splitlines():
-        with contextlib.suppress(ValueError):
-            if (record := json.loads(line)).get("type") == "assistant":
-                last_said = record
-    return bool(last_said.get("isApiErrorMessage"))
-
-
-def background_sessions(claude: str, shell=_shell) -> list[dict]:
-    answer = shell([claude, "agents", "--json", "--all"])
-    try:
-        return json.loads(answer)
-    except ValueError:
-        raise CommandFailed(f"claude agents did not answer with a list of sessions: {answer.strip()[:200]}") from None
-
-
-def _started_again(claude: str, session: dict, shell) -> bool:
-    try:
-        shell([claude, "auth", "status"])
-        shell([claude, "--bg", "--resume", session["sessionId"], CARRY_ON], cwd=Path(session["cwd"]))
-    except CommandFailed as why:
-        _log.warning("could not start fix session %s again: %s", session["id"], why)
-        return False
-    return True
-
-
-def _kept(path: Path) -> dict:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-
-
-def look_after_fix_sessions(state: Path, claude: str, shell=_shell,
-                            start: Callable[[FixNotice], None] = _start_notice,
-                            transcripts: Path = CLAUDE_TRANSCRIPTS) -> None:
-    told_path, restarts_path = state / FIX_NOTICES_NAME, state / FIX_RESTARTS_NAME
-    told, restarts = _kept(told_path), _kept(restarts_path)
-    steps = fix_session_steps(_incidents(state), background_sessions(claude, shell), told, restarts,
-                              lambda session: died_on_a_service_error(transcripts, session))
-    started_again = [session["id"] for session in steps.start_again if _started_again(claude, session, shell)]
-    for session_id in started_again:
-        restarts[session_id] = restarts.get(session_id, 0) + 1
-    if started_again:
-        write_whole(restarts_path, json.dumps(restarts, indent=1))
-    for notice in steps.notices:
-        start(notice)
-        told[notice.session] = notice.state
-    if steps.notices:
-        write_whole(told_path, json.dumps(told, indent=1))
 
 
 def _mark_passed(ledger: Ledger, bench: Bench, head: str) -> None:
@@ -635,9 +494,9 @@ def _blame(bench: Bench, last_passed: str | None, head: str, whole: RunResult) -
 
 def _taken_back_wrongly(bench: Bench, failed: list[str], shipped: list[str]) -> tuple[dict, list[str]] | None:
     incidents = bench.incidents()
-    shipped_again = _shipped_again(incidents)
+    changes_shipped_again = shipped_again(incidents)
     for incident in incidents:
-        if (incident.get("taken_back_by") and incident.get("pull_request") not in shipped_again
+        if (incident.get("taken_back_by") and incident.get("pull_request") not in changes_shipped_again
                 and set(failed) <= set(incident.get("tests", ()))):
             take_back = [commit for commit in shipped if bench.pull_request_of(commit) == incident["taken_back_by"]]
             if take_back:
@@ -717,7 +576,7 @@ def main() -> None:
     state = primary / STATE_DIRNAME
     install_exception_logging(configure_logging("main_verifier", state / "main_verifier.log"))
     try:
-        look_after_fix_sessions(state, claude_command())
+        look_after_fix_sessions(state, _incidents(state), claude_command())
     except (CommandFailed, OSError, ValueError) as why:
         _log.warning("could not check the fix sessions: %s", why)
     one_copy = SingleInstanceLock(ONE_COPY)

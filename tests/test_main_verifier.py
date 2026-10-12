@@ -13,7 +13,7 @@ import coverage
 import pytest
 
 from fun_time.win32_process import is_process_alive
-from tests.integration import main_verifier
+from tests.integration import commands, fix_sessions, main_verifier
 from tests.integration.coverage_map import CoverageMap
 
 
@@ -427,7 +427,7 @@ def test_a_suite_running_when_a_restart_is_asked_for_ends_with_everything_it_sta
 
 def test_a_command_that_cannot_start_fails_like_one_that_ran_and_failed(tmp_path):
     with pytest.raises(main_verifier.CommandFailed, match="could not start"):
-        main_verifier._shell([sys.executable, "-c", "pass"], cwd=tmp_path / "a checkout since removed")
+        commands.run_command([sys.executable, "-c", "pass"], cwd=tmp_path / "a checkout since removed")
 
 
 def stop_after_two_naps():
@@ -888,7 +888,7 @@ def a_fix_session(state, **more):
 
 
 def notices_about(session, told):
-    return main_verifier.fix_session_steps([FIX], [session], told, restarts={}, died=lambda session: False).notices
+    return fix_sessions.fix_session_steps([FIX], [session], told, restarts={}, died=lambda session: False).notices
 
 
 def test_he_is_told_once_when_a_fix_session_waits_for_him_and_once_when_it_finishes():
@@ -907,7 +907,7 @@ def test_he_is_told_once_when_a_fix_session_waits_for_him_and_once_when_it_finis
 def test_a_fix_session_that_stopped_on_an_error_from_the_claude_service_is_started_again_instead_of_told_about():
     stopped = a_fix_session("blocked")
 
-    steps = main_verifier.fix_session_steps([FIX], [stopped], told={}, restarts={}, died=lambda session: True)
+    steps = fix_sessions.fix_session_steps([FIX], [stopped], told={}, restarts={}, died=lambda session: True)
 
     assert steps.start_again == [stopped] and steps.notices == []
 
@@ -917,7 +917,7 @@ def test_a_fix_session_that_stopped_on_an_error_from_the_claude_service_is_start
 def test_a_fix_session_blocked_on_anything_but_an_error_is_waiting_for_him(waiting_for, needs):
     session = a_fix_session("blocked", **({"waitingFor": waiting_for} if waiting_for else {}))
 
-    steps = main_verifier.fix_session_steps([FIX], [session], told={}, restarts={},
+    steps = fix_sessions.fix_session_steps([FIX], [session], told={}, restarts={},
                                             died=lambda session: "waitingFor" in session)
 
     assert steps.start_again == []
@@ -927,14 +927,14 @@ def test_a_fix_session_blocked_on_anything_but_an_error_is_waiting_for_him(waiti
 def test_a_fix_session_that_failed_is_started_again_like_one_that_stopped_on_an_error_from_the_service():
     failed = a_fix_session("failed")
 
-    steps = main_verifier.fix_session_steps([FIX], [failed], told={}, restarts={}, died=lambda session: False)
+    steps = fix_sessions.fix_session_steps([FIX], [failed], told={}, restarts={}, died=lambda session: False)
 
     assert steps.start_again == [failed] and steps.notices == []
 
 
 def test_he_is_told_a_fix_session_stopped_on_an_error_once_starting_it_again_has_not_helped():
-    steps = main_verifier.fix_session_steps([FIX], [a_fix_session("blocked")], told={},
-                                            restarts={"1a2b3c4d": main_verifier.RESTARTS}, died=lambda session: True)
+    steps = fix_sessions.fix_session_steps([FIX], [a_fix_session("blocked")], told={},
+                                            restarts={"1a2b3c4d": fix_sessions.RESTARTS}, died=lambda session: True)
 
     assert steps.start_again == []
     assert [(notice.title, notice.state) for notice in steps.notices] == [
@@ -942,14 +942,14 @@ def test_he_is_told_a_fix_session_stopped_on_an_error_once_starting_it_again_has
 
 
 def test_a_stopped_fix_session_he_was_told_is_waiting_for_him_is_left_to_him():
-    steps = main_verifier.fix_session_steps([FIX], [a_fix_session("blocked")], told={"1a2b3c4d": "blocked"},
+    steps = fix_sessions.fix_session_steps([FIX], [a_fix_session("blocked")], told={"1a2b3c4d": "blocked"},
                                             restarts={}, died=lambda session: True)
 
-    assert steps == main_verifier.FixSessionSteps(start_again=[], notices=[])
+    assert steps == fix_sessions.FixSessionSteps(start_again=[], notices=[])
 
 
 def test_a_fix_session_that_stops_on_an_error_after_he_was_told_it_finished_is_told_about_not_started_again():
-    steps = main_verifier.fix_session_steps([FIX], [a_fix_session("blocked")], told={"1a2b3c4d": "done"},
+    steps = fix_sessions.fix_session_steps([FIX], [a_fix_session("blocked")], told={"1a2b3c4d": "done"},
                                             restarts={}, died=lambda session: True)
 
     assert steps.start_again == []
@@ -979,55 +979,53 @@ def test_a_session_died_when_the_last_thing_it_said_was_an_error_from_the_claude
     if records:
         write_transcript(tmp_path, session, *records)
 
-    assert main_verifier.died_on_a_service_error(tmp_path, session) is died
+    assert fix_sessions.died_on_a_service_error(tmp_path, session) is died
 
 
 @pytest.mark.parametrize("state", ["done", "blocked"])
 def test_a_session_fixing_a_change_the_verifier_shipped_again_is_neither_told_about_nor_started_again(state):
     shipped_again = {"kind": "unreliable check", "pull_request": 398, "shipped_again_by": 400}
 
-    steps = main_verifier.fix_session_steps([FIX, shipped_again], [a_fix_session(state)], told={}, restarts={},
+    steps = fix_sessions.fix_session_steps([FIX, shipped_again], [a_fix_session(state)], told={}, restarts={},
                                             died=lambda session: True)
 
-    assert steps == main_verifier.FixSessionSteps(start_again=[], notices=[])
+    assert steps == fix_sessions.FixSessionSteps(start_again=[], notices=[])
 
 
-def a_stopped_fix_session_on_record(tmp_path):
+def a_dead_fix_session(tmp_path):
     state, transcripts = tmp_path / "state", tmp_path / "projects"
     state.mkdir()
-    (state / "main_verifier_incidents.jsonl").write_text(json.dumps(FIX) + "\n", encoding="utf-8")
     session = a_fix_session("blocked")
     write_transcript(transcripts, session, ASKED, FAILED_BY_THE_SERVICE, TURN_ENDED)
     return state, transcripts, session
 
 
 def test_a_fix_session_that_died_on_an_error_is_started_again_where_it_was_and_counted(tmp_path):
-    state, transcripts, session = a_stopped_fix_session_on_record(tmp_path)
+    state, transcripts, session = a_dead_fix_session(tmp_path)
     shell = FakeShell({"agents --json --all": json.dumps([session]), "auth status": '{"loggedIn": true}'})
     told = []
 
-    main_verifier.look_after_fix_sessions(state, "claude.exe", shell=shell, start=told.append,
-                                          transcripts=transcripts)
+    fix_sessions.look_after_fix_sessions(state, [FIX], "claude.exe", shell=shell, start=told.append,
+                                         transcripts=transcripts)
 
     assert told == []
     signed_in = (["claude.exe", "auth", "status"], None)
-    resumed = (["claude.exe", "--bg", "--resume", session["sessionId"], main_verifier.CARRY_ON], Path(session["cwd"]))
+    resumed = (["claude.exe", "--bg", "--resume", session["sessionId"], fix_sessions.CARRY_ON], Path(session["cwd"]))
     assert shell.commands.index(signed_in) < shell.commands.index(resumed)
     assert json.loads((state / "main_verifier_fix_restarts.json").read_text(encoding="utf-8")) == {"1a2b3c4d": 1}
 
 
 def test_a_fix_session_that_cannot_be_started_again_is_tried_next_time_and_the_others_are_still_told(
         tmp_path, caplog):
-    state, transcripts, session = a_stopped_fix_session_on_record(tmp_path)
-    with (state / "main_verifier_incidents.jsonl").open("a", encoding="utf-8") as sink:
-        sink.write(json.dumps({**UNRELIABLE, "fix_session": "9f8e7d6c"}) + "\n")
+    state, transcripts, session = a_dead_fix_session(tmp_path)
     finished = {**a_fix_session("done"), "id": "9f8e7d6c", "name": "Fix the unreliable test_x"}
     shell = SignedOutShell({"agents --json --all": json.dumps([session, finished])})
     told = []
 
     with caplog.at_level("WARNING", logger="main_verifier"):
-        main_verifier.look_after_fix_sessions(state, "claude.exe", shell=shell, start=told.append,
-                                              transcripts=transcripts)
+        fix_sessions.look_after_fix_sessions(state, [FIX, {**UNRELIABLE, "fix_session": "9f8e7d6c"}],
+                                             "claude.exe", shell=shell, start=told.append,
+                                             transcripts=transcripts)
 
     assert [notice.title for notice in told] == ["Fix the unreliable test_x finished"]
     assert not [command for command, _ in shell.commands if "--resume" in command]
@@ -1036,7 +1034,6 @@ def test_a_fix_session_that_cannot_be_started_again_is_tried_next_time_and_the_o
 
 
 def test_each_new_state_of_a_fix_session_is_told_once_however_often_the_verifier_starts(tmp_path):
-    (tmp_path / "main_verifier_incidents.jsonl").write_text(json.dumps(FIX) + "\n", encoding="utf-8")
     sessions = [a_fix_session("blocked", waitingFor="input needed")]
     told = []
 
@@ -1045,8 +1042,8 @@ def test_each_new_state_of_a_fix_session_is_told_once_however_often_the_verifier
         return json.dumps(sessions)
 
     for _ in range(2):
-        main_verifier.look_after_fix_sessions(tmp_path, "claude.exe", shell=shell, start=told.append)
+        fix_sessions.look_after_fix_sessions(tmp_path, [FIX], "claude.exe", shell=shell, start=told.append)
     sessions[0] = a_fix_session("done")
-    main_verifier.look_after_fix_sessions(tmp_path, "claude.exe", shell=shell, start=told.append)
+    fix_sessions.look_after_fix_sessions(tmp_path, [FIX], "claude.exe", shell=shell, start=told.append)
 
     assert [notice.state for notice in told] == ["blocked", "done"]
