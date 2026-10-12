@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .media_metadata import normalize_path_key
@@ -33,6 +33,11 @@ class MainListSettings:
         return cls(plays_vr=state.main_plays_vr, plays_flat=state.main_plays_flat,
                    scripted_filter=state.main_scripted_filter, latest=state.main_latest,
                    shuffle_seed=state.main_shuffle_seed)
+
+    def into(self, state):
+        return replace(state, main_plays_vr=self.plays_vr, main_plays_flat=self.plays_flat,
+                       main_scripted_filter=self.scripted_filter, main_latest=self.latest,
+                       main_shuffle_seed=self.shuffle_seed)
 
 
 def new_shuffle_seed() -> int:

@@ -16,6 +16,7 @@ from fun_time.bridge_records import SatelliteChannel
 from fun_time.crown import Crown
 from fun_time.funestra_handover import hand_back, keep_aside
 from fun_time.funestra_status import MainFunestraStatus
+from fun_time.main_list import MainList
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import (
     CRUISE_ON,
@@ -29,12 +30,11 @@ from fun_time.session_resume import (
     NOT_RESUMED_PER_SATELLITE,
     RESUMED_FIELDS,
     RESUMED_SATELLITE_FIELDS,
-    playlist_fits_sources,
+    open_the_main_list,
     playlist_opens_on,
     resume_genau,
     resume_main_lock,
     resume_main_loop,
-    resume_main_video,
     resume_playlists,
     resume_rates,
     resume_satellite_locks,
@@ -92,11 +92,11 @@ class TestResumePlaylists:
         assert playlist.read_text(encoding="utf-8").splitlines() == [b, c, a]
 
     def test_carries_the_funscript_column_through_the_rotation(self, tmp_path: Path):
-        """The Main Funestra's playlist pairs each video with the funscript that drives the
-        OSR2 through it; rewriting the file without that column would leave a
-        resumed session silently unscripted."""
+        """A playlist pairs each video with the funscript that drives the OSR2
+        through it; rewriting the file without that column would leave a resumed
+        session silently unscripted."""
         a, b, c = _clips(tmp_path, "a.mp4", "b.mp4", "c.mp4")
-        playlist = tmp_path / "main_player_playlist.tsv"
+        playlist = tmp_path / "portrait_playlist.tsv"
         _write_playlist(playlist, [f"{a}\ta.funscript", b, f"{c}\tc.funscript"])
 
         resume_playlists([(playlist, c)])
@@ -113,16 +113,16 @@ class TestResumePlaylists:
         assert resume_playlists([(tmp_path / "portrait_playlist.tsv", "")]) is False
 
     def test_leaves_every_playlist_alone_when_one_of_them_cannot_be_resumed(self, tmp_path: Path):
-        """One build writes all three playlists, so they live or die together:
-        if any of them has no session to come back to, the caller rebuilds the
-        set and each file must still be as the build left it."""
+        """One build writes both satellites' playlists, so they live or die
+        together: if either has no session to come back to, the caller rebuilds
+        the pair and each file must still be as the build left it."""
         a, b = _clips(tmp_path, "a.mp4", "b.mp4")
         portrait = tmp_path / "portrait_playlist.tsv"
         _write_playlist(portrait, [a, b])
 
         resumed = resume_playlists([
             (portrait, b),
-            (tmp_path / "main_player_playlist.tsv", ""),
+            (tmp_path / "landscape_playlist.tsv", ""),
         ])
 
         assert resumed is False
@@ -172,7 +172,7 @@ class TestResumePlaylists:
         channel = _never_came_home(tmp_path, own=[a], showing=a, hosted=[picture])
 
         resumed = resume_playlists([
-            (tmp_path / "main_player_playlist.tsv", ""),
+            (tmp_path / "landscape_playlist.tsv", ""),
             (channel.playlist_file, picture),
         ])
 
@@ -588,6 +588,70 @@ class TestResumeGenau:
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["CRUISE_ON"]
 
 
+class TestOpeningTheMainList:
+    """Every session builds the Main player's list from the buttons it was left
+    on, whatever list the last session left behind: nothing reopens it."""
+
+    def _library(self, tmp_path: Path) -> tuple[MainList, list[str], list[str]]:
+        vr_dir, flat_dir = tmp_path / "library" / "VR", tmp_path / "library" / "2D"
+        for folder in (vr_dir, flat_dir):
+            folder.mkdir(parents=True)
+        vr = _clips(vr_dir, "scene one.mp4", "scene two.mp4")
+        flat = _clips(flat_dir, "scene three.mp4", "scene four.mp4")
+        the_list = MainList(sources=f"{vr_dir}|{flat_dir}", state_dir=tmp_path / "state",
+                            vr_dirs=str(vr_dir))
+        return the_list, vr, flat
+
+    def test_vr_only_opens_on_vr_videos_whatever_the_last_list_held(self, tmp_path: Path):
+        the_list, vr, flat = self._library(tmp_path)
+        _write_playlist(the_list.file, [*flat, *vr])
+
+        open_the_main_list(the_list, BridgeState(main_plays_flat=False),
+                           state_file=tmp_path / "state" / "shared_bridge_state.ini",
+                           on_screen=flat[0])
+
+        assert sorted(the_list.file.read_text(encoding="utf-8").splitlines()) == sorted(vr)
+
+    def test_a_desktop_session_opens_on_its_own_library_whatever_the_headset_left(
+        self, tmp_path: Path,
+    ):
+        """Its VR masters must never reach the primary monitor, and the VR video
+        the headset was showing opens nothing: the list starts at its own top."""
+        _headset_list, vr, flat = self._library(tmp_path)
+        desktop = MainList(sources=str(Path(flat[0]).parent), state_dir=tmp_path / "state")
+        _write_playlist(desktop.file, [*vr, *flat])
+
+        open_the_main_list(desktop, BridgeState(),
+                           state_file=tmp_path / "state" / "shared_bridge_state.ini",
+                           on_screen=vr[0])
+
+        assert sorted(desktop.file.read_text(encoding="utf-8").splitlines()) == sorted(flat)
+
+    def test_it_opens_on_the_video_it_was_left_on_so_its_loop_can_come_back(self, tmp_path: Path):
+        the_list, vr, _flat = self._library(tmp_path)
+
+        open_the_main_list(the_list, BridgeState(),
+                           state_file=tmp_path / "state" / "shared_bridge_state.ini",
+                           on_screen=vr[1])
+
+        assert playlist_opens_on(the_list.file, vr[1]) is True
+
+    def test_with_nothing_let_through_and_nothing_to_hold_its_buttons_go_back_to_their_defaults(
+        self, tmp_path: Path,
+    ):
+        the_list, vr, flat = self._library(tmp_path)
+        state_file = tmp_path / "state" / "shared_bridge_state.ini"
+        left = BridgeState(main_plays_vr=False, main_plays_flat=False, main_latest=True,
+                           main_shuffle_seed=7, volume=40)
+
+        opened = open_the_main_list(the_list, left, state_file=state_file,
+                                    on_screen=str(tmp_path / "library" / "gone since.mp4"))
+
+        assert opened == replace(left, main_plays_vr=True, main_plays_flat=True, main_latest=False)
+        assert read_shared_state(state_file) == opened
+        assert sorted(the_list.file.read_text(encoding="utf-8").splitlines()) == sorted(vr + flat)
+
+
 class TestPlaylistOpensOn:
     """Whether the clip a Funestra will actually load is the one expected — asked
     of the Main Funestra before its loop is handed back, since a loop belongs to one
@@ -618,149 +682,6 @@ class TestPlaylistOpensOn:
 
     def test_an_empty_playlist_opens_on_nothing(self, tmp_path: Path):
         assert playlist_opens_on(tmp_path / "absent.tsv", "C:/v/a.mp4") is False
-
-
-class TestPlaylistFitsSources:
-    """Telling a playlist this session built from one that another app stranded.
-
-    FunTimeVR shares this state dir and writes the Main Funestra's playlist to the
-    same file, built from the VR library merged with the desktop's — so the
-    desktop session has to recognize that file rather than resume it.
-    """
-
-    def test_a_playlist_from_the_session_s_own_library_fits(self, tmp_path: Path):
-        library = tmp_path / "library" / "2D"
-        library.mkdir(parents=True)
-        playlist = tmp_path / "main_player_playlist.tsv"
-        _write_playlist(playlist, [
-            str(library / "scene one.mp4"),
-            str(library / "deeper" / "scene two.mp4"),
-        ])
-
-        assert playlist_fits_sources(playlist, str(library)) is True
-
-    def test_one_video_from_another_library_is_enough_not_to_fit(self, tmp_path: Path):
-        library = tmp_path / "library" / "2D"
-        elsewhere = tmp_path / "library" / "VR" / "finished"
-        playlist = tmp_path / "main_player_playlist.tsv"
-        _write_playlist(playlist, [
-            str(library / "scene one.mp4"),
-            f"{elsewhere / 'headset scene.mp4'}\t{tmp_path / 'headset scene.funscript'}",
-        ])
-
-        assert playlist_fits_sources(playlist, str(library)) is False
-
-    def test_every_dir_of_a_multi_dir_spec_counts(self, tmp_path: Path):
-        """The Main Funestra's spec is pipe-joined, and a video from any of its dirs
-        is this session's own."""
-        first = tmp_path / "library" / "one"
-        second = tmp_path / "library" / "two"
-        playlist = tmp_path / "main_player_playlist.tsv"
-        _write_playlist(playlist, [str(first / "scene one.mp4"), str(second / "scene two.mp4")])
-
-        assert playlist_fits_sources(playlist, f"{first}|{second}") is True
-
-    def test_a_sibling_dir_whose_name_merely_starts_the_same_is_outside(self, tmp_path: Path):
-        """``.../library`` must not swallow ``.../library_vr`` beside it —
-        matching on the raw string prefix is what would."""
-        library = tmp_path / "library"
-        playlist = tmp_path / "main_player_playlist.tsv"
-        _write_playlist(playlist, [str(tmp_path / "library_vr" / "headset scene.mp4")])
-
-        assert playlist_fits_sources(playlist, str(library)) is False
-
-    def test_case_alone_never_makes_a_video_foreign(self, tmp_path: Path):
-        """Windows hands the same folder back in either case, and the config and
-        a Funestra's playlist need not agree — a rebuild on that would throw away
-        a good resume every launch."""
-        library = tmp_path / "Library" / "2D"
-        playlist = tmp_path / "main_player_playlist.tsv"
-        _write_playlist(playlist, [str(tmp_path / "library" / "2d" / "scene one.mp4")])
-
-        assert playlist_fits_sources(playlist, str(library)) is True
-
-    def test_a_missing_playlist_holds_nothing_foreign(self, tmp_path: Path):
-        """Having no session to come back to is the resume's own answer, and it
-        must not read as a playlist needing a rebuild."""
-        assert playlist_fits_sources(tmp_path / "absent.tsv", str(tmp_path)) is True
-
-
-class TestResumeMainVideo:
-    """The other half of a cross-app rebuild: keeping the clip on screen.
-
-    Both apps refuse the other's main playlist, so crossing between them
-    rebuilds that one file — and a rebuild alone dropped what you were watching
-    every time, in both directions, while both satellites came back untouched
-    (docs/entering-vr.md).
-    """
-
-    def test_the_rebuild_is_rotated_onto_the_clip_that_was_on_screen(self, tmp_path: Path):
-        a, b, c = _clips(tmp_path, "a.mp4", "b.mp4", "c.mp4")
-        playlist = tmp_path / "main_player_playlist.tsv"
-        _write_playlist(playlist, [a, b, c])
-
-        assert resume_main_video(playlist, b) is True
-
-        assert playlist.read_text(encoding="utf-8").splitlines() == [b, c, a]
-
-    def test_a_clip_the_arriving_session_cannot_play_is_reported_not_forced(
-        self, tmp_path: Path
-    ):
-        """A VR master on the way back to the desktop is not in the desktop's
-        rebuild, because the desktop cannot play it: that crossing opens on the
-        rebuild's own first clip rather than on a path nothing can load."""
-        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
-        playlist = tmp_path / "main_player_playlist.tsv"
-        _write_playlist(playlist, [a, b])
-
-        assert resume_main_video(playlist, str(tmp_path / "headset scene.mp4")) is False
-
-        assert playlist.read_text(encoding="utf-8").splitlines() == [a, b]
-
-    def test_the_funscript_column_survives_the_rotation(self, tmp_path: Path):
-        """The Main Funestra drives the OSR2 off that column, so a crossing that
-        dropped it would carry the video over and leave it unscripted."""
-        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
-        playlist = tmp_path / "main_player_playlist.tsv"
-        _write_playlist(playlist, [f"{a}\ta.funscript", f"{b}\tb.funscript"])
-
-        assert resume_main_video(playlist, b) is True
-
-        assert playlist.read_text(encoding="utf-8").splitlines() == [
-            f"{b}\tb.funscript", f"{a}\ta.funscript",
-        ]
-
-    def test_case_alone_is_not_a_different_clip(self, tmp_path: Path):
-        """The playlist and the status file are written by different processes,
-        and Windows hands the same path back in either case."""
-        (tmp_path / "Scene One.mp4").write_bytes(b"")
-        playlist = tmp_path / "main_player_playlist.tsv"
-        _write_playlist(playlist, [str(tmp_path / "b.mp4"), str(tmp_path / "Scene One.mp4")])
-
-        assert resume_main_video(playlist, str(tmp_path / "scene one.mp4")) is True
-
-        assert playlist.read_text(encoding="utf-8").splitlines()[0] == str(
-            tmp_path / "Scene One.mp4"
-        )
-
-    def test_a_funestra_that_published_no_clip_leaves_the_rebuild_alone(self, tmp_path: Path):
-        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
-        playlist = tmp_path / "main_player_playlist.tsv"
-        _write_playlist(playlist, [a, b])
-
-        assert resume_main_video(playlist, "") is False
-
-        assert playlist.read_text(encoding="utf-8").splitlines() == [a, b]
-
-    def test_it_leaves_the_main_funestra_s_loop_answerable(self, tmp_path: Path):
-        """``resume_main_loop`` is queued only when the Funestra really did come
-        back onto the video the loop was cut from, which is what this decides."""
-        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
-        playlist = tmp_path / "main_player_playlist.tsv"
-        _write_playlist(playlist, [a, b])
-
-        assert resume_main_video(playlist, b) is True
-        assert playlist_opens_on(playlist, b) is True
 
 
 def test_a_room_comes_back_in_the_satellite_mode_it_was_left_in(tmp_path):

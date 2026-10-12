@@ -314,7 +314,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # any VR video is said by the check's name, and its paragraph went.
 # 6375 the same day: the Main player's list is built in one module, and the
 # notes on the three builders it replaced went with them.
-MAX_PROSE_LINES = 6375
+# 6350 the same day: no session reopens the Main player's list, and the notes on
+# the checks that once decided whether it could went with them.
+MAX_PROSE_LINES = 6350
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

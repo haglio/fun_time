@@ -76,7 +76,6 @@ from fun_time_vr.orchestrator import (
     _wait_for_the_room,
     build_vr_manifest,
     launch_vr_funestras,
-    main_playlist_has_vr,
     resume_genau_shapes,
     stock_the_playlists,
     validate_vr_config,
@@ -422,36 +421,6 @@ class TestWaitForSessionEnd:
         ) == "part"
 
 
-class TestResumedMainPlaylist:
-    """A desktop session's main playlist is 2D only; resuming it into a VR
-    session would give the headset nothing but flat screens, so the VR session
-    checks before honoring the resume."""
-
-    def test_a_desktop_playlist_reads_as_holding_no_vr(self, config, tmp_path):
-        playlist = tmp_path / "main_player_playlist.tsv"
-        playlist.write_text(
-            f"{tmp_path / 'library' / '2D' / 'scene one.mp4'}\n"
-            f"{tmp_path / 'library' / '2D' / 'scene two.mp4'}\n",
-            encoding="utf-8",
-        )
-
-        assert main_playlist_has_vr(playlist, config.vr.library_dirs) is False
-
-    def test_one_vr_entry_is_enough(self, config, tmp_path):
-        vr_dir = tmp_path / "library" / "VR" / "finished"
-        playlist = tmp_path / "main_player_playlist.tsv"
-        playlist.write_text(
-            f"{tmp_path / 'library' / '2D' / 'scene one.mp4'}\n"
-            f"{vr_dir / 'scene three.mp4'}\t{tmp_path / 'scene three.funscript'}\n",
-            encoding="utf-8",
-        )
-
-        assert main_playlist_has_vr(playlist, config.vr.library_dirs) is True
-
-    def test_a_missing_playlist_reads_as_holding_no_vr(self, config, tmp_path):
-        assert main_playlist_has_vr(tmp_path / "absent.tsv", config.vr.library_dirs) is False
-
-
 class TestTheModeASessionComesBackIn:
     """The desktop session shares this state dir, and the headset hosts both
     of the main slot's Funestras now -- so the mode it was closed in comes across
@@ -489,12 +458,19 @@ class TestTheModeASessionComesBackIn:
         assert [ast.unparse(arg) for arg in resume.args] == [
             "Path(commands.genau_cmd_file)", "genau_flick_shapes(carried, bridge_config)"]
 
-    def test_the_playlists_are_stocked_under_the_shapes_the_session_was_left_on(self):
+    def test_the_playlists_are_stocked_under_the_state_the_session_was_left_in(self):
         (stock,) = self._calls("run_vr_bridge", "stock_the_playlists")
         given = {kw.arg: ast.unparse(kw.value) for kw in stock.keywords}
 
-        assert (given["main_plays_vr"], given["main_plays_flat"]) == (
-            "carried.main_plays_vr", "carried.main_plays_flat")
+        assert (given["carried"], given["main_video"]) == (
+            "carried", "main_funestra_status.video")
+
+    def test_the_flags_are_seeded_after_the_main_list_has_said_what_it_opens_on(self):
+        """A list that would hold nothing puts its buttons back to their defaults,
+        and the Main Funestra is told F-mode from what the list was built under."""
+        source = inspect.getsource(orchestrator.run_vr_bridge)
+
+        assert source.index("stock_the_playlists(") < source.index("seed_startup_states(")
 
     def test_the_loop_the_main_funestra_was_running_is_queued_for_it(self):
         """A loop lives nowhere but in the Funestra holding it, so entering VR used
@@ -504,7 +480,7 @@ class TestTheModeASessionComesBackIn:
         assert [ast.unparse(arg) for arg in resume.args] == [
             "Path(commands.main_funestra_cmd_file)",
             "main_funestra_status",
-            "main_funestra_playlist",
+            "bridge_config.main_list.file",
         ]
 
     def test_it_is_queued_after_the_playlists_are_stocked(self):
@@ -616,195 +592,98 @@ class TestTheCheckRun:
 
 class TestStockingThePlaylists:
     """The three playlists a VR session opens on, built through the real
-    fun_time.modes builder — so a change to its signature is caught here rather
+    fun_time builders — so a change to their signature is caught here rather
     than by a launch that writes vr_launcher.ready and then dies (2026-09-03:
-    build_all_playlists grew SatelliteBuild arguments, the desktop caller moved
-    with it, this one did not, and FunTimeVR could not start at all)."""
+    the satellites' builder grew SatelliteBuild arguments, the desktop caller
+    moved with it, this one did not, and FunTimeVR could not start at all)."""
 
-    def _manifest(self, config, tmp_path):
-        return LaunchManifest.read(
-            write_manifest_data(build_vr_manifest(config), tmp_path / "launch.ini")
-        )
+    def _stock(self, config, tmp_path, *, resumed: bool, carried: BridgeState | None = None,
+               main_video: str = "") -> BridgeState:
+        manifest = LaunchManifest.read(
+            write_manifest_data(build_vr_manifest(config), tmp_path / "launch.ini"))
+        state = tmp_path / "state"
+        state.mkdir(exist_ok=True)
+        return stock_the_playlists(
+            manifest, state_dir=state, metadata_root=tmp_path / "metadata", resumed=resumed,
+            carried=carried or BridgeState(), main_video=main_video)
+
+    @staticmethod
+    def _main_list(tmp_path) -> list[str]:
+        return [line.split("\t")[0] for line in (
+            tmp_path / "state" / "main_player_playlist.tsv").read_text(encoding="utf-8").splitlines()]
+
+    @staticmethod
+    def _library(tmp_path) -> tuple[Path, Path]:
+        library = tmp_path / "library"
+        vr_clip, flat = library / "VR" / "finished" / "scene one.mp4", library / "2D" / "scene two.mp4"
+        for clip in (vr_clip, flat):
+            clip.write_bytes(b"")
+        return vr_clip, flat
 
     def test_a_fresh_session_gets_all_three(self, config, tmp_path):
-        library = tmp_path / "library"
-        (library / "VR" / "finished" / "scene one.mp4").write_bytes(b"")
-        (library / "2D" / "scene two.mp4").write_bytes(b"")
-        state = tmp_path / "state"
-        state.mkdir(exist_ok=True)
+        self._library(tmp_path)
 
-        stock_the_playlists(
-            self._manifest(config, tmp_path),
-            state_dir=state,
-            metadata_root=tmp_path / "metadata",
-            resumed=False,
-            main_scripted_filter=False,
-            main_recent=False,
-        )
+        self._stock(config, tmp_path, resumed=False)
 
-        written = sorted(p.name for p in state.glob("*playlist*.tsv"))
+        written = sorted(p.name for p in (tmp_path / "state").glob("*playlist*.tsv"))
         assert len(written) == 3, written
 
-    def test_a_desktop_playlist_is_rebuilt_around_the_clip_it_was_on(self, config, tmp_path):
-        """Crossing in from the desktop: its rotation holds no VR video, so the
-        primary is rebuilt from the merged sources — and rotated back onto the
-        clip that was on screen, which the headset can play because this
-        session's sources include the desktop's (docs/entering-vr.md)."""
-        library = tmp_path / "library"
-        (library / "VR" / "finished" / "scene one.mp4").write_bytes(b"")
-        flat_one = library / "2D" / "scene two.mp4"
-        flat_two = library / "2D" / "scene three.mp4"
-        for clip in (flat_one, flat_two):
-            clip.write_bytes(b"")
-        state = tmp_path / "state"
-        state.mkdir(exist_ok=True)
-        main_funestra_playlist = state / "main_player_playlist.tsv"
-        main_funestra_playlist.write_text(f"{flat_one}\n{flat_two}\n", encoding="utf-8")
-
-        stock_the_playlists(
-            self._manifest(config, tmp_path),
-            state_dir=state,
-            metadata_root=tmp_path / "metadata",
-            resumed=True,
-            main_scripted_filter=False,
-            main_recent=False,
-            main_video=str(flat_two),
-        )
-
-        entries = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
-        assert entries[0].split("\t")[0] == str(flat_two)
-        # …and the headset's own library is in the queue under it.
-        assert any("finished" in entry for entry in entries)
-
-    def test_a_rebuild_that_cannot_hold_the_clip_opens_on_its_own_first(
+    def test_the_main_list_comes_up_on_the_clip_it_was_on_and_the_headsets_library_under_it(
         self, config, tmp_path,
     ):
-        """A clip deleted since the last session leaves nothing to rotate onto,
-        and the session opens on the rebuild rather than on a dead path."""
-        library = tmp_path / "library"
-        (library / "VR" / "finished" / "scene one.mp4").write_bytes(b"")
-        flat = library / "2D" / "scene two.mp4"
-        flat.write_bytes(b"")
-        state = tmp_path / "state"
-        state.mkdir(exist_ok=True)
-        main_funestra_playlist = state / "main_player_playlist.tsv"
-        main_funestra_playlist.write_text(f"{flat}\n", encoding="utf-8")
+        """Crossing in from the desktop: the clip on screen comes first, which the
+        headset can play because this session's sources include the desktop's,
+        and the headset's own library is in the queue under it (docs/entering-vr.md)."""
+        vr_clip, flat = self._library(tmp_path)
+        (tmp_path / "state").mkdir()
+        (tmp_path / "state" / "main_player_playlist.tsv").write_text(f"{flat}\n", encoding="utf-8")
 
-        stock_the_playlists(
-            self._manifest(config, tmp_path),
-            state_dir=state,
-            metadata_root=tmp_path / "metadata",
-            resumed=True,
-            main_scripted_filter=False,
-            main_recent=False,
-            main_video=str(library / "2D" / "gone since.mp4"),
-        )
+        self._stock(config, tmp_path, resumed=True, main_video=str(flat))
 
-        entries = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
-        assert entries and "gone since" not in entries[0]
+        assert self._main_list(tmp_path) == [str(flat), str(vr_clip)]
 
-    def test_a_playlist_that_already_holds_vr_is_left_exactly_as_it_was(
+    def test_a_clip_gone_since_opens_the_main_list_at_its_top(self, config, tmp_path):
+        """Rather than on a dead path."""
+        self._library(tmp_path)
+
+        self._stock(config, tmp_path, resumed=True,
+                    main_video=str(tmp_path / "library" / "2D" / "gone since.mp4"))
+
+        assert "gone since" not in self._main_list(tmp_path)[0]
+
+    def test_vr_only_holds_no_2d_video_whatever_the_last_list_held(self, config, tmp_path):
+        """The bug this closes: a session reopened its last list whenever it held
+        a VR video at all, so "VR only" came back over a list that still held 2D
+        videos, and Next played them."""
+        vr_clip, flat = self._library(tmp_path)
+        (tmp_path / "state").mkdir()
+        (tmp_path / "state" / "main_player_playlist.tsv").write_text(
+            f"{flat}\n{vr_clip}\n", encoding="utf-8")
+
+        self._stock(config, tmp_path, resumed=True, main_video=str(flat),
+                    carried=BridgeState(main_plays_flat=False))
+
+        assert self._main_list(tmp_path) == [str(vr_clip)]
+
+    def test_2d_only_holds_every_2d_video_and_no_vr_one(self, config, tmp_path):
+        vr_clip, flat = self._library(tmp_path)
+        arrived = tmp_path / "library" / "2D" / "scene three.mp4"
+        arrived.write_bytes(b"")
+
+        self._stock(config, tmp_path, resumed=True, main_video=str(flat),
+                    carried=BridgeState(main_plays_vr=False))
+
+        assert sorted(self._main_list(tmp_path)) == sorted([str(flat), str(arrived)])
+
+    def test_a_session_left_playing_neither_shape_reopens_on_the_video_it_was_left_on(
         self, config, tmp_path,
     ):
-        """A VR session reopening its own files resumes them whole; only the
-        crossing rebuilds."""
-        library = tmp_path / "library"
-        vr_clip = library / "VR" / "finished" / "scene one.mp4"
-        vr_clip.write_bytes(b"")
-        state = tmp_path / "state"
-        state.mkdir(exist_ok=True)
-        main_funestra_playlist = state / "main_player_playlist.tsv"
-        main_funestra_playlist.write_text(f"{vr_clip}\n", encoding="utf-8")
+        vr_clip, _flat = self._library(tmp_path)
 
-        stock_the_playlists(
-            self._manifest(config, tmp_path),
-            state_dir=state,
-            metadata_root=tmp_path / "metadata",
-            resumed=True,
-            main_scripted_filter=False,
-            main_recent=False,
-            main_video=str(vr_clip),
-        )
+        self._stock(config, tmp_path, resumed=True, main_video=str(vr_clip),
+                    carried=BridgeState(main_plays_vr=False, main_plays_flat=False))
 
-        assert main_funestra_playlist.read_text(encoding="utf-8") == f"{vr_clip}\n"
-
-    def test_a_crossing_rebuilds_under_the_shape_it_was_left_on(self, config, tmp_path):
-        """The console carries "VR only" across; the rebuilt list has to hold it."""
-        library = tmp_path / "library"
-        vr_clip = library / "VR" / "finished" / "scene one.mp4"
-        flat = library / "2D" / "scene two.mp4"
-        for clip in (vr_clip, flat):
-            clip.write_bytes(b"")
-        state = tmp_path / "state"
-        state.mkdir(exist_ok=True)
-        main_funestra_playlist = state / "main_player_playlist.tsv"
-        main_funestra_playlist.write_text(f"{flat}\n", encoding="utf-8")
-
-        stock_the_playlists(
-            self._manifest(config, tmp_path),
-            state_dir=state,
-            metadata_root=tmp_path / "metadata",
-            resumed=True,
-            main_scripted_filter=False,
-            main_recent=False,
-            main_plays_flat=False,
-            main_video=str(flat),
-        )
-
-        entries = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
-        assert [entry.split("\t")[0] for entry in entries] == [str(vr_clip)]
-
-    def test_a_session_left_on_flat_only_reopens_on_its_own_list(self, config, tmp_path):
-        """Holding no VR video is what "2D only" asked for, not a desktop's list."""
-        library = tmp_path / "library"
-        (library / "VR" / "finished" / "scene one.mp4").write_bytes(b"")
-        flat = library / "2D" / "scene two.mp4"
-        flat.write_bytes(b"")
-        (library / "2D" / "scene three.mp4").write_bytes(b"")  # a rebuild would add it
-        state = tmp_path / "state"
-        state.mkdir(exist_ok=True)
-        main_funestra_playlist = state / "main_player_playlist.tsv"
-        main_funestra_playlist.write_text(f"{flat}\n", encoding="utf-8")
-
-        stock_the_playlists(
-            self._manifest(config, tmp_path),
-            state_dir=state,
-            metadata_root=tmp_path / "metadata",
-            resumed=True,
-            main_scripted_filter=False,
-            main_recent=False,
-            main_plays_vr=False,
-            main_video=str(flat),
-        )
-
-        assert main_funestra_playlist.read_text(encoding="utf-8") == f"{flat}\n"
-
-    def test_a_session_left_playing_neither_shape_reopens_on_its_own_list(
-        self, config, tmp_path,
-    ):
-        library = tmp_path / "library"
-        vr_clip = library / "VR" / "finished" / "scene one.mp4"
-        flat = library / "2D" / "scene two.mp4"
-        for clip in (vr_clip, flat):
-            clip.write_bytes(b"")
-        state = tmp_path / "state"
-        state.mkdir(exist_ok=True)
-        main_funestra_playlist = state / "main_player_playlist.tsv"
-        main_funestra_playlist.write_text(f"{vr_clip}\n{flat}\n", encoding="utf-8")
-
-        stock_the_playlists(
-            self._manifest(config, tmp_path),
-            state_dir=state,
-            metadata_root=tmp_path / "metadata",
-            resumed=True,
-            main_scripted_filter=False,
-            main_recent=False,
-            main_plays_vr=False,
-            main_plays_flat=False,
-            main_video=str(vr_clip),
-        )
-
-        assert main_funestra_playlist.read_text(encoding="utf-8") == f"{vr_clip}\n{flat}\n"
+        assert self._main_list(tmp_path) == [str(vr_clip)]
 
 
 class TestResumeGenausShapes:
@@ -1648,7 +1527,7 @@ def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
         write_broker_command=MagicMock(),
         ensure_broker=MagicMock(),
         reap_orphaned_satellites=MagicMock(),
-        stock_the_playlists=MagicMock(),
+        stock_the_playlists=MagicMock(side_effect=lambda _manifest, **asked: asked["carried"]),
         launch_audio_companion=MagicMock(return_value=MagicMock(pid=101)),
         launch_vr_funestras=MagicMock(return_value=MagicMock(pid=202)),
         get_process_creation_time=MagicMock(return_value=7),

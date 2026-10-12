@@ -2,6 +2,7 @@
 that shaped its playlists: ``docs/resuming-a-session.md``."""
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from dataclasses import fields, replace
 from pathlib import Path
@@ -19,9 +20,9 @@ from main_funestra.loop_verbs import SET_LOOP
 
 from .funestra_handover import take_back_the_list
 from .funestra_status import MainFunestraStatus, read_genau_status
-from .main_list import new_shuffle_seed
+from .main_list import MainList, MainListSettings, new_shuffle_seed
 from .media_metadata import normalize_path_key
-from .modes import rotated_onto, source_roots
+from .modes import rotated_onto
 from .room_funestras import RoomFunestra
 from .shared_state import (
     BridgeState,
@@ -30,6 +31,8 @@ from .shared_state import (
     read_shared_state,
     write_shared_state,
 )
+
+logger = logging.getLogger(__name__)
 
 PlaylistEntries = list[PlaylistItem]
 
@@ -66,40 +69,10 @@ def _resumed_satellite(satellite: SatelliteState) -> SatelliteState:
     return SatelliteState(**{name: getattr(satellite, name) for name in RESUMED_SATELLITE_FIELDS})
 
 
-def playlist_fits_sources(playlist_file: Path, sources: str) -> bool:
-    """Whether every video in *playlist_file* comes from *sources*.
-
-    A playlist is only ever built from the source spec of the session that built
-    it, so an entry from outside this one's means the file was left by the OTHER
-    app sharing this state dir.
-    """
-    roots = source_roots(sources)
-    return all(
-        any(_is_within(item.path, root) for root in roots)
-        for item in read_playlist(playlist_file)
-    )
-
-
-def _is_within(video: Path, root: Path) -> bool:
-    """Whether *video* is *root* itself or sits somewhere beneath it.
-
-    Compared component by component, on the app's normalized path key: case and
-    separator differ between a library dir and a playlist naming a file in it,
-    and a component match also keeps ``.../VR_old`` out of ``.../VR``.
-    """
-    root_parts = [normalize_path_key(part) for part in root.parts]
-    video_parts = [normalize_path_key(part) for part in video.parts]
-    return video_parts[: len(root_parts)] == root_parts
-
-
 def playlist_opens_on(playlist_file: Path, video: str) -> bool:
     """Whether the Funestra handed *playlist_file* will load *video*, every Funestra
     starting at the top.  Asked before the Main Funestra's loop is handed back."""
-    return playlist_leads_with(read_playlist(playlist_file), video)
-
-
-def playlist_leads_with(entries: PlaylistEntries, video: str) -> bool:
-    """:func:`playlist_opens_on` asked of a playlist in hand, not one on disk."""
+    entries = read_playlist(playlist_file)
     return bool(entries) and normalize_path_key(str(entries[0].path)) == normalize_path_key(video)
 
 
@@ -128,15 +101,17 @@ def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
     return True
 
 
-def resume_main_video(playlist_file: Path, video: str) -> bool:
-    """Rotate a just-REBUILT main playlist onto *video*; False when it is not in
-    it, which is the other half of the cross-app rebuild (docs/entering-vr.md)."""
-    entries = read_playlist(playlist_file)
-    rotated = rotated_onto(entries, video)
-    if not playlist_leads_with(rotated, video):
-        return False
-    write_playlist(playlist_file, rotated)
-    return True
+def open_the_main_list(main_list: MainList, carried: BridgeState, *, state_file: Path,
+                       on_screen: str) -> BridgeState:
+    videos = main_list.write(MainListSettings.of(carried), start_from=on_screen)
+    if not videos:
+        carried = MainListSettings(shuffle_seed=carried.main_shuffle_seed).into(carried)
+        write_shared_state(state_file, carried)
+        videos = main_list.write(MainListSettings.of(carried), start_from=on_screen)
+    logger.info("The Main Funestra opens on the video it was left on"
+                if videos[:1] and normalize_path_key(videos[0]) == normalize_path_key(on_screen)
+                else "The Main Funestra opens at the top of its list")
+    return carried
 
 
 def resume_satellite_locks(locks: Sequence[tuple[Path, bool]]) -> None:
