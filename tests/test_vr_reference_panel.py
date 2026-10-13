@@ -70,8 +70,9 @@ class TestItIsTheSameReference:
         by_title = {section.title: section for section in build_reference_sections()}
 
         assert header_lines(by_title["Funestras"]) == 2
-        assert header_lines(by_title["Satellite Funestras"]) == 2
+        assert header_lines(by_title["Nav Map"]) == 2
         assert header_lines(by_title["Dashboard"]) == 1
+        assert header_lines(by_title["Satellite Funestras"]) == 1  # its one row holds no key
 
     def test_a_page_without_a_key_paints_the_voice_column_where_the_key_column_was(self):
         by_title = {section.title: section for section in build_reference_sections()}

@@ -148,6 +148,10 @@ _FUNESTRAS_NOTE = (
     "“landscape”, “main”, or “satellites”, before it or after, to aim it: "
     f"“portrait next”, “next main”.  In Genau mode say “{_FLICK.one}” in place of “video”."
 )
+_ORIGENERATOR_NOTE = (
+    "Say the side first, every time: “portrait experiments”, “landscape fix hands”.  "
+    "Alone, after the phrase, or said of “satellites”, a side is not heard here."
+)
 _FUNESTRA_KEY_HEADERS = ("Portrait", "Landscape", "Main")
 
 
@@ -228,6 +232,15 @@ _SECTIONS: tuple[_Section, ...] = (
                     (),
                     ("tilt_up", "tilt_down", "tilt_reset"),
                 ),
+                _Row(
+                    "cycle the video's VR projection — flat screen, equirectangular, "
+                    "fisheye, stereographic, equisolid, rectilinear, 360, remembered per "
+                    "video; a controller's stick pushed right or left steps forward or "
+                    "back through them, and while the picture wraps the view its up and "
+                    "down shortens or stretches the picture",
+                    (),
+                    ("projection_cycle", "projection_cycle_back"),
+                ),
             )),
         ),
     ),
@@ -300,16 +313,20 @@ _SECTIONS: tuple[_Section, ...] = (
                 ),
             )),
             _Group("Navigation", (
-                _Row("previous", commands=_every_funestra("prev"),
+                _Row("previous", commands=_every_funestra("prev") + ("genau_prev_flick",),
                      columns=(("Left",), ("A",), ("M",))),
-                _Row("next", commands=_every_funestra("next"),
+                _Row("nudge back 10 seconds", commands=_every_funestra("nudge_prev"),
+                     columns=((), (), ("-",))),
+                _Row("nudge forward 10 seconds", commands=_every_funestra("nudge_next"),
+                     columns=((), (), ("+",))),
+                _Row("next", commands=_every_funestra("next") + ("genau_next_flick",),
                      columns=(("Right",), ("D",), (".",))),
                 _Row(
-                    "weird — a satellite unfavorites the clip, or marks it weird when "
-                    "it is not a favorite; in Origenerator mode it deletes the picture "
-                    "and moves on",
-                    commands=_sided("trash"),
-                    columns=(("Up",), ("W",), ()),
+                    "weird — in Kino mode it marks the clip weird and moves on, or "
+                    "unfavorites it instead when it is a favorite; in Origenerator mode "
+                    "it deletes the picture and moves on",
+                    commands=_sided("trash") + ("genau_weird_flick",),
+                    columns=(("Up",), ("W",), ("K",)),
                 ),
                 _Row(
                     "lock / unlock — locked, what is on screen repeats; unlocked it "
@@ -318,6 +335,16 @@ _SECTIONS: tuple[_Section, ...] = (
                     commands=("portrait_lock", "landscape_lock", "main_lock")
                     + _every_funestra("lock_on") + _every_funestra("lock_off"),
                     columns=(("Down",), ("S",), (",",)),
+                ),
+                _Row(
+                    "cycle enhancement level — the upscale, the original it was made "
+                    "from, or an enhancement",
+                    commands=("portrait_cycle_version_back", "portrait_cycle_version",
+                              "landscape_cycle_version_back", "landscape_cycle_version",
+                              "satellites_cycle_version",
+                              "main_player_cycle_version_back", "main_player_cycle_version"),
+                    columns=(("Shift+Left", "Shift+Right"), ("Shift+A", "Shift+D"),
+                             ("Shift+M", "Shift+.")),
                 ),
             )),
             _Group("Playlist", (
@@ -425,8 +452,6 @@ _SECTIONS: tuple[_Section, ...] = (
                     ("main_player_record_down", "main_player_record_up", "main_player_record_tap", "main_player_loop_cancel"),
                 ),
                 _Row("save clip", (";",), ("genaumacher_save",)),
-                _Row("nudge back 10 seconds", ("-",), ("main_nudge_prev",), voice_display=("main back",)),
-                _Row("nudge forward 10 seconds", ("+",), ("main_nudge_next",), voice_display=("main skip",)),
                 _Row(
                     "clip navigation — \"compilation\" plays the clip's compilation "
                     "in order and \"end compilation\" leaves it for the length mode "
@@ -437,40 +462,25 @@ _SECTIONS: tuple[_Section, ...] = (
                      "main_player_clip_jump"),
                 ),
                 _Row(
-                    "funscript navigation — \"jump to funscript\" skips ahead to "
-                    "where this video's scripting starts up again; \"next "
-                    "funscripted\" leaves for the next scripted video in the "
-                    "playlist, landing where its action begins",
+                    "jump to funscript — skips ahead to where this video's scripting "
+                    "starts up again",
                     (),
-                    ("main_player_funscript_jump", "main_player_next_funscripted"),
+                    ("main_player_funscript_jump",),
                 ),
                 _Row(
-                    "step through the other versions of this video — the same "
-                    "content at another size or from another encode",
-                    ("Shift+M", "Shift+."),
-                    ("main_player_cycle_version_back", "main_player_cycle_version"),
-                ),
-                _Row(
-                    "cycle the video's VR projection — flat screen, equirectangular, "
-                    "fisheye, stereographic, equisolid, rectilinear, 360, remembered per "
-                    "video; a controller's stick pushed right or left steps forward or "
-                    "back through them, and while the picture wraps the view its up and "
-                    "down shortens or stretches the picture",
+                    "next funscripted — the next scripted video in the playlist, landing "
+                    "where its action begins",
                     (),
-                    ("projection_cycle", "projection_cycle_back"),
+                    ("main_player_next_funscripted",),
                 ),
             )),
             _Group("Genau", (
-                _Row(f"previous Genau {_FLICK.one}", (), ("genau_prev_flick",)),
-                _Row(f"next Genau {_FLICK.one}", (), ("genau_next_flick",)),
                 _Row(
                     f"flip the Genau {_FLICK.one} half a loop — for a picture running "
                     "opposite the OSR2; it stays flipped, and saying it again puts it back",
                     (),
                     ("genau_flip_ends",),
                 ),
-                _Row(f"mark the Genau {_FLICK.one} weird — skip it, and out of rotation", ("K",),
-                     ("genau_weird_flick",)),
                 _Row(
                     f"seconds a {_FLICK.one} holds the screen before Genau moves on — only "
                     "while it is unlocked (the , key holds it)",
@@ -490,34 +500,6 @@ _SECTIONS: tuple[_Section, ...] = (
                     "Origenerator mode a slideshow of its favorites collection",
                     commands=_said_to_a_slideshow(FAVORITES_PHRASE),
                     voice_display=_SIDES_FAVORITES,
-                ),
-                _Row("skip / back 10 seconds — within the clip",
-                     commands=_sided("nudge_next", "nudge_prev")),
-                _Row(
-                    "step through the other versions of this clip — in Kino mode the "
-                    "upscale the library plays and the original it was made from; in "
-                    "Origenerator mode an enhancement, the picture it was made from, or "
-                    "the upscale Evolver made of a video",
-                    commands=("portrait_cycle_version_back", "portrait_cycle_version",
-                              "landscape_cycle_version_back", "landscape_cycle_version",
-                              "satellites_cycle_version"),
-                    columns=(("Shift+Left", "Shift+Right"), ("Shift+A", "Shift+D")),
-                ),
-            )),
-            _Group("Filter", (
-                _Row(
-                    "filter by act — say the act on its own",
-                    commands=set_commands_for_scope("satellites")
-                    + set_commands_for_scope("portrait")
-                    + set_commands_for_scope("landscape"),
-                    voice_display=display_forms(),
-                ),
-                _Row("filter to the act on screen", commands=_sided("lock_action")),
-                _Row(
-                    "drop the filter — keep the order and everything else; in "
-                    "Origenerator mode every narrowing at once: the favorites, the "
-                    "enhanced ones and the act filter",
-                    commands=_sided("no_filter"),
                 ),
             )),
         ),
@@ -545,6 +527,11 @@ _SECTIONS: tuple[_Section, ...] = (
                               "landscape_nav_up", "landscape_nav_down"),
                     columns=(("Shift+Up", "Shift+Down"), ("Shift+W", "Shift+S")),
                 ),
+                _Row(
+                    "cycle loop mode — seeds, then actions, then off",
+                    commands=("portrait_loop", "landscape_loop"),
+                    columns=(("Home",), ("E",)),
+                ),
             )),
             _Group("Loops", (
                 _Row("more seeds — widen the seed row past exact matches, and loop it",
@@ -553,12 +540,23 @@ _SECTIONS: tuple[_Section, ...] = (
                      commands=_sided("action_loop")),
                 _Row("loop the seeds — repeat the map's row around this one",
                      commands=_sided("seed_loop")),
-                _Row(
-                    "step the loop on — seeds, then actions, then off",
-                    commands=("portrait_loop", "landscape_loop"),
-                    columns=(("Home",), ("E",)),
-                ),
                 _Row("stop looping — back to browsing, keeping the filter", commands=_sided("no_loop")),
+            )),
+            _Group("Filter", (
+                _Row(
+                    "filter by act — say the act on its own",
+                    commands=set_commands_for_scope("satellites")
+                    + set_commands_for_scope("portrait")
+                    + set_commands_for_scope("landscape"),
+                    voice_display=display_forms(),
+                ),
+                _Row("filter to the act on screen", commands=_sided("lock_action")),
+                _Row(
+                    "drop the filter — keep the order and everything else; in "
+                    "Origenerator mode every narrowing at once: the favorites, the "
+                    "enhanced ones and the act filter",
+                    commands=_sided("no_filter"),
+                ),
             )),
         ),
     ),
@@ -567,35 +565,30 @@ _SECTIONS: tuple[_Section, ...] = (
         (
             _Group("", (
                 _Row(
-                    "play the favorites, experiments or requests — a slideshow of that "
-                    "collection",
-                    commands=_said_to_a_slideshow(FAVORITES_PHRASE, "experiments", "requests"),
-                    voice_display=("portrait favorites", "landscape experiments", "portrait requests"),
+                    "play the experiments or requests — a slideshow of that collection",
+                    commands=_said_to_a_slideshow("experiments", "requests"),
                 ),
                 _Row(
                     "play, pause or stop the slideshow",
                     commands=_said_to_a_slideshow("play slideshow", "start slideshow", "pause slideshow",
                                                   "stop slideshow"),
-                    voice_display=("landscape play slideshow", "portrait pause slideshow",
-                                   "portrait stop slideshow"),
                 ),
                 _Row(
                     "fix the picture on screen — its face, hands, teeth or eyes",
                     commands=_said_to_a_slideshow("fix face", "fix hands", "fix teeth", "fix eyes"),
-                    voice_display=("portrait fix teeth", "landscape fix hands"),
                 ),
                 _Row(
                     f"animate the picture as a Genau {_FLICK.one}",
                     commands=_said_to_a_slideshow(*GENAU_SAID),
-                    voice_display=("portrait genau",),
                 ),
                 _Row(
                     "show only the enhanced pictures",
                     commands=_said_to_a_slideshow("enhanced only", "filter enhanced"),
-                    voice_display=("landscape enhanced only", "portrait filter enhanced"),
                 ),
             )),
         ),
+        note=_ORIGENERATOR_NOTE,
+        merge_scopes=True,
     ),
     _Section(
         "Other",

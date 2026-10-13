@@ -259,7 +259,7 @@ def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
     action alone and the section's note explains how to aim it."""
     section = _funestras_section()
     nxt = next(r for r in section.rows if "portrait_next" in r.commands)
-    assert nxt.voice == ("next", "next video")
+    assert nxt.voice[:2] == ("next", "next video")
     assert nxt.key_columns == (("Right",), ("D",), (".",))
     lock = next(r for r in section.rows if "portrait_lock_on" in r.commands)
     flick = genau_flick_noun().one
@@ -379,9 +379,57 @@ def test_the_main_funestra_shares_the_navigation_rows_under_its_own_key_column()
     rows = _funestras_section().rows
     prev = next(r for r in rows if "main_prev" in r.commands)
     nxt = next(r for r in rows if "main_next" in r.commands)
-    assert (prev.voice, nxt.voice) == (("previous", "previous video"), ("next", "next video"))
+    flick = genau_flick_noun().one
+    assert prev.voice == ("previous", "previous video", "genau previous", f"previous {flick}",
+                          "previous genau")
+    assert nxt.voice == ("next", "next video", "genau next", f"next {flick}", "next genau")
     assert (prev.key_columns[2], nxt.key_columns[2]) == (("M",), (".",))
     assert "“next main”" in _funestras_section().note
+
+
+def test_the_navigation_rows_are_the_huds_transport_row_then_weird_lock_and_the_versions():
+    """Previous, back and forward 10 seconds, next, in the order every HUD's
+    transport row has them; the Main Funestra's - and + sit in its column and
+    say "back" and "skip" like the satellites' own; then weird, lock / unlock
+    and the one row that steps every Funestra through a clip's versions."""
+    navigation = _group("Funestras", "Navigation")
+    back, forward = navigation.rows[1], navigation.rows[2]
+
+    assert [row.description for row in navigation.rows] == [
+        "previous", "nudge back 10 seconds", "nudge forward 10 seconds", "next", "weird",
+        "lock / unlock", "cycle enhancement level"]
+    assert (back.voice, forward.voice) == (("back",), ("skip",))
+    assert (back.key_columns, forward.key_columns) == (((), (), ("-",)), ((), (), ("+",)))
+    assert {"portrait_nudge_prev", "satellites_nudge_prev", "active_nudge_prev", "main_nudge_prev"
+            } <= set(back.commands)
+    assert not [row for row in _all_rows() if row.description.startswith("skip / back")]
+    assert not [row for row in _section("Main Funestra").rows if "nudge" in row.description]
+
+
+def test_genaus_flick_steps_and_weird_ride_the_shared_rows_and_k_sits_under_main():
+    weird = _the_row_of("genau_weird_flick")
+    flick = genau_flick_noun().one
+
+    assert weird.description == "weird"
+    assert weird.key_columns == (("Up",), ("W",), ("K",))
+    assert weird.voice == ("weird", "weird video", f"weird {flick}")
+    assert weird.detail == (
+        "in Kino mode it marks the clip weird and moves on, or unfavorites it instead "
+        "when it is a favorite; in Origenerator mode it deletes the picture and moves on")
+    assert _the_row_of("genau_prev_flick").description == "previous"
+    assert _the_row_of("genau_next_flick").description == "next"
+
+
+def test_one_row_steps_every_funestra_through_the_enhancement_levels():
+    versions = _the_row_of("satellites_cycle_version")
+
+    assert versions == _the_row_of("main_player_cycle_version_back")
+    assert versions.description == "cycle enhancement level"
+    assert versions.detail == "the upscale, the original it was made from, or an enhancement"
+    assert versions.voice == ("version", "change version", "cycle version", "next version")
+    assert versions.key_columns == (("Shift+Left", "Shift+Right"), ("Shift+A", "Shift+D"),
+                                    ("Shift+M", "Shift+."))
+    assert not [row for row in _all_rows() if row.description.startswith("step through")]
 
 
 def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
@@ -521,8 +569,9 @@ def test_the_reference_names_genaus_flicks_in_the_overlays_word():
     genau = _group("Main Funestra", "Genau")
     seconds = next(row for row in genau.rows if "genau_flick_seconds_up" in row.commands)
 
-    assert [row.description for row in genau.rows[:2]] == [
-        f"previous Genau {flick.one}", f"next Genau {flick.one}"]
+    assert [row.description for row in genau.rows] == [
+        f"flip the Genau {flick.one} half a loop",
+        f"seconds a {flick.one} holds the screen before Genau moves on"]
     assert seconds.voice == (f"{flick.one} seconds 1–60",)
     assert [row.description for row in genau.rows if re.search(r"\bclips?\b", row.description)] == []
     assert [row.description for row in _all_rows()
@@ -607,36 +656,42 @@ def test_the_genau_groups_rows_take_the_overlays_word(monkeypatch):
         main = next(section for section in importlib.reload(command_reference).build_reference_sections()
                     if section.title == "Main Funestra")
         genau = main.groups[-1]
-        assert (genau.title, genau.rows[0].description) == ("Genau", "previous Genau bloop")
+        assert (genau.title, genau.rows[0].description) == ("Genau", "flip the Genau bloop half a loop")
     finally:
         monkeypatch.undo()
         importlib.reload(command_reference)
 
 
 
-def test_genaus_flick_commands_are_the_genau_group_and_nothing_else_is():
+def test_genaus_flick_commands_are_the_genau_group_or_ride_a_shared_navigation_row():
     """The dispatch ignores a flick command in Kino mode, so the rows it owns
-    are the Genau group's, and nothing that holds in both modes or in Kino
-    mode is there."""
+    are the Genau group's -- except the steps and the weird, which ride the
+    shared previous, next and weird rows, where the Main Funestra's own keys
+    reach whatever is on it."""
     genau = _group("Main Funestra", "Genau")
     in_genau = {cmd for row in genau.rows for cmd in row.commands}
-    elsewhere = {cmd for row in _all_rows() if row not in genau.rows for cmd in row.commands}
+    elsewhere = {cmd for row in _all_rows() if row not in genau.rows for cmd in row.commands
+                 if _about_genaus_flick(cmd)}
 
     assert in_genau and all(_about_genaus_flick(cmd) for cmd in in_genau)
-    assert not [cmd for cmd in elsewhere if _about_genaus_flick(cmd)]
+    assert elsewhere == {"genau_prev_flick", "genau_next_flick", "genau_weird_flick"}
+    assert all(_the_row_of(cmd) in _group("Funestras", "Navigation").rows for cmd in elsewhere)
 
 
 def test_what_only_kino_answers_is_the_kino_group_and_nothing_else_is():
     """The dispatch ignores these in Genau mode -- the video's own lock, loop,
-    versions, length and jumps, and the clip save -- so their rows are the
-    Kino group's alone."""
-    kino_only = set(_MAIN_FUNESTRA_CMD_MAP) | {"genaumacher_save"}
+    jumps and the clip save -- so their rows are the Kino group's alone.  The
+    versions are the one exception: every Funestra steps through a clip's
+    versions, so the Main Funestra's pair rides that shared row."""
+    versions = {"main_player_cycle_version", "main_player_cycle_version_back"}
+    kino_only = (set(_MAIN_FUNESTRA_CMD_MAP) - versions) | {"genaumacher_save"}
     kino = _group("Main Funestra", "Kino")
     in_kino = {cmd for row in kino.rows for cmd in row.commands}
     elsewhere = {cmd for row in _all_rows() if row not in kino.rows for cmd in row.commands}
 
     assert kino_only <= in_kino
     assert not kino_only & elsewhere
+    assert versions <= set(_the_row_of("satellites_cycle_version").commands)
 
 
 def test_a_satellites_command_has_one_row_whichever_mode_the_side_is_in():
@@ -646,8 +701,7 @@ def test_a_satellites_command_has_one_row_whichever_mode_the_side_is_in():
     for cmd in ("landscape_trash", "portrait_nav_up", "landscape_loop", "satellites_cycle_version"):
         assert _keys(_the_row_of(cmd)), cmd
     assert "in Origenerator mode" in _the_row_of("portrait_trash").detail
-    versions = _the_row_of("satellites_cycle_version")
-    assert "in Kino mode" in versions.detail and "in Origenerator mode" in versions.detail
+    assert "enhancement" in _the_row_of("satellites_cycle_version").detail
 
 
 def test_the_main_funestras_step_and_hold_keys_reach_whatever_is_on_it():
@@ -681,9 +735,7 @@ def test_the_shifted_and_ctrl_pairs_followed_m_and_the_period():
     assert _ahk_bindings_for("main_hud_counterclockwise") == ["^m"]
     assert _ahk_bindings_for("main_hud_clockwise") == ["^SC034"]
     assert not re.search(r"^[+^]?(\[|\]|SC01A|SC01B)::", script_text(), re.MULTILINE)
-    versions = next(r for r in _section("Main Funestra").rows
-                    if "main_player_cycle_version_back" in r.commands)
-    assert _keys(versions) == ("Shift+M", "Shift+.")
+    assert _the_row_of("main_player_cycle_version_back").key_columns[2] == ("Shift+M", "Shift+.")
     hud = next(r for r in _funestras_section().rows if "main_hud_clockwise" in r.commands)
     assert hud.key_columns == (("Ctrl+Left", "Ctrl+Right", "Ctrl+Up", "Ctrl+Down"),
                                ("Ctrl+A", "Ctrl+D", "Ctrl+W", "Ctrl+S"),
@@ -864,12 +916,51 @@ def test_the_origenerator_section_speaks_origenerators_own_words():
 
     assert [group.title for group in origenerator.groups] == [""]
     assert [row.description for row in origenerator.rows] == [
-        "play the favorites, experiments or requests", "play, pause or stop the slideshow",
+        "play the experiments or requests", "play, pause or stop the slideshow",
         "fix the picture on screen", f"animate the picture as a Genau {genau_flick_noun().one}",
         "show only the enhanced pictures",
     ]
     assert not [row for row in _all_rows()
                 if "show" in row.description.split() and row not in origenerator.rows]
+
+
+def test_the_origenerator_column_folds_the_side_word_and_its_note_says_the_side_comes_first():
+    """Origenerator's phrases are heard with the side in front and nowhere
+    else -- no bare phrase, no "satellites", no side after -- so the column
+    shows the phrase alone and the note on the title says how to say it."""
+    origenerator = _section("Origenerator")
+    flick = genau_flick_noun().one
+
+    assert [row.voice for row in origenerator.rows] == [
+        ("experiments", "requests"),
+        ("play slideshow", "start slideshow", "pause slideshow", "stop slideshow"),
+        ("fix face", "fix hands", "fix teeth", "fix eyes"),
+        ("genau",),
+        ("enhanced only", "filter enhanced"),
+    ]
+    assert origenerator.note == (
+        "Say the side first, every time: “portrait experiments”, “landscape fix hands”.  "
+        "Alone, after the phrase, or said of “satellites”, a side is not heard here."
+    )
+    assert VOICE_COMMANDS["portrait fix hands"] == "portrait_say_fix_hands"
+    for not_a_phrase in ("fix hands", "fix hands portrait", "satellites fix hands", f"main {flick}"):
+        assert not_a_phrase not in VOICE_COMMANDS, not_a_phrase
+
+
+def test_the_nav_map_keeps_its_loop_cycle_beside_navigating_and_takes_the_filters():
+    nav_map = _section("Nav Map")
+    cycle = _the_row_of("portrait_loop")
+
+    assert [group.title for group in nav_map.groups] == ["", "Loops", "Filter"]
+    assert [row.description for row in nav_map.groups[0].rows] == [
+        "cycle action", "cycle seed", "wrong action", "navigate the map", "cycle loop mode"]
+    assert cycle.detail == "seeds, then actions, then off"
+    assert [row.description for row in nav_map.groups[1].rows] == [
+        "more seeds", "loop the actions", "loop the seeds", "stop looping"]
+    assert [row.description for row in nav_map.groups[2].rows] == [
+        "filter by act", "filter to the act on screen", "drop the filter"]
+    assert [(group.title, [row.description for row in group.rows])
+            for group in _satellite_section().groups] == [("", ["favorites"])]
 
 
 def test_the_main_funestras_mode_groups_follow_its_consoles_mode_buttons():
@@ -1084,10 +1175,11 @@ def test_funscript_row_shows_the_joined_word_the_recognizer_cannot_hear():
     assert VOICE_COMMANDS["jump to fun script"] == "main_player_funscript_jump"
     assert "jump to funscript" not in VOICE_COMMANDS  # display-only
 
-    rows = [r for r in _all_rows() if "main_player_funscript_jump" in r.commands]
-    assert len(rows) == 1, "expected exactly one funscript navigation row"
-    assert rows[0].voice == ("jump to funscript", "next funscripted")
-    assert _keys(rows[0]) == ()
+    jump, next_scripted = _the_row_of("main_player_funscript_jump"), _the_row_of("main_player_next_funscripted")
+    assert (jump.description, jump.voice) == ("jump to funscript", ("jump to funscript",))
+    assert (next_scripted.description, next_scripted.voice) == ("next funscripted", ("next funscripted",))
+    assert jump.detail and next_scripted.detail
+    assert _keys(jump) == _keys(next_scripted) == ()
     for row in _all_rows():
         for phrase in row.voice:
             assert "fun script" not in phrase, phrase
@@ -1137,7 +1229,7 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
     section: one row sets a filter by act, one drops it.  Neither spells out
     "portrait"/"landscape" any more — the section's note aims them, the same way
     it aims "next"."""
-    rows = _satellite_section().rows
+    rows = _group("Nav Map", "Filter").rows
     set_row = next(r for r in rows if r.description.startswith("filter by act"))
     # The acts read under their real names, not the sound-alikes the grammar is
     # built from: an act whose word the speech model has no token for is *heard*
