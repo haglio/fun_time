@@ -51,8 +51,10 @@ from .integration_support import (
     await_window,
     build_integration_config,
     build_integration_temp_root,
+    ended_within,
+    joined_within,
+    seen_within,
 )
-from .run_clock import Budget
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -96,7 +98,7 @@ def test_nothing_stays_over_the_cover_long_enough_to_be_seen():
             "FUN_TIME_INTEGRATION_OVERLAYS": "1",
             "FUN_TIME_DISABLE_DASHBOARD": "0",
         })
-        watcher.join(timeout=60.0)
+        joined_within(watcher, 60.0)
 
         assert watcher.cover_was_up, "the cover never appeared"
         assert len(watcher.samples) > 100, (
@@ -125,12 +127,12 @@ class _Windows(threading.Thread):
 
     def __enter__(self) -> dict[str, int]:
         self.start()
-        assert self._up.wait(5.0), "the stand-in windows never came up"
+        assert seen_within(self._up.is_set, seconds=5.0), "the stand-in windows never came up"
         return self.hwnds
 
     def __exit__(self, *_exc) -> None:
         _user32.PostThreadMessageW(self._thread_id, WM_QUIT, 0, 0)
-        self.join(timeout=5.0)
+        joined_within(self, 5.0)
 
     def run(self) -> None:
         self._thread_id = _kernel32.GetCurrentThreadId()
@@ -159,9 +161,7 @@ def _a_real_cover(progress_file: Path):
         yield hwnd
     finally:
         progress_file.write_text("DONE", encoding="utf-8")
-        try:
-            process.wait(timeout=10.0)
-        except subprocess.TimeoutExpired:
+        if not ended_within(process, 10.0):
             process.kill()
 
 
@@ -181,10 +181,8 @@ def _unable_to_run(hwnd: int):
 
 def _sampling(watcher: AboveTheCover) -> None:
     watcher.start()
-    budget = Budget(5.0)
-    while not watcher.samples and not budget.expired():
-        time.sleep(0.005)
-    assert watcher.samples, "the watcher never sampled the cover"
+    assert seen_within(lambda: watcher.samples, seconds=5.0, every_s=0.005), (
+        "the watcher never sampled the cover")
 
 
 def test_a_room_banded_under_a_cover_too_busy_to_answer_never_shows_through_it(tmp_path):
@@ -194,7 +192,7 @@ def test_a_room_banded_under_a_cover_too_busy_to_answer_never_shows_through_it(t
             _sampling(watcher)
             with _unable_to_run(cover):
                 apply_topmost_bands(funestras, beneath=cover)
-        watcher.join(timeout=15.0)
+        joined_within(watcher, 15.0)
 
         assert not watcher.too_long(), (
             "banded while the cover could not answer, these sat over it: "
@@ -240,7 +238,7 @@ def test_the_panel_revealed_under_a_cover_too_busy_to_answer_never_shows_through
                 reveal.maybe_reveal()
                 time.sleep(0.2)
             time.sleep(0.2)
-        watcher.join(timeout=15.0)
+        joined_within(watcher, 15.0)
 
         assert not watcher.too_long(), (
             "revealed while the cover could not answer, these sat over it: "

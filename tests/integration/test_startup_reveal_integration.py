@@ -36,6 +36,7 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
+    joined_within,
 )
 from .run_clock import Budget
 
@@ -111,7 +112,7 @@ def test_the_room_is_finished_when_the_cover_lifts():
             "FUN_TIME_INTEGRATION_OVERLAYS": "1",
             "FUN_TIME_DISABLE_DASHBOARD": "0",
         })
-        watcher.join(timeout=60.0)
+        joined_within(watcher, 60.0)
 
         records, _offset = read_events(event_log_path(session.config.paths.state_dir))
         messages = [record.message for record in records]

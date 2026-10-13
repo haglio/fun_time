@@ -15,7 +15,6 @@ import re
 import subprocess
 import sys
 import threading
-import time
 from pathlib import Path
 
 import pytest
@@ -26,8 +25,7 @@ from fun_time.windows_bridge_orchestrator import _AppendOnWriteHandler
 from tests.ahk_script import function_source
 
 from .hidden_desktop import run_where_nothing_is_focused
-from .integration_support import real_config_path
-from .run_clock import Budget
+from .integration_support import ended_within, real_config_path, seen_within
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -120,15 +118,6 @@ def test_neither_writer_loses_a_line_to_the_other(tmp_path: Path):
     assert sent - len(orchestrator_landed) == 0, "the orchestrator lost lines to the hotkey script"
 
 
-def _within(seconds: float, condition) -> bool:
-    budget = Budget(seconds)
-    while not condition():
-        if budget.expired():
-            return False
-        time.sleep(0.05)
-    return True
-
-
 def _no_one_else_has_it_open(path: Path) -> bool:
     handle = _kernel32.CreateFileW(str(path), _GENERIC_READ, 0, None, _OPEN_EXISTING, 0, None)
     if handle == ctypes.wintypes.HANDLE(-1).value:
@@ -151,13 +140,12 @@ def test_a_logged_line_leaves_no_handle_on_the_log_behind(tmp_path: Path):
     )
     hotkey_script = subprocess.Popen([_ahk_exe(), str(script), str(log), str(logged), str(finished)])
     try:
-        assert _within(60, logged.exists), "the hotkey script never finished logging"
-        closed = _within(5, lambda: _no_one_else_has_it_open(log))
+        assert seen_within(logged.exists, seconds=60, every_s=0.05), (
+            "the hotkey script never finished logging")
+        closed = seen_within(lambda: _no_one_else_has_it_open(log), seconds=5, every_s=0.05)
     finally:
         finished.touch()
-        try:
-            hotkey_script.wait(timeout=10)
-        except subprocess.TimeoutExpired:
+        if not ended_within(hotkey_script, 10):
             hotkey_script.kill()
             hotkey_script.wait()
 

@@ -21,7 +21,7 @@ from fun_time.shortcuts import Shortcut
 from fun_time.win32 import _every_window, close_window, window_process
 from fun_time.win32_loader import load_dll
 from fun_time.win32_process import list_child_pids
-from tests.integration.integration_support import await_window
+from tests.integration.integration_support import await_window, ended_within
 from tests.integration.run_clock import Budget
 from tests.scratch import remove_scratch
 
@@ -123,10 +123,7 @@ class ThrowawayChrome:
             close_window(hwnd)
         if self._browser is None:
             return
-        budget = Budget(EXIT_TIMEOUT_S)
-        while self._browser.poll() is None and not budget.expired():
-            time.sleep(0.2)
-        if self._browser.poll() is None:
+        if not ended_within(self._browser, EXIT_TIMEOUT_S):
             kill_process_tree(self._browser.pid)
             self._browser.wait()
         for child in list_child_pids(self._browser.pid):
