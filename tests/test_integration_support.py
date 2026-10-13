@@ -28,7 +28,7 @@ from fun_time.funestra_status import MainFunestraStatus
 from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.monitors import enumerate_monitors
 from fun_time.windows_bridge_orchestrator import ChildProcess
-from tests.integration import integration_support, run_clock
+from tests.integration import integration_support, run_clock, throwaway_chrome
 from tests.integration.integration_support import (
     COMMAND_BUDGET_S,
     INTEGRATION_CONFIG_NAME,
@@ -48,6 +48,7 @@ from tests.integration.integration_support import (
     window_is_quiet,
 )
 from tests.integration.run_clock import keep_time_by
+from tests.integration.throwaway_chrome import WINDOW_TIMEOUT_S
 from tests.made_up_machine import running
 
 BROKER_TCODE_PORT = 50557
@@ -341,6 +342,16 @@ def test_a_wait_is_counted_in_the_seconds_the_run_could_run(monkeypatch, run_tim
     polls = iter(range(10_000))
 
     assert wait_for(lambda: next(polls) == 9_999, desc="a Funestra starved of the processor")
+
+
+def test_a_throwaway_chrome_window_is_awaited_in_the_seconds_the_run_could_run(monkeypatch, run_time):
+    monkeypatch.setattr(throwaway_chrome, "time", _Clock())
+    run_time(_Starved())
+    looks = iter(range(10_000))
+    monkeypatch.setattr(throwaway_chrome, "find_window_by_title",
+                        lambda _marker: 7 if next(looks) == 9_999 else 0)
+
+    assert throwaway_chrome.await_window("FUNTIMEMARK-STARVED-PAGE", WINDOW_TIMEOUT_S) == 7
 
 
 def test_a_launched_child_is_named_by_its_pid_and_the_moment_it_was_born():

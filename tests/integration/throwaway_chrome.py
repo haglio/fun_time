@@ -21,6 +21,7 @@ from fun_time.shortcuts import Shortcut
 from fun_time.win32 import _every_window, close_window, find_window_by_title, window_process
 from fun_time.win32_loader import load_dll
 from fun_time.win32_process import list_child_pids
+from tests.integration.run_clock import Budget
 from tests.scratch import remove_scratch
 
 _CHROME_CANDIDATES = (
@@ -56,8 +57,8 @@ def chrome_exe() -> Path:
 
 
 def await_window(marker: str, timeout: float) -> int:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+    budget = Budget(timeout)
+    while not budget.expired():
         hwnd = find_window_by_title(marker)
         if hwnd:
             return hwnd
@@ -131,9 +132,10 @@ class ThrowawayChrome:
             close_window(hwnd)
         if self._browser is None:
             return
-        try:
-            self._browser.wait(timeout=EXIT_TIMEOUT_S)
-        except subprocess.TimeoutExpired:
+        budget = Budget(EXIT_TIMEOUT_S)
+        while self._browser.poll() is None and not budget.expired():
+            time.sleep(0.2)
+        if self._browser.poll() is None:
             kill_process_tree(self._browser.pid)
             self._browser.wait()
         for child in list_child_pids(self._browser.pid):
@@ -146,11 +148,11 @@ class ThrowawayChrome:
             self._browser = launched
 
     def _remove_the_profile(self) -> None:
-        deadline = time.monotonic() + TAB_TIMEOUT_S
+        budget = Budget(TAB_TIMEOUT_S)
         while self._profile.exists():
             try:
                 remove_scratch(self._profile)
             except PermissionError:
-                if time.monotonic() >= deadline:
+                if budget.expired():
                     raise
                 time.sleep(0.5)

@@ -12,6 +12,7 @@ import pytest
 from fun_time.text_field_clicks import LATE_S, TextFieldClicks
 from fun_time.win32_events import PressAndCaretWatch
 from fun_time.win32_loader import Win32Rect, load_dll
+from tests.integration.run_clock import Budget
 from tests.integration.throwaway_chrome import TAB_TIMEOUT_S, WINDOW_TIMEOUT_S, await_window
 
 pytestmark = [
@@ -95,8 +96,8 @@ def _click(hwnd: int, x: int, y: int) -> None:
 
 
 def _click_until(hwnd: int, x: int, y: int, *, the_title_shows: str) -> int:
-    deadline = time.monotonic() + WINDOW_TIMEOUT_S
-    while time.monotonic() < deadline:
+    budget = Budget(WINDOW_TIMEOUT_S)
+    while not budget.expired():
         _click(hwnd, x, y)
         if await_window(the_title_shows, ONE_CLICKS_ANSWER_S) == hwnd:
             return hwnd
@@ -104,8 +105,8 @@ def _click_until(hwnd: int, x: int, y: int, *, the_title_shows: str) -> int:
 
 
 def _clicked_into(clicks: TextFieldClicks, watch: PressAndCaretWatch, *, within: float) -> int | None:
-    deadline = time.monotonic() + within
-    while time.monotonic() < deadline:
+    budget = Budget(within)
+    while not budget.expired():
         for seen in watch.take():
             clicks.saw(seen)
         window = clicks.clicked_into(now=time.monotonic())
