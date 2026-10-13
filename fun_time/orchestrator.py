@@ -12,26 +12,14 @@ import logging
 import os
 from pathlib import Path
 
-from .checkout_overrides import (
-    apply_genau_dirs_to_sys_path,
-    apply_origenerator_dir_override,
-)
-
-# Before any other import of this package: a worktree's genau_project_dirs
-# override reaches Genau and the Main Funestra as subprocess PYTHONPATH, but THIS
-# process resolves funestra and shared_ui through the venv, which is the
-# primary's.  Without this a branch leaning on an unlanded sibling change
-# imports code the primary does not have and the session dies at launch.  A
-# no-op in every ordinary session, where no override file exists.
-apply_genau_dirs_to_sys_path()
-
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.win32 import mutex_name, stamp_pinned_shortcuts
 
 from .branch_session import describe_the_session_on_the_taskbar
-from .config import DEFAULT_CONFIG_PATH, load_config  # noqa: E402
+from .checkout_overrides import apply_origenerator_dir_override
+from .config import DEFAULT_CONFIG_PATH, load_config
 from .event_log import open_event_log
-from .funestra_engine import engine_missing_abort  # noqa: E402
+from .funestra_engine import engine_missing_abort
 from .headset_power import put_the_headset_to_sleep, wake_the_headset
 from .loading_cover import LoadingCover, open_the_cover
 from .manifest import write_windows_bridge_manifest

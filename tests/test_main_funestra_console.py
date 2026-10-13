@@ -1,9 +1,11 @@
 """The console panel Fun Time publishes for the Main Funestra's HUD to draw."""
 from __future__ import annotations
 
+from app_support.osr2_device import Osr2Mode
 from funestra.console import (
-    OSR2_CONTROL_OFF,
+    OSR2_CONTROL_BUTTONS,
     OSR2_DRIVING,
+    OSR2_PARKED,
     ConsoleModel,
     console_text,
     parse_console,
@@ -20,7 +22,7 @@ from fun_time.main_funestra_console import MainSlotInputs, console_model, osr2_s
 
 
 def _payload(**overrides) -> ConsoleModel:
-    base = dict(main_mode=MainMode.KINO, active=False, osr2_mode="controlled", broker=False,
+    base = dict(main_mode=MainMode.KINO, active=False, osr2_mode=Osr2Mode.CONTROLLED, broker=False,
                 main_funestra=MainFunestraStatus(), genau=GenauStatus())
     base.update(overrides)
     return console_model(MainSlotInputs(**base))
@@ -35,11 +37,12 @@ def _actions(model: ConsoleModel) -> list[str]:
 
 
 def test_the_panel_carries_what_the_room_does_to_the_osr2():
-    """Beside what HAS the device: the console's four-button group lights off
-    this, and the pill says so over the driver's name when nothing is sent."""
+    """Beside what HAS the device: the console's OSR2 switch lights off this,
+    and the pill says so over the driver's name when nothing is sent."""
     assert _payload().osr2_control == OSR2_DRIVING
-    assert _payload(osr2_control=OSR2_CONTROL_OFF).osr2_control == OSR2_CONTROL_OFF
-    assert _button(_payload(osr2_control=OSR2_CONTROL_OFF), "osr2_control_off").warn
+    assert _payload(osr2_control=OSR2_PARKED).osr2_control == OSR2_PARKED
+    assert not _button(_payload(osr2_control=OSR2_PARKED),
+                       OSR2_CONTROL_BUTTONS[OSR2_DRIVING]).lit
 
 
 def test_the_panel_carries_the_max_intensity_the_session_holds_for_its_slider():
@@ -57,24 +60,25 @@ class TestOsr2State:
     """What has the device, as one compact word — the console badges it."""
 
     def test_the_devices_own_modes_answer_whatever_is_playing(self):
-        for osr2_mode, expected in (("off", Osr2State.OFF), ("auto", Osr2State.AUTO)):
+        for osr2_mode, expected in ((Osr2Mode.OFF, Osr2State.OFF),
+                                    (Osr2Mode.AUTO, Osr2State.AUTO)):
             assert osr2_state(main_mode=MainMode.KINO, osr2_mode=osr2_mode,
                               funscript_driving=True) == expected
 
     def test_a_funscript_that_is_actually_driving_says_so(self):
-        assert osr2_state(main_mode=MainMode.KINO, osr2_mode="controlled",
+        assert osr2_state(main_mode=MainMode.KINO, osr2_mode=Osr2Mode.CONTROLLED,
                           funscript_driving=True) == Osr2State.FUNSCRIPT
 
     def test_a_scripted_videos_quiet_stretch_reads_as_the_robot_hand_not_funscript(self):
         """The reported bug: on a rest gap of a scripted video the Robot Hand drives, but
         it said funscript because a funscript merely *existed*.  It is the driving
         state that decides now, not the file's presence."""
-        assert osr2_state(main_mode=MainMode.KINO, osr2_mode="controlled",
+        assert osr2_state(main_mode=MainMode.KINO, osr2_mode=Osr2Mode.CONTROLLED,
                           funscript_driving=False) == Osr2State.ROBOT_HAND
 
     def test_without_a_driver_the_robot_hand_has_the_device_in_either_mode(self):
         for mode in MainMode:
-            assert osr2_state(main_mode=mode, osr2_mode="controlled",
+            assert osr2_state(main_mode=mode, osr2_mode=Osr2Mode.CONTROLLED,
                               funscript_driving=False) == Osr2State.ROBOT_HAND
 
     def test_a_main_funestra_parked_off_screen_cannot_claim_the_device(self):
@@ -82,13 +86,13 @@ class TestOsr2State:
         status file still describes the scripted video it was last showing —
         so this said "funscript" while Genau had the device, which dims every
         control on the drive readout and refuses every press on it."""
-        assert osr2_state(main_mode=MainMode.GENAU, osr2_mode="controlled",
+        assert osr2_state(main_mode=MainMode.GENAU, osr2_mode=Osr2Mode.CONTROLLED,
                           funscript_driving=True) == Osr2State.ROBOT_HAND
 
 
 class TestPayload:
     def test_carries_the_room_the_funestra_cannot_see(self):
-        payload = _payload(main_mode=MainMode.KINO, active=True, osr2_mode="auto")
+        payload = _payload(main_mode=MainMode.KINO, active=True, osr2_mode=Osr2Mode.AUTO)
 
         assert payload.main_mode == "kino"
         assert payload.active is True

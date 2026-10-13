@@ -1,14 +1,11 @@
 """The buttons Fun Time declares on the main console, row by row."""
 from __future__ import annotations
 
-import itertools
-
 import pytest
 from funestra.console import (
     GAP,
     GROUP_GAP,
     OSR2_CONTROL_BUTTONS,
-    OSR2_CONTROL_OFF,
     OSR2_DRIVING,
     OSR2_PARKED,
     OSR2_RETRACTED,
@@ -17,7 +14,13 @@ from funestra.console import (
     tooltip_at,
 )
 from funestra.hud_button import BUTTON, Button
-from funestra.hud_marks import BROKER_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
+from funestra.hud_marks import (
+    BROKER_ICON,
+    MINIMIZE_ICON,
+    SHARED_MARK,
+    shared_mark,
+    shared_mark_name,
+)
 from funestra.modes import LengthMode, LoopState, MainMode
 from funestra.robot_hand import WaveformShape
 from funestra.satellite_hud import HudModel
@@ -80,47 +83,26 @@ def _every_button() -> list[Button]:
     return declared + list(osr2_controls(broker=True))
 
 
-class TestOsr2ControlStates:
-    """parked / retracted / driving / control off: one radio group saying what
-    the room is doing to the OSR2, with exactly one of the four lit."""
+class TestTheOsr2Switch:
+    """One switch saying what the room is doing to the OSR2: on while driving,
+    off while parked, and a press flips it."""
 
-    def test_every_state_has_a_button_in_both_modes(self):
+    def test_the_switch_is_there_in_both_modes(self):
         for mode in MainMode:
-            actions = _actions(MainSlot(main_mode=mode))
-            for action in OSR2_CONTROL_BUTTONS.values():
-                assert action in actions, (mode, action)
+            assert OSR2_CONTROL_BUTTONS[OSR2_PARKED] in _actions(MainSlot(main_mode=mode)), mode
 
-    def test_the_state_it_is_in_is_the_one_that_lights(self):
-        for state in OSR2_CONTROL_BUTTONS:
-            slot = MainSlot(main_mode=MainMode.KINO, osr2_control=state)
-            for other, action in OSR2_CONTROL_BUTTONS.items():
-                drawn = _button(slot, action)
-                assert (drawn.lit or drawn.warn) is (other == state), (state, other)
+    def test_it_is_on_while_driving_and_a_press_parks(self):
+        switch = _button(MainSlot(main_mode=MainMode.KINO, osr2_control=OSR2_DRIVING),
+                         OSR2_CONTROL_BUTTONS[OSR2_PARKED])
 
-    def test_control_off_lights_red_where_the_other_three_light_blue(self):
-        """Blue is this family's "engaged"; red is the one press that means the
-        device is hearing nothing, and what the pill below then reads in."""
-        for state in (OSR2_PARKED, OSR2_RETRACTED, OSR2_DRIVING):
-            drawn = _button(MainSlot(main_mode=MainMode.KINO, osr2_control=state),
-                            OSR2_CONTROL_BUTTONS[state])
-            assert (drawn.lit, drawn.warn) == (True, False), state
+        assert switch.lit
 
-        off = _button(MainSlot(main_mode=MainMode.KINO, osr2_control=OSR2_CONTROL_OFF),
-                      OSR2_CONTROL_BUTTONS[OSR2_CONTROL_OFF])
-        assert (off.lit, off.warn) == (False, True)
+    @pytest.mark.parametrize("control", [OSR2_PARKED, OSR2_RETRACTED])
+    def test_it_is_off_while_held_and_a_press_drives(self, control):
+        switch = _button(MainSlot(main_mode=MainMode.KINO, osr2_control=control),
+                         OSR2_CONTROL_BUTTONS[OSR2_DRIVING])
 
-    def test_they_read_from_off_to_on_left_to_right(self):
-        """One control in four states, in one group with no break inside it, and
-        laid out as the switch it is: off at the left, then the two holds, then
-        the device driving at the right."""
-        placed = _placed(MainSlot(main_mode=MainMode.GENAU))
-        edges = [placed[OSR2_CONTROL_BUTTONS[state]]
-                 for state in (OSR2_CONTROL_OFF, OSR2_PARKED, OSR2_RETRACTED,
-                               OSR2_DRIVING)]
-        gaps = [nxt[0] - (rect[0] + rect[2])
-                for rect, nxt in itertools.pairwise(edges)]
-
-        assert gaps == [GAP, GAP, GAP]
+        assert not switch.lit
 
 
 class TestOsr2Controls:
@@ -581,7 +563,7 @@ class TestDriveControls:
         for mode in MainMode:
             actions = _actions(MainSlot(main_mode=mode))
             for action in ("robot_hand_toggle_learned", "robot_hand_cycle_shape", "quarter_button",
-                           "robot_hand_park", "robot_hand_retract", "robot_hand_release"):
+                           "robot_hand_park"):
                 assert action in actions, (mode, action)
 
     def test_the_funscript_jump_rides_the_row_under_a_video_alone(self):
@@ -594,12 +576,14 @@ class TestDriveControls:
         for action in ("robot_hand_amplitude_up", "robot_hand_center_down", "robot_hand_speed_up"):
             assert action not in actions
 
-    def test_human_inspired_motion_leads_the_row_and_lights_while_it_has_the_hand(self):
+    def test_human_inspired_motion_follows_the_switch_and_wears_the_stick_figure(self):
         for mode in MainMode:
             row = osr2_rows(MainSlot(main_mode=mode))[0]
-            assert [b.command for b in row[:3]] == [
+            commands = [b.command for b in row if b.command]
+            assert commands[1:4] == [
                 "robot_hand_toggle_learned", "robot_hand_cycle_shape", "quarter_button"], mode
-        assert _button(MainSlot(main_mode=MainMode.GENAU), "robot_hand_toggle_learned").glyph == "hi"
+        assert (_button(MainSlot(main_mode=MainMode.GENAU), "robot_hand_toggle_learned").glyph
+                == shared_mark("human"))
         assert _button(MainSlot(main_mode=MainMode.GENAU), "robot_hand_toggle_learned").lit is False
         lit = _button(MainSlot(main_mode=MainMode.GENAU, learned=True), "robot_hand_toggle_learned")
         assert lit.lit is True

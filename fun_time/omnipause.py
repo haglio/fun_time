@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from funestra.console import OSR2_CONTROL_OFF, OSR2_DRIVING
+from funestra.console import OSR2_DRIVING
 
 from .broker_control import HOLD_VERB, PARK_CMD, RESUME_CMD
 from .mode_plan import MAIN_GENAU_MODE, kino_shows
@@ -53,7 +53,6 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str,
             # resumes its playback there (in genau mode Genau owns the display).
             resume_main_funestra_playback=kino_shows(main_mode),
             resume_genau_playback=(main_mode == MAIN_GENAU_MODE
-                                   and osr2_control != OSR2_CONTROL_OFF
                                    and osr2_funestra is RoomFunestra.MAIN),
             broker_command=HOLD_VERB.get(osr2_control, RESUME_CMD),
             log_message="OmniPause: leaving",

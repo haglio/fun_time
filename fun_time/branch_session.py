@@ -47,16 +47,15 @@ from app_support.win32 import TaskbarApp, describe_taskbar_app
 from . import config as config_module
 from . import preview_marker
 from .branch_seeding import mirror_private_overlays, seed_derived_caches, top_up_thumbnails
-from .checkout_overrides import (
-    GENAU_DIRS_OVERRIDE_NAME,
-    ORIGENERATOR_DIR_OVERRIDE_NAME,
-    STATE_DIRNAME,
-    override_lines,
-    primary_of,
-)
+from .checkout_overrides import ORIGENERATOR_DIR_OVERRIDE_NAME, primary_of
 from .child_launch import no_console_window
 from .config import DEFAULT_CONFIG_PATH, ProjectConfig, load_config
-from .project_paths import PROJECT_ICON
+from .project_paths import (
+    GENAU_DIRS_OVERRIDE_NAME,
+    PROJECT_ICON,
+    STATE_DIRNAME,
+    override_lines,
+)
 from .shortcuts import read_shortcuts, write_shortcut
 
 # Written into the worktree's own state dir, which is git-ignored — this file

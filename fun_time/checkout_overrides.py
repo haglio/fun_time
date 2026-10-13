@@ -13,19 +13,10 @@ machinery -- git worktree parsing, PowerShell, a CLI -- with it.
 from __future__ import annotations
 
 import os
-import sys
 from dataclasses import replace
 from pathlib import Path
 
-from . import config as config_module
-
-STATE_DIRNAME = "state"
-
-# One absolute path per line; present, the file REPLACES the machine's value, so
-# an empty one says "the plain venv install, whatever the machine is pinned to" —
-# which is what a branch with nothing to do with genau wants.  Absent, the
-# machine's value rides through.
-GENAU_DIRS_OVERRIDE_NAME = "genau_project_dirs.txt"
+from .project_paths import PROJECT_DIR, STATE_DIRNAME, override_lines
 
 # The same, for the Origenerator checkout a session hosts: one absolute path, or
 # empty to host none at all.
@@ -40,42 +31,9 @@ def primary_of(checkout: Path) -> Path:
     return checkout.parents[2] if is_a_worktree(checkout) else checkout
 
 
-def override_lines(path: Path) -> list[str] | None:
-    """*path*'s entries, or None where the file does not exist.  None and [] are
-    different answers: absent means the machine's config still decides, empty
-    means this checkout has overruled it."""
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
-        return None
-    return [line.strip() for line in text.splitlines()
-            if line.strip() and not line.strip().startswith("#")]
-
-
 def _own_override(name: str) -> list[str] | None:
     """This checkout's *name* override, resolved against its own project dir."""
-    return override_lines(config_module.PROJECT_DIR / STATE_DIRNAME / name)
-
-
-def apply_genau_dirs_to_sys_path() -> list[str]:
-    """Put this checkout's genau_project_dirs override on ``sys.path``.
-
-    The override reaches Genau and the Main Funestra as subprocess PYTHONPATH, but the
-    orchestrator's own process — and the device arbiter inside it — resolves
-    ``funestra`` through the venv, which is the primary checkout's.  A branch
-    that leans on an unlanded funestra change therefore imports names the
-    primary does not have yet, and the session dies at launch.  Called at the top
-    of every launch entry point, ahead of the bridge imports.  Returns what it
-    added.
-    """
-    dirs = [entry for entry in (_own_override(GENAU_DIRS_OVERRIDE_NAME) or [])
-            if Path(entry).is_dir()]
-    if dirs:
-        for entry in reversed([str(config_module.PROJECT_DIR), *dirs]):
-            if entry in sys.path:
-                sys.path.remove(entry)
-            sys.path.insert(0, entry)
-    return dirs
+    return override_lines(PROJECT_DIR / STATE_DIRNAME / name)
 
 
 def apply_origenerator_dir_override(config, *, integration: bool = False):

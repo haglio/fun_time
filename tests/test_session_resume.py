@@ -5,7 +5,7 @@ from dataclasses import fields, replace
 from pathlib import Path
 
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from funestra.console import OSR2_CONTROL_OFF, OSR2_RETRACTED
+from funestra.console import OSR2_PARKED, OSR2_RETRACTED
 from funestra.drive_readout import DriveHud, drive_text
 from funestra.flick_advance import FlickAdvanceState
 from funestra.genau_controls import VERBS as GENAU_VERBS
@@ -266,14 +266,23 @@ class TestResumeSharedState:
         assert (state.satellite(RoomFunestra.PORTRAIT).locked, state.satellite(RoomFunestra.LANDSCAPE).locked) == (True, False)
 
     def test_carries_what_the_osr2_was_left_in(self, tmp_path: Path):
-        """Let go of, or held at one end, it stays that way: the device arbiter
-        carries the state out on the new session's first tick, the same as it
-        does for a press."""
+        """Held at one end, it stays that way: the device arbiter carries the
+        state out on the new session's first tick, the same as it does for a
+        press."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        for control in (OSR2_CONTROL_OFF, OSR2_RETRACTED):
+        for control in (OSR2_PARKED, OSR2_RETRACTED):
             write_shared_state(state_file, BridgeState(osr2_control=control))
 
             assert resume_shared_state(state_file, resumed=True).osr2_control == control
+
+    def test_a_session_left_under_control_off_comes_back_parked(self, tmp_path: Path):
+        """Control off went when the four buttons became one switch; the
+        switch's off is parked, which is also where control off had left the
+        device."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(osr2_control="control_off"))
+
+        assert resume_shared_state(state_file, resumed=True).osr2_control == OSR2_PARKED
 
     def test_carries_which_funestra_has_the_osr2(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
