@@ -130,6 +130,15 @@ def window_class(hwnd: int) -> str:
     return name.value
 
 
+def window_title(hwnd: int) -> str:
+    length = _user32.GetWindowTextLengthW(hwnd)
+    if length <= 0:
+        return ""
+    title = ctypes.create_unicode_buffer(length + 1)
+    _user32.GetWindowTextW(hwnd, title, length + 1)
+    return title.value
+
+
 def find_windows_by_class(substring: str) -> set[int]:
     """Every visible, titled window whose class name contains *substring*.
 
@@ -194,15 +203,12 @@ def find_window_for_process(
             return False
         if not include_hidden and not _user32.IsWindowVisible(hwnd):
             return False
-        length = _user32.GetWindowTextLengthW(hwnd)
-        if length <= 0:
+        caption = window_title(hwnd)
+        if not caption:
             return False
         if title is None:
             return True
-        # Per window, at its own length; by-title shares one 256.
-        buffer = ctypes.create_unicode_buffer(length + 1)
-        _user32.GetWindowTextW(hwnd, buffer, length + 1)
-        return title(buffer.value) if callable(title) else buffer.value == title
+        return title(caption) if callable(title) else caption == title
 
     return _first_window(matches)
 
@@ -440,16 +446,14 @@ def iter_zorder() -> list[StackedWindow]:
     hwnd = _user32.GetTopWindow(0)
     while hwnd:
         if _user32.IsWindowVisible(hwnd) and not _user32.IsIconic(hwnd):
-            length = _user32.GetWindowTextLengthW(hwnd)
-            if length > 0:
-                buf = ctypes.create_unicode_buffer(length + 1)
-                _user32.GetWindowTextW(hwnd, buf, length + 1)
+            title = window_title(hwnd)
+            if title:
                 rect = Win32Rect()
                 _user32.GetWindowRect(hwnd, ctypes.byref(rect))
                 out.append(
                     StackedWindow(
                         hwnd=hwnd,
-                        title=buf.value,
+                        title=title,
                         topmost=is_window_topmost(hwnd),
                         rect=(rect.left, rect.top, rect.right - rect.left, rect.lower - rect.top),
                     )

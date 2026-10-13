@@ -34,6 +34,7 @@ from fun_time.win32 import (
     restore_window,
     set_always_on_top,
     window_rect,
+    window_title,
     windows_obscuring,
 )
 from fun_time.win32_process import (
@@ -515,6 +516,23 @@ class TestWindowRect:
         with patch("fun_time.win32._user32") as mock:
             mock.GetWindowRect.return_value = 0
             assert window_rect(123) is None
+
+
+class TestWindowTitle:
+    def test_a_caption_past_256_characters_comes_back_whole(self):
+        caption = "Made-up caption " * 20
+        read_at: list[int] = []
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetWindowTextLengthW.return_value = len(caption)
+            mock.GetWindowTextW.side_effect = lambda _hwnd, buffer, cap: (
+                read_at.append(cap), setattr(buffer, "value", caption))[0]
+            assert window_title(123) == caption
+        assert read_at == [len(caption) + 1]
+
+    def test_an_untitled_window_has_an_empty_title(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetWindowTextLengthW.return_value = 0
+            assert window_title(123) == ""
 
 
 class TestFindWindowByTitle:

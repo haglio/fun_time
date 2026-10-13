@@ -324,7 +324,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # copy of it went with its notes.
 # 6184 on 2026-10-12: every integration session lays its room out on the same
 # two monitors, and the note on why a session faked them went to that test.
-MAX_PROSE_LINES = 6184
+# 6183 the same day: a window's title is read through one function, and the
+# note on how one lookup read it went with that lookup's copy.
+MAX_PROSE_LINES = 6183
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
