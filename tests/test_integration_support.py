@@ -41,6 +41,7 @@ from tests.integration.integration_support import (
     ended_within,
     isolate_shared_resources,
     joined_within,
+    let_seconds_pass,
     library_clips,
     point_the_main_funestra_at,
     published_status,
@@ -420,6 +421,16 @@ def test_a_move_sent_to_the_osr2_while_the_run_is_starved_is_still_heard(monkeyp
         setblocking=lambda _blocking: None, recv=recv, recvfrom=recvfrom))
 
     assert [sender for _at, sender, _height in tcode_heard(50_000, seconds=3)] == [50_001]
+
+
+def test_the_seconds_a_check_lets_pass_are_the_seconds_the_run_could_run(monkeypatch, run_time):
+    wall = SleepDrivenClock()
+    monkeypatch.setattr(integration_support, "time", wall)
+    run_time(_StarvedFor(1_000))
+
+    let_seconds_pass(1.0)
+
+    assert wall.now > 10.0
 
 
 def test_the_reap_never_waits_on_a_hotkey_script_it_did_not_end(session, monkeypatch):

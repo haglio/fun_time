@@ -17,7 +17,6 @@ from __future__ import annotations
 import os
 import shutil
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -34,6 +33,7 @@ from .integration_support import (
     await_window,
     build_integration_config,
     build_integration_temp_root,
+    let_seconds_pass,
 )
 
 pytestmark = [
@@ -80,7 +80,7 @@ def test_the_satellites_end_startup_frontmost_over_their_rects():
             assert hwnd, f"{title} window never appeared after the reveal"
 
         # Settle: the reveal's last activations can still be in flight.
-        time.sleep(1.0)
+        let_seconds_pass(1.0)
         stack = iter_zorder()
         for title, hwnd in hwnds.items():
             covering = windows_obscuring(hwnd, stack)

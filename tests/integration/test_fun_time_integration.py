@@ -46,6 +46,7 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
     clip_of_a_test_pattern,
+    let_seconds_pass,
     published_status,
     seen_within,
     senders,
@@ -306,7 +307,7 @@ def test_fun_time_portrait_next_cancels_lock(shared_integration_session: FunTime
     shared_integration_session.wait_for_new_log("Locked portrait satellite")
 
     shared_integration_session.write_dashboard_command("portrait_next")
-    time.sleep(1.5)
+    let_seconds_pass(1.5)
 
     shared_integration_session.write_dashboard_command("portrait_lock")
     shared_integration_session.wait_for_new_log("Locked portrait satellite")
@@ -320,7 +321,7 @@ def test_fun_time_landscape_next_cancels_lock(shared_integration_session: FunTim
     shared_integration_session.wait_for_new_log("Locked landscape satellite")
 
     shared_integration_session.write_dashboard_command("landscape_next")
-    time.sleep(1.5)
+    let_seconds_pass(1.5)
 
     shared_integration_session.write_dashboard_command("landscape_lock")
     shared_integration_session.wait_for_new_log("Locked landscape satellite")
@@ -463,7 +464,7 @@ def test_fun_time_omnipause_freezes_the_satellites(
     )
     # The playhead must not advance while paused.
     pos_a = published_status(read_satellite_status, portrait_status).position_ms
-    time.sleep(1.2)
+    let_seconds_pass(1.2)
     pos_b = published_status(read_satellite_status, portrait_status).position_ms
     assert pos_b == pos_a, f"paused satellite kept playing ({pos_a} -> {pos_b})"
 
@@ -672,7 +673,7 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
     sink = s.config.main_funestra_tcode.port
     before = senders(tcode_heard(sink, seconds=2))
     with _the_portrait_funestra_driving_the_osr2(s, tmp_path) as (portrait, video):
-        time.sleep(1.0)
+        let_seconds_pass(1.0)
         scripted = senders(tcode_heard(sink, seconds=4))
         assert len(scripted) == 1, (before, scripted)
         ((portraits_line, (_moves, _first, _last, lowest, highest)),) = scripted.items()
@@ -687,7 +688,7 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
             video, _script_that_starts_in_ten_hours(tmp_path / "later.funscript"))))
         s.wait_until(lambda: read_satellite_status(portrait.status_file).funscript_resting,
                      description="the Portrait Funestra to reach a stretch with no funscript")
-        time.sleep(2.0)
+        let_seconds_pass(2.0)
         resting = senders(tcode_heard(sink, seconds=4))
         assert resting and portraits_line not in resting, (portraits_line, resting)
 

@@ -51,6 +51,7 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
     joined_within,
+    let_seconds_pass,
     library_clips,
     published_status,
     readable_at_speed,
@@ -331,7 +332,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         position_before = published_status(
             read_satellite_status, Path(commands.portrait_status_file)).position_ms
         run_frames(90, measure=False)
-        time.sleep(0.3)  # one worker tick past the last status write
+        let_seconds_pass(0.3)  # one worker tick past the last status write
         position_after = published_status(
             read_satellite_status, Path(commands.portrait_status_file)).position_ms
         assert position_after == position_before, (
@@ -360,7 +361,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         for unit in units:
             unit.close()
         closed = True
-        time.sleep(0.5)  # more worker turns against Funestras that are already gone
+        let_seconds_pass(0.5)  # more worker turns against Funestras that are already gone
         stop.set()
         assert joined_within(pump_thread, 30.0), (
             "the file-channel worker never came back after the Funestras closed"

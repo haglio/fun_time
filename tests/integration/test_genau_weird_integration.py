@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -17,6 +16,7 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
     clip_of_a_test_pattern,
+    let_seconds_pass,
 )
 
 pytestmark = [
@@ -54,7 +54,7 @@ def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_weird_s
         flick_before = _genaus_flick(session)
         for command in GENAUS_KEYS:
             session.write_dashboard_command(command)
-        time.sleep(GENAU_TAKES_A_VERB_WITHIN_S)
+        let_seconds_pass(GENAU_TAKES_A_VERB_WITHIN_S)
 
         genau = read_genau_status(session.config.genau_status_file)
         assert (genau.flick, genau.locked, _condemned(weird)) == (flick_before, True, [])
@@ -67,7 +67,7 @@ def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_weird_s
             lambda: _condemned(weird) and any(
                 n.message == MARKED_WEIRD and n.source == "main" for n in session.notices()),
             timeout=15, description='the flick on screen marked weird, and "Marked weird" flashed')
-        time.sleep(GENAU_TAKES_A_VERB_WITHIN_S)
+        let_seconds_pass(GENAU_TAKES_A_VERB_WITHIN_S)
 
         assert len(_condemned(weird)) == 1
     finally:
