@@ -134,7 +134,7 @@ _STUB_MAIN = textwrap.dedent(
     root.withdraw()  # the main window arrives only after the "boot"
 
     booted = False
-    silent_until = 0.0
+    taken_over = False
     state_dir = Path(__file__).resolve().parent.parent / "state"
     offer = state_dir / "fun_time_offer.txt"
     showing = state_dir / "fun_time_showing.txt"
@@ -180,7 +180,7 @@ _STUB_MAIN = textwrap.dedent(
         return (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
 
     def answer_a_takeover():
-        global args, silent_until, showing_a_slideshow
+        global args, taken_over, showing_a_slideshow
         if booted or not takeover.exists():
             return
         try:
@@ -194,7 +194,7 @@ _STUB_MAIN = textwrap.dedent(
         showing.unlink(missing_ok=True)
         showing_a_slideshow = False
         args, _unused = parser.parse_known_args(asked["args"])
-        silent_until = time.monotonic() + 60
+        taken_over = True
         park_as_hosted()
 
     def offer_itself():
@@ -260,7 +260,7 @@ _STUB_MAIN = textwrap.dedent(
             close_show(side)
 
     def publish_status():
-        if not args.status_file or not booted or time.monotonic() < silent_until:
+        if not args.status_file or not booted or taken_over:
             return
         lines = []
         for side in SIDES:
