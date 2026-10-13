@@ -197,18 +197,6 @@ p::QueueCommand("projection_cycle")
 !Left::QueueCommand("projection_narrower")
 !Right::QueueCommand("projection_wider")
 
-; FunTimeVR: re-zero the scene onto wherever the headset is facing now (the
-; runtime's own recenter menu doesn't reach this app).  Desktop Main Funestra ignores it.
-z::QueueCommand("recenter_view")
-
-; FunTimeVR: tilt the whole arrangement up and down, for watching from a
-; recliner or flat on your back; Shift+Z stands it upright again beside Z's
-; recenter.  Squeezing a controller's trigger and moving it turns and tilts the
-; whole arrangement — these are for the desk.  Desktop Main Funestra ignores all three.
-PgUp::QueueCommand("tilt_up")
-PgDn::QueueCommand("tilt_down")
-+z::QueueCommand("tilt_reset")
-
 ; Robot Hand hotkeys.  Each pair reads left-down / right-up: 7/9 sit
 ; above u/o for amplitude, the way u/o and j/l already work for center and speed.
 7::QueueCommand("robot_hand_amplitude_down")

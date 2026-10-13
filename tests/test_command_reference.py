@@ -134,6 +134,14 @@ def test_either_enter_key_accepts_what_voice_was_not_sure_of():
     assert "voice_accept" not in _ahk_suspend_exempt_commands()
 
 
+def test_the_vr_view_is_spoken_only_since_a_keyboard_is_no_use_in_a_headset():
+    for cmd in ("recenter_view", "tilt_up", "tilt_down", "tilt_reset", "vr_reset"):
+        assert _ahk_binding_for(cmd) is None, cmd
+        assert cmd in _covered_commands()
+    for row in _section("VR").rows:
+        assert _keys(row) == (), row.description
+
+
 def test_cycle_action_and_seed_are_spoken_only():
     """Cycling a clip's action or seed is a spoken command on both sides.
 

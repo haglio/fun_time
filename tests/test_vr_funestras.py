@@ -836,8 +836,8 @@ class TestTheLayoutKeeper:
         assert not path.exists()
 
     def test_a_tilt_off_a_keypress_is_finished_the_moment_it_lands(self, tmp_path):
-        """PgUp is a whole act, not the middle of one, so it does not wait for a
-        release that never comes."""
+        """A spoken "tilt up" is a whole act, not the middle of one, so it does
+        not wait for a release that never comes."""
         path = tmp_path / "vr_layout.json"
         keeper = _LayoutKeeper(path, Layout())
 

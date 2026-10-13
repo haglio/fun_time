@@ -224,12 +224,12 @@ _SECTIONS: tuple[_Section, ...] = (
                     (),
                     ("vr_reset",),
                 ),
-                _Row("recenter — the VR scene onto wherever the headset faces now", ("Z",),
+                _Row("recenter — the VR scene onto wherever the headset faces now", (),
                      ("recenter_view",)),
                 _Row(
                     "tilt the VR screens up / down and level them again — squeezing "
                     "a trigger and moving the controller turns and tilts them too",
-                    ("PgUp", "PgDn", "Shift+Z"),
+                    (),
                     ("tilt_up", "tilt_down", "tilt_reset"),
                 ),
             )),
