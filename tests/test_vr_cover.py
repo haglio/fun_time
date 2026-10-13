@@ -16,9 +16,9 @@ import pytest
 from shared_ui.palette import LOADING_ACCENT, LOADING_STATUS
 
 from fun_time.overlay_progress import (
+    ACTIVATING_ORIGENERATOR,
     CANCEL_FILENAME,
     CANCELING,
-    COMING_BACK_TO_THE_MODE,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     SHUTDOWN_READY_FILENAME,
@@ -99,7 +99,7 @@ class TestThePhases:
         reported = self._advanced_keys(r'\bprogress\.advance\("([a-z_]+)"\)')
 
         assert reported == {phase.key for phase in VR_STARTUP_PHASES} - {
-            COMING_BACK_TO_THE_MODE.key}
+            ACTIVATING_ORIGENERATOR.key}
 
     def test_it_carries_the_wait_the_shared_comeback_announces(self):
         """The comeback to the mode the last session left is the desktop's own
@@ -107,8 +107,8 @@ class TestThePhases:
         is a step before the last line rather than one after it."""
         keys = [phase.key for phase in VR_STARTUP_PHASES]
 
-        assert keys.index(COMING_BACK_TO_THE_MODE.key) == keys.index("finalizing") - 1
-        assert COMING_BACK_TO_THE_MODE.weight > 0, "the bar would be full while it waits"
+        assert keys.index(ACTIVATING_ORIGENERATOR.key) == keys.index("finalizing") - 1
+        assert ACTIVATING_ORIGENERATOR.weight > 0, "the bar would be full while it waits"
 
     def test_every_shutdown_phase_the_orchestrator_reports_exists(self):
         reported = self._advanced_keys(r'\bshutdown\.advance\("([a-z_]+)"\)')

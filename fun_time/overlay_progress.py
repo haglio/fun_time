@@ -152,10 +152,7 @@ LAUNCH_PHASES: tuple[Phase, ...] = (
     Phase("engine", "Checking the video engine...", 1.0),
 )
 
-COMING_BACK_TO_ORIGENERATOR_MODE = "origenerator"
-
-COMING_BACK_TO_THE_MODE: Phase = Phase(
-    COMING_BACK_TO_ORIGENERATOR_MODE, "Coming back to Origenerator mode...", 0.5)
+ACTIVATING_ORIGENERATOR: Phase = Phase("origenerator", "Activating Origenerator...", 0.5)
 
 # The room as it is built, that wait among the steps rather than after the last.
 ROOM_PHASES: tuple[Phase, ...] = (
@@ -164,7 +161,7 @@ ROOM_PHASES: tuple[Phase, ...] = (
     Phase("companions", "Launching companions...", 1.3),
     Phase("funestras", "Waiting for Funestras...", 0.5),
     Phase("windows", "Positioning windows...", 0.5),
-    COMING_BACK_TO_THE_MODE,
+    ACTIVATING_ORIGENERATOR,
     Phase("finalizing", "Finalizing...", 0.0),
 )
 

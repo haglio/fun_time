@@ -87,7 +87,7 @@ and the browser in its place, so a room left otherwise has to be switched back,
 and switching it once the room is already his is what this must never do: the
 Funestras would rearrange themselves under whatever he had started, which was
 tried and rejected. So the loading screen stays up instead. The phase before its
-last, read on the cover as "Coming back to Origenerator mode...", comes after the
+last, read on the cover as "Activating Origenerator...", comes after the
 room is built and banded and waits for the hosted Origenerator to publish its
 status — re-written while it waits, since a cover takes itself down on a progress
 file nothing has touched for a minute (`overlay_progress`). The moment the app

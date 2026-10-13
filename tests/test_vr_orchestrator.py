@@ -341,7 +341,7 @@ class TestOrigeneratorInVr:
         bar already full."""
         calls = _call_lines_in_run_vr_bridge()
 
-        assert (calls["open_in_origenerator_mode"]
+        assert (calls["activate_origenerator_under_the_cover"]
                 < calls["progress.advance"])
 
     def test_the_mode_is_taken_up_before_the_room_is_shown(self):
@@ -349,7 +349,7 @@ class TestOrigeneratorInVr:
         rearrange both Funestras under a room he is already using."""
         calls = _call_lines_in_run_vr_bridge()
 
-        assert (calls["open_in_origenerator_mode"]
+        assert (calls["activate_origenerator_under_the_cover"]
                 < calls["progress.finish"])
 
 

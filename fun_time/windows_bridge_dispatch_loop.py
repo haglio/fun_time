@@ -365,10 +365,10 @@ class DispatchLoopRunner:
         return (*satellites, *((ORIGENERATOR_ACTIVATE,) if in_the_rfb_slot else ()))
 
     @property
-    def opens_in_origenerator_mode(self) -> bool:
+    def activates_origenerator(self) -> bool:
         return bool(self._owed_to_origenerator)
 
-    def open_in_origenerator_mode(self, *, wait_for_the_app) -> None:
+    def activate_origenerator(self, *, wait_for_the_app) -> None:
         """Through the switches' own commands, while *wait_for_the_app* holds the
         room under its cover for that app, and given up on if it never answers."""
         owed, self._owed_to_origenerator = self._owed_to_origenerator, ()

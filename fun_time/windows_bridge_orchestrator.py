@@ -52,10 +52,10 @@ from .manifest import CommandFiles, LaunchManifest
 from .modes import collect_video_files
 from .origenerator_switches import CLOSE_SHOWS, RfbSlot
 from .overlay_progress import (
+    ACTIVATING_ORIGENERATOR,
     CANCEL_CLOSING_FUN_TIME,
     CANCEL_FILENAME,
     CANCEL_WORD,
-    COMING_BACK_TO_ORIGENERATOR_MODE,
     SHUTDOWN_PHASES,
     SHUTDOWN_PROGRESS_FILENAME,
     NullProgress,
@@ -908,12 +908,12 @@ ORIGENERATOR_BOOT_BUDGET_S = 120.0
 ORIGENERATOR_BOOT_POLL_S = 0.5
 
 
-def open_in_origenerator_mode(
+def activate_origenerator_under_the_cover(
     runner: DispatchLoopRunner,
     *,
     progress: ProgressReporter,
 ) -> RfbSlot:
-    if not runner.opens_in_origenerator_mode:
+    if not runner.activates_origenerator:
         return runner.state.rfb_slot
     started = time.monotonic()
 
@@ -923,12 +923,12 @@ def open_in_origenerator_mode(
             if waited >= ORIGENERATOR_BOOT_BUDGET_S:
                 return False
             # Written again: a cover takes itself down on an untouched file.
-            progress.announce(COMING_BACK_TO_ORIGENERATOR_MODE)
+            progress.announce(ACTIVATING_ORIGENERATOR.key)
             time.sleep(ORIGENERATOR_BOOT_POLL_S)
         return True
 
-    progress.announce(COMING_BACK_TO_ORIGENERATOR_MODE)
-    runner.open_in_origenerator_mode(wait_for_the_app=wait_for_the_app)
+    progress.announce(ACTIVATING_ORIGENERATOR.key)
+    runner.activate_origenerator(wait_for_the_app=wait_for_the_app)
     return runner.state.rfb_slot
 
 
@@ -1262,16 +1262,16 @@ def run_session(
             hud_publisher=hud_publisher,
             env=env,
         )
-        take_up_origenerator_mode = partial(
-            open_in_origenerator_mode, dispatch_runner, progress=progress)
+        activate_origenerator = partial(
+            activate_origenerator_under_the_cover, dispatch_runner, progress=progress)
 
         # The sequencer already positioned all windows in Phase 4 (the reveal).
         if env.show_overlays:
             _reveal_the_room(result, manifest=manifest, cover=cover,
                              hud_publisher=hud_publisher, hud_primed=hud_primed,
-                             before_the_cover_goes=take_up_origenerator_mode)
+                             before_the_cover_goes=activate_origenerator)
         else:
-            take_up_origenerator_mode()
+            activate_origenerator()
 
         # The session is up and its windows are placed.  Writing this file records
         # the children for teardown and, by appearing, hands the keyboard over: the
