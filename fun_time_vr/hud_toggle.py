@@ -61,8 +61,8 @@ class HudToggle:
             self._painted = painted
         self._mesh.rehang_at(placement, 1.0)
         self._tip = None
-        if self._pointed:
-            tip = outside.toggle_tip()
+        tip = outside.toggle_tip() if self._pointed else outside.name_flash()
+        if tip is not None:
             beside = _beside(placement, edge, tip)
             self._tip = Screen(f"{toggle_screen_name(self._screen_name)}/{TIP}", beside,
                                tip.shape[1] / tip.shape[0], pressable=False)
