@@ -49,7 +49,7 @@ class HostedApp(NamedTuple):
     pid: int
     already_open: bool
     taken_over: bool
-    showing: bool
+    slideshow_on: tuple[RoomFunestra, ...]
 
 
 def _adopt_a_kept_origenerator(m: LaunchManifest) -> HostedApp | None:
@@ -62,7 +62,7 @@ def _adopt_a_kept_origenerator(m: LaunchManifest) -> HostedApp | None:
     Path(m.commands.origenerator_cmd_file).write_text("", encoding="utf-8")
     logger.info("Adopted the hosted Origenerator left running (pid %d)", kept.pid)
     return HostedApp(kept.pid, already_open=True, taken_over=kept.taken_over,
-                     showing=False)
+                     slideshow_on=())
 
 
 def _budget_for(open_app: OpenOrigenerator) -> float:
@@ -149,7 +149,7 @@ def bring_up_the_hosted_app(
                     open_app.checkout, open_app.pid)
         if _it_took_the_takeover(open_app):
             return HostedApp(open_app.pid, already_open=not open_app.starting,
-                             taken_over=True, showing=open_app.showing)
+                             taken_over=True, slideshow_on=open_app.slideshow_on)
         logger.warning("The Origenerator we took over (pid %d) never read the takeover "
                        "in %.0fs; launching ours instead", open_app.pid,
                        _budget_for(open_app))
@@ -163,4 +163,4 @@ def bring_up_the_hosted_app(
         **contract,
     )
     logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
-    return HostedApp(origenerator_pid, already_open=False, taken_over=False, showing=False)
+    return HostedApp(origenerator_pid, already_open=False, taken_over=False, slideshow_on=())

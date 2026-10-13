@@ -1405,7 +1405,7 @@ class TestOrigeneratorLaunch:
         assert result.origenerator_pid == 0
 
     def _checkout_with_an_open_app(self, cfg_factory, tmp_path, *, created_at=None,
-                                   starting=False, showing=False, hosting=None):
+                                   starting=False, showing_on=None, hosting=None):
         checkout = tmp_path / "origenerator"
         cfg = load_config(cfg_factory({"paths": {"origenerator_dir": str(hosting or checkout)}}))
         manifest_path = write_windows_bridge_manifest(
@@ -1416,8 +1416,9 @@ class TestOrigeneratorLaunch:
         (checkout / "state").mkdir(parents=True)
         (checkout / "state" / "fun_time_offer.txt").write_text(
             f"{offered}{' starting' if starting else ''}\n", encoding="utf-8")
-        if showing:
-            (checkout / "state" / "fun_time_showing.txt").write_text(offered, encoding="utf-8")
+        if showing_on:
+            (checkout / "state" / "fun_time_showing.txt").write_text(
+                f"{offered} {showing_on}", encoding="utf-8")
         return cfg, manifest_path, checkout, open_app
 
     @contextlib.contextmanager
@@ -1620,16 +1621,16 @@ class TestOrigeneratorLaunch:
 
         assert result.origenerator_already_open
 
-    def test_a_room_that_took_over_an_app_showing_a_slideshow_carries_that_out_of_startup(
+    def test_a_room_that_took_over_an_app_showing_a_slideshow_carries_its_satellite_out_of_startup(
         self, cfg_factory, tmp_path
     ):
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
-            cfg_factory, tmp_path, showing=True)
+            cfg_factory, tmp_path, showing_on="landscape")
 
         with _sequencer_stubs(launch_origenerator=dict()), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert result.origenerator_showing
+        assert result.origenerator_slideshow_on == (RoomFunestra.LANDSCAPE,)
 
     def test_a_room_that_took_over_an_app_showing_nothing_carries_no_slideshow(
         self, cfg_factory, tmp_path
@@ -1640,7 +1641,7 @@ class TestOrigeneratorLaunch:
         with _sequencer_stubs(launch_origenerator=dict()), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert not result.origenerator_showing
+        assert result.origenerator_slideshow_on == ()
 
     def test_a_room_that_adopted_the_app_a_crossing_kept_knows_it_was_already_open(
         self, cfg_factory, tmp_path

@@ -263,7 +263,7 @@ class DispatchLoopRunner:
         press_and_caret_watch: Sightings | None = None,
         sync_interval_ms: int = 200,
         origenerator_already_open: bool = False,
-        origenerator_showing: bool = False,
+        origenerator_slideshow_on: tuple[RoomFunestra, ...] = (),
         secondary_rects: Callable[..., SecondaryMonitorRects] | None = None,
     ) -> None:
         self.config = config
@@ -323,7 +323,7 @@ class DispatchLoopRunner:
         # reads at the start of one and nothing after.
         self._origenerator_is_up = origenerator_already_open
         self._owed_to_origenerator = (
-            self._what_origenerator_held(showing=origenerator_showing)
+            self._what_origenerator_held(slideshow_on=origenerator_slideshow_on)
             if config.origenerator_enabled else ())
         # The Robot Hand and a funscript both feed the broker's one T-Code inlet,
         # so in kino mode something has to hand the device between them.
@@ -353,15 +353,16 @@ class DispatchLoopRunner:
             return state
         return _with_origenerator_holding_nothing(state)
 
-    def _what_origenerator_held(self, *, showing: bool) -> tuple[str, ...]:
-        """The switches that put Origenerator back on whatever it held when this
-        room was last left, or on all of it for an app taken over mid-slideshow.
+    def _what_origenerator_held(self, *,
+                                slideshow_on: tuple[RoomFunestra, ...]) -> tuple[str, ...]:
+        """The switches that put Origenerator back on what this room was left with, and
+        on the browser's place and the satellite a slideshow it was taken over on is on.
         Read before anything is dispatched, so a switch later is where the room IS."""
         left_in = read_shared_state(self.shared_state_file) or BridgeState()
         satellites = tuple(
             mode_command(funestra.label, ORIGENERATOR_MODE) for funestra in RoomFunestra.SATELLITES
-            if showing or origenerator_shows(left_in.satellite(funestra).mode))
-        in_the_rfb_slot = showing or left_in.rfb_slot is RfbSlot.ORIGENERATOR
+            if funestra in slideshow_on or origenerator_shows(left_in.satellite(funestra).mode))
+        in_the_rfb_slot = bool(slideshow_on) or left_in.rfb_slot is RfbSlot.ORIGENERATOR
         return (*satellites, *((ORIGENERATOR_ACTIVATE,) if in_the_rfb_slot else ()))
 
     @property
