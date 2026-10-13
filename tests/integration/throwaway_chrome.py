@@ -6,15 +6,20 @@ and a fresh directory under the run's tmp_path is a browser of its own.
 """
 from __future__ import annotations
 
+import ctypes
+import ctypes.wintypes
+import struct
 import subprocess
 import time
+import uuid
 from pathlib import Path
 
 import pytest
 
 from fun_time.process_tree import kill_process_tree
 from fun_time.shortcuts import Shortcut
-from fun_time.win32 import close_window, find_window_by_title
+from fun_time.win32 import _every_window, close_window, find_window_by_title, window_process
+from fun_time.win32_loader import load_dll
 from fun_time.win32_process import list_child_pids
 from tests.scratch import remove_scratch
 
@@ -22,6 +27,19 @@ _CHROME_CANDIDATES = (
     Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
     Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
 )
+
+WM_POWERBROADCAST = 0x0218
+PBT_POWERSETTINGCHANGE = 0x8013
+GUID_SESSION_DISPLAY_STATUS = uuid.UUID("2b84c20e-ad23-4ddf-93db-05ffbd7efca5")
+POWER_MONITOR_OFF = 0
+SMTO_ABORTIFHUNG = 0x0002
+NOTICE_TIMEOUT_MS = 5000
+
+_user32 = load_dll("user32", use_last_error=True)
+_user32.SendMessageTimeoutW.argtypes = [
+    ctypes.wintypes.HWND, ctypes.wintypes.UINT, ctypes.wintypes.WPARAM, ctypes.wintypes.LPARAM,
+    ctypes.wintypes.UINT, ctypes.wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
+_user32.SendMessageTimeoutW.restype = ctypes.c_ssize_t
 
 # Measured under the flake gate's load: a new window has taken over 60s to
 # appear, and a closed Chrome over 30s to exit.
@@ -69,6 +87,7 @@ class ThrowawayChrome:
             "--no-first-run",
             "--no-default-browser-check",
             "--mute-audio",
+            "--disable-backgrounding-occluded-windows",
         ]
         self._browser: subprocess.Popen | None = None
         self._windows: list[int] = []
@@ -99,6 +118,13 @@ class ThrowawayChrome:
     def hand_over(self, marker: str) -> int:
         self._launch(self.page_for(marker))
         return await_window(marker, TAB_TIMEOUT_S)
+
+    def hear_that_the_display_is_off(self) -> None:
+        notice = ctypes.create_string_buffer(GUID_SESSION_DISPLAY_STATUS.bytes_le + struct.pack(
+            "<II", ctypes.sizeof(ctypes.wintypes.DWORD), POWER_MONITOR_OFF))
+        for hwnd in _every_window(lambda hwnd: window_process(hwnd) == self._browser.pid):
+            _user32.SendMessageTimeoutW(hwnd, WM_POWERBROADCAST, PBT_POWERSETTINGCHANGE, ctypes.addressof(notice),
+                                        SMTO_ABORTIFHUNG, NOTICE_TIMEOUT_MS, None)
 
     def close(self) -> None:
         for hwnd in self._windows:
