@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
+from fun_time.hosted_contract import CONTRACT_FILE
 from tests import origenerator_contract
 from tests.git_repo import git
-from tests.origenerator_contract import CONTRACT_FILE
 
 
 def _publish(repo: Path, document: dict) -> None:

@@ -1,6 +1,7 @@
 """The hosted app's bring-up, shared by the desktop session and the headset's."""
 from __future__ import annotations
 
+import json
 import mmap
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -8,6 +9,7 @@ from unittest.mock import MagicMock, patch
 from funestra.file_channel import consume_command_file
 
 from fun_time import load_config
+from fun_time.hosted_contract import CONTRACT_FILE
 from fun_time.hosted_origenerator import (
     HAND_OVER,
     TAKE_BACK,
@@ -23,11 +25,28 @@ from fun_time.standalone_origenerator import (
     the_takeover_it_was_handed,
 )
 from fun_time.window_layout import WindowLayoutPlan, WindowRect, screen_layout
-from fun_time.windows_bridge_startup import launch_origenerator, origenerator_session_args
+from fun_time.windows_bridge_startup import (
+    HandedFunestra,
+    launch_origenerator,
+    origenerator_session_args,
+)
 
 _A_PLAN = WindowLayoutPlan(
     portrait=WindowRect(0, 0, 10, 10), landscape=WindowRect(0, 0, 10, 10),
     dashboard=WindowRect(0, 0, 10, 10), random_favs_browser=WindowRect(1, 2, 30, 40))
+_A_DESKTOP_SESSION = dict(
+    layout_plan=_A_PLAN, command_file="c", paused_file="p", status_file="s",
+    dashboard_cmd_file="d",
+    funestras={side: HandedFunestra("playlist", "cmd", "status", "hud")
+               for side in ("portrait", "landscape")})
+
+
+def _a_copy_from_before_the_pair(checkout: Path) -> list[str]:
+    flags = [word for word in origenerator_session_args(**_A_DESKTOP_SESSION)
+             if word.startswith("--")]
+    (checkout / CONTRACT_FILE).write_text(json.dumps(
+        {"required_flags": flags, "region_flags": {}, "player_flags": {}}), encoding="utf-8")
+    return flags
 
 
 def _manifest_for(cfg_factory, tmp_path, overrides):
@@ -128,6 +147,23 @@ class TestHandingTheWindowToTheHeadset:
 
         assert "--frames-file" in started["cmd"]
         assert "--input-file" in started["cmd"]
+
+    def test_a_copy_from_before_the_pair_is_launched_without_it(self, tmp_path):
+        flags = _a_copy_from_before_the_pair(tmp_path)
+        started = {}
+
+        class _Started:
+            pid = 91
+
+        with patch("fun_time.windows_bridge_startup.subprocess.Popen",
+                   side_effect=lambda cmd, **kw: started.update(cmd=cmd) or _Started()):
+            launch_origenerator(
+                python_exe="py.exe", origenerator_dir=tmp_path, **_A_DESKTOP_SESSION,
+                frames_file="st/origenerator_frame.bin",
+                input_file="st/origenerator_input.txt",
+            )
+
+        assert [word for word in started["cmd"] if word.startswith("--")] == flags
 
     def test_the_flags_are_the_ones_the_app_declares(self, cfg_factory, tmp_path):
         """The app publishes its launch contract because neither repo may import
@@ -297,6 +333,24 @@ class TestWhenTheAppWeTookOverNeverAnswers:
         assert app is not None and app.pid == 91 and not app.taken_over
         assert launched, "the room was left with no Origenerator at all"
         assert "never read the takeover" in caplog.text
+
+    def test_a_copy_from_before_the_pair_is_handed_a_session_without_it(self, cfg_factory, tmp_path):
+        origenerator = tmp_path / "origenerator"
+        (origenerator / "state").mkdir(parents=True)
+        flags = _a_copy_from_before_the_pair(origenerator)
+        _config, manifest = _manifest_for(
+            cfg_factory, tmp_path, {"paths": {"origenerator_dir": str(origenerator)}})
+        handed = {}
+        monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
+        with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors), \
+             patch("fun_time.hosted_origenerator.the_open_origenerator",
+                   return_value=OpenOrigenerator(6060, starting=False, checkout=origenerator,
+                                                 showing=False)), \
+             patch("fun_time.hosted_origenerator.take_it_over",
+                   side_effect=lambda _checkout, **kw: handed.update(kw)):
+            bring_up_the_hosted_app(manifest, project_dirs="", in_a_headset=True)
+
+        assert [word for word in handed["args"] if word.startswith("--")] == flags
 
     def test_one_that_answers_is_the_app_this_session_hosts(self, cfg_factory, tmp_path):
         """Reading it is the whole answer: a window in Kino mode has nothing to
