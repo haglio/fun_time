@@ -293,9 +293,9 @@ class TestOrigeneratorInVr:
 
         assert bridge.origenerator_enabled is False
 
-    def test_a_room_left_in_the_mode_asks_for_the_shows_as_it_opens(self, hosted, tmp_path):
+    def test_a_room_left_in_the_mode_asks_for_the_slideshows_as_it_opens(self, hosted, tmp_path):
         """The desktop's own comeback, in the headset: the room holds its cover up
-        for the hosted app and opens with the show on each Funestra it held."""
+        for the hosted app and opens with the slideshow on each Funestra it held."""
         state_dir = hosted.paths.state_dir
         state_dir.mkdir(parents=True, exist_ok=True)
         write_shared_state(shared_state_path(state_dir),
@@ -315,10 +315,10 @@ class TestOrigeneratorInVr:
                 DispatchLoopRunner=orchestrator.DispatchLoopRunner,
             )
 
-        assert "landscape_open_show" in verbs, "the headset's room opened in kino mode"
-        assert "portrait_open_show" not in verbs
+        assert "landscape_open_slideshow" in verbs, "the headset's room opened in kino mode"
+        assert "portrait_open_slideshow" not in verbs
 
-    def test_a_room_that_took_over_an_app_showing_a_slideshow_asks_for_the_shows_as_it_opens(
+    def test_a_room_that_took_over_an_app_showing_a_slideshow_asks_for_the_slideshows_as_it_opens(
             self, hosted, tmp_path):
         hosted.paths.state_dir.mkdir(parents=True, exist_ok=True)
         manifest = LaunchManifest.read(
@@ -337,7 +337,7 @@ class TestOrigeneratorInVr:
                 DispatchLoopRunner=orchestrator.DispatchLoopRunner,
             )
 
-        assert {"portrait_open_show", "landscape_open_show"} <= set(verbs), (
+        assert {"portrait_open_slideshow", "landscape_open_slideshow"} <= set(verbs), (
             "the headset's room opened in kino mode")
 
     def test_the_wait_is_named_on_the_cover_before_the_line_that_fills_the_bar(self):

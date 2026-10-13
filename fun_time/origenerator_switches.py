@@ -24,11 +24,11 @@ class RfbSlot(StrEnum):
 KINO_MODE = SatellitesMode.KINO
 ORIGENERATOR_MODE = SatellitesMode.ORIGENERATOR
 
-# Said to the hosted app about one side: take its Funestra and put a show on
-# it, or let it go.  A crossing parking the app lets go of every show at once.
-OPEN_SHOW = "open_show"
-CLOSE_SHOW = "close_show"
-CLOSE_SHOWS = "CLOSE_SHOWS"
+# Said to the hosted app about one side: take its Funestra and put a slideshow on
+# it, or let it go.  A crossing parking the app lets go of every slideshow at once.
+OPEN_SLIDESHOW = "open_slideshow"
+CLOSE_SLIDESHOW = "close_slideshow"
+CLOSE_SLIDESHOWS = "CLOSE_SLIDESHOWS"
 
 
 def origenerator_shows(mode: SatellitesMode) -> bool:
