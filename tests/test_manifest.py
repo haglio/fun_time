@@ -46,7 +46,7 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
         "config_path", "windows_bridge_log_file", "genau_config_path",
         "genau_project_dirs", "origenerator_dir",
     },
-    "executables": {"python_exe", "genau_python_exe", "origenerator_python_exe"},
+    "executables": {"python_exe", "origenerator_python_exe"},
     "media": {
         "main_funestra_library_sources", "portrait_dirs", "landscape_dirs", "weird_dir",
         "favs_file", "genau_flicks", "genau_audio", "vr_library_dirs", "genau_vr_flicks",

@@ -271,23 +271,20 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   `state/fun_time_branch_config.json` records what his last launch actually
   ran.
 
-- **The Main Funestra runs out of Genau's venv, so a change here that makes
-  `main_funestra` import a new funestra name needs Genau's pin moved first.**
-  `FunTime-MainFunestra.exe` is `../genau/.venv`'s, and that venv holds the
-  funestra Genau's `pyproject.toml` names, not this repo's; the satellites
-  and the orchestrator run out of this venv. Moving this repo's pin alone
-  leaves the Main Funestra dying at import on a name its venv does not have,
-  which the hidden-desktop suite reports as every session failing to start
-  (2026-10-07: `play_points` moved to funestra, the pin moved here, and
-  the Main Funestra could not find it until genau took the same tag). So land
-  Genau's pin bump first, reinstall that venv, then this repo's.
+- **Every Funestra runs out of this repo's venv, the Main Funestra
+  (`FunTime-MainFunestra.exe`) beside the satellites and the orchestrator, so
+  this repo's own funestra pin is the only one a Fun Time change moves.** The
+  Main Funestra ran out of `../genau/.venv` until 2026-10-13, which held Fun
+  Time changes back until Genau's pin moved and that venv was reinstalled while
+  he was not using Fun Time; a config still naming `paths.genau_python_exe` is
+  ignored.
 - **A funestra worktree named on that chain needs nothing copied in, and a
   launch proves that before it opens a window.** The DLL is fetched rather than
   tracked, so a worktree of that repo has no `vendor/` of its own; every launch
-  asks each Funestra's own interpreter, with the PYTHONPATH that Funestra is launched
+  asks the Funestras' interpreter, with the PYTHONPATH they are launched
   with, whether it can load the engine, puts the shared copy
-  (`%USERPROFILE%\.haglio\libmpv`) where a Funestra that cannot looks first, and
-  refuses to open the room — saying which Funestra and what it said — if one still
+  (`%USERPROFILE%\.haglio\libmpv`) where it looks first when it cannot, and
+  refuses to open the room — saying what it said — if it still
   cannot (`fun_time/funestra_engine.py`). A worktree pinned at a funestra from
   before v0.1.331 still looks under `AppData`, which is private to the app an
   agent's shell runs inside and empty for anything he launches; that is the case

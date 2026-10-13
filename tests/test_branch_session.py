@@ -61,7 +61,6 @@ def _write_config(path: Path, **paths: str) -> Path:
             "genau_dir": "C:/library/genau",
             "favs_file": "favs.csv",
             "state_dir": "state",
-            "genau_python_exe": "C:/genau/.venv/Scripts/pythonw.exe",
             "genau_config_path": "C:/genau/genau_config.json",
             # Relative on purpose: a checkout Genau and the Main Funestra are run out of sits
             # one directory up from the primary, which from a worktree is a

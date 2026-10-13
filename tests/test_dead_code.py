@@ -329,7 +329,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6166 on 2026-10-13: cruise control left Fun Time, and its notes with it.
 # 6165 the same day: the reveal's two dwells are named, so the comment saying
 # which frames counted went with them.
-MAX_PROSE_LINES = 6165
+# 6145 the same day: the Main Funestra runs out of Fun Time's own venv, and the
+# notes on running out of Genau's went with it.
+MAX_PROSE_LINES = 6145
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

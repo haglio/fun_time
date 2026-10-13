@@ -114,7 +114,7 @@ Serial / mode control:
 
 - the real OSR2 is on `COM4`; the **broker** — the separate `../broker` project — is the only process that talks to it. It forwards UDP T-Code to the OSR2 unconditionally and suppresses serial input while UDP flows, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/broker_mode.txt`.
 - **the Main Funestra** — this repo's `main_funestra` package — never opens `COM4`. It drives the OSR2 itself by sending funscript-derived T-Code to the broker over UDP (the same port Genau uses), reads commands from `state/main_player_cmd.txt`, and publishes playback status to `state/main_player_status.txt`.
-- **Genau** — the separate `../genau` project — never opens `COM4` either. It follows the broker-fed state, is the display in Genau mode and the see-through HUD layer over the Main Funestra in Kino mode, and reads clip and Robot Hand commands from `state/genau_cmd.txt`.
+- **Genau** — run on the Main Funestra (`main_funestra/genau.py`) — never opens `COM4` either. It follows the broker-fed state, is the display in Genau mode and the see-through HUD layer over the Main Funestra in Kino mode, and reads clip and Robot Hand commands from `state/genau_cmd.txt`.
 
 See those projects for the serial parsing, COM-port recovery, and playback internals.
 
@@ -140,7 +140,7 @@ Two listeners hear every command (the family's shared listener, `../voice_core`)
 
 - Python (currently launched via Miniconda `pythonw.exe`)
 - Python dependencies are declared in `pyproject.toml` — notably PyQt6 (dashboard), pygame-ce (audio companion), voice_core (the family's listener, which brings vosk + sounddevice; the `voice` extra adds faster-whisper for the second listener), and Pillow / numpy / opencv-python.
-- Kino and Genau are both the Main Funestra, launched as `python -m main_funestra` out of the `../genau` project's venv (`paths.genau_python_exe`), and it reads its library folders and device port from the `main_funestra` section of the genau config file (`paths.genau_config_path`). The `../genau` repo itself ships no code: it is that venv, Genau's settings and the clips-folder layout it promises (`genau_contract.json`).
+- Kino and Genau are both the Main Funestra, launched as `python -m main_funestra` out of this project's venv (`paths.python_exe`), like the Satellite Funestras. It reads its library folders and device port from this project's config, and Genau's engine settings from Genau's config file (`paths.genau_config_path`). The `../genau` repo ships no code: it holds Genau's settings and the flicks-folder layout it promises (`genau_contract.json`).
 
 Install the declared dependencies into the project venv before first use.
 
@@ -186,18 +186,17 @@ What the branch session keeps to itself is `state/`, inside the worktree — its
 command files, playlists, logs, thumbnails and resume point. Everything else is
 the real thing on purpose. See `fun_time/branch_session.py`.
 
-Genau comes out of `../genau`, and which checkout of it is a per-session
-fact: `paths.genau_project_dirs` puts directories in front of that repo's own
-install — and in front of every Funestra's — so a branch of *genau* or of
-*funestra* can be judged the same way. That is per session
+Which checkout of `../funestra` the Funestras run is a per-session fact:
+`paths.genau_project_dirs` puts directories in front of this project's venv
+install, so a branch of *funestra* can be judged the same way. That is per session
 and must be said per session — written into the machine's `fun_time_config.json`
 it reaches the ordinary `launch.vbs` session and every other agent's branch
 session too, each then silently running someone's unlanded branch of another
 repo. So a worktree says it for itself, in `state/genau_project_dirs.txt`: one
 absolute path per line, `#` comments and blank lines ignored. Present, it
 replaces the machine's value outright — an **empty** file is how a branch with
-nothing to do with genau says "the plain install", which is what you want when
-the machine is pinned to a genau worktree that predates what has landed. Absent,
+nothing to do with funestra says "the plain install", which is what you want when
+the machine is pinned to a funestra worktree that predates what has landed. Absent,
 the machine's value rides through as before.
 
 ### Genaumacher way
