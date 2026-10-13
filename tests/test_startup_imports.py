@@ -118,43 +118,18 @@ def test_the_launch_loads_nothing_the_cover_does_not_need():
     )
 
 
-def test_the_sys_path_override_still_sits_between_the_two_import_blocks():
-    """The one module-level side effect on the launch path, pinned in place.
-
-    ``apply_genau_dirs_to_sys_path()`` must run AFTER ``checkout_overrides`` is
-    imported (it is what provides it) and BEFORE the bridge is, because this
-    process resolves ``funestra`` through the venv — the primary's — and a
-    branch leaning on an unlanded funestra change then imports code the
-    primary does not have.  That is a session that dies at launch, and it
-    reached him that way on 2026-08-13.  An import tidied above the call, or the
-    call slid below one, puts it back; this says so instead of a comment hoping
-    someone reads it.
-    """
-    tree = ast.parse((PROJECT_DIR / "fun_time" / "orchestrator.py").read_text(encoding="utf-8"))
-    provides = applies = uses = None
-    # The bridge import is inside the call that runs the session, not at the top
-    # of the module, so the walk reaches into the functions to find it.
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "checkout_overrides":
-            provides = node.lineno
-        elif (isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)
-                and getattr(node.value.func, "id", "") == "apply_genau_dirs_to_sys_path"):
-            applies = node.lineno
-        elif (isinstance(node, ast.ImportFrom)
-                and node.module == "windows_bridge_orchestrator"):
-            uses = node.lineno
-
-    assert provides and applies and uses, "the launch path's import shape has moved"
-    assert provides < applies < uses, (
-        "the genau/funestra override has to be applied after "
-        "checkout_overrides is imported and before the bridge is"
-    )
-    own_imports_above_the_call = [
-        node.module for node in tree.body
-        if isinstance(node, ast.ImportFrom) and node.lineno < applies
-        and node.module != "checkout_overrides" and (node.level or node.module.startswith("fun_time"))
+@pytest.mark.parametrize("package", ["fun_time", "fun_time_vr"])
+def test_the_sys_path_override_is_applied_before_the_package_imports_anything_else(package):
+    tree = ast.parse((PROJECT_DIR / package / "__init__.py").read_text(encoding="utf-8"))
+    statements = [node for node in tree.body
+                  if not (isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant))]
+    applies = next(index for index, node in enumerate(statements)
+                   if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)
+                   and getattr(node.value.func, "id", "") == "apply_genau_dirs_to_sys_path")
+    imports_above_it = [
+        node.module for node in statements[:applies]
+        if isinstance(node, ast.ImportFrom) and not node.module.endswith("project_paths")
+        and node.module != "__future__"
     ]
-    assert own_imports_above_the_call == [], (
-        "every import of this package but checkout_overrides reaches the siblings, so "
-        f"the override has to be applied before them: {own_imports_above_the_call}"
-    )
+
+    assert imports_above_it == []

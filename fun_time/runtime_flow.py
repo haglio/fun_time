@@ -33,16 +33,6 @@ from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .room_funestras import RoomFunestra
 
 
-def read_flag_file(path: str | Path, default: bool) -> bool:
-    try:
-        target = Path(path)
-        if not target.exists():
-            return default
-        return target.read_text(encoding="utf-8").strip() not in {"", "0", "false", "False"}
-    except OSError:
-        return default
-
-
 def write_flag_file(path: str | Path, value: bool) -> None:
     flag = Path(path)
     if not replace_despite_readers(flag, "1" if value else "0"):
@@ -355,6 +345,7 @@ def apply_enter_omnipause(
     genau_cmd_file: str | Path,
     main_funestra_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
+    device_on: bool,
     origenerator_paused_file: str | Path | None = None,
 ) -> OmniPauseFlowResult:
     """Freeze the whole session, and send the OSR2 home."""
@@ -379,7 +370,8 @@ def apply_enter_omnipause(
     append_command(Path(genau_cmd_file), "PAUSE")
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
-        append_command(Path(genau_cmd_file), plan.broker_command)
+        if device_on:
+            append_command(Path(genau_cmd_file), plan.broker_command)
     return OmniPauseFlowResult(
         next_omni_paused=plan.next_omni_paused,
         log_message=plan.log_message,

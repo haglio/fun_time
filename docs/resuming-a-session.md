@@ -66,7 +66,7 @@ a file a new process reads:
 - the OSR2's control state is carried out by the device arbiter
   (`fun_time.device_arbiter`) on the new session's first tick and every tick
   after, exactly as it is after a press. Startup sends the device home first,
-  which is where control off leaves it anyway.
+  which is where the switch's off leaves it anyway.
 
 Carrying a flag whose world is not put back with it is the same lie as dropping
 one that was true.
