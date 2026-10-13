@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import ast
 import inspect
+from pathlib import Path
+
+from funestra.funestra import Funestra
 
 from fun_time_vr import funestras, layout, room
 from fun_time_vr import room as under_test
@@ -316,6 +319,21 @@ class TestTheGatesOnTheRoomsAssembly:
         until the room is built on a headset."""
         for kind, words in self._units_built_in_the_assembly():
             inspect.signature(kind.__init__).bind_partial(None, **dict.fromkeys(words))
+
+    def test_every_word_a_unit_hands_funestra_is_one_funestra_takes(self):
+        """One step wider again, across the repo boundary: funestra renames a
+        parameter, every suite stays green because the room is a shell no test
+        can build, and he meets it as a room that shows its loading screen and
+        then goes.  His 2026-10-12 session died on host_block, which had become
+        host_controls in the funestra this computer had installed."""
+        tree = ast.parse(Path(funestras.__file__).read_text(encoding="utf-8"))
+        handed = [[word.arg for word in call.keywords if word.arg]
+                  for call in ast.walk(tree)
+                  if isinstance(call, ast.Call) and ast.unparse(call.func) == "Funestra"]
+        assert handed, "nothing in the room builds a Funestra any more"
+        for words in handed:
+            inspect.signature(Funestra.__init__).bind_partial(
+                None, **dict.fromkeys(words))
 
     def test_the_room_is_the_one_list_everything_is_read_off(self):
         """One registration per screen: the same list is what is closed, what
