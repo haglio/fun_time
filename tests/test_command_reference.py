@@ -236,7 +236,7 @@ def test_every_scope_shares_one_grid_with_a_key_column_per_funestra():
         for row in section.rows:
             by_scope = {
                 scope: {c[len(scope) + 1:] for c in row.commands if c.startswith(f"{scope}_")}
-                for scope in ("portrait", "landscape", "both", "active")
+                for scope in ("portrait", "landscape", "satellites", "active")
             }
             assert by_scope["portrait"] == by_scope["landscape"], (
                 f"row {row.description!r} names different actions per side"
@@ -282,17 +282,17 @@ def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
                     )
 
 
-def test_the_grid_carries_every_both_and_active_command():
+def test_the_grid_carries_every_satellites_and_active_command():
     """Nothing was dropped in the consolidation: each command the retired "Both",
     "Active side" and "Filters" sections documented is on a row of the grid."""
     covered = {c for section in _shared_sections() for row in section.rows for c in row.commands}
     assert {
-        "both_prev", "both_next", "both_trash",
-        "both_lock_on", "both_lock_off",
-        "both_cycle_action", "both_cycle_seed", "both_more_seeds", "both_wrong_action",
-        "both_action_loop", "both_seed_loop", "both_no_loop", "both_lock_action",
-        "both_latest", "both_shuffle", "both_no_filter", "both_reset",
-        "both_fmode", "both_fmode_on", "both_fmode_off",
+        "satellites_prev", "satellites_next", "satellites_trash",
+        "satellites_lock_on", "satellites_lock_off",
+        "satellites_cycle_action", "satellites_cycle_seed", "satellites_more_seeds", "satellites_wrong_action",
+        "satellites_action_loop", "satellites_seed_loop", "satellites_no_loop", "satellites_lock_action",
+        "satellites_latest", "satellites_shuffle", "satellites_no_filter", "satellites_reset",
+        "satellites_fmode", "satellites_fmode_on", "satellites_fmode_off",
     } <= covered
     assert {
         "active_prev", "active_next", "active_trash",
@@ -339,9 +339,9 @@ def test_the_shared_grid_carries_every_funestras_own_playback_speed():
     rate = next(r for r in rows if "portrait_speed_50" in r.commands)
 
     assert nudge.voice == ("playback speed up", "playback slow down", "playback speed down")
-    assert {"active_speed_up", "both_speed_down", "landscape_speed_up",
+    assert {"active_speed_up", "satellites_speed_down", "landscape_speed_up",
             "main_player_speed_up", "main_player_speed_down"} <= set(nudge.commands)
-    assert {"active_speed_min", "both_speed_max", "active_speed_150", "both_speed_200",
+    assert {"active_speed_min", "satellites_speed_max", "active_speed_150", "satellites_speed_200",
             "landscape_speed_25", "main_player_speed_50"} <= set(rate.commands)
 
 
@@ -431,14 +431,14 @@ def test_sound_rows_are_voice_only_and_reach_every_funestra():
     assert _keys(mute) == ()
     # "unmute" is one word to the reader; only the recognizer hears "un mute".
     assert mute.voice == ("mute", "unmute")
-    assert {"audio_unmute", "portrait_mute", "landscape_unmute", "both_mute",
+    assert {"audio_unmute", "portrait_mute", "landscape_unmute", "satellites_mute",
             "active_unmute"} <= set(mute.commands)
 
     steps = [r for r in _all_rows() if "audio_volume_up" in r.commands]
     assert steps == [r for r in rows if "audio_volume_up" in r.commands]
     assert len(steps) == 1, "expected one volume row"
     assert {"audio_volume_down", "portrait_volume_up", "landscape_volume_down",
-            "both_volume_up", "active_volume_down"} <= set(steps[0].commands)
+            "satellites_volume_up", "active_volume_down"} <= set(steps[0].commands)
     assert _keys(steps[0]) == ()
     assert set(steps[0].voice) == {"quiet", "quieter", "loud", "louder"}
 
@@ -456,7 +456,7 @@ def test_latest_is_spoken_only_and_the_older_names_are_gone():
     Both older names are gone rather than kept as synonyms — "recents" especially,
     which the small vosk model has no word for and heard as "reset".
     """
-    [row] = [r for r in _all_rows() if "both_latest" in r.commands]
+    [row] = [r for r in _all_rows() if "satellites_latest" in r.commands]
     assert _keys(row) == ()
     # It sits in the shared grid like every other action, so its voice column
     # is the bare "latest" and "satellites latest" comes from the section's note.
@@ -473,7 +473,7 @@ def test_end_loop_follows_the_funestra_last_spoken_to():
     assert VOICE_COMMANDS["end loop"] == "active_no_loop"
     assert VOICE_COMMANDS["portrait end loop"] == "portrait_no_loop"
     assert VOICE_COMMANDS["end loop landscape"] == "landscape_no_loop"
-    assert VOICE_COMMANDS["satellites end loop"] == "both_no_loop"
+    assert VOICE_COMMANDS["satellites end loop"] == "satellites_no_loop"
 
 
 def test_latest_and_shuffle_reach_one_side_or_both():
@@ -484,7 +484,7 @@ def test_latest_and_shuffle_reach_one_side_or_both():
         assert VOICE_COMMANDS[word] == f"active_{action}"
         assert VOICE_COMMANDS[f"portrait {word}"] == f"portrait_{action}"
         assert VOICE_COMMANDS[f"{word} landscape"] == f"landscape_{action}"
-        assert VOICE_COMMANDS[f"satellites {word}"] == f"both_{action}"
+        assert VOICE_COMMANDS[f"satellites {word}"] == f"satellites_{action}"
 
 
 def test_voice_phrases_are_derived_from_voice_commands():
@@ -635,7 +635,7 @@ def test_a_satellite_key_means_something_in_each_mode_and_sits_on_the_same_key()
     kino, origenerator = keyed.values()
 
     assert kino == origenerator
-    assert {"landscape_trash", "portrait_nav_up", "landscape_loop", "both_cycle_version"} <= set(kino)
+    assert {"landscape_trash", "portrait_nav_up", "landscape_loop", "satellites_cycle_version"} <= set(kino)
 
 
 def test_the_main_funestras_step_and_hold_keys_reach_whatever_is_on_it():
@@ -700,8 +700,8 @@ def test_kino_mode_is_spoken_as_written_of_either_side_or_of_both():
         assert retired not in VOICE_COMMANDS, retired
     main_rows = [r for r in _all_rows() if "main_kino_activate" in r.commands]
     assert main_rows and main_rows[0].voice == ("main kino mode",)
-    both_rows = [r for r in _all_rows() if "kino_activate" in r.commands]
-    assert both_rows and both_rows[0].voice == ("kino mode",)
+    kino_rows = [r for r in _all_rows() if "kino_activate" in r.commands]
+    assert kino_rows and kino_rows[0].voice == ("kino mode",)
     genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
     assert genau_rows and genau_rows[0].voice == ("genau", "genau mode")
 
@@ -842,7 +842,7 @@ def test_a_hud_corner_row_names_the_four_corners_for_every_funestra():
     row = next(r for r in _funestras_section().rows if "main_hud_upper_left" in r.commands)
 
     assert row.voice == ("hud top left", "hud top right", "hud lower left", "hud lower right")
-    assert {"portrait_hud_lower_right", "landscape_hud_upper_right", "both_hud_lower_left",
+    assert {"portrait_hud_lower_right", "landscape_hud_upper_right", "satellites_hud_lower_left",
             "active_hud_upper_right", "main_hud_lower_left"} <= set(row.commands)
     assert _keys(row) == ()
 
@@ -1020,7 +1020,7 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
     assert set(drop_row.voice) == {"no filter", "filter off", "clear filter", "show everything"}
     assert VOICE_COMMANDS["portrait clear filter"] == "portrait_no_filter"
     assert VOICE_COMMANDS["clear filter landscape"] == "landscape_no_filter"
-    assert VOICE_COMMANDS["satellites show everything"] == "both_no_filter"
+    assert VOICE_COMMANDS["satellites show everything"] == "satellites_no_filter"
     assert VOICE_COMMANDS["clear filter"] == "active_no_filter"
     assert "clear portrait" not in VOICE_COMMANDS
 

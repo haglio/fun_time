@@ -469,7 +469,7 @@ Bare "reset" reaches whichever Funestra was last addressed, the Main Funestra in
 
 **A reset with nothing to put back is drawn faded, and takes no press.** The same answer that skips the dispatch rides out to the surfaces that draw the button: the main console's reset, each satellite HUD's, and the dashboards' Reset All go dim while every Funestra they reach is already at its defaults. The Funestras draw that from the button's own dim flag, which fades the mark, leaves it unlit under the pointer and posts nothing. Reset All stays live while a show is hosted — the session cannot see what the show is showing, so it never claims there is nothing to put back.
 
-**Reset All** resets every Funestra at once: it is the dashboard's button beside F-mode, on the desktop and in the headset alike, and the spoken "reset all" / "all reset". It posts `all_reset`, which the dispatch loop expands the way it expands a `both_*` command — into `main_reset`, `portrait_reset` and `landscape_reset`, each handled exactly as if it had been pressed on its own Funestra.
+**Reset All** resets every Funestra at once: it is the dashboard's button beside F-mode, on the desktop and in the headset alike, and the spoken "reset all" / "all reset". It posts `all_reset`, which the dispatch loop expands the way it expands a `satellites_*` command — into `main_reset`, `portrait_reset` and `landscape_reset`, each handled exactly as if it had been pressed on its own Funestra.
 
 ### Cycle action & cycle seed (satellites)
 

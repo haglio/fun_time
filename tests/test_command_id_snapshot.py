@@ -27,10 +27,7 @@ from fun_time.voice_commands import VOICE_COMMANDS
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Commands no spoken phrase, hotkey or reference row names: posted straight off
-# a Funestra's own surface as a literal string in that Funestra's repo, or off the
-# dashboard's strip.  Each satellite's Kino / Origenerator pair is on its HUD, and
-# the strip's two buttons are the strip's own (the hosted Origenerator posts its
-# second one too, to be shown).  The three
+# a Funestra's own surface as a literal string in that Funestra's repo.  The three
 # minimize buttons live on the HUDs (funestra / the Main Funestra's console); the
 # padlock on that console locks whichever Funestra is on the main screen; the speed
 # pair is Genau's console's own ± marks beside its drive readout; the enhanced
@@ -39,21 +36,15 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # scene jumps are the VR controllers' B and A with the trigger held.
 HUD_ONLY_COMMAND_IDS = (
     "genau_filter_enhanced",
-    "landscape_kino_activate",
     "landscape_minimize",
-    "landscape_origenerator_activate",
     "landscape_take_osr2",
     "main_lock",
     "main_minimize",
     "main_scene_next",
     "main_scene_prev",
     "main_take_osr2",
-    "origenerator_activate",
-    "portrait_kino_activate",
     "portrait_minimize",
-    "portrait_origenerator_activate",
     "portrait_take_osr2",
-    "rfb_activate",
     "robot_hand_speed_down",
     "robot_hand_speed_up",
 )
@@ -112,43 +103,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "audio_unmute",
     "audio_volume_down",
     "audio_volume_up",
-    "both_action_loop",
-    "both_cycle_action",
-    "both_cycle_seed",
-    "both_cycle_version",
-    "both_fmode",
-    "both_fmode_off",
-    "both_fmode_on",
-    "both_hud_lower_left",
-    "both_hud_lower_right",
-    "both_hud_minimize",
-    "both_hud_restore",
-    "both_hud_upper_left",
-    "both_hud_upper_right",
-    "both_latest",
-    "both_lock_action",
-    "both_lock_off",
-    "both_lock_on",
-    "both_more_seeds",
-    "both_mute",
-    "both_next",
-    "both_no_filter",
-    "both_no_loop",
-    "both_nudge_next",
-    "both_nudge_prev",
-    "both_prev",
-    "both_reset",
-    "both_seed_loop",
-    "both_shuffle",
-    "both_speed_down",
-    "both_speed_max",
-    "both_speed_min",
-    "both_speed_up",
-    "both_trash",
-    "both_unmute",
-    "both_volume_down",
-    "both_volume_up",
-    "both_wrong_action",
     "broker_panel",
     "broker_start",
     "broker_stop",
@@ -279,6 +233,8 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "main_reset",
     "main_shuffle",
     "omnipause_toggle",
+    "origenerator_activate",
+    "osr2_control_off",
     "pause",
     "play",
     "portrait_action_loop",
@@ -355,16 +311,56 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "robot_hand_amplitude_up",
     "robot_hand_center_down",
     "robot_hand_center_up",
+    "robot_hand_cruise_off",
+    "robot_hand_cruise_on",
     "robot_hand_cycle_shape",
     "robot_hand_cycle_shape_prev",
     "robot_hand_learned_off",
     "robot_hand_learned_on",
     "robot_hand_park",
     "robot_hand_release",
+    "robot_hand_retract",
+    "robot_hand_toggle_cruise",
     "robot_hand_toggle_learned",
+    "satellites_action_loop",
+    "satellites_cycle_action",
+    "satellites_cycle_seed",
+    "satellites_cycle_version",
+    "satellites_fmode",
+    "satellites_fmode_off",
+    "satellites_fmode_on",
+    "satellites_hud_lower_left",
+    "satellites_hud_lower_right",
+    "satellites_hud_minimize",
+    "satellites_hud_restore",
+    "satellites_hud_upper_left",
+    "satellites_hud_upper_right",
     "satellites_kino_activate",
-    "satellites_origenerator_activate",
+    "satellites_latest",
+    "satellites_lock_action",
+    "satellites_lock_off",
+    "satellites_lock_on",
+    "satellites_more_seeds",
+    "satellites_mute",
+    "satellites_next",
+    "satellites_no_filter",
+    "satellites_no_loop",
+    "satellites_nudge_next",
+    "satellites_nudge_prev",
+    "satellites_prev",
+    "satellites_reset",
+    "satellites_seed_loop",
+    "satellites_shuffle",
+    "satellites_speed_down",
+    "satellites_speed_max",
+    "satellites_speed_min",
+    "satellites_speed_up",
     "satellites_toggle",
+    "satellites_trash",
+    "satellites_unmute",
+    "satellites_volume_down",
+    "satellites_volume_up",
+    "satellites_wrong_action",
     "speed_down",
     "speed_up",
     "tilt_down",
@@ -387,7 +383,7 @@ def _expected_numeric_ids() -> set[str]:
     ids |= {f"genau_flick_seconds_{value}" for value in range(1, 61)}
     ids |= {
         f"{funestra}_speed_{pct}"
-        for funestra in ("main_player", "active", "both", "portrait", "landscape")
+        for funestra in ("main_player", "active", "satellites", "portrait", "landscape")
         for pct in (25, 50, 75, 100, 125, 150, 175, 200)
     }
     return ids
@@ -397,7 +393,7 @@ def _expected_filter_ids() -> set[str]:
     """The act-filter ids, shaped from whatever overlay this machine carries."""
     return {
         set_command(scope, query)
-        for scope in ("both", "portrait", "landscape")
+        for scope in ("satellites", "portrait", "landscape")
         for query in load_acts()
     }
 

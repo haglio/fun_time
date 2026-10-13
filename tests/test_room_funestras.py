@@ -31,9 +31,9 @@ def test_label_of_tolerates_a_slot_no_funestra_holds():
     assert RoomFunestra.label_of(7) == ""
 
 
-def test_satellites_are_the_scope_both_means():
+def test_the_satellites_scope_is_the_two_satellites():
     assert RoomFunestra.SATELLITES == (RoomFunestra.PORTRAIT, RoomFunestra.LANDSCAPE)
-    assert RoomFunestra.for_scope("both") == RoomFunestra.SATELLITES
+    assert RoomFunestra.for_scope("satellites") == RoomFunestra.SATELLITES
     assert RoomFunestra.for_scope("portrait") == (RoomFunestra.PORTRAIT,)
     assert RoomFunestra.for_scope("landscape") == (RoomFunestra.LANDSCAPE,)
 

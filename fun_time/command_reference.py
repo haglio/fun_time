@@ -100,7 +100,7 @@ class _Section:
 
 
 #: The four ways to address a satellite action.
-_SCOPES = ("portrait", "landscape", "both", "active")
+_SCOPES = ("portrait", "landscape", "satellites", "active")
 
 _SPOKEN_COMMANDS = frozenset(VOICE_COMMANDS.values())
 _FLICK = genau_flick_noun()
@@ -564,7 +564,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     "library plays and the original it was made from",
                     commands=("portrait_cycle_version_back", "portrait_cycle_version",
                               "landscape_cycle_version_back", "landscape_cycle_version",
-                              "both_cycle_version"),
+                              "satellites_cycle_version"),
                     columns=(("Shift+Left", "Shift+Right"), ("Shift+A", "Shift+D")),
                 ),
                 _Row(
@@ -589,7 +589,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Group("Filter", (
                 _Row(
                     "filter by act — say the act on its own",
-                    commands=set_commands_for_scope("both")
+                    commands=set_commands_for_scope("satellites")
                     + set_commands_for_scope("portrait")
                     + set_commands_for_scope("landscape"),
                     voice_display=display_forms(),
@@ -615,7 +615,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     "made from, the upscale Evolver made of a video",
                     commands=("portrait_cycle_version_back", "portrait_cycle_version",
                               "landscape_cycle_version_back", "landscape_cycle_version",
-                              "both_cycle_version"),
+                              "satellites_cycle_version"),
                     columns=(("Shift+Left", "Shift+Right"), ("Shift+A", "Shift+D")),
                 ),
                 _Row(
@@ -643,7 +643,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Group("Filter", (
                 _Row(
                     "filter by act — say the act on its own",
-                    commands=set_commands_for_scope("both")
+                    commands=set_commands_for_scope("satellites")
                     + set_commands_for_scope("portrait")
                     + set_commands_for_scope("landscape"),
                     voice_display=display_forms(),

@@ -25,7 +25,7 @@ ACTS = {
 
 
 def test_set_commands_round_trip_through_decode():
-    for scope in ("both", "portrait", "landscape"):
+    for scope in ("satellites", "portrait", "landscape"):
         for query in ACTS:
             assert decode_filter_command(set_command(scope, query)) == (scope, query)
 
@@ -36,10 +36,10 @@ def test_the_wire_format_is_the_filter_prefix_scope_and_slugged_query():
     dispatch_command matches it by these exact spellings.  Encode and decode
     staying inverse is not enough — a changed spelling would round-trip here
     and go unmatched there."""
-    assert set_command("both", "beta gamma") == "filter_both_beta_gamma"
+    assert set_command("satellites", "beta gamma") == "filter_satellites_beta_gamma"
     assert set_command("portrait", "alpha") == "filter_portrait_alpha"
     assert set_command("landscape", "delta") == "filter_landscape_delta"
-    assert decode_filter_command("filter_both_beta_gamma") == ("both", "beta gamma")
+    assert decode_filter_command("filter_satellites_beta_gamma") == ("satellites", "beta gamma")
 
 
 def test_a_command_that_is_not_about_the_filter_is_left_alone():
@@ -49,7 +49,7 @@ def test_a_command_that_is_not_about_the_filter_is_left_alone():
 
 def test_bare_act_filters_both_orientation_prefix_scopes_one():
     voice = filter_voice_commands(ACTS)
-    assert voice["alpha"] == set_command("both", "alpha")
+    assert voice["alpha"] == set_command("satellites", "alpha")
     assert voice["portrait alpha"] == set_command("portrait", "alpha")
     assert voice["landscape alpha"] == set_command("landscape", "alpha")
 
@@ -59,8 +59,8 @@ def test_spoken_form_can_differ_from_the_matched_query():
     # "delta" is voiced as "delta form", but the command — and therefore the
     # metadata substring — stays the real query "delta".
     assert "delta" not in voice
-    assert voice["delta form"] == set_command("both", "delta")
-    assert decode_filter_command(voice["delta form"]) == ("both", "delta")
+    assert voice["delta form"] == set_command("satellites", "delta")
+    assert decode_filter_command(voice["delta form"]) == ("satellites", "delta")
 
 
 def test_multi_word_query_round_trips():
@@ -85,7 +85,7 @@ def test_every_generated_voice_command_decodes():
 
 
 def test_set_commands_for_scope_lists_every_act():
-    for scope in ("both", "portrait", "landscape"):
+    for scope in ("satellites", "portrait", "landscape"):
         commands = set_commands_for_scope(scope, ACTS)
         assert set_command(scope, "beta gamma") in commands
         assert len(commands) == len(ACTS)

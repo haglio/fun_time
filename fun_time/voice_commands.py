@@ -270,9 +270,8 @@ def build_voice_commands(
     # names the pair, whose id the dispatch loop expands.  Cycle siblings with
     # "action" (same subject(s)+scene, another act) or "seed" (same config,
     # another subject).
-    _SIDE_WORDS: dict[str, str] = {"portrait": "portrait", "landscape": "landscape",
-                                   "satellites": "both"}
-    _FUNESTRA_WORDS: dict[str, str] = {**_SIDE_WORDS, "main": "main"}
+    _SIDE_WORDS = ("portrait", "landscape", "satellites")
+    _FUNESTRA_WORDS = (*_SIDE_WORDS, "main")
     _SATELLITE_ACTIONS: dict[str, str] = {
         "lock": "lock_on",
         "unlock": "lock_off",
@@ -302,15 +301,15 @@ def build_voice_commands(
     }
     for _act_word, _act in _SATELLITE_ACTIONS.items():
         commands[_act_word] = f"active_{_act}"
-        for _side_word, _side in _SIDE_WORDS.items():
+        for _side in _SIDE_WORDS:
             _sided = f"{_side}_{_act}"
-            commands[f"{_side_word} {_act_word}"] = _sided
-            commands[f"{_act_word} {_side_word}"] = _sided
+            commands[f"{_side} {_act_word}"] = _sided
+            commands[f"{_act_word} {_side}"] = _sided
 
     # Sided only: the bare word is the Main Funestra's own version axis above.
-    for _side_word, _side in _SIDE_WORDS.items():
-        commands[f"{_side_word} version"] = f"{_side}_cycle_version"
-        commands[f"version {_side_word}"] = f"{_side}_cycle_version"
+    for _side in _SIDE_WORDS:
+        commands[f"{_side} version"] = f"{_side}_cycle_version"
+        commands[f"version {_side}"] = f"{_side}_cycle_version"
 
     # Group commands act on the current clip's GROUP rather than on the playlist,
     # and join the same order-agnostic grid.  "action loop" cycles the subject's
@@ -350,19 +349,19 @@ def build_voice_commands(
     for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
         for _group_word in _group_words:
             commands[_group_word] = f"active_{_group_act}"
-            for _side_word, _side in _SIDE_WORDS.items():
+            for _side in _SIDE_WORDS:
                 _sided = f"{_side}_{_group_act}"
-                commands[f"{_side_word} {_group_word}"] = _sided
-                commands[f"{_group_word} {_side_word}"] = _sided
+                commands[f"{_side} {_group_word}"] = _sided
+                commands[f"{_group_word} {_side}"] = _sided
 
     # "end loop" is side-agnostic like the rest of the grid: bare, it reaches the
     # Funestra last addressed and means that Funestra's own kind of loop — the dispatch
     # loop resolves ``active_no_loop`` to the Main Funestra's A-B loop cancel on the Main Funestra, and to
     # a satellite's group loop on portrait/landscape.
     commands["end loop"] = "active_no_loop"
-    for _side_word, _side in _SIDE_WORDS.items():
-        commands[f"{_side_word} end loop"] = f"{_side}_no_loop"
-        commands[f"end loop {_side_word}"] = f"{_side}_no_loop"
+    for _side in _SIDE_WORDS:
+        commands[f"{_side} end loop"] = f"{_side}_no_loop"
+        commands[f"end loop {_side}"] = f"{_side}_no_loop"
 
     # Every cycle axis is sayable by its bare word — the satellite ones from the grid
     # above, the Main Funestra's "version" from the literal map — and each also takes an explicit
@@ -415,9 +414,9 @@ def build_voice_commands(
     }
     for _sound_word, _change in _SOUND_WORDS.items():
         commands[_sound_word] = f"active_{_change}"
-        for _side_word, _side in _SIDE_WORDS.items():
-            commands[f"{_side_word} {_sound_word}"] = f"{_side}_{_change}"
-            commands[f"{_sound_word} {_side_word}"] = f"{_side}_{_change}"
+        for _side in _SIDE_WORDS:
+            commands[f"{_side} {_sound_word}"] = f"{_side}_{_change}"
+            commands[f"{_sound_word} {_side}"] = f"{_side}_{_change}"
         commands[f"main {_sound_word}"] = commands[f"{_sound_word} main"] = f"audio_{_change}"
 
     # F-mode, per Funestra, sayable in either order like the rest of the grid:
@@ -433,9 +432,9 @@ def build_voice_commands(
     }
     for _fmode_word, (_fmode_act, _fmode_all) in _FMODE_PHRASES.items():
         commands[_fmode_word] = f"active_{_fmode_act}"
-        for _funestra_word, _funestra in _FUNESTRA_WORDS.items():
-            commands[f"{_funestra_word} {_fmode_word}"] = f"{_funestra}_{_fmode_act}"
-            commands[f"{_fmode_word} {_funestra_word}"] = f"{_funestra}_{_fmode_act}"
+        for _funestra in _FUNESTRA_WORDS:
+            commands[f"{_funestra} {_fmode_word}"] = f"{_funestra}_{_fmode_act}"
+            commands[f"{_fmode_word} {_funestra}"] = f"{_funestra}_{_fmode_act}"
         commands[f"all {_fmode_word}"] = commands[f"{_fmode_word} all"] = _fmode_all
     commands["reset all"] = commands["all reset"] = "all_reset"
 
@@ -530,7 +529,8 @@ def build_voice_commands(
     }
     for _phrase, _act in _PLAYBACK_SPEEDS.items():
         commands[_phrase] = f"active_{_act}"
-        for _funestra_word, _funestra in {**_SIDE_WORDS, "main": "main_player"}.items():
+        for _funestra_word in _FUNESTRA_WORDS:
+            _funestra = "main_player" if _funestra_word == "main" else _funestra_word
             commands[f"{_funestra_word} {_phrase}"] = f"{_funestra}_{_act}"
             commands[f"{_phrase} {_funestra_word}"] = f"{_funestra}_{_act}"
 
@@ -538,8 +538,8 @@ def build_voice_commands(
     for _verb, _act in (("minimize", "hud_minimize"), ("un minimize", "hud_restore"),
                         ("restore", "hud_restore")):
         commands[f"{_verb} hud"] = f"active_{_act}"
-        for _funestra_word, _funestra in _FUNESTRA_WORDS.items():
-            commands[f"{_verb} {_funestra_word} hud"] = f"{_funestra}_{_act}"
+        for _funestra in _FUNESTRA_WORDS:
+            commands[f"{_verb} {_funestra} hud"] = f"{_funestra}_{_act}"
 
     # A HUD sent to a corner of its picture by name -- "main hud top right", with
     # or without "move" in front -- where the Ctrl keys step it round.  "upper"
@@ -552,8 +552,8 @@ def build_voice_commands(
     for _corner_word, _corner in _CORNER_WORDS.items():
         for _lead in ("", "move "):
             commands[f"{_lead}hud {_corner_word}"] = f"active_hud_{_corner}"
-            for _funestra_word, _funestra in _FUNESTRA_WORDS.items():
-                commands[f"{_lead}{_funestra_word} hud {_corner_word}"] = f"{_funestra}_hud_{_corner}"
+            for _funestra in _FUNESTRA_WORDS:
+                commands[f"{_lead}{_funestra} hud {_corner_word}"] = f"{_funestra}_hud_{_corner}"
 
     for _side in ("portrait", "landscape"):
         for _phrase in origenerator_phrases:

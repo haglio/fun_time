@@ -434,12 +434,12 @@ class TestResolveActiveSideCommand:
     """A side-agnostic 'active_*' command is rewritten onto whichever satellite
     is currently active; anything else passes through untouched."""
 
-    def test_group_commands_ride_the_same_active_and_both_plumbing(self):
+    def test_group_commands_ride_the_same_active_and_satellites_plumbing(self):
         # The loop / lock-action commands follow the <scope>_<action> shape, so
         # they resolve and expand without any special-casing.
         assert resolve_active_funestra_command("active_action_loop", 3) == "landscape_action_loop"
         assert resolve_active_funestra_command("active_lock_action", 2) == "portrait_lock_action"
-        assert expand_group_command("both_seed_loop") == ["portrait_seed_loop", "landscape_seed_loop"]
+        assert expand_group_command("satellites_seed_loop") == ["portrait_seed_loop", "landscape_seed_loop"]
 
     def test_rewrites_to_portrait_when_active_funestra_is_portrait(self):
         assert resolve_active_funestra_command("active_lock_on", 2) == "portrait_lock_on"
@@ -1383,8 +1383,8 @@ class TestWhatASpokenCommandFlashes:
     def test_a_pressed_command_flashes_only_what_it_says_itself(self, tmp_path):
         assert self._flashed(tmp_path, "landscape_next") == []
 
-    def test_a_spoken_both_command_says_what_was_heard_once(self, tmp_path):
-        spoken = format_spoken_command("both_next", spoken_at=1.0, said="satellites next")
+    def test_a_spoken_satellites_command_says_what_was_heard_once(self, tmp_path):
+        spoken = format_spoken_command("satellites_next", spoken_at=1.0, said="satellites next")
 
         assert self._flashed(tmp_path, spoken) == [("satellites next", "system", 25)]
 
@@ -1563,8 +1563,8 @@ class TestOpenRfbTab:
 
         assert calls == []
 
-    def test_lock_both_opens_both_videos_in_one_launch(self, tmp_path):
-        """"lock both" locks two videos in one tick; their RFB tabs must open in
+    def test_lock_satellites_opens_both_videos_in_one_launch(self, tmp_path):
+        """"lock satellites" locks two videos in one tick; their RFB tabs must open in
         a single Chrome launch, or the second races the singleton and is dropped."""
         runner = make_runner(
             tmp_path,
@@ -1575,7 +1575,7 @@ class TestOpenRfbTab:
                 arguments='--profile-directory="Profile 2"'),
         )
         runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=False))
-        (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("satellites_lock_on", encoding="utf-8")
 
         def fake_dispatch(cmd, state, config, target_path=""):
             if cmd == "portrait_lock_on":
@@ -2591,13 +2591,13 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_called_once_with("portrait_fmode_on", None)
 
-    def test_both_fmode_is_expanded_into_the_two_satellites(self, tmp_path):
+    def test_satellites_fmode_is_expanded_into_the_two_satellites(self, tmp_path):
         """"satellites f mode" is sugar, exactly as it is for every other sided command:
         there is no combined handler, just the pair run in turn."""
         runner = make_runner(tmp_path)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("both_fmode", encoding="utf-8")
+            cmd_file.write_text("satellites_fmode", encoding="utf-8")
             runner.tick()
         assert [call.args[0] for call in mock_d.call_args_list] == [
             "portrait_fmode", "landscape_fmode",
@@ -2993,22 +2993,26 @@ class TestTheSatellitesTakeTheMainFunestrasRate:
 class TestExpandGroupCommand:
     """A group word is sugar for the Funestras it names, driven one at a time."""
 
-    def test_passes_through_non_both_commands(self):
+    def test_passes_through_non_satellites_commands(self):
         assert expand_group_command("portrait_next") == ["portrait_next"]
         assert expand_group_command("quit") == ["quit"]
 
+    def test_the_satellite_sides_mode_switches_are_said_of_the_side_as_a_whole(self):
+        assert expand_group_command("satellites_toggle") == ["satellites_toggle"]
+        assert expand_group_command("satellites_kino_activate") == ["satellites_kino_activate"]
+
     def test_expands_to_portrait_then_landscape(self):
-        assert expand_group_command("both_next") == ["portrait_next", "landscape_next"]
-        assert expand_group_command("both_prev") == ["portrait_prev", "landscape_prev"]
-        assert expand_group_command("both_trash") == ["portrait_trash", "landscape_trash"]
+        assert expand_group_command("satellites_next") == ["portrait_next", "landscape_next"]
+        assert expand_group_command("satellites_prev") == ["portrait_prev", "landscape_prev"]
+        assert expand_group_command("satellites_trash") == ["portrait_trash", "landscape_trash"]
 
     def test_expands_multiword_suffixes(self):
-        assert expand_group_command("both_lock_on") == ["portrait_lock_on", "landscape_lock_on"]
-        assert expand_group_command("both_lock_off") == ["portrait_lock_off", "landscape_lock_off"]
-        assert expand_group_command("both_cycle_action") == [
+        assert expand_group_command("satellites_lock_on") == ["portrait_lock_on", "landscape_lock_on"]
+        assert expand_group_command("satellites_lock_off") == ["portrait_lock_off", "landscape_lock_off"]
+        assert expand_group_command("satellites_cycle_action") == [
             "portrait_cycle_action", "landscape_cycle_action",
         ]
-        assert expand_group_command("both_cycle_seed") == [
+        assert expand_group_command("satellites_cycle_seed") == [
             "portrait_cycle_seed", "landscape_cycle_seed",
         ]
 
@@ -3018,13 +3022,13 @@ class TestExpandGroupCommand:
         ]
 
 
-class TestBothSatelliteCommands:
-    """A polled "both" command drives Portrait then Landscape through the same
+class TestSatellitesCommands:
+    """A polled "satellites" command drives Portrait then Landscape through the same
     per-command handling as the individual satellite commands."""
 
-    def test_both_next_dispatches_to_each_satellite(self, tmp_path):
+    def test_satellites_next_dispatches_to_each_satellite(self, tmp_path):
         runner = make_runner(tmp_path)
-        (tmp_path / "dashboard_cmd.txt").write_text("both_next", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("satellites_next", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
@@ -3033,22 +3037,22 @@ class TestBothSatelliteCommands:
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert commands == ["portrait_next", "landscape_next"]
 
-    def test_lock_both_locks_each_unlocked_satellite(self, tmp_path):
-        """"lock both" (both_lock_on) is the spoken lock said to each side: an
+    def test_lock_satellites_locks_each_unlocked_satellite(self, tmp_path):
+        """"lock satellites" (satellites_lock_on) is the spoken lock said to each side: an
         already-locked side is left alone, so only the unlocked one locks."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=True))
-        (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("satellites_lock_on", encoding="utf-8")
 
         runner.tick()
 
         assert [_told(runner, funestra) for funestra in RoomFunestra.SATELLITES] == [[], ["LOCK_ON"]]
         assert runner.state.satellite(RoomFunestra.LANDSCAPE).locked is True
 
-    def test_unlock_both_unlocks_each_locked_satellite(self, tmp_path):
+    def test_unlock_satellites_unlocks_each_locked_satellite(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(landscape=SatelliteState(locked=True), portrait=SatelliteState(locked=True))
-        (tmp_path / "dashboard_cmd.txt").write_text("both_lock_off", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("satellites_lock_off", encoding="utf-8")
 
         runner.tick()
 

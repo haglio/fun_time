@@ -50,9 +50,9 @@ def load_camera_words(
 
 # Spoken scope word -> command scope token.  "" means no orientation was said,
 # so the filter applies to both Funestras.
-_SCOPES: dict[str, str] = {"": "both", "portrait": "portrait", "landscape": "landscape"}
+_SCOPES: dict[str, str] = {"": "satellites", "portrait": "portrait", "landscape": "landscape"}
 
-_SCOPE_TOKENS: tuple[str, ...] = ("both", "portrait", "landscape")
+_SCOPE_TOKENS: tuple[str, ...] = ("satellites", "portrait", "landscape")
 
 
 def _slug(query: str) -> str:
@@ -70,7 +70,7 @@ def set_command(scope: str, query: str) -> str:
 def decode_filter_command(command: str) -> tuple[str, str] | None:
     """``(scope, query)`` for a filter dispatch command, or None if it isn't one.
 
-    ``scope`` is one of both/portrait/landscape.  Decoding is purely structural,
+    ``scope`` is one of satellites/portrait/landscape.  Decoding is purely structural,
     so an unknown act still round-trips (and simply matches nothing downstream).
     Dropping a filter is not one of these — that is ``<side>_no_filter``, in the
     satellite grid with every other side action.

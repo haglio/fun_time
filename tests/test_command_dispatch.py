@@ -1582,28 +1582,28 @@ def test_landscape_nav_sets_the_active_funestra(tmp_path: Path):
     assert new_state.active_funestra == 3
 
 
-def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
+def test_filter_command_satellites_scope_rebuilds_each_satellite(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
-        new_state, _ops = dispatch_command("filter_both_beta_gamma", state, config)
+        new_state, _ops = dispatch_command("filter_satellites_beta_gamma", state, config)
 
     assert new_state.satellite(RoomFunestra.PORTRAIT).filter == "beta gamma"
     assert new_state.satellite(RoomFunestra.LANDSCAPE).filter == "beta gamma"
     assert {call.kwargs["funestra"] for call in mock_filter.call_args_list} == set(RoomFunestra.SATELLITES)
 
 
-def test_filter_command_both_scope_notices_each_satellite_under_its_own_source(tmp_path: Path):
-    """A both-scope filter touches two windows, so it reports two notices — one
+def test_filter_command_satellites_scope_notices_each_satellite_under_its_own_source(tmp_path: Path):
+    """A satellites-scope filter touches two windows, so it reports two notices — one
     filed under each — rather than one line the log panel cannot filter."""
     config = _make_config(tmp_path)
     state = _make_state()
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
-        _new_state, ops = dispatch_command("filter_both_beta_gamma", state, config)
+        _new_state, ops = dispatch_command("filter_satellites_beta_gamma", state, config)
 
     notices = [op for op in ops if op.op == "notice"]
     assert [op.source for op in notices] == ["portrait", "landscape"]
@@ -4646,7 +4646,7 @@ class TestOrigeneratorTransport:
         state = _up(satellites_mode="origenerator")
 
         with patch("fun_time.command_dispatch.apply_satellite_filter") as rebuild:
-            state, _ = dispatch_command("filter_both_scene_one", state, config)
+            state, _ = dispatch_command("filter_satellites_scene_one", state, config)
 
         rebuild.assert_not_called()
         assert _origenerator_cmds(config) == [
