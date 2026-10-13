@@ -32,6 +32,7 @@ from .funestra_status import (
     is_broker_heartbeat_fresh,
     read_main_funestra_status,
 )
+from .hosted_contract import the_args_it_declares
 from .main_list import MainList, MainListSettings
 from .max_intensity import publish_max_intensity
 from .mode_plan import STARTUP_MAIN_MODE, show_verb
@@ -514,7 +515,8 @@ def origenerator_session_args(
     return args
 
 
-def origenerator_launch_command(*, python_exe: str | Path, **contract) -> list[str]:
+def origenerator_launch_command(
+        *, python_exe: str | Path, origenerator_dir: str | Path, **contract) -> list[str]:
     """The argv a session launches the hosted Origenerator with.
 
     Split out from :func:`launch_origenerator` so a test can run the REAL
@@ -523,7 +525,7 @@ def origenerator_launch_command(*, python_exe: str | Path, **contract) -> list[s
     runs exactly this, with ``--check-launch`` appended.
     """
     return [NAMER.named_exe(python_exe, "Origenerator"), "-m", "origenerator",
-            *origenerator_session_args(**contract)]
+            *the_args_it_declares(origenerator_dir, origenerator_session_args(**contract))]
 
 
 def origenerator_interpreter(origenerator_dir: str | Path) -> Path:
@@ -579,7 +581,8 @@ def launch_origenerator(
     nothing waits on it: the dispatch loop adopts the window when it appears.
     """
     cmd = origenerator_launch_command(
-        python_exe=python_exe, layout_plan=layout_plan, command_file=command_file,
+        python_exe=python_exe, origenerator_dir=origenerator_dir,
+        layout_plan=layout_plan, command_file=command_file,
         paused_file=paused_file, status_file=status_file,
         dashboard_cmd_file=dashboard_cmd_file, funestras=funestras,
         frames_file=frames_file, input_file=input_file,

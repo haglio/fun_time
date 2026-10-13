@@ -19,9 +19,8 @@ from fun_time.checkout_overrides import (
     STATE_DIRNAME,
     override_lines,
 )
+from fun_time.hosted_contract import CONTRACT_FILE, published_by
 from fun_time.project_paths import PROJECT_DIR
-
-CONTRACT_FILE = "origenerator_contract.json"
 
 
 def named_checkout() -> Path | None:
@@ -36,13 +35,6 @@ def named_checkout() -> Path | None:
     if not named or not Path(named[0]).exists():
         return None
     return Path(named[0])
-
-
-def published_by(checkout: Path) -> dict | None:
-    document = Path(checkout) / CONTRACT_FILE
-    if not document.is_file():
-        return None
-    return json.loads(document.read_text(encoding="utf-8"))
 
 
 def shipped_by(checkout: Path) -> dict:

@@ -14,6 +14,7 @@ from typing import NamedTuple
 
 from funestra.file_channel import append_command
 
+from .hosted_contract import the_args_it_declares
 from .manifest import LaunchManifest
 from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
@@ -143,7 +144,8 @@ def bring_up_the_hosted_app(
     open_app = the_open_origenerator(origenerator_dir)
     if open_app is not None:
         take_it_over(open_app.checkout, pid=open_app.pid,
-                     args=origenerator_session_args(**contract))
+                     args=the_args_it_declares(open_app.checkout,
+                                               origenerator_session_args(**contract)))
         logger.info("Took over the Origenerator %s from %s (pid %d)",
                     "still starting" if open_app.starting else "already open",
                     open_app.checkout, open_app.pid)

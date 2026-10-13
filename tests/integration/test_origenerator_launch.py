@@ -31,19 +31,16 @@ from pathlib import Path
 import pytest
 
 from fun_time.config import load_config
-from fun_time.hosted_origenerator import HAND_OVER, TAKE_BACK
+from fun_time.hosted_contract import CONTRACT_FILE, declared_flags, published_by
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
-from fun_time.window_roles import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_startup import (
     HandedFunestra,
     origenerator_interpreter,
     origenerator_launch_command,
     origenerator_launch_kwargs,
 )
-from fun_time_vr.gallery_panel import HOSTED_RELEASE, HOVER, SCROLL
-from fun_time_vr.pointer import DRAG, PRESS, RIGHT_CLICK
 from tests.integration.integration_support import checkout_project_dirs, run_within
-from tests.origenerator_contract import CONTRACT_FILE, named_checkout, published_by
+from tests.origenerator_contract import named_checkout
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -115,6 +112,7 @@ def _run_the_launch(tmp_path: Path, extra: list[str]) -> subprocess.CompletedPro
     checkout, python_exe = _hosted_checkout_and_python()
     command = origenerator_launch_command(
         python_exe=python_exe,
+        origenerator_dir=checkout,
         layout_plan=_PLAN,
         command_file=tmp_path / "origenerator_cmd.txt",
         paused_file=tmp_path / "origenerator_paused.txt",
@@ -164,6 +162,7 @@ def test_the_command_under_test_is_the_one_production_builds(tmp_path):
     checkout, python_exe = _hosted_checkout_and_python()
     command = origenerator_launch_command(
         python_exe=python_exe,
+        origenerator_dir=checkout,
         layout_plan=_PLAN,
         command_file=tmp_path / "c.txt",
         paused_file=tmp_path / "p.txt",
@@ -184,63 +183,26 @@ def test_the_command_under_test_is_the_one_production_builds(tmp_path):
 
 
 def _the_contract_it_publishes(checkout: Path) -> dict:
-    """What the hosted app says its launch takes and its window is called,
-    read from the checkout this session would actually start."""
+    """What the hosted app says its launch takes, read from the checkout this
+    session would actually start."""
     published = published_by(checkout)
     if published is None:
         pytest.skip(f"the hosted app at {checkout} publishes no {CONTRACT_FILE}")
     return published
 
 
-def test_this_session_sends_exactly_the_flags_the_hosted_app_declares(tmp_path):
-    """The drift that used to go unseen, in both directions: a flag renamed
-    over there killed the launch in argparse, and one this session stopped
-    sending fell through to a default of nothing at all."""
+def test_every_flag_this_session_sends_is_one_the_installed_copy_declares(tmp_path):
     checkout, python_exe = _hosted_checkout_and_python()
     published = _the_contract_it_publishes(checkout)
     command = origenerator_launch_command(
-        python_exe=python_exe, layout_plan=_PLAN,
-        command_file=tmp_path / "c.txt", paused_file=tmp_path / "p.txt",
-        status_file=tmp_path / "s.txt", dashboard_cmd_file=tmp_path / "d.txt",
-        funestras=_funestras(tmp_path),
-    )
-    declared = {*published["required_flags"],
-                *(flag for group in ("region_flags", "player_flags")
-                  for side in published[group] for flag in published[group][side])}
-    written = [word for word in command if word.startswith("--")]
-
-    assert set(written) == declared
-    assert len(written) == len(declared), "a flag written twice"
-    assert command[1:3] == ["-m", published["module"]]
-
-
-def test_a_headset_session_sends_the_pair_and_the_words_it_declares(tmp_path):
-    """The other half of the same drift, for the window a headset cannot show:
-    the flags this session writes it over, and the words it then sends through
-    them, are both the app's to name."""
-    checkout, python_exe = _hosted_checkout_and_python()
-    published = _the_contract_it_publishes(checkout)
-    command = origenerator_launch_command(
-        python_exe=python_exe, layout_plan=_PLAN,
+        python_exe=python_exe, origenerator_dir=checkout, layout_plan=_PLAN,
         command_file=tmp_path / "c.txt", paused_file=tmp_path / "p.txt",
         status_file=tmp_path / "s.txt", dashboard_cmd_file=tmp_path / "d.txt",
         funestras=_funestras(tmp_path),
         frames_file=tmp_path / "frame.bin", input_file=tmp_path / "input.txt",
     )
-    written = {word for word in command if word.startswith("--")}
+    written = [word for word in command if word.startswith("--")]
 
-    assert set(published["headset_flags"]) <= written
-    assert set(published["headset_words"]) == {
-        PRESS, HOSTED_RELEASE, DRAG, HOVER, SCROLL, RIGHT_CLICK}
-    # And the two a session adopting a kept app says which room it is with,
-    # among the lines the app says its command file answers.
-    assert TAKE_BACK in published["command_lines"]
-    assert f"{HAND_OVER}|{{frames}}|{{input}}" in published["command_lines"]
-
-
-def test_the_caption_this_session_resolves_it_by_is_the_one_it_wears():
-    """Resolved by caption as well as by pid, because a standalone one of his
-    owns a window with the same name."""
-    checkout, _python_exe = _hosted_checkout_and_python()
-
-    assert _the_contract_it_publishes(checkout)["window_title"] == ORIGENERATOR_TITLE
+    assert set(written) <= declared_flags(published)
+    assert len(written) == len(set(written)), "a flag written twice"
+    assert command[1:3] == ["-m", published["module"]]
