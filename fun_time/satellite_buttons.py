@@ -30,7 +30,8 @@ MODE_TOOLTIPS = {
     "origenerator_activate":
         "Origenerator mode — Origenerator over the browser, its shows over the Funestras",
 }
-STILL_STARTING_TOOLTIP = "Origenerator is still starting — this lights up when it is ready"
+STILL_STARTING_TOOLTIP = ("Origenerator is still starting — this button becomes enabled "
+                          "when it's ready")
 
 
 def funestra_rows(funestra: str, *, locked: bool = False, favorites_filter: bool = False,
