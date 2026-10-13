@@ -15,12 +15,14 @@ from pathlib import Path
 
 import pytest
 
+from tests.integration import conftest as integration_conftest
 from tests.integration.hidden_desktop import (
     HIDDEN_DESKTOP_NAME,
     REFUSED_EXIT_CODE,
     on_hidden_desktop,
     require_hidden_desktop,
 )
+from tests.integration.line_record import RUN_RECORD_ENV
 
 
 def test_a_run_on_the_hidden_desktop_is_allowed():
@@ -97,6 +99,18 @@ def test_a_run_that_merely_sweeps_the_directory_in_is_refused_too(pytestconfig):
 
     assert swept_in.returncode == REFUSED_EXIT_CODE, said
     assert f"must run on the '{HIDDEN_DESKTOP_NAME}' desktop" in said, said
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the refusal returns early off Windows")
+def test_a_run_on_the_hidden_desktop_that_did_not_write_itself_down_for_line_is_refused(monkeypatch):
+    monkeypatch.setattr(integration_conftest, "require_hidden_desktop", lambda: None)
+    monkeypatch.delenv(RUN_RECORD_ENV, raising=False)
+
+    with pytest.raises(pytest.exit.Exception) as refusal:
+        integration_conftest.refuse_a_run_that_may_not_start()
+
+    assert refusal.value.returncode == REFUSED_EXIT_CODE
+    assert "-m tests.integration.hidden_desktop" in str(refusal.value)
 
 
 def test_the_unit_suite_never_inherits_the_integration_flag():
