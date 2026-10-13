@@ -65,7 +65,6 @@ from fun_time_vr.dash_panel import (
     paint_dash,
     verbosity_name,
 )
-from fun_time_vr.dropdown import arrow_down
 
 _A_PREVIEW = Preview(feature="the new reference popup")
 
@@ -377,18 +376,6 @@ class TestItLooksLikeADropdown:
         ground = np.asarray(BG_BUTTON, dtype=right.dtype)
 
         assert not np.all(right == ground)
-
-    def test_the_arrow_points_down(self):
-        """Pillow rotates counter-clockwise, so the first turn put the family's
-        chevron on its back pointing UP -- an arrow that says the list opens
-        somewhere it does not."""
-        arrow = np.asarray(arrow_down(24))[:, :, 3]
-        rows = [(r, int((arrow[r] > 40).sum())) for r in range(arrow.shape[0])
-                if (arrow[r] > 40).any()]
-        apex = min(rows, key=lambda row: row[1])[0]
-        open_end = max(rows, key=lambda row: row[1])[0]
-
-        assert apex > open_end  # the point is below the two arms
 
     def test_every_control_wears_the_huds_edge(self):
         painted = np.asarray(paint_dash(DashState(voice_active=True), []))

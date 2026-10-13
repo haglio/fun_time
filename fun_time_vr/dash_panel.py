@@ -12,6 +12,8 @@ from dataclasses import dataclass, replace
 from functools import cache
 
 from PIL import Image, ImageDraw
+from shared_ui.button_pil import button, slab
+from shared_ui.dropdown_pil import paint_field, paint_list
 from shared_ui.icons_pil import glyph_image
 from shared_ui.lettering import WORDMARK_FACE, load_font
 from shared_ui.loading_panel import icon_image
@@ -45,8 +47,6 @@ from fun_time.event_log import (
 from fun_time.project_paths import PROJECT_ICON
 
 from .console_panel import level_color
-from .dropdown import paint_field, paint_list
-from .slab import button, slab
 
 _DIAL_W = 92  # the name and the arrow beside it
 _ROW_H = 16

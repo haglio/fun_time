@@ -23,6 +23,9 @@ class Rect:
     width: int
     height: int
 
+    def __iter__(self):
+        return iter((self.x, self.y, self.width, self.height))
+
 
 def add_rect_arguments(parser, *, prefix: str = "") -> None:
     """Declare ``--x/--y/--width/--height``, optionally prefixed, on *parser*."""

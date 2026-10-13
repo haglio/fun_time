@@ -120,6 +120,12 @@ def test_a_rect_is_still_four_ints_in_that_order():
     assert Rect(1, 2, 3, 4) == Rect(x=1, y=2, width=3, height=4)
 
 
+def test_a_rect_unpacks_the_way_the_familys_pillow_painters_take_one():
+    x, y, width, height = Rect(1, 2, 3, 4)
+
+    assert (x, y, width, height) == (1, 2, 3, 4)
+
+
 class TestARectOnACommandLine:
     """A rect reaches a child as four separate flags.  Two entry points spelled
     the quartet out — one of them twice — and each followed it with the same
