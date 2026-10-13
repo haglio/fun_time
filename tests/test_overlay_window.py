@@ -12,6 +12,7 @@ from shared_ui.loading_panel import LoadingPanel
 from shared_ui.palette import LOADING_ACCENT
 
 from fun_time import overlay_window, preview_marker
+from fun_time.monitors import MonitorInfo
 from fun_time.overlay_progress import (
     Progress,
     cancel_file_for,
@@ -40,9 +41,11 @@ class TestParseProgress:
 
 
 class _FakeRoot:
-    def __init__(self):
+    def __init__(self, screen=(2560, 1440)):
         self.destroyed = False
         self.rearmed = []
+        self.geometries: list[str] = []
+        self._screen = screen
 
     def destroy(self):
         self.destroyed = True
@@ -50,13 +53,26 @@ class _FakeRoot:
     def after(self, ms, callback):
         self.rearmed.append((ms, callback))
 
+    def geometry(self, spec):
+        self.geometries.append(spec)
+
+    def winfo_screenwidth(self):
+        return self._screen[0]
+
+    def winfo_screenheight(self):
+        return self._screen[1]
+
 
 class _FakeCanvas:
     def __init__(self):
         self.shown: list[LoadingPanel] = []
+        self.centered: list[tuple[int, int]] = []
 
     def show(self, panel: LoadingPanel) -> None:
         self.shown.append(panel)
+
+    def center_on(self, x: int, y: int) -> None:
+        self.centered.append((x, y))
 
 
 def _cover(tmp_path: Path, *, stale_timeout_s: float = 5.0,
@@ -374,3 +390,40 @@ class TestALineTheCoverCannotRead:
         assert parse_progress("DONE").done is True
         assert parse_progress("nonsense").malformed is True
         assert parse_progress("").malformed is True
+class TestTheCoverFollowsTheMonitorsItCovers:
+    """The headset's runtime reconfigures the displays as the headset connects
+    and again as it goes -- its own log calls it "hmd display restore" -- and a
+    cover sized for the set it found at startup can come out covering none of
+    his primary monitor.  He reported exactly that: the loading overlay never
+    appeared there (2026-10-12)."""
+
+    def _covering(self, tmp_path: Path, rects):
+        cover = _cover(tmp_path)
+        (tmp_path / "progress.txt").write_text("1/5|Starting...", encoding="utf-8")
+        with patch("fun_time.overlay_window.virtual_desktop_rect", side_effect=rects):
+            for _ in rects:
+                cover._poll()
+        return cover
+
+    def test_a_display_set_that_changes_is_covered_again(self, tmp_path: Path):
+        before = MonitorInfo(x=0, y=0, width=2560, height=1440)
+        after = MonitorInfo(x=-1920, y=0, width=4480, height=1440)
+
+        cover = self._covering(tmp_path, [before, after])
+
+        assert cover._root.geometries == ["2560x1440+0+0", "4480x1440+-1920+0"]
+
+    def test_a_display_set_that_has_not_moved_is_left_alone(self, tmp_path: Path):
+        same = MonitorInfo(x=0, y=0, width=2560, height=1440)
+
+        cover = self._covering(tmp_path, [same, same, same])
+
+        assert cover._root.geometries == ["2560x1440+0+0"]
+
+    def test_the_panel_is_centered_again_on_the_new_set(self, tmp_path: Path):
+        before = MonitorInfo(x=0, y=0, width=2560, height=1440)
+        after = MonitorInfo(x=-1920, y=0, width=4480, height=1440)
+
+        cover = self._covering(tmp_path, [before, after])
+
+        assert cover._canvas.centered == [(1280, 720), (1280 + 1920, 720)]

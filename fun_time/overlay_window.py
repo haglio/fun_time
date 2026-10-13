@@ -58,6 +58,8 @@ class Canvas(Protocol):
 
     def show(self, panel: LoadingPanel) -> None: ...
 
+    def center_on(self, x: int, y: int) -> None: ...
+
 
 class _LabelCanvas:
     def __init__(self, label: tk.Label) -> None:
@@ -67,6 +69,9 @@ class _LabelCanvas:
         # On the label: what keeps the PhotoImage from being collected.
         self._label.image = ImageTk.PhotoImage(render(panel))
         self._label.configure(image=self._label.image)
+
+    def center_on(self, x: int, y: int) -> None:
+        self._label.place_configure(x=x, y=y)
 
 
 class OverlayWindow:
@@ -92,6 +97,7 @@ class OverlayWindow:
         self._status_held = False
         self._offering = False
         self._hwnd = 0
+        self._desktop: MonitorInfo | None = None
 
     @property
     def panel(self) -> LoadingPanel:
@@ -114,19 +120,8 @@ class OverlayWindow:
         root.overrideredirect(True)
         root.configure(bg=ground)
 
-        desktop = virtual_desktop_rect() or MonitorInfo(
-            x=0, y=0, width=root.winfo_screenwidth(), height=root.winfo_screenheight(),
-        )
-        root.geometry(f"{desktop.width}x{desktop.height}+{desktop.x}+{desktop.y}")
-
-        # Centered on the Main Funestra's monitor rather than the virtual desktop's
-        # midpoint, which may fall between two.
         label = tk.Label(root, bg=ground, borderwidth=0, highlightthickness=0)
-        label.place(
-            x=root.winfo_screenwidth() // 2 - desktop.x,
-            y=root.winfo_screenheight() // 2 - desktop.y,
-            anchor=tk.CENTER,
-        )
+        label.place(x=0, y=0, anchor=tk.CENTER)
         canvas = _LabelCanvas(label)
         panel = opening_panel(status)
         canvas.show(panel)
@@ -135,6 +130,7 @@ class OverlayWindow:
             progress_file, root, canvas, panel=panel, title=title,
             stale_timeout_s=stale_timeout_s,
         )
+        window._cover_every_monitor()
 
         # The focus is taken so Esc lands here rather than on whatever the
         # session put up last, before the hotkey script is up to take it.
@@ -174,7 +170,24 @@ class OverlayWindow:
         self._status_held = True
         self._redraw(status=CANCELING, hint="")
 
+    def _cover_every_monitor(self) -> None:
+        desktop = virtual_desktop_rect() or MonitorInfo(
+            x=0, y=0,
+            width=self._root.winfo_screenwidth(), height=self._root.winfo_screenheight(),
+        )
+        if desktop == self._desktop:
+            return
+        self._desktop = desktop
+        self._root.geometry(f"{desktop.width}x{desktop.height}+{desktop.x}+{desktop.y}")
+        # Centered on the Main Funestra's monitor rather than the virtual desktop's
+        # midpoint, which may fall between two.
+        self._canvas.center_on(
+            self._root.winfo_screenwidth() // 2 - desktop.x,
+            self._root.winfo_screenheight() // 2 - desktop.y,
+        )
+
     def _poll(self) -> None:
+        self._cover_every_monitor()
         progress = self._read_progress()
         try:
             if progress.done or self._unmoved_too_long():
