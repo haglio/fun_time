@@ -104,7 +104,7 @@ Space::QueueCommand("enter_omnipause")
 Enter::QueueCommand("voice_accept")
 NumpadEnter::QueueCommand("voice_accept")
 g::QueueCommand("genau_activate")
-; The satellite side's own switch: kino mode <-> Origenerator over the RFB.
+; Both Satellite Funestras' mode at once: Kino <-> Origenerator.
 x::QueueCommand("satellites_toggle")
 $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")
@@ -209,9 +209,6 @@ o::QueueCommand("robot_hand_center_up")
 ; Genau's motion otherwise.
 j::QueueCommand("speed_down")
 l::QueueCommand("speed_up")
-; Cruise varies the motion; moving on from a flick is what an unlocked Genau does
-; by itself, so it is the apostrophe's lock rather than a switch of its own.
-c::QueueCommand("robot_hand_toggle_cruise")
 
 ; The Main Funestra's cluster, laid out like the arrow keys are for the portrait
 ; side: M and . either side for previous and next, the comma to hold, each

@@ -40,6 +40,13 @@ _DETAIL_DASH = " — "
 HOTKEY_HEADER = "Hotkey"
 VOICE_HEADER = "Voice command"
 
+#: The columns in pixels, the same on every table so they line up down the page;
+#: a third of the hotkey block fits “Shift+Right” on a keycap, which takes 93.
+VOICE_COLUMN_PX = 250
+HOTKEY_BLOCK_PX = 330
+ACTION_COLUMN_AT_LEAST_PX = 200
+NARROWEST_PAGE_PX = HOTKEY_BLOCK_PX + VOICE_COLUMN_PX + ACTION_COLUMN_AT_LEAST_PX
+
 
 @dataclass(frozen=True)
 class CommandRef:
@@ -232,7 +239,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     "control on / off — park holds the OSR2 settled home, and Genau's "
                     "picture with it; a funscript stands down for it too, and the room "
                     "plays on unheard until unpark puts the motion back to whatever it "
-                    "was doing, cruise included.  Control off settles the OSR2 home and "
+                    "was doing.  Control off settles the OSR2 home and "
                     "lets go of it there; the device itself stays on",
                     (),
                     ("robot_hand_park", "robot_hand_release", "osr2_control_off",
@@ -255,12 +262,10 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row("set speed", (), (), ("speed 0–100",)),
                 _Row("previous waveform shape", (), ("robot_hand_cycle_shape_prev",)),
                 _Row("next waveform shape", ("I",), ("robot_hand_cycle_shape",)),
-                _Row("enable / disable cruise control — varies the motion", ("C",),
-                     ("robot_hand_toggle_cruise", "robot_hand_cruise_on", "robot_hand_cruise_off")),
                 _Row(
                     "enable / disable human-inspired motion — plays phrases from real "
                     "hand-made scripts in place of the waveform, inside the Amp and "
-                    "Center bars, at the Speed bar's pace; switches cruise off",
+                    "Center bars, at the Speed bar's pace",
                     (),
                     ("robot_hand_toggle_learned", "robot_hand_learned_on", "robot_hand_learned_off"),
                 ),
@@ -293,7 +298,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     "Origenerator mode — the satellites show Origenerator's slideshows "
                     "over the Funestras, with Origenerator itself over the Random Favs "
                     "Browser; X switches the satellites between Origenerator and Kino",
-                    commands=("origenerator_activate", "satellites_toggle"),
+                    commands=("satellites_origenerator_activate", "satellites_toggle"),
                     columns=(("X",), ("X",), ()),
                 ),
             )),
@@ -728,45 +733,63 @@ def _keycap(label: str) -> str:
     )
 
 
-def _cell(content: str, *, span: str = "") -> str:
-    return f'<td valign="top"{span} style="padding:3px 8px;color:{_TEXT}">{content}</td>'
+def _cell(content: str, width: int | None, *, span: str = "") -> str:
+    sized = "" if width is None else f' width="{width}"'
+    return f'<td{sized} valign="top"{span} style="padding:3px 8px;color:{_TEXT}">{content}</td>'
 
 
-def _head(label: str, *, span: str = "") -> str:
-    return _cell(f'<b style="color:{_MUTED}">{html.escape(label)}</b>', span=span)
+def _head(label: str, width: int | None, *, span: str = "") -> str:
+    return _cell(f'<b style="color:{_MUTED}">{html.escape(label)}</b>', width, span=span)
 
 
 def _anchored(text: str, anchor: str, *, color: str) -> str:
     return f'<a href="{anchor}" style="color:{color};text-decoration:none">{html.escape(text)}</a>'
 
 
-def _header_rows(section: ReferenceSection, group: ReferenceGroup) -> str:
+def _shared_out(total: int, parts: int) -> tuple[int, ...]:
+    if not parts:
+        return ()
+    each = total // parts
+    return (*(each,) * (parts - 1), total - each * (parts - 1))
+
+
+def _column_widths(width: int, key_columns: int) -> tuple[int, ...]:
+    """The action column, each key column and the voice column, in pixels."""
+    keys = _shared_out(HOTKEY_BLOCK_PX, key_columns)
+    return (width - sum(keys) - VOICE_COLUMN_PX, *keys, VOICE_COLUMN_PX)
+
+
+def _header_rows(section: ReferenceSection, widths: tuple[int, ...]) -> str:
     """One head row, or two where "Hotkey" spans a column per Funestra; no Hotkey over a keyless group."""
     row = f'<tr style="background:{_HEADER_BG}">'
-    if not group.has_keys:
-        return row + _head("Action") + _head(VOICE_HEADER) + "</tr>"
-    columns = len(section.key_headers)
-    if columns == 1:
-        return row + _head("Action") + _head(HOTKEY_HEADER) + _head(VOICE_HEADER) + "</tr>"
+    action, *keys, voice = widths
+    if not keys:
+        return row + _head("Action", action) + _head(VOICE_HEADER, voice) + "</tr>"
+    if len(keys) == 1:
+        return (row + _head("Action", action) + _head(HOTKEY_HEADER, keys[0])
+                + _head(VOICE_HEADER, voice) + "</tr>")
     return (
-        row + _head("Action", span=' rowspan="2"')
-        + _head(HOTKEY_HEADER, span=f' colspan="{columns}" align="center"')
-        + _head(VOICE_HEADER, span=' rowspan="2"') + "</tr>"
-        + row + "".join(_head(header) for header in section.key_headers) + "</tr>"
+        row + _head("Action", action, span=' rowspan="2"')
+        + _head(HOTKEY_HEADER, None, span=f' colspan="{len(keys)}" align="center"')
+        + _head(VOICE_HEADER, voice, span=' rowspan="2"') + "</tr>"
+        + row + "".join(_head(header, width)
+                        for header, width in zip(section.key_headers, keys, strict=True))
+        + "</tr>"
     )
 
 
-def _key_cells(row: CommandRef) -> str:
+def _key_cells(row: CommandRef, widths: tuple[int, ...]) -> str:
     return "".join(
-        _cell(" ".join(_keycap(key) for key in column) or f'<span style="color:{_MUTED}">—</span>')
-        for column in row.key_columns
+        _cell(" ".join(_keycap(key) for key in column) or f'<span style="color:{_MUTED}">—</span>',
+              width)
+        for column, width in zip(row.key_columns, widths, strict=True)
     )
 
 
-def render_reference_html() -> str:
-    """The reference as HTML for QTextBrowser: inline styles only, since Qt's
-    rich text has no ``<style>`` block, and no heading, since the window chrome
-    carries the popup's title."""
+def render_reference_html(width: int) -> str:
+    """The reference as HTML for QTextBrowser, *width* pixels wide: inline
+    styles only, since Qt's rich text has no ``<style>`` block, and no heading,
+    since the window chrome carries the popup's title."""
     parts: list[str] = [
         f'<body style="background:{_BG};color:{_TEXT};'
         'font-family:\'Segoe UI\',sans-serif;font-size:10pt">',
@@ -781,17 +804,19 @@ def render_reference_html() -> str:
                 parts.append(
                     f'<h4 style="color:{_TEXT};margin:10px 0 2px 0">{html.escape(group.title)}</h4>'
                 )
-            parts.append('<table cellspacing="0" cellpadding="0" style="width:100%">')
-            parts.append(_header_rows(section, group))
+            widths = _column_widths(width, len(section.key_headers) if group.has_keys else 0)
+            parts.append(f'<table width="{width}" cellspacing="0" cellpadding="0">')
+            parts.append(_header_rows(section, widths))
             for row in group.rows:
                 action = (_anchored(row.description, next(anchors), color=_TEXT) if row.detail
                           else html.escape(row.description))
-                keys = _key_cells(row) if group.has_keys else ""
+                keys = _key_cells(row, widths[1:-1]) if group.has_keys else ""
                 phrases = (
                     ", ".join(f'“{html.escape(p)}”' for p in row.voice)
                     or f'<span style="color:{_MUTED}">—</span>'
                 )
-                parts.append("<tr>" + _cell(action) + keys + _cell(phrases) + "</tr>")
+                parts.append("<tr>" + _cell(action, widths[0]) + keys
+                             + _cell(phrases, widths[-1]) + "</tr>")
             parts.append("</table>")
     parts.append("</body>")
     return "".join(parts)

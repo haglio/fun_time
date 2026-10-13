@@ -33,20 +33,22 @@
     Genau's flicks and the Robot Hand's stretches, and the audio companion (on the
     headset's output) all run in VR as of 2026-09-04, on the engine that moved to
     `funestra` for it; GenauVR, the standalone headset app, is retired with that.
-  - The hosted Origenerator IS launched, as of 2026-09-20, so origenerator mode
-    runs in the headset: the mode's slideshows are the Satellite Funestras' own
-    playlists (`fun_time.funestra_handover`), and the headset's satellites are
+  - The hosted Origenerator IS launched, as of 2026-09-20, so each satellite's
+    Origenerator mode runs in the headset: the slideshows are the Satellite Funestras'
+    own playlists (`fun_time.funestra_handover`), and the headset's satellites are
     Funestras. `fun_time.hosted_origenerator` brings the app up for either shape
     of session and sees it out of either teardown. What a headset has nowhere to
     show is the app's own window, which shares the Random Favs Browser's rect:
     it boots parked and nothing in a VR session restores it, so the gallery and
-    its tabs are the monitors' half of the mode and reachable only from a
-    desktop session. A session hosting none is still a config naming none.
+    its tabs are reachable only from a desktop session -- which is also why the
+    headset's dashboard carries no Random Favs Browser / Origenerator strip: there
+    is no browser in the headset and no window of the app's to put in its place.
+    A session hosting none is still a config naming none.
   - The only place a control may be left dead in the headset is
     `tests/test_vr_control_parity.py`'s own list of what the hosted Origenerator
     does not answer in its mode (dead on the monitors too): it walks every hotkey
     and every spoken phrase through the real dispatch, on the config a headset
-    session builds and in both of the satellite side's modes, and holds each
+    session builds and with both satellites in each of their modes, and holds each
     verb that lands to the vocabulary of whatever will read it in VR — the
     headset's Main Funestra with Kino and the headset's own verbs on it, the
     satellites' Funestras, Genau's registry, and the hosted app's as read from

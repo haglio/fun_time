@@ -1,7 +1,6 @@
 """The buttons Fun Time puts on a satellite's HUD, declared in
 :class:`funestra.hud_button.Button` off the Funestra's own state.  Each verb is
-the dashboard command the dispatcher answers for that Funestra; a mode button's
-names no Funestra, the mode belonging to both satellites at once."""
+the dashboard command the dispatcher answers for that Funestra."""
 from __future__ import annotations
 
 from funestra.hud_button import FIT_THE_WORD, Button
@@ -19,24 +18,20 @@ from .funestra_buttons import (
     transport,
     versions_button,
 )
+from .origenerator_switches import ORIGENERATOR_MODE, mode_command
 
 MODE_BUTTONS = (
-    ("satellites_kino_activate", "Kino", SatellitesMode.KINO),
-    ("origenerator_activate", "Origenerator", SatellitesMode.ORIGENERATOR),
+    (SatellitesMode.KINO, "Kino", "Kino mode — this Funestra plays its own videos"),
+    (SatellitesMode.ORIGENERATOR, "Origenerator",
+     "Origenerator mode — this Funestra plays Origenerator's slideshows"),
 )
-
-MODE_TOOLTIPS = {
-    "satellites_kino_activate": "Kino mode — the Satellite Funestras and the Random Favs Browser",
-    "origenerator_activate":
-        "Origenerator mode — Origenerator over the browser, its slideshows over the Funestras",
-}
 STILL_STARTING_TOOLTIP = ("Origenerator is still starting — this button becomes enabled "
                           "when it's ready")
 
 
 def funestra_rows(funestra: str, *, locked: bool = False, favorites_filter: bool = False,
                 latest: bool | None = None,
-                satellites_mode: SatellitesMode | None = None,
+                mode: SatellitesMode | None = None,
                 origenerator_ready: bool = True,
                 nothing_to_reset: bool = False,
                 has_other_versions: bool = False,
@@ -44,10 +39,9 @@ def funestra_rows(funestra: str, *, locked: bool = False, favorites_filter: bool
                 in_vr: bool = False,
                 crowned: bool = False) -> tuple[tuple[Button, ...], ...]:
     rows: list[tuple[Button, ...]] = []
-    if satellites_mode is not None:
-        rows.append(mode_row(funestra, satellites_mode=satellites_mode,
-                             origenerator_ready=origenerator_ready, in_vr=in_vr,
-                             crowned=crowned))
+    if mode is not None:
+        rows.append(mode_row(funestra, mode=mode, origenerator_ready=origenerator_ready,
+                             in_vr=in_vr, crowned=crowned))
     rows.append((
         *transport(funestra, noun=SATELLITE_NOUN, longer_than_a_step=longer_than_a_step),
         lock_button(funestra, locked=locked, noun=SATELLITE_NOUN),
@@ -60,20 +54,20 @@ def funestra_rows(funestra: str, *, locked: bool = False, favorites_filter: bool
         *browse_order_buttons(funestra, latest=latest),
         versions_button(f"{funestra}_cycle_version", noun=SATELLITE_NOUN,
                         has_other_versions=has_other_versions),
-        *(() if in_vr or satellites_mode is not None
+        *(() if in_vr or mode is not None
           else (minimize_button(funestra), *_crown(funestra, crowned))),
     ))
     return tuple(rows)
 
 
-def mode_row(funestra: str, *, satellites_mode: SatellitesMode,
+def mode_row(funestra: str, *, mode: SatellitesMode,
              origenerator_ready: bool = True, in_vr: bool = False,
              crowned: bool = False) -> tuple[Button, ...]:
     """The session's own row over a Funestra: the mode pair, and minimize outside the headset."""
     return (
-        *(_mode_button(command, label, lit=satellites_mode is lit_mode,
-                       dim=command == "origenerator_activate" and not origenerator_ready)
-          for command, label, lit_mode in MODE_BUTTONS),
+        *(_mode_button(funestra, button_mode, label, tooltip, lit=mode is button_mode,
+                       dim=button_mode is ORIGENERATOR_MODE and not origenerator_ready)
+          for button_mode, label, tooltip in MODE_BUTTONS),
         *(() if in_vr else (minimize_button(funestra), *_crown(funestra, crowned))),
     )
 
@@ -87,6 +81,8 @@ def _crown(funestra: str, crowned: bool) -> tuple[Button, ...]:
                    "monitor, whatever the Main Funestra shows", lit=crowned),)
 
 
-def _mode_button(command: str, label: str, *, lit: bool, dim: bool) -> Button:
-    return Button(command, label, STILL_STARTING_TOOLTIP if dim else MODE_TOOLTIPS[command],
+def _mode_button(funestra: str, mode: SatellitesMode, label: str, tooltip: str, *,
+                 lit: bool, dim: bool) -> Button:
+    return Button(mode_command(funestra, mode), label,
+                  STILL_STARTING_TOOLTIP if dim else tooltip,
                   width=FIT_THE_WORD, lit=lit, dim=dim)

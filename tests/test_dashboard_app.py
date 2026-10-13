@@ -28,7 +28,11 @@ from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
 from fun_time import load_config, preview_marker
-from fun_time.command_reference import build_reference_sections
+from fun_time.command_reference import (
+    HOTKEY_BLOCK_PX,
+    VOICE_COLUMN_PX,
+    build_reference_sections,
+)
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import (
     ENTER_VR,
@@ -857,8 +861,8 @@ def test_the_reference_shows_a_rows_detail_as_a_tooltip_over_its_action():
         browser.close()
 
 
-@pytest.mark.parametrize("width", [900, 1100, 1300])
-def test_the_reference_needs_no_horizontal_scrollbar_at_the_widths_it_opens_in(width):
+@pytest.mark.parametrize("width", range(700, 1701, 50))
+def test_the_reference_needs_no_horizontal_scrollbar_at_any_width_it_opens_in(width):
     browser = ReferenceBrowser()
     try:
         browser.resize(width, 800)
@@ -867,6 +871,64 @@ def test_the_reference_needs_no_horizontal_scrollbar_at_the_widths_it_opens_in(w
         assert browser.horizontalScrollBar().maximum() == 0
     finally:
         browser.close()
+
+
+def _table_widths(browser: ReferenceBrowser) -> set[float]:
+    return {frame.format().width().rawValue()
+            for frame in browser.document().rootFrame().childFrames()}
+
+
+def test_the_reference_lays_its_tables_out_in_the_width_it_has_and_again_when_that_changes():
+    """The tables are as wide as the page, in pixels, so the browser renders
+    them for its own width and renders again when it is resized, keeping the
+    reader's place; its vertical scrollbar is always there, so the page's width
+    does not jump when the bar appears."""
+    browser = ReferenceBrowser()
+    try:
+        browser.resize(1000, 800)
+        browser.show()
+        QApplication.processEvents()
+        page = browser.viewport().width() - 2 * browser.document().documentMargin()
+        assert _table_widths(browser) == {page}
+        assert browser.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOn
+        browser.verticalScrollBar().setValue(300)
+
+        browser.resize(1300, 800)
+        QApplication.processEvents()
+
+        assert _table_widths(browser) == {page + 300}
+        assert browser.verticalScrollBar().value() == 300
+    finally:
+        browser.close()
+
+
+def test_a_find_in_the_reference_survives_the_page_being_laid_out_again():
+    dialog = ReferenceDialog()
+    try:
+        dialog.show()
+        dialog.open_find()
+        dialog.findChild(QLineEdit).setText("Ctrl+Alt+Q")
+        assert dialog.findChild(QLabel, "findCount").text() == "1 of 1"
+
+        dialog.resize(dialog.width() + 200, dialog.height())
+        QApplication.processEvents()
+
+        assert dialog.findChild(QLabel, "findCount").text() == "1 of 1"
+        [marked] = dialog.findChild(QTextBrowser).extraSelections()
+        assert marked.cursor.selectedText() == "Ctrl+Alt+Q"
+    finally:
+        dialog.close()
+
+
+def test_the_reference_opens_at_a_readable_size_and_never_narrower_than_its_columns():
+    dialog = ReferenceDialog()
+    try:
+        assert (dialog.width(), dialog.height()) == (1000, 800)
+        assert dialog.minimumWidth() >= HOTKEY_BLOCK_PX + VOICE_COLUMN_PX + 200
+        dialog.resize(300, 800)
+        assert dialog.width() == dialog.minimumWidth()
+    finally:
+        dialog.close()
 
 
 def test_reference_dialog_syncs_topmost_with_omnipause():

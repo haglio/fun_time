@@ -30,9 +30,9 @@ in either orchestrator:
 | The Main Funestra's A/B loop | yes, when the clip carried — re-queued on the command file |
 | Every Funestra's playback rate | yes, re-queued on its command file |
 | The Main Funestra's hold on the video it is playing | yes, same |
-| Genau's speed, amplitude, center, shape, flick seconds, cruise, learned motion and hold | yes, same |
+| Genau's speed, amplitude, center, shape, flick seconds, human-inspired motion and hold | yes, same |
 | The mic being off | yes, off the flag the last session wrote |
-| The satellites' mode (Kino / Origenerator) | yes, entered under the cover before the room is shown |
+| Each satellite's mode (Kino / Origenerator), and what holds the Random Favs Browser's place | yes, entered under the cover before the room is shown |
 | OmniPause | no — a session never opens paused |
 
 Every row of that table is carried by any reopen, a crossing included
@@ -223,16 +223,18 @@ it is simply not something to pin any more.
 
 Origenerator is by far the slowest child of a session, either shape of it: its
 window lands ten to thirty seconds after launch, against five to eight for
-everything else. Both sessions host it as of 2026-09-20, so origenerator mode
-crosses like any other mode — the slideshows are the Satellite Funestras' own
-playlists, and the headset's satellites are Funestras
+everything else. Both sessions host it as of 2026-09-20, so each satellite's
+Origenerator mode crosses like any other mode — the slideshows are the Satellite
+Funestras' own playlists, and the headset's satellites are Funestras
 ([known-issues.md](known-issues.md) has what the headset still cannot show of
 it: the app's own window).
-The curtain waits for it only where the last session left the room in that mode:
-such a room holds its cover up until the app publishes a status, takes the mode
-up under it and opens already in it ([resuming-a-session.md](resuming-a-session.md)),
-while a room left in Kino mode waits for nothing. A boot still costs a minute of
-a session with no Origenerator mode in it, and a crossing used to pay that twice,
+The curtain waits for it only where the last session left Origenerator holding
+something -- a satellite in its Origenerator mode, or the Random Favs Browser's
+place: such a room holds its cover up until the app publishes a status, puts
+Origenerator back on what it held under it and opens already that way
+([resuming-a-session.md](resuming-a-session.md)), while a room Origenerator held
+nothing of waits for nothing. A boot still costs a minute of
+a session Origenerator holds nothing in, and a crossing used to pay that twice,
 the desktop session closing it on the way out and the session coming back
 launching a new one.
 
@@ -243,14 +245,14 @@ only the boot is skipped, and the mode is open from that session's first tick.
 A copy the session took over from standalone is handed back instead of closed,
 whoever lets go of it. The shows have to be closed on the way out because they
 are windows of their own: hiding the main window alone left both of them up over
-the monitors for the whole stay in the headset. Entering the mode opens them
-again, as it always does.
+the monitors for the whole stay in the headset. A satellite entering its
+Origenerator mode opens its show again, as it always does.
 Identity is the pair and never the pid alone, because Windows hands freed pids
 straight back out.
 
-The arriving session opens the mode without waiting to hear from the app, since
-it was already open, and leaves its status file alone: the app rewrites that
-only when a slideshow opens or closes, so a cleared one would stay missing until
+The arriving session offers Origenerator without waiting to hear from the app,
+since it was already open, and leaves its status file alone: the app rewrites that
+only when a slideslideshow opens or closes, so a cleared one would stay missing until
 then. The paused flag and the command file are cleared as ever: a stale freeze
 or an unread verb from the last session would land on this one.
 

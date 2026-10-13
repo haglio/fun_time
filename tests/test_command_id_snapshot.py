@@ -27,7 +27,10 @@ from fun_time.voice_commands import VOICE_COMMANDS
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Commands no spoken phrase, hotkey or reference row names: posted straight off
-# a Funestra's own surface as a literal string in that Funestra's repo.  The three
+# a Funestra's own surface as a literal string in that Funestra's repo, or off the
+# dashboard's strip.  Each satellite's Kino / Origenerator pair is on its HUD, and
+# the strip's two buttons are the strip's own (the hosted Origenerator posts its
+# second one too, to be shown).  The three
 # minimize buttons live on the HUDs (funestra / the Main Funestra's console); the
 # padlock on that console locks whichever Funestra is on the main screen; the speed
 # pair is Genau's console's own ± marks beside its drive readout; the enhanced
@@ -36,15 +39,21 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # scene jumps are the VR controllers' B and A with the trigger held.
 HUD_ONLY_COMMAND_IDS = (
     "genau_filter_enhanced",
+    "landscape_kino_activate",
     "landscape_minimize",
+    "landscape_origenerator_activate",
     "landscape_take_osr2",
     "main_lock",
     "main_minimize",
     "main_scene_next",
     "main_scene_prev",
     "main_take_osr2",
+    "origenerator_activate",
+    "portrait_kino_activate",
     "portrait_minimize",
+    "portrait_origenerator_activate",
     "portrait_take_osr2",
+    "rfb_activate",
     "robot_hand_speed_down",
     "robot_hand_speed_up",
 )
@@ -233,7 +242,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "main_reset",
     "main_shuffle",
     "omnipause_toggle",
-    "origenerator_activate",
     "osr2_control_off",
     "pause",
     "play",
@@ -311,8 +319,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "robot_hand_amplitude_up",
     "robot_hand_center_down",
     "robot_hand_center_up",
-    "robot_hand_cruise_off",
-    "robot_hand_cruise_on",
     "robot_hand_cycle_shape",
     "robot_hand_cycle_shape_prev",
     "robot_hand_learned_off",
@@ -320,7 +326,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "robot_hand_park",
     "robot_hand_release",
     "robot_hand_retract",
-    "robot_hand_toggle_cruise",
     "robot_hand_toggle_learned",
     "satellites_action_loop",
     "satellites_cycle_action",
@@ -347,6 +352,7 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "satellites_no_loop",
     "satellites_nudge_next",
     "satellites_nudge_prev",
+    "satellites_origenerator_activate",
     "satellites_prev",
     "satellites_reset",
     "satellites_seed_loop",

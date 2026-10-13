@@ -213,12 +213,9 @@ class TestVoiceCommands:
         for phrase in ("browse", "open browser", "open file browser", "file browser", "file browse"):
             assert VOICE_COMMANDS[phrase] == "browse_library", phrase
 
-    def test_cruise_control_and_human_inspired_motion_answer_to_their_initials(self):
-        assert VOICE_COMMANDS["cc on"] == "robot_hand_cruise_on"
-        assert VOICE_COMMANDS["cc off"] == "robot_hand_cruise_off"
+    def test_human_inspired_motion_answers_to_its_initials(self):
         assert VOICE_COMMANDS["hi on"] == "robot_hand_learned_on"
         assert VOICE_COMMANDS["hi off"] == "robot_hand_learned_off"
-        assert friendly_voice("cc on") == "CC on"
         assert friendly_voice("hi off") == "HI off"
 
     def test_a_hud_is_sent_to_a_corner_by_name(self):

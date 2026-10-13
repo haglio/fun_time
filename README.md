@@ -261,7 +261,7 @@ The main stack runs in one of two modes: **Kino** and **Genau** (`G`; Kino by it
 
 Spoken, "kino mode" puts both sides in Kino mode at once; "main kino mode" and "satellite kino mode" do one side, and "genau mode" or "origenerator mode" puts a side back. Genau is heard said either way, the German word or "go now"; "origenerator" is in no dictionary, so the recognizer listens for "aura generator mode".
 
-The satellite side has a mode axis of its own, orthogonal to the two above: **Kino mode** (the session as ever — the Random Favs Browser plus the two Satellite Funestras) and **Origenerator mode**, toggled with `X` or spoken as "origenerator mode" / "satellite kino mode". With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag: its main window sits over the RFB's rect (parked while in Kino mode), and the slideshows it opens play on the portrait or landscape Satellite Funestra by each subject's orientation — the session hands both Funestras to the app for the mode — so up to two shows can run while the Origenerator window itself stays usable. Entering the mode opens both Funestras on the whole Origenerator library of their own shape, shuffled — the same base state each Satellite Funestra holds in Kino mode, and what a side's reset button goes back to. Each Funestra then wears the app's own map and buttons under the session's mode row, and everything said to a side — its buttons, the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`), its spoken commands — reaches the hosted app for as long as the mode lasts; only minimize and the playback speed stay the Funestra's own. Leaving the mode gives each Funestra back its own list, on the clip it was playing when the mode began. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface, and a standalone one that the session never took over stands off the device too — the session leaves its pid in `state/fun_time_session.txt` for as long as it runs, in that checkout and in the primary checkout a worktree belongs to, and a window that reads a live one there lets go of the OSR2 and keeps its switch off. A preview of an Origenerator branch reads the primary's as well as its own, so one open beside Fun Time lets go too. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry. Fun Time's hotkeys stay live while Origenerator's window has the keyboard, and clicking into one of its text fields enters OmniPause, which suspends them, so what you type goes into the field.
+Each Satellite Funestra has a mode of its own, orthogonal to the two above: **Kino mode** (it plays its own videos) and **Origenerator mode** (it plays Origenerator's slideshows), switched by the Kino / Origenerator pair at the head of its HUD. What holds the Random Favs Browser's place is a switch of its own too: the strip of two buttons under the dashboard's log, **Random Favs Browser** and **Origenerator**. With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag: its main window sits over the RFB's rect while the strip says Origenerator (parked under the browser otherwise), and the slideshows it opens play on the portrait or landscape Satellite Funestra by each subject's orientation; a show started for a Funestra still in Kino mode switches that Funestra to Origenerator mode and plays there. Switching a Funestra to Origenerator mode opens it on the whole Origenerator library of its own shape, shuffled — the same base state it holds in Kino mode, and what its reset button goes back to. That Funestra then wears the app's own map and buttons under the session's mode row, and everything said to it — its buttons, the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`), its spoken commands — reaches the hosted app for as long as it is in that mode; only minimize, the playback speed and its own mode pair stay the Funestra's. Back in Kino mode it plays its own list again, on the clip it was playing when it left. `X` switches both Satellite Funestras at once — into Origenerator mode unless both already are, and back to Kino mode if they are — and so do "origenerator mode" and "satellite kino mode" said aloud; none of the three moves what holds the browser's place. A session hosting no Origenerator draws neither the mode pair nor the strip. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface, and a standalone one that the session never took over stands off the device too — the session leaves its pid in `state/fun_time_session.txt` for as long as it runs, in that checkout and in the primary checkout a worktree belongs to, and a window that reads a live one there lets go of the OSR2 and keeps its switch off. A preview of an Origenerator branch reads the primary's as well as its own, so one open beside Fun Time lets go too. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry. Fun Time's hotkeys stay live while Origenerator's window has the keyboard, and clicking into one of its text fields enters OmniPause, which suspends them, so what you type goes into the field.
 
 ### The library browser
 
@@ -543,16 +543,14 @@ The audio companion and the Python dispatch loop both read this file as the auth
 
 Written by `fun_time/command_dispatch.py` when Genau or Robot Hand commands are dispatched.
 
-The verbs it may carry are the registry in `../funestra`'s `funestra/genau_controls.py`, written down as a contract in `../genau`'s `tests/test_genau_vocabulary.py`.
+The verbs it may carry are the registry in `../funestra`'s `funestra/genau_controls.py`.
 
 `OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
 
-Cruise control and the flick interval are separate: cruise wanders the motion's
-amplitude, center, speed and waveform (and human-inspired motion replaces the waveform
-with what real scripts do, inside the Amp and Center bars' range and at the Speed bar's pace;
-the two are never on together), while the interval is how long a flick
-holds the screen before Genau moves on — 8–12 seconds unless `FLICK_SECONDS
-<seconds>` names a pace. It is spelled for what the number is rather than for
+Human-inspired motion replaces the waveform with what real scripts do, inside the
+Amp and Center bars' range and at the Speed bar's pace. The flick interval is how
+long a flick holds the screen before Genau moves on — 8–12 seconds unless
+`FLICK_SECONDS <seconds>` names a pace. It is spelled for what the number is rather than for
 the auto-advance that spends it, because that is the word the reference shows
 and the phrase a speaker says ("flick seconds thirty", in whatever word the
 `genau_flick_words` in `~/.haglio/settings.json` gives Genau's flicks). The interval keeps
@@ -562,7 +560,7 @@ interval runs on around it; `WEIRD` condemns the flick, moving the file to the
 same place in `videos/genau/weird/` that it had in the flicks folder (a
 `2D/AI` flick to `weird/2D/AI`) and taking up its successor.
 
-Genau (the `../genau` project) consumes and clears this file.
+Genau, on the Main Funestra, consumes and clears this file.
 
 ### `main_player_cmd.txt`
 
@@ -616,13 +614,18 @@ The hosted Origenerator's channel, spoken in the same idioms as the satellites'
 (`funestra.file_channel`). The command file carries whatever is said to a
 side, exactly as it was said (`portrait_next`, `landscape_lock`,
 `portrait_fmode`, …) — the app declared those buttons, so it is what answers
-them — plus `OPEN_SHOWS` (entering the mode, which fills both Funestras with
-their base state), `CLOSE_SHOWS`, `FILTER_ENHANCED` (the console's
+them — plus `portrait_open_show` / `landscape_open_show` (that Funestra
+entering its Origenerator mode, which fills it with its base state),
+`portrait_close_show` / `landscape_close_show`, `CLOSE_SHOWS` (a crossing
+parking the app, which lets go of both), `FILTER_ENHANCED` (the console's
 enhanced-only switch), `QUIT` and `RELEASE`, `PORTRAIT_SAY:<phrase>` for a
 spoken command the session heard about one side, and `GO_TO|<flick>` once Genau
 has locked on a flick, which takes the gallery to that flick when the app made
 it. The paused flag freezes its slideshows for OmniPause. The status file says only
-that the app is up (`ready=1`), which is what opens the mode. A side the app
+that the app is up (`ready=1`), which is what lights every Origenerator button. A
+show the app is asked for on a Funestra still in Kino mode posts
+`portrait_origenerator_activate` / `landscape_origenerator_activate` on the
+dashboard's channel and opens once the session hands that Funestra over. A side the app
 has let go of is one whose panel it has published empty; the session waits for
 that, up to three seconds, before handing that Funestra its own list back — kept
 meanwhile in `portrait_playlist.kept.tsv` / `landscape_playlist.kept.tsv`.

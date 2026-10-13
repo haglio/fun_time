@@ -9,7 +9,9 @@ from fun_time import command_reference, content
 from fun_time.command_dispatch import _MAIN_FUNESTRA_CMD_MAP, _about_genaus_flick
 from fun_time.command_reference import (
     _SECTIONS,
+    HOTKEY_BLOCK_PX,
     HOTKEY_HEADER,
+    VOICE_COLUMN_PX,
     VOICE_HEADER,
     CommandRef,
     ReferenceGroup,
@@ -739,15 +741,10 @@ def test_min_max_value_live_on_their_own_consecutive_set_lines():
     assert "min amp" in set_amp.voice and "max amp" in set_amp.voice
 
 
-def test_cruise_voice_lists_on_before_off():
-    cruise = next(r for r in _all_rows() if "robot_hand_toggle_cruise" in r.commands)
-    assert cruise.voice == ("cruise control", "CC on", "cruise on", "CC off", "cruise off")
-
-
-def test_learned_motion_follows_cruise_with_the_same_shape_of_voice():
+def test_human_inspired_motion_follows_the_waveform_and_lists_its_voice_on_before_off():
     rows = _all_rows()
-    cruise = next(i for i, r in enumerate(rows) if "robot_hand_toggle_cruise" in r.commands)
-    learned = rows[cruise + 1]
+    waveform = next(i for i, r in enumerate(rows) if "robot_hand_cycle_shape" in r.commands)
+    learned = rows[waveform + 1]
     assert "robot_hand_toggle_learned" in learned.commands
     assert learned.voice == ("human inspired", "HI on", "human inspired on", "HI off",
                              "human inspired off")
@@ -782,9 +779,8 @@ def test_corrected_descriptions():
     """Rows say what the key does to the room, not just what it is called."""
     descs = {r.description for r in _all_rows()}
     assert {"disable voice control", "start / stop the Broker"} <= descs
-    assert any(d.startswith("enable / disable cruise control") for d in descs)
+    assert any(d.startswith("enable / disable human-inspired motion") for d in descs)
     assert "Mute voice control" not in descs
-    assert "Cruise control" not in descs
     assert "Broker start / stop" not in descs
 
 
@@ -858,7 +854,7 @@ def test_the_main_funestras_mode_groups_follow_its_consoles_mode_buttons():
 
 
 def test_the_column_heads_say_hotkey_and_voice_command_and_a_forked_hotkey_head_spans_its_funestras():
-    html = render_reference_html()
+    html = render_reference_html(1000)
 
     assert (HOTKEY_HEADER, VOICE_HEADER) == ("Hotkey", "Voice command")
     assert ">Say<" not in html and ">Key<" not in html
@@ -869,7 +865,7 @@ def test_the_column_heads_say_hotkey_and_voice_command_and_a_forked_hotkey_head_
 
 
 def _section_html(title: str) -> str:
-    [part] = [part for part in re.split(r"(?=<h3 )", render_reference_html())
+    [part] = [part for part in re.split(r"(?=<h3 )", render_reference_html(1000))
               if re.match(rf"<h3[^>]*>(?:<a[^>]*>)?{re.escape(title)}</", part)]
     return part
 
@@ -894,8 +890,41 @@ def test_a_group_whose_rows_hold_no_key_renders_no_hotkey_column():
     assert "Hotkey" in _section_html("Other")
 
 
+def _tables(html: str) -> list[str]:
+    return re.findall(r"<table[^>]*>.*?</table>", html, re.DOTALL)
+
+
+def _body_widths(table: str) -> list[int]:
+    """Each column's pixel width, read off the table's last row."""
+    last_row = re.findall(r"<tr[^>]*>(.*?)</tr>", table, re.DOTALL)[-1]
+    return [int(width) for width in re.findall(r'<td width="(\d+)"', last_row)]
+
+
+def test_every_table_is_the_page_wide_with_its_voice_column_and_hotkey_block_in_the_same_pixels():
+    """Qt lays a percentage-width table out a few pixels past the viewport, and
+    the columns of one table land at an x of their own, so each table is told
+    its width in pixels and each cell its own: the voice column at the right and
+    the hotkey block -- one column, or a column per Funestra -- the same width on
+    every table, the action column taking whatever the page leaves."""
+    html = render_reference_html(1000)
+    tables = _tables(html)
+
+    assert tables
+    assert {re.match(r'<table width="(\d+)"', table).group(1) for table in tables} == {"1000"}
+    for table in tables:
+        widths = _body_widths(table)
+        assert sum(widths) == 1000, table[:120]
+        assert widths[-1] == VOICE_COLUMN_PX, table[:120]
+        assert sum(widths[1:-1]) in (0, HOTKEY_BLOCK_PX), table[:120]
+    per_funestra = _body_widths(next(table for table in tables if "Portrait" in table))
+    assert per_funestra[1:-1] == [HOTKEY_BLOCK_PX // 3] * 3
+    assert _body_widths(_tables(_section_html("Dashboard"))[0])[1:-1] == [HOTKEY_BLOCK_PX]
+    assert len(_body_widths(_tables(_section_html("VR"))[0])) == 2
+    assert _body_widths(_tables(render_reference_html(1400))[0])[0] == 1400 - VOICE_COLUMN_PX - HOTKEY_BLOCK_PX
+
+
 def test_the_forked_hotkey_head_is_centered_over_its_funestras():
-    html = render_reference_html()
+    html = render_reference_html(1000)
     for columns in (3, 2):
         assert re.search(
             rf'<td(?=[^>]*colspan="{columns}")(?=[^>]*align="center")[^>]*>\s*<b[^>]*>Hotkey</b>',
@@ -913,7 +942,7 @@ def test_an_untitled_group_renders_no_heading_and_a_flat_section_is_its_table():
 def test_a_sections_note_is_the_tooltip_on_its_title():
     """The scoping rule no longer sits on the page under the title: the title
     is the anchor, and the note waits in its tooltip like a row's detail."""
-    html = render_reference_html()
+    html = render_reference_html(1000)
     details = reference_details()
     noted = [section for section in build_reference_sections() if section.note]
 
@@ -1013,7 +1042,7 @@ def test_reference_does_not_import_voice_runtime():
 
 
 def test_render_reference_html_contains_key_content():
-    html = render_reference_html()
+    html = render_reference_html(1000)
     assert isinstance(html, str)
     assert "<table" in html
     # A hotkey, a voice phrase, and a section title should all be present.
@@ -1030,7 +1059,7 @@ def test_render_reference_html_has_no_heading_or_subtitle():
     """The popup's name lives on the window chrome, so the rendered HTML carries
     neither an in-window heading nor the old subtitle — it opens straight into
     the first section."""
-    html = render_reference_html()
+    html = render_reference_html(1000)
     assert "<h2" not in html
     assert "Hotkeys &amp; Voice Commands Reference" not in html
     assert "Global while Fun Time" not in html

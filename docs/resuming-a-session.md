@@ -80,37 +80,41 @@ windows where they always open, and the session's first ticks seat them from
 the crown, which does come back, and the shape of what the Main Funestra shows,
 whether that is a video or one of Genau's flicks.
 
-The satellite side's mode comes back, and it comes back UNDER THE COVER. Every
-room is built in Kino mode — the Funestras are built as Funestras and the browser has
-the slot — so a room left in origenerator mode has to be switched into it, and
-switching it once the room is already his is what this must never do: both sides
-would rearrange themselves under whatever he had started in Kino mode, which was
+Whatever Origenerator held comes back — each Satellite Funestra's own
+Origenerator mode, and Origenerator in the Random Favs Browser's place — and it
+comes back UNDER THE COVER. Every room is built with both Funestras in Kino mode
+and the browser in its place, so a room left otherwise has to be switched back,
+and switching it once the room is already his is what this must never do: the
+Funestras would rearrange themselves under whatever he had started, which was
 tried and rejected. So the loading screen stays up instead. The phase before its
-last, read on the cover as "Coming back to Origenerator mode...", comes after the
+last, read on the cover as "Activating Origenerator...", comes after the
 room is built and banded and waits for the hosted Origenerator to publish its
 status — re-written while it waits, since a cover takes itself down on a progress
 file nothing has touched for a minute (`overlay_progress`). The moment the app
-answers, the very command the switch sends is sent, and only then does the cover
-come down — on a room already in the mode, with a slideshow on each side. The room
-he left in Kino mode waits for nothing.
+answers, the very commands the switches send are sent, one for each thing
+Origenerator held, and only then does the cover come down — on a room already
+the way it was left. A room Origenerator held nothing of waits for nothing.
 
 The wait is given up on after `ORIGENERATOR_BOOT_BUDGET_S`, because an app that
 died on its way up would otherwise hold the room shut; a room that gave up opens
-in Kino mode and stays there for the session, and the state file is corrected to
-say so, since that mode is what both satellite HUDs draw and what the switch acts
-on. An Origenerator that was already open when the session began — one he opened
-himself and the session took over, or one a crossing kept — has no boot to wait
-out, so its mode is there as the cover lifts.
+with Origenerator holding nothing and stays that way for the session, and the
+state file is corrected to say so, since that is what the satellite HUDs and the
+dashboard's strip draw and what the switches act on. An Origenerator that was
+already open when the session began — one he opened himself and the session took
+over, or one a crossing kept — has no boot to wait out, so what it held is there
+as the cover lifts.
 
-A room also opens in that mode, whatever mode the last one was left in, when the
-Origenerator it takes over is showing a slideshow: he was watching it, so the room
-comes up with that slideshow on the satellite of its shape and the other side on its
-library, as the mode always opens. The app holds the show through the takeover
-and plays it there when the mode's slideshows are asked for. It says it is showing one
-beside its offer, in `fun_time_showing.txt`, naming its own process the way the
-offer does, so the mark of an app that has since closed is never believed.
+A room also opens with Origenerator holding all of it, whatever the last one was
+left in, when the Origenerator it takes over is showing a slideshow: he was
+watching it, so the room comes up with that slideshow on the satellite of its shape,
+the other satellite on its library and Origenerator in the browser's place, as
+the one mode for the whole side used to open before each satellite had its own.
+The app holds the slideshow through the takeover and plays it there when that side's
+show is asked for. It says it is showing one beside its offer, in
+`fun_time_showing.txt`, naming its own process the way the offer does, so the
+mark of an app that has since closed is never believed.
 
-Coming back to the mode means putting back what the mode took. While the hosted app
+Coming back to a Funestra's Origenerator mode means putting back what the mode took. While the hosted app
 has a satellite, that Funestra's playlist file holds the app's pictures and the
 session's own list waits beside it (`fun_time.funestra_handover`). A session quit
 there, or killed there, never brings the Funestra home — so `resume_playlists`

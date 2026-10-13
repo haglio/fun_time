@@ -10,7 +10,7 @@ from pathlib import Path
 
 from app_support.logging_utils import install_exception_logging
 from funestra.file_channel import append_command
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QColor, QFont, QImage
 from shared_ui.chrome import family_stylesheet
 from shared_ui.colors import (
     BG_BUTTON,
@@ -30,7 +30,11 @@ from shared_ui.preview_icon import app_icon
 from shared_ui.spacing import BUTTON_RADIUS_HUD, MARGIN_STANDARD
 
 from fun_time import preview_marker
-from fun_time.command_reference import reference_details, render_reference_html
+from fun_time.command_reference import (
+    NARROWEST_PAGE_PX,
+    reference_details,
+    render_reference_html,
+)
 from fun_time.config import LayoutConfig
 from fun_time.dashboard_actions import (
     ENTER_OMNIPAUSE,
@@ -49,6 +53,8 @@ from fun_time.dashboard_actions import (
 from fun_time.dashboard_bridge import DashboardSnapshot
 from fun_time.dashboard_controls import BarControl, bar_controls, mark_side
 from fun_time.dashboard_layout import (
+    PAD,
+    RFB_SLOT_STRIP_HEIGHT,
     DashboardBarLayout,
     Rect,
     add_rect_arguments,
@@ -66,6 +72,7 @@ from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.notice_feed import NoticeFeed
 from fun_time.notice_overlay import NoticeOverlay
 from fun_time.project_paths import PROJECT_ICON
+from fun_time.rfb_slot_strip import paint_strip, place_strip, strip_buttons
 from fun_time.session_end import mark_session_end
 from fun_time.shared_state import shared_state_path
 from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
@@ -99,6 +106,9 @@ class DashboardAppConfig:
     state_dir: Path
     dashboard_state_file: Path
     dashboard_cmd_file: Path
+    # Whether the session hosts an Origenerator, which is what puts the strip
+    # under the log that says what holds the Random Favs Browser's place.
+    rfb_slot_strip: bool = False
 
 
 DashboardLaunchGeometry = Rect
@@ -158,6 +168,7 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
             "commands", "dashboard_state_file", fallback="dashboard_state.ini"),
         dashboard_cmd_file=state_dir / parser.get(
             "commands", "dashboard_cmd_file", fallback="dashboard_cmd.txt"),
+        rfb_slot_strip=bool(parser.get("runtime", "origenerator_dir", fallback="").strip()),
     )
 
 
@@ -412,12 +423,38 @@ class DashboardWidget(QWidget):
 
 
 class ReferenceBrowser(QTextBrowser):
+    """The reference page, laid out in pixels for the width the browser has."""
+
+    rerendered = pyqtSignal()
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setOpenLinks(False)
         self.setOpenExternalLinks(False)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.setMinimumWidth(NARROWEST_PAGE_PX + self._width_around_the_page())
         self._details = reference_details()
-        self.setHtml(render_reference_html())
+        self._page_width = 0
+        self._render()
+
+    def _width_around_the_page(self) -> int:
+        return (2 * (self.frameWidth() + round(self.document().documentMargin()))
+                + self.verticalScrollBar().sizeHint().width())
+
+    def _render(self) -> None:
+        page = max(NARROWEST_PAGE_PX,
+                   self.viewport().width() - 2 * round(self.document().documentMargin()))
+        if page == self._page_width:
+            return
+        self._page_width = page
+        scrolled = self.verticalScrollBar().value()
+        self.setHtml(render_reference_html(page))
+        self.verticalScrollBar().setValue(scrolled)
+        self.rerendered.emit()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._render()
 
     def detail_at(self, viewport_pos) -> str:
         return self._details.get(self.anchorAt(viewport_pos), "")
@@ -431,6 +468,69 @@ class ReferenceBrowser(QTextBrowser):
                 QToolTip.hideText()
             return True
         return super().event(event)
+
+
+class RfbSlotStripWidget(QWidget):
+    """The strip under the log, hovered and pressed the way a Satellite
+    Funestra's HUD is (:mod:`fun_time.rfb_slot_strip`)."""
+
+    action_triggered = pyqtSignal(str)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setFixedHeight(RFB_SLOT_STRIP_HEIGHT)
+        self.setMouseTracking(True)
+        self.placed = _placed_on_the_strip(DashboardSnapshot())
+        self._hovered: tuple[int, int, int, int] | None = None
+
+    def show_state(self, snapshot: DashboardSnapshot) -> None:
+        placed = _placed_on_the_strip(snapshot)
+        if placed != self.placed:
+            self.placed = placed
+            self.update()
+
+    def paintEvent(self, event: object) -> None:
+        image = paint_strip((self.width(), self.height()), self.placed, hovered=self._hovered)
+        pixels = image.tobytes("raw", "RGBA")
+        painter = QPainter(self)
+        painter.drawImage(0, 0, QImage(pixels, image.width, image.height, image.width * 4,
+                                       QImage.Format.Format_RGBA8888))
+        painter.end()
+
+    def _under(self, event: object):
+        pos = event.position()
+        x, y = int(pos.x()), int(pos.y())
+        return next(((rect, button) for rect, button in self.placed
+                     if rect[0] <= x < rect[0] + rect[2] and rect[1] <= y < rect[1] + rect[3]),
+                    None)
+
+    def mousePressEvent(self, event: object) -> None:
+        under = self._under(event)
+        if under is not None and not under[1].dim:
+            self.action_triggered.emit(under[1].command)
+
+    def mouseMoveEvent(self, event: object) -> None:
+        under = self._under(event)
+        self._hover(None if under is None else under[0])
+        if under is None:
+            QToolTip.hideText()
+        else:
+            QToolTip.showText(self.mapToGlobal(event.position().toPoint()),
+                              under[1].tooltip_on_hover, self)
+
+    def leaveEvent(self, event: object) -> None:
+        self._hover(None)
+
+    def _hover(self, rect: tuple[int, int, int, int] | None) -> None:
+        if rect != self._hovered:
+            self._hovered = rect
+            self.update()
+
+
+def _placed_on_the_strip(snapshot: DashboardSnapshot):
+    return place_strip(strip_buttons(snapshot.rfb_slot,
+                                     origenerator_ready=snapshot.origenerator_ready),
+                       x=PAD, y=PAD)
 
 
 class ReferenceDialog(QDialog):
@@ -457,11 +557,14 @@ class ReferenceDialog(QDialog):
         self._find_bar = FindBar("Find:", "a key or a word…")
         self._find_bar.setContentsMargins(MARGIN_STANDARD, 0, MARGIN_STANDARD, MARGIN_STANDARD)
         self._find_bar.typing_invited.connect(self.typing_invited)
+        self._browser.rerendered.connect(self._find_bar.refresh)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._browser)
         layout.addWidget(self._find_bar)
         QShortcut(QKeySequence.StandardKey.Find, self).activated.connect(self.open_find)
+        self.setMinimumWidth(self._browser.minimumWidth())
+        self.resize(1000, 800)
 
     def open_find(self) -> None:
         self._find_bar.open_find([self._browser])
@@ -663,6 +766,10 @@ class DashboardWindow(QMainWindow):
         central_layout.setSpacing(0)
         central_layout.addWidget(top_row)
         central_layout.addWidget(self._log_widget, 1)
+        self._strip = RfbSlotStripWidget() if app_config.rfb_slot_strip else None
+        if self._strip is not None:
+            self._strip.action_triggered.connect(self._on_action)
+            central_layout.addWidget(self._strip)
         self.setCentralWidget(central)
 
         if launch_geometry is not None:
@@ -693,6 +800,7 @@ class DashboardWindow(QMainWindow):
 
         self._notices = NoticeFeed(
             layout=app_config.layout,
+            rfb_slot_strip=app_config.rfb_slot_strip,
             event_log_dir=app_config.state_dir,
             cover_dir=app_config.state_dir,
             make_overlay=NoticeOverlay,
@@ -789,6 +897,8 @@ class DashboardWindow(QMainWindow):
         pressed_actions: frozenset[str],
     ) -> None:
         self._last_snapshot = snapshot
+        if self._strip is not None:
+            self._strip.show_state(snapshot or DashboardSnapshot())
         # The log strip is a child widget and rides this window's band; the
         # reference popup is its own top-level window, so it is banded too.
         omni_paused = self._omni_paused

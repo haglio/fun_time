@@ -27,7 +27,7 @@ from .child_launch import no_child_log
 from .command_dispatch import (
     dispatch_command,
     every_funestra_in_f_mode,
-    hosting_origenerator,
+    hosts,
     notice_source,
     room_at_defaults,
     routes_to_origenerator,
@@ -41,6 +41,7 @@ from .dashboard_actions import (
     HELP_REFERENCE,
     HELP_REFERENCE_COMMANDS,
     LIBRARY_OPEN_FILENAME,
+    ORIGENERATOR_ACTIVATE,
     REFERENCE_OPEN_FILENAME,
 )
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
@@ -65,13 +66,20 @@ from .main_list_builds import BuildsOffTheLoop
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .mode_plan import kino_shows
 from .modes import scripted_item
+from .origenerator_switches import (
+    BOTH_SATELLITES_MODE_COMMANDS,
+    KINO_MODE,
+    ORIGENERATOR_MODE,
+    RfbSlot,
+    mode_command,
+    origenerator_shows,
+)
 from .osr2_section import funestra_with_the_osr2
 from .rfb_slideshow import RfbSlideshow
 from .role_windows import WindowRoles
 from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_speeds import SatelliteSpeeds
-from .satellites_mode import KINO_MODE, MODE_BY_COMMAND, origenerator_shows
 from .session_end import mark_session_end, session_end_asked
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import DESKTOP, VR, HandoffTarget, request_handoff, this_session
@@ -219,7 +227,7 @@ _FUNESTRA_GROUPS = {
 def expand_group_command(command: str) -> list[str]:
     """A ``satellites_``/``all_`` command as the per-Funestra commands it stands
     for, each handled as if said alone; the side's mode switches pass as themselves."""
-    if command in MODE_BY_COMMAND:
+    if command in BOTH_SATELLITES_MODE_COMMANDS:
         return [command]
     for group, funestras in _FUNESTRA_GROUPS.items():
         if command.startswith(group):
@@ -329,8 +337,9 @@ class DispatchLoopRunner:
         # Latched: the hosted app runs for the whole session, so this is a few
         # reads at the start of one and nothing after.
         self._origenerator_is_up = origenerator_already_open
-        self._opens_in_origenerator_mode = config.origenerator_enabled and (
-            origenerator_showing or self._the_room_was_left_in_origenerator_mode())
+        self._owed_to_origenerator = (
+            self._what_origenerator_held(showing=origenerator_showing)
+            if config.origenerator_enabled else ())
         # The Robot Hand and a funscript both feed the broker's one T-Code inlet,
         # so in kino mode something has to hand the device between them.
         self.arbiter = DeviceArbiter(
@@ -360,42 +369,48 @@ class DispatchLoopRunner:
         self.state = with_what_the_funestras_report(self.state, read_funestra_reports(self.config))
 
     def _the_satellite_modes_this_session_can_be_in(self, state: BridgeState) -> BridgeState:
-        """*state* corrected to the room this session is really in -- never
-        origenerator mode while no hosted app has answered -- and that read onto it."""
+        """*state* corrected to the room this session is really in -- Origenerator
+        holding nothing while no hosted app has answered -- and that read onto it."""
         state = replace(state, origenerator_ready=self._the_hosted_app_has_answered())
-        offered = self.config.origenerator_enabled and state.origenerator_ready
-        if offered or not origenerator_shows(state.satellites_mode):
+        if self.config.origenerator_enabled and state.origenerator_ready:
             return state
-        return replace(state, satellites_mode=KINO_MODE)
+        return _with_origenerator_holding_nothing(state)
 
-    def _the_room_was_left_in_origenerator_mode(self) -> bool:
-        """Read before anything is dispatched, so a switch later is where the room IS."""
-        left_in = read_shared_state(self.shared_state_file)
-        return left_in is not None and origenerator_shows(left_in.satellites_mode)
+    def _what_origenerator_held(self, *, showing: bool) -> tuple[str, ...]:
+        """The switches that put Origenerator back on whatever it held when this
+        room was last left, or on all of it for an app taken over mid-slideshow.
+        Read before anything is dispatched, so a switch later is where the room IS."""
+        left_in = read_shared_state(self.shared_state_file) or BridgeState()
+        satellites = tuple(
+            mode_command(funestra.label, ORIGENERATOR_MODE) for funestra in RoomFunestra.SATELLITES
+            if showing or origenerator_shows(left_in.satellite(funestra).mode))
+        in_the_rfb_slot = showing or left_in.rfb_slot is RfbSlot.ORIGENERATOR
+        return (*satellites, *((ORIGENERATOR_ACTIVATE,) if in_the_rfb_slot else ()))
 
     @property
-    def opens_in_origenerator_mode(self) -> bool:
-        return self._opens_in_origenerator_mode
+    def activates_origenerator(self) -> bool:
+        return bool(self._owed_to_origenerator)
 
-    def open_in_origenerator_mode(self, *, wait_for_the_app) -> None:
-        """Through the switch's own command, while *wait_for_the_app* holds the room
-        under its cover for that app, and given up on if it never answers."""
-        if not self._opens_in_origenerator_mode:
+    def activate_origenerator(self, *, wait_for_the_app) -> None:
+        """Through the switches' own commands, while *wait_for_the_app* holds the
+        room under its cover for that app, and given up on if it never answers."""
+        owed, self._owed_to_origenerator = self._owed_to_origenerator, ()
+        if not owed:
             return
-        self._opens_in_origenerator_mode = False
         if not wait_for_the_app(self._the_hosted_app_has_answered):
             logger.info("Origenerator did not finish starting, so the room opens in kino mode")
             left_in = read_shared_state(self.shared_state_file)
             if left_in is not None:
                 write_shared_state(self.shared_state_file,
-                                   replace(left_in, satellites_mode=KINO_MODE))
+                                   _with_origenerator_holding_nothing(left_in))
             return
         self.state = self._the_satellite_modes_this_session_can_be_in(self.state)
-        self._dispatch("origenerator_activate")
+        for command in owed:
+            self._dispatch(command)
 
     def _the_hosted_app_has_answered(self) -> bool:
-        """Whether the hosted Origenerator has published a status: a session
-        entering the mode sends OPEN_SHOWS, which an app answering at all takes.
+        """Whether the hosted Origenerator has published a status: a side
+        entering its mode asks it for a show, which an app answering at all takes.
         """
         if self._origenerator_is_up:
             return True
@@ -416,9 +431,7 @@ class DispatchLoopRunner:
             self.state = shared
         # File or no file: this corrects a reading of the room, not the file.
         self.state = self._the_satellite_modes_this_session_can_be_in(self.state)
-        if shared is not None and (
-                shared.origenerator_ready != self.state.origenerator_ready
-                or shared.satellites_mode != self.state.satellites_mode):
+        if shared is not None and shared != self.state:
             # Nothing else writes the file until a command is dispatched, which on
             # a session nobody is touching may be never.
             write_shared_state(self.shared_state_file, self.state)
@@ -459,11 +472,12 @@ class DispatchLoopRunner:
         self.bring_the_funestras_home(now=now)
         self.gallery_follows_genau.sync()
         self.watch.sample_due(now=now, paused=self.state.omni_paused,
-                              satellites=not hosting_origenerator(self.state, self.config))
+                              hosted=tuple(funestra for funestra in RoomFunestra.SATELLITES
+                                           if hosts(funestra, self.state, self.config)))
         self.hud.publish_due(self.state, now=now)
         if self.rfb_slideshow is not None:
             self.rfb_slideshow.tick(now=now, held=self.state.omni_paused
-                                    or origenerator_shows(self.state.satellites_mode))
+                                    or self.state.rfb_slot is RfbSlot.ORIGENERATOR)
 
     def _pause_for_a_click_into_a_text_field(self) -> None:
         if self.press_and_caret_watch is None:
@@ -497,22 +511,22 @@ class DispatchLoopRunner:
             self.state = replace(self.state, majority=most)
             write_shared_state(self.shared_state_file, self.state)
 
-    def expect_the_funestras_home(self, *, now: float) -> None:
-        """Both satellites are on their way back from the hosted app."""
-        self._coming_home = {
-            funestra: (now + LET_GO_TIMEOUT_S, panel_stamp(self.config.satellite(funestra)))
-            for funestra in RoomFunestra.SATELLITES
-        }
+    def expect_the_funestras_home(self, funestras: tuple[RoomFunestra, ...], *,
+                                  now: float) -> None:
+        """*funestras* are on their way back from the hosted app."""
+        for funestra in funestras:
+            self._coming_home[funestra] = (
+                now + LET_GO_TIMEOUT_S, panel_stamp(self.config.satellite(funestra)))
 
     def bring_the_funestras_home(self, *, now: float) -> None:
         """Hand each satellite its own list again once the hosted app has let
         go of it, or has had long enough to -- never before, when a list the app
         wrote after it would take the Funestra straight back.
         """
-        if origenerator_shows(self.state.satellites_mode):
-            self._coming_home.clear()
-            return
         for funestra, (deadline, stamp) in list(self._coming_home.items()):
+            if origenerator_shows(self.state.satellite(funestra).mode):
+                del self._coming_home[funestra]
+                continue
             channel = self.config.satellite(funestra)
             if now < deadline and not let_go_since(channel, stamp):
                 continue
@@ -742,11 +756,11 @@ class DispatchLoopRunner:
         into, and every URL handed over then lands in one of his: worth losing
         the tab over, so the launch is skipped entirely.
 
-        In origenerator mode the buffer holds instead of flushing: the RFB is
-        under the hosted app's window, and opening a tab would force Chrome over
-        it.  The locks queue, and switching back to kino mode flushes them.
+        While Origenerator holds the browser's place the buffer holds instead
+        of flushing: opening a tab would force Chrome over it.  The locks queue,
+        and putting the browser back in its place flushes them.
         """
-        if origenerator_shows(self.state.satellites_mode):
+        if self.state.rfb_slot is RfbSlot.ORIGENERATOR:
             return
         urls = self._pending_rfb_urls
         self._pending_rfb_urls = []
@@ -789,6 +803,9 @@ class DispatchLoopRunner:
                         self.state, self.config,
                         read_main_funestra_status(self.config.main_funestra_status_file)),
                     headset_ready=the_headset_is_ready(self.config.state_dir),
+                    origenerator_ready=(self.config.origenerator_enabled
+                                        and self.state.origenerator_ready),
+                    rfb_slot=self.state.rfb_slot,
                 ),
             )
         except OSError as exc:
@@ -802,7 +819,7 @@ class DispatchLoopRunner:
         window state is its own."""
         if self.state.omni_paused:
             return
-        self.windows.converge_origenerator_window(self.state.satellites_mode)
+        self.windows.converge_origenerator_window(self.state.rfb_slot)
 
     def _broker_heartbeat_is_fresh(self) -> bool:
         """Whether the broker is currently talking to the OSR2 — not whether it exists.
@@ -888,7 +905,7 @@ class DispatchLoopRunner:
         minimizing one never yanks focus to the next.  The minimized set is
         remembered so omnirestore brings back exactly these windows.
         """
-        self.windows.minimize_all(visible_roles(self.state.satellites_mode))
+        self.windows.minimize_all(visible_roles(self.state.rfb_slot))
 
     def _handle_omnirestore(self) -> None:
         """Un-minimize exactly the windows omniminimize minimized.
@@ -973,7 +990,7 @@ class DispatchLoopRunner:
                 append_command(self.config.main_funestra_cmd_file, play_file(scripted_item(selected, self.config.regen_metadata_root)))
         finally:
             if manage_session:
-                self.windows.restore_all_topmost(self.state.satellites_mode)
+                self.windows.restore_all_topmost(self.state.rfb_slot)
                 append_command(self.ahk_cmd_file, Op.UNSUSPEND_HOTKEYS)
 
     def run(self) -> None:
@@ -1023,6 +1040,12 @@ class DispatchLoopRunner:
             browsing.terminate()
 
 
+def _with_origenerator_holding_nothing(state: BridgeState) -> BridgeState:
+    for funestra in RoomFunestra.SATELLITES:
+        state = state.with_satellite(funestra, mode=KINO_MODE)
+    return replace(state, rfb_slot=RfbSlot.RFB)
+
+
 # --- the window-op interpreter ----------------------------------------------
 # One handler per Op item, checked complete at import: a new op without a
 # handler fails startup, not the first press.  Only the two hotkey-suspension
@@ -1057,7 +1080,7 @@ def _run_activate_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 
 def _run_restack_rfb(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    runner.windows.restack_rfb_slot(runner.state.satellites_mode, paused=runner.state.omni_paused)
+    runner.windows.restack_rfb_slot(runner.state.rfb_slot, paused=runner.state.omni_paused)
 
 
 def _run_disable_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
@@ -1065,7 +1088,7 @@ def _run_disable_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
 
 
 def _run_restore_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    runner.windows.restore_all_topmost(runner.state.satellites_mode)
+    runner.windows.restore_all_topmost(runner.state.rfb_slot)
 
 
 def _run_open_rfb_tab(runner: DispatchLoopRunner, op: WindowOp) -> None:
@@ -1095,8 +1118,8 @@ def _run_notice(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner._flash(op.key, source=op.source, level=op.level)
 
 
-def _run_take_back_funestras(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    runner.expect_the_funestras_home(now=time.monotonic())
+def _run_take_back_funestras(runner: DispatchLoopRunner, op: WindowOp) -> None:
+    runner.expect_the_funestras_home((RoomFunestra[op.key.upper()],), now=time.monotonic())
 
 
 def _run_follow_genaus_lock(runner: DispatchLoopRunner, _op: WindowOp) -> None:
