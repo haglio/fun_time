@@ -33,7 +33,7 @@ from .integration_support import (
     RootsLeftBehind,
     clear_run_roots,
     close_udp_sinks,
-    keep_every_sessions_logs,
+    keep_what_the_run_logged,
 )
 from .line_record import require_a_run_that_holds_the_machine
 from .throwaway_chrome import ThrowawayChrome
@@ -127,10 +127,10 @@ def pytest_sessionfinish(session, exitstatus):
     if (kept_time := session.config.stash.get(_THE_RUNS_CLOCK, None)) is not None:
         _say_how_much_of_the_run_was_its_own(*kept_time)
     if exitstatus != 0:
-        kept = keep_every_sessions_logs(FAILURE_EVIDENCE)
+        kept = keep_what_the_run_logged(FAILURE_EVIDENCE)
         if kept is not None:
-            print(f"\n[integration] every session's logs from this failed run are in {kept}",
-                  file=sys.stderr, flush=True)
+            print(f"\n[integration] what this failed run's sessions and satellites logged "
+                  f"is in {kept}", file=sys.stderr, flush=True)
     try:
         clear_run_roots()
     except RootsLeftBehind as left_behind:

@@ -35,8 +35,6 @@ from tests.integration.integration_support import (
     SESSION_MONITORS,
     FunTimeIntegrationSession,
     close_udp_sinks,
-    end_satellite,
-    identify_child,
     isolate_shared_resources,
     library_clips,
     point_the_main_funestra_at,
@@ -334,6 +332,12 @@ def test_a_wait_that_runs_out_says_what_it_waited_for_and_what_it_last_saw(clock
         wait_for(lambda: 0, desc="the satellite to lock")
 
 
+def test_a_wait_that_runs_out_ends_with_what_it_was_handed_to_explain_it(clock):
+    with pytest.raises(AssertionError, match=r"\(last=None\)\nthe clip never opened"):
+        wait_for(lambda: None, desc="the satellite to start playing",
+                 explain=lambda: "the clip never opened")
+
+
 def test_a_wait_is_counted_in_the_seconds_the_run_could_run(monkeypatch, run_time):
     """Ten thousand polls are half an hour on the wall, and none of it the run's
     while normal-priority work holds every processor."""
@@ -352,37 +356,6 @@ def test_a_throwaway_chrome_window_is_awaited_in_the_seconds_the_run_could_run(m
                         lambda _marker: 7 if next(looks) == 9_999 else 0)
 
     assert throwaway_chrome.await_window("FUNTIMEMARK-STARVED-PAGE", WINDOW_TIMEOUT_S) == 7
-
-
-def test_a_launched_child_is_named_by_its_pid_and_the_moment_it_was_born():
-    with patch.object(integration_support, "get_process_creation_time", return_value=4200) as born:
-        assert identify_child(4242) == ChildProcess(pid=4242, created_at=4200)
-
-    born.assert_called_once_with(4242)
-
-
-def test_a_child_already_gone_when_named_is_one_no_live_process_can_match():
-    with patch.object(integration_support, "get_process_creation_time", return_value=None):
-        assert identify_child(4242) == ChildProcess(pid=4242, created_at=0)
-
-
-def test_a_satellite_that_never_lets_go_of_its_log_is_named(tmp_path: Path):
-    log = tmp_path / "portrait_satellite.log"
-
-    with patch.object(integration_support, "kill_recorded_child"), log.open("a"):
-        with pytest.raises(AssertionError, match="portrait_satellite.log"):
-            end_satellite(ChildProcess(pid=4242, created_at=1), log, budget_s=0)
-
-
-def test_a_satellite_on_its_way_out_is_waited_for_until_it_lets_go_of_its_log(tmp_path: Path):
-    log = tmp_path / "portrait_satellite.log"
-    satellite = ChildProcess(pid=4242, created_at=1)
-
-    with patch.object(integration_support, "kill_recorded_child") as kill, log.open("a") as held:
-        end_satellite(satellite, log, budget_s=60.0, sleep=lambda _seconds: held.close())
-
-    kill.assert_called_once_with(satellite)
-    assert not log.exists()
 
 
 def test_the_reap_never_waits_on_a_hotkey_script_it_did_not_end(session, monkeypatch):

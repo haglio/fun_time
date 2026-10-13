@@ -17,8 +17,7 @@ import pytest
 
 from fun_time.win32 import wait_for_window_by_title
 
-from .integration_support import wait_for
-from .test_satellite_navigation_integration import launched, library_videos
+from .lone_satellite import a_lone_satellite, library_clips_of
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="Windows only"),
@@ -45,16 +44,17 @@ def _asked(dashboard_cmd) -> list[str]:
     return dashboard_cmd.read_text(encoding="utf-8").split() if dashboard_cmd.exists() else []
 
 
-def test_a_click_in_a_corner_its_hud_is_not_in_asks_for_the_hud_there(tmp_path):
-    with launched(tmp_path, library_videos("portrait", 2), width=WIDTH, height=HEIGHT) as sat:
+def test_a_click_in_a_corner_its_hud_is_not_in_asks_for_the_hud_there():
+    sat = a_lone_satellite()
+    with sat.launched(library_clips_of("portrait", 2), width=WIDTH, height=HEIGHT, hud=True):
+        sat.wait_until_playing()
         sat.hud.write_text(json.dumps({"player": "portrait"}), encoding="utf-8")
         hwnd = wait_for_window_by_title("Portrait AI Funestra", timeout_s=30.0)
-        dashboard_cmd = tmp_path / "dashboard_cmd.txt"
 
         def asked_after_a_click() -> bool:
             _click(hwnd, WIDTH - 3, HEIGHT - 3)
             time.sleep(0.5)
-            return "portrait_hud_restore_at|lower_right" in _asked(dashboard_cmd)
+            return "portrait_hud_restore_at|lower_right" in _asked(sat.dashboard_cmd)
 
-        wait_for(asked_after_a_click,
-                 desc="the satellite to ask for its HUD in the lower right corner")
+        sat.wait_for(asked_after_a_click,
+                     desc="the satellite to ask for its HUD in the lower right corner")
