@@ -4534,7 +4534,7 @@ def _origenerator_cmds(config: BridgeConfig) -> list[str]:
 class TestEachSatellitesOwnMode:
     def test_a_satellites_origenerator_button_hands_that_funestra_alone_to_the_app(
             self, tmp_path):
-        """That Funestra goes on playing, now the app's show: its own list is kept
+        """That Funestra goes on playing, now the app's slideshow: its own list is kept
         aside for the way back and its hold let go, so the app decides what
         holds.  The other Funestra and the browser's place are left as they were."""
         config = _origenerator_config(tmp_path)
@@ -4545,7 +4545,7 @@ class TestEachSatellitesOwnMode:
         assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
         assert state.rfb_slot is RfbSlot.RFB
         assert [op for op in ops if op.op != "notice"] == []
-        assert _origenerator_cmds(config) == ["portrait_open_show"]
+        assert _origenerator_cmds(config) == ["portrait_open_slideshow"]
         portrait = config.satellite(RoomFunestra.PORTRAIT)
         assert not portrait.paused_file.exists()
         assert _cmds(config, RoomFunestra.PORTRAIT) == ["LOCK_OFF"]
@@ -4559,7 +4559,7 @@ class TestEachSatellitesOwnMode:
         config = _origenerator_config(tmp_path)
         state, ops = dispatch_command("landscape_kino_activate", _in_origenerator_mode(), config)
         assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
-        assert _origenerator_cmds(config) == ["landscape_close_show"]
+        assert _origenerator_cmds(config) == ["landscape_close_slideshow"]
         assert not config.landscape_paused_file.exists()
         assert [(op.op, op.key) for op in ops] == [("take_back_funestras", "landscape")]
 
@@ -4576,7 +4576,7 @@ class TestEachSatellitesOwnMode:
             _in_origenerator_mode(rfb_slot=RfbSlot.ORIGENERATOR), config)
         assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
         assert state.rfb_slot is RfbSlot.ORIGENERATOR
-        assert _origenerator_cmds(config) == ["portrait_close_show", "landscape_close_show"]
+        assert _origenerator_cmds(config) == ["portrait_close_slideshow", "landscape_close_slideshow"]
         assert [(op.op, op.key) for op in ops] == [
             ("take_back_funestras", "portrait"), ("take_back_funestras", "landscape")]
 
@@ -4586,7 +4586,7 @@ class TestEachSatellitesOwnMode:
         state, _ops = dispatch_command("satellites_origenerator_activate", _up(), config)
         assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert state.rfb_slot is RfbSlot.RFB
-        assert _origenerator_cmds(config) == ["portrait_open_show", "landscape_open_show"]
+        assert _origenerator_cmds(config) == ["portrait_open_slideshow", "landscape_open_slideshow"]
 
     def test_the_toggle_puts_both_in_origenerator_mode_unless_both_already_are(self, tmp_path):
         """The F key's own rule for a toggle over several Funestras: it completes
@@ -4628,7 +4628,7 @@ class TestEachSatellitesOwnMode:
         state, _ops = dispatch_command("landscape_origenerator_activate",
                                        _up(omni_paused=True), config)
         assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
-        assert _origenerator_cmds(config) == ["landscape_open_show"]
+        assert _origenerator_cmds(config) == ["landscape_open_slideshow"]
         assert _cmds(config, RoomFunestra.LANDSCAPE) == ["LOCK_OFF"]
 
     def test_a_press_on_the_side_still_in_kino_mode_stays_with_its_funestra(self, tmp_path):

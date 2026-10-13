@@ -28,7 +28,7 @@ from .modes import (
     write_playlist_file,
 )
 from .omnipause import build_omnipause_plan
-from .origenerator_switches import CLOSE_SHOW, KINO_MODE, OPEN_SHOW, said_about
+from .origenerator_switches import CLOSE_SLIDESHOW, KINO_MODE, OPEN_SLIDESHOW, said_about
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .room_funestras import RoomFunestra
 
@@ -310,12 +310,12 @@ def apply_satellite_switch(
     channel: SatelliteChannel,
 ) -> SatelliteSwitchFlowResult:
     """Switch one Satellite Funestra between its own videos and the hosted
-    app's shows.
+    app's slideshows.
 
     Like the main slot's switch, nothing is torn down, and nothing pauses.
     Entering keeps the Funestra's own list aside for the way back, lets go of
     the session's hold on it -- what holds is the app's to say now -- and asks
-    the app for a show on it, so the mode opens playing rather than empty: the
+    the app for a slideshow on it, so the mode opens playing rather than empty: the
     app picks the set, the whole library of that side's shape, shuffled.
     Leaving tells it to let go; the Funestra comes home once it has (see
     :mod:`fun_time.funestra_handover`).
@@ -327,12 +327,12 @@ def apply_satellite_switch(
             log_message=f"{side} already in {target_mode} mode")
     if target_mode == KINO_MODE:
         if origenerator_cmd_file is not None:
-            append_command(Path(origenerator_cmd_file), said_about(funestra.label, CLOSE_SHOW))
+            append_command(Path(origenerator_cmd_file), said_about(funestra.label, CLOSE_SLIDESHOW))
     else:
         keep_aside(channel)
         append_command(Path(channel.cmd_file), LOCK_OFF)
         if origenerator_cmd_file is not None:
-            append_command(Path(origenerator_cmd_file), said_about(funestra.label, OPEN_SHOW))
+            append_command(Path(origenerator_cmd_file), said_about(funestra.label, OPEN_SLIDESHOW))
     return SatelliteSwitchFlowResult(
         next_mode=target_mode, is_transition=True,
         log_message=f"{side} switched to {target_mode} mode")

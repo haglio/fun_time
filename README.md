@@ -611,9 +611,9 @@ The hosted Origenerator's channel, spoken in the same idioms as the satellites'
 (`funestra.file_channel`). The command file carries whatever is said to a
 side, exactly as it was said (`portrait_next`, `landscape_lock`,
 `portrait_fmode`, …) — the app declared those buttons, so it is what answers
-them — plus `portrait_open_show` / `landscape_open_show` (that Funestra
+them — plus `portrait_open_slideshow` / `landscape_open_slideshow` (that Funestra
 entering its Origenerator mode, which fills it with its base state),
-`portrait_close_show` / `landscape_close_show`, `CLOSE_SHOWS` (a crossing
+`portrait_close_slideshow` / `landscape_close_slideshow`, `CLOSE_SLIDESHOWS` (a crossing
 parking the app, which lets go of both), `FILTER_ENHANCED` (the console's
 enhanced-only switch), `QUIT` and `RELEASE`, `PORTRAIT_SAY:<phrase>` for a
 spoken command the session heard about one side, and `GO_TO|<flick>` once Genau

@@ -239,7 +239,7 @@ a session Origenerator holds nothing in, and a crossing used to pay that twice,
 the desktop session closing it on the way out and the session coming back
 launching a new one.
 
-So a crossing keeps it. The teardown sends `CLOSE_SHOWS`, hides its window and
+So a crossing keeps it. The teardown sends `CLOSE_SLIDESHOWS`, hides its window and
 records `(pid, created_at, taken over)` in `origenerator_kept.txt` instead of
 closing it, leaves it out of the kill sweep, and the arriving session adopts it:
 only the boot is skipped, and the mode is open from that session's first tick.

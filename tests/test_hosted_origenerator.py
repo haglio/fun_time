@@ -245,7 +245,7 @@ class TestAdoptingAKeptOrigenerator:
         cleared here would stay empty while nothing did."""
         status = tmp_path / "origenerator_status.txt"
         status.write_text("ready\n", encoding="utf-8")
-        (tmp_path / "origenerator_cmd.txt").write_text("OPEN_SHOWS\n", encoding="utf-8")
+        (tmp_path / "origenerator_cmd.txt").write_text("CLOSE_SLIDESHOWS\n", encoding="utf-8")
         keep_the_origenerator(tmp_path, pid=6060, created_at=44)
 
         with patch("fun_time.hosted_origenerator.get_process_creation_time",

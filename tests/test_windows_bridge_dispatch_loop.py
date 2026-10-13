@@ -3418,7 +3418,7 @@ class TestOpeningInOrigeneratorMode:
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
-            "landscape_open_show"]
+            "landscape_open_slideshow"]
 
     def test_a_room_left_with_only_the_browsers_place_to_origenerator_waits_for_it_too(
             self, tmp_path):
@@ -3444,7 +3444,7 @@ class TestOpeningInOrigeneratorMode:
         assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
-            "portrait_open_show", "landscape_open_show"]
+            "portrait_open_slideshow", "landscape_open_slideshow"]
 
     def test_a_room_left_in_kino_mode_holds_its_cover_up_for_nothing(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
