@@ -267,7 +267,7 @@ class TestTheSatellites:
                 handled = apply_satellite_command(
                     _a_satellite_line(verb, clips[0]),
                     FunestraControls(session, reload_playlist=lambda: None,
-                                     room_volume=SimpleNamespace(set=lambda volume, muted: None)),
+                                     volume=SimpleNamespace(set=lambda volume, muted: None)),
                 )
                 if not handled:
                     dead[verb] = where

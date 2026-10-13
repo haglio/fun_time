@@ -407,8 +407,23 @@ _SECTIONS: tuple[_Section, ...] = (
                 ),
             )),
             _Group("Kino", (
+                _Row(
+                    "loop control — hold and release to set a loop, press to end loop",
+                    ("R",),
+                    ("main_player_record_down", "main_player_record_up", "main_player_record_tap", "main_player_loop_cancel"),
+                ),
+                _Row("save clip", (";",), ("genaumacher_save",)),
                 _Row("nudge back 10 seconds", ("-",), ("main_nudge_prev",), voice_display=("main back",)),
                 _Row("nudge forward 10 seconds", ("+",), ("main_nudge_next",), voice_display=("main skip",)),
+                _Row(
+                    "length of what plays — \"mixed\" (the default, everything), "
+                    "\"clips\", or \"full\"; \"mixed\" leaves any compilation with it, "
+                    "and its HUD's own pair reaches a fourth state, neither, which "
+                    "holds the video on screen",
+                    ("T",),
+                    ("main_player_toggle_length", "main_player_length_clips", "main_player_length_full",
+                     "main_player_length_mixed", "main_player_length_none"),
+                ),
                 _Row(
                     "clip navigation — \"compilation\" plays the clip's compilation "
                     "in order and \"end compilation\" leaves it for the length mode "
@@ -427,26 +442,11 @@ _SECTIONS: tuple[_Section, ...] = (
                     ("main_player_funscript_jump", "main_player_next_funscripted"),
                 ),
                 _Row(
-                    "loop control — hold and release to set a loop, press to end loop",
-                    ("R",),
-                    ("main_player_record_down", "main_player_record_up", "main_player_record_tap", "main_player_loop_cancel"),
-                ),
-                _Row(
                     "step through the other versions of this video — the same "
                     "content at another size or from another encode",
                     ("Shift+M", "Shift+.", "V"),
                     ("main_player_cycle_version_back", "main_player_cycle_version"),
                 ),
-                _Row(
-                    "length of what plays — \"mixed\" (the default, everything), "
-                    "\"clips\", or \"full\"; \"mixed\" leaves any compilation with it, "
-                    "and its HUD's own pair reaches a fourth state, neither, which "
-                    "holds the video on screen",
-                    ("T",),
-                    ("main_player_toggle_length", "main_player_length_clips", "main_player_length_full",
-                     "main_player_length_mixed", "main_player_length_none"),
-                ),
-                _Row("save clip", (";",), ("genaumacher_save",)),
                 _Row(
                     "cycle the video's VR projection — flat screen, equirectangular, "
                     "fisheye, stereographic, equisolid, rectilinear, 360, remembered per "
@@ -466,14 +466,14 @@ _SECTIONS: tuple[_Section, ...] = (
             _Group("Genau", (
                 _Row(f"previous Genau {_FLICK.one}", (), ("genau_prev_flick",)),
                 _Row(f"next Genau {_FLICK.one}", (), ("genau_next_flick",)),
-                _Row(f"mark the Genau {_FLICK.one} weird — skip it, and out of rotation", ("K",),
-                     ("genau_weird_flick",)),
                 _Row(
                     f"flip the Genau {_FLICK.one} half a loop — for a picture running "
                     "opposite the OSR2; it stays flipped, and saying it again puts it back",
                     (),
                     ("genau_flip_ends",),
                 ),
+                _Row(f"mark the Genau {_FLICK.one} weird — skip it, and out of rotation", ("K",),
+                     ("genau_weird_flick",)),
                 _Row(
                     f"seconds a {_FLICK.one} holds the screen before Genau moves on — only "
                     "while it is unlocked (the , key holds it)",
