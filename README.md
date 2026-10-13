@@ -540,16 +540,14 @@ The audio companion and the Python dispatch loop both read this file as the auth
 
 Written by `fun_time/command_dispatch.py` when Genau or Robot Hand commands are dispatched.
 
-The verbs it may carry are the registry in `../funestra`'s `funestra/genau_controls.py`, written down as a contract in `../genau`'s `tests/test_genau_vocabulary.py`.
+The verbs it may carry are the registry in `../funestra`'s `funestra/genau_controls.py`.
 
 `OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
 
-Cruise control and the flick interval are separate: cruise wanders the motion's
-amplitude, center, speed and waveform (and human-inspired motion replaces the waveform
-with what real scripts do, inside the Amp and Center bars' range and at the Speed bar's pace;
-the two are never on together), while the interval is how long a flick
-holds the screen before Genau moves on — 8–12 seconds unless `FLICK_SECONDS
-<seconds>` names a pace. It is spelled for what the number is rather than for
+Human-inspired motion replaces the waveform with what real scripts do, inside the
+Amp and Center bars' range and at the Speed bar's pace. The flick interval is how
+long a flick holds the screen before Genau moves on — 8–12 seconds unless
+`FLICK_SECONDS <seconds>` names a pace. It is spelled for what the number is rather than for
 the auto-advance that spends it, because that is the word the reference shows
 and the phrase a speaker says ("flick seconds thirty", in whatever word the
 `genau_flick_words` in `~/.haglio/settings.json` gives Genau's flicks). The interval keeps
@@ -559,7 +557,7 @@ interval runs on around it; `WEIRD` condemns the flick, moving the file to the
 same place in `videos/genau/weird/` that it had in the flicks folder (a
 `2D/AI` flick to `weird/2D/AI`) and taking up its successor.
 
-Genau (the `../genau` project) consumes and clears this file.
+Genau, on the Main Funestra, consumes and clears this file.
 
 ### `main_player_cmd.txt`
 

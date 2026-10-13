@@ -2872,17 +2872,6 @@ def test_genau_cycle_shape_prev_writes_cmd_file_when_in_genau_mode(tmp_path: Pat
     assert ops == []
 
 
-def test_genau_toggle_cruise_writes_cmd_file(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.GENAU)
-
-    new_state, ops = dispatch_command("robot_hand_toggle_cruise", state, config)
-
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_CRUISE\n"
-    assert new_state == state
-    assert ops == []
-
-
 @pytest.mark.parametrize("command, verb", [
     ("robot_hand_toggle_learned", "TOGGLE_LEARNED"),
     ("robot_hand_learned_on", "LEARNED_ON"),
@@ -2895,28 +2884,6 @@ def test_genau_learned_motion_verbs_write_cmd_file(tmp_path: Path, command, verb
     new_state, ops = dispatch_command(command, state, config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
-    assert new_state == state
-    assert ops == []
-
-
-def test_genau_cruise_on_writes_cmd_file(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.GENAU)
-
-    new_state, ops = dispatch_command("robot_hand_cruise_on", state, config)
-
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CRUISE_ON\n"
-    assert new_state == state
-    assert ops == []
-
-
-def test_genau_cruise_off_writes_cmd_file(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode=MainMode.GENAU)
-
-    new_state, ops = dispatch_command("robot_hand_cruise_off", state, config)
-
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CRUISE_OFF\n"
     assert new_state == state
     assert ops == []
 
@@ -3079,7 +3046,7 @@ def test_every_genau_command_is_ignored_with_video_in_the_main_funestra(
     ("robot_hand_center_up", "CENTER_UP"),
     ("robot_hand_amplitude_down", "AMPLITUDE_DOWN"),
     ("robot_hand_cycle_shape", "CYCLE_SHAPE"),
-    ("robot_hand_toggle_cruise", "TOGGLE_CRUISE"),
+    ("robot_hand_toggle_learned", "TOGGLE_LEARNED"),
     ("robot_hand_center_50", "CENTER 50"),
 ])
 def test_the_robot_hands_commands_still_reach_it_with_video_in_the_main_funestra(

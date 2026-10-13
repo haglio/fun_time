@@ -90,8 +90,8 @@ class HudFeed:
                 return DeviceBlock.offered_to(funestra)
             scripted = read_satellite_status(self.config.satellite(funestra).status_file)
             return DeviceBlock(
-                rows=(aim_row(cruise=genau.cruise_active, learned=genau.learned_active,
-                              shape=genau.shape, control=state.osr2_control),),
+                rows=(aim_row(learned=genau.learned_active, shape=genau.shape,
+                              control=state.osr2_control),),
                 osr2=device_word(osr2_mode, scripted.funscript_driving),
                 control=state.osr2_control,
                 controls=osr2_controls(broker=broker),

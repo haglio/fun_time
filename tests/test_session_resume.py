@@ -20,7 +20,6 @@ from fun_time.main_list import MainList
 from fun_time.origenerator_switches import RfbSlot
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import (
-    CRUISE_ON,
     CYCLE_SHAPE,
     FLICK_SECONDS,
     HAND_AMPLITUDE,
@@ -536,7 +535,7 @@ class TestResumeGenau:
 
     def test_queues_nothing_for_a_hand_left_where_the_next_one_opens(self, tmp_path: Path):
         genau_cmd = self._left_genau(
-            tmp_path, drive=self._drive(), status="cruise=0\nlearned=0\nlocked=1\n")
+            tmp_path, drive=self._drive(), status="learned=0\nlocked=1\n")
 
         resume_genau(genau_cmd, tmp_path)
 
@@ -552,13 +551,6 @@ class TestResumeGenau:
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
             "CYCLE_SHAPE", "CYCLE_SHAPE", "CYCLE_SHAPE",
         ]
-
-    def test_queues_the_cruise_that_was_running(self, tmp_path: Path):
-        genau_cmd = self._left_genau(tmp_path, status="cruise=1\n")
-
-        resume_genau(genau_cmd, tmp_path)
-
-        assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["CRUISE_ON"]
 
     def test_queues_the_learned_motion_that_was_running(self, tmp_path: Path):
         genau_cmd = self._left_genau(tmp_path, status="learned=1\n")
@@ -578,15 +570,15 @@ class TestResumeGenau:
         """Genau's own verbs are spelled beside its registry rather than in the
         family's shared list, so this side's copy is held to that registry."""
         assert {HAND_SPEED, HAND_AMPLITUDE, HAND_CENTER, FLICK_SECONDS, CYCLE_SHAPE,
-                CRUISE_ON, LEARNED_ON, "LOCK_OFF"} <= set(GENAU_VERBS)
+                LEARNED_ON, "LOCK_OFF"} <= set(GENAU_VERBS)
 
     def test_a_session_that_published_no_readout_still_carries_its_switches(self, tmp_path: Path):
         genau_cmd = tmp_path / "genau_cmd.txt"
-        (tmp_path / GENAU_STATUS).write_text("cruise=1\n", encoding="utf-8")
+        (tmp_path / GENAU_STATUS).write_text("learned=1\n", encoding="utf-8")
 
         resume_genau(genau_cmd, tmp_path)
 
-        assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["CRUISE_ON"]
+        assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["LEARNED_ON"]
 
 
 class TestOpeningTheMainList:

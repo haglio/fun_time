@@ -127,11 +127,6 @@ _GENAU_CMD_MAP = {
     "robot_hand_center_up": "CENTER_UP",
     "robot_hand_cycle_shape": "CYCLE_SHAPE",
     "robot_hand_cycle_shape_prev": "CYCLE_SHAPE_PREV",
-    # Cruise varies the motion, never which clip plays — moving on from a clip is
-    # what an unlocked Genau does by itself, at the pace below.
-    "robot_hand_toggle_cruise": "TOGGLE_CRUISE",
-    "robot_hand_cruise_on": "CRUISE_ON",
-    "robot_hand_cruise_off": "CRUISE_OFF",
     "robot_hand_toggle_learned": "TOGGLE_LEARNED",
     "robot_hand_learned_on": "LEARNED_ON",
     "robot_hand_learned_off": "LEARNED_OFF",

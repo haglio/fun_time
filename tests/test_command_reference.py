@@ -582,15 +582,10 @@ def test_min_max_value_live_on_their_own_consecutive_set_lines():
     assert "min amp" in set_amp.voice and "max amp" in set_amp.voice
 
 
-def test_cruise_voice_lists_on_before_off():
-    cruise = next(r for r in _all_rows() if "robot_hand_toggle_cruise" in r.commands)
-    assert cruise.voice == ("cruise control", "cruise on", "cruise off")
-
-
-def test_learned_motion_follows_cruise_with_the_same_shape_of_voice():
+def test_human_inspired_motion_follows_the_waveform_and_lists_its_voice_on_before_off():
     rows = _all_rows()
-    cruise = next(i for i, r in enumerate(rows) if "robot_hand_toggle_cruise" in r.commands)
-    learned = rows[cruise + 1]
+    waveform = next(i for i, r in enumerate(rows) if "robot_hand_cycle_shape" in r.commands)
+    learned = rows[waveform + 1]
     assert "robot_hand_toggle_learned" in learned.commands
     assert learned.voice == ("human inspired", "human inspired on", "human inspired off")
     assert _keys(learned) == ("Y",)
@@ -623,9 +618,8 @@ def test_corrected_descriptions():
     """Rows say what the key does to the room, not just what it is called."""
     descs = {r.description for r in _all_rows()}
     assert {"Disable voice control", "Start / stop broker"} <= descs
-    assert any(d.startswith("Enable / disable cruise control") for d in descs)
+    assert any(d.startswith("Enable / disable human-inspired motion") for d in descs)
     assert "Mute voice control" not in descs
-    assert "Cruise control" not in descs
     assert "Broker start / stop" not in descs
 
 

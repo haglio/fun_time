@@ -326,7 +326,8 @@ def test_no_module_reaches_into_another_ones_privates():
 # two monitors, and the note on why a session faked them went to that test.
 # 6183 the same day: a window's title is read through one function, and the
 # note on how one lookup read it went with that lookup's copy.
-MAX_PROSE_LINES = 6169
+# 6166 on 2026-10-13: cruise control left Fun Time, and its notes with it.
+MAX_PROSE_LINES = 6166
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

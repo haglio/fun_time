@@ -87,7 +87,6 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         scripted_filter=inputs.scripted_filter,
         latest=inputs.latest if video else inputs.genau_latest,
         loop_state=main_funestra.loop_state,
-        cruise=genau.cruise_active,
         learned=genau.learned_active,
         shape=genau.shape,
         plays_vr=inputs.plays_vr if video else inputs.genau_plays_vr,

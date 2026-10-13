@@ -580,7 +580,7 @@ class TestDriveControls:
     def test_the_switch_row_is_there_in_both_modes(self):
         for mode in MainMode:
             actions = _actions(MainSlot(main_mode=mode))
-            for action in ("robot_hand_toggle_cruise", "robot_hand_cycle_shape", "quarter_button",
+            for action in ("robot_hand_toggle_learned", "robot_hand_cycle_shape", "quarter_button",
                            "robot_hand_park", "robot_hand_retract", "robot_hand_release"):
                 assert action in actions, (mode, action)
 
@@ -594,20 +594,20 @@ class TestDriveControls:
         for action in ("robot_hand_amplitude_up", "robot_hand_center_down", "robot_hand_speed_up"):
             assert action not in actions
 
-    def test_learned_motion_sits_beside_cruise_and_lights_while_it_has_the_hand(self):
-        actions = _actions(MainSlot(main_mode=MainMode.GENAU))
-
-        assert actions.index("robot_hand_toggle_learned") == actions.index("robot_hand_toggle_cruise") + 1
+    def test_human_inspired_motion_leads_the_row_and_lights_while_it_has_the_hand(self):
+        for mode in MainMode:
+            row = osr2_rows(MainSlot(main_mode=mode))[0]
+            assert [b.command for b in row[:3]] == [
+                "robot_hand_toggle_learned", "robot_hand_cycle_shape", "quarter_button"], mode
         assert _button(MainSlot(main_mode=MainMode.GENAU), "robot_hand_toggle_learned").glyph == "hi"
         assert _button(MainSlot(main_mode=MainMode.GENAU), "robot_hand_toggle_learned").lit is False
         lit = _button(MainSlot(main_mode=MainMode.GENAU, learned=True), "robot_hand_toggle_learned")
         assert lit.lit is True
         assert (lit.favorite, lit.warn, lit.hold) == (False, False, False)
 
-    def test_cruise_lights_and_the_waveform_names_itself(self):
-        slot = MainSlot(main_mode=MainMode.GENAU, cruise=True, shape="rounded_square")
+    def test_the_waveform_button_names_the_waveform(self):
+        slot = MainSlot(main_mode=MainMode.GENAU, shape="rounded_square")
 
-        assert _button(slot, "robot_hand_toggle_cruise").lit is True
         assert _button(slot, "robot_hand_cycle_shape").tooltip == "Waveform: Square"
 
     def test_the_waveform_button_wears_the_waveform_the_motion_is_in(self):
@@ -640,14 +640,14 @@ class TestState:
         assert _button(slot, "genau_activate").lit is False
 
     def test_nothing_but_the_recording_and_its_loop_takes_a_color_of_its_own(self):
-        colored = [b.command for row in _every_row(MainSlot(main_mode=MainMode.GENAU, cruise=True, locked=True))
+        colored = [b.command for row in _every_row(MainSlot(main_mode=MainMode.GENAU, learned=True, locked=True))
                    for b in row if b.warn or b.hold]
 
         assert colored == []
 
     def test_f_mode_keeps_the_green_the_other_switches_gave_up(self):
         assert _button(MainSlot(main_mode=MainMode.KINO, scripted_filter=True), "main_fmode").favorite is True
-        assert _button(MainSlot(main_mode=MainMode.GENAU), "robot_hand_toggle_cruise").favorite is False
+        assert _button(MainSlot(main_mode=MainMode.GENAU), "robot_hand_toggle_learned").favorite is False
 
     def test_the_record_button_tells_marking_from_looping(self):
         idle = _button(MainSlot(main_mode=MainMode.KINO), "main_player_record_tap")

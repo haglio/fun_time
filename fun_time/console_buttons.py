@@ -46,7 +46,6 @@ class MainSlot:
     scripted_filter: bool = False
     latest: bool | None = None
     loop_state: LoopState = LoopState.NORMAL
-    cruise: bool = False
     learned: bool = False
     shape: str = "sine"
     plays_vr: bool | None = None
@@ -283,8 +282,7 @@ def _flick_seconds_row() -> tuple[Button, ...]:
 
 def _control_row(slot: MainSlot) -> tuple[Button, ...]:
     return (
-        *aim_row(cruise=slot.cruise, learned=slot.learned, shape=slot.shape,
-                 control=slot.osr2_control),
+        *aim_row(learned=slot.learned, shape=slot.shape, control=slot.osr2_control),
         *((
             Button("main_player_funscript_jump", FUNSCRIPT_JUMP_ICON,
                    "Skip ahead to where this video's scripting starts up again",
