@@ -902,7 +902,9 @@ def test_one_row_relocates_the_hud_by_key_round_the_picture_and_by_name_to_a_cor
     row = next(r for r in _funestras_section().rows if "main_hud_upper_left" in r.commands)
 
     assert row.description == "relocate the HUD"
-    assert row.voice == ("hud top left", "hud top right", "hud lower left", "hud lower right")
+    assert row.voice == ("hud top left", "hud upper left", "hud top right", "hud upper right",
+                         "hud lower left", "hud bottom left", "hud lower right", "hud bottom right")
+    assert "\"bottom\" the same as \"lower\"" in row.detail
     assert {"portrait_hud_lower_right", "landscape_hud_upper_right", "satellites_hud_lower_left",
             "active_hud_upper_right", "main_hud_lower_left", "portrait_hud_left",
             "landscape_hud_down", "main_hud_clockwise", "main_hud_counterclockwise"} <= set(row.commands)

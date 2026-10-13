@@ -50,9 +50,6 @@ class TestLoadContent:
         result = load_content(local, EXAMPLE_CONTENT)
         assert result["acts"] == _example()["acts"]
 
-    def test_the_example_names_the_lower_corners_lower_and_nothing_else(self):
-        assert _example()["hud_lower_corner_words"] == ["lower"]
-
     def test_a_present_key_is_not_overwritten_by_the_example(self, tmp_path: Path):
         local = tmp_path / "content.local.json"
         local.write_text(

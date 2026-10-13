@@ -376,7 +376,8 @@ _SECTIONS: tuple[_Section, ...] = (
                     "relocate the HUD — round the corners of the picture, or against a "
                     "side of the Funestra in the headset, the Main Funestra's pair "
                     "walking the ring.  Said with a corner (\"top left\", \"lower "
-                    "right\"; \"move\" may lead, and \"upper\" says the same as \"top\") "
+                    "right\"; \"move\" may lead, \"upper\" says the same as \"top\" and "
+                    "\"bottom\" the same as \"lower\") "
                     "it goes straight there, in the headset an upper corner hanging it "
                     "over the Funestra's top edge and a lower one under its lower edge.  "
                     "A click in a corner of the picture sends it there and opens it, "
@@ -386,7 +387,9 @@ _SECTIONS: tuple[_Section, ...] = (
                         "landscape_hud_left", "landscape_hud_right", "landscape_hud_up", "landscape_hud_down",
                         "main_hud_counterclockwise", "main_hud_clockwise",
                     ) + _every_funestra(*(f"hud_{corner}" for corner in _HUD_CORNERS)),
-                    voice_display=("hud top left", "hud top right", "hud lower left", "hud lower right"),
+                    voice_display=("hud top left", "hud upper left", "hud top right", "hud upper right",
+                                   "hud lower left", "hud bottom left", "hud lower right",
+                                   "hud bottom right"),
                     columns=(("Ctrl+Left", "Ctrl+Right", "Ctrl+Up", "Ctrl+Down"),
                              ("Ctrl+A", "Ctrl+D", "Ctrl+W", "Ctrl+S"),
                              ("Ctrl+M", "Ctrl+.")),

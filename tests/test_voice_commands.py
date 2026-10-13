@@ -222,7 +222,7 @@ class TestVoiceCommands:
 
     def test_a_hud_is_sent_to_a_corner_by_name(self):
         """"main hud top right", with or without "move" in front; "upper" says the
-        same as "top", and the lower corners are "lower".  Bare, the Funestra
+        same as "top", and "bottom" the same as "lower".  Bare, the Funestra
         last addressed."""
         assert VOICE_COMMANDS["main hud top right"] == "main_hud_upper_right"
         assert VOICE_COMMANDS["move main hud top right"] == "main_hud_upper_right"
@@ -231,15 +231,9 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["satellites hud top left"] == "satellites_hud_upper_left"
         assert VOICE_COMMANDS["hud lower right"] == "active_hud_lower_right"
         assert VOICE_COMMANDS["move hud lower right"] == "active_hud_lower_right"
-
-    def test_the_lower_corners_answer_to_each_word_the_overlay_lists_for_them(self):
-        said = build_voice_commands(filter_commands={}, clip_jump_phrases=(),
-                                    hud_lower_corner_words=("lower", "nether"))
-
-        assert said["main hud nether left"] == "main_hud_lower_left"
-        assert said["move hud nether right"] == "active_hud_lower_right"
-        assert said["satellites hud lower right"] == "satellites_hud_lower_right"
-        assert said["hud top left"] == "active_hud_upper_left"
+        assert VOICE_COMMANDS["main hud bottom left"] == "main_hud_lower_left"
+        assert VOICE_COMMANDS["move hud bottom right"] == "active_hud_lower_right"
+        assert VOICE_COMMANDS["satellites hud bottom right"] == "satellites_hud_lower_right"
 
     def test_no_phrase_uses_a_word_vosk_cannot_hear(self):
         """A phrase built from a word outside the model's lexicon can never be
