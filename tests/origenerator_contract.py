@@ -1,4 +1,4 @@
-"""What the hosted Origenerator says it answers, read from the checkout it runs from.
+"""What the hosted Origenerator says it answers, as it shipped.
 
 Neither repo installs the other, so the document it publishes at its checkout
 root is the one place a line this session writes on its command file can be
@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
+from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.checkout_overrides import (
     ORIGENERATOR_DIR_OVERRIDE_NAME,
@@ -43,15 +45,28 @@ def published_by(checkout: Path) -> dict | None:
     return json.loads(document.read_text(encoding="utf-8"))
 
 
+def shipped_by(checkout: Path) -> dict:
+    shown = subprocess.run(
+        ["git", "show", f"origin/HEAD:{CONTRACT_FILE}"], cwd=str(checkout),
+        capture_output=True, text=True, encoding="utf-8", check=True,
+        **hidden_subprocess_kwargs())
+    return json.loads(shown.stdout)
+
+
+def _checkouts_beside() -> list[Path]:
+    return [parent / "origenerator" for parent in Path(__file__).resolve().parents]
+
+
 def published() -> dict:
-    """The document, from the checkout this one names, else the one beside it."""
+    """The document as the checkout this one names stands, else as the
+    Origenerator beside this one last shipped it."""
     named = named_checkout()
-    beside = (parent / "origenerator" for parent in Path(__file__).resolve().parents)
-    for checkout in (*([named] if named else []), *beside):
-        document = published_by(checkout)
-        if document is not None:
-            return document
-    pytest.skip(f"no Origenerator checkout beside this one publishes {CONTRACT_FILE}")
+    if named is not None and (document := published_by(named)) is not None:
+        return document
+    for checkout in _checkouts_beside():
+        if checkout.is_dir():
+            return shipped_by(checkout)
+    pytest.skip("no Origenerator checkout beside this one")
 
 
 def answers(line: str) -> bool:
