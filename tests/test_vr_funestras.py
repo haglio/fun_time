@@ -75,7 +75,7 @@ from fun_time_vr.funestras import (
     _PointerDrawing,
     _ReferenceUnit,
     _SatelliteUnit,
-    _scene_is_up,
+    _still_blank,
     _users,
     _VideoUnit,
     build_parser,
@@ -953,6 +953,10 @@ class TestThePanelUnderTheSlot:
             main_unit.panel.overlay(10, 8, 8, np.zeros((120, PANEL_WIDTH_PX, 4), dtype=np.uint8))
         return SimpleNamespace(unit=unit, main_unit=main_unit, dash=dash, posted=posted)
 
+    def test_a_minimized_console_is_not_one_of_the_rooms_screens(self):
+        assert not self._unit(minimized=True).unit.in_the_room
+        assert self._unit().unit.in_the_room
+
     @staticmethod
     def _hanging_names(unit) -> list[str]:
         return [hanging.screen.name for hanging in unit.hangings()]
@@ -1335,24 +1339,31 @@ def _picture(painted):
     return SimpleNamespace(ready=True, has_picture=painted)
 
 
-def _room(*, main=True, portrait=True, landscape=True, panel=True):
+def _room(*, main=True, portrait=True, landscape=True, panel=True, console=True):
     return dict(
-        main_unit=SimpleNamespace(picture_in_the_slot=_picture(main)),
-        satellites=[SimpleNamespace(target=_picture(portrait)),
-                    SimpleNamespace(target=_picture(landscape))],
-        panel=SimpleNamespace(texture=_picture(panel)),
+        main_unit=SimpleNamespace(screen_name="main", picture_in_the_slot=_picture(main)),
+        satellites=[SimpleNamespace(screen_name="portrait", target=_picture(portrait)),
+                    SimpleNamespace(screen_name="landscape", target=_picture(landscape))],
+        panel=SimpleNamespace(texture=_picture(panel), in_the_room=console),
     )
 
 
 class TestWhenTheRoomIsUp:
-    def test_every_picture_present_is_a_room(self):
-        assert _scene_is_up(**_room())
+    def test_every_picture_present_leaves_nothing_blank(self):
+        assert _still_blank(**_room()) == ()
 
     @pytest.mark.parametrize("blank", ["main", "portrait", "landscape", "panel"])
-    def test_one_screen_still_blank_is_not(self, blank):
+    def test_a_screen_with_no_picture_is_named(self, blank):
         """Revealed here, that one arrives in the open a moment later — and the
-        console among them, because a room with no controls in it is not up."""
-        assert not _scene_is_up(**_room(**{blank: False}))
+        console among them, because a room with no controls in it is not up.
+        Named rather than counted: the give-up line said only that some of the
+        room was blank, and his sessions reached it with nothing blank at all."""
+        assert _still_blank(**_room(**{blank: False})) == (blank,)
+
+    def test_a_console_the_room_does_not_show_is_not_waited_for(self):
+        """Minimized, the Funestra paints nothing into it ever, so every reveal
+        waited out the whole 25s grace for as long as he left it closed."""
+        assert _still_blank(**_room(panel=False, console=False)) == ()
 
     def test_a_sized_texture_is_not_a_picture(self):
         """A video target is ready the moment mpv reports the clip's
@@ -1360,11 +1371,10 @@ class TestWhenTheRoomIsUp:
         read as up almost as soon as the loop began, the cover came off in a
         blink nobody saw, and the OSR2 was released onto black."""
         scene = _room()
-        scene["main_unit"] = SimpleNamespace(picture_in_the_slot=SimpleNamespace(
-            ready=True, has_picture=False,
-        ))
+        scene["main_unit"] = SimpleNamespace(screen_name="main", picture_in_the_slot=(
+            SimpleNamespace(ready=True, has_picture=False)))
 
-        assert not _scene_is_up(**scene)
+        assert _still_blank(**scene) == ("main",)
 
     def test_a_target_is_marked_painted_where_its_picture_lands(self):
         """The other half of that contract, pinned in the source because the copy
@@ -1492,18 +1502,34 @@ def test_everything_the_room_closes_when_it_ends_has_a_close():
     assert [kind.__name__ for kind in closed if not callable(getattr(kind, "close", None))] == []
 
 
-def test_the_reveal_waits_for_the_cover_to_have_been_seen():
-    """The room being drawable is not the same as anyone having had the headset
-    on while it was covered."""
+def test_the_reveal_waits_for_the_cover_to_have_been_on_screen_not_for_a_wearer():
+    """The cover reads the same whether or not anyone is at the lenses, and
+    waiting for a WORN headset spent the whole 25s grace in 26 of his last 40
+    sessions -- so the reveal counts the frames the cover was drawn on."""
     tree = ast.parse(inspect.getsource(funestras._run))
     (note,) = [n for n in ast.walk(tree)
                if isinstance(n, ast.Call) and ast.unparse(n.func) == "scene_ready.note"]
-    (room,) = [n for n in ast.walk(tree)
-               if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == "room_is_up"]
+    (counted,) = [n for n in ast.walk(tree)
+                  if isinstance(n, ast.Call)
+                  and ast.unparse(n.func) == "cover_on_screen.note"]
 
-    assert "cover_seen.dwelt" in ast.unparse(note)
-    assert "room_is_up" in ast.unparse(note)
-    assert "_scene_is_up" in ast.unparse(room.value)
+    assert "read=cover_on_screen.dwelt" in ast.unparse(note)
+    assert "blank=blank" in ast.unparse(note)
+    assert ast.unparse(counted) == "cover_on_screen.note(covered)"
+
+
+def test_the_cover_holds_its_heading_once_a_wearer_has_had_time_at_it():
+    """Where it hangs is still the wearer's question: latched on a frame nobody
+    was at, the panel sits where he is not looking when he puts the headset on."""
+    tree = ast.parse(inspect.getsource(funestras._run))
+    (counted,) = [n for n in ast.walk(tree)
+                  if isinstance(n, ast.Call) and ast.unparse(n.func) == "cover_worn.note"]
+    (settled,) = [n for n in ast.walk(tree)
+                  if isinstance(n, ast.Assign)
+                  and ast.unparse(n.targets[0]) == "cover.anchor_settled"]
+
+    assert ast.unparse(counted) == "cover_worn.note(covered and session.focused)"
+    assert ast.unparse(settled.value) == "cover_worn.dwelt and session.views_tracked"
 
 
 def test_the_cover_is_told_it_is_waiting_on_him_only_once_the_room_is_up():
@@ -1514,13 +1540,8 @@ def test_the_cover_is_told_it_is_waiting_on_him_only_once_the_room_is_up():
                if isinstance(n, ast.Assign)
                and ast.unparse(n.targets[0]) == "cover.awaiting_wearer"]
 
-    (settled,) = [n for n in ast.walk(tree)
-                  if isinstance(n, ast.Assign)
-                  and ast.unparse(n.targets[0]) == "cover.anchor_settled"]
-    assert ast.unparse(settled.value) == "cover_seen.dwelt and session.views_tracked"
-
     assert ast.unparse(told.value).replace("(", "").replace(")", "") == (
-        "room_is_up and not session.focused"
+        "not blank and not session.focused"
     )
 
 
@@ -1558,16 +1579,6 @@ def test_a_carry_turns_the_room_whatever_the_main_funestra_is_showing():
 
     assert len(carries) == 1
     assert not [test for test in conditions if "immersive" in test or "wrapped" in test]
-
-
-def test_only_frames_a_worn_headset_took_count_towards_the_dwell():
-    """A frame submitted while the runtime cannot locate the views, or while the
-    headset is on the desk, showed nobody anything."""
-    tree = ast.parse(inspect.getsource(funestras._run))
-    (note,) = [n for n in ast.walk(tree)
-               if isinstance(n, ast.Call) and ast.unparse(n.func) == "cover_seen.note"]
-
-    assert ast.unparse(note) == "cover_seen.note(covered and session.focused)"
 
 
 def test_the_headset_session_runs_ahead_of_background_work():

@@ -91,7 +91,7 @@ from .cover import (
     WEARER_STATUS,
     Cover,
     CoverAnchor,
-    CoverSeen,
+    CoverDwell,
     CoverWatcher,
     SceneReady,
     paint_cover,
@@ -902,6 +902,10 @@ class _PanelUnit:
                                    mesh=lambda: _HangingScreen(main_unit.screen.placement))
         self._presses = _Presses(*hud_button_names(MAIN))
 
+    @property
+    def in_the_room(self) -> bool:
+        return not self._main_unit.funestra.panel_minimized
+
     def hangings(self) -> tuple[Hanging, ...]:
         beside = self._buttons.hangings()
         if not (self._shown and self.texture.ready):
@@ -1708,14 +1712,15 @@ class _SaysWhenItFirstMoves:  # places the OSR2's first move against the rest of
         self._sink.close()
 
 
-def _scene_is_up(main_unit, satellites: Sequence, panel) -> bool:
-    """Every picture the session opens with RENDERED, not merely sized
-    (``has_picture``, never ``ready``); the main slot counts once."""
-    return bool(
-        main_unit.picture_in_the_slot.has_picture
-        and panel.texture.has_picture
-        and all(satellite.target.has_picture for satellite in satellites)
-    )
+def _still_blank(main_unit, satellites: Sequence, panel) -> tuple[str, ...]:
+    """Which screens the session opens with have yet to RENDER a picture, as
+    against merely being sized (``has_picture``, never ``ready``); the main slot
+    counts once.  Named, so the reveal can say which one it gave up on."""
+    pictures = [(main_unit.screen_name, main_unit.picture_in_the_slot)]
+    pictures += [(satellite.screen_name, satellite.target) for satellite in satellites]
+    if panel.in_the_room:
+        pictures.append((PANEL, panel.texture))
+    return tuple(name for name, picture in pictures if not picture.has_picture)
 
 
 def _hands_for_the_funestras(
@@ -1911,7 +1916,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     banner = _BannerUnit(main_unit, notices)
     keeper = _LayoutKeeper(layout_path, remembered)
     scene_ready = SceneReady(scene_ready_file(state_dir))
-    cover_seen = CoverSeen()
+    cover_on_screen = CoverDwell()
+    cover_worn = CoverDwell()
     posts = _ControllerPosts(Path(commands.dashboard_cmd_file))
     wear = HeadsetWear()
     # The room, each thing saying for itself what it hangs there.  Dash before
@@ -1970,12 +1976,10 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
             t1 = time.perf_counter()
             for unit in units:
                 unit.render_latest_frame()
-            # The only place that sees the room fill in, and whether anyone
-            # had the headset on while it did.
-            room_is_up = _scene_is_up(main_unit, satellites, panel)
-            cover.anchor_settled = cover_seen.dwelt and session.views_tracked
-            cover.awaiting_wearer = room_is_up and not session.focused  # set before he looks
-            scene_ready.note(room_is_up and cover_seen.dwelt)
+            blank = _still_blank(main_unit, satellites, panel)
+            cover.anchor_settled = cover_worn.dwelt and session.views_tracked
+            cover.awaiting_wearer = not blank and not session.focused  # set before he looks
+            scene_ready.note(blank=blank, read=cover_on_screen.dwelt)
             t2 = time.perf_counter()
 
             quads = []
@@ -2074,7 +2078,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
             t4 = time.perf_counter()
             session.frame_end(display_time, views, project=project, quads=quads)
             t5 = time.perf_counter()
-            cover_seen.note(covered and session.focused)
+            cover_on_screen.note(covered)
+            cover_worn.note(covered and session.focused)
             if cover_up_at is not None and not covered and not cover_down_said:
                 cover_down_said = True
                 logger.info("Cover down after %.1fs on screen", now - cover_up_at)
