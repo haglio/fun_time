@@ -9,13 +9,12 @@ from types import SimpleNamespace
 
 import fun_time.orchestrator as desktop
 import fun_time_vr.orchestrator as headset
-from fun_time.funestra_engine import engine_missing_abort, funestra_interpreters
+from fun_time.funestra_engine import engine_missing_abort
 
 
-def _config(*project_dirs: Path, genau_python="genau/py.exe", python="fun_time/py.exe"):
+def _config(*project_dirs: Path):
     return SimpleNamespace(paths=SimpleNamespace(
-        python_exe=Path(python),
-        genau_python_exe=Path(genau_python) if genau_python else None,
+        python_exe=Path("fun_time/py.exe"),
         genau_project_path=";".join(str(d) for d in project_dirs),
     ))
 
@@ -95,7 +94,7 @@ def test_where_the_shared_copy_is_comes_from_the_funestra_this_repo_pins(tmp_pat
                 if "_import_mpv" in code or "libmpv_dirs" in code]
 
 
-def test_each_funestra_is_probed_with_the_pythonpath_it_is_launched_with(tmp_path: Path):
+def test_the_funestras_are_probed_with_the_pythonpath_they_are_launched_with(tmp_path: Path):
     """A session pins its funestra by putting a checkout of it first on every
     Funestra's PYTHONPATH, so a probe without that tests the venv's funestra and
     not the one the Funestra imports.  It passed while every Funestra died looking for
@@ -103,11 +102,11 @@ def test_each_funestra_is_probed_with_the_pythonpath_it_is_launched_with(tmp_pat
     (2026-09-22)."""
     pinned = tmp_path / "funestra"
     pinned.mkdir()
-    run = _runner([0, 0])
+    run = _runner([0])
 
     assert engine_missing_abort(_config(pinned), run=run, alert=lambda _text: None) is False
     assert [kwargs["env"]["PYTHONPATH"].split(";")[0] for _cmd, kwargs in run.calls] == [
-        str(pinned), str(pinned)]
+        str(pinned)]
 
 
 def test_a_funestra_that_loads_the_engine_is_left_alone(tmp_path: Path):
@@ -120,7 +119,7 @@ def test_a_funestra_that_loads_the_engine_is_left_alone(tmp_path: Path):
 
     assert engine_missing_abort(_config(), run=funestras, alert=lambda _text: None) is False
     assert (looks_in / "libmpv-2.dll").read_bytes() == b"the one it already has"
-    assert funestras.probed == [str(Path("genau/py.exe")), str(Path("fun_time/py.exe"))]
+    assert funestras.probed == [str(Path("fun_time/py.exe"))]
 
 
 def test_the_alert_carries_what_the_funestra_itself_said(tmp_path: Path):
@@ -137,27 +136,20 @@ def test_the_alert_carries_what_the_funestra_itself_said(tmp_path: Path):
 
     assert engine_missing_abort(_config(), run=funestras, alert=shown.append) is True
     assert "Looked in: C:\\funestra\\vendor (no libmpv-2.dll in it)" in shown[0]
-    assert "the Main Funestra" in shown[0]
+    assert shown[0].startswith("Fun Time can't start its Funestras")
     assert 'File "<string>"' not in shown[0]
 
 
-def test_nothing_is_said_when_every_funestra_loads_the_engine():
+def test_nothing_is_said_when_the_funestras_load_the_engine():
     shown: list[str] = []
 
-    assert engine_missing_abort(_config(), run=_runner([0, 0]), alert=shown.append) is False
+    assert engine_missing_abort(_config(), run=_runner([0]), alert=shown.append) is False
     assert shown == []
-
-
-def test_the_first_funestra_that_cannot_be_fixed_stops_the_check(tmp_path: Path):
-    funestras = _Funestras(tmp_path / "vendor", tmp_path / "no-shared-copy")
-
-    assert engine_missing_abort(_config(), run=funestras, alert=lambda _text: None) is True
-    assert str(Path("fun_time/py.exe")) not in funestras.probed
 
 
 def test_the_probe_is_the_engine_import_itself():
     # A probe that stopped importing mpv would pass forever over a dead engine.
-    run = _runner([0, 0])
+    run = _runner([0])
 
     engine_missing_abort(_config(), run=run, alert=lambda _text: None)
 
@@ -180,24 +172,6 @@ def test_a_funestra_whose_interpreter_cannot_say_where_it_looks_is_not_given_a_c
 
     assert engine_missing_abort(_config(), run=run, alert=lambda _text: None) is True
     assert list(tmp_path.rglob("libmpv-2.dll")) == [shared / "libmpv-2.dll"]
-
-
-def test_funestra_interpreters_maps_each_funestra_to_its_own_venv_python():
-    paths = SimpleNamespace(
-        python_exe=Path("fun_time/py.exe"),
-        genau_python_exe=Path("genau/py.exe"),
-    )
-
-    assert funestra_interpreters(paths) == {
-        "the Main Funestra": Path("genau/py.exe"),
-        "the Satellite Funestras": Path("fun_time/py.exe"),
-    }
-
-
-def test_funestra_interpreters_omits_the_main_funestra_without_a_genau_python():
-    paths = SimpleNamespace(python_exe=Path("fun_time/py.exe"), genau_python_exe=None)
-
-    assert funestra_interpreters(paths) == {"the Satellite Funestras": Path("fun_time/py.exe")}
 
 
 def test_both_the_desktop_and_headset_launches_gate_on_the_engine():

@@ -64,7 +64,7 @@ from .win32_process import get_process_creation_time, unix_seconds
 logger = logging.getLogger(__name__)
 
 
-# DISTINCT captions, so the by-title fallback (the genau venv's pythonw
+# DISTINCT captions, so the by-title fallback (a venv's pythonw
 # launcher can own a pid other than the window's) can never hand one side's
 # window to the other, which is the portrait/landscape visual swap.  They are
 # also what each window calls itself in Alt-Tab, so they name what the window

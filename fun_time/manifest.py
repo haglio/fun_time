@@ -49,13 +49,7 @@ def build_windows_bridge_manifest(
             "origenerator_dir": str(config.paths.origenerator_dir or ""),
         },
         "executables": {
-            # Two interpreters: ours runs everything this repo ships (the
-            # dashboard, the audio companion, the Satellite Funestras), and
-            # genau's runs the Main Funestra, which Kino and Genau both run on.
             "python_exe": str(config.paths.python_exe),
-            "genau_python_exe": str(config.paths.genau_python_exe or config.paths.python_exe),
-            # Origenerator has no venv; its deps live in a system install, so a
-            # session is told which python that is.  Empty without one.
             "origenerator_python_exe": str(config.paths.origenerator_python_exe or ""),
         },
         "media": {
@@ -188,7 +182,6 @@ class Executables:
     """[executables]: the interpreters, one per family of children."""
 
     python_exe: str
-    genau_python_exe: str
     origenerator_python_exe: str = ""
 
 

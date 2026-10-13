@@ -22,14 +22,6 @@ _WHERE_THE_SHARED_COPY_IS = (
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
 
-def funestra_interpreters(paths) -> dict[str, Path]:
-    interpreters: dict[str, Path] = {}
-    if paths.genau_python_exe:
-        interpreters["the Main Funestra"] = Path(paths.genau_python_exe)
-    interpreters["the Satellite Funestras"] = Path(paths.python_exe)
-    return interpreters
-
-
 def _ask(exe, code: str, project_path: str, *, run: Runner):
     return run(
         [str(exe), "-c", code],
@@ -65,10 +57,10 @@ def _why(stderr: str) -> str:
                      if line.strip() and not line.startswith((" ", "\t", "Traceback")))
 
 
-def _refusal(name: str, exe, said: str) -> str:
+def _refusal(exe, said: str) -> str:
     return (
-        f"Fun Time can't start {name}: its video engine (libmpv) failed to load, so "
-        f"its window would open empty.\n\n"
+        f"Fun Time can't start its Funestras: their video engine (libmpv) failed to "
+        f"load, so their windows would open empty.\n\n"
         f"{said}\n\n"
         f"Fetch the engine once with:\n"
         f"    python tools/fetch_libmpv.py\n\n"
@@ -77,16 +69,12 @@ def _refusal(name: str, exe, said: str) -> str:
 
 
 def engine_error(config, *, run: Runner = subprocess.run) -> str | None:
-    project_path = config.paths.genau_project_path
-    for name, exe in funestra_interpreters(config.paths).items():
-        if _ask(exe, _IMPORT_THE_ENGINE, project_path, run=run).returncode == 0:
-            continue
-        _vendor_the_engine(exe, project_path, run=run,
-                           shared=_shared_engine_copy(config.paths.python_exe, run=run))
-        result = _ask(exe, _IMPORT_THE_ENGINE, project_path, run=run)
-        if result.returncode != 0:
-            return _refusal(name, exe, _why(result.stderr))
-    return None
+    exe, project_path = Path(config.paths.python_exe), config.paths.genau_project_path
+    if _ask(exe, _IMPORT_THE_ENGINE, project_path, run=run).returncode == 0:
+        return None
+    _vendor_the_engine(exe, project_path, run=run, shared=_shared_engine_copy(exe, run=run))
+    result = _ask(exe, _IMPORT_THE_ENGINE, project_path, run=run)
+    return None if result.returncode == 0 else _refusal(exe, _why(result.stderr))
 
 
 def show_engine_alert(text: str) -> None:

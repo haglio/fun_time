@@ -94,24 +94,13 @@ def apply_origenerator_dir_override(config, *, integration: bool = False):
 
 
 def genau_project_kwargs(project_dirs: str | Path | None) -> dict:
-    """The ``Popen`` environment that decides which checkouts the Main Funestra runs.
+    """The ``Popen`` environment that decides which checkouts a Funestra runs.
 
-    It is started as ``python -m main_funestra`` out of the genau venv, and every
-    package it imports — this repo's, and ``funestra`` under it — resolves
-    through that venv's editable installs, which name the primary checkout of
-    each repo for good.  So a *worktree* of either could not be run at all, and
-    a branch of one could only be judged by landing it first.  Named here, those
-    directories go on ``PYTHONPATH``, which Python puts ahead of site-packages,
-    and a session runs the branch.
-
-    Several, because a change is often in two of them at once — a HUD here on a
-    channel in ``../funestra`` — and running one branch against the other's
-    landed code is not running the change.
-
-    Left alone rather than pointed at the primary in ordinary use: empty means
-    exactly what every session did before this.  A directory that is not there is
-    dropped rather than fatal, because a worktree named in the config outlives
-    the worktree and a session must still start.
+    Every Funestra imports ``funestra`` at the tag this repo's venv installs.
+    Named here, other checkouts go on ``PYTHONPATH``, which Python puts ahead of
+    site-packages, so a session runs a branch of it instead.  A directory that is
+    not there is dropped rather than fatal, because a worktree named in the
+    config outlives the worktree and a session must still start.
     """
     paths = [str(Path(part)) for part in str(project_dirs or "").split(os.pathsep)
              if part and Path(part).is_dir()]

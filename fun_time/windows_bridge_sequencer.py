@@ -422,7 +422,7 @@ def _launch_the_main_funestra(
     main_funestra_log = state_dir / "main_funestra.log"
     main_funestra_logs = logs_as_they_stand(main_funestra_log)
     main_funestra_pid = launch_main_funestra(
-        python_exe=m.executables.genau_python_exe,
+        python_exe=m.executables.python_exe,
         main_funestra_module=m.modules.main_funestra_module,
         config_path=m.runtime.config_path,
         playlist_file=m.commands.main_funestra_playlist_file,

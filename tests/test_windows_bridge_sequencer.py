@@ -283,14 +283,12 @@ class TestRunStartupSequence:
         assert result.audio_pid == 70
 
     def test_the_satellites_are_wired_from_the_manifest(self, cfg_factory, tmp_path):
-        """OUR python (the Satellite Funestra ships from this repo, so it must
-        not depend on genau's venv), the satellite module, and each side's
-        files — plus a log per windowed Funestra: under pythonw there is no
-        console, so without one an unhandled exception dies tracelessly."""
+        """Our python, the satellite module, and each side's files — plus a log
+        per windowed Funestra: under pythonw there is no console, so without one
+        an unhandled exception dies tracelessly."""
         cfg, _result, core_called, _ui = self._captured_launch(cfg_factory, tmp_path)
 
         assert core_called["satellite_python_exe"] == str(cfg.paths.python_exe)
-        assert core_called["satellite_python_exe"] != str(cfg.paths.genau_python_exe)
         assert core_called["satellite_module"] == "satellite"
         state = cfg.paths.state_dir
         for side in ("portrait", "landscape"):
@@ -408,6 +406,21 @@ class TestRunStartupSequence:
             # resolves through its venv.
             "project_dirs": "",
         }
+
+    def test_the_main_funestra_runs_out_of_fun_times_own_python_whatever_genau_python_the_config_names(
+            self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path, {
+            "paths": {"genau_python_exe": str(tmp_path / "genau" / "pythonw.exe")}})
+        main_funestra_kwargs: dict = {}
+
+        def capture_main_funestra(**kwargs):
+            main_funestra_kwargs.update(kwargs)
+            return _fake_main_funestra(**kwargs)
+
+        with _sequencer_stubs(launch_main_funestra=dict(side_effect=capture_main_funestra)):
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert main_funestra_kwargs["python_exe"] == str(cfg.paths.python_exe)
 
     def test_the_main_funestra_reads_its_settings_from_fun_times_own_config_not_genaus(
             self, cfg_factory, tmp_path):

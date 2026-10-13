@@ -152,7 +152,6 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
             "favs_file": paths.favs_file,
             "state_dir": paths.state_dir,
             "broker_state_dir": paths.broker_state_dir,
-            "genau_python_exe": paths.genau_python_exe,
             "genau_config_path": paths.genau_config_path,
             "genau_project_dirs": paths.genau_project_dirs,
             "broker_tray_launcher": paths.broker_tray_launcher,

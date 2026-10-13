@@ -1444,11 +1444,10 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
 class TestTheCheckoutsTheFunestraRunsOutOf:
     """Which checkouts Genau and the Main Funestra are run out of.
 
-    Every package they import — their own, and ``funestra`` under them —
-    resolves through the genau venv's editable installs, which name the primary
-    checkout of each repo for good.  Naming a directory puts it on their
-    ``PYTHONPATH``, ahead of site-packages, so a worktree of either can be run;
-    without it a branch could only be judged by landing it first.
+    ``funestra`` resolves through this repo's venv, at the tag it pins.  Naming a
+    directory puts it on their ``PYTHONPATH``, ahead of site-packages, so a
+    worktree can be run; without it a branch could only be judged by landing it
+    first.
     """
 
     class _Proc:
@@ -1494,7 +1493,7 @@ class TestTheCheckoutsTheFunestraRunsOutOf:
 
     def test_naming_none_leaves_it_to_its_venv(self, tmp_path: Path):
         """What every session did before this, and what an ordinary one still
-        does: nothing said about the path, so the editable installs answer."""
+        does: nothing said about the path, so the venv's install answers."""
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
             launch_main_funestra(**self._main_funestra(tmp_path))
