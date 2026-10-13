@@ -991,7 +991,7 @@ def _build_the_dispatch_loop(
             PressAndCaretWatch()
             if result.rfb_hwnd or manifest.runtime.origenerator_dir.strip() else None),
         origenerator_already_open=result.origenerator_already_open,
-        origenerator_showing=result.origenerator_showing,
+        origenerator_slideshow_on=result.origenerator_slideshow_on,
         secondary_rects=secondary_rects(manifest),
     )
 

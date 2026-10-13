@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .checkout_overrides import primary_of
+from .room_funestras import RoomFunestra
 from .win32_process import get_process_creation_time
 
 OFFER_NAME = "fun_time_offer.txt"
@@ -16,14 +17,14 @@ TAKEOVER_NAME = "fun_time_takeover.json"
 SESSION_NAME = "fun_time_session.txt"
 RELEASE = "RELEASE"
 OFFER = re.compile(rf"(\d+) (\d+)(?: ({OFFER_STILL_STARTING}))?")
-SLIDESHOW_MARK = re.compile(r"(\d+) (\d+)")
+SLIDESHOW_MARK = re.compile(r"(\d+) (\d+)(?: (portrait|landscape))?")
 
 
 class OpenOrigenerator(NamedTuple):
     pid: int
     starting: bool
     checkout: Path
-    showing: bool
+    slideshow_on: tuple[RoomFunestra, ...]
 
 
 def _state_dir(origenerator_dir: str | Path) -> Path:
@@ -51,12 +52,18 @@ def _offered_in(checkout: Path) -> OpenOrigenerator | None:
     if get_process_creation_time(pid) != created_at:
         return None
     return OpenOrigenerator(pid, starting=offer[3] is not None, checkout=checkout,
-                            showing=_shows_a_slideshow(checkout, pid, created_at))
+                            slideshow_on=_satellites_its_slideshow_is_on(
+                                checkout, pid, created_at))
 
 
-def _shows_a_slideshow(checkout: Path, pid: int, created_at: int) -> bool:
+def _satellites_its_slideshow_is_on(checkout: Path, pid: int,
+                                    created_at: int) -> tuple[RoomFunestra, ...]:
     mark = _read(_state_dir(checkout) / SHOWING_NAME, SLIDESHOW_MARK)
-    return mark is not None and (int(mark[1]), int(mark[2])) == (pid, created_at)
+    if mark is None or (int(mark[1]), int(mark[2])) != (pid, created_at):
+        return ()
+    if mark[3] is None:
+        return RoomFunestra.SATELLITES
+    return (RoomFunestra.PORTRAIT,) if mark[3] == "portrait" else (RoomFunestra.LANDSCAPE,)
 
 
 def the_takeover_it_was_handed(origenerator_dir: str | Path) -> Path:

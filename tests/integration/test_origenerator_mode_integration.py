@@ -119,7 +119,7 @@ _STUB_MAIN = textwrap.dedent(
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--fun-time", action="store_true")
-    parser.add_argument("--showing", action="store_true")
+    parser.add_argument("--showing", choices=SIDES)
     parser.add_argument("--caption", default="Origenerator")
     for flag in ("--x", "--y", "--width", "--height"):
         parser.add_argument(flag, type=int, default=0)
@@ -192,7 +192,7 @@ _STUB_MAIN = textwrap.dedent(
             return
         offer.unlink(missing_ok=True)
         showing.unlink(missing_ok=True)
-        showing_a_slideshow = False
+        showing_a_slideshow = None
         args, _unused = parser.parse_known_args(asked["args"])
         taken_over = True
         park_as_hosted()
@@ -202,7 +202,7 @@ _STUB_MAIN = textwrap.dedent(
         offered = f"{os.getpid()} {this_process_created_at()}"
         offer.write_text(offered, encoding="utf-8")
         if showing_a_slideshow:
-            showing.write_text(offered, encoding="utf-8")
+            showing.write_text(f"{offered} {showing_a_slideshow}", encoding="utf-8")
 
     def go_back_to_standalone():
         global booted
@@ -687,13 +687,15 @@ def test_a_room_left_in_the_mode_opens_in_it_as_it_was_left():
 
 
 @pytest.mark.timeout(_A_SESSION_A_QUIT_AND_FIVE_WAITS_S)
-def test_an_origenerator_open_on_a_slideshow_is_taken_into_a_room_that_opens_in_its_mode():
+def test_a_slideshow_open_in_an_origenerator_the_room_takes_over_goes_on_on_its_monitors_funestra():
+    portrait, landscape = _FUNESTRAS
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
     config_path = build_integration_config(temp_root)
     _host_stub(config_path, stub_root)
     open_app = subprocess.Popen(
-        [sys.executable, str(stub_root / "origenerator" / "__main__.py"), "--showing"],
+        [sys.executable, str(stub_root / "origenerator" / "__main__.py"),
+         "--showing", portrait.label],
         cwd=str(stub_root))
     session = FunTimeIntegrationSession(config_path)
     try:
@@ -701,10 +703,12 @@ def test_an_origenerator_open_on_a_slideshow_is_taken_into_a_room_that_opens_in_
                  desc="the open app to say it is showing a slideshow")
         session.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S)
 
-        _wait_for_the_slideshows(session)
-        state_file = shared_state_path(session.config.paths.state_dir)
-        assert _both_in_origenerator_mode(read_shared_state(state_file))
-        assert read_shared_state(state_file).rfb_slot is RfbSlot.ORIGENERATOR
+        wait_for(lambda: _shows_the_stub(session, portrait),
+                 desc="the Portrait Funestra to show the hosted app's picture")
+        state = read_shared_state(shared_state_path(session.config.paths.state_dir))
+        assert state.satellite(landscape).mode is SatellitesMode.KINO
+        assert state.rfb_slot is RfbSlot.ORIGENERATOR
+        assert not _shows_the_stub(session, landscape)
     finally:
         session.stop()
         kill_process_tree(open_app.pid)
