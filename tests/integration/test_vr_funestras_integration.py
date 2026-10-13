@@ -50,6 +50,7 @@ from main_funestra.loop_verbs import LOOP_CANCEL, RECORD_TAP, SET_LOOP
 from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
+    joined_within,
     library_clips,
     published_status,
     readable_at_speed,
@@ -361,8 +362,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         closed = True
         time.sleep(0.5)  # more worker turns against Funestras that are already gone
         stop.set()
-        pump_thread.join(timeout=30.0)
-        assert not pump_thread.is_alive(), (
+        assert joined_within(pump_thread, 30.0), (
             "the file-channel worker never came back after the Funestras closed"
         )
         assert not pump_failure, (
@@ -445,7 +445,7 @@ def test_the_main_funestra_plays_once_kino_mode_unpauses_it():
         assert main.owns_the_slot, "SHOW kino rides the switch into kino mode"
     finally:
         stop.set()
-        pump.join(timeout=5.0)
+        joined_within(pump, 5.0)
         main.close()
         glfw.terminate()
 def test_the_main_funestra_marks_and_runs_an_ab_loop_in_the_headset():
@@ -538,6 +538,6 @@ def test_the_main_funestra_marks_and_runs_an_ab_loop_in_the_headset():
         )
     finally:
         stop.set()
-        pump.join(timeout=5.0)
+        joined_within(pump, 5.0)
         main.close()
         glfw.terminate()

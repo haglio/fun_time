@@ -13,6 +13,7 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
+    ended_within,
     the_runs_tcode_sink,
 )
 from .run_clock import Budget
@@ -60,7 +61,9 @@ def test_quitting_stops_the_robot_hand_before_anything_closes_and_parks_the_osr2
                 last_move_at = time.monotonic()
             time.sleep(0.01)
         quiet_before_the_main_funestra_went = time.monotonic() - last_move_at
-        session._proc.wait(timeout=QUIT_BUDGET_S)
+        assert ended_within(session._proc, QUIT_BUDGET_S), (
+            f"Fun Time was still running {QUIT_BUDGET_S:g}s after its Main Funestra went\n"
+            f"{session._log_tail()}")
 
         assert quiet_before_the_main_funestra_went >= 0.25, (
             f"the Robot Hand drove the OSR2 until {quiet_before_the_main_funestra_went:.2f}s "

@@ -39,7 +39,7 @@ from fun_time.win32 import (
     windows_obscuring,
 )
 from fun_time.windows_bridge_dispatch_loop import keep_a_browse_on_top
-from tests.integration.integration_support import await_window, wait_for
+from tests.integration.integration_support import await_window, joined_within, wait_for
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="paints a real Qt window"),
@@ -278,7 +278,7 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
     finally:
         if browse_hwnd:
             close_window(browse_hwnd)
-        browsing.join(timeout=30)
+        joined_within(browsing, 30)
         stand_in.close()
 
 
@@ -351,5 +351,5 @@ def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
         set_always_on_top(stand_in_hwnd, False)
         if browse_hwnd:
             close_window(browse_hwnd)
-        browsing.join(timeout=30)
+        joined_within(browsing, 30)
         stand_in.close()

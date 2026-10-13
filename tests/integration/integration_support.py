@@ -197,6 +197,14 @@ def await_window(title: str, timeout: float, *, exact: bool = False) -> int:
     return seen_within(lambda: find_window_by_title(title, exact=exact), seconds=timeout)
 
 
+def ended_within(process: subprocess.Popen, seconds: float) -> bool:
+    return seen_within(lambda: process.poll() is not None, seconds=seconds)
+
+
+def joined_within(thread: threading.Thread, seconds: float) -> bool:
+    return seen_within(lambda: not thread.is_alive(), seconds=seconds)
+
+
 def _holding(needle: str, text: str) -> str:
     return text if needle in text else ""
 
@@ -363,9 +371,7 @@ class FunTimeIntegrationSession:
                 self.quit_gracefully()
         if self._proc and self._proc.poll() is None:
             self._proc.terminate()
-            try:
-                self._proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
+            if not ended_within(self._proc, 5):
                 self._proc.kill()
         if hasattr(self, "_stderr_fh") and self._stderr_fh:
             self._stderr_fh.close()

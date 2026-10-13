@@ -36,7 +36,9 @@ from tests.integration.integration_support import (
     FunTimeIntegrationSession,
     await_window,
     close_udp_sinks,
+    ended_within,
     isolate_shared_resources,
+    joined_within,
     library_clips,
     point_the_main_funestra_at,
     published_status,
@@ -356,6 +358,22 @@ def test_a_window_is_awaited_by_its_whole_title_in_the_seconds_the_run_could_run
                         lambda _title, *, exact: 7 if next(looks) == 9_999 and exact else 0)
 
     assert await_window("Portrait AI Funestra", 10.0, exact=True) == 7
+
+
+def test_a_process_is_waited_on_in_the_seconds_the_run_could_run(monkeypatch, run_time):
+    monkeypatch.setattr(integration_support, "time", _Clock())
+    run_time(_Starved())
+    polls = iter(range(10_000))
+
+    assert ended_within(SimpleNamespace(poll=lambda: 0 if next(polls) == 9_999 else None), 5.0)
+
+
+def test_a_thread_is_waited_on_in_the_seconds_the_run_could_run(monkeypatch, run_time):
+    monkeypatch.setattr(integration_support, "time", _Clock())
+    run_time(_Starved())
+    looks = iter(range(10_000))
+
+    assert joined_within(SimpleNamespace(is_alive=lambda: next(looks) < 9_999), 5.0)
 
 
 def test_the_reap_never_waits_on_a_hotkey_script_it_did_not_end(session, monkeypatch):

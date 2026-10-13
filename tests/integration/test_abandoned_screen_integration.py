@@ -19,7 +19,11 @@ from fun_time.session_handoff import VR, crossing_progress_path, launch_crossing
 from fun_time.win32 import find_window_for_process
 from fun_time.win32_process import is_process_alive
 from tests.child_reports import all_gone_within, pid_written_to, with_what_it_started
-from tests.integration.integration_support import RELEASE_BUDGET_S, checkout_project_dirs
+from tests.integration.integration_support import (
+    RELEASE_BUDGET_S,
+    checkout_project_dirs,
+    ended_within,
+)
 from tests.integration.run_clock import Budget
 from tests.scratch import remove_scratch
 
@@ -84,13 +88,11 @@ def test_a_screen_whose_progress_file_goes_before_its_first_look_takes_itself_do
             "the screen never came up")
 
         budget_s = transition_screen.STALE_TIMEOUT_S + A_STARVED_SCREENS_SLACK_S
-        try:
-            ended_with = screen.wait(timeout=budget_s)
-        except subprocess.TimeoutExpired:
-            pytest.fail(f"the screen was still up {budget_s:.0f}s after it came up, "
-                        f"on a {transition_screen.STALE_TIMEOUT_S:.0f}s wait")
+        assert ended_within(screen, budget_s), (
+            f"the screen was still up {budget_s:.0f}s after it came up, "
+            f"on a {transition_screen.STALE_TIMEOUT_S:.0f}s wait")
 
-        assert ended_with == 0, "it went, but by dying rather than by giving up"
+        assert screen.returncode == 0, "it went, but by dying rather than by giving up"
     finally:
         if screen.poll() is None:
             screen.kill()
