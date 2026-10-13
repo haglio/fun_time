@@ -177,17 +177,23 @@ COMMAND_BUDGET_S = 120.0
 SESSION_MONITORS = (MonitorRect(0, 0, 1280, 720), MonitorRect(1280, 0, 720, 1440))
 
 
+def seen_within(look, *, seconds: float, every_s: float = 0.2):
+    budget = Budget(seconds)
+    while not (seen := look()) and not budget.expired():
+        time.sleep(every_s)
+    return seen
+
+
 def wait_for(predicate, *, desc: str, timeout: float = COMMAND_BUDGET_S,
              explain: Callable[[], str] | None = None):
-    budget = Budget(timeout)
-    last = None
-    while not budget.expired():
-        last = predicate()
-        if last:
-            return last
-        time.sleep(0.2)
+    if last := seen_within(predicate, seconds=timeout):
+        return last
     raise AssertionError(f"Timed out waiting for {desc} (last={last!r})"
                          + ("" if explain is None else f"\n{explain()}"))
+
+
+def _holding(needle: str, text: str) -> str:
+    return text if needle in text else ""
 
 
 def published_ago(status_file: Path, now: float) -> str:
@@ -340,11 +346,8 @@ class FunTimeIntegrationSession:
 
     def _wait_for_own_log(self, needle: str, *, after: int, timeout: float) -> None:
         """Wait for *needle* among the log characters written past *after*."""
-        budget = Budget(timeout)
-        while not budget.expired():
-            if needle in self._read_windows_bridge_log()[after:]:
-                return
-            time.sleep(0.2)
+        if seen_within(lambda: needle in self._read_windows_bridge_log()[after:], seconds=timeout):
+            return
         raise AssertionError(
             f"Did not find log line containing {needle!r} from this session\n{self._log_tail()}"
         )
@@ -390,46 +393,36 @@ class FunTimeIntegrationSession:
 
     def wait_until(self, predicate, *, timeout: float = COMMAND_BUDGET_S,
                    description: str | Callable[[], str] = "condition") -> None:
-        budget = Budget(timeout)
-        while not budget.expired():
-            if predicate():
-                return
-            time.sleep(0.2)
+        if seen_within(predicate, seconds=timeout):
+            return
         described = description() if callable(description) else description
         raise AssertionError(
             f"Timed out waiting for {described}\n{self._log_tail()}"
         )
 
     def wait_for_log(self, needle: str, timeout: float = COMMAND_BUDGET_S) -> str:
-        budget = Budget(timeout)
-        while not budget.expired():
-            text = self._read_windows_bridge_log()
-            if needle in text:
-                return text
-            time.sleep(0.2)
+        if text := seen_within(lambda: _holding(needle, self._read_windows_bridge_log()),
+                               seconds=timeout):
+            return text
         raise AssertionError(
             f"Did not find log line containing {needle!r}\n{self._log_tail()}"
         )
 
     def wait_for_new_log(self, needle: str, timeout: float = COMMAND_BUDGET_S) -> str:
-        budget = Budget(timeout)
-        while not budget.expired():
-            chunk = self._read_windows_bridge_log_chunk()
-            if needle in chunk:
-                return chunk
-            time.sleep(0.2)
+        if chunk := seen_within(lambda: _holding(needle, self._read_windows_bridge_log_chunk()),
+                                seconds=timeout):
+            return chunk
         raise AssertionError(
             f"Did not find new log line containing {needle!r}\n{self._log_tail()}"
         )
 
     def wait_for_any_log(self, needles: list[str], timeout: float = COMMAND_BUDGET_S) -> str:
-        budget = Budget(timeout)
-        while not budget.expired():
+        def found() -> str:
             text = self._read_windows_bridge_log()
-            for needle in needles:
-                if needle in text:
-                    return needle
-            time.sleep(0.2)
+            return next((needle for needle in needles if needle in text), "")
+
+        if needle := seen_within(found, seconds=timeout):
+            return needle
         raise AssertionError(
             f"Did not find any log line containing one of {needles!r}\n{self._log_tail()}"
         )
