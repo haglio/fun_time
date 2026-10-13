@@ -96,7 +96,8 @@ class HudFeed:
                 osr2=Osr2State.of(osr2_mode, funscript_driving=scripted.funscript_driving),
                 control=state.osr2_control,
                 controls=osr2_controls(broker=broker),
-                max_intensity=state.max_intensity)
+                max_intensity=state.max_intensity,
+                paused=state.omni_paused)
 
         def satellite(funestra: RoomFunestra) -> SatelliteInputs:
             name = funestra.label
@@ -164,6 +165,7 @@ class HudFeed:
             genau_plays_flat=genau_shapes.plays_flat if genau_shapes.offered else None,
             osr2_mode=osr2_mode,
             osr2_control=state.osr2_control,
+            paused=state.omni_paused,
             broker=broker,
             # The console's buttons are lit and named from what each Funestra
             # published, since the Funestra drawing it is not always their subject.

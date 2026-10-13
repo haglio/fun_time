@@ -21,13 +21,15 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
+from app_support import osr2_hold
+from funestra.console import HOLD_VERB
 from funestra.file_channel import append_command
 from voice_core.listener import why_unavailable
 from voice_core.whisper_reader import WhisperReader
 
 from . import preview_marker
 from .append_only import append_line
-from .broker_control import HOLD_VERB, PARK_CMD, write_broker_command
+from .broker_control import write_broker_command
 from .checkout_overrides import genau_project_kwargs
 from .child_launch import no_child_log, no_console_window
 from .config import VoiceControlConfig, load_config
@@ -1022,7 +1024,7 @@ def stop_everything(commands: CommandFiles,
 def hold_the_osr2(commands: CommandFiles) -> None:
     ending = read_shared_state(shared_state_path(Path(commands.state_dir))) or BridgeState()
     append_command(Path(commands.genau_cmd_file), "PAUSE")
-    write_broker_command(commands.broker_cmd_file, HOLD_VERB.get(ending.osr2_control, PARK_CMD))
+    write_broker_command(commands.broker_cmd_file, HOLD_VERB.get(ending.osr2_control, osr2_hold.PARK))
 
 
 @dataclass(frozen=True)

@@ -9,8 +9,9 @@ from dataclasses import replace
 from functools import partial
 from pathlib import Path
 
-from app_support import osr2_device
+from app_support import osr2_device, osr2_hold
 from funestra.console import (
+    HOLD_VERB,
     OSR2_CONTROL_BUTTONS,
     OSR2_DRIVING,
     OSR2_PARKED,
@@ -39,7 +40,7 @@ from main_funestra.controls import longer_than_a_step
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import BridgeConfig, Op, WindowOp
-from .broker_control import HOLD_VERB, RESUME_CMD, write_broker_command
+from .broker_control import write_broker_command
 from .content import genau_flick_noun, load_web_providers
 from .crown import CROWNS, Crown
 from .dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
@@ -1711,7 +1712,7 @@ def _robot_hand_release(state: BridgeState, config: BridgeConfig,
     """unpark / OSR2 resume / the switch on: call the broker's hold off, and the
     arbiter hands the device back to whoever should have it."""
     if config.broker_cmd_file is not None:
-        write_broker_command(config.broker_cmd_file, RESUME_CMD)
+        write_broker_command(config.broker_cmd_file, osr2_hold.RESUME)
     return replace(state, osr2_control=OSR2_DRIVING), []
 
 
