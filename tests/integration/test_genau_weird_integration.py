@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import os
-import shutil
-import subprocess
 import sys
 import time
 from pathlib import Path
 
 import pytest
 from app_support.flick_folder import flat_flicks_in, flicks_folder_in, weird_pile_in
-from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.funestra_status import read_genau_status
 from fun_time.lock import MARKED_WEIRD
@@ -19,6 +16,7 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
+    clip_of_a_test_pattern,
 )
 
 pytestmark = [
@@ -30,16 +28,6 @@ pytestmark = [
 
 GENAU_TAKES_A_VERB_WITHIN_S = 2.0
 GENAUS_KEYS = ("genau_next_flick", "genau_prev_flick", "genau_lock", "genau_weird_flick")
-
-
-def _test_pattern(folder: Path, name: str) -> None:
-    ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg is None:
-        pytest.fail("ffmpeg is what makes this test's Genau flicks, and it is not on PATH")
-    subprocess.run(
-        [ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30",
-         "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(folder / name)],
-        check=True, timeout=60, **hidden_subprocess_kwargs())
 
 
 def _condemned(weird: Path) -> list[Path]:
@@ -56,7 +44,7 @@ def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_weird_s
     played_from = flat_flicks_in(flicks_folder_in(genau)) / "non_AI"
     played_from.mkdir()
     for name in ("alpha one.mp4", "beta two.mp4", "gamma three.mp4"):
-        _test_pattern(played_from, name)
+        clip_of_a_test_pattern(played_from / name, size="640x360", seconds=2)
     weird = weird_pile_in(genau)
     session = FunTimeIntegrationSession(build_integration_config(temp_root, genau_dir=genau))
     try:

@@ -16,14 +16,16 @@ funestra's own suite cannot ask this question.
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
-from tests.integration.integration_support import environment_with_this_checkouts_siblings
+from tests.integration.integration_support import (
+    environment_with_this_checkouts_siblings,
+    run_within,
+)
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32",
@@ -44,11 +46,12 @@ def test_closing_a_funestra_raises_nothing_its_host_reads_as_a_crash(tmp_path: P
     """The probe is a child because the regression is fatal: in this process it
     would take the run down before pytest could say which test was running."""
     log = tmp_path / "faulthandler.log"
-    probe = subprocess.run(
+    probe = run_within(
         [sys.executable, "-m", "tests.integration.teardown_probe", str(log), str(TEARDOWNS)],
+        PROBE_TIMEOUT_S,
         cwd=Path(__file__).resolve().parents[2],
         env=environment_with_this_checkouts_siblings(),
-        capture_output=True, text=True, timeout=PROBE_TIMEOUT_S,
+        capture_output=True, text=True,
         **hidden_subprocess_kwargs(),
     )
     caught = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""

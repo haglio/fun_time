@@ -8,15 +8,12 @@ from __future__ import annotations
 import ctypes
 import ctypes.wintypes as wt
 import os
-import shutil
-import subprocess
 import sys
 from functools import partial
 from pathlib import Path
 
 import pytest
 from app_support.flick_folder import flat_flicks_in, flicks_folder_in
-from app_support.subprocess_utils import hidden_subprocess_kwargs
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import play_file
 from funestra.playlist import PlaylistItem
@@ -34,6 +31,7 @@ from .integration_support import (
     await_window,
     build_integration_config,
     build_integration_temp_root,
+    clip_of_a_test_pattern,
 )
 
 pytestmark = [
@@ -47,15 +45,7 @@ _, SECONDARY_MONITOR = SESSION_MONITORS
 
 
 def _tall_test_pattern(folder: Path, *, seconds: int) -> Path:
-    ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg is None:
-        pytest.fail("ffmpeg is what makes this test's portrait clip, and it is not on PATH")
-    clip = folder / "tall_test_pattern.mp4"
-    subprocess.run(
-        [ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=360x640:rate=30",
-         "-t", str(seconds), "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)],
-        check=True, timeout=60, **hidden_subprocess_kwargs())
-    return clip
+    return clip_of_a_test_pattern(folder / "tall_test_pattern.mp4", size="360x640", seconds=seconds)
 
 
 def _client_size(hwnd: int) -> tuple[int, int]:

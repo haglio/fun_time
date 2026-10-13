@@ -3,22 +3,18 @@ frame the engine decodes reaches the texture, not every other one."""
 from __future__ import annotations
 
 import os
-import shutil
-import subprocess
 import sys
 import time
-from pathlib import Path
 
 import glfw
 import pytest
-from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time_vr.funestras import main_video
 from fun_time_vr.gl_contexts import SharedContexts, hidden_gl_window
 from fun_time_vr.render import RenderTarget
 from fun_time_vr.scheduling import ahead_of_background_work
 
-from .integration_support import build_integration_temp_root, wait_for
+from .integration_support import build_integration_temp_root, clip_of_a_test_pattern, wait_for
 from .run_clock import OnTimeClock
 
 pytestmark = [
@@ -36,19 +32,6 @@ PAINTED_PER_S_AT_LEAST = 45
 MEASURING_GIVES_UP_AFTER_S = 60.0
 
 
-def _sixty_fps_test_pattern(folder: Path) -> Path:
-    ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg is None:
-        pytest.fail("ffmpeg is what makes this test's video, and it is not on PATH")
-    pattern = folder / "sixty_fps_test_pattern.mp4"
-    subprocess.run(
-        [ffmpeg, "-v", "error", "-y", "-f", "lavfi",
-         "-i", f"testsrc2=size=1280x720:rate={VIDEO_FPS}",
-         "-t", str(VIDEO_SECONDS), "-c:v", "libx264", "-pix_fmt", "yuv420p", str(pattern)],
-        check=True, timeout=60, **hidden_subprocess_kwargs())
-    return pattern
-
-
 def _pictures_shown(video, target: RenderTarget, *, seconds: float) -> tuple[int, float, float]:
     shown = 0
     period = 1.0 / HEADSET_HZ
@@ -64,7 +47,8 @@ def _pictures_shown(video, target: RenderTarget, *, seconds: float) -> tuple[int
 
 
 def test_the_main_picture_is_painted_at_a_sixty_fps_videos_own_rate():
-    pattern = _sixty_fps_test_pattern(build_integration_temp_root())
+    pattern = clip_of_a_test_pattern(build_integration_temp_root() / "sixty_fps_test_pattern.mp4",
+                                     size="1280x720", seconds=VIDEO_SECONDS, rate=VIDEO_FPS)
     assert glfw.init(), "glfw failed to initialize"
     window = hidden_gl_window("vr-paint-rate-test")
     glfw.make_context_current(window)

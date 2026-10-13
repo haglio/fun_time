@@ -16,6 +16,8 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+from app_support.subprocess_utils import hidden_subprocess_kwargs
 from funestra.file_channel import append_command
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 
@@ -203,6 +205,37 @@ def ended_within(process: subprocess.Popen, seconds: float) -> bool:
 
 def joined_within(thread: threading.Thread, seconds: float) -> bool:
     return seen_within(lambda: not thread.is_alive(), seconds=seconds)
+
+
+def run_within(argv: list[str], seconds: float, *, check: bool = False,
+               capture_output: bool = False, **popen) -> subprocess.CompletedProcess:
+    if capture_output:
+        popen.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(argv, **popen)
+    budget = Budget(seconds)
+    while True:
+        try:
+            out, err = process.communicate(timeout=min(1.0, budget.left()))
+            break
+        except subprocess.TimeoutExpired:
+            if budget.expired():
+                process.kill()
+                process.communicate()
+                raise subprocess.TimeoutExpired(argv, seconds) from None
+    done = subprocess.CompletedProcess(argv, process.returncode, out, err)
+    if check:
+        done.check_returncode()
+    return done
+
+
+def clip_of_a_test_pattern(clip: Path, *, size: str, seconds: float, rate: int = 30) -> Path:
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        pytest.fail("ffmpeg is what makes this test's clips, and it is not on PATH")
+    run_within([ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={size}:rate={rate}",
+                "-t", str(seconds), "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)],
+               60.0, check=True, **hidden_subprocess_kwargs())
+    return clip
 
 
 def _holding(needle: str, text: str) -> str:
