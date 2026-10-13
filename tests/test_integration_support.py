@@ -11,6 +11,7 @@ PID Windows has since recycled is recognized rather than shot.
 from __future__ import annotations
 
 import ast
+import itertools
 import json
 import os
 import socket
@@ -47,6 +48,7 @@ from tests.integration.integration_support import (
     run_within,
     sample_library_clips,
     stall_per_transition,
+    tcode_heard,
     wait_for,
     window_is_quiet,
 )
@@ -390,6 +392,34 @@ def test_a_command_still_running_when_its_seconds_are_spent_is_ended_and_named_w
     with pytest.raises(subprocess.TimeoutExpired, match="after 60.0 seconds"):
         run_within(["ffmpeg"], 60.0)
     assert ended == ["killed"]
+
+
+class _StarvedFor:
+    def __init__(self, looks: int) -> None:
+        self._looks = looks
+
+    def seconds(self) -> float:
+        self._looks -= 1
+        return 0.0 if self._looks > 0 else 1e9
+
+
+def test_a_move_sent_to_the_osr2_while_the_run_is_starved_is_still_heard(monkeypatch, run_time):
+    monkeypatch.setattr(integration_support, "time", SleepDrivenClock())
+    run_time(_StarvedFor(10_000))
+    asked = itertools.count()
+
+    def recvfrom(_size):
+        if next(asked) == 5_000:
+            return b"L0999", ("127.0.0.1", 50_001)
+        raise BlockingIOError
+
+    def recv(_size):
+        raise BlockingIOError
+
+    monkeypatch.setattr(integration_support, "the_runs_tcode_sink", lambda _port: SimpleNamespace(
+        setblocking=lambda _blocking: None, recv=recv, recvfrom=recvfrom))
+
+    assert [sender for _at, sender, _height in tcode_heard(50_000, seconds=3)] == [50_001]
 
 
 def test_the_reap_never_waits_on_a_hotkey_script_it_did_not_end(session, monkeypatch):
