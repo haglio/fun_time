@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from app_support import osr2_hold
 from funestra.console import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import MainMode
 
-from fun_time.broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
 from fun_time.omnipause import build_omnipause_plan
 from fun_time.room_funestras import RoomFunestra
 
@@ -60,7 +60,7 @@ def test_leaving_hands_the_osr2_back_unless_a_hold_is_keeping_it():
                                               osr2_control=control).broker_command
                 for control in (OSR2_PARKED, OSR2_RETRACTED, OSR2_DRIVING)}
 
-    assert commands == {OSR2_PARKED: PARK_CMD, OSR2_RETRACTED: RETRACT_CMD,
-                        OSR2_DRIVING: RESUME_CMD}
+    assert commands == {OSR2_PARKED: osr2_hold.PARK, OSR2_RETRACTED: osr2_hold.RETRACT,
+                        OSR2_DRIVING: osr2_hold.RESUME}
 
 

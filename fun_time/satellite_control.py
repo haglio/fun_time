@@ -5,8 +5,7 @@ through a file quartet; verbs go in through ``funestra.file_channel``'s
 append (``satellite_groups.send_satellite``), and where the clip has got to is
 read back here from the status file the Funestra publishes.
 
-Its sibling ``broker_control`` is the same idea for the OSR2 broker, with the
-one difference spelled out there: that channel holds a single verb, not a queue.
+Its sibling ``broker_control`` is the same idea for the OSR2 broker.
 """
 from __future__ import annotations
 

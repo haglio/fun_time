@@ -48,6 +48,7 @@ class MainSlotInputs:
     osr2_mode: Osr2Mode
     broker: bool
     osr2_control: str = OSR2_DRIVING
+    paused: bool = False
     hud_corner: HudCorner = HudCorner.UPPER_LEFT
     hud_edge: HudEdge = HudEdge.LOWER
     hud_minimized: bool = False
@@ -104,6 +105,7 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         osr2=osr2_state(main_mode=inputs.main_mode, osr2_mode=inputs.osr2_mode,
                         funscript_driving=main_funestra.funscript_driving),
         osr2_control=slot.osr2_control,  # beside what has the device, what is DONE to it
+        paused=inputs.paused,
         locked=slot.locked,
         latest=slot.latest,
         rows=console_rows(slot, in_vr=inputs.in_vr),
