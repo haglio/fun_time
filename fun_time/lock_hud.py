@@ -102,10 +102,10 @@ class HudPanel:
     # ``playing`` is just ``current`` — the corner.
     active_loop: str = ""
     playing: str = ""
-    # The satellite side's mode axis ("kino" / "origenerator"), or "" for a
-    # session hosting no Origenerator — what draws the mode pair, the satellite
-    # counterpart of the main console's Kino/Genau row.
-    satellites_mode: SatellitesMode | None = None
+    # This side's own mode, or None for a session hosting no Origenerator —
+    # what draws the mode pair, the satellite counterpart of the main console's
+    # Kino/Genau row.
+    mode: SatellitesMode | None = None
     # Whether the hosted app that mode is made of is up yet: false for a
     # session's first half-minute, over which that button is drawn dim.
     origenerator_ready: bool = True
@@ -301,6 +301,7 @@ class SatelliteInputs:
     nothing_to_reset: bool = False
     has_other_versions: bool = False
     longer_than_a_step: bool = False
+    mode: SatellitesMode | None = None
 
 
 @dataclass(frozen=True)
@@ -445,7 +446,6 @@ def build_hud_panel(
     *,
     index: GroupIndex | None,
     active: bool = False,
-    satellites_mode: SatellitesMode | None = None,
     origenerator_ready: bool = True,
     in_vr: bool = False,
     crowned: bool = False,
@@ -496,7 +496,7 @@ def build_hud_panel(
         active=active,
         active_loop=hold.active_loop,
         playing=drawn.playing,
-        satellites_mode=satellites_mode,
+        mode=inputs.mode,
         origenerator_ready=origenerator_ready,
         in_vr=in_vr,
         nothing_to_reset=inputs.nothing_to_reset,
@@ -506,10 +506,9 @@ def build_hud_panel(
     )
 
 
-def _satellite_panel(
+def build_satellite_panel(
     inputs: SatelliteInputs, metadata_root: Path | None, active_funestra: str,
-    satellites_mode: SatellitesMode | None = None, origenerator_ready: bool = True,
-    in_vr: bool = False, crowned: str = "",
+    origenerator_ready: bool = True, in_vr: bool = False, crowned: str = "",
 ) -> HudPanel:
     index: GroupIndex | None = None
     if inputs.current:
@@ -525,7 +524,7 @@ def _satellite_panel(
         )
     return build_hud_panel(
         inputs, index=index, active=active_funestra == inputs.funestra,
-        satellites_mode=satellites_mode, origenerator_ready=origenerator_ready, in_vr=in_vr,
+        origenerator_ready=origenerator_ready, in_vr=in_vr,
         crowned=crowned == inputs.funestra,
     )
 
@@ -543,33 +542,6 @@ def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) ->
                 metadata_root=metadata_root,
                 must_contain=None,
             )
-
-
-def build_panels(
-    portrait: SatelliteInputs, landscape: SatelliteInputs, *,
-    metadata_root: Path | None = None, active_funestra: str = "",
-    satellites_mode: SatellitesMode | None = None, origenerator_ready: bool = True,
-    in_vr: bool = False, crowned: str = "",
-) -> tuple[HudPanel, HudPanel]:
-    """Both satellites' HUD panels, indexing each side from its own sources.
-
-    Each side's widen-clip and nav-anchor are threaded through as-is;
-    ``build_hud_panel`` decides whether each still applies — the widen off a loop
-    only while it is the clip on screen (so it auto-resets on navigation) and
-    across a widened seed loop for every item in the looped pool, and the
-    ``nav_anchor`` while the live clip is still one of its map cells.
-
-    F-mode rides in each side's own inputs, since each satellite has its own
-    button for it and the two can differ.  ``active_funestra`` is the one thing here
-    that is unsided, because it *names* exactly one Funestra: at most one of these
-    two panels can claim it, and neither does while the Main Funestra holds it.  A name
-    rather than the dispatcher's slot number, because that is what a side is
-    called everywhere else in here; the one translation lives where the number does.
-    """
-    return (_satellite_panel(portrait, metadata_root, active_funestra, satellites_mode,
-                        origenerator_ready, in_vr, crowned=crowned),
-            _satellite_panel(landscape, metadata_root, active_funestra, satellites_mode,
-                        origenerator_ready, in_vr, crowned=crowned))
 
 
 def panel_thumbnails(

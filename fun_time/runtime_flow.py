@@ -8,6 +8,7 @@ from pathlib import Path
 from funestra.console import OSR2_DRIVING
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_OFF, RELOAD_PLAYLIST, play_file
+from funestra.modes import SatellitesMode
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +28,9 @@ from .modes import (
     write_playlist_file,
 )
 from .omnipause import build_omnipause_plan
+from .origenerator_switches import CLOSE_SHOW, KINO_MODE, OPEN_SHOW, said_about
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .room_funestras import RoomFunestra
-from .satellites_mode import CLOSE_SHOWS, KINO_MODE, OPEN_SHOWS
 
 
 def read_flag_file(path: str | Path, default: bool) -> bool:
@@ -294,49 +295,47 @@ def apply_satellite_filter(
 
 
 @dataclass(frozen=True)
-class SatellitesSwitchFlowResult:
-    next_mode: str
+class SatelliteSwitchFlowResult:
+    next_mode: SatellitesMode
     is_transition: bool
     log_message: str
 
 
-def apply_satellites_switch(
+def apply_satellite_switch(
     *,
-    current_mode: str,
-    target_mode: str,
+    funestra: RoomFunestra,
+    current_mode: SatellitesMode,
+    target_mode: SatellitesMode,
     origenerator_cmd_file: str | Path | None,
-    channels: Sequence[SatelliteChannel],
-) -> SatellitesSwitchFlowResult:
-    """Switch the satellite side between video and origenerator mode.
+    channel: SatelliteChannel,
+) -> SatelliteSwitchFlowResult:
+    """Switch one Satellite Funestra between its own videos and the hosted
+    app's shows.
 
-    Like the main slot's switch, nothing is torn down, and nothing pauses: in
-    origenerator mode the two Funestras show the hosted app's slideshows.
-    Entering keeps each Funestra's own list aside for the way back, lets go of the
-    session's hold on the Funestra -- what holds is the app's to say now -- and
-    tells the app to fill both, so the mode opens playing rather than empty.
-    Leaving tells it to let go; the Funestras come home once it has (see
+    Like the main slot's switch, nothing is torn down, and nothing pauses.
+    Entering keeps the Funestra's own list aside for the way back, lets go of
+    the session's hold on it -- what holds is the app's to say now -- and asks
+    the app for a show on it, so the mode opens playing rather than empty: the
+    app picks the set, the whole library of that side's shape, shuffled.
+    Leaving tells it to let go; the Funestra comes home once it has (see
     :mod:`fun_time.funestra_handover`).
     """
+    side = funestra.label.capitalize()
     if current_mode == target_mode:
-        return SatellitesSwitchFlowResult(
+        return SatelliteSwitchFlowResult(
             next_mode=target_mode, is_transition=False,
-            log_message=f"Satellites already in {target_mode} mode")
+            log_message=f"{side} already in {target_mode} mode")
     if target_mode == KINO_MODE:
         if origenerator_cmd_file is not None:
-            append_command(Path(origenerator_cmd_file), CLOSE_SHOWS)
+            append_command(Path(origenerator_cmd_file), said_about(funestra.label, CLOSE_SHOW))
     else:
-        for channel in channels:
-            keep_aside(channel)
-            append_command(Path(channel.cmd_file), LOCK_OFF)
-        # Both Funestras come up playing, the way they are playing the moment
-        # kino mode is entered: a mode that opened onto two Funestras with
-        # nothing new on them asked the user to go and start it.  The hosted
-        # app picks the sets -- its whole library, shuffled, one shape each.
+        keep_aside(channel)
+        append_command(Path(channel.cmd_file), LOCK_OFF)
         if origenerator_cmd_file is not None:
-            append_command(Path(origenerator_cmd_file), OPEN_SHOWS)
-    return SatellitesSwitchFlowResult(
+            append_command(Path(origenerator_cmd_file), said_about(funestra.label, OPEN_SHOW))
+    return SatelliteSwitchFlowResult(
         next_mode=target_mode, is_transition=True,
-        log_message=f"Satellites switched to {target_mode} mode")
+        log_message=f"{side} switched to {target_mode} mode")
 
 
 @dataclass(frozen=True)

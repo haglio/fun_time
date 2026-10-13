@@ -34,12 +34,12 @@ from .hosted_origenerator import HostedApp, bring_up_the_hosted_app
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, kino_shows
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
+from .origenerator_switches import RfbSlot
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
 from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot
-from .satellites_mode import RfbSlot
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import read_shared_state, shared_state_path
 from .shortcuts import resolve_shortcut
@@ -98,7 +98,7 @@ class StartupResult:
     # Which Funestra the main slot was revealed on — last session's, resumed.
     # Carried out because the orchestrator starts the Funestras once the cover
     # is gone, and starts the mode's.
-    # The satellite side has no such line: every room is BUILT in kino mode.
+    # The satellites have no such line: every room is BUILT with them in Kino mode.
     main_mode: MainMode = STARTUP_MAIN_MODE
     rfb_hwnd: int = 0
     # HWNDs resolved while every window was still visible; the dispatch
@@ -299,7 +299,7 @@ class _CoreSession:
 def _plan_the_layout(m: LaunchManifest) -> ScreenLayout:
     """Every window's rect, from the monitors and the manifest's layout section,
     made before the first child so each Funestra opens where it plays."""
-    return screen_layout(m.layout)
+    return screen_layout(m.layout, rfb_slot_strip=m.runtime.hosts_origenerator)
 
 
 def _launch_the_satellites(

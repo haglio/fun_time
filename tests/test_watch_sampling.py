@@ -47,18 +47,18 @@ def test_a_video_watched_to_the_end_is_recorded_as_a_completion(tmp_path):
     assert stats[normalize_path_key(str(video))]["completions"] == 1
 
 
-def test_satellites_playing_the_hosted_apps_pictures_book_nothing(tmp_path):
-    """In origenerator mode the satellites show that app's slideshows, which
-    are no library videos: a picture held to its end is no completion."""
+def test_a_satellite_playing_the_hosted_apps_pictures_books_nothing(tmp_path):
+    """In its Origenerator mode a satellite shows that app's slideshow, which is
+    no library video: a picture held to its end is no completion."""
     picture = tmp_path / "scene one.png"
     picture.write_text("x", encoding="utf-8")
     sampler = make_sampler(tmp_path)
 
     for now, fraction in ((100.0, 0.1), (101.1, 0.9)):
         _publish(tmp_path / "portrait_status.txt", picture, fraction=fraction)
-        sampler.sample_due(now=now, paused=False, satellites=False)
+        sampler.sample_due(now=now, paused=False, hosted=(2,))
     _publish(tmp_path / "portrait_status.txt", tmp_path / "next.png", fraction=0.0)
-    sampler.sample_due(now=102.2, paused=False, satellites=False)
+    sampler.sample_due(now=102.2, paused=False, hosted=(2,))
 
     assert normalize_path_key(str(picture)) not in load_watch_stats(tmp_path / "watch_stats.json")
 

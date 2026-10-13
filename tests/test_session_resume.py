@@ -9,7 +9,7 @@ from funestra.console import OSR2_CONTROL_OFF, OSR2_RETRACTED
 from funestra.drive_readout import DriveHud, drive_text
 from funestra.flick_advance import FlickAdvanceState
 from funestra.genau_controls import VERBS as GENAU_VERBS
-from funestra.modes import LoopState, MainMode
+from funestra.modes import LoopState, MainMode, SatellitesMode
 from funestra.robot_hand import RobotHandState
 
 from fun_time.bridge_records import SatelliteChannel
@@ -17,6 +17,7 @@ from fun_time.crown import Crown
 from fun_time.funestra_handover import hand_back, keep_aside
 from fun_time.funestra_status import MainFunestraStatus
 from fun_time.main_list import MainList
+from fun_time.origenerator_switches import RfbSlot
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import (
     CRUISE_ON,
@@ -684,8 +685,9 @@ class TestPlaylistOpensOn:
         assert playlist_opens_on(tmp_path / "absent.tsv", "C:/v/a.mp4") is False
 
 
-def test_a_room_comes_back_in_the_satellite_mode_it_was_left_in(tmp_path):
-    """A room left in origenerator mode opens in origenerator mode.
+def test_a_room_comes_back_with_origenerator_on_what_it_held_when_left(tmp_path):
+    """A satellite left in its Origenerator mode opens in it, and so does
+    Origenerator left in the Random Favs Browser's place.
 
     The room does not wait out the hosted app's boot and nothing rearranges
     itself later either: the mode is what the room is in from its first tick,
@@ -693,6 +695,12 @@ def test_a_room_comes_back_in_the_satellite_mode_it_was_left_in(tmp_path):
     under whatever was on them.
     """
     state_file = tmp_path / "shared_state.ini"
-    write_shared_state(state_file, BridgeState(satellites_mode="origenerator"))
+    write_shared_state(state_file, BridgeState(
+        landscape=SatelliteState(mode=SatellitesMode.ORIGENERATOR),
+        rfb_slot=RfbSlot.ORIGENERATOR))
 
-    assert resume_shared_state(state_file, resumed=True).satellites_mode == "origenerator"
+    resumed = resume_shared_state(state_file, resumed=True)
+
+    assert resumed.satellite(RoomFunestra.LANDSCAPE).mode is SatellitesMode.ORIGENERATOR
+    assert resumed.satellite(RoomFunestra.PORTRAIT).mode is SatellitesMode.KINO
+    assert resumed.rfb_slot is RfbSlot.ORIGENERATOR

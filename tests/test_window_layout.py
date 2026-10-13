@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from fun_time import load_config
 from fun_time.crown import Crown
-from fun_time.dashboard_layout import dashboard_window_height
+from fun_time.dashboard_layout import RFB_SLOT_STRIP_HEIGHT, dashboard_window_height
 from fun_time.monitors import MonitorInfo
 from fun_time.window_layout import (
     MonitorRect,
@@ -172,6 +172,26 @@ def test_the_dashboard_takes_a_bar_and_a_log_and_the_browser_takes_the_rest(cfg_
     assert plan.dashboard.width == plan.random_favs_browser.width
     assert plan.random_favs_browser.y == plan.dashboard.y + plan.dashboard.height
     assert plan.random_favs_browser.height > plan.dashboard.height
+
+
+def test_the_strip_under_the_log_takes_its_height_from_the_browsers_place(cfg_path: Path):
+    """Where the session hosts an Origenerator, the strip that says what holds
+    the browser's place makes the dashboard that much taller and the place
+    itself that much shorter."""
+    def plan(**strip):
+        return compute_window_layout(
+            primary_monitor=MonitorRect(0, 0, 2560, 1392),
+            secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
+            layout_config=load_config(cfg_path).layout, **strip)
+
+    without, with_strip = plan(), plan(rfb_slot_strip=True)
+
+    taller = with_strip.dashboard.height - without.dashboard.height
+    assert taller == RFB_SLOT_STRIP_HEIGHT
+    assert without.random_favs_browser.height - with_strip.random_favs_browser.height == taller
+    assert with_strip.random_favs_browser.y == (
+        with_strip.dashboard.y + with_strip.dashboard.height)
+    assert with_strip.dashboard.height == dashboard_window_height(rfb_slot_strip=True)
 
 
 

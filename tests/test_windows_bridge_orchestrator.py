@@ -34,6 +34,7 @@ from fun_time.manifest import (
     LaunchManifest,
     write_windows_bridge_manifest,
 )
+from fun_time.origenerator_switches import ORIGENERATOR_MODE, RfbSlot
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCELING,
@@ -47,7 +48,6 @@ from fun_time.overlay_progress import (
     parse_progress,
     ready_file_for,
 )
-from fun_time.satellites_mode import ORIGENERATOR_MODE, RfbSlot
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
 from fun_time.session_handoff import (
@@ -63,7 +63,12 @@ from fun_time.session_handoff import (
     request_handoff,
     take_handoff_request,
 )
-from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
+from fun_time.shared_state import (
+    BridgeState,
+    SatelliteState,
+    shared_state_path,
+    write_shared_state,
+)
 from fun_time.shortcuts import Shortcut
 from fun_time.unlogged_notices import UNLOGGED_NOTICE_PORT_FILENAME
 from fun_time.voice_control import say_the_mic_is_off
@@ -3001,8 +3006,8 @@ class TestARoomLeftInOrigeneratorMode:
         manifest = LaunchManifest.read(manifest_path)
         state_dir = tmp_path / "state"
         state_dir.mkdir(parents=True, exist_ok=True)
-        write_shared_state(shared_state_path(state_dir),
-                           BridgeState(satellites_mode=ORIGENERATOR_MODE))
+        write_shared_state(shared_state_path(state_dir), BridgeState(
+            portrait=SatelliteState(mode=ORIGENERATOR_MODE), rfb_slot=RfbSlot.ORIGENERATOR))
         if the_app_answers:
             status = Path(manifest.commands.origenerator_status_file)
             status.parent.mkdir(parents=True, exist_ok=True)
@@ -3055,8 +3060,8 @@ class TestARoomLeftInOrigeneratorMode:
     def test_the_shows_are_asked_for_before_the_cover_comes_down(self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path, the_app_answers=True)
 
-        assert "OPEN_SHOWS" in events, "the room never came back to origenerator mode"
-        assert events.index("OPEN_SHOWS") < events.index("cover gone"), (
+        assert "portrait_open_show" in events, "the room never came back to origenerator mode"
+        assert events.index("portrait_open_show") < events.index("cover gone"), (
             "the mode was taken up after the room was already his"
         )
 
@@ -3077,7 +3082,8 @@ class TestARoomLeftInOrigeneratorMode:
             events = self._run(cfg_factory, tmp_path, the_app_answers=False)
 
         assert "cover gone" in events, "the room never opened"
-        assert "OPEN_SHOWS" not in events, "the shows were asked for with no app to show them"
+        assert "portrait_open_show" not in events, (
+            "the shows were asked for with no app to show them")
 
     def test_the_wait_writes_the_cover_progress_more_often_than_its_staleness_guard(self):
         assert windows_bridge_orchestrator.ORIGENERATOR_BOOT_POLL_S < STALE_TIMEOUT_S

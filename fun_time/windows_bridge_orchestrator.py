@@ -50,6 +50,7 @@ from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
 from .modes import collect_video_files
+from .origenerator_switches import CLOSE_SHOWS, RfbSlot
 from .overlay_progress import (
     CANCEL_CLOSING_FUN_TIME,
     CANCEL_FILENAME,
@@ -70,7 +71,6 @@ from .rfb_slideshow import rfb_slideshow_on
 from .role_windows import ChildPids, WindowRoles, find_origenerators_window
 from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
-from .satellites_mode import CLOSE_SHOWS, RfbSlot
 from .session_end import session_end_marker_path
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import (

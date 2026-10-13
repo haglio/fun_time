@@ -6,7 +6,7 @@ from pathlib import Path
 from fun_time.lock_hud import (
     SatelliteInputs,
     build_hud_panel,
-    build_panels,
+    build_satellite_panel,
     cell_path,
     hud_map_cells,
     locate_cell,
@@ -54,11 +54,10 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
     )
 
 
-def _panel(funestra: str = "portrait", *, index, active: bool = False,
-           satellites_mode: str = "", **side_fields):
+def _panel(funestra: str = "portrait", *, index, active: bool = False, **side_fields):
     """One Funestra's panel, built from the SatelliteInputs production builds."""
     return build_hud_panel(SatelliteInputs(funestra, **side_fields), index=index,
-                           active=active, satellites_mode=satellites_mode)
+                           active=active)
 
 
 def test_panel_gathers_action_and_seed_siblings_and_labels_the_lock():
@@ -791,7 +790,7 @@ def test_hud_map_cells_caps_each_axis_at_the_draw_limit():
     assert len(seeds) == 6
 
 
-# --- build_panels ---
+# --- build_satellite_panel ---
 
 
 def _i2v(action: str, video_seed: str, image_seed: str = "100") -> dict:
@@ -834,18 +833,16 @@ def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
     assert index.entries
 
 
-def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
+def test_a_satellites_panel_indexes_its_own_side_and_carries_the_lock(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sibling = _clip(media_root, metadata_root, "b", _i2v("Beta", "2"))
     sources = str(media_root / "portrait")
 
-    portrait, landscape = build_panels(
+    portrait = build_satellite_panel(
         SatelliteInputs("portrait", sources=sources, current=current, locked=True,
-                   filter_query="beta gamma"),
-        SatelliteInputs("landscape"),
-        metadata_root=metadata_root,
-    )
+                   filter_query="beta gamma"), metadata_root, "")
+    landscape = build_satellite_panel(SatelliteInputs("landscape"), metadata_root, "")
 
     assert portrait.funestra == "portrait" and portrait.locked is True
     assert portrait.action_siblings == [sibling]
@@ -855,7 +852,7 @@ def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
     assert landscape.filter_query == ""
 
 
-def test_build_panels_marks_only_the_active_funestra_active(tmp_path: Path):
+def test_only_the_active_funestras_panel_is_marked_active(tmp_path: Path):
     """A bare "lock" or "next" goes to whichever Funestra was addressed last, and
     nothing on screen said which that was — so each panel carries whether it is
     the one those words would reach.  Exactly one Funestra can be it."""
@@ -863,31 +860,28 @@ def test_build_panels_marks_only_the_active_funestra_active(tmp_path: Path):
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
 
-    def actives(active_funestra: str) -> tuple[bool, bool]:
-        portrait, landscape = build_panels(
-            SatelliteInputs("portrait", sources=sources, current=current),
-            SatelliteInputs("landscape", sources=sources, current=current),
-            metadata_root=metadata_root, active_funestra=active_funestra,
-        )
-        return portrait.active, landscape.active
+    def actives(active_funestra: str) -> tuple[bool, ...]:
+        return tuple(build_satellite_panel(
+            SatelliteInputs(funestra, sources=sources, current=current),
+            metadata_root, active_funestra).active for funestra in ("portrait", "landscape"))
 
     assert actives("portrait") == (True, False)
     assert actives("landscape") == (False, True)
     assert actives("main") == (False, False)  # the Main Funestra has it; neither satellite does
 
 
-def test_build_panels_says_f_mode_on_the_side_that_is_in_it(tmp_path: Path):
+def test_a_satellites_panel_says_f_mode_only_when_that_side_is_in_it(tmp_path: Path):
     """F-mode is sided now — each satellite has its own button for it — so the
     status line says it on the Funestra it is on, and the other panel stays silent."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
 
-    portrait, landscape = build_panels(
+    portrait = build_satellite_panel(
         SatelliteInputs("portrait", sources=sources, current=current, favorites_filter=True),
-        SatelliteInputs("landscape", sources=sources, current=current),
-        metadata_root=metadata_root,
-    )
+        metadata_root, "")
+    landscape = build_satellite_panel(
+        SatelliteInputs("landscape", sources=sources, current=current), metadata_root, "")
 
     assert "F-Mode" in portrait.lock_label
     assert "F-Mode" not in landscape.lock_label
@@ -895,7 +889,7 @@ def test_build_panels_says_f_mode_on_the_side_that_is_in_it(tmp_path: Path):
     assert (portrait.favorites_filter, landscape.favorites_filter) == (True, False)
 
 
-def test_build_panels_threads_the_loop_kind_onto_the_panel(tmp_path: Path):
+def test_a_satellites_panel_carries_the_loop_kind(tmp_path: Path):
     """The loop kind comes off the shared state and must reach the panel so the
     map freezes — two seeds of one act make a real family to loop."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
@@ -903,17 +897,15 @@ def test_build_panels_threads_the_loop_kind_onto_the_panel(tmp_path: Path):
     b = _clip(media_root, metadata_root, "b", _i2v("Alpha", "2"))
     sources = str(media_root / "portrait")
 
-    portrait, _landscape = build_panels(
+    portrait = build_satellite_panel(
         SatelliteInputs("portrait", sources=sources, current=b, loop_axis="seed"),
-        SatelliteInputs("landscape"),
-        metadata_root=metadata_root,
-    )
+        metadata_root, "")
 
     assert portrait.active_loop == "seed"
     assert portrait.seed_siblings  # the other seed is on the row
 
 
-def test_build_panels_threads_the_nav_anchor_onto_the_panel(tmp_path: Path):
+def test_a_satellites_panel_carries_the_nav_anchor(tmp_path: Path):
     """The nav anchor comes off the shared state and must reach the panel so the
     map freezes on the clip navigation began from while the satellite plays a
     sibling."""
@@ -923,17 +915,16 @@ def test_build_panels_threads_the_nav_anchor_onto_the_panel(tmp_path: Path):
     sources = str(media_root / "portrait")
 
     # Navigation began from a; the satellite has since switched to its seed sibling b.
-    portrait, _landscape = build_panels(
+    portrait = build_satellite_panel(
         SatelliteInputs("portrait", sources=sources, current=b, nav_anchor=a),
-        SatelliteInputs("landscape"),
-        metadata_root=metadata_root,
-    )
+        metadata_root, "")
 
     assert portrait.current == a       # frozen on the start clip
     assert portrait.playing == b       # the sibling on screen is lit
 
 
-def test_build_panels_keeps_a_widened_seed_loop_wide_across_the_loose_family(tmp_path: Path):
+def test_a_satellites_panel_keeps_a_widened_seed_loop_wide_across_the_loose_family(
+        tmp_path: Path):
     """The repro: widen the row, loop it, then let the loop auto-advance to a loose-
     family re-render that is not in the exact seed family.  The panel must stay
     widened and frozen on the anchor — not collapse with no loop shown."""
@@ -950,11 +941,9 @@ def test_build_panels_keeps_a_widened_seed_loop_wide_across_the_loose_family(tmp
 
     # Widened around `a`; the loop has auto-advanced to `b`, a loose-family re-render
     # that is not in a's exact seed family {a, a2}.
-    portrait, _landscape = build_panels(
+    portrait = build_satellite_panel(
         SatelliteInputs("portrait", sources=sources, current=b, loop_axis="seed", widen_clip=a),
-        SatelliteInputs("landscape"),
-        metadata_root=metadata_root,
-    )
+        metadata_root, "")
 
     assert portrait.active_loop == "seed"            # the loop is still recognized
     assert portrait.current == a                     # frozen on the widened anchor

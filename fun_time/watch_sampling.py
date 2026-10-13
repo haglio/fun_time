@@ -7,6 +7,7 @@ back-dated to the video that was on screen when the speaker started talking.
 """
 from __future__ import annotations
 
+from collections.abc import Collection
 from pathlib import Path
 
 from .command_dispatch import command_funestra
@@ -52,28 +53,29 @@ class WatchSampler:
         self._timelines: dict[int, VideoTimeline] = {2: VideoTimeline(), 3: VideoTimeline()}
         self._last_sample = 0.0
 
-    def sample_due(self, *, now: float, paused: bool, satellites: bool = True) -> None:
+    def sample_due(self, *, now: float, paused: bool, hosted: Collection[int] = ()) -> None:
         """Sample every Funestra, if the cadence says it is time.
 
         The clock advances whether or not the room is paused, so resuming does
-        not fire an off-cadence sample the moment the pause lifts.
-        *satellites* off leaves the two satellites out: in origenerator mode
-        they play the hosted app's pictures, which are no library videos to
-        book a watch against.
+        not fire an off-cadence sample the moment the pause lifts.  The
+        satellites *hosted* are left out: in their Origenerator mode they play
+        the hosted app's pictures, which are no library videos to book a watch
+        against.
         """
         if now - self._last_sample < SAMPLE_INTERVAL_S:
             return
         self._last_sample = now
         if paused:
             return
-        if satellites:
-            self._sample_satellites(now=now)
+        self._sample_satellites(now=now, hosted=hosted)
         self._sample_main()
 
-    def _sample_satellites(self, *, now: float) -> None:
+    def _sample_satellites(self, *, now: float, hosted: Collection[int]) -> None:
         """Sample each satellite's current video for the trackers and timelines,
         from the status file its native Funestra publishes."""
         for which, status_file in self.satellite_status_files.items():
+            if which in hosted:
+                continue
             status = read_satellite_status(status_file)
             if status.fraction is None:
                 continue

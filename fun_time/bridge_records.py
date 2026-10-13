@@ -69,15 +69,15 @@ class BridgeConfig:
     broker_cmd_file: Path | None = None
     broker_heartbeat_file: Path | None = None
     broker_tray_launcher: Path | None = None
-    # The hosted Origenerator's channel (see fun_time.satellites_mode).  Enabled
-    # only when the config names an origenerator checkout; without one the
-    # satellites have no origenerator mode and its commands report a dead end.
+    # The hosted Origenerator's channel (see fun_time.origenerator_switches).  Enabled
+    # only when the config names an origenerator checkout; without one nothing
+    # offers Origenerator and its commands report a dead end.
     origenerator_enabled: bool = False
     origenerator_cmd_file: Path | None = None
     origenerator_paused_file: Path | None = None
     # Where the hosted app publishes which Funestras it holds.  Read every tick
     # until it appears: the file existing is how a session learns the app has
-    # finished booting, which is when origenerator mode opens up.
+    # finished booting, which is when Origenerator is first offered.
     origenerator_status_file: Path | None = None
     # Where the hosted app publishes the panel for each Funestra it holds.
     portrait_origenerator_hud_file: Path | None = None

@@ -162,11 +162,11 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("main_kino_activate",),
             ),
             _Row(
-                "Origenerator mode / Kino mode — the satellite side's own "
-                "switch: Origenerator over the Random Favs Browser, its "
-                "slideshows over the Funestras, and back",
+                "Origenerator mode / Kino mode on both Satellite Funestras at once — "
+                "Origenerator's slideshows on them, and back to their own videos",
                 ("X",),
-                ("satellites_toggle", "origenerator_activate", "satellites_kino_activate"),
+                ("satellites_toggle", "satellites_origenerator_activate",
+                 "satellites_kino_activate"),
                 voice_display=("origenerator mode", "satellite kino mode"),
             ),
             _Row(

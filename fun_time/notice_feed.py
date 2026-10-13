@@ -32,10 +32,10 @@ def funestra_rects(screens: ScreenLayout, majority: Crown = Crown.PORTRAIT) -> F
     )
 
 
-def _screens(layout: LayoutConfig) -> ScreenLayout | None:
+def _screens(layout: LayoutConfig, rfb_slot_strip: bool) -> ScreenLayout | None:
     """None on a headless run, where notices simply do not flash."""
     try:
-        return screen_layout(layout)
+        return screen_layout(layout, rfb_slot_strip=rfb_slot_strip)
     except (ValueError, OSError):
         return None
 
@@ -51,6 +51,7 @@ class NoticeFeed:
         self,
         *,
         layout: LayoutConfig,
+        rfb_slot_strip: bool = False,
         event_log_dir: Path,
         cover_dir: Path,
         make_overlay: Callable[[], object],
@@ -64,7 +65,7 @@ class NoticeFeed:
         self._held = held
         self._list_what_was_heard = list_what_was_heard
         self._shared_state_file = shared_state_file
-        self._screens = _screens(layout)
+        self._screens = _screens(layout, rfb_slot_strip)
         self.overlay = make_overlay() if self._screens is not None else None
         self._unlogged = UnloggedNotices(event_log_dir) if self.overlay is not None else None
 

@@ -3,10 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from .origenerator_switches import RfbSlot
+
 
 @dataclass(frozen=True)
 class DashboardSnapshot:
-    """The six facts the bar draws, written every tick and read back by the panel."""
+    """What the bar and the strip under the log draw, written every tick and
+    read back by the panel."""
 
     omni_paused: bool = False
     voice_active: bool = True
@@ -19,6 +22,8 @@ class DashboardSnapshot:
     in_vr: bool = False
     nothing_to_reset: bool = False
     headset_ready: bool = True
+    origenerator_ready: bool = False
+    rfb_slot: RfbSlot = RfbSlot.RFB
 
 
 def build_dashboard_snapshot_text(snapshot: DashboardSnapshot | None = None) -> str:
@@ -36,6 +41,9 @@ def build_dashboard_snapshot_text(snapshot: DashboardSnapshot | None = None) -> 
         f"vr={'1' if snapshot.in_vr else '0'}\n"
         "[headset]\n"
         f"ready={'1' if snapshot.headset_ready else '0'}\n"
+        "[origenerator]\n"
+        f"ready={'1' if snapshot.origenerator_ready else '0'}\n"
+        f"in_the_rfb_slot={'1' if snapshot.rfb_slot is RfbSlot.ORIGENERATOR else '0'}\n"
     )
 
 

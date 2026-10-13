@@ -9,10 +9,11 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from funestra.modes import MainMode
+from funestra.modes import MainMode, SatellitesMode
 
 from fun_time import windows_bridge_sequencer
 from fun_time.config import LayoutConfig, load_config
+from fun_time.dashboard_layout import dashboard_window_height
 from fun_time.funestra_deaths import FunestraDied
 from fun_time.funestra_status import (
     read_main_funestra_status,
@@ -26,15 +27,20 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.monitors import MonitorInfo
+from fun_time.origenerator_switches import RfbSlot
 from fun_time.overlay_progress import (
     NullProgress,
     StartupCancelled,
 )
 from fun_time.room_funestras import RoomFunestra
-from fun_time.satellites_mode import RfbSlot
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import keep_the_origenerator
-from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
+from fun_time.shared_state import (
+    BridgeState,
+    SatelliteState,
+    shared_state_path,
+    write_shared_state,
+)
 from fun_time.shortcuts import Shortcut
 from fun_time.win32_process import get_process_creation_time
 from fun_time.window_layout import (
@@ -61,10 +67,10 @@ FAKE_MONITORS = [
 ]
 
 
-def fake_screen_layout(layout_config):
+def fake_screen_layout(layout_config, **strip):
     """The plan FAKE_MONITORS give, through the same function a session calls."""
     with patch("fun_time.window_layout.enumerate_monitors", return_value=FAKE_MONITORS):
-        return screen_layout(layout_config)
+        return screen_layout(layout_config, **strip)
 
 CORE_PIDS = {"portrait_pid": 30, "landscape_pid": 40}
 UI_PIDS = {"dashboard_pid": 50, "audio_pid": 70}
@@ -234,13 +240,14 @@ def test_phase_result_files_are_unique_per_launch(tmp_path, monkeypatch):
 
 
 class TestRunStartupSequence:
-    def _captured_launch(self, cfg_factory, tmp_path):
+    def _captured_launch(self, cfg_factory, tmp_path, *, paths=None, **stubs):
         """One startup run with the core and UI launch kwargs captured."""
         cfg = load_config(cfg_factory({
             "regen": {
                 "media_root": str(tmp_path / "media"),
                 "metadata_root": str(tmp_path / "metadata"),
-            }
+            },
+            **({"paths": paths} if paths else {}),
         }))
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -258,7 +265,7 @@ class TestRunStartupSequence:
             _write_result(kwargs["result_file"], UI_PIDS)
 
         with _sequencer_stubs(start_core_session=dict(side_effect=capture_core),
-                              launch_ui_companions=dict(side_effect=capture_ui)):
+                              launch_ui_companions=dict(side_effect=capture_ui), **stubs):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
         return cfg, result, core_called, ui_called
 
@@ -330,6 +337,15 @@ class TestRunStartupSequence:
             isinstance(ui_called[key], int)
             for key in ("rfb_x", "rfb_y", "rfb_width", "rfb_height")
         )
+
+    def test_a_session_hosting_origenerator_opens_the_dashboard_tall_enough_for_its_strip(
+            self, cfg_factory, tmp_path):
+        _cfg, _result, _core, ui_called = self._captured_launch(
+            cfg_factory, tmp_path, paths={"origenerator_dir": str(tmp_path / "origenerator")},
+            launch_origenerator=dict(side_effect=_fake_origenerator))
+
+        assert ui_called["dashboard_height"] == dashboard_window_height(rfb_slot_strip=True)
+        assert ui_called["rfb_y"] == ui_called["dashboard_y"] + ui_called["dashboard_height"]
 
     def test_launches_the_main_funestra_with_the_primary_media_rect_and_genaus_files(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -1640,29 +1656,29 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
     opens its mode up once it answers.
     """
 
-    def _hosted(self, cfg_factory, tmp_path, *, satellites_mode: str = "kino"):
+    def _hosted(self, cfg_factory, tmp_path, *, left_in_origenerator: bool = False):
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator"),
         }}))
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
-        if satellites_mode != "kino":
-            write_shared_state(shared_state_path(tmp_path),
-                               BridgeState(satellites_mode=satellites_mode))
+        if left_in_origenerator:
+            write_shared_state(shared_state_path(tmp_path), BridgeState(
+                portrait=SatelliteState(mode=SatellitesMode.ORIGENERATOR),
+                rfb_slot=RfbSlot.ORIGENERATOR))
         return cfg, manifest_path
 
     def test_a_session_resumed_into_origenerator_mode_still_opens_in_kino_mode(
         self, cfg_factory, tmp_path
     ):
         """And asks the hosted app for nothing on the way: none of its three
-        windows is resolved or banded, and no OPEN_SHOWS is queued -- there is
+        windows is resolved or banded, and no show is asked for -- there is
         nothing there yet to answer either.  The mode is owed in the shared
         state (``session_resume.resume_shared_state``), for the dispatch loop to
         pay once the app is up -- which is also when the regions can actually
         be filled."""
-        cfg, manifest_path = self._hosted(
-            cfg_factory, tmp_path, satellites_mode="origenerator")
+        cfg, manifest_path = self._hosted(cfg_factory, tmp_path, left_in_origenerator=True)
 
         with _sequencer_stubs(launch_origenerator=dict(side_effect=_fake_origenerator)):
             result = run_startup_sequence(

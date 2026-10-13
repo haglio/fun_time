@@ -24,13 +24,14 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from funestra.modes import MainMode
+from funestra.modes import MainMode, SatellitesMode
 from funestra.playlist import read_playlist
 from funestra.satellite_hud import parse_hud
 from PIL import Image
 from shared_ui.preview import Preview, window_title
 
 from fun_time.event_log import event_log_path
+from fun_time.origenerator_switches import RfbSlot
 from fun_time.process_tree import kill_process_tree
 from fun_time.role_windows import find_origenerators_window
 from fun_time.room_funestras import RoomFunestra
@@ -239,22 +240,25 @@ _STUB_MAIN = textwrap.dedent(
         with (where / "origenerator_stub.log").open("a", encoding="utf-8") as handle:
             print(f"{time.time():.3f} {line}", file=handle)
 
-    def open_shows():
-        for side in SIDES:
-            playlist = handed(side, "playlist")
-            if side in held or playlist is None:
-                continue
-            write_playlist(playlist, [PlaylistItem(PICTURES / f"{side}.png")])
-            queued = append_command(handed(side, "cmd_file"), "RELOAD_PLAYLIST")
-            note(f"{side}: list written, reload queued={queued}")
-            publish_whole(handed(side, "hud_file"), hud_text(
-                HudModel(funestra=side, lock_label=f"Stub {side} show")))
-            held.add(side)
+    def open_show(side):
+        playlist = handed(side, "playlist")
+        if side in held or playlist is None:
+            return
+        write_playlist(playlist, [PlaylistItem(PICTURES / f"{side}.png")])
+        queued = append_command(handed(side, "cmd_file"), "RELOAD_PLAYLIST")
+        note(f"{side}: list written, reload queued={queued}")
+        publish_whole(handed(side, "hud_file"), hud_text(
+            HudModel(funestra=side, lock_label=f"Stub {side} show")))
+        held.add(side)
+
+    def close_show(side):
+        if side in held:
+            publish_whole(handed(side, "hud_file"), "")
+            held.discard(side)
 
     def close_shows():
-        for side in held:
-            publish_whole(handed(side, "hud_file"), "")
-        held.clear()
+        for side in list(held):
+            close_show(side)
 
     def publish_status():
         if not args.status_file or not booted or time.monotonic() < silent_until:
@@ -272,14 +276,17 @@ _STUB_MAIN = textwrap.dedent(
         command_file = Path(args.command_file) if args.command_file else None
         if command_file is not None:
             # Claimed by rename, like every Funestra's: read-then-unlink destroys
-            # a verb the session appends between the two, and an OPEN_SHOWS lost
+            # a verb the session appends between the two, and an open show lost
             # that way reads as a Funestra that never took the app's list.
-            verbs = " ".join(consume_command_file(command_file))
+            verbs = consume_command_file(command_file)
             if "QUIT" in verbs:
                 root.destroy()
                 return
-            if "OPEN_SHOWS" in verbs:
-                open_shows()
+            for side in SIDES:
+                if f"{side}_open_show".upper() in verbs:
+                    open_show(side)
+                if f"{side}_close_show".upper() in verbs:
+                    close_show(side)
             if "CLOSE_SHOWS" in verbs:
                 close_shows()
             if "RELEASE" in verbs:
@@ -395,43 +402,62 @@ def _wait_for_the_shows(session) -> None:
                  desc=f"the {funestra.label} Funestra to show the hosted app's picture")
 
 
-def _leave_the_mode(session) -> None:
-    """Press the way back once the app has both Funestras, and wait for them home.
+def _bring_the_satellites_home(session) -> None:
+    """Press each satellite's Kino once the app has both Funestras, and wait for
+    them home.
 
     The wait below cannot tell a Funestra handed its list back from one the app
-    never took, so the press has to come after the app has answered the
-    OPEN_SHOWS the way in sent it: pressed before that, the app writes its
-    lists onto the Funestras after this test has ended, and the next one reads a
-    playlist holding the app's picture (tests/test_origenerator_mode_way_back.py).
+    never took, so the press has to come after the app has answered the open
+    the way in sent it: pressed before that, the app writes its lists onto the
+    Funestras after this test has ended, and the next one reads a playlist
+    holding the app's picture (tests/test_origenerator_mode_way_back.py).
     """
     _wait_for_the_shows(session)
-    session.write_dashboard_command("satellites_kino_activate")
+    for funestra in _FUNESTRAS:
+        session.write_dashboard_command(f"{funestra.label}_kino_activate")
     for funestra in _FUNESTRAS:
         wait_for(lambda funestra=funestra: _own_clips(session, funestra)
                  and not _shows_the_stub(session, funestra),
                  desc=f"the {funestra.label} Funestra to play its own clips again")
 
 
-def _enter_the_mode(session) -> None:
-    """Press the mode button, once the hosted app is up to answer it."""
+def _press_once_origenerator_is_up(session, *commands: str) -> Path:
+    """Press *commands* once the hosted app is up to answer them: the room
+    opens with the app booting on out of sight, and every Origenerator button
+    is dim until it answers."""
     state_file = shared_state_path(session.config.paths.state_dir)
-    # The room opens in kino mode and the hosted app boots on out of sight,
-    # so the switch has to wait for it — pressed any earlier it is refused,
-    # which is the whole point of the button being dim until then.
     wait_for(lambda: read_shared_state(state_file).origenerator_ready,
              timeout=START_BUDGET_S, desc="the hosted app to publish a status")
-    session.write_dashboard_command("origenerator_activate")
-    wait_for(lambda: read_shared_state(state_file).satellites_mode == "origenerator",
-             desc="the session to enter origenerator mode")
+    for command in commands:
+        session.write_dashboard_command(command)
+    return state_file
 
 
-def test_the_switch_raises_the_parked_window_and_the_way_back_parks_it(hosted_session):
-    """The user-visible contract of the mode pair, on real windows: the hosted
-    app boots parked; origenerator mode restores it over the RFB's rect and
-    into the topmost band; kino mode parks it again.  Driven through an
-    OmniPause cycle first, because that is the sequence the demo failed in —
-    the pause demotes every managed window, and the switch afterwards has to
-    promote this one back itself."""
+def _put_origenerator_on_the_satellites(session) -> None:
+    state_file = _press_once_origenerator_is_up(
+        session, *(f"{funestra.label}_origenerator_activate" for funestra in _FUNESTRAS))
+    wait_for(lambda: _both_in_origenerator_mode(read_shared_state(state_file)),
+             desc="both satellites to enter their Origenerator mode")
+
+
+def _both_in_origenerator_mode(state) -> bool:
+    return all(state.satellite(funestra).mode is SatellitesMode.ORIGENERATOR
+               for funestra in _FUNESTRAS)
+
+
+def _put_origenerator_in_the_browsers_place(session) -> None:
+    state_file = _press_once_origenerator_is_up(session, "origenerator_activate")
+    wait_for(lambda: read_shared_state(state_file).rfb_slot is RfbSlot.ORIGENERATOR,
+             desc="Origenerator to take the Random Favs Browser's place")
+
+
+def test_the_strip_raises_the_parked_window_and_the_browsers_button_parks_it(hosted_session):
+    """The user-visible contract of the strip under the dashboard's log, on real
+    windows: the hosted app boots parked; its Origenerator restores it over the
+    RFB's rect and into the topmost band; its Random Favs Browser parks it
+    again.  Driven through an OmniPause cycle first, because that is the
+    sequence the demo failed in — the pause demotes every managed window, and
+    the switch afterwards has to promote this one back itself."""
     session, hwnd = hosted_session
     assert is_window_minimized(hwnd)  # booted parked
 
@@ -440,15 +466,14 @@ def test_the_switch_raises_the_parked_window_and_the_way_back_parks_it(hosted_se
     session.write_dashboard_command("omnipause_toggle")
     session.wait_for_log("OmniPause: leaving")
 
-    _enter_the_mode(session)
-    session.wait_for_log("Satellites switched to origenerator mode")
+    _put_origenerator_in_the_browsers_place(session)
     wait_for(lambda: not is_window_minimized(hwnd),
              desc="the hosted window to be restored")
     wait_for(lambda: is_window_topmost(hwnd),
              desc="the hosted window to join the topmost band")
 
-    _leave_the_mode(session)
-    session.wait_for_log("Satellites switched to kino mode")
+    session.write_dashboard_command("rfb_activate")
+    session.wait_for_new_log("The Random Favs Browser back in its place")
     wait_for(lambda: is_window_minimized(hwnd),
              desc="the hosted window to park again")
 
@@ -461,10 +486,10 @@ def test_the_funestras_play_the_hosted_apps_shows_and_come_back_to_their_own(hos
     own_lists = {funestra: sorted(_own_clips(session, funestra)) for funestra in _FUNESTRAS}
     assert all(own_lists.values()), "the Funestras had no lists of their own to begin with"
 
-    _enter_the_mode(session)
+    _put_origenerator_on_the_satellites(session)
     _wait_for_the_shows(session)
 
-    _leave_the_mode(session)
+    _bring_the_satellites_home(session)
     for funestra in _FUNESTRAS:
         assert sorted(_own_clips(session, funestra)) == own_lists[funestra]
 
@@ -475,7 +500,8 @@ def test_a_switch_clicked_while_paused_hands_the_funestras_over_and_the_resume_b
     session.write_dashboard_command("omnipause_toggle")
     session.wait_for_new_log("OmniPause: entering")
 
-    _enter_the_mode(session)
+    _put_origenerator_on_the_satellites(session)
+    _put_origenerator_in_the_browsers_place(session)
     _wait_for_the_shows(session)
 
     session.write_dashboard_command("omnipause_toggle")
@@ -483,7 +509,9 @@ def test_a_switch_clicked_while_paused_hands_the_funestras_over_and_the_resume_b
     wait_for(lambda: is_window_topmost(hwnd),
              desc="the hosted window to join the topmost band once the pause lifts")
 
-    _leave_the_mode(session)
+    _bring_the_satellites_home(session)
+    session.write_dashboard_command("rfb_activate")
+    wait_for(lambda: is_window_minimized(hwnd), desc="the hosted window to park again")
 
 
 def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hosted_session):
@@ -548,7 +576,7 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
     }
     try:
         session.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S, env_overrides=overlay_env)
-        _enter_the_mode(session)
+        _put_origenerator_on_the_satellites(session)
         events = event_log_path(session.config.paths.state_dir)
         text = events.read_text(encoding="utf-8", errors="replace") if events.exists() else ""
         assert "Loading screen launched" in text, (
@@ -563,7 +591,7 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
                 lambda hud_file=hud_file, funestra=funestra: _panel_of(hud_file, funestra),
                 desc=f"the {funestra.label} Funestra to wear the hosted app's panel")
             assert [button.command for button in worn.rows[0]][:2] == [
-                "satellites_kino_activate", "origenerator_activate"]
+                f"{funestra.label}_kino_activate", f"{funestra.label}_origenerator_activate"]
             assert worn.rows[0][1].lit
 
         funestras = {title: wait_for_window_by_title(title, timeout_s=10, exact=True)
@@ -621,14 +649,18 @@ def test_a_room_left_in_the_mode_opens_in_it():
     finally:
         first.stop()
     state_file = shared_state_path(first.config.paths.state_dir)
-    write_shared_state(state_file, replace(read_shared_state(state_file),
-                                           satellites_mode="origenerator"))
+    left = replace(read_shared_state(state_file), rfb_slot=RfbSlot.ORIGENERATOR)
+    for funestra in _FUNESTRAS:
+        left = left.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR)
+    write_shared_state(state_file, left)
 
     second = FunTimeIntegrationSession(config_path)
     try:
         second.start(wait_seconds=_A_START_THAT_WAITS_FOR_THE_APP_S)
         _wait_for_the_shows(second)
-        assert read_shared_state(state_file).satellites_mode == "origenerator"
+        opened_in = read_shared_state(state_file)
+        assert _both_in_origenerator_mode(opened_in)
+        assert opened_in.rfb_slot is RfbSlot.ORIGENERATOR
     finally:
         second.stop()
 
@@ -650,7 +682,8 @@ def test_an_origenerator_open_on_a_slideshow_is_taken_into_a_room_that_opens_in_
 
         _wait_for_the_shows(session)
         state_file = shared_state_path(session.config.paths.state_dir)
-        assert read_shared_state(state_file).satellites_mode == "origenerator"
+        assert _both_in_origenerator_mode(read_shared_state(state_file))
+        assert read_shared_state(state_file).rfb_slot is RfbSlot.ORIGENERATOR
     finally:
         session.stop()
         kill_process_tree(open_app.pid)
@@ -685,7 +718,7 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
         hwnd = wait_for(lambda: _parked_main_window(offered_pid),
                         desc="the open app's window to be parked by the takeover")
         session.write_dashboard_command("origenerator_activate")
-        session.wait_for_log("Satellites switched to origenerator mode")
+        session.wait_for_log("Origenerator in the Random Favs Browser's place")
         wait_for(lambda: not is_window_minimized(hwnd),
                  desc="the taken-over window to be restored")
         wait_for(lambda: is_window_topmost(hwnd),

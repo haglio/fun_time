@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from app_support.win32 import window_exists
 
 from . import preview_marker
-from .satellites_mode import RfbSlot
+from .origenerator_switches import RfbSlot
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -47,8 +47,8 @@ from .windows_bridge_startup import (
 logger = logging.getLogger(__name__)
 
 
-# How long a switch out of origenerator mode gives the hosted app's window to
-# act before it is minimized (see :meth:`WindowRoles.hide_after_settle`).
+# How long Origenerator leaving the browser's place gives the hosted app's window
+# to act before it is minimized (see :meth:`WindowRoles.hide_after_settle`).
 # Generous next to the two frames a window needs; being early is the failure it
 # exists to avoid.
 MAIN_BLANK_SETTLE_S = 0.25
