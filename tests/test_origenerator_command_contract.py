@@ -20,10 +20,11 @@ from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
 from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, SatelliteState
+from fun_time.voice_commands import ORIGENERATOR_PHRASES
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import see_the_hosted_app_out
 from tests.hosted_shows import publish_the_show
-from tests.origenerator_contract import answers
+from tests.origenerator_contract import answers, published
 
 
 def _what_it_was_sent(channel: Path) -> list[str]:
@@ -97,3 +98,11 @@ def test_handing_back_a_copy_the_session_took_over(tmp_path):
 
     sent = _what_it_was_sent(channel)
     assert sent and all(map(answers, sent)), sent
+
+
+def test_every_fix_the_app_publishes_is_one_this_session_listens_for():
+    """The app's table of parts decides which fixes there are; a part added
+    there and not here is one nobody can fix by voice from the headset."""
+    listened_for = {phrase for phrase in ORIGENERATOR_PHRASES if phrase.startswith("fix ")}
+
+    assert listened_for == set(published()["fix_phrases"])
