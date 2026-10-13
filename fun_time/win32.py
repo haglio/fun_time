@@ -80,17 +80,6 @@ WNDENUMPROC = win_functype(
 
 WM_CLOSE = 0x0010
 
-_user32.SendMessageTimeoutW.argtypes = [
-    ctypes.wintypes.HWND,             # hWnd
-    ctypes.wintypes.UINT,             # Msg
-    ctypes.wintypes.WPARAM,           # wParam
-    ctypes.wintypes.LPARAM,           # lParam
-    ctypes.wintypes.UINT,             # fuFlags
-    ctypes.wintypes.UINT,             # uTimeout
-    ctypes.POINTER(ctypes.c_size_t),  # lpdwResult
-]
-_user32.SendMessageTimeoutW.restype = ctypes.c_ssize_t
-
 
 def close_window(hwnd: int) -> None:
     """Close a window gracefully by posting WM_CLOSE."""
