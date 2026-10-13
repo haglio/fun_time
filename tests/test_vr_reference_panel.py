@@ -3,7 +3,12 @@ from __future__ import annotations
 
 import numpy as np
 
-from fun_time.command_reference import HOTKEY_HEADER, VOICE_HEADER, build_reference_sections
+from fun_time.command_reference import (
+    CONTROLLER_HEADER,
+    HOTKEY_HEADER,
+    VOICE_HEADER,
+    build_reference_sections,
+)
 from fun_time_vr.reference_panel import (
     _KEY_X,
     _PAD,
@@ -14,6 +19,7 @@ from fun_time_vr.reference_panel import (
     REFERENCE_WIDTH_PX,
     ReferencePointer,
     ReferenceState,
+    _cells,
     column_heads,
     header_lines,
     lines_of,
@@ -79,7 +85,22 @@ class TestItIsTheSameReference:
 
         assert column_heads(by_title["Dashboard"]) == (
             (_KEY_X, HOTKEY_HEADER), (_SAY_X, VOICE_HEADER), (_WHAT_X, "What it does"))
-        assert column_heads(by_title["VR"]) == ((_KEY_X, VOICE_HEADER), (_WHAT_X, "What it does"))
+        assert column_heads(by_title["Origenerator"]) == ((_KEY_X, VOICE_HEADER), (_WHAT_X, "What it does"))
+
+    def test_a_page_with_a_controller_input_paints_a_controller_column_before_the_voice(self):
+        """The desktop's Controller column, between the hotkeys and the voice
+        where a section has one, the columns after it moved along to make room."""
+        by_title = {section.title: section for section in build_reference_sections()}
+
+        assert [head for _, head in column_heads(by_title["Funestras"])] == [
+            HOTKEY_HEADER, CONTROLLER_HEADER, VOICE_HEADER, "What it does"]
+        assert [head for _, head in column_heads(by_title["VR"])] == [
+            CONTROLLER_HEADER, VOICE_HEADER, "What it does"]
+        for section in by_title.values():
+            xs = [x for x, _ in column_heads(section)]
+            assert xs == sorted(xs) and xs[0] == _KEY_X and xs[-1] >= _WHAT_X, section.title
+        nudge = next(row for row in by_title["Funestras"].rows if row.description == "nudge back 10 seconds")
+        assert [text for _, text, _ in _cells(nudge, by_title["Funestras"])][:2] == ["— / — / -", "B / Y"]
 
     def test_an_untitled_group_takes_no_title_line(self):
         by_title = {section.title: section for section in build_reference_sections()}

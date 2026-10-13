@@ -10,8 +10,16 @@ from fun_time.command_dispatch import _MAIN_FUNESTRA_CMD_MAP, _about_genaus_flic
 from fun_time.command_reference import (
     _BORDER,
     _SECTIONS,
+    A_OR_X,
+    B_OR_Y,
+    CONTROLLER_COLUMN_PX,
+    CONTROLLER_HEADER,
     HOTKEY_BLOCK_PX,
     HOTKEY_HEADER,
+    SQUEEZE_AND_MOVE,
+    STICK_SIDEWAYS,
+    STICK_UP_DOWN,
+    TRIGGER,
     VOICE_COLUMN_PX,
     VOICE_HEADER,
     CommandRef,
@@ -87,7 +95,7 @@ def test_sections_are_non_empty_and_well_formed():
         for row in section.rows:
             assert row.description
             # Every row must offer at least one way to trigger it.
-            assert _keys(row) or row.voice, f"row {row.description!r} has no trigger"
+            assert _keys(row) or row.voice or row.controller, f"row {row.description!r} has no trigger"
 
 
 def test_every_voice_command_is_represented():
@@ -1014,10 +1022,12 @@ def _group_htmls(section_title: str) -> dict[str, str]:
 
 
 def test_a_group_whose_rows_hold_no_key_renders_no_hotkey_column():
-    for title in ("VR", "Origenerator"):
-        section = _section_html(title)
-        assert re.findall(r"<b[^>]*>([^<]+)</b>", section) == ["Action", "Voice command"], title
-        assert section.count("<td") == 2 * section.count("<tr"), title
+    origenerator = _section_html("Origenerator")
+    assert re.findall(r"<b[^>]*>([^<]+)</b>", origenerator) == ["Action", "Voice command"]
+    assert origenerator.count("<td") == 2 * origenerator.count("<tr")
+    vr = _section_html("VR")
+    assert "Hotkey" not in vr
+    assert vr.count("<td") == 3 * vr.count("<tr")
     funestras = _group_htmls("Funestras")
     assert "Hotkey" in funestras["Navigation"] and "Portrait" in funestras["Navigation"]
     assert "Hotkey" not in funestras["Playlist"] and "Portrait" not in funestras["Playlist"]
@@ -1039,7 +1049,8 @@ def test_every_table_is_the_page_wide_with_its_voice_column_and_hotkey_block_in_
     the columns of one table land at an x of their own, so each table is told
     its width in pixels and each cell its own: the voice column at the right and
     the hotkey block -- one column, or a column per Funestra -- the same width on
-    every table, the action column taking whatever the page leaves."""
+    every table, the controller column its own where a table has one, and the
+    action column taking whatever the page leaves."""
     html = render_reference_html(1000)
     tables = _tables(html)
 
@@ -1049,12 +1060,58 @@ def test_every_table_is_the_page_wide_with_its_voice_column_and_hotkey_block_in_
         widths = _body_widths(table)
         assert sum(widths) == 1000, table[:120]
         assert widths[-1] == VOICE_COLUMN_PX, table[:120]
-        assert sum(widths[1:-1]) in (0, HOTKEY_BLOCK_PX), table[:120]
+        between = widths[1:-1]
+        if CONTROLLER_HEADER in table:
+            assert between[-1] == CONTROLLER_COLUMN_PX, table[:120]
+            between = between[:-1]
+        assert sum(between) in (0, HOTKEY_BLOCK_PX), table[:120]
     per_funestra = _body_widths(next(table for table in tables if "Portrait" in table))
-    assert per_funestra[1:-1] == [HOTKEY_BLOCK_PX // 3] * 3
+    assert per_funestra[1:4] == [HOTKEY_BLOCK_PX // 3] * 3
     assert _body_widths(_tables(_section_html("Dashboard"))[0])[1:-1] == [HOTKEY_BLOCK_PX]
-    assert len(_body_widths(_tables(_section_html("VR"))[0])) == 2
+    assert len(_body_widths(_tables(_section_html("Origenerator"))[0])) == 2
     assert _body_widths(_tables(render_reference_html(1400))[0])[0] == 1400 - VOICE_COLUMN_PX - HOTKEY_BLOCK_PX
+
+
+def test_a_table_shows_the_controller_column_only_where_a_row_has_a_controller_input():
+    """Between the hotkey block and the voice column, headed Controller, in
+    plain words; the action column gives up its width, so the voice column
+    stays at the same x as on the tables without it."""
+    vr, navigation = _section_html("VR"), _group_htmls("Funestras")["Navigation"]
+    playlist, origenerator = _group_htmls("Funestras")["Playlist"], _section_html("Origenerator")
+
+    assert re.findall(r"<b[^>]*>([^<]+)</b>", _tables(vr)[0])[:3] == ["Action", CONTROLLER_HEADER, VOICE_HEADER]
+    assert re.findall(r"<b[^>]*>([^<]+)</b>", navigation) == [
+        "Action", HOTKEY_HEADER, CONTROLLER_HEADER, VOICE_HEADER, "Portrait", "Landscape", "Main"]
+    assert re.search(rf'<td[^>]*rowspan="2"[^>]*>\s*<b[^>]*>{CONTROLLER_HEADER}</b>', navigation)
+    assert CONTROLLER_HEADER not in playlist and CONTROLLER_HEADER not in origenerator
+    assert f">{B_OR_Y}<" in navigation and f">{STICK_SIDEWAYS}<" in vr
+
+
+def test_the_controller_column_says_what_the_headsets_controllers_do_on_each_row():
+    """Read off the headset's code: A or X and B or Y skip the Main Funestra 10
+    seconds, and jump between its video's scenes with the trigger held; the
+    stick pushed sideways steps the projection; a squeeze beside a side of a
+    Funestra relocates its HUD; a squeeze held while the controller moves turns
+    and tilts the screens; a squeeze on a screen's handle carries or resizes it
+    and the stick sizes the Main Funestra; in the browser a squeeze opens a tile
+    and the stick scrolls."""
+    by_input = {}
+    for row in _all_rows():
+        for word in row.controller:
+            by_input.setdefault(word, []).append(row.description)
+
+    assert by_input == {
+        A_OR_X: ["nudge forward 10 seconds"],
+        B_OR_Y: ["nudge back 10 seconds"],
+        STICK_SIDEWAYS: ["cycle the video's VR projection"],
+        STICK_UP_DOWN: ["move or size a VR screen", "open the browser"],
+        SQUEEZE_AND_MOVE: ["tilt the VR screens up / down and level them again"],
+        TRIGGER: ["move or size a VR screen", "relocate the HUD", "open the browser"],
+    }
+    assert "scene" in _the_row_of("main_nudge_next").detail
+    assert "handle" in next(row for row in _section("VR").rows
+                            if row.description == "move or size a VR screen").detail
+    assert "squeeze" in _the_row_of("browse_library").detail
 
 
 def test_the_forked_hotkey_head_is_centered_over_its_funestras():

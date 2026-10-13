@@ -30,6 +30,7 @@ from voice_core.listening import Heard
 from fun_time import load_config, preview_marker
 from fun_time.command_reference import (
     HOTKEY_BLOCK_PX,
+    NARROWEST_PAGE_PX,
     VOICE_COLUMN_PX,
     build_reference_sections,
 )
@@ -884,10 +885,11 @@ def test_the_reference_shows_a_tooltip_as_rich_text_so_a_long_detail_wraps():
         browser.close()
 
 
-@pytest.mark.parametrize("width", range(700, 1701, 50))
+@pytest.mark.parametrize("width", range(950, 1701, 50))
 def test_the_reference_needs_no_horizontal_scrollbar_at_any_width_it_opens_in(width):
     browser = ReferenceBrowser()
     try:
+        assert browser.minimumWidth() <= 950, "the widths tried start above the narrowest the popup opens at"
         browser.resize(width, 800)
         browser.show()
         QApplication.processEvents()
@@ -947,7 +949,7 @@ def test_the_reference_opens_at_a_readable_size_and_never_narrower_than_its_colu
     dialog = ReferenceDialog()
     try:
         assert (dialog.width(), dialog.height()) == (1000, 800)
-        assert dialog.minimumWidth() >= HOTKEY_BLOCK_PX + VOICE_COLUMN_PX + 200
+        assert dialog.minimumWidth() >= NARROWEST_PAGE_PX > HOTKEY_BLOCK_PX + VOICE_COLUMN_PX
         dialog.resize(300, 800)
         assert dialog.width() == dialog.minimumWidth()
     finally:

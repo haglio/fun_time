@@ -38,14 +38,24 @@ from fun_time.voice_commands import (
 
 _DETAIL_DASH = " — "
 HOTKEY_HEADER = "Hotkey"
+CONTROLLER_HEADER = "Controller"
 VOICE_HEADER = "Voice command"
+
+TRIGGER = "trigger"
+SQUEEZE_AND_MOVE = "squeeze and move"
+STICK_SIDEWAYS = "stick ◄ ►"
+STICK_UP_DOWN = "stick ▲ ▼"
+A_OR_X = "A / X"
+B_OR_Y = "B / Y"
 
 #: The columns in pixels, the same on every table so they line up down the page;
 #: a third of the hotkey block fits “Shift+Right” on a keycap, which takes 93.
 VOICE_COLUMN_PX = 250
 HOTKEY_BLOCK_PX = 330
-ACTION_COLUMN_AT_LEAST_PX = 200
-NARROWEST_PAGE_PX = HOTKEY_BLOCK_PX + VOICE_COLUMN_PX + ACTION_COLUMN_AT_LEAST_PX
+CONTROLLER_COLUMN_PX = 140
+ACTION_COLUMN_AT_LEAST_PX = 180
+NARROWEST_PAGE_PX = (HOTKEY_BLOCK_PX + CONTROLLER_COLUMN_PX + VOICE_COLUMN_PX
+                     + ACTION_COLUMN_AT_LEAST_PX)
 
 
 @dataclass(frozen=True)
@@ -57,6 +67,7 @@ class CommandRef:
     commands: tuple[str, ...]
     key_columns: tuple[tuple[str, ...], ...] = ()
     detail: str = ""
+    controller: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -67,6 +78,10 @@ class ReferenceGroup:
     @property
     def has_keys(self) -> bool:
         return any(key for row in self.rows for column in row.key_columns for key in column)
+
+    @property
+    def has_controller(self) -> bool:
+        return any(row.controller for row in self.rows)
 
 
 @dataclass(frozen=True)
@@ -84,6 +99,10 @@ class ReferenceSection:
     def has_keys(self) -> bool:
         return any(group.has_keys for group in self.groups)
 
+    @property
+    def has_controller(self) -> bool:
+        return any(group.has_controller for group in self.groups)
+
 
 @dataclass(frozen=True)
 class _Row:
@@ -95,6 +114,7 @@ class _Row:
     literal_voice: tuple[str, ...] = ()
     voice_display: tuple[str, ...] | None = None
     columns: tuple[tuple[str, ...], ...] | None = None
+    controller: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -231,15 +251,25 @@ _SECTIONS: tuple[_Section, ...] = (
                     "a trigger and moving the controller turns and tilts them too",
                     (),
                     ("tilt_up", "tilt_down", "tilt_reset"),
+                    controller=(SQUEEZE_AND_MOVE,),
                 ),
                 _Row(
                     "cycle the video's VR projection — flat screen, equirectangular, "
                     "fisheye, stereographic, equisolid, rectilinear, 360, remembered per "
-                    "video; a controller's stick pushed right or left steps forward or "
-                    "back through them, and while the picture wraps the view its up and "
+                    "video; the stick pushed right or left steps forward or back "
+                    "through them, and while the picture wraps the view its up and "
                     "down shortens or stretches the picture",
                     (),
                     ("projection_cycle", "projection_cycle_back"),
+                    controller=(STICK_SIDEWAYS,),
+                ),
+                _Row(
+                    "move or size a VR screen — a squeeze on the handle over a screen "
+                    "carries it, and on the handles outside a picture's lower corners "
+                    "resizes it; the stick pushed forward or pulled back sizes the Main "
+                    "Funestra, and with the trigger held brings every screen nearer or "
+                    "farther",
+                    controller=(TRIGGER, STICK_UP_DOWN),
                 ),
             )),
         ),
@@ -315,10 +345,22 @@ _SECTIONS: tuple[_Section, ...] = (
             _Group("Navigation", (
                 _Row("previous", commands=_every_funestra("prev") + ("genau_prev_flick",),
                      columns=(("Left",), ("A",), ("M",))),
-                _Row("nudge back 10 seconds", commands=_every_funestra("nudge_prev"),
-                     columns=((), (), ("-",))),
-                _Row("nudge forward 10 seconds", commands=_every_funestra("nudge_next"),
-                     columns=((), (), ("+",))),
+                _Row(
+                    "nudge back 10 seconds — in the headset B or Y nudges the Main "
+                    "Funestra, and with the trigger held jumps to the previous scene "
+                    "marked in its video instead",
+                    commands=_every_funestra("nudge_prev"),
+                    columns=((), (), ("-",)),
+                    controller=(B_OR_Y,),
+                ),
+                _Row(
+                    "nudge forward 10 seconds — in the headset A or X nudges the Main "
+                    "Funestra, and with the trigger held jumps to the next scene marked "
+                    "in its video instead",
+                    commands=_every_funestra("nudge_next"),
+                    columns=((), (), ("+",)),
+                    controller=(A_OR_X,),
+                ),
                 _Row("next", commands=_every_funestra("next") + ("genau_next_flick",),
                      columns=(("Right",), ("D",), (".",))),
                 _Row(
@@ -381,7 +423,8 @@ _SECTIONS: tuple[_Section, ...] = (
                     "it goes straight there, in the headset an upper corner hanging it "
                     "over the Funestra's top edge and a lower one under its lower edge.  "
                     "A click in a corner of the picture sends it there and opens it, "
-                    "and so does a squeeze beside a side of the Funestra in the headset",
+                    "and so does a squeeze on the plus beside a side of the Funestra in "
+                    "the headset",
                     commands=(
                         "portrait_hud_left", "portrait_hud_right", "portrait_hud_up", "portrait_hud_down",
                         "landscape_hud_left", "landscape_hud_right", "landscape_hud_up", "landscape_hud_down",
@@ -393,6 +436,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     columns=(("Ctrl+Left", "Ctrl+Right", "Ctrl+Up", "Ctrl+Down"),
                              ("Ctrl+A", "Ctrl+D", "Ctrl+W", "Ctrl+S"),
                              ("Ctrl+M", "Ctrl+.")),
+                    controller=(TRIGGER,),
                 ),
                 _Row(
                     "minimize the HUD — it collapses to a square with a plus on it, "
@@ -424,9 +468,12 @@ _SECTIONS: tuple[_Section, ...] = (
             _Group("", (
                 _Row(
                     "open the browser — the library's videos in Kino mode, Genau's "
-                    f"{_FLICK.many} in Genau mode; the pick plays here",
+                    f"{_FLICK.many} in Genau mode; the pick plays here.  In the headset "
+                    "a squeeze opens a tile and the stick scrolls the list the pointer "
+                    "is over",
                     (),
                     ("browse_library",),
+                    controller=(TRIGGER, STICK_UP_DOWN),
                 ),
                 _Row(
                     "included video types — in Kino mode, the lengths: \"clips only\", "
@@ -668,6 +715,7 @@ def _reference_row(row: _Row, section: _Section) -> CommandRef:
         commands=row.commands,
         key_columns=_key_columns(row, section),
         detail=detail,
+        controller=row.controller,
     )
 
 
@@ -744,37 +792,55 @@ def _shared_out(total: int, parts: int) -> tuple[int, ...]:
     return (*(each,) * (parts - 1), total - each * (parts - 1))
 
 
-def _column_widths(width: int, key_columns: int) -> tuple[int, ...]:
-    """The action column, each key column and the voice column, in pixels."""
-    keys = _shared_out(HOTKEY_BLOCK_PX, key_columns)
-    return (width - sum(keys) - VOICE_COLUMN_PX, *keys, VOICE_COLUMN_PX)
+@dataclass(frozen=True)
+class _Columns:
+    action: int
+    keys: tuple[int, ...]
+    controller: int | None
+    voice: int = VOICE_COLUMN_PX
+
+    @classmethod
+    def laid_out(cls, width: int, group: ReferenceGroup, section: ReferenceSection) -> _Columns:
+        keys = _shared_out(HOTKEY_BLOCK_PX, len(section.key_headers) if group.has_keys else 0)
+        controller = CONTROLLER_COLUMN_PX if group.has_controller else None
+        return cls(width - sum(keys) - (controller or 0) - VOICE_COLUMN_PX, keys, controller)
 
 
-def _header_rows(section: ReferenceSection, widths: tuple[int, ...]) -> str:
+def _no_input() -> str:
+    return f'<span style="color:{_MUTED}">—</span>'
+
+
+def _header_rows(section: ReferenceSection, columns: _Columns) -> str:
     """One head row, or two where "Hotkey" spans a column per Funestra; no Hotkey over a keyless group."""
     row = f'<tr style="background:{_HEADER_BG}">'
-    action, *keys, voice = widths
-    if not keys:
-        return row + _head("Action", action) + _head(VOICE_HEADER, voice) + "</tr>"
-    if len(keys) == 1:
-        return (row + _head("Action", action) + _head(HOTKEY_HEADER, keys[0])
-                + _head(VOICE_HEADER, voice) + "</tr>")
+    forked = len(columns.keys) > 1
+    span = ' rowspan="2"' if forked else ""
+    controller = ("" if columns.controller is None
+                  else _head(CONTROLLER_HEADER, columns.controller, span=span))
+    tail = controller + _head(VOICE_HEADER, columns.voice, span=span) + "</tr>"
+    if not columns.keys:
+        return row + _head("Action", columns.action) + tail
+    if not forked:
+        return row + _head("Action", columns.action) + _head(HOTKEY_HEADER, columns.keys[0]) + tail
     return (
-        row + _head("Action", action, span=' rowspan="2"')
-        + _head(HOTKEY_HEADER, None, span=f' colspan="{len(keys)}"', underlined=True)
-        + _head(VOICE_HEADER, voice, span=' rowspan="2"') + "</tr>"
+        row + _head("Action", columns.action, span=span)
+        + _head(HOTKEY_HEADER, None, span=f' colspan="{len(columns.keys)}"', underlined=True)
+        + tail
         + row + "".join(_head(header, width)
-                        for header, width in zip(section.key_headers, keys, strict=True))
+                        for header, width in zip(section.key_headers, columns.keys, strict=True))
         + "</tr>"
     )
 
 
-def _key_cells(row: CommandRef, widths: tuple[int, ...]) -> str:
-    return "".join(
-        _cell(" ".join(_keycap(key) for key in column) or f'<span style="color:{_MUTED}">—</span>',
-              width)
-        for column, width in zip(row.key_columns, widths, strict=True)
-    )
+def _input_cells(row: CommandRef, columns: _Columns) -> str:
+    """The row's keys under each key column, then its controller inputs."""
+    cells = [
+        _cell(" ".join(_keycap(key) for key in column) or _no_input(), width)
+        for column, width in zip(row.key_columns if columns.keys else (), columns.keys, strict=True)
+    ]
+    if columns.controller is not None:
+        cells.append(_cell(html.escape(", ".join(row.controller)) or _no_input(), columns.controller))
+    return "".join(cells)
 
 
 def render_reference_html(width: int) -> str:
@@ -795,19 +861,15 @@ def render_reference_html(width: int) -> str:
                 parts.append(
                     f'<h4 style="color:{_TEXT};margin:10px 0 2px 0">{html.escape(group.title)}</h4>'
                 )
-            widths = _column_widths(width, len(section.key_headers) if group.has_keys else 0)
+            columns = _Columns.laid_out(width, group, section)
             parts.append(f'<table width="{width}" cellspacing="0" cellpadding="0">')
-            parts.append(_header_rows(section, widths))
+            parts.append(_header_rows(section, columns))
             for row in group.rows:
                 action = (_anchored(row.description, next(anchors), color=_TEXT) if row.detail
                           else html.escape(row.description))
-                keys = _key_cells(row, widths[1:-1]) if group.has_keys else ""
-                phrases = (
-                    ", ".join(f'“{html.escape(p)}”' for p in row.voice)
-                    or f'<span style="color:{_MUTED}">—</span>'
-                )
-                parts.append("<tr>" + _cell(action, widths[0]) + keys
-                             + _cell(phrases, widths[-1]) + "</tr>")
+                phrases = ", ".join(f'“{html.escape(p)}”' for p in row.voice) or _no_input()
+                parts.append("<tr>" + _cell(action, columns.action) + _input_cells(row, columns)
+                             + _cell(phrases, columns.voice) + "</tr>")
             parts.append("</table>")
     parts.append("</body>")
     return "".join(parts)

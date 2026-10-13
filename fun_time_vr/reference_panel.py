@@ -19,6 +19,7 @@ from shared_ui.palette import (
 from shared_ui.spacing import BUTTON_MARK, BUTTON_RADIUS, BUTTON_SIZE
 
 from fun_time.command_reference import (
+    CONTROLLER_HEADER,
     HOTKEY_HEADER,
     VOICE_HEADER,
     ReferenceSection,
@@ -56,8 +57,9 @@ _ROW_PX = 12
 _ROW_H = 17
 _HEAD_H = BUTTON_SIZE + _PAD
 _NOTE_LINES_AT_MOST = 3
-# The desktop table's three columns: press, say, and what it does.
+# The desktop table's columns: press, the controller's where a page has one, say, and what it does.
 _KEY_X, _SAY_X, _WHAT_X = _PAD, 210, 400
+_CONTROLLER_X, _SAY_AFTER_CONTROLLER_X, _WHAT_AFTER_BOTH_X = 170, 300, 470
 _NO_KEY = "—"
 
 
@@ -86,9 +88,14 @@ def _header_lines_every_page_keeps() -> int:
 
 
 def column_heads(section: ReferenceSection) -> tuple[tuple[int, str], ...]:
-    """Where each column starts and what its head says; a keyless section has no key column."""
+    """Where each column starts and what its head says; a section has only the columns its rows fill."""
+    if section.has_keys and section.has_controller:
+        return ((_KEY_X, HOTKEY_HEADER), (_CONTROLLER_X, CONTROLLER_HEADER),
+                (_SAY_AFTER_CONTROLLER_X, VOICE_HEADER), (_WHAT_AFTER_BOTH_X, "What it does"))
     if section.has_keys:
         return ((_KEY_X, HOTKEY_HEADER), (_SAY_X, VOICE_HEADER), (_WHAT_X, "What it does"))
+    if section.has_controller:
+        return ((_KEY_X, CONTROLLER_HEADER), (_CONTROLLER_X, VOICE_HEADER), (_WHAT_X, "What it does"))
     return ((_KEY_X, VOICE_HEADER), (_WHAT_X, "What it does"))
 
 
@@ -101,6 +108,8 @@ def _keys_text(row, section: ReferenceSection) -> str:
 
 def _cells(row, section: ReferenceSection) -> tuple[tuple[int, str, int], ...]:
     texts = (", ".join(row.voice), row.description)
+    if section.has_controller:
+        texts = (", ".join(row.controller), *texts)
     if section.has_keys:
         texts = (_keys_text(row, section), *texts)
     xs = [x for x, _ in column_heads(section)]
