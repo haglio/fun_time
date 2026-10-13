@@ -170,6 +170,11 @@ class TestHudPublishing:
 
         assert console(tmp_path)["osr2_control"] == OSR2_PARKED
 
+    def test_the_console_is_told_the_room_is_paused(self, tmp_path):
+        make_feed(tmp_path).publish(replace(BridgeState(), omni_paused=True))
+
+        assert console(tmp_path)["paused"] is True
+
     def test_the_console_is_told_the_max_intensity_the_session_holds(self, tmp_path):
         feed = make_feed(tmp_path)
 
@@ -707,6 +712,12 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         assert portrait.osr2 == Osr2State.OFF
         assert portrait.osr2_control == OSR2_PARKED
         assert [button.command for button in portrait.osr2_controls] == ["broker_panel"]
+
+    def test_the_side_funestra_that_has_it_is_told_the_room_is_paused(self, tmp_path):
+        make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, omni_paused=True))
+
+        assert _published(tmp_path, "portrait").paused is True
+        assert _published(tmp_path, "landscape").paused is False
 
     def test_the_side_funestra_that_has_it_carries_the_max_intensity_on_its_line(self, tmp_path):
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, max_intensity=35))

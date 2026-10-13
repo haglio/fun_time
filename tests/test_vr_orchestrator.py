@@ -1659,7 +1659,7 @@ class TestOpeningAVrSession:
         _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "asked")
 
         assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines()[-1] == "PAUSE"
-        assert config.broker_cmd_file.read_text(encoding="utf-8") == "PARK"
+        assert config.broker_cmd_file.read_text(encoding="utf-8").split() == ["PARK"]
 
     def test_a_funestra_that_dies_mid_session_leaves_its_exit_code_in_the_log(self, config, caplog):
         died = MagicMock(pid=202, returncode=3221225477)
