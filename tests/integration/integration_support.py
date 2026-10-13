@@ -645,14 +645,15 @@ def tcode_heard(port: int, *, seconds: float) -> list[tuple[float, int, float]]:
         except BlockingIOError:
             break
     heard: list[tuple[float, int, float]] = []
-    started = time.monotonic()
-    while time.monotonic() < started + seconds:
+    budget = Budget(seconds)
+    started = run_clock.now()
+    while not budget.expired():
         try:
             datagram, (_host, sender) = sink.recvfrom(65536)
         except BlockingIOError:
             time.sleep(0.02)
             continue
-        at = round(time.monotonic() - started, 2)
+        at = round(run_clock.now() - started, 2)
         heard += [(at, sender, int(digits) / (10 ** len(digits) - 1))
                   for digits in re.findall(rb"L0(\d+)", datagram)]
     return heard

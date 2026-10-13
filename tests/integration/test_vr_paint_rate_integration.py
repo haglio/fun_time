@@ -15,7 +15,7 @@ from fun_time_vr.render import RenderTarget
 from fun_time_vr.scheduling import ahead_of_background_work
 
 from .integration_support import build_integration_temp_root, clip_of_a_test_pattern, wait_for
-from .run_clock import OnTimeClock
+from .run_clock import Budget, OnTimeClock
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32",
@@ -36,9 +36,9 @@ def _pictures_shown(video, target: RenderTarget, *, seconds: float) -> tuple[int
     shown = 0
     period = 1.0 / HEADSET_HZ
     began = time.monotonic()
-    gives_up = began + MEASURING_GIVES_UP_AFTER_S
+    gives_up = Budget(MEASURING_GIVES_UP_AFTER_S)
     with OnTimeClock(slack_s=1.0 / VIDEO_FPS) as on_time:
-        while on_time.seconds() < seconds and time.monotonic() < gives_up:
+        while on_time.seconds() < seconds and not gives_up.expired():
             started = time.perf_counter()
             if video.show_newest(target) and not on_time.held():
                 shown += 1
