@@ -41,7 +41,6 @@ HAND_AMPLITUDE = "AMP"
 HAND_CENTER = "CENTER"
 FLICK_SECONDS = "FLICK_SECONDS"
 CYCLE_SHAPE = "CYCLE_SHAPE"
-CRUISE_ON = "CRUISE_ON"
 LEARNED_ON = "LEARNED_ON"
 
 # What a reopened session does NOT come back believing; everything else does.
@@ -143,8 +142,6 @@ def resume_genau(genau_cmd_file: Path, state_dir: Path) -> None:
             (FLICK_SECONDS, drive.advance_interval, advance.interval),
         ) if value != opens_at]
         verbs += _shape_steps(drive.shape)
-    if status.cruise_active:
-        verbs.append(CRUISE_ON)
     if status.learned_active:
         verbs.append(LEARNED_ON)
     if not status.locked:

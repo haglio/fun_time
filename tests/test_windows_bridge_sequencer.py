@@ -499,7 +499,7 @@ class TestRunStartupSequence:
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         cfg.genau_status_file.parent.mkdir(parents=True, exist_ok=True)
         cfg.genau_status_file.write_text(
-            "cruise=0\nflick=C:\\flicks\\alpha.mp4\n", encoding="utf-8",
+            "flick=C:\\flicks\\alpha.mp4\n", encoding="utf-8",
         )
 
         with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:

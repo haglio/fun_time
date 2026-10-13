@@ -110,17 +110,11 @@ class TestPayload:
         assert _payload(main_mode=MainMode.GENAU, main_funestra=driving).osr2 == Osr2State.ROBOT_HAND
 
     def test_declares_genaus_own_switches_on_the_control_row(self):
-        payload = _payload(genau=GenauStatus(cruise_active=True, shape="sawtooth"))
-
-        assert _button(payload, "robot_hand_toggle_cruise").lit is True
-        assert _button(payload, "robot_hand_cycle_shape").tooltip == "Waveform: Sawtooth"
-
-    def test_declares_the_learned_motion_beside_cruise(self):
-        payload = _payload(genau=GenauStatus(learned_active=True))
+        payload = _payload(genau=GenauStatus(learned_active=True, shape="sawtooth"))
 
         assert _button(payload, "robot_hand_toggle_learned").lit is True
-        assert _button(payload, "robot_hand_toggle_cruise").lit is False
         assert _button(_payload(), "robot_hand_toggle_learned").lit is False
+        assert _button(payload, "robot_hand_cycle_shape").tooltip == "Waveform: Sawtooth"
 
     def test_declares_the_main_funestras_loop_machine_on_the_record_button(self):
         """The console is drawn in genau mode too, by a Funestra with no loop machine

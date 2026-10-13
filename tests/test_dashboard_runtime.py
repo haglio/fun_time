@@ -117,34 +117,22 @@ def test_a_genau_that_has_not_reported_yet_reads_at_the_defaults(tmp_path: Path)
     status = read_genau_status(tmp_path / "missing.txt")
 
     assert status == GenauStatus()
-    assert status.cruise_active is False
     assert status.shape == "sine"
 
 
-def test_read_genau_status_parses_active_cruise_and_shape(tmp_path: Path):
+def test_read_genau_status_parses_the_shape(tmp_path: Path):
     status_file = tmp_path / "genau_status.txt"
-    status_file.write_text("cruise=1\nshape=triangle\n", encoding="utf-8")
+    status_file.write_text("shape=triangle\n", encoding="utf-8")
 
-    status = read_genau_status(status_file)
-
-    assert status.cruise_active is True
-    assert status.shape == "triangle"
+    assert read_genau_status(status_file).shape == "triangle"
 
 
 def test_read_genau_status_parses_the_learned_motion(tmp_path: Path):
     status_file = tmp_path / "genau_status.txt"
-    status_file.write_text("cruise=0\nlearned=1\n", encoding="utf-8")
+    status_file.write_text("learned=1\n", encoding="utf-8")
 
     assert read_genau_status(status_file).learned_active is True
     assert read_genau_status(tmp_path / "missing.txt").learned_active is False
-
-
-def test_read_genau_status_says_whether_genau_is_the_hud_and_only_when_genau_said(tmp_path: Path):
-    status_file = tmp_path / "genau_status.txt"
-
-    status_file.write_text("hud=1\n", encoding="utf-8")
-    status_file.write_text("hud=0\n", encoding="utf-8")
-    status_file.write_text("cruise=0\n", encoding="utf-8")
 
 
 def test_read_genau_status_parses_the_flick_lock(tmp_path: Path):
@@ -159,20 +147,10 @@ def test_read_genau_status_defaults_the_flick_lock_to_on(tmp_path: Path):
     the lock — or none at all — must not light the console's padlock the wrong
     way."""
     status_file = tmp_path / "genau_status.txt"
-    status_file.write_text("cruise=0\n", encoding="utf-8")
+    status_file.write_text("shape=sine\n", encoding="utf-8")
 
     assert read_genau_status(status_file).locked is True
     assert read_genau_status(tmp_path / "missing.txt").locked is True
-
-
-def test_read_genau_status_handles_inactive_cruise(tmp_path: Path):
-    status_file = tmp_path / "genau_status.txt"
-    status_file.write_text("cruise=0\nshape=sawtooth\n", encoding="utf-8")
-
-    status = read_genau_status(status_file)
-
-    assert status.cruise_active is False
-    assert status.shape == "sawtooth"
 
 
 def test_read_main_funestra_status_parses_has_funscript(tmp_path: Path):
@@ -277,7 +255,7 @@ def test_read_genau_status_names_the_flick_on_screen(tmp_path: Path):
     """Genau rescans its folder every launch and opens at the top of it, so the
     flick it was left showing survives only by being published and handed back."""
     status_file = tmp_path / "genau_status.txt"
-    status_file.write_text("cruise=0\nflick=C:\\flicks\\alpha.mp4\n", encoding="utf-8")
+    status_file.write_text("flick=C:\\flicks\\alpha.mp4\n", encoding="utf-8")
 
     assert read_genau_status(status_file).flick == "C:\\flicks\\alpha.mp4"
 
@@ -293,7 +271,7 @@ def test_read_genau_status_reads_no_flick_before_one_is_up(tmp_path: Path):
     """Genau publishes from its refresh loop, which can run before the first flick
     is decoded — and an older Genau does not publish the key at all."""
     status_file = tmp_path / "genau_status.txt"
-    status_file.write_text("cruise=0\nflick=\n", encoding="utf-8")
+    status_file.write_text("flick=\n", encoding="utf-8")
 
     assert read_genau_status(status_file).flick == ""
     assert read_genau_status(tmp_path / "missing.txt").flick == ""

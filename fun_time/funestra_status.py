@@ -130,12 +130,10 @@ def _status_touch(values: dict) -> int | None:
 
 @dataclass(frozen=True)
 class GenauStatus:
-    cruise_active: bool = False
     learned_active: bool = False
     # Whether Genau is holding the flick on screen rather than letting its interval
     # carry it on — the same lock the Main Funestra has, and on for the same reason: a flick
-    # repeating is where Genau opens.  Cruise is a separate thing entirely; it
-    # varies the motion, never which flick plays.
+    # repeating is where Genau opens.
     locked: bool = True
     shape: str = "sine"
     # The flick on screen, as Genau published it — "" before the first one is up,
@@ -162,7 +160,6 @@ def read_genau_status(path: Path) -> GenauStatus:
     try:
         values = read_key_values(path)
         return GenauStatus(
-            cruise_active=_status_bool(values, "cruise"),
             learned_active=_status_bool(values, "learned"),
             locked=_status_bool(values, "locked", default=True),
             shape=values.get("shape", "sine").strip(),

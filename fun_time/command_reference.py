@@ -256,11 +256,10 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Set speed", (), (), ("speed 0–100",)),
             _Row("Previous waveform shape", (), ("robot_hand_cycle_shape_prev",)),
             _Row("Next waveform shape", ("I",), ("robot_hand_cycle_shape",)),
-            _Row("Enable / disable cruise control (varies the motion)", ("C",), ("robot_hand_toggle_cruise", "robot_hand_cruise_on", "robot_hand_cruise_off")),
             _Row(
                 "Enable / disable human-inspired motion — plays phrases from real "
                 "hand-made scripts in place of the waveform, inside the Amp and "
-                "Center bars, at the Speed bar's pace; switches cruise off",
+                "Center bars, at the Speed bar's pace",
                 ("Y",),
                 ("robot_hand_toggle_learned", "robot_hand_learned_on", "robot_hand_learned_off"),
             ),
@@ -275,8 +274,8 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             _Row(
                 "Off the hold — put the motion back to whatever it was doing "
-                "before the park or retract, cruise included.  Any of the three "
-                "words undoes either hold, and ends control off too",
+                "before the park or retract.  Any of the three words undoes "
+                "either hold, and ends control off too",
                 (),
                 ("robot_hand_release",),
             ),

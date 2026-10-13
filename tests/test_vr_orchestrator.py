@@ -874,12 +874,12 @@ class TestWhatAReopenCarriesIntoTheHeadset:
         (state_dir / GENAU_DRIVE).write_text(
             drive_text(DriveHud(speed=76, amplitude=100, center=50, advance_interval=10)),
             encoding="utf-8")
-        (state_dir / GENAU_STATUS).write_text("cruise=1\n", encoding="utf-8")
+        (state_dir / GENAU_STATUS).write_text("learned=1\n", encoding="utf-8")
 
         queued = _queued_when_the_funestra_launches(config, SessionEnvironment())
 
         assert queued["genau"][0] == "PAUSE", "the fresh session's reset must still lead"
-        assert queued["genau"][-2:] == ["SPEED 76", "CRUISE_ON"]
+        assert queued["genau"][-2:] == ["SPEED 76", "LEARNED_ON"]
 
 class TestHandingTheHeadsetOver:
     """The wait is the point: the arriving desktop session claims the very
