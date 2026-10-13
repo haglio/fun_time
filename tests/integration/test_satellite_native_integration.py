@@ -25,7 +25,7 @@ from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, thumbnail_for
 from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_startup import reap_orphaned_satellites
 
-from .integration_support import published_status
+from .integration_support import let_seconds_pass, published_status
 from .lone_satellite import LoneSatellite, a_lone_satellite, library_clips_of
 
 pytestmark = [
@@ -57,7 +57,7 @@ def test_native_satellite_plays_and_obeys_commands():
         satellite.wait_for(lambda: read_satellite_status(satellite.status).paused,
                            desc="the satellite to report paused")
         pos_a = published_status(read_satellite_status, satellite.status).position_ms
-        time.sleep(1.2)
+        let_seconds_pass(1.2)
         pos_b = published_status(read_satellite_status, satellite.status).position_ms
         assert pos_b == pos_a, f"paused satellite kept playing ({pos_a} -> {pos_b})"
         assert first.video  # a real clip was playing
@@ -83,7 +83,7 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone():
             "satellite",
             [elsewhere / "portrait_status.txt", elsewhere / "landscape_status.txt"],
         )
-        time.sleep(2.0)
+        let_seconds_pass(2.0)
         assert get_process_creation_time(satellite.pid) is not None, (
             "another session's startup reap killed this satellite")
 
@@ -127,7 +127,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
         # without disturbing playback.
         publish(locked=True)
         before = published_status(read_satellite_status, satellite.status).position_ms
-        time.sleep(2.0)
+        let_seconds_pass(2.0)
         after = published_status(read_satellite_status, satellite.status).position_ms
         assert after != before, (
             f"the satellite stopped publishing after the HUD redrew ({before} -> {after})")
@@ -155,7 +155,7 @@ def test_a_satellite_holds_a_picture_for_the_pace_it_is_sent_and_under_a_lock():
         first = satellite.wait_for(lambda: _the_picture_on_screen(satellite),
                                    desc="the satellite to show a picture")
         # Past the four seconds a Funestra opens at, so only the nought can be holding it.
-        time.sleep(6.0)
+        let_seconds_pass(6.0)
         assert satellite.video() == first, "a picture held at a pace of nought moved on"
 
         satellite.send(f"{SET_PACE} 1")
@@ -166,7 +166,7 @@ def test_a_satellite_holds_a_picture_for_the_pace_it_is_sent_and_under_a_lock():
         satellite.wait_for(lambda: read_satellite_status(satellite.status).locked,
                            desc="the satellite to lock")
         held = satellite.video()
-        time.sleep(3.0)
+        let_seconds_pass(3.0)
         assert satellite.video() == held, "a locked picture moved on at a one-second pace"
 
 

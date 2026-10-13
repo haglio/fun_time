@@ -187,6 +187,10 @@ def seen_within(look, *, seconds: float, every_s: float = 0.2):
     return seen
 
 
+def let_seconds_pass(seconds: float) -> None:
+    seen_within(lambda: None, seconds=seconds, every_s=0.05)
+
+
 def wait_for(predicate, *, desc: str, timeout: float = COMMAND_BUDGET_S,
              explain: Callable[[], str] | None = None):
     if last := seen_within(predicate, seconds=timeout):
@@ -354,7 +358,7 @@ class FunTimeIntegrationSession:
         self._wait_for_own_log(
             "Session up; startup hold released", after=already_logged, timeout=wait_seconds
         )
-        time.sleep(1.0)
+        let_seconds_pass(1.0)
         self._log_pos = self.windows_bridge_log.stat().st_size if self.windows_bridge_log.exists() else 0
 
     def start_one_that_stops_starting_up(self, wait_seconds: float = START_BUDGET_S,

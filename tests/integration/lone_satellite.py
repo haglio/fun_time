@@ -22,6 +22,7 @@ from .integration_support import (
     RELEASE_BUDGET_S,
     build_integration_temp_root,
     checkout_project_dirs,
+    let_seconds_pass,
     published_ago,
     published_status,
     real_config_path,
@@ -117,7 +118,7 @@ class LoneSatellite:
             yield self
         finally:
             self.send(QUIT)
-            time.sleep(1.0)
+            let_seconds_pass(1.0)
             end_satellite(self.process, self.log)
 
 
