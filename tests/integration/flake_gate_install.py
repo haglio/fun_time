@@ -12,7 +12,7 @@ from pathlib import Path
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
-FLAKE_GATE = "app-support @ git+https://github.com/haglio/app_support@v0.1.165"
+FLAKE_GATE = "app-support @ git+https://github.com/haglio/app_support@v0.1.197"
 
 
 def flake_gate_python(state_dir: Path) -> Path:
