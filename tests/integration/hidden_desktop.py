@@ -51,15 +51,16 @@ from functools import partial
 from pathlib import Path
 from time import monotonic
 
+from app_support.integration_runs import runs_dir
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
-from fun_time.checkout_overrides import STATE_DIRNAME, primary_of
+from fun_time.checkout_overrides import primary_of
 from fun_time.win32_job import a_job_whose_processes_end_with_it
 from fun_time.win32_loader import load_dll, win_functype
 
 from .coverage_map import CoverageMap, Picked, changed_paths, tests_to_run, the_machine_s_map
 from .flake_gate_install import flake_gate_python
-from .line_record import Visit
+from .line_record import RUN_RECORD_ENV, Visit
 from .run_clock import WALL, Budget, RunClock, busy_seconds_of_job, keep_time_by
 from .session_lock import (
     FULL_RUN_GIVES_WAY_S,
@@ -498,14 +499,13 @@ def _is_short(extra_args: list[str]) -> bool:
 
 
 LINE_RECORDS_ENV = "FUN_TIME_LINE_RECORDS"
-LINE_RECORDS_DIRNAME = "integration_runs"
 CLAUDE_SESSION_ENV = "CLAUDE_CODE_SESSION_ID"
 
 
 def _line_records() -> Path:
     if elsewhere := os.environ.get(LINE_RECORDS_ENV):
         return Path(elsewhere)
-    return primary_of(_repo_root()) / STATE_DIRNAME / LINE_RECORDS_DIRNAME
+    return runs_dir(primary_of(_repo_root()))
 
 
 def _branch_of(checkout: Path) -> str:
@@ -519,9 +519,14 @@ def _a_place_in_line(*, short: bool, what: list[str]) -> Iterator[Visit]:
     root = _repo_root()
     visit = Visit.join(_line_records(), checkout=root.name, branch=_branch_of(root),
                        session=os.environ.get(CLAUDE_SESSION_ENV, ""), what=what, short=short)
-    with hold_integration_lock(short=short, notify=_announce_waiting):
-        visit.got_the_machine()
-        yield visit
+    try:
+        with hold_integration_lock(short=short, notify=_announce_waiting):
+            visit.got_the_machine()
+            os.environ[RUN_RECORD_ENV] = str(visit.path)
+            yield visit
+    finally:
+        os.environ.pop(RUN_RECORD_ENV, None)
+        visit.leave()
 
 
 def _repeat_what_changed(base: str) -> int:

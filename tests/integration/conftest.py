@@ -35,6 +35,7 @@ from .integration_support import (
     close_udp_sinks,
     keep_every_sessions_logs,
 )
+from .line_record import require_a_run_that_holds_the_machine
 from .throwaway_chrome import ThrowawayChrome
 
 # Only on the desktop this suite is allowed to run on.  Importing this file is not
@@ -47,17 +48,18 @@ if sys.platform != "win32" or on_hidden_desktop():
     os.environ.pop("SDL_VIDEODRIVER", None)
 
 
-def _refuse_a_run_off_the_hidden_desktop() -> None:
-    """End the run rather than let an integration test reach the user's screen."""
+def refuse_a_run_that_may_not_start() -> None:
+    """End a run that would reach the user's screen, or that Line was not told of."""
     if sys.platform != "win32":
         return
     try:
         require_hidden_desktop()
-    except RuntimeError as wrong_desktop:
+        require_a_run_that_holds_the_machine()
+    except RuntimeError as refused:
         # pytest.exit rather than letting it propagate: an exception out of a
         # hook is reported as an INTERNALERROR traceback, which reads
         # as a broken harness instead of what it is — the run being invoked wrongly.
-        pytest.exit(str(wrong_desktop), returncode=REFUSED_EXIT_CODE)
+        pytest.exit(str(refused), returncode=REFUSED_EXIT_CODE)
 
 
 _THE_RUNS_CLOCK = pytest.StashKey[tuple[run_clock.RunClock, float]]()
@@ -95,7 +97,7 @@ def pytest_sessionstart(session):
     now desktop-scoped with no fallback, and would silently skip its cleanup here
     rather than sweep the machine.
     """
-    _refuse_a_run_off_the_hidden_desktop()
+    refuse_a_run_that_may_not_start()
 
 
 def pytest_collection_modifyitems(session, config, items):
@@ -115,7 +117,7 @@ def pytest_collection_modifyitems(session, config, items):
     reached.  ``norecursedirs`` decides what an ordinary run *collects*; this
     decides what is allowed to *launch*, and only the second is a guard.
     """
-    _refuse_a_run_off_the_hidden_desktop()
+    refuse_a_run_that_may_not_start()
 
 
 FAILURE_EVIDENCE = Path(__file__).resolve().parents[2] / "state" / "integration_failures"

@@ -23,6 +23,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from app_support.integration_runs import read_runs
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.win32_loader import load_dll
@@ -42,6 +43,7 @@ from tests.integration.hidden_desktop import (
     create_run_job,
     main,
 )
+from tests.integration.line_record import RUN_RECORD_ENV
 from tests.integration.main_verifier import measured_run_environment, measured_sources
 from tests.integration.run_clock import keep_time_by
 from tests.integration.session_lock import Place, SingleInstanceLock, Waiting, hold_integration_lock
@@ -233,7 +235,8 @@ def test_the_flake_gate_runs_from_an_install_of_its_own_made_before_the_queue(tm
 
 @contextlib.contextmanager
 def _runs_launched_into(launched: list[tuple[str, str]], *, changed_files=(), exit_codes=(),
-                        ceilings: list[float] | None = None, places: list[dict] | None = None):
+                        ceilings: list[float] | None = None, places: list[dict] | None = None,
+                        told: list[str | None] | None = None):
     codes = iter(exit_codes)
 
     def hold(**place):
@@ -243,6 +246,8 @@ def _runs_launched_into(launched: list[tuple[str, str]], *, changed_files=(), ex
 
     def launch(cmdline, desktop, cwd, job, environment=None):
         launched.append((cmdline, str(environment["__PYVENV_LAUNCHER__"])))
+        if told is not None:
+            told.append(environment.get(RUN_RECORD_ENV))
         return SimpleNamespace(hProcess=None)
 
     def wait(process, ceiling_s):
@@ -281,6 +286,33 @@ def test_every_run_records_the_claude_session_that_asked_for_it(tmp_path, monkey
 
     [written] = tmp_path.glob("*.json")
     assert json.loads(written.read_text(encoding="utf-8"))["session"] == "5e55-10n"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_the_tests_a_run_starts_are_told_which_written_down_run_is_theirs(tmp_path, monkeypatch):
+    monkeypatch.setenv("FUN_TIME_LINE_RECORDS", str(tmp_path))
+    told: list[str | None] = []
+    with _runs_launched_into([], told=told):
+        hidden_desktop.run_on_hidden_desktop(["-k", "test_x"])
+
+    [written] = tmp_path.glob("*.json")
+    assert told == [str(written)]
+    assert RUN_RECORD_ENV not in os.environ
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_a_run_whose_tests_could_not_be_started_still_writes_down_that_it_ended(tmp_path, monkeypatch):
+    monkeypatch.setenv("FUN_TIME_LINE_RECORDS", str(tmp_path))
+
+    def refuse(*args, **kwargs):
+        raise OSError("the hidden desktop's tests could not be started")
+
+    with (_runs_launched_into([]), patch.object(hidden_desktop, "_launch_on_desktop", refuse),
+          pytest.raises(OSError)):
+        hidden_desktop.run_on_hidden_desktop(["-k", "test_x"])
+
+    [written] = read_runs(tmp_path)
+    assert (written.ended is not None, written.exit_code) == (True, None)
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
