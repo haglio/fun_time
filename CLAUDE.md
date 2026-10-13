@@ -52,7 +52,7 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 
 ## Standing rules a comment cannot enforce
 
-- **A Funestra is one of the room's three slots, never the app in it, and "player" in his words means the same thing.** The Main, Portrait and Landscape Funestras are the slots; Kino, Genau and Origenerator are what plays in them. Kino is the mode that used to be called Video, renamed so that "video" can only ever mean a video file; older notes and memories still say "video mode", and none of it reaches him. A feature he gives "the Main Funestra" holds in Genau mode too, although `main_funestra/` is only Kino's: the crown shipped Kino-only and he answered that Genau was the main reason for it (2026-09-26). A Funestra is funestra's window, which plays what it is handed and draws its own HUD; the code called it a player until 2026-10-10. Kino, Genau and an Origenerator Slideshow run on a Funestra, and nothing sits between the two: never a player that "runs on" or "has" one. The near miss that still counts: "the satellites run on a Funestra" -- the satellite program is the window, so each satellite is one.
+- **A Funestra is one of the room's three slots, never the app in it, and "player" in his words means the same thing.** The Main, Portrait and Landscape Funestras are the slots; Kino, Genau and Origenerator are what plays in them. Kino is the mode that used to be called Video, renamed so that "video" can only ever mean a video file; older notes and memories still say "video mode", and none of it reaches him. A feature he gives "the Main Funestra" holds in Genau mode too, although `main_funestra/` is only Kino's: the crown shipped Kino-only and he answered that Genau was the main reason for it (2026-09-26). A Funestra is funestra's window, which plays what it is handed and draws its own HUD; the code called it a player until 2026-10-10. Kino, Genau and an Origenerator Slideshow run on a Funestra, and nothing sits between the two: never a player that "runs on" or "has" one. And a Funestra runs on nothing, since the rest runs on it: the venv its code is loaded from is one Fun Time starts it from, never one it runs on or out of. The near miss that still counts: "the satellites run on a Funestra" -- the satellite program is the window, so each satellite is one.
 
 - **The two controllers are interchangeable: nothing in the headset gives the left and right hand different jobs, and a control the sticks and buttons cannot spare goes on the keyboard, on a key found by feel.** He uses one controller at a time; a wrapped picture's angle sat on the left stick and its height on the right, and he answered "I can't use both controllers at once. I treat the controllers in Fun Time as interchangeable, and the code should too" (2026-09-27). The angle went to Alt with Left and Right, in the arrow cluster.
 
@@ -271,10 +271,10 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   `state/fun_time_branch_config.json` records what his last launch actually
   ran.
 
-- **Every Funestra runs out of this repo's venv, the Main Funestra
+- **Fun Time starts every Funestra from this repo's venv, the Main Funestra
   (`FunTime-MainFunestra.exe`) beside the satellites and the orchestrator, so
-  this repo's own funestra pin is the only one a Fun Time change moves.** The
-  Main Funestra ran out of `../genau/.venv` until 2026-10-13, which held Fun
+  this repo's own funestra pin is the only one a Fun Time change moves.** It
+  started the Main Funestra from `../genau/.venv` until 2026-10-13, which held Fun
   Time changes back until Genau's pin moved and that venv was reinstalled while
   he was not using Fun Time; a config still naming `paths.genau_python_exe` is
   ignored.
