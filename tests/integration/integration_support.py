@@ -41,7 +41,6 @@ from fun_time.process_tree import kill_process_tree
 from fun_time.room_funestras import RoomFunestra
 from fun_time.win32_process import (
     command_line_of,
-    get_process_creation_time,
     get_process_image_name,
     is_process_alive,
 )
@@ -178,7 +177,8 @@ COMMAND_BUDGET_S = 120.0
 SESSION_MONITORS = (MonitorRect(0, 0, 1280, 720), MonitorRect(1280, 0, 720, 1440))
 
 
-def wait_for(predicate, *, desc: str, timeout: float = COMMAND_BUDGET_S):
+def wait_for(predicate, *, desc: str, timeout: float = COMMAND_BUDGET_S,
+             explain: Callable[[], str] | None = None):
     budget = Budget(timeout)
     last = None
     while not budget.expired():
@@ -186,10 +186,11 @@ def wait_for(predicate, *, desc: str, timeout: float = COMMAND_BUDGET_S):
         if last:
             return last
         time.sleep(0.2)
-    raise AssertionError(f"Timed out waiting for {desc} (last={last!r})")
+    raise AssertionError(f"Timed out waiting for {desc} (last={last!r})"
+                         + ("" if explain is None else f"\n{explain()}"))
 
 
-def _published_ago(status_file: Path, now: float) -> str:
+def published_ago(status_file: Path, now: float) -> str:
     try:
         return f"{now - status_file.stat().st_mtime:.0f}s ago"
     except OSError:
@@ -454,7 +455,7 @@ class FunTimeIntegrationSession:
     def _last_published(self) -> str:
         now = time.time()
         return "; ".join(
-            f"{name} {_published_ago(status_file, now)}"
+            f"{name} {published_ago(status_file, now)}"
             for name, status_file in (
                 ("Main Funestra", self.config.main_funestra_status_file),
                 ("portrait", self.config.satellite(RoomFunestra.PORTRAIT).status_file),
@@ -792,10 +793,14 @@ def point_the_main_funestra_at(config: dict, videos_dir: Path) -> None:
     main_funestra["scripts_dir"] = str(videos_dir).replace(LIBRARY_MARKER, SCRIPTS_MARKER)
 
 
+def state_dir_of(root: Path) -> Path:
+    return root.resolve() / "integration_runtime" / "state"
+
+
 def build_integration_config(tmp_path: Path, *, genau_dir: Path | None = None) -> Path:
     real = load_config(real_config_path())
-    integration_root = tmp_path.resolve() / "integration_runtime"
-    state_dir = integration_root / "state"
+    state_dir = state_dir_of(tmp_path)
+    integration_root = state_dir.parent
     weird_dir = integration_root / "weird"
     portrait_dir = integration_root / "portrait"
     landscape_dir = integration_root / "landscape"
@@ -850,8 +855,7 @@ def build_integration_temp_root() -> Path:
     return root
 
 
-def keep_every_sessions_logs(keep_in: Path) -> Path | None:
-    """Copy what each session of this run logged into a dated dir under *keep_in*."""
+def keep_what_the_run_logged(keep_in: Path) -> Path | None:
     if not RUN_ROOTS:
         return None
     stamp = time.strftime("%Y%m%d-%H%M%S")
@@ -861,7 +865,7 @@ def keep_every_sessions_logs(keep_in: Path) -> Path | None:
         suffix += 1
         kept = Path(keep_in) / f"{stamp}.{suffix}"
     for number, root in enumerate(RUN_ROOTS, 1):
-        state = root / "integration_runtime" / "state"
+        state = state_dir_of(root)
         if state.is_dir():
             shutil.copytree(state, kept / f"{number:02d}-{root.name}")
     return kept
@@ -890,30 +894,6 @@ def clear_run_roots(*, budget_s: float = RELEASE_BUDGET_S, sleep=time.sleep) -> 
         raise RootsLeftBehind(
             "this run's temp roots are still in the system temp dir:\n"
             + "\n".join(f"{root}: {refusal}" for root, refusal in refused))
-
-
-def identify_child(pid: int) -> ChildProcess:
-    return ChildProcess(pid=pid, created_at=get_process_creation_time(pid) or 0)
-
-
-def end_satellite(satellite: ChildProcess, log: Path, *, budget_s: float = RELEASE_BUDGET_S,
-                  sleep=time.sleep) -> None:
-    kill_recorded_child(satellite)
-    budget = Budget(budget_s)
-    while not _let_go(log):
-        if budget.expired():
-            raise AssertionError(
-                f"the satellite (pid {satellite.pid}) still holds {log} "
-                f"{budget_s:g}s after its process tree was ended")
-        sleep(0.5)
-
-
-def _let_go(log: Path) -> bool:
-    try:
-        log.unlink(missing_ok=True)
-    except PermissionError:
-        return False
-    return True
 
 
 def _remove_each(roots) -> list[tuple[Path, OSError]]:

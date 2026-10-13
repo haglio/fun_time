@@ -19,8 +19,8 @@ from funestra.funestra_verbs import SEEK_BACK, SEEK_FWD
 from fun_time.runtime_flow import write_flag_file
 from fun_time.satellite_control import read_satellite_status
 
-from .integration_support import published_status, wait_for
-from .test_satellite_navigation_integration import launched
+from .integration_support import published_status
+from .lone_satellite import a_lone_satellite
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="Windows only"),
@@ -45,17 +45,20 @@ def _test_pattern(folder: Path, *, seconds: int) -> str:
     return str(clip)
 
 
-def test_seek_steps_a_held_clip_ten_seconds_either_way(tmp_path):
+def test_seek_steps_a_held_clip_ten_seconds_either_way():
     """A clip made for the test rather than a sample, since stepping ten seconds
     both ways needs one longer than most of the library's."""
-    with launched(tmp_path, [_test_pattern(tmp_path, seconds=40)],
-                  width=640, height=360) as satellite:
+    satellite = a_lone_satellite()
+    with satellite.launched([_test_pattern(satellite.sources, seconds=40)],
+                            width=640, height=360, hud=True):
+        satellite.wait_until_playing()
         write_flag_file(satellite.paused, True)
-        wait_for(lambda: read_satellite_status(satellite.status).paused,
-                 desc="the satellite to hold still")
+        satellite.wait_for(lambda: read_satellite_status(satellite.status).paused,
+                           desc="the satellite to hold still")
         for verb, step in ((SEEK_FWD, SEEK_STEP_MS), (SEEK_BACK, -SEEK_STEP_MS)):
             aim = published_status(read_satellite_status, satellite.status).position_ms + step
             satellite.send(verb)
-            wait_for(lambda aim=aim: abs(read_satellite_status(satellite.status).position_ms - aim)
-                     <= SEEK_SLACK_MS,
-                     desc=f"{verb} to land the held clip at {aim} ms")
+            satellite.wait_for(
+                lambda aim=aim: abs(read_satellite_status(satellite.status).position_ms - aim)
+                <= SEEK_SLACK_MS,
+                desc=f"{verb} to land the held clip at {aim} ms")

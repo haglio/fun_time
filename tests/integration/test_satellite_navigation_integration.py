@@ -11,23 +11,18 @@ Requires: FUN_TIME_RUN_INTEGRATION=1 and a real display (the hidden-desktop runn
 """
 from __future__ import annotations
 
-import glob
 import os
 import sys
 import time
-from contextlib import contextmanager
-from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from funestra.file_channel import append_command
-from funestra.funestra_verbs import LOCK_ON, QUIT, play_file
+from funestra.funestra_verbs import LOCK_ON, play_file
 from funestra.playlist import read_playlist
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
-from fun_time.config import load_config
 from fun_time.filter_vocab import load_camera_words
 from fun_time.hud_transport import HudPublisher
 from fun_time.lock_hud import HudPanel
@@ -35,18 +30,9 @@ from fun_time.modes import write_playlist_file
 from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
-from fun_time.windows_bridge_startup import launch_satellite
-from satellite.contract import SatelliteChannels, WindowPlacement
 
-from .integration_support import (
-    checkout_project_dirs,
-    end_satellite,
-    identify_child,
-    published_status,
-    real_config_path,
-    sample_library_clips,
-    wait_for,
-)
+from .integration_support import published_status
+from .lone_satellite import LoneSatellite, a_lone_satellite, library_clips_of
 from .run_clock import Budget
 
 pytestmark = [
@@ -58,114 +44,18 @@ pytestmark = [
 ]
 
 
-
-class _Satellite:
-    """A launched native satellite plus the files that drive and observe it."""
-
-    def __init__(self, pid: int, cmd: Path, paused: Path, status: Path, playlist: Path,
-                 hud: Path, log: Path):
-        self.pid = pid
-        self.cmd = cmd
-        self.paused = paused
-        self.status = status
-        self.playlist = playlist
-        self.hud = hud
-        self.log = log
-
-    def send(self, verb: str) -> None:
-        append_command(self.cmd, verb)
-
-    def log_tail(self, lines: int = 25) -> str:
-        """The end of the Funestra's own log, for a failure message.
-
-        It carries mpv's warnings and errors as well as the Funestra's own lines, so
-        a Funestra that stopped drawing says here why it stopped — the answer is
-        never anywhere else, and the temp dir is gone by the time anyone looks.
-        """
-        try:
-            text = self.log.read_text(encoding="utf-8", errors="replace")
-        except OSError as err:
-            return f"(no log: {err})"
-        return "\n".join(text.splitlines()[-lines:])
-
-    def video(self) -> str:
-        return published_status(read_satellite_status, self.status).video
-
-    def wait_for_video(self, *, other_than: str = "") -> str:
-        return wait_for(
-            lambda: (lambda v: v if v and v != other_than else None)(self.video()),
-            desc=f"the satellite's clip to settle (not {other_than!r})",
-        )
-
-
-def library_videos(which: str, count: int) -> list[str]:
-    """*count* random clips out of a side's real library."""
-    paths = getattr(load_config(real_config_path()).paths, f"{which}_dirs")
-    return sample_library_clips(
-        glob.glob(os.path.join(str(paths[0]), "**", "*.mp4"), recursive=True),
-        count, desc=f"{which} clips")
-
-
-@contextmanager
-def launched(tmp_path: Path, videos: list[str], *, width: int, height: int):
-    """A native satellite playing *videos*, on the portrait quartet, taken down after.
-
-    The window size is the caller's because it decides what mpv actually decodes:
-    a satellite's real slot is the whole monitor, and the clips filling it are the
-    library's biggest.
-    """
-    playlist = tmp_path / "portrait_playlist.tsv"
-    write_playlist_file(playlist, videos)
-    cmd = tmp_path / "portrait_cmd.txt"
-    paused = tmp_path / "portrait_paused.txt"
-    status = tmp_path / "portrait_status.txt"
-    hud = tmp_path / "portrait_hud.json"
-    log = tmp_path / "portrait_satellite.log"
-
-    pid = launch_satellite(
-        python_exe=str(load_config(real_config_path()).paths.python_exe),
-        satellite_module="satellite",
-        channels=SatelliteChannels(
-            playlist=playlist,
-            command=cmd,
-            paused=paused,
-            status=status,
-            play_points=tmp_path / "portrait_play_points.json",
-            hud=hud,
-            dashboard_cmd=tmp_path / "dashboard_cmd.txt"),
-        placement=WindowPlacement(x=0, y=0, width=width, height=height,
-                                  title="Portrait AI Funestra"),
-        role="Portrait",
-        log_file=log,
-        # This checkout's siblings, as a session launches them.
-        project_dirs=checkout_project_dirs(),
-    )
-    satellite_process = identify_child(pid)
-    sat = _Satellite(pid, cmd, paused, status, playlist, hud, log)
-    try:
-        wait_for(
-            lambda: (lambda s: True if s.duration_ms > 0 and s.position_ms > 0 else None)(
-                read_satellite_status(status)),
-            desc="the satellite to start playing",
-        )
-        yield sat
-    finally:
-        append_command(cmd, QUIT)
-        time.sleep(1.0)
-        end_satellite(satellite_process, log)
-
-
 @pytest.fixture
-def satellite(tmp_path):
-    """Launch a native satellite on a random real portrait playlist, playing."""
-    with launched(tmp_path, library_videos("portrait", 4), width=800, height=600) as sat:
+def satellite():
+    lone = a_lone_satellite()
+    with lone.launched(library_clips_of("portrait", 4), width=800, height=600, hud=True):
+        lone.wait_until_playing()
         # Lock so the clip on screen never auto-advances mid-test, making each
         # navigation's effect unambiguous.  A locked satellite still obeys NEXT/PREV
         # (they load a new clip); it just does not walk on its own.
-        sat.send(LOCK_ON)
-        wait_for(lambda: read_satellite_status(sat.status).locked,
-                 desc="the satellite to lock")
-        yield sat
+        lone.send(LOCK_ON)
+        lone.wait_for(lambda: read_satellite_status(lone.status).locked,
+                      desc="the satellite to lock")
+        yield lone
 
 
 def test_next_changes_the_clip(satellite):
@@ -231,22 +121,22 @@ def test_reload_playlist_keeps_the_current_clip(satellite):
     assert satellite.video() == current, "RELOAD_PLAYLIST should keep the current clip"
 
 
-def _playlist_videos(satellite: _Satellite) -> list[str]:
+def _playlist_videos(satellite: LoneSatellite) -> list[str]:
     return [str(item.path) for item in read_playlist(satellite.playlist)]
 
 
-def _bridge_config(satellite: _Satellite, tmp_path: Path) -> BridgeConfig:
+def _bridge_config(satellite: LoneSatellite) -> BridgeConfig:
     """A BridgeConfig whose portrait side drives this launched satellite.
 
     Only the portrait quartet has to be real — the loop commands touch just the
-    satellite they address — so every other file points somewhere under tmp_path.
+    satellite they address — so every other file points somewhere beside it.
     """
     # The state dir is where a rebuild writes the side's playlist, and the satellite
-    # is already reading tmp_path/portrait_playlist.tsv — the same name — so they have
+    # is already reading portrait_playlist.tsv there — the same name — so they have
     # to be the same directory or the rebuild would land beside the running Funestra.
-    state_dir = tmp_path
-    state_dir.mkdir(parents=True, exist_ok=True)
-    favs = tmp_path / "favs.csv"
+    state_dir = satellite.folder
+    runtime = state_dir.parent
+    favs = state_dir / "favs.csv"
     favs.write_text("local_file,web_url\n", encoding="utf-8")
     return BridgeConfig(
         portrait_cmd_file=satellite.cmd,
@@ -258,11 +148,11 @@ def _bridge_config(satellite: _Satellite, tmp_path: Path) -> BridgeConfig:
         landscape_status_file=state_dir / "landscape_status.txt",
         landscape_playlist_file=state_dir / "landscape_playlist.tsv",
         favs_file=favs,
-        weird_dir=tmp_path / "weird",
+        weird_dir=runtime / "weird",
         state_dir=state_dir,
-        main_sources=str(tmp_path / "primary"),
-        portrait_sources=str(tmp_path / "portrait"),
-        landscape_sources=str(tmp_path / "landscape"),
+        main_sources=str(runtime / "primary"),
+        portrait_sources=str(satellite.sources),
+        landscape_sources=str(runtime / "landscape"),
         broker_mode_file=state_dir / "broker_mode.txt",
         genau_cmd_file=state_dir / "genau_cmd.txt",
         genau_paused_file=state_dir / "genau_paused.txt",
@@ -276,7 +166,7 @@ def _bridge_config(satellite: _Satellite, tmp_path: Path) -> BridgeConfig:
     )
 
 
-def _drained(satellite: _Satellite) -> None:
+def _drained(satellite: LoneSatellite) -> None:
     """Block until the Funestra has consumed everything on its command file.
 
     No file at all is the drained state, and the usual one: the Funestra claims the
@@ -298,10 +188,10 @@ def _drained(satellite: _Satellite) -> None:
         except PermissionError:
             return False  # claimed this instant; ask again next poll
 
-    wait_for(empty, desc="the Funestra to drain its command file")
+    satellite.wait_for(empty, desc="the Funestra to drain its command file")
 
 
-def test_latest_puts_the_newest_clip_on_screen(satellite, tmp_path):
+def test_latest_puts_the_newest_clip_on_screen(satellite):
     """The user-visible contract of "portrait latest": the newest arrival is what
     comes up.
 
@@ -311,11 +201,9 @@ def test_latest_puts_the_newest_clip_on_screen(satellite, tmp_path):
     dispatch over a small real source tree with mtimes we set, so "newest" is a fact
     of the filesystem rather than of a stub.
     """
-    source = tmp_path / "sources"
-    source.mkdir()
     linked: list[str] = []
     for i, video in enumerate(_playlist_videos(satellite)):
-        dest = source / f"clip{i}.mp4"
+        dest = satellite.sources / f"clip{i}.mp4"
         os.link(video, dest)  # the same bytes under a path whose mtime is ours
         os.utime(dest, (1000 + i * 1000, 1000 + i * 1000))
         linked.append(str(dest))
@@ -324,17 +212,16 @@ def test_latest_puts_the_newest_clip_on_screen(satellite, tmp_path):
     # Start on the oldest, which the rebuilt list still holds: without the jump to
     # the head, the reload would simply keep playing it.
     satellite.send(f"PLAY_FILE {oldest}")
-    wait_for(lambda: Path(satellite.video()) == Path(oldest), desc="the oldest clip")
+    satellite.wait_for(lambda: Path(satellite.video()) == Path(oldest), desc="the oldest clip")
 
-    config = replace(_bridge_config(satellite, tmp_path), portrait_sources=str(source))
-    dispatch_command("portrait_latest", BridgeState(), config)
+    dispatch_command("portrait_latest", BridgeState(), _bridge_config(satellite))
 
     _drained(satellite)
-    wait_for(lambda: Path(satellite.video()) == Path(newest),
-             desc="the newest clip to come up")
+    satellite.wait_for(lambda: Path(satellite.video()) == Path(newest),
+                       desc="the newest clip to come up")
 
 
-def test_no_loop_keeps_the_clip_on_screen_playing(satellite, tmp_path):
+def test_no_loop_keeps_the_clip_on_screen_playing(satellite):
     """Turning a loop OFF must leave the clip on screen alone, changing only what
     comes up next — the whole contract of the loop toggle.
 
@@ -346,7 +233,7 @@ def test_no_loop_keeps_the_clip_on_screen_playing(satellite, tmp_path):
     from, since the real library might happen to include the clip on screen and
     then never exercise the case at all.
     """
-    config = _bridge_config(satellite, tmp_path)
+    config = _bridge_config(satellite)
     playing = satellite.video()
     browse = [v for v in _playlist_videos(satellite) if v != playing]
     assert playing not in browse
@@ -359,14 +246,14 @@ def test_no_loop_keeps_the_clip_on_screen_playing(satellite, tmp_path):
     assert satellite.video() == playing, "loop off must never switch the clip on screen"
 
 
-def test_next_leaves_a_loop_down_to_one_clip_for_another_clip(satellite, tmp_path):
-    config = _bridge_config(satellite, tmp_path)
+def test_next_leaves_a_loop_down_to_one_clip_for_another_clip(satellite):
+    config = _bridge_config(satellite)
     playing = satellite.video()
     browse = [v for v in _playlist_videos(satellite) if v != playing]
     write_playlist_file(satellite.playlist, [playing])
     satellite.send("RELOAD_PLAYLIST")
-    wait_for(lambda: read_satellite_status(satellite.status).playlist_length == 1,
-             desc="the loop to hold only the clip on screen")
+    satellite.wait_for(lambda: read_satellite_status(satellite.status).playlist_length == 1,
+                       desc="the loop to hold only the clip on screen")
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_next", BridgeState(portrait=SatelliteState(loop="seed", locked=True)), config)
@@ -374,7 +261,7 @@ def test_next_leaves_a_loop_down_to_one_clip_for_another_clip(satellite, tmp_pat
     assert satellite.wait_for_video(other_than=playing) in browse
 
 
-def _decoding(satellite: _Satellite) -> bool:
+def _decoding(satellite: LoneSatellite) -> bool:
     """Whether the Funestra still has a decoded clip on screen.
 
     ``duration_ms`` and ``position_ms`` are mpv's own ``duration`` / ``time_pos``,
@@ -401,12 +288,14 @@ def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
     next while the current still decodes, and widening is exactly what puts a
     satellite into a tight loop over a handful of them.
     """
-    videos = library_videos("landscape", 8)
-    with launched(tmp_path, videos[:3], width=1706, height=1410) as satellite:
+    videos = library_clips_of("landscape", 8)
+    satellite = a_lone_satellite()
+    with satellite.launched(videos[:3], width=1706, height=1410, hud=True):
+        satellite.wait_until_playing()
         satellite.send(LOCK_ON)
-        wait_for(lambda: read_satellite_status(satellite.status).locked,
-                 desc="the satellite to lock")
-        config = _bridge_config(satellite, tmp_path)
+        satellite.wait_for(lambda: read_satellite_status(satellite.status).locked,
+                           desc="the satellite to lock")
+        config = _bridge_config(satellite)
         playing = satellite.video()
         others = [v for v in videos if v != playing]
         family, widened = [playing, others[0]], [playing, *others]
@@ -458,8 +347,6 @@ def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
                 blank = blank or Budget(8.0)
                 assert not blank.expired(), (
                     f"the Funestra stopped decoding for good, {len(seen)} clip(s) into the "
-                    f"widened loop (video={Path(status.video).name!r}, "
-                    f"pos={status.position_ms}, dur={status.duration_ms})\n"
-                    f"--- Funestra log ---\n{satellite.log_tail()}")
+                    f"widened loop\n{satellite.what_it_last_said()}")
             time.sleep(0.25)
         assert len(seen) > 1, f"the loop never advanced, so nothing was proven (saw {len(seen)})"
