@@ -29,7 +29,7 @@ from funestra.robot_hand import FULL_INTENSITY
 from .audio_volume import MAX_VOLUME
 from .crown import Crown
 from .mode_plan import STARTUP_MAIN_MODE
-from .origenerator_switches import KINO_MODE, RfbSlot
+from .origenerator_switches import KINO_MODE, RfbSlot, origenerator_shows
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .room_funestras import RoomFunestra
 
@@ -138,6 +138,10 @@ class BridgeState:
         if RoomFunestra(funestra) is RoomFunestra.PORTRAIT:
             return replace(self, portrait=satellite)
         return replace(self, landscape=satellite)
+
+    def origenerator_holds_a_satellite(self) -> bool:
+        return any(origenerator_shows(self.satellite(funestra).mode)
+                   for funestra in RoomFunestra.SATELLITES)
 
 
 SHARED_STATE_FILENAME = "shared_bridge_state.ini"

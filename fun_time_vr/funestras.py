@@ -68,7 +68,6 @@ from fun_time.genau_config import GenauSettings
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item
 from fun_time.project_paths import PROJECT_VR_ICON
-from fun_time.satellites_mode import origenerator_shows
 from fun_time.session_handoff import (
     headset_hold_asked,
     headset_hold_stops_the_runtime,
@@ -1321,7 +1320,7 @@ class _BannerUnit:
         self.screen.close()
 
 
-class _GalleryUnit:  # the hosted app's window, shown in origenerator mode
+class _GalleryUnit:  # the hosted app's window
     SPOTS = {GALLERY: Placement(azimuth_deg=-100.0, elevation_deg=2.0, width_deg=95.0)}
 
     def __init__(self, *, remembered: Mapping[str, Placement], state_dir: Path,
@@ -1365,7 +1364,7 @@ class _GalleryUnit:  # the hosted app's window, shown in origenerator mode
 
     def pump(self, stop: threading.Event, now: float) -> None:
         state = read_shared_state(self._shared_state_file)
-        wanted = state is not None and origenerator_shows(state.satellites_mode)
+        wanted = state is not None and state.origenerator_holds_a_satellite()
         events = list(self._presses.drain())
         self.showing = wanted
         if not wanted:
