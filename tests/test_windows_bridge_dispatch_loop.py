@@ -3412,7 +3412,7 @@ class TestOpeningInOrigeneratorMode:
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
 
-        runner.open_in_origenerator_mode(
+        runner.activate_origenerator(
             wait_for_the_app=self._the_app_answers)
 
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
@@ -3427,8 +3427,8 @@ class TestOpeningInOrigeneratorMode:
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
 
-        assert runner.opens_in_origenerator_mode
-        runner.open_in_origenerator_mode(wait_for_the_app=self._the_app_answers)
+        assert runner.activates_origenerator
+        runner.activate_origenerator(wait_for_the_app=self._the_app_answers)
 
         assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.KINO]
@@ -3438,7 +3438,7 @@ class TestOpeningInOrigeneratorMode:
         runner = make_runner(tmp_path, config=_hosting(tmp_path),
                              origenerator_already_open=True, origenerator_showing=True)
 
-        runner.open_in_origenerator_mode(
+        runner.activate_origenerator(
             wait_for_the_app=self._the_app_answers)
 
         assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
@@ -3455,7 +3455,7 @@ class TestOpeningInOrigeneratorMode:
             waits.append(True)
             return has_answered()
 
-        runner.open_in_origenerator_mode(wait_for_the_app=wait_for_the_app)
+        runner.activate_origenerator(wait_for_the_app=wait_for_the_app)
 
         assert not waits, "an ordinary room was held under its cover for the hosted app"
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.KINO]
@@ -3470,7 +3470,7 @@ class TestOpeningInOrigeneratorMode:
             BridgeState(rfb_slot=RfbSlot.ORIGENERATOR)))
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
 
-        runner.open_in_origenerator_mode(wait_for_the_app=lambda _: False)
+        runner.activate_origenerator(wait_for_the_app=lambda _: False)
         assert _modes(read_shared_state(state_file)) == [SatellitesMode.KINO, SatellitesMode.KINO]
         assert read_shared_state(state_file).rfb_slot is RfbSlot.RFB
 
@@ -3487,11 +3487,11 @@ class TestOpeningInOrigeneratorMode:
         write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(BridgeState()))
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
-        runner.open_in_origenerator_mode(
+        runner.activate_origenerator(
             wait_for_the_app=self._the_app_answers)
         sent = (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8")
 
-        runner.open_in_origenerator_mode(
+        runner.activate_origenerator(
             wait_for_the_app=self._the_app_answers)
 
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == sent

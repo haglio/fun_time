@@ -135,11 +135,11 @@ from fun_time.windows_bridge_dispatch_loop import (
 )
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
+    activate_origenerator_under_the_cover,
     add_dispatch_file_handler,
     clear_last_sessions_leftovers,
     kill_recorded_child,
     let_go_of_a_kept_origenerator,
-    open_in_origenerator_mode,
     prepare_voice_control,
     see_the_hosted_app_out,
     start_hud_priming,
@@ -661,7 +661,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             hud_publisher=hud_publisher,
             origenerator_showing=hosted is not None and hosted.showing,
         )
-        open_in_origenerator_mode(dispatch_runner, progress=progress)
+        activate_origenerator_under_the_cover(dispatch_runner, progress=progress)
         progress.advance("finalizing")  # the last line, after any wait under the cover
 
         # --- The reveal ---

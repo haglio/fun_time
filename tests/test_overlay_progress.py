@@ -5,10 +5,10 @@ from pathlib import Path
 import pytest
 
 from fun_time.overlay_progress import (
+    ACTIVATING_ORIGENERATOR,
     CANCEL_FILENAME,
     CANCEL_OPENING_FUN_TIME,
     CANCEL_WORD,
-    COMING_BACK_TO_ORIGENERATOR_MODE,
     LAUNCH_PHASES,
     PROGRESS_FILENAME,
     QUIT_WORD,
@@ -174,15 +174,20 @@ class TestStartupPhases:
         keys = [phase.key for phase in STARTUP_PHASES]
         assert len(keys) == len(set(keys))
 
-    def test_the_wait_for_the_mode_runs_before_the_line_that_fills_the_bar(self):
-        """A room left in origenerator mode waits out that app under the cover.
+    def test_the_wait_for_origenerator_runs_before_the_line_that_fills_the_bar(self):
+        """A room left with Origenerator showing waits out that app under the cover.
         Put after the last line, that wait read as a step past "Finalizing..."
         with the bar already full -- finished, and still working."""
         keys = [phase.key for phase in STARTUP_PHASES]
-        coming_back = keys.index(COMING_BACK_TO_ORIGENERATOR_MODE)
+        activating = keys.index(ACTIVATING_ORIGENERATOR.key)
 
-        assert coming_back == keys.index("finalizing") - 1
-        assert STARTUP_PHASES[coming_back].weight > 0, "the bar would be full while it waits"
+        assert activating == keys.index("finalizing") - 1
+        assert STARTUP_PHASES[activating].weight > 0, "the bar would be full while it waits"
+
+    def test_the_cover_says_origenerator_is_activating_whatever_it_comes_back_into(self):
+        """A room can come back with only one satellite on Origenerator's
+        slideshow and the browser in its place, so the step names the app."""
+        assert ACTIVATING_ORIGENERATOR.message == "Activating Origenerator..."
 
     def test_the_launch_names_its_own_work_before_the_room_arrives(self):
         """Loading itself and checking the Funestras' engine took seconds off an
