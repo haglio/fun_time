@@ -1322,7 +1322,7 @@ class _BannerUnit:
 
 
 class _GalleryUnit:  # the hosted app's window, shown in origenerator mode
-    SPOTS = {GALLERY: Placement(azimuth_deg=-71.0, elevation_deg=2.0, width_deg=37.0)}
+    SPOTS = {GALLERY: Placement(azimuth_deg=-100.0, elevation_deg=2.0, width_deg=95.0)}
 
     def __init__(self, *, remembered: Mapping[str, Placement], state_dir: Path,
                  shared_state_file: Path) -> None:
