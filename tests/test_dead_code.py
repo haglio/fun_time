@@ -329,12 +329,12 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6166 on 2026-10-13: cruise control left Fun Time, and its notes with it.
 # 6165 the same day: the reveal's two dwells are named, so the comment saying
 # which frames counted went with them.
-# 6134 on 2026-10-12: the hotkeys and voice reference's sections now say which
+# 6075 on 2026-10-12: the hotkeys and voice reference's sections now say which
 # part of the room and which mode each row belongs to, and the comments that
 # said so row by row went.
-# 6130 the same day: the Main Funestra's keys reach whatever is on it, and the
+# 6071 the same day: the Main Funestra's keys reach whatever is on it, and the
 # note on the video navigating behind Genau's flick went with that behavior.
-# 6109 the same day: the reference module says in one paragraph what its tests
+# 6050 the same day: the reference module says in one paragraph what its tests
 # state, and the notes on each of its fields went.
 # 6130 on 2026-10-13: "kino next" went, and with it the note on mode-named
 # navigation.
@@ -342,7 +342,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # the key, and the note on its target with it.
 # 6110 the same day: the lengths are said as the shapes are, and the note on
 # "mixed" being taken went with the word.
-MAX_PROSE_LINES = 6109
+MAX_PROSE_LINES = 6050
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

@@ -30,7 +30,7 @@ from funestra.robot_hand import FULL_INTENSITY, RobotHandState
 from .audio_volume import MAX_VOLUME
 from .crown import Crown
 from .mode_plan import STARTUP_MAIN_MODE
-from .origenerator_switches import KINO_MODE, RfbSlot
+from .origenerator_switches import KINO_MODE, RfbSlot, origenerator_shows
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .room_funestras import RoomFunestra
 

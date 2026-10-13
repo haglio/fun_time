@@ -1496,16 +1496,19 @@ def _said_to_sides_in_two_modes(command: str, state: BridgeState,
     return said if len(hosted) > 1 else ()
 
 
+def _hosting(config: BridgeConfig) -> bool:
+    return config.origenerator_enabled and config.origenerator_cmd_file is not None
+
+
 def hosts(funestra: RoomFunestra | None, state: BridgeState, config: BridgeConfig) -> bool:
     """Whether the hosted app holds *funestra*: a Satellite Funestra in its
     Origenerator mode, in a session hosting the app."""
-    return (funestra in RoomFunestra.SATELLITES and config.origenerator_enabled
-            and config.origenerator_cmd_file is not None
+    return (funestra in RoomFunestra.SATELLITES and _hosting(config)
             and origenerator_shows(state.satellite(funestra).mode))
 
 
 def hosts_a_satellite(state: BridgeState, config: BridgeConfig) -> bool:
-    return any(hosts(funestra, state, config) for funestra in RoomFunestra.SATELLITES)
+    return _hosting(config) and state.origenerator_holds_a_satellite()
 
 
 def origenerator_holds_the_rfb_slot(state: BridgeState, config: BridgeConfig) -> bool:
