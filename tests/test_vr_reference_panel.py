@@ -65,7 +65,7 @@ class TestItIsTheSameReference:
         by_title = {section.title: section for section in build_reference_sections()}
 
         assert header_lines(by_title["Funestras"]) == 2
-        assert header_lines(by_title["Satellite Funestras - Kino"]) == 2
+        assert header_lines(by_title["Satellite Funestras"]) == 2
         assert header_lines(by_title["Dashboard"]) == 1
 
     def test_no_page_runs_its_rows_past_its_lower_edge(self):

@@ -12,6 +12,7 @@ from fun_time.command_reference import (
     HOTKEY_HEADER,
     VOICE_HEADER,
     CommandRef,
+    ReferenceGroup,
     ReferenceSection,
     _collapse_scopes,
     _display_voice,
@@ -19,6 +20,7 @@ from fun_time.command_reference import (
     reference_details,
     render_reference_html,
 )
+from fun_time.console_buttons import MODE_BUTTONS
 from fun_time.content import Noun, genau_flick_noun
 from fun_time.filter_vocab import display_forms, filter_voice_commands, load_acts
 from fun_time.voice_commands import VOICE_COMMANDS, friendly_voice
@@ -158,10 +160,10 @@ def test_cycle_action_and_seed_are_spoken_only():
     for cmd, (phrase, shown) in expected.items():
         assert VOICE_COMMANDS[phrase] == cmd
         assert cmd not in queued, f"{cmd} is spoken-only and must hold no key"
-        for row in _one_row_per_satellite_mode(cmd):
-            assert _keys(row) == ()
-            # The scopes share one row, so the Say column shows the folded phrase.
-            assert shown in row.voice
+        row = _the_row_of(cmd)
+        assert _keys(row) == ()
+        # The scopes share one row, so the Say column shows the folded phrase.
+        assert shown in row.voice
 
 
 def test_the_group_loops_are_cycled_by_one_key_per_side():
@@ -178,29 +180,29 @@ def test_the_group_loops_are_cycled_by_one_key_per_side():
         assert bound is not None, f"{cmd} must be bound in the AHK hotkey script"
         # AHK writes letter hotkeys lowercase; the reference labels them uppercase.
         assert bound.lower() == key.lower(), f"{cmd} is on {bound!r}, expected {key!r}"
-        for row in _one_row_per_satellite_mode(cmd):
-            # The sides share a row, each key under its own column.
-            assert row.key_columns[column] == (key,)
+        # The sides share a row, each key under its own column.
+        assert _the_row_of(cmd).key_columns[column] == (key,)
     for cmd in ("portrait_no_loop", "landscape_no_loop"):
         assert _ahk_binding_for(cmd) is None, f"{cmd} gave its key to the cycle"
-        for row in _one_row_per_satellite_mode(cmd):
-            assert _keys(row) == ()
+        assert _keys(_the_row_of(cmd)) == ()
 
 
 def _section(title: str) -> ReferenceSection:
     return {s.title: s for s in build_reference_sections()}[title]
 
 
+def _group(section_title: str, group_title: str) -> ReferenceGroup:
+    return {group.title: group for group in _section(section_title).groups}[group_title]
+
+
 def _satellite_sections() -> tuple[ReferenceSection, ...]:
-    return tuple(s for s in build_reference_sections() if s.title.startswith("Satellite Funestras"))
-
-
-def _satellite_mode_sections() -> tuple[ReferenceSection, ...]:
-    return tuple(s for s in _satellite_sections() if not s.title.endswith("General"))
+    """The two sections with a key column per satellite side: what the sides
+    answer in either mode, and the map they both browse by."""
+    return (_section("Satellite Funestras"), _section("Nav Map"))
 
 
 def _satellite_section() -> ReferenceSection:
-    return _section("Satellite Funestras - Kino")
+    return _section("Satellite Funestras")
 
 
 def _funestras_section() -> ReferenceSection:
@@ -212,15 +214,10 @@ def _shared_sections() -> tuple[ReferenceSection, ...]:
     return (_funestras_section(), *_satellite_sections())
 
 
-def _one_row_per_satellite_mode(cmd: str) -> list[CommandRef]:
-    """What a satellite's keys and words do differs by its mode, so a command
-    of theirs has one row in each mode's section and none anywhere else."""
-    owning = [row for row in _all_rows() if cmd in row.commands]
-    per_section = [[row for row in section.rows if cmd in row.commands]
-                   for section in _satellite_mode_sections()]
-    assert [len(rows) for rows in per_section] == [1] * len(per_section), cmd
-    assert len(owning) == len(per_section), f"{cmd} has a row outside the mode sections"
-    return owning
+def _the_row_of(cmd: str) -> CommandRef:
+    """A satellite's command has one row, whichever mode the side is in."""
+    [row] = [row for row in _all_rows() if cmd in row.commands]
+    return row
 
 
 def test_every_scope_shares_one_grid_with_a_key_column_per_funestra():
@@ -268,18 +265,15 @@ def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
     for section in _shared_sections():
         for word in ("portrait", "landscape", "satellites"):
             assert word in section.note
-        for group in section.groups:
-            if group.title == "Slideshow":
-                continue  # said with the side on purpose: bare "genau" is Genau mode
-            for row in group.rows:
-                if row.description.startswith(("filter by act", "drop ")):
-                    continue  # the filter phrases scope themselves differently; see below
-                for phrase in row.voice:
-                    if _collapse_scopes(phrase) not in sayable_bare:
-                        continue
-                    assert not {"portrait", "landscape", "satellites", "main"} & set(phrase.split()), (
-                        f"{phrase!r} still carries a scope word"
-                    )
+        for row in section.rows:
+            if row.description.startswith(("filter by act", "drop ", "favorites")):
+                continue  # the filters scope themselves differently; bare "favorites" is no phrase
+            for phrase in row.voice:
+                if _collapse_scopes(phrase) not in sayable_bare:
+                    continue
+                assert not {"portrait", "landscape", "satellites", "main"} & set(phrase.split()), (
+                    f"{phrase!r} still carries a scope word"
+                )
 
 
 def test_the_grid_carries_every_satellites_and_active_command():
@@ -308,7 +302,7 @@ def test_the_grid_carries_every_satellites_and_active_command():
 def test_the_bare_phrases_read_as_the_say_column():
     """The side-agnostic phrases are what the grid shows — the whole point of
     folding the scope word out is that "next" is the entry a reader sees."""
-    rows = _funestras_section().rows + _satellite_section().rows
+    rows = [row for section in _shared_sections() for row in section.rows]
     by_command = {cmd: r for r in rows for cmd in r.commands}
     expected = {
         "active_lock_on": "lock",
@@ -326,11 +320,13 @@ def test_the_bare_phrases_read_as_the_say_column():
         assert phrase in by_command[cmd].voice
 
 
-def test_the_f_mode_row_offers_favorites_only_with_a_side_named():
+def test_a_sides_favorites_are_their_own_row_said_with_the_side_named():
     f_mode = next(r for r in _funestras_section().rows if "active_fmode" in r.commands)
+    [favorites] = [r for r in _satellite_section().rows if r.description == "favorites"]
 
-    assert {"portrait favorites", "landscape favorites"} <= set(f_mode.voice)
-    assert "favorites" not in f_mode.voice
+    assert f_mode.voice == ("f mode", "f mode on", "f mode off")
+    assert favorites.voice == ("portrait favorites", "landscape favorites")
+    assert set(favorites.commands) == {"portrait_say_favorites", "landscape_say_favorites"}
 
 
 def test_the_shared_grid_carries_every_funestras_own_playback_speed():
@@ -517,7 +513,7 @@ def test_the_genau_row_shows_each_phrase_once_though_the_recognizer_hears_two_sp
 
 def test_the_reference_names_genaus_flicks_in_the_overlays_word():
     flick = genau_flick_noun()
-    genau = _section("Main Funestra - Genau")
+    genau = _group("Main Funestra", "Genau")
     seconds = next(row for row in genau.rows if "genau_flick_seconds_up" in row.commands)
 
     assert [row.description for row in genau.rows[:2]] == [
@@ -539,33 +535,29 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
     assert any(key.lower() == "g" for key in _keys(row))
 
 
-def test_the_sections_are_the_dashboard_the_room_the_osr2_every_funestra_and_each_with_its_modes():
-    """The dashboard's buttons in their order, what is left of the room, VR, the
-    OSR2, what every Funestra answers, then the Main Funestra and the two
-    Satellite Funestras, each with the rows that hold in both of its modes
-    first and one section per mode after."""
+def test_the_sections_are_the_dashboard_vr_the_osr2_every_funestra_each_funestra_the_map_origenerator_and_the_rest():
     titles = [s.title for s in build_reference_sections()]
     assert titles == [
         "Dashboard",
-        "General",
         "VR",
         "OSR2",
         "Funestras",
-        "Main Funestra - General",
-        "Main Funestra - Kino",
-        "Main Funestra - Genau",
-        "Satellite Funestras - General",
-        "Satellite Funestras - Kino",
-        "Satellite Funestras - Origenerator",
+        "Main Funestra",
+        "Satellite Funestras",
+        "Nav Map",
+        "Origenerator",
+        "Other",
     ]
 
 
 def test_every_section_is_read_in_groups_of_a_few_rows_each():
     """Twenty rows under one heading is a wall; each section's rows come in
-    titled groups, and no section is one group of everything."""
+    groups, only the first of which may go untitled, and a short flat section
+    is the one group of everything allowed."""
     for section in build_reference_sections():
         assert section.groups, section.title
-        assert all(group.title and group.rows for group in section.groups), section.title
+        assert all(group.rows for group in section.groups), section.title
+        assert all(group.title for group in section.groups[1:]), section.title
         assert len(section.groups) > 1 or len(section.rows) <= 6, section.title
         assert section.rows == tuple(row for group in section.groups for row in group.rows)
 
@@ -585,57 +577,53 @@ def test_what_a_row_explains_is_its_detail_and_what_it_names_is_its_description(
         assert not row.description.endswith(":"), row.description
 
 
-def test_the_genau_groups_title_takes_the_overlays_word_like_its_rows(monkeypatch):
+def test_the_genau_groups_rows_take_the_overlays_word(monkeypatch):
     monkeypatch.setattr(content, "genau_flick_noun", lambda: Noun(one="bloop", many="bloops"))
     try:
-        genau = next(section for section in importlib.reload(command_reference).build_reference_sections()
-                     if section.title == "Main Funestra - Genau")
-        assert (genau.groups[0].title, genau.groups[0].rows[0].description) == ("Bloops", "previous Genau bloop")
+        main = next(section for section in importlib.reload(command_reference).build_reference_sections()
+                    if section.title == "Main Funestra")
+        genau = main.groups[-1]
+        assert (genau.title, genau.rows[0].description) == ("Genau", "previous Genau bloop")
     finally:
         monkeypatch.undo()
         importlib.reload(command_reference)
 
 
 
-def test_genaus_flick_commands_are_the_genau_mode_section_and_nothing_else_is():
+def test_genaus_flick_commands_are_the_genau_group_and_nothing_else_is():
     """The dispatch ignores a flick command in Kino mode, so the rows it owns
-    are the Genau-mode section's, and nothing that holds in both modes or in
-    Kino mode is there."""
-    in_genau = {cmd for row in _section("Main Funestra - Genau").rows for cmd in row.commands}
-    elsewhere = {cmd for section in build_reference_sections()
-                 if section.title != "Main Funestra - Genau"
-                 for row in section.rows for cmd in row.commands}
+    are the Genau group's, and nothing that holds in both modes or in Kino
+    mode is there."""
+    genau = _group("Main Funestra", "Genau")
+    in_genau = {cmd for row in genau.rows for cmd in row.commands}
+    elsewhere = {cmd for row in _all_rows() if row not in genau.rows for cmd in row.commands}
 
     assert in_genau and all(_about_genaus_flick(cmd) for cmd in in_genau)
     assert not [cmd for cmd in elsewhere if _about_genaus_flick(cmd)]
 
 
-def test_what_only_kino_answers_is_the_kino_mode_section_and_nothing_else_is():
+def test_what_only_kino_answers_is_the_kino_group_and_nothing_else_is():
     """The dispatch ignores these in Genau mode -- the video's own lock, loop,
     versions, length and jumps, and the clip save -- so their rows are the
-    Kino-mode section's alone."""
+    Kino group's alone."""
     kino_only = set(_MAIN_FUNESTRA_CMD_MAP) | {"genaumacher_save"}
-    in_kino = {cmd for row in _section("Main Funestra - Kino").rows for cmd in row.commands}
-    elsewhere = {cmd for section in build_reference_sections()
-                 if section.title != "Main Funestra - Kino"
-                 for row in section.rows for cmd in row.commands}
+    kino = _group("Main Funestra", "Kino")
+    in_kino = {cmd for row in kino.rows for cmd in row.commands}
+    elsewhere = {cmd for row in _all_rows() if row not in kino.rows for cmd in row.commands}
 
     assert kino_only <= in_kino
     assert not kino_only & elsewhere
 
 
-def test_a_satellite_key_means_something_in_each_mode_and_sits_on_the_same_key():
+def test_a_satellites_command_has_one_row_whichever_mode_the_side_is_in():
     """What a satellite's key does changes with the side's mode -- a clip in
-    Kino mode, a slide of the slideshow in Origenerator mode -- and the key itself
-    does not, so each mode's section carries the key under the same command."""
-    keyed = {}
-    for section in _satellite_mode_sections():
-        keyed[section.title] = {cmd: row.key_columns for row in section.rows
-                                for cmd in row.commands if _keys(row)}
-    kino, origenerator = keyed.values()
-
-    assert kino == origenerator
-    assert {"landscape_trash", "portrait_nav_up", "landscape_loop", "satellites_cycle_version"} <= set(kino)
+    Kino mode, a slide of the slideshow in Origenerator mode -- and the key
+    itself does not, so one row carries it and its detail says both."""
+    for cmd in ("landscape_trash", "portrait_nav_up", "landscape_loop", "satellites_cycle_version"):
+        assert _keys(_the_row_of(cmd)), cmd
+    assert "in Origenerator mode" in _the_row_of("portrait_trash").detail
+    versions = _the_row_of("satellites_cycle_version")
+    assert "in Kino mode" in versions.detail and "in Origenerator mode" in versions.detail
 
 
 def test_the_main_funestras_step_and_hold_keys_reach_whatever_is_on_it():
@@ -656,8 +644,8 @@ def test_the_main_funestras_step_and_hold_keys_reach_whatever_is_on_it():
     assert keyed["main_prev"] == ("M",)
     assert keyed["main_next"] == (".",)
     assert keyed["main_lock"] == (",",)
-    assert keyed["main_nudge_prev"] == ("-",)
-    assert keyed["main_nudge_next"] == ("+",)
+    assert _keys(_the_row_of("main_nudge_prev")) == ("-",)
+    assert _keys(_the_row_of("main_nudge_next")) == ("+",)
 
 
 def test_the_shifted_and_ctrl_pairs_followed_m_and_the_period():
@@ -669,7 +657,7 @@ def test_the_shifted_and_ctrl_pairs_followed_m_and_the_period():
     assert _ahk_bindings_for("main_hud_counterclockwise") == ["^m"]
     assert _ahk_bindings_for("main_hud_clockwise") == ["^SC034"]
     assert not re.search(r"^[+^]?(\[|\]|SC01A|SC01B)::", script_text(), re.MULTILINE)
-    versions = next(r for r in _section("Main Funestra - Kino").rows
+    versions = next(r for r in _section("Main Funestra").rows
                     if "main_player_cycle_version_back" in r.commands)
     assert _keys(versions) == ("Shift+M", "Shift+.", "V")
     hud = next(r for r in _funestras_section().rows if "main_hud_clockwise" in r.commands)
@@ -685,7 +673,7 @@ def test_the_backslash_key_offsets_the_hand_and_the_browser_has_its_own_key():
     hand_backslash = [r for r in _section("OSR2").rows if "\\" in _keys(r)]
     assert [r.commands for r in hand_backslash] == [("quarter_button",)]
     assert not [r for r in _all_rows() if "\\" in _keys(r) and "quarter_button" not in r.commands]
-    browser = [r for r in _section("Main Funestra - General").rows if "browse_library" in r.commands]
+    browser = [r for r in _section("Main Funestra").rows if "browse_library" in r.commands]
     assert len(browser) == 1 and _keys(browser[0]) == ()
     assert "browse" in browser[0].voice
 
@@ -698,10 +686,9 @@ def test_kino_mode_is_spoken_as_written_of_either_side_or_of_both():
     assert VOICE_COMMANDS["satellite kino mode"] == "satellites_kino_activate"
     for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "video mode"):
         assert retired not in VOICE_COMMANDS, retired
-    main_rows = [r for r in _all_rows() if "main_kino_activate" in r.commands]
-    assert main_rows and main_rows[0].voice == ("main kino mode",)
-    kino_rows = [r for r in _all_rows() if "kino_activate" in r.commands]
-    assert kino_rows and kino_rows[0].voice == ("kino mode",)
+    [kino] = [r for r in _all_rows() if "kino_activate" in r.commands]
+    assert {"main_kino_activate", "satellites_kino_activate"} <= set(kino.commands)
+    assert kino.voice == ("kino mode",)
     genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
     assert genau_rows and genau_rows[0].voice == ("genau", "genau mode")
 
@@ -801,7 +788,8 @@ def test_corrected_descriptions():
     assert "Broker start / stop" not in descs
 
 
-_NAMES_AN_ACTION_MAY_OPEN_WITH = frozenset({"OmniPause", "F-mode", "VR", "Kino", "Genau"})
+_NAMES_AN_ACTION_MAY_OPEN_WITH = frozenset(
+    {"OmniPause", "F-mode", "VR", "Kino", "Genau", "Origenerator", "OSR2"})
 
 
 def test_an_action_opens_lowercase_unless_it_opens_with_a_name():
@@ -816,48 +804,57 @@ def test_the_dashboard_section_lists_its_buttons_in_the_bars_order():
     dashboard = _section("Dashboard")
 
     assert [(group.title, [row.description for row in group.rows]) for group in dashboard.groups] == [
-        ("Session", ["quit", "OmniPause / resume", "OmniPause", "relief OmniPause",
+        ("General", ["quit", "OmniPause / resume", "OmniPause", "relief OmniPause",
                      "open / close this hotkeys & voice reference", "disable voice control"]),
         ("Funestra", ["F-mode all", "reset all"]),
-        ("VR", ["enter VR / exit VR"]),
+        ("VR", ["enter / exit VR"]),
     ]
     assert dashboard.rows[-1].detail == ""
 
 
-def test_the_osr2_holds_are_rows_of_their_own_each_with_its_undoing_word():
+def test_the_osr2s_control_is_one_row_park_and_off_each_with_its_undoing_word():
     osr2 = _section("OSR2")
-    basic = osr2.groups[0]
+    [control] = osr2.groups[0].rows
 
     assert [group.title for group in osr2.groups] == ["Basic", "Robot Hand", "Broker"]
-    assert [(row.description, row.voice) for row in basic.rows] == [
-        ("park", ("park", "park it", "unpark")),
-        ("retract", ("retract", "unretract")),
-        ("resume", ("OSR2 resume",)),
-        ("control off", ("OSR2 off",)),
-    ]
-    assert all("robot_hand_release" in row.commands for row in basic.rows[:3])
+    assert (control.description, control.voice) == (
+        "control on / off", ("park", "park it", "unpark", "OSR2 off"))
+    assert {"robot_hand_park", "robot_hand_release", "osr2_control_off",
+            "robot_hand_retract"} <= set(control.commands)
+    assert _keys(control) == ()
 
 
-def test_a_hud_corner_row_names_the_four_corners_for_every_funestra():
+def test_one_row_relocates_the_hud_by_key_round_the_picture_and_by_name_to_a_corner():
     row = next(r for r in _funestras_section().rows if "main_hud_upper_left" in r.commands)
 
+    assert row.description == "relocate the HUD"
     assert row.voice == ("hud top left", "hud top right", "hud lower left", "hud lower right")
     assert {"portrait_hud_lower_right", "landscape_hud_upper_right", "satellites_hud_lower_left",
-            "active_hud_upper_right", "main_hud_lower_left"} <= set(row.commands)
-    assert _keys(row) == ()
+            "active_hud_upper_right", "main_hud_lower_left", "portrait_hud_left",
+            "landscape_hud_down", "main_hud_clockwise", "main_hud_counterclockwise"} <= set(row.commands)
+    assert row.key_columns == (("Ctrl+Left", "Ctrl+Right", "Ctrl+Up", "Ctrl+Down"),
+                               ("Ctrl+A", "Ctrl+D", "Ctrl+W", "Ctrl+S"),
+                               ("Ctrl+M", "Ctrl+."))
 
 
-def test_the_slideshow_group_speaks_origenerators_own_words():
-    origenerator = _section("Satellite Funestras - Origenerator")
-    slideshow = origenerator.groups[-1]
+def test_the_origenerator_section_speaks_origenerators_own_words():
+    origenerator = _section("Origenerator")
 
-    assert slideshow.title == "Slideshow"
-    assert [row.description for row in slideshow.rows] == [
-        "play a shelf", "play, pause or stop the slideshow", "fix the picture on screen",
-        f"animate the picture as a Genau {genau_flick_noun().one}", "show only the enhanced pictures",
+    assert [group.title for group in origenerator.groups] == [""]
+    assert [row.description for row in origenerator.rows] == [
+        "play the favorites, experiments or requests", "play, pause or stop the slideshow",
+        "fix the picture on screen", f"animate the picture as a Genau {genau_flick_noun().one}",
+        "show only the enhanced pictures",
     ]
-    assert not [row for section in build_reference_sections() for row in section.rows
-                if "show" in row.description.split() and row not in slideshow.rows]
+    assert not [row for row in _all_rows()
+                if "show" in row.description.split() and row not in origenerator.rows]
+
+
+def test_the_main_funestras_mode_groups_follow_its_consoles_mode_buttons():
+    main = _section("Main Funestra")
+
+    assert [group.title for group in main.groups] == ["", *(label for _, label, _ in MODE_BUTTONS)]
+    assert [row.description for row in main.groups[0].rows] == ["open the browser", "included video types"]
 
 
 def test_the_column_heads_say_hotkey_and_voice_command_and_a_forked_hotkey_head_spans_its_funestras():
