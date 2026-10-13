@@ -169,8 +169,9 @@ _FUNESTRAS_NOTE = (
     f"“portrait next”, “next main”.  In Genau mode say “{_FLICK.one}” in place of “video”."
 )
 _ORIGENERATOR_NOTE = (
-    "Say the side first, every time: “portrait experiments”, “landscape fix hands”.  "
-    "Alone, after the phrase, or said of “satellites”, a side is not heard here."
+    "These are heard with the side first, every time: “portrait experiments”, "
+    "“landscape fix hands”.  Said alone, with the side after, or of “satellites”, "
+    "they are not heard."
 )
 _FUNESTRA_KEY_HEADERS = ("Portrait", "Landscape", "Main")
 

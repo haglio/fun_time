@@ -949,8 +949,9 @@ def test_the_origenerator_column_folds_the_side_word_and_its_note_says_the_side_
         ("enhanced only", "filter enhanced"),
     ]
     assert origenerator.note == (
-        "Say the side first, every time: “portrait experiments”, “landscape fix hands”.  "
-        "Alone, after the phrase, or said of “satellites”, a side is not heard here."
+        "These are heard with the side first, every time: “portrait experiments”, "
+        "“landscape fix hands”.  Said alone, with the side after, or of “satellites”, "
+        "they are not heard."
     )
     assert VOICE_COMMANDS["portrait fix hands"] == "portrait_say_fix_hands"
     for not_a_phrase in ("fix hands", "fix hands portrait", "satellites fix hands", f"main {flick}"):
