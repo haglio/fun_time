@@ -17,6 +17,7 @@ from fun_time.role_windows import (
     ChildPids,
     WindowRoles,
 )
+from fun_time.satellites_mode import RfbSlot
 from fun_time.window_layout import WindowRect
 from fun_time.window_roles import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_startup import (
@@ -194,7 +195,7 @@ class TestTopmostBands:
         is never the hidden half of a pair."""
         windows = make_windows(rfb_hwnd=RFB_HWND)
 
-        calls = self._promotions(windows, "restore_all_topmost", satellites_mode="kino")
+        calls = self._promotions(windows, "restore_all_topmost", rfb_slot=RfbSlot.RFB)
 
         assert {h for h, on in calls if on is True} == TOPMOST_HWNDS
 
@@ -212,7 +213,7 @@ class TestTopmostBands:
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
 
         calls = self._promotions(windows, "restore_all_topmost",
-                                 satellites_mode="origenerator")
+                                 rfb_slot=RfbSlot.ORIGENERATOR)
 
         promoted = [h for h, on in calls if on]
         assert RFB_HWND not in promoted, (
@@ -227,9 +228,9 @@ class TestTopmostBands:
     def test_a_restack_while_paused_leaves_the_topmost_band_to_the_pause(self):
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
         assert self._promotions(windows, "restack_rfb_slot",
-                                satellites_mode="origenerator", paused=True) == []
+                                rfb_slot=RfbSlot.ORIGENERATOR, paused=True) == []
 
-    def test_origenerator_mode_takes_the_browser_out_of_the_band_under_the_hosted_window(self):
+    def test_origenerator_in_the_browsers_place_takes_the_browser_out_of_the_band(self):
         """His: switching into Origenerator mode, Origenerator Core did not come
         on top of the RFB.  The hosted app was busy opening its two shows, so
         the restore sent to its window gave up after the stalled-window guard's
@@ -239,36 +240,36 @@ class TestTopmostBands:
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
 
         calls = self._promotions(windows, "restack_rfb_slot",
-                                 satellites_mode="origenerator")
+                                 rfb_slot=RfbSlot.ORIGENERATOR)
 
         assert calls == [(RFB_HWND, False), (HOSTED_HWND, True)]
 
-    def test_kino_mode_puts_the_browser_back_in_the_band(self):
-        """The way back out of Origenerator mode, or the RFB would sit under
-        whatever else he has on its monitor."""
+    def test_the_browser_back_in_its_place_goes_back_in_the_band(self):
+        """Or the RFB would sit under whatever else he has on its monitor."""
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
 
         calls = self._promotions(windows, "restack_rfb_slot",
-                                 satellites_mode="kino")
+                                 rfb_slot=RfbSlot.RFB)
 
         assert calls == [(RFB_HWND, True)]
 
 
 class TestOrigeneratorWindowConverger:
-    """The hosted app's window is converged to what the satellites' mode says,
+    """The hosted app's window is converged to what holds the browser's place,
     read off the window each pass rather than remembered."""
 
-    def test_a_resumed_origenerator_mode_restores_the_window_once_it_exists(self):
+    def test_origenerator_resumed_in_the_browsers_place_restores_the_window_once_it_exists(
+            self):
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=0), \
              patch("fun_time.role_windows.restore_window") as restore:
-            windows.converge_origenerator_window("origenerator")
+            windows.converge_origenerator_window(RfbSlot.ORIGENERATOR)
         restore.assert_not_called()  # still booting — nothing to drive
         with patch.object(windows, "hwnd", return_value=4242), \
              patch("fun_time.role_windows.is_window_minimized", return_value=True), \
              patch("fun_time.role_windows.restore_window") as restore, \
              patch("fun_time.role_windows.set_always_on_top"):
-            windows.converge_origenerator_window("origenerator")
+            windows.converge_origenerator_window(RfbSlot.ORIGENERATOR)
         restore.assert_called_once_with(4242, activate=False)
 
     def test_a_restore_the_busy_app_dropped_is_retried_next_pass(self):
@@ -282,8 +283,8 @@ class TestOrigeneratorWindowConverger:
              patch("fun_time.role_windows.is_window_minimized", return_value=True), \
              patch("fun_time.role_windows.restore_window") as restore, \
              patch("fun_time.role_windows.set_always_on_top"):
-            windows.converge_origenerator_window("origenerator")
-            windows.converge_origenerator_window("origenerator")
+            windows.converge_origenerator_window(RfbSlot.ORIGENERATOR)
+            windows.converge_origenerator_window(RfbSlot.ORIGENERATOR)
         assert restore.call_count == 2
 
     def test_a_shown_window_out_of_the_band_is_re_promoted(self):
@@ -295,7 +296,7 @@ class TestOrigeneratorWindowConverger:
              patch("fun_time.role_windows.is_window_topmost", return_value=False), \
              patch("fun_time.role_windows.restore_window") as restore, \
              patch("fun_time.role_windows.set_always_on_top") as promote:
-            windows.converge_origenerator_window("origenerator")
+            windows.converge_origenerator_window(RfbSlot.ORIGENERATOR)
         restore.assert_not_called()
         promote.assert_any_call(4242, True)
 
@@ -305,21 +306,21 @@ class TestOrigeneratorWindowConverger:
              patch("fun_time.role_windows.is_window_minimized", return_value=False), \
              patch("fun_time.role_windows.is_window_topmost", return_value=True), \
              patch("fun_time.role_windows.set_always_on_top") as band:
-            windows.converge_origenerator_window("origenerator")
+            windows.converge_origenerator_window(RfbSlot.ORIGENERATOR)
         assert band.call_args_list == [((RFB_HWND, False),), ((HOSTED_HWND, True),)]
 
-    def test_kino_mode_parks_a_window_left_up(self):
+    def test_the_browser_in_its_place_parks_a_window_left_up(self):
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=4242), \
              patch("fun_time.role_windows.is_window_minimized", return_value=False), \
              patch("fun_time.role_windows.minimize_window") as minimize:
-            windows.converge_origenerator_window("kino")
+            windows.converge_origenerator_window(RfbSlot.RFB)
         minimize.assert_called_once_with(4242, activate=False)
 
     def test_without_a_hosted_app_the_converger_is_inert(self):
         windows = make_windows()
         with patch.object(windows, "hwnd") as resolve:
-            windows.converge_origenerator_window("origenerator")
+            windows.converge_origenerator_window(RfbSlot.ORIGENERATOR)
         resolve.assert_not_called()
 
 

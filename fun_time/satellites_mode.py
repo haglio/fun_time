@@ -7,7 +7,18 @@ nothing down, and what a session opens in is ``docs/resuming-a-session.md``.
 """
 from __future__ import annotations
 
+from enum import StrEnum
+
 from funestra.modes import SatellitesMode
+
+
+class RfbSlot(StrEnum):
+    """What holds the Random Favs Browser's place: the browser, or the hosted
+    Origenerator's own window over it."""
+
+    RFB = "rfb"
+    ORIGENERATOR = "origenerator"
+
 
 KINO_MODE = SatellitesMode.KINO
 ORIGENERATOR_MODE = SatellitesMode.ORIGENERATOR

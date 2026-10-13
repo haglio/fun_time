@@ -68,7 +68,7 @@ from .role_windows import WindowRoles
 from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_speeds import SatelliteSpeeds
-from .satellites_mode import KINO_MODE, origenerator_shows
+from .satellites_mode import KINO_MODE, RfbSlot, origenerator_shows
 from .session_end import mark_session_end, session_end_asked
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import DESKTOP, VR, HandoffTarget, request_handoff, this_session
@@ -342,9 +342,10 @@ class DispatchLoopRunner:
         origenerator mode while no hosted app has answered -- and that read onto it."""
         state = replace(state, origenerator_ready=self._the_hosted_app_has_answered())
         offered = self.config.origenerator_enabled and state.origenerator_ready
-        if offered or not origenerator_shows(state.satellites_mode):
+        if offered or (not origenerator_shows(state.satellites_mode)
+                       and state.rfb_slot is RfbSlot.RFB):
             return state
-        return replace(state, satellites_mode=KINO_MODE)
+        return replace(state, satellites_mode=KINO_MODE, rfb_slot=RfbSlot.RFB)
 
     def _the_room_was_left_in_origenerator_mode(self) -> bool:
         """Read before anything is dispatched, so a switch later is where the room IS."""
@@ -366,7 +367,8 @@ class DispatchLoopRunner:
             left_in = read_shared_state(self.shared_state_file)
             if left_in is not None:
                 write_shared_state(self.shared_state_file,
-                                   replace(left_in, satellites_mode=KINO_MODE))
+                                   replace(left_in, satellites_mode=KINO_MODE,
+                                           rfb_slot=RfbSlot.RFB))
             return
         self.state = self._the_satellite_modes_this_session_can_be_in(self.state)
         self._dispatch("origenerator_activate")
@@ -396,7 +398,8 @@ class DispatchLoopRunner:
         self.state = self._the_satellite_modes_this_session_can_be_in(self.state)
         if shared is not None and (
                 shared.origenerator_ready != self.state.origenerator_ready
-                or shared.satellites_mode != self.state.satellites_mode):
+                or shared.satellites_mode != self.state.satellites_mode
+                or shared.rfb_slot is not self.state.rfb_slot):
             # Nothing else writes the file until a command is dispatched, which on
             # a session nobody is touching may be never.
             write_shared_state(self.shared_state_file, self.state)
@@ -441,7 +444,7 @@ class DispatchLoopRunner:
         self.hud.publish_due(self.state, now=now)
         if self.rfb_slideshow is not None:
             self.rfb_slideshow.tick(now=now, held=self.state.omni_paused
-                                    or origenerator_shows(self.state.satellites_mode))
+                                    or self.state.rfb_slot is RfbSlot.ORIGENERATOR)
 
     def _pause_for_a_click_into_a_text_field(self) -> None:
         if self.press_and_caret_watch is None:
@@ -720,11 +723,11 @@ class DispatchLoopRunner:
         into, and every URL handed over then lands in one of his: worth losing
         the tab over, so the launch is skipped entirely.
 
-        In origenerator mode the buffer holds instead of flushing: the RFB is
-        under the hosted app's window, and opening a tab would force Chrome over
-        it.  The locks queue, and switching back to kino mode flushes them.
+        While Origenerator holds the browser's place the buffer holds instead
+        of flushing: opening a tab would force Chrome over it.  The locks queue,
+        and putting the browser back in its place flushes them.
         """
-        if origenerator_shows(self.state.satellites_mode):
+        if self.state.rfb_slot is RfbSlot.ORIGENERATOR:
             return
         urls = self._pending_rfb_urls
         self._pending_rfb_urls = []
@@ -780,7 +783,7 @@ class DispatchLoopRunner:
         window state is its own."""
         if self.state.omni_paused:
             return
-        self.windows.converge_origenerator_window(self.state.satellites_mode)
+        self.windows.converge_origenerator_window(self.state.rfb_slot)
 
     def _broker_heartbeat_is_fresh(self) -> bool:
         """Whether the broker is currently talking to the OSR2 — not whether it exists.
@@ -865,7 +868,7 @@ class DispatchLoopRunner:
         minimizing one never yanks focus to the next.  The minimized set is
         remembered so omnirestore brings back exactly these windows.
         """
-        self.windows.minimize_all(visible_roles(self.state.satellites_mode))
+        self.windows.minimize_all(visible_roles(self.state.rfb_slot))
 
     def _handle_omnirestore(self) -> None:
         """Un-minimize exactly the windows omniminimize minimized.
@@ -950,7 +953,7 @@ class DispatchLoopRunner:
                 append_command(self.config.main_funestra_cmd_file, play_file(scripted_item(selected, self.config.regen_metadata_root)))
         finally:
             if manage_session:
-                self.windows.restore_all_topmost(self.state.satellites_mode)
+                self.windows.restore_all_topmost(self.state.rfb_slot)
                 append_command(self.ahk_cmd_file, Op.UNSUSPEND_HOTKEYS)
 
     def run(self) -> None:
@@ -1034,7 +1037,7 @@ def _run_activate_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 
 def _run_restack_rfb(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    runner.windows.restack_rfb_slot(runner.state.satellites_mode, paused=runner.state.omni_paused)
+    runner.windows.restack_rfb_slot(runner.state.rfb_slot, paused=runner.state.omni_paused)
 
 
 def _run_disable_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
@@ -1042,7 +1045,7 @@ def _run_disable_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
 
 
 def _run_restore_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    runner.windows.restore_all_topmost(runner.state.satellites_mode)
+    runner.windows.restore_all_topmost(runner.state.rfb_slot)
 
 
 def _run_open_rfb_tab(runner: DispatchLoopRunner, op: WindowOp) -> None:

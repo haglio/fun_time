@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from shared_ui.preview import Preview, window_title
 
-from .satellites_mode import KINO_MODE, origenerator_shows
+from .satellites_mode import RfbSlot
 
 # Windows with their own screen rect — always topmost; order among them is
 # irrelevant because they never overlap.  The log stream is a child widget of the
@@ -25,9 +25,9 @@ FIXED_TOPMOST_ROLES: tuple[str, ...] = ("portrait", "landscape", "dashboard", "m
 # Funestras, not in windows of its own (fun_time.funestra_handover).
 ORIGENERATOR_ROLE = "origenerator"
 
-# The browser and the hosted app's window share the RFB's rect.  In
-# origenerator mode the hosted window covers it and the browser leaves the band,
-# so no promotion, however late it lands, can stack the browser back over it.
+# The browser and the hosted app's window share the RFB's rect.  While the
+# hosted window holds it the browser leaves the band, so no promotion, however
+# late it lands, can stack the browser back over it.
 RFB_SLOT_ROLES: tuple[str, ...] = ("rfb", ORIGENERATOR_ROLE)
 
 # The caption that window wears, resolved together with the app's PID: by
@@ -43,29 +43,18 @@ def is_origenerators_caption(caption: str) -> bool:
 MANAGED_ROLES: tuple[str, ...] = FIXED_TOPMOST_ROLES + RFB_SLOT_ROLES
 
 
-def role_topmost(role: str, satellites_mode: str = KINO_MODE) -> bool:
-    """Whether *role*'s window belongs in the TOPMOST band in this mode.
-
-    The Random Favs Browser shares its rect with the hosted app's main window,
-    so each is topmost only where it shows something, and the covered one
-    stays out of the band: the hosted app's window rides *satellites_mode*.
-    Every other managed window owns its own rect and is unconditionally topmost.
-    """
-    if role == ORIGENERATOR_ROLE:
-        return origenerator_shows(satellites_mode)
-    if role == "rfb":
-        # The RFB shares its rect with the hosted app's main window, so it is
-        # mode-dependent the same way the pair is: in origenerator mode that
-        # window covers it completely, and promoting it there only puts it
-        # briefly ABOVE its cover — HWND_TOPMOST inserts at the top of the band,
-        # so every re-band (leaving OmniPause, a mode switch, the startup pass)
-        # flashed the browser over Origenerator on its way past.
-        return not origenerator_shows(satellites_mode)
-    return True
+def role_topmost(role: str, rfb_slot: RfbSlot = RfbSlot.RFB) -> bool:
+    """Whether *role*'s window belongs in the TOPMOST band: every window with a
+    rect of its own, and of the pair sharing the browser's rect only the one
+    holding it -- promoting the covered one only puts it briefly ABOVE its
+    cover, since HWND_TOPMOST inserts at the top of the band."""
+    if role not in RFB_SLOT_ROLES:
+        return True
+    return (role == ORIGENERATOR_ROLE) == (rfb_slot is RfbSlot.ORIGENERATOR)
 
 
-def visible_roles(satellites_mode: str = KINO_MODE) -> list[str]:
-    """Every managed role whose window this mode keeps on screen: the browser
-    counts while the hosted window covers it, since it is covered, not parked."""
-    rfb_slot = RFB_SLOT_ROLES if origenerator_shows(satellites_mode) else ("rfb",)
-    return [*FIXED_TOPMOST_ROLES, *rfb_slot]
+def visible_roles(rfb_slot: RfbSlot = RfbSlot.RFB) -> list[str]:
+    """Every managed role whose window is kept on screen: the browser counts
+    while the hosted window covers it, since it is covered, not parked."""
+    held = RFB_SLOT_ROLES if rfb_slot is RfbSlot.ORIGENERATOR else ("rfb",)
+    return [*FIXED_TOPMOST_ROLES, *held]

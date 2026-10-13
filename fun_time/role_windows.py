@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from app_support.win32 import window_exists
 
 from . import preview_marker
-from .satellites_mode import origenerator_shows
+from .satellites_mode import RfbSlot
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -299,36 +299,36 @@ class WindowRoles:
             if hwnd:
                 set_always_on_top(hwnd, False)
 
-    def restore_all_topmost(self, satellites_mode: str) -> None:
+    def restore_all_topmost(self, rfb_slot: RfbSlot) -> None:
         """Re-apply the topmost bands after omnipause: the windows with a rect
         of their own, then the shared rect's pair in the order it stacks in."""
         for role in FIXED_TOPMOST_ROLES:
             hwnd = self.hwnd(role)
             if hwnd:
                 set_always_on_top(hwnd, True)
-        self.restack_rfb_slot(satellites_mode)
+        self.restack_rfb_slot(rfb_slot)
 
-    def restack_rfb_slot(self, satellites_mode: str, *, paused: bool = False) -> None:
-        """Put the browser in the band only in kino mode, and in origenerator
-        mode promote the hosted Origenerator's window over it."""
+    def restack_rfb_slot(self, rfb_slot: RfbSlot, *, paused: bool = False) -> None:
+        """Put the browser in the band only while it holds its place, and
+        promote the hosted Origenerator's window over it while that does."""
         if paused:
             return
         browser = self.hwnd("rfb")
         if browser:
-            set_always_on_top(browser, role_topmost("rfb", satellites_mode))
-        if not role_topmost(ORIGENERATOR_ROLE, satellites_mode):
+            set_always_on_top(browser, role_topmost("rfb", rfb_slot))
+        if not role_topmost(ORIGENERATOR_ROLE, rfb_slot):
             return
         hwnd = self.hwnd(ORIGENERATOR_ROLE)
         if hwnd:
             set_always_on_top(hwnd, True)
 
-    def converge_origenerator_window(self, satellites_mode: str) -> None:
-        """Keep the hosted app's main window where the satellites' mode says.
+    def converge_origenerator_window(self, rfb_slot: RfbSlot) -> None:
+        """Keep the hosted app's main window where the browser's place says.
 
-        The mode-switch ops restore or park it when a command fires, but the
+        The switch's ops restore or park it when a command fires, but the
         window arrives mid-session — the room opens without waiting the app
-        out — so this is what meets it: parked while the room is in kino mode,
-        and up in the other.
+        out — so this is what meets it: parked while the browser holds its
+        place, and up while Origenerator does.
 
         Judged from the WINDOW, not from a memory of what was asked: the app's
         main thread blocks for long stretches while it boots, so a restore sent
@@ -343,16 +343,16 @@ class WindowRoles:
         if not hwnd:
             return  # still booting — try again next sync
         minimized = is_window_minimized(hwnd)
-        if origenerator_shows(satellites_mode):
+        if rfb_slot is RfbSlot.ORIGENERATOR:
             if minimized:
                 restore_window(hwnd, activate=False)
-            if minimized or self._an_rfb_slot_window_out_of_its_band(satellites_mode):
-                self.restack_rfb_slot(satellites_mode)
+            if minimized or self._an_rfb_slot_window_out_of_its_band(rfb_slot):
+                self.restack_rfb_slot(rfb_slot)
         elif not minimized:
             minimize_window(hwnd, activate=False)
 
-    def _an_rfb_slot_window_out_of_its_band(self, satellites_mode: str) -> bool:
-        return any(is_window_topmost(hwnd) != role_topmost(role, satellites_mode)
+    def _an_rfb_slot_window_out_of_its_band(self, rfb_slot: RfbSlot) -> bool:
+        return any(is_window_topmost(hwnd) != role_topmost(role, rfb_slot)
                    for role in RFB_SLOT_ROLES if (hwnd := self.hwnd(role)))
 
     def topmost_report(self) -> str:
