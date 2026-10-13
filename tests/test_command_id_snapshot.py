@@ -35,8 +35,10 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # padlock on that console locks whichever Funestra is on the main screen; the speed
 # pair is Genau's console's own ± marks beside its drive readout; the enhanced
 # filter is the switch the console draws over a hosted Origenerator's slideshows,
-# which the room hears as "enhanced only" rather than under this id.  The two
-# scene jumps are the VR controllers' B and A with the trigger held.
+# which the room hears as "enhanced only" rather than under this id; the OSR2's
+# control-off is the fourth switch beside park, retract and release, which the
+# room says.  The two scene jumps are the VR controllers' A and B with the
+# trigger held.
 HUD_ONLY_COMMAND_IDS = (
     "genau_filter_enhanced",
     "landscape_kino_activate",
@@ -49,6 +51,7 @@ HUD_ONLY_COMMAND_IDS = (
     "main_scene_prev",
     "main_take_osr2",
     "origenerator_activate",
+    "osr2_control_off",
     "portrait_kino_activate",
     "portrait_minimize",
     "portrait_origenerator_activate",
@@ -241,7 +244,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "main_reset",
     "main_shuffle",
     "omnipause_toggle",
-    "osr2_control_off",
     "pause",
     "play",
     "portrait_action_loop",

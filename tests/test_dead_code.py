@@ -340,7 +340,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # navigation.
 # 6114 the same day: the X key's toggle of both satellites' mode went with
 # the key, and the note on its target with it.
-MAX_PROSE_LINES = 6114
+# 6110 the same day: the lengths are said as the shapes are, and the note on
+# "mixed" being taken went with the word.
+MAX_PROSE_LINES = 6110
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

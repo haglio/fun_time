@@ -103,10 +103,12 @@ class TestVoiceCommands:
             "play": "play",
             "go now": "genau_activate",
             "go now mode": "genau_activate",
+            "kino": "kino_activate",
             "kino mode": "kino_activate",
             "main kino mode": "main_kino_activate",
             "satellite kino mode": "satellites_kino_activate",
             "satellites kino mode": "satellites_kino_activate",
+            "aura generator": "satellites_origenerator_activate",
             "aura generator mode": "satellites_origenerator_activate",
             "start broker": "broker_start",
             "stop broker": "broker_stop",
@@ -122,8 +124,8 @@ class TestVoiceCommands:
             # The bare axis word is the literal one; "cycle / next / change
             # version" are generated with the other cycle axes.
             "version": "main_player_cycle_version",
-            "clips": "main_player_length_clips",
-            "full": "main_player_length_full",
+            "clips only": "main_player_length_clips",
+            "full only": "main_player_length_full",
             "browse": "browse_library",
             "clip": "genaumacher_save",
             "save clip": "genaumacher_save",
@@ -264,16 +266,12 @@ class TestVoiceCommands:
         for phrase in ("un park", "o s r two resume", "oh es are two resume"):
             assert VOICE_COMMANDS[phrase] == "robot_hand_release", phrase
 
-    def test_retract_is_no_word_now_the_switch_has_no_retract(self):
-        assert "retract" not in VOICE_COMMANDS
-        assert "un retract" not in VOICE_COMMANDS
-
-    def test_osr2_off_is_the_switch_off(self):
-        """Off parks the device, as the console's switch does.  Spelled with the
-        letters vosk has, like "OSR2 resume", which is the way back."""
+    def test_letting_go_of_the_device_is_the_consoles_switch_and_no_phrase(self):
+        """"OSR2 off" was said of the fourth control button; park and unpark
+        are what a speaker needs, and the switch stays on the console."""
         for phrase in ("o s r two off", "oh es are two off"):
-            assert VOICE_COMMANDS[phrase] == "robot_hand_park", phrase
-            assert friendly_voice(phrase) == "OSR2 off"
+            assert phrase not in VOICE_COMMANDS, phrase
+        assert "osr2_control_off" not in VOICE_COMMANDS.values()
 
     def test_osr2_control_is_the_switch_by_the_name_its_label_gives_it(self):
         for phrase in ("o s r two control off", "oh es are two control off"):
@@ -321,9 +319,12 @@ class TestVoiceCommands:
 
     def test_origenerator_mode_puts_both_satellites_in_it_and_is_shown_as_said(self):
         """The spoken twin of each satellite's Origenerator button, said of both:
-        what holds the Random Favs Browser's place is the dashboard strip's."""
+        what holds the Random Favs Browser's place is the dashboard strip's.
+        The bare name says it too, as bare "genau" and "kino" say theirs."""
         assert VOICE_COMMANDS["aura generator mode"] == "satellites_origenerator_activate"
+        assert VOICE_COMMANDS["aura generator"] == "satellites_origenerator_activate"
         assert friendly_voice("aura generator mode") == "origenerator mode"
+        assert friendly_voice("aura generator") == "origenerator"
 
     def test_dead_genau_phrases_removed(self):
         for phrase in ("enable genau", "disable genau"):
@@ -333,6 +334,7 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["main kino mode"] == "main_kino_activate"
         assert VOICE_COMMANDS["satellite kino mode"] == "satellites_kino_activate"
         assert VOICE_COMMANDS["kino mode"] == "kino_activate"
+        assert VOICE_COMMANDS["kino"] == "kino_activate"
         for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "v l c",
                         "video mode", "main video mode", "satellite video mode",
                         "satellites video mode"):
@@ -353,14 +355,16 @@ class TestVoiceCommands:
             assert VOICE_COMMANDS[f"version {side}"] == f"{side}_cycle_version"
         assert VOICE_COMMANDS["version"] == "main_player_cycle_version"
 
-    def test_main_funestra_length_phrases(self):
-        assert VOICE_COMMANDS["clips"] == "main_player_length_clips"
-        assert VOICE_COMMANDS["full"] == "main_player_length_full"
-        assert VOICE_COMMANDS["mixed"] == "main_player_length_mixed"
-
-    def test_the_length_words_from_before_the_rename_are_gone(self):
-        assert "shorts" not in VOICE_COMMANDS
-        assert "full length" not in VOICE_COMMANDS
+    def test_the_lengths_are_said_like_the_shapes_as_what_is_included(self):
+        """"clips only", "full only", "clips and full": the way "flat only" and
+        "flat and VR" say which shapes play, so the two pairs of buttons on the
+        console read alike.  A bare "clips", "full" or "mixed" is no phrase."""
+        assert VOICE_COMMANDS["clips only"] == "main_player_length_clips"
+        assert VOICE_COMMANDS["full only"] == "main_player_length_full"
+        assert VOICE_COMMANDS["clips and full"] == "main_player_length_mixed"
+        assert VOICE_COMMANDS["full and clips"] == "main_player_length_mixed"
+        for retired in ("clips", "full", "mixed", "shorts", "full length"):
+            assert retired not in VOICE_COMMANDS, retired
 
     def test_end_compilation_leaves_without_naming_a_length(self):
         """"compilation" gets you in; this gets you out, back to whichever length
@@ -534,6 +538,16 @@ class TestVoiceCommands:
         for retired in ("kino next", "next kino", "kino previous", "previous kino",
                         "video next", "video previous"):
             assert retired not in VOICE_COMMANDS, retired
+
+    def test_weird_lock_and_unlock_take_video_after_them_the_way_next_does(self):
+        assert VOICE_COMMANDS["weird video"] == VOICE_COMMANDS["weird"] == "active_trash"
+        assert VOICE_COMMANDS["lock video"] == VOICE_COMMANDS["lock"] == "active_lock_on"
+        assert VOICE_COMMANDS["unlock video"] == VOICE_COMMANDS["unlock"] == "active_lock_off"
+
+    def test_holding_a_genau_flick_is_the_main_lock_said_with_the_flick_named(self):
+        said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
+
+        assert (said["lock pip"], said["unlock pip"]) == ("main_lock_on", "main_lock_off")
 
     def test_contains_numeric_amp_phrases(self):
         assert VOICE_COMMANDS["amp fifty"] == "robot_hand_amp_50"

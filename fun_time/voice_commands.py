@@ -131,7 +131,8 @@ def build_voice_commands(
         # it stays).
         "relief omni pause": "relief_omnipause",
         "stop": "relief_omnipause",
-        # The OSR2 switch: off parks the device, on drives it again.
+        # Stopping the device alone, at either end of its axis, and back off
+        # that hold.
         "park": "robot_hand_park",
         "park it": "robot_hand_park",
         "o s r two off": "robot_hand_park",
@@ -143,8 +144,6 @@ def build_voice_commands(
         "un park": "robot_hand_release",
         "o s r two resume": "robot_hand_release",
         "oh es are two resume": "robot_hand_release",
-        "o s r two off": "osr2_control_off",
-        "oh es are two off": "osr2_control_off",
         # Satellite commands (portrait/landscape/satellites nav, lock, weird, cycle)
         # are generated as an order-agnostic grid below the literal — F-mode among
         # them, bare and sided both.
@@ -153,12 +152,14 @@ def build_voice_commands(
         # Kino mode, said of a side or of neither: the bare phrase puts the
         # main slot AND the satellites on their Funestras, each side's own phrase
         # just that side.
+        "kino": "kino_activate",
         "kino mode": "kino_activate",
         "main kino mode": "main_kino_activate",
         "satellite kino mode": "satellites_kino_activate",
         "satellites kino mode": "satellites_kino_activate",
         # Both satellites' other mode, spoken as explicit modes rather than a
         # toggle, so a phrase misheard twice cannot land on the opposite.
+        "aura generator": "satellites_origenerator_activate",
         "aura generator mode": "satellites_origenerator_activate",
         "start broker": "broker_start",
         "stop broker": "broker_stop",
@@ -182,21 +183,19 @@ def build_voice_commands(
         # way "action"/"seed" do on a satellite; the "cycle / next / change version"
         # verb forms come from the cycle-axis grid below.
         "version": "main_player_cycle_version",
-        "clips": "main_player_length_clips",
-        "full": "main_player_length_full",
-        # Which shape of video the Funestra on the main screen may reach, in the
-        # headset, where its library holds both.  "mixed" is taken by the length
-        # above, so the both-shapes phrase names the shapes instead; neither
-        # shape gets no phrase at all, being a browse with nothing in it.
+        # Which lengths of video the Main Funestra's list includes, and which
+        # shapes, in the headset, where its library holds both: each pair said
+        # as what it includes.  Neither length and neither shape get no phrase,
+        # being a browse with nothing in it.
+        "clips only": "main_player_length_clips",
+        "full only": "main_player_length_full",
+        "clips and full": "main_player_length_mixed",
+        "full and clips": "main_player_length_mixed",
         "vr only": "main_projection_vr",
         "flat only": "main_projection_flat",
         "two d only": "main_projection_flat",
         "flat and vr": "main_projection_both",
         "vr and flat": "main_projection_both",
-        # The unfiltered library the Main Funestra opens in, and so the way back out of either
-        # half.  "main reset" contains this and puts back every other default too
-        # (see the main-player grid below); this is the narrow gesture of the pair.
-        "mixed": "main_player_length_mixed",
         # Clip navigation (clips carved from compilations); "full
         # video" is the reliable phrase, "full vid" a fallback.
         "compilation": "main_player_compilation",
@@ -232,10 +231,11 @@ def build_voice_commands(
         f"previous {flick}": "genau_prev_flick",
         f"next {flick}": "genau_next_flick",
         # Bare "weird" already addresses the active satellite, so Genau's own
-        # action names the flick.  There is no spoken hold to go with it: holding
-        # one is the Main Funestra's lock, said as "main lock" or bare while the
-        # Main Funestra has the floor.
+        # action names the flick.  Holding one is the Main Funestra's lock, so
+        # the flick named after "lock" says that lock.
         f"weird {flick}": "genau_weird_flick",
+        f"lock {flick}": "main_lock_on",
+        f"unlock {flick}": "main_lock_off",
         "offset": "quarter_button",
         # "voice off" / "mic off" both mute voice control (there is no spoken way
         # back — a muted recognizer hears nothing; the dashboard mic button or a
@@ -436,13 +436,13 @@ def build_voice_commands(
 
     # Genau's flick stepped by naming it, in either order and either spelling
     # of Genau.  "next video" is bare "next" said longer, so it reaches whatever
-    # was last navigated, as "next" does.
+    # was last navigated, as "next" does; so do the others said of a video.
     for _base in GENAU_SAID:
         for _step_word, _step_cmd in (("next", "genau_next_flick"), ("previous", "genau_prev_flick")):
             commands[f"{_base} {_step_word}"] = _step_cmd
             commands[f"{_step_word} {_base}"] = _step_cmd
-    commands["next video"] = "active_next"
-    commands["previous video"] = "active_prev"
+    for _of_a_video in ("next", "previous", "weird", "lock", "unlock"):
+        commands[f"{_of_a_video} video"] = commands[_of_a_video]
 
     _NUMBER_WORDS: dict[str, int] = {
         "zero": 0, "ten": 10, "twenty": 20, "thirty": 30, "forty": 40,

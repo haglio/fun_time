@@ -242,9 +242,8 @@ _SECTIONS: tuple[_Section, ...] = (
                     "was doing.  Control off settles the OSR2 home and "
                     "lets go of it there; the device itself stays on",
                     (),
-                    ("robot_hand_park", "robot_hand_release", "osr2_control_off",
-                     "robot_hand_retract"),
-                    voice_display=("park", "park it", "unpark", "OSR2 off"),
+                    ("robot_hand_park", "robot_hand_release", "robot_hand_retract"),
+                    voice_display=("park", "park it", "unpark"),
                 ),
             )),
             _Group("Robot Hand", (
@@ -291,7 +290,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     "the rest; a satellite's Kino mode is the library's clips; said "
                     "alone it puts all three Funestras in Kino mode",
                     commands=("kino_activate", "main_kino_activate", "satellites_kino_activate"),
-                    voice_display=("kino mode",),
+                    voice_display=("kino", "kino mode"),
                 ),
                 _Row(
                     "Origenerator mode — the satellites show Origenerator's slideshows "
@@ -317,7 +316,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     "moves on.  A satellite in Origenerator mode favorites the locked "
                     "slide and asks for a better version of it",
                     commands=("portrait_lock", "landscape_lock", "main_lock")
-                    + _every_funestra("lock_on", "lock_off"),
+                    + _every_funestra("lock_on") + _every_funestra("lock_off"),
                     columns=(("Down",), ("S",), (",",)),
                 ),
             )),
@@ -400,7 +399,17 @@ _SECTIONS: tuple[_Section, ...] = (
                     ("browse_library",),
                 ),
                 _Row(
-                    "included video types — the videos in Kino mode, "
+                    "included video types — in Kino mode, the lengths: \"clips only\", "
+                    "\"full only\", or \"clips and full\" (the default, everything), "
+                    "which leaves any compilation with it; its HUD's own pair of "
+                    "buttons reaches a fourth state, neither, which holds the video on "
+                    "screen",
+                    (),
+                    ("main_player_length_clips", "main_player_length_full",
+                     "main_player_length_mixed", "main_player_length_none"),
+                ),
+                _Row(
+                    "included video types (projection) — the videos in Kino mode, "
                     f"Genau's {_FLICK.many} in Genau mode: \"flat only\" (or \"2D only\"), "
                     "\"VR only\" or \"flat and VR\"; its HUD's own pair of buttons reaches a "
                     "fourth state, neither, which holds what is on screen",
@@ -418,15 +427,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row("save clip", (";",), ("genaumacher_save",)),
                 _Row("nudge back 10 seconds", ("-",), ("main_nudge_prev",), voice_display=("main back",)),
                 _Row("nudge forward 10 seconds", ("+",), ("main_nudge_next",), voice_display=("main skip",)),
-                _Row(
-                    "length of what plays — \"mixed\" (the default, everything), "
-                    "\"clips\", or \"full\"; \"mixed\" leaves any compilation with it, "
-                    "and its HUD's own pair reaches a fourth state, neither, which "
-                    "holds the video on screen",
-                    (),
-                    ("main_player_length_clips", "main_player_length_full",
-                     "main_player_length_mixed", "main_player_length_none"),
-                ),
                 _Row(
                     "clip navigation — \"compilation\" plays the clip's compilation "
                     "in order and \"end compilation\" leaves it for the length mode "

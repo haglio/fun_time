@@ -78,7 +78,7 @@ class TestCommandRules:
         rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
 
         assert rules.written("go now mode") == "genau mode"
-        assert rules.written("o s r two off") == "OSR2 off"
+        assert rules.written("o s r two resume") == "OSR2 resume"
         assert rules.written("landscape next") is None
 
     def test_the_phrases_that_say_genau_are_said_in_german_and_no_others(self):

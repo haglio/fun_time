@@ -262,7 +262,9 @@ def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
     assert nxt.voice == ("next", "next video")
     assert nxt.key_columns == (("Right",), ("D",), (".",))
     lock = next(r for r in section.rows if "portrait_lock_on" in r.commands)
-    assert lock.voice == ("lock", "unlock")
+    flick = genau_flick_noun().one
+    assert lock.voice == ("lock", "lock video", f"lock {flick}", "unlock", "unlock video",
+                          f"unlock {flick}")
     assert "main_lock_on" in lock.commands
     sayable_bare = {friendly_voice(phrase) for phrase in VOICE_COMMANDS}
     for section in _shared_sections():
@@ -710,9 +712,11 @@ def test_kino_mode_is_spoken_as_written_of_either_side_or_of_both():
         assert retired not in VOICE_COMMANDS, retired
     [kino] = [r for r in _all_rows() if "kino_activate" in r.commands]
     assert {"main_kino_activate", "satellites_kino_activate"} <= set(kino.commands)
-    assert kino.voice == ("kino mode",)
+    assert kino.voice == ("kino", "kino mode")
     genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
     assert genau_rows and genau_rows[0].voice == ("genau", "genau mode")
+    [origenerator] = [r for r in _all_rows() if "satellites_origenerator_activate" in r.commands]
+    assert origenerator.voice == ("origenerator", "origenerator mode")
 
 
 def test_loop_control_row_consolidates_record_and_cancel():
@@ -828,15 +832,17 @@ def test_the_dashboard_section_lists_its_buttons_in_the_bars_order():
     assert dashboard.rows[-1].detail == ""
 
 
-def test_the_osr2s_control_is_one_row_park_and_off_each_with_its_undoing_word():
+def test_the_osr2s_control_is_one_row_park_and_its_undoing_word():
+    """Letting go of the device outright is the console's switch alone now,
+    so the row's phrases are park and unpark, and the switch's id is nothing
+    the row names."""
     osr2 = _section("OSR2")
     [control] = osr2.groups[0].rows
 
     assert [group.title for group in osr2.groups] == ["Basic", "Robot Hand", "Broker"]
-    assert (control.description, control.voice) == (
-        "control on / off", ("park", "park it", "unpark", "OSR2 off"))
-    assert {"robot_hand_park", "robot_hand_release", "osr2_control_off",
-            "robot_hand_retract"} <= set(control.commands)
+    assert (control.description, control.voice) == ("control on / off", ("park", "park it", "unpark"))
+    assert {"robot_hand_park", "robot_hand_release", "robot_hand_retract"} <= set(control.commands)
+    assert "osr2_control_off" not in control.commands
     assert _keys(control) == ()
 
 
@@ -870,7 +876,22 @@ def test_the_main_funestras_mode_groups_follow_its_consoles_mode_buttons():
     main = _section("Main Funestra")
 
     assert [group.title for group in main.groups] == ["", *(label for _, label, _ in MODE_BUTTONS)]
-    assert [row.description for row in main.groups[0].rows] == ["open the browser", "included video types"]
+    assert [row.description for row in main.groups[0].rows] == [
+        "open the browser", "included video types", "included video types (projection)"]
+
+
+def test_the_included_lengths_are_said_as_the_included_shapes_are():
+    """The console's two pairs of buttons, clips / full and flat / VR, are
+    the two "included video types" rows, each said as what it includes."""
+    [lengths] = [row for row in _all_rows() if "main_player_length_clips" in row.commands]
+    [shapes] = [row for row in _all_rows() if "main_projection_flat" in row.commands]
+
+    assert lengths.description == "included video types"
+    assert lengths.voice == ("clips only", "full only", "clips and full", "full and clips")
+    assert "in Kino mode" in lengths.detail
+    assert shapes.description == "included video types (projection)"
+    assert set(shapes.voice) == {"flat only", "2D only", "VR only", "flat and VR", "VR and flat"}
+    assert lengths not in _group("Main Funestra", "Kino").rows
 
 
 def test_the_column_heads_say_hotkey_and_voice_command_and_a_forked_hotkey_head_spans_its_funestras():
