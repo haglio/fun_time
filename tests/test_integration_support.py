@@ -1014,3 +1014,65 @@ def test_every_app_a_run_stands_in_for_is_python_that_parses():
     assert sources, "no stub app sources found to check"
     for where, source in sources:
         compile(source, where, "exec")
+
+
+_WHAT_RUNS_THE_RUN = frozenset({
+    "commands.py", "coverage_map.py", "fix_session_notice.py", "fix_sessions.py",
+    "flake_gate_install.py", "hidden_desktop.py", "line_record.py", "main_verifier.py",
+    "run_clock.py", "session_lock.py"})
+_WALL_READINGS = frozenset({"monotonic", "time", "perf_counter"})
+_TIMED_WAITS = frozenset({"wait", "join", "communicate", "run"})
+
+
+def _reads_the_wall(node: ast.AST) -> bool:
+    return (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and node.func.attr in _WALL_READINGS
+            and isinstance(node.func.value, ast.Name) and node.func.value.id == "time")
+
+
+def _counts_the_runs_seconds(timeout: ast.AST) -> bool:
+    return (isinstance(timeout, ast.Call) and getattr(timeout.func, "id", "") == "min"
+            and any(isinstance(bound, ast.Call) and getattr(bound.func, "attr", "") == "left"
+                    for bound in timeout.args))
+
+
+def _timeout_of(call: ast.Call, name: str) -> ast.AST | None:
+    given = next((word.value for word in call.keywords if word.arg == "timeout"), None)
+    first = call.args[0] if call.args else None
+    if given is None and name in ("wait", "communicate"):
+        return first
+    if given is None and name == "join" and isinstance(getattr(first, "value", None), (int, float)):
+        return first
+    return given
+
+
+def _sets_or_checks_a_wall_deadline(node: ast.AST) -> bool:
+    if isinstance(node, ast.BinOp):
+        return isinstance(node.op, ast.Add) and (_reads_the_wall(node.left) or _reads_the_wall(node.right))
+    return isinstance(node, ast.Compare) and any(
+        _reads_the_wall(part) for side in (node.left, *node.comparators) for part in ast.walk(side))
+
+
+def _waits_on_the_wall(tree: ast.AST) -> list[int]:
+    found = []
+    for node in ast.walk(tree):
+        if _sets_or_checks_a_wall_deadline(node):
+            found.append(node.lineno)
+        elif isinstance(node, ast.Call):
+            name = getattr(node.func, "attr", getattr(node.func, "id", ""))
+            timeout = _timeout_of(node, name) if name in _TIMED_WAITS else None
+            if name == "wait_for_window_by_title" or (
+                    timeout is not None and not _counts_the_runs_seconds(timeout)):
+                found.append(node.lineno)
+    return found
+
+
+def test_no_check_waits_in_the_walls_seconds():
+    integration = Path(integration_support.__file__).parent
+    waits = {path.name: lines for path in sorted(integration.glob("*.py"))
+             if path.name not in _WHAT_RUNS_THE_RUN
+             and (lines := _waits_on_the_wall(ast.parse(path.read_text(encoding="utf-8"))))}
+
+    assert waits == {}, (
+        "these lines wait in the wall's seconds, which a run that other work starves spends "
+        f"without running; wait through seen_within and the helpers built on it: {waits}")
