@@ -42,7 +42,7 @@ from fun_time.windows_bridge_startup import (
 )
 from fun_time_vr.gallery_panel import HOSTED_RELEASE, HOVER, SCROLL
 from fun_time_vr.pointer import DRAG, PRESS, RIGHT_CLICK
-from tests.integration.integration_support import checkout_project_dirs
+from tests.integration.integration_support import checkout_project_dirs, run_within
 from tests.origenerator_contract import CONTRACT_FILE, named_checkout, published_by
 
 pytestmark = pytest.mark.skipif(
@@ -134,10 +134,7 @@ def _run_the_launch(tmp_path: Path, extra: list[str]) -> subprocess.CompletedPro
     if not env:
         env = {**os.environ}
     env["QT_QPA_PLATFORM"] = "offscreen"
-    return subprocess.run(
-        [*command, *extra], **kwargs, env=env,
-        capture_output=True, text=True, timeout=300,
-    )
+    return run_within([*command, *extra], 300, **kwargs, env=env, capture_output=True, text=True)
 
 
 def test_the_real_launch_command_boots_the_real_app(tmp_path):

@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
-import subprocess
 import sys
 import time
 from contextlib import contextmanager
@@ -14,7 +12,6 @@ import pytest
 from app_support.file_channel import read_key_values, write_flag
 from app_support.flick_folder import flat_flicks_in, flicks_folder_in
 from app_support.funscript import document, write
-from app_support.subprocess_utils import hidden_subprocess_kwargs
 from funestra.file_channel import append_command
 from funestra.funestra_controls import SEEK_STEP_MS
 from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_SPEED, play_file
@@ -48,6 +45,7 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
+    clip_of_a_test_pattern,
     published_status,
     seen_within,
     senders,
@@ -966,16 +964,9 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
 
 def _flicks_oldest_to_newest(folder: Path, *names: str) -> list[Path]:
     """*names* as two-second test patterns in *folder*, the first the oldest arrival."""
-    ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg is None:
-        pytest.fail("ffmpeg is what makes this test's flicks, and it is not on PATH")
     flicks = []
     for arrived, name in enumerate(names, start=1):
-        flick = folder / name
-        subprocess.run(
-            [ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=160x120:rate=30",
-             "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(flick)],
-            check=True, timeout=60, **hidden_subprocess_kwargs())
+        flick = clip_of_a_test_pattern(folder / name, size="160x120", seconds=2)
         os.utime(flick, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
         flicks.append(flick)
     return flicks

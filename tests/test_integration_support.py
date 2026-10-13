@@ -14,6 +14,7 @@ import ast
 import json
 import os
 import socket
+import subprocess
 import textwrap
 import time
 from pathlib import Path
@@ -43,6 +44,7 @@ from tests.integration.integration_support import (
     point_the_main_funestra_at,
     published_status,
     readable_at_speed,
+    run_within,
     sample_library_clips,
     stall_per_transition,
     wait_for,
@@ -355,6 +357,39 @@ def test_a_thread_is_waited_on_in_the_seconds_the_run_could_run(monkeypatch, run
     looks = iter(range(10_000))
 
     assert joined_within(SimpleNamespace(is_alive=lambda: next(looks) < 9_999), 5.0)
+
+
+def test_a_command_is_run_to_its_end_in_the_seconds_the_run_could_run(monkeypatch, run_time):
+    run_time(StarvedRun())
+    asked = iter(range(10_000))
+
+    def communicate(timeout):
+        if next(asked) < 9_999:
+            raise subprocess.TimeoutExpired("ffmpeg", timeout)
+        return "made", ""
+
+    monkeypatch.setattr(subprocess, "Popen", lambda _argv, **_popen: SimpleNamespace(
+        communicate=communicate, returncode=0))
+
+    assert run_within(["ffmpeg"], 60.0, check=True).stdout == "made"
+
+
+def test_a_command_still_running_when_its_seconds_are_spent_is_ended_and_named_with_them(
+        monkeypatch, clock):
+    ended: list[str] = []
+
+    def communicate(timeout=None):
+        if ended:
+            return "", ""
+        clock.sleep(timeout)
+        raise subprocess.TimeoutExpired("ffmpeg", timeout)
+
+    monkeypatch.setattr(subprocess, "Popen", lambda _argv, **_popen: SimpleNamespace(
+        communicate=communicate, returncode=None, kill=lambda: ended.append("killed")))
+
+    with pytest.raises(subprocess.TimeoutExpired, match="after 60.0 seconds"):
+        run_within(["ffmpeg"], 60.0)
+    assert ended == ["killed"]
 
 
 def test_the_reap_never_waits_on_a_hotkey_script_it_did_not_end(session, monkeypatch):
