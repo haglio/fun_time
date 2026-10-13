@@ -154,9 +154,12 @@ def measured_sources(data_file: Path, checkout: Path, sources: frozenset[str]) -
 
 def _what_one_process_ran(saved: Path, by_path: Mapping[str, str]) -> set[str]:
     data = coverage.CoverageData(str(saved))
-    data.read()
-    return {by_path[key] for measured in data.measured_files()
-            if (key := os.path.normcase(measured)) in by_path and data.lines(measured)}
+    try:
+        data.read()
+        return {by_path[key] for measured in data.measured_files()
+                if (key := os.path.normcase(measured)) in by_path and data.lines(measured)}
+    finally:
+        data.close()
 
 
 def _version(text: str) -> tuple[int, ...]:

@@ -774,6 +774,22 @@ def test_a_process_ended_part_way_through_saving_costs_the_map_only_what_that_pr
     assert torn.name in caplog.text
 
 
+def test_a_process_file_the_map_could_not_open_is_let_go_while_the_warning_is_kept(tmp_path, caplog):
+    measuring = tmp_path / "measuring"
+    measuring.mkdir()
+    data = coverage.CoverageData(basename=str(measuring / ".coverage"), suffix=True)
+    data.add_lines({str(tmp_path / "fun_time" / "x.py"): [1]})
+    data.write()
+    torn = Path(data.data_filename())
+    with open(torn, "r+b") as raw:
+        raw.write(b"\xff" * 16)
+
+    with caplog.at_level("WARNING", logger="main_verifier"):
+        main_verifier.measured_sources(measuring / ".coverage", tmp_path, frozenset({"fun_time/x.py"}))
+
+    os.remove(torn)
+
+
 def test_a_head_that_passes_is_measured_for_coverage_once_the_map_is_out_of_date(tmp_path):
     fresh, stale = FakeBench("c3", ["a1", "b2", "c3"]), FakeBench("c3", ["a1", "b2", "c3"], stale_map=True)
     broken = FakeBench("c3", ["a1", "b2", "c3"], broken_from="c3", stale_map=True)
