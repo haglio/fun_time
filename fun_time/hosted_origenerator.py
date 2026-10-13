@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
-from player_core.file_channel import append_command
+from funestra.file_channel import append_command
 
 from .manifest import LaunchManifest
 from .room_funestras import RoomFunestra

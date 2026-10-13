@@ -1,7 +1,7 @@
 """The hosted app's own window, drawn on a screen in the room."""
 from __future__ import annotations
 
-from player_core.file_channel import consume_command_file
+from funestra.file_channel import consume_command_file
 
 from fun_time_vr.frame_channel import FrameWriter
 from fun_time_vr.gallery_panel import (

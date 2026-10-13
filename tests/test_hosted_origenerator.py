@@ -5,7 +5,7 @@ import mmap
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from player_core.file_channel import consume_command_file
+from funestra.file_channel import consume_command_file
 
 from fun_time import load_config
 from fun_time.hosted_origenerator import (
