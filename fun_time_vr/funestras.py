@@ -616,12 +616,9 @@ class _MainUnit(_VideoUnit):
         if said is not None and self._notices is not None:
             self._notices.flash(said, level=NOTICE, screen=self.screen_name, now=now)
 
-    def dial_the_wrap(self, *, zoom: float, stretch: float) -> None:
-        wrap = self.verbs.wrap
-        if zoom != 1.0:
-            self.verbs.set_fov(wrap.fov_deg * zoom)
+    def dial_the_wrap(self, *, stretch: float) -> None:
         if stretch != 1.0:
-            self.verbs.set_height(wrap.height * stretch)
+            self.verbs.set_height(self.verbs.wrap.height * stretch)
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {MAIN: Hangs((self.screen,))}
@@ -2128,9 +2125,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                         library, gallery, session.hands, elapsed_s=frame_dt),
                     pointer, elapsed_s=frame_dt, dialing=dialing)
                 posts.post(thumb.commands)
-                zoom = main_unit.verbs.angle_asked.take()
                 if dialing:
-                    main_unit.dial_the_wrap(zoom=zoom, stretch=thumb.stretch)
+                    main_unit.dial_the_wrap(stretch=thumb.stretch)
                 main_unit.flash_the_readout(now)
                 scene_yaw, lift_deg = carried_heading(scene_yaw, frame.carried)
                 main_unit.verbs.nudge_tilt(lift_deg)

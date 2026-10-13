@@ -49,10 +49,7 @@ SATELLITE_MODE_COMMANDS: dict[str, tuple[RoomFunestra, SatellitesMode]] = {
     for mode in (KINO_MODE, ORIGENERATOR_MODE)
 }
 
-# Both satellites at once.  The toggle's target is None: like the F key, it
-# puts both in Origenerator mode unless both already are.
-BOTH_SATELLITES_MODE_COMMANDS: dict[str, SatellitesMode | None] = {
+BOTH_SATELLITES_MODE_COMMANDS: dict[str, SatellitesMode] = {
     "satellites_kino_activate": KINO_MODE,
     "satellites_origenerator_activate": ORIGENERATOR_MODE,
-    "satellites_toggle": None,
 }

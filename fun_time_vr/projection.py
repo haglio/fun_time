@@ -2,8 +2,8 @@
 
 A 2D video hangs on a big flat screen; a VR video wraps the view in one of the
 projections its producer mastered it in (equirect 180 side-by-side the default,
-fisheye variants the exceptions).  A wrong guess is fixed once -- the P key, the
-spoken "projection", a controller's stick -- and the choice is written into the
+fisheye variants the exceptions).  A wrong guess is fixed once -- the spoken
+"projection", a controller's stick -- and the choice is written into the
 video's Evolver sidecar under a ``"vr"`` block of its own, read-merge-write, so
 neither side clobbers the other's fields.
 """

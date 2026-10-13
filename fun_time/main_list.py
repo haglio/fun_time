@@ -64,16 +64,6 @@ _KINDS_OF_LENGTH = {
     LengthMode.FULL: frozenset({FULL_LENGTH}),
 }
 
-_LENGTHS_THE_KEY_WALKS = (LengthMode.MIXED, LengthMode.CLIPS, LengthMode.FULL)
-
-
-def next_length_mode(length: LengthMode) -> LengthMode:
-    if length not in _LENGTHS_THE_KEY_WALKS:
-        return LengthMode.MIXED
-    position = _LENGTHS_THE_KEY_WALKS.index(length)
-    return _LENGTHS_THE_KEY_WALKS[(position + 1) % len(_LENGTHS_THE_KEY_WALKS)]
-
-
 def new_shuffle_seed() -> int:
     return random.getrandbits(32)
 

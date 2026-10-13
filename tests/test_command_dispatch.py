@@ -611,8 +611,6 @@ def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(
 @pytest.mark.parametrize("command, verb", [
     ("projection_cycle", "CYCLE_PROJECTION"),
     ("projection_cycle_back", "CYCLE_PROJECTION_BACK"),
-    ("projection_wider", "WIDEN_PROJECTION"),
-    ("projection_narrower", "NARROW_PROJECTION"),
     ("recenter_view", "RECENTER"),
     ("tilt_up", "TILT_UP"),
     ("tilt_down", "TILT_DOWN"),
@@ -633,9 +631,8 @@ def test_a_vr_only_verb_reaches_the_vr_main_funestra(command, verb, tmp_path: Pa
 
 @pytest.mark.parametrize(
     "command",
-    ["projection_cycle", "projection_cycle_back", "projection_wider", "projection_narrower",
-     "recenter_view", "tilt_up", "tilt_down", "tilt_reset", "main_scene_prev",
-     "main_scene_next", "vr_reset"],
+    ["projection_cycle", "projection_cycle_back", "recenter_view", "tilt_up", "tilt_down",
+     "tilt_reset", "main_scene_prev", "main_scene_next", "vr_reset"],
 )
 @pytest.mark.parametrize("main_mode", ["kino", "genau"])
 def test_a_vr_only_verb_is_ignored_in_a_desktop_session(command, main_mode, tmp_path: Path):
@@ -758,18 +755,6 @@ def test_a_length_button_narrows_the_one_main_list_from_the_video_on_screen(
     assert [(build.settings.length, build.on_screen) for build in builds.asked] == [
         (length, "C:/v/scene one.mp4")]
     assert not config.main_funestra_cmd_file.exists()
-
-
-def test_the_length_key_walks_mixed_clips_full_and_round_again(tmp_path: Path):
-    config, _builds = _recording(_make_config(tmp_path))
-    state = _make_state()
-    walked = []
-
-    for _ in range(3):
-        state, _ops = dispatch_command("main_player_toggle_length", state, config)
-        walked.append(state.main_length_mode)
-
-    assert walked == [LengthMode.CLIPS, LengthMode.FULL, LengthMode.MIXED]
 
 
 def test_naming_the_length_already_running_asks_for_nothing(tmp_path: Path):
@@ -4556,16 +4541,6 @@ class TestEachSatellitesOwnMode:
         assert state.rfb_slot is RfbSlot.RFB
         assert _origenerator_cmds(config) == ["portrait_open_show", "landscape_open_show"]
 
-    def test_the_toggle_puts_both_in_origenerator_mode_unless_both_already_are(self, tmp_path):
-        """The F key's own rule for a toggle over several Funestras: it completes
-        the switch or lifts it, never leaving the two halfway."""
-        config = _origenerator_config(tmp_path)
-        state, _ = dispatch_command("satellites_toggle",
-                                    _in_origenerator_mode(RoomFunestra.PORTRAIT), config)
-        assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
-        state, _ = dispatch_command("satellites_toggle", state, config)
-        assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-
     def test_without_an_origenerator_the_switch_reports_and_stays(self, tmp_path):
         config = _make_config(tmp_path)
         state, ops = dispatch_command("portrait_origenerator_activate", _up(), config)
@@ -4581,7 +4556,7 @@ class TestEachSatellitesOwnMode:
         """
         config = _origenerator_config(tmp_path)
 
-        for command in ("portrait_origenerator_activate", "satellites_toggle"):
+        for command in ("portrait_origenerator_activate", "satellites_origenerator_activate"):
             state, ops = dispatch_command(command, BridgeState(), config)
             assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
             assert [(op.op, op.key) for op in ops] == [

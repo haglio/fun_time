@@ -61,7 +61,7 @@ from .funestra_status import (
     read_main_funestra_status,
 )
 from .lock import MARKED_WEIRD, build_discard_plan, build_lock_toggle_plan
-from .main_list import MainListSettings, new_shuffle_seed, next_length_mode
+from .main_list import MainListSettings, new_shuffle_seed
 from .max_intensity import (
     MAX_INTENSITY_COMMAND,
     funestras_that_can_drive_the_osr2,
@@ -75,7 +75,6 @@ from .omnipause import build_omnipause_plan
 from .origenerator_switches import (
     BOTH_SATELLITES_MODE_COMMANDS,
     KINO_MODE,
-    ORIGENERATOR_MODE,
     SATELLITE_MODE_COMMANDS,
     RfbSlot,
     origenerator_shows,
@@ -1827,11 +1826,6 @@ def _main_length(length: LengthMode, state: BridgeState, config: BridgeConfig,
     return _dispatch_main_length(length, state, config)
 
 
-def _main_length_toggle(state: BridgeState, config: BridgeConfig,
-                        _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return _dispatch_main_length(next_length_mode(state.main_length_mode), state, config)
-
-
 def _main_reset(state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return _dispatch_main_reset(state, config)
@@ -1856,12 +1850,9 @@ def _satellite_switch(funestra: RoomFunestra, target: SatellitesMode, state: Bri
     return _switch_satellite(funestra, target, state, config)
 
 
-def _both_satellites_switch(target: SatellitesMode | None, state: BridgeState,
+def _both_satellites_switch(target: SatellitesMode, state: BridgeState,
                             config: BridgeConfig,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if target is None:
-        held = all(hosts(funestra, state, config) for funestra in RoomFunestra.SATELLITES)
-        target = KINO_MODE if held else ORIGENERATOR_MODE
     refused = _origenerator_refused(state, config, asked_for=origenerator_shows(target))
     if refused is not None:
         return state, refused
@@ -1980,8 +1971,6 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["projection_cycle"] = partial(_forward_to_the_vr_main_funestra, "CYCLE_PROJECTION")
     handlers["projection_cycle_back"] = partial(
         _forward_to_the_vr_main_funestra, "CYCLE_PROJECTION_BACK")
-    handlers["projection_wider"] = partial(_forward_to_the_vr_main_funestra, "WIDEN_PROJECTION")
-    handlers["projection_narrower"] = partial(_forward_to_the_vr_main_funestra, "NARROW_PROJECTION")
     handlers["recenter_view"] = partial(_forward_to_the_vr_main_funestra, "RECENTER")
     handlers["tilt_up"] = partial(_forward_to_the_vr_main_funestra, "TILT_UP")
     handlers["tilt_down"] = partial(_forward_to_the_vr_main_funestra, "TILT_DOWN")
@@ -2011,7 +2000,6 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, (plays_vr, plays_flat) in _PROJECTION_COMMANDS.items()})
     handlers.update({cmd: partial(_main_length, length)
                      for cmd, length in _LENGTH_COMMANDS.items()})
-    handlers["main_player_toggle_length"] = _main_length_toggle
     handlers[MAIN_RESET] = _main_reset
     handlers.update({cmd: partial(_set_filter, funestras, "")
                      for cmd, funestras in _NO_FILTER_SIDES.items()})

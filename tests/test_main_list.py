@@ -6,7 +6,7 @@ from pathlib import Path
 
 from funestra.modes import LengthMode
 
-from fun_time.main_list import MainList, MainListSettings, WrittenList, next_length_mode
+from fun_time.main_list import MainList, MainListSettings, WrittenList
 from fun_time.media_metadata import metadata_path_for
 from fun_time.modes import build_generated_marker_path
 from tests.drive_fakes import files_that_never_answer
@@ -170,16 +170,6 @@ class TestLength:
         the_list = _the_list(tmp_path, str(root), metadata_root=tmp_path / "videos" / "metadata")
 
         assert the_list.videos(MainListSettings(length=LengthMode.FULL)) == [str(video)]
-
-    def test_the_length_key_walks_both_clips_full_and_round_again(self):
-        walked = [LengthMode.MIXED]
-        for _ in range(3):
-            walked.append(next_length_mode(walked[-1]))
-
-        assert walked == [LengthMode.MIXED, LengthMode.CLIPS, LengthMode.FULL, LengthMode.MIXED]
-
-    def test_from_neither_the_length_key_puts_both_back(self):
-        assert next_length_mode(LengthMode.NONE) is LengthMode.MIXED
 
     def test_a_list_nobody_narrowed_holds_both_lengths(self):
         assert MainListSettings().length is LengthMode.MIXED

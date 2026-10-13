@@ -284,7 +284,6 @@ _SECTIONS: tuple[_Section, ...] = (
                     f"Genau mode — Genau's {_FLICK.many} on the Main Funestra, the Robot "
                     "Hand driving the OSR2",
                     commands=("genau_activate",),
-                    columns=((), (), ("G",)),
                 ),
                 _Row(
                     "Kino mode — the library's videos on the Main Funestra, each one's "
@@ -297,9 +296,8 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row(
                     "Origenerator mode — the satellites show Origenerator's slideshows "
                     "over the Funestras, with Origenerator itself over the Random Favs "
-                    "Browser; X switches the satellites between Origenerator and Kino",
-                    commands=("satellites_origenerator_activate", "satellites_toggle"),
-                    columns=(("X",), ("X",), ()),
+                    "Browser",
+                    commands=("satellites_origenerator_activate",),
                 ),
             )),
             _Group("Navigation", (
@@ -425,8 +423,8 @@ _SECTIONS: tuple[_Section, ...] = (
                     "\"clips\", or \"full\"; \"mixed\" leaves any compilation with it, "
                     "and its HUD's own pair reaches a fourth state, neither, which "
                     "holds the video on screen",
-                    ("T",),
-                    ("main_player_toggle_length", "main_player_length_clips", "main_player_length_full",
+                    (),
+                    ("main_player_length_clips", "main_player_length_full",
                      "main_player_length_mixed", "main_player_length_none"),
                 ),
                 _Row(
@@ -449,7 +447,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row(
                     "step through the other versions of this video — the same "
                     "content at another size or from another encode",
-                    ("Shift+M", "Shift+.", "V"),
+                    ("Shift+M", "Shift+."),
                     ("main_player_cycle_version_back", "main_player_cycle_version"),
                 ),
                 _Row(
@@ -458,14 +456,8 @@ _SECTIONS: tuple[_Section, ...] = (
                     "video; a controller's stick pushed right or left steps forward or "
                     "back through them, and while the picture wraps the view its up and "
                     "down shortens or stretches the picture",
-                    ("P",),
+                    (),
                     ("projection_cycle", "projection_cycle_back"),
-                ),
-                _Row(
-                    "narrow / widen the angle a wrapped VR picture spans — remembered per "
-                    "video",
-                    ("Alt+Left", "Alt+Right"),
-                    ("projection_narrower", "projection_wider"),
                 ),
             )),
             _Group("Genau", (

@@ -527,7 +527,7 @@ def test_the_reference_names_genaus_flicks_in_the_overlays_word():
             if re.search(r"Genau(?:'s)? clips?\b", row.description)] == []
 
 
-def test_genau_mode_row_lists_genau_phrase_and_g_key():
+def test_genau_mode_row_lists_genau_phrase_and_no_key():
     rows = _all_rows()
     genau_rows = [r for r in rows if "genau_activate" in r.commands]
     assert genau_rows, "expected a row for genau_activate"
@@ -535,7 +535,26 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
     assert "genau" in row.voice
     assert "genau mode" in row.voice
     assert "go now" not in row.voice
-    assert any(key.lower() == "g" for key in _keys(row))
+    assert _keys(row) == ()
+
+
+def test_the_keys_nobody_reached_for_are_gone_and_what_only_they_reached_went_with_them():
+    """G, X, V, T, P and Alt+Left / Alt+Right left the keyboard: the modes,
+    the versions and the projection are still spoken, on a HUD or on a
+    controller, and an id nothing but its key reached is gone with the key."""
+    for key in ("g", "x", "v", "t", "p", "!Left", "!Right"):
+        assert not re.search(rf"^{re.escape(key)}::", script_text(), re.MULTILINE), key
+    retired = {"satellites_toggle", "main_player_toggle_length",
+               "projection_narrower", "projection_wider"}
+    assert not retired & _covered_commands()
+    assert not retired & set(VOICE_COMMANDS.values())
+    assert not retired & _ahk_hotkey_commands()
+    modes = _group("Funestras", "Modes")
+    assert [_keys(row) for row in modes.rows] == [(), (), ()]
+    assert "X" not in _the_row_of("satellites_origenerator_activate").detail
+    assert _keys(_the_row_of("main_player_length_clips")) == ()
+    assert _keys(_the_row_of("projection_cycle")) == ()
+    assert not [row for row in _all_rows() if row.description.startswith("narrow / widen")]
 
 
 def test_the_sections_are_the_dashboard_vr_the_osr2_every_funestra_each_funestra_the_map_origenerator_and_the_rest():
@@ -656,13 +675,13 @@ def test_the_shifted_and_ctrl_pairs_followed_m_and_the_period():
     and Ctrl with the same two keys the bare step uses, as the satellites'
     shifted and Ctrl pairs ride their own step keys."""
     assert _ahk_bindings_for("main_player_cycle_version_back") == ["+m"]
-    assert _ahk_bindings_for("main_player_cycle_version") == ["v", "+SC034"]
+    assert _ahk_bindings_for("main_player_cycle_version") == ["+SC034"]
     assert _ahk_bindings_for("main_hud_counterclockwise") == ["^m"]
     assert _ahk_bindings_for("main_hud_clockwise") == ["^SC034"]
     assert not re.search(r"^[+^]?(\[|\]|SC01A|SC01B)::", script_text(), re.MULTILINE)
     versions = next(r for r in _section("Main Funestra").rows
                     if "main_player_cycle_version_back" in r.commands)
-    assert _keys(versions) == ("Shift+M", "Shift+.", "V")
+    assert _keys(versions) == ("Shift+M", "Shift+.")
     hud = next(r for r in _funestras_section().rows if "main_hud_clockwise" in r.commands)
     assert hud.key_columns == (("Ctrl+Left", "Ctrl+Right", "Ctrl+Up", "Ctrl+Down"),
                                ("Ctrl+A", "Ctrl+D", "Ctrl+W", "Ctrl+S"),

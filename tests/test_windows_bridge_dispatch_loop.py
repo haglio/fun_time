@@ -3011,8 +3011,9 @@ class TestExpandGroupCommand:
         assert expand_group_command("quit") == ["quit"]
 
     def test_the_satellite_sides_mode_switches_are_said_of_the_side_as_a_whole(self):
-        assert expand_group_command("satellites_toggle") == ["satellites_toggle"]
         assert expand_group_command("satellites_kino_activate") == ["satellites_kino_activate"]
+        assert expand_group_command("satellites_origenerator_activate") == [
+            "satellites_origenerator_activate"]
 
     def test_expands_to_portrait_then_landscape(self):
         assert expand_group_command("satellites_next") == ["portrait_next", "landscape_next"]

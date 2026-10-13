@@ -103,9 +103,6 @@ Esc::PauseOrCancelStartup()
 Space::QueueCommand("enter_omnipause")
 Enter::QueueCommand("voice_accept")
 NumpadEnter::QueueCommand("voice_accept")
-g::QueueCommand("genau_activate")
-; Both Satellite Funestras' mode at once: Kino <-> Origenerator.
-x::QueueCommand("satellites_toggle")
 $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")
 
@@ -182,20 +179,11 @@ r up:: {
     QueueCommand("main_player_record_up")
 }
 
-; The Main Funestra: cycle to another same-content version of the current video.
-; Its shifted step keys (M and the period) walk the same versions either way, as
-; the shifted step keys on each satellite side do.
-v::QueueCommand("main_player_cycle_version")
+; The Main Funestra's shifted step keys (M and the period) walk the other
+; versions of the current video either way, as the shifted step keys on each
+; satellite side do.
 +m::QueueCommand("main_player_cycle_version_back")
 +SC034::QueueCommand("main_player_cycle_version")
-
-; The Main Funestra: cycle the length of what plays — mixed (everything) / clips / full.
-t::QueueCommand("main_player_toggle_length")
-
-; FunTimeVR: cycle the Main Funestra's video's projection.  Desktop Main Funestra ignores the verb.
-p::QueueCommand("projection_cycle")
-!Left::QueueCommand("projection_narrower")
-!Right::QueueCommand("projection_wider")
 
 ; Robot Hand hotkeys.  Each pair reads left-down / right-up: 7/9 sit
 ; above u/o for amplitude, the way u/o and j/l already work for center and speed.
