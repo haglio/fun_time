@@ -49,7 +49,6 @@ from fun_time.overlay_progress import (
     PhaseProgress,
 )
 from fun_time.shared_state import BridgeState, shared_state_path
-from fun_time.window_layout import MonitorRect, compute_window_layout
 from fun_time_vr import funestras, room
 from fun_time_vr.console_panel import DEG_PER_PX, PANEL_WIDTH_PX
 from fun_time_vr.cover import (
@@ -2764,22 +2763,23 @@ class TestTheSpotEachScreenStartsIn:
     def test_the_satellites_ride_above_the_horizon(self):
         assert _SatelliteUnit.SPOTS[LANDSCAPE].elevation_deg > 0
 
-    def test_the_gallery_hangs_clear_of_the_player_beside_it(self, cfg_path):
-        """The hosted app's window takes the browser's rect on the monitors,
-        which is taller than it is wide: a screen as wide as a player's would
-        stand half again as tall as the main one, over the player next to it --
-        and in that mode, that player is showing one of the app's own shows."""
-        plan = compute_window_layout(
-            primary_monitor=MonitorRect(0, 0, 2560, 1392),
-            secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
-            layout_config=load_config(cfg_path).layout,
-        )
+    def test_the_gallery_hangs_clear_of_the_player_beside_it(self):
+        """In that mode the player next to it is showing one of the hosted
+        app's own shows, so the screen wide enough for a whole desktop reaches
+        out to the empty left of the room rather than over that player."""
         gallery = _GalleryUnit.SPOTS[GALLERY]
         landscape = _SatelliteUnit.SPOTS[LANDSCAPE]
 
-        assert plan.random_favs_browser.height > plan.random_favs_browser.width
         assert (gallery.azimuth_deg + gallery.width_deg / 2
                 < landscape.azimuth_deg - landscape.width_deg / 2)
+
+    def test_the_gallery_opens_as_wide_as_the_browse(self):
+        """Both carry a whole desktop rather than one video, and he tried this
+        one at 26 degrees and then at 37 and said each started out too small --
+        then dragged it out to 95, which is what it opens at now.  Every degree
+        it gained is on its left, where the room is empty."""
+        assert (_GalleryUnit.SPOTS[GALLERY].width_deg
+                >= _LibraryUnit.SPOTS[LIBRARY].width_deg)
 
     def test_only_the_screens_a_controller_places_keep_one(self):
         """The console is one of them: a video that wraps the viewer leaves no
@@ -2845,13 +2845,6 @@ class TestPuttingTheRoomBack:
         unit.put_back()
 
         assert unit.screen.placement == _MainUnit.SPOTS[MAIN]
-
-    def test_the_hosted_apps_window_opens_wider_than_a_side_players(self):
-        """It is a whole desktop app rather than one video, and its picture is
-        portrait, so the same width leaves it far shorter than the browse: he
-        tried it at 26 degrees and said it started out way too small."""
-        assert (_GalleryUnit.SPOTS[GALLERY].width_deg
-                > _SatelliteUnit.SPOTS[LANDSCAPE].width_deg)
 
     def test_the_hosted_apps_window_goes_back_to_its_own_spot(self):
         unit = _like(_GalleryUnit, SimpleNamespace(
