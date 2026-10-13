@@ -58,6 +58,7 @@ from fun_time import (
 from fun_time.config import DEFAULT_CONFIG_PATH
 from fun_time.media_metadata import reset_group_index_cache
 from fun_time_vr import orchestrator as vr_orchestrator
+from fun_time_vr import vr_runtime, windows_sound
 from tests.logging_state import logging_given_back
 from tests.made_up_genau import made_up_genau
 from tests.scratch import scratch_dir
@@ -127,6 +128,36 @@ def _never_listen_to_his_desktop(monkeypatch):
     so in a unit test it hears nothing.  The integration suite overrides this:
     its desktop is a hidden one."""
     monkeypatch.setattr(win32_events.PressAndCaretWatch, "start", lambda _watch: None)
+
+
+_WHAT_REACHES_HIS_HEADSET = {
+    (vr_runtime, "probe"): "asked the VR runtime for a headset",
+    (vr_runtime, "start_runtime"): "started the VR runtime",
+    (vr_runtime, "stop_runtime"): "stopped the VR runtime",
+    (windows_sound, "make_default"): "changed Windows' default sound device",
+}
+
+
+@pytest.fixture(autouse=True)
+def _never_reach_the_real_headset(monkeypatch):
+    """The Pimax on this machine is his: a unit test that reaches its runtime
+    turns his headset on or ends his VR session, and the runtime moves his
+    sound as it comes and goes.  The refusal ends the reach in whatever thread
+    made it, and the test fails once its threads have ended.  Tests that are
+    about these calls patch them by name, which overrides this."""
+    reached = []
+
+    def refuse(what):
+        def refused(*_args, **_kwargs):
+            reached.append(what)
+            raise RuntimeError(f"a unit test {what}")
+        return refused
+
+    for (module, name), what in _WHAT_REACHES_HIS_HEADSET.items():
+        monkeypatch.setattr(module, name, refuse(what))
+    yield
+    if reached:
+        pytest.fail(f"a unit test reached his real headset: {', '.join(reached)}")
 
 
 @pytest.fixture(autouse=True)
