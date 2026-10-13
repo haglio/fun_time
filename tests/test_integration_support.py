@@ -49,6 +49,7 @@ from tests.integration.integration_support import (
     window_is_quiet,
 )
 from tests.integration.run_clock import keep_time_by
+from tests.made_up_clocks import SleepDrivenClock, StarvedRun
 from tests.made_up_machine import running
 
 BROKER_TCODE_PORT = 50557
@@ -275,26 +276,6 @@ def test_a_timed_out_wait_says_when_each_funestra_last_published(session):
     assert "Main Funestra 120s ago; portrait never; landscape never" in str(timed_out.value)
 
 
-class _Clock:
-    """The wall and the run's clock at once, moved on by the waits' own sleeps."""
-
-    def __init__(self) -> None:
-        self.now = 0.0
-
-    def time(self) -> float:
-        return self.now
-
-    monotonic = seconds = time
-
-    def sleep(self, seconds: float) -> None:
-        self.now += seconds
-
-
-class _Starved:
-    def seconds(self) -> float:
-        return 0.0
-
-
 @pytest.fixture
 def run_time():
     yield keep_time_by
@@ -303,7 +284,7 @@ def run_time():
 
 @pytest.fixture
 def clock(monkeypatch, run_time):
-    fake = _Clock()
+    fake = SleepDrivenClock()
     monkeypatch.setattr(integration_support, "time", fake)
     run_time(fake)
     return fake
@@ -343,16 +324,16 @@ def test_a_wait_that_runs_out_ends_with_what_it_was_handed_to_explain_it(clock):
 def test_a_wait_is_counted_in_the_seconds_the_run_could_run(monkeypatch, run_time):
     """Ten thousand polls are half an hour on the wall, and none of it the run's
     while normal-priority work holds every processor."""
-    monkeypatch.setattr(integration_support, "time", _Clock())
-    run_time(_Starved())
+    monkeypatch.setattr(integration_support, "time", SleepDrivenClock())
+    run_time(StarvedRun())
     polls = iter(range(10_000))
 
     assert wait_for(lambda: next(polls) == 9_999, desc="a Funestra starved of the processor")
 
 
 def test_a_window_is_awaited_by_its_whole_title_in_the_seconds_the_run_could_run(monkeypatch, run_time):
-    monkeypatch.setattr(integration_support, "time", _Clock())
-    run_time(_Starved())
+    monkeypatch.setattr(integration_support, "time", SleepDrivenClock())
+    run_time(StarvedRun())
     looks = iter(range(10_000))
     monkeypatch.setattr(integration_support, "find_window_by_title",
                         lambda _title, *, exact: 7 if next(looks) == 9_999 and exact else 0)
@@ -361,16 +342,16 @@ def test_a_window_is_awaited_by_its_whole_title_in_the_seconds_the_run_could_run
 
 
 def test_a_process_is_waited_on_in_the_seconds_the_run_could_run(monkeypatch, run_time):
-    monkeypatch.setattr(integration_support, "time", _Clock())
-    run_time(_Starved())
+    monkeypatch.setattr(integration_support, "time", SleepDrivenClock())
+    run_time(StarvedRun())
     polls = iter(range(10_000))
 
     assert ended_within(SimpleNamespace(poll=lambda: 0 if next(polls) == 9_999 else None), 5.0)
 
 
 def test_a_thread_is_waited_on_in_the_seconds_the_run_could_run(monkeypatch, run_time):
-    monkeypatch.setattr(integration_support, "time", _Clock())
-    run_time(_Starved())
+    monkeypatch.setattr(integration_support, "time", SleepDrivenClock())
+    run_time(StarvedRun())
     looks = iter(range(10_000))
 
     assert joined_within(SimpleNamespace(is_alive=lambda: next(looks) < 9_999), 5.0)
