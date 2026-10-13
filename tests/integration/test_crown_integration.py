@@ -22,7 +22,7 @@ from funestra.funestra_verbs import play_file
 from funestra.playlist import PlaylistItem
 
 from fun_time.crown import Crown
-from fun_time.win32 import wait_for_window_by_title, window_rect
+from fun_time.win32 import window_rect
 from fun_time.win32_loader import Win32Rect
 from fun_time.window_layout import WindowRect, secondary_monitor_rects
 from fun_time.windows_bridge_startup import SATELLITE_PORTRAIT_TITLE
@@ -31,6 +31,7 @@ from tests.made_up_genau import made_up_genau
 from .integration_support import (
     SESSION_MONITORS,
     FunTimeIntegrationSession,
+    await_window,
     build_integration_config,
     build_integration_temp_root,
 )
@@ -83,8 +84,8 @@ def test_a_portrait_video_on_the_crowned_main_funestra_trades_places_with_the_po
     tall_clip = _tall_test_pattern(temp_root, seconds=30)
     try:
         session.start()
-        portrait = wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=10, exact=True)
-        main = wait_for_window_by_title("Main Funestra", timeout_s=10, exact=True)
+        portrait = await_window(SATELLITE_PORTRAIT_TITLE, 10, exact=True)
+        main = await_window("Main Funestra", 10, exact=True)
         rects = partial(secondary_monitor_rects, SECONDARY_MONITOR, session.config.layout)
 
         append_command(session.config.main_funestra_cmd_file, play_file(PlaylistItem(tall_clip)))
@@ -109,12 +110,12 @@ def test_a_portrait_genau_flick_on_the_crowned_main_funestra_trades_places_with_
     session = FunTimeIntegrationSession(build_integration_config(temp_root, genau_dir=genau))
     try:
         session.start()
-        portrait = wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=10, exact=True)
+        portrait = await_window(SATELLITE_PORTRAIT_TITLE, 10, exact=True)
         rects = partial(secondary_monitor_rects, SECONDARY_MONITOR, session.config.layout)
 
         session.write_dashboard_command("genau_activate")
         session.wait_for_new_log("Switched to genau mode")
-        main = wait_for_window_by_title("Main Funestra", timeout_s=10, exact=True)
+        main = await_window("Main Funestra", 10, exact=True)
         crowned = rects(majority=Crown.MAIN)
         _wait_until_seated(session, main_funestra=(main, crowned.main),
                            portrait_funestra=(portrait, crowned.portrait))

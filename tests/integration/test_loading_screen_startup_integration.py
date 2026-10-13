@@ -26,12 +26,12 @@ from fun_time.event_log import event_log_path
 from fun_time.win32 import (
     describe_windows,
     iter_zorder,
-    wait_for_window_by_title,
     windows_obscuring,
 )
 
 from .integration_support import (
     FunTimeIntegrationSession,
+    await_window,
     build_integration_config,
     build_integration_temp_root,
 )
@@ -73,7 +73,7 @@ def test_the_satellites_end_startup_frontmost_over_their_rects():
         assert "Post-loading window state corrected" in text
 
         hwnds = {
-            title: wait_for_window_by_title(title, timeout_s=10, exact=True)
+            title: await_window(title, 10, exact=True)
             for title in _SATELLITE_TITLES
         }
         for title, hwnd in hwnds.items():

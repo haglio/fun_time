@@ -28,12 +28,13 @@ from fun_time.funestra_status import MainFunestraStatus
 from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.monitors import enumerate_monitors
 from fun_time.windows_bridge_orchestrator import ChildProcess
-from tests.integration import integration_support, run_clock, throwaway_chrome
+from tests.integration import integration_support, run_clock
 from tests.integration.integration_support import (
     COMMAND_BUDGET_S,
     INTEGRATION_CONFIG_NAME,
     SESSION_MONITORS,
     FunTimeIntegrationSession,
+    await_window,
     close_udp_sinks,
     isolate_shared_resources,
     library_clips,
@@ -46,7 +47,6 @@ from tests.integration.integration_support import (
     window_is_quiet,
 )
 from tests.integration.run_clock import keep_time_by
-from tests.integration.throwaway_chrome import WINDOW_TIMEOUT_S
 from tests.made_up_machine import running
 
 BROKER_TCODE_PORT = 50557
@@ -348,14 +348,14 @@ def test_a_wait_is_counted_in_the_seconds_the_run_could_run(monkeypatch, run_tim
     assert wait_for(lambda: next(polls) == 9_999, desc="a Funestra starved of the processor")
 
 
-def test_a_throwaway_chrome_window_is_awaited_in_the_seconds_the_run_could_run(monkeypatch, run_time):
-    monkeypatch.setattr(throwaway_chrome, "time", _Clock())
+def test_a_window_is_awaited_by_its_whole_title_in_the_seconds_the_run_could_run(monkeypatch, run_time):
+    monkeypatch.setattr(integration_support, "time", _Clock())
     run_time(_Starved())
     looks = iter(range(10_000))
-    monkeypatch.setattr(throwaway_chrome, "find_window_by_title",
-                        lambda _marker: 7 if next(looks) == 9_999 else 0)
+    monkeypatch.setattr(integration_support, "find_window_by_title",
+                        lambda _title, *, exact: 7 if next(looks) == 9_999 and exact else 0)
 
-    assert throwaway_chrome.await_window("FUNTIMEMARK-STARVED-PAGE", WINDOW_TIMEOUT_S) == 7
+    assert await_window("Portrait AI Funestra", 10.0, exact=True) == 7
 
 
 def test_the_reap_never_waits_on_a_hotkey_script_it_did_not_end(session, monkeypatch):

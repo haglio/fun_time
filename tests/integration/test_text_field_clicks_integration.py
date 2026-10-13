@@ -12,8 +12,9 @@ import pytest
 from fun_time.text_field_clicks import LATE_S, TextFieldClicks
 from fun_time.win32_events import PressAndCaretWatch
 from fun_time.win32_loader import Win32Rect, load_dll
+from tests.integration.integration_support import await_window
 from tests.integration.run_clock import Budget
-from tests.integration.throwaway_chrome import TAB_TIMEOUT_S, WINDOW_TIMEOUT_S, await_window
+from tests.integration.throwaway_chrome import TAB_TIMEOUT_S, WINDOW_TIMEOUT_S
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="reads Windows' own reports of presses and carets"),

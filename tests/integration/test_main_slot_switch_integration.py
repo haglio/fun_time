@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sys
-import time
 
 import pytest
 
@@ -19,6 +18,7 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
+    seen_within,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -48,12 +48,7 @@ def _over(hwnd: int) -> list[StackedWindow]:
 
 
 def _stays_up(hwnd: int, *, seconds: float) -> bool:
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline:
-        if is_window_minimized(hwnd):
-            return False
-        time.sleep(0.01)
-    return True
+    return not seen_within(lambda: is_window_minimized(hwnd), seconds=seconds, every_s=0.01)
 
 
 SWITCHES = (("genau_activate", "genau"), ("main_kino_activate", "kino"))

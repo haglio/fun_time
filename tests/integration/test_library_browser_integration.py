@@ -36,11 +36,10 @@ from fun_time.win32 import (
     close_window,
     iter_zorder,
     set_always_on_top,
-    wait_for_window_by_title,
     windows_obscuring,
 )
 from fun_time.windows_bridge_dispatch_loop import keep_a_browse_on_top
-from tests.integration.integration_support import wait_for
+from tests.integration.integration_support import await_window, wait_for
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="paints a real Qt window"),
@@ -269,7 +268,7 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
     browsing.start()
     browse_hwnd = 0
     try:
-        browse_hwnd = wait_for_window_by_title(WINDOW_TITLE, _BROWSE_WINDOW_TIMEOUT_S)
+        browse_hwnd = await_window(WINDOW_TITLE, _BROWSE_WINDOW_TIMEOUT_S)
         assert browse_hwnd, "the browse never opened a window"
 
         stack = iter_zorder()
@@ -332,7 +331,7 @@ def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
     browsing.start()
     browse_hwnd = 0
     try:
-        browse_hwnd = wait_for_window_by_title(WINDOW_TITLE, _BROWSE_WINDOW_TIMEOUT_S)
+        browse_hwnd = await_window(WINDOW_TITLE, _BROWSE_WINDOW_TIMEOUT_S)
         assert browse_hwnd, "the browse never opened a window"
 
         set_always_on_top(stand_in_hwnd, True)

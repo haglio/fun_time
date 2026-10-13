@@ -39,6 +39,7 @@ from fun_time.process_identity import NAMER
 from fun_time.process_sweep import processes_matching
 from fun_time.process_tree import kill_process_tree
 from fun_time.room_funestras import RoomFunestra
+from fun_time.win32 import find_window_by_title
 from fun_time.win32_process import (
     command_line_of,
     get_process_image_name,
@@ -190,6 +191,10 @@ def wait_for(predicate, *, desc: str, timeout: float = COMMAND_BUDGET_S,
         return last
     raise AssertionError(f"Timed out waiting for {desc} (last={last!r})"
                          + ("" if explain is None else f"\n{explain()}"))
+
+
+def await_window(title: str, timeout: float, *, exact: bool = False) -> int:
+    return seen_within(lambda: find_window_by_title(title, exact=exact), seconds=timeout)
 
 
 def _holding(needle: str, text: str) -> str:

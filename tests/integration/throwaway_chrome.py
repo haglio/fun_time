@@ -18,9 +18,10 @@ import pytest
 
 from fun_time.process_tree import kill_process_tree
 from fun_time.shortcuts import Shortcut
-from fun_time.win32 import _every_window, close_window, find_window_by_title, window_process
+from fun_time.win32 import _every_window, close_window, window_process
 from fun_time.win32_loader import load_dll
 from fun_time.win32_process import list_child_pids
+from tests.integration.integration_support import await_window
 from tests.integration.run_clock import Budget
 from tests.scratch import remove_scratch
 
@@ -54,16 +55,6 @@ def chrome_exe() -> Path:
         if candidate.is_file():
             return candidate
     pytest.skip("Chrome is not installed at either standard location")
-
-
-def await_window(marker: str, timeout: float) -> int:
-    budget = Budget(timeout)
-    while not budget.expired():
-        hwnd = find_window_by_title(marker)
-        if hwnd:
-            return hwnd
-        time.sleep(0.2)
-    return 0
 
 
 class ThrowawayChrome:
