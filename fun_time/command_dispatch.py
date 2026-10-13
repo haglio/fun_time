@@ -685,19 +685,15 @@ _MAIN_SELECTING_COMMANDS = frozenset(
 
 
 def command_funestra(command: str) -> RoomFunestra | None:
-    """The Funestra a command addresses, or None if it addresses no Funestra.
-
-    The main (the Main Funestra) Funestra is selected by its own next/prev navigation, by its
-    lock, and by naming its F-mode or its reset — everything it shares with a
-    satellite.  It has no weird/cycle, so nothing else selects it.
-    """
+    """The Funestra a command addresses, or None if it addresses no Funestra."""
     if command in CROWNS:
         return None
     if command.startswith("portrait_"):
         return RoomFunestra.PORTRAIT
     if command.startswith("landscape_"):
         return RoomFunestra.LANDSCAPE
-    if command in _MAIN_SELECTING_COMMANDS or command.startswith("main_player_speed_"):
+    if command in _MAIN_SELECTING_COMMANDS or command.startswith(("main_player_speed_",
+                                                                  "main_hud_")):
         return RoomFunestra.MAIN
     return None
 
@@ -707,7 +703,7 @@ def notice_source(command: str, active_funestra: int | None) -> str:
     return _FUNESTRA_NOTICE_SOURCE.get(funestra, SOURCE_SYSTEM)
 
 
-def _answered_without_making_a_funestra_active(
+def _answered_ahead_of_the_handlers(
     command: str, state: BridgeState, config: BridgeConfig,
 ) -> tuple[BridgeState, list[WindowOp]] | None:
     if _about_genaus_flick(command) and kino_shows(state.main_mode):
@@ -715,11 +711,11 @@ def _answered_without_making_a_funestra_active(
     minimize_ops = _minimize_ops(command)
     if minimize_ops is not None:
         return state, minimize_ops
-    moved = (_moved_hud(command, state, config) or _collapsed_hud(command, state, config)
-             or _restored_at(command, state, config))
-    if moved is not None:
-        return moved, []
-    return None
+    placed = (_moved_hud(command, state, config) or _collapsed_hud(command, state, config)
+              or _restored_at(command, state, config))
+    if placed is None:
+        return None
+    return replace(placed, active_funestra=command_funestra(command)), []
 
 
 def dispatch_command(
@@ -740,7 +736,7 @@ def dispatch_command(
     ignore it.  Empty means "whatever is playing now", which is how every
     keyboard and dashboard command arrives.
     """
-    answered = _answered_without_making_a_funestra_active(command, state, config)
+    answered = _answered_ahead_of_the_handlers(command, state, config)
     if answered is not None:
         return answered
 

@@ -5247,3 +5247,32 @@ class TestMinimizingAHud:
         assert resolve_active_funestra_command("active_hud_restore", 1) == "main_hud_restore"
         assert (resolve_active_funestra_command("active_hud_minimize", 3)
                 == "landscape_hud_minimize")
+
+
+class TestAddressingAFunestrasHud:
+    """Its HUD named -- said, keyed or clicked -- is that Funestra addressed, so a
+    bare phrase after it reaches the same Funestra."""
+
+    @pytest.mark.parametrize(("command", "funestra"), [
+        ("portrait_hud_minimize", RoomFunestra.PORTRAIT),
+        ("landscape_hud_restore", RoomFunestra.LANDSCAPE),
+        ("portrait_hud_left", RoomFunestra.PORTRAIT),
+        ("landscape_hud_restore_at|lower_left", RoomFunestra.LANDSCAPE),
+        ("main_hud_minimize", RoomFunestra.MAIN),
+        ("main_hud_clockwise", RoomFunestra.MAIN),
+        ("main_hud_restore_at|upper_right", RoomFunestra.MAIN),
+    ])
+    def test_it_becomes_the_funestra_a_bare_phrase_reaches(self, tmp_path, command, funestra):
+        before = RoomFunestra.LANDSCAPE if funestra is RoomFunestra.MAIN else RoomFunestra.MAIN
+
+        state, _ops = dispatch_command(command, _make_state(active_funestra=before),
+                                       _make_config(tmp_path))
+
+        assert state.active_funestra == funestra
+
+    def test_it_leaves_that_funestras_map_where_it_was(self, tmp_path):
+        state = _make_state().with_satellite(RoomFunestra.PORTRAIT, nav_anchor="alpha.mp4")
+
+        state, _ops = dispatch_command("portrait_hud_minimize", state, _make_config(tmp_path))
+
+        assert state.satellite(RoomFunestra.PORTRAIT).nav_anchor == "alpha.mp4"
