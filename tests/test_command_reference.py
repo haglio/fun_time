@@ -259,7 +259,7 @@ def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
     action alone and the section's note explains how to aim it."""
     section = _funestras_section()
     nxt = next(r for r in section.rows if "portrait_next" in r.commands)
-    assert nxt.voice == ("next",)
+    assert nxt.voice == ("next", "next video")
     assert nxt.key_columns == (("Right",), ("D",), (".",))
     lock = next(r for r in section.rows if "portrait_lock_on" in r.commands)
     assert lock.voice == ("lock", "unlock")
@@ -355,12 +355,9 @@ def test_the_reference_calls_the_mode_kino_and_never_video():
 
 
 def test_mode_named_nav_shows_friendly_names_in_the_legend():
-    """The Kino/Genau nav rows surface the mode-named phrases under their friendly
-    names ("kino next", "genau next") — never the raw vosk sound-alike ("go
-    now")."""
+    """The Genau nav rows surface the mode-named phrases under their friendly
+    name ("genau next") — never the raw vosk sound-alike ("go now")."""
     rows = _all_rows()
-    kino_next_row = next(r for r in rows if "kino_next" in r.commands)
-    assert {"kino next", "next kino"} <= set(kino_next_row.voice)
     genau_next_row = next(r for r in rows if "genau_next_flick" in r.commands)
     assert {"genau next", "next genau"} <= set(genau_next_row.voice)
     # The raw sound-alikes must never leak into any Say column.
@@ -381,7 +378,7 @@ def test_the_main_funestra_shares_the_navigation_rows_under_its_own_key_column()
     rows = _funestras_section().rows
     prev = next(r for r in rows if "main_prev" in r.commands)
     nxt = next(r for r in rows if "main_next" in r.commands)
-    assert (prev.voice, nxt.voice) == (("previous",), ("next",))
+    assert (prev.voice, nxt.voice) == (("previous", "previous video"), ("next", "next video"))
     assert (prev.key_columns[2], nxt.key_columns[2]) == (("M",), (".",))
     assert "“next main”" in _funestras_section().note
 
@@ -617,7 +614,7 @@ def test_what_only_kino_answers_is_the_kino_mode_section_and_nothing_else_is():
     """The dispatch ignores these in Genau mode -- the video's own lock, loop,
     versions, length and jumps, and the clip save -- so their rows are the
     Kino-mode section's alone."""
-    kino_only = set(_MAIN_FUNESTRA_CMD_MAP) | {"genaumacher_save", "kino_prev", "kino_next"}
+    kino_only = set(_MAIN_FUNESTRA_CMD_MAP) | {"genaumacher_save"}
     in_kino = {cmd for row in _section("Main Funestra - Kino").rows for cmd in row.commands}
     elsewhere = {cmd for section in build_reference_sections()
                  if section.title != "Main Funestra - Kino"
@@ -652,7 +649,7 @@ def test_the_main_funestras_step_and_hold_keys_reach_whatever_is_on_it():
     assert _ahk_binding_for("main_lock") == "SC033"
     assert _ahk_bindings_for("main_nudge_next") == ["=", "+="]
     for retired in ("main_kino_activate", "browse_library", "robot_hand_toggle_learned",
-                    "genau_lock", "main_player_lock", "kino_prev", "kino_next"):
+                    "genau_lock", "main_player_lock"):
         assert _ahk_binding_for(retired) is None, retired
     keyed = {cmd: row.key_columns[2] for row in _funestras_section().rows
              for cmd in row.commands if row.key_columns[2]}

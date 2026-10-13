@@ -336,7 +336,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # note on the video navigating behind Genau's flick went with that behavior.
 # 6131 the same day: the reference module says in one paragraph what its tests
 # state, and the notes on each of its fields went.
-MAX_PROSE_LINES = 6131
+# 6130 on 2026-10-13: "kino next" went, and with it the note on mode-named
+# navigation.
+MAX_PROSE_LINES = 6130
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

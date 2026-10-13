@@ -498,18 +498,18 @@ class TestVoiceCommands:
 
         assert spoken == set()
 
-    def test_mode_named_navigation_both_orders(self):
-        """A mode's name + next/previous (either order) steps that mode's own:
-        Kino the video, whichever mode has the screen, Genau its flick."""
-        for base, (next_command, previous_command) in (
-                ("kino", ("kino_next", "kino_prev")),
-                ("genau", ("genau_next_flick", "genau_prev_flick")),
-                ("go now", ("genau_next_flick", "genau_prev_flick"))):
-            assert VOICE_COMMANDS[f"{base} next"] == next_command
-            assert VOICE_COMMANDS[f"next {base}"] == next_command
-            assert VOICE_COMMANDS[f"{base} previous"] == previous_command
-            assert VOICE_COMMANDS[f"previous {base}"] == previous_command
-        for retired in ("video next", "next video", "video previous", "previous video"):
+    def test_genau_named_navigation_steps_its_flick_in_either_order(self):
+        for base in ("genau", "go now"):
+            assert VOICE_COMMANDS[f"{base} next"] == "genau_next_flick"
+            assert VOICE_COMMANDS[f"next {base}"] == "genau_next_flick"
+            assert VOICE_COMMANDS[f"{base} previous"] == "genau_prev_flick"
+            assert VOICE_COMMANDS[f"previous {base}"] == "genau_prev_flick"
+
+    def test_next_video_and_previous_video_say_next_and_previous(self):
+        assert VOICE_COMMANDS["next video"] == VOICE_COMMANDS["next"] == "active_next"
+        assert VOICE_COMMANDS["previous video"] == VOICE_COMMANDS["previous"] == "active_prev"
+        for retired in ("kino next", "next kino", "kino previous", "previous kino",
+                        "video next", "video previous"):
             assert retired not in VOICE_COMMANDS, retired
 
     def test_contains_numeric_amp_phrases(self):

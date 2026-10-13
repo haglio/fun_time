@@ -535,18 +535,6 @@ def test_primary_prev_and_next_step_genaus_flick_in_genau_mode(tmp_path: Path):
     assert not config.main_funestra_cmd_file.exists()
 
 
-def test_the_kino_named_steps_reach_the_video_in_either_mode(tmp_path: Path):
-    """"kino next" names the video, so it steps the video even while Genau has
-    the screen -- where "next" and "main next" follow whatever is on it."""
-    config = _make_config(tmp_path)
-
-    dispatch_command("kino_prev", _make_state(main_mode=MainMode.GENAU), config)
-    dispatch_command("kino_next", _make_state(main_mode=MainMode.KINO), config)
-
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PREV\nNEXT\n"
-    assert not config.genau_cmd_file.exists()
-
-
 # --- main_lock ---
 
 

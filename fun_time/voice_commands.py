@@ -434,19 +434,15 @@ def build_voice_commands(
             commands[f"{_fmode_word} {_side}"] = _sided
     commands["reset all"] = commands["all reset"] = "all_reset"
 
-    # Mode-named navigation: a mode's name + next/previous (either order) navigates
-    # that mode's Funestra.  Kino drives the main slot's video; Genau steps its own
-    # flick.
-    _MODE_NAV: dict[str, tuple[str, str]] = {
-        # recognizer base -> (next command, previous command)
-        "kino": ("kino_next", "kino_prev"),
-        **dict.fromkeys(GENAU_SAID, ("genau_next_flick", "genau_prev_flick")),
-    }
-    for _base, (_next_cmd, _prev_cmd) in _MODE_NAV.items():
-        commands[f"{_base} next"] = _next_cmd
-        commands[f"next {_base}"] = _next_cmd
-        commands[f"{_base} previous"] = _prev_cmd
-        commands[f"previous {_base}"] = _prev_cmd
+    # Genau's flick stepped by naming it, in either order and either spelling
+    # of Genau.  "next video" is bare "next" said longer, so it reaches whatever
+    # was last navigated, as "next" does.
+    for _base in GENAU_SAID:
+        for _step_word, _step_cmd in (("next", "genau_next_flick"), ("previous", "genau_prev_flick")):
+            commands[f"{_base} {_step_word}"] = _step_cmd
+            commands[f"{_step_word} {_base}"] = _step_cmd
+    commands["next video"] = "active_next"
+    commands["previous video"] = "active_prev"
 
     _NUMBER_WORDS: dict[str, int] = {
         "zero": 0, "ten": 10, "twenty": 20, "thirty": 30, "forty": 40,

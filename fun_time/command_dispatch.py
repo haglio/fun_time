@@ -711,7 +711,7 @@ _MAIN_FUNESTRA_RESET_VERBS = (
 # without the F-mode forms here, "main f mode" would be the one way of
 # addressing a Funestra that did not leave it addressed.
 _MAIN_SELECTING_COMMANDS = frozenset(
-    {"main_next", "main_prev", "kino_next", "kino_prev", MAIN_RESET,
+    {"main_next", "main_prev", MAIN_RESET,
      take_osr2_command(RoomFunestra.MAIN)}
     | set(_MAIN_LOCK_COMMANDS)
     | {f"main_fmode{suffix}" for suffix in ("", "_on", "_off")}
@@ -1915,8 +1915,6 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, funestra in _LOCK_ACTION_SIDES.items()})
     handlers["main_prev"] = partial(_forward_to_whatever_is_on_the_main_funestra, PREV)
     handlers["main_next"] = partial(_forward_to_whatever_is_on_the_main_funestra, NEXT)
-    handlers["kino_prev"] = partial(_forward_to_main_funestra, PREV)
-    handlers["kino_next"] = partial(_forward_to_main_funestra, NEXT)
     handlers.update({cmd: partial(_main_lock, verb)
                      for cmd, verb in _MAIN_LOCK_COMMANDS.items()})
     handlers["projection_cycle"] = partial(_forward_to_the_vr_main_funestra, "CYCLE_PROJECTION")

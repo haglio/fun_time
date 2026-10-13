@@ -170,8 +170,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "help_reference",
     "help_reference_close",
     "kino_activate",
-    "kino_next",
-    "kino_prev",
     "landscape_action_loop",
     "landscape_cycle_action",
     "landscape_cycle_seed",

@@ -440,8 +440,6 @@ _SECTIONS: tuple[_Section, ...] = (
         "Main Funestra - Kino",
         (
             _Group("Navigation", (
-                _Row("previous video", (), ("kino_prev",)),
-                _Row("next video", (), ("kino_next",)),
                 _Row(
                     "clip navigation — \"compilation\" plays the clip's compilation "
                     "in order and \"end compilation\" leaves it for the length mode "
