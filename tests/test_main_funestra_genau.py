@@ -151,6 +151,14 @@ class TestTheFlickOnScreen:
         assert world.status()["flick"] == str(world.flat_dir / "alpha one.mp4")
         assert world.genau.status_fields() == {}
 
+    def test_its_status_says_when_human_inspired_motion_has_the_hand_and_nothing_of_cruise(self, tmp_path):
+        world = World(tmp_path)
+
+        world.send("LEARNED_ON")
+
+        assert world.status()["learned"] == "1"
+        assert "cruise" not in world.status()
+
     def test_weird_moves_the_flick_to_the_pile_beside_the_folder(self, tmp_path):
         world = World(tmp_path)
 
