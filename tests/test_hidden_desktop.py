@@ -47,6 +47,7 @@ from tests.integration.line_record import RUN_RECORD_ENV
 from tests.integration.main_verifier import measured_run_environment, measured_sources
 from tests.integration.run_clock import keep_time_by
 from tests.integration.session_lock import Place, SingleInstanceLock, Waiting, hold_integration_lock
+from tests.made_up_clocks import StarvedRun
 
 
 def _run_in_a_run_job(probe: str) -> None:
@@ -501,22 +502,36 @@ def test_a_run_that_never_decides_an_exit_code_is_ended_at_the_ceiling_with_its_
     assert _wait_until_dead(launched[0])
 
 
-class _Frozen:
-    def seconds(self) -> float:
-        return 0.0
-
-
 def test_a_run_starved_of_the_processor_is_never_ended_as_wedged():
     """Its ceiling is counted in the seconds the run could run, and none pass
     while normal-priority work holds every processor."""
     still_running = iter([True] * 50_000 + [False])
-    keep_time_by(_Frozen())
+    keep_time_by(StarvedRun())
     try:
         with patch.object(hidden_desktop, "_exit_code", lambda _process: (
                 hidden_desktop.STILL_ACTIVE if next(still_running) else 0)), \
              patch.object(hidden_desktop, "_kernel32") as kernel32:
             kernel32.WaitForSingleObject.return_value = 0
             assert hidden_desktop._wait_for_the_run(object(), ceiling_s=0.01) == 0
+    finally:
+        keep_time_by(run_clock.WALL)
+
+
+def test_a_script_run_where_nothing_is_focused_is_waited_on_in_the_seconds_the_run_could_run():
+    still_running = iter([True] * 50_000 + [False])
+    keep_time_by(StarvedRun())
+    try:
+        with patch.object(hidden_desktop, "_user32"), \
+             patch.object(hidden_desktop, "create_run_job"), \
+             patch.object(hidden_desktop, "close_run_job"), \
+             patch.object(hidden_desktop, "_launch_on_desktop"), \
+             patch.object(hidden_desktop, "_close_process_handles"), \
+             patch.object(hidden_desktop, "_exit_code", lambda _process: (
+                 hidden_desktop.STILL_ACTIVE if next(still_running) else 0)), \
+             patch.object(hidden_desktop, "_kernel32") as kernel32:
+            kernel32.WaitForSingleObject.return_value = hidden_desktop.WAIT_TIMEOUT
+            assert hidden_desktop.run_where_nothing_is_focused(
+                ["AutoHotkey64.exe", "made_up.ahk"], timeout_seconds=0.01) == 0
     finally:
         keep_time_by(run_clock.WALL)
 

@@ -380,12 +380,12 @@ def run_where_nothing_is_focused(argv: list[str], timeout_seconds: float = 20.0)
         try:
             pi = _launch_on_desktop(subprocess.list2cmdline(argv), desktop, str(_repo_root()), job)
             try:
-                if _kernel32.WaitForSingleObject(pi.hProcess, int(timeout_seconds * 1000)) != 0:
+                if (code := _exit_code_within(pi.hProcess, timeout_seconds)) is None:
                     raise TimeoutError(
                         f"{argv[0]} was still running {timeout_seconds:g}s after it was "
                         "started on an empty desktop"
                     )
-                return _exit_code(pi.hProcess)
+                return code
             finally:
                 _close_process_handles(pi)
         finally:
@@ -420,19 +420,25 @@ def _wait_for_the_run(process: int, ceiling_s: float) -> int:
 
     A process can have exited and never be gone: Windows records its exit code,
     then may never finish taking it down, and a handle to it never signals."""
-    budget = Budget(ceiling_s)
-    while (code := _exit_code(process)) == STILL_ACTIVE:
-        if budget.expired():
-            print(f"[hidden-desktop] the run went {ceiling_s / 60:g} minutes it could "
-                  "have run without finishing, so it is being ended here; the job "
-                  "object takes its children with it and the queue moves again",
-                  file=sys.stderr, flush=True)
-            return WEDGED_EXIT_CODE
-        _kernel32.WaitForSingleObject(process, _POLL_MS)
+    if (code := _exit_code_within(process, ceiling_s)) is None:
+        print(f"[hidden-desktop] the run went {ceiling_s / 60:g} minutes it could "
+              "have run without finishing, so it is being ended here; the job "
+              "object takes its children with it and the queue moves again",
+              file=sys.stderr, flush=True)
+        return WEDGED_EXIT_CODE
     if _kernel32.WaitForSingleObject(process, _TEARDOWN_GRACE_MS) == WAIT_TIMEOUT:
         print(f"[hidden-desktop] pytest exited {code}, but Windows has not finished taking "
               "its process down and nothing can end it; the run ends here without it",
               file=sys.stderr, flush=True)
+    return code
+
+
+def _exit_code_within(process: int, seconds: float) -> int | None:
+    budget = Budget(seconds)
+    while (code := _exit_code(process)) == STILL_ACTIVE:
+        if budget.expired():
+            return None
+        _kernel32.WaitForSingleObject(process, _POLL_MS)
     return code
 
 
