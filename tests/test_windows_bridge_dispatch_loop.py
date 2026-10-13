@@ -3487,7 +3487,7 @@ class TestOpeningInOrigeneratorMode:
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
-            "landscape_open_show"]
+            "landscape_open_slideshow"]
 
     def test_every_setting_the_room_was_left_in_comes_back_with_it(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
@@ -3525,7 +3525,7 @@ class TestOpeningInOrigeneratorMode:
         assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
-            "portrait_open_show", "landscape_open_show"]
+            "portrait_open_slideshow", "landscape_open_slideshow"]
 
     def test_a_room_left_in_kino_mode_holds_its_cover_up_for_nothing(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))

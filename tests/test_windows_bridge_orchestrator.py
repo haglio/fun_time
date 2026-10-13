@@ -1292,7 +1292,7 @@ class TestKeepingTheHostedApp:
             children["origenerator_pid"].pid, children["origenerator_pid"].created_at, False,
         )
 
-    def test_a_crossing_closes_its_shows_on_the_channel_it_was_launched_with(
+    def test_a_crossing_closes_its_slideshows_on_the_channel_it_was_launched_with(
         self, cfg_factory, tmp_path,
     ):
         with patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
@@ -1302,8 +1302,8 @@ class TestKeepingTheHostedApp:
 
         channel = Path(LaunchManifest.read(
             tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands.origenerator_cmd_file)
-        assert channel.exists(), "the parked app was never told to close its shows"
-        assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SHOWS"]
+        assert channel.exists(), "the parked app was never told to close its slideshows"
+        assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SLIDESHOWS"]
 
     def test_esc_on_the_closing_screen_parks_it_for_fun_time_coming_back(
         self, cfg_factory, tmp_path,
@@ -1321,7 +1321,7 @@ class TestKeepingTheHostedApp:
         channel = Path(LaunchManifest.read(
             tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands.origenerator_cmd_file)
         assert channel.exists(), "the hosted app was closed rather than parked"
-        assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SHOWS"]
+        assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SLIDESHOWS"]
 
     def test_a_quit_that_goes_on_after_all_closes_what_esc_had_parked(
         self, cfg_factory, tmp_path,
@@ -1399,7 +1399,7 @@ class TestKeepingTheHostedApp:
                 keep_origenerator_via=channel, release_origenerator_via=channel)
 
         assert kept_origenerator(tmp_path).taken_over
-        assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SHOWS"]
+        assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SLIDESHOWS"]
 
     def test_a_crossing_keeps_an_origenerator_he_had_open_as_a_preview(self, tmp_path):
         the_preview = partial(lookup_hosted, caption=window_title(
@@ -3058,11 +3058,11 @@ class TestARoomLeftInOrigeneratorMode:
         assert "rfb out of the band" in events
         assert "rfb in the band" not in events
 
-    def test_the_shows_are_asked_for_before_the_cover_comes_down(self, cfg_factory, tmp_path):
+    def test_the_slideshows_are_asked_for_before_the_cover_comes_down(self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path, the_app_answers=True)
 
-        assert "portrait_open_show" in events, "the room never came back to origenerator mode"
-        assert events.index("portrait_open_show") < events.index("cover gone"), (
+        assert "portrait_open_slideshow" in events, "the room never came back to origenerator mode"
+        assert events.index("portrait_open_slideshow") < events.index("cover gone"), (
             "the mode was taken up after the room was already his"
         )
 
@@ -3083,8 +3083,8 @@ class TestARoomLeftInOrigeneratorMode:
             events = self._run(cfg_factory, tmp_path, the_app_answers=False)
 
         assert "cover gone" in events, "the room never opened"
-        assert "portrait_open_show" not in events, (
-            "the shows were asked for with no app to show them")
+        assert "portrait_open_slideshow" not in events, (
+            "the slideshows were asked for with no app to show them")
 
     def test_the_wait_writes_the_cover_progress_more_often_than_its_staleness_guard(self):
         assert windows_bridge_orchestrator.ORIGENERATOR_BOOT_POLL_S < STALE_TIMEOUT_S
