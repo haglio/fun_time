@@ -254,7 +254,7 @@ def test_every_scope_shares_one_grid_with_a_key_column_per_funestra():
 
 
 def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
-    """A row cannot spell out "portrait next", "next landscape", "both next" and
+    """A row cannot spell out "portrait next", "next landscape", "satellites next" and
     "next" without printing its own action four times, so the Say column keeps the
     action alone and the section's note explains how to aim it."""
     section = _funestras_section()
@@ -266,7 +266,7 @@ def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
     assert "main_lock_on" in lock.commands
     sayable_bare = {friendly_voice(phrase) for phrase in VOICE_COMMANDS}
     for section in _shared_sections():
-        for word in ("portrait", "landscape", "both"):
+        for word in ("portrait", "landscape", "satellites"):
             assert word in section.note
         for group in section.groups:
             if group.title == "Slideshow":
@@ -277,7 +277,7 @@ def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
                 for phrase in row.voice:
                     if _collapse_scopes(phrase) not in sayable_bare:
                         continue
-                    assert not {"portrait", "landscape", "both", "main"} & set(phrase.split()), (
+                    assert not {"portrait", "landscape", "satellites", "main"} & set(phrase.split()), (
                         f"{phrase!r} still carries a scope word"
                     )
 
@@ -459,7 +459,7 @@ def test_latest_is_spoken_only_and_the_older_names_are_gone():
     [row] = [r for r in _all_rows() if "both_latest" in r.commands]
     assert _keys(row) == ()
     # It sits in the shared grid like every other action, so its voice column
-    # is the bare "latest" and "both latest" comes from the section's note.
+    # is the bare "latest" and "satellites latest" comes from the section's note.
     assert row.voice == ("latest",)
     assert {"portrait_latest", "landscape_latest", "active_latest", "main_latest"} <= set(row.commands)
     assert "premiere" not in VOICE_COMMANDS
@@ -473,7 +473,7 @@ def test_end_loop_follows_the_funestra_last_spoken_to():
     assert VOICE_COMMANDS["end loop"] == "active_no_loop"
     assert VOICE_COMMANDS["portrait end loop"] == "portrait_no_loop"
     assert VOICE_COMMANDS["end loop landscape"] == "landscape_no_loop"
-    assert VOICE_COMMANDS["both end loop"] == "both_no_loop"
+    assert VOICE_COMMANDS["satellites end loop"] == "both_no_loop"
 
 
 def test_latest_and_shuffle_reach_one_side_or_both():
@@ -484,7 +484,7 @@ def test_latest_and_shuffle_reach_one_side_or_both():
         assert VOICE_COMMANDS[word] == f"active_{action}"
         assert VOICE_COMMANDS[f"portrait {word}"] == f"portrait_{action}"
         assert VOICE_COMMANDS[f"{word} landscape"] == f"landscape_{action}"
-        assert VOICE_COMMANDS[f"both {word}"] == f"both_{action}"
+        assert VOICE_COMMANDS[f"satellites {word}"] == f"both_{action}"
 
 
 def test_voice_phrases_are_derived_from_voice_commands():
@@ -1020,7 +1020,7 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
     assert set(drop_row.voice) == {"no filter", "filter off", "clear filter", "show everything"}
     assert VOICE_COMMANDS["portrait clear filter"] == "portrait_no_filter"
     assert VOICE_COMMANDS["clear filter landscape"] == "landscape_no_filter"
-    assert VOICE_COMMANDS["both show everything"] == "both_no_filter"
+    assert VOICE_COMMANDS["satellites show everything"] == "both_no_filter"
     assert VOICE_COMMANDS["clear filter"] == "active_no_filter"
     assert "clear portrait" not in VOICE_COMMANDS
 

@@ -142,9 +142,11 @@ def build_voice_commands(
         "un park": "robot_hand_release",
         "o s r two resume": "robot_hand_release",
         "oh es are two resume": "robot_hand_release",
-        # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
-        # generated as an order-agnostic grid below the literal — F-mode among them,
-        # bare and sided both.
+        "o s r two off": "osr2_control_off",
+        "oh es are two off": "osr2_control_off",
+        # Satellite commands (portrait/landscape/satellites nav, lock, weird, cycle)
+        # are generated as an order-agnostic grid below the literal — F-mode among
+        # them, bare and sided both.
 
         **{phrase: "genau_activate" for said in GENAU_SAID for phrase in (said, f"{said} mode")},
         # Kino mode, said of a side or of neither: the bare phrase puts the
@@ -264,10 +266,13 @@ def build_voice_commands(
 
     # Satellite commands form a uniform, order-agnostic grid.  Each action
     # works BARE — driving the "active side", whichever satellite was most
-    # recently addressed — or with a side word (portrait / landscape / both)
-    # in EITHER order, and "both …" drives the pair (the dispatch loop expands
-    # it).  Cycle siblings with "action" (same subject(s)+scene, another act)
-    # or "seed" (same config, another subject).
+    # recently addressed — or with a side word in EITHER order; "satellites"
+    # names the pair, whose id the dispatch loop expands.  Cycle siblings with
+    # "action" (same subject(s)+scene, another act) or "seed" (same config,
+    # another subject).
+    _SIDE_WORDS: dict[str, str] = {"portrait": "portrait", "landscape": "landscape",
+                                   "satellites": "both"}
+    _FUNESTRA_WORDS: dict[str, str] = {**_SIDE_WORDS, "main": "main"}
     _SATELLITE_ACTIONS: dict[str, str] = {
         "lock": "lock_on",
         "unlock": "lock_off",
@@ -291,21 +296,21 @@ def build_voice_commands(
         # The two browse orderings, each rescanning the sources so new files are picked
         # up: "latest" reloads newest-first, "shuffle" reshuffles.  Both are sided like
         # every other satellite action — a side put in latest order has to be
-        # shuffleable on its own — and "both latest" is what the P key sends.
+        # shuffleable on its own.
         "latest": "latest",
         "shuffle": "shuffle",
     }
     for _act_word, _act in _SATELLITE_ACTIONS.items():
         commands[_act_word] = f"active_{_act}"
-        for _side in ("portrait", "landscape", "both"):
+        for _side_word, _side in _SIDE_WORDS.items():
             _sided = f"{_side}_{_act}"
-            commands[f"{_side} {_act_word}"] = _sided
-            commands[f"{_act_word} {_side}"] = _sided
+            commands[f"{_side_word} {_act_word}"] = _sided
+            commands[f"{_act_word} {_side_word}"] = _sided
 
     # Sided only: the bare word is the Main Funestra's own version axis above.
-    for _side in ("portrait", "landscape", "both"):
-        commands[f"{_side} version"] = f"{_side}_cycle_version"
-        commands[f"version {_side}"] = f"{_side}_cycle_version"
+    for _side_word, _side in _SIDE_WORDS.items():
+        commands[f"{_side_word} version"] = f"{_side}_cycle_version"
+        commands[f"version {_side_word}"] = f"{_side}_cycle_version"
 
     # Group commands act on the current clip's GROUP rather than on the playlist,
     # and join the same order-agnostic grid.  "action loop" cycles the subject's
@@ -345,19 +350,19 @@ def build_voice_commands(
     for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
         for _group_word in _group_words:
             commands[_group_word] = f"active_{_group_act}"
-            for _side in ("portrait", "landscape", "both"):
+            for _side_word, _side in _SIDE_WORDS.items():
                 _sided = f"{_side}_{_group_act}"
-                commands[f"{_side} {_group_word}"] = _sided
-                commands[f"{_group_word} {_side}"] = _sided
+                commands[f"{_side_word} {_group_word}"] = _sided
+                commands[f"{_group_word} {_side_word}"] = _sided
 
     # "end loop" is side-agnostic like the rest of the grid: bare, it reaches the
     # Funestra last addressed and means that Funestra's own kind of loop — the dispatch
     # loop resolves ``active_no_loop`` to the Main Funestra's A-B loop cancel on the Main Funestra, and to
     # a satellite's group loop on portrait/landscape.
     commands["end loop"] = "active_no_loop"
-    for _side in ("portrait", "landscape", "both"):
-        commands[f"{_side} end loop"] = f"{_side}_no_loop"
-        commands[f"end loop {_side}"] = f"{_side}_no_loop"
+    for _side_word, _side in _SIDE_WORDS.items():
+        commands[f"{_side_word} end loop"] = f"{_side}_no_loop"
+        commands[f"end loop {_side_word}"] = f"{_side}_no_loop"
 
     # Every cycle axis is sayable by its bare word — the satellite ones from the grid
     # above, the Main Funestra's "version" from the literal map — and each also takes an explicit
@@ -410,13 +415,13 @@ def build_voice_commands(
     }
     for _sound_word, _change in _SOUND_WORDS.items():
         commands[_sound_word] = f"active_{_change}"
-        for _side in ("portrait", "landscape", "both"):
-            commands[f"{_side} {_sound_word}"] = f"{_side}_{_change}"
-            commands[f"{_sound_word} {_side}"] = f"{_side}_{_change}"
+        for _side_word, _side in _SIDE_WORDS.items():
+            commands[f"{_side_word} {_sound_word}"] = f"{_side}_{_change}"
+            commands[f"{_sound_word} {_side_word}"] = f"{_side}_{_change}"
         commands[f"main {_sound_word}"] = commands[f"{_sound_word} main"] = f"audio_{_change}"
 
     # F-mode, per Funestra, sayable in either order like the rest of the grid:
-    # "both" drives the satellites, "main" the Main Funestra, "all" every one --
+    # "satellites" drives the pair, "main" the Main Funestra, "all" every one --
     # the F key.  Bare it reaches the Funestra last addressed, as bare "lock" and
     # "next" do; reading it as the whole room made a spoken "f mode" answer
     # "enabled" on a room that already looked narrowed.  ``_FMODE_PHRASES``
@@ -428,10 +433,10 @@ def build_voice_commands(
     }
     for _fmode_word, (_fmode_act, _fmode_all) in _FMODE_PHRASES.items():
         commands[_fmode_word] = f"active_{_fmode_act}"
-        for _side in ("portrait", "landscape", "both", "main", "all"):
-            _sided = _fmode_all if _side == "all" else f"{_side}_{_fmode_act}"
-            commands[f"{_side} {_fmode_word}"] = _sided
-            commands[f"{_fmode_word} {_side}"] = _sided
+        for _funestra_word, _funestra in _FUNESTRA_WORDS.items():
+            commands[f"{_funestra_word} {_fmode_word}"] = f"{_funestra}_{_fmode_act}"
+            commands[f"{_fmode_word} {_funestra_word}"] = f"{_funestra}_{_fmode_act}"
+        commands[f"all {_fmode_word}"] = commands[f"{_fmode_word} all"] = _fmode_all
     commands["reset all"] = commands["all reset"] = "all_reset"
 
     # Genau's flick stepped by naming it, in either order and either spelling
@@ -525,17 +530,16 @@ def build_voice_commands(
     }
     for _phrase, _act in _PLAYBACK_SPEEDS.items():
         commands[_phrase] = f"active_{_act}"
-        for _side, _funestra in (("portrait", "portrait"), ("landscape", "landscape"),
-                              ("both", "both"), ("main", "main_player")):
-            commands[f"{_side} {_phrase}"] = f"{_funestra}_{_act}"
-            commands[f"{_phrase} {_side}"] = f"{_funestra}_{_act}"
+        for _funestra_word, _funestra in {**_SIDE_WORDS, "main": "main_player"}.items():
+            commands[f"{_funestra_word} {_phrase}"] = f"{_funestra}_{_act}"
+            commands[f"{_phrase} {_funestra_word}"] = f"{_funestra}_{_act}"
 
 
     for _verb, _act in (("minimize", "hud_minimize"), ("un minimize", "hud_restore"),
                         ("restore", "hud_restore")):
         commands[f"{_verb} hud"] = f"active_{_act}"
-        for _side in ("portrait", "landscape", "both", "main"):
-            commands[f"{_verb} {_side} hud"] = f"{_side}_{_act}"
+        for _funestra_word, _funestra in _FUNESTRA_WORDS.items():
+            commands[f"{_verb} {_funestra_word} hud"] = f"{_funestra}_{_act}"
 
     # A HUD sent to a corner of its picture by name -- "main hud top right", with
     # or without "move" in front -- where the Ctrl keys step it round.  "upper"
@@ -548,8 +552,8 @@ def build_voice_commands(
     for _corner_word, _corner in _CORNER_WORDS.items():
         for _lead in ("", "move "):
             commands[f"{_lead}hud {_corner_word}"] = f"active_hud_{_corner}"
-            for _side in ("portrait", "landscape", "both", "main"):
-                commands[f"{_lead}{_side} hud {_corner_word}"] = f"{_side}_hud_{_corner}"
+            for _funestra_word, _funestra in _FUNESTRA_WORDS.items():
+                commands[f"{_lead}{_funestra_word} hud {_corner_word}"] = f"{_funestra}_hud_{_corner}"
 
     for _side in ("portrait", "landscape"):
         for _phrase in origenerator_phrases:

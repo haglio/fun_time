@@ -1875,7 +1875,7 @@ def test_a_side_whose_speed_alone_is_off_resets_it_without_reshuffling(tmp_path:
 
 
 def test_reset_skips_only_the_side_that_has_nothing_to_put_back(tmp_path: Path):
-    """Each Funestra is judged on its own, so "both reset" with one Funestra narrowed
+    """Each Funestra is judged on its own, so "satellites reset" with one Funestra narrowed
     rebuilds that one and leaves the other's browse where it is."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(filter="alpha"))

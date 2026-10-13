@@ -125,13 +125,13 @@ def _every_funestra(*actions: str) -> tuple[str, ...]:
 
 _SATELLITE_NOTE = (
     "Alone, a phrase reaches whatever you last navigated — a side, or the Main "
-    "Funestra.  Add “portrait”, “landscape” or “both”, before it or after, to "
-    "aim it: “portrait next”, “next both”."
+    "Funestra.  Add “portrait”, “landscape”, or “satellites”, before it or after, "
+    "to aim it: “portrait next”, “next satellites”."
 )
 _FUNESTRAS_NOTE = (
     "Alone, a phrase reaches whatever you last navigated.  Add “portrait”, "
-    "“landscape”, “main” or “both” (the two satellites), before it or after, to "
-    "aim it: “portrait next”, “next main”."
+    "“landscape”, “main”, or “satellites” (the two satellites), before it or "
+    "after, to aim it: “portrait next”, “next main”."
 )
 _FUNESTRA_KEY_HEADERS = ("Portrait", "Landscape", "Main")
 
@@ -691,12 +691,12 @@ _SECTIONS: tuple[_Section, ...] = (
 
 #: The words that aim a phrase at a Funestra.  "active" is not among them: it is
 #: the scope you get by saying none of these.
-_SCOPE_WORDS = frozenset(("portrait", "landscape", "both", "main"))
+_SCOPE_WORDS = frozenset(("portrait", "landscape", "satellites", "main"))
 
 
 def _collapse_scopes(phrase: str) -> str:
-    """Strip the scope word out of *phrase*: "portrait next", "next both", "next
-    main" and "next" all become "next", and the section's note says how to aim it."""
+    """Strip the scope word out of *phrase*: "portrait next", "next satellites"
+    and "next main" all become "next"; the section's note says how to aim it."""
     return " ".join(word for word in phrase.split() if word not in _SCOPE_WORDS)
 
 

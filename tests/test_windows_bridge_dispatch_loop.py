@@ -1384,9 +1384,9 @@ class TestWhatASpokenCommandFlashes:
         assert self._flashed(tmp_path, "landscape_next") == []
 
     def test_a_spoken_both_command_says_what_was_heard_once(self, tmp_path):
-        spoken = format_spoken_command("both_next", spoken_at=1.0, said="both next")
+        spoken = format_spoken_command("both_next", spoken_at=1.0, said="satellites next")
 
-        assert self._flashed(tmp_path, spoken) == [("both next", "system", 25)]
+        assert self._flashed(tmp_path, spoken) == [("satellites next", "system", 25)]
 
     def test_a_command_frozen_by_omnipause_says_it_was_ignored(self, tmp_path):
         spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
@@ -2592,7 +2592,7 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_called_once_with("portrait_fmode_on", None)
 
     def test_both_fmode_is_expanded_into_the_two_satellites(self, tmp_path):
-        """"both f mode" is sugar, exactly as it is for every other sided command:
+        """"satellites f mode" is sugar, exactly as it is for every other sided command:
         there is no combined handler, just the pair run in turn."""
         runner = make_runner(tmp_path)
         with patch.object(runner, "_dispatch") as mock_d:
