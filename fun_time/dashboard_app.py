@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import html
 import logging
 import time
 from collections.abc import Callable
@@ -463,7 +464,7 @@ class ReferenceBrowser(QTextBrowser):
         if event.type() == QEvent.Type.ToolTip:
             detail = self.detail_at(self.viewport().mapFromGlobal(event.globalPos()))
             if detail:
-                QToolTip.showText(event.globalPos(), detail, self)
+                QToolTip.showText(event.globalPos(), f"<p>{html.escape(detail)}</p>", self)
             else:
                 QToolTip.hideText()
             return True

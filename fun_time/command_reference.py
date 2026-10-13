@@ -145,8 +145,8 @@ _SATELLITE_NOTE = (
 )
 _FUNESTRAS_NOTE = (
     "Alone, a phrase reaches whatever you last navigated.  Add “portrait”, "
-    "“landscape”, “main”, or “satellites” (the two satellites), before it or "
-    "after, to aim it: “portrait next”, “next main”."
+    "“landscape”, “main”, or “satellites”, before it or after, to aim it: "
+    f"“portrait next”, “next main”.  In Genau mode say “{_FLICK.one}” in place of “video”."
 )
 _FUNESTRA_KEY_HEADERS = ("Portrait", "Landscape", "Main")
 
@@ -738,8 +738,11 @@ def _cell(content: str, width: int | None, *, span: str = "") -> str:
     return f'<td{sized} valign="top"{span} style="padding:3px 8px;color:{_TEXT}">{content}</td>'
 
 
-def _head(label: str, width: int | None, *, span: str = "") -> str:
-    return _cell(f'<b style="color:{_MUTED}">{html.escape(label)}</b>', width, span=span)
+def _head(label: str, width: int | None, *, span: str = "", underlined: bool = False) -> str:
+    sized = "" if width is None else f' width="{width}"'
+    rule = f";border-bottom:1px solid {_BORDER}" if underlined else ""
+    return (f'<td{sized} align="center" valign="middle"{span} style="padding:3px 8px{rule}">'
+            f'<b style="color:{_MUTED}">{html.escape(label)}</b></td>')
 
 
 def _anchored(text: str, anchor: str, *, color: str) -> str:
@@ -770,7 +773,7 @@ def _header_rows(section: ReferenceSection, widths: tuple[int, ...]) -> str:
                 + _head(VOICE_HEADER, voice) + "</tr>")
     return (
         row + _head("Action", action, span=' rowspan="2"')
-        + _head(HOTKEY_HEADER, None, span=f' colspan="{len(keys)}" align="center"')
+        + _head(HOTKEY_HEADER, None, span=f' colspan="{len(keys)}"', underlined=True)
         + _head(VOICE_HEADER, voice, span=' rowspan="2"') + "</tr>"
         + row + "".join(_head(header, width)
                         for header, width in zip(section.key_headers, keys, strict=True))

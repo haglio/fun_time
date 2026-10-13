@@ -8,6 +8,7 @@ import sys
 from fun_time import command_reference, content
 from fun_time.command_dispatch import _MAIN_FUNESTRA_CMD_MAP, _about_genaus_flick
 from fun_time.command_reference import (
+    _BORDER,
     _SECTIONS,
     HOTKEY_BLOCK_PX,
     HOTKEY_HEADER,
@@ -929,6 +930,32 @@ def test_the_forked_hotkey_head_is_centered_over_its_funestras():
         assert re.search(
             rf'<td(?=[^>]*colspan="{columns}")(?=[^>]*align="center")[^>]*>\s*<b[^>]*>Hotkey</b>',
             html), columns
+
+
+def test_every_column_head_sits_in_the_middle_of_its_cell_and_the_forked_one_is_underlined():
+    """The forked Hotkey head is a line under which its Funestras' names sit, so
+    a thin rule runs under it across their columns; every head is centered both
+    ways, since a two-line head beside a one-line head otherwise reads top-left."""
+    html = render_reference_html(1000)
+    heads = re.findall(r"<td[^>]*>\s*<b[^>]*>(?:Action|Hotkey|Voice command|Portrait|Landscape|Main)</b></td>",
+                       html)
+    forked = [head for head in heads if "colspan" in head]
+
+    assert heads and forked
+    for head in heads:
+        assert 'align="center"' in head and 'valign="middle"' in head, head
+        assert (f"border-bottom:1px solid {_BORDER}" in head) == (head in forked), head
+    assert "border-top" not in html
+
+
+def test_the_funestras_note_aims_a_phrase_and_says_genaus_word_for_a_video():
+    flick = genau_flick_noun().one
+
+    assert _funestras_section().note == (
+        "Alone, a phrase reaches whatever you last navigated.  Add “portrait”, "
+        "“landscape”, “main”, or “satellites”, before it or after, to aim it: "
+        f"“portrait next”, “next main”.  In Genau mode say “{flick}” in place of “video”."
+    )
 
 
 def test_an_untitled_group_renders_no_heading_and_a_flat_section_is_its_table():

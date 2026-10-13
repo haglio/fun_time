@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support import file_channel
-from PyQt6.QtCore import QPoint, QRect, Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import QEvent, QPoint, QRect, Qt
+from PyQt6.QtGui import QColor, QHelpEvent, QTextDocumentFragment
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QTextBrowser, QWidget
 from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY
@@ -857,6 +857,29 @@ def test_the_reference_shows_a_rows_detail_as_a_tooltip_over_its_action():
             assert browser.detail_at(browser.cursorRect(cursor).center()) == detail
         assert relief.detail and funestras.note
         assert not browser.openLinks()
+    finally:
+        browser.close()
+
+
+def test_the_reference_shows_a_tooltip_as_rich_text_so_a_long_detail_wraps():
+    """A plain-text tooltip runs the whole detail out on one line across the
+    screen; Qt wraps a rich-text one."""
+    sections = build_reference_sections()
+    funestras = next(section for section in sections if section.title == "Funestras")
+    browser = ReferenceBrowser()
+    try:
+        browser.resize(1000, 800)
+        browser.show()
+        cursor = browser.document().find(funestras.title)
+        cursor.setPosition(cursor.selectionStart() + 1)
+        at = browser.cursorRect(cursor).center()
+        asked = QHelpEvent(QEvent.Type.ToolTip, at, browser.viewport().mapToGlobal(at))
+        with patch("fun_time.dashboard_app.QToolTip") as tooltip:
+            assert browser.event(asked)
+        [(_pos, shown, _owner)] = [call.args for call in tooltip.showText.call_args_list]
+
+        assert Qt.mightBeRichText(shown)
+        assert QTextDocumentFragment.fromHtml(shown).toPlainText() == " ".join(funestras.note.split())
     finally:
         browser.close()
 
