@@ -8,6 +8,7 @@ import time
 import pytest
 
 from fun_time.win32 import window_title
+from tests.integration.run_clock import Budget
 from tests.integration.throwaway_chrome import WINDOW_TIMEOUT_S
 
 pytestmark = [
@@ -38,8 +39,8 @@ def _frames_drawn(page: int) -> int:
 
 
 def _frames_drawn_once_past(page: int, frames: int) -> int:
-    deadline = time.monotonic() + WINDOW_TIMEOUT_S
-    while (drawn := _frames_drawn(page)) <= frames and time.monotonic() < deadline:
+    budget = Budget(WINDOW_TIMEOUT_S)
+    while (drawn := _frames_drawn(page)) <= frames and not budget.expired():
         time.sleep(0.2)
     return drawn
 
