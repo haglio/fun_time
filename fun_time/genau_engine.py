@@ -11,7 +11,6 @@ from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
 from funestra.broker_feed import BrokerFeed, udp_reader
-from funestra.cruise_control import CruiseControlState
 from funestra.file_channel import read_paused_state
 from funestra.flag import Flag
 from funestra.flick_advance import FlickAdvanceState
@@ -123,9 +122,8 @@ def build_genau_engine(
         condemn_flick=lambda flick: _condemn(flick, condemned_to(flick), log, start_thread),
     )
     robot_hand = RobotHandState(playing=False, speed=50, bpm=bpm_for_speed(50))
-    cruise = CruiseControlState()
     learned = LearnedMotionState(model=load_default_model())
-    driver = RobotHandTCodeDriver(tcode_sink, robot_hand=robot_hand, cruise=cruise, learned=learned)
+    driver = RobotHandTCodeDriver(tcode_sink, robot_hand=robot_hand, learned=learned)
     broker = BrokerFeed()
     start_thread(
         target=udp_reader,
@@ -138,9 +136,7 @@ def build_genau_engine(
         step_flick=selection.step,
         condemn_flick=selection.condemn_current,
         robot_hand=robot_hand,
-        cruise_control_state=cruise,
         learned_motion_state=learned,
-        set_motion_phase=driver.set_motion_phase,
         flick_advance_state=FlickAdvanceState(),
         stop_event=stop_event,
         hud=Flag(),
