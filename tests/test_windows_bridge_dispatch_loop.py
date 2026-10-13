@@ -1219,6 +1219,25 @@ class TestDispatchLoopRunner:
         assert flashed == [("Nothing to accept", "system", logging.WARNING)]
 
 
+class TestABareHudPhraseAfterANamedOne:
+    @staticmethod
+    def _say(runner, tmp_path, command, said):
+        (tmp_path / "dashboard_cmd.txt").write_text(
+            format_spoken_command(command, spoken_at=1.0, said=said), encoding="utf-8")
+        with patch("fun_time.windows_bridge_dispatch_loop.notice"):
+            runner.tick()
+
+    def test_hud_expand_after_portrait_hud_collapse_opens_the_portrait_hud(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = replace(runner.state, active_funestra=RoomFunestra.MAIN)
+
+        self._say(runner, tmp_path, "portrait_hud_minimize", "portrait hud collapse")
+        assert runner.state.satellite(RoomFunestra.PORTRAIT).hud_minimized is True
+        self._say(runner, tmp_path, "active_hud_restore", "hud expand")
+
+        assert runner.state.satellite(RoomFunestra.PORTRAIT).hud_minimized is False
+
+
 class TestWhatASpokenCommandFlashes:
     @staticmethod
     def _flashed(tmp_path, line, ops=(), **state):
