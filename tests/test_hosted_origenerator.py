@@ -321,7 +321,7 @@ class TestWhenTheAppWeTookOverNeverAnswers:
              patch("fun_time.hosted_origenerator.the_open_origenerator",
                    return_value=OpenOrigenerator(6060, starting=False,
                                                  checkout=origenerator,
-                                                 showing=False)), \
+                                                 slideshow_on=())), \
              patch("fun_time.hosted_origenerator.take_it_over", side_effect=answer), \
              patch("fun_time.hosted_origenerator.launch_origenerator",
                    side_effect=lambda **kw: launched.update(kw) or 91):
@@ -347,7 +347,7 @@ class TestWhenTheAppWeTookOverNeverAnswers:
         with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors), \
              patch("fun_time.hosted_origenerator.the_open_origenerator",
                    return_value=OpenOrigenerator(6060, starting=False, checkout=origenerator,
-                                                 showing=False)), \
+                                                 slideshow_on=())), \
              patch("fun_time.hosted_origenerator.take_it_over",
                    side_effect=lambda _checkout, **kw: handed.update(kw)):
             bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=True)

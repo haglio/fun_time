@@ -5,6 +5,7 @@ import os
 
 import pytest
 
+from fun_time.room_funestras import RoomFunestra
 from fun_time.standalone_origenerator import (
     OpenOrigenerator,
     claim_the_osr2,
@@ -34,33 +35,52 @@ def test_an_open_app_is_the_process_its_offer_names(tmp_path):
     _offer(tmp_path, _this_process())
 
     assert the_open_origenerator(tmp_path) == OpenOrigenerator(
-        os.getpid(), starting=False, checkout=tmp_path, showing=False)
+        os.getpid(), starting=False, checkout=tmp_path, slideshow_on=())
 
 
 def test_an_app_still_starting_says_so_in_its_offer(tmp_path):
     _offer(tmp_path, f"{_this_process()} starting")
 
     assert the_open_origenerator(tmp_path) == OpenOrigenerator(
-        os.getpid(), starting=True, checkout=tmp_path, showing=False)
+        os.getpid(), starting=True, checkout=tmp_path, slideshow_on=())
 
 
 def _mark_a_slideshow(checkout, mark):
     (checkout / "state" / "fun_time_showing.txt").write_text(mark, encoding="utf-8")
 
 
-def test_an_open_app_showing_a_slideshow_says_so_beside_its_offer(tmp_path):
+@pytest.mark.parametrize(("monitor", "satellite"), [
+    ("portrait", RoomFunestra.PORTRAIT), ("landscape", RoomFunestra.LANDSCAPE)])
+def test_an_open_app_showing_a_slideshow_names_the_satellite_of_its_monitor(
+        tmp_path, monitor, satellite):
+    _offer(tmp_path, _this_process())
+    _mark_a_slideshow(tmp_path, f"{_this_process()} {monitor}")
+
+    assert the_open_origenerator(tmp_path).slideshow_on == (satellite,)
+
+
+def test_a_slideshow_mark_from_before_it_named_its_monitor_could_be_on_either_satellite(
+        tmp_path):
     _offer(tmp_path, _this_process())
     _mark_a_slideshow(tmp_path, _this_process())
 
-    assert the_open_origenerator(tmp_path).showing
+    assert the_open_origenerator(tmp_path).slideshow_on == RoomFunestra.SATELLITES
 
 
-@pytest.mark.parametrize("mark", ["", "1234 5678", "garbled"])
+@pytest.mark.parametrize("mark", ["", "1234 5678", "1234 5678 portrait", "garbled"])
 def test_a_slideshow_mark_naming_another_process_is_no_slideshow(tmp_path, mark):
     _offer(tmp_path, _this_process())
     _mark_a_slideshow(tmp_path, mark)
 
-    assert not the_open_origenerator(tmp_path).showing
+    assert the_open_origenerator(tmp_path).slideshow_on == ()
+
+
+def test_a_slideshow_mark_naming_a_monitor_this_session_does_not_know_is_no_slideshow(
+        tmp_path):
+    _offer(tmp_path, _this_process())
+    _mark_a_slideshow(tmp_path, f"{_this_process()} sideways")
+
+    assert the_open_origenerator(tmp_path).slideshow_on == ()
 
 
 def test_an_offer_with_a_word_this_session_does_not_know_is_no_open_app(tmp_path):
@@ -89,7 +109,7 @@ def test_a_session_hosting_a_worktree_finds_the_everyday_copy_on_its_library(tmp
     _offer(everyday, _this_process())
 
     assert the_open_origenerator(worktree) == OpenOrigenerator(
-        os.getpid(), starting=False, checkout=everyday, showing=False)
+        os.getpid(), starting=False, checkout=everyday, slideshow_on=())
 
 
 def _claim_in(checkout):
