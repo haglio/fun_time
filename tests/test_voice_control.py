@@ -53,7 +53,7 @@ class TestCommandRules:
 
         ruled_out = {phrase for phrase in rules.phrases if rules.never_rescued(phrase)}
 
-        assert {"quit", "park it", "park", "retract", "relief omni pause", "stop",
+        assert {"quit", "park it", "park", "o s r two off", "relief omni pause", "stop",
                 "main reset", "portrait reset"} <= ruled_out
         assert not {"landscape lock", "pause", "next", "amp up"} & ruled_out
 

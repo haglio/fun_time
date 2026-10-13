@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support.osr2_device import Osr2Mode
 from funestra.console import OSR2_DRIVING, ConsoleModel
 from funestra.hud_placement import HudCorner, HudEdge
 from funestra.modes import LengthMode, MainMode, Osr2State
@@ -20,7 +21,7 @@ from .mode_plan import kino_shows
 
 MAIN_FUNESTRA_CONSOLE_FILENAME = "main_player_console.json"
 
-def osr2_state(*, main_mode: MainMode, osr2_mode: str, funscript_driving: bool) -> Osr2State:
+def osr2_state(*, main_mode: MainMode, osr2_mode: Osr2Mode, funscript_driving: bool) -> Osr2State:
     """Which of the OSR2 states has the device, for the console to badge.
 
     Only a Main Funestra that is *on screen* can be driving: ``funscript_driving`` is read
@@ -31,17 +32,7 @@ def osr2_state(*, main_mode: MainMode, osr2_mode: str, funscript_driving: bool) 
     "something other than the Robot Hand has the device" — so every ± mark and
     draggable band on the drive readout went dead.
     """
-    return device_word(osr2_mode, funscript_driving and kino_shows(main_mode))
-
-
-def device_word(osr2_mode: str, funscript_driving: bool) -> Osr2State:
-    if osr2_mode == "off":
-        return Osr2State.OFF
-    if osr2_mode == "auto":
-        return Osr2State.AUTO
-    if funscript_driving:
-        return Osr2State.FUNSCRIPT
-    return Osr2State.ROBOT_HAND
+    return Osr2State.of(osr2_mode, funscript_driving=funscript_driving and kino_shows(main_mode))
 
 
 @dataclass(frozen=True)
@@ -54,7 +45,7 @@ class MainSlotInputs:
     main_funestra: MainFunestraStatus
     genau: GenauStatus
     active: bool
-    osr2_mode: str
+    osr2_mode: Osr2Mode
     broker: bool
     osr2_control: str = OSR2_DRIVING
     hud_corner: HudCorner = HudCorner.UPPER_LEFT

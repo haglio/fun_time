@@ -3,15 +3,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time import checkout_overrides
+from fun_time import checkout_overrides, project_paths
 from fun_time.checkout_overrides import (
-    GENAU_DIRS_OVERRIDE_NAME,
     ORIGENERATOR_DIR_OVERRIDE_NAME,
-    apply_genau_dirs_to_sys_path,
     apply_origenerator_dir_override,
-    override_lines,
 )
 from fun_time.config import load_config
+from fun_time.project_paths import (
+    GENAU_DIRS_OVERRIDE_NAME,
+    apply_genau_dirs_to_sys_path,
+    override_lines,
+)
 
 
 class TestOverrideLines:
@@ -37,8 +39,8 @@ def test_the_sys_path_override_only_adds_directories_that_exist(tmp_path, monkey
     real.mkdir()
     (state / GENAU_DIRS_OVERRIDE_NAME).write_text(
         f"{real}\nC:/gone/for/good\n", encoding="utf-8")
-    monkeypatch.setattr(checkout_overrides.config_module, "PROJECT_DIR", tmp_path)
-    monkeypatch.setattr(checkout_overrides, "sys", type("s", (), {"path": []})())
+    monkeypatch.setattr(project_paths, "PROJECT_DIR", tmp_path)
+    monkeypatch.setattr(project_paths, "sys", type("s", (), {"path": []})())
 
     assert apply_genau_dirs_to_sys_path() == [str(real)]
 
@@ -49,21 +51,21 @@ def test_this_checkouts_own_packages_still_come_before_a_siblings(tmp_path, monk
     sibling = tmp_path / "sibling_checkout"
     sibling.mkdir()
     (state / GENAU_DIRS_OVERRIDE_NAME).write_text(str(sibling), encoding="utf-8")
-    monkeypatch.setattr(checkout_overrides.config_module, "PROJECT_DIR", tmp_path)
-    monkeypatch.setattr(checkout_overrides, "sys", type("s", (), {"path": ["", "site-packages"]})())
+    monkeypatch.setattr(project_paths, "PROJECT_DIR", tmp_path)
+    monkeypatch.setattr(project_paths, "sys", type("s", (), {"path": ["", "site-packages"]})())
 
     apply_genau_dirs_to_sys_path()
 
-    assert checkout_overrides.sys.path[:3] == [str(tmp_path), str(sibling), ""]
+    assert project_paths.sys.path[:3] == [str(tmp_path), str(sibling), ""]
 
 
 def test_a_checkout_with_no_siblings_named_leaves_the_path_as_it_found_it(tmp_path, monkeypatch):
-    monkeypatch.setattr(checkout_overrides.config_module, "PROJECT_DIR", tmp_path)
-    monkeypatch.setattr(checkout_overrides, "sys", type("s", (), {"path": ["", "site-packages"]})())
+    monkeypatch.setattr(project_paths, "PROJECT_DIR", tmp_path)
+    monkeypatch.setattr(project_paths, "sys", type("s", (), {"path": ["", "site-packages"]})())
 
     apply_genau_dirs_to_sys_path()
 
-    assert checkout_overrides.sys.path == ["", "site-packages"]
+    assert project_paths.sys.path == ["", "site-packages"]
 
 
 def test_the_runtime_override_reaches_a_branch_that_introduces_the_key(tmp_path, monkeypatch, cfg_path):
@@ -74,7 +76,7 @@ def test_the_runtime_override_reaches_a_branch_that_introduces_the_key(tmp_path,
     state.mkdir(exist_ok=True)
     (state / ORIGENERATOR_DIR_OVERRIDE_NAME).write_text(
         "C:/origenerator/.claude/worktrees/mine\n", encoding="utf-8")
-    monkeypatch.setattr(checkout_overrides.config_module, "PROJECT_DIR", tmp_path)
+    monkeypatch.setattr(checkout_overrides, "PROJECT_DIR", tmp_path)
 
     config = apply_origenerator_dir_override(load_config(cfg_path))
 
@@ -95,7 +97,7 @@ def test_the_runtime_override_yields_to_an_integration_run(tmp_path, monkeypatch
     state.mkdir(exist_ok=True)
     (state / ORIGENERATOR_DIR_OVERRIDE_NAME).write_text(
         "C:/origenerator/.claude/worktrees/mine\n", encoding="utf-8")
-    monkeypatch.setattr(checkout_overrides.config_module, "PROJECT_DIR", tmp_path)
+    monkeypatch.setattr(checkout_overrides, "PROJECT_DIR", tmp_path)
 
     config = apply_origenerator_dir_override(
         load_config(cfg_path), integration=True)

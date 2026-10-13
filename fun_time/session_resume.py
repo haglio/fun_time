@@ -8,6 +8,7 @@ from dataclasses import fields, replace
 from pathlib import Path
 
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
+from funestra.console import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.drive_readout import read_drive
 from funestra.file_channel import append_command
 from funestra.flick_advance import FlickAdvanceState
@@ -193,6 +194,12 @@ def resume_main_loop(main_funestra_cmd_file: Path, status: MainFunestraStatus,
         append_command(Path(main_funestra_cmd_file), f"{SET_LOOP} {bounds[0]} {bounds[1]}")
 
 
+# What a resumed session's OSR2 control can come back as.  Anything else --
+# control off, from before the four buttons became one switch -- comes back
+# parked, the switch's off.
+_OSR2_CONTROLS = (OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED)
+
+
 def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:
     """Seed *state_file* with the state a resumed session comes back in.
 
@@ -205,5 +212,7 @@ def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:
         portrait=_resumed_satellite(previous.satellite(RoomFunestra.PORTRAIT)),
         landscape=_resumed_satellite(previous.satellite(RoomFunestra.LANDSCAPE)),
     )
+    if state.osr2_control not in _OSR2_CONTROLS:
+        state = replace(state, osr2_control=OSR2_PARKED)
     write_shared_state(state_file, state)
     return state

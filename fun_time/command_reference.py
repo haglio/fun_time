@@ -264,27 +264,19 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("robot_hand_toggle_learned", "robot_hand_learned_on", "robot_hand_learned_off"),
             ),
             _Row(
-                "Hold the OSR2 at one end: park settles it home, retract sends "
-                "it to the far end, away from you, and Genau's picture goes "
+                "Park the OSR2, OSR2 control off: it settles home and is held "
+                "there, and while the OSR2 is switched on Genau's picture goes "
                 "there with it.  A funscript stands down for it too.  Unlike "
                 "OmniPause the room plays on, the motion included, unheard "
-                "until the hold is let go",
+                "until OSR2 control is on again",
                 (),
-                ("robot_hand_park", "robot_hand_retract"),
+                ("robot_hand_park",),
             ),
             _Row(
-                "Off the hold — put the motion back to whatever it was doing "
-                "before the park or retract.  Any of the three words undoes "
-                "either hold, and ends control off too",
+                "Drive the OSR2, OSR2 control on: the motion back to whatever it "
+                "was doing.  It ends a relief pause's retract too",
                 (),
                 ("robot_hand_release",),
-            ),
-            _Row(
-                "Control off — settle the OSR2 home and let go of it there, "
-                "until you park, retract or resume it.  The device itself stays "
-                "on: this is the app letting go, not the OSR2 switching off",
-                (),
-                ("osr2_control_off",),
             ),
             _Row("Offset the motion a ¼ cycle", ("\\",), ("quarter_button",)),
         ),

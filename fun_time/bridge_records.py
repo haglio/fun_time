@@ -130,19 +130,6 @@ class BridgeConfig:
         return self.state_dir / state_files.GENAU_DRIVE
 
     @property
-    def osr2_serial_rx_file(self) -> Path:
-        """When the OSR2 last spoke, as the broker last stamped it."""
-        return self.broker_state / state_files.OSR2_SERIAL_RX
-
-    @property
-    def osr2_serial_tx_file(self) -> Path:
-        """When a driver last spoke TO the OSR2.  The device only replies to
-        traffic, so through a quiet stretch (an OmniPause, a handoff buffer) the
-        RX stamp alone goes stale on a device that is on and in use — this one
-        says somebody is still driving it."""
-        return self.broker_state / state_files.OSR2_SERIAL_TX
-
-    @property
     def regen(self) -> RegenConfig:
         """The four Provider settings, in the shape the regenerate code expects."""
         return RegenConfig(

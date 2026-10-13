@@ -204,11 +204,6 @@ class ProjectConfig:
         return self.paths.broker_state_dir / state_files.BROKER_HEARTBEAT
 
     @property
-    def osr2_serial_rx_file(self) -> Path:
-        """Stamped when the OSR2 last spoke — which is how we know it is powered on."""
-        return self.paths.broker_state_dir / state_files.OSR2_SERIAL_RX
-
-    @property
     def genau_cmd_file(self) -> Path:
         return self.paths.state_dir / state_files.GENAU_CMD
 
