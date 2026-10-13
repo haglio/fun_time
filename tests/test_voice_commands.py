@@ -693,17 +693,22 @@ class TestMinimizingAHudBySpeech:
     """"minimize landscape HUD" and its way back, for each Funestra and for
     whichever one was addressed last."""
 
-    def test_each_funestra_can_be_told_to_minimize_its_hud(self):
-        for side, funestra in (("portrait", "portrait"), ("landscape", "landscape"),
-                             ("main", "main")):
-            assert VOICE_COMMANDS[f"minimize {side} hud"] == f"{funestra}_hud_minimize"
-            assert VOICE_COMMANDS[f"un minimize {side} hud"] == f"{funestra}_hud_restore"
-            assert VOICE_COMMANDS[f"restore {side} hud"] == f"{funestra}_hud_restore"
+    @pytest.mark.parametrize("said", ["{verb} {hud}", "{hud} {verb}"])
+    def test_the_verb_goes_before_or_after_the_hud_it_names(self, said):
+        for verb, act in (("minimize", "hud_minimize"), ("restore", "hud_restore")):
+            assert VOICE_COMMANDS.get(said.format(verb=verb, hud="hud")) == f"active_{act}"
+            for funestra in ("portrait", "landscape", "both", "main"):
+                assert (VOICE_COMMANDS.get(said.format(verb=verb, hud=f"{funestra} hud"))
+                        == f"{funestra}_{act}")
 
-    def test_a_bare_minimize_hud_reaches_the_funestra_addressed_last(self):
-        assert VOICE_COMMANDS["minimize hud"] == "active_hud_minimize"
+    def test_un_minimize_leads_the_hud_and_never_follows_it_where_it_sinks_minimize(self):
+        """Both orders offered "main hud minimize" and "main hud un minimize" for a
+        recording of the first, and whisper, shown the two, wrote neither."""
+        for funestra in ("portrait", "landscape", "both", "main"):
+            assert VOICE_COMMANDS[f"un minimize {funestra} hud"] == f"{funestra}_hud_restore"
+            assert VOICE_COMMANDS.get(f"{funestra} hud un minimize") is None
         assert VOICE_COMMANDS["un minimize hud"] == "active_hud_restore"
-        assert VOICE_COMMANDS["restore hud"] == "active_hud_restore"
+        assert VOICE_COMMANDS.get("hud un minimize") is None
 
     def test_the_reference_shows_the_joined_up_word(self):
         assert friendly_voice("un minimize landscape hud") == "unminimize landscape hud"
