@@ -78,8 +78,9 @@ ORIGENERATOR_PHRASES: tuple[str, ...] = (
     "enhanced only", "filter enhanced",
     # The show's own controls.
     "play slideshow", "start slideshow", "pause slideshow", "stop slideshow",
-    # The commands about the picture on screen: the built-in detail parts, and Genau.
-    "fix face", "fix hands", "fix teeth", "fix eyes", *GENAU_SAID,
+    # The picture on screen: every fix the app's contract names, and Genau.
+    "fix face", "fix faces", "fix hand", "fix hands", "fix teeth", "fix tooth",
+    "fix mouth", "fix eye", "fix eyes", "fix skin", "fix hair", *GENAU_SAID,
 )
 
 
