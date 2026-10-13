@@ -57,10 +57,10 @@ class PathsConfig:
     # ordinary use, which is what every session did before this.
     genau_project_dirs: tuple[Path, ...] = ()
     broker_tray_launcher: Path | None = None
-    # The Origenerator checkout the session hosts on its satellite side (see
-    # fun_time.satellites_mode), and the python that runs it — origenerator has
+    # The Origenerator checkout the session hosts (see
+    # fun_time.origenerator_switches), and the python that runs it — origenerator has
     # no venv of its own; its deps live in the system install its launcher
-    # finds.  Absent, the satellites have no Origenerator mode at all.
+    # finds.  Absent, nothing in the room offers Origenerator at all.
     origenerator_dir: Path | None = None
     origenerator_python_exe: Path | None = None
 
@@ -249,7 +249,7 @@ class ProjectConfig:
     def main_funestra_playlist_file(self) -> Path:
         return self.paths.state_dir / "main_player_playlist.tsv"
 
-    # --- The hosted Origenerator's channel (see fun_time.satellites_mode):
+    # --- The hosted Origenerator's channel (see fun_time.origenerator_switches):
     # verbs in, the OmniPause flag over it, and which Funestras it holds back.
     @property
     def origenerator_cmd_file(self) -> Path:

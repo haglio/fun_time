@@ -90,14 +90,16 @@ def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
     """A row of its own above the band, like the console's Kino/Genau row: the
     side's current mode lit, minimize riding the row a group apart, and no such
     row at all for a session hosting no Origenerator."""
-    rows = funestra_rows("portrait", satellites_mode=SatellitesMode.ORIGENERATOR)
+    rows = funestra_rows("portrait", mode=SatellitesMode.ORIGENERATOR)
 
     assert len(rows) == 2
     assert [b.command for b in rows[0]] == [
-        "satellites_kino_activate", "origenerator_activate", "portrait_minimize",
+        "portrait_kino_activate", "portrait_origenerator_activate", "portrait_minimize",
         "portrait_crown"]
     assert [b.glyph for b in rows[0][:2]] == ["Kino", "Origenerator"]
-    assert rows[0][0].tooltip == "Kino mode — the Satellite Funestras and the Random Favs Browser"
+    assert rows[0][0].tooltip == "Kino mode — this Funestra plays its own videos"
+    assert rows[0][1].tooltip == (
+        "Origenerator mode — this Funestra plays Origenerator's slideshows")
     assert [b.lit for b in rows[0]][:3] == [False, True, False]
     assert [b.width for b in rows[0][:2]] == [FIT_THE_WORD, FIT_THE_WORD]
     assert rows[0][2].group_break and rows[0][2].glyph == MINIMIZE_ICON
@@ -110,12 +112,12 @@ def test_a_funestra_in_the_headset_has_no_window_to_minimize():
     screen in the scene rather than a window of its own: there is nothing for
     it to park, so it is left off the band and off the session's row alike."""
     plain = funestra_rows("portrait", latest=False, in_vr=True)
-    hosting = funestra_rows("portrait", latest=False, satellites_mode=SatellitesMode.KINO,
+    hosting = funestra_rows("portrait", latest=False, mode=SatellitesMode.KINO,
                           in_vr=True)
 
     assert _names(plain[-1])[-1] == "cycle_version"
     assert [b.command for b in hosting[0]] == [
-        "satellites_kino_activate", "origenerator_activate"]
+        "portrait_kino_activate", "portrait_origenerator_activate"]
     assert "minimize" not in _names(hosting[-1])
 
 
@@ -126,15 +128,15 @@ def test_the_origenerator_button_is_dim_until_that_app_is_up():
     nothing for a press on it, and still answers a hover -- with what it is
     waiting for, since knowing why it cannot be pressed is the point."""
     starting = {b.command: b for b in funestra_rows(
-        "portrait", satellites_mode=SatellitesMode.KINO, origenerator_ready=False)[0]}
+        "portrait", mode=SatellitesMode.KINO, origenerator_ready=False)[0]}
     ready = {b.command: b for b in funestra_rows(
-        "portrait", satellites_mode=SatellitesMode.KINO, origenerator_ready=True)[0]}
+        "portrait", mode=SatellitesMode.KINO, origenerator_ready=True)[0]}
 
-    assert starting["origenerator_activate"].dim
-    assert "starting" in starting["origenerator_activate"].tooltip
-    assert not starting["satellites_kino_activate"].dim
-    assert not ready["origenerator_activate"].dim
-    assert "starting" not in ready["origenerator_activate"].tooltip
+    assert starting["portrait_origenerator_activate"].dim
+    assert "starting" in starting["portrait_origenerator_activate"].tooltip
+    assert not starting["portrait_kino_activate"].dim
+    assert not ready["portrait_origenerator_activate"].dim
+    assert "starting" not in ready["portrait_origenerator_activate"].tooltip
 
 
 def test_the_faces_are_the_familys_marks_where_it_has_them():
@@ -199,5 +201,5 @@ def test_the_portrait_funestras_crown_is_lit_while_it_holds_the_crown():
 def test_only_the_portrait_funestra_wears_a_crown():
     assert "landscape_crown" not in [
         button.command for row in funestra_rows("landscape", latest=False,
-                                               satellites_mode=SatellitesMode.KINO)
+                                               mode=SatellitesMode.KINO)
         for button in row]

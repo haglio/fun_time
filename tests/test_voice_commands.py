@@ -109,7 +109,7 @@ class TestVoiceCommands:
             "main kino mode": "main_kino_activate",
             "satellite kino mode": "satellites_kino_activate",
             "satellites kino mode": "satellites_kino_activate",
-            "aura generator mode": "origenerator_activate",
+            "aura generator mode": "satellites_origenerator_activate",
             "start broker": "broker_start",
             "stop broker": "broker_stop",
             "next main": "main_next",
@@ -284,8 +284,10 @@ class TestVoiceCommands:
         assert len(go_now) == 8
         assert {phrase: VOICE_COMMANDS.get(phrase) for phrase in twins} == twins
 
-    def test_aura_generator_mode_is_shown_as_origenerator_mode(self):
-        assert VOICE_COMMANDS["aura generator mode"] == "origenerator_activate"
+    def test_origenerator_mode_puts_both_satellites_in_it_and_is_shown_as_said(self):
+        """The spoken twin of each satellite's Origenerator button, said of both:
+        what holds the Random Favs Browser's place is the dashboard strip's."""
+        assert VOICE_COMMANDS["aura generator mode"] == "satellites_origenerator_activate"
         assert friendly_voice("aura generator mode") == "origenerator mode"
 
     def test_dead_genau_phrases_removed(self):

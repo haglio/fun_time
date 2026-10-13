@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from shared_ui.preview import Preview, window_title
 
-from fun_time.satellites_mode import RfbSlot
+from fun_time.origenerator_switches import RfbSlot
 from fun_time.window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,

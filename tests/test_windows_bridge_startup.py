@@ -16,7 +16,7 @@ from urllib.request import url2pathname
 import pytest
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
 from funestra.drive_readout import DriveHud, drive_text
-from funestra.modes import LengthMode, MainMode
+from funestra.modes import LengthMode, MainMode, SatellitesMode
 from funestra.playlist import PlaylistItem, write_playlist
 from funestra.robot_hand import FULL_INTENSITY
 from shared_ui.preview import Preview
@@ -1064,8 +1064,9 @@ def test_a_session_resumed_into_origenerator_mode_still_seeds_its_funestras_play
     app answers — is what pauses them.  Seeded paused off the resumed mode, they
     sat frozen at position 0 under a mode nothing had entered."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    write_shared_state(shared_state_path(kwargs["state_dir"]),
-                       BridgeState(satellites_mode="origenerator"))
+    write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(
+        portrait=SatelliteState(mode=SatellitesMode.ORIGENERATOR),
+        landscape=SatelliteState(mode=SatellitesMode.ORIGENERATOR)))
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"

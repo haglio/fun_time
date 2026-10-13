@@ -72,7 +72,7 @@ ORIGENERATOR_PHRASES: tuple[str, ...] = (
     # The shelves, by the labels its tree wears.  Not "latest" and not "trash":
     # this session already says both to a satellite ("portrait latest" reorders
     # that Funestra's browse, "portrait trash" discards its clip), and in
-    # origenerator mode those same two commands are routed to the hosted app
+    # a side's Origenerator mode those same two commands are routed to the hosted app
     # instead — one phrase, one meaning per mode, rather than two spellings.
     FAVORITES_PHRASE, "experiments", "requests",
     "enhanced only", "filter enhanced",
@@ -154,9 +154,9 @@ def build_voice_commands(
         "main kino mode": "main_kino_activate",
         "satellite kino mode": "satellites_kino_activate",
         "satellites kino mode": "satellites_kino_activate",
-        # The satellite side's other mode, spoken as explicit modes rather than a
+        # Both satellites' other mode, spoken as explicit modes rather than a
         # toggle, so a phrase misheard twice cannot land on the opposite.
-        "aura generator mode": "origenerator_activate",
+        "aura generator mode": "satellites_origenerator_activate",
         "start broker": "broker_start",
         "stop broker": "broker_stop",
         # "main next" / "next main" are generated with the satellite grid

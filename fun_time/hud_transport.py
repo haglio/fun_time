@@ -23,9 +23,9 @@ from funestra.satellite_hud import HudCell, HudModel, hud_text
 
 from .folder_listings import FolderListings
 from .lock_hud import ACTION_LIMIT, SEED_LIMIT, HudPanel, locate_cell, panel_thumbnails
+from .origenerator_switches import ORIGENERATOR_MODE
 from .osr2_section import DeviceBlock
 from .satellite_buttons import funestra_rows, mode_row
-from .satellites_mode import ORIGENERATOR_MODE
 from .thumbnail_cache import cached_thumbnail
 
 # What a side the hosted app holds says before that app has anything on it.
@@ -110,7 +110,7 @@ def hud_model(panel: HudPanel, cache_dir: Path,
         is_favorite=panel.is_favorite,
         rows=funestra_rows(panel.funestra, locked=panel.locked,
                          favorites_filter=panel.favorites_filter, latest=panel.latest,
-                         satellites_mode=panel.satellites_mode,
+                         mode=panel.mode,
                          origenerator_ready=panel.origenerator_ready,
                          nothing_to_reset=panel.nothing_to_reset,
                          has_other_versions=panel.has_other_versions,
@@ -138,7 +138,7 @@ def hosted_model(funestra: str, hosted: HudModel | None, *, active: bool,
     """What *Funestra* wears while the hosted app holds its Funestra: that app's own
     panel, or the mode's name while it has none, under the session's row."""
     panel = hosted or HudModel(funestra=funestra, lock_label=ORIGENERATOR_MODE_LABEL)
-    row = mode_row(funestra, satellites_mode=ORIGENERATOR_MODE,
+    row = mode_row(funestra, mode=ORIGENERATOR_MODE,
                    origenerator_ready=origenerator_ready, in_vr=in_vr, crowned=crowned)
     model = replace(panel, funestra=funestra, active=active, hud_corner=hud_corner,
                     hud_edge=hud_edge, hud_minimized=hud_minimized,

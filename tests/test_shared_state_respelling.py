@@ -10,6 +10,7 @@ from pathlib import Path
 
 from funestra.modes import MainMode, SatellitesMode
 
+from fun_time.origenerator_switches import RfbSlot
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import resume_shared_state
 from fun_time.shared_state import (
@@ -74,7 +75,26 @@ class TestTheSharedStateFile:
         migrate_shared_state(state_file)
 
         state = read_shared_state(state_file)
-        assert (state.main_mode, state.satellites_mode) == (MainMode.KINO, SatellitesMode.KINO)
+        assert (state.main_mode, *(state.satellite(funestra).mode
+                                   for funestra in RoomFunestra.SATELLITES), state.rfb_slot) == (
+            MainMode.KINO, SatellitesMode.KINO, SatellitesMode.KINO, RfbSlot.RFB)
+
+    def test_a_room_left_in_origenerator_mode_comes_back_with_all_three_in_it(
+            self, tmp_path: Path):
+        """The satellite side's one mode became each Satellite Funestra's own and
+        a switch of its own for the browser's place, so a room left in it comes
+        back with both Funestras in theirs and Origenerator in the browser's
+        place -- the room it was."""
+        state_file = tmp_path / SHARED_STATE_FILENAME
+        state_file.write_text("[state]\nsatellites_mode = origenerator\n", encoding="utf-8")
+
+        migrate_shared_state(state_file)
+
+        state = read_shared_state(state_file)
+        assert [state.satellite(funestra).mode for funestra in RoomFunestra.SATELLITES] == [
+            SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
+        assert state.rfb_slot is RfbSlot.ORIGENERATOR
+        assert "satellites_mode" not in state_file.read_text(encoding="utf-8")
 
     def test_a_file_already_in_todays_spelling_is_left_untouched(self, tmp_path: Path):
         state_file = tmp_path / SHARED_STATE_FILENAME

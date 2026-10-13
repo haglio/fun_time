@@ -15,8 +15,8 @@ from funestra.modes import MainMode
 
 from fun_time import shared_state
 from fun_time.mode_plan import MAIN_KINO_MODE, MAIN_MODES
+from fun_time.origenerator_switches import KINO_MODE as SATELLITES_KINO_MODE
 from fun_time.room_funestras import RoomFunestra
-from fun_time.satellites_mode import KINO_MODE as SATELLITES_KINO_MODE
 from fun_time.shared_state import (
     _LAST_SESSIONS_KEYS,
     SHARED_STATE_FILENAME,
@@ -305,7 +305,8 @@ def test_the_round_trip_spells_no_field_of_the_record_by_hand():
          if isinstance(node, ast.Constant) and isinstance(node.value, str)}
         & {f.name for f in fields(BridgeState)})
 
-    assert spelled_out == sorted(set(_LAST_SESSIONS_KEYS.values()) & {f.name for f in fields(BridgeState)}), (
+    written_today = {key for keys in _LAST_SESSIONS_KEYS.values() for key in keys}
+    assert spelled_out == sorted(written_today & {f.name for f in fields(BridgeState)}), (
         "the round trip names these fields by hand: " + ", ".join(spelled_out)
         + " — derive them from the record instead, so one added to it is carried."
     )
@@ -391,14 +392,14 @@ def test_a_state_saved_under_an_old_name_of_the_mode_comes_back_in_kino_mode(tmp
     quietly park the Funestras, and now build_mode_switch_plan refuses it outright,
     so a resumed session would not switch at all."""
     state_file = tmp_path / SHARED_STATE_FILENAME
-    for saved_main, saved_satellites in (("main_player", "player"), ("hybrid", "player"),
-                                         ("video", "video")):
-        write_shared_state(state_file, BridgeState(main_mode=saved_main,
-                                                   satellites_mode=saved_satellites))
+    for saved_main, saved_satellite in (("main_player", "player"), ("hybrid", "player"),
+                                        ("video", "video")):
+        write_shared_state(state_file, BridgeState(
+            main_mode=saved_main, portrait=SatelliteState(mode=saved_satellite)))
 
         resumed = read_shared_state(state_file)
 
-        assert (resumed.main_mode, resumed.satellites_mode) == (
+        assert (resumed.main_mode, resumed.satellite(RoomFunestra.PORTRAIT).mode) == (
             MAIN_KINO_MODE, SATELLITES_KINO_MODE), saved_main
 
 
@@ -415,7 +416,8 @@ def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
 # the way tests/test_manifest.py holds the launch manifest's inventory.
 _EXPECTED_STATE_KEYS = {
     "portrait_locked": "0", "landscape_locked": "0",
-    "main_mode": "kino", "satellites_mode": "kino", "rfb_slot": "rfb",
+    "main_mode": "kino", "portrait_mode": "kino", "landscape_mode": "kino",
+    "rfb_slot": "rfb",
     "origenerator_ready": "0",
     "main_scripted_filter": "0", "portrait_favorites_filter": "0", "landscape_favorites_filter": "0",
     "main_hud_corner": "upper_left", "main_hud_edge": "lower", "main_hud_minimized": "0",

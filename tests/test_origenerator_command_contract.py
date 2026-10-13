@@ -2,10 +2,10 @@
 held to what the app says it answers.
 
 What a key or a phrase says to a side in the app's mode is walked, every one of
-them, by ``tests/test_vr_control_parity.py``.  These are the rest: the console's
-enhanced-only switch, the room's F-Mode reaching each show's own, the gallery
-following a lock Genau took, and a copy of the app the session took over being
-handed back.
+them, by ``tests/test_vr_control_parity.py``.  These are the rest: a Satellite
+Funestra's own mode buttons, the console's enhanced-only switch, the room's
+F-Mode reaching each show's own, the gallery following a lock Genau took, and a
+copy of the app the session took over being handed back.
 """
 from __future__ import annotations
 
@@ -17,9 +17,9 @@ from fun_time.command_dispatch import dispatch_command
 from fun_time.config import load_config
 from fun_time.gallery_follows_genau import GalleryFollowsGenau
 from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
+from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.room_funestras import RoomFunestra
-from fun_time.satellites_mode import ORIGENERATOR_MODE
-from fun_time.shared_state import BridgeState
+from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import see_the_hosted_app_out
 from tests.hosted_shows import publish_the_show
@@ -30,33 +30,48 @@ def _what_it_was_sent(channel: Path) -> list[str]:
     return channel.read_text(encoding="utf-8").splitlines()
 
 
-def test_the_consoles_enhanced_only_switch(cfg_factory, tmp_path):
+def _hosting_bridge(cfg_factory, tmp_path):
     checkout = tmp_path / "origenerator"
     checkout.mkdir()
     config = load_config(cfg_factory({"paths": {"origenerator_dir": str(checkout)}}))
-    bridge = build_bridge_config_from_manifest(
+    return build_bridge_config_from_manifest(
         LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini")))
 
-    dispatch_command("genau_filter_enhanced", BridgeState(
-        satellites_mode=ORIGENERATOR_MODE, origenerator_ready=True), bridge)
+
+def _both_hosted() -> BridgeState:
+    hosted = SatelliteState(mode=ORIGENERATOR_MODE)
+    return BridgeState(portrait=hosted, landscape=hosted, origenerator_ready=True)
+
+
+def test_each_satellites_own_mode_buttons(cfg_factory, tmp_path):
+    bridge = _hosting_bridge(cfg_factory, tmp_path)
+    state = BridgeState(origenerator_ready=True)
+
+    for funestra in RoomFunestra.SATELLITES:
+        for mode in ("origenerator", "kino"):
+            state, _ops = dispatch_command(f"{funestra.label}_{mode}_activate", state, bridge)
+
+    sent = _what_it_was_sent(bridge.origenerator_cmd_file)
+    assert len(sent) == 4 and all(map(answers, sent)), sent
+
+
+def test_the_consoles_enhanced_only_switch(cfg_factory, tmp_path):
+    bridge = _hosting_bridge(cfg_factory, tmp_path)
+
+    dispatch_command("genau_filter_enhanced", _both_hosted(), bridge)
 
     sent = _what_it_was_sent(bridge.origenerator_cmd_file)
     assert sent and all(map(answers, sent)), sent
 
 
 def test_the_rooms_f_mode_reaching_each_hosted_show(cfg_factory, tmp_path):
-    checkout = tmp_path / "origenerator"
-    checkout.mkdir()
-    config = load_config(cfg_factory({"paths": {"origenerator_dir": str(checkout)}}))
-    bridge = build_bridge_config_from_manifest(
-        LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini")))
+    bridge = _hosting_bridge(cfg_factory, tmp_path)
     for funestra in RoomFunestra.SATELLITES:
         publish_the_show(bridge, funestra, f_mode=False)
 
     with patch("fun_time.command_dispatch.apply_fmode") as rebuild:
         rebuild.return_value = SimpleNamespace(funestras=(), log_message="")
-        dispatch_command("fmode_toggle", BridgeState(
-            satellites_mode=ORIGENERATOR_MODE, origenerator_ready=True), bridge)
+        dispatch_command("fmode_toggle", _both_hosted(), bridge)
 
     sent = _what_it_was_sent(bridge.origenerator_cmd_file)
     assert sent and all(map(answers, sent)), sent

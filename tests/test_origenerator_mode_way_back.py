@@ -14,9 +14,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from fun_time.room_funestras import RoomFunestra
-from tests.integration.test_origenerator_mode_integration import _leave_the_mode
+from tests.integration.test_origenerator_mode_integration import _bring_the_satellites_home
 
-# How many looks at a Funestra the hosted app takes to answer the OPEN_SHOWS the
+# How many looks at a Funestra the hosted app takes to answer the open the
 # switch sent it — a couple, as it does on a machine with other work on it.
 _LOOKS_BEFORE_THE_APP_ANSWERS = 2
 
@@ -98,7 +98,7 @@ class _Room:
 def test_the_way_back_is_not_pressed_until_the_app_has_both_funestras(tmp_path):
     room = _Room(tmp_path)
 
-    _leave_the_mode(room)
+    _bring_the_satellites_home(room)
 
-    assert room.presses == ["satellites_kino_activate"]
+    assert room.presses == ["portrait_kino_activate", "landscape_kino_activate"]
     assert room.taken_when_pressed

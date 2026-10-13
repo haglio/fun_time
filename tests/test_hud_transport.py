@@ -125,11 +125,11 @@ def test_hud_payload_declares_the_sides_buttons_lit_off_its_own_state():
 
 def test_hud_payload_declares_the_mode_row_where_the_session_hosts_an_origenerator():
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
-        hosted = hud_model(_panel(satellites_mode=SatellitesMode.ORIGENERATOR), Path("C:/t"))
+        hosted = hud_model(_panel(mode=SatellitesMode.ORIGENERATOR), Path("C:/t"))
         plain = hud_model(_panel(), Path("C:/t"))
 
     assert [button.command for button in hosted.rows[0]] == [
-        "satellites_kino_activate", "origenerator_activate", "portrait_minimize",
+        "portrait_kino_activate", "portrait_origenerator_activate", "portrait_minimize",
         "portrait_crown"]
     assert hosted.rows[0][1].lit
     assert len(plain.rows) == 1

@@ -59,6 +59,7 @@ from fun_time.dashboard_app import (
 from fun_time.dashboard_layout import (
     GAP,
     GROUP_GAP,
+    RFB_SLOT_STRIP_HEIGHT,
     Rect,
     compute_dashboard_bar_layout,
     dashboard_window_height,
@@ -73,6 +74,7 @@ from fun_time.event_log import (
 )
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
+from fun_time.origenerator_switches import RfbSlot
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time.unlogged_notices import flash_unlogged
@@ -1686,3 +1688,75 @@ def test_the_dashboards_config_names_the_one_directory_its_files_live_in(tmp_pat
     assert app_config.state_dir == manifest_path.parent
     assert app_config.dashboard_state_file == manifest_path.parent / "dashboard_state.ini"
     assert app_config.dashboard_cmd_file == manifest_path.parent / "dashboard_cmd.txt"
+
+
+# --- the strip under the log ----------------------------------------------------
+
+
+def _strip_app_config(cfg_factory, tmp_path):
+    origenerator = tmp_path / "origenerator"
+    origenerator.mkdir(exist_ok=True)
+    config = load_config(cfg_factory({"paths": {"origenerator_dir": str(origenerator)}}))
+    return load_dashboard_app_config(
+        write_windows_bridge_manifest(config, tmp_path / "hosting_manifest.ini"))
+
+
+@pytest.fixture
+def strip_window(cfg_factory, tmp_path):
+    window = build_dashboard_window(
+        _strip_app_config(cfg_factory, tmp_path),
+        launch_geometry=DashboardLaunchGeometry(x=100, y=200, width=600, height=400))
+    try:
+        yield window
+    finally:
+        window.close()
+
+
+def _press_the_strip(window, label: str) -> None:
+    rect = next(rect for rect, button in window._strip.placed if button.glyph == label)
+    QTest.mouseClick(window._strip, Qt.MouseButton.LeftButton,
+                     pos=QPoint(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2))
+
+
+def test_only_a_session_hosting_origenerator_gives_its_dashboard_the_strip(
+        cfg_factory, cfg_path, tmp_path):
+    plain = load_dashboard_app_config(
+        write_windows_bridge_manifest(load_config(cfg_path), tmp_path / "plain_manifest.ini"))
+
+    assert _strip_app_config(cfg_factory, tmp_path).rfb_slot_strip is True
+    assert plain.rfb_slot_strip is False
+
+
+def test_the_strip_sits_under_the_log(strip_window, dashboard_window):
+    central = strip_window.centralWidget().layout()
+    widgets = [central.itemAt(n).widget() for n in range(central.count())]
+
+    assert widgets[-2:] == [strip_window._log_widget, strip_window._strip]
+    assert strip_window._strip.height() == RFB_SLOT_STRIP_HEIGHT
+    assert dashboard_window._strip is None
+
+
+def test_the_strip_lights_whatever_holds_the_browsers_place(strip_window):
+    strip_window._do_render(_snapshot(rfb_slot=RfbSlot.ORIGENERATOR, origenerator_ready=True),
+                            frozenset())
+
+    assert [(button.glyph, button.lit, button.dim) for _rect, button in strip_window._strip.placed] == [
+        ("Random Favs Browser", False, False), ("Origenerator", True, False)]
+
+
+def test_a_press_on_the_strip_asks_for_that_one_in_the_browsers_place(strip_window, tmp_path):
+    strip_window._do_render(_snapshot(origenerator_ready=True), frozenset())
+
+    _press_the_strip(strip_window, "Origenerator")
+    _press_the_strip(strip_window, "Random Favs Browser")
+
+    assert poll_dashboard_commands(strip_window._app_config.dashboard_cmd_file) == [
+        "origenerator_activate", "rfb_activate"]
+
+
+def test_the_strips_origenerator_takes_no_press_while_that_app_is_starting(strip_window):
+    strip_window._do_render(_snapshot(origenerator_ready=False), frozenset())
+
+    _press_the_strip(strip_window, "Origenerator")
+
+    assert poll_dashboard_commands(strip_window._app_config.dashboard_cmd_file) == []

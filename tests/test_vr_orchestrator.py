@@ -24,6 +24,7 @@ from fun_time.headset_power import OUR_RUNTIME_NAME
 from fun_time.hosted_origenerator import HostedApp
 from fun_time.manifest import LaunchManifest, build_windows_bridge_manifest, write_manifest_data
 from fun_time.modes import VideoShapes
+from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCELING,
@@ -35,7 +36,6 @@ from fun_time.overlay_progress import (
 )
 from fun_time.project_paths import PROJECT_DIR
 from fun_time.room_funestras import RoomFunestra
-from fun_time.satellites_mode import OPEN_SHOWS, ORIGENERATOR_MODE
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import (
@@ -51,6 +51,7 @@ from fun_time.session_handoff import (
 )
 from fun_time.shared_state import (
     BridgeState,
+    SatelliteState,
     read_shared_state,
     shared_state_path,
     write_shared_state,
@@ -290,11 +291,11 @@ class TestOrigeneratorInVr:
 
     def test_a_room_left_in_the_mode_asks_for_the_shows_as_it_opens(self, hosted, tmp_path):
         """The desktop's own comeback, in the headset: the room holds its cover up
-        for the hosted app and opens with the shows on the Funestras."""
+        for the hosted app and opens with the show on each Funestra it held."""
         state_dir = hosted.paths.state_dir
         state_dir.mkdir(parents=True, exist_ok=True)
         write_shared_state(shared_state_path(state_dir),
-                           BridgeState(satellites_mode=ORIGENERATOR_MODE))
+                           BridgeState(landscape=SatelliteState(mode=ORIGENERATOR_MODE)))
         manifest = LaunchManifest.read(
             write_manifest_data(build_vr_manifest(hosted), tmp_path / "launch.ini"))
         Path(manifest.commands.origenerator_status_file).write_text(
@@ -310,7 +311,8 @@ class TestOrigeneratorInVr:
                 DispatchLoopRunner=orchestrator.DispatchLoopRunner,
             )
 
-        assert OPEN_SHOWS in verbs, "the headset's room opened in kino mode"
+        assert "landscape_open_show" in verbs, "the headset's room opened in kino mode"
+        assert "portrait_open_show" not in verbs
 
     def test_a_room_that_took_over_an_app_showing_a_slideshow_asks_for_the_shows_as_it_opens(
             self, hosted, tmp_path):
@@ -331,7 +333,8 @@ class TestOrigeneratorInVr:
                 DispatchLoopRunner=orchestrator.DispatchLoopRunner,
             )
 
-        assert OPEN_SHOWS in verbs, "the headset's room opened in kino mode"
+        assert {"portrait_open_show", "landscape_open_show"} <= set(verbs), (
+            "the headset's room opened in kino mode")
 
     def test_the_wait_is_named_on_the_cover_before_the_line_that_fills_the_bar(self):
         """Put after it, the wait read as a step past "Finalizing..." with the

@@ -24,7 +24,10 @@ class TestWhereTheAppsOwnWindowGoes:
     a headset session restores it, so the session crossing back to the monitors
     is what finds it where it belongs."""
 
-    def test_the_window_takes_the_random_favs_browsers_rect(self, cfg_factory, tmp_path):
+    def test_the_window_takes_the_random_favs_browsers_rect_under_the_strip(
+            self, cfg_factory, tmp_path):
+        """The browser's place is the rect under the dashboard's strip, which a
+        session hosting an Origenerator always has."""
         origenerator = tmp_path / "origenerator"
         origenerator.mkdir()
         config, manifest = _manifest_for(
@@ -38,7 +41,7 @@ class TestWhereTheAppsOwnWindowGoes:
             bring_up_the_hosted_app(manifest, project_dirs="")
 
         with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors):
-            expected = screen_layout(config.layout).plan.random_favs_browser
+            expected = screen_layout(config.layout, rfb_slot_strip=True).plan.random_favs_browser
         assert captured["layout_plan"].random_favs_browser == expected
 
     def test_a_session_hosting_none_never_asks_the_monitors_anything(

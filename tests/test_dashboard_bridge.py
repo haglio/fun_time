@@ -12,6 +12,7 @@ from fun_time.dashboard_bridge import (
     write_dashboard_snapshot,
 )
 from fun_time.dashboard_runtime import load_dashboard_snapshot
+from fun_time.origenerator_switches import RfbSlot
 
 
 def test_the_writer_and_the_reader_speak_one_record(tmp_path: Path):
@@ -20,6 +21,7 @@ def test_the_writer_and_the_reader_speak_one_record(tmp_path: Path):
     files.  It is the one record both ways now."""
     snapshot = DashboardSnapshot(
         omni_paused=True, voice_active=False, f_mode=True, in_vr=True, nothing_to_reset=True,
+        origenerator_ready=True, rfb_slot=RfbSlot.ORIGENERATOR,
     )
     path = tmp_path / "dashboard_state.ini"
 
@@ -32,16 +34,18 @@ def test_the_snapshot_carries_only_the_sections_the_dashboard_reads():
     """A section nobody reads is republished on every sync tick, forever.
 
     The dashboard in its own process is the only reader of this file in the
-    family, and it asks for exactly six things -- whether the room is
-    omnipaused, whether voice is listening, whether every Funestra is in F-mode,
-    whether every Funestra is already at its defaults, whether this session is
-    the headset's, and whether the headset's runtime is awake to cross into.
+    family, and it asks for exactly these -- whether the room is omnipaused,
+    whether voice is listening, whether every Funestra is in F-mode, whether
+    every Funestra is already at its defaults, whether this session is the
+    headset's, whether the headset's runtime is awake to cross into, and for
+    the strip under the log, whether Origenerator is up and whether it holds
+    the Random Favs Browser's place.
     """
     parser = configparser.ConfigParser()
     parser.read_string(build_dashboard_snapshot_text())
 
     assert set(parser.sections()) == {
-        "omnipause", "voice", "fmode", "reset", "session", "headset"}
+        "omnipause", "voice", "fmode", "reset", "session", "headset", "origenerator"}
 
 
 def test_build_dashboard_snapshot_text_matches_bridge_contract():
@@ -60,6 +64,9 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         "vr=0\n"
         "[headset]\n"
         "ready=1\n"
+        "[origenerator]\n"
+        "ready=0\n"
+        "in_the_rfb_slot=0\n"
     )
 
 

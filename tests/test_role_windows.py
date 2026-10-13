@@ -12,12 +12,12 @@ from unittest.mock import patch
 
 from shared_ui.preview import Preview, window_title
 
+from fun_time.origenerator_switches import RfbSlot
 from fun_time.role_windows import (
     MAIN_BLANK_SETTLE_S,
     ChildPids,
     WindowRoles,
 )
-from fun_time.satellites_mode import RfbSlot
 from fun_time.window_layout import WindowRect
 from fun_time.window_roles import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_startup import (

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from shared_ui.preview import Preview, window_title
 
-from .satellites_mode import RfbSlot
+from .origenerator_switches import RfbSlot
 
 # Windows with their own screen rect — always topmost; order among them is
 # irrelevant because they never overlap.  The log stream is a child widget of the

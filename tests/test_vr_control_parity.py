@@ -44,9 +44,9 @@ from fun_time.dashboard_actions import BROWSE_LIBRARY_CLOSE, HELP_REFERENCE_COMM
 from fun_time.manifest import LaunchManifest, write_manifest_data
 from fun_time.mode_plan import MAIN_KINO_MODE, MAIN_MODES
 from fun_time.modes import PLAYLIST_PORTRAIT, build_playlist_file_path
+from fun_time.origenerator_switches import KINO_MODE as SATELLITE_KINO_MODE
+from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.room_funestras import RoomFunestra
-from fun_time.satellites_mode import KINO_MODE as SATELLITE_KINO_MODE
-from fun_time.satellites_mode import ORIGENERATOR_MODE
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import (
@@ -203,8 +203,9 @@ def _sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[s
     for main_mode in MAIN_MODES:
         for satellites_mode in satellites_modes:
             for command in every_command():
-                state = BridgeState(main_mode=main_mode, satellites_mode=satellites_mode,
-                                    origenerator_ready=True)
+                state = BridgeState(main_mode=main_mode, origenerator_ready=True)
+                for funestra in RoomFunestra.SATELLITES:
+                    state = state.with_satellite(funestra, mode=satellites_mode)
                 _state, ops = dispatch_command(command, state, config, target_path="")
                 written = _drain(config)
                 written["__ops__"] = sorted({op.op for op in ops})

@@ -72,7 +72,7 @@ def bring_up_the_hosted_app(
     if not origenerator_dir:
         return None
     if plan is None:
-        plan = screen_layout(m.layout).plan
+        plan = screen_layout(m.layout, rfb_slot_strip=m.runtime.hosts_origenerator).plan
     claim_the_osr2(origenerator_dir)
     kept = _adopt_a_kept_origenerator(m)
     if kept is not None:

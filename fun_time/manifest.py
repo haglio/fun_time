@@ -45,7 +45,7 @@ def build_windows_bridge_manifest(
             # other checkouts run instead.
             "genau_project_dirs": config.paths.genau_project_path,
             # The Origenerator checkout the session hosts, or "" for a session
-            # with no origenerator mode at all (see fun_time.satellites_mode).
+            # hosting none (see fun_time.origenerator_switches).
             "origenerator_dir": str(config.paths.origenerator_dir or ""),
         },
         "executables": {
@@ -172,9 +172,13 @@ class RuntimePaths:
     genau_config_path: str
     # Where the Main Funestra is started from.  Empty means "wherever we are".
     genau_project_dirs: str = ""
-    # The Origenerator checkout the session hosts, or "" for a session with
-    # no origenerator mode at all.
+    # The Origenerator checkout the session hosts, or "" for a session
+    # hosting none.
     origenerator_dir: str = ""
+
+    @property
+    def hosts_origenerator(self) -> bool:
+        return bool(self.origenerator_dir.strip())
 
 
 @dataclass(frozen=True)

@@ -18,6 +18,7 @@ from main_funestra.controls import longer_than_a_step
 from .bridge_records import BridgeConfig
 from .command_dispatch import (
     genau_flick_shapes,
+    hosts,
     main_funestra_at_defaults,
     main_video_shapes,
     satellite_at_defaults,
@@ -31,7 +32,7 @@ from .funestra_status import (
     read_main_funestra_status,
 )
 from .hud_transport import HudPublisher, hosted_model
-from .lock_hud import SatelliteInputs, build_panels
+from .lock_hud import SatelliteInputs, build_satellite_panel
 from .main_funestra_console import MainSlotInputs, console_model, device_word
 from .media_renditions import renditions
 from .modes import is_favorite_path, read_favs_content
@@ -39,7 +40,6 @@ from .osr2_section import DeviceBlock, funestra_with_the_osr2
 from .room_funestras import RoomFunestra
 from .runtime_flow import read_flag_file
 from .satellite_control import SatelliteStatus, read_satellite_status
-from .satellites_mode import origenerator_shows
 from .shared_state import BridgeState
 
 # The satellites play ~5 s clips, so the HUD map has to track the current clip
@@ -97,12 +97,14 @@ class HudFeed:
                 controls=osr2_controls(broker=broker),
                 max_intensity=state.max_intensity)
 
-        def satellite(name: str, funestra: RoomFunestra, *, sources: str, status_file: Path) -> SatelliteInputs:
-            status = self._satellite_status(name, status_file)
+        def satellite(funestra: RoomFunestra) -> SatelliteInputs:
+            name = funestra.label
+            status = self._satellite_status(name, self.config.satellite(funestra).status_file)
             current = status.video
             values = state.satellite(funestra)
             return SatelliteInputs(
-                funestra=name, sources=sources, current=current, locked=values.locked,
+                funestra=name, sources=self.config.satellite(funestra).sources,
+                current=current, locked=values.locked,
                 hud_corner=values.hud_corner, hud_edge=values.hud_edge,
                 hud_minimized=values.hud_minimized,
                 filter_query=values.filter,
@@ -116,10 +118,13 @@ class HudFeed:
                 nothing_to_reset=satellite_at_defaults(values, status),
                 has_other_versions=bool(renditions(current, self.config.regen_media_root)),
                 longer_than_a_step=longer_than_a_step(status.duration_ms),
+                # None for a session hosting no Origenerator — the HUD then draws
+                # no mode pair at all, rather than a switch that can only dead-end.
+                mode=values.mode if self.config.origenerator_enabled else None,
             )
 
-        if self.config.origenerator_enabled and origenerator_shows(state.satellites_mode):
-            for funestra in RoomFunestra.SATELLITES:
+        for funestra in RoomFunestra.SATELLITES:
+            if hosts(funestra, state, self.config):
                 self.publisher.publish_text(funestra.label, hud_text(hosted_model(
                     funestra.label, self._hosted_panel(funestra),
                     active=state.active_funestra == funestra,
@@ -129,24 +134,13 @@ class HudFeed:
                     hud_corner=state.satellite(funestra).hud_corner,
                     hud_edge=state.satellite(funestra).hud_edge,
                     hud_minimized=state.satellite(funestra).hud_minimized)))
-        else:
-            portrait, landscape = build_panels(
-                satellite("portrait", 2, sources=self.config.portrait_sources,
-                     status_file=self.config.portrait_status_file),
-                satellite("landscape", 3, sources=self.config.landscape_sources,
-                     status_file=self.config.landscape_status_file),
-                metadata_root=self.config.regen_metadata_root,
-                active_funestra=RoomFunestra.label_of(state.active_funestra),
-                # None for a session hosting no Origenerator — the HUDs then draw
-                # no mode pair at all, rather than a switch that can only dead-end.
-                satellites_mode=(state.satellites_mode
-                                 if self.config.origenerator_enabled else None),
+                continue
+            self.publisher.publish(funestra.label, build_satellite_panel(
+                satellite(funestra), self.config.regen_metadata_root,
+                RoomFunestra.label_of(state.active_funestra),
                 origenerator_ready=state.origenerator_ready,
-                in_vr=self.config.vr_main_funestra,
-                crowned=state.crowned,
-            )
-            self.publisher.publish("portrait", portrait, device(RoomFunestra.PORTRAIT))
-            self.publisher.publish("landscape", landscape, device(RoomFunestra.LANDSCAPE))
+                in_vr=self.config.vr_main_funestra, crowned=state.crowned,
+            ), device(funestra))
         # The main console: the controls for whichever Funestra owns the slot,
         # what has the OSR2, whether the broker is up, and which Funestra a bare
         # command reaches -- none of which the Funestra can see for itself.
