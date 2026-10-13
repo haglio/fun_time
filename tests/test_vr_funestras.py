@@ -20,6 +20,7 @@ import pytest
 from app_support.file_channel import write_flag
 from funestra.console_hud import ModeHud
 from funestra.flick_picture import Picture
+from funestra.host_controls import BarHud, HostControlsHud
 from funestra.hud_placement import HudEdge
 from funestra.modes import MainMode
 from funestra.outside_buttons import OutsideButtons
@@ -117,9 +118,9 @@ from fun_time_vr.projection import (
     EQUIRECT_360,
     FISHEYE_180_SBS,
     FLAT,
+    PROJECTIONS,
     RECTILINEAR_SBS,
 )
-from fun_time_vr.projection_controls import Angle, ProjectionControls
 from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
 from fun_time_vr.render import immersive_wrap
 from fun_time_vr.satellite_hud import hud_screen_name
@@ -135,7 +136,7 @@ from fun_time_vr.scene import (
 from fun_time_vr.stacking import Stacking
 from fun_time_vr.surfaces import LatestPicture, PanelBitmap
 from fun_time_vr.video_thread import VideoThread
-from fun_time_vr.wrap_readout import WrapReadout
+from fun_time_vr.wrap_readout import WrapReadout, label
 from main_funestra.genau import GenauChannels
 from tests.made_up_genau import made_up_genau
 from tests.satellite_fakes import FakeSatelliteEngine
@@ -314,18 +315,20 @@ def test_the_main_funestra_is_the_desktops_with_the_headsets_own_surfaces(
     unit.verbs.apply.assert_called_once_with("TILT_UP")
 
 
-def test_its_console_carries_the_projection_dropdown_and_angle_slider_for_kinos_video(
+def test_its_console_carries_the_projection_list_and_angle_bar_for_kinos_video(
         tmp_path, faked_collaborators):
     unit = _a_main_unit(tmp_path)
-    block = faked_collaborators["Funestra"].call_args.kwargs["host_block"]
+    controls = faked_collaborators["Funestra"].call_args.kwargs["host_controls"]
     unit.verbs.projection, unit.verbs.fov = EQUIRECT_180_SBS, 160.0
 
     unit.funestra.showing = MainMode.KINO
-    with_kino = block.drawing()
+    with_kino = controls.hud()
     unit.funestra.showing = MainMode.GENAU
-    with_genau = block.drawing()
+    with_genau = controls.hud()
 
-    assert with_kino == ProjectionControls(EQUIRECT_180_SBS, Angle(160.0, 40.0, 180.0))
+    assert with_kino == HostControlsHud(
+        "Equirectangular", tuple(label(projection) for projection in PROJECTIONS),
+        bar=BarHud("Angle", 160.0, 40.0, 180.0, unit="°"))
     assert with_genau is None
 
 
