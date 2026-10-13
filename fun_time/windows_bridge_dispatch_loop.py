@@ -222,7 +222,7 @@ class DispatchLoopRunner:
         press_and_caret_watch: Sightings | None = None,
         sync_interval_ms: int = 200,
         origenerator_already_open: bool = False,
-        origenerator_showing: bool = False,
+        origenerator_slideshow_on: tuple[RoomFunestra, ...] = (),
         secondary_rects: Callable[..., SecondaryMonitorRects] | None = None,
     ) -> None:
         self.config = config
@@ -284,7 +284,7 @@ class DispatchLoopRunner:
         # reads at the start of one and nothing after.
         self._origenerator_is_up = origenerator_already_open
         self._owed_to_origenerator = (
-            _what_origenerator_held(left_in, showing=origenerator_showing)
+            _what_origenerator_held(left_in, slideshow_on=origenerator_slideshow_on)
             if config.origenerator_enabled else ())
         self.arbiter = DeviceArbiter(
             main_funestra_status_file=config.main_funestra_status_file,
@@ -969,11 +969,12 @@ def _who_drives_the_osr2_from(state: BridgeState) -> tuple[str, bool, str, RoomF
     return state.main_mode, state.omni_paused, state.osr2_control, funestra_with_the_osr2(state)
 
 
-def _what_origenerator_held(left_in: BridgeState, *, showing: bool) -> tuple[str, ...]:
+def _what_origenerator_held(left_in: BridgeState, *,
+                            slideshow_on: tuple[RoomFunestra, ...]) -> tuple[str, ...]:
     satellites = tuple(
         mode_command(funestra.label, ORIGENERATOR_MODE) for funestra in RoomFunestra.SATELLITES
-        if showing or origenerator_shows(left_in.satellite(funestra).mode))
-    in_the_rfb_slot = showing or left_in.rfb_slot is RfbSlot.ORIGENERATOR
+        if funestra in slideshow_on or origenerator_shows(left_in.satellite(funestra).mode))
+    in_the_rfb_slot = bool(slideshow_on) or left_in.rfb_slot is RfbSlot.ORIGENERATOR
     return (*satellites, *((ORIGENERATOR_ACTIVATE,) if in_the_rfb_slot else ()))
 
 

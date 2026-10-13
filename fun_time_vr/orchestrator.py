@@ -648,7 +648,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             # its bar reads.
             dashboard_enabled=True,
             hud_publisher=hud_publisher,
-            origenerator_showing=hosted is not None and hosted.showing,
+            origenerator_slideshow_on=hosted.slideshow_on if hosted is not None else (),
         )
         voice_controller, voice_thread = start_voice_control(
             prepared_voice, dispatch_runner=dispatch_runner)

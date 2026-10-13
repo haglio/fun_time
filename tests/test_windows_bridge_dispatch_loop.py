@@ -3695,18 +3695,46 @@ class TestOpeningInOrigeneratorMode:
         assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.KINO]
 
-    def test_a_room_that_took_over_an_app_showing_a_slideshow_puts_origenerator_on_all_of_it(
+    def test_a_slideshow_taken_over_opens_on_the_satellite_of_its_monitor_beside_the_app(
             self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path),
-                             origenerator_already_open=True, origenerator_showing=True)
+                             origenerator_already_open=True,
+                             origenerator_slideshow_on=(RoomFunestra.PORTRAIT,))
+
+        runner.activate_origenerator(
+            wait_for_the_app=self._the_app_answers)
+
+        assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
+        assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
+        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
+            "portrait_open_slideshow"]
+
+    def test_the_satellite_a_slideshow_taken_over_is_not_on_opens_as_it_was_left(
+            self, tmp_path):
+        write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
+            BridgeState(), RoomFunestra.PORTRAIT))
+        runner = make_runner(tmp_path, config=_hosting(tmp_path),
+                             origenerator_already_open=True,
+                             origenerator_slideshow_on=(RoomFunestra.LANDSCAPE,))
+
+        runner.activate_origenerator(
+            wait_for_the_app=self._the_app_answers)
+
+        assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
+        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
+            "portrait_open_slideshow", "landscape_open_slideshow"]
+
+    def test_a_slideshow_from_an_app_that_names_no_monitor_puts_origenerator_on_all_of_it(
+            self, tmp_path):
+        runner = make_runner(tmp_path, config=_hosting(tmp_path),
+                             origenerator_already_open=True,
+                             origenerator_slideshow_on=RoomFunestra.SATELLITES)
 
         runner.activate_origenerator(
             wait_for_the_app=self._the_app_answers)
 
         assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
-        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
-            "portrait_open_slideshow", "landscape_open_slideshow"]
 
     def test_a_room_left_in_kino_mode_holds_its_cover_up_for_nothing(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
