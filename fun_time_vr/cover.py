@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -183,18 +183,17 @@ class CoverWatcher:
 
 
 # The Funestra's answer to "is the room on screen?", which a desktop orchestrator
-# sees for itself.  The grace caps it -- an empty satellite playlist never gets
-# a texture -- and the dwell is the cover's time in front of a WORN headset
-# before the room may be revealed (docs/entering-vr.md).
+# sees for itself.  The grace caps it -- an empty satellite playlist never gets a
+# texture -- and the dwell is the cover's own time on screen (docs/entering-vr.md).
 SCENE_READY_FILENAME = "vr_scene_ready.flag"
 SCENE_READY_GRACE_S = 25.0
 COVER_DWELL_S = 2.0
 
 
-class CoverSeen:
-    """Whether the cover has been in front of the viewer long enough to read.
-    Fed the frames that reached a WORN headset, not the ones submitted: with the
-    views unlocatable or the headset on the desk, nothing is shown."""
+class CoverDwell:
+    """How long the cover has been continuously there, for whichever "there"
+    the caller feeds it: drawn to the headset at all, which the reveal waits
+    out, or drawn to a WORN one, which is where its heading latches."""
 
     def __init__(
         self,
@@ -240,21 +239,26 @@ class SceneReady:
         self._started: float | None = None
         self._reported = False
 
-    def note(self, ready: bool) -> None:
-        """One frame's answer, written once: on the first yes, or on the grace
-        running out."""
+    def note(self, *, blank: Sequence[str], read: bool) -> None:
+        """One frame's answer -- which screens have no picture, and whether the
+        cover has had its dwell on screen -- written once: on the first frame
+        with neither left to wait for, or on the grace running out."""
         if self._reported:
             return
         now = self._clock()
         if self._started is None:
             self._started = now
-        if not ready and now - self._started < self._grace_s:
+        waited = now - self._started
+        if not blank and read:
+            logger.info("Room up and the cover read after %.1fs", waited)
+        elif waited < self._grace_s:
             return
-        if not ready:
-            logger.warning("Some of the room is still blank after %.0fs; revealing anyway",
-                           self._grace_s)
+        elif blank:
+            logger.warning("No picture yet on %s after %.0fs; revealing anyway",
+                           ", ".join(blank), self._grace_s)
         else:
-            logger.info("Room up and the cover read after %.1fs", now - self._started)
+            logger.warning("The cover never had %.0fs on screen; revealing anyway",
+                           self._grace_s)
         self._reported = True
         try:
             self._file.write_text("", encoding="utf-8")

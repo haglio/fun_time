@@ -284,9 +284,22 @@ down. The timeouts differ because what they are waiting out differs:
   each process the crossing passes through.
 
 `SceneReady` is a different question — whether the room is on screen, which a
-desktop orchestrator sees for itself and a headset cannot report. Its grace
-(25s) mostly waits out the headset being picked up: a launch is over in six
-seconds and nobody is wearing it by then. The dwell (2s) is how long the cover
-must be in front of a WORN headset before the room may be revealed; without one
-the loading screen was over before anyone had it on, which is what its first
-verifications saw — nothing at all.
+desktop orchestrator sees for itself and a headset cannot report. The dwell (2s)
+is how long the cover must have been drawn to the headset before the room may be
+revealed; without one the loading screen was over before anyone had it on, which
+is what its first verifications saw — nothing at all. The grace (25s) is the cap
+on a screen that never gets a picture at all, which a satellite with an empty
+playlist never does, and its line names the screen it gave up on. A console the
+Funestra has minimized is not one of those screens and is not waited for: with
+the minus drawn beside the panel rather than on it, as it is in the headset, a
+closed console paints nothing at all, so counting it held every reveal to the
+grace for as long as he left it closed.
+
+Until 2026-10-13 the dwell counted only the frames that reached a WORN headset,
+and that cost the reveal the whole grace in 26 of the 40 sessions before it. He
+launches the room from the desktop and picks the headset up later, so nothing
+counted until he did: the room was full in two seconds, the crossing cover sat
+on his monitors for twenty-five, and the give-up line blamed a blank screen that
+was never blank. Where the cover HANGS is still the wearer's question and still
+waits for one — latched on a frame nobody was at, the panel sits off to the side
+of wherever he is looking when he does put the headset on.

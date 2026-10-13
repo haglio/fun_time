@@ -8,6 +8,7 @@ the two ends had drifted apart.
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
 from pathlib import Path
@@ -48,7 +49,7 @@ from fun_time_vr.cover import (
     VR_STARTUP_PHASES,
     Cover,
     CoverAnchor,
-    CoverSeen,
+    CoverDwell,
     CoverWatcher,
     SceneReady,
     paint_cover,
@@ -558,16 +559,26 @@ class TestTheRoomComingUp:
         ready = SceneReady(marker, clock=_Clock())
 
         for _frame in range(10):
-            ready.note(False)
+            ready.note(blank=("portrait",), read=True)
+
+        assert not marker.exists()
+
+    def test_nothing_is_said_while_the_cover_has_not_been_on_screen_long_enough(
+            self, tmp_path: Path):
+        marker = tmp_path / SCENE_READY_FILENAME
+        ready = SceneReady(marker, clock=_Clock())
+
+        for _frame in range(10):
+            ready.note(blank=(), read=False)
 
         assert not marker.exists()
 
     def test_the_first_full_frame_says_so(self, tmp_path: Path):
         marker = tmp_path / SCENE_READY_FILENAME
         ready = SceneReady(marker, clock=_Clock())
-        ready.note(False)
+        ready.note(blank=("portrait",), read=True)
 
-        ready.note(True)
+        ready.note(blank=(), read=True)
 
         assert marker.exists()
 
@@ -575,10 +586,10 @@ class TestTheRoomComingUp:
         """It rides the frame loop, so past the first yes it costs a boolean."""
         marker = tmp_path / SCENE_READY_FILENAME
         ready = SceneReady(marker, clock=_Clock())
-        ready.note(True)
+        ready.note(blank=(), read=True)
         marker.unlink()
 
-        ready.note(True)
+        ready.note(blank=(), read=True)
 
         assert not marker.exists()
 
@@ -589,12 +600,42 @@ class TestTheRoomComingUp:
         clock = _Clock()
         marker = tmp_path / SCENE_READY_FILENAME
         ready = SceneReady(marker, grace_s=SCENE_READY_GRACE_S, clock=clock)
-        ready.note(False)
+        ready.note(blank=("portrait",), read=True)
 
         clock.now += SCENE_READY_GRACE_S + 1
-        ready.note(False)
+        ready.note(blank=("portrait",), read=True)
 
         assert marker.exists()
+
+    def test_the_screens_with_no_picture_are_named_when_the_grace_runs_out(
+            self, tmp_path: Path, caplog):
+        """Three of his sessions revealed on the grace with the room long since
+        full, and the line said only that some of it was blank -- which sent the
+        next reader hunting a slow picture that was never there."""
+        clock = _Clock()
+        ready = SceneReady(tmp_path / SCENE_READY_FILENAME,
+                           grace_s=SCENE_READY_GRACE_S, clock=clock)
+        ready.note(blank=("portrait", "panel"), read=True)
+
+        clock.now += SCENE_READY_GRACE_S + 1
+        with caplog.at_level(logging.WARNING):
+            ready.note(blank=("portrait", "panel"), read=True)
+
+        assert "portrait" in caplog.text and "panel" in caplog.text
+
+    def test_a_full_room_revealed_on_the_grace_blames_the_cover_not_a_screen(
+            self, tmp_path: Path, caplog):
+        clock = _Clock()
+        ready = SceneReady(tmp_path / SCENE_READY_FILENAME,
+                           grace_s=SCENE_READY_GRACE_S, clock=clock)
+        ready.note(blank=(), read=False)
+
+        clock.now += SCENE_READY_GRACE_S + 1
+        with caplog.at_level(logging.WARNING):
+            ready.note(blank=(), read=False)
+
+        assert "cover" in caplog.text
+        assert "blank" not in caplog.text
 
     def test_both_ends_derive_the_marker_from_the_state_dir(self, tmp_path: Path):
         assert scene_ready_file(tmp_path) == tmp_path / SCENE_READY_FILENAME
@@ -662,7 +703,7 @@ class TestBeingSeen:
 
     def test_frames_that_reached_nobody_do_not_count(self):
         clock = _Clock()
-        seen = CoverSeen(clock=clock)
+        seen = CoverDwell(clock=clock)
 
         for _frame in range(500):
             seen.note(False)
@@ -672,7 +713,7 @@ class TestBeingSeen:
 
     def test_the_dwell_runs_from_the_first_frame_that_landed(self):
         clock = _Clock()
-        seen = CoverSeen(clock=clock)
+        seen = CoverDwell(clock=clock)
         clock.now += 60  # a minute on the desk
 
         seen.note(True)
@@ -685,7 +726,7 @@ class TestBeingSeen:
         """Its wearer looked; asking them to look again from zero would hold a
         launch on a glance."""
         clock = _Clock()
-        seen = CoverSeen(clock=clock)
+        seen = CoverDwell(clock=clock)
         seen.note(True)
 
         clock.now += COVER_DWELL_S
@@ -699,7 +740,7 @@ class TestBeingSeen:
         seconds in which the runtime had put its own environment back and the
         cover was on screen for none of it."""
         clock = _Clock()
-        seen = CoverSeen(clock=clock)
+        seen = CoverDwell(clock=clock)
 
         seen.note(True)                     # the one frame _raise_the_cover gets
         clock.now += COVER_DWELL_S - 0.1    # the gap: units built, nothing submitted
