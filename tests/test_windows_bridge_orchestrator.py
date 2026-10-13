@@ -47,7 +47,7 @@ from fun_time.overlay_progress import (
     parse_progress,
     ready_file_for,
 )
-from fun_time.satellites_mode import ORIGENERATOR_MODE
+from fun_time.satellites_mode import ORIGENERATOR_MODE, RfbSlot
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
 from fun_time.session_handoff import (
@@ -3017,8 +3017,8 @@ class TestARoomLeftInOrigeneratorMode:
         def fake_popen(cmd, **kwargs):
             return fake_loading_proc if "loading_screen" in str(cmd) else fake_ahk_proc
 
-        def the_post_loading_pass(_result, *, satellites_mode="kino", **_kwargs):
-            events.append(f"post-loading pass in {satellites_mode}")
+        def the_post_loading_pass(_result, *, rfb_slot=RfbSlot.RFB, **_kwargs):
+            events.append(f"post-loading pass with {rfb_slot} in the browser's place")
             return {"rfb": RFB_HWND}
 
         def a_band(hwnd, on, **_kwargs):
@@ -3048,7 +3048,7 @@ class TestARoomLeftInOrigeneratorMode:
     def test_the_room_is_shown_with_the_browser_under_origenerator(self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path, the_app_answers=True)
 
-        assert "post-loading pass in origenerator" in events
+        assert "post-loading pass with origenerator in the browser's place" in events
         assert "rfb out of the band" in events
         assert "rfb in the band" not in events
 

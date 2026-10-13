@@ -415,7 +415,7 @@ def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
 # the way tests/test_manifest.py holds the launch manifest's inventory.
 _EXPECTED_STATE_KEYS = {
     "portrait_locked": "0", "landscape_locked": "0",
-    "main_mode": "kino", "satellites_mode": "kino",
+    "main_mode": "kino", "satellites_mode": "kino", "rfb_slot": "rfb",
     "origenerator_ready": "0",
     "main_scripted_filter": "0", "portrait_favorites_filter": "0", "landscape_favorites_filter": "0",
     "main_hud_corner": "upper_left", "main_hud_edge": "lower", "main_hud_minimized": "0",

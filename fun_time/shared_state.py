@@ -31,7 +31,7 @@ from .crown import Crown
 from .mode_plan import STARTUP_MAIN_MODE
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .room_funestras import RoomFunestra
-from .satellites_mode import STARTUP_SATELLITES_MODE
+from .satellites_mode import STARTUP_SATELLITES_MODE, RfbSlot
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +87,7 @@ class BridgeState:
     # "kino" is the session as ever, "origenerator" puts the hosted
     # Origenerator over the RFB and its shows over the Funestras.
     satellites_mode: SatellitesMode = STARTUP_SATELLITES_MODE
+    rfb_slot: RfbSlot = RfbSlot.RFB
     # Whether the hosted Origenerator is up.  Every room opens without waiting
     # out its boot, so the mode above is closed for a session's first
     # half-minute; the dispatch loop reads the app's status file and writes the

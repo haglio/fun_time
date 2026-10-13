@@ -31,6 +31,7 @@ from fun_time.overlay_progress import (
     StartupCancelled,
 )
 from fun_time.room_funestras import RoomFunestra
+from fun_time.satellites_mode import RfbSlot
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import keep_the_origenerator
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
@@ -921,9 +922,10 @@ class TestTheRoomIsBandedUnderTheCover:
         """The re-band after the cover has gone, and the path with no cover."""
         assert all(under == 0 for _h, _on, under in self._calls())
 
-    def test_a_room_opening_in_origenerator_mode_keeps_the_browser_under_the_hosted_window(self):
+    def test_a_room_opening_with_origenerator_in_the_browsers_place_keeps_the_browser_under_it(
+            self):
         for beneath in (self.COVER, 0):
-            calls = self._calls(beneath=beneath, satellites_mode="origenerator")
+            calls = self._calls(beneath=beneath, rfb_slot=RfbSlot.ORIGENERATOR)
             assert [on for h, on, _under in calls if h == self.ROLE_HWNDS["rfb"]] == [False]
 
 

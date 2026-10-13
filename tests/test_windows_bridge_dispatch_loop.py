@@ -41,6 +41,7 @@ from fun_time.role_windows import (
     WindowRoles,
 )
 from fun_time.room_funestras import RoomFunestra
+from fun_time.satellites_mode import RfbSlot
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import DESKTOP, VR, take_handoff_request
 from fun_time.shared_state import BridgeState, SatelliteState, read_shared_state, write_shared_state
@@ -1620,14 +1621,15 @@ class TestTheRfbSlideshow:
 
         assert slideshow.tick.call_args.kwargs["held"] is True
 
-    def test_origenerator_mode_holds_the_slideshow_while_its_window_covers_the_rfb(self, tmp_path):
+    def test_origenerator_in_the_browsers_place_holds_the_slideshow_under_it(self, tmp_path):
         slideshow = Mock(spec=RfbSlideshow)
         config = make_config(tmp_path, origenerator_enabled=True,
                              origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
                              origenerator_paused_file=tmp_path / "origenerator_paused.txt")
         runner = make_runner(tmp_path, config=config, origenerator_pid=700,
                              origenerator_already_open=True, rfb_slideshow=slideshow)
-        write_shared_state(tmp_path / "shared_state.ini", BridgeState(satellites_mode="origenerator"))
+        write_shared_state(tmp_path / "shared_state.ini",
+                           BridgeState(rfb_slot=RfbSlot.ORIGENERATOR))
 
         runner.tick()
 
@@ -3092,7 +3094,7 @@ class TestOrigeneratorShows:
                              origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
                              origenerator_paused_file=tmp_path / "origenerator_paused.txt")
         runner = make_runner(tmp_path, config=config, origenerator_pid=700)
-        runner.state = replace(runner.state, satellites_mode="origenerator")
+        runner.state = replace(runner.state, rfb_slot=RfbSlot.ORIGENERATOR)
         return runner
 
     def test_rfb_tabs_hold_while_origenerator_covers_the_browser(self, tmp_path):
@@ -3210,15 +3212,15 @@ class TestOrigeneratorWindowConverger:
 
         converge.assert_not_called()
 
-    def test_outside_omnipause_the_windows_object_is_asked_for_the_satellites_mode(self, tmp_path):
+    def test_outside_omnipause_the_windows_object_is_asked_for_the_browsers_place(self, tmp_path):
         runner = make_runner(tmp_path, origenerator_pid=700)
         runner.state = replace(runner.state, main_mode=MainMode.KINO,
-                               satellites_mode="origenerator")
+                               rfb_slot=RfbSlot.ORIGENERATOR)
 
         with patch.object(runner.windows, "converge_origenerator_window") as converge:
             runner._converge_origenerator_window()
 
-        converge.assert_called_once_with("origenerator")
+        converge.assert_called_once_with(RfbSlot.ORIGENERATOR)
 
 
 class TestOrigeneratorWatchGuard:

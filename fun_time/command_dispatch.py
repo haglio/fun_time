@@ -106,6 +106,7 @@ from .satellite_groups import (
 from .satellites_mode import (
     MODE_BY_COMMAND,
     ORIGENERATOR_MODE,
+    RfbSlot,
     mode_a_command_settles_on,
     origenerator_shows,
 )
@@ -1488,7 +1489,9 @@ def _dispatch_satellites_switch(
         origenerator_cmd_file=config.origenerator_cmd_file,
         channels=[config.satellite(funestra) for funestra in RoomFunestra.SATELLITES],
     )
-    state = replace(state, satellites_mode=result.next_mode)
+    state = replace(state, satellites_mode=result.next_mode,
+                    rfb_slot=(RfbSlot.ORIGENERATOR if origenerator_shows(result.next_mode)
+                              else RfbSlot.RFB))
     if result.is_transition:
         ops.extend(_satellites_slot_ops(result.next_mode))
     if result.log_message:

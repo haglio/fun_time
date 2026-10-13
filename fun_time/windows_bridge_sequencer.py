@@ -39,7 +39,7 @@ from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot
-from .satellites_mode import KINO_MODE
+from .satellites_mode import RfbSlot
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import read_shared_state, shared_state_path
 from .shortcuts import resolve_shortcut
@@ -142,7 +142,7 @@ def _startup_role_hwnds(
 
 
 def apply_topmost_bands(role_hwnds: dict[str, int], *, beneath: int = 0,
-                        satellites_mode: str = KINO_MODE) -> None:
+                        rfb_slot: RfbSlot = RfbSlot.RFB) -> None:
     """Give each managed window its topmost flag from the shared ``role_topmost``
     policy — the same policy omnipause and mode switches honor, so they can
     never disagree.
@@ -156,7 +156,7 @@ def apply_topmost_bands(role_hwnds: dict[str, int], *, beneath: int = 0,
     for role in MANAGED_ROLES:
         hwnd = role_hwnds.get(role, 0)
         if hwnd:
-            set_always_on_top(hwnd, role_topmost(role, satellites_mode), under=beneath)
+            set_always_on_top(hwnd, role_topmost(role, rfb_slot), under=beneath)
 
 
 def apply_startup_window_state(
@@ -167,7 +167,7 @@ def apply_startup_window_state(
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
     beneath: int = 0,
-    satellites_mode: str = KINO_MODE,
+    rfb_slot: RfbSlot = RfbSlot.RFB,
 ) -> dict[str, int]:
     """Set the full window state the session opens with: the bands.
 
@@ -182,7 +182,7 @@ def apply_startup_window_state(
         dashboard_hwnd=dashboard_hwnd,
         rfb_hwnd=rfb_hwnd,
     )
-    apply_topmost_bands(role_hwnds, beneath=beneath, satellites_mode=satellites_mode)
+    apply_topmost_bands(role_hwnds, beneath=beneath, rfb_slot=rfb_slot)
     return role_hwnds
 
 
