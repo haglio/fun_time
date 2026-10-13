@@ -59,7 +59,9 @@ def _a_launch(**overrides):
         "describe_the_session_on_the_taskbar": MagicMock(),
         "engine_missing_abort": MagicMock(return_value=False),
         "prepare_orchestrator_launcher": MagicMock(),
+        "wake_the_headset": MagicMock(),
         "run_windows_bridge": MagicMock(return_value=0),
+        "put_the_headset_to_sleep": MagicMock(),
         **overrides,
     }
     with ExitStack() as stack:
@@ -427,6 +429,18 @@ class TestTheProcessEdgeReadsTheSwitchesOnce:
         assert launch.run_windows_bridge.call_args.args[2] == SessionEnvironment(
             integration=True, show_overlays=False, dashboard_enabled=False)
 
+    def test_the_headset_wake_is_told_whether_this_is_a_test_run(
+        self, cfg_path: Path, monkeypatch,
+    ):
+        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+
+        with _a_launch() as launch:
+            main(["--config", str(cfg_path)])
+
+        launch.wake_the_headset.assert_called_once_with(
+            load_config(cfg_path).paths.state_dir, integration=True)
+
+
 class TestTheWayBackOffersNoEsc:
     def test_a_launch_started_as_a_way_back_is_handed_no_esc(self, cfg_path: Path):
         with _a_launch() as launch:
@@ -462,16 +476,16 @@ class TestTheCrossingIntoTheOtherSession:
 
     def _main(self, cfg_path: Path, *, during_session=lambda: None):
         run_bridge = MagicMock(side_effect=lambda *_a, **_k: (during_session(), 0)[1])
-        with _a_launch(run_windows_bridge=run_bridge), \
+        with _a_launch(run_windows_bridge=run_bridge) as launch, \
              patch("fun_time.session_handoff.subprocess.Popen") as popen:
-            return main(["--config", str(cfg_path)]), popen
+            return main(["--config", str(cfg_path)]), popen, launch
 
     def test_a_session_that_asked_to_cross_spawns_the_relay_on_its_way_out(
         self, cfg_path: Path,
     ):
         config = load_config(cfg_path)
 
-        code, popen = self._main(
+        code, popen, _launch = self._main(
             cfg_path,
             during_session=lambda: request_handoff(config.paths.state_dir, VR),
         )
@@ -482,7 +496,7 @@ class TestTheCrossingIntoTheOtherSession:
         ]
 
     def test_an_ordinary_quit_spawns_nothing(self, cfg_path: Path):
-        _code, popen = self._main(cfg_path)
+        _code, popen, _launch = self._main(cfg_path)
 
         popen.assert_not_called()
 
@@ -494,9 +508,26 @@ class TestTheCrossingIntoTheOtherSession:
         config = load_config(cfg_path)
         request_handoff(config.paths.state_dir, VR)
 
-        _code, popen = self._main(cfg_path)
+        _code, popen, _launch = self._main(cfg_path)
 
         popen.assert_not_called()
+
+    def test_a_session_that_asked_to_cross_leaves_the_headset_awake(self, cfg_path: Path):
+        config = load_config(cfg_path)
+
+        _code, _popen, launch = self._main(
+            cfg_path,
+            during_session=lambda: request_handoff(config.paths.state_dir, VR),
+        )
+
+        launch.put_the_headset_to_sleep.assert_called_once_with(
+            config.paths.state_dir, crossing=True)
+
+    def test_an_ordinary_quit_puts_the_headset_back_to_sleep(self, cfg_path: Path):
+        _code, _popen, launch = self._main(cfg_path)
+
+        launch.put_the_headset_to_sleep.assert_called_once_with(
+            load_config(cfg_path).paths.state_dir, crossing=False)
 
 
 class TestMainDescribesTheSessionsTaskbarButton:
