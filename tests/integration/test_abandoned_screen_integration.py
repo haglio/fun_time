@@ -44,7 +44,7 @@ import pathlib, time
 from fun_time.loading_cover import open_the_cover
 cover = open_the_cover(pathlib.Path({state!r}), show_overlays=True, project_dirs={dirs!r})
 pathlib.Path({report!r}).write_text(str(cover.process.pid))
-time.sleep(120)
+time.sleep(3600)
 """
 
 
