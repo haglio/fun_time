@@ -49,6 +49,7 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
     published_status,
+    seen_within,
     senders,
     tcode_heard,
 )
@@ -290,12 +291,8 @@ def test_fun_time_mode_switch_keeps_the_one_main_funestra_window_up_and_topmost(
 
 
 def _stays_up_and_topmost(hwnd: int, *, seconds: float) -> bool:
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline:
-        if is_window_minimized(hwnd) or not is_window_topmost(hwnd):
-            return False
-        time.sleep(0.02)
-    return True
+    return not seen_within(lambda: is_window_minimized(hwnd) or not is_window_topmost(hwnd),
+                           seconds=seconds, every_s=0.02)
 
 
 def test_fun_time_landscape_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):

@@ -40,7 +40,7 @@ import pytest
 from fun_time.loading_reveal import LoadingReveal
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from fun_time.overlay_progress import PROGRESS_FILENAME
-from fun_time.win32 import is_window_topmost, show_own_window, wait_for_window_by_title
+from fun_time.win32 import is_window_topmost, show_own_window
 from fun_time.windows_bridge_sequencer import (
     apply_topmost_bands,
 )
@@ -48,6 +48,7 @@ from fun_time.windows_bridge_sequencer import (
 from .above_the_cover import AboveTheCover
 from .integration_support import (
     FunTimeIntegrationSession,
+    await_window,
     build_integration_config,
     build_integration_temp_root,
 )
@@ -153,7 +154,7 @@ def _a_real_cover(progress_file: Path):
         cwd=Path(__file__).resolve().parents[2],
     )
     try:
-        hwnd = wait_for_window_by_title(LOADING_SCREEN_TITLE, timeout_s=15.0, exact=True)
+        hwnd = await_window(LOADING_SCREEN_TITLE, 15.0, exact=True)
         assert hwnd, "the loading screen never put its window up"
         yield hwnd
     finally:

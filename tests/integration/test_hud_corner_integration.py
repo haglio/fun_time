@@ -15,8 +15,7 @@ import time
 
 import pytest
 
-from fun_time.win32 import wait_for_window_by_title
-
+from .integration_support import await_window
 from .lone_satellite import a_lone_satellite, library_clips_of
 
 pytestmark = [
@@ -49,7 +48,7 @@ def test_a_click_in_a_corner_its_hud_is_not_in_asks_for_the_hud_there():
     with sat.launched(library_clips_of("portrait", 2), width=WIDTH, height=HEIGHT, hud=True):
         sat.wait_until_playing()
         sat.hud.write_text(json.dumps({"player": "portrait"}), encoding="utf-8")
-        hwnd = wait_for_window_by_title("Portrait AI Funestra", timeout_s=30.0)
+        hwnd = await_window("Portrait AI Funestra", 30.0)
 
         def asked_after_a_click() -> bool:
             _click(hwnd, WIDTH - 3, HEIGHT - 3)

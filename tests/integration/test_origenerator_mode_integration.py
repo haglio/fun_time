@@ -19,7 +19,6 @@ import json
 import subprocess
 import sys
 import textwrap
-import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -47,7 +46,6 @@ from fun_time.win32 import (
     is_window_topmost,
     iter_zorder,
     set_always_on_top,
-    wait_for_window_by_title,
     windows_obscuring,
 )
 from fun_time.window_roles import ORIGENERATOR_TITLE
@@ -66,11 +64,12 @@ from .integration_support import (
     QUIT_BUDGET_S,
     START_BUDGET_S,
     FunTimeIntegrationSession,
+    await_window,
     build_integration_config,
     build_integration_temp_root,
+    seen_within,
     wait_for,
 )
-from .run_clock import Budget
 
 pytestmark = [
     # Real Funestras on a real desktop: the post-loading pass has to be given
@@ -362,11 +361,7 @@ def hosted_session():
         assert pid, "the session did not record a hosted origenerator child"
         # Wait past the splash decoy for the PARKED main window — the decoy
         # wears the same caption but is a normal visible window.
-        budget = Budget(20.0)
-        hwnd = 0
-        while not hwnd and not budget.expired():
-            hwnd = _parked_main_window(pid)
-            time.sleep(0.2)
+        hwnd = seen_within(lambda: _parked_main_window(pid), seconds=20.0)
         stderr_file = session.config.paths.state_dir / "orchestrator_stderr.log"
         stderr_tail = stderr_file.read_text(encoding="utf-8", errors="replace")[-2000:] \
             if stderr_file.exists() else "(no stderr file)"
@@ -548,8 +543,8 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
     title fallback must put both back in the band."""
     session, _hwnd = hosted_session
     pids = session.read_child_pids()
-    portrait = wait_for_window_by_title("Portrait AI Funestra", timeout_s=10, exact=True)
-    landscape = wait_for_window_by_title("Landscape AI Funestra", timeout_s=10, exact=True)
+    portrait = await_window("Portrait AI Funestra", 10, exact=True)
+    landscape = await_window("Landscape AI Funestra", 10, exact=True)
     assert portrait and landscape
 
     # Every band read here is waited for rather than taken once: a Funestra
@@ -618,25 +613,24 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
                 f"{funestra.label}_kino_activate", f"{funestra.label}_origenerator_activate"]
             assert worn.rows[0][1].lit
 
-        funestras = {title: wait_for_window_by_title(title, timeout_s=10, exact=True)
-                   for title in _FUNESTRA_TITLES}
+        funestras = {title: await_window(title, 10, exact=True) for title in _FUNESTRA_TITLES}
         # Ten seconds of it, because the burial he saw landed seconds after the
         # picture did.  The first cover wins: report it and stop.
         # Each other is not a burial: the faked monitors are small enough that
         # the two Funestras' rects overlap here, which they never do on his.
         siblings = set(funestras.values())
-        deadline = time.monotonic() + 10.0
-        while time.monotonic() < deadline:
-            stack = iter_zorder()
-            for title, hwnd in funestras.items():
-                covering = [w for w in windows_obscuring(hwnd, stack)
-                            if w.hwnd not in siblings]
-                assert not covering, (
-                    f"{title} (hwnd={hwnd}) was covered after the switch by: "
-                    f"{describe_windows(covering)}")
-            time.sleep(0.5)
+        burial = seen_within(lambda: _first_burial(funestras, siblings), seconds=10.0, every_s=0.5)
+        assert not burial, burial
     finally:
         session.stop()
+
+
+def _first_burial(funestras: dict[str, int], siblings: set[int]) -> str:
+    stack = iter_zorder()
+    for title, hwnd in funestras.items():
+        if covering := [w for w in windows_obscuring(hwnd, stack) if w.hwnd not in siblings]:
+            return f"{title} (hwnd={hwnd}) was covered after the switch by: {describe_windows(covering)}"
+    return ""
 
 
 def _panel_of(hud_file: Path, funestra: RoomFunestra):
