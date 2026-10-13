@@ -494,6 +494,30 @@ def test_the_funestras_play_the_hosted_apps_shows_and_come_back_to_their_own(hos
         assert sorted(_own_clips(session, funestra)) == own_lists[funestra]
 
 
+def test_one_satellite_plays_the_hosted_apps_show_while_the_other_and_the_browser_stay_put(
+        hosted_session):
+    session, hwnd = hosted_session
+    portrait, landscape = _FUNESTRAS
+    landscape_own = sorted(_own_clips(session, landscape))
+    assert landscape_own, "the Landscape Funestra had no list of its own to begin with"
+
+    state_file = _press_once_origenerator_is_up(
+        session, f"{portrait.label}_origenerator_activate")
+    wait_for(lambda: _shows_the_stub(session, portrait),
+             desc="the Portrait Funestra to show the hosted app's picture")
+
+    state = read_shared_state(state_file)
+    assert state.satellite(landscape).mode is SatellitesMode.KINO
+    assert state.rfb_slot is RfbSlot.RFB
+    assert is_window_minimized(hwnd)
+    assert not _shows_the_stub(session, landscape)
+    assert sorted(_own_clips(session, landscape)) == landscape_own
+
+    session.write_dashboard_command(f"{portrait.label}_kino_activate")
+    wait_for(lambda: _own_clips(session, portrait) and not _shows_the_stub(session, portrait),
+             desc="the Portrait Funestra to play its own clips again")
+
+
 def test_a_switch_clicked_while_paused_hands_the_funestras_over_and_the_resume_bands_the_window(
         hosted_session):
     session, hwnd = hosted_session
