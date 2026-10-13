@@ -857,6 +857,18 @@ def test_the_reference_shows_a_rows_detail_as_a_tooltip_over_its_action():
         browser.close()
 
 
+@pytest.mark.parametrize("width", [900, 1100, 1300])
+def test_the_reference_needs_no_horizontal_scrollbar_at_the_widths_it_opens_in(width):
+    browser = ReferenceBrowser()
+    try:
+        browser.resize(width, 800)
+        browser.show()
+        QApplication.processEvents()
+        assert browser.horizontalScrollBar().maximum() == 0
+    finally:
+        browser.close()
+
+
 def test_reference_dialog_syncs_topmost_with_omnipause():
     """The reference popup is its own top-level window — not a MANAGED_ROLE the
     orchestrator can drop, and not a child riding the dashboard's band — so it

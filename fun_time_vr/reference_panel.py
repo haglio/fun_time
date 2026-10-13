@@ -33,7 +33,9 @@ __all__ = [
     "REFERENCE_WIDTH_PX",
     "ReferencePointer",
     "ReferenceState",
+    "column_heads",
     "header_lines",
+    "lines_of",
     "note_lines",
     "page_of",
     "paint_reference",
@@ -75,13 +77,19 @@ def _note_lines_every_page_keeps() -> int:
 
 
 def header_lines(section: ReferenceSection) -> int:
-    """"Hotkey" alone, or with the Funestras' names under it where the column
-    forks into one per Funestra."""
-    return 1 + (len(section.key_headers) > 1)
+    """"Hotkey" alone, or with the Funestras' names under it where it forks into one per Funestra."""
+    return 1 + (len(section.key_headers) > 1 and section.has_keys)
 
 
 def _header_lines_every_page_keeps() -> int:
     return max((header_lines(section) for section in sections()), default=0)
+
+
+def column_heads(section: ReferenceSection) -> tuple[tuple[int, str], ...]:
+    """Where each column starts and what its head says; a keyless section has no key column."""
+    if section.has_keys:
+        return ((_KEY_X, HOTKEY_HEADER), (_SAY_X, VOICE_HEADER), (_WHAT_X, "What it does"))
+    return ((_KEY_X, VOICE_HEADER), (_WHAT_X, "What it does"))
 
 
 def _keys_text(row, section: ReferenceSection) -> str:
@@ -89,6 +97,15 @@ def _keys_text(row, section: ReferenceSection) -> str:
     if len(section.key_headers) == 1:
         return " ".join(row.key_columns[0])
     return " / ".join(" ".join(column) or _NO_KEY for column in row.key_columns)
+
+
+def _cells(row, section: ReferenceSection) -> tuple[tuple[int, str, int], ...]:
+    texts = (", ".join(row.voice), row.description)
+    if section.has_keys:
+        texts = (_keys_text(row, section), *texts)
+    xs = [x for x, _ in column_heads(section)]
+    ends = [*xs[1:], REFERENCE_WIDTH_PX - _PAD + 8]
+    return tuple((x, text, end - x - 8) for x, end, text in zip(xs, ends, texts, strict=True))
 
 
 @dataclass(frozen=True)
@@ -102,12 +119,12 @@ def page_of(state: ReferenceState) -> int:  # held inside the list, however far
     return state.page % total if total else 0
 
 
-def _lines_of(section: ReferenceSection) -> int:  # a title line per group, then its rows
-    return len(section.groups) + len(section.rows)
+def lines_of(section: ReferenceSection) -> int:  # a title line per titled group, then its rows
+    return sum(1 for group in section.groups if group.title) + len(section.rows)
 
 
 def reference_height() -> int:  # the longest section's, so walking never resizes
-    longest = max((_lines_of(section) for section in sections()), default=0)
+    longest = max((lines_of(section) for section in sections()), default=0)
     return _HEAD_H + _ROW_H * (_header_lines_every_page_keeps() + _note_lines_every_page_keeps()
                                + longest) + _PAD
 
@@ -143,8 +160,7 @@ def paint_reference(state: ReferenceState) -> Image.Image:
         )
 
     y = _HEAD_H
-    heads = (HOTKEY_HEADER, VOICE_HEADER, "What it does")
-    for x, head in zip((_KEY_X, _SAY_X, _WHAT_X), heads, strict=True):
+    for x, head in column_heads(section):
         draw.text((x, y), head, font=row_font, fill=(*TEXT_MUTED, 255))
     y += _ROW_H
     if header_lines(section) > 1:
@@ -158,15 +174,11 @@ def paint_reference(state: ReferenceState) -> Image.Image:
     y += _ROW_H * (_note_lines_every_page_keeps() - len(note_lines(section)))
 
     for group in section.groups:
-        draw.text((_PAD, y), group.title, font=row_font, fill=(*MAGENTA, 255))
-        y += _ROW_H
+        if group.title:
+            draw.text((_PAD, y), group.title, font=row_font, fill=(*MAGENTA, 255))
+            y += _ROW_H
         for row in group.rows:
-            cells = (
-                (_KEY_X, _keys_text(row, section), _SAY_X - _KEY_X - 8),
-                (_SAY_X, ", ".join(row.voice), _WHAT_X - _SAY_X - 8),
-                (_WHAT_X, row.description, REFERENCE_WIDTH_PX - _WHAT_X - _PAD),
-            )
-            for x, text, width in cells:
+            for x, text, width in _cells(row, section):
                 draw.text((x, y), fit_text(row_font, text, width), font=row_font,
                           fill=(*TEXT_PRIMARY, 255))
             y += _ROW_H

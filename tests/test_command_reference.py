@@ -868,6 +868,48 @@ def test_the_column_heads_say_hotkey_and_voice_command_and_a_forked_hotkey_head_
     assert forked, "the Funestras' names sit under the spanning Hotkey head"
 
 
+def _section_html(title: str) -> str:
+    [part] = [part for part in re.split(r"(?=<h3 )", render_reference_html())
+              if re.match(rf"<h3[^>]*>(?:<a[^>]*>)?{re.escape(title)}</", part)]
+    return part
+
+
+def _group_htmls(section_title: str) -> dict[str, str]:
+    """Each group's HTML by its title, an untitled group under ""."""
+    untitled, *titled = re.split(r"<h4[^>]*>", _section_html(section_title))
+    groups = dict(chunk.split("</h4>", 1) for chunk in titled)
+    if "<table" in untitled:
+        groups[""] = untitled
+    return groups
+
+
+def test_a_group_whose_rows_hold_no_key_renders_no_hotkey_column():
+    for title in ("VR", "Origenerator"):
+        section = _section_html(title)
+        assert re.findall(r"<b[^>]*>([^<]+)</b>", section) == ["Action", "Voice command"], title
+        assert section.count("<td") == 2 * section.count("<tr"), title
+    funestras = _group_htmls("Funestras")
+    assert "Hotkey" in funestras["Navigation"] and "Portrait" in funestras["Navigation"]
+    assert "Hotkey" not in funestras["Playlist"] and "Portrait" not in funestras["Playlist"]
+    assert "Hotkey" in _section_html("Other")
+
+
+def test_the_forked_hotkey_head_is_centered_over_its_funestras():
+    html = render_reference_html()
+    for columns in (3, 2):
+        assert re.search(
+            rf'<td(?=[^>]*colspan="{columns}")(?=[^>]*align="center")[^>]*>\s*<b[^>]*>Hotkey</b>',
+            html), columns
+
+
+def test_an_untitled_group_renders_no_heading_and_a_flat_section_is_its_table():
+    for title in ("VR", "Origenerator", "Other"):
+        assert "<h4" not in _section_html(title), title
+    main = _section_html("Main Funestra")
+    assert main.index("<table") < main.index("<h4")
+    assert set(_group_htmls("Main Funestra")) == {"", "Kino", "Genau"}
+
+
 def test_a_sections_note_is_the_tooltip_on_its_title():
     """The scoping rule no longer sits on the page under the title: the title
     is the anchor, and the note waits in its tooltip like a row's detail."""

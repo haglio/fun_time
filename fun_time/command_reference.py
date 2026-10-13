@@ -57,6 +57,10 @@ class ReferenceGroup:
     title: str
     rows: tuple[CommandRef, ...]
 
+    @property
+    def has_keys(self) -> bool:
+        return any(key for row in self.rows for column in row.key_columns for key in column)
+
 
 @dataclass(frozen=True)
 class ReferenceSection:
@@ -68,6 +72,10 @@ class ReferenceSection:
     @property
     def rows(self) -> tuple[CommandRef, ...]:
         return tuple(row for group in self.groups for row in group.rows)
+
+    @property
+    def has_keys(self) -> bool:
+        return any(group.has_keys for group in self.groups)
 
 
 @dataclass(frozen=True)
@@ -720,36 +728,38 @@ def _keycap(label: str) -> str:
     )
 
 
-def _cell(content: str, *, width: str = "", span: str = "") -> str:
-    width_attr = f' width="{width}"' if width else ""
-    return (
-        f'<td valign="top"{width_attr}{span} '
-        f'style="padding:3px 8px;color:{_TEXT}">{content}</td>'
-    )
+def _cell(content: str, *, span: str = "") -> str:
+    return f'<td valign="top"{span} style="padding:3px 8px;color:{_TEXT}">{content}</td>'
 
 
-def _head(label: str, *, width: str = "", span: str = "") -> str:
-    return _cell(f'<b style="color:{_MUTED}">{html.escape(label)}</b>', width=width, span=span)
+def _head(label: str, *, span: str = "") -> str:
+    return _cell(f'<b style="color:{_MUTED}">{html.escape(label)}</b>', span=span)
 
 
 def _anchored(text: str, anchor: str, *, color: str) -> str:
     return f'<a href="{anchor}" style="color:{color};text-decoration:none">{html.escape(text)}</a>'
 
 
-def _header_rows(section: ReferenceSection, *, key_width: str, say_width: str) -> str:
-    """One header row, or two where "Hotkey" spans a column per Funestra."""
+def _header_rows(section: ReferenceSection, group: ReferenceGroup) -> str:
+    """One head row, or two where "Hotkey" spans a column per Funestra; no Hotkey over a keyless group."""
+    row = f'<tr style="background:{_HEADER_BG}">'
+    if not group.has_keys:
+        return row + _head("Action") + _head(VOICE_HEADER) + "</tr>"
     columns = len(section.key_headers)
     if columns == 1:
-        return (
-            f'<tr style="background:{_HEADER_BG}">' + _head("Action")
-            + _head(HOTKEY_HEADER, width=key_width) + _head(VOICE_HEADER, width=say_width) + "</tr>"
-        )
+        return row + _head("Action") + _head(HOTKEY_HEADER) + _head(VOICE_HEADER) + "</tr>"
     return (
-        f'<tr style="background:{_HEADER_BG}">' + _head("Action", span=' rowspan="2"')
-        + _head(HOTKEY_HEADER, span=f' colspan="{columns}"')
-        + _head(VOICE_HEADER, width=say_width, span=' rowspan="2"') + "</tr>"
-        f'<tr style="background:{_HEADER_BG}">'
-        + "".join(_head(header, width=key_width) for header in section.key_headers) + "</tr>"
+        row + _head("Action", span=' rowspan="2"')
+        + _head(HOTKEY_HEADER, span=f' colspan="{columns}" align="center"')
+        + _head(VOICE_HEADER, span=' rowspan="2"') + "</tr>"
+        + row + "".join(_head(header) for header in section.key_headers) + "</tr>"
+    )
+
+
+def _key_cells(row: CommandRef) -> str:
+    return "".join(
+        _cell(" ".join(_keycap(key) for key in column) or f'<span style="color:{_MUTED}">—</span>')
+        for column in row.key_columns
     )
 
 
@@ -766,31 +776,22 @@ def render_reference_html() -> str:
         title = (_anchored(section.title, next(anchors), color=_ACCENT) if section.note
                  else html.escape(section.title))
         parts.append(f'<h3 style="color:{_ACCENT};margin:14px 0 2px 0">{title}</h3>')
-        columns = len(section.key_headers)
-        key_width = "22%" if columns == 1 else f"{45 // columns}%"
-        say_width = "34%" if columns == 1 else "30%"
         for group in section.groups:
-            parts.append(
-                f'<h4 style="color:{_TEXT};margin:10px 0 2px 0">{html.escape(group.title)}</h4>'
-            )
-            parts.append('<table width="100%" cellspacing="0" cellpadding="0">')
-            parts.append(_header_rows(section, key_width=key_width, say_width=say_width))
+            if group.title:
+                parts.append(
+                    f'<h4 style="color:{_TEXT};margin:10px 0 2px 0">{html.escape(group.title)}</h4>'
+                )
+            parts.append('<table cellspacing="0" cellpadding="0" style="width:100%">')
+            parts.append(_header_rows(section, group))
             for row in group.rows:
                 action = (_anchored(row.description, next(anchors), color=_TEXT) if row.detail
                           else html.escape(row.description))
-                keys = "".join(
-                    _cell(
-                        " ".join(_keycap(k) for k in column)
-                        or f'<span style="color:{_MUTED}">—</span>',
-                        width=key_width,
-                    )
-                    for column in row.key_columns
-                )
+                keys = _key_cells(row) if group.has_keys else ""
                 phrases = (
                     ", ".join(f'“{html.escape(p)}”' for p in row.voice)
                     or f'<span style="color:{_MUTED}">—</span>'
                 )
-                parts.append("<tr>" + _cell(action) + keys + _cell(phrases, width=say_width) + "</tr>")
+                parts.append("<tr>" + _cell(action) + keys + _cell(phrases) + "</tr>")
             parts.append("</table>")
     parts.append("</body>")
     return "".join(parts)

@@ -3,15 +3,20 @@ from __future__ import annotations
 
 import numpy as np
 
-from fun_time.command_reference import build_reference_sections
+from fun_time.command_reference import HOTKEY_HEADER, VOICE_HEADER, build_reference_sections
 from fun_time_vr.reference_panel import (
+    _KEY_X,
     _PAD,
+    _SAY_X,
+    _WHAT_X,
     NEXT_PAGE,
     PREV_PAGE,
     REFERENCE_WIDTH_PX,
     ReferencePointer,
     ReferenceState,
+    column_heads,
     header_lines,
+    lines_of,
     note_lines,
     page_of,
     paint_reference,
@@ -67,6 +72,19 @@ class TestItIsTheSameReference:
         assert header_lines(by_title["Funestras"]) == 2
         assert header_lines(by_title["Satellite Funestras"]) == 2
         assert header_lines(by_title["Dashboard"]) == 1
+
+    def test_a_page_without_a_key_paints_the_voice_column_where_the_key_column_was(self):
+        by_title = {section.title: section for section in build_reference_sections()}
+
+        assert column_heads(by_title["Dashboard"]) == (
+            (_KEY_X, HOTKEY_HEADER), (_SAY_X, VOICE_HEADER), (_WHAT_X, "What it does"))
+        assert column_heads(by_title["VR"]) == ((_KEY_X, VOICE_HEADER), (_WHAT_X, "What it does"))
+
+    def test_an_untitled_group_takes_no_title_line(self):
+        by_title = {section.title: section for section in build_reference_sections()}
+
+        assert lines_of(by_title["VR"]) == len(by_title["VR"].rows)
+        assert lines_of(by_title["Main Funestra"]) == 2 + len(by_title["Main Funestra"].rows)
 
     def test_no_page_runs_its_rows_past_its_lower_edge(self):
         """A longer note pushes the rows down, and the page has to grow with
