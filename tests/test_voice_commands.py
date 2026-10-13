@@ -214,7 +214,7 @@ class TestVoiceCommands:
         # has no such token, so the relayed phrase is "enhanced only" (and the
         # way back out is the room's own "clear filter", routed to the show).
         oov_words = {"origenerator", "upscales", "unpause", "unpark", "unretract", "funscript",
-                     "omnipause", "omniplay", "unminimize", "osr2", "2d"}
+                     "omnipause", "omniplay", "osr2", "2d"}
         for phrase in VOICE_COMMANDS:
             offenders = oov_words & set(phrase.split())
             assert not offenders, f"{phrase!r} uses out-of-vocabulary {sorted(offenders)}"
@@ -694,21 +694,17 @@ class TestMinimizingAHudBySpeech:
     whichever one was addressed last."""
 
     @pytest.mark.parametrize("said", ["{verb} {hud}", "{hud} {verb}"])
-    def test_the_verb_goes_before_or_after_the_hud_it_names(self, said):
-        for verb, act in (("minimize", "hud_minimize"), ("restore", "hud_restore")):
-            assert VOICE_COMMANDS.get(said.format(verb=verb, hud="hud")) == f"active_{act}"
-            for funestra in ("portrait", "landscape", "both", "main"):
-                assert (VOICE_COMMANDS.get(said.format(verb=verb, hud=f"{funestra} hud"))
-                        == f"{funestra}_{act}")
-
-    def test_un_minimize_leads_the_hud_and_never_follows_it_where_it_sinks_minimize(self):
-        """Both orders offered "main hud minimize" and "main hud un minimize" for a
-        recording of the first, and whisper, shown the two, wrote neither."""
+    @pytest.mark.parametrize(("verb", "act"), [
+        ("minimize", "hud_minimize"), ("collapse", "hud_minimize"),
+        ("restore", "hud_restore"), ("maximize", "hud_restore"), ("expand", "hud_restore"),
+    ])
+    def test_the_verb_goes_before_or_after_the_hud_it_names(self, said, verb, act):
+        assert VOICE_COMMANDS.get(said.format(verb=verb, hud="hud")) == f"active_{act}"
         for funestra in ("portrait", "landscape", "both", "main"):
-            assert VOICE_COMMANDS[f"un minimize {funestra} hud"] == f"{funestra}_hud_restore"
-            assert VOICE_COMMANDS.get(f"{funestra} hud un minimize") is None
-        assert VOICE_COMMANDS["un minimize hud"] == "active_hud_restore"
-        assert VOICE_COMMANDS.get("hud un minimize") is None
+            assert (VOICE_COMMANDS.get(said.format(verb=verb, hud=f"{funestra} hud"))
+                    == f"{funestra}_{act}")
 
-    def test_the_reference_shows_the_joined_up_word(self):
-        assert friendly_voice("un minimize landscape hud") == "unminimize landscape hud"
+    def test_no_phrase_says_un_minimize(self):
+        """Beside "main hud minimize", "main hud un minimize" left whisper reading
+        neither from a recording of the first."""
+        assert [phrase for phrase in VOICE_COMMANDS if "un minimize" in phrase] == []

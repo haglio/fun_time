@@ -522,9 +522,10 @@ def build_voice_commands(
     for _hud, _funestra in (("hud", "active"),
                             *((f"{_side} hud", _side)
                               for _side in ("portrait", "landscape", "both", "main"))):
-        for _verb, _act in (("minimize", "hud_minimize"), ("restore", "hud_restore")):
+        for _verb, _act in (("minimize", "hud_minimize"), ("collapse", "hud_minimize"),
+                            ("restore", "hud_restore"), ("maximize", "hud_restore"),
+                            ("expand", "hud_restore")):
             commands[f"{_verb} {_hud}"] = commands[f"{_hud} {_verb}"] = f"{_funestra}_{_act}"
-        commands[f"un minimize {_hud}"] = f"{_funestra}_hud_restore"
 
     for _side in ("portrait", "landscape"):
         for _phrase in origenerator_phrases:
@@ -560,7 +561,6 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     ("go now", "genau"),
     ("aura generator", "origenerator"),
     ("hot keys", "hotkeys"),
-    ("un minimize", "unminimize"),
     ("un mute", "unmute"),
     ("un pause", "unpause"),
     ("fun script", "funscript"),
