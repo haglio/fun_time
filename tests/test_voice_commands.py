@@ -233,6 +233,15 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["hud lower right"] == "active_hud_lower_right"
         assert VOICE_COMMANDS["move hud lower right"] == "active_hud_lower_right"
 
+    def test_the_lower_corners_answer_to_each_word_the_overlay_lists_for_them(self):
+        said = build_voice_commands(filter_commands={}, clip_jump_phrases=(),
+                                    hud_lower_corner_words=("lower", "nether"))
+
+        assert said["main hud nether left"] == "main_hud_lower_left"
+        assert said["move hud nether right"] == "active_hud_lower_right"
+        assert said["satellites hud lower right"] == "satellites_hud_lower_right"
+        assert said["hud top left"] == "active_hud_upper_left"
+
     def test_no_phrase_uses_a_word_vosk_cannot_hear(self):
         """A phrase built from a word outside the model's lexicon can never be
         recognized — the command is unreachable, and silently so.  Every one of

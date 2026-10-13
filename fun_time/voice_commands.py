@@ -94,6 +94,7 @@ def build_voice_commands(
     flick_flip_phrases: tuple[str, ...] | None = None,
     origenerator_phrases: tuple[str, ...] | None = None,
     genau_flick_words: Noun | None = None,
+    hud_lower_corner_words: tuple[str, ...] | None = None,
 ) -> Mapping[str, str]:
     """The spoken vocabulary, built as a read-only value.
 
@@ -543,11 +544,14 @@ def build_voice_commands(
 
     # A HUD sent to a corner of its picture by name -- "main hud top right", with
     # or without "move" in front -- where the Ctrl keys step it round.  "upper"
-    # says the same as "top"; the other two corners are "lower".
+    # says the same as "top"; the lower corners' words are the overlay's.
+    if hud_lower_corner_words is None:
+        hud_lower_corner_words = tuple(load_content()["hud_lower_corner_words"])
     _CORNER_WORDS: dict[str, str] = {
         "top left": "upper_left", "upper left": "upper_left",
         "top right": "upper_right", "upper right": "upper_right",
-        "lower left": "lower_left", "lower right": "lower_right",
+        **{f"{_lower} {_edge}": f"lower_{_edge}"
+           for _lower in hud_lower_corner_words for _edge in ("left", "right")},
     }
     for _corner_word, _corner in _CORNER_WORDS.items():
         for _lead in ("", "move "):
