@@ -69,6 +69,6 @@ def test_quitting_stops_the_robot_hand_before_anything_closes_and_parks_the_osr2
             f"the Robot Hand drove the OSR2 until {quiet_before_the_main_funestra_went:.2f}s "
             f"before the Main Funestra it runs in was killed, so the kill stopped it and the "
             f"quit did not\n{session._log_tail()}")
-        assert session.config.broker_cmd_file.read_text(encoding="utf-8") == "PARK"
+        assert session.config.broker_cmd_file.read_text(encoding="utf-8").split() == ["PARK"]
     finally:
         session.stop()

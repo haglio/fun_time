@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from funestra.console import OSR2_DRIVING
+from app_support import osr2_hold
+from funestra.console import HOLD_VERB, OSR2_DRIVING
 
-from .broker_control import HOLD_VERB, PARK_CMD, RESUME_CMD
 from .mode_plan import MAIN_GENAU_MODE, kino_shows
 from .room_funestras import RoomFunestra
 
@@ -41,7 +41,7 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str,
             action=action,
             next_omni_paused=True,
             resume_main_funestra_playback=False,
-            broker_command=PARK_CMD,
+            broker_command=osr2_hold.PARK,
             log_message="OmniPause: entering",
         )
 
@@ -54,7 +54,7 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str,
             resume_main_funestra_playback=kino_shows(main_mode),
             resume_genau_playback=(main_mode == MAIN_GENAU_MODE
                                    and osr2_funestra is RoomFunestra.MAIN),
-            broker_command=HOLD_VERB.get(osr2_control, RESUME_CMD),
+            broker_command=HOLD_VERB.get(osr2_control, osr2_hold.RESUME),
             log_message="OmniPause: leaving",
         )
 

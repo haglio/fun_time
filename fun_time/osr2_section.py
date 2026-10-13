@@ -40,6 +40,7 @@ class DeviceBlock:
     control: str = ""
     controls: tuple[Button, ...] = ()
     max_intensity: int | None = None
+    paused: bool = False
 
     @classmethod
     def offered_to(cls, funestra: RoomFunestra) -> DeviceBlock:
@@ -48,4 +49,4 @@ class DeviceBlock:
     def worn_by(self, model: HudModel) -> HudModel:
         return replace(model, osr2_rows=self.rows, osr2=self.osr2,
                        osr2_control=self.control, osr2_controls=self.controls,
-                       max_intensity=self.max_intensity)
+                       max_intensity=self.max_intensity, paused=self.paused)

@@ -21,6 +21,7 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 
+from app_support import osr2_hold
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import mutex_name
@@ -28,7 +29,7 @@ from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
 
 from fun_time.branch_session import describe_the_session_on_the_taskbar
-from fun_time.broker_control import PARK_CMD, write_broker_command
+from fun_time.broker_control import write_broker_command
 from fun_time.checkout_overrides import genau_project_kwargs
 from fun_time.child_launch import no_child_log, no_console_window, open_child_log
 from fun_time.command_dispatch import genau_flick_shapes
@@ -501,7 +502,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
     # --- The core-session bootstrap, minus the windows ---
     try:  # every ``advance`` below is a cancellation checkpoint too
         progress.advance("services")
-        write_broker_command(Path(commands.broker_cmd_file), PARK_CMD)
+        write_broker_command(Path(commands.broker_cmd_file), osr2_hold.PARK)
         ensure_broker(
             commands.broker_heartbeat_file,
             Path(v) if (v := commands.broker_tray_launcher.strip()) else None,
