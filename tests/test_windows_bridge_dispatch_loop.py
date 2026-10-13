@@ -12,7 +12,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 from app_support.file_channel import read_flag
+from app_support.state_files import OSR2_SERIAL_RX
 from app_support.threading_utils import wait_until
+from funestra.console import OSR2_PARKED
 from funestra.file_channel import publish_whole
 from funestra.modes import MainMode, SatellitesMode
 from funestra.playlist import PlaylistItem, write_playlist
@@ -195,6 +197,19 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
 
 def _mailbox(runner: DispatchLoopRunner) -> list[str]:
     return runner.ahk_cmd_file.read_text(encoding="utf-8").split()
+
+
+def test_the_loop_holds_genaus_picture_out_of_a_park_while_the_osr2_is_quiet(tmp_path):
+    runner = make_runner(tmp_path)
+
+    runner.arbiter.sync("genau", paused=False, control=OSR2_PARKED)
+    quiet = runner.config.genau_cmd_file.read_text(encoding="utf-8").split("\n")[:-1]
+    (runner.config.broker_state / OSR2_SERIAL_RX).write_text(str(time.time()), encoding="utf-8")
+    runner.arbiter.sync("genau", paused=False, control=OSR2_PARKED)
+    on = runner.config.genau_cmd_file.read_text(encoding="utf-8").split("\n")[len(quiet):-1]
+
+    assert "PARK" not in quiet
+    assert on[-1] == "PARK"
 
 
 def test_the_bridge_config_carries_the_port_the_session_serves_on(cfg_factory, tmp_path):

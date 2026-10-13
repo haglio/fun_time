@@ -10,7 +10,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from funestra.console import (
-    OSR2_CONTROL_OFF,
     OSR2_DRIVING,
     OSR2_PARKED,
     OSR2_RETRACTED,
@@ -24,7 +23,7 @@ from fun_time.room_funestras import RoomFunestra
 from tests.role_window_fakes import FakeClock
 
 
-def make_driver(tmp_path: Path, clock=None) -> DeviceArbiter:
+def make_driver(tmp_path: Path, clock=None, device_on=lambda: True) -> DeviceArbiter:
     return DeviceArbiter(
         main_funestra_status_file=tmp_path / "main_player_status.txt",
         main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
@@ -32,6 +31,7 @@ def make_driver(tmp_path: Path, clock=None) -> DeviceArbiter:
         satellites={funestra: SatelliteLine(status_file=tmp_path / f"{funestra.label}_status.txt",
                                           cmd_file=tmp_path / f"{funestra.label}_cmd.txt")
                     for funestra in RoomFunestra.SATELLITES},
+        device_on=device_on,
         clock=clock or FakeClock(),
     )
 
@@ -79,8 +79,8 @@ _PARKED_VERBS = ["RESUME", "SET_TCODE_ENABLED 0", "PARK"]
 
 
 class TestNobodyDriving:
-    """The three control states in which nobody is driving: the two holds and
-    control off.  Carried out here rather than at the button because this is
+    """The two control states in which nobody is driving: parked, and the
+    retract a relief pause leaves.  Carried out here rather than at the button because this is
     the thing that re-states them every second -- a verb fired from a handler
     would be undone by the arbiter's very next assertion.
     """
@@ -126,14 +126,27 @@ class TestNobodyDriving:
             "PAUSE", "SET_TCODE_ENABLED 0", "RETRACT",
             "RESUME", "SET_TCODE_ENABLED 0", "RETRACT"]
 
-    def test_control_off_stops_genau_and_tells_it_the_device_is_going_home(self, tmp_path):
-        driver = make_driver(tmp_path)
+    def test_a_switched_off_device_keeps_genaus_picture_out_of_every_hold(self, tmp_path):
+        for control, verbs in ((OSR2_PARKED, ["RESUME", "SET_TCODE_ENABLED 0"]),
+                               (OSR2_RETRACTED, ["RESUME", "SET_TCODE_ENABLED 0"])):
+            driver = make_driver(tmp_path / control, device_on=lambda: False)
+            driver.main_funestra_cmd_file.parent.mkdir(parents=True, exist_ok=True)
+            publish_main_funestra(driver)
+
+            driver.sync("genau", paused=False, control=control)
+
+            assert genau(driver).splitlines() == verbs, control
+
+    def test_a_device_switched_on_under_a_hold_takes_genaus_picture_there_at_once(self, tmp_path):
+        device = {"on": False}
+        driver = make_driver(tmp_path, device_on=lambda: device["on"])
         publish_main_funestra(driver)
+        driver.sync("genau", paused=False, control=OSR2_PARKED)
 
-        driver.sync("kino", paused=False, control=OSR2_CONTROL_OFF)
+        device["on"] = True
+        driver.sync("genau", paused=False, control=OSR2_PARKED)
 
-        assert main_funestra(driver) == "SET_TCODE_ENABLED 0"
-        assert genau(driver).splitlines() == ["PAUSE", "PARK"]
+        assert genau(driver).splitlines() == ["RESUME", "SET_TCODE_ENABLED 0", *_PARKED_VERBS]
 
     def test_the_hold_is_re_stated_on_the_heartbeat_and_not_every_tick(self, tmp_path):
         """Re-stated, so an output switched on from a key or a spoken word goes
@@ -164,32 +177,6 @@ class TestNobodyDriving:
 
         assert genau(driver).splitlines() == [*_PARKED_VERBS, "SET_TCODE_ENABLED 1"]
 
-    def test_driving_again_in_genau_mode_starts_the_hand_control_off_stopped(self, tmp_path):
-        clock = FakeClock()
-        driver = make_driver(tmp_path, clock=clock)
-        publish_main_funestra(driver)
-        driver.sync("genau", paused=False, control=OSR2_CONTROL_OFF)
-
-        clock.advance(REASSERT_S)
-        driver.sync("genau", paused=False, control=OSR2_DRIVING)
-        driver.sync("genau", paused=False, control=OSR2_DRIVING)
-
-        assert genau(driver).splitlines() == ["PAUSE", "PARK", "RESUME"]
-
-    def test_the_hand_control_off_stopped_waits_out_an_omnipause(self, tmp_path):
-        clock = FakeClock()
-        driver = make_driver(tmp_path, clock=clock)
-        publish_main_funestra(driver)
-        driver.sync("genau", paused=False, control=OSR2_CONTROL_OFF)
-
-        clock.advance(REASSERT_S)
-        driver.sync("genau", paused=True, control=OSR2_DRIVING)
-        held_through_the_pause = genau(driver).splitlines()
-        driver.sync("genau", paused=False, control=OSR2_DRIVING)
-
-        assert held_through_the_pause == ["PAUSE", "PARK"]
-        assert genau(driver).splitlines() == ["PAUSE", "PARK", "RESUME"]
-
     def test_the_handoff_re_asserts_when_control_comes_back(self, tmp_path):
         """Nobody had the device through the silence, so re-entry must say who
         has it again rather than believing the driver it remembered."""
@@ -198,12 +185,12 @@ class TestNobodyDriving:
         publish_main_funestra(driver)
         driver.sync("kino", paused=False, control=OSR2_DRIVING)
         clock.advance(REASSERT_S)
-        driver.sync("kino", paused=False, control=OSR2_CONTROL_OFF)
+        driver.sync("kino", paused=False, control=OSR2_PARKED)
 
         clock.advance(REASSERT_S)
         driver.sync("kino", paused=False, control=OSR2_DRIVING)
 
-        assert genau(driver).splitlines() == ["PAUSE", "PAUSE", "PARK", "PAUSE"]
+        assert genau(driver).splitlines()[-1] == "PAUSE"
         assert main_funestra(driver).splitlines()[-1] == "SET_TCODE_ENABLED 1"
 
 

@@ -12,7 +12,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from funestra.console import OSR2_CONTROL_OFF
+from app_support.osr2_device import Osr2Mode
+from funestra.console import OSR2_PARKED
 from funestra.drive_readout import DriveHud, publish_drive
 from funestra.hud_button import Button
 from funestra.hud_placement import HudCorner
@@ -165,9 +166,9 @@ class TestHudPublishing:
         to know it, which is why it is published like the rest of the room."""
         feed = make_feed(tmp_path)
 
-        feed.publish(replace(BridgeState(), osr2_control=OSR2_CONTROL_OFF))
+        feed.publish(replace(BridgeState(), osr2_control=OSR2_PARKED))
 
-        assert console(tmp_path)["osr2_control"] == OSR2_CONTROL_OFF
+        assert console(tmp_path)["osr2_control"] == OSR2_PARKED
 
     def test_the_console_is_told_the_max_intensity_the_session_holds(self, tmp_path):
         feed = make_feed(tmp_path)
@@ -452,6 +453,19 @@ class TestHudPublishing:
         assert broker_is_up(published)
         assert published["osr2"] in ("off", "auto", "funscript", "genau", "idle")
 
+    def test_the_console_says_the_osr2_is_off_while_a_video_still_drives_it_gone_quiet(self, tmp_path):
+        feed = make_feed(tmp_path)
+        (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
+        (tmp_path / "osr2_serial_tx.txt").write_text("199.0", encoding="utf-8")
+        (tmp_path / "main_player_status.txt").write_text(
+            "video=C:/v/m.mp4\nhas_funscript=1\nfunscript_resting=0\n", encoding="utf-8")
+
+        with patch("app_support.file_channel.time") as mock_time:
+            mock_time.time.return_value = 200.0
+            feed.publish(BridgeState(main_mode=MainMode.VIDEO))
+
+        assert console(tmp_path)["osr2"] == Osr2State.OFF
+
     def test_both_broker_lights_read_the_brokers_directory_not_the_sessions(self, tmp_path):
         """A branch session moves ``state/`` into its worktree; the machine's one
         broker keeps writing where it always did.
@@ -686,13 +700,12 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
             assert _published(tmp_path, funestra).osr2 == ""
 
     def test_a_side_funestra_that_takes_it_carries_the_whole_section(self, tmp_path):
-        make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, osr2_control=OSR2_CONTROL_OFF))
+        make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, osr2_control=OSR2_PARKED))
 
         portrait = _published(tmp_path, "portrait")
-        assert {"robot_hand_toggle_learned", "robot_hand_park",
-                "robot_hand_release"} <= set(_osr2_commands(portrait))
+        assert {"robot_hand_toggle_learned", "robot_hand_release"} <= set(_osr2_commands(portrait))
         assert portrait.osr2 == Osr2State.OFF
-        assert portrait.osr2_control == OSR2_CONTROL_OFF
+        assert portrait.osr2_control == OSR2_PARKED
         assert [button.command for button in portrait.osr2_controls] == ["broker_panel"]
 
     def test_the_side_funestra_that_has_it_carries_the_max_intensity_on_its_line(self, tmp_path):
@@ -730,42 +743,37 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
 
 
 class TestOsr2Mode:
-    """What the main console is told the OSR2 is doing — this feed's payload
-    for the Main Funestra is the only consumer of the answer."""
+    """What the main console is told the OSR2 is doing, read from the broker's
+    files the one way every app reads them (app_support's osr2_device)."""
 
-    def test_osr2_mode_off_when_rx_file_missing(self, tmp_path):
+    def test_a_device_never_heard_from_is_off(self, tmp_path):
+        assert make_feed(tmp_path).osr2_mode() is Osr2Mode.OFF
+
+    def test_a_device_that_has_gone_quiet_is_off_whatever_is_still_sent_to_it(self, tmp_path):
         feed = make_feed(tmp_path)
-        # No osr2_serial_rx.txt exists
-
-        assert feed.osr2_mode() == "off"
-
-    def test_osr2_mode_off_when_rx_timestamp_stale(self, tmp_path):
-        feed = make_feed(tmp_path)
-        rx_file = tmp_path / "osr2_serial_rx.txt"
-        rx_file.write_text("100.0", encoding="utf-8")
+        (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
+        (tmp_path / "osr2_serial_tx.txt").write_text("199.0", encoding="utf-8")
 
         with patch("app_support.file_channel.time") as mock_time:
-            mock_time.time.return_value = 200.0  # 100s stale
-            assert feed.osr2_mode() == "off"
+            mock_time.time.return_value = 200.0
+            assert feed.osr2_mode() is Osr2Mode.OFF
 
-    def test_osr2_mode_controlled_when_device_on(self, tmp_path):
+    def test_one_taking_commands_is_controlled(self, tmp_path):
         feed = make_feed(tmp_path)
-        rx_file = tmp_path / "osr2_serial_rx.txt"
-        rx_file.write_text("100.0", encoding="utf-8")
-
-        with patch("app_support.file_channel.time") as mock_time:
-            mock_time.time.return_value = 110.0  # 10s ago — fresh
-            assert feed.osr2_mode() == "controlled"
-
-    def test_osr2_mode_auto_when_device_on_and_genau(self, tmp_path):
-        feed = make_feed(tmp_path)
-        rx_file = tmp_path / "osr2_serial_rx.txt"
-        rx_file.write_text("100.0", encoding="utf-8")
-        (tmp_path / "rh_mode.txt").write_text("1", encoding="utf-8")
+        (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
 
         with patch("app_support.file_channel.time") as mock_time:
             mock_time.time.return_value = 110.0
-            assert feed.osr2_mode() == "auto"
+            assert feed.osr2_mode() is Osr2Mode.CONTROLLED
+
+    def test_one_running_its_own_auto_mode_is_auto(self, tmp_path):
+        feed = make_feed(tmp_path)
+        (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
+        (tmp_path / "broker_mode.txt").write_text("1", encoding="utf-8")
+
+        with patch("app_support.file_channel.time") as mock_time:
+            mock_time.time.return_value = 110.0
+            assert feed.osr2_mode() is Osr2Mode.AUTO
 
 
 def test_the_consoles_crown_goes_dark_once_the_room_gives_it_to_the_portrait_funestra(tmp_path):

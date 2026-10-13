@@ -23,22 +23,13 @@ from pathlib import Path
 
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-
-from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path, genau_project_kwargs
-
-# Before anything that reaches the dispatch loop: a worktree's
-# genau_project_dirs override reaches Genau and the Main Funestra as subprocess PYTHONPATH,
-# but a launcher's own process resolves funestra through the venv, which is
-# the primary's.  (Every entry point needs it — see CLAUDE.md, "Standing
-# rules".)
-apply_genau_dirs_to_sys_path()
-
 from app_support.win32 import mutex_name
 from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
 
 from fun_time.branch_session import describe_the_session_on_the_taskbar
 from fun_time.broker_control import PARK_CMD, write_broker_command
+from fun_time.checkout_overrides import genau_project_kwargs
 from fun_time.child_launch import no_child_log, no_console_window, open_child_log
 from fun_time.command_dispatch import genau_flick_shapes
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config

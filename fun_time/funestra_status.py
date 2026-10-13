@@ -188,11 +188,6 @@ def origenerator_has_published(path: Path) -> bool:
     return True
 
 
-def is_osr2_device_on(path: Path, *, max_age_seconds: float = 16.0, now: float | None = None) -> bool:
-    age = stamp_age(path, now)
-    return age is not None and age < max_age_seconds
-
-
 def is_broker_heartbeat_fresh(path: Path, *, max_age_seconds: float = 3.0, now: float | None = None) -> bool:
     age = stamp_age(path, now)
     return age is not None and age <= max_age_seconds
