@@ -142,3 +142,46 @@ class TestWhatItSays:
         toggle.unhang()
 
         assert toggle.hangings() == ()
+
+
+class TestTheNameOfWhatHasJustStarted:
+    """Minimized, the HUD is the plus hanging beside the picture, and it names
+    a video for its first few seconds where the plus's own name would hang."""
+
+    @staticmethod
+    def _flashing(toggle: HudToggle, *, minimized: bool = True) -> OutsideButtons:
+        outside = OutsideButtons("portrait", minimized=minimized, flash="scene one")
+        toggle.hang(outside, PICTURE, ASPECT, edge=HudEdge.LOWER)
+        return outside
+
+    def test_hangs_beside_the_plus(self):
+        tip_texture = _Texture()
+        toggle = HudToggle("portrait", post=lambda _command: None, mesh=_Mesh(),
+                           texture=_Texture(), tip_mesh=_Mesh(), tip_texture=tip_texture)
+
+        outside = self._flashing(toggle)
+
+        _button, name = toggle.hangings()
+        height, width = outside.name_flash().shape[:2]
+        assert not name.screen.pressable
+        assert name.screen.aspect == pytest.approx(width / height)
+        assert tip_texture.uploads == 1
+
+    def test_gives_way_to_the_plus_s_own_name_while_it_is_pointed_at(self):
+        tip_mesh = _Mesh()
+        toggle = HudToggle("portrait", post=lambda _command: None, mesh=_Mesh(),
+                           texture=_Texture(), tip_mesh=tip_mesh, tip_texture=_Texture())
+        toggle.point(toggle_screen_name("portrait"))
+
+        outside = self._flashing(toggle)
+
+        height, width = outside.toggle_tip().shape[:2]
+        _placement, aspect = tip_mesh.hung_at
+        assert aspect == pytest.approx(width / height)
+
+    def test_an_open_hud_names_the_video_itself(self):
+        toggle, _posted = _toggle()
+
+        self._flashing(toggle, minimized=False)
+
+        assert len(toggle.hangings()) == 1
