@@ -88,7 +88,7 @@ pytestmark = [
 # publishes the status file too, from the same poll and only once booted, which
 # is what the real app's Fun Time bridge does and what a session reads to learn
 # the app is up: a stub that stayed silent there would leave origenerator mode
-# closed for the whole run.  Its shows are the real app's shape too: a list
+# closed for the whole run.  Its slideshows are the real app's shape too: a list
 # written for each Funestra it was handed, the verb that makes that Funestra read
 # it, and a panel for the session to put on the Funestra.  Launched without
 # --fun-time it opens on its own, as he opens the real one, offers itself to a

@@ -1302,7 +1302,7 @@ class TestKeepingTheHostedApp:
 
         channel = Path(LaunchManifest.read(
             tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands.origenerator_cmd_file)
-        assert channel.exists(), "the parked app was never told to close its shows"
+        assert channel.exists(), "the parked app was never told to close its slideshows"
         assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SHOWS"]
 
     def test_esc_on_the_closing_screen_parks_it_for_fun_time_coming_back(

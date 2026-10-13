@@ -834,20 +834,24 @@ def test_every_render_drives_the_dashboards_band_off_the_snapshot(dashboard_wind
 
 def test_the_reference_shows_a_rows_detail_as_a_tooltip_over_its_action():
     """What a row explains waits in a tooltip over its action, so the popup
-    stays a list of actions; an action with nothing more to say has none."""
-    rows = [row for section in build_reference_sections() for row in section.rows]
+    stays a list of actions; an action with nothing more to say has none, and
+    a section's scoping note is the tooltip over its title."""
+    sections = build_reference_sections()
+    rows = [row for section in sections for row in section.rows]
     relief = next(row for row in rows if "relief_omnipause" in row.commands)
     pause = next(row for row in rows if "omnipause_toggle" in row.commands)
+    funestras = next(section for section in sections if section.title == "Funestras")
     browser = ReferenceBrowser()
     try:
         browser.resize(1000, 800)
         browser.show()
-        for row, detail in ((relief, relief.detail), (pause, "")):
-            cursor = browser.document().find(row.description)
-            assert not cursor.isNull(), row.description
+        for text, detail in ((relief.description, relief.detail), (pause.description, ""),
+                             (funestras.title, funestras.note)):
+            cursor = browser.document().find(text)
+            assert not cursor.isNull(), text
             cursor.setPosition(cursor.selectionStart() + 1)
             assert browser.detail_at(browser.cursorRect(cursor).center()) == detail
-        assert relief.detail
+        assert relief.detail and funestras.note
         assert not browser.openLinks()
     finally:
         browser.close()

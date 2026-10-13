@@ -25,6 +25,7 @@ import json
 import logging
 from functools import partial
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -265,7 +266,8 @@ class TestTheSatellites:
                 session = Playback(list(clips), engine=FakeSatelliteEngine())
                 handled = apply_satellite_command(
                     _a_satellite_line(verb, clips[0]),
-                    FunestraControls(session, reload_playlist=lambda: None),
+                    FunestraControls(session, reload_playlist=lambda: None,
+                                     room_volume=SimpleNamespace(set=lambda volume, muted: None)),
                 )
                 if not handled:
                     dead[verb] = where
@@ -311,6 +313,27 @@ class TestGenau:
         assert not dead, f"funestra's control registry answers none of these: {dead}"
 
 
+# Said to a side in origenerator mode, where what a side is told is the hosted
+# app's to answer, and answered by nothing over there.  Keyed by what the line
+# says after the side.
+_UNANSWERED_BY_THE_HOSTED_APP: dict[str, str] = {
+    "wrong_action": "a slideshow's picture carries no act label to strike, and the app "
+                    "refuses the strike on purpose",
+    "nudge_next": "a slideshow holds each picture or video for as long as its own pace "
+                  "says, and has no ten-second step through one",
+    "nudge_prev": "a slideshow holds each picture or video for as long as its own pace "
+                  "says, and has no ten-second step through one",
+}
+
+
+def _said_after_the_side(line: str) -> str:
+    for funestra in RoomFunestra.SATELLITES:
+        side = f"{funestra.label}_"
+        if line.lower().startswith(side):
+            return line[len(side):].lower()
+    return line
+
+
 class TestTheHostedOrigenerator:
     """In origenerator mode what is said to a side goes to the hosted app, which
     a headset hosts as the desktop does.  Every line it is sent is held to what
@@ -338,7 +361,7 @@ class TestTheLoopInFrontOfTheDispatch:
         """The sweep walks the dispatch, so a command the loop rewrites on its
         way there is sent as something the sweep never saw.  The spoken "lock"
         and "unlock" were turned into the key's flip by the session's own idea
-        of whether a Funestra was locked, which in Origenerator mode no show's
+        of whether a Funestra was locked, which in Origenerator mode no slideshow's
         lock ever reached: said twice, "lock" let go, and "unlock" did nothing.
         """
         runner = make_runner(tmp_path)

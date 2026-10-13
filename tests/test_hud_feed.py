@@ -17,14 +17,14 @@ from funestra.console import OSR2_PARKED
 from funestra.drive_readout import DriveHud, publish_drive
 from funestra.hud_button import Button
 from funestra.hud_placement import HudCorner
-from funestra.modes import MainMode, Osr2State, SatellitesMode
+from funestra.hud_status import F_MODE_LABEL
+from funestra.modes import MainMode, Osr2State
 from funestra.satellite_hud import HudCell, HudModel, hud_text, parse_hud
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.crown import Crown
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
-from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, SatelliteState
 
 
@@ -58,15 +58,6 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
     )
     settings.update(overrides)
     return BridgeConfig(**settings)
-
-
-def _hosted(state: BridgeState, *funestras: str) -> BridgeState:
-    """*state* with the named sides -- both, with none named -- in their
-    Origenerator mode."""
-    for funestra in funestras or ("portrait", "landscape"):
-        state = state.with_satellite(RoomFunestra[funestra.upper()],
-                                     mode=SatellitesMode.ORIGENERATOR)
-    return state
 
 
 def hosting_config(tmp_path) -> BridgeConfig:
@@ -196,7 +187,7 @@ class TestHudPublishing:
         (tmp_path / "origenerator_portrait_hud.json").write_text(
             hud_text(hosted), encoding="utf-8")
 
-        feed.publish(_hosted(BridgeState(active_funestra=2)))
+        feed.publish(BridgeState(satellites_mode="origenerator", active_funestra=2))
 
         portrait = parse_hud((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
         assert portrait.corner.path == "C:/g/scene one.png"
@@ -204,7 +195,7 @@ class TestHudPublishing:
         assert portrait.lock_label == "Unlocked · Shuffle"
         assert portrait.active is True
         assert [button.command for button in portrait.rows[0]] == [
-            "portrait_kino_activate", "portrait_origenerator_activate", "portrait_minimize",
+            "satellites_kino_activate", "origenerator_activate", "portrait_minimize",
             "portrait_crown"]
         assert [button.lit for button in portrait.rows[0][:2]] == [False, True]
         assert [button.command for button in portrait.rows[1]] == ["portrait_next"]
@@ -217,7 +208,7 @@ class TestHudPublishing:
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         (tmp_path / "origenerator_landscape_hud.json").write_text("", encoding="utf-8")
 
-        feed.publish(_hosted(BridgeState()))
+        feed.publish(BridgeState(satellites_mode="origenerator"))
 
         for funestra in ("portrait", "landscape"):
             published = parse_hud((tmp_path / f"{funestra}_hud.json").read_text(encoding="utf-8"))
@@ -226,26 +217,13 @@ class TestHudPublishing:
             assert published.lock_label == "Origenerator mode"
             crown = ["portrait_crown"] if funestra == "portrait" else []
             assert [[button.command for button in row] for row in published.rows] == [
-                [f"{funestra}_kino_activate", f"{funestra}_origenerator_activate",
-                 f"{funestra}_minimize", *crown]]
+                ["satellites_kino_activate", "origenerator_activate", f"{funestra}_minimize",
+                 *crown]]
 
-    def test_a_side_in_kino_mode_beside_a_hosted_one_keeps_its_own_map(self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
-        publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
-
-        feed.publish(_hosted(BridgeState(origenerator_ready=True), "portrait"))
-
-        portrait, landscape = (parse_hud((tmp_path / f"{funestra}_hud.json").read_text(
-            encoding="utf-8")) for funestra in ("portrait", "landscape"))
-        assert portrait.lock_label == "Origenerator mode"
-        assert [(button.command, button.lit) for button in landscape.rows[0][:2]] == [
-            ("landscape_kino_activate", True), ("landscape_origenerator_activate", False)]
-        assert landscape.corner.path == "C:/v/l.mp4"
-
-    @pytest.mark.parametrize(("hosting", "hosted_sides"), [
-        (False, ()), (True, ()), (True, ("portrait", "landscape"))])
+    @pytest.mark.parametrize(("hosting", "satellites_mode"), [
+        (False, "kino"), (True, "kino"), (True, "origenerator")])
     def test_no_funestra_in_a_headset_session_offers_to_minimize(
-        self, tmp_path, hosting, hosted_sides,
+        self, tmp_path, hosting, satellites_mode,
     ):
         """There every Funestra is a screen in the scene with no window of its own
         to park -- whichever row minimize would ride on the desktop: the end of
@@ -253,10 +231,7 @@ class TestHudPublishing:
         config = hosting_config(tmp_path) if hosting else make_config(tmp_path)
         feed = make_feed(tmp_path, config=replace(config, vr_main_funestra=True))
 
-        state = BridgeState()
-        for side in hosted_sides:
-            state = _hosted(state, side)
-        feed.publish(state)
+        feed.publish(BridgeState(satellites_mode=satellites_mode))
 
         published = [panel(tmp_path, "portrait"), panel(tmp_path, "landscape"), console(tmp_path)]
         commands = [button.get("command", "") for each in published for row in each["rows"]
@@ -271,7 +246,7 @@ class TestHudPublishing:
         hosted_file = tmp_path / "origenerator_portrait_hud.json"
         hosted_file.write_text(hud_text(HudModel(funestra="portrait", lock_label="Locked")),
                                encoding="utf-8")
-        state = _hosted(BridgeState())
+        state = BridgeState(satellites_mode="origenerator")
         feed.publish(state)
         real_read = Path.read_text
 
@@ -292,7 +267,7 @@ class TestHudPublishing:
         (tmp_path / "origenerator_portrait_hud.json").write_text(
             hud_text(HudModel(funestra="portrait", item_note="Enhancing…")), encoding="utf-8")
 
-        feed.publish(_hosted(BridgeState()))
+        feed.publish(BridgeState(satellites_mode="origenerator"))
 
         assert panel(tmp_path, "portrait")["item_note"] == "Enhancing…"
 
@@ -311,8 +286,7 @@ class TestHudPublishing:
 
         def origenerator_button() -> dict:
             return next(button for row in panel(tmp_path, "portrait")["rows"]
-                        for button in row
-                        if button["command"] == "portrait_origenerator_activate")
+                        for button in row if button["command"] == "origenerator_activate")
 
         feed.publish(BridgeState())
         assert origenerator_button().get("dim") is True
@@ -336,7 +310,7 @@ class TestHudPublishing:
 
         portrait = panel(tmp_path, "portrait")
         landscape = panel(tmp_path, "landscape")
-        assert portrait["lock_label"] == "Unlocked · Shuffle · F-Mode"
+        assert portrait["lock_label"] == f"Unlocked · Shuffle · {F_MODE_LABEL}"
         assert f_mode_button(portrait)["lit"] is True
         assert landscape["lock_label"] == "Unlocked · Shuffle"
         assert not f_mode_button(landscape).get("lit")
@@ -401,7 +375,7 @@ class TestHudPublishing:
 
 
     def test_a_hosted_shows_reset_is_never_faded_by_the_session(self, tmp_path):
-        """That reset belongs to the show, whose state this room cannot see, so
+        """That reset belongs to the slideshow, whose state this room cannot see, so
         it stays pressable however settled the Funestra underneath it is."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted = HudModel(funestra="portrait", lock_label="Unlocked \u00b7 Shuffle",
@@ -410,7 +384,7 @@ class TestHudPublishing:
             hud_text(hosted), encoding="utf-8")
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
 
-        feed.publish(_hosted(BridgeState()))
+        feed.publish(BridgeState(satellites_mode="origenerator"))
 
         assert not reset_button(panel(tmp_path, "portrait")).get("dim")
 
@@ -708,7 +682,8 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, osr2_control=OSR2_PARKED))
 
         portrait = _published(tmp_path, "portrait")
-        assert {"robot_hand_toggle_learned", "robot_hand_release"} <= set(_osr2_commands(portrait))
+        assert {"robot_hand_toggle_cruise", "robot_hand_park",
+                "robot_hand_release"} <= set(_osr2_commands(portrait))
         assert portrait.osr2 == Osr2State.OFF
         assert portrait.osr2_control == OSR2_PARKED
         assert [button.command for button in portrait.osr2_controls] == ["broker_panel"]
@@ -747,7 +722,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
     def test_a_side_the_hosted_app_has_carries_it_as_well(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
 
-        feed.publish(_hosted(BridgeState(osr2_funestra=3)))
+        feed.publish(BridgeState(satellites_mode="origenerator", osr2_funestra=3))
 
         assert "robot_hand_park" in _osr2_commands(_published(tmp_path, "landscape"))
         assert _osr2_commands(_published(tmp_path, "portrait")) == ["portrait_take_osr2"]
@@ -832,9 +807,9 @@ class TestWhatThePanelSaysAboutWhereItSits:
         hosted = hud_text(HudModel(funestra="portrait", lock_label="Slideshow",
                                    corner=HudCell(path="C:/p/one.png")))
         (tmp_path / "origenerator_portrait_hud.json").write_text(hosted, encoding="utf-8")
-        state = _hosted(replace(
-            BridgeState(origenerator_ready=True),
-            portrait=SatelliteState(hud_corner=HudCorner.LOWER_LEFT, hud_minimized=True)))
+        state = replace(
+            BridgeState(satellites_mode="origenerator", origenerator_ready=True),
+            portrait=SatelliteState(hud_corner=HudCorner.LOWER_LEFT, hud_minimized=True))
 
         feed.publish(state)
 

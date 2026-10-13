@@ -190,14 +190,44 @@ class TestVoiceCommands:
         """A zero-second interval would step the clip every frame."""
         assert not any(cmd == "genau_flick_seconds_0" for cmd in VOICE_COMMANDS.values())
 
-    def test_audio_phrases_mute_and_step_the_volume(self):
-        """Both words of each pair mean the same thing, so a speaker never has to
-        pick between "quiet" and "quieter"."""
-        assert VOICE_COMMANDS["mute"] == "audio_mute"
-        assert VOICE_COMMANDS["quiet"] == "audio_volume_down"
-        assert VOICE_COMMANDS["quieter"] == "audio_volume_down"
-        assert VOICE_COMMANDS["loud"] == "audio_volume_up"
-        assert VOICE_COMMANDS["louder"] == "audio_volume_up"
+    def test_the_sound_is_said_of_the_funestra_last_addressed_or_of_the_one_named(self):
+        """Mute and the volume steps are sided like every other action a Funestra
+        shares, and both words of each pair mean the same thing, so a speaker
+        never has to pick between "quiet" and "quieter"."""
+        assert VOICE_COMMANDS["mute"] == "active_mute"
+        assert VOICE_COMMANDS["un mute"] == "active_unmute"
+        assert VOICE_COMMANDS["quiet"] == VOICE_COMMANDS["quieter"] == "active_volume_down"
+        assert VOICE_COMMANDS["loud"] == VOICE_COMMANDS["louder"] == "active_volume_up"
+        assert VOICE_COMMANDS["portrait mute"] == VOICE_COMMANDS["mute portrait"] == "portrait_mute"
+        assert VOICE_COMMANDS["landscape louder"] == "landscape_volume_up"
+        assert VOICE_COMMANDS["both quiet"] == "both_volume_down"
+        assert VOICE_COMMANDS["main mute"] == "audio_mute"
+        assert VOICE_COMMANDS["un mute main"] == "audio_unmute"
+        assert VOICE_COMMANDS["main louder"] == "audio_volume_up"
+
+    def test_the_browser_opens_by_its_other_names_too(self):
+        for phrase in ("browse", "open browser", "open file browser", "file browser", "file browse"):
+            assert VOICE_COMMANDS[phrase] == "browse_library", phrase
+
+    def test_cruise_control_and_human_inspired_motion_answer_to_their_initials(self):
+        assert VOICE_COMMANDS["cc on"] == "robot_hand_cruise_on"
+        assert VOICE_COMMANDS["cc off"] == "robot_hand_cruise_off"
+        assert VOICE_COMMANDS["hi on"] == "robot_hand_learned_on"
+        assert VOICE_COMMANDS["hi off"] == "robot_hand_learned_off"
+        assert friendly_voice("cc on") == "CC on"
+        assert friendly_voice("hi off") == "HI off"
+
+    def test_a_hud_is_sent_to_a_corner_by_name(self):
+        """"main hud top right", with or without "move" in front; "upper" says the
+        same as "top", and the lower corners are "lower".  Bare, the Funestra
+        last addressed."""
+        assert VOICE_COMMANDS["main hud top right"] == "main_hud_upper_right"
+        assert VOICE_COMMANDS["move main hud top right"] == "main_hud_upper_right"
+        assert VOICE_COMMANDS["portrait hud lower left"] == "portrait_hud_lower_left"
+        assert VOICE_COMMANDS["landscape hud upper left"] == "landscape_hud_upper_left"
+        assert VOICE_COMMANDS["both hud top left"] == "both_hud_upper_left"
+        assert VOICE_COMMANDS["hud lower right"] == "active_hud_lower_right"
+        assert VOICE_COMMANDS["move hud lower right"] == "active_hud_lower_right"
 
     def test_no_phrase_uses_a_word_vosk_cannot_hear(self):
         """A phrase built from a word outside the model's lexicon can never be
@@ -260,7 +290,7 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["resume"] == "play"
 
     def test_unmute_is_heard_as_two_words_and_shown_as_one(self):
-        assert VOICE_COMMANDS["un mute"] == "audio_unmute"
+        assert VOICE_COMMANDS["un mute"] == "active_unmute"
         assert friendly_voice("un mute") == "unmute"
 
     def test_reference_popup_phrases_toggle_and_close_help(self):

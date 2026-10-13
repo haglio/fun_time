@@ -224,7 +224,7 @@ class TestOrigeneratorInVr:
     The mode's shows were windows of their own once, laid over the satellites,
     and a VR session has no windows: it declared the mode off, and a session
     resumed out of a desktop session's origenerator mode was pulled back to
-    video.  The shows are the satellite FUNESTRAS' own playlists now
+    video.  The slideshows are the satellite FUNESTRAS' own playlists now
     (``fun_time.funestra_handover``) and the headset's satellites are Funestras, so
     the only thing left on the monitors is the app's own window -- which boots
     parked and, in a headset session, is never restored.

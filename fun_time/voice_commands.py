@@ -72,11 +72,11 @@ ORIGENERATOR_PHRASES: tuple[str, ...] = (
     # The shelves, by the labels its tree wears.  Not "latest" and not "trash":
     # this session already says both to a satellite ("portrait latest" reorders
     # that Funestra's browse, "portrait trash" discards its clip), and in
-    # a side's Origenerator mode those same two commands are routed to the hosted app
+    # origenerator mode those same two commands are routed to the hosted app
     # instead — one phrase, one meaning per mode, rather than two spellings.
     FAVORITES_PHRASE, "experiments", "requests",
     "enhanced only", "filter enhanced",
-    # The show's own controls.
+    # The slideshow's own controls.
     "play slideshow", "start slideshow", "pause slideshow", "stop slideshow",
     # The commands about the picture on screen: the built-in detail parts, and Genau.
     "fix face", "fix hands", "fix teeth", "fix eyes", *GENAU_SAID,
@@ -154,9 +154,9 @@ def build_voice_commands(
         "main kino mode": "main_kino_activate",
         "satellite kino mode": "satellites_kino_activate",
         "satellites kino mode": "satellites_kino_activate",
-        # Both satellites' other mode, spoken as explicit modes rather than a
+        # The satellite side's other mode, spoken as explicit modes rather than a
         # toggle, so a phrase misheard twice cannot land on the opposite.
-        "aura generator mode": "satellites_origenerator_activate",
+        "aura generator mode": "origenerator_activate",
         "start broker": "broker_start",
         "stop broker": "broker_stop",
         # "main next" / "next main" are generated with the satellite grid
@@ -168,7 +168,8 @@ def build_voice_commands(
     "tilt up": "tilt_up",
     "tilt down": "tilt_down",
     "level": "tilt_reset",
-        "browse": "browse_library",
+        **dict.fromkeys(("browse", "open browser", "open file browser", "file browser",
+                         "file browse"), "browse_library"),
         "clip": "genaumacher_save",
         "save clip": "genaumacher_save",
         "record": "main_player_record_down",
@@ -220,9 +221,16 @@ def build_voice_commands(
         "center up": "robot_hand_center_up",
         "next shape": "robot_hand_cycle_shape",
         "previous shape": "robot_hand_cycle_shape_prev",
+        "cruise control": "robot_hand_toggle_cruise",
+        "cruise on": "robot_hand_cruise_on",
+        "cruise off": "robot_hand_cruise_off",
+        "cc on": "robot_hand_cruise_on",
+        "cc off": "robot_hand_cruise_off",
         "human inspired": "robot_hand_toggle_learned",
         "human inspired on": "robot_hand_learned_on",
         "human inspired off": "robot_hand_learned_off",
+        "hi on": "robot_hand_learned_on",
+        "hi off": "robot_hand_learned_off",
         f"previous {flick}": "genau_prev_flick",
         f"next {flick}": "genau_next_flick",
         # Bare "weird" already addresses the active satellite, so Genau's own
@@ -236,14 +244,6 @@ def build_voice_commands(
         # restart re-enables it).
         "voice off": "voice_off",
         "mic off": "voice_off",
-        # The Main Funestra's sound, whichever mode owns it.  Each pair's two
-        # words mean the same thing, so a speaker never has to pick between them.
-        "mute": "audio_mute",
-        "un mute": "audio_unmute",
-        "quiet": "audio_volume_down",
-        "quieter": "audio_volume_down",
-        "loud": "audio_volume_up",
-        "louder": "audio_volume_up",
     }
 
     # The spoken phrases for the clip jump describe the library, not the app, so
@@ -399,6 +399,22 @@ def build_voice_commands(
         commands[f"main {_action_word}"] = f"main_{_action}"
         commands[f"{_action_word} main"] = f"main_{_action}"
 
+    # A Funestra's sound, said like the rest of the grid: bare, the Funestra last
+    # addressed; with a side word, that side; "main", the Main Funestra, whose
+    # ids keep the spelling its own console posts.  Each pair's two words mean
+    # the same thing, so a speaker never has to pick between them.
+    _SOUND_WORDS: dict[str, str] = {
+        "mute": "mute", "un mute": "unmute",
+        "quiet": "volume_down", "quieter": "volume_down",
+        "loud": "volume_up", "louder": "volume_up",
+    }
+    for _sound_word, _change in _SOUND_WORDS.items():
+        commands[_sound_word] = f"active_{_change}"
+        for _side in ("portrait", "landscape", "both"):
+            commands[f"{_side} {_sound_word}"] = f"{_side}_{_change}"
+            commands[f"{_sound_word} {_side}"] = f"{_side}_{_change}"
+        commands[f"main {_sound_word}"] = commands[f"{_sound_word} main"] = f"audio_{_change}"
+
     # F-mode, per Funestra, sayable in either order like the rest of the grid:
     # "both" drives the satellites, "main" the Main Funestra, "all" every one --
     # the F key.  Bare it reaches the Funestra last addressed, as bare "lock" and
@@ -525,6 +541,20 @@ def build_voice_commands(
         for _side in ("portrait", "landscape", "both", "main"):
             commands[f"{_verb} {_side} hud"] = f"{_side}_{_act}"
 
+    # A HUD sent to a corner of its picture by name -- "main hud top right", with
+    # or without "move" in front -- where the Ctrl keys step it round.  "upper"
+    # says the same as "top"; the other two corners are "lower".
+    _CORNER_WORDS: dict[str, str] = {
+        "top left": "upper_left", "upper left": "upper_left",
+        "top right": "upper_right", "upper right": "upper_right",
+        "lower left": "lower_left", "lower right": "lower_right",
+    }
+    for _corner_word, _corner in _CORNER_WORDS.items():
+        for _lead in ("", "move "):
+            commands[f"{_lead}hud {_corner_word}"] = f"active_hud_{_corner}"
+            for _side in ("portrait", "landscape", "both", "main"):
+                commands[f"{_lead}{_side} hud {_corner_word}"] = f"{_side}_hud_{_corner}"
+
     for _side in ("portrait", "landscape"):
         for _phrase in origenerator_phrases:
             _spoken = f"{_side} {_phrase}"
@@ -566,6 +596,11 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     ("omni pause", "omnipause"),
     ("omni play", "omniplay"),
     ("un park", "unpark"),
+    ("un retract", "unretract"),
+    ("cc on", "CC on"),
+    ("cc off", "CC off"),
+    ("hi on", "HI on"),
+    ("hi off", "HI off"),
     ("o s r two", "OSR2"),
     ("oh es are two", "OSR2"),
     # Spaced form first: after the joined rewrite it is no longer there to match.

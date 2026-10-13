@@ -290,7 +290,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # name again went, more than paying for the line the sound devices' module added.
 # 6515 on 2026-10-10: the dead ends that answered nothing say which mode
 # ignored them, and the docstrings that called them quiet went with them.
-# 6512 then: the room's F-Mode reaches the hosted shows, and the note saying it
+# 6512 then: the room's F-mode reaches the hosted slideshows, and the note saying it
 # left them alone went with it.
 # 6507 then: whether a program is running is read off the process list instead
 # of asked of tasklist, and the paragraph counting the module's queries went.
@@ -334,7 +334,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # said so row by row went.
 # 6152 the same day: the Main Funestra's keys reach whatever is on it, and the
 # note on the video navigating behind Genau's flick went with that behavior.
-MAX_PROSE_LINES = 6152
+# 6131 the same day: the reference module says in one paragraph what its tests
+# state, and the notes on each of its fields went.
+MAX_PROSE_LINES = 6131
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

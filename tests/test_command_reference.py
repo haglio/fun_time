@@ -9,11 +9,14 @@ from fun_time import command_reference, content
 from fun_time.command_dispatch import _MAIN_FUNESTRA_CMD_MAP, _about_genaus_flick
 from fun_time.command_reference import (
     _SECTIONS,
+    HOTKEY_HEADER,
+    VOICE_HEADER,
     CommandRef,
     ReferenceSection,
     _collapse_scopes,
     _display_voice,
     build_reference_sections,
+    reference_details,
     render_reference_html,
 )
 from fun_time.content import Noun, genau_flick_noun
@@ -31,12 +34,15 @@ def _ahk_hotkey_commands() -> set[str]:
     return set(_QUEUED_RE.findall(script_text()))
 
 
+def _ahk_bindings_for(command: str) -> list[str]:
+    """Every key the AHK script binds to ``command``, as the script spells them."""
+    return re.findall(rf'^(\S+)::QueueCommand\("{re.escape(command)}"\)', script_text(), re.MULTILINE)
+
+
 def _ahk_binding_for(command: str) -> str | None:
-    """The key the AHK script binds to ``command``, as the script spells it."""
-    match = re.search(
-        rf'^(\S+)::QueueCommand\("{re.escape(command)}"\)', script_text(), re.MULTILINE
-    )
-    return match.group(1) if match else None
+    """The first key the AHK script binds to ``command``, as the script spells it."""
+    bound = _ahk_bindings_for(command)
+    return bound[0] if bound else None
 
 
 def _ahk_suspend_exempt_commands() -> set[str]:
@@ -189,6 +195,15 @@ def _satellite_section() -> ReferenceSection:
     return _section("Satellite Funestras - Kino")
 
 
+def _funestras_section() -> ReferenceSection:
+    """What every Funestra answers, a key column per Funestra."""
+    return _section("Funestras")
+
+
+def _shared_sections() -> tuple[ReferenceSection, ...]:
+    return (_funestras_section(), *_satellite_sections())
+
+
 def _one_row_per_satellite_mode(cmd: str) -> list[CommandRef]:
     """What a satellite's keys and words do differs by its mode, so a command
     of theirs has one row in each mode's section and none anywhere else."""
@@ -200,13 +215,16 @@ def _one_row_per_satellite_mode(cmd: str) -> list[CommandRef]:
     return owning
 
 
-def test_every_scope_shares_one_grid_with_a_key_column_per_side():
+def test_every_scope_shares_one_grid_with_a_key_column_per_funestra():
     """Portrait, Landscape, Both, Active side and Filters ran the same list of
     actions, so they are one grid now: a row names every scope that has the
-    action, and puts each side's key in its own column.  Five sections said it
+    action, and puts each Funestra's key in its own column -- the Main
+    Funestra's too, where it answers the same action.  Five sections said it
     all five times and were free to drift apart."""
     for section in _satellite_sections():
         assert section.key_headers == ("Portrait", "Landscape")
+    assert _funestras_section().key_headers == ("Portrait", "Landscape", "Main")
+    for section in _shared_sections():
         for row in section.rows:
             by_scope = {
                 scope: {c[len(scope) + 1:] for c in row.commands if c.startswith(f"{scope}_")}
@@ -224,33 +242,34 @@ def test_every_scope_shares_one_grid_with_a_key_column_per_side():
                         assert command in row.commands, (
                             f"row {row.description!r} omits {command}"
                         )
-            assert len(row.key_columns) == 2
+            assert len(row.key_columns) == len(section.key_headers)
 
 
 def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
     """A row cannot spell out "portrait next", "next landscape", "both next" and
     "next" without printing its own action four times, so the Say column keeps the
     action alone and the section's note explains how to aim it."""
-    section = _satellite_section()
+    section = _funestras_section()
     nxt = next(r for r in section.rows if "portrait_next" in r.commands)
     assert nxt.voice == ("next",)
-    assert nxt.key_columns == (("Right",), ("D",))
+    assert nxt.key_columns == (("Right",), ("D",), (".",))
     lock = next(r for r in section.rows if "portrait_lock_on" in r.commands)
     assert lock.voice == ("lock", "unlock")
+    assert "main_lock_on" in lock.commands
     sayable_bare = {friendly_voice(phrase) for phrase in VOICE_COMMANDS}
-    for section in _satellite_sections():
+    for section in _shared_sections():
         for word in ("portrait", "landscape", "both"):
             assert word in section.note
         for group in section.groups:
-            if group.title == "The show's own words":
+            if group.title == "Slideshow":
                 continue  # said with the side on purpose: bare "genau" is Genau mode
             for row in group.rows:
-                if row.description.startswith(("Filter by act", "Drop ")):
+                if row.description.startswith(("filter by act", "drop ")):
                     continue  # the filter phrases scope themselves differently; see below
                 for phrase in row.voice:
                     if _collapse_scopes(phrase) not in sayable_bare:
                         continue
-                    assert not {"portrait", "landscape", "both"} & set(phrase.split()), (
+                    assert not {"portrait", "landscape", "both", "main"} & set(phrase.split()), (
                         f"{phrase!r} still carries a scope word"
                     )
 
@@ -258,7 +277,7 @@ def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
 def test_the_grid_carries_every_both_and_active_command():
     """Nothing was dropped in the consolidation: each command the retired "Both",
     "Active side" and "Filters" sections documented is on a row of the grid."""
-    covered = {c for section in _satellite_sections() for row in section.rows for c in row.commands}
+    covered = {c for section in _shared_sections() for row in section.rows for c in row.commands}
     assert {
         "both_prev", "both_next", "both_trash",
         "both_lock_on", "both_lock_off",
@@ -281,7 +300,7 @@ def test_the_grid_carries_every_both_and_active_command():
 def test_the_bare_phrases_read_as_the_say_column():
     """The side-agnostic phrases are what the grid shows — the whole point of
     folding the scope word out is that "next" is the entry a reader sees."""
-    rows = _satellite_section().rows
+    rows = _funestras_section().rows + _satellite_section().rows
     by_command = {cmd: r for r in rows for cmd in r.commands}
     expected = {
         "active_lock_on": "lock",
@@ -300,21 +319,22 @@ def test_the_bare_phrases_read_as_the_say_column():
 
 
 def test_the_f_mode_row_offers_favorites_only_with_a_side_named():
-    f_mode = next(r for r in _satellite_section().rows if "active_fmode" in r.commands)
+    f_mode = next(r for r in _funestras_section().rows if "active_fmode" in r.commands)
 
     assert {"portrait favorites", "landscape favorites"} <= set(f_mode.voice)
     assert "favorites" not in f_mode.voice
 
 
-def test_the_satellite_grid_carries_a_funestras_own_playback_speed():
-    rows = _section("Satellite Funestras - General").rows
+def test_the_shared_grid_carries_every_funestras_own_playback_speed():
+    rows = _funestras_section().rows
     nudge = next(r for r in rows if "portrait_speed_up" in r.commands)
     rate = next(r for r in rows if "portrait_speed_50" in r.commands)
 
     assert nudge.voice == ("playback speed up", "playback slow down", "playback speed down")
-    assert {"active_speed_up", "both_speed_down", "landscape_speed_up"} <= set(nudge.commands)
+    assert {"active_speed_up", "both_speed_down", "landscape_speed_up",
+            "main_player_speed_up", "main_player_speed_down"} <= set(nudge.commands)
     assert {"active_speed_min", "both_speed_max", "active_speed_150", "both_speed_200",
-            "landscape_speed_25"} <= set(rate.commands)
+            "landscape_speed_25", "main_player_speed_50"} <= set(rate.commands)
 
 
 def test_the_reference_calls_the_mode_kino_and_never_video():
@@ -323,8 +343,7 @@ def test_the_reference_calls_the_mode_kino_and_never_video():
             if "video mode" in phrase.lower()]
 
     assert said == []
-    assert [row.description.split(" — ")[0] for row in rows if "kino_activate" in row.commands] == [
-        "Kino mode on both sides at once"]
+    assert [row.description for row in rows if "kino_activate" in row.commands] == ["Kino mode"]
 
 
 def test_mode_named_nav_shows_friendly_names_in_the_legend():
@@ -347,29 +366,29 @@ def test_no_row_tells_you_to_say_genau_by_its_sound_alike():
     assert not [row.description for row in _all_rows() if '"go now' in row.description]
 
 
-def test_main_funestra_video_rows_show_main_nav_in_both_orders():
-    """The Main Funestra prev/next rows surface "main previous"/"main next" and the
-    reverse order, so the Main Funestra's navigation is visible in the
-    legend."""
-    rows = _all_rows()
+def test_the_main_funestra_shares_the_navigation_rows_under_its_own_key_column():
+    """"main previous" and "main next" are the shared grid's "previous" and
+    "next" said of the Main Funestra, so its M and period sit in the third key
+    column of the same rows, and the note on the title says how to aim them."""
+    rows = _funestras_section().rows
     prev = next(r for r in rows if "main_prev" in r.commands)
     nxt = next(r for r in rows if "main_next" in r.commands)
-    assert {"main previous", "previous main"} <= set(prev.voice)
-    assert {"main next", "next main"} <= set(nxt.voice)
+    assert (prev.voice, nxt.voice) == (("previous",), ("next",))
+    assert (prev.key_columns[2], nxt.key_columns[2]) == (("M",), (".",))
+    assert "“next main”" in _funestras_section().note
 
 
 def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
     """Two ways to move the rate, and the row order follows the Genau section's:
     the up/down nudge, then the line that sets it outright.  The nudge is spoken
     only — the keys say "speed up", which follows the OSR2's driver instead."""
-    main_funestra_rows = _section("Main Funestra - Kino").rows
-    descs = [r.description for r in main_funestra_rows]
-    nudge = next(r for r in main_funestra_rows if "main_player_speed_up" in r.commands)
+    rows = _funestras_section().rows
+    descs = [r.description for r in rows]
+    nudge = next(r for r in rows if "main_player_speed_up" in r.commands)
     assert _keys(nudge) == ()
-    assert nudge.voice == ("main playback speed up", "main playback slow down",
-                           "main playback speed down")
+    assert nudge.voice == ("playback speed up", "playback slow down", "playback speed down")
     assert descs.index(nudge.description) + 1 == next(
-        i for i, d in enumerate(descs) if d.startswith("Set video speed")
+        i for i, d in enumerate(descs) if d.startswith("set playback speed")
     )
 
 
@@ -398,23 +417,23 @@ def test_reference_popup_row_shows_toggle_and_close_names():
     assert "hot keys" not in voice  # the OOV recognizer form is hidden under "hotkeys"
 
 
-def test_sound_rows_are_voice_only_and_list_both_words_of_each_pair():
-    """Mute and the volume steps are spoken-only, and each step surfaces both of
-    its synonyms so the legend never implies one of them is the "real" phrase."""
-    rows = _all_rows()
+def test_sound_rows_are_voice_only_and_reach_every_funestra():
+    """Mute and the volume steps are spoken-only, said of every Funestra like
+    the rest of the shared grid, and each step surfaces both of its synonyms so
+    the legend never implies one of them is the "real" phrase."""
+    rows = _funestras_section().rows
     mute = next(r for r in rows if "audio_mute" in r.commands)
     assert _keys(mute) == ()
     # "unmute" is one word to the reader; only the recognizer hears "un mute".
     assert mute.voice == ("mute", "unmute")
-    assert "audio_unmute" in mute.commands
+    assert {"audio_unmute", "portrait_mute", "landscape_unmute", "both_mute",
+            "active_unmute"} <= set(mute.commands)
 
-    # One sound level reaches both of the main slot's sinks — the video's sound
-    # and Genau's flick music — so the steps are one row, in the section that
-    # holds in either of the Main Funestra's modes.
     steps = [r for r in _all_rows() if "audio_volume_up" in r.commands]
-    assert steps == [r for r in _section("Main Funestra - General").rows if "audio_volume_up" in r.commands]
+    assert steps == [r for r in rows if "audio_volume_up" in r.commands]
     assert len(steps) == 1, "expected one volume row"
-    assert "audio_volume_down" in steps[0].commands, "one row documents the pair"
+    assert {"audio_volume_down", "portrait_volume_up", "landscape_volume_down",
+            "both_volume_up", "active_volume_down"} <= set(steps[0].commands)
     assert _keys(steps[0]) == ()
     assert set(steps[0].voice) == {"quiet", "quieter", "loud", "louder"}
 
@@ -432,12 +451,12 @@ def test_latest_is_spoken_only_and_the_older_names_are_gone():
     Both older names are gone rather than kept as synonyms — "recents" especially,
     which the small vosk model has no word for and heard as "reset".
     """
-    for row in _one_row_per_satellite_mode("both_latest"):
-        assert _keys(row) == ()
-        # It sits in the satellite grid like every other action, so its Say column
-        # is the bare "latest" and "both latest" comes from the section's note.
-        assert row.voice == ("latest",)
-        assert {"portrait_latest", "landscape_latest", "active_latest"} <= set(row.commands)
+    [row] = [r for r in _all_rows() if "both_latest" in r.commands]
+    assert _keys(row) == ()
+    # It sits in the shared grid like every other action, so its voice column
+    # is the bare "latest" and "both latest" comes from the section's note.
+    assert row.voice == ("latest",)
+    assert {"portrait_latest", "landscape_latest", "active_latest", "main_latest"} <= set(row.commands)
     assert "premiere" not in VOICE_COMMANDS
     assert "recents" not in VOICE_COMMANDS
 
@@ -497,7 +516,7 @@ def test_the_reference_names_genaus_flicks_in_the_overlays_word():
     seconds = next(row for row in genau.rows if "genau_flick_seconds_up" in row.commands)
 
     assert [row.description for row in genau.rows[:2]] == [
-        f"Previous Genau {flick.one}", f"Next Genau {flick.one}"]
+        f"previous Genau {flick.one}", f"next Genau {flick.one}"]
     assert seconds.voice == (f"{flick.one} seconds 1–60",)
     assert [row.description for row in genau.rows if re.search(r"\bclips?\b", row.description)] == []
     assert [row.description for row in _all_rows()
@@ -515,14 +534,18 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
     assert any(key.lower() == "g" for key in _keys(row))
 
 
-def test_the_sections_are_the_room_the_osr2_and_each_funestra_with_its_modes():
-    """The room's parts, each with what runs on it: the whole room, the OSR2,
-    then the Main Funestra and the two Satellite Funestras, each with the rows
-    that hold in both of its modes first and one section per mode after."""
+def test_the_sections_are_the_dashboard_the_room_the_osr2_every_funestra_and_each_with_its_modes():
+    """The dashboard's buttons in their order, what is left of the room, VR, the
+    OSR2, what every Funestra answers, then the Main Funestra and the two
+    Satellite Funestras, each with the rows that hold in both of its modes
+    first and one section per mode after."""
     titles = [s.title for s in build_reference_sections()]
     assert titles == [
+        "Dashboard",
         "General",
+        "VR",
         "OSR2",
+        "Funestras",
         "Main Funestra - General",
         "Main Funestra - Kino",
         "Main Funestra - Genau",
@@ -548,9 +571,9 @@ def test_what_a_row_explains_is_its_detail_and_what_it_names_is_its_description(
     relief = next(row for row in _all_rows() if "relief_omnipause" in row.commands)
     quit_ = next(row for row in _all_rows() if "quit" in row.commands)
 
-    assert relief.description == "Relief Omnipause"
-    assert relief.detail.startswith("Omnipause and retract together")
-    assert quit_.description == "Quit"
+    assert relief.description == "relief OmniPause"
+    assert relief.detail.startswith("OmniPause and retract together")
+    assert quit_.description == "quit"
     assert quit_.detail == "close everything"
     for row in _all_rows():
         assert " — " not in row.description, row.description
@@ -562,7 +585,7 @@ def test_the_genau_groups_title_takes_the_overlays_word_like_its_rows(monkeypatc
     try:
         genau = next(section for section in importlib.reload(command_reference).build_reference_sections()
                      if section.title == "Main Funestra - Genau")
-        assert (genau.groups[0].title, genau.groups[0].rows[0].description) == ("Bloops", "Previous Genau bloop")
+        assert (genau.groups[0].title, genau.groups[0].rows[0].description) == ("Bloops", "previous Genau bloop")
     finally:
         monkeypatch.undo()
         importlib.reload(command_reference)
@@ -598,7 +621,7 @@ def test_what_only_kino_answers_is_the_kino_mode_section_and_nothing_else_is():
 
 def test_a_satellite_key_means_something_in_each_mode_and_sits_on_the_same_key():
     """What a satellite's key does changes with the side's mode -- a clip in
-    Kino mode, a slide of the show in Origenerator mode -- and the key itself
+    Kino mode, a slide of the slideshow in Origenerator mode -- and the key itself
     does not, so each mode's section carries the key under the same command."""
     keyed = {}
     for section in _satellite_mode_sections():
@@ -607,28 +630,47 @@ def test_a_satellite_key_means_something_in_each_mode_and_sits_on_the_same_key()
     kino, origenerator = keyed.values()
 
     assert kino == origenerator
-    assert {"portrait_next", "landscape_trash", "portrait_lock", "landscape_loop"} <= set(kino)
+    assert {"landscape_trash", "portrait_nav_up", "landscape_loop", "both_cycle_version"} <= set(kino)
 
 
 def test_the_main_funestras_step_and_hold_keys_reach_whatever_is_on_it():
     """M, the period and the comma step and hold what is on the Main Funestra
-    in either mode, so they sit in its General section; the brackets and the
-    apostrophe, which stepped and held the video alone, are gone, and + is the
-    nudge forward beside -."""
+    in either mode, so they sit under its column of the shared grid; the
+    brackets and the apostrophe, which stepped and held the video alone, are
+    gone, and + is the nudge forward beside -: the key itself, no Shift, shown
+    as the + it is thought of as."""
     assert _ahk_binding_for("main_prev") == "m"
     assert _ahk_binding_for("main_next") == "SC034"
     assert _ahk_binding_for("main_lock") == "SC033"
-    assert _ahk_binding_for("main_nudge_next") == "+="
+    assert _ahk_bindings_for("main_nudge_next") == ["=", "+="]
     for retired in ("main_kino_activate", "browse_library", "robot_hand_toggle_learned",
                     "genau_lock", "main_player_lock", "kino_prev", "kino_next"):
         assert _ahk_binding_for(retired) is None, retired
-    general = _section("Main Funestra - General")
-    keyed = {cmd: _keys(row) for row in general.rows for cmd in row.commands if _keys(row)}
+    keyed = {cmd: row.key_columns[2] for row in _funestras_section().rows
+             for cmd in row.commands if row.key_columns[2]}
     assert keyed["main_prev"] == ("M",)
     assert keyed["main_next"] == (".",)
     assert keyed["main_lock"] == (",",)
-    nudge = next(row for row in _section("Main Funestra - Kino").rows if "main_nudge_next" in row.commands)
-    assert _keys(nudge) == ("+",)
+    assert keyed["main_nudge_prev"] == ("-",)
+    assert keyed["main_nudge_next"] == ("+",)
+
+
+def test_the_shifted_and_ctrl_pairs_followed_m_and_the_period():
+    """The video's other versions and the Main Funestra's HUD walk on Shift
+    and Ctrl with the same two keys the bare step uses, as the satellites'
+    shifted and Ctrl pairs ride their own step keys."""
+    assert _ahk_bindings_for("main_player_cycle_version_back") == ["+m"]
+    assert _ahk_bindings_for("main_player_cycle_version") == ["v", "+SC034"]
+    assert _ahk_bindings_for("main_hud_counterclockwise") == ["^m"]
+    assert _ahk_bindings_for("main_hud_clockwise") == ["^SC034"]
+    assert not re.search(r"^[+^]?(\[|\]|SC01A|SC01B)::", script_text(), re.MULTILINE)
+    versions = next(r for r in _section("Main Funestra - Kino").rows
+                    if "main_player_cycle_version_back" in r.commands)
+    assert _keys(versions) == ("Shift+M", "Shift+.", "V")
+    hud = next(r for r in _funestras_section().rows if "main_hud_clockwise" in r.commands)
+    assert hud.key_columns == (("Ctrl+Left", "Ctrl+Right", "Ctrl+Up", "Ctrl+Down"),
+                               ("Ctrl+A", "Ctrl+D", "Ctrl+W", "Ctrl+S"),
+                               ("Ctrl+M", "Ctrl+."))
 
 
 def test_the_backslash_key_offsets_the_hand_and_the_browser_has_its_own_key():
@@ -693,24 +735,30 @@ def test_min_max_value_live_on_their_own_consecutive_set_lines():
     osr2_rows = _section("OSR2").rows
     descs = [r.description for r in osr2_rows]
     for updown, setname in (
-        ("Amplitude up / down", "Set amplitude"),
-        ("Center up / down", "Set center"),
-        ("Speed up / down", "Set speed"),
+        ("amplitude up / down", "set amplitude"),
+        ("center up / down", "set center"),
+        ("speed up / down", "set speed"),
     ):
         # Matched by prefix: a row may carry an explanation after its name (speed
         # says which engine the nudge reaches in kino mode).
         at = next(i for i, d in enumerate(descs) if d.startswith(updown))
         assert descs.index(setname) == at + 1, "Set line must follow its up/down line"
-    set_amp = next(r for r in osr2_rows if r.description == "Set amplitude")
+    set_amp = next(r for r in osr2_rows if r.description == "set amplitude")
     assert "min amp" in set_amp.voice and "max amp" in set_amp.voice
 
 
-def test_human_inspired_motion_follows_the_waveform_and_lists_its_voice_on_before_off():
+def test_cruise_voice_lists_on_before_off():
+    cruise = next(r for r in _all_rows() if "robot_hand_toggle_cruise" in r.commands)
+    assert cruise.voice == ("cruise control", "CC on", "cruise on", "CC off", "cruise off")
+
+
+def test_learned_motion_follows_cruise_with_the_same_shape_of_voice():
     rows = _all_rows()
-    waveform = next(i for i, r in enumerate(rows) if "robot_hand_cycle_shape" in r.commands)
-    learned = rows[waveform + 1]
+    cruise = next(i for i, r in enumerate(rows) if "robot_hand_toggle_cruise" in r.commands)
+    learned = rows[cruise + 1]
     assert "robot_hand_toggle_learned" in learned.commands
-    assert learned.voice == ("human inspired", "human inspired on", "human inspired off")
+    assert learned.voice == ("human inspired", "HI on", "human inspired on", "HI off",
+                             "human inspired off")
     assert _keys(learned) == ()
 
 
@@ -718,8 +766,8 @@ def test_previous_next_pairs_are_ordered_previous_then_next():
     for section in build_reference_sections():
         descs = [r.description for r in section.rows]
         for d in descs:
-            if d.startswith("Previous "):
-                nxt = "Next " + d[len("Previous "):]
+            if d.startswith("previous "):
+                nxt = "next " + d[len("previous "):]
                 if nxt in descs:
                     assert descs.index(d) < descs.index(nxt), f"{d!r} should precede {nxt!r}"
 
@@ -741,10 +789,97 @@ def test_the_clip_navigation_row_quotes_only_what_voice_answers():
 def test_corrected_descriptions():
     """Rows say what the key does to the room, not just what it is called."""
     descs = {r.description for r in _all_rows()}
-    assert {"Disable voice control", "Start / stop broker"} <= descs
-    assert any(d.startswith("Enable / disable human-inspired motion") for d in descs)
+    assert {"disable voice control", "start / stop the Broker"} <= descs
+    assert any(d.startswith("enable / disable cruise control") for d in descs)
     assert "Mute voice control" not in descs
+    assert "Cruise control" not in descs
     assert "Broker start / stop" not in descs
+
+
+_NAMES_AN_ACTION_MAY_OPEN_WITH = frozenset({"OmniPause", "F-mode", "VR", "Kino", "Genau"})
+
+
+def test_an_action_opens_lowercase_unless_it_opens_with_a_name():
+    for row in _all_rows():
+        first = row.description.split()[0]
+        assert first[0].islower() or first in _NAMES_AN_ACTION_MAY_OPEN_WITH, row.description
+
+
+def test_the_dashboard_section_lists_its_buttons_in_the_bars_order():
+    """Left to right along the bar: the session's own, the pair that reaches
+    every Funestra, then the crossing into VR."""
+    dashboard = _section("Dashboard")
+
+    assert [(group.title, [row.description for row in group.rows]) for group in dashboard.groups] == [
+        ("Session", ["quit", "OmniPause / resume", "OmniPause", "relief OmniPause",
+                     "open / close this hotkeys & voice reference", "disable voice control"]),
+        ("Funestra", ["F-mode all", "reset all"]),
+        ("VR", ["enter VR / exit VR"]),
+    ]
+    assert dashboard.rows[-1].detail == ""
+
+
+def test_the_osr2_holds_are_rows_of_their_own_each_with_its_undoing_word():
+    osr2 = _section("OSR2")
+    basic = osr2.groups[0]
+
+    assert [group.title for group in osr2.groups] == ["Basic", "Robot Hand", "Broker"]
+    assert [(row.description, row.voice) for row in basic.rows] == [
+        ("park", ("park", "park it", "unpark")),
+        ("retract", ("retract", "unretract")),
+        ("resume", ("OSR2 resume",)),
+        ("control off", ("OSR2 off",)),
+    ]
+    assert all("robot_hand_release" in row.commands for row in basic.rows[:3])
+
+
+def test_a_hud_corner_row_names_the_four_corners_for_every_funestra():
+    row = next(r for r in _funestras_section().rows if "main_hud_upper_left" in r.commands)
+
+    assert row.voice == ("hud top left", "hud top right", "hud lower left", "hud lower right")
+    assert {"portrait_hud_lower_right", "landscape_hud_upper_right", "both_hud_lower_left",
+            "active_hud_upper_right", "main_hud_lower_left"} <= set(row.commands)
+    assert _keys(row) == ()
+
+
+def test_the_slideshow_group_speaks_origenerators_own_words():
+    origenerator = _section("Satellite Funestras - Origenerator")
+    slideshow = origenerator.groups[-1]
+
+    assert slideshow.title == "Slideshow"
+    assert [row.description for row in slideshow.rows] == [
+        "play a shelf", "play, pause or stop the slideshow", "fix the picture on screen",
+        f"animate the picture as a Genau {genau_flick_noun().one}", "show only the enhanced pictures",
+    ]
+    assert not [row for section in build_reference_sections() for row in section.rows
+                if "show" in row.description.split() and row not in slideshow.rows]
+
+
+def test_the_column_heads_say_hotkey_and_voice_command_and_a_forked_hotkey_head_spans_its_funestras():
+    html = render_reference_html()
+
+    assert (HOTKEY_HEADER, VOICE_HEADER) == ("Hotkey", "Voice command")
+    assert ">Say<" not in html and ">Key<" not in html
+    assert re.search(r'colspan="3"[^>]*>\s*<b[^>]*>Hotkey</b>', html)
+    assert re.search(r'colspan="2"[^>]*>\s*<b[^>]*>Hotkey</b>', html)
+    forked = re.search(r'<tr[^>]*>(?:<td[^>]*><b[^>]*>(Portrait|Landscape|Main)</b></td>){3}</tr>', html)
+    assert forked, "the Funestras' names sit under the spanning Hotkey head"
+
+
+def test_a_sections_note_is_the_tooltip_on_its_title():
+    """The scoping rule no longer sits on the page under the title: the title
+    is the anchor, and the note waits in its tooltip like a row's detail."""
+    html = render_reference_html()
+    details = reference_details()
+    noted = [section for section in build_reference_sections() if section.note]
+
+    assert noted
+    for section in noted:
+        anchor = re.search(rf'<a href="(detail:\d+)"[^>]*>{re.escape(section.title)}</a>', html)
+        assert anchor, section.title
+        assert details[anchor.group(1)] == section.note
+        assert section.note not in html
+    assert len(details) == len(noted) + len([r for r in _all_rows() if r.detail])
 
 
 def test_omnipause_row_uses_esc_and_pause_play_voice():
@@ -863,7 +998,7 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
     "portrait"/"landscape" any more — the section's note aims them, the same way
     it aims "next"."""
     rows = _satellite_section().rows
-    set_row = next(r for r in rows if r.description.startswith("Filter by act"))
+    set_row = next(r for r in rows if r.description.startswith("filter by act"))
     # The acts read under their real names, not the sound-alikes the grammar is
     # built from: an act whose word the speech model has no token for is *heard*
     # as something else, and printing that would teach the reader the wrong word.
@@ -876,7 +1011,7 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
     # Clearing scopes like every other action now, so its phrases derive with the
     # rest and the side word never appears: "portrait clear filter", not "clear
     # portrait".
-    drop_row = next(r for r in rows if r.description.startswith("Drop the filter"))
+    drop_row = next(r for r in rows if r.description.startswith("drop the filter"))
     assert set(drop_row.voice) == {"no filter", "filter off", "clear filter", "show everything"}
     assert VOICE_COMMANDS["portrait clear filter"] == "portrait_no_filter"
     assert VOICE_COMMANDS["clear filter landscape"] == "landscape_no_filter"

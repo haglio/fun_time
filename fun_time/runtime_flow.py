@@ -364,7 +364,7 @@ def apply_enter_omnipause(
     write_flag_file(portrait_paused_file, True)
     write_flag_file(landscape_paused_file, True)
     if origenerator_paused_file is not None:
-        # The hosted Origenerator obeys the same flag idiom: its shows stop
+        # The hosted Origenerator obeys the same flag idiom: its slideshows stop
         # their dwell clocks and playing clips until the room resumes.
         write_flag_file(origenerator_paused_file, True)
     append_command(Path(genau_cmd_file), "PAUSE")

@@ -68,6 +68,7 @@ _NAV_IDS = frozenset(
 #: Where each HUD sits, and whether it is collapsed: read off the dispatch's own
 #: tables, so a side or a verb added there needs nothing added here.
 _HUD_PLACE_IDS = (frozenset(command_dispatch._HUD_MOVES)
+                  | frozenset(command_dispatch._HUD_PLACEMENTS)
                   | frozenset(command_dispatch.MAIN_HUD_TURNS)
                   | frozenset(command_dispatch._HUD_COLLAPSES))
 
@@ -178,9 +179,9 @@ def _satellite_verbs() -> frozenset[str]:
         button.command
         for funestra in ("portrait", "landscape")
         for latest in (None, False, True)
-        for mode in (None, *SatellitesMode)
+        for satellites_mode in (None, *SatellitesMode)
         for row in funestra_rows(funestra, locked=True, favorites_filter=True, latest=latest,
-                               mode=mode)
+                               satellites_mode=satellites_mode)
         for button in row
     )
 
@@ -204,7 +205,7 @@ def test_every_verb_the_console_posts_lands_on_a_handler():
 
 def test_every_verb_a_satellite_hud_posts_lands_on_a_handler():
     """The same surface, for the buttons Fun Time declares on each satellite's
-    HUD: each side's own verbs, its mode pair among them, and the minimize the
+    HUD: each side's own verbs, the side-less mode pair, and the minimize the
     loop answers by name."""
     answered = (_handler_ids() | _loop_branch_ids()
                 | frozenset(command_dispatch._MINIMIZE_ROLES))
@@ -254,7 +255,6 @@ def test_every_handler_is_reachable_from_some_surface():
             if isinstance(getattr(dashboard_actions, name), str) and not name.startswith("_")
         )
         | _CONSOLE_POSTED
-        | _satellite_verbs()
         # The loop translates the idempotent lock forms onto the bare toggles.
         | {"portrait_lock", "landscape_lock"}
     )
@@ -302,9 +302,8 @@ def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode(
     """The routing guard runs ahead of the handler map, so what it may shadow is
     pinned by rule: every side command about what the Funestra plays goes to the
     hosted app, and the session keeps only what is about the Funestra itself --
-    parking its window, the rate it plays at, and its mode, which is how it is
-    taken back.  A side command the session must go on answering while the app
-    has the Funestra has to be argued here."""
+    parking its window, the rate it plays at, and its sound.  A side command the
+    session must go on answering while the app has the Funestra has to be argued here."""
     side_commands = {command for command in command_dispatch._HANDLERS
                      if command.startswith(("portrait_", "landscape_"))}
     kept = {command for command in side_commands
@@ -314,6 +313,6 @@ def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode(
         f"{side}_{own}"
         for side in ("portrait", "landscape")
         for own in ("minimize", "crown", "speed_up", "speed_down", "speed_reset",
-                    "speed_min", "speed_max", "take_osr2", "kino_activate",
-                    "origenerator_activate")
+                    "mute", "unmute", "volume_down", "volume_up",
+                    "speed_min", "speed_max", "take_osr2")
     } & side_commands, sorted(kept)

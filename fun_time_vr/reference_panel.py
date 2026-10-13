@@ -18,7 +18,12 @@ from shared_ui.palette import (
 )
 from shared_ui.spacing import BUTTON_MARK, BUTTON_RADIUS, BUTTON_SIZE
 
-from fun_time.command_reference import ReferenceSection, build_reference_sections
+from fun_time.command_reference import (
+    HOTKEY_HEADER,
+    VOICE_HEADER,
+    ReferenceSection,
+    build_reference_sections,
+)
 from fun_time.dashboard_layout import Rect
 
 __all__ = [
@@ -28,6 +33,7 @@ __all__ = [
     "REFERENCE_WIDTH_PX",
     "ReferencePointer",
     "ReferenceState",
+    "header_lines",
     "note_lines",
     "page_of",
     "paint_reference",
@@ -50,6 +56,7 @@ _HEAD_H = BUTTON_SIZE + _PAD
 _NOTE_LINES_AT_MOST = 3
 # The desktop table's three columns: press, say, and what it does.
 _KEY_X, _SAY_X, _WHAT_X = _PAD, 210, 400
+_NO_KEY = "—"
 
 
 def sections():
@@ -65,6 +72,23 @@ def note_lines(section: ReferenceSection) -> list[str]:
 
 def _note_lines_every_page_keeps() -> int:
     return max((len(note_lines(section)) for section in sections()), default=0)
+
+
+def header_lines(section: ReferenceSection) -> int:
+    """"Hotkey" alone, or with the Funestras' names under it where the column
+    forks into one per Funestra."""
+    return 1 + (len(section.key_headers) > 1)
+
+
+def _header_lines_every_page_keeps() -> int:
+    return max((header_lines(section) for section in sections()), default=0)
+
+
+def _keys_text(row, section: ReferenceSection) -> str:
+    """A row's keys as one line: each Funestra's under its name, a dash where it has none."""
+    if len(section.key_headers) == 1:
+        return " ".join(row.key_columns[0])
+    return " / ".join(" ".join(column) or _NO_KEY for column in row.key_columns)
 
 
 @dataclass(frozen=True)
@@ -84,7 +108,8 @@ def _lines_of(section: ReferenceSection) -> int:  # a title line per group, then
 
 def reference_height() -> int:  # the longest section's, so walking never resizes
     longest = max((_lines_of(section) for section in sections()), default=0)
-    return _HEAD_H + _ROW_H * (1 + _note_lines_every_page_keeps() + longest) + _PAD
+    return _HEAD_H + _ROW_H * (_header_lines_every_page_keeps() + _note_lines_every_page_keeps()
+                               + longest) + _PAD
 
 
 def reference_actions() -> dict[str, Rect]:  # the two, at the top right
@@ -118,10 +143,15 @@ def paint_reference(state: ReferenceState) -> Image.Image:
         )
 
     y = _HEAD_H
-    heads = (" / ".join(section.key_headers), "Say", "What it does")
+    heads = (HOTKEY_HEADER, VOICE_HEADER, "What it does")
     for x, head in zip((_KEY_X, _SAY_X, _WHAT_X), heads, strict=True):
         draw.text((x, y), head, font=row_font, fill=(*TEXT_MUTED, 255))
     y += _ROW_H
+    if header_lines(section) > 1:
+        draw.text((_KEY_X, y), " / ".join(section.key_headers), font=row_font,
+                  fill=(*TEXT_MUTED, 255))
+        y += _ROW_H
+    y += _ROW_H * (_header_lines_every_page_keeps() - header_lines(section))
     for line in note_lines(section):
         draw.text((_PAD, y), line, font=row_font, fill=(*TEXT_MUTED, 255))
         y += _ROW_H
@@ -131,9 +161,8 @@ def paint_reference(state: ReferenceState) -> Image.Image:
         draw.text((_PAD, y), group.title, font=row_font, fill=(*MAGENTA, 255))
         y += _ROW_H
         for row in group.rows:
-            keys = "  ".join(" ".join(column) for column in row.key_columns)
             cells = (
-                (_KEY_X, keys, _SAY_X - _KEY_X - 8),
+                (_KEY_X, _keys_text(row, section), _SAY_X - _KEY_X - 8),
                 (_SAY_X, ", ".join(row.voice), _WHAT_X - _SAY_X - 8),
                 (_WHAT_X, row.description, REFERENCE_WIDTH_PX - _WHAT_X - _PAD),
             )

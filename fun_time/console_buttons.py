@@ -215,7 +215,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
             *transport("main", noun=MAIN_FUNESTRA_NOUN, longer_than_a_step=slot.longer_than_a_step),
             lock_button("main", locked=slot.locked, noun=MAIN_FUNESTRA_NOUN),
             Button("main_fmode", FMODE_ICON,
-                   "F-Mode — play only the videos that have a funscript",
+                   "F-mode — play only the videos that have a funscript",
                    lit=slot.scripted_filter, favorite=True),
             reset_button("main", nothing_to_reset=slot.nothing_to_reset),
             *browse_order_buttons("main", latest=slot.latest, remembered=remembered),
@@ -240,7 +240,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
             Button("main_fmode", FMODE_ICON,
                    "Showing the favorites only — press for all of them"
                    if slot.favorites_filter
-                   else "F-Mode — play only the favorites",
+                   else "F-mode — play only the favorites",
                    lit=slot.favorites_filter, favorite=True),
         )),
         *(() if slot.enhanced_filter is None else (

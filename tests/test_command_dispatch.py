@@ -20,7 +20,8 @@ from funestra.console import (
     OSR2_RETRACTED,
 )
 from funestra.hud_placement import HudCorner, HudEdge
-from funestra.modes import LengthMode, MainMode, SatellitesMode
+from funestra.hud_status import F_MODE_LABEL
+from funestra.modes import LengthMode, MainMode
 
 from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
@@ -32,7 +33,7 @@ from fun_time.command_dispatch import (
 )
 from fun_time.content import Noun, WebProvider, load_content, load_web_providers
 from fun_time.crown import Crown
-from fun_time.event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_PORTRAIT
+from fun_time.event_log import FAVORITE, NOTICE, SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.genaumacher_save import _genaumacher_project_dir
 from fun_time.lock_hud import hud_map_cells
 from fun_time.loopback_server import omnipause_url
@@ -41,7 +42,6 @@ from fun_time.main_list_builds import MainListBuild
 from fun_time.media_actions import ensure_in_favs, make_web_url_from_path
 from fun_time.media_metadata import load_metadata, metadata_path_for, normalize_path_key
 from fun_time.modes import write_playlist_file
-from fun_time.origenerator_switches import RfbSlot
 from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_groups import _satellite_group_index, cancel_lock
 from fun_time.shared_state import BridgeState, SatelliteState
@@ -1264,7 +1264,7 @@ def test_fmode_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Path):
 
     # At the favorites' own level, so it flashes green: F-mode is the filter over
     # them, and green is what the favorites and the funscripts own.
-    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source="system",
+    assert ops == [WindowOp(op="notice", key=f"{F_MODE_LABEL} enabled", source="system",
                             level=FAVORITE)]
 
 
@@ -1278,7 +1278,7 @@ def test_fmode_flashes_a_plain_white_notice_when_it_turns_off(tmp_path: Path):
     _state, ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
 
     assert ops == [
-        WindowOp(op="notice", key="F-Mode disabled", source="system", level=NOTICE),
+        WindowOp(op="notice", key=f"{F_MODE_LABEL} disabled", source="system", level=NOTICE),
     ]
 
 
@@ -1287,7 +1287,7 @@ def test_a_sided_fmode_flashes_on_that_funestras_own_display(tmp_path: Path):
 
     _state, ops, _mock = _dispatch_fmode("landscape_fmode", _make_state(), config)
 
-    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source="landscape",
+    assert ops == [WindowOp(op="notice", key=f"{F_MODE_LABEL} enabled", source="landscape",
                             level=FAVORITE)]
 
 
@@ -1302,7 +1302,7 @@ def test_favorites_said_to_a_side_in_kino_mode_flips_its_f_mode_as_a_show_does(
     assert mock_fmode.call_args.kwargs["funestras"] == (funestra,)
     assert (on.satellite(funestra).favorites_filter, off.satellite(funestra).favorites_filter) == (
         True, False)
-    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source=funestra.label,
+    assert ops == [WindowOp(op="notice", key=f"{F_MODE_LABEL} enabled", source=funestra.label,
                             level=FAVORITE)]
 
 
@@ -2856,6 +2856,17 @@ def test_genau_cycle_shape_prev_writes_cmd_file_when_in_genau_mode(tmp_path: Pat
     assert ops == []
 
 
+def test_genau_toggle_cruise_writes_cmd_file(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(main_mode=MainMode.GENAU)
+
+    new_state, ops = dispatch_command("robot_hand_toggle_cruise", state, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_CRUISE\n"
+    assert new_state == state
+    assert ops == []
+
+
 @pytest.mark.parametrize("command, verb", [
     ("robot_hand_toggle_learned", "TOGGLE_LEARNED"),
     ("robot_hand_learned_on", "LEARNED_ON"),
@@ -2868,6 +2879,28 @@ def test_genau_learned_motion_verbs_write_cmd_file(tmp_path: Path, command, verb
     new_state, ops = dispatch_command(command, state, config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
+    assert new_state == state
+    assert ops == []
+
+
+def test_genau_cruise_on_writes_cmd_file(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(main_mode=MainMode.GENAU)
+
+    new_state, ops = dispatch_command("robot_hand_cruise_on", state, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CRUISE_ON\n"
+    assert new_state == state
+    assert ops == []
+
+
+def test_genau_cruise_off_writes_cmd_file(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(main_mode=MainMode.GENAU)
+
+    new_state, ops = dispatch_command("robot_hand_cruise_off", state, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CRUISE_OFF\n"
     assert new_state == state
     assert ops == []
 
@@ -2928,7 +2961,7 @@ class TestTakingTheOsr2:
 
     def test_a_side_funestra_takes_it_in_origenerator_mode_too(self, tmp_path: Path):
         config = _origenerator_config(tmp_path)
-        state = _in_origenerator_mode()
+        state = _up(satellites_mode="origenerator")
 
         assert not routes_to_origenerator("portrait_take_osr2", state, config)
         assert dispatch_command("portrait_take_osr2", state, config)[0].osr2_funestra == RoomFunestra.PORTRAIT
@@ -3013,7 +3046,7 @@ def test_every_genau_command_is_ignored_with_video_in_the_main_funestra(
     ("robot_hand_center_up", "CENTER_UP"),
     ("robot_hand_amplitude_down", "AMPLITUDE_DOWN"),
     ("robot_hand_cycle_shape", "CYCLE_SHAPE"),
-    ("robot_hand_toggle_learned", "TOGGLE_LEARNED"),
+    ("robot_hand_toggle_cruise", "TOGGLE_CRUISE"),
     ("robot_hand_center_50", "CENTER 50"),
 ])
 def test_the_robot_hands_commands_still_reach_it_with_video_in_the_main_funestra(
@@ -4490,19 +4523,6 @@ def _up(**fields) -> BridgeState:
     return BridgeState(origenerator_ready=True, **fields)
 
 
-def _in_origenerator_mode(*funestras: RoomFunestra, **fields) -> BridgeState:
-    """*funestras* in their Origenerator mode -- both, with none named -- in a
-    session whose hosted app is up."""
-    state = _up(**fields)
-    for funestra in funestras or RoomFunestra.SATELLITES:
-        state = state.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR)
-    return state
-
-
-def _modes(state: BridgeState) -> list[SatellitesMode]:
-    return [state.satellite(funestra).mode for funestra in RoomFunestra.SATELLITES]
-
-
 def _origenerator_cmds(config: BridgeConfig) -> list[str]:
     cmd_file = config.origenerator_cmd_file
     if not cmd_file.exists():
@@ -4510,172 +4530,86 @@ def _origenerator_cmds(config: BridgeConfig) -> list[str]:
     return [line.strip() for line in cmd_file.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-class TestEachSatellitesOwnMode:
-    def test_a_satellites_origenerator_button_hands_that_funestra_alone_to_the_app(
-            self, tmp_path):
-        """That Funestra goes on playing, now the app's show: its own list is kept
-        aside for the way back and its hold let go, so the app decides what
-        holds.  The other Funestra and the browser's place are left as they were."""
+class TestSatellitesModeSwitch:
+    def test_origenerator_activate_hands_the_funestras_to_the_hosted_app(self, tmp_path):
+        """The Funestras are what shows the hosted app's slideshows now, so the
+        switch hands them over playing: each Funestra's own list is kept aside for
+        the way back, and its hold is let go so the app decides what holds."""
         config = _origenerator_config(tmp_path)
         for funestra in RoomFunestra.SATELLITES:
             write_playlist_file(config.satellite(funestra).playlist_file,
                                 [str(tmp_path / f"{funestra.label}.mp4")])
-        state, ops = dispatch_command("portrait_origenerator_activate", _up(), config)
-        assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
-        assert state.rfb_slot is RfbSlot.RFB
-        assert [op for op in ops if op.op != "notice"] == []
-        assert _origenerator_cmds(config) == ["portrait_open_show"]
-        portrait = config.satellite(RoomFunestra.PORTRAIT)
-        assert not portrait.paused_file.exists()
-        assert _cmds(config, RoomFunestra.PORTRAIT) == ["LOCK_OFF"]
-        assert portrait.playlist_file.with_name(f"{portrait.playlist_file.stem}.kept.tsv").exists()
-        assert _cmds(config, RoomFunestra.LANDSCAPE) == []
-
-    def test_a_satellites_kino_button_asks_the_app_to_let_go_of_that_funestra_alone(
-            self, tmp_path):
-        """It comes home once the app has let go of it -- the loop takes it back
-        (take_back_funestras) -- and nothing pauses on the way."""
-        config = _origenerator_config(tmp_path)
-        state, ops = dispatch_command("landscape_kino_activate", _in_origenerator_mode(), config)
-        assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
-        assert _origenerator_cmds(config) == ["landscape_close_show"]
-        assert not config.landscape_paused_file.exists()
-        assert [(op.op, op.key) for op in ops] == [("take_back_funestras", "landscape")]
-
-    def test_a_button_for_the_mode_a_satellite_is_already_in_changes_nothing(self, tmp_path):
-        config = _origenerator_config(tmp_path)
-        state, ops = dispatch_command("portrait_kino_activate", _up(), config)
-        assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert (ops, _origenerator_cmds(config)) == ([], [])
-
-    def test_satellites_kino_mode_brings_both_satellites_home(self, tmp_path):
-        config = _origenerator_config(tmp_path)
-        state, ops = dispatch_command(
-            "satellites_kino_activate",
-            _in_origenerator_mode(rfb_slot=RfbSlot.ORIGENERATOR), config)
-        assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert state.rfb_slot is RfbSlot.ORIGENERATOR
-        assert _origenerator_cmds(config) == ["portrait_close_show", "landscape_close_show"]
-        assert [(op.op, op.key) for op in ops] == [
-            ("take_back_funestras", "portrait"), ("take_back_funestras", "landscape")]
-
-    def test_origenerator_mode_said_of_both_puts_both_satellites_in_it_and_leaves_the_browser(
-            self, tmp_path):
-        config = _origenerator_config(tmp_path)
-        state, _ops = dispatch_command("satellites_origenerator_activate", _up(), config)
-        assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
-        assert state.rfb_slot is RfbSlot.RFB
-        assert _origenerator_cmds(config) == ["portrait_open_show", "landscape_open_show"]
-
-    def test_the_toggle_puts_both_in_origenerator_mode_unless_both_already_are(self, tmp_path):
-        """The F key's own rule for a toggle over several Funestras: it completes
-        the switch or lifts it, never leaving the two halfway."""
-        config = _origenerator_config(tmp_path)
-        state, _ = dispatch_command("satellites_toggle",
-                                    _in_origenerator_mode(RoomFunestra.PORTRAIT), config)
-        assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
-        state, _ = dispatch_command("satellites_toggle", state, config)
-        assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-
-    def test_without_an_origenerator_the_switch_reports_and_stays(self, tmp_path):
-        config = _make_config(tmp_path)
-        state, ops = dispatch_command("portrait_origenerator_activate", _up(), config)
-        assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert any(op.op == "notice" and op.level == logging.WARNING for op in ops)
-
-    def test_a_hosted_app_still_booting_refuses_the_switch_and_says_so(self, tmp_path):
-        """The room opens without waiting that app out, so for the first
-        half-minute of a session Origenerator is made of windows that do not
-        exist.  Every Origenerator button is drawn dim over that stretch and
-        posts nothing; this is the answer for the key and the spoken word,
-        which have no dim button to look at.
-        """
-        config = _origenerator_config(tmp_path)
-
-        for command in ("portrait_origenerator_activate", "satellites_toggle"):
-            state, ops = dispatch_command(command, BridgeState(), config)
-            assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-            assert [(op.op, op.key) for op in ops] == [
-                ("notice", "Origenerator is still starting")]
-            assert _origenerator_cmds(config) == []
-
-    def test_a_switch_clicked_while_paused_still_hands_the_funestra_to_the_hosted_app(
-            self, tmp_path):
-        config = _origenerator_config(tmp_path)
-        write_playlist_file(config.satellite(RoomFunestra.LANDSCAPE).playlist_file,
-                            [str(tmp_path / "landscape.mp4")])
-        state, _ops = dispatch_command("landscape_origenerator_activate",
-                                       _up(omni_paused=True), config)
-        assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
-        assert _origenerator_cmds(config) == ["landscape_open_show"]
-        assert _cmds(config, RoomFunestra.LANDSCAPE) == ["LOCK_OFF"]
-
-    def test_a_press_on_the_side_still_in_kino_mode_stays_with_its_funestra(self, tmp_path):
-        config = _origenerator_config(tmp_path)
-        state, _ = dispatch_command("landscape_next",
-                                    _in_origenerator_mode(RoomFunestra.PORTRAIT), config)
-        assert _origenerator_cmds(config) == []
-        assert _cmds(config, RoomFunestra.LANDSCAPE) == ["NEXT"]
-
-    def test_an_act_said_to_both_sides_in_different_modes_reaches_each_where_its_mode_says(
-            self, tmp_path):
-        config = _origenerator_config(tmp_path)
-
-        with patch("fun_time.command_dispatch.apply_satellite_filter") as rebuild:
-            rebuild.return_value = _filter_result(count=10)
-            state, _ = dispatch_command("filter_both_scene_one",
-                                        _in_origenerator_mode(RoomFunestra.PORTRAIT), config)
-
-        assert _origenerator_cmds(config) == ["filter_portrait_scene_one"]
-        assert [call.kwargs["funestra"] for call in rebuild.call_args_list] == [
-            RoomFunestra.LANDSCAPE]
-        assert state.satellite(RoomFunestra.LANDSCAPE).filter == "scene one"
-
-
-class TestTheRandomFavsBrowsersPlace:
-    def test_origenerator_takes_the_browsers_place_and_leaves_the_funestras_alone(
-            self, tmp_path):
-        """Its main window is restored over the browser and the pair stacked
-        (restack_rfb): the browser out of the band, the hosted window in it."""
-        config = _origenerator_config(tmp_path)
         state, ops = dispatch_command("origenerator_activate", _up(), config)
-        assert state.rfb_slot is RfbSlot.ORIGENERATOR
-        assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert [(op.op, op.key) for op in ops] == [
+        assert state.satellites_mode == "origenerator"
+        assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
             ("show_role", "origenerator"),
             ("activate_role", "origenerator"),
             ("restack_rfb", ""),
         ]
-        assert _origenerator_cmds(config) == []
-        assert _cmds(config, RoomFunestra.PORTRAIT) == []
+        assert _origenerator_cmds(config) == ["OPEN_SHOWS"]
+        for funestra in RoomFunestra.SATELLITES:
+            channel = config.satellite(funestra)
+            assert not channel.paused_file.exists()          # they go on playing
+            assert _cmds(config, funestra) == ["LOCK_OFF"]
+            assert channel.playlist_file.with_name(
+                f"{channel.playlist_file.stem}.kept.tsv").exists()
 
-    def test_the_browser_takes_its_place_back(self, tmp_path):
+    def test_funestras_activate_asks_the_hosted_app_to_let_go_of_them(self, tmp_path):
+        """The Funestras come home once the app has let go of them -- the loop
+        takes them back (take_back_funestras) -- and nothing pauses on the way."""
         config = _origenerator_config(tmp_path)
-        state, ops = dispatch_command(
-            "rfb_activate", _in_origenerator_mode(rfb_slot=RfbSlot.ORIGENERATOR), config)
-        assert state.rfb_slot is RfbSlot.RFB
-        assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
-        assert [(op.op, op.key) for op in ops] == [
-            ("hide_role", "origenerator"), ("restack_rfb", "")]
-        assert _origenerator_cmds(config) == []
+        state = _up(satellites_mode="origenerator")
+        state, ops = dispatch_command("satellites_kino_activate", state, config)
+        assert state.satellites_mode == "kino"
+        assert _origenerator_cmds(config) == ["CLOSE_SHOWS"]
+        assert not config.portrait_paused_file.exists()
+        assert not config.landscape_paused_file.exists()
+        assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
+            ("hide_role", "origenerator"),
+            ("take_back_funestras", ""),
+            ("restack_rfb", ""),
+        ]
 
-    def test_asking_for_what_already_holds_the_place_moves_no_window(self, tmp_path):
+    def test_satellites_toggle_flips_between_the_two(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state, ops = dispatch_command("rfb_activate", _up(), config)
-        assert (state.rfb_slot, ops) == (RfbSlot.RFB, [])
+        state, _ = dispatch_command("satellites_toggle", _up(), config)
+        assert state.satellites_mode == "origenerator"
+        state, _ = dispatch_command("satellites_toggle", state, config)
+        assert state.satellites_mode == "kino"
 
-    def test_a_hosted_app_still_booting_keeps_the_browser_in_its_place(self, tmp_path):
-        config = _origenerator_config(tmp_path)
-        state, ops = dispatch_command("origenerator_activate", BridgeState(), config)
-        assert state.rfb_slot is RfbSlot.RFB
-        assert [(op.op, op.key) for op in ops] == [
-            ("notice", "Origenerator is still starting")]
-
-    def test_without_an_origenerator_the_browser_keeps_its_place(self, tmp_path):
+    def test_without_an_origenerator_the_switch_reports_and_stays(self, tmp_path):
         config = _make_config(tmp_path)
         state, ops = dispatch_command("origenerator_activate", _up(), config)
-        assert state.rfb_slot is RfbSlot.RFB
-        assert [(op.op, op.key) for op in ops] == [("notice", "No Origenerator configured")]
+        assert state.satellites_mode == "kino"
+        assert any(op.op == "notice" and op.level == logging.WARNING for op in ops)
+
+    def test_a_hosted_app_still_booting_refuses_the_switch_and_says_so(self, tmp_path):
+        """The room opens without waiting that app out, so for the first
+        half-minute of a session this mode is made of windows that do not
+        exist.  Both HUDs draw their Origenerator button dim over that stretch
+        and post nothing; this is the answer for the key and the spoken word,
+        which have no dim button to look at.
+        """
+        config = _origenerator_config(tmp_path)
+
+        for command in ("origenerator_activate", "satellites_toggle"):
+            state, ops = dispatch_command(command, BridgeState(), config)
+            assert state.satellites_mode == "kino"
+            assert [(op.op, op.key) for op in ops] == [
+                ("notice", "Origenerator is still starting")]
+            assert _origenerator_cmds(config) == []
+
+    def test_a_switch_clicked_while_paused_still_hands_the_funestras_to_the_hosted_app(
+            self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        for funestra in RoomFunestra.SATELLITES:
+            write_playlist_file(config.satellite(funestra).playlist_file,
+                                [str(tmp_path / f"{funestra.label}.mp4")])
+        state, _ops = dispatch_command("origenerator_activate", _up(omni_paused=True), config)
+        assert state.satellites_mode == "origenerator"
+        assert _origenerator_cmds(config) == ["OPEN_SHOWS"]
+        for funestra in RoomFunestra.SATELLITES:
+            assert _cmds(config, funestra) == ["LOCK_OFF"]
 
 
 class TestOrigeneratorTransport:
@@ -4684,7 +4618,7 @@ class TestOrigeneratorTransport:
         answer, so it goes there as the panel posted it, and the session does
         not step the Funestra on its own account."""
         config = _origenerator_config(tmp_path)
-        state = _in_origenerator_mode()
+        state = _up(satellites_mode="origenerator")
         state, _ = dispatch_command("portrait_next", state, config)
         assert _origenerator_cmds(config) == ["portrait_next"]
         assert _cmds(config, 2) == []
@@ -4694,7 +4628,7 @@ class TestOrigeneratorTransport:
         the map under them -- whatever it declared, it answers, so the session
         routes every one of them without needing to know what it means."""
         config = _origenerator_config(tmp_path)
-        state = _in_origenerator_mode()
+        state = _up(satellites_mode="origenerator")
         presses = ("portrait_prev", "portrait_trash", "portrait_lock", "portrait_reset",
                    "portrait_fmode", "portrait_enhanced", "portrait_seed_loop",
                    "portrait_more_seeds", "portrait_play_video|C:/fixtures/one.png",
@@ -4708,7 +4642,7 @@ class TestOrigeneratorTransport:
         """A rebuild would write the session's own list over the one the hosted
         app handed that Funestra."""
         config = _origenerator_config(tmp_path)
-        state = _in_origenerator_mode()
+        state = _up(satellites_mode="origenerator")
 
         with patch("fun_time.command_dispatch.apply_satellite_filter") as rebuild:
             state, _ = dispatch_command("filter_portrait_scene_one", state, config)
@@ -4721,7 +4655,7 @@ class TestOrigeneratorTransport:
         hosted shows that is both shows, each told in its own side's words --
         and never a rebuild of the Funestras the hosted app is feeding."""
         config = _origenerator_config(tmp_path)
-        state = _in_origenerator_mode()
+        state = _up(satellites_mode="origenerator")
 
         with patch("fun_time.command_dispatch.apply_satellite_filter") as rebuild:
             state, _ = dispatch_command("filter_both_scene_one", state, config)
@@ -4734,7 +4668,7 @@ class TestOrigeneratorTransport:
         """Minimize parks the Funestra's window and speed is the rate it plays at:
         both are the Funestra's, whoever is handing it what to play."""
         config = _origenerator_config(tmp_path)
-        state = _in_origenerator_mode()
+        state = _up(satellites_mode="origenerator")
 
         state, _ops = dispatch_command("portrait_speed_up", state, config)
         state, minimize_ops = dispatch_command("portrait_minimize", state, config)
@@ -4747,7 +4681,7 @@ class TestOrigeneratorTransport:
         config = _origenerator_config(tmp_path)
         for funestra in RoomFunestra.SATELLITES:
             publish_the_show(config, funestra, f_mode=False)
-        state = _in_origenerator_mode()
+        state = _up(satellites_mode="origenerator")
 
         with patch("fun_time.command_dispatch.apply_fmode") as fmode:
             fmode.return_value = SimpleNamespace(funestras=(RoomFunestra.MAIN,), log_message="")
@@ -4761,7 +4695,7 @@ class TestOrigeneratorTransport:
         config = _origenerator_config(tmp_path)
         for funestra in RoomFunestra.SATELLITES:
             publish_the_show(config, funestra, f_mode=True)
-        state = _in_origenerator_mode(main_scripted_filter=True)
+        state = _up(satellites_mode="origenerator", main_scripted_filter=True)
 
         state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
@@ -4774,7 +4708,7 @@ class TestOrigeneratorTransport:
         publish_the_show(config, RoomFunestra.PORTRAIT, f_mode=True)
         publish_the_show(config, RoomFunestra.LANDSCAPE, f_mode=False)
 
-        _dispatch_fmode("fmode_on", _in_origenerator_mode(), config)
+        _dispatch_fmode("fmode_on", _up(satellites_mode="origenerator"), config)
 
         assert _origenerator_cmds(config) == ["landscape_fmode_on"]
 
@@ -4782,7 +4716,7 @@ class TestOrigeneratorTransport:
         config = _origenerator_config(tmp_path)
         publish_the_show(config, RoomFunestra.PORTRAIT, f_mode=True)
         config.satellite(RoomFunestra.LANDSCAPE).origenerator_hud_file.write_text("", encoding="utf-8")
-        state = _in_origenerator_mode(main_scripted_filter=True)
+        state = _up(satellites_mode="origenerator", main_scripted_filter=True)
 
         state, _ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
 
@@ -4796,7 +4730,7 @@ class TestOrigeneratorTransport:
         it knows which shelves its tree has and which detail parts have
         detectors installed."""
         config = _origenerator_config(tmp_path)
-        state = _in_origenerator_mode()
+        state = _up(satellites_mode="origenerator")
         for command in ("landscape_say_favorites", "portrait_say_play_slideshow",
                         "landscape_say_fix_teeth", "portrait_say_enhanced_only"):
             state, _ = dispatch_command(command, state, config)
@@ -4808,11 +4742,11 @@ class TestOrigeneratorTransport:
         ]
 
     def test_no_filter_reaches_the_hosted_show_as_clear_filter(self, tmp_path):
-        """"portrait no filter" drops a Funestra's act filter; over a hosted show
+        """"portrait no filter" drops a Funestra's act filter; over a hosted slideshow
         the same words drop both switches on its HUD.  One phrase, one meaning
         per mode -- and in kino mode the Funestra keeps it."""
         config = _origenerator_config(tmp_path)
-        state = _in_origenerator_mode(portrait=SatelliteState(filter="alpha"))
+        state = _up(portrait=SatelliteState(filter="alpha"), satellites_mode="origenerator")
 
         state, _ = dispatch_command("portrait_no_filter", state, config)
 
@@ -4831,18 +4765,18 @@ class TestOrigeneratorTransport:
         phrase vosk can hear is a phrase this can send — a phrase recognized
         with nowhere to go would be heard and silently dropped."""
         config = _origenerator_config(tmp_path)
-        state = _in_origenerator_mode()
+        state = _up(satellites_mode="origenerator")
         for funestra in ("portrait", "landscape"):
             for phrase in ORIGENERATOR_PHRASES:
                 command = VOICE_COMMANDS[f"{funestra} {phrase}"]
                 assert routes_to_origenerator(command, state, config), command
 
     def test_the_consoles_enhanced_filter_reaches_the_hosted_shows(self, tmp_path):
-        """The shared console draws an enhanced-only switch over a hosted show
+        """The shared console draws an enhanced-only switch over a hosted slideshow
         and posts genau_filter_enhanced for it.  Nothing here answered that verb,
-        so the button lit and the shows played on unchanged (bug 90)."""
+        so the button lit and the slideshows played on unchanged (bug 90)."""
         config = _origenerator_config(tmp_path)
-        state = _in_origenerator_mode()
+        state = _up(satellites_mode="origenerator")
 
         state, _ = dispatch_command("genau_filter_enhanced", state, config)
 
@@ -4868,7 +4802,7 @@ class TestOrigeneratorTransport:
 class TestOmniPauseWithOrigenerator:
     def test_enter_freezes_the_hosted_app_too(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state = _in_origenerator_mode()
+        state = _up(satellites_mode="origenerator")
         state, _ = dispatch_command("enter_omnipause", state, config)
         assert state.omni_paused
         assert config.origenerator_paused_file.read_text(encoding="utf-8") == "1"
@@ -4877,7 +4811,7 @@ class TestOmniPauseWithOrigenerator:
         """The Funestras show the hosted app's slideshows through the mode, so the
         room resuming resumes them as it does in kino mode."""
         config = _origenerator_config(tmp_path)
-        state = _in_origenerator_mode(omni_paused=True)
+        state = _up(satellites_mode="origenerator", omni_paused=True)
         state, _ = dispatch_command("omnipause_toggle", state, config)
         assert not state.omni_paused
         assert config.origenerator_paused_file.read_text(encoding="utf-8") == "0"
@@ -5102,7 +5036,7 @@ class TestASessionThatHostsNoOrigenerator:
         verb then went to an app that was not there, and "portrait next" did
         nothing."""
         config = replace(_origenerator_config(tmp_path), origenerator_enabled=False)
-        state = _in_origenerator_mode()
+        state = _up(satellites_mode="origenerator")
 
         assert not routes_to_origenerator("portrait_next", state, config)
         dispatch_command("portrait_next", state, config)
@@ -5168,11 +5102,11 @@ class TestAClickInACorner:
         assert state.main_hud_corner is HudCorner.UPPER_RIGHT
         assert state.main_hud_minimized is False
 
-    def test_in_origenerator_mode_the_show_wearing_the_hud_is_told_both(self, tmp_path):
+    def test_in_origenerator_mode_the_slideshow_wearing_the_hud_is_told_both(self, tmp_path):
         config = _origenerator_config(tmp_path)
 
         dispatch_command("landscape_hud_restore_at|lower_left",
-                         _in_origenerator_mode(), config)
+                         _up(satellites_mode="origenerator"), config)
 
         assert _origenerator_cmds(config) == ["landscape_hud_corner|lower_left",
                                               "landscape_hud_minimized|0"]
@@ -5226,3 +5160,91 @@ class TestMinimizingAHud:
         assert resolve_active_funestra_command("active_hud_restore", 1) == "main_hud_restore"
         assert (resolve_active_funestra_command("active_hud_minimize", 3)
                 == "landscape_hud_minimize")
+
+
+class TestAHudSaidToACorner:
+    """A spoken corner puts a Funestra's HUD there outright, where the Ctrl keys
+    step it round; it leaves the HUD as open or as collapsed as it was."""
+
+    def test_it_moves_that_funestras_hud_there_and_leaves_it_collapsed_if_it_was(self, tmp_path):
+        config = _make_config(tmp_path)
+        state, _ops = dispatch_command("portrait_hud_minimize", BridgeState(), config)
+
+        state, _ops = dispatch_command("portrait_hud_lower_right", state, config)
+        state, _ops = dispatch_command("main_hud_upper_right", state, config)
+
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_corner is HudCorner.LOWER_RIGHT
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_minimized is True
+        assert state.main_hud_corner is HudCorner.UPPER_RIGHT
+
+    def test_in_origenerator_mode_the_slideshow_wearing_the_hud_is_told(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+
+        dispatch_command("landscape_hud_upper_right", _up(satellites_mode="origenerator"), config)
+
+        assert _origenerator_cmds(config) == ["landscape_hud_corner|upper_right"]
+
+    def test_in_the_headset_an_upper_corner_hangs_it_over_the_top_and_a_lower_one_under(self, tmp_path):
+        config = _make_config(tmp_path, vr_main_funestra=True)
+
+        state, _ops = dispatch_command("portrait_hud_upper_left", BridgeState(), config)
+        state, _ops = dispatch_command("main_hud_lower_right", state, config)
+
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_edge is HudEdge.UPPER
+        assert state.main_hud_edge is HudEdge.LOWER
+
+    def test_a_bare_corner_reaches_whichever_funestra_was_addressed_last(self):
+        assert resolve_active_funestra_command("active_hud_upper_left", 1) == "main_hud_upper_left"
+        assert resolve_active_funestra_command("active_hud_lower_right", 2) == "portrait_hud_lower_right"
+
+
+class TestASatellitesSound:
+    """A satellite opens muted; its sound is told to it alone, the way its speed is."""
+
+    def test_a_satellite_opens_muted_at_full_volume(self):
+        assert BridgeState().satellite(RoomFunestra.PORTRAIT).muted is True
+        assert BridgeState().satellite(RoomFunestra.PORTRAIT).volume == 100
+
+    def test_unmute_and_the_steps_reach_that_satellite_alone(self, tmp_path):
+        config = _make_config(tmp_path)
+
+        state, ops = dispatch_command("portrait_unmute", _make_state(), config)
+        assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 100 0\n"
+        assert ops == [WindowOp(op="notice", key="Volume 100%", source=SOURCE_PORTRAIT)]
+
+        state, ops = dispatch_command("portrait_volume_down", state, config)
+        assert state.satellite(RoomFunestra.PORTRAIT).volume == 90
+        assert config.portrait_cmd_file.read_text(encoding="utf-8").splitlines()[-1] == "SET_VOLUME 90 0"
+        assert ops == [WindowOp(op="notice", key="Volume 90%", source=SOURCE_PORTRAIT)]
+        assert not config.main_funestra_cmd_file.exists()
+        assert not config.landscape_cmd_file.exists()
+
+    def test_a_mute_keeps_the_level_and_a_step_lifts_the_mute(self, tmp_path):
+        config = _make_config(tmp_path)
+        state = _make_state().with_satellite(RoomFunestra.LANDSCAPE, volume=40, muted=False)
+
+        state, ops = dispatch_command("landscape_mute", state, config)
+        assert (state.satellite(RoomFunestra.LANDSCAPE).volume,
+                state.satellite(RoomFunestra.LANDSCAPE).muted) == (40, True)
+        assert config.landscape_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 40 1\n"
+        assert ops == [WindowOp(op="notice", key="Muted", source=SOURCE_LANDSCAPE)]
+
+        state, _ops = dispatch_command("landscape_volume_up", state, config)
+        assert (state.satellite(RoomFunestra.LANDSCAPE).volume,
+                state.satellite(RoomFunestra.LANDSCAPE).muted) == (50, False)
+
+    def test_in_origenerator_mode_the_sound_is_still_the_funestras_own(self, tmp_path):
+        """The slideshow plays on the Funestra, whose volume control this is, so
+        the word goes to the Funestra and never to the hosted app."""
+        config = _origenerator_config(tmp_path)
+
+        dispatch_command("portrait_mute", _up(satellites_mode="origenerator"), config)
+
+        assert _origenerator_cmds(config) == []
+        assert _cmds(config, RoomFunestra.PORTRAIT) == ["SET_VOLUME 100 1"]
+
+    def test_bare_sound_words_reach_whichever_funestra_was_addressed_last(self):
+        assert resolve_active_funestra_command("active_mute", 1) == "audio_mute"
+        assert resolve_active_funestra_command("active_unmute", 1) == "audio_unmute"
+        assert resolve_active_funestra_command("active_volume_down", 1) == "audio_volume_down"
+        assert resolve_active_funestra_command("active_volume_up", 3) == "landscape_volume_up"

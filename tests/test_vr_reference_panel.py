@@ -11,6 +11,7 @@ from fun_time_vr.reference_panel import (
     REFERENCE_WIDTH_PX,
     ReferencePointer,
     ReferenceState,
+    header_lines,
     note_lines,
     page_of,
     paint_reference,
@@ -56,6 +57,16 @@ class TestItIsTheSameReference:
             lines = note_lines(section)
             assert " ".join(lines) == " ".join(section.note.split())
             assert 1 <= len(lines) <= 3
+
+    def test_a_shared_sections_hotkey_head_names_its_funestras_on_a_line_of_its_own(self):
+        """Where the desktop's Hotkey head spans one column per Funestra, the
+        panel gives their names a line under the head, and every page keeps
+        that line's height so walking never resizes."""
+        by_title = {section.title: section for section in build_reference_sections()}
+
+        assert header_lines(by_title["Funestras"]) == 2
+        assert header_lines(by_title["Satellite Funestras - Kino"]) == 2
+        assert header_lines(by_title["Dashboard"]) == 1
 
     def test_no_page_runs_its_rows_past_its_lower_edge(self):
         """A longer note pushes the rows down, and the page has to grow with

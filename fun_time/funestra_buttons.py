@@ -46,7 +46,7 @@ def lock_button(funestra: str, *, locked: bool, noun: str) -> Button:
 def reset_button(funestra: str, *, nothing_to_reset: bool) -> Button:
     return Button(
         f"{funestra}_reset", RESET_ICON,
-        "Reset — no filter, no lock, no loop, no F-Mode, normal speed, shuffled from the top",
+        "Reset — no filter, no lock, no loop, no F-mode, normal speed, shuffled from the top",
         dim=nothing_to_reset, group_break=True)
 
 

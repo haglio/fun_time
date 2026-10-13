@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from funestra.hud_status import F_MODE_LABEL
+
 from fun_time.lock_hud import (
     SatelliteInputs,
     build_hud_panel,
@@ -406,8 +408,8 @@ def test_the_status_line_says_when_f_mode_is_narrowing_the_library():
     on = _panel("portrait", locked=False, current=CUR, index=index, favorites_filter=True)
     off = _panel("portrait", locked=False, current=CUR, index=index)
 
-    assert on.lock_label == "Unlocked · Shuffle · F-Mode"
-    assert "F-Mode" not in off.lock_label
+    assert on.lock_label == f"Unlocked · Shuffle · {F_MODE_LABEL}"
+    assert F_MODE_LABEL not in off.lock_label
 
 
 def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
@@ -421,7 +423,7 @@ def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
         favorites_filter=True, filter_query="beta gamma",
     )
 
-    assert panel.lock_label == "Unlocked · Shuffle · F-Mode · beta gamma"
+    assert panel.lock_label == f"Unlocked · Shuffle · {F_MODE_LABEL} · beta gamma"
 
 
 def test_the_status_line_names_the_axis_that_is_looping():
@@ -883,8 +885,8 @@ def test_a_satellites_panel_says_f_mode_only_when_that_side_is_in_it(tmp_path: P
     landscape = build_satellite_panel(
         SatelliteInputs("landscape", sources=sources, current=current), metadata_root, "")
 
-    assert "F-Mode" in portrait.lock_label
-    assert "F-Mode" not in landscape.lock_label
+    assert F_MODE_LABEL in portrait.lock_label
+    assert F_MODE_LABEL not in landscape.lock_label
     # …and the flag itself rides along, so the Funestra's own button can light.
     assert (portrait.favorites_filter, landscape.favorites_filter) == (True, False)
 

@@ -30,9 +30,9 @@ from funestra.robot_hand import FULL_INTENSITY, RobotHandState
 from .audio_volume import MAX_VOLUME
 from .crown import Crown
 from .mode_plan import STARTUP_MAIN_MODE
-from .origenerator_switches import KINO_MODE, RfbSlot, origenerator_shows
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .room_funestras import RoomFunestra
+from .satellites_mode import STARTUP_SATELLITES_MODE
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,8 @@ class SatelliteState:
     hud_corner: HudCorner = HudCorner.UPPER_LEFT
     hud_edge: HudEdge = HudEdge.LOWER
     hud_minimized: bool = False
+    volume: int = MAX_VOLUME
+    muted: bool = True
     # This satellite's metadata filter query ("" = none), honored by later rebuilds.
     filter: str = ""
     # Per Funestra, because each HUD carries its own F button; here it keeps the favorites.
@@ -72,10 +74,6 @@ class SatelliteState:
     # map; the anchor holds until Enter locks the selection, another command
     # re-homes the satellite, or the satellite drifts off the map.
     nav_anchor: str = ""
-    mode: SatellitesMode = KINO_MODE
-    speed: float = 1.0
-    volume: int = MAX_VOLUME
-    muted: bool = True
 
 
 def _satellite_key(name: str, funestra: RoomFunestra) -> str:
@@ -88,12 +86,14 @@ class BridgeState:
     portrait: SatelliteState = field(default_factory=SatelliteState)
     landscape: SatelliteState = field(default_factory=SatelliteState)
     main_mode: MainMode = STARTUP_MAIN_MODE
-    rfb_slot: RfbSlot = RfbSlot.RFB
+    # The satellite side's own mode axis (see fun_time.satellites_mode):
+    # "kino" is the session as ever, "origenerator" puts the hosted
+    # Origenerator over the RFB and its slideshows over the Funestras.
+    satellites_mode: SatellitesMode = STARTUP_SATELLITES_MODE
     # Whether the hosted Origenerator is up.  Every room opens without waiting
-    # out its boot, so Origenerator is offered nowhere for a session's first
+    # out its boot, so the mode above is closed for a session's first
     # half-minute; the dispatch loop reads the app's status file and writes the
-    # answer here, for whatever draws an Origenerator button and the switches
-    # that refuse.
+    # answer here, for the HUDs drawing the mode pair and the switch that refuses.
     origenerator_ready: bool = False
     # The Main Funestra's own F-mode -- its playlist narrowed to the scripted
     # videos -- and browse order; the satellites' are theirs.
@@ -246,15 +246,14 @@ def _read_back(written: str | None, default: bool | int | float | str) -> bool |
 
 # The keys this file once carried, and what each became.
 _LAST_SESSIONS_KEYS = {
-    "locked2": ("portrait_locked",),
-    "locked3": ("landscape_locked",),
-    "active_side": ("active_funestra",),
-    "main_f_mode": ("main_scripted_filter",),
-    "portrait_f_mode": ("portrait_favorites_filter",),
-    "landscape_f_mode": ("landscape_favorites_filter",),
-    "active_player": ("active_funestra",),
-    "osr2_player": ("osr2_funestra",),
-    "satellites_mode": ("portrait_mode", "landscape_mode", "rfb_slot"),
+    "locked2": "portrait_locked",
+    "locked3": "landscape_locked",
+    "active_side": "active_funestra",
+    "main_f_mode": "main_scripted_filter",
+    "portrait_f_mode": "portrait_favorites_filter",
+    "landscape_f_mode": "landscape_favorites_filter",
+    "active_player": "active_funestra",
+    "osr2_player": "osr2_funestra",
 }
 
 
@@ -274,8 +273,7 @@ def migrate_shared_state(state_file: Path) -> bool:
     if not old_keys:
         return False
     for old in old_keys:
-        for new in _LAST_SESSIONS_KEYS[old]:
-            section.setdefault(new, section[old])
+        section.setdefault(_LAST_SESSIONS_KEYS[old], section[old])
         del section[old]
     _publish(state_file, parser)
     return True

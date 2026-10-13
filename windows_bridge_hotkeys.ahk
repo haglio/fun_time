@@ -111,6 +111,8 @@ b::QueueCommand("broker_panel")
 
 \::QueueCommand("quarter_button")
 -::QueueCommand("main_nudge_prev")
+; The + key is the = key: no Shift, the way M is pressed without one.
+=::QueueCommand("main_nudge_next")
 +=::QueueCommand("main_nudge_next")
 Left::QueueCommand("portrait_prev")
 Right::QueueCommand("portrait_next")
@@ -130,7 +132,7 @@ s::QueueCommand("landscape_lock")
 e::QueueCommand("landscape_loop")
 ; The shifted step keys walk the versions of the clip on screen -- the upscale
 ; the library plays and the original it was made from -- as they do on the Main
-; Funestra's own side (+[ / +] below).  The map's own row, which they used to walk,
+; Funestra's own side (+m / +SC034 below).  The map's own row, which they used to walk,
 ; is still reachable by clicking a thumbnail.
 +Left::QueueCommand("portrait_cycle_version_back")
 +Right::QueueCommand("portrait_cycle_version")
@@ -148,9 +150,8 @@ e::QueueCommand("landscape_loop")
 ; Where each Funestra's HUD sits.  Ctrl and the side's own step keys move that
 ; Funestra's HUD: round the four corners of its picture on the desktop, against a
 ; side of its Funestra in the headset.  The Main Funestra has one pair of keys
-; rather than a cluster, so its HUD walks the ring: Ctrl+[ against the clock,
-; Ctrl+] with it.  The bracket scancodes are bound beside the characters for the
-; same reason the step keys are.
+; rather than a cluster, so its HUD walks the ring on Ctrl and its own step keys:
+; Ctrl+M against the clock, Ctrl+. with it.
 ^Left::QueueCommand("portrait_hud_left")
 ^Right::QueueCommand("portrait_hud_right")
 ^Up::QueueCommand("portrait_hud_up")
@@ -159,10 +160,8 @@ e::QueueCommand("landscape_loop")
 ^d::QueueCommand("landscape_hud_right")
 ^w::QueueCommand("landscape_hud_up")
 ^s::QueueCommand("landscape_hud_down")
-^[::QueueCommand("main_hud_counterclockwise")
-^SC01A::QueueCommand("main_hud_counterclockwise")
-^]::QueueCommand("main_hud_clockwise")
-^SC01B::QueueCommand("main_hud_clockwise")
+^m::QueueCommand("main_hud_counterclockwise")
+^SC034::QueueCommand("main_hud_clockwise")
 
 ; Save clip is the semicolon, bound by scancode because a bare ; opens a comment in AHK.
 SC027::QueueCommand("genaumacher_save")
@@ -184,13 +183,11 @@ r up:: {
 }
 
 ; The Main Funestra: cycle to another same-content version of the current video.
-; The shifted step keys walk the same versions either way, as the shifted step
-; keys on each satellite side do.
+; Its shifted step keys (M and the period) walk the same versions either way, as
+; the shifted step keys on each satellite side do.
 v::QueueCommand("main_player_cycle_version")
-+[::QueueCommand("main_player_cycle_version_back")
-+SC01A::QueueCommand("main_player_cycle_version_back")
-+]::QueueCommand("main_player_cycle_version")
-+SC01B::QueueCommand("main_player_cycle_version")
++m::QueueCommand("main_player_cycle_version_back")
++SC034::QueueCommand("main_player_cycle_version")
 
 ; The Main Funestra: cycle the length of what plays — mixed (everything) / clips / full.
 t::QueueCommand("main_player_toggle_length")

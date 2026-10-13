@@ -18,6 +18,7 @@ from app_support.file_channel import consume_command_file, read_flag
 from app_support.win32 import force_foreground_window, window_exists
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, play_file
+from funestra.hud_placement import HudCorner
 from funestra.modes import NoticeLevel, read_mode
 from funestra.playlist import PlaylistItem
 
@@ -183,6 +184,12 @@ _MAIN_EQUIVALENTS = {
     "shuffle": "main_shuffle",
     "hud_minimize": "main_hud_minimize",
     "hud_restore": "main_hud_restore",
+    **{f"hud_{corner.value}": f"main_hud_{corner.value}" for corner in HudCorner},
+    # And its sound, under the ids its own console posts.
+    "mute": "audio_mute",
+    "unmute": "audio_unmute",
+    "volume_down": "audio_volume_down",
+    "volume_up": "audio_volume_up",
 }
 
 
@@ -697,7 +704,7 @@ class DispatchLoopRunner:
 
     def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command)
-        # A press bound for an Origenerator show steps that show, and booking
+        # A press bound for an Origenerator slideshow steps that slideshow, and booking
         # it here would count a library clip as skipped or discarded.
         if not routes_to_origenerator(command, self.state, self.config):
             self.watch.note_command(command)

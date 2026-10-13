@@ -35,6 +35,11 @@ def read_volume(path: Path) -> int:
         return MAX_VOLUME
 
 
+def volume_verb(volume: int, muted: bool) -> str:
+    """What a Funestra is told: the level, and whether it is muted at that level."""
+    return f"{SET_VOLUME} {volume} {int(muted)}"
+
+
 def publish_audio_level(
     *, main_funestra_cmd_file: Path, genau_cmd_file: Path, audio_volume_file: Path,
     volume: int, muted: bool,
@@ -57,7 +62,7 @@ def publish_audio_level(
     thing on the Main Funestra's channel before it is up to drain any, and a
     whole-file write would land the last and drop the rest.
     """
-    verb = f"{SET_VOLUME} {volume} {int(muted)}"
+    verb = volume_verb(volume, muted)
     append_command(main_funestra_cmd_file, verb)
     append_command(genau_cmd_file, verb)
     write_volume(audio_volume_file, MIN_VOLUME if muted else volume)

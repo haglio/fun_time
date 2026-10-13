@@ -1374,7 +1374,7 @@ class TestOrigeneratorLaunch:
         """Each side's own channel -- the list its Funestra plays, the verbs it
         drains, the status it publishes -- and where the app publishes the
         panel the session puts on that Funestra.  Last session's panel is gone
-        before the app starts, so no side wears a show that is not running."""
+        before the app starts, so no side wears a slideshow that is not running."""
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator"),
         }}))
