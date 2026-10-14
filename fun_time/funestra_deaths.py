@@ -80,7 +80,6 @@ PART_NAMES = {
     "portrait_pid": "the Portrait Funestra",
     "landscape_pid": "the Landscape Funestra",
     "dashboard_pid": "the dashboard",
-    "genau_pid": "Genau",
     "audio_pid": "the audio companion",
     "origenerator_pid": "Origenerator Core",
 }

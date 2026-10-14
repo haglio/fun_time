@@ -35,9 +35,9 @@ def test_the_part_that_closed_is_named_as_he_knows_it():
 
 
 def test_a_pid_windows_has_handed_to_another_program_is_a_part_that_closed():
-    room = _room(genau_pid=60)
+    room = _room(audio_pid=60)
 
-    assert the_part_that_closed(room, created_at={60: 1}.get) == "Genau"
+    assert the_part_that_closed(room, created_at={60: 1}.get) == "the audio companion"
 
 
 def test_a_part_the_session_never_launched_never_closes():
