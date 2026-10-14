@@ -33,6 +33,12 @@ jobs:
       # preflight tells a developer to fetch. The fetcher and the lock sit outside
       # the installed package, so the pinned tag is cloned for them; the tag is
       # this repo's own, read back off the pyproject that pins it.
+      #
+      # Then Origenerator, beside this checkout at its default branch: what Fun
+      # Time relies on of the app it hosts (tests/origenerator_expectations.json)
+      # is held to the origenerator_contract.json Origenerator has shipped, which
+      # tests/origenerator_contract.py reads there. Cloned and not installed --
+      # the check reads one document.
       prepare: |
         set -euo pipefail
         tag="$(python -c 'from pathlib import Path; from app_support.dependencies import pinned_siblings; print(pinned_siblings(Path("pyproject.toml"))["funestra"])')"
@@ -41,3 +47,4 @@ jobs:
           https://github.com/haglio/funestra.git "$RUNNER_TEMP/funestra"
         python "$RUNNER_TEMP/funestra/tools/fetch_libmpv.py" --require
         python -c "import app_support, shared_ui; from funestra.mpv_engine import _import_mpv; _import_mpv(); print('imports OK')"
+        git clone --quiet --depth 1 https://github.com/haglio/origenerator.git ../origenerator
