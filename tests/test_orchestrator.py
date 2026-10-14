@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from app_support.flick_folder import audio_in
 
-from fun_time import orchestrator
+from fun_time import checkout_overrides, orchestrator
 from fun_time.config import load_config
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
@@ -27,7 +27,7 @@ from fun_time.orchestrator import (
     startup_marker_path,
     validate_config,
 )
-from fun_time.project_paths import PROJECT_DIR
+from fun_time.project_paths import PROJECT_DIR, SIBLING_CHECKOUTS_OVERRIDE_NAME
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import VR, request_handoff
 
@@ -439,6 +439,24 @@ class TestTheProcessEdgeReadsTheSwitchesOnce:
 
         launch.wake_the_headset.assert_called_once_with(
             load_config(cfg_path).paths.state_dir, integration=True)
+
+
+class TestTheCheckoutsItsOwnCheckoutNames:
+    def test_the_session_and_its_cover_run_the_sibling_checkouts_this_checkout_names(
+            self, cfg_path: Path, tmp_path: Path, monkeypatch):
+        """Whatever wrote its config: a production checkout from before
+        2026-10-16 reads only the old name of the file that names them."""
+        checkout = tmp_path / "funestra_worktree"
+        (tmp_path / "state").mkdir(exist_ok=True)
+        (tmp_path / "state" / SIBLING_CHECKOUTS_OVERRIDE_NAME).write_text(
+            f"{checkout}\n", encoding="utf-8")
+        monkeypatch.setattr(checkout_overrides, "PROJECT_DIR", tmp_path)
+
+        with _a_launch() as launch:
+            main(["--config", str(cfg_path)])
+
+        assert launch.open_the_cover.call_args.kwargs["sibling_checkouts"] == str(checkout)
+        assert launch.run_windows_bridge.call_args.args[0].paths.sibling_checkouts == (checkout,)
 
 
 class TestTheWayBackOffersNoEsc:

@@ -16,7 +16,7 @@ import os
 from dataclasses import replace
 from pathlib import Path
 
-from .project_paths import PROJECT_DIR, STATE_DIRNAME, override_lines
+from .project_paths import PROJECT_DIR, STATE_DIRNAME, override_lines, sibling_checkouts_named_in
 
 # The same, for the Origenerator checkout a session hosts: one absolute path, or
 # empty to host none at all.
@@ -36,19 +36,25 @@ def _own_override(name: str) -> list[str] | None:
     return override_lines(PROJECT_DIR / STATE_DIRNAME / name)
 
 
-def apply_origenerator_dir_override(config, *, integration: bool = False):
-    """This checkout's origenerator override, applied to a loaded config.
+def apply_this_checkouts_overrides(config, *, integration: bool = False):
+    """This checkout's own overrides, applied to a loaded config.
 
     The branch-config generator runs the PRIMARY checkout's copy of this module
-    (see :func:`fun_time.branch_session.build_branch_config`), so a branch that
-    INTRODUCES the override cannot rely on the generator applying it — the
+    (see :func:`fun_time.branch_session.build_branch_config`), so an override
+    that copy does not read -- one a branch introduces, or names in a way only
+    the branch knows -- cannot rely on the generator applying it: the
     orchestrator calls this at launch instead, against its own checkout.
     """
-    lines = None if integration else _own_override(ORIGENERATOR_DIR_OVERRIDE_NAME)
-    if lines is None:
+    if integration:
         return config
-    new_dir = Path(lines[0]) if lines else None
-    return replace(config, paths=replace(config.paths, origenerator_dir=new_dir))
+    paths = config.paths
+    origenerator = _own_override(ORIGENERATOR_DIR_OVERRIDE_NAME)
+    if origenerator is not None:
+        paths = replace(paths, origenerator_dir=Path(origenerator[0]) if origenerator else None)
+    siblings = sibling_checkouts_named_in(PROJECT_DIR / STATE_DIRNAME)
+    if siblings is not None:
+        paths = replace(paths, sibling_checkouts=tuple(Path(entry) for entry in siblings))
+    return replace(config, paths=paths)
 
 
 def sibling_checkouts_kwargs(sibling_checkouts: str | Path | None) -> dict:

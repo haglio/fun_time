@@ -21,7 +21,11 @@ from pathlib import Path
 import pytest
 
 from fun_time.branch_session import build_branch_config
-from fun_time.project_paths import GENAU_DIRS_OVERRIDE_NAME, STATE_DIRNAME
+from fun_time.project_paths import (
+    SIBLING_CHECKOUTS_OVERRIDE_NAME,
+    STATE_DIRNAME,
+    sibling_checkouts_named_in,
+)
 
 from .integration_support import (
     FunTimeIntegrationSession,
@@ -55,14 +59,15 @@ def _copy_checkout(destination: Path) -> Path:
     for name in _COPIED_FILES:
         shutil.copyfile(CHECKOUT_DIR / name, destination / name)
     # The stand-in models an agent worktree, and an agent worktree carrying
-    # cross-repo work carries its genau_project_dirs override — the orchestrator
-    # applies it to its own imports at launch, so without it a branch that leans
-    # on an unlanded sibling change cannot even start here, while the real
-    # shortcut (launching the checkout that HAS the file) comes up fine.
-    override = CHECKOUT_DIR / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME
-    if override.is_file():
+    # cross-repo work names its sibling checkouts — the orchestrator applies
+    # them to its own imports at launch, so without them a branch that leans on
+    # an unlanded sibling change cannot even start here, while the real shortcut
+    # (launching the checkout that HAS the file) comes up fine.
+    named = sibling_checkouts_named_in(CHECKOUT_DIR / STATE_DIRNAME)
+    if named is not None:
         (destination / STATE_DIRNAME).mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(override, destination / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME)
+        (destination / STATE_DIRNAME / SIBLING_CHECKOUTS_OVERRIDE_NAME).write_text(
+            "\n".join(named), encoding="utf-8")
     return destination
 
 

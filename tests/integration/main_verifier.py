@@ -25,7 +25,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.checkout_overrides import primary_of
 from fun_time.process_tree import kill_process_tree
-from fun_time.project_paths import GENAU_DIRS_OVERRIDE_NAME, STATE_DIRNAME
+from fun_time.project_paths import SIBLING_CHECKOUTS_OVERRIDE_NAME, STATE_DIRNAME
 
 from .commands import CommandFailed, run_command
 from .coverage_map import CoverageMap, source_files, the_machine_s_map
@@ -186,7 +186,7 @@ def _listed(tests: list[str]) -> str:
 def _use_the_installed_siblings(checkout: Path) -> None:
     overrides = checkout / STATE_DIRNAME
     overrides.mkdir(parents=True, exist_ok=True)
-    (overrides / GENAU_DIRS_OVERRIDE_NAME).write_text("", encoding="utf-8")
+    (overrides / SIBLING_CHECKOUTS_OVERRIDE_NAME).write_text("", encoding="utf-8")
 
 
 class MachineBench:

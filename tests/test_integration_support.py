@@ -691,14 +691,14 @@ def test_a_run_launches_this_checkouts_siblings(tmp_path, monkeypatch):
     state_dir.mkdir(exist_ok=True)
     branch = tmp_path / "funestra_branch"
     branch.mkdir(exist_ok=True)
-    (state_dir / "genau_project_dirs.txt").write_text(
+    (state_dir / "sibling_checkouts.txt").write_text(
         f"# a branch of a sibling\n{branch}\n", encoding="utf-8")
     monkeypatch.setattr(integration_support, "PROJECT_DIR", tmp_path)
     config: dict = {}
 
     integration_support.apply_this_checkouts_siblings(config)
 
-    assert config["paths"]["genau_project_dirs"] == [str(branch)]
+    assert config["paths"]["sibling_checkouts"] == [str(branch)]
     assert integration_support.this_checkouts_siblings() == str(branch)
 
 

@@ -49,12 +49,19 @@ from . import preview_marker
 from .branch_seeding import mirror_private_overlays, seed_derived_caches, top_up_thumbnails
 from .checkout_overrides import ORIGENERATOR_DIR_OVERRIDE_NAME, primary_of
 from .child_launch import no_console_window
-from .config import DEFAULT_CONFIG_PATH, ProjectConfig, load_config
+from .config import (
+    DEFAULT_CONFIG_PATH,
+    SIBLING_CHECKOUTS_KEY,
+    SIBLING_CHECKOUTS_KEY_BEFORE_THE_RENAME,
+    ProjectConfig,
+    load_config,
+)
 from .project_paths import (
-    GENAU_DIRS_OVERRIDE_NAME,
     PROJECT_ICON,
+    SIBLING_CHECKOUTS_OVERRIDE_NAME,
     STATE_DIRNAME,
     override_lines,
+    sibling_checkouts_named_in,
 )
 from .shortcuts import read_shortcuts, write_shortcut
 
@@ -152,7 +159,7 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
             "state_dir": paths.state_dir,
             "broker_state_dir": paths.broker_state_dir,
             "genau_config_path": paths.genau_config_path,
-            "genau_project_dirs": paths.sibling_checkouts,
+            SIBLING_CHECKOUTS_KEY: paths.sibling_checkouts,
             "broker_tray_launcher": paths.broker_tray_launcher,
             "origenerator_dir": paths.origenerator_dir,
             "origenerator_python_exe": paths.origenerator_python_exe,
@@ -195,9 +202,14 @@ def _apply_sibling_checkouts_override(raw: dict, state_dir: Path) -> None:
     every other agent's, each silently running an unlanded branch of another
     repo, and nothing ever took it back out.
     """
-    lines = override_lines(state_dir / GENAU_DIRS_OVERRIDE_NAME)
+    lines = sibling_checkouts_named_in(state_dir)
     if lines is not None:
-        raw.setdefault("paths", {})["genau_project_dirs"] = lines
+        raw.setdefault("paths", {})[SIBLING_CHECKOUTS_KEY] = lines
+
+
+def _for_a_branch_from_before_the_rename(raw: dict) -> None:
+    paths = raw["paths"]
+    paths[SIBLING_CHECKOUTS_KEY_BEFORE_THE_RENAME] = paths[SIBLING_CHECKOUTS_KEY]
 
 
 def _apply_origenerator_checkout_override(raw: dict, state_dir: Path) -> None:
@@ -247,6 +259,7 @@ def build_branch_config(
     raw["paths"]["state_dir"] = str(state_dir)
     raw["instance_id"] = real.instance_id
     _apply_sibling_checkouts_override(raw, state_dir)
+    _for_a_branch_from_before_the_rename(raw)
     _apply_origenerator_checkout_override(raw, state_dir)
 
     mirror_private_overlays(primary, worktree)
@@ -369,9 +382,9 @@ class OutOfDateLibrary(RoomWouldNotStart):
     def __init__(self, older: LibraryOlderThanThePin):
         super().__init__(
             f"This branch is built on {older.repo} {older.tag}, and the venv its session runs on has "
-            f"{older.installed_text}, so the session would stop at its first import. Run it out of a "
-            f"{older.repo} checkout at {older.tag} named in state/{GENAU_DIRS_OVERRIDE_NAME}, or rebase it "
-            "onto a main whose pins this computer has installed, first.",
+            f"{older.installed_text}, so the session would stop at its first import. Name a "
+            f"{older.repo} checkout at {older.tag} in state/{SIBLING_CHECKOUTS_OVERRIDE_NAME}, or rebase "
+            "it onto a main whose pins this computer has installed, first.",
             for_him=f"That branch is built on {older.repo} {older.tag}, and this computer has "
                     f"{older.installed_text}, so its room would stop as it starts.")
 
@@ -381,7 +394,7 @@ def _version(text: str) -> tuple[int, ...]:
 
 
 def _named_checkouts(worktree: Path) -> list[str]:
-    return override_lines(worktree / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME) or []
+    return sibling_checkouts_named_in(worktree / STATE_DIRNAME) or []
 
 
 def libraries_older_than_the_pin(worktree: Path) -> list[LibraryOlderThanThePin]:
@@ -413,7 +426,7 @@ class SiblingOlderThanThePin:
 
 def _bring_it_up_to_date(older: SiblingOlderThanThePin) -> str:
     return (f"Rebase that checkout onto {older.repo}'s origin/main, or take it out of "
-            f"state/{GENAU_DIRS_OVERRIDE_NAME}, first.")
+            f"state/{SIBLING_CHECKOUTS_OVERRIDE_NAME}, first.")
 
 
 class OutOfDateSibling(RoomWouldNotStart):
@@ -524,7 +537,7 @@ def _machine_config(primary: Path) -> Path:
 def _checkouts_the_next_launch_runs(worktree: Path, primary: Path, config_path: Path) -> dict:
     real = load_config(config_path, project_dir=primary)
     raw = {"paths": {
-        "genau_project_dirs": [str(path) for path in real.paths.sibling_checkouts],
+        SIBLING_CHECKOUTS_KEY: [str(path) for path in real.paths.sibling_checkouts],
         "origenerator_dir": str(real.paths.origenerator_dir or ""),
     }}
     _apply_sibling_checkouts_override(raw, worktree / STATE_DIRNAME)
@@ -548,11 +561,11 @@ def sibling_checkouts_line(
     """
     checkouts = _checkouts_the_next_launch_runs(
         worktree, primary, config_path or _machine_config(primary))
-    dirs = checkouts["genau_project_dirs"]
+    dirs = checkouts[SIBLING_CHECKOUTS_KEY]
     siblings_line = (
-        "genau_project_dirs: (empty — every program of the session runs the shared "
-        "code its venv installs, the primaries)"
-        if not dirs else "genau_project_dirs: " + os.pathsep.join(dirs)
+        f"{SIBLING_CHECKOUTS_KEY}: (empty — every program of the session runs the "
+        "shared code its venv installs)"
+        if not dirs else f"{SIBLING_CHECKOUTS_KEY}: " + os.pathsep.join(dirs)
     )
     origenerator = checkouts["origenerator_dir"]
     origenerator_line = (

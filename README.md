@@ -140,7 +140,7 @@ Two listeners hear every command (the family's shared listener, `../voice_core`)
 
 - Python (currently launched via Miniconda `pythonw.exe`)
 - Python dependencies are declared in `pyproject.toml` — notably PyQt6 (dashboard), pygame-ce (audio companion), voice_core (the family's listener, which brings vosk + sounddevice; the `voice` extra adds faster-whisper for the second listener), and Pillow / numpy / opencv-python.
-- Kino and Genau are both the Main Funestra, launched as `python -m main_funestra` out of this project's venv (`paths.python_exe`), like the Satellite Funestras. It reads its library folders and device port from this project's config, and Genau's engine settings from Genau's config file (`paths.genau_config_path`). The `../genau` repo ships no code: it holds Genau's settings and the flicks-folder layout it promises (`genau_contract.json`).
+- Kino and Genau run on the Main Funestra, which Fun Time starts as `python -m main_funestra` from this project's venv (`paths.python_exe`), like the Satellite Funestras. It reads its library folders and device port from this project's config, and Genau's engine settings from Genau's config file (`paths.genau_config_path`). The `../genau` repo ships no code: it holds Genau's settings and the flicks-folder layout it promises (`genau_contract.json`).
 
 Install the declared dependencies into the project venv before first use.
 
@@ -186,18 +186,22 @@ What the branch session keeps to itself is `state/`, inside the worktree — its
 command files, playlists, logs, thumbnails and resume point. Everything else is
 the real thing on purpose. See `fun_time/branch_session.py`.
 
-Which checkout of `../funestra` the Funestras run is a per-session fact:
-`paths.genau_project_dirs` puts directories in front of this project's venv
-install, so a branch of *funestra* can be judged the same way. That is per session
-and must be said per session — written into the machine's `fun_time_config.json`
-it reaches the ordinary `launch.vbs` session and every other agent's branch
-session too, each then silently running someone's unlanded branch of another
-repo. So a worktree says it for itself, in `state/genau_project_dirs.txt`: one
-absolute path per line, `#` comments and blank lines ignored. Present, it
-replaces the machine's value outright — an **empty** file is how a branch with
-nothing to do with funestra says "the plain install", which is what you want when
-the machine is pinned to a funestra worktree that predates what has landed. Absent,
-the machine's value rides through as before.
+Which checkouts of the shared code (`../funestra`, `../app_support`,
+`../shared_ui`, `../voice_core`) a session runs is a per-session fact:
+`paths.sibling_checkouts` puts directories in front of this project's venv
+install for every program the session starts, so a branch of *funestra* can be
+judged the same way. That is per session and must be said per session — written
+into the machine's `fun_time_config.json` it reaches the ordinary `launch.vbs`
+session and every other agent's branch session too, each then silently running
+someone's unlanded branch of another repo. So a worktree says it for itself, in
+`state/sibling_checkouts.txt`: one absolute path per line, `#` comments and blank
+lines ignored. Present, it replaces the machine's value outright — an **empty**
+file is how a branch that changes none of them says "the venv's installs", which
+is what you want when the machine is pinned to a worktree that predates what has
+landed. Absent, the machine's value rides through as before. Until 2026-10-16
+both were named for Genau (`paths.genau_project_dirs`,
+`state/genau_project_dirs.txt`), and a session still reads them under those
+names when the new ones are absent.
 
 ### Genaumacher way
 

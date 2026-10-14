@@ -16,7 +16,7 @@ from app_support.logging_utils import configure_logging, install_exception_loggi
 from app_support.win32 import mutex_name, stamp_pinned_shortcuts
 
 from .branch_session import describe_the_session_on_the_taskbar
-from .checkout_overrides import apply_origenerator_dir_override
+from .checkout_overrides import apply_this_checkouts_overrides
 from .config import DEFAULT_CONFIG_PATH, load_config
 from .event_log import open_event_log
 from .funestra_engine import engine_missing_abort
@@ -166,7 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     env = SessionEnvironment.from_environ(os.environ)
     config = load_config(args.config)
-    config = apply_origenerator_dir_override(config, integration=env.integration)
+    config = apply_this_checkouts_overrides(config, integration=env.integration)
     logger = set_up_logging(config)
 
     _mutex_handle = claim_the_session(mutex_name(MUTEX_ORCHESTRATOR, config.instance_id))

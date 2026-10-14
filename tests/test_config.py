@@ -123,6 +123,21 @@ class TestLoadConfig:
         cfg = load_config(path)
         assert cfg.paths.broker_tray_launcher == launcher
 
+    def test_the_sibling_checkouts_are_the_ones_the_config_names(self, cfg_factory, tmp_path: Path):
+        path = cfg_factory({"paths": {"sibling_checkouts": [str(tmp_path / "funestra")]}})
+        assert load_config(path).paths.sibling_checkouts == (tmp_path / "funestra",)
+
+    def test_a_config_from_before_the_rename_still_names_them(self, cfg_factory, tmp_path: Path):
+        """A production checkout from before 2026-10-16 writes them into every
+        preview's config under the name they had while they were Genau's."""
+        path = cfg_factory({"paths": {"genau_project_dirs": [str(tmp_path / "funestra")]}})
+        assert load_config(path).paths.sibling_checkouts == (tmp_path / "funestra",)
+
+    def test_the_new_name_wins_where_a_config_says_both(self, cfg_factory, tmp_path: Path):
+        path = cfg_factory({"paths": {"sibling_checkouts": [str(tmp_path / "new")],
+                                      "genau_project_dirs": [str(tmp_path / "old")]}})
+        assert load_config(path).paths.sibling_checkouts == (tmp_path / "new",)
+
     def test_the_broker_shares_our_state_dir_unless_it_is_named(self, cfg_path: Path):
         """Which every session but a branch one does — one directory, one broker."""
         cfg = load_config(cfg_path)

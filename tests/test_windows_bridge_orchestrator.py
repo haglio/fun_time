@@ -1866,7 +1866,7 @@ class TestClosingScreenLifecycle:
 
         _run_a_session(cfg_factory, tmp_path, events=[], launches=launches,
                        crossing=VR if cover == "transition_screen" else None,
-                       overrides={"paths": {"genau_project_dirs": [str(sibling)]}})
+                       overrides={"paths": {"sibling_checkouts": [str(sibling)]}})
 
         (launched,) = [kwargs for command, kwargs in launches.items() if cover in command]
         assert launched["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(sibling)
@@ -1900,7 +1900,7 @@ class TestClosingScreenLifecycle:
 
         _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True, at_cover_up=esc,
                        launches=launches,
-                       overrides={"paths": {"genau_project_dirs": [str(sibling)]}})
+                       overrides={"paths": {"sibling_checkouts": [str(sibling)]}})
 
         (way_back,) = [kwargs for command, kwargs in launches.items()
                        if "transition_screen" in command]
@@ -2189,7 +2189,7 @@ class TestStartupCancellation:
 
         _cancel_a_launch_arriving_from_vr(
             cfg_factory, tmp_path, word="cancel", popen=launched,
-            overrides={"paths": {"genau_project_dirs": [str(sibling)]}})
+            overrides={"paths": {"sibling_checkouts": [str(sibling)]}})
 
         (way_back,) = [kwargs for command, kwargs in launches.items()
                        if "transition_screen" in command]
