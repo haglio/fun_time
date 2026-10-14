@@ -61,13 +61,13 @@ def published() -> dict:
     pytest.skip("no Origenerator checkout beside this one")
 
 
-def answers(line: str) -> bool:
-    """Whether the hosted app answers *line* on its command file.
+def answers(line: str, document: dict) -> bool:
+    """Whether the hosted app that published *document* answers *line* on its
+    command file.
 
     It names every line it answers, a name in braces standing for whatever
     that line carries there: a file, a row, the words said.
     """
-    document = published()
     case = re.IGNORECASE if document["command_case_blind"] else 0
     return any(re.fullmatch(_as_pattern(template), line, case)
                for template in document["command_lines"])

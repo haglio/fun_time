@@ -14,8 +14,10 @@ This module closes that.  It walks every command the reference can produce —
 every hotkey, every spoken phrase — through the real dispatch, against the
 config a headset session builds and in both of the satellite side's modes, and
 holds each verb that lands to the vocabulary of whatever will actually read it
-in a VR session.  The only way to leave a control dead in the headset is to
-name it, with its reason, in one of the sets here.
+in a VR session -- the hosted Origenerator's through the expectations Fun Time
+publishes of it (tests/origenerator_expectations.py).  The only way to leave a
+control dead in the headset is to name it, with its reason, in one of the sets
+here or in that module's.
 """
 from __future__ import annotations
 
@@ -43,7 +45,6 @@ from fun_time.mode_plan import MAIN_KINO_MODE
 from fun_time.modes import PLAYLIST_PORTRAIT, build_playlist_file_path
 from fun_time.origenerator_switches import KINO_MODE as SATELLITE_KINO_MODE
 from fun_time.origenerator_switches import ORIGENERATOR_MODE
-from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.windows_bridge_dispatch_loop import HANDOFF_COMMANDS
 from fun_time_vr import headset_verbs
@@ -54,7 +55,6 @@ from main_funestra.kino import Kino
 from main_funestra.mode_memory import ModeMemory, RememberedMode
 from main_funestra.notice import NoticeWriter
 from tests.dispatch_sweep import every_command, headset_config, sweep
-from tests.origenerator_contract import answers
 from tests.satellite_fakes import FakeSatelliteEngine
 from tests.test_windows_bridge_dispatch_loop import make_runner
 
@@ -311,67 +311,14 @@ class TestGenau:
         assert not dead, f"funestra's control registry answers none of these: {dead}"
 
 
-# Said to a side in origenerator mode, where what a side is told is the hosted
-# app's to answer, and answered by nothing over there.  Keyed by what the line
-# says after the side.
-_UNANSWERED_BY_THE_HOSTED_APP: dict[str, str] = {
-    "wrong_action": "a show's picture carries no act label to strike, and the app "
-                    "refuses the strike on purpose",
-    "nudge_next": "a show holds each picture or video for as long as its own pace "
-                  "says, and has no ten-second step through one",
-    "nudge_prev": "a show holds each picture or video for as long as its own pace "
-                  "says, and has no ten-second step through one",
-}
-
-
-def _said_after_the_side(line: str) -> str:
-    for funestra in RoomFunestra.SATELLITES:
-        side = f"{funestra.label}_"
-        if line.lower().startswith(side):
-            return line[len(side):].lower()
-    return line
-
-
 class TestTheHostedOrigenerator:
     """In origenerator mode what is said to a side goes to the hosted app, which
-    a headset hosts as the desktop does, and the app says in the document it
-    publishes which lines its command file answers."""
+    a headset hosts as the desktop does.  Every line it is sent is held to what
+    the app answers by tests/test_origenerator_expectations.py."""
 
     def test_it_is_sent_what_is_said_to_a_side_in_its_mode(self, landed):
-        """The precondition, so the check below cannot pass on a channel the
-        sweep never reached."""
         assert landed["kino/origenerator/portrait_next"]["origenerator_cmd_file"] == [
             "portrait_next"]
-
-    def test_every_line_it_is_sent_is_one_it_answers(self, landed):
-        """A line the app does not answer is a control that does nothing at all
-        in its mode, on the monitors and in the headset alike."""
-        dead = {
-            line: where
-            for where, written in landed.items()
-            for line in written.get("origenerator_cmd_file", ())
-            if not answers(line)
-            and _said_after_the_side(line) not in _UNANSWERED_BY_THE_HOSTED_APP
-        }
-        assert not dead, (
-            "the hosted Origenerator answers none of these and none is a stated "
-            f"exception in _UNANSWERED_BY_THE_HOSTED_APP: {dead}"
-        )
-
-    def test_the_stated_exceptions_are_all_lines_it_really_refuses(self):
-        answered = [
-            f"{funestra.label}_{said}"
-            for said in _UNANSWERED_BY_THE_HOSTED_APP
-            for funestra in RoomFunestra.SATELLITES
-            if answers(f"{funestra.label}_{said}")
-        ]
-        assert not answered, (
-            f"_UNANSWERED_BY_THE_HOSTED_APP names lines the app now answers: {answered}"
-        )
-
-    def test_every_exception_says_why(self):
-        for said, reason in _UNANSWERED_BY_THE_HOSTED_APP.items():
-            assert reason.strip(), f"{said} is excepted with no reason"
 
 
 # What the loop in front of the dispatch answers itself, all of it about the
