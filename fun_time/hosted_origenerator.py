@@ -92,6 +92,24 @@ def _the_funestras_it_is_handed(m: LaunchManifest) -> dict[str, HandedFunestra]:
     }
 
 
+def the_session_it_is_handed(m: LaunchManifest, plan: WindowLayoutPlan, *,
+                             in_a_headset: bool) -> dict:
+    return dict(
+        layout_plan=plan,
+        frames_file=m.commands.origenerator_frames_file if in_a_headset else None,
+        input_file=m.commands.origenerator_input_file if in_a_headset else None,
+        command_file=m.commands.origenerator_cmd_file,
+        paused_file=m.commands.origenerator_paused_file,
+        status_file=m.commands.origenerator_status_file,
+        dashboard_cmd_file=m.commands.dashboard_cmd_file,
+        funestras=_the_funestras_it_is_handed(m),
+    )
+
+
+def what_an_adopted_app_is_told(frames_file: str, input_file: str, *, in_a_headset: bool) -> str:
+    return f"{HAND_OVER}|{frames_file}|{input_file}" if in_a_headset else TAKE_BACK
+
+
 def _clear_what_an_earlier_room_left(m: LaunchManifest) -> None:
     for name in (m.commands.origenerator_frames_file,
                  m.commands.origenerator_input_file):
@@ -117,8 +135,9 @@ def bring_up_the_hosted_app(
         _clear_what_an_earlier_room_left(m)
     kept = _adopt_a_kept_origenerator(m)
     if kept is not None:
-        crossing = (f"{HAND_OVER}|{m.commands.origenerator_frames_file}"
-                    f"|{m.commands.origenerator_input_file}") if in_a_headset else TAKE_BACK
+        crossing = what_an_adopted_app_is_told(m.commands.origenerator_frames_file,
+                                               m.commands.origenerator_input_file,
+                                               in_a_headset=in_a_headset)
         append_command(Path(m.commands.origenerator_cmd_file), crossing)
         logger.info("Told the adopted app which room this is: %s", crossing)
         return kept
@@ -128,24 +147,14 @@ def bring_up_the_hosted_app(
     origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
     origenerator_cmd_file.write_text("", encoding="utf-8")
     Path(m.commands.origenerator_status_file).unlink(missing_ok=True)
-    funestras = _the_funestras_it_is_handed(m)
-    for funestra in funestras.values():
+    session = the_session_it_is_handed(m, plan, in_a_headset=in_a_headset)
+    for funestra in session["funestras"].values():
         Path(funestra.hud_file).unlink(missing_ok=True)
-    contract = dict(
-        layout_plan=plan,
-        frames_file=m.commands.origenerator_frames_file if in_a_headset else None,
-        input_file=m.commands.origenerator_input_file if in_a_headset else None,
-        command_file=m.commands.origenerator_cmd_file,
-        paused_file=m.commands.origenerator_paused_file,
-        status_file=m.commands.origenerator_status_file,
-        dashboard_cmd_file=m.commands.dashboard_cmd_file,
-        funestras=funestras,
-    )
     open_app = the_open_origenerator(origenerator_dir)
     if open_app is not None:
         take_it_over(open_app.checkout, pid=open_app.pid,
                      args=the_args_it_declares(open_app.checkout,
-                                               origenerator_session_args(**contract)))
+                                               origenerator_session_args(**session)))
         logger.info("Took over the Origenerator %s from %s (pid %d)",
                     "still starting" if open_app.starting else "already open",
                     open_app.checkout, open_app.pid)
@@ -162,7 +171,7 @@ def bring_up_the_hosted_app(
         # It imports funestra too (the shows' HUD is the Funestras'
         # shared one), so a named checkout reaches it like everyone else.
         project_dirs=project_dirs,
-        **contract,
+        **session,
     )
     logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
     return HostedApp(origenerator_pid, already_open=False, taken_over=False, showing=False)

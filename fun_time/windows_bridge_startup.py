@@ -516,6 +516,9 @@ def origenerator_session_args(
     return args
 
 
+ORIGENERATOR_MODULE = "origenerator"
+
+
 def origenerator_launch_command(
         *, python_exe: str | Path, origenerator_dir: str | Path, **contract) -> list[str]:
     """The argv a session launches the hosted Origenerator with.
@@ -525,7 +528,7 @@ def origenerator_launch_command(
     while production was broken.  ``tests/integration/test_origenerator_launch``
     runs exactly this, with ``--check-launch`` appended.
     """
-    return [NAMER.named_exe(python_exe, "Origenerator"), "-m", "origenerator",
+    return [NAMER.named_exe(python_exe, "Origenerator"), "-m", ORIGENERATOR_MODULE,
             *the_args_it_declares(origenerator_dir, origenerator_session_args(**contract))]
 
 
