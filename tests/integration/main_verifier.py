@@ -183,7 +183,7 @@ def _listed(tests: list[str]) -> str:
     return "\n".join(f"- `{test}`" for test in tests)
 
 
-def _use_the_plain_genau(checkout: Path) -> None:
+def _use_the_installed_siblings(checkout: Path) -> None:
     overrides = checkout / STATE_DIRNAME
     overrides.mkdir(parents=True, exist_ok=True)
     (overrides / GENAU_DIRS_OVERRIDE_NAME).write_text("", encoding="utf-8")
@@ -271,7 +271,7 @@ class MachineBench:
             self.shell(["git", "checkout", "--detach", "--force", commit], cwd=self.checkout)
         else:
             self.shell(["git", "worktree", "add", "--detach", str(self.checkout), commit], cwd=self.primary)
-        _use_the_plain_genau(self.checkout)
+        _use_the_installed_siblings(self.checkout)
 
     def release_to_production(self, commit: str) -> None:
         declared = tomllib.loads((self.primary / "pyproject.toml").read_text(encoding="utf-8"))
@@ -330,7 +330,7 @@ class MachineBench:
         place = self.primary / ".claude" / "worktrees" / fix.checkout
         self.shell(["git", "worktree", "add", "-B", branch_of(fix.checkout), str(place), "origin/main"],
                    cwd=self.primary)
-        _use_the_plain_genau(place)
+        _use_the_installed_siblings(place)
         answer = self.shell([self.claude, "--bg", "--name", fix.title, "--permission-mode", "auto", fix.brief],
                             cwd=place)
         started = _BACKGROUNDED.search(answer)

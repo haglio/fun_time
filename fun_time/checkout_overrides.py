@@ -1,6 +1,6 @@
 """Which sibling checkouts THIS session runs, said by the checkout itself.
 
-``paths.genau_project_dirs`` and ``paths.origenerator_dir`` answer a per-SESSION
+``paths.sibling_checkouts`` and ``paths.origenerator_dir`` answer a per-SESSION
 question that could only be said in the machine's one ``fun_time_config.json``,
 which every session reads: a pin written there for one agent's branch reached
 every other session, and nothing took it back out.  A file in the checkout's own
@@ -51,16 +51,14 @@ def apply_origenerator_dir_override(config, *, integration: bool = False):
     return replace(config, paths=replace(config.paths, origenerator_dir=new_dir))
 
 
-def genau_project_kwargs(project_dirs: str | Path | None) -> dict:
-    """The ``Popen`` environment that decides which checkouts a Funestra runs.
-
-    Every Funestra imports ``funestra`` at the tag this repo's venv installs.
-    Named here, other checkouts go on ``PYTHONPATH``, which Python puts ahead of
-    site-packages, so a session runs a branch of it instead.  A directory that is
-    not there is dropped rather than fatal, because a worktree named in the
-    config outlives the worktree and a session must still start.
+def sibling_checkouts_kwargs(sibling_checkouts: str | Path | None) -> dict:
+    """The ``Popen`` environment that starts a program on these checkouts rather
+    than on what this repo's venv installs: ``PYTHONPATH``, which Python puts
+    ahead of site-packages.  A directory that is not there is dropped rather than
+    fatal, because a worktree named in the config outlives the worktree and a
+    session must still start.
     """
-    paths = [str(Path(part)) for part in str(project_dirs or "").split(os.pathsep)
+    paths = [str(Path(part)) for part in str(sibling_checkouts or "").split(os.pathsep)
              if part and Path(part).is_dir()]
     if not paths:
         return {}

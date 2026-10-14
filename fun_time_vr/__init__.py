@@ -4,7 +4,7 @@ every role into a single OpenXR scene.  See :mod:`fun_time_vr.orchestrator` for
 the entry point and :mod:`fun_time_vr.funestras` for the VR process."""
 import OpenGL
 
-from fun_time.project_paths import apply_genau_dirs_to_sys_path
+from fun_time.project_paths import apply_sibling_checkouts_to_sys_path
 
-apply_genau_dirs_to_sys_path()
+apply_sibling_checkouts_to_sys_path()
 OpenGL.ERROR_CHECKING = False

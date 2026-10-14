@@ -44,7 +44,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _EXPECTED_KEYS: dict[str, set[str]] = {
     "runtime": {
         "config_path", "windows_bridge_log_file", "genau_config_path",
-        "genau_project_dirs", "origenerator_dir",
+        "sibling_checkouts", "origenerator_dir",
     },
     "executables": {"python_exe", "origenerator_python_exe"},
     "media": {
@@ -238,7 +238,7 @@ class TestReadingItBack:
                     "origenerator_cmd_file", "origenerator_paused_file"):
             del data["commands"][key]
         del data["executables"]["origenerator_python_exe"]
-        for key in ("genau_project_dirs", "origenerator_dir"):
+        for key in ("sibling_checkouts", "origenerator_dir"):
             del data["runtime"][key]
         path = write_manifest_data(data, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
 

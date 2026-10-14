@@ -11,7 +11,7 @@ from fun_time.checkout_overrides import (
 from fun_time.config import load_config
 from fun_time.project_paths import (
     GENAU_DIRS_OVERRIDE_NAME,
-    apply_genau_dirs_to_sys_path,
+    apply_sibling_checkouts_to_sys_path,
     override_lines,
 )
 
@@ -42,7 +42,7 @@ def test_the_sys_path_override_only_adds_directories_that_exist(tmp_path, monkey
     monkeypatch.setattr(project_paths, "PROJECT_DIR", tmp_path)
     monkeypatch.setattr(project_paths, "sys", type("s", (), {"path": []})())
 
-    assert apply_genau_dirs_to_sys_path() == [str(real)]
+    assert apply_sibling_checkouts_to_sys_path() == [str(real)]
 
 
 def test_this_checkouts_own_packages_still_come_before_a_siblings(tmp_path, monkeypatch):
@@ -54,7 +54,7 @@ def test_this_checkouts_own_packages_still_come_before_a_siblings(tmp_path, monk
     monkeypatch.setattr(project_paths, "PROJECT_DIR", tmp_path)
     monkeypatch.setattr(project_paths, "sys", type("s", (), {"path": ["", "site-packages"]})())
 
-    apply_genau_dirs_to_sys_path()
+    apply_sibling_checkouts_to_sys_path()
 
     assert project_paths.sys.path[:3] == [str(tmp_path), str(sibling), ""]
 
@@ -63,7 +63,7 @@ def test_a_checkout_with_no_siblings_named_leaves_the_path_as_it_found_it(tmp_pa
     monkeypatch.setattr(project_paths, "PROJECT_DIR", tmp_path)
     monkeypatch.setattr(project_paths, "sys", type("s", (), {"path": ["", "site-packages"]})())
 
-    apply_genau_dirs_to_sys_path()
+    apply_sibling_checkouts_to_sys_path()
 
     assert project_paths.sys.path == ["", "site-packages"]
 

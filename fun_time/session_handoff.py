@@ -16,7 +16,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import mutex_name
 
 from fun_time import preview_marker
-from fun_time.checkout_overrides import genau_project_kwargs
+from fun_time.checkout_overrides import sibling_checkouts_kwargs
 from fun_time.child_launch import no_child_log, no_console_window, open_child_log
 from fun_time.config import load_config
 from fun_time.overlay_progress import (
@@ -37,8 +37,8 @@ from fun_time.single_instance import (
     let_the_session_go,
 )
 
-# No genau_project_dirs override here: the dispatch loop imports THIS, and the
-# session started below applies its own.  Named, not __name__: `-m` runs this.
+# No sibling checkouts put on sys.path here: the dispatch loop imports THIS, and
+# the session started below applies its own.  Named, not __name__: `-m` runs this.
 logger = logging.getLogger("fun_time.session_handoff")
 
 HANDOFF_REQUEST_NAME = "session_handoff.txt"
@@ -252,26 +252,26 @@ def say_the_crossing_is_cancelled(state_dir: str | Path) -> None:
 
 
 def launch_crossing_cover(
-    state_dir: str | Path, target: HandoffTarget, *, project_dirs: str,
+    state_dir: str | Path, target: HandoffTarget, *, sibling_checkouts: str,
 ) -> subprocess.Popen:
     """Raise the monitors' crossing cover and leave it standing."""
     return _launch_transition_screen(
-        raise_crossing_cover(state_dir, target), project_dirs=project_dirs,
+        raise_crossing_cover(state_dir, target), sibling_checkouts=sibling_checkouts,
     )
 
 
-def launch_the_way_back_cover(state_dir: str | Path, *, project_dirs: str) -> subprocess.Popen:
+def launch_the_way_back_cover(state_dir: str | Path, *, sibling_checkouts: str) -> subprocess.Popen:
     path = crossing_progress_path(state_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_CANCELED_LINE, encoding="utf-8")
-    return _launch_transition_screen(path, project_dirs=project_dirs)
+    return _launch_transition_screen(path, sibling_checkouts=sibling_checkouts)
 
 
-def _launch_transition_screen(progress_file: Path, *, project_dirs: str) -> subprocess.Popen:
+def _launch_transition_screen(progress_file: Path, *, sibling_checkouts: str) -> subprocess.Popen:
     return subprocess.Popen([
         NAMER.named_exe(sys.executable, "TransitionScreen"),
         "-m", "fun_time.transition_screen", str(progress_file),
-    ], **no_child_log(), **no_console_window(), **genau_project_kwargs(project_dirs))
+    ], **no_child_log(), **no_console_window(), **sibling_checkouts_kwargs(sibling_checkouts))
 
 
 def drop_crossing_cover(state_dir: str | Path) -> None:

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from .project_paths import PROJECT_DIR, PROJECT_ICON, apply_genau_dirs_to_sys_path
+from .project_paths import PROJECT_DIR, PROJECT_ICON, apply_sibling_checkouts_to_sys_path
 
-apply_genau_dirs_to_sys_path()
+apply_sibling_checkouts_to_sys_path()
 
 from .config import DEFAULT_CONFIG_PATH, ProjectConfig, load_config  # noqa: E402
 

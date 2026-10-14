@@ -30,14 +30,14 @@ import pytest
 from PyQt6.QtWidgets import QApplication
 
 # The same sibling-checkout override the orchestrator applies at launch: in a
-# worktree whose branch leans on unlanded genau/funestra changes, the suite
+# worktree whose branch leans on unlanded changes to the shared code, the suite
 # must test against those checkouts — they are what the verification session
 # runs — and without this the imports below resolve the primaries and a
 # cross-repo branch cannot even collect.  A no-op in the primary and in CI,
 # where no override file exists.
-from fun_time.project_paths import apply_genau_dirs_to_sys_path
+from fun_time.project_paths import apply_sibling_checkouts_to_sys_path
 
-apply_genau_dirs_to_sys_path()
+apply_sibling_checkouts_to_sys_path()
 
 from app_support import haglio_settings
 

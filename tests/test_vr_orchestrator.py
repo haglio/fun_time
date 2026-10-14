@@ -278,7 +278,7 @@ class TestOrigeneratorInVr:
                    and ast.unparse(n.func) == "bring_up_the_hosted_app"]
         given = {kw.arg: ast.unparse(kw.value) for kw in call.keywords}
 
-        assert given["project_dirs"] == "manifest.runtime.genau_project_dirs"
+        assert given["sibling_checkouts"] == "manifest.runtime.sibling_checkouts"
         # No monitor in here to put the app's own window on, so the launch asks
         # for its picture instead.
         assert given["in_a_headset"] == "True"
@@ -1076,7 +1076,7 @@ class TestTheAudioCompanionInVr:
 
         assert given["audio_device"] == "config.vr.audio_device"
         assert given["audio_folder"] == "manifest.media.genau_audio"
-        assert given["project_dirs"] == "manifest.runtime.genau_project_dirs"
+        assert given["sibling_checkouts"] == "manifest.runtime.sibling_checkouts"
 
     def test_it_is_launched_before_the_funestra_and_killed_with_it(self):
         calls = _call_lines_in_run_vr_bridge()
@@ -1740,7 +1740,7 @@ class TestOpeningAVrSession:
         and this one is all the headset has until the next session is."""
         sibling = config.paths.state_dir.parent / "sibling_checkout"
         sibling.mkdir(parents=True, exist_ok=True)
-        named = replace(config, paths=replace(config.paths, genau_project_dirs=(sibling,)))
+        named = replace(config, paths=replace(config.paths, sibling_checkouts=(sibling,)))
         way_back = MagicMock()
 
         _end_a_vr_session(
@@ -1749,7 +1749,7 @@ class TestOpeningAVrSession:
             launch_the_way_back_cover=way_back,
         )
 
-        assert way_back.call_args.kwargs["project_dirs"] == str(sibling)
+        assert way_back.call_args.kwargs["sibling_checkouts"] == str(sibling)
 
     def test_on_the_way_back_into_vr_the_headset_stays_covered_and_the_runtime_up(
         self, config,

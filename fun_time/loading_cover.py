@@ -13,7 +13,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from .checkout_overrides import genau_project_kwargs
+from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
 from .loading_screen import WINDOW_TITLE
 from .overlay_progress import (
@@ -68,7 +68,7 @@ class LoadingCover:
         self.progress_file.unlink(missing_ok=True)
 
 
-def open_the_cover(state_dir: Path, *, show_overlays: bool, project_dirs: str,
+def open_the_cover(state_dir: Path, *, show_overlays: bool, sibling_checkouts: str,
                    cancelable: bool = True) -> LoadingCover:
     """The loading screen over every monitor, its window resolved."""
     returning = returning_from_a_crossing(state_dir)
@@ -95,7 +95,7 @@ def open_the_cover(state_dir: Path, *, show_overlays: bool, project_dirs: str,
         ],
         **no_child_log(),
         **no_console_window(),
-        **genau_project_kwargs(project_dirs),
+        **sibling_checkouts_kwargs(sibling_checkouts),
     )
     tie_to_this_process(loading_proc)
     logger.info("Loading screen launched (pid=%d)", loading_proc.pid)

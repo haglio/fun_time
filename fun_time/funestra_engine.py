@@ -8,7 +8,7 @@ from pathlib import Path
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time import preview_marker
-from fun_time.checkout_overrides import genau_project_kwargs
+from fun_time.checkout_overrides import sibling_checkouts_kwargs
 from fun_time.project_paths import PROJECT_ICON
 
 ENGINE_DLL = "libmpv-2.dll"
@@ -22,12 +22,12 @@ _WHERE_THE_SHARED_COPY_IS = (
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
 
-def _ask(exe, code: str, project_path: str, *, run: Runner):
+def _ask(exe, code: str, sibling_checkouts: str, *, run: Runner):
     return run(
         [str(exe), "-c", code],
         capture_output=True,
         text=True,
-        **genau_project_kwargs(project_path),
+        **sibling_checkouts_kwargs(sibling_checkouts),
         **hidden_subprocess_kwargs(),
     )
 
@@ -42,10 +42,10 @@ def _shared_engine_copy(python_exe, *, run: Runner) -> Path | None:
     return found / ENGINE_DLL if found else None
 
 
-def _vendor_the_engine(exe, project_path: str, *, shared: Path | None, run: Runner) -> None:
+def _vendor_the_engine(exe, sibling_checkouts: str, *, shared: Path | None, run: Runner) -> None:
     if shared is None or not shared.is_file():
         return
-    looks_in = _one_path(_ask(exe, _WHERE_IT_LOOKS_FIRST, project_path, run=run))
+    looks_in = _one_path(_ask(exe, _WHERE_IT_LOOKS_FIRST, sibling_checkouts, run=run))
     if looks_in is None or (looks_in / ENGINE_DLL).is_file():
         return
     looks_in.mkdir(parents=True, exist_ok=True)
@@ -69,11 +69,11 @@ def _refusal(exe, said: str) -> str:
 
 
 def engine_error(config, *, run: Runner = subprocess.run) -> str | None:
-    exe, project_path = Path(config.paths.python_exe), config.paths.genau_project_path
-    if _ask(exe, _IMPORT_THE_ENGINE, project_path, run=run).returncode == 0:
+    exe, sibling_checkouts = Path(config.paths.python_exe), config.paths.sibling_checkouts_path
+    if _ask(exe, _IMPORT_THE_ENGINE, sibling_checkouts, run=run).returncode == 0:
         return None
-    _vendor_the_engine(exe, project_path, run=run, shared=_shared_engine_copy(exe, run=run))
-    result = _ask(exe, _IMPORT_THE_ENGINE, project_path, run=run)
+    _vendor_the_engine(exe, sibling_checkouts, run=run, shared=_shared_engine_copy(exe, run=run))
+    result = _ask(exe, _IMPORT_THE_ENGINE, sibling_checkouts, run=run)
     return None if result.returncode == 0 else _refusal(exe, _why(result.stderr))
 
 

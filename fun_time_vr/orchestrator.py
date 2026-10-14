@@ -30,7 +30,7 @@ from funestra.flick_folder import vr_flicks_in
 
 from fun_time.branch_session import describe_the_session_on_the_taskbar
 from fun_time.broker_control import write_broker_command
-from fun_time.checkout_overrides import genau_project_kwargs
+from fun_time.checkout_overrides import sibling_checkouts_kwargs
 from fun_time.child_launch import open_child_log
 from fun_time.command_dispatch import genau_flick_shapes
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
@@ -225,15 +225,15 @@ def validate_vr_config(config) -> None:
 
 def launch_vr_funestras(
     *, python_exe: str | Path, manifest_path: Path, log_file: Path,
-    project_dirs: str | None = None,
+    sibling_checkouts: str | None = None,
 ) -> subprocess.Popen:
-    """Start the process that IS this session's four Funestras.  *project_dirs*
+    """Start the process that IS this session's four Funestras.  *sibling_checkouts*
     has to reach it: it draws every HUD and both panels out of ``funestra``
     and ``shared_ui``, and would otherwise run the landed copies."""
     command = [str(python_exe), "-m", VR_FUNESTRAS_MODULE, "--manifest", str(manifest_path)]
     with open_child_log(log_file, command) as log:
         return subprocess.Popen(command, stdout=log, stderr=log,
-                                **genau_project_kwargs(project_dirs),
+                                **sibling_checkouts_kwargs(sibling_checkouts),
                                 **hidden_subprocess_kwargs())
 
 
@@ -565,7 +565,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         progress.advance("companions")
         # First of them, as on the desktop: the slowest boot, waited on by nothing.
         hosted = bring_up_the_hosted_app(
-            manifest, project_dirs=manifest.runtime.genau_project_dirs,
+            manifest, sibling_checkouts=manifest.runtime.sibling_checkouts,
             in_a_headset=True)
         if hosted is not None:
             hosted_taken_over = hosted.taken_over
@@ -578,7 +578,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             config_path=manifest.runtime.config_path,
             audio_folder=manifest.media.genau_audio,
             audio_device=config.vr.audio_device,
-            project_dirs=manifest.runtime.genau_project_dirs,
+            sibling_checkouts=manifest.runtime.sibling_checkouts,
         )
         logger.info("Audio companion launched (pid=%d)", audio.pid)
         children["audio_pid"] = ChildProcess(
@@ -599,7 +599,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             python_exe=manifest.executables.python_exe,
             manifest_path=manifest_path,
             log_file=state_dir / "vr_funestras.log",
-            project_dirs=manifest.runtime.genau_project_dirs,
+            sibling_checkouts=manifest.runtime.sibling_checkouts,
         )
         logger.info("headset launched (pid=%d)", funestra.pid)
         children["vr_funestras_pid"] = ChildProcess(
@@ -714,7 +714,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         held = back_to_vr = False
         if (crossing := pending_handoff(state_dir)) is not None:
             launch_crossing_cover(state_dir, crossing,
-                                  project_dirs=manifest.runtime.genau_project_dirs)
+                                  sibling_checkouts=manifest.runtime.sibling_checkouts)
         # Up first and up through everything below.  A session that ended
         # BECAUSE the Funestra went has nothing left to draw with, and nothing to
         # hide: the cut to the runtime's environment already came.
@@ -739,7 +739,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             if back_to_vr:
                 logger.info("Esc called the quit off; opening Fun Time VR again")
                 launch_the_way_back_cover(
-                    state_dir, project_dirs=manifest.runtime.genau_project_dirs,
+                    state_dir, sibling_checkouts=manifest.runtime.sibling_checkouts,
                 )
                 request_handoff(state_dir, VR, cancelable=False)
                 hold_the_headset(state_dir, stop_runtime=False)

@@ -118,6 +118,17 @@ def _fake_core(**kwargs):
     return "kino"
 
 
+def _name_a_sibling_checkout(manifest_path, checkout: Path) -> Path:
+    checkout.mkdir()
+    manifest = configparser.ConfigParser()
+    manifest.optionxform = str
+    manifest.read(manifest_path, encoding="utf-8")
+    manifest["runtime"]["sibling_checkouts"] = str(checkout)
+    with Path(manifest_path).open("w", encoding="utf-8") as fp:
+        manifest.write(fp)
+    return checkout
+
+
 def _fake_core_in(mode: MainMode):
     """A core session that resumes into *mode* — what its real one returns."""
     def launch(**kwargs):
@@ -404,10 +415,10 @@ class TestRunStartupSequence:
             "dashboard_cmd_file": str(cfg.paths.state_dir / "dashboard_cmd.txt"),
             # Which checkouts to run — empty in an ordinary session, so the Funestra
             # resolves through its venv.
-            "project_dirs": "",
+            "sibling_checkouts": "",
         }
 
-    def test_the_main_funestra_runs_out_of_fun_times_own_python_whatever_genau_python_the_config_names(
+    def test_the_main_funestra_starts_from_fun_times_own_python_whatever_genau_python_the_config_names(
             self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path, {
             "paths": {"genau_python_exe": str(tmp_path / "genau" / "pythonw.exe")}})
@@ -448,16 +459,9 @@ class TestRunStartupSequence:
         # And Genau's own config beside it, for the engine's numbers.
         assert main_funestra_kwargs["genau_config_path"] == str(genau_config)
 
-    def test_the_main_funestra_is_run_out_of_the_named_checkouts(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        checkout = tmp_path / "a_worktree"
-        checkout.mkdir()
-        manifest = configparser.ConfigParser()
-        manifest.optionxform = str
-        manifest.read(manifest_path, encoding="utf-8")
-        manifest["runtime"]["genau_project_dirs"] = str(checkout)
-        with Path(manifest_path).open("w", encoding="utf-8") as fp:
-            manifest.write(fp)
+    def test_the_main_funestra_starts_with_the_named_checkouts(self, cfg_factory, tmp_path):
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        checkout = _name_a_sibling_checkout(manifest_path, tmp_path / "a_worktree")
         main_funestra_kwargs: dict = {}
 
         def capture_main_funestra(**kwargs):
@@ -467,7 +471,18 @@ class TestRunStartupSequence:
         with _sequencer_stubs(launch_main_funestra=dict(side_effect=capture_main_funestra), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert main_funestra_kwargs["project_dirs"] == str(checkout)
+        assert main_funestra_kwargs["sibling_checkouts"] == str(checkout)
+
+    def test_the_satellites_start_with_the_named_checkouts(self, cfg_factory, tmp_path):
+        """They import funestra too: left out, they ran the venv's install while
+        every other part of the session ran the branch."""
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        checkout = _name_a_sibling_checkout(manifest_path, tmp_path / "a_worktree")
+
+        with _sequencer_stubs() as stubs:
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert stubs.start_core_session.call_args.kwargs["sibling_checkouts"] == str(checkout)
 
     def test_positions_satellite_windows_and_applies_topmost_policy(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)

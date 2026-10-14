@@ -75,7 +75,7 @@ class TestWhereTheAppsOwnWindowGoes:
         with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors), \
              patch("fun_time.hosted_origenerator.launch_origenerator",
                    side_effect=lambda **kw: captured.update(kw) or 91):
-            bring_up_the_hosted_app(manifest, project_dirs="")
+            bring_up_the_hosted_app(manifest, sibling_checkouts="")
 
         with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors):
             expected = screen_layout(config.layout, rfb_slot_strip=True).plan.random_favs_browser
@@ -89,7 +89,7 @@ class TestWhereTheAppsOwnWindowGoes:
 
         with patch("fun_time.window_layout.enumerate_monitors",
                    side_effect=AssertionError("the monitors were read")):
-            assert bring_up_the_hosted_app(manifest, project_dirs="") is None
+            assert bring_up_the_hosted_app(manifest, sibling_checkouts="") is None
 
 
 class TestHandingTheWindowToTheHeadset:
@@ -108,7 +108,7 @@ class TestHandingTheWindowToTheHeadset:
         launching = patch("fun_time.hosted_origenerator.launch_origenerator",
                           side_effect=lambda **kw: captured.update(kw) or 91)
         with looking, launching:
-            bring_up_the_hosted_app(manifest, project_dirs="", in_a_headset=in_a_headset)
+            bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=in_a_headset)
         return config, captured
 
     def test_a_headset_session_names_both_files(self, cfg_factory, tmp_path):
@@ -200,7 +200,7 @@ class TestTellingAKeptAppWhereItsWindowGoes:
         alive = patch("fun_time.hosted_origenerator.get_process_creation_time",
                       return_value=44)
         with looking, alive:
-            app = bring_up_the_hosted_app(manifest, project_dirs="", in_a_headset=in_a_headset)
+            app = bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=in_a_headset)
         assert app is not None and app.already_open
         return config, consume_command_file(config.origenerator_cmd_file, uppercase=False)
 
@@ -323,7 +323,7 @@ class TestWhenTheAppWeTookOverNeverAnswers:
              patch("fun_time.hosted_origenerator.take_it_over", side_effect=answer), \
              patch("fun_time.hosted_origenerator.launch_origenerator",
                    side_effect=lambda **kw: launched.update(kw) or 91):
-            app = bring_up_the_hosted_app(manifest, project_dirs="")
+            app = bring_up_the_hosted_app(manifest, sibling_checkouts="")
         return config, app, launched
 
     def test_one_is_launched_instead(self, cfg_factory, tmp_path, caplog):
@@ -348,7 +348,7 @@ class TestWhenTheAppWeTookOverNeverAnswers:
                                                  showing=False)), \
              patch("fun_time.hosted_origenerator.take_it_over",
                    side_effect=lambda _checkout, **kw: handed.update(kw)):
-            bring_up_the_hosted_app(manifest, project_dirs="", in_a_headset=True)
+            bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=True)
 
         assert [word for word in handed["args"] if word.startswith("--")] == flags
 

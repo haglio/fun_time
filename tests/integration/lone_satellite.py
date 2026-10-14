@@ -21,7 +21,6 @@ from satellite.contract import SatelliteChannels, WindowPlacement
 from .integration_support import (
     RELEASE_BUDGET_S,
     build_integration_temp_root,
-    checkout_project_dirs,
     let_seconds_pass,
     published_ago,
     published_status,
@@ -29,6 +28,7 @@ from .integration_support import (
     sample_library_clips,
     state_dir_of,
     the_runs_own_pythonw,
+    this_checkouts_siblings,
     wait_for,
 )
 from .run_clock import Budget
@@ -112,7 +112,7 @@ class LoneSatellite:
                                       title="Portrait AI Funestra"),
             role="Portrait",
             log_file=self.log,
-            project_dirs=checkout_project_dirs(),
+            sibling_checkouts=this_checkouts_siblings(),
         )
         self.process = identify_child(pid)
         try:

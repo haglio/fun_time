@@ -24,7 +24,7 @@ from satellite.contract import SatelliteChannels, WindowPlacement
 from . import broker_contract, preview_marker
 from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import write_broker_command
-from .checkout_overrides import genau_project_kwargs, is_a_worktree, primary_of
+from .checkout_overrides import is_a_worktree, primary_of, sibling_checkouts_kwargs
 from .child_launch import no_child_log, open_child_log
 from .config import load_config
 from .content import load_web_providers
@@ -355,7 +355,7 @@ def start_core_session(
     result_file: str | Path,
     dashboard_cmd_file: str | Path | None = None,
     regen_metadata_root: Path | None = None,
-    project_dirs: str | None = None,
+    sibling_checkouts: str | None = None,
 ) -> str:
     """Launch the session's media stack, returning the mode its main slot
     opens in — which the caller needs because parking the Main Funestra/Genau pair to match
@@ -449,16 +449,16 @@ def start_core_session(
         landscape=landscape,
         result_file=result_file,
         dashboard_cmd_file=dashboard_cmd_file,
-        project_dirs=project_dirs,
+        sibling_checkouts=sibling_checkouts,
     )
     return carried.main_mode
 
 
-def _start_a_funestra(cmd: list[str], *, log_file: str | Path, project_dirs: str | None) -> int:
+def _start_a_funestra(cmd: list[str], *, log_file: str | Path, sibling_checkouts: str | None) -> int:
     with open_child_log(log_file, cmd) as log:
         proc = subprocess.Popen(
             cmd, stdout=log, stderr=log,
-            **genau_project_kwargs(project_dirs), **subprocess_window_kwargs())
+            **sibling_checkouts_kwargs(sibling_checkouts), **subprocess_window_kwargs())
     return proc.pid
 
 
@@ -539,14 +539,11 @@ def origenerator_interpreter(origenerator_dir: str | Path) -> Path:
 def origenerator_launch_kwargs(
     *,
     origenerator_dir: str | Path,
-    project_dirs: str | None = None,
+    sibling_checkouts: str | None = None,
 ) -> dict:
     """The environment that argv runs in — also shared with the launch test."""
-    # The same checkout choice Genau, the Main Funestra and the satellites get: named
-    # project dirs ride the hosted app's PYTHONPATH, so a branch of funestra
-    # named there is the one the hosted app imports.
     kwargs: dict = {"cwd": str(origenerator_dir),
-                    **genau_project_kwargs(project_dirs),
+                    **sibling_checkouts_kwargs(sibling_checkouts),
                     **subprocess_window_kwargs()}
     # A worktree checkout is unlanded code under judgment, not the live
     # install: run it as origenerator's own branch session (its preview
@@ -572,7 +569,7 @@ def launch_origenerator(
     funestras: Mapping[str, HandedFunestra],
     frames_file: str | Path | None = None,
     input_file: str | Path | None = None,
-    project_dirs: str | None = None,
+    sibling_checkouts: str | None = None,
 ) -> int:
     """Launch the hosted Origenerator, returning its PID.
 
@@ -592,7 +589,7 @@ def launch_origenerator(
         frames_file=frames_file, input_file=input_file,
     )
     kwargs = origenerator_launch_kwargs(
-        origenerator_dir=origenerator_dir, project_dirs=project_dirs)
+        origenerator_dir=origenerator_dir, sibling_checkouts=sibling_checkouts)
     proc = subprocess.Popen(cmd, **no_child_log(), **kwargs)
     return proc.pid
 
@@ -623,7 +620,7 @@ def launch_main_funestra(
     metadata_dir: str | Path | None = None,
     genau_start_flick: str = "",
     genau_latest: bool = False,
-    project_dirs: str | None = None,
+    sibling_checkouts: str | None = None,
 ) -> int:
     """Launch the Main Funestra subprocess, returning its PID.
 
@@ -632,11 +629,10 @@ def launch_main_funestra(
     and the flick arrive on, the flag that pauses its flick, the status it
     publishes, its config, and the flick and order it was left browsing.
 
-    *project_dirs* names the checkouts it runs out of (see
-    :func:`genau_project_kwargs`).  Its stdout and stderr go to *log_file* for
-    the same reason a satellite's do: the Main Funestra is the same mpv-backed
-    Funestra under the same windowed ``pythonw``, which gives an unhandled
-    exception nowhere to print its traceback.
+    Its stdout and stderr go to *log_file* for the same reason a satellite's do:
+    the Main Funestra is the same mpv-backed Funestra under the same windowed
+    ``pythonw``, which gives an unhandled exception nowhere to print its
+    traceback.
     """
     cmd = [
         NAMER.named_exe(python_exe, "MainFunestra"),
@@ -699,7 +695,7 @@ def launch_main_funestra(
     # than guessing from clip names.
     if metadata_dir:
         cmd += ["--metadata-dir", str(metadata_dir)]
-    return _start_a_funestra(cmd, log_file=log_file, project_dirs=project_dirs)
+    return _start_a_funestra(cmd, log_file=log_file, sibling_checkouts=sibling_checkouts)
 
 
 def launch_audio_companion(
@@ -709,11 +705,10 @@ def launch_audio_companion(
     config_path: str | Path,
     audio_folder: str | Path,
     audio_device: str | None = None,
-    project_dirs: str | None = None,
+    sibling_checkouts: str | None = None,
 ) -> subprocess.Popen:
     """Start the audio companion; *audio_device* sends its sound to the output
-    whose name contains it (the headset, in VR) rather than the default, and
-    *project_dirs* names the checkouts it reads that rule out of."""
+    whose name contains it (the headset, in VR) rather than the default."""
     cmd = [
         NAMER.named_exe(str(python_exe), "AudioCompanion"),
         "-m",
@@ -725,7 +720,7 @@ def launch_audio_companion(
     ]
     if audio_device:
         cmd.extend(["--audio-device", audio_device])
-    return subprocess.Popen(cmd, **no_child_log(), **genau_project_kwargs(project_dirs),
+    return subprocess.Popen(cmd, **no_child_log(), **sibling_checkouts_kwargs(sibling_checkouts),
                             **subprocess_window_kwargs())
 
 
@@ -748,7 +743,7 @@ def launch_ui_companions(
     config_path: str | Path,
     audio_folder: str | Path,
     result_file: str | Path,
-    project_dirs: str | None = None,
+    sibling_checkouts: str | None = None,
 ) -> None:
     python_exe = str(python_exe)
     windows_bridge_manifest_path = str(windows_bridge_manifest_path)
@@ -787,20 +782,20 @@ def launch_ui_companions(
             with open_child_log(dashboard_log_file, dashboard_cmd) as log:
                 dashboard_proc = subprocess.Popen(
                     dashboard_cmd, stdout=log, stderr=subprocess.STDOUT,
-                    **genau_project_kwargs(project_dirs),
+                    **sibling_checkouts_kwargs(sibling_checkouts),
                     **subprocess_window_kwargs(),
                 )
         else:
             dashboard_proc = subprocess.Popen(
                 dashboard_cmd, **no_child_log(),
-                **genau_project_kwargs(project_dirs),
+                **sibling_checkouts_kwargs(sibling_checkouts),
                 **subprocess_window_kwargs())
         dashboard_pid = dashboard_proc.pid
 
     audio_proc = launch_audio_companion(
         python_exe=python_exe, audio_module=audio_module,
         config_path=config_path, audio_folder=audio_folder,
-        project_dirs=project_dirs,
+        sibling_checkouts=sibling_checkouts,
     )
 
     _write_result_file(
@@ -820,7 +815,7 @@ def launch_core_apps(
     landscape: SatelliteSlot,
     result_file: str | Path,
     dashboard_cmd_file: str | Path | None = None,
-    project_dirs: str | None = None,
+    sibling_checkouts: str | None = None,
 ) -> None:
     """Spawn the two native Satellite Funestras (portrait + landscape), each
     straight into its rect, and the portrait one ready to tile."""
@@ -843,7 +838,7 @@ def launch_core_apps(
                 tiles=tiles),
             role=role,
             log_file=slot.log_file,
-            project_dirs=project_dirs,
+            sibling_checkouts=sibling_checkouts,
         )
 
     portrait_pid = _launch(portrait, SATELLITE_PORTRAIT_TITLE, "Portrait", tiles=True)
@@ -888,7 +883,7 @@ def launch_satellite(
     placement: WindowPlacement,
     role: str,
     log_file: str | Path,
-    project_dirs: str | None = None,
+    sibling_checkouts: str | None = None,
 ) -> int:
     """Launch a native Satellite Funestra subprocess, returning its PID.
 
@@ -906,4 +901,4 @@ def launch_satellite(
     cmd = _build_satellite_launch_command(
         NAMER.named_exe(python_exe, role), satellite_module,
         channels=channels, placement=placement)
-    return _start_a_funestra(cmd, log_file=log_file, project_dirs=project_dirs)
+    return _start_a_funestra(cmd, log_file=log_file, sibling_checkouts=sibling_checkouts)

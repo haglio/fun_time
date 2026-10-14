@@ -30,7 +30,7 @@ from voice_core.whisper_reader import WhisperReader
 from . import preview_marker
 from .append_only import append_line
 from .broker_control import write_broker_command
-from .checkout_overrides import genau_project_kwargs
+from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
 from .config import VoiceControlConfig, load_config
 from .crown import majority_now
@@ -369,7 +369,7 @@ def _wait_for_closing_screen(ready_file: Path, proc: subprocess.Popen) -> None:
 
 @contextlib.contextmanager
 def _closing_screen(
-    state_dir: Path, *, enabled: bool, project_dirs: str,
+    state_dir: Path, *, enabled: bool, sibling_checkouts: str,
     crossing: HandoffTarget | None = None, esc_cancels: str = "",
 ) -> Iterator[ProgressReporter]:
     """Cover every monitor while the session comes down, then uncover it.
@@ -394,14 +394,14 @@ def _closing_screen(
     ready_file.unlink(missing_ok=True)
     if crossing is not None:
         progress: ProgressReporter = NullProgress()  # the wording is the crossing's
-        proc = launch_crossing_cover(state_dir, crossing, project_dirs=project_dirs)
+        proc = launch_crossing_cover(state_dir, crossing, sibling_checkouts=sibling_checkouts)
     else:
         progress = PhaseProgress(progress_file, phases=SHUTDOWN_PHASES, hint=esc_cancels)
         progress.advance("controls")
         proc = subprocess.Popen([
             NAMER.named_exe(sys.executable, "ClosingScreen"),
             "-m", "fun_time.closing_screen", str(progress_file),
-        ], **no_child_log(), **no_console_window(), **genau_project_kwargs(project_dirs))
+        ], **no_child_log(), **no_console_window(), **sibling_checkouts_kwargs(sibling_checkouts))
         tie_to_this_process(proc)
     logger.info("Teardown cover launched (pid=%d)", proc.pid)
     _wait_for_closing_screen(ready_file, proc)
@@ -458,7 +458,7 @@ def _take_down_the_startup(
     cover: LoadingCover,
     ahk_proc: subprocess.Popen,
     ahk_cmd_file: Path,
-    project_dirs: str,
+    sibling_checkouts: str,
     canceled: bool = False,
     release_origenerator_via: Path | None = None,
 ) -> int:
@@ -481,7 +481,7 @@ def _take_down_the_startup(
     close_window(rfb_hwnd)
     if back_to is not None:
         logger.info("Going back to %s", back_to.app_name)
-        way_back = launch_the_way_back_cover(state_dir, project_dirs=project_dirs)
+        way_back = launch_the_way_back_cover(state_dir, sibling_checkouts=sibling_checkouts)
         _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
         request_handoff(state_dir, back_to, cancelable=False)
     # Only now that the windows under it are gone: drop the overlay.
@@ -1069,7 +1069,7 @@ def _run_until_the_hotkeys_exit(
     voice: tuple[VoiceController | None, threading.Thread | None],
     dispatch: tuple[DispatchLoopRunner, threading.Thread],
     loopback_server: ThreadingHTTPServer | None,
-    project_dirs: str,
+    sibling_checkouts: str,
 ) -> int:
     """Hold the session open, then take it down — in that order, always.
 
@@ -1107,7 +1107,7 @@ def _run_until_the_hotkeys_exit(
                        if asked and show_overlays and crossing is None else "")
         # Then the cover, up before anything closes and through all of it: the
         # controls stopping, the browser closing, and every child being killed.
-        with _closing_screen(state_dir, enabled=show_overlays, project_dirs=project_dirs,
+        with _closing_screen(state_dir, enabled=show_overlays, sibling_checkouts=sibling_checkouts,
                              crossing=crossing,
                              esc_cancels=esc_cancels) as shutdown_progress:
             if voice_controller is not None:
@@ -1136,7 +1136,7 @@ def _run_until_the_hotkeys_exit(
                 stop_hotkey_script(ahk_proc, ahk_cmd_file)
             if esc_cancels and what_the_flag_asks(flag) == CANCEL_WORD:
                 logger.info("Esc called the quit off; opening Fun Time again")
-                way_back = launch_the_way_back_cover(state_dir, project_dirs=project_dirs)
+                way_back = launch_the_way_back_cover(state_dir, sibling_checkouts=sibling_checkouts)
                 _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
                 request_handoff(state_dir, DESKTOP, cancelable=False)
             elif crossing is None:  # the quit chord after an Esc that had parked it
@@ -1216,7 +1216,7 @@ def run_session(
         return _take_down_the_startup(
             "Startup cancelled by user", pids=cancelled.launched_pids,
             rfb_hwnd=cancelled.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
-            project_dirs=manifest.runtime.genau_project_dirs,
+            sibling_checkouts=manifest.runtime.sibling_checkouts,
             canceled=True,
             release_origenerator_via=(bridge_config.origenerator_cmd_file
                                       if cancelled.origenerator_taken_over else None),
@@ -1225,7 +1225,7 @@ def run_session(
         _take_down_the_startup(
             str(died), pids=died.launched_pids,
             rfb_hwnd=died.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
-            project_dirs=manifest.runtime.genau_project_dirs,
+            sibling_checkouts=manifest.runtime.sibling_checkouts,
             release_origenerator_via=(bridge_config.origenerator_cmd_file
                                       if died.origenerator_taken_over else None),
         )
@@ -1245,7 +1245,7 @@ def run_session(
         return _take_down_the_startup(
             "Startup cancelled by user", pids=launched,
             rfb_hwnd=result.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
-            project_dirs=manifest.runtime.genau_project_dirs,
+            sibling_checkouts=manifest.runtime.sibling_checkouts,
             canceled=True,
             release_origenerator_via=hand_back_via,
         )
@@ -1300,7 +1300,7 @@ def run_session(
         _take_down_the_startup(
             "The session failed while opening", pids=launched,
             rfb_hwnd=result.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
-            project_dirs=manifest.runtime.genau_project_dirs,
+            sibling_checkouts=manifest.runtime.sibling_checkouts,
             release_origenerator_via=hand_back_via,
         )
         raise
@@ -1318,5 +1318,5 @@ def run_session(
         voice=(voice_controller, voice_thread),
         dispatch=(dispatch_runner, dispatch_thread),
         loopback_server=loopback_server,
-        project_dirs=manifest.runtime.genau_project_dirs,
+        sibling_checkouts=manifest.runtime.sibling_checkouts,
     )

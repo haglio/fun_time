@@ -121,7 +121,7 @@ def bring_up_the_hosted_app(
     m: LaunchManifest,
     *,
     plan: WindowLayoutPlan | None = None,
-    project_dirs: str,
+    sibling_checkouts: str,
     in_a_headset: bool = False,
 ) -> HostedApp | None:
     """Adopt, take over, or launch the app the manifest names, or None."""
@@ -170,7 +170,7 @@ def bring_up_the_hosted_app(
         origenerator_dir=origenerator_dir,
         # It imports funestra too (the shows' HUD is the Funestras'
         # shared one), so a named checkout reaches it like everyone else.
-        project_dirs=project_dirs,
+        sibling_checkouts=sibling_checkouts,
         **session,
     )
     logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
