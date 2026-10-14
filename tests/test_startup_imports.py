@@ -125,7 +125,7 @@ def test_the_sys_path_override_is_applied_before_the_package_imports_anything_el
                   if not (isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant))]
     applies = next(index for index, node in enumerate(statements)
                    if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)
-                   and getattr(node.value.func, "id", "") == "apply_genau_dirs_to_sys_path")
+                   and getattr(node.value.func, "id", "") == "apply_sibling_checkouts_to_sys_path")
     imports_above_it = [
         node.module for node in statements[:applies]
         if isinstance(node, ast.ImportFrom) and not node.module.endswith("project_paths")

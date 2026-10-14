@@ -985,7 +985,7 @@ def test_a_browse_runs_on_the_checkouts_the_session_runs(tmp_path: Path):
     checkout = tmp_path / "a-funestra-checkout"
     checkout.mkdir()
     manifest = tmp_path / "windows_bridge_launch.ini"
-    manifest.write_text(f"[runtime]\ngenau_project_dirs = {checkout}\n", encoding="utf-8")
+    manifest.write_text(f"[runtime]\nsibling_checkouts = {checkout}\n", encoding="utf-8")
     launched: list[dict] = []
 
     browse_library(manifest, r"C:\python.exe",

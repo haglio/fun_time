@@ -21,8 +21,8 @@ from fun_time.win32_process import is_process_alive
 from tests.child_reports import all_gone_within, pid_written_to, with_what_it_started
 from tests.integration.integration_support import (
     RELEASE_BUDGET_S,
-    checkout_project_dirs,
     ended_within,
+    this_checkouts_siblings,
 )
 from tests.integration.run_clock import Budget
 from tests.scratch import remove_scratch
@@ -42,7 +42,7 @@ A_STARVED_SCREENS_SLACK_S = 90.0
 _RAISES_A_LOADING_SCREEN = """
 import pathlib, time
 from fun_time.loading_cover import open_the_cover
-cover = open_the_cover(pathlib.Path({state!r}), show_overlays=True, project_dirs={dirs!r})
+cover = open_the_cover(pathlib.Path({state!r}), show_overlays=True, sibling_checkouts={dirs!r})
 pathlib.Path({report!r}).write_text(str(cover.process.pid))
 time.sleep(3600)
 """
@@ -81,7 +81,7 @@ def test_a_screen_whose_progress_file_goes_before_its_first_look_takes_itself_do
     poll on a minute."""
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    screen = launch_crossing_cover(state_dir, VR, project_dirs=checkout_project_dirs())
+    screen = launch_crossing_cover(state_dir, VR, sibling_checkouts=this_checkouts_siblings())
     crossing_progress_path(state_dir).unlink()
     try:
         assert _its_window_came_up(screen.pid, transition_screen.WINDOW_TITLE, within_s=60.0), (
@@ -105,7 +105,7 @@ def test_a_loading_screen_goes_the_moment_the_fun_time_that_raised_it_dies(tmp_p
     report = tmp_path / "screen_pid.txt"
     fun_time = subprocess.Popen(
         [sys.executable, "-c", _RAISES_A_LOADING_SCREEN.format(
-            state=str(tmp_path / "state"), dirs=checkout_project_dirs(), report=str(report))],
+            state=str(tmp_path / "state"), dirs=this_checkouts_siblings(), report=str(report))],
         cwd=ROOT, creationflags=subprocess.CREATE_NO_WINDOW,
     )
     try:

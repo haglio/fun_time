@@ -18,9 +18,8 @@ HOTKEY_SCRIPT_NAME = "windows_bridge_hotkeys.ahk"
 STATE_DIRNAME = "state"
 
 # One absolute path per line; present, the file REPLACES the machine's value, so
-# an empty one says "the plain venv install, whatever the machine is pinned to" —
-# which is what a branch with nothing to do with genau wants.  Absent, the
-# machine's value rides through.
+# an empty one says "the venv's installs, whatever the machine is pinned to".
+# Absent, the machine's value rides through.
 GENAU_DIRS_OVERRIDE_NAME = "genau_project_dirs.txt"
 
 
@@ -36,15 +35,14 @@ def override_lines(path: Path) -> list[str] | None:
             if line.strip() and not line.strip().startswith("#")]
 
 
-def apply_genau_dirs_to_sys_path() -> list[str]:
-    """Put this checkout's genau_project_dirs override on ``sys.path``.
+def apply_sibling_checkouts_to_sys_path() -> list[str]:
+    """Put this checkout's sibling checkouts on ``sys.path``.
 
-    The override reaches Genau and the Main Funestra as subprocess PYTHONPATH, but the
-    orchestrator's own process — and the device arbiter inside it — resolves its
-    siblings through the venv, which is the primary checkout's.  A branch that
-    leans on an unlanded sibling change therefore imports names the primary does
-    not have yet, and the session dies at launch.  Called as the package loads,
-    before any sibling is imported.  Returns what it added.
+    Every program the session starts is handed them on its PYTHONPATH, but the
+    orchestrator's own process -- and the device arbiter inside it -- would
+    import the venv's installs, and a branch that leans on an unlanded sibling
+    change would die at launch.  Called as the package loads, before any
+    sibling is imported.  Returns what it added.
     """
     dirs = [entry for entry in (
         override_lines(PROJECT_DIR / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME) or [])

@@ -23,7 +23,7 @@ from fun_time.session_handoff import (
 def _opened_cover(state_dir, *, cancelable=True, popen=None):
     with patch("fun_time.loading_cover.subprocess.Popen", popen or MagicMock()), \
          patch("fun_time.loading_cover.wait_for_window_by_title", return_value=0):
-        return open_the_cover(state_dir, show_overlays=True, project_dirs="",
+        return open_the_cover(state_dir, show_overlays=True, sibling_checkouts="",
                               cancelable=cancelable)
 
 
@@ -81,7 +81,7 @@ class TestTakingTheCoverDown:
         cover.process.kill.assert_called_once()
 
     def test_a_session_with_no_cover_takes_nothing_down(self, tmp_path: Path):
-        cover = open_the_cover(tmp_path, show_overlays=False, project_dirs="")
+        cover = open_the_cover(tmp_path, show_overlays=False, sibling_checkouts="")
 
         cover.take_it_down()  # an integration run has no screen to tell
 

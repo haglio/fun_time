@@ -696,10 +696,10 @@ def test_a_run_launches_this_checkouts_siblings(tmp_path, monkeypatch):
     monkeypatch.setattr(integration_support, "PROJECT_DIR", tmp_path)
     config: dict = {}
 
-    integration_support.apply_checkout_project_dirs(config)
+    integration_support.apply_this_checkouts_siblings(config)
 
     assert config["paths"]["genau_project_dirs"] == [str(branch)]
-    assert integration_support.checkout_project_dirs() == str(branch)
+    assert integration_support.this_checkouts_siblings() == str(branch)
 
 
 def test_a_checkout_with_no_override_names_no_siblings(tmp_path, monkeypatch):
@@ -709,10 +709,10 @@ def test_a_checkout_with_no_override_names_no_siblings(tmp_path, monkeypatch):
     monkeypatch.setattr(integration_support, "PROJECT_DIR", tmp_path)
     config: dict = {}
 
-    integration_support.apply_checkout_project_dirs(config)
+    integration_support.apply_this_checkouts_siblings(config)
 
     assert config == {}
-    assert integration_support.checkout_project_dirs() == ""
+    assert integration_support.this_checkouts_siblings() == ""
 
 
 def test_a_clip_reads_at_speed_only_when_its_first_bytes_arrive_in_time():

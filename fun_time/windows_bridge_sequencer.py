@@ -307,7 +307,7 @@ def _launch_the_satellites(
     *,
     plan: WindowLayoutPlan,
     state_dir: Path,
-    project_dirs: str,
+    sibling_checkouts: str,
     launched: _LaunchedChildren,
 ) -> tuple[str, int, int]:
     """The core session: both Satellite Funestras, and the mode it resumed into.
@@ -363,11 +363,7 @@ def _launch_the_satellites(
         state_dir=state_dir,
         result_file=str(core_result_file),
         regen_metadata_root=Path(regen_metadata_raw) if regen_metadata_raw else None,
-        # The satellites import funestra, so a named funestra checkout
-        # must reach them exactly as it reaches Genau and the Main Funestra — without this
-        # they quietly ran the venv's primary while everything else ran the
-        # branch.
-        project_dirs=project_dirs,
+        sibling_checkouts=sibling_checkouts,
     )
     core_pids = _read_result_pids(core_result_file)
     portrait_pid = core_pids["portrait_pid"]
@@ -389,7 +385,7 @@ def _launch_the_main_funestra(
     *,
     layout: ScreenLayout,
     state_dir: Path,
-    project_dirs: str,
+    sibling_checkouts: str,
     launched: _LaunchedChildren,
 ) -> tuple[int, Path]:
     """The Main Funestra, which Kino and Genau both run on, and its status file.
@@ -446,7 +442,7 @@ def _launch_the_main_funestra(
         metadata_dir=regen_metadata_raw or None,
         genau_start_flick=genau_flick,
         genau_latest=genau_latest,
-        project_dirs=project_dirs,
+        sibling_checkouts=sibling_checkouts,
     )
     launched.pids.append(main_funestra_pid)
     launched.funestras.append(LaunchedFunestra("the Main Funestra", main_funestra_pid, main_funestra_logs))
@@ -457,12 +453,12 @@ def _launch_the_hosted_origenerator(
     m: LaunchManifest,
     *,
     plan: WindowLayoutPlan,
-    project_dirs: str,
+    sibling_checkouts: str,
     launched: _LaunchedChildren,
 ) -> int:
     """The hosted app, first of the children and waited on by none, or 0 for a
     session the config names no checkout for."""
-    app = bring_up_the_hosted_app(m, plan=plan, project_dirs=project_dirs)
+    app = bring_up_the_hosted_app(m, plan=plan, sibling_checkouts=sibling_checkouts)
     return 0 if app is None else launched.hosts(app)
 
 
@@ -483,14 +479,14 @@ def _launch_core_media(
     # Read before the first launch that needs it: every child below takes the
     # named checkouts, the satellites and the hosted app included, because they
     # all import funestra.
-    project_dirs = m.runtime.genau_project_dirs
+    sibling_checkouts = m.runtime.sibling_checkouts
     origenerator_pid = _launch_the_hosted_origenerator(
-        m, plan=layout.plan, project_dirs=project_dirs, launched=launched)
+        m, plan=layout.plan, sibling_checkouts=sibling_checkouts, launched=launched)
     main_mode, portrait_pid, landscape_pid = _launch_the_satellites(
-        m, plan=layout.plan, state_dir=state_dir, project_dirs=project_dirs,
+        m, plan=layout.plan, state_dir=state_dir, sibling_checkouts=sibling_checkouts,
         launched=launched)
     main_funestra_pid, main_funestra_status_file = _launch_the_main_funestra(
-        m, layout=layout, state_dir=state_dir, project_dirs=project_dirs,
+        m, layout=layout, state_dir=state_dir, sibling_checkouts=sibling_checkouts,
         launched=launched)
 
     return _CoreSession(
@@ -563,7 +559,7 @@ def _launch_the_companions(
         config_path=m.runtime.config_path,
         audio_folder=m.media.genau_audio,
         result_file=str(ui_result_file),
-        project_dirs=m.runtime.genau_project_dirs,
+        sibling_checkouts=m.runtime.sibling_checkouts,
     )
     ui_pids = _read_result_pids(ui_result_file)
     launched.pids.extend([ui_pids["dashboard_pid"], ui_pids["audio_pid"]])

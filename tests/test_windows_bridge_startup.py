@@ -587,8 +587,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     # side's file quartet.
     # The whole launch bundle travels as the two slots — each side's file
     # quartet, log, playlist, rect and HUD file in one value — plus the shared
-    # settings.  project_dirs names the sibling checkouts, because the
-    # satellites import funestra like Genau and the Main Funestra do.
+    # settings, the sibling checkouts among them, because the satellites import
+    # funestra as the Main Funestra does.
     launch.assert_called_once_with(
         python_exe="fun_time_python.exe",
         satellite_module="satellite",
@@ -596,7 +596,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         landscape=kwargs["landscape"],
         result_file=result_file,
         dashboard_cmd_file=None,
-        project_dirs=None,
+        sibling_checkouts=None,
     )
 
 
@@ -1198,7 +1198,7 @@ def test_what_the_main_funestra_says_as_it_dies_importing_is_what_the_alert_quot
          patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=started_and_kept):
         pid = launch_main_funestra(**_a_main_funestra_launch(
             python_exe=sys.executable, main_funestra_module="a_main_funestra_that_dies_importing",
-            log_file=log, project_dirs=str(checkout)))
+            log_file=log, sibling_checkouts=str(checkout)))
     started[0].wait(timeout=60)
 
     with pytest.raises(FunestraDied) as died:
@@ -1441,13 +1441,11 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
         assert [icon.parent for icon in icons] == [tmp_path / "inked"] * 2
 
 
-class TestTheCheckoutsTheFunestraRunsOutOf:
-    """Which checkouts Genau and the Main Funestra are run out of.
-
-    ``funestra`` resolves through this repo's venv, at the tag it pins.  Naming a
-    directory puts it on their ``PYTHONPATH``, ahead of site-packages, so a
-    worktree can be run; without it a branch could only be judged by landing it
-    first.
+class TestTheCheckoutsTheMainFunestraStartsWith:
+    """``funestra`` resolves through this repo's venv, at the tag it pins.  Naming
+    a directory puts it on the Main Funestra's ``PYTHONPATH``, ahead of
+    site-packages, so a worktree can be run; without it a branch could only be
+    judged by landing it first.
     """
 
     class _Proc:
@@ -1472,7 +1470,7 @@ class TestTheCheckoutsTheFunestraRunsOutOf:
 
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_main_funestra(**self._main_funestra(tmp_path, project_dirs=str(checkout)))
+            launch_main_funestra(**self._main_funestra(tmp_path, sibling_checkouts=str(checkout)))
 
         assert self._path(popen)[0] == str(checkout)
 
@@ -1487,7 +1485,7 @@ class TestTheCheckoutsTheFunestraRunsOutOf:
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
             launch_main_funestra(**self._main_funestra(
-                tmp_path, project_dirs=os.pathsep.join([str(fun_time), str(core)])))
+                tmp_path, sibling_checkouts=os.pathsep.join([str(fun_time), str(core)])))
 
         assert self._path(popen)[:2] == [str(fun_time), str(core)]
 
@@ -1505,7 +1503,7 @@ class TestTheCheckoutsTheFunestraRunsOutOf:
         session must still start rather than die on its way up."""
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_main_funestra(**self._main_funestra(tmp_path, project_dirs=str(tmp_path / "removed")))
+            launch_main_funestra(**self._main_funestra(tmp_path, sibling_checkouts=str(tmp_path / "removed")))
 
         assert "env" not in popen.call_args.kwargs
 
@@ -1690,7 +1688,7 @@ def test_launch_ui_companions_sends_both_companions_to_the_named_checkouts(tmp_p
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
         _call_launch_ui_companions(result_file, dashboard_enabled=True,
-                                   project_dirs=str(checkout))
+                                   sibling_checkouts=str(checkout))
 
     for call in popen.call_args_list:
         assert call.kwargs["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
@@ -2262,7 +2260,7 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
         checkout = tmp_path / "funestra"
         checkout.mkdir()
 
-        _proc, _argv, kwargs = self._launch(project_dirs=str(checkout))
+        _proc, _argv, kwargs = self._launch(sibling_checkouts=str(checkout))
 
         assert kwargs["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
 

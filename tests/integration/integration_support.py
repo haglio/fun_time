@@ -21,7 +21,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from funestra.file_channel import append_command
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 
-from fun_time.branch_session import _apply_genau_checkout_override
+from fun_time.branch_session import _apply_sibling_checkouts_override
 from fun_time.checkout_overrides import STATE_DIRNAME
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, load_config
 from fun_time.event_log import EventRecord, event_log_path, is_announcement, read_events
@@ -806,7 +806,7 @@ def run_from_this_installation(config: dict) -> None:
     config["paths"]["python_exe"] = str(the_runs_own_pythonw())
 
 
-def apply_checkout_project_dirs(config: dict) -> None:
+def apply_this_checkouts_siblings(config: dict) -> None:
     """Run this checkout's ``state/genau_project_dirs.txt`` over *config*, the
     way a branch session's own config generator does.
 
@@ -822,19 +822,19 @@ def apply_checkout_project_dirs(config: dict) -> None:
     file means in a run exactly what it means in the session the run is
     standing in for.
     """
-    _apply_genau_checkout_override(config, PROJECT_DIR / STATE_DIRNAME)
+    _apply_sibling_checkouts_override(config, PROJECT_DIR / STATE_DIRNAME)
 
 
-def checkout_project_dirs() -> str:
+def this_checkouts_siblings() -> str:
     """Those same directories as a ``PYTHONPATH`` string, for a test that
     launches a child itself instead of through a session's manifest."""
     raw: dict = {}
-    apply_checkout_project_dirs(raw)
+    apply_this_checkouts_siblings(raw)
     return os.pathsep.join(raw.get("paths", {}).get("genau_project_dirs", []))
 
 
 def environment_with_this_checkouts_siblings() -> dict[str, str]:
-    return {**os.environ, "PYTHONPATH": checkout_project_dirs()}
+    return {**os.environ, "PYTHONPATH": this_checkouts_siblings()}
 
 
 def point_the_main_funestra_at(config: dict, videos_dir: Path) -> None:
@@ -878,7 +878,7 @@ def build_integration_config(tmp_path: Path, *, genau_dir: Path | None = None) -
     run_from_this_installation(config)
     if genau_dir is not None:
         config["paths"]["genau_dir"] = str(genau_dir)
-    apply_checkout_project_dirs(config)
+    apply_this_checkouts_siblings(config)
 
     point_the_main_funestra_at(config, primary_dir)
     genau_config = json.loads(Path(config["paths"]["genau_config_path"]).read_text(encoding="utf-8"))

@@ -146,7 +146,7 @@ class TestTheCoverThatSpansTheCrossing:
 
     def test_it_is_launched_as_the_transition_screen_over_that_file(self, tmp_path: Path):
         with patch.object(session_handoff.subprocess, "Popen") as popen:
-            launch_crossing_cover(tmp_path, VR, project_dirs="")
+            launch_crossing_cover(tmp_path, VR, sibling_checkouts="")
 
         command = popen.call_args.args[0]
         assert command[1:] == [
@@ -156,7 +156,7 @@ class TestTheCoverThatSpansTheCrossing:
     def test_the_way_back_goes_up_saying_it_is_canceling(self, tmp_path: Path):
         """Never, even for a poll, offering the Esc that already went."""
         with patch.object(session_handoff.subprocess, "Popen") as popen:
-            session_handoff.launch_the_way_back_cover(tmp_path, project_dirs="")
+            session_handoff.launch_the_way_back_cover(tmp_path, sibling_checkouts="")
 
         line = parse_progress(crossing_progress_path(tmp_path).read_text(encoding="utf-8"))
         assert (line.message, line.hint) == (CANCELING, "")

@@ -38,8 +38,8 @@ import ctypes, ctypes.wintypes
 for _name in {_WIN32_CTYPES_NAMES!r}:
     if hasattr(ctypes, _name):
         delattr(ctypes, _name)
-from fun_time.project_paths import apply_genau_dirs_to_sys_path
-apply_genau_dirs_to_sys_path()
+from fun_time.project_paths import apply_sibling_checkouts_to_sys_path
+apply_sibling_checkouts_to_sys_path()
 """
 
 

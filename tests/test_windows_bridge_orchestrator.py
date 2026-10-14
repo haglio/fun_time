@@ -115,7 +115,7 @@ def _a_session(**kwargs) -> int:
     cover = open_the_cover(
         Path(kwargs["state_dir"]),
         show_overlays=env.show_overlays,
-        project_dirs=LaunchManifest.read(kwargs["manifest_path"]).runtime.genau_project_dirs,
+        sibling_checkouts=LaunchManifest.read(kwargs["manifest_path"]).runtime.sibling_checkouts,
         cancelable=kwargs.pop("cancelable", True),
     )
     return run_session(cover=cover, **kwargs)

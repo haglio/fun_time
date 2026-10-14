@@ -166,9 +166,6 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     env = SessionEnvironment.from_environ(os.environ)
     config = load_config(args.config)
-    # A worktree's own answer to "which Origenerator does this session host",
-    # for the reason the genau override above has: the machine's one config must
-    # not be repointed at an unlanded branch for every session on it.
     config = apply_origenerator_dir_override(config, integration=env.integration)
     logger = set_up_logging(config)
 
@@ -197,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
     # Everything below happens under the cover, and says so on it as it runs.
     cover = open_the_cover(
         config.paths.state_dir, show_overlays=env.show_overlays,
-        project_dirs=config.paths.genau_project_path, cancelable=not args.no_cancel,
+        sibling_checkouts=config.paths.sibling_checkouts_path, cancelable=not args.no_cancel,
     )
     try:
         # The pin lives in %APPDATA%, outside every checkout: a session on some

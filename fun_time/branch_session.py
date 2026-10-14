@@ -152,7 +152,7 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
             "state_dir": paths.state_dir,
             "broker_state_dir": paths.broker_state_dir,
             "genau_config_path": paths.genau_config_path,
-            "genau_project_dirs": paths.genau_project_dirs,
+            "genau_project_dirs": paths.sibling_checkouts,
             "broker_tray_launcher": paths.broker_tray_launcher,
             "origenerator_dir": paths.origenerator_dir,
             "origenerator_python_exe": paths.origenerator_python_exe,
@@ -187,15 +187,13 @@ def _pin_paths_to_the_primary(raw: dict, real: ProjectConfig) -> None:
         raw.get("paths", {}).pop(key, None)
 
 
-def _apply_genau_checkout_override(raw: dict, state_dir: Path) -> None:
-    """Let a worktree say for itself which checkout of ../genau its session runs.
+def _apply_sibling_checkouts_override(raw: dict, state_dir: Path) -> None:
+    """Let a worktree say for itself which sibling checkouts its session runs.
 
-    ``paths.genau_project_dirs`` answers a per-SESSION question — the Main Funestra and Genau
-    are launched with these directories in front of their venv's install — but it
-    could only be said in the machine's one ``fun_time_config.json``, which every
-    session reads.  A pin written there for one agent's genau branch reached the
-    user's ordinary session and every other agent's, each silently running an
-    unlanded branch of another repo, and nothing ever took it back out.
+    Said in the machine's one ``fun_time_config.json``, which every session
+    reads, a pin for one agent's branch reached the user's ordinary session and
+    every other agent's, each silently running an unlanded branch of another
+    repo, and nothing ever took it back out.
     """
     lines = override_lines(state_dir / GENAU_DIRS_OVERRIDE_NAME)
     if lines is not None:
@@ -248,7 +246,7 @@ def build_branch_config(
     state_dir = worktree / STATE_DIRNAME
     raw["paths"]["state_dir"] = str(state_dir)
     raw["instance_id"] = real.instance_id
-    _apply_genau_checkout_override(raw, state_dir)
+    _apply_sibling_checkouts_override(raw, state_dir)
     _apply_origenerator_checkout_override(raw, state_dir)
 
     mirror_private_overlays(primary, worktree)
@@ -422,10 +420,11 @@ class OutOfDateSibling(RoomWouldNotStart):
     def __init__(self, older: SiblingOlderThanThePin):
         super().__init__(
             f"{older.checkout} does not carry {older.tag}, the {older.repo} this branch is "
-            "built against, so a Main Funestra run out of it would lack what the branch imports. "
-            + _bring_it_up_to_date(older),
-            for_him="That branch is set to run its Funestras out of a funestra checkout older "
-                    "than the one it was built against, so its Main Funestra would not come up.")
+            "built against, so a Main Funestra started with it would lack what the branch "
+            "imports. " + _bring_it_up_to_date(older),
+            for_him="That branch is set to start its Funestras with an older copy of the code "
+                    "the apps share than the one it was built against, so its Main Funestra "
+                    "would not come up.")
 
 
 class OutOfDateForOrigenerator(RoomWouldNotStart):
@@ -525,10 +524,10 @@ def _machine_config(primary: Path) -> Path:
 def _checkouts_the_next_launch_runs(worktree: Path, primary: Path, config_path: Path) -> dict:
     real = load_config(config_path, project_dir=primary)
     raw = {"paths": {
-        "genau_project_dirs": [str(path) for path in real.paths.genau_project_dirs],
+        "genau_project_dirs": [str(path) for path in real.paths.sibling_checkouts],
         "origenerator_dir": str(real.paths.origenerator_dir or ""),
     }}
-    _apply_genau_checkout_override(raw, worktree / STATE_DIRNAME)
+    _apply_sibling_checkouts_override(raw, worktree / STATE_DIRNAME)
     _apply_origenerator_checkout_override(raw, worktree / STATE_DIRNAME)
     return raw["paths"]
 
@@ -536,24 +535,23 @@ def _checkouts_the_next_launch_runs(worktree: Path, primary: Path, config_path: 
 def sibling_checkouts_line(
     worktree: Path, primary: Path, *, config_path: Path | None = None
 ) -> str:
-    """One line saying which genau/funestra checkouts *worktree*'s next
-    launch runs.
+    """One line saying which sibling checkouts *worktree*'s next launch runs.
 
     Printed with every ``--shortcut``, because this part of the chain has no
     error state to fail loudly in: an override that is missing, empty, or
-    naming a stale checkout silently runs some other genau, and the session
-    then demonstrates code the branch never touched — he watches it and sees no
-    difference.  Resolved exactly the way :func:`build_branch_config` will
-    resolve it — the machine's config, then the worktree's own override on top
-    (:func:`_apply_genau_checkout_override`) — so what this says is what the
-    click will do.
+    naming a stale checkout silently runs some other copy of the shared code,
+    and the session then demonstrates code the branch never touched — he
+    watches it and sees no difference.  Resolved exactly the way
+    :func:`build_branch_config` will resolve it — the machine's config, then the
+    worktree's own override on top (:func:`_apply_sibling_checkouts_override`)
+    — so what this says is what the click will do.
     """
     checkouts = _checkouts_the_next_launch_runs(
         worktree, primary, config_path or _machine_config(primary))
     dirs = checkouts["genau_project_dirs"]
-    genau_line = (
-        "genau_project_dirs: (empty — Genau, the Main Funestra and funestra run "
-        "from their venv installs, the primaries)"
+    siblings_line = (
+        "genau_project_dirs: (empty — every program of the session runs the shared "
+        "code its venv installs, the primaries)"
         if not dirs else "genau_project_dirs: " + os.pathsep.join(dirs)
     )
     origenerator = checkouts["origenerator_dir"]
@@ -561,7 +559,7 @@ def sibling_checkouts_line(
         "origenerator_dir: (none — the session hosts no Origenerator)"
         if not origenerator else f"origenerator_dir: {origenerator}"
     )
-    return f"{genau_line}\n{origenerator_line}"
+    return f"{siblings_line}\n{origenerator_line}"
 
 
 def branch_label(worktree: Path, branch: str) -> str:

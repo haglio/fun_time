@@ -47,9 +47,9 @@ class PathsConfig:
     # whose broker is a temp-dir one of its own.
     broker_state_dir: Path
     genau_config_path: Path | None = None
-    # Which checkouts the Funestras are run out of, put on their PYTHONPATH ahead
-    # of what this repo's venv installs.  Empty in ordinary use.
-    genau_project_dirs: tuple[Path, ...] = ()
+    # Checkouts of the family's shared code that every program of the session
+    # imports ahead of what this repo's venv installs.  Empty in ordinary use.
+    sibling_checkouts: tuple[Path, ...] = ()
     broker_tray_launcher: Path | None = None
     # The Origenerator checkout the session hosts (see
     # fun_time.origenerator_switches), and the python that runs it.  Absent,
@@ -69,9 +69,9 @@ class PathsConfig:
         return audio_in(self.genau_dir)
 
     @property
-    def genau_project_path(self) -> str:
+    def sibling_checkouts_path(self) -> str:
         """Those checkouts as one PYTHONPATH value, which is how a child is told."""
-        return os.pathsep.join(str(path) for path in self.genau_project_dirs)
+        return os.pathsep.join(str(path) for path in self.sibling_checkouts)
 
 
 @dataclass(frozen=True)
@@ -328,7 +328,7 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir
         state_dir=state_dir,
         broker_state_dir=resolve_path(project_dir, paths_raw["broker_state_dir"]) if paths_raw.get("broker_state_dir") else state_dir,
         genau_config_path=resolve_path(project_dir, paths_raw["genau_config_path"]) if paths_raw.get("genau_config_path") else None,
-        genau_project_dirs=tuple(
+        sibling_checkouts=tuple(
             resolve_path(project_dir, str(value))
             for value in paths_raw.get("genau_project_dirs", [])),
         broker_tray_launcher=resolve_path(project_dir, paths_raw["broker_tray_launcher"]) if paths_raw.get("broker_tray_launcher") else None,

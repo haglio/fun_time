@@ -12,10 +12,10 @@ import fun_time_vr.orchestrator as headset
 from fun_time.funestra_engine import engine_missing_abort
 
 
-def _config(*project_dirs: Path):
+def _config(*sibling_checkouts: Path):
     return SimpleNamespace(paths=SimpleNamespace(
         python_exe=Path("fun_time/py.exe"),
-        genau_project_path=";".join(str(d) for d in project_dirs),
+        sibling_checkouts_path=";".join(str(d) for d in sibling_checkouts),
     ))
 
 

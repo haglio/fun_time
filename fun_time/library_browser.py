@@ -63,7 +63,7 @@ from shared_ui.mark_button import fill_square_with_mark
 from shared_ui.spacing import BUTTON_RADIUS, MARGIN_STANDARD
 
 from . import preview_marker
-from .checkout_overrides import genau_project_kwargs
+from .checkout_overrides import sibling_checkouts_kwargs
 from .folder_listings import FolderListings
 from .library_handles import (
     LibraryHandle,
@@ -789,9 +789,9 @@ def browse_library(
         command += ["--playing", playing]
     if flicks:
         command.append(GENAU_FLAG)
-    session_checkouts = _read_manifest(manifest_path).get(
-        "runtime", "genau_project_dirs", fallback="")
-    runner(command, **hidden_subprocess_kwargs(), **genau_project_kwargs(session_checkouts))
+    sibling_checkouts = _read_manifest(manifest_path).get(
+        "runtime", "sibling_checkouts", fallback="")
+    runner(command, **hidden_subprocess_kwargs(), **sibling_checkouts_kwargs(sibling_checkouts))
 
     try:
         return pick_file.read_text(encoding="utf-8").strip() or None
