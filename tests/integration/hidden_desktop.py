@@ -495,7 +495,7 @@ def _run_what_this_change_needs(base: str) -> int:
     if not (picked.everything or picked.files):
         return 0
     files = [] if picked.everything else sorted(picked.files)
-    with _a_place_in_line(short=bool(files), what=files) as visit:
+    with _a_place_in_line(short=bool(files), what=[CHANGED, *files]) as visit:
         return visit.ended_with(_run_the_suite(build_run_argv([*files, STOP_AT_THE_FIRST_FAILURE]),
                                                sys.executable, RUN_CEILING_S))
 

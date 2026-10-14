@@ -767,6 +767,17 @@ def test_a_run_of_what_a_change_needs_runs_the_tests_the_coverage_map_picks_as_a
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_a_run_of_what_a_change_needs_writes_down_that_it_is_one_with_the_tests_it_picked(tmp_path, monkeypatch):
+    monkeypatch.setenv("FUN_TIME_LINE_RECORDS", str(tmp_path))
+    picked = Picked(files=frozenset({"tests/integration/test_b.py", "tests/integration/test_a.py"}))
+    with (_runs_launched_into([]), patch.object(hidden_desktop, "what_this_change_needs", lambda base: picked)):
+        hidden_desktop.run_on_hidden_desktop(["--changed"])
+
+    [written] = read_runs(tmp_path)
+    assert written.what == ["--changed", "tests/integration/test_a.py", "tests/integration/test_b.py"]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
 def test_a_change_the_coverage_map_cannot_place_runs_the_whole_suite_in_line_as_a_full_run():
     launched: list[tuple[str, str]] = []
     places: list[dict] = []
