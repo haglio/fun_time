@@ -147,7 +147,7 @@ def test_stop_taskkills_every_recorded_child(session):
             "portrait_pid": ChildProcess(202, 2020),   # satellite
             "landscape_pid": ChildProcess(203, 2030),  # satellite
             "dashboard_pid": ChildProcess(0, 0),       # disabled in integration — absent
-            "genau_pid": ChildProcess(205, 2050),
+            "origenerator_pid": ChildProcess(205, 2050),
             "audio_pid": ChildProcess(206, 2060),
         },
     )
@@ -199,7 +199,7 @@ def test_stop_gives_up_on_a_child_that_never_goes(session):
 def test_stop_does_not_kill_a_recorded_pid_windows_recycled(session):
     """Killing a recycled PID is how a run murders another run's pytest: the
     dead child's PID now belongs to somebody else."""
-    _write_bridge_pids(session, {"genau_pid": ChildProcess(205, 2050)})
+    _write_bridge_pids(session, {"audio_pid": ChildProcess(205, 2050)})
     killed: list[int] = []
     with patch.object(windows_bridge_orchestrator, "get_process_creation_time", return_value=9999), \
          patch.object(windows_bridge_orchestrator, "kill_process_tree", killed.append):

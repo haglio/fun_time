@@ -161,7 +161,7 @@ def identify_children(result: StartupResult) -> dict[str, ChildProcess]:
     """Pin each freshly-launched child PID to the process now holding it.
 
     Called seconds after launch, with startup having just driven the children
-    (the satellites' status files appeared, as did the Main Funestra's and Genau's windows), so
+    (the satellites' status files appeared, as did the Main Funestra's window), so
     the creation time read here is the one our child was born with.  Everything that
     kills a child later compares against it, and a PID Windows has since handed
     to someone else no longer matches.
