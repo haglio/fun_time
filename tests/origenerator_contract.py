@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from app_support.siblings import sibling_checkout
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.checkout_overrides import (
@@ -45,8 +46,11 @@ def shipped_by(checkout: Path) -> dict:
     return json.loads(shown.stdout)
 
 
-def _checkouts_beside() -> list[Path]:
-    return [parent / "origenerator" for parent in Path(__file__).resolve().parents]
+def _the_checkout_beside() -> Path | None:
+    try:
+        return sibling_checkout("origenerator", near=Path(__file__))
+    except RuntimeError:
+        return None
 
 
 def published() -> dict:
@@ -55,10 +59,9 @@ def published() -> dict:
     named = named_checkout()
     if named is not None and (document := published_by(named)) is not None:
         return document
-    for checkout in _checkouts_beside():
-        if checkout.is_dir():
-            return shipped_by(checkout)
-    pytest.skip("no Origenerator checkout beside this one")
+    if (beside := _the_checkout_beside()) is None:
+        pytest.skip("no Origenerator checkout beside this one")
+    return shipped_by(beside)
 
 
 def answers(line: str, document: dict) -> bool:

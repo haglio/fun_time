@@ -26,9 +26,9 @@ def _an_origin_and_a_checkout_of_it(tmp_path: Path) -> tuple[Path, Path]:
     return origin, checkout
 
 
-def _held_to(monkeypatch, *, named: Path | None, beside: Path) -> dict:
+def _held_to(monkeypatch, *, named: Path | None, beside: Path | None) -> dict:
     monkeypatch.setattr(origenerator_contract, "named_checkout", lambda: named)
-    monkeypatch.setattr(origenerator_contract, "_checkouts_beside", lambda: [beside])
+    monkeypatch.setattr(origenerator_contract, "_the_checkout_beside", lambda: beside)
     return origenerator_contract.published()
 
 
@@ -59,6 +59,6 @@ def test_a_paired_worktree_that_publishes_nothing_leaves_the_shipped_one(tmp_pat
     assert _held_to(monkeypatch, named=paired, beside=beside) == {"shipped": "first"}
 
 
-def test_with_no_origenerator_checkout_beside_there_is_nothing_to_hold_to(tmp_path, monkeypatch):
+def test_with_no_origenerator_checkout_beside_there_is_nothing_to_hold_to(monkeypatch):
     with pytest.raises(pytest.skip.Exception):
-        _held_to(monkeypatch, named=None, beside=tmp_path / "origenerator")
+        _held_to(monkeypatch, named=None, beside=None)
