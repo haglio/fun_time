@@ -36,46 +36,27 @@ from funestra.modes import MainMode
 from funestra.playback import Playback
 from funestra.playlist import read_playlist
 
-from fun_time.bridge_records import BridgeConfig, Op
+from fun_time.bridge_records import Op
 from fun_time.command_dispatch import dispatch_command
-from fun_time.command_reference import build_reference_sections
-from fun_time.config import load_config
 from fun_time.dashboard_actions import BROWSE_LIBRARY_CLOSE, HELP_REFERENCE_COMMANDS
-from fun_time.manifest import LaunchManifest, write_manifest_data
-from fun_time.mode_plan import MAIN_KINO_MODE, MAIN_MODES
+from fun_time.mode_plan import MAIN_KINO_MODE
 from fun_time.modes import PLAYLIST_PORTRAIT, build_playlist_file_path
 from fun_time.origenerator_switches import KINO_MODE as SATELLITE_KINO_MODE
 from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, SatelliteState
-from fun_time.voice_commands import VOICE_COMMANDS
-from fun_time.windows_bridge_dispatch_loop import (
-    HANDOFF_COMMANDS,
-    build_bridge_config_from_manifest,
-)
+from fun_time.windows_bridge_dispatch_loop import HANDOFF_COMMANDS
 from fun_time_vr import headset_verbs
 from fun_time_vr.headset_verbs import HeadsetVerbs
-from fun_time_vr.orchestrator import build_vr_manifest
 from main_funestra import controls as main_funestra_controls
 from main_funestra.clip_nav import ClipNav
 from main_funestra.kino import Kino
 from main_funestra.mode_memory import ModeMemory, RememberedMode
 from main_funestra.notice import NoticeWriter
-from tests.made_up_genau import made_up_genau
+from tests.dispatch_sweep import every_command, headset_config, sweep
 from tests.origenerator_contract import answers
 from tests.satellite_fakes import FakeSatelliteEngine
 from tests.test_windows_bridge_dispatch_loop import make_runner
-
-# The channels a dispatch writes to.  The paused flags and the broker mailbox
-# carry no vocabulary of their own — the headset and the broker read them
-# exactly as the desktop does — so they are drained here to be seen by the
-# sweep rather than checked verb by verb.
-_CHANNELS = (
-    "main_funestra_cmd_file", "genau_cmd_file", "portrait_cmd_file", "landscape_cmd_file",
-    "origenerator_cmd_file", "broker_cmd_file", "main_funestra_paused_file",
-    "genau_paused_file", "audio_paused_file", "portrait_paused_file",
-    "landscape_paused_file", "origenerator_paused_file",
-)
 
 # Window ops a VR session raises and nothing acts on: every role lives inside
 # the one VR process with no HWND of its own, and the session hands its
@@ -106,113 +87,6 @@ _OPS_THAT_STILL_ACT = frozenset({
 _OPS_A_HEADSET_NEVER_RAISES = frozenset({Op.MAIN_FUNESTRA_ANSWERS})
 
 
-def _headset_config(root: Path, *, names_an_origenerator: bool = True) -> BridgeConfig:
-    """The bridge config a headset session runs on, built the way
-    ``fun_time_vr.orchestrator.run_vr_bridge`` builds it: the VR manifest
-    written out, read back, and handed to the dispatch loop's own builder.
-
-    Off a fabricated config that names an Origenerator checkout, as a real one
-    does, unless told not to.
-    """
-    folders = {name: root / name for name in (
-        "primary", "portrait", "landscape", "vr", "weird", "state")}
-    for folder in folders.values():
-        folder.mkdir(parents=True, exist_ok=True)
-    favs_file = root / "favs.csv"
-    favs_file.write_text("local_file,web_url\n", encoding="utf-8")
-    paths = {
-        "ahk_exe": str(root / "AutoHotkey64.exe"),
-        "python_exe": str(root / "python.exe"),
-        "main_player_library_dirs": [str(folders["primary"])],
-        "portrait_dirs": [str(folders["portrait"])],
-        "landscape_dirs": [str(folders["landscape"])],
-        "weird_dir": str(folders["weird"]),
-        "genau_dir": str(made_up_genau(root)),
-        "favs_file": str(favs_file),
-        "state_dir": str(folders["state"]),
-    }
-    if names_an_origenerator:
-        checkout = root / "origenerator"
-        checkout.mkdir(exist_ok=True)
-        paths["origenerator_dir"] = str(checkout)
-    config_file = root / "fun_time_config.json"
-    config_file.write_text(json.dumps({
-        "paths": paths,
-        "layout": {"primary_monitor": 1, "secondary_monitor": 2,
-                   "main_top_ratio": 0.7, "landscape_width_ratio": 0.6},
-        "audio_companion": {"host": "127.0.0.1", "port": 50556},
-        "vr": {"library_dirs": [str(folders["vr"])]},
-    }), encoding="utf-8")
-    manifest = write_manifest_data(build_vr_manifest(load_config(config_file)),
-                                   folders["state"] / "windows_bridge_launch.ini")
-    return build_bridge_config_from_manifest(LaunchManifest.read(manifest), vr_main_funestra=True)
-
-
-def every_command() -> list[str]:
-    """Every dispatch id the reference and the recognizer can produce.
-
-    The reference is held to the AHK script and to ``VOICE_COMMANDS`` by
-    ``tests/test_command_reference.py``, so walking it here walks every key and
-    every phrase without this module parsing either.
-    """
-    commands = {
-        command
-        for section in build_reference_sections()
-        for row in section.rows
-        for command in row.commands
-    }
-    return sorted(commands | set(VOICE_COMMANDS.values()))
-
-
-def _drain(config: BridgeConfig) -> dict[str, list[str]]:
-    """What each channel was sent since the last drain, emptying them."""
-    config.main_list_builds.settle()
-    written: dict[str, list[str]] = {}
-    for name in _CHANNELS:
-        path = getattr(config, name, None)
-        if path is None or not Path(path).exists():
-            continue
-        lines = [
-            line.strip()
-            for line in Path(path).read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        if lines:
-            written[name] = lines
-        Path(path).unlink()
-    return written
-
-
-def _sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[str]]]:
-    """Dispatch every command in every pairing of the two slots' modes; report
-    what each sent.
-
-    Keyed ``"<main mode>/<satellites mode>/<command>"``, because several
-    controls route by mode and the padlock this module was written for was dead
-    in one and fine in the other — a failure has to say which.  The hosted app
-    has always answered by the time a command is dispatched here, so switching
-    into its mode is a switch rather than a notice that it is still starting.
-    """
-    _drain(config)
-    for status_file in (config.main_funestra_status_file,
-                        *(config.satellite(funestra).status_file for funestra in RoomFunestra.SATELLITES)):
-        status_file.parent.mkdir(parents=True, exist_ok=True)
-        status_file.write_text("video=C:/v/scene one.mp4\nduration_ms=3600000\n",
-                               encoding="utf-8")
-    sweep: dict[str, dict[str, list[str]]] = {}
-    for main_mode in MAIN_MODES:
-        for satellites_mode in satellites_modes:
-            for command in every_command():
-                state = BridgeState(main_mode=main_mode, origenerator_ready=True)
-                for funestra in RoomFunestra.SATELLITES:
-                    state = state.with_satellite(funestra, mode=satellites_mode)
-                _state, ops = dispatch_command(command, state, config, target_path="")
-                written = _drain(config)
-                written["__ops__"] = sorted({op.op for op in ops})
-                sweep[f"{main_mode}/{satellites_mode}/{command}"] = written
-    return sweep
-
-
 @pytest.fixture(scope="module")
 def landed(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
     """The sweep, for a headset hosting the Origenerator its config names.
@@ -220,8 +94,8 @@ def landed(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
     Module-scoped: the sweep is the same for every assertion below and runs the
     whole reference four times.
     """
-    return _sweep(_headset_config(tmp_path_factory.mktemp("vr_parity")),
-                  (SATELLITE_KINO_MODE, ORIGENERATOR_MODE))
+    return sweep(headset_config(tmp_path_factory.mktemp("vr_parity")),
+                 (SATELLITE_KINO_MODE, ORIGENERATOR_MODE))
 
 
 @pytest.fixture(scope="module")
@@ -229,7 +103,7 @@ def landed_hosting_none(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
     """The sweep for a headset whose config names no Origenerator, in the
     origenerator mode a desktop session's shared state can still carry in."""
     root = tmp_path_factory.mktemp("vr_parity_hosting_none")
-    return _sweep(_headset_config(root, names_an_origenerator=False), (ORIGENERATOR_MODE,))
+    return sweep(headset_config(root, names_an_origenerator=False), (ORIGENERATOR_MODE,))
 
 
 def test_the_sweep_sends_every_funestra_its_ten_second_steps(landed):
@@ -340,7 +214,7 @@ class TestTheMainFunestra:
         assert not dead, f"the headset's Main Funestra answers none of these: {dead}"
 
     def test_a_reset_unlocks_it_and_puts_its_speed_back_to_normal(self, tmp_path):
-        config = _headset_config(tmp_path)
+        config = headset_config(tmp_path)
         window = _TheHeadsetsMainFunestra(tmp_path)
         window.answers("SPEED_DOWN")
 
@@ -398,7 +272,7 @@ class TestTheSatellites:
         assert not dead, f"the hosted satellite session answers none of these: {dead}"
 
     def test_a_reset_unlocks_it_and_starts_a_fresh_browse_from_the_top(self, tmp_path):
-        config = _headset_config(tmp_path)
+        config = headset_config(tmp_path)
         clips = [tmp_path / "portrait" / f"{name}.mp4" for name in ("alpha", "beta", "gamma")]
         for clip in clips:
             clip.write_bytes(b"")
