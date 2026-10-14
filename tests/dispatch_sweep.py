@@ -10,7 +10,7 @@ from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
 from fun_time.command_reference import build_reference_sections
 from fun_time.config import load_config
-from fun_time.manifest import LaunchManifest, write_manifest_data
+from fun_time.manifest import LaunchManifest, write_manifest_data, write_windows_bridge_manifest
 from fun_time.mode_plan import MAIN_MODES
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState
@@ -34,11 +34,23 @@ _CHANNELS = (
 def headset_config(root: Path, *, names_an_origenerator: bool = True) -> BridgeConfig:
     """The bridge config a headset session runs on, built the way
     ``fun_time_vr.orchestrator.run_vr_bridge`` builds it: the VR manifest
-    written out, read back, and handed to the dispatch loop's own builder.
+    written out, read back, and handed to the dispatch loop's own builder."""
+    config = room_config(root, names_an_origenerator=names_an_origenerator)
+    manifest = write_manifest_data(build_vr_manifest(config),
+                                   config.paths.state_dir / "windows_bridge_launch.ini")
+    return build_bridge_config_from_manifest(LaunchManifest.read(manifest), vr_main_funestra=True)
 
-    Off a fabricated config that names an Origenerator checkout, as a real one
-    does, unless told not to.
-    """
+
+def desktop_manifest(root: Path) -> LaunchManifest:
+    """The manifest a session on the monitors runs on, as its orchestrator writes it."""
+    config = room_config(root)
+    return LaunchManifest.read(write_windows_bridge_manifest(
+        config, config.paths.state_dir / "windows_bridge_launch.ini"))
+
+
+def room_config(root: Path, *, names_an_origenerator: bool = True):
+    """A fabricated config that names an Origenerator checkout, as a real one
+    does, unless told not to."""
     folders = {name: root / name for name in (
         "primary", "portrait", "landscape", "vr", "weird", "state")}
     for folder in folders.values():
@@ -68,9 +80,7 @@ def headset_config(root: Path, *, names_an_origenerator: bool = True) -> BridgeC
         "audio_companion": {"host": "127.0.0.1", "port": 50556},
         "vr": {"library_dirs": [str(folders["vr"])]},
     }), encoding="utf-8")
-    manifest = write_manifest_data(build_vr_manifest(load_config(config_file)),
-                                   folders["state"] / "windows_bridge_launch.ini")
-    return build_bridge_config_from_manifest(LaunchManifest.read(manifest), vr_main_funestra=True)
+    return load_config(config_file)
 
 
 def every_command() -> list[str]:

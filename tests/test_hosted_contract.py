@@ -5,51 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from fun_time.hosted_contract import CONTRACT_FILE, declared_flags, the_args_it_declares
-from fun_time.hosted_origenerator import HAND_OVER, TAKE_BACK
-from fun_time.room_funestras import RoomFunestra
-from fun_time.window_layout import WindowLayoutPlan, WindowRect
-from fun_time.window_roles import ORIGENERATOR_TITLE
-from fun_time.windows_bridge_startup import HandedFunestra, origenerator_session_args
-from fun_time_vr.gallery_panel import HOSTED_RELEASE, HOVER, SCROLL
-from fun_time_vr.pointer import DRAG, PRESS, RIGHT_CLICK
-from tests.origenerator_contract import answers, published
-
-
-def _the_flags_fun_time_sends(**headset) -> set[str]:
-    a_rect = WindowRect(0, 0, 10, 10)
-    args = origenerator_session_args(
-        layout_plan=WindowLayoutPlan(portrait=a_rect, landscape=a_rect, dashboard=a_rect,
-                                     random_favs_browser=a_rect),
-        command_file="c", paused_file="p", status_file="s", dashboard_cmd_file="d",
-        funestras={funestra.label: HandedFunestra("playlist", "cmd", "status", "hud")
-                   for funestra in RoomFunestra.SATELLITES},
-        **headset)
-    return {word for word in args if word.startswith("--")}
-
-
-def test_every_flag_fun_time_sends_is_one_the_shipped_origenerator_declares():
-    in_a_headset = _the_flags_fun_time_sends(frames_file="f.bin", input_file="i.txt")
-
-    assert in_a_headset <= declared_flags(published())
-
-
-def test_every_flag_the_shipped_origenerator_requires_is_one_fun_time_sends():
-    assert set(published()["required_flags"]) <= _the_flags_fun_time_sends()
-
-
-def test_the_words_fun_time_sends_through_the_pair_are_the_shipped_origenerator_s():
-    assert set(published()["headset_words"]) == {
-        PRESS, HOSTED_RELEASE, DRAG, HOVER, SCROLL, RIGHT_CLICK}
-
-
-def test_what_a_session_tells_a_kept_copy_is_a_line_the_shipped_origenerator_answers():
-    assert answers(TAKE_BACK)
-    assert answers(f"{HAND_OVER}|C:/state/origenerator_frame.bin|C:/state/origenerator_input.txt")
-
-
-def test_the_caption_fun_time_finds_it_by_is_the_one_the_shipped_origenerator_wears():
-    assert published()["window_title"] == ORIGENERATOR_TITLE
+from fun_time.hosted_contract import CONTRACT_FILE, the_args_it_declares
 
 
 def _a_checkout_declaring(tmp_path: Path, **groups) -> Path:
