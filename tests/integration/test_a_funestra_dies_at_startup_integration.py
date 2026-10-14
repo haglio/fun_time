@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from fun_time.config import SIBLING_CHECKOUTS_KEY
+
 from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
@@ -42,17 +44,17 @@ def _a_funestra_whose_flick_folder_dies_importing(root: Path) -> Path:
     return package.parent
 
 
-def _run_the_funestras_out_of(config_path: Path, checkout: Path) -> None:
+def _start_the_funestras_with(config_path: Path, checkout: Path) -> None:
     config = json.loads(config_path.read_text(encoding="utf-8"))
     paths = config["paths"]
-    paths["genau_project_dirs"] = [str(checkout), *paths.get("genau_project_dirs", [])]
+    paths[SIBLING_CHECKOUTS_KEY] = [str(checkout), *paths.get(SIBLING_CHECKOUTS_KEY, [])]
     config_path.write_text(json.dumps(config), encoding="utf-8")
 
 
 def test_a_funestra_that_dies_importing_stops_the_startup_saying_what_it_said():
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
-    _run_the_funestras_out_of(config_path, _a_funestra_whose_flick_folder_dies_importing(temp_root))
+    _start_the_funestras_with(config_path, _a_funestra_whose_flick_folder_dies_importing(temp_root))
     session = FunTimeIntegrationSession(config_path)
     try:
         logged = session.start_one_that_stops_starting_up(

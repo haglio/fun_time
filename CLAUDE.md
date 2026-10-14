@@ -62,7 +62,7 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 
 - **OmniPause's limits are settled on all three input paths: never widen one, never narrow one, and never ask him about any of them.** Spoken, a paused room answers exactly seven things — resume, quit, retract the OSR2, and the headset's enter VR, exit VR, recenter and VR reset (`SUSPEND_EXEMPT_COMMANDS`, pinned whole by `tests/test_command_reference.py`). The keyboard is the first three and nothing else: entering the pause suspends the AutoHotkey script wholesale, and `#SuspendExempt` keeps Esc, Ctrl+Alt+Q and Shift+Esc live through it — which is also what hands his keyboard back to everything else on screen, and is how he types into a hosted Origenerator window inside a session. The headset runs the same script, and however many keys come off the keyboard there, Esc stays: he finds it by feel, so it pauses and resumes the room in the headset as at the desk. Every button goes on working through a pause and must: the dashboard's, each Funestra's, the headset controller's. A press carries no `spoken_at`, which is the whole of what `_frozen` keys off, and `test_keeps_the_mouse_live_under_omnipause` pins it. His words on all three, 2026-09-28: "keys shouldn't work during a pause either! Christ no. So not hotkeys or voice commands, other than the obvious exceptions we already have. But anything else, like buttons, should still work fine." The reference popup was exempt from the spoken freeze once and was walked back, so when a spoken command seems to need the pause lifted, the fix is to say on screen why it was ignored (2026-09-13). **The trap that has already cost him a round trip:** the spoken set is a VOICE set, so it is never why a button or a headset controller click did nothing. An agent told him it was; he ordered the limit lifted off everything but voice, and the work that followed turned out to be no work at all, the app having always behaved as he wanted.
 - **Nothing is reported on the loading screen after the line that fills the bar.** A wait added at the end -- the hosted app's boot, say -- shows as a step past "Finalizing..." with the bar already full, which reads as a room that is finished and still working. So a wait under the cover gets its own phase before the final weightless one, carrying weight, and that weightless line stays last: the dashboard shows itself when the bar fills and the post-loading window pass waits for that window, so the line has to come before the pass.
-- **Importing `fun_time` puts a worktree's `state/genau_project_dirs.txt` checkouts on `sys.path` before anything else loads, app_support included, and `fun_time_vr` imports it first for the same reason.** A process that loaded a sibling before that keeps the venv's copy, so a preview of a sibling change dies at launch. `tests/test_launch_smoke.py` imports each entry point the way its `.vbs` runs it.
+- **Importing `fun_time` puts a worktree's `state/sibling_checkouts.txt` checkouts on `sys.path` before anything else loads, app_support included, and `fun_time_vr` imports it first for the same reason.** A process that loaded a sibling before that keeps the venv's copy, so a preview of a sibling change dies at launch. `tests/test_launch_smoke.py` imports each entry point the way its `.vbs` runs it.
 - **No key inside a satellite or a headset ends that Funestra.** A satellite is one of a set the sequencer placed, and killing one leaves the session running around a gap; the session ends as a whole, through Ctrl+Alt+Q. Do not add a per-window quit handler back.
 - **The shells are not unit-tested, on purpose:** `satellite/app.py`, `fun_time_vr/funestras.py`, `fun_time_vr/render.py`, `fun_time_vr/vr_session.py`, `fun_time_vr/video_thread.py`, `fun_time_vr/gl_contexts.py`, `fun_time/chrome_accessibility.py`, `fun_time_vr/windows_sound.py` need the libmpv DLL, a GL context, a headset or a real Chrome, or would change the machine's default sound devices. Logic that can be tested lives outside them — `fun_time.chrome_tabs`, `fun_time_vr.vr_runtime`, `satellite.contract`, `fun_time_vr.headset_verbs`, `fun_time_vr.genau_in_the_headset`, `fun_time_vr.surfaces`, `fun_time_vr.console_panel`, `fun_time_vr.pointer`, `fun_time_vr.layout`, `fun_time_vr.frame_relay`, `funestra.funestra` — and is tested against fakes. Put new logic there, not in a shell.
 
@@ -243,17 +243,18 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   relative one for you), before handing him the shortcut. Cost the broker/OSR2
   indicator fix a whole round trip on 2026-07-28.
 
-- **Which checkout of `../funestra` your session's Funestras run is NOT one of
-  those — say it in your worktree, never in his config.** `paths.genau_project_dirs`
-  (named for the Genau window it once launched; the Main Funestra and the
-  satellites read it now) looks like an ordinary key, but it is per session:
-  written into his `fun_time_config.json` it repoints his ordinary `launch.vbs`
-  session and every other agent's branch session at your unlanded branch, for as
-  long as it sits there, and nothing sweeps it back out. Write
-  `state/genau_project_dirs.txt` in your own worktree instead — one absolute path
-  per line, and an **empty** file when your branch has nothing to do with
-  funestra, which is how you get the plain install even if his config is
-  pinned to someone else's worktree. Cost the main-player minimize button a round trip on
+- **Which checkouts of the shared code (`../funestra`, `../app_support`,
+  `../shared_ui`, `../voice_core`) your session runs is NOT one of those — say it
+  in your worktree, never in his config.** `paths.sibling_checkouts` looks like an
+  ordinary key, but it is per session: written into his `fun_time_config.json` it
+  repoints his ordinary `launch.vbs` session and every other agent's branch
+  session at your unlanded branch, for as long as it sits there, and nothing
+  sweeps it back out. Write `state/sibling_checkouts.txt` in your own worktree
+  instead — one absolute path per line, and an **empty** file when your branch
+  changes none of them, which is how you get the venv's installs even if his
+  config is pinned to someone else's worktree. Both were named for Genau until
+  2026-10-16 (`genau_project_dirs`), and the old names are still read for older
+  branches. Cost the main-player minimize button a round trip on
   2026-08-13: it had landed in genau, and the pinned checkout predated it, so it
   was on neither the demo nor his app. Every path in that file also goes onto the
   hosted Origenerator's path, which is why the launcher holds it to Origenerator's

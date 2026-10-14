@@ -25,6 +25,9 @@ from .room_funestras import RoomFunestra
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "fun_time_config.json"
 EXAMPLE_CONFIG_PATH = PROJECT_DIR / "fun_time_config.example.json"
 
+SIBLING_CHECKOUTS_KEY = "sibling_checkouts"
+SIBLING_CHECKOUTS_KEY_BEFORE_THE_RENAME = "genau_project_dirs"
+
 
 @dataclass(frozen=True)
 class PathsConfig:
@@ -330,7 +333,8 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir
         genau_config_path=resolve_path(project_dir, paths_raw["genau_config_path"]) if paths_raw.get("genau_config_path") else None,
         sibling_checkouts=tuple(
             resolve_path(project_dir, str(value))
-            for value in paths_raw.get("genau_project_dirs", [])),
+            for value in paths_raw.get(SIBLING_CHECKOUTS_KEY, paths_raw.get(
+                SIBLING_CHECKOUTS_KEY_BEFORE_THE_RENAME, []))),
         broker_tray_launcher=resolve_path(project_dir, paths_raw["broker_tray_launcher"]) if paths_raw.get("broker_tray_launcher") else None,
         origenerator_dir=resolve_path(project_dir, paths_raw["origenerator_dir"]) if paths_raw.get("origenerator_dir") else None,
         origenerator_python_exe=resolve_path(project_dir, paths_raw["origenerator_python_exe"]) if paths_raw.get("origenerator_python_exe") else None,

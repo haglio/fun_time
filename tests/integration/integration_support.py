@@ -23,7 +23,7 @@ from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 
 from fun_time.branch_session import _apply_sibling_checkouts_override
 from fun_time.checkout_overrides import STATE_DIRNAME
-from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, load_config
+from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, SIBLING_CHECKOUTS_KEY, load_config
 from fun_time.event_log import EventRecord, event_log_path, is_announcement, read_events
 from fun_time.funestra_status import (
     MainFunestraStatus,
@@ -807,7 +807,7 @@ def run_from_this_installation(config: dict) -> None:
 
 
 def apply_this_checkouts_siblings(config: dict) -> None:
-    """Run this checkout's ``state/genau_project_dirs.txt`` over *config*, the
+    """Run this checkout's ``state/sibling_checkouts.txt`` over *config*, the
     way a branch session's own config generator does.
 
     A run launches this checkout's code, so it has to launch this checkout's
@@ -830,7 +830,7 @@ def this_checkouts_siblings() -> str:
     launches a child itself instead of through a session's manifest."""
     raw: dict = {}
     apply_this_checkouts_siblings(raw)
-    return os.pathsep.join(raw.get("paths", {}).get("genau_project_dirs", []))
+    return os.pathsep.join(raw.get("paths", {}).get(SIBLING_CHECKOUTS_KEY, []))
 
 
 def environment_with_this_checkouts_siblings() -> dict[str, str]:

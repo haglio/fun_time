@@ -287,7 +287,7 @@ def test_a_run_checks_main_out_where_the_runner_keeps_it_and_names_the_tests_tha
 
     place = primary / ".claude" / "worktrees" / "verifying-main"
     assert ["git", "worktree", "add", "--detach", str(place), "c3"] in [command for command, _ in shell.commands]
-    assert (place / "state" / "genau_project_dirs.txt").read_text(encoding="utf-8") == ""
+    assert (place / "state" / "sibling_checkouts.txt").read_text(encoding="utf-8") == ""
     command, cwd, asked_to_restart = suites[0]
     assert command[1:] == ["-m", "tests.integration.hidden_desktop", "tests/integration/test_x.py::test_y"]
     assert cwd == place
@@ -892,7 +892,7 @@ def test_a_fix_session_starts_in_a_checkout_of_its_own_and_is_told_what_broke(tm
     assert started == "812181fb"
     place = primary / ".claude" / "worktrees" / "fix-41"
     assert (["git", "worktree", "add", "-B", "claude/fix-41", str(place), "origin/main"], primary) in shell.commands
-    assert (place / "state" / "genau_project_dirs.txt").read_text(encoding="utf-8") == ""
+    assert (place / "state" / "sibling_checkouts.txt").read_text(encoding="utf-8") == ""
     command, cwd = next((command, cwd) for command, cwd in shell.commands if "--bg" in command)
     assert command[0] == "claude.exe" and cwd == place
     assert command[command.index("--permission-mode") + 1] == "auto"

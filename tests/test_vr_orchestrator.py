@@ -17,7 +17,7 @@ from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
 from funestra.drive_readout import DriveHud, drive_text
 from funestra.modes import MainMode
 
-from fun_time import funestra_deaths, win32_taskbar
+from fun_time import checkout_overrides, funestra_deaths, win32_taskbar
 from fun_time.config import load_config
 from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import OUR_RUNTIME_NAME
@@ -34,7 +34,11 @@ from fun_time.overlay_progress import (
     StartupCancelled,
     parse_progress,
 )
-from fun_time.project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
+from fun_time.project_paths import (
+    HOTKEY_SCRIPT_NAME,
+    PROJECT_DIR,
+    SIBLING_CHECKOUTS_OVERRIDE_NAME,
+)
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import SessionEnvironment
@@ -769,16 +773,37 @@ class TestTheCrossingBackToTheDesktop:
         popen.assert_not_called()
 
 
+def _the_session_main_starts(config, argv: list[str]) -> MagicMock:
+    with patch.object(orchestrator, "load_config", return_value=config), \
+         patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
+         patch.object(orchestrator, "install_exception_logging"), \
+         patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+         patch("fun_time.session_handoff.subprocess.Popen"), \
+         patch.object(orchestrator, "engine_missing_abort", return_value=False), \
+         patch.object(orchestrator, "run_vr_bridge", return_value=0) as run_bridge:
+        orchestrator.main(argv)
+    return run_bridge
+
+
+class TestTheCheckoutsItsOwnCheckoutNames:
+    def test_the_session_runs_the_sibling_checkouts_this_checkout_names(
+            self, config, tmp_path, monkeypatch):
+        """Whatever wrote its config: a production checkout from before
+        2026-10-16 reads only the old name of the file that names them."""
+        checkout = tmp_path / "funestra_worktree"
+        (tmp_path / "state").mkdir(exist_ok=True)
+        (tmp_path / "state" / SIBLING_CHECKOUTS_OVERRIDE_NAME).write_text(
+            f"{checkout}\n", encoding="utf-8")
+        monkeypatch.setattr(checkout_overrides, "PROJECT_DIR", tmp_path)
+
+        run_bridge = _the_session_main_starts(config, [])
+
+        assert run_bridge.call_args.args[0].paths.sibling_checkouts == (checkout,)
+
+
 class TestTheWayBackIntoVr:
     def test_a_launch_started_as_a_way_back_is_handed_no_esc(self, config):
-        with patch.object(orchestrator, "load_config", return_value=config), \
-             patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
-             patch.object(orchestrator, "install_exception_logging"), \
-             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
-             patch("fun_time.session_handoff.subprocess.Popen"), \
-             patch.object(orchestrator, "engine_missing_abort", return_value=False), \
-             patch.object(orchestrator, "run_vr_bridge", return_value=0) as run_bridge:
-            orchestrator.main(["--no-cancel"])
+        run_bridge = _the_session_main_starts(config, ["--no-cancel"])
 
         assert run_bridge.call_args.kwargs["cancelable"] is False
 

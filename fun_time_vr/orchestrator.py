@@ -30,7 +30,7 @@ from funestra.flick_folder import vr_flicks_in
 
 from fun_time.branch_session import describe_the_session_on_the_taskbar
 from fun_time.broker_control import write_broker_command
-from fun_time.checkout_overrides import sibling_checkouts_kwargs
+from fun_time.checkout_overrides import apply_this_checkouts_overrides, sibling_checkouts_kwargs
 from fun_time.child_launch import open_child_log
 from fun_time.command_dispatch import genau_flick_shapes
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
@@ -803,11 +803,8 @@ def set_up_logging(config) -> logging.Logger:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     env = SessionEnvironment.from_environ(os.environ)
-    config = load_config(args.config)
+    config = apply_this_checkouts_overrides(load_config(args.config), integration=env.integration)
     set_up_logging(config)
-
-    # Mirrors fun_time.orchestrator.main.
-
 
     # The SAME mutex as the desktop session: both drive the same state files
     # and the same Funestras' channels, so they must never run together.

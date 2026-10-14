@@ -62,10 +62,9 @@ def _write_config(path: Path, **paths: str) -> Path:
             "favs_file": "favs.csv",
             "state_dir": "state",
             "genau_config_path": "C:/genau/genau_config.json",
-            # Relative on purpose: a checkout Genau and the Main Funestra are run out of sits
-            # one directory up from the primary, which from a worktree is a
-            # different place entirely.
-            "genau_project_dirs": ["../genau", "../funestra"],
+            # Relative on purpose: a sibling checkout sits one directory up from
+            # the primary, which from a worktree is a different place entirely.
+            "sibling_checkouts": ["../funestra", "../shared_ui"],
             "broker_tray_launcher": "../broker/launch_broker_tray.vbs",
         },
         "layout": {
@@ -137,32 +136,33 @@ def test_the_shortcut_line_names_the_sibling_checkouts_the_launch_will_run(check
     line = branch_session.sibling_checkouts_line(
         checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
 
-    assert "genau" in line and "funestra" in line
+    assert line.startswith("sibling_checkouts: ")
+    assert "funestra" in line and "shared_ui" in line
 
 
 def test_the_shortcut_line_says_when_the_chain_is_empty(checkouts):
     raw = json.loads(checkouts.config_path.read_text(encoding="utf-8"))
-    raw["paths"]["genau_project_dirs"] = []
+    raw["paths"]["sibling_checkouts"] = []
     checkouts.config_path.write_text(json.dumps(raw), encoding="utf-8")
 
     line = branch_session.sibling_checkouts_line(
         checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
 
-    assert "primaries" in line
+    assert "the shared code its venv installs" in line
 
 
 def test_the_shortcut_line_reads_the_worktrees_own_override_first(checkouts):
     """What the line says must be what the click will do, and the click applies
-    the worktree's ``state/genau_project_dirs.txt`` over the machine's config —
+    the worktree's ``state/sibling_checkouts.txt`` over the machine's config —
     so the line resolves through the same override, or it would vouch for a
     chain the launch does not run."""
-    _name_sibling_checkouts(checkouts.worktree, "C:/checkouts/genau-fix\n")
+    _name_sibling_checkouts(checkouts.worktree, "C:/checkouts/funestra-fix\n")
 
     line = branch_session.sibling_checkouts_line(
         checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
 
-    assert "genau-fix" in line
-    assert "funestra" not in line  # the override replaces, never augments
+    assert "funestra-fix" in line
+    assert "shared_ui" not in line  # the override replaces, never augments
 
 
 def test_every_path_a_branch_session_reads_is_the_one_the_live_session_reads(checkouts):
@@ -238,29 +238,29 @@ def test_a_branch_session_and_the_live_one_take_the_same_mutex(checkouts):
 def _name_sibling_checkouts(worktree: Path, text: str) -> None:
     state = worktree / branch_session.STATE_DIRNAME
     state.mkdir(parents=True, exist_ok=True)
-    (state / branch_session.GENAU_DIRS_OVERRIDE_NAME).write_text(text, encoding="utf-8")
+    (state / branch_session.SIBLING_CHECKOUTS_OVERRIDE_NAME).write_text(text, encoding="utf-8")
 
 
 def _names_sibling_checkout(worktree: Path, checkout: Path) -> None:
     _name_sibling_checkouts(worktree, f"{checkout}\n")
 
 
-def test_a_worktree_can_name_the_genau_checkout_its_own_session_runs(checkouts):
-    """Which checkout of ../genau the Main Funestra and Genau come from is a per-session fact,
+def test_a_worktree_can_name_the_sibling_checkouts_its_own_session_runs(checkouts):
+    """Which checkouts of the shared code a session runs is a per-session fact,
     and until this it could only be said in the machine's one config — where it
     reached the user's ordinary session and every other agent's branch session
     too."""
-    _name_sibling_checkouts(checkouts.worktree, "C:/genau/.claude/worktrees/mine\n")
+    _name_sibling_checkouts(checkouts.worktree, "C:/funestra/.claude/worktrees/mine\n")
 
     _live, branch = _live_and_branch(checkouts)
 
-    assert branch.paths.sibling_checkouts == (Path("C:/genau/.claude/worktrees/mine"),)
+    assert branch.paths.sibling_checkouts == (Path("C:/funestra/.claude/worktrees/mine"),)
 
 
 def test_an_empty_override_means_the_plain_install_whatever_the_machine_says(checkouts):
-    """The case that cost a round trip: a branch with nothing to do with genau,
-    launched while the machine was pinned to somebody's unlanded genau worktree,
-    and therefore running a genau that predated what had already landed."""
+    """The case that cost a round trip: a branch that changed none of the shared
+    code, launched while the machine was pinned to somebody's unlanded worktree
+    of it, and therefore running a copy that predated what had already landed."""
     _name_sibling_checkouts(checkouts.worktree, "# nothing of ours\n\n")
 
     live, branch = _live_and_branch(checkouts)
@@ -275,10 +275,26 @@ def test_without_an_override_the_machines_own_answer_rides_through(checkouts):
     assert branch.paths.sibling_checkouts == live.paths.sibling_checkouts
 
 
+@pytest.mark.parametrize("override", ["C:/funestra/.claude/worktrees/mine\n", None])
+def test_a_branch_from_before_the_rename_is_handed_the_same_checkouts(checkouts, override):
+    """Every launcher runs the production checkout's code against whatever
+    branch it names, and a branch cut before 2026-10-16 reads its checkouts
+    only under the name they had while they were Genau's."""
+    if override is not None:
+        _name_sibling_checkouts(checkouts.worktree, override)
+
+    written = branch_session.build_branch_config(
+        checkouts.worktree, primary_config_path=checkouts.config_path, primary=checkouts.primary)
+
+    paths = json.loads(written.read_text(encoding="utf-8"))["paths"]
+    assert paths["genau_project_dirs"] == paths["sibling_checkouts"]
+    assert paths["sibling_checkouts"]
+
+
 def test_the_override_lands_where_git_ignores_it(checkouts):
     """It names paths on the machine, and the worktree is a checkout of a public
     repo — the same reason the branch config itself lives under ``state/``."""
-    assert branch_session.GENAU_DIRS_OVERRIDE_NAME
+    assert branch_session.SIBLING_CHECKOUTS_OVERRIDE_NAME
     ignored = (REPO_DIR / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert "state/" in ignored
 
