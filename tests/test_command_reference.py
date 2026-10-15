@@ -649,8 +649,10 @@ def test_relief_omnipause_row_shows_shift_esc_and_the_single_word_name():
 
 def test_relief_answers_to_one_word_as_well_as_its_full_name():
     """Three words is a lot to get out in the moment the command is for, so the
-    obvious single word reaches it too."""
+    obvious single word reaches it too.  "retract" was a second such word and is
+    now the Genau hold of that name: relief is the one that stops the room."""
     assert VOICE_COMMANDS["stop"] == "relief_omnipause"
+    assert VOICE_COMMANDS["retract"] == "robot_hand_retract"
 
 
 def test_relief_survives_the_omnipause_suspension_on_both_input_paths():

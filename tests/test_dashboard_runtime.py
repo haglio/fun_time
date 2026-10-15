@@ -8,6 +8,7 @@ from fun_time.funestra_status import (
     GenauStatus,
     MainFunestraStatus,
     is_broker_heartbeat_fresh,
+    is_osr2_device_on,
     read_genau_status,
     read_key_values,
     read_main_funestra_status,
@@ -67,6 +68,31 @@ def test_load_dashboard_snapshot_reads_whether_every_funestra_has_nothing_to_res
     write_dashboard_snapshot(snapshot_file, DashboardSnapshot(nothing_to_reset=True))
 
     assert load_dashboard_snapshot(snapshot_file).nothing_to_reset is True
+
+
+def test_osr2_device_on_when_rx_recent(tmp_path: Path):
+    rx_file = tmp_path / "osr2_serial_rx.txt"
+    rx_file.write_text("100.0", encoding="utf-8")
+
+    assert is_osr2_device_on(rx_file, now=115.0) is True
+
+
+def test_osr2_device_off_when_rx_stale(tmp_path: Path):
+    rx_file = tmp_path / "osr2_serial_rx.txt"
+    rx_file.write_text("100.0", encoding="utf-8")
+
+    assert is_osr2_device_on(rx_file, now=117.0) is False
+
+
+def test_osr2_device_off_when_rx_missing(tmp_path: Path):
+    assert is_osr2_device_on(tmp_path / "missing.txt", now=100.0) is False
+
+
+def test_osr2_device_off_when_rx_invalid(tmp_path: Path):
+    rx_file = tmp_path / "osr2_serial_rx.txt"
+    rx_file.write_text("not-a-float", encoding="utf-8")
+
+    assert is_osr2_device_on(rx_file, now=100.0) is False
 
 
 def test_broker_heartbeat_is_fresh_when_recent(tmp_path: Path):
@@ -315,22 +341,30 @@ def test_funscript_driving_is_scripted_and_not_resting():
 
 
 
-class TestTheBrokersHeartbeat:
+class TestTheTwoFreshnessChecks:
+    """One check, two windows.  They were the same four statements twice,
+    differing only in the window and in whether the boundary counts."""
+
     def _stamped(self, tmp_path, age: float):
         path = tmp_path / "stamp.txt"
         path.write_text(str(1000.0 - age), encoding="utf-8")
         return path
 
-    def test_it_counts_as_fresh_on_its_boundary(self, tmp_path):
+    def test_the_device_counts_as_on_inside_its_window_and_not_on_it(self, tmp_path):
+        assert is_osr2_device_on(self._stamped(tmp_path, 15.9), now=1000.0) is True
+        assert is_osr2_device_on(self._stamped(tmp_path, 16.0), now=1000.0) is False
+
+    def test_the_heartbeat_counts_as_fresh_on_its_boundary(self, tmp_path):
+        """The one difference between them, kept: `<=`, not `<`."""
         assert is_broker_heartbeat_fresh(self._stamped(tmp_path, 3.0), now=1000.0) is True
         assert is_broker_heartbeat_fresh(self._stamped(tmp_path, 3.1), now=1000.0) is False
 
-    def test_a_stamp_that_is_not_there_or_is_not_a_number_is_not_fresh(self, tmp_path):
+    def test_a_stamp_that_is_not_there_or_is_not_a_number_is_neither(self, tmp_path):
         missing = tmp_path / "never_written.txt"
         garbled = tmp_path / "garbled.txt"
         garbled.write_text("not a timestamp", encoding="utf-8")
 
-        assert is_broker_heartbeat_fresh(missing, now=1000.0) is False
+        assert is_osr2_device_on(missing, now=1000.0) is False
         assert is_broker_heartbeat_fresh(garbled, now=1000.0) is False
 
 

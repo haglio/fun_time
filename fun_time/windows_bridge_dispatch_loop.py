@@ -13,7 +13,6 @@ from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
-from app_support import osr2_device
 from app_support.file_channel import consume_command_file, read_flag
 from app_support.win32 import force_foreground_window, window_exists
 from funestra.file_channel import append_command
@@ -332,7 +331,6 @@ class DispatchLoopRunner:
             main_funestra_status_file=config.main_funestra_status_file,
             main_funestra_cmd_file=config.main_funestra_cmd_file,
             genau_cmd_file=config.genau_cmd_file,
-            device_on=lambda: osr2_device.switched_on(config.broker_state),
             satellites={funestra: SatelliteLine(status_file=config.satellite(funestra).status_file,
                                               cmd_file=config.satellite(funestra).cmd_file)
                         for funestra in RoomFunestra.SATELLITES},

@@ -9,11 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app_support import osr2_device
-from app_support.osr2_device import Osr2Mode
 from funestra.console import aim_row, console_text
 from funestra.drive_readout import read_drive
-from funestra.modes import Osr2State
 from funestra.satellite_hud import HudModel, hud_text, parse_hud
 
 from main_funestra.controls import longer_than_a_step
@@ -30,16 +27,18 @@ from .console_buttons import osr2_controls
 from .crown import Crown
 from .funestra_status import (
     is_broker_heartbeat_fresh,
+    is_osr2_device_on,
     read_genau_status,
     read_main_funestra_status,
 )
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SatelliteInputs, build_satellite_panel
-from .main_funestra_console import MainSlotInputs, console_model
+from .main_funestra_console import MainSlotInputs, console_model, device_word
 from .media_renditions import renditions
 from .modes import is_favorite_path, read_favs_content
 from .osr2_section import DeviceBlock, funestra_with_the_osr2
 from .room_funestras import RoomFunestra
+from .runtime_flow import read_flag_file
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .shared_state import BridgeState
 
@@ -93,7 +92,7 @@ class HudFeed:
             return DeviceBlock(
                 rows=(aim_row(learned=genau.learned_active, shape=genau.shape,
                               control=state.osr2_control),),
-                osr2=Osr2State.of(osr2_mode, funscript_driving=scripted.funscript_driving),
+                osr2=device_word(osr2_mode, scripted.funscript_driving),
                 control=state.osr2_control,
                 controls=osr2_controls(broker=broker),
                 max_intensity=state.max_intensity)
@@ -232,5 +231,20 @@ class HudFeed:
             return status
         return self._last_satellite_status.get(funestra, status)
 
-    def osr2_mode(self) -> Osr2Mode:
-        return osr2_device.mode(self.config.broker_state)
+    def osr2_mode(self) -> str:
+        """What the device is doing: "off" when nothing is on the wire at all,
+        "auto" while Genau has claimed it, "controlled" otherwise.
+
+        "Off" requires BOTH serial stamps stale.  The device only emits bytes in
+        reply to traffic, so the RX stamp alone goes quiet during any stretch
+        nothing new is sent — an OmniPause, a handoff buffer — and calling that
+        "off" told the console nobody had the device at the exact moments the
+        handoff was on screen: the whole readout went dead grey with the dot
+        parked, mid-picture, over and over.  A driver sending (TX fresh) is a
+        device in use, whatever it last said back.
+        """
+        rx_fresh = is_osr2_device_on(self.config.osr2_serial_rx_file)
+        tx_fresh = is_osr2_device_on(self.config.osr2_serial_tx_file)
+        if not (rx_fresh or tx_fresh):
+            return "off"
+        return "auto" if read_flag_file(self.config.broker_mode_file, False) else "controlled"

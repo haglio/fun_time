@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from funestra.console import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
+from funestra.console import OSR2_CONTROL_OFF, OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import MainMode
 
 from fun_time.broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
@@ -40,6 +40,15 @@ def test_leaving_gives_genau_the_device_back_in_genau_mode():
     assert plan.resume_genau_playback is True
 
 
+def test_leaving_does_not_give_it_back_while_control_is_off():
+    """The console's switch decides who drives, not the way out of a pause: a
+    resume here put Genau's motion back on a device the room had let go of."""
+    plan = build_omnipause_plan("leave", omni_paused=True, main_mode=MainMode.GENAU,
+                                osr2_control=OSR2_CONTROL_OFF)
+
+    assert plan.resume_genau_playback is False
+
+
 def test_leaving_leaves_the_hand_to_the_arbiter_while_a_side_funestra_has_the_osr2():
     plan = build_omnipause_plan("leave", omni_paused=True, main_mode=MainMode.GENAU,
                                 osr2_funestra=RoomFunestra.PORTRAIT)
@@ -58,9 +67,9 @@ def test_leaving_hands_the_osr2_back_unless_a_hold_is_keeping_it():
     commands = {control: build_omnipause_plan("leave", omni_paused=True,
                                               main_mode=MainMode.KINO,
                                               osr2_control=control).broker_command
-                for control in (OSR2_PARKED, OSR2_RETRACTED, OSR2_DRIVING)}
+                for control in (OSR2_PARKED, OSR2_RETRACTED, OSR2_CONTROL_OFF)}
 
     assert commands == {OSR2_PARKED: PARK_CMD, OSR2_RETRACTED: RETRACT_CMD,
-                        OSR2_DRIVING: RESUME_CMD}
+                        OSR2_CONTROL_OFF: RESUME_CMD}
 
 

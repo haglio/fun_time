@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 from fun_time.branch_session import build_branch_config
-from fun_time.project_paths import GENAU_DIRS_OVERRIDE_NAME, STATE_DIRNAME
+from fun_time.checkout_overrides import GENAU_DIRS_OVERRIDE_NAME, STATE_DIRNAME
 
 from .integration_support import (
     FunTimeIntegrationSession,
