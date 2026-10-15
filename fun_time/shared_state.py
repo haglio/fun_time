@@ -123,7 +123,7 @@ class BridgeState:
     volume: int = MAX_VOLUME
     muted: bool = False
     max_intensity: int = FULL_INTENSITY
-    osr2_control: str = OSR2_DRIVING  # the console's OSR2 switch sets it
+    osr2_control: str = OSR2_DRIVING  # the console's four-button group sets it
     crowned: Crown = Crown.MAIN
     majority: Crown = Crown.PORTRAIT
     osr2_funestra: int = 1

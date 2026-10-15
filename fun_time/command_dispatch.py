@@ -9,11 +9,10 @@ from dataclasses import replace
 from functools import partial
 from pathlib import Path
 
-from app_support import osr2_device
 from funestra.console import (
     OSR2_CONTROL_BUTTONS,
+    OSR2_CONTROL_OFF,
     OSR2_DRIVING,
-    OSR2_PARKED,
     OSR2_RETRACTED,
 )
 from funestra.file_channel import append_command
@@ -39,7 +38,7 @@ from main_funestra.controls import longer_than_a_step
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import BridgeConfig, Op, WindowOp
-from .broker_control import HOLD_VERB, RESUME_CMD, write_broker_command
+from .broker_control import HOLD_VERB, PARK_CMD, RESUME_CMD, write_broker_command
 from .content import genau_flick_noun, load_web_providers
 from .crown import CROWNS, Crown
 from .dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
@@ -54,11 +53,7 @@ from .event_log import (
 from .filter_vocab import decode_filter_command, set_command
 from .funestra_buttons import MAIN_FUNESTRA_NOUN, SATELLITE_NOUN, too_short_to_step
 from .funestra_handover import show_f_mode
-from .funestra_status import (
-    MainFunestraStatus,
-    read_genau_status,
-    read_main_funestra_status,
-)
+from .funestra_status import MainFunestraStatus, read_genau_status, read_main_funestra_status
 from .lock import MARKED_WEIRD, build_discard_plan, build_lock_toggle_plan
 from .main_list import MainListSettings, new_shuffle_seed, next_length_mode
 from .max_intensity import (
@@ -881,7 +876,6 @@ def _dispatch_enter_omnipause(
         main_funestra_paused_file=config.main_funestra_paused_file,
         broker_cmd_file=config.broker_cmd_file,
         origenerator_paused_file=config.origenerator_paused_file,
-        device_on=osr2_device.switched_on(config.broker_state),
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     ops = [WindowOp(op="disable_all_topmost"), WindowOp(op="suspend_hotkeys")]
@@ -1708,16 +1702,24 @@ def _robot_hand_hold(control: str, state: BridgeState, config: BridgeConfig,
 
 def _robot_hand_release(state: BridgeState, config: BridgeConfig,
                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """unpark / OSR2 resume / the switch on: call the broker's hold off, and the
+    """unpark / unretract / OSR2 resume: call the broker's hold off, and the
     arbiter hands the device back to whoever should have it."""
     if config.broker_cmd_file is not None:
         write_broker_command(config.broker_cmd_file, RESUME_CMD)
-    return replace(state, osr2_control=OSR2_DRIVING), []
+    return replace(state, osr2_control=OSR2_DRIVING), []  # also the way off "off"
 
 
 def _take_the_osr2(funestra: RoomFunestra, state: BridgeState, _config: BridgeConfig,
                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return replace(state, osr2_funestra=funestra), []
+
+
+def _osr2_control_off(state: BridgeState, config: BridgeConfig,
+                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    # No bars written down: letting go moves none, so none to put back.
+    if config.broker_cmd_file is not None:
+        write_broker_command(config.broker_cmd_file, PARK_CMD)
+    return replace(state, osr2_control=OSR2_CONTROL_OFF), []
 
 
 def _set_muted(muted: bool, state: BridgeState, config: BridgeConfig,
@@ -1979,8 +1981,10 @@ def _build_handlers() -> dict[str, Handler]:
                      for act, verb in _PLAYBACK_RATE_ACTS.items()})
     handlers.update({cmd: partial(_forward_to_genau, verb)
                      for cmd, verb in _GENAU_CMD_MAP.items()})
-    handlers[OSR2_CONTROL_BUTTONS[OSR2_PARKED]] = partial(_robot_hand_hold, OSR2_PARKED)
+    handlers.update({OSR2_CONTROL_BUTTONS[control]: partial(_robot_hand_hold, control)
+                     for control in HOLD_VERB})
     handlers[OSR2_CONTROL_BUTTONS[OSR2_DRIVING]] = _robot_hand_release
+    handlers[OSR2_CONTROL_BUTTONS[OSR2_CONTROL_OFF]] = _osr2_control_off
     handlers.update({cmd: partial(_take_the_osr2, funestra)
                      for cmd, funestra in TAKE_OSR2_COMMANDS.items()})
     handlers["genaumacher_save"] = _save_clip

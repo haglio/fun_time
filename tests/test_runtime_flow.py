@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 import pytest
-from funestra.console import OSR2_DRIVING
+from funestra.console import OSR2_CONTROL_OFF, OSR2_DRIVING
 from funestra.modes import MainMode
 
 from fun_time.main_list import MainList, MainListSettings
@@ -615,7 +615,6 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
         genau_cmd_file=flow_files["genau_cmd_file"],
         main_funestra_paused_file=flow_files["main_funestra_paused_file"],
         broker_cmd_file=flow_files["broker_cmd_file"],
-        device_on=True,
     )
 
     assert result.next_omni_paused is True
@@ -640,28 +639,9 @@ def test_with_no_broker_to_park_the_device_genau_is_only_paused(flow_files):
         audio_paused_file=flow_files["audio_paused_file"],
         genau_cmd_file=flow_files["genau_cmd_file"],
         main_funestra_paused_file=flow_files["main_funestra_paused_file"],
-        device_on=True,
     )
 
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\n"
-
-
-def test_with_the_osr2_switched_off_genau_is_only_paused(flow_files):
-    apply_enter_omnipause(
-        omni_paused=False,
-        main_mode=MainMode.GENAU,
-        portrait_paused_file=flow_files["portrait_paused_file"],
-        landscape_paused_file=flow_files["landscape_paused_file"],
-        genau_paused_file=flow_files["genau_paused_file"],
-        audio_paused_file=flow_files["audio_paused_file"],
-        genau_cmd_file=flow_files["genau_cmd_file"],
-        main_funestra_paused_file=flow_files["main_funestra_paused_file"],
-        broker_cmd_file=flow_files["broker_cmd_file"],
-        device_on=False,
-    )
-
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\n"
-    assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "PARK"
 
 
 def _leave_omnipause(files, *, main_mode, broker=True,
@@ -716,6 +696,17 @@ def test_apply_leave_omnipause_in_kino_mode_leaves_genaus_motion_to_the_arbiter(
     assert flow_files["main_funestra_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
+
+
+def test_leaving_omnipause_with_control_off_sends_genau_nothing(flow_files):
+    """Genau's motion is the OSR2 in genau mode, so a RESUME here is the device
+    moving again -- against the console switch that says the room let go of it."""
+    flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
+
+    _leave_omnipause(flow_files, main_mode=MainMode.GENAU, broker=False,
+                     osr2_control=OSR2_CONTROL_OFF)
+
+    assert not flow_files["genau_cmd_file"].exists()
 
 
 def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):

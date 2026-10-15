@@ -221,36 +221,31 @@ class TestVoiceCommands:
 
     def test_the_holds_stop_the_device_without_pausing_the_room(self):
         """"stop" beside them is relief OmniPause — it freezes everything.  These
-        are the narrow gesture: the switch off parks the device and the room
-        plays on, and the switch on drives it again.  Relief keeps "stop" (and
-        Shift+Esc)."""
+        are the narrow gesture: the motion stills at one end of its axis or the
+        other, the room plays on, and one release undoes either hold.
+
+        "retract" was a second single-word spelling of relief and is reassigned
+        here: the word describes where the device goes, and once a command
+        existed that only moves the device, that is what a speaker saying it
+        means.  Relief keeps "stop" (and Shift+Esc)."""
         assert VOICE_COMMANDS["park"] == "robot_hand_park"
         assert VOICE_COMMANDS["park it"] == "robot_hand_park"
+        assert VOICE_COMMANDS["retract"] == "robot_hand_retract"
         assert VOICE_COMMANDS["stop"] == "relief_omnipause"
-        for phrase in ("un park", "o s r two resume", "oh es are two resume"):
+        for phrase in ("un park", "un retract", "o s r two resume",
+                       "oh es are two resume"):
             assert VOICE_COMMANDS[phrase] == "robot_hand_release", phrase
 
-    def test_retract_is_no_word_now_the_switch_has_no_retract(self):
-        assert "retract" not in VOICE_COMMANDS
-        assert "un retract" not in VOICE_COMMANDS
-
-    def test_osr2_off_is_the_switch_off(self):
-        """Off parks the device, as the console's switch does.  Spelled with the
-        letters vosk has, like "OSR2 resume", which is the way back."""
+    def test_osr2_off_lets_go_of_the_device(self):
+        """The fourth of the console's control buttons, answered the way the
+        three beside it are.  Spelled with the letters vosk has, like "OSR2
+        resume", which is the way back."""
         for phrase in ("o s r two off", "oh es are two off"):
-            assert VOICE_COMMANDS[phrase] == "robot_hand_park", phrase
+            assert VOICE_COMMANDS[phrase] == "osr2_control_off", phrase
             assert friendly_voice(phrase) == "OSR2 off"
 
-    def test_osr2_control_is_the_switch_by_the_name_its_label_gives_it(self):
-        for phrase in ("o s r two control off", "oh es are two control off"):
-            assert VOICE_COMMANDS[phrase] == "robot_hand_park", phrase
-            assert friendly_voice(phrase) == "OSR2 control off"
-        for phrase in ("o s r two control on", "oh es are two control on"):
-            assert VOICE_COMMANDS[phrase] == "robot_hand_release", phrase
-            assert friendly_voice(phrase) == "OSR2 control on"
-
     def test_the_release_is_spelled_the_way_vosk_can_hear_it(self):
-        """vosk has none of "unpark" or "OSR2" in its lexicon, so a
+        """vosk has none of "unpark", "unretract" or "OSR2" in its lexicon, so a
         phrase built from them could never be recognized.  It does have "un" (as
         "un mute" already relies on) and it has the letters, in both renderings
         the model produces for "oh-ess-arr-two" — so those are the recognizer
@@ -258,9 +253,10 @@ class TestVoiceCommands:
 
         None of them can collide with bare "resume" (leave OmniPause): the
         grammar matches whole phrases, not prefixes."""
-        for joined in ("unpark", "osr2", "o s r 2"):
+        for joined in ("unpark", "unretract", "osr2", "o s r 2"):
             assert joined not in VOICE_COMMANDS
         assert friendly_voice("un park") == "unpark"
+        assert friendly_voice("un retract") == "unretract"
         assert friendly_voice("o s r two resume") == "OSR2 resume"
         assert friendly_voice("oh es are two resume") == "OSR2 resume"
         assert VOICE_COMMANDS["resume"] == "play"

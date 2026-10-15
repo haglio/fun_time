@@ -22,9 +22,8 @@ from app_support.file_channel import write_whole
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
-from fun_time.checkout_overrides import primary_of
+from fun_time.checkout_overrides import GENAU_DIRS_OVERRIDE_NAME, STATE_DIRNAME, primary_of
 from fun_time.process_tree import kill_process_tree
-from fun_time.project_paths import GENAU_DIRS_OVERRIDE_NAME, STATE_DIRNAME
 
 from .commands import CommandFailed, run_command
 from .coverage_map import CoverageMap, source_files, the_machine_s_map

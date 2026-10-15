@@ -6,8 +6,8 @@ edge-triggered on the published status of the Funestra that has the OSR2, and
 asserted rather than fired-and-forgotten, because a verb queued on a file
 channel can still die.
 
-Above it sits the console's OSR2 switch: parked, and the retract a relief
-pause leaves, are nobody driving, and this is what carries them out.
+Above it sits the console's own four-state switch: parked, retracted and
+control off are nobody driving, and this is what carries them out.
 """
 from __future__ import annotations
 
@@ -17,11 +17,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
-from funestra.console import OSR2_DRIVING
+from funestra.console import (
+    OSR2_CONTROL_OFF,
+    OSR2_DRIVING,
+)
 from funestra.file_channel import append_command
 from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
 
-from .broker_control import HOLD_VERB
+from .broker_control import HOLD_VERB, PARK_CMD
 from .funestra_status import ScriptedStatus, read_main_funestra_status
 from .mode_plan import kino_shows
 from .room_funestras import RoomFunestra
@@ -51,14 +54,12 @@ class DeviceArbiter:
         main_funestra_status_file: Path,
         main_funestra_cmd_file: Path,
         genau_cmd_file: Path,
-        device_on: Callable[[], bool],
         satellites: Mapping[RoomFunestra, SatelliteLine] = MappingProxyType({}),
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.main_funestra_status_file = main_funestra_status_file
         self.main_funestra_cmd_file = main_funestra_cmd_file
         self.genau_cmd_file = genau_cmd_file
-        self._device_on = device_on
         self._satellites = dict(satellites)
         self._clock = clock
         # Which Funestra's funscript is driving the OSR2 right now (so the hand is
@@ -73,18 +74,19 @@ class DeviceArbiter:
         # When the park-touch hold releases the pending hand-to-script flip;
         # None outside one — see _holding_for_park_touch.
         self._park_touch_deadline: float | None = None
-        self._carried_out: tuple[str, bool, bool] | None = None
+        self._carried_out: tuple[str, bool] | None = None
         self._asserted_at: float = 0.0
         # Whether a hold left Genau's output switched off, so a driver taking the
         # device back knows to switch it on again.
         self._muted = False
+        self._stopped_by_control_off = False
 
     def sync(self, main_mode: str, *, paused: bool,
              control: str = OSR2_DRIVING, holder: RoomFunestra = RoomFunestra.MAIN) -> None:
         """Route the OSR2 to *holder*'s funscript or the Robot Hand, moment to
         moment -- a side Funestra in every mode, the Main Funestra in kino mode.
 
-        *control* parked or retracted is nobody driving, in every mode, and
+        *control* off, parked or retracted is nobody driving, in every mode, and
         nothing below runs: there is no device to hand over.
 
         The funscript drives while it is actively scripting (``has_funscript``
@@ -105,13 +107,14 @@ class DeviceArbiter:
         """
         if main_mode != self._mode:
             self._mode, self._driving = main_mode, None
-        if control in HOLD_VERB:
+        if control == OSR2_CONTROL_OFF or control in HOLD_VERB:
             self._carry_out(control, paused=paused)
             self._driving = None
             self._park_touch_deadline = None
             return
         self._carried_out = None
         self._hand_the_output_back()
+        self._start_what_control_off_stopped(main_mode, paused=paused)
         if paused or (holder is RoomFunestra.MAIN and not kino_shows(main_mode)):
             self._let_the_last_driver_go(holder, paused=paused)
             self._driving = None
@@ -174,25 +177,31 @@ class DeviceArbiter:
         """Hold the device where *control* says against both engines, asserted on
         the heartbeat the way the handoff pair is."""
         now = self._clock()
-        device_on = self._device_on()
-        if (self._carried_out == (control, paused, device_on)
-                and now - self._asserted_at < REASSERT_S):
+        if self._carried_out == (control, paused) and now - self._asserted_at < REASSERT_S:
             return
-        genau = ("PAUSE" if paused else "RESUME", TCODE_OFF)
-        if device_on:
-            genau += (HOLD_VERB[control],)
+        if control in HOLD_VERB:
+            genau = ("PAUSE" if paused else "RESUME", TCODE_OFF, HOLD_VERB[control])
+        else:
+            genau = ("PAUSE", PARK_CMD)
         queued = [append_command(self._cmd_file(funestra), TCODE_OFF)
                   for funestra in self._have_had_the_device]
         queued += [append_command(self.genau_cmd_file, verb) for verb in genau]
         if all(queued):
-            self._carried_out, self._asserted_at = (control, paused, device_on), now
-            self._muted = True
+            self._carried_out, self._asserted_at = (control, paused), now
+            self._muted = self._muted or control in HOLD_VERB
+            self._stopped_by_control_off = control == OSR2_CONTROL_OFF
 
     def _hand_the_output_back(self) -> None:
         """Switch Genau's output on again the moment somebody is driving, in
         whatever mode the hold was let go in."""
         if self._muted and append_command(self.genau_cmd_file, TCODE_ON):
             self._muted = False
+
+    def _start_what_control_off_stopped(self, main_mode: str, *, paused: bool) -> None:
+        if not self._stopped_by_control_off or paused:
+            return
+        if kino_shows(main_mode) or append_command(self.genau_cmd_file, "RESUME"):
+            self._stopped_by_control_off = False
 
     def _holding_for_park_touch(self, now: float, status) -> bool:
         """Whether the hand-to-script flip is still waiting for a touch-down.

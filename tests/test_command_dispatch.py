@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,7 +10,6 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 import pytest
-from app_support.state_files import OSR2_SERIAL_RX
 from funestra.console import (
     OSR2_CONTROL_BUTTONS,
     OSR2_DRIVING,
@@ -23,7 +21,7 @@ from funestra.modes import LengthMode, MainMode, SatellitesMode
 
 from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
-from fun_time.broker_control import PARK_CMD, RESUME_CMD
+from fun_time.broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
 from fun_time.command_dispatch import (
     _discard,
     _toggle_lock,
@@ -49,6 +47,18 @@ from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import resolve_active_funestra_command
 from tests.hosted_shows import publish_the_show
+
+
+def _publish_drive(config: BridgeConfig, *, amplitude: int) -> None:
+    """A Robot Hand readout as Genau publishes it, with the motion at *amplitude*."""
+    scalars = {"speed": 50, "amplitude": amplitude, "center": 50, "position": 50,
+               "advance_interval": 0}
+    flags = ("spd_at_max", "spd_at_min", "amp_at_max", "amp_at_min",
+             "ctr_at_max", "ctr_at_min")
+    text = "".join(f"{k}={v}\n" for k, v in scalars.items())
+    text += "".join(f"{f}=0\n" for f in flags) + "shape=sine\n"
+    config.genau_drive_file.parent.mkdir(parents=True, exist_ok=True)
+    config.genau_drive_file.write_text(text, encoding="utf-8")
 
 
 def _make_config(tmp_path: Path, *, vr_main_funestra: bool = False) -> BridgeConfig:
@@ -2879,8 +2889,8 @@ def test_genau_learned_motion_verbs_write_cmd_file(tmp_path: Path, command, verb
 
 
 class TestOsr2ControlState:
-    """The console's OSR2 switch and the words for it set one field, which is
-    what the switch lights off and what the arbiter reads."""
+    """The console's four control buttons are a radio group over one field, and
+    the field is what lights exactly one of them and what the arbiter reads."""
 
     def test_each_button_leaves_the_session_in_the_state_it_names(self, tmp_path: Path):
         config = _make_config(tmp_path)
@@ -2891,17 +2901,34 @@ class TestOsr2ControlState:
             assert after.osr2_control == state_name, command
             assert ops == []
 
-    def test_a_park_sends_the_device_home(self, tmp_path: Path):
-        """The broker walks it there and swallows the script feed on the way;
-        keeping both engines from being heard is the arbiter's, re-stated every
-        tick, so a verb fired here would be undone by its next assertion."""
+    def test_control_off_settles_the_osr2_home_and_says_nothing_else(self, tmp_path: Path):
+        """Home is where park holds it, and the same place OmniPause and startup
+        send it: letting go leaves the device somewhere known rather than
+        partway along its travel.  The broker is told once, by the press;
+        keeping it there is the arbiter's, which re-states its pair every tick --
+        a bar verb fired here would be undone by its very next assertion."""
         config = _make_config(tmp_path)
+        _publish_drive(config, amplitude=50)
 
-        after, ops = dispatch_command("robot_hand_park", _make_state(), config)
+        dispatch_command("osr2_control_off", _make_state(), config)
 
         assert config.broker_cmd_file.read_text(encoding="utf-8") == PARK_CMD
         assert not config.genau_cmd_file.exists()
-        assert ops == []
+        assert not config.main_funestra_cmd_file.exists()
+
+    def test_a_hold_sends_the_device_to_the_end_it_names(self, tmp_path: Path):
+        """The broker walks it there and swallows the script feed on the way;
+        keeping both engines from being heard is the arbiter's, re-stated every
+        tick, so a verb fired here would be undone by its next assertion."""
+        for command, sent in (("robot_hand_park", PARK_CMD),
+                              ("robot_hand_retract", RETRACT_CMD)):
+            config = _make_config(tmp_path / command)
+
+            after, ops = dispatch_command(command, _make_state(), config)
+
+            assert config.broker_cmd_file.read_text(encoding="utf-8") == sent, command
+            assert not config.genau_cmd_file.exists(), command
+            assert ops == []
 
     def test_driving_again_calls_the_brokers_hold_off(self, tmp_path: Path):
         """A release inside the hold's settle delay has to cancel the write as
@@ -3203,17 +3230,6 @@ def test_the_restore_comes_before_the_bands_and_the_focus(tmp_path: Path):
 
     assert order.index("restore_parked") < order.index("restore_all_topmost")
     assert order.index("restore_parked") < order.index("activate_role")
-
-
-def test_entering_omnipause_walks_genaus_picture_home_only_with_the_osr2_on(tmp_path: Path):
-    for device_on, verbs in ((True, ["PAUSE", PARK_CMD]), (False, ["PAUSE"])):
-        config = _make_config(tmp_path / str(device_on))
-        if device_on:
-            (config.broker_state / OSR2_SERIAL_RX).write_text(str(time.time()), encoding="utf-8")
-
-        dispatch_command("enter_omnipause", _make_state(main_mode=MainMode.GENAU), config)
-
-        assert config.genau_cmd_file.read_text(encoding="utf-8").split("\n")[:-1] == verbs, device_on
 
 
 def test_entering_omnipause_parks_nothing_of_its_own(tmp_path: Path):

@@ -127,21 +127,21 @@ def build_voice_commands(
         # The sensation emergency: omnipause AND send the OSR2 away.  Three
         # words is a lot to get out in the moment this is for, so the one
         # obvious single word answers too ("stop broker" is a whole phrase, so
-        # it stays).
+        # it stays).  "retract" was a second such word and is now the hold
+        # below: relief is the one that stops the room with it.
         "relief omni pause": "relief_omnipause",
         "stop": "relief_omnipause",
-        # The OSR2 switch: off parks the device, on drives it again.
+        # Stopping the device alone, at either end of its axis, back off that
+        # hold, and letting go of the device outright.
         "park": "robot_hand_park",
         "park it": "robot_hand_park",
-        "o s r two off": "robot_hand_park",
-        "oh es are two off": "robot_hand_park",
-        "o s r two control off": "robot_hand_park",
-        "oh es are two control off": "robot_hand_park",
-        "o s r two control on": "robot_hand_release",
-        "oh es are two control on": "robot_hand_release",
+        "retract": "robot_hand_retract",
         "un park": "robot_hand_release",
+        "un retract": "robot_hand_release",
         "o s r two resume": "robot_hand_release",
         "oh es are two resume": "robot_hand_release",
+        "o s r two off": "osr2_control_off",
+        "oh es are two off": "osr2_control_off",
         # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
         # generated as an order-agnostic grid below the literal — F-mode among them,
         # bare and sided both.
@@ -566,6 +566,7 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     ("omni pause", "omnipause"),
     ("omni play", "omniplay"),
     ("un park", "unpark"),
+    ("un retract", "unretract"),
     ("o s r two", "OSR2"),
     ("oh es are two", "OSR2"),
     # Spaced form first: after the joined rewrite it is no longer there to match.

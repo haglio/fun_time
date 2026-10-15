@@ -107,7 +107,7 @@ WHILE_NOT_WEARING_HEADSET = VoiceHold(frozenset({"quit"}), "while not wearing he
 
 def _holds_or_ends_the_room(command: str) -> bool:
     return (
-        command in {"quit", "relief_omnipause", "robot_hand_park"}
+        command in {"quit", "relief_omnipause", "robot_hand_park", "robot_hand_retract"}
         or command.endswith("_reset")
     )
 
