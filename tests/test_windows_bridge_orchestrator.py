@@ -1689,7 +1689,7 @@ class TestClosingScreenLifecycle:
             stop_everything(commands, (MagicMock(), still_busy))
 
         assert Path(commands.main_funestra_paused_file).read_text(encoding="utf-8") == "1"
-        assert Path(commands.broker_cmd_file).read_text(encoding="utf-8").split() == ["PARK"]
+        assert Path(commands.broker_cmd_file).read_text(encoding="utf-8") == "PARK"
         assert [r.getMessage() for r in caplog.records] == [
             "The dispatch loop was still busy 1.0s after the session ended"]
 

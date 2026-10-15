@@ -14,7 +14,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from app_support import osr2_hold
 from funestra.file_channel import append_command
 from funestra.modes import MainMode
 from funestra.robot_hand import FULL_INTENSITY
@@ -23,7 +22,7 @@ from satellite.contract import SatelliteChannels, WindowPlacement
 
 from . import broker_contract, preview_marker
 from .audio_volume import MAX_VOLUME, publish_audio_level
-from .broker_control import write_broker_command
+from .broker_control import PARK_CMD, write_broker_command
 from .checkout_overrides import genau_project_kwargs, is_a_worktree, primary_of
 from .child_launch import no_child_log, open_child_log
 from .config import load_config
@@ -374,7 +373,7 @@ def start_core_session(
     # first frames while the Main Funestra and Genau scan their libraries, and that wait is
     # long.  The verb keeps in the file until the broker's next tick, so it does
     # not matter that ensure_broker may only now be starting one.
-    write_broker_command(broker_cmd_file, osr2_hold.PARK)
+    write_broker_command(broker_cmd_file, PARK_CMD)
     ensure_broker(broker_heartbeat_file, broker_tray_launcher)
     state_path = Path(state_dir)
     # Come back to the clips this session was closed on, rather than three the
