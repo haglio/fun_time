@@ -11,7 +11,6 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 import pytest
-from app_support import osr2_hold
 from app_support.state_files import OSR2_SERIAL_RX
 from funestra.console import (
     OSR2_CONTROL_BUTTONS,
@@ -24,6 +23,7 @@ from funestra.modes import LengthMode, MainMode, SatellitesMode
 
 from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
+from fun_time.broker_control import PARK_CMD, RESUME_CMD
 from fun_time.command_dispatch import (
     _discard,
     _toggle_lock,
@@ -2899,7 +2899,7 @@ class TestOsr2ControlState:
 
         after, ops = dispatch_command("robot_hand_park", _make_state(), config)
 
-        assert config.broker_cmd_file.read_text(encoding="utf-8").split() == [osr2_hold.PARK]
+        assert config.broker_cmd_file.read_text(encoding="utf-8") == PARK_CMD
         assert not config.genau_cmd_file.exists()
         assert ops == []
 
@@ -2913,8 +2913,7 @@ class TestOsr2ControlState:
         after, _ops = dispatch_command("robot_hand_release", parked, config)
 
         assert after.osr2_control == OSR2_DRIVING
-        assert config.broker_cmd_file.read_text(encoding="utf-8").split() == [
-            osr2_hold.PARK, osr2_hold.RESUME]
+        assert config.broker_cmd_file.read_text(encoding="utf-8") == RESUME_CMD
         assert not config.genau_cmd_file.exists()
 
 
@@ -3125,7 +3124,7 @@ def test_relief_omnipause_is_omnipause_and_the_retract_hold_together(tmp_path: P
     new_state, ops = dispatch_command("relief_omnipause", state, config)
 
     assert (new_state.omni_paused, new_state.osr2_control) == (True, OSR2_RETRACTED)
-    assert config.broker_cmd_file.read_text(encoding="utf-8").split() == ["PARK", "RETRACT"]
+    assert config.broker_cmd_file.read_text(encoding="utf-8") == "RETRACT"
     assert any(op.op == "disable_all_topmost" for op in ops)
     assert any(op.op == "suspend_hotkeys" for op in ops)
     assert all(paused.read_text(encoding="utf-8") == "1" for paused in (
@@ -3142,8 +3141,7 @@ def test_leaving_the_pause_relief_entered_keeps_the_osr2_retracted(tmp_path: Pat
     state, _ops = dispatch_command("omnipause_toggle", state, config)
 
     assert (state.omni_paused, state.osr2_control) == (False, OSR2_RETRACTED)
-    assert config.broker_cmd_file.read_text(encoding="utf-8").split() == [
-        "PARK", "RETRACT", "RETRACT"]
+    assert config.broker_cmd_file.read_text(encoding="utf-8") == "RETRACT"
 
 
 def test_omnipause_toggle_enter_emits_disable_all_topmost(tmp_path: Path):
@@ -3208,7 +3206,7 @@ def test_the_restore_comes_before_the_bands_and_the_focus(tmp_path: Path):
 
 
 def test_entering_omnipause_walks_genaus_picture_home_only_with_the_osr2_on(tmp_path: Path):
-    for device_on, verbs in ((True, ["PAUSE", osr2_hold.PARK]), (False, ["PAUSE"])):
+    for device_on, verbs in ((True, ["PAUSE", PARK_CMD]), (False, ["PAUSE"])):
         config = _make_config(tmp_path / str(device_on))
         if device_on:
             (config.broker_state / OSR2_SERIAL_RX).write_text(str(time.time()), encoding="utf-8")

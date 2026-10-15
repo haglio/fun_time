@@ -623,7 +623,7 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["main_funestra_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nPARK\n"
-    assert flow_files["broker_cmd_file"].read_text(encoding="utf-8").split() == ["PARK"]
+    assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "PARK"
     # Both satellites are frozen via their paused flag file — a paused native
     # satellite simply cannot auto-advance, so no HTTP re-pause is needed.
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "1"
@@ -661,7 +661,7 @@ def test_with_the_osr2_switched_off_genau_is_only_paused(flow_files):
     )
 
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\n"
-    assert flow_files["broker_cmd_file"].read_text(encoding="utf-8").split() == ["PARK"]
+    assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "PARK"
 
 
 def _leave_omnipause(files, *, main_mode, broker=True,
@@ -693,7 +693,7 @@ def test_apply_leave_omnipause_in_kino_mode_resumes_main_funestra_and_lifts_the_
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert not flow_files["genau_cmd_file"].exists()
     # Broker is un-PARKed regardless of mode
-    assert flow_files["broker_cmd_file"].read_text(encoding="utf-8").split() == ["RESUME"]
+    assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "RESUME"
     # Both satellites are unfrozen via their paused flag file.
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"

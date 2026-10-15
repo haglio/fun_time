@@ -14,7 +14,6 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 import pytest
-from app_support import osr2_hold
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
 from funestra.drive_readout import DriveHud, drive_text
 from funestra.modes import LengthMode, MainMode, SatellitesMode
@@ -24,6 +23,7 @@ from shared_ui.preview import Preview
 
 from fun_time import preview_marker
 from fun_time.audio_volume import MAX_VOLUME, read_volume
+from fun_time.broker_control import PARK_CMD
 from fun_time.child_launch import no_child_log
 from fun_time.funestra_deaths import (
     FunestraDied,
@@ -1106,7 +1106,7 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         start_core_session(**kwargs)
 
-    assert broker_cmd_file.read_text(encoding="utf-8").split() == [osr2_hold.PARK]
+    assert broker_cmd_file.read_text(encoding="utf-8") == PARK_CMD
 
 
 # Genau runs on the Main Funestra's window, driven through files of its own, so
