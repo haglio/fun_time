@@ -331,7 +331,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # which frames counted went with them.
 # 6145 the same day: the Main Funestra runs out of Fun Time's own venv, and the
 # notes on running out of Genau's went with it.
-MAX_PROSE_LINES = 6145
+# 6105 when the OSR2's four control buttons became one switch, it counted as
+# off once it went quiet, and the broker's verbs came from app_support, so the
+# notes on Control off, on what was sent to it and on a one-verb channel went.
+MAX_PROSE_LINES = 6105
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
