@@ -652,7 +652,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             # its bar reads.
             dashboard_enabled=True,
             hud_publisher=hud_publisher,
-            origenerator_showing=hosted is not None and hosted.showing,
+            origenerator_slideshow_on=hosted.slideshow_on if hosted is not None else (),
         )
         activate_origenerator_under_the_cover(dispatch_runner, progress=progress)
         progress.advance("finalizing")  # the last line, after any wait under the cover
