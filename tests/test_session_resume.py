@@ -20,13 +20,7 @@ from fun_time.main_list import MainList
 from fun_time.origenerator_switches import RfbSlot
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import (
-    CYCLE_SHAPE,
     DESCRIBES_THE_PLAYLIST,
-    FLICK_SECONDS,
-    HAND_AMPLITUDE,
-    HAND_CENTER,
-    HAND_SPEED,
-    LEARNED_ON,
     NOT_RESUMED,
     NOT_RESUMED_PER_SATELLITE,
     RESUMED_FIELDS,
@@ -190,6 +184,15 @@ class TestResumeSharedState:
     default state described itself wrongly on every HUD — and answered the next
     "F-mode" by reporting it *enabled* while nothing visibly changed.
     """
+
+    def test_every_setting_it_remembers_comes_back(self, tmp_path: Path):
+        state_file = tmp_path / "shared_bridge_state.ini"
+        left = replace(shifted_state(BridgeState()), osr2_control=OSR2_RETRACTED)
+        write_shared_state(state_file, left)
+
+        state = resume_shared_state(state_file, resumed=True)
+
+        assert remembered_values(state) == remembered_values(left)
 
     def test_carries_each_funestras_own_f_mode_onto_the_resumed_session(self, tmp_path: Path):
         """A resumed playlist holds whatever its own Funestra was narrowed to, so
@@ -582,11 +585,39 @@ class TestResumeGenau:
 
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["LOCK_OFF"]
 
-    def test_every_verb_it_sends_is_one_genau_answers(self):
-        """Genau's own verbs are spelled beside its registry rather than in the
-        family's shared list, so this side's copy is held to that registry."""
-        assert {HAND_SPEED, HAND_AMPLITUDE, HAND_CENTER, FLICK_SECONDS, CYCLE_SHAPE,
-                LEARNED_ON, "LOCK_OFF"} <= set(GENAU_VERBS)
+    _RESENT_FROM_WHAT_GENAU_PUBLISHED = frozenset({
+        "speed", "amplitude", "center", "shape", "flick_seconds", "learned", "lock"})
+    _KEPT_IN_THE_ROOMS_STATE = {"max_intensity": "max_intensity", "volume": "volume",
+                                "browse_order": "genau_latest", "shapes": "genau_plays_vr",
+                                "hold": "osr2_control"}
+    _NO_SETTING = frozenset({
+        "quit", "flick", "condemn", "play_file", "flip_ends", "quarter_cycle", "pause", "tcode",
+        "hud"})
+
+    def test_every_control_genau_has_comes_back_after_a_restart_or_is_no_setting(self):
+        named = (self._RESENT_FROM_WHAT_GENAU_PUBLISHED | set(self._KEPT_IN_THE_ROOMS_STATE)
+                 | self._NO_SETTING)
+        controls = {control.name for control, _ in GENAU_VERBS.values()}
+
+        assert controls == named, (
+            f"say how a restart brings back {sorted(controls - named)}; "
+            f"Genau no longer has {sorted(named - controls)}")
+
+    def test_a_restart_resends_every_control_genau_published_off_its_opening_value(
+            self, tmp_path: Path):
+        genau_cmd = self._left_genau(
+            tmp_path, drive=self._drive(speed=76, amplitude=60, center=30, shape="sawtooth",
+                                        advance_interval=25),
+            status="learned=1\nlocked=0\n")
+
+        resume_genau(genau_cmd, tmp_path)
+
+        assert {GENAU_VERBS[line.split()[0]][0].name for line in
+                genau_cmd.read_text(encoding="utf-8").splitlines()} == (
+            self._RESENT_FROM_WHAT_GENAU_PUBLISHED)
+
+    def test_what_the_rooms_state_keeps_for_genau_is_remembered(self):
+        assert set(self._KEPT_IN_THE_ROOMS_STATE.values()) <= set(RESUMED_FIELDS)
 
     def test_a_session_that_published_no_readout_still_carries_its_switches(self, tmp_path: Path):
         genau_cmd = tmp_path / "genau_cmd.txt"
