@@ -16,6 +16,7 @@ import json
 import os
 import socket
 import subprocess
+import sys
 import textwrap
 import time
 from pathlib import Path
@@ -653,6 +654,14 @@ def test_no_endpoint_of_the_machines_survives_anywhere_in_a_runs_config(isolated
     ]
 
     assert survivors == []
+
+
+def test_a_runs_sessions_start_their_programs_from_the_installation_the_run_runs_from():
+    config = {"paths": {"python_exe": "C:/Users/Someone/workspace/fun_time/.venv/Scripts/pythonw.exe"}}
+
+    integration_support.run_from_this_installation(config)
+
+    assert config["paths"]["python_exe"] == str(Path(sys.executable).with_name("pythonw.exe"))
 
 
 def test_a_run_never_hosts_the_machines_origenerator(isolated_ports):

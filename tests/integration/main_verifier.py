@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import importlib.metadata
 import json
 import logging
 import os
@@ -9,7 +8,9 @@ import re
 import shutil
 import sqlite3
 import subprocess
+import sys
 import time
+import tomllib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -36,6 +37,8 @@ ONE_COPY = r"Global\fun_time_main_verifier"
 POLL_S = 300
 RESTART_REQUEST_NAME = "main_verifier.restart"
 INCIDENTS_NAME = "main_verifier_incidents.jsonl"
+VERIFIER_VENV = "main_verifier_venv"
+INSTALLED_FROM = "installed_from_pyproject.toml"
 _ASKED_EVERY_S = 5
 COVERAGE_MAP_LASTS = timedelta(days=1)
 CONFIRMING_RUNS = 3
@@ -45,8 +48,6 @@ _STILL_FIXING = frozenset({"working", "blocked", "failed"})
 _log = logging.getLogger("main_verifier")
 _SUMMARY_LINE = re.compile(r"^(?:FAILED|ERROR) (\S+)", re.MULTILINE)
 _BACKGROUNDED = re.compile(r"backgrounded\W+([0-9a-f]{8})\b")
-_SIBLING_PIN = re.compile(
-    r'"(?P<spec>(?P<name>[A-Za-z0-9_.-]+) @ git\+https://github\.com/haglio/[A-Za-z0-9_.-]+@v(?P<version>[0-9.]+))"')
 
 
 class Ledger:
@@ -104,14 +105,14 @@ class Bench(Protocol):
     def head(self) -> str: ...
     def commits_since(self, base: str | None, head: str) -> list[str]: ...
     def run(self, commit: str, tests: Sequence[str] = ()) -> RunResult: ...
-    def advance_production_checkout(self, commit: str) -> None: ...
+    def release_to_production(self, commit: str) -> None: ...
     def pull_request_of(self, commit: str) -> int | None: ...
     def take_back(self, commit: str, among: Sequence[str], tests: list[str]) -> TakeBack | None: ...
     def ship_again(self, pull_request: int, take_back: Sequence[str], tests: list[str]) -> int | None: ...
     def start_fix_session(self, fix: FixSession) -> str: ...
     def stop_fix_session(self, session: str) -> None: ...
     def fix_session_states(self) -> dict[str, str]: ...
-    def bring_the_libraries_up_to(self, commit: str) -> None: ...
+    def install_for(self, commit: str) -> None: ...
     def record(self, incident: dict) -> None: ...
     def incidents(self) -> list[dict]: ...
     def coverage_map_is_stale(self) -> bool: ...
@@ -167,13 +168,6 @@ def _version(text: str) -> tuple[int, ...]:
     return tuple(int(part) for part in re.findall(r"\d+", text))
 
 
-def _installed_version(name: str) -> str | None:
-    try:
-        return importlib.metadata.version(name)
-    except importlib.metadata.PackageNotFoundError:
-        return None
-
-
 def claude_command() -> str:
     kept = Path(os.environ.get("LOCALAPPDATA", "")).glob(
         "Packages/Claude_*/LocalCache/Roaming/Claude/claude-code/*/*/claude.exe")
@@ -197,12 +191,13 @@ def _use_the_plain_genau(checkout: Path) -> None:
 
 class MachineBench:
     def __init__(self, primary: Path, shell=run_command, suite=_run_suite, claude: str | None = None,
-                 installed: Callable[[str], str | None] = _installed_version) -> None:
-        self.primary, self.shell, self.suite, self.installed = primary, shell, suite, installed
+                 base_python: str = str(Path(sys._base_executable).with_name("python.exe"))) -> None:
+        self.primary, self.shell, self.suite, self.base_python = primary, shell, suite, base_python
         self.claude = claude or claude_command()
-        self.python = primary / ".venv" / "Scripts" / "python.exe"
         self.checkout = primary / ".claude" / "worktrees" / "verifying-main"
         self.state = primary / STATE_DIRNAME
+        self.venv = self.state / VERIFIER_VENV
+        self.python = self.venv / "Scripts" / "python.exe"
         self.restart_request = self.state / RESTART_REQUEST_NAME
 
     def asked_to_restart(self) -> bool:
@@ -215,12 +210,17 @@ class MachineBench:
             return False
         return True
 
-    def bring_the_libraries_up_to(self, commit: str) -> None:
+    def install_for(self, commit: str) -> None:
+        self._check_out(commit)
         pyproject = self.shell(["git", "show", f"{commit}:pyproject.toml"], cwd=self.primary)
-        out_of_date = [pin["spec"] for pin in _SIBLING_PIN.finditer(pyproject)
-                  if (have := self.installed(pin["name"])) is None or _version(have) < _version(pin["version"])]
-        if out_of_date:
-            self.shell([str(self.python), "-m", "pip", "install", *out_of_date], cwd=self.primary)
+        if not self.python.exists():
+            self.shell([self.base_python, "-m", "venv", str(self.venv)], cwd=self.primary)
+        installed_from = self.venv / INSTALLED_FROM
+        if not installed_from.is_file() or installed_from.read_text(encoding="utf-8") != pyproject:
+            extras = ",".join(sorted(tomllib.loads(pyproject).get("project", {}).get("optional-dependencies", {})))
+            self.shell([str(self.python), "-m", "pip", "install", "-e", f"{self.checkout}[{extras}]",
+                        "--config-settings", "editable_mode=compat"], cwd=self.primary)
+            write_whole(installed_from, pyproject)
 
     def head(self) -> str:
         self.shell(["git", "fetch", "origin", "main"], cwd=self.primary)
@@ -273,12 +273,9 @@ class MachineBench:
             self.shell(["git", "worktree", "add", "--detach", str(self.checkout), commit], cwd=self.primary)
         _use_the_plain_genau(self.checkout)
 
-    def advance_production_checkout(self, commit: str) -> None:
-        if self.shell(["git", "status", "--porcelain"], cwd=self.primary).strip():
-            raise CommandFailed("the production checkout has uncommitted changes, so it was left where it is")
-        if self.shell(["git", "symbolic-ref", "--short", "HEAD"], cwd=self.primary).strip() != "main":
-            raise CommandFailed("the production checkout is not on main, so it was left where it is")
-        self.shell(["git", "merge", "--ff-only", commit], cwd=self.primary)
+    def release_to_production(self, commit: str) -> None:
+        declared = tomllib.loads((self.primary / "pyproject.toml").read_text(encoding="utf-8"))
+        write_whole(self.primary / declared["tool"]["haglio"]["production"]["commit-file"], commit)
 
     def commits_since(self, base: str | None, head: str) -> list[str]:
         span = [f"{base}..{head}"] if base else ["--max-count=20", head]
@@ -426,9 +423,9 @@ def _incidents(state: Path) -> list[dict]:
 def _mark_passed(ledger: Ledger, bench: Bench, head: str) -> None:
     ledger.passed(head)
     try:
-        bench.advance_production_checkout(head)
-    except CommandFailed as held:
-        bench.record({"kind": "production checkout held", "commit": head, "why": str(held)})
+        bench.release_to_production(head)
+    except OSError as held:
+        bench.record({"kind": "release not written", "commit": head, "why": str(held)})
     if bench.coverage_map_is_stale():
         bench.measure_coverage(head)
 
@@ -456,7 +453,7 @@ def cycle(ledger: Ledger, bench: Bench) -> str:
 
 
 def _verify(ledger: Ledger, bench: Bench, head: str) -> str:
-    bench.bring_the_libraries_up_to(head)
+    bench.install_for(head)
     whole = bench.run(head)
     if whole.exit_code == 0:
         _mark_passed(ledger, bench, head)

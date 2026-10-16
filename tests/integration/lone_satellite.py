@@ -28,6 +28,7 @@ from .integration_support import (
     real_config_path,
     sample_library_clips,
     state_dir_of,
+    the_runs_own_pythonw,
     wait_for,
 )
 from .run_clock import Budget
@@ -97,7 +98,7 @@ class LoneSatellite:
                  hud: bool = False) -> Iterator[LoneSatellite]:
         write_playlist_file(self.playlist, [str(item) for item in items])
         pid = launch_satellite(
-            python_exe=str(load_config(real_config_path()).paths.python_exe),
+            python_exe=str(the_runs_own_pythonw()),
             satellite_module="satellite",
             channels=SatelliteChannels(
                 playlist=self.playlist,

@@ -798,6 +798,14 @@ def isolate_shared_resources(config: dict, genau_config: dict) -> None:
     config["paths"].pop("origenerator_python_exe", None)
 
 
+def the_runs_own_pythonw() -> Path:
+    return Path(sys.executable).with_name("pythonw.exe")
+
+
+def run_from_this_installation(config: dict) -> None:
+    config["paths"]["python_exe"] = str(the_runs_own_pythonw())
+
+
 def apply_checkout_project_dirs(config: dict) -> None:
     """Run this checkout's ``state/genau_project_dirs.txt`` over *config*, the
     way a branch session's own config generator does.
@@ -867,6 +875,7 @@ def build_integration_config(tmp_path: Path, *, genau_dir: Path | None = None) -
     config["paths"]["favs_file"] = str(favs_file)
     config["paths"]["state_dir"] = str(state_dir)
     config["random_favs_browser"]["enabled"] = False
+    run_from_this_installation(config)
     if genau_dir is not None:
         config["paths"]["genau_dir"] = str(genau_dir)
     apply_checkout_project_dirs(config)

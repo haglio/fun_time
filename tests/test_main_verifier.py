@@ -4,6 +4,7 @@ import json
 import os
 import sqlite3
 import sys
+import tomllib
 from contextlib import closing
 from datetime import datetime
 from pathlib import Path
@@ -52,6 +53,7 @@ def test_what_main_passed_and_failed_survives_a_restart(tmp_path):
 
 
 WHOLE_RUN = Path("whole-run.txt")
+REPO_PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
 class FakeBench:
@@ -64,7 +66,7 @@ class FakeBench:
         self.reruns_failing = {commit: list(fails) for commit, fails in (reruns_failing or {}).items()}
         self.earlier, self.sessions = list(incidents), dict(sessions or {})
         self.pull_requests = dict(pull_requests or {})
-        self.advanced, self.recorded, self.taken_back, self.measured = [], [], [], []
+        self.released, self.recorded, self.taken_back, self.measured = [], [], [], []
         self.fixing, self.events, self.shipped_again, self.stopped = [], [], [], []
 
     def head(self):
@@ -84,8 +86,8 @@ class FakeBench:
         failed = self.tests if broken else []
         return main_verifier.RunResult(1 if broken else 0, failed, WHOLE_RUN)
 
-    def advance_production_checkout(self, commit):
-        self.advanced.append(commit)
+    def release_to_production(self, commit):
+        self.released.append(commit)
 
     def take_back(self, commit, among, tests):
         self.taken_back.append((commit, list(among)))
@@ -105,8 +107,8 @@ class FakeBench:
     def stop_fix_session(self, session):
         self.stopped.append(session)
 
-    def bring_the_libraries_up_to(self, commit):
-        self.events.append(("libraries", commit))
+    def install_for(self, commit):
+        self.events.append(("install", commit))
 
     def record(self, incident):
         self.recorded.append(incident)
@@ -139,12 +141,12 @@ def a_ledger(tmp_path, verified=None):
     return ledger
 
 
-def test_a_head_that_passes_moves_the_production_checkout_to_it(tmp_path):
+def test_a_head_that_passes_is_released_to_production(tmp_path):
     bench = FakeBench("c3", ["a1", "b2", "c3"])
     ledger = a_ledger(tmp_path, verified="a1")
 
     assert main_verifier.cycle(ledger, bench) == "passed"
-    assert bench.advanced == ["c3"]
+    assert bench.released == ["c3"]
     assert ledger.verified == "c3"
 
 
@@ -157,7 +159,7 @@ def test_a_head_that_breaks_takes_the_change_back_and_starts_a_session_to_fix_it
     assert bench.taken_back == [("c3", ["b2", "c3", "d4", "e5"])]
     taken = main_verifier.TakeBack(41, "Loop the row on the Main Funestra", 77)
     assert bench.fixing == [main_verifier.fixing_a_take_back(taken, ["tests/integration/test_x.py::test_y"], WHOLE_RUN)]
-    assert bench.advanced == []
+    assert bench.released == []
     assert ledger.failed_head == "e5"
     assert bench.recorded == [{"kind": "broke main", "commit": "c3", "tests": ["tests/integration/test_x.py::test_y"],
                                "log": WHOLE_RUN, "taken_back_by": 77, "pull_request": 41,
@@ -177,12 +179,12 @@ def test_a_fix_session_that_could_not_start_is_recorded_with_why(tmp_path):
     assert bench.recorded[0]["fix_session_not_started"] == "the Claude command line is not signed in"
 
 
-def test_main_s_libraries_are_brought_up_to_a_head_before_it_is_run(tmp_path):
+def test_the_verifiers_own_installation_is_brought_up_to_a_head_before_it_is_run(tmp_path):
     bench = FakeBench("c3", ["a1", "b2", "c3"])
 
     main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench)
 
-    assert bench.events[:2] == [("libraries", "c3"), ("run", "c3")]
+    assert bench.events[:2] == [("install", "c3"), ("run", "c3")]
 
 
 def test_a_failure_that_passes_when_rerun_is_recorded_as_flaky_and_main_still_moves(tmp_path):
@@ -192,7 +194,7 @@ def test_a_failure_that_passes_when_rerun_is_recorded_as_flaky_and_main_still_mo
     assert main_verifier.cycle(ledger, bench) == "flaky"
 
     assert bench.recorded[0]["kind"] == "flaky"
-    assert bench.advanced == ["c3"] and bench.taken_back == []
+    assert bench.released == ["c3"] and bench.taken_back == []
 
 
 def test_a_run_that_fails_without_naming_a_test_waits_for_main_to_move_and_is_recorded(tmp_path):
@@ -320,39 +322,24 @@ def test_main_s_head_is_read_after_fetching_it(tmp_path):
                               (["git", "rev-parse", "origin/main"], primary)]
 
 
-def test_the_production_checkout_is_fast_forwarded_to_a_commit_that_passed(tmp_path):
-    shell = FakeShell({"symbolic-ref": "main\n"})
+def test_a_commit_that_passed_is_written_where_the_production_updater_reads_it(tmp_path):
     primary = tmp_path / "fun_time"
+    (primary / "pyproject.toml").parent.mkdir(parents=True)
+    (primary / "pyproject.toml").write_text(REPO_PYPROJECT.read_text(encoding="utf-8"), encoding="utf-8")
 
-    main_verifier.MachineBench(primary=primary, shell=shell).advance_production_checkout("c3")
+    main_verifier.MachineBench(primary=primary, shell=FakeShell({})).release_to_production("c3")
 
-    assert (["git", "merge", "--ff-only", "c3"], primary) in shell.commands
-
-
-def test_the_production_checkout_is_left_alone_while_it_has_changes_of_its_own(tmp_path):
-    shell = FakeShell({"symbolic-ref": "main\n", "status --porcelain": " M fun_time/dashboard.py\n"})
-    bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell)
-
-    with pytest.raises(main_verifier.CommandFailed, match="uncommitted"):
-        bench.advance_production_checkout("c3")
-
-    assert not [command for command, _ in shell.commands if command[1] == "merge"]
+    assert (primary / _the_commit_file()).read_text(encoding="utf-8") == "c3"
 
 
-def test_the_production_checkout_is_left_alone_while_it_is_off_main(tmp_path):
-    shell = FakeShell({"symbolic-ref": "claude/some-branch\n"})
-    bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell)
-
-    with pytest.raises(main_verifier.CommandFailed, match="not on main"):
-        bench.advance_production_checkout("c3")
-
-    assert not [command for command, _ in shell.commands if command[1] == "merge"]
+def _the_commit_file():
+    return tomllib.loads(REPO_PYPROJECT.read_text(encoding="utf-8"))["tool"]["haglio"]["production"]["commit-file"]
 
 
-def test_a_head_that_passes_while_the_production_checkout_cannot_move_still_counts_as_verified(tmp_path):
+def test_a_head_that_passes_while_its_release_cannot_be_written_still_counts_as_verified(tmp_path):
     class HeldBench(FakeBench):
-        def advance_production_checkout(self, commit):
-            raise main_verifier.CommandFailed("the production checkout has uncommitted changes")
+        def release_to_production(self, commit):
+            raise OSError("could not replace state/main_verifier_passed.txt")
 
     bench = HeldBench("c3", ["a1", "b2", "c3"])
     ledger = a_ledger(tmp_path, verified="a1")
@@ -360,8 +347,8 @@ def test_a_head_that_passes_while_the_production_checkout_cannot_move_still_coun
     assert main_verifier.cycle(ledger, bench) == "passed"
 
     assert ledger.verified == "c3"
-    assert bench.recorded == [{"kind": "production checkout held", "commit": "c3",
-                               "why": "the production checkout has uncommitted changes"}]
+    assert bench.recorded == [{"kind": "release not written", "commit": "c3",
+                               "why": "could not replace state/main_verifier_passed.txt"}]
 
 
 def test_each_incident_is_added_to_the_runners_record_with_when_it_happened(tmp_path):
@@ -459,7 +446,7 @@ def test_the_runner_ends_once_a_head_passes_so_that_it_starts_again_running_the_
 
     main_verifier.keep_verifying(a_ledger(tmp_path, verified="a1"), bench, nap=never_naps)
 
-    assert bench.advanced == ["c3"]
+    assert bench.released == ["c3"]
 
 
 def test_the_runner_ends_without_checking_main_once_it_is_asked_to_restart(tmp_path):
@@ -568,7 +555,7 @@ def test_tests_that_do_not_fail_every_run_with_the_change_and_pass_every_run_wit
 
     assert main_verifier.cycle(ledger, bench) == "unreliable check"
 
-    assert bench.taken_back == [] and bench.advanced == []
+    assert bench.taken_back == [] and bench.released == []
     assert ledger.failed_head == "e5"
     [fix] = bench.fixing
     assert "tests/integration/test_x.py::test_y" in fix.brief
@@ -814,20 +801,82 @@ def test_the_coverage_map_is_out_of_date_when_missing_or_a_day_old(tmp_path):
     assert bench.coverage_map_is_stale()
 
 
-def test_only_the_libraries_main_pins_newer_than_this_machine_has_are_installed(tmp_path):
-    pyproject = ('    "app-support @ git+https://github.com/haglio/app_support@v0.1.182",\n'
-                 '    "funestra @ git+https://github.com/haglio/funestra@v0.1.410",\n'
-                 '    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.159",\n')
-    shell = FakeShell({"c3:pyproject.toml": pyproject})
-    have = {"app-support": "0.1.183", "funestra": "0.1.408"}
+PINS = """\
+[project]
+name = "fun-time"
+dependencies = [
+    "app-support @ git+https://github.com/haglio/app_support@v0.1.182",
+    "funestra @ git+https://github.com/haglio/funestra@v0.1.410",
+    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.159",
+]
+[project.optional-dependencies]
+dev = ["pytest>=9,<10"]
+windows = ["comtypes>=1.4.17,<2"]
+"""
+
+
+def _a_verifiers_installation(primary):
+    venv = primary / "state" / main_verifier.VERIFIER_VENV
+    (venv / "Scripts").mkdir(parents=True)
+    (venv / "Scripts" / "python.exe").write_bytes(b"")
+    return venv
+
+
+def _installs(shell):
+    return [command for command, _ in shell.commands if command[1:4] == ["-m", "pip", "install"]]
+
+
+def test_a_missing_installation_is_made_and_given_everything_the_head_declares(tmp_path):
+    shell = FakeShell({"c3:pyproject.toml": PINS})
     primary = tmp_path / "fun_time"
+    venv = primary / "state" / main_verifier.VERIFIER_VENV
 
-    main_verifier.MachineBench(primary=primary, shell=shell, installed=have.get).bring_the_libraries_up_to("c3")
+    main_verifier.MachineBench(primary=primary, shell=shell, base_python="C:/Python/python.exe").install_for("c3")
 
-    installs = [command for command, _ in shell.commands if command[1:4] == ["-m", "pip", "install"]]
-    assert installs == [[str(primary / ".venv" / "Scripts" / "python.exe"), "-m", "pip", "install",
-                         "funestra @ git+https://github.com/haglio/funestra@v0.1.410",
-                         "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.159"]]
+    checkout = primary / ".claude" / "worktrees" / "verifying-main"
+    assert ["C:/Python/python.exe", "-m", "venv", str(venv)] in [command for command, _ in shell.commands]
+    assert _installs(shell) == [[str(venv / "Scripts" / "python.exe"), "-m", "pip", "install", "-e",
+                                 f"{checkout}[dev,windows]", "--config-settings", "editable_mode=compat"]]
+    assert (venv / main_verifier.INSTALLED_FROM).read_text(encoding="utf-8") == PINS
+
+
+def test_a_head_whose_pyproject_moved_is_installed_again_whole_its_pins_exactly(tmp_path):
+    shell = FakeShell({"c3:pyproject.toml": PINS})
+    primary = tmp_path / "fun_time"
+    venv = _a_verifiers_installation(primary)
+    (venv / main_verifier.INSTALLED_FROM).write_text(PINS.replace("v0.1.410", "v0.1.409"), encoding="utf-8")
+
+    main_verifier.MachineBench(primary=primary, shell=shell).install_for("c3")
+
+    assert len(_installs(shell)) == 1
+    assert (venv / main_verifier.INSTALLED_FROM).read_text(encoding="utf-8") == PINS
+
+
+def test_an_installation_made_from_the_heads_own_pyproject_is_not_made_again(tmp_path):
+    shell = FakeShell({"c3:pyproject.toml": PINS})
+    primary = tmp_path / "fun_time"
+    venv = _a_verifiers_installation(primary)
+    (venv / main_verifier.INSTALLED_FROM).write_text(PINS, encoding="utf-8")
+
+    main_verifier.MachineBench(primary=primary, shell=shell).install_for("c3")
+
+    assert _installs(shell) == []
+
+
+def test_the_suite_runs_out_of_the_verifiers_own_installation(tmp_path):
+    suites = []
+
+    def suite(command, cwd, log, environment=None, *, asked_to_restart):
+        suites.append(command)
+        log.write_text("", encoding="utf-8")
+        return 0
+
+    primary = tmp_path / "fun_time"
+    bench = main_verifier.MachineBench(primary=primary, shell=FakeShell({}), suite=suite)
+
+    bench.run("c3")
+
+    assert suites[0][0] == str(primary / "state" / main_verifier.VERIFIER_VENV / "Scripts" / "python.exe")
 
 
 def test_a_fix_session_starts_in_a_checkout_of_its_own_and_is_told_what_broke(tmp_path):
