@@ -119,6 +119,17 @@ log = 'state\vr_launcher.log'
 app = "Fun Time main verifier"
 interpreter = "pythonw.exe"
 run = "-m tests.integration.main_verifier"
+# The machine's own upkeep, which the production updater never waits for.
+environment = { HAGLIO_UPKEEP = "1" }
+
+# What the production updater (app_support.production_update) needs to know of
+# this checkout. Production Fun Time moves only to a commit the main verifier
+# passed, which it writes into commit-file. Fun Time starts the hosted
+# Origenerator out of Origenerator's own checkout rather than through its
+# launcher, so Origenerator is never updated while Fun Time runs.
+[tool.haglio.production]
+commit-file = 'state\main_verifier_passed.txt'
+also-runs = ["origenerator"]
 
 # What Fun Time relies on Windows to keep: the shortcut it is pinned from, kept in
 # this checkout to pin from and in the Start menu, and the Start menu's shortcut

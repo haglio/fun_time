@@ -151,3 +151,10 @@ def test_a_shortcut_that_outlived_its_worktree_says_the_work_is_already_in_fun_t
 
     assert run.returncode == 1
     assert "already in Fun Time" in run.output
+
+
+@on_windows
+def test_the_main_verifier_is_the_machines_upkeep_so_no_update_waits_for_it():
+    report = dry_run(PROJECT_DIR / "launch_main_verifier.vbs")
+
+    assert report.values("environment") == ["HAGLIO_UPKEEP=1"]
