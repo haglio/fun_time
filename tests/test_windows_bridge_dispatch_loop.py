@@ -861,18 +861,16 @@ class TestDispatchLoopRunner:
         assert [r.levelno for r in caplog.records
                 if r.getMessage().startswith("Already crossing")] == [logging.WARNING]
 
-    def test_a_crossing_is_frozen_by_omnipause_like_every_other_spoken_command(
-        self, tmp_path,
-    ):
-        """It is not one of the three verbs a paused room answers, so a phrase
-        misheard during omnipause cannot take the session away."""
+    def test_enter_vr_said_during_omnipause_still_crosses(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = replace(runner.state, omni_paused=True)
+        (tmp_path / "dashboard_cmd.txt").write_text(
+            format_spoken_command("enter_vr", spoken_at=123.0, said="enter VR"), encoding="utf-8")
 
-        runner._handle_command("enter_vr", spoken_at=123.0)
+        runner.tick()
 
-        assert not (tmp_path / "ahk_cmd.txt").exists()
-        assert take_handoff_request(tmp_path) is None
+        assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "end_session"
+        assert take_handoff_request(tmp_path).target is VR
 
     def test_omniminimize_minimizes_only_mode_visible_windows(self, tmp_path):
         """omniminimize minimizes the windows the modes show, without stealing
@@ -2303,8 +2301,8 @@ class TestBrowsingFromTheHeadset:
 # ---------------------------------------------------------------------------
 
 class TestOmnipauseVoiceFreeze:
-    """Under OmniPause a *spoken* command is frozen unless it resumes, quits, or
-    retracts the OSR2.
+    """Under OmniPause a *spoken* command is frozen unless a paused room still
+    hears it.
 
     A mis-heard phrase must not act on a paused room — that is the whole bug.
     ``spoken_at`` is what marks a voice line; the deliberate mouse (dashboard,
@@ -2356,6 +2354,20 @@ class TestOmnipauseVoiceFreeze:
         runner.state = BridgeState(omni_paused=True)
         runner._handle_command("quit", spoken_at=123.0)
         assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "end_session"
+
+    @pytest.mark.parametrize(("command", "said", "verb"), [
+        ("recenter_view", "recenter", "RECENTER"), ("vr_reset", "VR reset", "LAYOUT_RESET")])
+    def test_a_spoken_recenter_or_vr_reset_still_reaches_the_headset(
+        self, tmp_path, command, said, verb,
+    ):
+        runner = make_runner(tmp_path, config=make_config(tmp_path, vr_main_funestra=True))
+        runner.state = BridgeState(omni_paused=True)
+        (tmp_path / "dashboard_cmd.txt").write_text(
+            format_spoken_command(command, spoken_at=123.0, said=said), encoding="utf-8")
+
+        runner.tick()
+
+        assert verb in (tmp_path / "main_player_cmd.txt").read_text(encoding="utf-8").split()
 
     def test_outside_omnipause_a_spoken_command_dispatches(self, tmp_path):
         """The freeze is OmniPause-only: live, the same phrase dispatches."""

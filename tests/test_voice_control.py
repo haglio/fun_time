@@ -550,6 +550,21 @@ class TestWriteCommand:
         written = cmd_file.read_text(encoding="utf-8").splitlines()
         assert [parse_command_line(line).command for line in written] == ["relief_omnipause"]
 
+    @pytest.mark.parametrize(
+        ("phrase", "command"),
+        [("enter vr", "enter_vr"), ("exit vr", "exit_vr"),
+         ("recenter", "recenter_view"), ("vr reset", "vr_reset")],
+    )
+    def test_suspend_still_lets_enter_vr_exit_vr_recenter_and_vr_reset_through(
+        self, tmp_path: Path, phrase, command,
+    ):
+        cmd_file = tmp_path / "cmd.txt"
+        vc = VoiceController(cmd_file=cmd_file, model_path="unused")
+        vc.suspend()
+        vc._write_spoken(phrase, spoken_at=1.0)
+        written = cmd_file.read_text(encoding="utf-8").splitlines()
+        assert [parse_command_line(line).command for line in written] == [command]
+
     def test_suspend_freezes_the_reference_popup_too(self, tmp_path: Path):
         """The popup gets no exemption: the freeze is a flat rule about what a
         paused room may be heard to do, and "help" is the phrase room noise

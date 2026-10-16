@@ -659,10 +659,17 @@ def test_relief_survives_the_omnipause_suspension_on_both_input_paths():
     #SuspendExempt block and its command is exempt from the voice freeze too.
     Either half missing leaves the emergency dead in the one state it is for."""
     assert "relief_omnipause" in _ahk_suspend_exempt_commands()
-    # The whole set, not one item: what a paused room may be heard to do is
-    # the owner's call, so widening it has to fail here rather than depend on
-    # somebody reading a comment.  See CLAUDE.md, "Standing rules".
-    assert frozenset({"play", "quit", "relief_omnipause"}) == SUSPEND_EXEMPT_COMMANDS
+    assert "relief_omnipause" in SUSPEND_EXEMPT_COMMANDS
+
+
+def test_a_paused_room_hears_what_he_ruled_and_nothing_else():
+    """The whole set, so that widening or narrowing it fails here: the three
+    ways out on 2026-09-28, and the headset's four on 2026-10-16.  See
+    CLAUDE.md, "Standing rules"."""
+    assert frozenset({
+        "play", "quit", "relief_omnipause",
+        "enter_vr", "exit_vr", "recenter_view", "vr_reset",
+    }) == SUSPEND_EXEMPT_COMMANDS
 
 
 def test_no_say_column_leaks_the_raw_omni_pause_form():
