@@ -85,6 +85,11 @@ def _strip_processing(stem: str) -> str:
     return stem
 
 
+def enhanced_by_processing(stem: str) -> bool:
+    """Whether *stem* names a file Evolver or an upscaler made from another."""
+    return _strip_processing(stem) != stem
+
+
 def stable_title(stem: str) -> str:
     """*stem* reduced to what stays the same across versions of one video.
 

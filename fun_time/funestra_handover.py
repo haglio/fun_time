@@ -31,7 +31,9 @@ def panel_stamp(channel: SatelliteChannel) -> PanelStamp:
     return stat.st_ino, stat.st_mtime_ns
 
 
-def show_f_mode(channel: SatelliteChannel) -> bool | None:
+def _shows_switch(channel: SatelliteChannel, switch: str) -> bool | None:
+    """Whether the hosted show on *channel* has its *switch* on, read off the
+    button it publishes for it; None where no show publishes one."""
     if channel.origenerator_hud_file is None:
         return None
     try:
@@ -41,7 +43,15 @@ def show_f_mode(channel: SatelliteChannel) -> bool | None:
     if panel is None:
         return None
     return next((button.lit for row in panel.rows for button in row
-                 if button.command == f"{panel.funestra}_fmode"), None)
+                 if button.command == f"{panel.funestra}_{switch}"), None)
+
+
+def show_f_mode(channel: SatelliteChannel) -> bool | None:
+    return _shows_switch(channel, "fmode")
+
+
+def show_enhanced_filter(channel: SatelliteChannel) -> bool | None:
+    return _shows_switch(channel, "enhanced")
 
 
 def let_go_since(channel: SatelliteChannel, stamp: PanelStamp) -> bool:

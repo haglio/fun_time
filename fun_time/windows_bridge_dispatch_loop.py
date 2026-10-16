@@ -72,7 +72,7 @@ from .library_browser import browse_library
 from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
 from .main_list_builds import BuildsOffTheLoop
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
-from .mode_plan import kino_shows
+from .mode_plan import EnhancementLevel, kino_shows
 from .modes import scripted_item
 from .origenerator_switches import (
     BOTH_SATELLITES_MODE_COMMANDS,
@@ -172,6 +172,7 @@ _MAIN_EQUIVALENTS = {
     "nudge_prev": "main_nudge_prev",
     "funscript_jump": "main_player_funscript_jump",
     "next_funscripted": "main_player_next_funscripted",
+    **{f"enhancement_{level}": f"main_enhancement_{level}" for level in EnhancementLevel},
     "no_loop": "main_player_loop_cancel",
     "lock_on": "main_lock_on",
     "lock_off": "main_lock_off",

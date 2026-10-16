@@ -466,6 +466,13 @@ class TestResolveActiveSideCommand:
             assert expand_group_command(f"satellites_{action}") == [
                 f"portrait_{action}", f"landscape_{action}"]
 
+    def test_the_enhancement_level_follows_the_funestra_last_navigated(self):
+        for level in ("enhanced", "original", "both"):
+            assert resolve_active_funestra_command(f"active_enhancement_{level}", 1) == f"main_enhancement_{level}"
+            assert resolve_active_funestra_command(f"active_enhancement_{level}", 2) == f"portrait_enhancement_{level}"
+            assert expand_group_command(f"satellites_enhancement_{level}") == [
+                f"portrait_enhancement_{level}", f"landscape_enhancement_{level}"]
+
     def test_a_hosted_apps_phrase_said_bare_reaches_the_satellite_last_navigated(self):
         """Said with the Main Funestra active it resolves to nothing, as weird
         does: the Main Funestra hosts no slideshow."""

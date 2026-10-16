@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.media_renditions import original_rendition, renditions
+from fun_time.media_renditions import has_an_upscale, original_rendition, renditions
+from fun_time.mode_plan import EnhancementLevel
 
 UPSCALED = ("2_outbox", "upscaled_by_orientation", "portrait", "provider")
 
@@ -62,6 +63,32 @@ def test_no_media_root_configured(tmp_path: Path):
 
 def test_no_video_path(tmp_path: Path):
     assert original_rendition("", tmp_path) == ""
+
+
+class TestTheEnhancementLevels:
+    """What a Funestra plays, by whether an enhanced version exists: the
+    satellites' clips have one when the upscale on screen has its original
+    beside it, which is what the versions button switches between."""
+
+    def test_enhanced_only_keeps_the_clips_with_an_original_beside_their_upscale(self, tmp_path):
+        paired = _upscaled(tmp_path, "abc_topaz.mp4")
+        _original(tmp_path, "abc.mp4")
+        alone = _upscaled(tmp_path, "xyz_topaz.mp4")
+        clips = [str(paired), str(alone)]
+
+        assert EnhancementLevel.ENHANCED.keep(clips, has_an_upscale(tmp_path)) == [str(paired)]
+        assert EnhancementLevel.ORIGINAL.keep(clips, has_an_upscale(tmp_path)) == [str(alone)]
+        assert EnhancementLevel.BOTH.keep(clips, has_an_upscale(tmp_path)) == clips
+
+    def test_without_a_media_root_no_clip_can_be_told_to_have_one(self, tmp_path):
+        clip = str(_upscaled(tmp_path, "abc_topaz.mp4"))
+        _original(tmp_path, "abc.mp4")
+
+        assert EnhancementLevel.ENHANCED.keep([clip], has_an_upscale(None)) == []
+        assert EnhancementLevel.ORIGINAL.keep([clip], has_an_upscale(None)) == [clip]
+
+    def test_the_levels_are_spelled_as_the_phrases_say_them(self):
+        assert [level.value for level in EnhancementLevel] == ["enhanced", "original", "both"]
 
 
 class TestTheVersionsAClipCanBeSwitchedBetween:

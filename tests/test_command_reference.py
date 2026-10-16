@@ -1037,7 +1037,7 @@ def test_the_origenerator_column_folds_the_side_word_and_its_note_says_how_to_ai
         ("play slideshow", "start slideshow", "pause slideshow", "stop slideshow"),
         ("fix face", "fix hands", "fix teeth", "fix eyes"),
         ("genau",),
-        ("enhanced only", "filter enhanced"),
+        ("filter enhanced",),
     ]
     assert origenerator.note == (
         "Alone, a phrase reaches the satellite you last navigated.  Add “portrait”, "
@@ -1065,7 +1065,7 @@ def test_the_maps_rows_the_loops_the_filters_and_the_crown_are_the_funestras_las
     crown = _the_row_of("main_crown")
 
     assert [group.title for group in funestras.groups] == [
-        "Modes", "Navigation", "Playlist", "Sound", "HUD", "Playback",
+        "Modes", "Navigation", "Playlist", "Included video types", "Sound", "HUD", "Playback",
         "Nav Map", "Loops", "Filter", "Other"]
     assert [row.description for row in _group("Funestras", "Nav Map").rows] == [
         "cycle action", "cycle seed", "wrong action"]
@@ -1087,23 +1087,31 @@ def test_the_main_funestras_own_rows_are_what_it_browses_and_its_loops():
     main = _section("Main Funestra")
 
     assert [group.title for group in main.groups] == ["", "Loops"]
-    assert [row.description for row in main.groups[0].rows] == [
-        "open the browser", "included video types", "included video types (projection)"]
+    assert [row.description for row in main.groups[0].rows] == ["open the browser"]
 
 
-def test_the_included_lengths_are_said_as_the_included_shapes_are():
-    """The console's two pairs of buttons, clips / full and flat / VR, are
-    the two "included video types" rows, each said as what it includes."""
-    [lengths] = [row for row in _all_rows() if "main_player_length_clips" in row.commands]
-    [shapes] = [row for row in _all_rows() if "main_projection_flat" in row.commands]
+def test_the_included_lengths_shapes_and_enhancement_levels_are_said_as_what_they_include():
+    """The three "included video types" rows are a group of the Funestras'
+    grid: the lengths, which stay the Main Funestra's alone and say so, the
+    shapes, and the enhancement level every Funestra narrows to."""
+    included = _group("Funestras", "Included video types")
+    lengths, shapes, levels = included.rows
 
     assert lengths.description == "included video types"
     assert lengths.voice == ("clips only", "full only", "clips and full", "full and clips")
+    assert lengths.detail.startswith("the Main Funestra's alone")
     assert "in Kino mode" in lengths.detail
     assert shapes.description == "included video types (projection)"
     assert set(shapes.voice) == {"flat only", "2D only", "VR only", "flat and VR", "VR and flat",
                                  "VR and 2D", "2D and VR"}
-    assert lengths not in _group("Main Funestra", "Loops").rows
+    assert levels.description == "included video types (enhancement level)"
+    assert levels.voice == ("enhanced only", "original only", "enhanced and original",
+                            "original and enhanced")
+    assert {"active_enhancement_enhanced", "portrait_enhancement_original",
+            "satellites_enhancement_both", "main_enhancement_enhanced"} <= set(levels.commands)
+    assert "Origenerator mode" in levels.detail
+    assert not [row for row in _section("Main Funestra").rows
+                if row.description.startswith("included")]
 
 
 def test_the_loops_save_and_the_projection_are_said_as_the_rows_name_them():

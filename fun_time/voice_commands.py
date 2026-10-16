@@ -75,7 +75,9 @@ ORIGENERATOR_PHRASES: tuple[str, ...] = (
     # a side's Origenerator mode those same two commands are routed to the hosted app
     # instead — one phrase, one meaning per mode, rather than two spellings.
     FAVORITES_PHRASE, "experiments", "requests",
-    "enhanced only", "filter enhanced",
+    # "enhanced only" is the room's own enhancement level, which reaches a
+    # slideshow as these words; this is the app's other spelling of it.
+    "filter enhanced",
     # The slideshow's own controls.
     "play slideshow", "start slideshow", "pause slideshow", "stop slideshow",
     # The commands about the picture on screen: the built-in detail parts, and Genau.
@@ -426,6 +428,20 @@ def build_voice_commands(
         commands[f"all {_fmode_word}"] = commands[f"{_fmode_word} all"] = _fmode_all
     commands["fun scripts"] = commands["main fun scripts"] = commands["fun scripts main"] = "main_fmode_on"
     commands["reset all"] = commands["all reset"] = "all_reset"
+
+    # Which of what a Funestra plays gets through, by whether an enhanced
+    # version exists -- said as the shapes are, as what it includes, of the
+    # Funestra last addressed or the one named.
+    _ENHANCEMENT_PHRASES: dict[str, str] = {
+        "enhanced only": "enhancement_enhanced",
+        "original only": "enhancement_original",
+        "enhanced and original": "enhancement_both",
+        "original and enhanced": "enhancement_both",
+    }
+    for _phrase, _act in _ENHANCEMENT_PHRASES.items():
+        commands[_phrase] = f"active_{_act}"
+        for _funestra in _FUNESTRA_WORDS:
+            commands[f"{_funestra} {_phrase}"] = commands[f"{_phrase} {_funestra}"] = f"{_funestra}_{_act}"
 
     # "next video" is bare "next" said longer, so it reaches whatever was last
     # navigated, as "next" does; so do the others said of a video.

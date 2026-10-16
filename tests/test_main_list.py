@@ -8,6 +8,7 @@ from funestra.modes import LengthMode
 
 from fun_time.main_list import MainList, MainListSettings, WrittenList
 from fun_time.media_metadata import metadata_path_for
+from fun_time.mode_plan import EnhancementLevel
 from fun_time.modes import build_generated_marker_path
 from tests.drive_fakes import files_that_never_answer
 
@@ -22,6 +23,39 @@ def _videos(folder: Path, *names: str) -> list[Path]:
 
 def _the_list(tmp_path: Path, sources: str, **where) -> MainList:
     return MainList(sources=sources, state_dir=tmp_path / "state", **where)
+
+
+class TestTheEnhancementLevel:
+    """The Main Funestra's videos come in families -- a video beside the file
+    an upscaler or Evolver made from it, as its versions button walks them --
+    and "enhanced only" keeps the families that hold such a file, "original
+    only" the ones that hold none."""
+
+    def _library(self, tmp_path: Path) -> tuple[MainList, dict[str, Path]]:
+        root = tmp_path / "vids"
+        scene, upscale, lone = _videos(root, "Jane Doe - scene one.mp4",
+                                       "Jane Doe - scene one_topaz.mp4", "Jane Doe - scene two.mp4")
+        return _the_list(tmp_path, str(root)), {"scene": scene, "upscale": upscale, "lone": lone}
+
+    def test_enhanced_only_keeps_the_family_that_has_an_upscale(self, tmp_path):
+        the_list, videos = self._library(tmp_path)
+
+        kept = the_list.videos(MainListSettings(enhancement=EnhancementLevel.ENHANCED))
+
+        assert sorted(kept) == sorted([str(videos["scene"]), str(videos["upscale"])])
+
+    def test_original_only_keeps_the_family_that_has_none(self, tmp_path):
+        the_list, videos = self._library(tmp_path)
+
+        kept = the_list.videos(MainListSettings(enhancement=EnhancementLevel.ORIGINAL))
+
+        assert kept == [str(videos["lone"])]
+
+    def test_both_is_the_default_and_keeps_everything(self, tmp_path):
+        the_list, _videos = self._library(tmp_path)
+
+        assert MainListSettings().enhancement is EnhancementLevel.BOTH
+        assert len(the_list.videos(MainListSettings())) == 3
 
 
 class TestFMode:

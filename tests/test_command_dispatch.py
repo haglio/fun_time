@@ -41,6 +41,7 @@ from fun_time.main_list import MainListSettings
 from fun_time.main_list_builds import MainListBuild
 from fun_time.media_actions import ensure_in_favs, make_web_url_from_path
 from fun_time.media_metadata import load_metadata, metadata_path_for, normalize_path_key
+from fun_time.mode_plan import EnhancementLevel
 from fun_time.modes import write_playlist_file
 from fun_time.origenerator_switches import RfbSlot
 from fun_time.room_funestras import RoomFunestra
@@ -4223,6 +4224,91 @@ def _vr_config(tmp_path):
     return config
 
 
+class TestTheEnhancementLevel:
+    """Which of what a Funestra plays gets through, by whether an enhanced
+    version exists -- narrowed the way F-mode narrows a satellite and the
+    shapes narrow the Main Funestra."""
+
+    def test_the_main_funestra_narrows_its_list_and_says_so(self, tmp_path):
+        config, builds = _recording(_make_config(tmp_path))
+
+        state, ops = dispatch_command("main_enhancement_enhanced", _make_state(), config)
+
+        assert state.main_enhancement is EnhancementLevel.ENHANCED
+        assert builds.asked[-1].settings.enhancement is EnhancementLevel.ENHANCED
+        assert ops == [WindowOp(op="notice", key="Enhanced only", source="main", level=NOTICE)]
+
+    def test_asking_the_main_funestra_for_the_level_it_plays_rebuilds_nothing(self, tmp_path):
+        config, builds = _recording(_make_config(tmp_path))
+
+        _state, ops = dispatch_command("main_enhancement_both", _make_state(), config)
+
+        assert ops == [] and builds.asked == []
+
+    def test_in_genau_mode_the_main_funestras_level_is_ignored(self, tmp_path):
+        config, builds = _recording(_make_config(tmp_path))
+
+        state, ops = dispatch_command(
+            "main_enhancement_original", _make_state(main_mode=MainMode.GENAU), config)
+
+        assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
+        assert state.main_enhancement is EnhancementLevel.BOTH and builds.asked == []
+
+    def test_a_reset_puts_the_main_funestras_level_back(self, tmp_path):
+        config, builds = _recording(_make_config(tmp_path))
+        narrowed = _make_state(main_enhancement=EnhancementLevel.ORIGINAL)
+
+        state, _ops = dispatch_command("main_reset", narrowed, config)
+
+        assert state.main_enhancement is EnhancementLevel.BOTH
+        assert builds.asked[-1].settings.enhancement is EnhancementLevel.BOTH
+
+    def test_a_satellite_narrows_its_browse_the_way_f_mode_does(self, tmp_path):
+        config = _make_config(tmp_path)
+        with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+            mock_filter.return_value = _filter_result(count=4)
+            state, ops = dispatch_command("landscape_enhancement_original", _make_state(), config)
+
+        assert state.satellite(RoomFunestra.LANDSCAPE).enhancement is EnhancementLevel.ORIGINAL
+        assert state.satellite(RoomFunestra.PORTRAIT).enhancement is EnhancementLevel.BOTH
+        assert mock_filter.call_args.kwargs["enhancement"] is EnhancementLevel.ORIGINAL
+        assert mock_filter.call_args.kwargs["funestra"] is RoomFunestra.LANDSCAPE
+        assert ops == [WindowOp(op="notice", key="Original only", source="landscape", level=NOTICE)]
+
+    def test_a_level_that_keeps_none_of_a_satellites_clips_is_not_kept_either(self, tmp_path):
+        config = _make_config(tmp_path)
+        with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+            mock_filter.return_value = _filter_result(count=0, applied=False, message="nothing")
+            state, ops = dispatch_command("portrait_enhancement_enhanced", _make_state(), config)
+
+        assert state.satellite(RoomFunestra.PORTRAIT).enhancement is EnhancementLevel.BOTH
+        assert ops == [WindowOp(op="notice", key="nothing", source="portrait", level=logging.WARNING)]
+
+    def test_a_satellites_rebuilds_carry_its_level(self, tmp_path):
+        """An F-mode or a filter after it must not quietly widen the browse."""
+        config = _make_config(tmp_path)
+        narrowed = _make_state(portrait=SatelliteState(enhancement=EnhancementLevel.ENHANCED))
+
+        with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+            mock_filter.return_value = _filter_result(count=2)
+            dispatch_command("portrait_no_filter", narrowed, config)
+        _state, _ops, mock_fmode = _dispatch_fmode("portrait_fmode_on", narrowed, config)
+
+        assert mock_filter.call_args.kwargs["enhancement"] is EnhancementLevel.ENHANCED
+        assert mock_fmode.call_args.kwargs["satellites"][RoomFunestra.PORTRAIT].enhancement is (
+            EnhancementLevel.ENHANCED)
+
+    def test_a_satellites_reset_puts_its_level_back(self, tmp_path):
+        config = _make_config(tmp_path)
+        narrowed = _make_state(portrait=SatelliteState(enhancement=EnhancementLevel.ENHANCED))
+
+        with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+            mock_filter.return_value = _filter_result(count=9)
+            state, _ops = dispatch_command("portrait_reset", narrowed, config)
+
+        assert state.satellite(RoomFunestra.PORTRAIT).enhancement is EnhancementLevel.BOTH
+
+
 def test_a_shape_press_narrows_the_browse_and_rebuilds_the_playlist(tmp_path):
     config, builds = _recording(_vr_config(tmp_path))
 
@@ -4782,14 +4868,33 @@ class TestOrigeneratorTransport:
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
         for command in ("landscape_say_favorites", "portrait_say_play_slideshow",
-                        "landscape_say_fix_teeth", "portrait_say_enhanced_only"):
+                        "landscape_say_fix_teeth", "portrait_say_filter_enhanced"):
             state, _ = dispatch_command(command, state, config)
         assert _origenerator_cmds(config) == [
             "LANDSCAPE_SAY:favorites",
             "PORTRAIT_SAY:play slideshow",
             "LANDSCAPE_SAY:fix teeth",
-            "PORTRAIT_SAY:enhanced only",
+            "PORTRAIT_SAY:filter enhanced",
         ]
+
+    def test_the_enhancement_level_said_to_a_side_in_origenerator_mode_is_its_shows_switch(
+            self, tmp_path):
+        """"enhanced only" reaches the slideshow as its own words; "enhanced
+        and original" presses its enhanced-only switch off, only while the show
+        says the switch is on; "original only" is nothing a slideshow has."""
+        config = _origenerator_config(tmp_path)
+        state = _in_origenerator_mode()
+
+        state, _ops = dispatch_command("portrait_enhancement_enhanced", state, config)
+        publish_the_show(config, RoomFunestra.PORTRAIT, f_mode=False, enhanced=True)
+        state, _ops = dispatch_command("portrait_enhancement_both", state, config)
+        publish_the_show(config, RoomFunestra.PORTRAIT, f_mode=False, enhanced=False)
+        state, _ops = dispatch_command("portrait_enhancement_both", state, config)
+        state, ops = dispatch_command("portrait_enhancement_original", state, config)
+
+        assert _origenerator_cmds(config) == ["PORTRAIT_SAY:enhanced only", "portrait_enhanced"]
+        assert ops == [WindowOp(op=Op.IGNORED, key="in Origenerator mode")]
+        assert state.satellite(RoomFunestra.PORTRAIT).enhancement is EnhancementLevel.BOTH
 
     def test_no_filter_reaches_the_hosted_show_as_clear_filter(self, tmp_path):
         """"portrait no filter" drops a Funestra's act filter; over a hosted slideshow

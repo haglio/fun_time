@@ -443,6 +443,34 @@ _SECTIONS: tuple[_Section, ...] = (
                     commands=_every_funestra("reset"),
                 ),
             )),
+            _Group("Included video types", (
+                _Row(
+                    "included video types — the Main Funestra's alone: in Kino mode, "
+                    "the lengths: \"clips only\", \"full only\", or \"clips and full\" "
+                    "(the default, everything), which leaves any compilation with it; "
+                    "its HUD's own pair of buttons reaches a fourth state, neither, "
+                    "which holds the video on screen",
+                    commands=("main_player_length_clips", "main_player_length_full",
+                              "main_player_length_mixed", "main_player_length_none"),
+                ),
+                _Row(
+                    "included video types (projection) — the videos in Kino mode, "
+                    f"Genau's {_FLICK.many} in Genau mode: \"flat only\" (or \"2D only\"), "
+                    "\"VR only\", or \"flat and VR\"; its HUD's own pair of buttons reaches a "
+                    "fourth state, neither, which holds what is on screen",
+                    commands=("main_projection_flat", "main_projection_vr",
+                              "main_projection_both", "main_projection_none"),
+                ),
+                _Row(
+                    "included video types (enhancement level) — \"enhanced only\" keeps "
+                    "what has an enhanced version, \"original only\" what has none, and "
+                    "\"enhanced and original\" everything; said to a satellite in "
+                    "Origenerator mode, \"enhanced only\" narrows its slideshow and "
+                    "\"original only\" is ignored",
+                    commands=_every_funestra("enhancement_enhanced", "enhancement_original",
+                                             "enhancement_both"),
+                ),
+            )),
             _Group("Sound", (
                 _Row(
                     "volume down / up, in tenths — the Main Funestra's sound is the "
@@ -557,25 +585,6 @@ _SECTIONS: tuple[_Section, ...] = (
                     ("browse_library",),
                     controller=(TRIGGER, STICK_UP_DOWN),
                 ),
-                _Row(
-                    "included video types — in Kino mode, the lengths: \"clips only\", "
-                    "\"full only\", or \"clips and full\" (the default, everything), "
-                    "which leaves any compilation with it; its HUD's own pair of "
-                    "buttons reaches a fourth state, neither, which holds the video on "
-                    "screen",
-                    (),
-                    ("main_player_length_clips", "main_player_length_full",
-                     "main_player_length_mixed", "main_player_length_none"),
-                ),
-                _Row(
-                    "included video types (projection) — the videos in Kino mode, "
-                    f"Genau's {_FLICK.many} in Genau mode: \"flat only\" (or \"2D only\"), "
-                    "\"VR only\", or \"flat and VR\"; its HUD's own pair of buttons reaches a "
-                    "fourth state, neither, which holds what is on screen",
-                    (),
-                    ("main_projection_flat", "main_projection_vr",
-                     "main_projection_both", "main_projection_none"),
-                ),
             )),
             _Group("Loops", (
                 _Row(
@@ -635,8 +644,9 @@ _SECTIONS: tuple[_Section, ...] = (
                     commands=_said_to_a_slideshow(*GENAU_SAID),
                 ),
                 _Row(
-                    "show only the enhanced pictures",
-                    commands=_said_to_a_slideshow("enhanced only", "filter enhanced"),
+                    "show only the enhanced pictures — \"enhanced only\", under Included "
+                    "video types, says the same to a side in Origenerator mode",
+                    commands=_said_to_a_slideshow("filter enhanced"),
                 ),
             )),
         ),

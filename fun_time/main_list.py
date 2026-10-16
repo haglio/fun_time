@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import random
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from funestra.funestra_verbs import SET_F_MODE
 from funestra.modes import LengthMode
 
 from main_funestra.controls import SET_LENGTH_MODE
+from main_funestra.library import enhanced_by_processing, stable_title
 
 from .media_metadata import (
     EXCERPT,
@@ -20,6 +22,7 @@ from .media_metadata import (
     recorded_for,
     video_type_of,
 )
+from .mode_plan import EnhancementLevel
 from .modes import (
     PLAYLIST_MAIN_FUNESTRA,
     VideoShapes,
@@ -40,6 +43,7 @@ class MainListSettings:
     plays_flat: bool = True
     scripted_filter: bool = False
     length: LengthMode = LengthMode.MIXED
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH
     latest: bool = False
     shuffle_seed: int = 0
 
@@ -47,11 +51,13 @@ class MainListSettings:
     def of(cls, state) -> MainListSettings:
         return cls(plays_vr=state.main_plays_vr, plays_flat=state.main_plays_flat,
                    scripted_filter=state.main_scripted_filter, length=state.main_length_mode,
+                   enhancement=state.main_enhancement,
                    latest=state.main_latest, shuffle_seed=state.main_shuffle_seed)
 
     def into(self, state):
         return replace(state, main_plays_vr=self.plays_vr, main_plays_flat=self.plays_flat,
                        main_scripted_filter=self.scripted_filter, main_length_mode=self.length,
+                       main_enhancement=self.enhancement,
                        main_latest=self.latest, main_shuffle_seed=self.shuffle_seed)
 
     @property
@@ -81,6 +87,22 @@ def _the_one_on_screen(every: list[str], on_screen: str) -> list[str]:
         return []
     key = normalize_path_key(on_screen)
     return [video for video in every if normalize_path_key(video) == key][:1]
+
+
+def _family_of(video: str) -> tuple[Path, str]:
+    path = Path(video)
+    return path.parent, stable_title(path.stem)
+
+
+def _has_an_enhanced_version(every: list[str]) -> Callable[[str], bool]:
+    """Whether a video's family -- the files beside it that are one video at
+    different qualities, as the Main Funestra's versions button walks them --
+    holds one an upscaler or Evolver made."""
+    enhanced: dict[tuple[Path, str], bool] = {}
+    for video in every:
+        family = _family_of(video)
+        enhanced[family] = enhanced.get(family, False) or enhanced_by_processing(Path(video).stem)
+    return lambda video: enhanced[_family_of(video)]
 
 
 @dataclass(frozen=True)
@@ -126,6 +148,7 @@ class MainList:
         if settings.scripted_filter:
             let_through = {video for video in let_through
                            if has_handcrafted_funscript(video, self.metadata_root)}
+        let_through = set(settings.enhancement.keep(sorted(let_through), _has_an_enhanced_version(every)))
         ordered = rotated_onto(sort_paths_by_recency(every) if settings.latest
                                else _shuffled(every, settings.shuffle_seed),
                                "" if from_the_top else on_screen, path_of=str)

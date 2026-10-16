@@ -56,7 +56,7 @@ from .event_log import (
 )
 from .filter_vocab import decode_filter_command, set_command
 from .funestra_buttons import MAIN_FUNESTRA_NOUN, SATELLITE_NOUN, too_short_to_step
-from .funestra_handover import show_f_mode
+from .funestra_handover import show_enhanced_filter, show_f_mode
 from .funestra_status import (
     MainFunestraStatus,
     read_genau_status,
@@ -71,7 +71,7 @@ from .max_intensity import (
 )
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .media_metadata import forget_indexed_clip
-from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE, kino_shows
+from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE, EnhancementLevel, kino_shows
 from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
 from .origenerator_switches import (
@@ -613,6 +613,20 @@ _LENGTH_COMMANDS: dict[str, LengthMode] = {
     "main_player_length_none": LengthMode.NONE,
 }
 
+# Which of what a Funestra plays gets through, by whether an enhanced version
+# exists: one verb per level on every Funestra, as the shapes have one per state.
+_ENHANCEMENT_COMMANDS: dict[str, tuple[RoomFunestra, EnhancementLevel]] = {
+    f"{funestra.label}_enhancement_{level}": (funestra, level)
+    for funestra in RoomFunestra
+    for level in EnhancementLevel
+}
+
+_ENHANCEMENT_LABELS: dict[EnhancementLevel, str] = {
+    EnhancementLevel.ENHANCED: "Enhanced only",
+    EnhancementLevel.ORIGINAL: "Original only",
+    EnhancementLevel.BOTH: "Enhanced + original",
+}
+
 _PROJECTION_LABELS: dict[tuple[bool, bool], str] = {
     (True, True): "2D + VR",
     (True, False): "VR only",
@@ -1079,12 +1093,14 @@ def _dispatch_fmode(
         state_dir=config.state_dir,
         main_funestra_cmd_file=config.main_funestra_cmd_file,
         main_builds=config.main_list_builds,
+        regen_media_root=config.regen_media_root,
         satellites={
             funestra: SatelliteFmodeInputs(
                 sources=config.satellite(funestra).sources,
                 cmd_file=config.satellite(funestra).cmd_file,
                 recent=state.satellite(funestra).latest,
                 filter_query=state.satellite(funestra).filter,
+                enhancement=state.satellite(funestra).enhancement,
             )
             for funestra in RoomFunestra.SATELLITES
         },
@@ -1239,7 +1255,59 @@ def _dispatch_main_length(
 def _the_main_list_is_narrowed_or_ordered(state: BridgeState, config: BridgeConfig) -> bool:
     return (state.main_scripted_filter or state.main_latest
             or main_video_shapes(state, config).narrows
-            or state.main_length_mode is not LengthMode.MIXED)
+            or state.main_length_mode is not LengthMode.MIXED
+            or state.main_enhancement is not EnhancementLevel.BOTH)
+
+
+def _dispatch_enhancement(
+    funestra: RoomFunestra, level: EnhancementLevel, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Narrow what *funestra* plays to the clips that have an enhanced version,
+    to the ones that have none, or widen it back; a level that keeps nothing
+    leaves the playlist, and the level, as they were."""
+    if funestra is RoomFunestra.MAIN:
+        return _dispatch_main_enhancement(level, state, config)
+    if hosts(funestra, state, config):
+        return _dispatch_shows_enhancement(funestra, level, state, config)
+    if state.satellite(funestra).enhancement is level:
+        return state, []
+    narrowed = state.with_satellite(funestra, enhancement=level)
+    result = _rebuild_satellite(funestra, narrowed.satellite(funestra).filter, narrowed, config)
+    logger.info(result.log_message)
+    if not result.applied:
+        return state, [WindowOp(op="notice", key=result.log_message,
+                                source=satellite_source(funestra), level=logging.WARNING)]
+    return narrowed, [WindowOp(op="notice", key=_ENHANCEMENT_LABELS[level],
+                               source=satellite_source(funestra), level=NOTICE)]
+
+
+def _dispatch_main_enhancement(
+    level: EnhancementLevel, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    if not kino_shows(state.main_mode):
+        return _ignored(state, _IN_GENAU_MODE)
+    if state.main_enhancement is level:
+        return state, []
+    state = replace(state, main_enhancement=level)
+    _rebuild_the_main_list(state, config)
+    logger.info("Main Funestra enhancement: %s", level)
+    return state, [WindowOp(op="notice", key=_ENHANCEMENT_LABELS[level], source=SOURCE_MAIN,
+                            level=NOTICE)]
+
+
+def _dispatch_shows_enhancement(
+    funestra: RoomFunestra, level: EnhancementLevel, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Said to a side in Origenerator mode: the slideshow's own enhanced-only
+    switch, which the hosted app hears as its words or as the switch pressed
+    off; a slideshow has no originals-only to offer."""
+    if level is EnhancementLevel.ORIGINAL:
+        return _ignored(state, _IN_ORIGENERATOR_MODE)
+    if level is EnhancementLevel.ENHANCED:
+        append_command(config.origenerator_cmd_file, f"{funestra.label.upper()}_SAY:enhanced only")
+    elif show_enhanced_filter(config.satellite(funestra)):
+        append_command(config.origenerator_cmd_file, f"{funestra.label}_enhanced")
+    return state, []
 
 
 def main_funestra_at_defaults(
@@ -1356,7 +1424,8 @@ def _dispatch_reset(
         if not _browse_at_defaults(state.satellite(funestra)):
             state = cancel_lock(funestra, state, config)
             state = state.with_satellite(
-                funestra, latest=False, filter="", favorites_filter=False, nav_anchor="")
+                funestra, latest=False, filter="", favorites_filter=False,
+                enhancement=EnhancementLevel.BOTH, nav_anchor="")
             state = clear_side_grouping(state, funestra)
             result = _rebuild_satellite(funestra, "", state, config, start_at_top=True)
             logger.info("Reset %s: %s", satellite_source(funestra), result.log_message)
@@ -1388,7 +1457,9 @@ def _rebuild_satellite(
         state_dir=config.state_dir,
         cmd_file=config.satellite(funestra).cmd_file,
         start_at_top=start_at_top,
+        enhancement=satellite.enhancement,
         regen_metadata_root=config.regen_metadata_root,
+        regen_media_root=config.regen_media_root,
     )
 
 
@@ -1426,7 +1497,7 @@ def _dispatch_set_filter(
 # is about the Funestra itself -- parking its window, its crown, its rate, taking
 # the OSR2, its sound, and its mode.
 _THE_FUNESTRAS_OWN = ("_minimize", "_crown", "_speed_", "_take_osr2", "_kino_activate",
-                      "_origenerator_activate", "_mute", "_unmute", "_volume_")
+                      "_origenerator_activate", "_mute", "_unmute", "_volume_", "_enhancement_")
 
 
 def _side_said_to(command: str) -> RoomFunestra | None:
@@ -1830,6 +1901,11 @@ def _main_length(length: LengthMode, state: BridgeState, config: BridgeConfig,
     return _dispatch_main_length(length, state, config)
 
 
+def _enhancement(funestra: RoomFunestra, level: EnhancementLevel, state: BridgeState,
+                 config: BridgeConfig, _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_enhancement(funestra, level, state, config)
+
+
 def _main_reset(state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return _dispatch_main_reset(state, config)
@@ -1929,6 +2005,7 @@ def _words_for_a_slideshow_that_is_not_up(state: BridgeState, _config: BridgeCon
 
 _IN_KINO_MODE = "in Kino mode"
 _IN_GENAU_MODE = "in Genau mode"
+_IN_ORIGENERATOR_MODE = "in Origenerator mode"
 _OUTSIDE_VR = "outside VR"
 _ON_THE_MAIN_FUNESTRA = "on the Main Funestra"
 
@@ -2004,6 +2081,8 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, (plays_vr, plays_flat) in _PROJECTION_COMMANDS.items()})
     handlers.update({cmd: partial(_main_length, length)
                      for cmd, length in _LENGTH_COMMANDS.items()})
+    handlers.update({cmd: partial(_enhancement, funestra, level)
+                     for cmd, (funestra, level) in _ENHANCEMENT_COMMANDS.items()})
     handlers[MAIN_RESET] = _main_reset
     handlers.update({cmd: partial(_set_filter, funestras, "")
                      for cmd, funestras in _NO_FILTER_SIDES.items()})
