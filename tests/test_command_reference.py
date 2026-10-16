@@ -11,6 +11,7 @@ from fun_time.command_reference import (
     _BORDER,
     _SECTIONS,
     A_OR_X,
+    ACTION_COLUMN_AT_LEAST_PX,
     ANGLE_BAR,
     B_OR_Y,
     CONTROLLER_COLUMN_PX,
@@ -21,6 +22,7 @@ from fun_time.command_reference import (
     HOLD_TRIGGER_AND_STICK_UP_DOWN,
     HOTKEY_BLOCK_PX,
     HOTKEY_HEADER,
+    NARROWEST_PAGE_PX,
     STICK_SIDEWAYS,
     STICK_UP_DOWN,
     TRIGGER,
@@ -1120,7 +1122,7 @@ def _group_htmls(section_title: str) -> dict[str, str]:
 def test_a_group_whose_rows_hold_no_key_renders_no_hotkey_column():
     origenerator = _section_html("Origenerator")
     assert re.findall(r"<b[^>]*>([^<]+)</b>", origenerator) == ["Action", "Voice command"]
-    assert origenerator.count("<td") == 2 * origenerator.count("<tr")
+    assert origenerator.count("<td") == 3 * origenerator.count("<tr")
     vr = _section_html("VR")
     assert "Hotkey" not in vr
     assert vr.count("<td") == 3 * vr.count("<tr")
@@ -1134,38 +1136,99 @@ def _tables(html: str) -> list[str]:
     return re.findall(r"<table[^>]*>.*?</table>", html, re.DOTALL)
 
 
-def _body_widths(table: str) -> list[int]:
-    """Each column's pixel width, read off the table's last row."""
-    last_row = re.findall(r"<tr[^>]*>(.*?)</tr>", table, re.DOTALL)[-1]
-    return [int(width) for width in re.findall(r'<td width="(\d+)"', last_row)]
+def _cells_across(row: str) -> list[tuple[str, int, int, int]]:
+    """Each cell of *row* as (text, x, width, colspan), x in pixels from the
+    table's left edge, read off the widths before it."""
+    x, cells = 0, []
+    for cell in re.findall(r"<td[^>]*>.*?</td>", row, re.DOTALL):
+        width = int(re.search(r'width="(\d+)"', cell).group(1))
+        span = re.search(r'colspan="(\d+)"', cell)
+        cells.append((re.sub(r"<[^>]+>", "", cell), x, width, int(span.group(1)) if span else 1))
+        x += width
+    return cells
 
 
-def test_every_table_is_the_page_wide_with_its_voice_column_and_hotkey_block_in_the_same_pixels():
-    """Qt lays a percentage-width table out a few pixels past the viewport, and
-    the columns of one table land at an x of their own, so each table is told
-    its width in pixels and each cell its own: the voice column at the right and
-    the hotkey block -- one column, or a column per Funestra -- the same width on
-    every table, the controller column its own where a table has one, and the
-    action column taking whatever the page leaves."""
+def _rows_of(table: str) -> list[str]:
+    return re.findall(r"<tr[^>]*>(.*?)</tr>", table, re.DOTALL)
+
+
+def _grid_at(width: int) -> dict[str, int]:
+    action = width - HOTKEY_BLOCK_PX - CONTROLLER_COLUMN_PX - VOICE_COLUMN_PX
+    return {"Action": 0, HOTKEY_HEADER: action, CONTROLLER_HEADER: action + HOTKEY_BLOCK_PX,
+            VOICE_HEADER: action + HOTKEY_BLOCK_PX + CONTROLLER_COLUMN_PX}
+
+
+def test_every_table_lays_its_columns_on_one_grid_so_the_heads_line_up_down_the_page():
+    """One grid of pixel positions, the same in every table: the voice column
+    at the right, the controller column before it, the hotkey block (one
+    column, or three of a hundred) before that, and the action taking what is
+    left.  A table without hotkeys or without controller inputs keeps the grid:
+    its action cell spans the absent columns, so the heads a table does have
+    sit at the same x as every other table's."""
+    for width in (1000, 1400):
+        grid = _grid_at(width)
+        heads: dict[str, set[int]] = {}
+        for table in _tables(render_reference_html(width)):
+            assert re.match(rf'<table width="{width}"', table)
+            rows = _rows_of(table)
+            for text, x, _width, _span in _cells_across(rows[0]):
+                heads.setdefault(text, set()).add(x)
+            for row in rows:
+                cells = _cells_across(row)
+                if len(cells) == 3 and cells[0][0] == "Portrait":
+                    continue  # the Funestras' names under a forked head, read below
+                assert sum(cell[2] for cell in cells) == width, table[:120]
+                assert cells[-1][1:3] == (grid[VOICE_HEADER], VOICE_COLUMN_PX), table[:120]
+                if CONTROLLER_HEADER in table:
+                    assert cells[-2][1:3] == (grid[CONTROLLER_HEADER], CONTROLLER_COLUMN_PX), table[:120]
+        assert {head: xs for head, xs in heads.items() if head in grid} == {
+            head: {x} for head, x in grid.items()}
+    assert (HOTKEY_BLOCK_PX, CONTROLLER_COLUMN_PX, VOICE_COLUMN_PX) == (300, 120, 220)
+    assert ACTION_COLUMN_AT_LEAST_PX == 150 and NARROWEST_PAGE_PX == 790
+
+
+def test_a_forked_hotkey_block_is_three_columns_of_a_hundred_under_one_head():
     html = render_reference_html(1000)
-    tables = _tables(html)
+    navigation = _tables(_group_htmls("Funestras")["Navigation"])[0]
+    head, funestras, *body = _rows_of(navigation)
+    grid = _grid_at(1000)
 
-    assert tables
-    assert {re.match(r'<table width="(\d+)"', table).group(1) for table in tables} == {"1000"}
-    for table in tables:
-        widths = _body_widths(table)
-        assert sum(widths) == 1000, table[:120]
-        assert widths[-1] == VOICE_COLUMN_PX, table[:120]
-        between = widths[1:-1]
-        if CONTROLLER_HEADER in table:
-            assert between[-1] == CONTROLLER_COLUMN_PX, table[:120]
-            between = between[:-1]
-        assert sum(between) in (0, HOTKEY_BLOCK_PX), table[:120]
-    per_funestra = _body_widths(next(table for table in tables if "Portrait" in table))
-    assert per_funestra[1:4] == [HOTKEY_BLOCK_PX // 3] * 3
-    assert _body_widths(_tables(_section_html("Dashboard"))[0])[1:-1] == [HOTKEY_BLOCK_PX]
-    assert len(_body_widths(_tables(_section_html("Origenerator"))[0])) == 2
-    assert _body_widths(_tables(render_reference_html(1400))[0])[0] == 1400 - VOICE_COLUMN_PX - HOTKEY_BLOCK_PX
+    assert [cell[:3] for cell in _cells_across(head)] == [
+        ("Action", 0, grid[HOTKEY_HEADER]), (HOTKEY_HEADER, grid[HOTKEY_HEADER], HOTKEY_BLOCK_PX),
+        (CONTROLLER_HEADER, grid[CONTROLLER_HEADER], CONTROLLER_COLUMN_PX),
+        (VOICE_HEADER, grid[VOICE_HEADER], VOICE_COLUMN_PX)]
+    # The heads beside the block span both rows, so the Funestras' names are
+    # the second row's only cells, each a hundred wide under the block.
+    assert [cell[:3] for cell in _cells_across(funestras)] == [
+        ("Portrait", 0, 100), ("Landscape", 100, 100), ("Main", 200, 100)]
+    assert [cell[1] for cell in _cells_across(body[0])][1:4] == [
+        grid[HOTKEY_HEADER], grid[HOTKEY_HEADER] + 100, grid[HOTKEY_HEADER] + 200]
+    assert 'colspan="3"' in html and "rowspan" in head
+
+
+def test_a_table_without_hotkeys_spans_the_block_with_the_action_and_one_without_inputs_leaves_the_column_blank():
+    """The hotkey block sits beside the action, so an action can span it; the
+    controller column sits between the keys and the voice, so a table with no
+    input keeps it as a blank column with no head, and every head stays put.
+    The Origenerator section has neither, the Dashboard keys alone, the VR
+    section inputs alone."""
+    origenerator = _rows_of(_tables(_section_html("Origenerator"))[0])
+    dashboard = _rows_of(_tables(_section_html("Dashboard"))[0])
+    vr = _rows_of(_tables(_section_html("VR"))[0])
+    grid = _grid_at(1000)
+
+    for rows, spans, action_width, blank in (
+        (origenerator, (2, 1, 1), grid[CONTROLLER_HEADER], 1),
+        (dashboard, (1, 1, 1, 1), grid[HOTKEY_HEADER], 2),
+        (vr, (2, 1, 1), grid[CONTROLLER_HEADER], None),
+    ):
+        for row in rows:
+            cells = _cells_across(row)
+            assert tuple(cell[3] for cell in cells) == spans, row[:160]
+            assert cells[0][2] == action_width, row[:160]
+            if blank is not None:
+                assert cells[blank][0] == "" and cells[blank][1:3] == (
+                    grid[CONTROLLER_HEADER], CONTROLLER_COLUMN_PX), row[:160]
 
 
 def test_a_table_shows_the_controller_column_only_where_a_row_has_a_controller_input():
@@ -1230,18 +1293,23 @@ def test_the_forked_hotkey_head_is_centered_over_its_funestras():
         render_reference_html(1000))
 
 
-def test_every_column_head_sits_in_the_middle_of_its_cell_and_the_forked_one_is_underlined():
+def test_every_column_head_sits_in_the_middle_of_its_cell_but_action_which_sits_over_the_actions():
     """The forked Hotkey head is a line under which its Funestras' names sit, so
     a thin rule runs under it across their columns; every head is centered both
-    ways, since a two-line head beside a one-line head otherwise reads top-left."""
+    ways, since a two-line head beside a one-line head otherwise reads top-left --
+    except Action, which starts at the left padding, over the actions under it,
+    whatever the table's action column spans."""
     html = render_reference_html(1000)
-    heads = re.findall(r"<td[^>]*>\s*<b[^>]*>(?:Action|Hotkey|Voice command|Portrait|Landscape|Main)</b></td>",
-                       html)
-    forked = [head for head in heads if "colspan" in head]
+    heads = re.findall(
+        r"<td[^>]*>\s*<b[^>]*>(?:Action|Hotkey|VR Controller|Voice command|Portrait|Landscape|Main)</b></td>",
+        html)
+    forked = [head for head in heads if 'colspan="3"' in head]
 
     assert heads and forked
     for head in heads:
-        assert 'align="center"' in head and 'valign="middle"' in head, head
+        assert 'valign="middle"' in head, head
+        assert ('align="left"' in head) == (">Action<" in head), head
+        assert ('align="center"' in head) == (">Action<" not in head), head
         assert (f"border-bottom:1px solid {_BORDER}" in head) == (head in forked), head
     assert "border-top" not in html
 

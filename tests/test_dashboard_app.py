@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support import file_channel
-from PyQt6.QtCore import QEvent, QPoint, QRect, Qt
-from PyQt6.QtGui import QColor, QHelpEvent, QTextDocumentFragment
+from PyQt6.QtCore import QEvent, QPoint, QRect, QSize, Qt
+from PyQt6.QtGui import QColor, QGuiApplication, QHelpEvent, QTextDocumentFragment
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QTextBrowser, QWidget
 from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY
@@ -48,6 +48,7 @@ from fun_time.dashboard_app import (
     _BUTTON_RADIUS,
     COLOR_PANEL,
     OMNIPAUSE_RESUME_TOOLTIP,
+    ROOM_FOR_THE_FRAME_PX,
     SOURCE_CHECKOUT_FILENAME,
     DashboardLaunchGeometry,
     DashboardWidget,
@@ -60,6 +61,7 @@ from fun_time.dashboard_app import (
     lighten_color,
     load_dashboard_app_config,
     record_source_checkout,
+    reference_first_size,
     source_checkout,
     write_dashboard_command,
 )
@@ -885,14 +887,17 @@ def test_the_reference_shows_a_tooltip_as_rich_text_so_a_long_detail_wraps():
         browser.close()
 
 
-@pytest.mark.parametrize("width", range(950, 1701, 50))
+@pytest.mark.parametrize("width", range(NARROWEST_PAGE_PX, 1701, 50))
 def test_the_reference_needs_no_horizontal_scrollbar_at_any_width_it_opens_in(width):
+    """From the narrowest the browser lets itself be (a width below it is
+    clamped up to it) to 1700, in steps of 50."""
     browser = ReferenceBrowser()
     try:
-        assert browser.minimumWidth() <= 950, "the widths tried start above the narrowest the popup opens at"
+        assert browser.minimumWidth() < NARROWEST_PAGE_PX + 50, "the widths tried skip the narrowest"
         browser.resize(width, 800)
         browser.show()
         QApplication.processEvents()
+        assert browser.width() >= browser.minimumWidth()
         assert browser.horizontalScrollBar().maximum() == 0
     finally:
         browser.close()
@@ -945,15 +950,32 @@ def test_a_find_in_the_reference_survives_the_page_being_laid_out_again():
         dialog.close()
 
 
-def test_the_reference_opens_at_a_readable_size_and_never_narrower_than_its_columns():
+def test_the_reference_opens_at_a_readable_size_that_fits_its_screen_and_never_narrower_than_its_grid():
+    """1000 by 800 where the screen has room for it and the frame around it,
+    otherwise what fits; on a screen too narrow even for that, the grid's
+    minimum plus the frame, which is what the window refuses to go under."""
     dialog = ReferenceDialog()
     try:
-        assert (dialog.width(), dialog.height()) == (1000, 800)
+        available = QGuiApplication.primaryScreen().availableGeometry()
+        fits = reference_first_size(available.size(), at_least_wide=dialog.minimumWidth())
+        assert (dialog.width(), dialog.height()) == (fits.width(), fits.height())
         assert dialog.minimumWidth() >= NARROWEST_PAGE_PX > HOTKEY_BLOCK_PX + VOICE_COLUMN_PX
+        assert NARROWEST_PAGE_PX < dialog.minimumWidth() <= NARROWEST_PAGE_PX + 40
         dialog.resize(300, 800)
         assert dialog.width() == dialog.minimumWidth()
     finally:
         dialog.close()
+
+
+def test_the_first_size_is_the_smaller_of_a_thousand_by_eight_hundred_and_what_the_screen_fits():
+    roomy = reference_first_size(QSize(1920, 1040), at_least_wide=820)
+    short = reference_first_size(QSize(1280, 720), at_least_wide=820)
+    narrow = reference_first_size(QSize(800, 800), at_least_wide=820)
+
+    assert (roomy.width(), roomy.height()) == (1000, 800)
+    assert (short.width(), short.height()) == (1000, 720 - ROOM_FOR_THE_FRAME_PX)
+    assert (narrow.width(), narrow.height()) == (820, 800 - ROOM_FOR_THE_FRAME_PX)
+    assert ROOM_FOR_THE_FRAME_PX >= 40
 
 
 def test_reference_dialog_syncs_topmost_with_omnipause():

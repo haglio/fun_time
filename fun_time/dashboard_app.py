@@ -313,8 +313,8 @@ def build_dashboard_scene(
 # ---------------------------------------------------------------------------
 # PyQt6 rendering widget
 # ---------------------------------------------------------------------------
-from PyQt6.QtCore import QEvent, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QBrush, QKeySequence, QPainter, QPen, QPixmap, QShortcut
+from PyQt6.QtCore import QEvent, QRectF, QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QBrush, QGuiApplication, QKeySequence, QPainter, QPen, QPixmap, QShortcut
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QTextBrowser, QToolTip, QVBoxLayout, QWidget
 
 
@@ -534,6 +534,16 @@ def _placed_on_the_strip(snapshot: DashboardSnapshot):
                        x=PAD, y=PAD)
 
 
+REFERENCE_FIRST_SIZE = QSize(1000, 800)
+ROOM_FOR_THE_FRAME_PX = 48
+
+
+def reference_first_size(available: QSize, *, at_least_wide: int) -> QSize:
+    return QSize(max(at_least_wide, min(REFERENCE_FIRST_SIZE.width(),
+                                        available.width() - ROOM_FOR_THE_FRAME_PX)),
+                 min(REFERENCE_FIRST_SIZE.height(), available.height() - ROOM_FOR_THE_FRAME_PX))
+
+
 class ReferenceDialog(QDialog):
     """Modeless popup listing every hotkey and voice command.
 
@@ -565,7 +575,9 @@ class ReferenceDialog(QDialog):
         layout.addWidget(self._find_bar)
         QShortcut(QKeySequence.StandardKey.Find, self).activated.connect(self.open_find)
         self.setMinimumWidth(self._browser.minimumWidth())
-        self.resize(1000, 800)
+        screen = (QGuiApplication.primaryScreen() if parent is None else parent.screen())
+        self.resize(reference_first_size(screen.availableGeometry().size(),
+                                         at_least_wide=self.minimumWidth()))
 
     def open_find(self) -> None:
         self._find_bar.open_find([self._browser])
