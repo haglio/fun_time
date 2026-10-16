@@ -4,8 +4,8 @@ held to what the app says it answers.
 What a key or a phrase says to a side in the app's mode is walked, every one of
 them, by ``tests/test_vr_control_parity.py``.  These are the rest: a Satellite
 Funestra's own mode buttons, the console's enhanced-only switch, the room's
-F-Mode reaching each show's own, the gallery following a lock Genau took, and a
-copy of the app the session took over being handed back.
+F-Mode reaching each slideshow's own, the gallery following a lock Genau took, and
+the app parked for the session crossing in or, if it was taken over, handed back.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
-from fun_time.windows_bridge_orchestrator import see_the_hosted_app_out
+from fun_time.windows_bridge_orchestrator import ChildProcess, see_the_hosted_app_out
 from tests.hosted_shows import publish_the_show
 from tests.origenerator_contract import answers
 
@@ -85,6 +85,19 @@ def test_the_gallery_following_a_lock_genau_took(tmp_path):
 
     follow.expect_a_lock()
     follow.sync()
+
+    sent = _what_it_was_sent(channel)
+    assert sent and all(map(answers, sent)), sent
+
+
+def test_parking_the_app_for_the_session_crossing_in(tmp_path):
+    channel = tmp_path / "origenerator_cmd.txt"
+
+    with patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
+               return_value=4242), \
+         patch("fun_time.windows_bridge_orchestrator.hide_window"):
+        see_the_hosted_app_out(tmp_path, ChildProcess(pid=7071, created_at=90), channel,
+                               keep=True, taken_over=False)
 
     sent = _what_it_was_sent(channel)
     assert sent and all(map(answers, sent)), sent

@@ -52,7 +52,7 @@ from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
 from .modes import collect_video_files
-from .origenerator_switches import CLOSE_SHOWS, RfbSlot
+from .origenerator_switches import CLOSE_SLIDESHOWS, RfbSlot
 from .overlay_progress import (
     ACTIVATING_ORIGENERATOR,
     CANCEL_CLOSING_FUN_TIME,
@@ -269,7 +269,7 @@ def _park_the_hosted_origenerator(
     hwnd = find_origenerators_window(child.pid)
     if not hwnd:
         return False
-    append_command(command_file, CLOSE_SHOWS)
+    append_command(command_file, CLOSE_SLIDESHOWS)
     hide_window(hwnd)
     keep_the_origenerator(state_dir, pid=child.pid, created_at=child.created_at,
                           taken_over=taken_over)

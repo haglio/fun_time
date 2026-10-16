@@ -206,7 +206,7 @@ _STUB_MAIN = textwrap.dedent(
 
     def go_back_to_standalone():
         global booted
-        close_shows()
+        close_slideshows()
         root.attributes("-topmost", False)
         root.geometry("640x480+40+40")
         root.deiconify()
@@ -239,7 +239,7 @@ _STUB_MAIN = textwrap.dedent(
         with (where / "origenerator_stub.log").open("a", encoding="utf-8") as handle:
             print(f"{time.time():.3f} {line}", file=handle)
 
-    def open_show(side):
+    def open_slideshow(side):
         playlist = handed(side, "playlist")
         if side in held or playlist is None:
             return
@@ -247,17 +247,17 @@ _STUB_MAIN = textwrap.dedent(
         queued = append_command(handed(side, "cmd_file"), "RELOAD_PLAYLIST")
         note(f"{side}: list written, reload queued={queued}")
         publish_whole(handed(side, "hud_file"), hud_text(
-            HudModel(funestra=side, lock_label=f"Stub {side} show")))
+            HudModel(funestra=side, lock_label=f"Stub {side} slideshow")))
         held.add(side)
 
-    def close_show(side):
+    def close_slideshow(side):
         if side in held:
             publish_whole(handed(side, "hud_file"), "")
             held.discard(side)
 
-    def close_shows():
+    def close_slideshows():
         for side in list(held):
-            close_show(side)
+            close_slideshow(side)
 
     def publish_status():
         if not args.status_file or not booted or taken_over:
@@ -275,19 +275,19 @@ _STUB_MAIN = textwrap.dedent(
         command_file = Path(args.command_file) if args.command_file else None
         if command_file is not None:
             # Claimed by rename, like every Funestra's: read-then-unlink destroys
-            # a verb the session appends between the two, and an open show lost
+            # a verb the session appends between the two, and an open slideshow lost
             # that way reads as a Funestra that never took the app's list.
             verbs = consume_command_file(command_file)
             if "QUIT" in verbs:
                 root.destroy()
                 return
             for side in SIDES:
-                if f"{side}_open_show".upper() in verbs:
-                    open_show(side)
-                if f"{side}_close_show".upper() in verbs:
-                    close_show(side)
-            if "CLOSE_SHOWS" in verbs:
-                close_shows()
+                if f"{side}_open_slideshow".upper() in verbs:
+                    open_slideshow(side)
+                if f"{side}_close_slideshow".upper() in verbs:
+                    close_slideshow(side)
+            if "CLOSE_SLIDESHOWS" in verbs:
+                close_slideshows()
             if "RELEASE" in verbs:
                 go_back_to_standalone()
         publish_status()
@@ -390,7 +390,7 @@ def _own_clips(session, funestra: RoomFunestra) -> list[Path]:
     return []
 
 
-def _wait_for_the_shows(session) -> None:
+def _wait_for_the_slideshows(session) -> None:
     """Wait for the hosted app to have put its picture on both Funestras."""
     for funestra in _FUNESTRAS:
         wait_for(lambda funestra=funestra: _shows_the_stub(session, funestra),
@@ -407,7 +407,7 @@ def _bring_the_satellites_home(session) -> None:
     Funestras after this test has ended, and the next one reads a playlist
     holding the app's picture (tests/test_origenerator_mode_way_back.py).
     """
-    _wait_for_the_shows(session)
+    _wait_for_the_slideshows(session)
     for funestra in _FUNESTRAS:
         session.write_dashboard_command(f"{funestra.label}_kino_activate")
     for funestra in _FUNESTRAS:
@@ -473,7 +473,7 @@ def test_the_strip_raises_the_parked_window_and_the_browsers_button_parks_it(hos
              desc="the hosted window to park again")
 
 
-def test_the_funestras_play_the_hosted_apps_shows_and_come_back_to_their_own(hosted_session):
+def test_the_funestras_play_the_hosted_apps_slideshows_and_come_back_to_their_own(hosted_session):
     """What the mode is for, on the real Funestras: each one plays the list the
     hosted app writes for it, and leaving the mode hands it back the session's
     own list — the same clips, not the app's picture and not an empty list."""
@@ -482,14 +482,14 @@ def test_the_funestras_play_the_hosted_apps_shows_and_come_back_to_their_own(hos
     assert all(own_lists.values()), "the Funestras had no lists of their own to begin with"
 
     _put_origenerator_on_the_satellites(session)
-    _wait_for_the_shows(session)
+    _wait_for_the_slideshows(session)
 
     _bring_the_satellites_home(session)
     for funestra in _FUNESTRAS:
         assert sorted(_own_clips(session, funestra)) == own_lists[funestra]
 
 
-def test_one_satellite_plays_the_hosted_apps_show_while_the_other_and_the_browser_stay_put(
+def test_one_satellite_plays_the_hosted_apps_slideshow_while_the_other_and_the_browser_stay_put(
         hosted_session):
     session, hwnd = hosted_session
     portrait, landscape = _FUNESTRAS
@@ -521,7 +521,7 @@ def test_a_switch_clicked_while_paused_hands_the_funestras_over_and_the_resume_b
 
     _put_origenerator_on_the_satellites(session)
     _put_origenerator_in_the_browsers_place(session)
-    _wait_for_the_shows(session)
+    _wait_for_the_slideshows(session)
 
     session.write_dashboard_command("omnipause_toggle")
     session.wait_for_new_log("OmniPause: leaving")
@@ -572,7 +572,7 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
 
 
 @pytest.mark.timeout(_A_SESSION_A_QUIT_AND_FIVE_WAITS_S)
-def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
+def test_entering_the_mode_on_a_real_session_leaves_its_slideshows_on_top():
     """The one he kept reporting: the mode puts a picture on each side and then
     something buries it a few seconds later.
 
@@ -603,7 +603,7 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
             "the reveal and the settle pass live"
         )
 
-        _wait_for_the_shows(session)
+        _wait_for_the_slideshows(session)
         for funestra in _FUNESTRAS:
             hud_file = session.config.satellite(funestra).hud_file
             worn = wait_for(
@@ -638,7 +638,9 @@ def _panel_of(hud_file: Path, funestra: RoomFunestra):
     if not hud_file.exists():
         return None
     panel = parse_hud(hud_file.read_text(encoding="utf-8"))
-    return panel if panel is not None and panel.lock_label == f"Stub {funestra.label} show" else None
+    if panel is None or panel.lock_label != f"Stub {funestra.label} slideshow":
+        return None
+    return panel
 
 
 @pytest.mark.timeout(_TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S)
@@ -675,7 +677,7 @@ def test_a_room_left_in_the_mode_opens_in_it():
     second = FunTimeIntegrationSession(config_path)
     try:
         second.start(wait_seconds=_A_START_THAT_WAITS_FOR_THE_APP_S)
-        _wait_for_the_shows(second)
+        _wait_for_the_slideshows(second)
         opened_in = read_shared_state(state_file)
         assert _both_in_origenerator_mode(opened_in)
         assert opened_in.rfb_slot is RfbSlot.ORIGENERATOR
@@ -698,7 +700,7 @@ def test_an_origenerator_open_on_a_slideshow_is_taken_into_a_room_that_opens_in_
                  desc="the open app to say it is showing a slideshow")
         session.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S)
 
-        _wait_for_the_shows(session)
+        _wait_for_the_slideshows(session)
         state_file = shared_state_path(session.config.paths.state_dir)
         assert _both_in_origenerator_mode(read_shared_state(state_file))
         assert read_shared_state(state_file).rfb_slot is RfbSlot.ORIGENERATOR
