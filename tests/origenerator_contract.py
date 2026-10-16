@@ -66,16 +66,5 @@ def published() -> dict:
 
 def answers(line: str, document: dict) -> bool:
     """Whether the hosted app that published *document* answers *line* on its
-    command file.
-
-    It names every line it answers, a name in braces standing for whatever
-    that line carries there: a file, a row, the words said.
-    """
-    case = re.IGNORECASE if document["command_case_blind"] else 0
-    return any(re.fullmatch(_as_pattern(template), line, case)
-               for template in document["command_lines"])
-
-
-def _as_pattern(template: str) -> str:
-    return "".join(".+" if piece.startswith("{") else re.escape(piece)
-                   for piece in re.split(r"(\{\w+\})", template))
+    command file, by the pattern it publishes for each line it answers."""
+    return any(re.fullmatch(pattern, line) for pattern in document["command_patterns"])
