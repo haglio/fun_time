@@ -68,3 +68,12 @@ def answers(line: str, document: dict) -> bool:
     """Whether the hosted app that published *document* answers *line* on its
     command file, by the pattern it publishes for each line it answers."""
     return any(re.fullmatch(pattern, line) for pattern in document["command_patterns"])
+
+
+def is_read_by(written: str, reads: dict) -> bool:
+    """Whether what one app writes in a file the two hand each other is what the
+    other reads there: a line its pattern matches, or a document carrying the
+    keys it takes."""
+    if "pattern" in reads:
+        return re.fullmatch(reads["pattern"], written) is not None
+    return sorted(json.loads(written)) == reads["keys"]
