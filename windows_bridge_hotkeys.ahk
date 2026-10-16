@@ -160,7 +160,7 @@ e::QueueCommand("landscape_loop")
 ^m::QueueCommand("main_hud_counterclockwise")
 ^SC034::QueueCommand("main_hud_clockwise")
 
-; Save clip is the semicolon, bound by scancode because a bare ; opens a comment in AHK.
+; Save loop is the semicolon, bound by scancode because a bare ; opens a comment in AHK.
 SC027::QueueCommand("genaumacher_save")
 
 ; The Main Funestra loop recording: hold R to mark, release to loop, press again to cancel.

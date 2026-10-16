@@ -161,6 +161,7 @@ def build_voice_commands(
         # "main next" / "next main" are generated with the satellite grid
         # below (the Main Funestra joins the active-side feature for navigation).
         "projection": "projection_cycle",
+        "cycle projection": "projection_cycle",
         # FunTimeVR: re-zero the scene onto wherever the headset is facing now —
         # the in-app recenter, since the runtime's own menu doesn't reach the app.
         "recenter": "recenter_view",
@@ -169,8 +170,8 @@ def build_voice_commands(
     "level": "tilt_reset",
         **dict.fromkeys(("browse", "open browser", "open file browser", "file browser",
                          "file browse"), "browse_library"),
-        "clip": "genaumacher_save",
-        "save clip": "genaumacher_save",
+        "save loop": "genaumacher_save",
+        f"save {flick}": "genaumacher_save",
         "record": "main_player_record_down",
         "loop": "main_player_record_up",
         "end loop": "main_player_loop_cancel",
@@ -191,6 +192,8 @@ def build_voice_commands(
         "two d only": "main_projection_flat",
         "flat and vr": "main_projection_both",
         "vr and flat": "main_projection_both",
+        "two d and vr": "main_projection_both",
+        "vr and two d": "main_projection_both",
         # Clip navigation (clips carved from compilations); "full
         # video" is the reliable phrase, "full vid" a fallback.
         "compilation": "main_player_compilation",
@@ -427,15 +430,11 @@ def build_voice_commands(
             commands[f"{_funestra} {_fmode_word}"] = f"{_funestra}_{_fmode_act}"
             commands[f"{_fmode_word} {_funestra}"] = f"{_funestra}_{_fmode_act}"
         commands[f"all {_fmode_word}"] = commands[f"{_fmode_word} all"] = _fmode_all
+    commands["fun scripts"] = commands["main fun scripts"] = commands["fun scripts main"] = "main_fmode_on"
     commands["reset all"] = commands["all reset"] = "all_reset"
 
-    # Genau's flick stepped by naming it, in either order and either spelling
-    # of Genau.  "next video" is bare "next" said longer, so it reaches whatever
-    # was last navigated, as "next" does; so do the others said of a video.
-    for _base in GENAU_SAID:
-        for _step_word, _step_cmd in (("next", "genau_next_flick"), ("previous", "genau_prev_flick")):
-            commands[f"{_base} {_step_word}"] = _step_cmd
-            commands[f"{_step_word} {_base}"] = _step_cmd
+    # "next video" is bare "next" said longer, so it reaches whatever was last
+    # navigated, as "next" does; so do the others said of a video.
     for _of_a_video in ("next", "previous", "weird", "lock", "unlock"):
         commands[f"{_of_a_video} video"] = commands[_of_a_video]
 

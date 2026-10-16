@@ -342,7 +342,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # the key, and the note on its target with it.
 # 6110 the same day: the lengths are said as the shapes are, and the note on
 # "mixed" being taken went with the word.
-MAX_PROSE_LINES = 6050
+# 6049 on 2026-10-16: "next genau" went, and with it the note on the flick
+# stepped by Genau's name.
+MAX_PROSE_LINES = 6049
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

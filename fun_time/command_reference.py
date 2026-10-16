@@ -38,15 +38,24 @@ from fun_time.voice_commands import (
 
 _DETAIL_DASH = " — "
 HOTKEY_HEADER = "Hotkey"
-CONTROLLER_HEADER = "Controller"
+CONTROLLER_HEADER = "VR Controller"
 VOICE_HEADER = "Voice command"
 
+
+def _with_the_trigger_held(moved: str) -> str:
+    return f"hold trigger + {moved}"
+
+
 TRIGGER = "trigger"
-SQUEEZE_AND_MOVE = "squeeze and move"
 STICK_SIDEWAYS = "stick ◄ ►"
 STICK_UP_DOWN = "stick ▲ ▼"
 A_OR_X = "A / X"
 B_OR_Y = "B / Y"
+ANGLE_BAR = "Angle bar"
+HOLD_TRIGGER_AND_MOVE = _with_the_trigger_held("move")
+HOLD_TRIGGER_AND_STICK_UP_DOWN = _with_the_trigger_held(STICK_UP_DOWN)
+HOLD_TRIGGER_AND_A_OR_X = _with_the_trigger_held(A_OR_X)
+HOLD_TRIGGER_AND_B_OR_Y = _with_the_trigger_held(B_OR_Y)
 
 #: The columns in pixels, the same on every table so they line up down the page;
 #: a third of the hotkey block fits “Shift+Right” on a keycap, which takes 93.
@@ -158,27 +167,17 @@ def _every_funestra(*actions: str) -> tuple[str, ...]:
         command for action in actions if (command := f"main_{action}") in _SPOKEN_COMMANDS)
 
 
-_SATELLITE_NOTE = (
-    "Alone, a phrase reaches whatever you last navigated — a side, or the Main "
-    "Funestra.  Add “portrait”, “landscape”, or “satellites”, before it or after, "
-    "to aim it: “portrait next”, “next satellites”."
-)
 _FUNESTRAS_NOTE = (
     "Alone, a phrase reaches whatever you last navigated.  Add “portrait”, "
-    "“landscape”, “main”, or “satellites”, before it or after, to aim it: "
-    f"“portrait next”, “next main”.  In Genau mode say “{_FLICK.one}” in place of “video”."
+    "“landscape”, “main”, or “satellites”, before it or after, to aim it, for example "
+    f"“portrait next” or “next main”.  In Genau mode say “{_FLICK.one}” in place of “video”."
 )
 _ORIGENERATOR_NOTE = (
-    "These are heard with the side first, every time: “portrait experiments”, "
-    "“landscape fix hands”.  Said alone, with the side after, or of “satellites”, "
-    "they are not heard."
+    "These are heard with the side first, every time, for example “portrait "
+    "experiments” or “landscape fix hands”.  Said alone, with the side after, or of "
+    "“satellites”, they are not heard."
 )
 _FUNESTRA_KEY_HEADERS = ("Portrait", "Landscape", "Main")
-
-
-def _satellite_section(title: str, groups: tuple[_Group, ...]) -> _Section:
-    return _Section(title, groups, key_headers=_FUNESTRA_KEY_HEADERS[:2],
-                    note=_SATELLITE_NOTE, merge_scopes=True)
 
 
 def _said_to_a_slideshow(*phrases: str) -> tuple[str, ...]:
@@ -189,7 +188,6 @@ _SPEED_VOICE = ("min speed", "max speed", "half speed", "double speed", "reset s
                 "speed one point five ex")
 _SPEED_STEPS = ("speed_min", "speed_max", "speed_25", "speed_50", "speed_75", "speed_100",
                 "speed_125", "speed_150", "speed_175", "speed_200")
-_SIDES_FAVORITES = tuple(f"{side} {FAVORITES_PHRASE}" for side in ("portrait", "landscape"))
 _HUD_CORNERS = ("upper_left", "upper_right", "lower_left", "lower_right")
 _MAIN_SOUND = ("audio_volume_down", "audio_volume_up", "audio_mute", "audio_unmute")
 
@@ -197,7 +195,7 @@ _SECTIONS: tuple[_Section, ...] = (
     _Section(
         "Dashboard",
         (
-            _Group("General", (
+            _Group("", (
                 _Row("quit — close everything", ("Ctrl+Alt+Q",), ("quit",)),
                 _Row("OmniPause / resume", ("Esc",), ("omnipause_toggle", "pause", "play")),
                 _Row("OmniPause", ("Space",), ("enter_omnipause",), ("pause",)),
@@ -213,7 +211,6 @@ _SECTIONS: tuple[_Section, ...] = (
                     (),
                     ("help_reference", "help_reference_close"),
                 ),
-                _Row("disable voice control", (), ("voice_toggle", "voice_off")),
             )),
             _Group("Funestra", (
                 _Row(
@@ -230,8 +227,10 @@ _SECTIONS: tuple[_Section, ...] = (
                     ("all_reset",),
                 ),
             )),
-            _Group("VR", (
-                _Row("enter / exit VR", (), ("enter_vr", "exit_vr")),
+            _Group("Voice control", (
+                _Row("disable voice control", (), ("voice_toggle", "voice_off")),
+                _Row("accept the last command voice was not sure enough of", ("Enter",),
+                     ("voice_accept",)),
             )),
         ),
     ),
@@ -239,8 +238,9 @@ _SECTIONS: tuple[_Section, ...] = (
         "VR",
         (
             _Group("", (
+                _Row("enter / exit VR", (), ("enter_vr", "exit_vr")),
                 _Row(
-                    "VR reset — the Main Funestra, both satellites and the dashboard back "
+                    "VR reset — the Main Funestra, both satellites, and the dashboard back "
                     "to their default spots and sizes in the headset, and level again",
                     (),
                     ("vr_reset",),
@@ -248,29 +248,31 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row("recenter — the VR scene onto wherever the headset faces now", (),
                      ("recenter_view",)),
                 _Row(
-                    "tilt the VR screens up / down and level them again — squeezing "
+                    "tilt the VR screens up / down and level them again — holding "
                     "a trigger and moving the controller turns and tilts them too",
                     (),
                     ("tilt_up", "tilt_down", "tilt_reset"),
-                    controller=(SQUEEZE_AND_MOVE,),
+                    controller=(HOLD_TRIGGER_AND_MOVE,),
                 ),
                 _Row(
-                    "cycle the video's VR projection — flat screen, equirectangular, "
-                    "fisheye, stereographic, equisolid, rectilinear, 360, remembered per "
-                    "video; the stick pushed right or left steps forward or back "
-                    "through them, and while the picture wraps the view its up and "
-                    "down shortens or stretches the picture",
+                    "cycle the video's VR projection",
                     (),
                     ("projection_cycle", "projection_cycle_back"),
                     controller=(STICK_SIDEWAYS,),
                 ),
                 _Row(
-                    "move or size a VR screen — a squeeze on the handle over a screen "
+                    "narrow / widen the angle a wrapped VR picture spans — the bar "
+                    "labeled Angle beside the projection controls in the headset, "
+                    "dragged with the trigger",
+                    controller=(ANGLE_BAR,),
+                ),
+                _Row(
+                    "move or resize a VR screen — a squeeze on the handle over a screen "
                     "carries it, and on the handles outside a picture's lower corners "
                     "resizes it; the stick pushed forward or pulled back sizes the Main "
                     "Funestra, and with the trigger held brings every screen nearer or "
                     "farther",
-                    controller=(TRIGGER, STICK_UP_DOWN),
+                    controller=(TRIGGER, STICK_UP_DOWN, HOLD_TRIGGER_AND_STICK_UP_DOWN),
                 ),
             )),
         ),
@@ -278,7 +280,7 @@ _SECTIONS: tuple[_Section, ...] = (
     _Section(
         "OSR2",
         (
-            _Group("Basic", (
+            _Group("", (
                 _Row(
                     "control on / off — park holds the OSR2 settled home, and Genau's "
                     "picture with it; a funscript stands down for it too, and the room "
@@ -305,13 +307,12 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row("previous waveform shape", (), ("robot_hand_cycle_shape_prev",)),
                 _Row("next waveform shape", ("I",), ("robot_hand_cycle_shape",)),
                 _Row(
-                    "enable / disable human-inspired motion — plays phrases from real "
-                    "hand-made scripts in place of the waveform, inside the Amp and "
-                    "Center bars, at the Speed bar's pace",
+                    "enable / disable human-inspired motion — cruise control drawing "
+                    "from phrases extracted from funscripts for live-action scenes",
                     (),
                     ("robot_hand_toggle_learned", "robot_hand_learned_on", "robot_hand_learned_off"),
                 ),
-                _Row("offset the motion a ¼ cycle", ("\\",), ("quarter_button",)),
+                _Row("offset the motion by a quarter of a cycle", ("\\",), ("quarter_button",)),
             )),
             _Group("Broker", (
                 _Row("start / stop the Broker", ("B",), ("broker_panel", "broker_start", "broker_stop")),
@@ -328,45 +329,41 @@ _SECTIONS: tuple[_Section, ...] = (
                     commands=("genau_activate",),
                 ),
                 _Row(
-                    "Kino mode — the library's videos on the Main Funestra, each one's "
-                    "funscript driving the OSR2 where it has action and the Robot Hand "
-                    "the rest; a satellite's Kino mode is the library's clips; said "
-                    "alone it puts all three Funestras in Kino mode",
+                    "Kino mode",
                     commands=("kino_activate", "main_kino_activate", "satellites_kino_activate"),
                     voice_display=("kino", "kino mode"),
                 ),
                 _Row(
-                    "Origenerator mode — the satellites show Origenerator's slideshows "
-                    "over the Funestras, with Origenerator itself over the Random Favs "
-                    "Browser",
+                    "Origenerator mode — Satellite Funestras show Slideshows; "
+                    "Origenerator Core shares real estate with the Random Favs Browser",
                     commands=("satellites_origenerator_activate",),
                 ),
             )),
             _Group("Navigation", (
                 _Row("previous", commands=_every_funestra("prev") + ("genau_prev_flick",),
                      columns=(("Left",), ("A",), ("M",))),
+                _Row("next", commands=_every_funestra("next") + ("genau_next_flick",),
+                     columns=(("Right",), ("D",), (".",))),
                 _Row(
-                    "nudge back 10 seconds — in the headset B or Y nudges the Main "
-                    "Funestra, and with the trigger held jumps to the previous scene "
-                    "marked in its video instead",
+                    "nudge back 10 seconds",
                     commands=_every_funestra("nudge_prev"),
                     columns=((), (), ("-",)),
                     controller=(B_OR_Y,),
                 ),
                 _Row(
-                    "nudge forward 10 seconds — in the headset A or X nudges the Main "
-                    "Funestra, and with the trigger held jumps to the next scene marked "
-                    "in its video instead",
+                    "nudge forward 10 seconds",
                     commands=_every_funestra("nudge_next"),
                     columns=((), (), ("+",)),
                     controller=(A_OR_X,),
                 ),
-                _Row("next", commands=_every_funestra("next") + ("genau_next_flick",),
-                     columns=(("Right",), ("D",), (".",))),
+                _Row("previous scene in the video", commands=("main_scene_prev",),
+                     controller=(HOLD_TRIGGER_AND_B_OR_Y,)),
+                _Row("next scene in the video", commands=("main_scene_next",),
+                     controller=(HOLD_TRIGGER_AND_A_OR_X,)),
                 _Row(
                     "weird — in Kino mode it marks the clip weird and moves on, or "
-                    "unfavorites it instead when it is a favorite; in Origenerator mode "
-                    "it deletes the picture and moves on",
+                    "unfavorites it instead when it has been previously favorited; in "
+                    "Origenerator mode it deletes the picture and moves on",
                     commands=_sided("trash") + ("genau_weird_flick",),
                     columns=(("Up",), ("W",), ("K",)),
                 ),
@@ -388,15 +385,37 @@ _SECTIONS: tuple[_Section, ...] = (
                     columns=(("Shift+Left", "Shift+Right"), ("Shift+A", "Shift+D"),
                              ("Shift+M", "Shift+.")),
                 ),
+                _Row(
+                    "clip navigation — \"compilation\" plays the clip's compilation "
+                    "in order and \"end compilation\" leaves it for the length mode "
+                    "you were in; \"full video\" plays the full scene the clip came "
+                    "from, and the clip jump goes back to the clip",
+                    commands=("main_player_compilation", "main_player_end_compilation",
+                              "main_player_full_vid", "main_player_clip_jump"),
+                ),
+                _Row(
+                    "navigate the map — move the lit cell up or down its column of "
+                    "acts, switching to that one",
+                    commands=("portrait_nav_up", "portrait_nav_down",
+                              "landscape_nav_up", "landscape_nav_down"),
+                    columns=(("Shift+Up", "Shift+Down"), ("Shift+W", "Shift+S")),
+                ),
+                _Row(
+                    "cycle loop mode — seeds, then actions, then off",
+                    commands=("portrait_loop", "landscape_loop"),
+                    columns=(("Home",), ("E",)),
+                ),
             )),
             _Group("Playlist", (
                 _Row("latest — reload what it plays newest-first", commands=_every_funestra("latest")),
                 _Row("shuffle — reshuffle what it plays (cancels latest; keeps F-mode and the filter)",
                      commands=_every_funestra("shuffle")),
                 _Row(
-                    "F-mode — a satellite plays only the favorites; the Main Funestra "
-                    "only the videos that have a funscript",
-                    commands=_every_funestra("fmode", "fmode_on", "fmode_off"),
+                    "F-mode — a satellite plays only the favorites, the Main Funestra "
+                    "only the videos that have a funscript; “favorites” says a "
+                    "satellite's, “funscripts” the Main Funestra's",
+                    commands=_every_funestra("fmode", "fmode_on", "fmode_off")
+                    + _said_to_a_slideshow(FAVORITES_PHRASE),
                 ),
                 _Row(
                     "reset — back to every default: no filter, no lock, no loop, no "
@@ -457,6 +476,56 @@ _SECTIONS: tuple[_Section, ...] = (
                     voice_display=_SPEED_VOICE,
                 ),
             )),
+            _Group("Nav Map", (
+                _Row(
+                    "cycle action — same subject(s) and scene, another act: the next "
+                    "one down the map's column",
+                    commands=_sided("cycle_action"),
+                ),
+                _Row("cycle seed — the same scene from another seed, along the map's row",
+                     commands=_sided("cycle_seed")),
+                _Row(
+                    "wrong action — in Kino mode: the clip's act is mislabeled; strike "
+                    "it so Evolver's backfill tool asks about it again",
+                    commands=_sided("wrong_action"),
+                ),
+            )),
+            _Group("Loops", (
+                _Row("more seeds — widen the seed row past exact matches, and loop it",
+                     commands=_sided("more_seeds")),
+                _Row("loop the actions — repeat the map's column around this one",
+                     commands=_sided("action_loop")),
+                _Row("loop the seeds — repeat the map's row around this one",
+                     commands=_sided("seed_loop")),
+                _Row("stop looping — back to browsing, keeping the filter", commands=_sided("no_loop")),
+            )),
+            _Group("Filter", (
+                _Row(
+                    "filter by act — say the act on its own",
+                    commands=set_commands_for_scope("satellites")
+                    + set_commands_for_scope("portrait")
+                    + set_commands_for_scope("landscape"),
+                    voice_display=display_forms(),
+                ),
+                _Row("filter to the action on screen", commands=_sided("lock_action")),
+                _Row(
+                    "drop all filters — keep the order and everything else; in "
+                    "Origenerator mode every narrowing at once: the favorites, the "
+                    "enhanced ones, and the act filter",
+                    commands=_sided("no_filter"),
+                ),
+            )),
+            _Group("Other", (
+                _Row(
+                    "crown the Main Funestra or the Portrait Funestra — the crowned "
+                    "Funestra takes up the majority of the (portrait-shaped) secondary "
+                    "monitor when it is displaying portrait-shaped content; the other "
+                    "Funestra then either shows landscape content or tiles its portrait "
+                    "content",
+                    commands=("main_crown", "portrait_crown"),
+                    voice_display=("crown main", "crown portrait"),
+                ),
+            )),
         ),
         key_headers=_FUNESTRA_KEY_HEADERS,
         note=_FUNESTRAS_NOTE,
@@ -488,28 +557,24 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row(
                     "included video types (projection) — the videos in Kino mode, "
                     f"Genau's {_FLICK.many} in Genau mode: \"flat only\" (or \"2D only\"), "
-                    "\"VR only\" or \"flat and VR\"; its HUD's own pair of buttons reaches a "
+                    "\"VR only\", or \"flat and VR\"; its HUD's own pair of buttons reaches a "
                     "fourth state, neither, which holds what is on screen",
                     (),
                     ("main_projection_flat", "main_projection_vr",
                      "main_projection_both", "main_projection_none"),
                 ),
             )),
-            _Group("Kino", (
+            _Group("Loops", (
                 _Row(
-                    "loop control — hold and release to set a loop, press to end loop",
+                    "loop control — hold to start recording a loop, release to end "
+                    "recording, and tap again to terminate a recorded loop",
                     ("R",),
                     ("main_player_record_down", "main_player_record_up", "main_player_record_tap", "main_player_loop_cancel"),
                 ),
-                _Row("save clip", (";",), ("genaumacher_save",)),
                 _Row(
-                    "clip navigation — \"compilation\" plays the clip's compilation "
-                    "in order and \"end compilation\" leaves it for the length mode "
-                    "you were in; \"full video\" plays the full scene the clip came "
-                    "from, and the clip jump goes back to the clip",
-                    (),
-                    ("main_player_compilation", "main_player_end_compilation", "main_player_full_vid",
-                     "main_player_clip_jump"),
+                    f"save loop — save loop to send to Genaumacher to produce a new Genau {_FLICK.one}",
+                    (";",),
+                    ("genaumacher_save",),
                 ),
                 _Row(
                     "jump to funscript — skips ahead to where this video's scripting "
@@ -524,7 +589,12 @@ _SECTIONS: tuple[_Section, ...] = (
                     ("main_player_next_funscripted",),
                 ),
             )),
-            _Group("Genau", (
+        ),
+    ),
+    _Section(
+        "Genau",
+        (
+            _Group("", (
                 _Row(
                     f"flip the Genau {_FLICK.one} half a loop — for a picture running "
                     "opposite the OSR2; it stays flipped, and saying it again puts it back",
@@ -541,90 +611,21 @@ _SECTIONS: tuple[_Section, ...] = (
             )),
         ),
     ),
-    _satellite_section(
-        "Satellite Funestras",
-        (
-            _Group("", (
-                _Row(
-                    "favorites — in Kino mode the side's F-mode, only its favorites; in "
-                    "Origenerator mode a slideshow of its favorites collection",
-                    commands=_said_to_a_slideshow(FAVORITES_PHRASE),
-                    voice_display=_SIDES_FAVORITES,
-                ),
-            )),
-        ),
-    ),
-    _satellite_section(
-        "Nav Map",
-        (
-            _Group("", (
-                _Row(
-                    "cycle action — same subject(s) and scene, another act: the next "
-                    "one down the map's column",
-                    commands=_sided("cycle_action"),
-                ),
-                _Row("cycle seed — the same scene from another seed, along the map's row",
-                     commands=_sided("cycle_seed")),
-                _Row(
-                    "wrong action — in Kino mode: the clip's act is mislabeled; strike "
-                    "it so Evolver's backfill tool asks about it again",
-                    commands=_sided("wrong_action"),
-                ),
-                _Row(
-                    "navigate the map — move the lit cell up or down its column of "
-                    "acts, switching to that one",
-                    commands=("portrait_nav_up", "portrait_nav_down",
-                              "landscape_nav_up", "landscape_nav_down"),
-                    columns=(("Shift+Up", "Shift+Down"), ("Shift+W", "Shift+S")),
-                ),
-                _Row(
-                    "cycle loop mode — seeds, then actions, then off",
-                    commands=("portrait_loop", "landscape_loop"),
-                    columns=(("Home",), ("E",)),
-                ),
-            )),
-            _Group("Loops", (
-                _Row("more seeds — widen the seed row past exact matches, and loop it",
-                     commands=_sided("more_seeds")),
-                _Row("loop the actions — repeat the map's column around this one",
-                     commands=_sided("action_loop")),
-                _Row("loop the seeds — repeat the map's row around this one",
-                     commands=_sided("seed_loop")),
-                _Row("stop looping — back to browsing, keeping the filter", commands=_sided("no_loop")),
-            )),
-            _Group("Filter", (
-                _Row(
-                    "filter by act — say the act on its own",
-                    commands=set_commands_for_scope("satellites")
-                    + set_commands_for_scope("portrait")
-                    + set_commands_for_scope("landscape"),
-                    voice_display=display_forms(),
-                ),
-                _Row("filter to the act on screen", commands=_sided("lock_action")),
-                _Row(
-                    "drop the filter — keep the order and everything else; in "
-                    "Origenerator mode every narrowing at once: the favorites, the "
-                    "enhanced ones and the act filter",
-                    commands=_sided("no_filter"),
-                ),
-            )),
-        ),
-    ),
     _Section(
         "Origenerator",
         (
             _Group("", (
                 _Row(
-                    "play the experiments or requests — a slideshow of that collection",
+                    "play the experiments or requests",
                     commands=_said_to_a_slideshow("experiments", "requests"),
                 ),
                 _Row(
-                    "play, pause or stop the slideshow",
+                    "play, pause, or stop the slideshow",
                     commands=_said_to_a_slideshow("play slideshow", "start slideshow", "pause slideshow",
                                                   "stop slideshow"),
                 ),
                 _Row(
-                    "fix the picture on screen — its face, hands, teeth or eyes",
+                    "fix the picture on screen — its face, hands, teeth, or eyes",
                     commands=_said_to_a_slideshow("fix face", "fix hands", "fix teeth", "fix eyes"),
                 ),
                 _Row(
@@ -639,23 +640,6 @@ _SECTIONS: tuple[_Section, ...] = (
         ),
         note=_ORIGENERATOR_NOTE,
         merge_scopes=True,
-    ),
-    _Section(
-        "Other",
-        (
-            _Group("", (
-                _Row("accept the last command voice was not sure enough of", ("Enter",),
-                     ("voice_accept",)),
-                _Row(
-                    "crown the Main Funestra or the Portrait Funestra — while the crowned "
-                    "one plays a portrait video it takes most of the secondary monitor, "
-                    "and the other tiles what it shows across the strip that is left",
-                    (),
-                    ("main_crown", "portrait_crown"),
-                    voice_display=("crown main", "crown portrait"),
-                ),
-            )),
-        ),
     ),
 )
 

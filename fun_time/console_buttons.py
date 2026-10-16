@@ -140,7 +140,7 @@ def _file_controls(slot: MainSlot) -> tuple[Button, ...]:
                else "Record loop",
                warn=slot.loop_state is LoopState.RECORDING,
                hold=slot.loop_state is LoopState.LOOPING, group_break=True),
-        Button("genaumacher_save", _GLYPHS["save"], "Save clip"),
+        Button("genaumacher_save", _GLYPHS["save"], "Save loop"),
     )
 
 

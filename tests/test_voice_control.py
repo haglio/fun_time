@@ -85,7 +85,7 @@ class TestCommandRules:
         rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
 
         assert {rules.said_in(phrase) for phrase in
-                ("go now", "go now mode", "next go now", "portrait go now")} == {"de"}
+                ("go now", "go now mode", "portrait go now")} == {"de"}
         flick = genau_flick_noun().one
         assert {rules.said_in(phrase) for phrase in
                 ("kino mode", f"{flick} seconds five", f"weird {flick}", "next")} == {None}

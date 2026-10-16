@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from fun_time.content import Noun
+from fun_time.content import Noun, genau_flick_noun
 from fun_time.filter_vocab import (
     decode_filter_command,
     filter_voice_commands,
@@ -127,8 +127,15 @@ class TestVoiceCommands:
             "clips only": "main_player_length_clips",
             "full only": "main_player_length_full",
             "browse": "browse_library",
-            "clip": "genaumacher_save",
-            "save clip": "genaumacher_save",
+            "save loop": "genaumacher_save",
+            "cycle projection": "projection_cycle",
+            "vr and two d": "main_projection_both",
+            "two d and vr": "main_projection_both",
+            # The Main Funestra's F-mode named for what it keeps, in the grid's
+            # either order, as "portrait favorites" names a satellite's.
+            "fun scripts": "main_fmode_on",
+            "main fun scripts": "main_fmode_on",
+            "fun scripts main": "main_fmode_on",
             # Engine-agnostic: routed to whichever holds the OSR2, not to Genau
             # by name (the console's own marks are the by-name pair).
             "slow down": "speed_down",
@@ -157,13 +164,15 @@ class TestVoiceCommands:
     def test_genaus_flicks_are_said_in_the_overlays_word(self):
         said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
 
-        assert {phrase: said[phrase] for phrase in ("previous pip", "next pip", "weird pip")} == {
+        assert {phrase: said[phrase] for phrase in ("previous pip", "next pip", "weird pip", "save pip")} == {
             "previous pip": "genau_prev_flick",
             "next pip": "genau_next_flick",
             "weird pip": "genau_weird_flick",
+            "save pip": "genaumacher_save",
         }
         assert [phrase for phrase, command in said.items()
-                if command.startswith("genau_") and "clip" in phrase.split()] == []
+                if command.startswith("genau") and "clip" in phrase.split()] == []
+        assert "clip" not in VOICE_COMMANDS and "save clip" not in VOICE_COMMANDS
 
     def test_marking_a_flick_weird_names_it_where_bare_weird_means_the_active_satellite(self):
         said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
@@ -307,7 +316,7 @@ class TestVoiceCommands:
         twins = {phrase.replace("go now", "genau"): command.replace("go_now", "genau")
                  for phrase, command in go_now.items()}
 
-        assert len(go_now) == 8
+        assert len(go_now) == 4
         assert {phrase: VOICE_COMMANDS.get(phrase) for phrase in twins} == twins
 
     def test_origenerator_mode_puts_both_satellites_in_it_and_is_shown_as_said(self):
@@ -518,12 +527,16 @@ class TestVoiceCommands:
 
         assert spoken == set()
 
-    def test_genau_named_navigation_steps_its_flick_in_either_order(self):
+    def test_the_flick_is_stepped_by_its_own_name_and_no_longer_by_genaus(self):
+        """"next genau" named the mode where the step is of the flick, so the
+        flick's word alone steps it; "next" bare still reaches the Main Funestra."""
         for base in ("genau", "go now"):
-            assert VOICE_COMMANDS[f"{base} next"] == "genau_next_flick"
-            assert VOICE_COMMANDS[f"next {base}"] == "genau_next_flick"
-            assert VOICE_COMMANDS[f"{base} previous"] == "genau_prev_flick"
-            assert VOICE_COMMANDS[f"previous {base}"] == "genau_prev_flick"
+            for step in ("next", "previous"):
+                assert f"{base} {step}" not in VOICE_COMMANDS, f"{base} {step}"
+                assert f"{step} {base}" not in VOICE_COMMANDS, f"{step} {base}"
+        flick = genau_flick_noun().one
+        assert VOICE_COMMANDS[f"next {flick}"] == "genau_next_flick"
+        assert VOICE_COMMANDS[f"previous {flick}"] == "genau_prev_flick"
 
     def test_next_video_and_previous_video_say_next_and_previous(self):
         assert VOICE_COMMANDS["next video"] == VOICE_COMMANDS["next"] == "active_next"

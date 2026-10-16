@@ -76,9 +76,8 @@ class TestItIsTheSameReference:
         by_title = {section.title: section for section in build_reference_sections()}
 
         assert header_lines(by_title["Funestras"]) == 2
-        assert header_lines(by_title["Nav Map"]) == 2
         assert header_lines(by_title["Dashboard"]) == 1
-        assert header_lines(by_title["Satellite Funestras"]) == 1  # its one row holds no key
+        assert header_lines(by_title["Genau"]) == 1  # its rows hold no key
 
     def test_a_page_without_a_key_paints_the_voice_column_where_the_key_column_was(self):
         by_title = {section.title: section for section in build_reference_sections()}
@@ -106,7 +105,7 @@ class TestItIsTheSameReference:
         by_title = {section.title: section for section in build_reference_sections()}
 
         assert lines_of(by_title["VR"]) == len(by_title["VR"].rows)
-        assert lines_of(by_title["Main Funestra"]) == 2 + len(by_title["Main Funestra"].rows)
+        assert lines_of(by_title["Main Funestra"]) == 1 + len(by_title["Main Funestra"].rows)
 
     def test_no_page_runs_its_rows_past_its_lower_edge(self):
         """A longer note pushes the rows down, and the page has to grow with
