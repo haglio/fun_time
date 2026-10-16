@@ -17,7 +17,7 @@ from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
 from funestra.drive_readout import DriveHud, drive_text
 from funestra.modes import MainMode
 
-from fun_time import checkout_overrides, funestra_deaths, win32_taskbar
+from fun_time import checkout_overrides, funestra_deaths, win32_taskbar, windows_bridge_startup
 from fun_time.config import load_config
 from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import OUR_RUNTIME_NAME
@@ -506,6 +506,15 @@ class TestTheModeASessionComesBackIn:
         given = {kw.arg: ast.unparse(kw.value) for kw in seed.keywords}
 
         assert given["max_intensity"] == "carried.max_intensity"
+
+    def test_the_headset_is_seeded_with_everything_the_desktop_is(self):
+        (headset,) = self._calls("run_vr_bridge", "seed_startup_states")
+        desktop_source = ast.parse(inspect.getsource(windows_bridge_startup.start_core_session))
+        (desktop,) = [n for n in ast.walk(desktop_source) if isinstance(n, ast.Call)
+                      and ast.unparse(n.func) == "seed_startup_states"]
+
+        assert ({kw.arg for kw in headset.keywords}, len(headset.args)) == (
+            {kw.arg for kw in desktop.keywords}, len(desktop.args))
 
     def test_the_reveal_releases_the_funestras_the_mode_puts_to_work(self):
         """The desktop's own reveal: the video in kino mode, Genau's hand and its
