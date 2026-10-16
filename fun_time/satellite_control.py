@@ -49,12 +49,24 @@ def read_satellite_status(status_file: Path, *,
             continue
         except OSError:
             break
-        return SatelliteStatus(
-            **asdict(parse_status(fields)),
-            **scripted_fields(fields),
-            playlist_length=_int(fields.get("playlist_length")),
-        )
+        return _satellite_status_from(fields)
     return fallback or SatelliteStatus()
+
+
+def _satellite_status_from(fields: dict) -> SatelliteStatus:
+    return SatelliteStatus(
+        **asdict(parse_status(fields)),
+        **scripted_fields(fields),
+        playlist_length=_int(fields.get("playlist_length")),
+    )
+
+
+def published_satellite_status(status_file: Path) -> SatelliteStatus | None:
+    try:
+        fields = read_key_values(Path(status_file))
+    except OSError:
+        return None
+    return _satellite_status_from(fields) if "speed" in fields else None
 
 
 def _int(value: str | None) -> int:

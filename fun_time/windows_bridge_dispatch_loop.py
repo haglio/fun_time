@@ -47,6 +47,7 @@ from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, SatelliteLine
 from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_SYSTEM, notice
 from .funestra_handover import PanelStamp, hand_back, let_go_since, panel_stamp
+from .funestra_settings import read_funestra_reports, with_what_the_funestras_report
 from .funestra_status import (
     is_broker_heartbeat_fresh,
     origenerator_has_published,
@@ -90,7 +91,6 @@ from .voice_control import (
     WHILE_NOT_WEARING_HEADSET,
     VoiceController,
     VoiceHold,
-    say_the_mic_is_off,
 )
 from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
@@ -243,6 +243,8 @@ def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 
 # mode ends: a ceiling for an app that has stalled, not a wait anyone sits through.
 LET_GO_TIMEOUT_S = 3.0
 
+RECORD_EVERY_S = 1.0
+
 
 class DispatchLoopRunner:
     """Runs dashboard polling and genau sync in-process."""
@@ -294,6 +296,7 @@ class DispatchLoopRunner:
         left_in = read_shared_state(shared_state_file) or BridgeState()
         self.state = _with_origenerator_holding_nothing(left_in)
         self._last_sync = 0.0
+        self._last_recorded = float("-inf")
         self._last_dashboard_warning = float("-inf")
         self._stop = threading.Event()
         self._browse_lock = threading.Lock()
@@ -348,6 +351,13 @@ class DispatchLoopRunner:
             origenerator_cmd_file=config.origenerator_cmd_file,
         )
 
+    def _record_what_the_funestras_hold(self) -> None:
+        now = time.monotonic()
+        if now - self._last_recorded < RECORD_EVERY_S:
+            return
+        self._last_recorded = now
+        self.state = with_what_the_funestras_report(self.state, read_funestra_reports(self.config))
+
     def _the_satellite_modes_this_session_can_be_in(self, state: BridgeState) -> BridgeState:
         """*state* corrected to the room this session is really in -- Origenerator
         holding nothing while no hosted app has answered -- and that read onto it."""
@@ -400,6 +410,7 @@ class DispatchLoopRunner:
             self.state = shared
         # File or no file: this corrects a reading of the room, not the file.
         self.state = self._the_satellite_modes_this_session_can_be_in(self.state)
+        self._record_what_the_funestras_hold()
         if shared is not None and shared != self.state:
             # Nothing else writes the file until a command is dispatched, which on
             # a session nobody is touching may be never.
@@ -815,7 +826,8 @@ class DispatchLoopRunner:
             self.voice_controller.unmute()
         else:
             self.voice_controller.mute()
-        say_the_mic_is_off(Path(self.config.state_dir), off=self.voice_controller.is_muted)
+        self.state = replace(self.state, mic_muted=self.voice_controller.is_muted)
+        write_shared_state(self.shared_state_file, self.state)
         if self.dashboard_enabled:
             self._update_dashboard()
 

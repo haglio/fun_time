@@ -100,21 +100,32 @@ def read_main_funestra_status(path: Path, *, fallback: MainFunestraStatus | None
     if not path.exists():
         return fallback or MainFunestraStatus()
     try:
-        values = read_key_values(path)
-        return MainFunestraStatus(
-            **asdict(parse_status(values, default=FunestraStatus(locked=True))),
-            loop_state=read_mode(LoopState, values.get("loop_state", "").strip(), LoopState.NORMAL),
-            **scripted_fields(values),
-            loop_in_ms=int(values.get("loop_in_ms", "0").strip() or 0),
-            loop_out_ms=int(values.get("loop_out_ms", "0").strip() or 0),
-            compilation=values.get("compilation", "").strip(),
-            has_compilation=_status_bool(values, "has_compilation"),
-            has_other_versions=_status_bool(values, "has_other_versions"),
-            jump_to=values.get("jump_to", "").strip(),
-            portrait=_status_flag_or_none(values, "portrait"),
-        )
+        return _main_funestra_status_from(read_key_values(path))
     except (OSError, ValueError):
         return fallback or MainFunestraStatus()
+
+
+def _main_funestra_status_from(values: dict) -> MainFunestraStatus:
+    return MainFunestraStatus(
+        **asdict(parse_status(values, default=FunestraStatus(locked=True))),
+        loop_state=read_mode(LoopState, values.get("loop_state", "").strip(), LoopState.NORMAL),
+        **scripted_fields(values),
+        loop_in_ms=int(values.get("loop_in_ms", "0").strip() or 0),
+        loop_out_ms=int(values.get("loop_out_ms", "0").strip() or 0),
+        compilation=values.get("compilation", "").strip(),
+        has_compilation=_status_bool(values, "has_compilation"),
+        has_other_versions=_status_bool(values, "has_other_versions"),
+        jump_to=values.get("jump_to", "").strip(),
+        portrait=_status_flag_or_none(values, "portrait"),
+    )
+
+
+def published_main_funestra_status(path: Path) -> MainFunestraStatus | None:
+    try:
+        values = read_key_values(path)
+        return _main_funestra_status_from(values) if "speed" in values else None
+    except (OSError, ValueError):
+        return None
 
 
 def _status_flag_or_none(values: dict, key: str) -> bool | None:
@@ -158,17 +169,28 @@ def read_genau_status(path: Path) -> GenauStatus:
     if not path.exists():
         return GenauStatus()
     try:
-        values = read_key_values(path)
-        return GenauStatus(
-            learned_active=_status_bool(values, "learned"),
-            locked=_status_bool(values, "locked", default=True),
-            shape=values.get("shape", "sine").strip(),
-            flick=(values.get("flick") or values.get("clip") or "").strip(),
-            flipped=_status_bool(values, "flipped"),
-            portrait=_status_flag_or_none(values, "portrait"),
-        )
+        return _genau_status_from(read_key_values(path))
     except (OSError, ValueError):
         return GenauStatus()
+
+
+def published_genau_status(path: Path) -> GenauStatus | None:
+    try:
+        values = read_key_values(path)
+        return _genau_status_from(values) if "locked" in values else None
+    except (OSError, ValueError):
+        return None
+
+
+def _genau_status_from(values: dict) -> GenauStatus:
+    return GenauStatus(
+        learned_active=_status_bool(values, "learned"),
+        locked=_status_bool(values, "locked", default=True),
+        shape=values.get("shape", "sine").strip(),
+        flick=(values.get("flick") or values.get("clip") or "").strip(),
+        flipped=_status_bool(values, "flipped"),
+        portrait=_status_flag_or_none(values, "portrait"),
+    )
 
 
 def origenerator_has_published(path: Path) -> bool:

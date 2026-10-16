@@ -31,16 +31,15 @@ in either orchestrator:
 | Every Funestra's playback rate | yes, re-queued on its command file |
 | The Main Funestra's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, flick seconds, human-inspired motion and hold | yes, same |
-| The mic being off | yes, off the flag the last session wrote |
+| The mic being off | yes, from the room's state |
 | Each satellite's mode (Kino / Origenerator), and what holds the Random Favs Browser's place | yes, entered under the cover before the room is shown |
 | OmniPause | no — a session never opens paused |
 
 Every row of that table is carried by any reopen, a crossing included
 ([resuming-a-session.md](resuming-a-session.md)): the rate, the hold and Genau's
-Amp, Speed and Center bars are re-sent from the status and drive files the last session published
-(`session_resume.resume_what_lives_in_a_funestra`), and the mic from the flag the
-dispatch loop writes whenever the mute moves
-(`voice_control.take_whether_the_mic_was_off`).
+Amp, Speed and Center bars are re-sent from the room's state
+(`session_resume.resume_what_lives_in_a_funestra`), which the dispatch loop keeps
+from what each Funestra reports, and the mic's mute is in the same state.
 
 The Main Funestra is the one that needed work, and it is why this note exists.
 The desktop must never put a VR-mastered video on the primary monitor, and the

@@ -13,8 +13,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from funestra.drive_readout import DriveHud, drive_text
 from funestra.modes import MainMode
 
 from fun_time import checkout_overrides, funestra_deaths, win32_taskbar, windows_bridge_startup
@@ -60,7 +58,6 @@ from fun_time.shared_state import (
     shared_state_path,
     write_shared_state,
 )
-from fun_time.voice_control import say_the_mic_is_off
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from fun_time_vr import funestras, orchestrator, vr_runtime
@@ -490,7 +487,7 @@ class TestTheModeASessionComesBackIn:
 
         assert [ast.unparse(arg) for arg in resume.args] == [
             "Path(commands.main_funestra_cmd_file)",
-            "main_funestra_status",
+            "carried",
             "bridge_config.main_list.file",
         ]
 
@@ -877,19 +874,14 @@ def _queued_when_the_funestra_launches(config, env: SessionEnvironment) -> dict[
     return queued
 
 
-def _left_playing_at(config, *, main: float, portrait: float, landscape: float) -> None:
+def _left_in(config, state: BridgeState) -> None:
     config.paths.state_dir.mkdir(parents=True, exist_ok=True)
-    for status_file, speed in (
-        (config.main_funestra_status_file, main),
-        (config.satellite(RoomFunestra.PORTRAIT).status_file, portrait),
-        (config.satellite(RoomFunestra.LANDSCAPE).status_file, landscape),
-    ):
-        status_file.write_text(f"video=\nspeed={speed:g}\n", encoding="utf-8")
+    write_shared_state(shared_state_path(config.paths.state_dir), state)
 
 
 class TestWhatAReopenCarriesIntoTheHeadset:
     def test_each_funestra_is_handed_the_rate_it_was_playing_at(self, config):
-        _left_playing_at(config, main=0.25, portrait=0.5, landscape=1.0)
+        _left_in(config, BridgeState(main_speed=0.25, portrait=SatelliteState(speed=0.5)))
 
         queued = _queued_when_the_funestra_launches(config, SessionEnvironment())
 
@@ -898,20 +890,14 @@ class TestWhatAReopenCarriesIntoTheHeadset:
         assert not any(verb.startswith("SET_SPEED") for verb in queued["landscape"])
 
     def test_the_main_funestra_is_handed_back_the_unlock_it_was_left_in(self, config):
-        config.paths.state_dir.mkdir(parents=True, exist_ok=True)
-        config.main_funestra_status_file.write_text("video=\nlocked=0\n", encoding="utf-8")
+        _left_in(config, BridgeState(main_locked=False))
 
         queued = _queued_when_the_funestra_launches(config, SessionEnvironment())
 
         assert "LOCK_OFF" in queued["main"]
 
     def test_genau_is_handed_back_the_robot_hand_it_was_left_with(self, config):
-        state_dir = config.paths.state_dir
-        state_dir.mkdir(parents=True, exist_ok=True)
-        (state_dir / GENAU_DRIVE).write_text(
-            drive_text(DriveHud(speed=76, amplitude=100, center=50, advance_interval=10)),
-            encoding="utf-8")
-        (state_dir / GENAU_STATUS).write_text("learned=1\n", encoding="utf-8")
+        _left_in(config, BridgeState(genau_speed=76, genau_learned=True))
 
         queued = _queued_when_the_funestra_launches(config, SessionEnvironment())
 
@@ -1891,21 +1877,4 @@ class TestOpeningAVrSession:
             prepared,
             dashboard_cmd_file=Path(manifest.commands.dashboard_cmd_file),
             dispatch_runner=runner.return_value,
-            muted=False,
         )
-
-    def test_a_crossing_from_a_room_that_said_mic_off_opens_muted(self, config):
-        config.paths.state_dir.mkdir(parents=True, exist_ok=True)
-        say_the_mic_is_off(config.paths.state_dir, off=True)
-        start_voice = MagicMock(return_value=(None, None))
-
-        with _launch_stand_ins(
-            orchestrator, [],
-            start_voice_control=start_voice,
-            _wait_for_session_end=MagicMock(return_value="ahk"),
-        ), patch.object(orchestrator.vr_runtime, "runtime_was_running",
-                        return_value=True), \
-             patch("fun_time_vr.orchestrator.subprocess.Popen"):
-            orchestrator.run_vr_bridge(config, SessionEnvironment())
-
-        assert start_voice.call_args.kwargs["muted"] is True

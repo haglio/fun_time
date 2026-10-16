@@ -1882,10 +1882,11 @@ def test_a_side_whose_speed_alone_is_off_resets_it_without_reshuffling(tmp_path:
     alone for the same reason."""
     config = _make_config(tmp_path)
     _publish_speed(config, RoomFunestra.PORTRAIT, 1.5)
+    remembering_the_rate = _make_state().with_satellite(RoomFunestra.PORTRAIT, speed=1.5)
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
-        _state, ops = dispatch_command("portrait_reset", _make_state(), config)
+        _state, ops = dispatch_command("portrait_reset", remembering_the_rate, config)
 
     assert mock_filter.call_count == 0
     assert _cmds(config, RoomFunestra.PORTRAIT) == ["SET_SPEED 1"]

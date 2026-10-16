@@ -4,18 +4,15 @@ from __future__ import annotations
 from dataclasses import fields, replace
 from pathlib import Path
 
-from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
 from funestra import funestra_verbs
 from funestra.console import OSR2_PARKED, OSR2_RETRACTED
-from funestra.drive_readout import DriveHud, drive_text
-from funestra.flick_advance import FlickAdvanceState
 from funestra.genau_controls import VERBS as GENAU_VERBS
-from funestra.modes import LoopState, MainMode, SatellitesMode
-from funestra.robot_hand import RobotHandState
+from funestra.modes import MainMode, SatellitesMode
 
 from fun_time.bridge_records import SatelliteChannel
 from fun_time.crown import Crown
 from fun_time.funestra_handover import hand_back, keep_aside
+from fun_time.funestra_settings import FunestraReports
 from fun_time.funestra_status import MainFunestraStatus
 from fun_time.main_list import MainList
 from fun_time.origenerator_switches import RfbSlot
@@ -185,6 +182,37 @@ class TestResumeSharedState:
     default state described itself wrongly on every HUD — and answered the next
     "F-mode" by reporting it *enabled* while nothing visibly changed.
     """
+
+    def test_a_room_saved_before_it_kept_its_funestras_settings_takes_their_last_reports(
+            self, tmp_path: Path):
+        state_file = tmp_path / "shared_bridge_state.ini"
+        state_file.write_text("[state]\nvolume = 40\n", encoding="utf-8")
+
+        state = resume_shared_state(state_file, resumed=True, last_reported=FunestraReports(
+            main=MainFunestraStatus(speed=1.5, read_at=1_700_000_000.0)))
+
+        assert (state.volume, state.main_speed) == (40, 1.5)
+
+    def test_a_room_saved_before_it_kept_the_mic_takes_the_flag_it_left_and_spends_it(
+            self, tmp_path: Path):
+        state_file = tmp_path / "shared_bridge_state.ini"
+        state_file.write_text("[state]\nvolume = 40\n", encoding="utf-8")
+        (tmp_path / "mic_off.flag").write_text("1", encoding="utf-8")
+
+        state = resume_shared_state(state_file, resumed=True)
+
+        assert state.mic_muted is True
+        assert not (tmp_path / "mic_off.flag").exists()
+
+    def test_a_room_that_keeps_them_already_is_not_overruled_by_their_last_reports(
+            self, tmp_path: Path):
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(main_speed=0.5))
+
+        state = resume_shared_state(state_file, resumed=True, last_reported=FunestraReports(
+            main=MainFunestraStatus(speed=1.5, read_at=1_700_000_000.0)))
+
+        assert state.main_speed == 0.5
 
     def test_every_setting_it_remembers_comes_back(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
@@ -439,9 +467,9 @@ class TestResumeMainLoop:
         _write_playlist(playlist, list(_clips(tmp_path, *videos)))
         return playlist
 
-    def _looping(self, tmp_path: Path, video: str) -> MainFunestraStatus:
-        return MainFunestraStatus(video=str(tmp_path / video), loop_state=LoopState.LOOPING,
-                                loop_in_ms=2000, loop_out_ms=4000)
+    def _looping(self, tmp_path: Path, video: str) -> BridgeState:
+        return BridgeState(main_loop_video=str(tmp_path / video), main_loop_in_ms=2000,
+                           main_loop_out_ms=4000)
 
     def test_queues_the_range_the_primary_was_looping(self, tmp_path: Path):
         main_funestra_cmd = tmp_path / "main_player_cmd.txt"
@@ -457,8 +485,7 @@ class TestResumeMainLoop:
         main_funestra_cmd = tmp_path / "main_player_cmd.txt"
         playlist = self._playlist(tmp_path, "a.mp4")
 
-        resume_main_loop(main_funestra_cmd, MainFunestraStatus(video=str(tmp_path / "a.mp4")),
-                         playlist)
+        resume_main_loop(main_funestra_cmd, BridgeState(), playlist)
 
         assert not main_funestra_cmd.exists()
 
@@ -525,24 +552,25 @@ class TestResumeMainLock:
 
 
 class TestWhatARestartBringsBackOfEachFunestra:
-    _RESENT_FROM_WHAT_THE_FUNESTRA_PUBLISHED = frozenset({
-        "SET_SPEED", "SPEED_UP", "SPEED_DOWN", "LOCK_ON", "LOCK_OFF", "TOGGLE_LOCK"})
-    _KEPT_IN_THE_ROOMS_STATE = {"SET_MAX_INTENSITY": "max_intensity", "SET_VOLUME": "volume",
-                                "SHOW": "main_mode", "SET_F_MODE": "main_scripted_filter"}
+    _KEPT_IN_THE_ROOMS_STATE = {
+        "SET_SPEED": {"main_speed", "speed"}, "SPEED_UP": {"main_speed", "speed"},
+        "SPEED_DOWN": {"main_speed", "speed"}, "LOCK_ON": {"main_locked", "locked"},
+        "LOCK_OFF": {"main_locked", "locked"}, "TOGGLE_LOCK": {"main_locked", "locked"},
+        "SET_MAX_INTENSITY": {"max_intensity"}, "SET_VOLUME": {"volume"}, "SHOW": {"main_mode"},
+        "SET_F_MODE": {"main_scripted_filter"}}
     _NO_SETTING = frozenset({
         "NEXT", "PREV", "QUIT", "RELOAD_PLAYLIST", "SEEK_BACK", "SEEK_FWD", "TRASH", "SHOW_FRAME",
         "CLEAR_FRAME", "SET_PACE", "play_file", "step_version"})
 
     def test_every_verb_a_funestra_answers_comes_back_after_a_restart_or_is_no_setting(self):
-        named = (self._RESENT_FROM_WHAT_THE_FUNESTRA_PUBLISHED
-                 | set(self._KEPT_IN_THE_ROOMS_STATE) | self._NO_SETTING)
+        named = set(self._KEPT_IN_THE_ROOMS_STATE) | self._NO_SETTING
         verbs = set(funestra_verbs.__all__)
 
         assert verbs == named, (
             f"say how a restart brings back {sorted(verbs - named)}; "
             f"a Funestra no longer answers {sorted(named - verbs)}")
 
-    def test_what_a_restart_resends_is_the_rate_and_the_lock(self, tmp_path: Path):
+    def test_what_a_restart_resends_is_what_the_rooms_state_keeps(self, tmp_path: Path):
         main_funestra_cmd, portrait_cmd = tmp_path / "main_player_cmd.txt", tmp_path / "portrait_cmd.txt"
 
         resume_rates([(main_funestra_cmd, 0.25), (portrait_cmd, 1.5)])
@@ -551,115 +579,91 @@ class TestWhatARestartBringsBackOfEachFunestra:
 
         assert {line.split()[0] for command_file in (main_funestra_cmd, portrait_cmd)
                 for line in command_file.read_text(encoding="utf-8").splitlines()} <= {
-            getattr(funestra_verbs, name) for name in self._RESENT_FROM_WHAT_THE_FUNESTRA_PUBLISHED}
+            getattr(funestra_verbs, name) for name in self._KEPT_IN_THE_ROOMS_STATE}
 
     def test_what_the_rooms_state_keeps_for_a_funestra_is_remembered(self):
-        assert set(self._KEPT_IN_THE_ROOMS_STATE.values()) <= set(RESUMED_FIELDS)
+        assert set().union(*self._KEPT_IN_THE_ROOMS_STATE.values()) <= (
+            set(RESUMED_FIELDS) | set(RESUMED_SATELLITE_FIELDS))
 
 
 class TestResumeGenau:
-    """Genau's Amp, Speed and Center bars, its shape and its three switches live in the engine that
-    just died, and its own launch opens them at the family's defaults."""
-
-    @staticmethod
-    def _left_genau(tmp_path: Path, *, drive: str = "", status: str = "") -> Path:
-        (tmp_path / GENAU_DRIVE).write_text(drive, encoding="utf-8")
-        (tmp_path / GENAU_STATUS).write_text(status, encoding="utf-8")
-        return tmp_path / "genau_cmd.txt"
-
-    @staticmethod
-    def _drive(**bars: object) -> str:
-        """A readout of a hand left where a fresh one opens, bar what a test moves."""
-        hand, advance = RobotHandState(), FlickAdvanceState()
-        return drive_text(DriveHud(**{
-            "speed": hand.speed, "amplitude": hand.amplitude, "center": hand.center,
-            "shape": hand.shape.value, "advance_interval": advance.interval, **bars,
-        }))
+    """Genau's Amp, Speed and Center bars, its shape, its flick seconds and its two
+    switches live in the engine that just died, and its own launch opens them at the
+    family's defaults."""
 
     def test_queues_the_bars_the_hand_was_left_at(self, tmp_path: Path):
-        genau_cmd = self._left_genau(
-            tmp_path, drive=self._drive(speed=76, amplitude=60, center=30, advance_interval=25))
+        genau_cmd = tmp_path / "genau_cmd.txt"
 
-        resume_genau(genau_cmd, tmp_path)
+        resume_genau(genau_cmd, BridgeState(genau_speed=76, genau_amplitude=60, genau_center=30,
+                                            genau_flick_seconds=25))
 
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
             "SPEED 76", "AMP 60", "CENTER 30", "FLICK_SECONDS 25",
         ]
 
     def test_queues_nothing_for_a_hand_left_where_the_next_one_opens(self, tmp_path: Path):
-        genau_cmd = self._left_genau(
-            tmp_path, drive=self._drive(), status="learned=0\nlocked=1\n")
+        genau_cmd = tmp_path / "genau_cmd.txt"
 
-        resume_genau(genau_cmd, tmp_path)
+        resume_genau(genau_cmd, BridgeState())
 
         assert not genau_cmd.exists()
 
     def test_says_a_shape_as_the_steps_that_reach_it(self, tmp_path: Path):
         """No verb names a shape outright, so the one to take up is said as the
         steps from the shape a fresh engine opens on."""
-        genau_cmd = self._left_genau(tmp_path, drive=self._drive(shape="sawtooth"))
+        genau_cmd = tmp_path / "genau_cmd.txt"
 
-        resume_genau(genau_cmd, tmp_path)
+        resume_genau(genau_cmd, BridgeState(genau_shape="sawtooth"))
 
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
             "CYCLE_SHAPE", "CYCLE_SHAPE", "CYCLE_SHAPE",
         ]
 
     def test_queues_the_learned_motion_that_was_running(self, tmp_path: Path):
-        genau_cmd = self._left_genau(tmp_path, status="learned=1\n")
+        genau_cmd = tmp_path / "genau_cmd.txt"
 
-        resume_genau(genau_cmd, tmp_path)
+        resume_genau(genau_cmd, BridgeState(genau_learned=True))
 
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["LEARNED_ON"]
 
     def test_queues_the_unlock_genau_was_left_in(self, tmp_path: Path):
-        genau_cmd = self._left_genau(tmp_path, status="locked=0\n")
+        genau_cmd = tmp_path / "genau_cmd.txt"
 
-        resume_genau(genau_cmd, tmp_path)
+        resume_genau(genau_cmd, BridgeState(genau_locked=False))
 
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["LOCK_OFF"]
 
-    _RESENT_FROM_WHAT_GENAU_PUBLISHED = frozenset({
-        "speed", "amplitude", "center", "shape", "flick_seconds", "learned", "lock"})
-    _KEPT_IN_THE_ROOMS_STATE = {"max_intensity": "max_intensity", "volume": "volume",
-                                "browse_order": "genau_latest", "shapes": "genau_plays_vr",
-                                "hold": "osr2_control"}
+    _KEPT_IN_THE_ROOMS_STATE = {
+        "speed": "genau_speed", "amplitude": "genau_amplitude", "center": "genau_center",
+        "shape": "genau_shape", "flick_seconds": "genau_flick_seconds",
+        "learned": "genau_learned", "lock": "genau_locked", "max_intensity": "max_intensity",
+        "volume": "volume", "browse_order": "genau_latest", "shapes": "genau_plays_vr",
+        "hold": "osr2_control"}
     _NO_SETTING = frozenset({
         "quit", "flick", "condemn", "play_file", "flip_ends", "quarter_cycle", "pause", "tcode",
         "hud"})
 
     def test_every_control_genau_has_comes_back_after_a_restart_or_is_no_setting(self):
-        named = (self._RESENT_FROM_WHAT_GENAU_PUBLISHED | set(self._KEPT_IN_THE_ROOMS_STATE)
-                 | self._NO_SETTING)
+        named = set(self._KEPT_IN_THE_ROOMS_STATE) | self._NO_SETTING
         controls = {control.name for control, _ in GENAU_VERBS.values()}
 
         assert controls == named, (
             f"say how a restart brings back {sorted(controls - named)}; "
             f"Genau no longer has {sorted(named - controls)}")
 
-    def test_a_restart_resends_every_control_genau_published_off_its_opening_value(
-            self, tmp_path: Path):
-        genau_cmd = self._left_genau(
-            tmp_path, drive=self._drive(speed=76, amplitude=60, center=30, shape="sawtooth",
-                                        advance_interval=25),
-            status="learned=1\nlocked=0\n")
+    def test_a_restart_resends_what_the_rooms_state_keeps_for_genau(self, tmp_path: Path):
+        genau_cmd = tmp_path / "genau_cmd.txt"
 
-        resume_genau(genau_cmd, tmp_path)
+        resume_genau(genau_cmd, replace(shifted_state(BridgeState()), genau_shape="sawtooth"))
 
-        assert {GENAU_VERBS[line.split()[0]][0].name for line in
-                genau_cmd.read_text(encoding="utf-8").splitlines()} == (
-            self._RESENT_FROM_WHAT_GENAU_PUBLISHED)
+        resent = {GENAU_VERBS[line.split()[0]][0].name
+                  for line in genau_cmd.read_text(encoding="utf-8").splitlines()}
+        assert {self._KEPT_IN_THE_ROOMS_STATE[control] for control in resent} == {
+            name for name in RESUMED_FIELDS if name.startswith("genau_")
+            and name not in ("genau_latest", "genau_plays_vr", "genau_plays_flat")}
 
     def test_what_the_rooms_state_keeps_for_genau_is_remembered(self):
         assert set(self._KEPT_IN_THE_ROOMS_STATE.values()) <= set(RESUMED_FIELDS)
-
-    def test_a_session_that_published_no_readout_still_carries_its_switches(self, tmp_path: Path):
-        genau_cmd = tmp_path / "genau_cmd.txt"
-        (tmp_path / GENAU_STATUS).write_text("learned=1\n", encoding="utf-8")
-
-        resume_genau(genau_cmd, tmp_path)
-
-        assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["LEARNED_ON"]
 
 
 class TestOpeningTheMainList:

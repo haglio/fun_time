@@ -183,15 +183,17 @@ before the queue.
 
 ## What a reopen re-sends because it lives in a Funestra
 
-Three more things live only in a Funestra process, so they are gone the moment a
-session ends: each Funestra's playback rate, the Main Funestra's hold on the video it
-is playing, and Genau's Amp, Speed and Center bars, shape, flick seconds and three switches. Every
-session re-sends all of them off the status and drive files the last one
-published, so the room that opens is the room the last one was showing, whether
-it was left by a crossing ([entering-vr.md](entering-vr.md)) or by quitting. The
-mic goes the same way: the mute lives in the controller this session runs, so the
-dispatch loop writes it down whenever it moves and the next session starts its own
-controller muted.
+Some settings live in a Funestra process while it runs, so they are gone the
+moment a session ends: each Funestra's playback rate, the Main Funestra's hold on
+the video it is playing and the loop it runs, and Genau's Amp, Speed and Center bars,
+shape, flick seconds and two switches. The room's state is still the one place they
+are kept: the dispatch loop writes each one down as its Funestra reports it
+(`fun_time.funestra_settings`), and every session re-sends them from that state, so
+the room that opens is the room the last one was showing, whether it was left by a
+crossing ([entering-vr.md](entering-vr.md)) or by quitting. The Funestras' status
+files are what they report through, never what a session comes back from. The mic's
+mute is kept the same way: the dispatch loop writes it into the state whenever it
+moves, and the next session starts its own controller muted.
 
 ## Three rules that are easy to lose
 

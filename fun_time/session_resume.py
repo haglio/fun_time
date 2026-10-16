@@ -3,24 +3,22 @@ that shaped its playlists: ``docs/resuming-a-session.md``."""
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import fields, replace
 from pathlib import Path
 
-from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
+from app_support.file_channel import read_flag
 from funestra.console import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
-from funestra.drive_readout import read_drive
 from funestra.file_channel import append_command
 from funestra.flick_advance import FlickAdvanceState
 from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, SET_SPEED
 from funestra.playlist import PlaylistItem, read_playlist, write_playlist
 from funestra.robot_hand import RobotHandState, WaveformShape
-from funestra.status import FunestraStatus
 
 from main_funestra.loop_verbs import SET_LOOP
 
 from .funestra_handover import take_back_the_list
-from .funestra_status import MainFunestraStatus, read_genau_status
+from .funestra_settings import FunestraReports, with_what_the_funestras_report
 from .main_list import MainList, MainListSettings, new_shuffle_seed
 from .media_metadata import normalize_path_key
 from .modes import rotated_onto
@@ -31,6 +29,7 @@ from .shared_state import (
     migrate_shared_state,
     read_shared_state,
     write_shared_state,
+    written_with,
 )
 
 logger = logging.getLogger(__name__)
@@ -134,23 +133,18 @@ def _shape_steps(shape: str) -> list[str]:
     return [CYCLE_SHAPE] * ((shapes.index(shape) - opens_on) % len(shapes))
 
 
-def resume_genau(genau_cmd_file: Path, state_dir: Path) -> None:
-    state_dir = Path(state_dir)
-    status = read_genau_status(state_dir / GENAU_STATUS)
-    drive = read_drive(state_dir / GENAU_DRIVE)
-    verbs: list[str] = []
-    if drive is not None:
-        hand, advance = RobotHandState(), FlickAdvanceState()
-        verbs += [f"{verb} {value}" for verb, value, opens_at in (
-            (HAND_SPEED, drive.speed, hand.speed),
-            (HAND_AMPLITUDE, drive.amplitude, hand.amplitude),
-            (HAND_CENTER, drive.center, hand.center),
-            (FLICK_SECONDS, drive.advance_interval, advance.interval),
-        ) if value != opens_at]
-        verbs += _shape_steps(drive.shape)
-    if status.learned_active:
+def resume_genau(genau_cmd_file: Path, carried: BridgeState) -> None:
+    hand, advance = RobotHandState(), FlickAdvanceState()
+    verbs = [f"{verb} {value}" for verb, value, opens_at in (
+        (HAND_SPEED, carried.genau_speed, hand.speed),
+        (HAND_AMPLITUDE, carried.genau_amplitude, hand.amplitude),
+        (HAND_CENTER, carried.genau_center, hand.center),
+        (FLICK_SECONDS, carried.genau_flick_seconds, advance.interval),
+    ) if value != opens_at]
+    verbs += _shape_steps(carried.genau_shape)
+    if carried.genau_learned:
         verbs.append(LEARNED_ON)
-    if not status.locked:
+    if not carried.genau_locked:
         verbs.append(LOCK_OFF)
     for verb in verbs:
         append_command(Path(genau_cmd_file), verb)
@@ -168,35 +162,35 @@ def resume_rates(rates: Sequence[tuple[Path, float]]) -> None:
 
 
 def resume_what_lives_in_a_funestra(
+    carried: BridgeState,
     *,
-    main_funestra: tuple[Path, MainFunestraStatus],
-    satellites: Sequence[tuple[Path, FunestraStatus]],
+    main_funestra_cmd_file: Path,
+    satellite_cmd_files: Mapping[RoomFunestra, Path],
     genau_cmd_file: Path,
-    state_dir: Path,
 ) -> None:
-    """What any reopen re-sends because it lives in a Funestra: ``docs/entering-vr.md``."""
-    main_funestra_cmd_file, main_funestra_status = main_funestra
+    """What any reopen re-sends because it lives in a Funestra: ``docs/resuming-a-session.md``."""
     resume_rates([
-        (main_funestra_cmd_file, main_funestra_status.speed),
-        *((command_file, status.speed) for command_file, status in satellites),
+        (main_funestra_cmd_file, carried.main_speed),
+        *((command_file, carried.satellite(funestra).speed)
+          for funestra, command_file in satellite_cmd_files.items()),
     ])
-    resume_main_lock(main_funestra_cmd_file, locked=main_funestra_status.locked)
-    resume_genau(genau_cmd_file, state_dir)
+    resume_main_lock(main_funestra_cmd_file, locked=carried.main_locked)
+    resume_genau(genau_cmd_file, carried)
 
 
-def resume_main_loop(main_funestra_cmd_file: Path, status: MainFunestraStatus,
+def resume_main_loop(main_funestra_cmd_file: Path, carried: BridgeState,
                      playlist_file: Path) -> None:
-    """Queue SET_LOOP for the loop *status* was left running.
+    """Queue SET_LOOP for the loop *carried* was left running.
 
     Only when *playlist_file* really does lead with the clip that loop was cut
     from: a rebuild, or a clip deleted since, leaves another video leading, and
     those bounds would then mark out a stretch of a video nobody chose.
     """
-    if not playlist_opens_on(playlist_file, status.video):
+    if carried.main_loop_out_ms <= carried.main_loop_in_ms:
         return
-    bounds = status.loop_bounds
-    if bounds is not None:
-        append_command(Path(main_funestra_cmd_file), f"{SET_LOOP} {bounds[0]} {bounds[1]}")
+    if playlist_opens_on(playlist_file, carried.main_loop_video):
+        append_command(Path(main_funestra_cmd_file),
+                       f"{SET_LOOP} {carried.main_loop_in_ms} {carried.main_loop_out_ms}")
 
 
 # What a resumed session's OSR2 control can come back as.  Anything else --
@@ -205,13 +199,30 @@ def resume_main_loop(main_funestra_cmd_file: Path, status: MainFunestraStatus,
 _OSR2_CONTROLS = (OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED)
 
 
-def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:
+NOTHING_REPORTED = FunestraReports()
+
+
+_RETIRED_MIC_OFF_FLAG = "mic_off.flag"
+
+
+def _the_mic_was_left_off(state_dir: Path) -> bool:
+    flag = state_dir / _RETIRED_MIC_OFF_FLAG
+    was_off = read_flag(flag, default=False)
+    flag.unlink(missing_ok=True)
+    return was_off
+
+
+def resume_shared_state(state_file: Path, *, resumed: bool,
+                        last_reported: FunestraReports = NOTHING_REPORTED) -> BridgeState:
     """Seed *state_file* with the state a resumed session comes back in.
 
     Pass *resumed* as :func:`resume_playlists` reported it.
     """
     migrate_shared_state(state_file)
     previous = read_shared_state(state_file)
+    if previous is not None and not written_with(state_file, "main_speed"):
+        previous = replace(with_what_the_funestras_report(previous, last_reported),
+                           mic_muted=_the_mic_was_left_off(Path(state_file).parent))
     state = BridgeState() if previous is None else replace(
         BridgeState(**{field: getattr(previous, field) for field in RESUMED_FIELDS}),
         portrait=_resumed_satellite(previous.satellite(RoomFunestra.PORTRAIT),

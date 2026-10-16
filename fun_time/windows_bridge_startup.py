@@ -29,6 +29,7 @@ from .child_launch import no_child_log, open_child_log
 from .config import load_config
 from .content import load_web_providers
 from .funestra_handover import take_back_the_list
+from .funestra_settings import reports_left_in
 from .funestra_status import (
     is_broker_heartbeat_fresh,
     read_main_funestra_status,
@@ -398,7 +399,10 @@ def start_core_session(
     # resumed the files and not the state described itself wrongly on every HUD.
     # It is read before the flags below are seeded, because several of them are
     # what those flags have to be seeded to.
-    carried = resume_shared_state(shared_state_path(state_path), resumed=resumed)
+    carried = resume_shared_state(
+        shared_state_path(state_path), resumed=resumed,
+        last_reported=reports_left_in(state_path, main=main_funestra_status, satellites={
+            RoomFunestra.PORTRAIT: portrait_status, RoomFunestra.LANDSCAPE: landscape_status}))
     main_list = MainList(sources=main_sources, state_dir=state_path,
                          metadata_root=regen_metadata_root)
     carried = open_the_main_list(main_list, carried, state_file=shared_state_path(state_path),
@@ -435,12 +439,12 @@ def start_core_session(
         (Path(landscape.channels.command), carried.satellite(RoomFunestra.LANDSCAPE).locked),
     ])
     # The Main Funestra's loop is the same kind of thing, and queued the same way.
-    resume_main_loop(Path(main_funestra_cmd_file), main_funestra_status, main_list.file)
+    resume_main_loop(Path(main_funestra_cmd_file), carried, main_list.file)
     resume_what_lives_in_a_funestra(
-        main_funestra=(Path(main_funestra_cmd_file), main_funestra_status),
-        satellites=[(Path(portrait.channels.command), portrait_status),
-                    (Path(landscape.channels.command), landscape_status)],
-        genau_cmd_file=Path(genau_cmd_file), state_dir=state_path,
+        carried, main_funestra_cmd_file=Path(main_funestra_cmd_file),
+        satellite_cmd_files={slot.funestra: Path(slot.channels.command)
+                             for slot in (portrait, landscape)},
+        genau_cmd_file=Path(genau_cmd_file),
     )
     launch_core_apps(
         python_exe=satellite_python_exe,

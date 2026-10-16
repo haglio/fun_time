@@ -22,9 +22,10 @@ from enum import Enum
 from pathlib import Path
 
 from funestra.console import OSR2_DRIVING
+from funestra.flick_advance import FlickAdvanceState
 from funestra.hud_placement import HudCorner, HudEdge
 from funestra.modes import LengthMode, MainMode, SatellitesMode, read_mode
-from funestra.robot_hand import FULL_INTENSITY
+from funestra.robot_hand import FULL_INTENSITY, RobotHandState
 
 from .audio_volume import MAX_VOLUME
 from .crown import Crown
@@ -72,6 +73,7 @@ class SatelliteState:
     # re-homes the satellite, or the satellite drifts off the map.
     nav_anchor: str = ""
     mode: SatellitesMode = KINO_MODE
+    speed: float = 1.0
 
 
 def _satellite_key(name: str, funestra: RoomFunestra) -> str:
@@ -123,6 +125,19 @@ class BridgeState:
     volume: int = MAX_VOLUME
     muted: bool = False
     max_intensity: int = FULL_INTENSITY
+    main_speed: float = 1.0
+    main_locked: bool = True
+    main_loop_video: str = ""
+    main_loop_in_ms: int = 0
+    main_loop_out_ms: int = 0
+    genau_speed: int = RobotHandState().speed
+    genau_amplitude: int = RobotHandState().amplitude
+    genau_center: int = RobotHandState().center
+    genau_shape: str = RobotHandState().shape.value
+    genau_flick_seconds: int = FlickAdvanceState().interval
+    genau_learned: bool = False
+    genau_locked: bool = True
+    mic_muted: bool = False
     osr2_control: str = OSR2_DRIVING  # the console's OSR2 switch sets it
     crowned: Crown = Crown.MAIN
     majority: Crown = Crown.PORTRAIT
@@ -161,10 +176,12 @@ def _written_satellites(state: BridgeState) -> dict[str, str]:
     }
 
 
-def _written(value: bool | int | str) -> str:
+def _written(value: bool | int | float | str) -> str:
     """One value as the INI spells it."""
     if isinstance(value, bool):
         return "1" if value else "0"
+    if isinstance(value, float):
+        return f"{value:g}"
     return str(value)
 
 
@@ -205,7 +222,7 @@ def _read_satellite(section, funestra: RoomFunestra) -> SatelliteState:
     })
 
 
-def _read_back(written: str | None, default: bool | int | str) -> bool | int | str:
+def _read_back(written: str | None, default: bool | int | float | str) -> bool | int | float | str:
     """One value off the file, read as the type of *default* says.  An absent key,
     a malformed number or an unknown mode word is that default, so a file written
     before the field existed -- or hand-edited since -- is still a session."""
@@ -215,11 +232,12 @@ def _read_back(written: str | None, default: bool | int | str) -> bool | int | s
         return written == "1"
     if isinstance(default, Enum):
         return read_mode(type(default), written, default)
-    if isinstance(default, int):
-        try:
-            return int(written)
-        except ValueError:
-            return default
+    for number in (float, int):
+        if isinstance(default, number):
+            try:
+                return number(written)
+            except ValueError:
+                return default
     return written
 
 
@@ -258,6 +276,13 @@ def migrate_shared_state(state_file: Path) -> bool:
         del section[old]
     _publish(state_file, parser)
     return True
+
+
+def written_with(state_file: Path, key: str) -> bool:
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    parser.read(str(state_file), encoding="utf-8")
+    return "state" in parser and key in parser["state"]
 
 
 def read_shared_state(state_file: Path) -> BridgeState | None:

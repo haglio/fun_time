@@ -8,6 +8,7 @@ import time
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -16,8 +17,10 @@ from app_support.state_files import OSR2_SERIAL_RX
 from app_support.threading_utils import wait_until
 from funestra.console import OSR2_PARKED
 from funestra.file_channel import publish_whole
+from funestra.funestra_status import status_fields
 from funestra.modes import MainMode, SatellitesMode
 from funestra.playlist import PlaylistItem, write_playlist
+from funestra.status import StatusWriter
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
@@ -51,7 +54,7 @@ from fun_time.shared_state import BridgeState, SatelliteState, read_shared_state
 from fun_time.shortcuts import Shortcut
 from fun_time.text_field_clicks import Seen, Sighting
 from fun_time.voice_commands import format_spoken_command, parse_command_line
-from fun_time.voice_control import VoiceController, take_whether_the_mic_was_off
+from fun_time.voice_control import VoiceController
 from fun_time.watch_stats import load_watch_stats
 from fun_time.window_layout import MonitorRect, secondary_monitor_rects
 from fun_time.windows_bridge_dispatch_loop import (
@@ -1146,9 +1149,9 @@ class TestDispatchLoopRunner:
 
         assert vc.is_muted
 
-    def test_the_mic_being_turned_off_is_written_down_for_a_crossing(self, tmp_path):
-        """The mute is this controller's alone, and the session that crosses is
-        about to be replaced by one with a controller of its own."""
+    def test_the_mic_being_turned_off_is_kept_in_the_rooms_state(self, tmp_path):
+        """The mute is this controller's alone, and the session that comes next is
+        a new one with a controller of its own."""
         runner = make_runner(tmp_path)
         runner.voice_controller = VoiceController(
             cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
@@ -1156,7 +1159,7 @@ class TestDispatchLoopRunner:
 
         runner.tick()
 
-        assert take_whether_the_mic_was_off(runner.config.state_dir) is True
+        assert read_shared_state(tmp_path / "shared_state.ini").mic_muted is True
 
     def test_turning_it_back_on_is_written_down_too(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -1167,7 +1170,7 @@ class TestDispatchLoopRunner:
 
         runner.tick()
 
-        assert take_whether_the_mic_was_off(runner.config.state_dir) is False
+        assert read_shared_state(tmp_path / "shared_state.ini").mic_muted is False
 
     def test_omnipause_suspends_the_voice_controller(self, tmp_path):
         """Omnipause freezes voice the way it freezes the AHK hotkeys: of what a
@@ -3424,6 +3427,43 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
         _the_hosted_app_answers(tmp_path)
         runner.tick()
         assert read_shared_state(state_file).origenerator_ready is True
+
+
+def _publish_status(path: Path, *, speed: float) -> None:
+    playback = SimpleNamespace(
+        current_video="C:/v/n.mp4", position_ms=0, duration_ms=0, is_paused=False,
+        is_locked=False, speed=speed, showing_picture=False, playlist_length=1,
+        has_funscript=False, funscript_resting=False, portrait=None)
+    StatusWriter(path, lambda played: status_fields(played, None)).write(playback)
+
+
+class TestTheRoomKeepsWhatItsFunestrasHold:
+    def test_what_a_funestra_reports_is_written_into_the_rooms_state(self, tmp_path):
+        state_file = tmp_path / "shared_state.ini"
+        write_shared_state(state_file, BridgeState())
+        runner = make_runner(tmp_path)
+        _publish_status(runner.config.main_funestra_status_file, speed=1.5)
+
+        runner.tick()
+
+        assert read_shared_state(state_file).main_speed == 1.5
+
+    def test_a_funestra_that_has_reported_nothing_leaves_what_the_room_remembers(self, tmp_path):
+        state_file = tmp_path / "shared_state.ini"
+        remembered = replace(shifted_state(BridgeState()), rfb_slot=RfbSlot.RFB)
+        for funestra in RoomFunestra.SATELLITES:
+            remembered = remembered.with_satellite(funestra, mode=SatellitesMode.KINO)
+        write_shared_state(state_file, remembered)
+        runner = make_runner(tmp_path)
+        for status_file in (runner.config.main_funestra_status_file,
+                            runner.config.portrait_status_file, runner.config.landscape_status_file,
+                            runner.config.genau_status_file, runner.config.genau_drive_file):
+            status_file.write_text("", encoding="utf-8")
+
+        runner.tick()
+
+        assert remembered_values(read_shared_state(state_file)) == remembered_values(
+            replace(remembered, origenerator_ready=False))
 
 
 class TestOpeningInOrigeneratorMode:
