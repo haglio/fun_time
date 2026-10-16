@@ -50,8 +50,12 @@ def with_what_the_funestras_report(state: BridgeState, reports: FunestraReports)
                         main_loop_video=main.video if main.loop_bounds else "",
                         main_loop_in_ms=loop_in_ms, main_loop_out_ms=loop_out_ms)
     for funestra, status in reports.satellites.items():
-        if status is not None and not origenerator_shows(state.satellite(funestra).mode):
+        if status is None:
+            continue
+        if not origenerator_shows(state.satellite(funestra).mode):
             state = state.with_satellite(funestra, speed=status.speed)
+        if status.volume is not None and status.muted is not None:
+            state = state.with_satellite(funestra, volume=status.volume, muted=status.muted)
     if reports.genau_drive is not None:
         drive = reports.genau_drive
         state = replace(state, genau_speed=drive.speed, genau_amplitude=drive.amplitude,
