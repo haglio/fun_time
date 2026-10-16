@@ -190,7 +190,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row(
                 "Speak to a hosted Origenerator show — the side, then its own "
                 "words: a shelf to play (\"landscape experiments\", "
-                "\"portrait requests\"), the show's controls "
+                "\"portrait favorites\"), the show's controls "
                 "(\"landscape play slideshow\", \"portrait stop slideshow\"), "
                 "a targeted fix (\"portrait fix teeth\"), \"genau\" to "
                 f"animate the picture as a Genau {_FLICK.one}, or \"enhanced only\" to "

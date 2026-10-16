@@ -74,7 +74,7 @@ ORIGENERATOR_PHRASES: tuple[str, ...] = (
     # that Funestra's browse, "portrait trash" discards its clip), and in
     # a side's Origenerator mode those same two commands are routed to the hosted app
     # instead — one phrase, one meaning per mode, rather than two spellings.
-    FAVORITES_PHRASE, "experiments", "requests",
+    FAVORITES_PHRASE, "experiments",
     "enhanced only", "filter enhanced",
     # The show's own controls.
     "play slideshow", "start slideshow", "pause slideshow", "stop slideshow",
