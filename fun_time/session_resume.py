@@ -56,6 +56,10 @@ NOT_RESUMED = frozenset({
 
 NOT_RESUMED_PER_SATELLITE = frozenset({"nav_anchor"})
 
+DESCRIBES_THE_PLAYLIST = frozenset({
+    "locked", "filter", "favorites_filter", "latest", "loop", "map_anchor", "widen_clip",
+})
+
 RESUMED_FIELDS: tuple[str, ...] = tuple(
     field.name for field in fields(BridgeState) if field.name not in NOT_RESUMED
 )
@@ -65,8 +69,9 @@ RESUMED_SATELLITE_FIELDS: tuple[str, ...] = tuple(
 )
 
 
-def _resumed_satellite(satellite: SatelliteState) -> SatelliteState:
-    return SatelliteState(**{name: getattr(satellite, name) for name in RESUMED_SATELLITE_FIELDS})
+def _resumed_satellite(satellite: SatelliteState, *, playlist_resumed: bool) -> SatelliteState:
+    return SatelliteState(**{name: getattr(satellite, name) for name in RESUMED_SATELLITE_FIELDS
+                             if playlist_resumed or name not in DESCRIBES_THE_PLAYLIST})
 
 
 def playlist_opens_on(playlist_file: Path, video: str) -> bool:
@@ -206,12 +211,16 @@ def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:
     Pass *resumed* as :func:`resume_playlists` reported it.
     """
     migrate_shared_state(state_file)
-    previous = read_shared_state(state_file) if resumed else None
-    state = BridgeState(main_shuffle_seed=new_shuffle_seed()) if previous is None else replace(
+    previous = read_shared_state(state_file)
+    state = BridgeState() if previous is None else replace(
         BridgeState(**{field: getattr(previous, field) for field in RESUMED_FIELDS}),
-        portrait=_resumed_satellite(previous.satellite(RoomFunestra.PORTRAIT)),
-        landscape=_resumed_satellite(previous.satellite(RoomFunestra.LANDSCAPE)),
+        portrait=_resumed_satellite(previous.satellite(RoomFunestra.PORTRAIT),
+                                    playlist_resumed=resumed),
+        landscape=_resumed_satellite(previous.satellite(RoomFunestra.LANDSCAPE),
+                                     playlist_resumed=resumed),
     )
+    if previous is None or not resumed:
+        state = replace(state, main_shuffle_seed=new_shuffle_seed())
     if state.osr2_control not in _OSR2_CONTROLS:
         state = replace(state, osr2_control=OSR2_PARKED)
     write_shared_state(state_file, state)
