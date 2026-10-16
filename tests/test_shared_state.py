@@ -6,8 +6,7 @@ import configparser
 import os
 import subprocess
 import sys
-from dataclasses import fields, replace
-from enum import Enum
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
@@ -28,6 +27,7 @@ from fun_time.shared_state import (
     shared_state_path,
     write_shared_state,
 )
+from tests.made_up_state import shifted_state
 
 
 def test_the_state_file_is_named_off_the_state_dir(tmp_path: Path):
@@ -54,33 +54,6 @@ def test_a_write_that_meets_a_reader_holding_the_file_open_still_lands(tmp_path:
     assert refused
     assert read_shared_state(state_file).omni_paused is True
 
-def _shifted(value):
-    """Any value of the same type that is not *value* — so a field which fails to
-    round-trip comes back visibly wrong rather than accidentally right.  Only
-    difference matters here: the file is a transport, and what counts as a legal
-    volume or side is the dispatch's business, not this INI's."""
-    if isinstance(value, bool):
-        return not value
-    if isinstance(value, Enum):
-        return next(entry for entry in type(value) if entry is not value)
-    if isinstance(value, int):
-        return value + 1
-    return f"{value}-carried"
-
-
-def _shifted_state(state: BridgeState) -> BridgeState:
-    """*state* with every value it holds replaced by a different one of its own
-    type — both satellites' own among them, which is why this walks the sides
-    rather than the top-level fields alone."""
-    shifted = replace(state, **{
-        f.name: _shifted(getattr(state, f.name)) for f in fields(state)
-        if not isinstance(getattr(state, f.name), SatelliteState)})
-    for funestra in RoomFunestra.SATELLITES:
-        side = shifted.satellite(funestra)
-        shifted = shifted.with_satellite(
-            funestra, **{f.name: _shifted(getattr(side, f.name)) for f in fields(side)})
-    return shifted
-
 
 def test_every_field_of_the_state_survives_the_round_trip(tmp_path: Path):
     """The dispatch loop replaces its whole state with what this file reads back,
@@ -93,7 +66,7 @@ def test_every_field_of_the_state_survives_the_round_trip(tmp_path: Path):
     session mode, and the next one added has to be carried too.
     """
     state_file = tmp_path / "shared_state.ini"
-    state = _shifted_state(BridgeState())
+    state = shifted_state(BridgeState())
 
     write_shared_state(state_file, state)
 

@@ -642,7 +642,7 @@ def _panel_of(hud_file: Path, funestra: RoomFunestra):
 
 
 @pytest.mark.timeout(_TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S)
-def test_a_room_left_in_the_mode_opens_in_it():
+def test_a_room_left_in_the_mode_opens_in_it_as_it_was_left():
     """A room left in origenerator mode opens in it, with no switch pressed: the
     session holds its own cover up for the hosted app and takes the mode up under
     it, so it is already in the mode when the room is shown.
@@ -667,7 +667,7 @@ def test_a_room_left_in_the_mode_opens_in_it():
     finally:
         first.stop()
     state_file = shared_state_path(first.config.paths.state_dir)
-    left = replace(read_shared_state(state_file), rfb_slot=RfbSlot.ORIGENERATOR)
+    left = replace(read_shared_state(state_file), rfb_slot=RfbSlot.ORIGENERATOR, max_intensity=38)
     for funestra in _FUNESTRAS:
         left = left.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR)
     write_shared_state(state_file, left)
@@ -679,6 +679,7 @@ def test_a_room_left_in_the_mode_opens_in_it():
         opened_in = read_shared_state(state_file)
         assert _both_in_origenerator_mode(opened_in)
         assert opened_in.rfb_slot is RfbSlot.ORIGENERATOR
+        assert opened_in.max_intensity == 38
     finally:
         second.stop()
 
