@@ -640,7 +640,9 @@ class TestHotkeySuspendDuringIntegration:
 
 
 class TestRunPythonOrchestratedBridge:
-    def test_runs_startup_then_launches_ahk_then_shuts_down(self, cfg_factory, tmp_path):
+    def test_the_cover_then_the_hotkeys_then_the_startup_then_the_closing_screen(
+        self, cfg_factory, tmp_path,
+    ):
         """The cover, the hotkeys, the startup sequence, the closing screen, in that
         order.  Only those four are recorded: the session starts other processes
         from its own threads meanwhile (the thumbnail warming, for one), at no fixed

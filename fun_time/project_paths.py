@@ -13,6 +13,7 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ICON = PROJECT_DIR / "icon.ico"
 PROJECT_VR_ICON = PROJECT_DIR / "vr_icon.ico"
+HOTKEY_SCRIPT_NAME = "windows_bridge_hotkeys.ahk"
 
 STATE_DIRNAME = "state"
 

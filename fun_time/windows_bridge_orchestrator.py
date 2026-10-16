@@ -425,6 +425,13 @@ def _closing_screen(
 _CANCELLED_EXIT_CODE = 0
 
 
+def launch_hotkey_script(*, ahk_exe: str | Path, script: str | Path, manifest_path: Path,
+                         pids_file: Path, project_dir: Path) -> subprocess.Popen:
+    command = [str(ahk_exe), str(script), str(manifest_path), str(pids_file), str(os.getpid())]
+    logger.info("Launching AHK hotkey script: %s", " ".join(command))
+    return subprocess.Popen(command, cwd=project_dir, **no_child_log(), **no_console_window())
+
+
 def stop_hotkey_script(proc: subprocess.Popen, ahk_cmd_file: Path) -> None:
     """Bring the hotkey script down through its own mailbox, then insist.
 
@@ -1183,10 +1190,9 @@ def run_session(
     # Esc has to reach us from the cover onward, and AHK's hooks are the only
     # keys here that do not care which window holds the focus (see
     # overlay_progress).  The script holds its other keys until the pids file.
-    command = [ahk_exe, hotkey_script, str(manifest_path), str(pids_file), str(os.getpid())]
-    logger.info("Launching AHK hotkey script: %s", " ".join(command))
-    ahk_proc = subprocess.Popen(
-        command, cwd=project_dir, **no_child_log(), **no_console_window())
+    ahk_proc = launch_hotkey_script(ahk_exe=ahk_exe, script=hotkey_script,
+                                    manifest_path=manifest_path, pids_file=pids_file,
+                                    project_dir=project_dir)
 
     # The lock HUD's model is built here and published for each Satellite Funestra
     # to draw into its own video.  It rides the dashboard's enable gate, so an

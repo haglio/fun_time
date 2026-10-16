@@ -34,7 +34,7 @@ from fun_time.overlay_progress import (
     StartupCancelled,
     parse_progress,
 )
-from fun_time.project_paths import PROJECT_DIR
+from fun_time.project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import SessionEnvironment
@@ -1149,7 +1149,7 @@ class TestTheHeadsetsCover:
         the script has to be up before there is anything to cancel."""
         calls = _call_lines_in_run_vr_bridge()
 
-        assert calls["subprocess.Popen"] < calls["launch_vr_funestras"]
+        assert calls["launch_hotkey_script"] < calls["launch_vr_funestras"]
         # And the pids file, which is what takes the script's startup hold off,
         # is written only once there is a session for its keys to drive.
         assert calls["launch_vr_funestras"] < calls["write_pids_file"]
@@ -1519,9 +1519,8 @@ class TestWhatAPreviousSessionLeft:
 
 
 class TestTheHotkeyScriptsArguments:
-    def test_it_is_told_which_orchestrator_to_watch(self, config):
-        """After a crossing it outlives this process, and has to know when the
-        session it belonged to is gone."""
+    @staticmethod
+    def _launched(config) -> list[str]:
         class HotkeyScriptWentUp(Exception):
             pass
 
@@ -1536,8 +1535,15 @@ class TestTheHotkeyScriptsArguments:
              patch("fun_time_vr.orchestrator.subprocess.Popen", side_effect=hotkey_script), \
              pytest.raises(HotkeyScriptWentUp):
             orchestrator.run_vr_bridge(config, SessionEnvironment())
+        return launched[0]
 
-        assert launched[0][-1] == str(os.getpid())
+    def test_it_is_told_which_orchestrator_to_watch(self, config):
+        """After a crossing it outlives this process, and has to know when the
+        session it belonged to is gone."""
+        assert self._launched(config)[-1] == str(os.getpid())
+
+    def test_it_is_the_desks_own_script_so_esc_pauses_the_room_in_the_headset_too(self, config):
+        assert Path(self._launched(config)[1]) == config.project_dir / HOTKEY_SCRIPT_NAME
 
 
 def _launch_stand_ins(orchestrator, torn_down: list, **overrides):

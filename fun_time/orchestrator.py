@@ -24,7 +24,7 @@ from .headset_power import put_the_headset_to_sleep, wake_the_headset
 from .loading_cover import LoadingCover, open_the_cover
 from .manifest import write_windows_bridge_manifest
 from .process_identity import prepare_orchestrator_launcher
-from .project_paths import PROJECT_DIR
+from .project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
 from .session_environment import SessionEnvironment
 from .session_handoff import (
     clear_handoff_request,
@@ -79,7 +79,7 @@ def validate_config(config) -> None:
         require_dir(landscape_dir)
     require_dir(config.paths.flicks_dir)
     require_dir(config.paths.audio_dir)
-    require_file(config.project_dir / "windows_bridge_hotkeys.ahk")
+    require_file(config.project_dir / HOTKEY_SCRIPT_NAME)
     if config.paths.genau_config_path:
         require_file(config.paths.genau_config_path)
     require_file(config.project_dir / "fun_time" / "audio_companion_app.py")
@@ -92,7 +92,7 @@ def run_windows_bridge(config, logger, env: SessionEnvironment, cover: LoadingCo
 
     manifest_path = write_windows_bridge_manifest(
         config, dashboard_enabled=env.dashboard_enabled)
-    hotkey_script = config.project_dir / "windows_bridge_hotkeys.ahk"
+    hotkey_script = config.project_dir / HOTKEY_SCRIPT_NAME
 
     logger.info("Launching Python-orchestrated Windows bridge using config %s", config.config_path)
 
