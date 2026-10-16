@@ -2,9 +2,8 @@
 
 The Funestra plays the list and draws; Kino is what only the library side
 knows: which files are the same video at different qualities, the length modes,
-the compilation a clip belongs to and the scene it was cut from, the funscript
-jumps, the mode written down for the next session, and the loop a video is
-being marked into.  The Funestra asks Kino about every command first, gives it
+the compilation a clip belongs to and the scene it was cut from, the mode
+written down for the next session, and the loop a video is being marked into.  The Funestra asks Kino about every command first, gives it
 a pass of its own each frame before the playback advances, publishes its lines
 after its own, and heads the console with what Kino says it is playing.
 """
@@ -17,7 +16,6 @@ from funestra.console_hud import ModeHud
 
 from .clip_jumps import ClipJumps
 from .controls import KinoControls, apply_command
-from .funscript_jumps import FunscriptJumps
 from .loop_machine import LoopMachine
 from .modes import Modes, reload_playlist
 from .status import status_fields
@@ -43,7 +41,6 @@ class Kino:
         self._controls = KinoControls(
             playback=playback, loops=self._loops, versions=self._modes.versions,
             modes=self._modes, jumps=self._jumps,
-            funscript_jumps=FunscriptJumps(playback, notices),
             reload_playlist=partial(reload_playlist, playback, self._jumps, resolve_playlist),
         )
         self._loads_seen: int | None = None

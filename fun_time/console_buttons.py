@@ -23,6 +23,7 @@ from .funestra_buttons import (
     PREV_FACE,
     TRASH_ICON,
     browse_order_buttons,
+    funscript_jump_button,
     lit_or_remembered,
     lock_button,
     minimize_button,
@@ -80,7 +81,6 @@ FLAT_ICON = shared_mark("flat_2d")
 COMPILATION_ICON = shared_mark("compilation")
 CLIP_TO_SCENE_ICON = shared_mark("clip_to_scene")
 SCENE_TO_CLIP_ICON = shared_mark("scene_to_clip")
-FUNSCRIPT_JUMP_ICON = shared_mark("funscript_jump")
 FLIP_ENDS_ICON = shared_mark("flip_ends")
 
 MODE_BUTTONS = (
@@ -283,9 +283,7 @@ def _flick_seconds_row() -> tuple[Button, ...]:
 def _control_row(slot: MainSlot) -> tuple[Button, ...]:
     return (
         *aim_row(learned=slot.learned, shape=slot.shape, control=slot.osr2_control),
-        *((
-            Button("main_player_funscript_jump", FUNSCRIPT_JUMP_ICON,
-                   "Skip ahead to where this video's scripting starts up again",
-                   group_break=True),
-        ) if kino_shows(slot.main_mode) else ()),
+        *((funscript_jump_button("main_player_funscript_jump", noun=MAIN_FUNESTRA_NOUN,
+                                 group_break=True),)
+          if kino_shows(slot.main_mode) else ()),
     )

@@ -14,6 +14,7 @@ RESET_ICON = shared_mark("reset")
 SHUFFLE_ICON = shared_mark("shuffle")
 LATEST_ICON = shared_mark("latest")
 VERSIONS_ICON = shared_mark("versions")
+FUNSCRIPT_JUMP_ICON = shared_mark("funscript_jump")
 _NONE_FOR_THIS_ONE = " (none for this one)"
 MAIN_FUNESTRA_NOUN = "video"
 SATELLITE_NOUN = "clip"
@@ -64,6 +65,12 @@ def browse_order_buttons(funestra: str, *, latest: bool | None,
         Button(f"{funestra}_latest", LATEST_ICON, f"{LATEST_LABEL} — reload it newest-first",
                **lit_or_remembered(latest, remembered)),
     )
+
+
+def funscript_jump_button(command: str, *, noun: str, group_break: bool = False) -> Button:
+    return Button(command, FUNSCRIPT_JUMP_ICON,
+                  f"Skip ahead to where this {noun}'s scripting starts up again",
+                  group_break=group_break)
 
 
 def versions_button(command: str, *, noun: str, has_other_versions: bool) -> Button:

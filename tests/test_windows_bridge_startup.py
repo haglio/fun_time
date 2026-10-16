@@ -1818,6 +1818,7 @@ def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry()
             command=Path("state/portrait_cmd.txt"),
             paused=Path("state/portrait_paused.txt"),
             status=Path("state/portrait_status.txt"),
+            notice=Path("state/portrait_notice.txt"),
             play_points=Path("state/portrait_play_points.json")),
         placement=WindowPlacement(x=2560, y=0, width=1440, height=2500,
                                   title="Portrait AI Funestra"),
@@ -1832,6 +1833,7 @@ def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry()
     assert Path(_val("--command-file")) == Path("state/portrait_cmd.txt")
     assert Path(_val("--paused-file")) == Path("state/portrait_paused.txt")
     assert Path(_val("--status-file")) == Path("state/portrait_status.txt")
+    assert Path(_val("--notice-file")) == Path("state/portrait_notice.txt")
     assert Path(_val("--play-points-file")) == Path("state/portrait_play_points.json")
     assert (_val("--x"), _val("--y"), _val("--width"), _val("--height")) == ("2560", "0", "1440", "2500")
 

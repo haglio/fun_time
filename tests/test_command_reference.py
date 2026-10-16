@@ -407,7 +407,8 @@ def test_the_navigation_rows_are_the_steps_the_nudges_the_scenes_then_what_is_do
     assert [row.description for row in navigation.rows] == [
         "previous", "next", "nudge back 10 seconds", "nudge forward 10 seconds",
         "previous scene in the video", "next scene in the video", "weird", "lock / unlock",
-        "cycle enhancement level", "clip navigation", "navigate the map", "cycle loop mode"]
+        "cycle enhancement level", "clip navigation", "jump to funscript", "next funscripted",
+        "navigate the map", "cycle loop mode"]
     assert (back.voice, forward.voice) == (("back",), ("skip",))
     assert (back.detail, forward.detail) == ("", "")
     assert (back.key_columns, forward.key_columns) == (((), (), ("-",)), ((), (), ("+",)))
@@ -716,8 +717,7 @@ def test_what_only_kino_answers_is_the_loops_group_or_rides_a_shared_navigation_
     in_loops = {cmd for row in loops.rows for cmd in row.commands}
     navigation = {cmd for row in _group("Funestras", "Navigation").rows for cmd in row.commands}
 
-    assert [row.description for row in loops.rows] == [
-        "loop control", "save loop", "jump to funscript", "next funscripted"]
+    assert [row.description for row in loops.rows] == ["loop control", "save loop"]
     assert loops.rows[0].detail == (
         "hold to start recording a loop, release to end recording, and tap again to "
         "terminate a recorded loop")
@@ -1433,7 +1433,7 @@ def test_funscript_row_shows_the_joined_word_the_recognizer_cannot_hear():
     """The small vosk model has no "funscript" token, so the recognizer listens
     for "fun script" — but nobody says it that way, and reading it in the popup
     would teach the wrong phrase."""
-    assert VOICE_COMMANDS["jump to fun script"] == "main_player_funscript_jump"
+    assert VOICE_COMMANDS["jump to fun script"] == "active_funscript_jump"
     assert "jump to funscript" not in VOICE_COMMANDS  # display-only
 
     jump, next_scripted = _the_row_of("main_player_funscript_jump"), _the_row_of("main_player_next_funscripted")
@@ -1441,6 +1441,10 @@ def test_funscript_row_shows_the_joined_word_the_recognizer_cannot_hear():
     assert (next_scripted.description, next_scripted.voice) == ("next funscripted", ("next funscripted",))
     assert jump.detail and next_scripted.detail
     assert _keys(jump) == _keys(next_scripted) == ()
+    assert {"active_funscript_jump", "portrait_funscript_jump", "landscape_funscript_jump",
+            "satellites_funscript_jump"} <= set(jump.commands)
+    assert {"active_next_funscripted", "satellites_next_funscripted"} <= set(next_scripted.commands)
+    assert jump in _group("Funestras", "Navigation").rows
     for row in _all_rows():
         for phrase in row.voice:
             assert "fun script" not in phrase, phrase

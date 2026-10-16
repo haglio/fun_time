@@ -404,6 +404,15 @@ _SECTIONS: tuple[_Section, ...] = (
                               "main_player_full_vid", "main_player_clip_jump"),
                 ),
                 _Row(
+                    "jump to funscript — skips ahead to where the scripting starts up again",
+                    commands=_sided("funscript_jump") + ("main_player_funscript_jump",),
+                ),
+                _Row(
+                    "next funscripted — the next scripted video or clip in the playlist, "
+                    "landing where its action begins",
+                    commands=_sided("next_funscripted") + ("main_player_next_funscripted",),
+                ),
+                _Row(
                     "navigate the map — move the lit cell up or down its column of "
                     "acts, switching to that one",
                     commands=("portrait_nav_up", "portrait_nav_down",
@@ -579,18 +588,6 @@ _SECTIONS: tuple[_Section, ...] = (
                     f"save loop — save loop to send to Genaumacher to produce a new Genau {_FLICK.one}",
                     (";",),
                     ("genaumacher_save",),
-                ),
-                _Row(
-                    "jump to funscript — skips ahead to where this video's scripting "
-                    "starts up again",
-                    (),
-                    ("main_player_funscript_jump",),
-                ),
-                _Row(
-                    "next funscripted — the next scripted video in the playlist, landing "
-                    "where its action begins",
-                    (),
-                    ("main_player_next_funscripted",),
                 ),
             )),
         ),

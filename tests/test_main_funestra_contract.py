@@ -13,6 +13,7 @@ def _args(*extra: str):
         "--command-file", "C:/state/main_player_cmd.txt",
         "--paused-file", "C:/state/main_player_paused.txt",
         "--status-file", "C:/state/main_player_status.txt",
+        "--notice-file", "C:/state/main_player_notice.txt",
         "--state-dir", "C:/state",
         "--console-file", "C:/state/main_player_console.json",
         "--drive-file", "C:/state/genau_drive.txt",
@@ -29,6 +30,7 @@ def test_every_file_fun_time_names_lands_on_its_channel():
     assert channels.command == Path("C:/state/main_player_cmd.txt")
     assert channels.paused == Path("C:/state/main_player_paused.txt")
     assert channels.status == Path("C:/state/main_player_status.txt")
+    assert channels.notice == Path("C:/state/main_player_notice.txt")
     assert channels.console == Path("C:/state/main_player_console.json")
     assert channels.drive == Path("C:/state/genau_drive.txt")
     assert channels.dashboard_cmd == Path("C:/state/dashboard_cmd.txt")

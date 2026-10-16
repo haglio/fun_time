@@ -202,12 +202,6 @@ def build_voice_commands(
         "end compilation": "main_player_end_compilation",
         "full video": "main_player_full_vid",
         "full vid": "main_player_full_vid",
-        # Funscript navigation.  A scripted video is mostly not scripted — the action
-        # comes in runs with quiet stretches between them — so one phrase skips the
-        # stretch you are in and the other gives up on the video entirely for the next
-        # one that has a script, landing on its action rather than at its top.
-        "jump to fun script": "main_player_funscript_jump",
-        "next fun scripted": "main_player_next_funscripted",
         # The phrases for the clip jump are library vocabulary, so they come from
         # the content overlay and are merged in below rather than written here.
         # Nothing in these words names an engine, so they follow whichever holds
@@ -517,7 +511,16 @@ def build_voice_commands(
             ("one", 100), ("one point two five", 125), ("one point five", 150),
             ("one point seven five", 175), ("two", 200))},
     }
-    for _phrase, _act in _PLAYBACK_SPEEDS.items():
+    # Funscript navigation, said the same way.  A scripted video is mostly not
+    # scripted — the action comes in runs with quiet stretches between them — so
+    # one phrase skips the stretch you are in and the other gives up on the video
+    # entirely for the next one that has a script, landing on its action rather
+    # than at its top.
+    _FUNSCRIPT_MOVES: dict[str, str] = {
+        "jump to fun script": "funscript_jump",
+        "next fun scripted": "next_funscripted",
+    }
+    for _phrase, _act in {**_PLAYBACK_SPEEDS, **_FUNSCRIPT_MOVES}.items():
         commands[_phrase] = f"active_{_act}"
         for _funestra_word in _FUNESTRA_WORDS:
             _funestra = "main_player" if _funestra_word == "main" else _funestra_word

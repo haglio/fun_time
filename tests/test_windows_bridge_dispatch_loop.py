@@ -457,6 +457,15 @@ class TestResolveActiveSideCommand:
         assert resolve_active_funestra_command("active_next", 1) == "main_next"
         assert resolve_active_funestra_command("active_prev", 1) == "main_prev"
 
+    def test_the_funscript_moves_follow_the_funestra_last_navigated_the_main_under_its_own_ids(self):
+        for action, main in (("funscript_jump", "main_player_funscript_jump"),
+                             ("next_funscripted", "main_player_next_funscripted")):
+            assert resolve_active_funestra_command(f"active_{action}", 1) == main
+            assert resolve_active_funestra_command(f"active_{action}", 2) == f"portrait_{action}"
+            assert resolve_active_funestra_command(f"active_{action}", 3) == f"landscape_{action}"
+            assert expand_group_command(f"satellites_{action}") == [
+                f"portrait_{action}", f"landscape_{action}"]
+
     def test_a_hosted_apps_phrase_said_bare_reaches_the_satellite_last_navigated(self):
         """Said with the Main Funestra active it resolves to nothing, as weird
         does: the Main Funestra hosts no slideshow."""
@@ -3631,6 +3640,18 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
 
         assert build_bridge_config_from_manifest(manifest).main_funestra_notice_file == (
             tmp_path / "elsewhere" / "notices.txt")
+
+    def test_each_satellites_notice_channel_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
+        manifest = self._manifest(
+            cfg_factory, tmp_path,
+            portrait_notice_file=str(tmp_path / "elsewhere" / "portrait_notice.txt"),
+            landscape_notice_file=str(tmp_path / "elsewhere" / "landscape_notice.txt"))
+
+        config = build_bridge_config_from_manifest(manifest)
+
+        assert config.satellite(RoomFunestra.PORTRAIT).notice_file == (
+            tmp_path / "elsewhere" / "portrait_notice.txt")
+        assert config.landscape_notice_file == tmp_path / "elsewhere" / "landscape_notice.txt"
 
 
 class TestTheFunestrasComeHome:

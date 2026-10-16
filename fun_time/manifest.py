@@ -27,8 +27,8 @@ def _satellite_files(config) -> dict[str, str]:
     return {
         f"{funestra.label}_{name}": str(getattr(config.satellite(funestra), name))
         for funestra in RoomFunestra.SATELLITES
-        for name in ("cmd_file", "paused_file", "status_file", "playlist_file", "hud_file",
-                     "origenerator_hud_file")
+        for name in ("cmd_file", "paused_file", "status_file", "notice_file", "playlist_file",
+                     "hud_file", "origenerator_hud_file")
     }
 
 
@@ -225,11 +225,13 @@ class CommandFiles:
     portrait_status_file: str
     portrait_playlist_file: str
     portrait_hud_file: str
+    portrait_notice_file: str
     landscape_cmd_file: str
     landscape_paused_file: str
     landscape_status_file: str
     landscape_playlist_file: str
     landscape_hud_file: str
+    landscape_notice_file: str
     broker_cmd_file: str
     broker_heartbeat_file: str
     audio_paused_file: str

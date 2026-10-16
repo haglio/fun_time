@@ -34,8 +34,10 @@ from funestra.funestra import Channels, Funestra
 from funestra.funestra_controls import FunestraControls
 from funestra.funestra_controls import apply_command as apply_satellite_command
 from funestra.funestra_verbs import SHOW
+from funestra.funscript_jumps import FunscriptJumps
 from funestra.genau_controls import VERBS as GENAU_VERBS
 from funestra.modes import MainMode
+from funestra.notices import NoticeWriter
 from funestra.playback import Playback
 from funestra.playlist import read_playlist
 
@@ -54,8 +56,8 @@ from main_funestra import controls as main_funestra_controls
 from main_funestra.clip_nav import ClipNav
 from main_funestra.kino import Kino
 from main_funestra.mode_memory import ModeMemory, RememberedMode
-from main_funestra.notice import NoticeWriter
-from tests.dispatch_sweep import every_command, headset_config, sweep
+from tests.made_up_genau import made_up_genau
+from tests.origenerator_contract import answers
 from tests.satellite_fakes import FakeSatelliteEngine
 from tests.test_windows_bridge_dispatch_loop import make_runner
 
@@ -267,7 +269,8 @@ class TestTheSatellites:
                 handled = apply_satellite_command(
                     _a_satellite_line(verb, clips[0]),
                     FunestraControls(session, reload_playlist=lambda: None,
-                                     volume=SimpleNamespace(set=lambda volume, muted: None)),
+                                     volume=SimpleNamespace(set=lambda volume, muted: None),
+                                     funscript_jumps=FunscriptJumps(session, NoticeWriter(None))),
                 )
                 if not handled:
                     dead[verb] = where
@@ -323,6 +326,9 @@ _UNANSWERED_BY_THE_HOSTED_APP: dict[str, str] = {
                   "says, and has no ten-second step through one",
     "nudge_prev": "a slideshow holds each picture or video for as long as its own pace "
                   "says, and has no ten-second step through one",
+    "funscript_jump": "a slideshow's pictures carry no funscript to jump through",
+    "next_funscripted": "a slideshow's pictures carry no funscript, so none is the next "
+                        "scripted one",
 }
 
 

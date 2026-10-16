@@ -46,7 +46,15 @@ from .dashboard_actions import (
 )
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, SatelliteLine
-from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_SYSTEM, notice
+from .event_log import (
+    FAVORITE,
+    NOTICE,
+    SOURCE_LANDSCAPE,
+    SOURCE_MAIN,
+    SOURCE_PORTRAIT,
+    SOURCE_SYSTEM,
+    notice,
+)
 from .funestra_handover import PanelStamp, hand_back, let_go_since, panel_stamp
 from .funestra_settings import read_funestra_reports, with_what_the_funestras_report
 from .funestra_status import (
@@ -110,20 +118,13 @@ from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 logger = logging.getLogger(__name__)
 
 
-# What the Main Funestra's own notice levels mean here.  The Main Funestra has no palette — it names the kind
-# of thing that happened and this side picks the color, the same way the ops
-# raised in :mod:`fun_time.command_dispatch` do.
-_MAIN_FUNESTRA_NOTICE_LEVELS = {NoticeLevel.WARNING: logging.WARNING, NoticeLevel.HIGHLIGHT: FAVORITE}
+_NOTICE_LEVELS = {NoticeLevel.WARNING: logging.WARNING, NoticeLevel.HIGHLIGHT: FAVORITE}
 
 
-
-def read_main_funestra_notice(path) -> tuple[float, NoticeLevel, str]:
-    """the Main Funestra's latest one-shot notice as (sequence, level, message).
-
-    The Main Funestra bumps the sequence whenever it raises one; (0, "", "") means there is
-    nothing to read. Only the Main Funestra knows whether a clip jump had a target, so this is
-    how "full video not available" reaches the overlay.
-    """
+def read_funestra_notice(path) -> tuple[float, NoticeLevel, str]:
+    """A Funestra's latest one-shot notice as (sequence, level, message); the
+    Funestra bumps the sequence whenever it raises one, and (0, "", "") means
+    there is nothing to read."""
     try:
         values = dict(
             line.split("=", 1)
@@ -169,6 +170,8 @@ _MAIN_EQUIVALENTS = {
     "prev": "main_prev",
     "nudge_next": "main_nudge_next",
     "nudge_prev": "main_nudge_prev",
+    "funscript_jump": "main_player_funscript_jump",
+    "next_funscripted": "main_player_next_funscripted",
     "no_loop": "main_player_loop_cancel",
     "lock_on": "main_lock_on",
     "lock_off": "main_lock_off",
@@ -318,9 +321,8 @@ class DispatchLoopRunner:
         self._batching_rfb = False
         # Latch whatever is already on disk, so a notice left over from a
         # previous session does not flash the moment this one opens.
-        self._last_main_funestra_notice_seq = read_main_funestra_notice(
-            getattr(config, "main_funestra_notice_file", None) or Path("main_player_notice.txt")
-        )[0]
+        self._last_notice_seq = {source: read_funestra_notice(path)[0]
+                                 for source, path in self._notice_channels().items()}
         self.voice_controller: VoiceController | None = None
         self.headset_off = False
         self._answers = 0
@@ -424,7 +426,7 @@ class DispatchLoopRunner:
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
-        self._flash_main_funestra_notice()
+        self._flash_funestra_notices()
 
         shared = read_shared_state(self.shared_state_file)
         if shared is not None:
@@ -558,25 +560,28 @@ class DispatchLoopRunner:
             return DURING_OMNIPAUSE
         return None
 
-    def _flash_main_funestra_notice(self) -> None:
-        """Surface anything the Main Funestra has raised since the last tick, once.
+    def _notice_channels(self) -> dict[str, Path]:
+        """Where each Funestra publishes its one-shot notices, by the source
+        its notices flash over."""
+        channels = ((SOURCE_MAIN, self.config.main_funestra_notice_file),
+                    *((source, self.config.satellite(funestra).notice_file)
+                      for source, funestra in ((SOURCE_PORTRAIT, RoomFunestra.PORTRAIT),
+                                               (SOURCE_LANDSCAPE, RoomFunestra.LANDSCAPE))))
+        return {source: path for source, path in channels if path is not None}
 
-        The Main Funestra names the kind rather than the color: a warning for a request
-        with nowhere to go, a highlight for one about a funscript — which is what
-        green is kept for here — and anything else is an ordinary white notice.
-        """
-        path = getattr(self.config, "main_funestra_notice_file", None)
-        if path is None:
-            return
-        seq, level, message = read_main_funestra_notice(path)
-        if seq <= self._last_main_funestra_notice_seq:
-            return
-        self._last_main_funestra_notice_seq = seq
-        if message:
-            notice(
-                logger, message, source="main",
-                level=_MAIN_FUNESTRA_NOTICE_LEVELS.get(level, NOTICE),
-            )
+    def _flash_funestra_notices(self) -> None:
+        """Surface anything a Funestra has raised since the last tick, once, over
+        that Funestra.  A Funestra names the kind rather than the color: a
+        warning for a request with nowhere to go, a highlight for one about a
+        funscript -- which is what green is kept for here -- and anything else
+        is an ordinary white notice."""
+        for source, path in self._notice_channels().items():
+            seq, level, message = read_funestra_notice(path)
+            if seq <= self._last_notice_seq.get(source, 0):
+                continue
+            self._last_notice_seq[source] = seq
+            if message:
+                notice(logger, message, source=source, level=_NOTICE_LEVELS.get(level, NOTICE))
 
     def _handle_line(self, line: CommandLine) -> None:
         source = notice_source(line.command, self.state.active_funestra)
@@ -1197,6 +1202,8 @@ def build_bridge_config_from_manifest(
         main_funestra_paused_file=Path(commands.main_funestra_paused_file),
         main_funestra_status_file=Path(commands.main_funestra_status_file),
         main_funestra_notice_file=Path(commands.main_funestra_notice_file),
+        portrait_notice_file=Path(commands.portrait_notice_file),
+        landscape_notice_file=Path(commands.landscape_notice_file),
         dashboard_state_file=Path(commands.dashboard_state_file),
         broker_cmd_file=Path(commands.broker_cmd_file),
         broker_heartbeat_file=Path(commands.broker_heartbeat_file),

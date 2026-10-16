@@ -2,8 +2,7 @@
 
 The Funestra asks Kino first and answers the rest itself, so what is pinned
 here is Kino's own vocabulary: the loop gestures, the versions, the length
-modes, the compilation and funscript jumps, and the playlist Kino reads through
-its library.
+modes, the compilation jumps, and the playlist Kino reads through its library.
 """
 from __future__ import annotations
 
@@ -29,7 +28,7 @@ class SpyPlayback:
 
 
 def _controls(**over) -> tuple[KinoControls, dict[str, Spy]]:
-    spies = {name: Spy() for name in ("loops", "versions", "modes", "jumps", "funscript_jumps")}
+    spies = {name: Spy() for name in ("loops", "versions", "modes", "jumps")}
     reloaded: list[int] = []
     controls = KinoControls(
         playback=SpyPlayback(), reload_playlist=lambda: reloaded.append(1), **spies, **over)
@@ -113,13 +112,11 @@ class TestTheLibrary:
 
         assert spies["jumps"].calls == [("play_compilation",), ("play_full_vid",), ("play_clip_jump",)]
 
-    def test_the_funscripts_own_two_moves(self):
-        controls, spies = _controls()
+    def test_the_funscript_moves_are_the_funestras_own_so_kino_leaves_them_to_it(self):
+        controls, _spies = _controls()
 
-        assert apply_command("JUMP_TO_FUNSCRIPT", controls) is True
-        assert apply_command("NEXT_FUNSCRIPTED", controls) is True
-
-        assert spies["funscript_jumps"].calls == [("jump_to_funscript",), ("next_funscripted",)]
+        assert apply_command("JUMP_TO_FUNSCRIPT", controls) is False
+        assert apply_command("NEXT_FUNSCRIPTED", controls) is False
 
     def test_reload_playlist_reads_the_list_through_the_library(self):
         controls, spies = _controls()
@@ -138,7 +135,6 @@ ACCEPTED_COMMANDS = [
     "RELOAD_PLAYLIST", "SET_LENGTH_MODE clips", "END_COMPILATION",
     "SET_F_MODE 1",
     "PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP",
-    "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED",
 ]
 
 

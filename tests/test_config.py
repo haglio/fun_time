@@ -473,6 +473,14 @@ class TestOrigeneratorPaths:
         assert cfg.satellite(RoomFunestra.LANDSCAPE).origenerator_hud_file == (
             state / "origenerator_landscape_hud.json")
 
+    def test_each_side_publishes_its_notices_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
+        """Where a satellite says what came of a funscript move, as the Main
+        Funestra does in main_player_notice.txt beside them."""
+        cfg = load_config(cfg_path)
+        state = (tmp_path / "state").resolve()
+        assert cfg.satellite(RoomFunestra.PORTRAIT).notice_file == state / "portrait_notice.txt"
+        assert cfg.satellite(RoomFunestra.LANDSCAPE).notice_file == state / "landscape_notice.txt"
+
 
 class TestTheProjectsOwnPaths:
     """Where this checkout is, computed once instead of at six call sites.

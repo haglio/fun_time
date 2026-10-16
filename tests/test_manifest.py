@@ -61,9 +61,11 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
         "main_funestra_cmd_file", "main_funestra_paused_file", "main_funestra_status_file",
         "main_funestra_console_file", "main_funestra_playlist_file",
         "portrait_cmd_file", "portrait_paused_file", "portrait_status_file",
-        "portrait_playlist_file", "portrait_hud_file", "portrait_origenerator_hud_file",
+        "portrait_playlist_file", "portrait_hud_file", "portrait_notice_file",
+        "portrait_origenerator_hud_file",
         "landscape_cmd_file", "landscape_paused_file", "landscape_status_file",
-        "landscape_playlist_file", "landscape_hud_file", "landscape_origenerator_hud_file",
+        "landscape_playlist_file", "landscape_hud_file", "landscape_notice_file",
+        "landscape_origenerator_hud_file",
         "broker_cmd_file", "broker_heartbeat_file", "broker_state_dir",
         "broker_tray_launcher", "audio_paused_file", "audio_volume_file",
         "dashboard_state_file", "dashboard_cmd_file",
@@ -193,6 +195,7 @@ class TestReadingItBack:
         assert commands.funestra_file("portrait", "hud") == commands.portrait_hud_file
         assert commands.funestra_file("landscape", "cmd") == commands.landscape_cmd_file
         assert commands.funestra_file("portrait", "playlist") == commands.portrait_playlist_file
+        assert commands.funestra_file("landscape", "notice") == commands.landscape_notice_file
         assert (commands.funestra_file("landscape", "origenerator_hud")
                 == commands.landscape_origenerator_hud_file)
 
