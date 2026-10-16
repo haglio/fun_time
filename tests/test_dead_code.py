@@ -334,7 +334,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6105 when the OSR2's four control buttons became one switch, it counted as
 # off once it went quiet, and the broker's verbs came from app_support, so the
 # notes on Control off, on what was sent to it and on a one-verb channel went.
-MAX_PROSE_LINES = 6105
+# 6099 on 2026-10-16: a paused room hears enter VR, exit VR, recenter and VR
+# reset too, and the note on why it heard only three went.
+MAX_PROSE_LINES = 6099
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

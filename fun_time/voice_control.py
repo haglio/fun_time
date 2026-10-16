@@ -84,15 +84,12 @@ def _source_for_heard_text(text: str) -> str:
             return source
     return SOURCE_SYSTEM
 
-# Omnipause suspends the AHK hotkeys wholesale and exempts exactly three: Esc,
-# which resumes, Ctrl+Alt+Q, which quits, and Shift+Esc, which retracts the OSR2
-# (``#SuspendExempt`` in windows_bridge_hotkeys.ahk).  Voice mirrors those three
-# and adds nothing — "play" resumes, "quit" quits, "relief omnipause"
-# retracts, and that last one has to reach a room that is ALREADY paused, because
-# a paused session can still have the device on the user.  Nothing else a paused
-# room says reaches the dispatch loop.  Widening this set is the owner's call --
-# see CLAUDE.md, "Standing rules", and the test that pins the whole frozenset.
-SUSPEND_EXEMPT_COMMANDS: frozenset[str] = frozenset({"play", "quit", "relief_omnipause"})
+# The three keys a pause leaves live (#SuspendExempt in windows_bridge_hotkeys.ahk),
+# spoken, and the headset's four.  What a paused room hears is his call: CLAUDE.md.
+SUSPEND_EXEMPT_COMMANDS: frozenset[str] = frozenset({
+    "play", "quit", "relief_omnipause",
+    "enter_vr", "exit_vr", "recenter_view", "vr_reset",
+})
 
 
 @dataclass(frozen=True)

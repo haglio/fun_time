@@ -24,7 +24,6 @@ from fun_time.voice_commands import (
     friendly_voice,
     parse_command_line,
 )
-from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
 
 
 class TestCommandLineFormat:
@@ -79,11 +78,6 @@ class TestTheSpokenCrossing:
     )
     def test_the_reference_and_the_notices_show_one_spelling(self, phrase, shown):
         assert friendly_voice(phrase) == shown
-
-    def test_the_crossing_is_not_exempt_from_omnipause(self):
-        """A paused room answers three verbs, and taking the session away is
-        not among them — so a phrase misheard while paused cannot cross."""
-        assert {"enter_vr", "exit_vr"}.isdisjoint(SUSPEND_EXEMPT_COMMANDS)
 
 
 class TestTheVrReset:
