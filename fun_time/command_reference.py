@@ -188,6 +188,12 @@ _SPEED_VOICE = ("min speed", "max speed", "half speed", "double speed", "reset s
 _SPEED_STEPS = ("speed_min", "speed_max", "speed_25", "speed_50", "speed_75", "speed_100",
                 "speed_125", "speed_150", "speed_175", "speed_200")
 _HUD_CORNERS = ("upper_left", "upper_right", "lower_left", "lower_right")
+_HUD_MOVE_KEYS = {
+    "left": ("Ctrl+Left", "Ctrl+A", "Ctrl+M"),
+    "right": ("Ctrl+Right", "Ctrl+D", "Ctrl+."),
+    "up": ("Ctrl+Up", "Ctrl+W", "Ctrl+K"),
+    "down": ("Ctrl+Down", "Ctrl+S", "Ctrl+,"),
+}
 _MAIN_SOUND = ("audio_volume_down", "audio_volume_up", "audio_mute", "audio_unmute")
 
 _SECTIONS: tuple[_Section, ...] = (
@@ -432,28 +438,22 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row("mute / unmute", commands=_sided("mute", "unmute") + _MAIN_SOUND[2:]),
             )),
             _Group("HUD", (
+                *(_Row(f"HUD {direction}",
+                       commands=tuple(f"{scope}_hud_{direction}" for scope in ("portrait", "landscape", "main")),
+                       columns=tuple((key,) for key in keys))
+                  for direction, keys in _HUD_MOVE_KEYS.items()),
                 _Row(
-                    "relocate the HUD — round the corners of the picture, or against a "
-                    "side of the Funestra in the headset, the Main Funestra's pair "
-                    "walking the ring.  Said with a corner (\"top left\", \"lower "
-                    "right\"; \"move\" may lead, \"upper\" says the same as \"top\" and "
-                    "\"bottom\" the same as \"lower\") "
-                    "it goes straight there, in the headset an upper corner hanging it "
-                    "over the Funestra's top edge and a lower one under its lower edge.  "
-                    "A click in a corner of the picture sends it there and opens it, "
-                    "and so does a squeeze on the plus beside a side of the Funestra in "
-                    "the headset",
-                    commands=(
-                        "portrait_hud_left", "portrait_hud_right", "portrait_hud_up", "portrait_hud_down",
-                        "landscape_hud_left", "landscape_hud_right", "landscape_hud_up", "landscape_hud_down",
-                        "main_hud_counterclockwise", "main_hud_clockwise",
-                    ) + _every_funestra(*(f"hud_{corner}" for corner in _HUD_CORNERS)),
+                    "HUD to a corner — said with a corner (\"top left\", \"lower right\"; "
+                    "\"move\" may lead, \"upper\" says the same as \"top\" and \"bottom\" "
+                    "the same as \"lower\") it goes straight there, in the headset an "
+                    "upper corner hanging it over the Funestra's top edge and a lower one "
+                    "under its lower edge.  A click in a corner of the picture sends it "
+                    "there and opens it, and so does a squeeze on the plus beside a side "
+                    "of the Funestra in the headset",
+                    commands=_every_funestra(*(f"hud_{corner}" for corner in _HUD_CORNERS)),
                     voice_display=("hud top left", "hud upper left", "hud top right", "hud upper right",
                                    "hud lower left", "hud bottom left", "hud lower right",
                                    "hud bottom right"),
-                    columns=(("Ctrl+Left", "Ctrl+Right", "Ctrl+Up", "Ctrl+Down"),
-                             ("Ctrl+A", "Ctrl+D", "Ctrl+W", "Ctrl+S"),
-                             ("Ctrl+M", "Ctrl+.")),
                     controller=(TRIGGER,),
                 ),
                 _Row(

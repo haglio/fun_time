@@ -467,9 +467,8 @@ _MINIMIZE_ROLES: dict[str, str] = {
 
 
 _HUD_MOVES = {f"{funestra.label}_hud_{direction}": (funestra, direction)
-              for funestra in RoomFunestra.SATELLITES
+              for funestra in (*RoomFunestra.SATELLITES, RoomFunestra.MAIN)
               for direction in ("left", "right", "up", "down")}
-MAIN_HUD_TURNS = {"main_hud_clockwise": True, "main_hud_counterclockwise": False}
 _HUD_PLACEMENTS = {f"{funestra.label}_hud_{corner.value}": (funestra, corner)
                    for funestra in (*RoomFunestra.SATELLITES, RoomFunestra.MAIN)
                    for corner in HudCorner}
@@ -492,6 +491,18 @@ def _restored_at(command: str, state: BridgeState,
     if config.vr_main_funestra:
         return _hung_open_against(funestra, place, state)
     return _opened_in(funestra, place, state, config)
+
+
+def _hud_corner_of(funestra: RoomFunestra, state: BridgeState) -> HudCorner:
+    if funestra is RoomFunestra.MAIN:
+        return state.main_hud_corner
+    return state.satellite(funestra).hud_corner
+
+
+def _hud_edge_of(funestra: RoomFunestra, state: BridgeState) -> HudEdge:
+    if funestra is RoomFunestra.MAIN:
+        return state.main_hud_edge
+    return state.satellite(funestra).hud_edge
 
 
 def _hung_against(funestra: RoomFunestra, edge: HudEdge, state: BridgeState) -> BridgeState:
@@ -547,31 +558,16 @@ def _moved_hud(command: str, state: BridgeState,
     moved = _HUD_MOVES.get(command)
     if moved is not None:
         funestra, direction = moved
-        return _satellite_hud_moved(funestra, state, config, direction=direction)
+        if config.vr_main_funestra:
+            return _hung_against(funestra, _hud_edge_of(funestra, state).toward(direction), state)
+        return _put_in(funestra, _hud_corner_of(funestra, state).toward(direction), state, config)
     placed = _HUD_PLACEMENTS.get(command)
     if placed is not None:
         funestra, corner = placed
         if config.vr_main_funestra:
             return _hung_against(funestra, HudEdge.LOWER if corner.lower else HudEdge.UPPER, state)
         return _put_in(funestra, corner, state, config)
-    if command in MAIN_HUD_TURNS:
-        clockwise = MAIN_HUD_TURNS[command]
-        if config.vr_main_funestra:
-            return replace(state, main_hud_edge=state.main_hud_edge.turned(
-                clockwise=clockwise))
-        return replace(state, main_hud_corner=state.main_hud_corner.turned(
-            clockwise=clockwise))
     return None
-
-
-def _satellite_hud_moved(funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, *,
-                         direction: str) -> BridgeState:
-    side = state.satellite(funestra)
-    if config.vr_main_funestra:
-        return state.with_satellite(funestra, hud_edge=side.hud_edge.toward(direction))
-    corner = side.hud_corner.toward(direction)
-    _tell_the_hosted_app(funestra, f"hud_corner|{corner}", state, config)
-    return state.with_satellite(funestra, hud_corner=corner)
 
 
 def _tell_the_hosted_app(funestra: RoomFunestra, action: str, state: BridgeState,

@@ -144,11 +144,11 @@ e::QueueCommand("landscape_loop")
 +Down::QueueCommand("portrait_nav_down")
 +w::QueueCommand("landscape_nav_up")
 +s::QueueCommand("landscape_nav_down")
-; Where each Funestra's HUD sits.  Ctrl and the side's own step keys move that
-; Funestra's HUD: round the four corners of its picture on the desktop, against a
-; side of its Funestra in the headset.  The Main Funestra has one pair of keys
-; rather than a cluster, so its HUD walks the ring on Ctrl and its own step keys:
-; Ctrl+M against the clock, Ctrl+. with it.
+; Where each Funestra's HUD sits.  Ctrl and the Funestra's own step keys move its
+; HUD a step toward that side: round the four corners of its picture on the
+; desktop, against a side of its Funestra in the headset.  The Main Funestra
+; steps on M and the period, so its up and down are K and the comma, the keys
+; above and below them.
 ^Left::QueueCommand("portrait_hud_left")
 ^Right::QueueCommand("portrait_hud_right")
 ^Up::QueueCommand("portrait_hud_up")
@@ -157,8 +157,10 @@ e::QueueCommand("landscape_loop")
 ^d::QueueCommand("landscape_hud_right")
 ^w::QueueCommand("landscape_hud_up")
 ^s::QueueCommand("landscape_hud_down")
-^m::QueueCommand("main_hud_counterclockwise")
-^SC034::QueueCommand("main_hud_clockwise")
+^m::QueueCommand("main_hud_left")
+^SC034::QueueCommand("main_hud_right")
+^k::QueueCommand("main_hud_up")
+^SC033::QueueCommand("main_hud_down")
 
 ; Save loop is the semicolon, bound by scancode because a bare ; opens a comment in AHK.
 SC027::QueueCommand("genaumacher_save")

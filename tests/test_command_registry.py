@@ -69,7 +69,6 @@ _NAV_IDS = frozenset(
 #: tables, so a side or a verb added there needs nothing added here.
 _HUD_PLACE_IDS = (frozenset(command_dispatch._HUD_MOVES)
                   | frozenset(command_dispatch._HUD_PLACEMENTS)
-                  | frozenset(command_dispatch.MAIN_HUD_TURNS)
                   | frozenset(command_dispatch._HUD_COLLAPSES))
 
 

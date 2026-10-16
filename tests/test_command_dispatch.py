@@ -5088,25 +5088,40 @@ class TestWhereEachHudSits:
         assert state.satellite(RoomFunestra.PORTRAIT).hud_corner is HudCorner.LOWER_RIGHT
         assert state.satellite(RoomFunestra.LANDSCAPE).hud_corner is HudCorner.UPPER_LEFT
 
-    def test_the_main_funestras_pair_of_keys_walks_its_hud_round(self, tmp_path):
+    def test_the_main_funestras_keys_move_its_hud_toward_a_side_as_a_satellites_do(self, tmp_path):
+        """Four directions, not a ring: the same step the satellites' keys take,
+        on the Main Funestra's own corner."""
         config = _make_config(tmp_path)
 
-        state, _ops = dispatch_command("main_hud_clockwise", BridgeState(), config)
-        assert state.main_hud_corner is HudCorner.UPPER_RIGHT
-
-        state, _ops = dispatch_command("main_hud_counterclockwise", state, config)
+        state, _ops = dispatch_command("main_hud_right", BridgeState(), config)
+        state, _ops = dispatch_command("main_hud_down", state, config)
+        assert state.main_hud_corner is HudCorner.LOWER_RIGHT
+        state, _ops = dispatch_command("main_hud_left", state, config)
+        assert state.main_hud_corner is HudCorner.LOWER_LEFT
+        state, _ops = dispatch_command("main_hud_up", state, config)
         assert state.main_hud_corner is HudCorner.UPPER_LEFT
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_corner is HudCorner.UPPER_LEFT
+
+    def test_the_ring_the_main_funestras_hud_walked_is_gone(self, tmp_path):
+        config = _make_config(tmp_path)
+
+        for retired in ("main_hud_clockwise", "main_hud_counterclockwise"):
+            state, _ops = dispatch_command(retired, BridgeState(), config)
+            assert state == BridgeState(), retired
 
     def test_in_the_headset_the_same_keys_put_the_hud_against_a_side(self, tmp_path):
         config = _make_config(tmp_path, vr_main_funestra=True)
 
         state, _ops = dispatch_command("landscape_hud_up", BridgeState(), config)
-        state, _ops = dispatch_command("main_hud_clockwise", state, config)
+        state, _ops = dispatch_command("main_hud_left", state, config)
 
         assert state.satellite(RoomFunestra.LANDSCAPE).hud_edge is HudEdge.UPPER
         assert state.main_hud_edge is HudEdge.LEFT
         assert state.satellite(RoomFunestra.LANDSCAPE).hud_corner is HudCorner.UPPER_LEFT
         assert state.main_hud_corner is HudCorner.UPPER_LEFT
+
+        state, _ops = dispatch_command("main_hud_up", state, config)
+        assert state.main_hud_edge is HudEdge.UPPER
 
     def test_a_hud_starts_against_the_lower_side_in_the_headset(self):
         assert BridgeState().main_hud_edge is HudEdge.LOWER

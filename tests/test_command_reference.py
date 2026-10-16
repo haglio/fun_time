@@ -761,19 +761,21 @@ def test_the_main_funestras_step_and_hold_keys_reach_whatever_is_on_it():
 
 
 def test_the_shifted_and_ctrl_pairs_followed_m_and_the_period():
-    """The video's other versions and the Main Funestra's HUD walk on Shift
-    and Ctrl with the same two keys the bare step uses, as the satellites'
-    shifted and Ctrl pairs ride their own step keys."""
+    """The video's other versions walk on Shift with the same two keys the
+    bare step uses, and the Main Funestra's HUD moves on Ctrl with them and
+    with the keys above and below them, as the satellites' shifted and Ctrl
+    clusters ride their own step keys."""
     assert _ahk_bindings_for("main_player_cycle_version_back") == ["+m"]
     assert _ahk_bindings_for("main_player_cycle_version") == ["+SC034"]
-    assert _ahk_bindings_for("main_hud_counterclockwise") == ["^m"]
-    assert _ahk_bindings_for("main_hud_clockwise") == ["^SC034"]
+    assert _ahk_bindings_for("main_hud_left") == ["^m"]
+    assert _ahk_bindings_for("main_hud_right") == ["^SC034"]
+    assert _ahk_bindings_for("main_hud_up") == ["^k"]
+    assert _ahk_bindings_for("main_hud_down") == ["^SC033"]
     assert not re.search(r"^[+^]?(\[|\]|SC01A|SC01B)::", script_text(), re.MULTILINE)
+    assert "clockwise" not in script_text()
     assert _the_row_of("main_player_cycle_version_back").key_columns[2] == ("Shift+M", "Shift+.")
-    hud = next(r for r in _funestras_section().rows if "main_hud_clockwise" in r.commands)
-    assert hud.key_columns == (("Ctrl+Left", "Ctrl+Right", "Ctrl+Up", "Ctrl+Down"),
-                               ("Ctrl+A", "Ctrl+D", "Ctrl+W", "Ctrl+S"),
-                               ("Ctrl+M", "Ctrl+."))
+    assert [_the_row_of(f"main_hud_{direction}").key_columns[2] for direction in
+            ("left", "right", "up", "down")] == [("Ctrl+M",), ("Ctrl+.",), ("Ctrl+K",), ("Ctrl+,",)]
 
 
 def test_the_backslash_key_offsets_the_hand_and_the_browser_has_its_own_key():
@@ -895,7 +897,7 @@ def test_corrected_descriptions():
 
 
 _NAMES_AN_ACTION_MAY_OPEN_WITH = frozenset(
-    {"OmniPause", "F-mode", "VR", "Kino", "Genau", "Origenerator", "OSR2"})
+    {"OmniPause", "F-mode", "VR", "Kino", "Genau", "Origenerator", "OSR2", "HUD"})
 
 
 def test_an_action_opens_lowercase_unless_it_opens_with_a_name():
@@ -979,19 +981,29 @@ def test_the_osr2s_control_is_one_row_park_and_its_undoing_word():
     assert _keys(control) == ()
 
 
-def test_one_row_relocates_the_hud_by_key_round_the_picture_and_by_name_to_a_corner():
-    row = next(r for r in _funestras_section().rows if "main_hud_upper_left" in r.commands)
+def test_the_hud_moves_a_row_per_direction_by_key_then_to_a_corner_by_name():
+    """Ctrl and a Funestra's own step keys move its HUD a step toward a side
+    of the picture, one row each; the eight spoken corners send it straight to
+    one, and so does a click in a corner; then the minimize."""
+    hud = _group("Funestras", "HUD")
+    left, right, up, down, corner, minimize = hud.rows
 
-    assert row.description == "relocate the HUD"
-    assert row.voice == ("hud top left", "hud upper left", "hud top right", "hud upper right",
-                         "hud lower left", "hud bottom left", "hud lower right", "hud bottom right")
-    assert "\"bottom\" the same as \"lower\"" in row.detail
+    assert [row.description for row in hud.rows] == [
+        "HUD left", "HUD right", "HUD up", "HUD down", "HUD to a corner", "minimize the HUD"]
+    assert [row.key_columns for row in (left, right, up, down)] == [
+        (("Ctrl+Left",), ("Ctrl+A",), ("Ctrl+M",)), (("Ctrl+Right",), ("Ctrl+D",), ("Ctrl+.",)),
+        (("Ctrl+Up",), ("Ctrl+W",), ("Ctrl+K",)), (("Ctrl+Down",), ("Ctrl+S",), ("Ctrl+,",))]
+    for row, direction in zip((left, right, up, down), ("left", "right", "up", "down"), strict=True):
+        assert row.commands == (f"portrait_hud_{direction}", f"landscape_hud_{direction}",
+                                f"main_hud_{direction}")
+        assert (row.voice, row.detail, row.controller) == ((), "", ())
+    assert corner.voice == ("hud top left", "hud upper left", "hud top right", "hud upper right",
+                            "hud lower left", "hud bottom left", "hud lower right", "hud bottom right")
+    assert "\"bottom\" the same as \"lower\"" in corner.detail and "click" in corner.detail
     assert {"portrait_hud_lower_right", "landscape_hud_upper_right", "satellites_hud_lower_left",
-            "active_hud_upper_right", "main_hud_lower_left", "portrait_hud_left",
-            "landscape_hud_down", "main_hud_clockwise", "main_hud_counterclockwise"} <= set(row.commands)
-    assert row.key_columns == (("Ctrl+Left", "Ctrl+Right", "Ctrl+Up", "Ctrl+Down"),
-                               ("Ctrl+A", "Ctrl+D", "Ctrl+W", "Ctrl+S"),
-                               ("Ctrl+M", "Ctrl+."))
+            "active_hud_upper_right", "main_hud_lower_left"} <= set(corner.commands)
+    assert (_keys(corner), corner.controller) == ((), (TRIGGER,))
+    assert "main_hud_minimize" in minimize.commands
 
 
 def test_the_origenerator_section_speaks_origenerators_own_words():
@@ -1269,7 +1281,7 @@ def test_the_controller_column_says_what_the_headsets_controllers_do_on_each_row
         STICK_UP_DOWN: ["move or resize a VR screen", "open the browser"],
         HOLD_TRIGGER_AND_STICK_UP_DOWN: ["move or resize a VR screen"],
         HOLD_TRIGGER_AND_MOVE: ["tilt the VR screens up / down and level them again"],
-        TRIGGER: ["move or resize a VR screen", "relocate the HUD", "open the browser"],
+        TRIGGER: ["move or resize a VR screen", "HUD to a corner", "open the browser"],
     }
     assert "handle" in next(row for row in _section("VR").rows
                             if row.description == "move or resize a VR screen").detail
