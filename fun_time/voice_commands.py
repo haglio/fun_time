@@ -546,12 +546,15 @@ def build_voice_commands(
             for _funestra in _FUNESTRA_WORDS:
                 commands[f"{_lead}{_funestra} hud {_corner_word}"] = f"{_funestra}_hud_{_corner}"
 
-    for _side in ("portrait", "landscape"):
-        for _phrase in origenerator_phrases:
-            _spoken = f"{_side} {_phrase}"
+    for _phrase in origenerator_phrases:
+        _aimed = {f"{_side} {_phrase}": say_command(_side, _phrase) for _side in _SIDE_WORDS}
+        _aimed.update({f"{_phrase} {_side}": say_command(_side, _phrase) for _side in _SIDE_WORDS})
+        if _phrase not in GENAU_SAID:
+            _aimed[_phrase] = say_command("active", _phrase)
+        for _spoken, _command in _aimed.items():
             if _spoken in commands:  # the session already says this to a Funestra
                 raise RuntimeError(f"hosted phrase collides with a session command: {_spoken}")
-            commands[_spoken] = say_command(_side, _phrase)
+            commands[_spoken] = _command
 
 
     # Spoken metadata filters — "portrait beta gamma", "alpha form", "clear portrait" —

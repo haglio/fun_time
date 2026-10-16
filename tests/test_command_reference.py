@@ -217,7 +217,8 @@ def _funestras_section() -> ReferenceSection:
 
 
 def _shared_sections() -> tuple[ReferenceSection, ...]:
-    return (_funestras_section(),)
+    """The sections whose rows fold the scope word out of the voice column."""
+    return (_funestras_section(), _section("Origenerator"))
 
 
 def _the_row_of(cmd: str) -> CommandRef:
@@ -237,6 +238,8 @@ def test_every_scope_shares_one_grid_with_a_key_column_per_funestra():
         for row in section.rows:
             if row in _group("Funestras", "Other").rows:
                 continue  # the crown names two Funestras, never a side's action
+            if "portrait_say_genau" in row.commands:
+                continue  # bare "genau" is the Genau mode, so that row has no active form
             by_scope = {
                 scope: {c[len(scope) + 1:] for c in row.commands if c.startswith(f"{scope}_")}
                 for scope in ("portrait", "landscape", "satellites", "active")
@@ -1021,10 +1024,11 @@ def test_the_origenerator_section_speaks_origenerators_own_words():
                 if "show" in row.description.split() and row not in origenerator.rows]
 
 
-def test_the_origenerator_column_folds_the_side_word_and_its_note_says_the_side_comes_first():
-    """Origenerator's phrases are heard with the side in front and nowhere
-    else -- no bare phrase, no "satellites", no side after -- so the column
-    shows the phrase alone and the note on the title says how to say it."""
+def test_the_origenerator_column_folds_the_side_word_and_its_note_says_how_to_aim_a_phrase():
+    """Origenerator's phrases are aimed like the grid's -- bare, with a side
+    before or after, or of "satellites" -- so the column shows the phrase alone
+    and the note on the title says how to aim it; "genau" alone being the
+    Genau mode, that row says to name a side."""
     origenerator = _section("Origenerator")
     flick = genau_flick_noun().one
 
@@ -1036,12 +1040,19 @@ def test_the_origenerator_column_folds_the_side_word_and_its_note_says_the_side_
         ("enhanced only", "filter enhanced"),
     ]
     assert origenerator.note == (
-        "These are heard with the side first, every time, for example “portrait "
-        "experiments” or “landscape fix hands”.  Said alone, with the side after, or of "
-        "“satellites”, they are not heard."
+        "Alone, a phrase reaches the satellite you last navigated.  Add “portrait”, "
+        "“landscape”, or “satellites”, before it or after, to aim it, for example "
+        "“portrait experiments” or “fix face landscape”."
     )
-    assert VOICE_COMMANDS["portrait fix hands"] == "portrait_say_fix_hands"
-    for not_a_phrase in ("fix hands", "fix hands portrait", "satellites fix hands", f"main {flick}"):
+    assert {"active_say_fix_hands", "portrait_say_fix_hands", "landscape_say_fix_hands",
+            "satellites_say_fix_hands"} <= set(origenerator.rows[2].commands)
+    assert {"portrait_say_genau", "satellites_say_go_now"} <= set(origenerator.rows[3].commands)
+    assert "active_say_genau" not in origenerator.rows[3].commands
+    assert "name a side" in origenerator.rows[3].detail
+    assert VOICE_COMMANDS["fix hands"] == "active_say_fix_hands"
+    assert VOICE_COMMANDS["fix hands portrait"] == "portrait_say_fix_hands"
+    assert VOICE_COMMANDS["satellites fix hands"] == "satellites_say_fix_hands"
+    for not_a_phrase in (f"main {flick}", "main fix hands", "fix hands main"):
         assert not_a_phrase not in VOICE_COMMANDS, not_a_phrase
 
 

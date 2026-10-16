@@ -457,6 +457,15 @@ class TestResolveActiveSideCommand:
         assert resolve_active_funestra_command("active_next", 1) == "main_next"
         assert resolve_active_funestra_command("active_prev", 1) == "main_prev"
 
+    def test_a_hosted_apps_phrase_said_bare_reaches_the_satellite_last_navigated(self):
+        """Said with the Main Funestra active it resolves to nothing, as weird
+        does: the Main Funestra hosts no slideshow."""
+        assert resolve_active_funestra_command("active_say_fix_face", 2) == "portrait_say_fix_face"
+        assert resolve_active_funestra_command("active_say_fix_face", 3) == "landscape_say_fix_face"
+        assert resolve_active_funestra_command("active_say_fix_face", 1) == "active_say_fix_face"
+        assert expand_group_command("satellites_say_fix_face") == [
+            "portrait_say_fix_face", "landscape_say_fix_face"]
+
     def test_reset_on_the_primary_means_the_main_funestras_own_reset(self):
         """Another phrase that means a different thing on each Funestra: on a
         satellite it drops the act filter and the loop, on the Main Funestra its
@@ -1325,6 +1334,28 @@ class TestWhatASpokenCommandFlashes:
 
         assert flashed == [
             ("ignored in Kino mode: landscape experiments", "landscape", logging.WARNING)]
+
+    def test_a_hosted_shows_words_said_of_both_sides_reach_the_side_that_hosts_a_show(self, tmp_path):
+        """"satellites experiments" with one side in Origenerator mode and the
+        other in Kino mode: the words go to the hosted app for the one, and the
+        one flash says which mode ignored them for the other."""
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        _the_hosted_app_answers(tmp_path)
+        write_shared_state(tmp_path / "shared_state.ini",
+                           _in_origenerator_mode(BridgeState(), RoomFunestra.PORTRAIT))
+        (tmp_path / "dashboard_cmd.txt").write_text(
+            format_spoken_command("satellites_say_experiments", spoken_at=1.0,
+                                  said="satellites experiments"), encoding="utf-8")
+        flashed = []
+        with patch("fun_time.windows_bridge_dispatch_loop.notice",
+                   side_effect=lambda _log, msg, *, source, level=25: flashed.append(
+                       (msg, source, level))):
+            runner.tick()
+
+        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
+            "PORTRAIT_SAY:experiments"]
+        assert flashed == [
+            ("ignored in Kino mode: satellites experiments", "system", logging.WARNING)]
 
     def test_a_jump_the_main_funestra_is_not_there_to_answer_says_genau_mode_ignored_it(
         self, tmp_path,

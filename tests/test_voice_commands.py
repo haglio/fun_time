@@ -316,8 +316,25 @@ class TestVoiceCommands:
         twins = {phrase.replace("go now", "genau"): command.replace("go_now", "genau")
                  for phrase, command in go_now.items()}
 
-        assert len(go_now) == 4
+        assert len(go_now) == 8
         assert {phrase: VOICE_COMMANDS.get(phrase) for phrase in twins} == twins
+
+    def test_a_hosted_apps_phrase_is_aimed_like_the_grid(self):
+        """Bare it reaches the satellite last navigated, a side word before or
+        after it names a side, and "satellites" says both."""
+        for phrase in ("experiments", "fix hands", "play slideshow", "favorites", "enhanced only"):
+            said = phrase.replace(" ", "_")
+            assert VOICE_COMMANDS[phrase] == f"active_say_{said}"
+            assert VOICE_COMMANDS[f"portrait {phrase}"] == f"portrait_say_{said}"
+            assert VOICE_COMMANDS[f"{phrase} landscape"] == f"landscape_say_{said}"
+            assert VOICE_COMMANDS[f"satellites {phrase}"] == f"satellites_say_{said}"
+            assert VOICE_COMMANDS[f"{phrase} satellites"] == f"satellites_say_{said}"
+
+    def test_genau_alone_stays_the_mode_and_animates_a_picture_only_with_a_side_named(self):
+        assert VOICE_COMMANDS["genau"] == VOICE_COMMANDS["go now"] == "genau_activate"
+        assert VOICE_COMMANDS["satellites genau"] == "satellites_say_genau"
+        assert VOICE_COMMANDS["go now portrait"] == "portrait_say_go_now"
+        assert not {"active_say_genau", "active_say_go_now"} & set(VOICE_COMMANDS.values())
 
     def test_origenerator_mode_puts_both_satellites_in_it_and_is_shown_as_said(self):
         """The spoken twin of each satellite's Origenerator button, said of both:

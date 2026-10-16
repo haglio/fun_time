@@ -172,15 +172,20 @@ _FUNESTRAS_NOTE = (
     f"“portrait next” or “next main”.  In Genau mode say “{_FLICK.one}” in place of “video”."
 )
 _ORIGENERATOR_NOTE = (
-    "These are heard with the side first, every time, for example “portrait "
-    "experiments” or “landscape fix hands”.  Said alone, with the side after, or of "
-    "“satellites”, they are not heard."
+    "Alone, a phrase reaches the satellite you last navigated.  Add “portrait”, "
+    "“landscape”, or “satellites”, before it or after, to aim it, for example "
+    "“portrait experiments” or “fix face landscape”."
 )
 _FUNESTRA_KEY_HEADERS = ("Portrait", "Landscape", "Main")
 
 
 def _said_to_a_slideshow(*phrases: str) -> tuple[str, ...]:
-    return tuple(say_command(side, phrase) for side in ("portrait", "landscape") for phrase in phrases)
+    return tuple(
+        command
+        for phrase in phrases
+        for scope in _SCOPES
+        if (command := say_command(scope, phrase)) in _SPOKEN_COMMANDS
+    )
 
 
 _SPEED_VOICE = ("min speed", "max speed", "half speed", "double speed", "reset speed",
@@ -628,7 +633,8 @@ _SECTIONS: tuple[_Section, ...] = (
                     commands=_said_to_a_slideshow("fix face", "fix hands", "fix teeth", "fix eyes"),
                 ),
                 _Row(
-                    f"animate the picture as a Genau {_FLICK.one}",
+                    f"animate the picture as a Genau {_FLICK.one} — said alone, “genau” is "
+                    "the Genau mode, so name a side or “satellites”",
                     commands=_said_to_a_slideshow(*GENAU_SAID),
                 ),
                 _Row(
