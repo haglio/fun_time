@@ -31,7 +31,7 @@ from funestra.flick_folder import vr_flicks_in
 from fun_time.branch_session import describe_the_session_on_the_taskbar
 from fun_time.broker_control import write_broker_command
 from fun_time.checkout_overrides import genau_project_kwargs
-from fun_time.child_launch import no_child_log, no_console_window, open_child_log
+from fun_time.child_launch import open_child_log
 from fun_time.command_dispatch import genau_flick_shapes
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.event_log import open_event_log
@@ -80,7 +80,7 @@ from fun_time.overlay_progress import (
     ready_file_for,
     what_the_flag_asks,
 )
-from fun_time.project_paths import PROJECT_DIR
+from fun_time.project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
 from fun_time.role_windows import ChildPids, WindowRoles
 from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_control import read_satellite_status
@@ -131,6 +131,7 @@ from fun_time.windows_bridge_orchestrator import (
     add_dispatch_file_handler,
     clear_last_sessions_leftovers,
     kill_recorded_child,
+    launch_hotkey_script,
     let_go_of_a_kept_origenerator,
     prepare_voice_control,
     see_the_hosted_app_out,
@@ -486,18 +487,9 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
     runtime_was_up = True
 
     # --- The hotkey script, up before the session it drives ---
-    # Ahead of everything, as on the desktop: in a headset the user cannot see
-    # the desktop, so a launch is only cancellable through a focus-free key.
-    ahk_command = [
-        str(config.paths.ahk_exe),
-        str(config.project_dir / "windows_bridge_hotkeys.ahk"),
-        str(manifest_path),
-        str(pids_file),
-        str(os.getpid()),
-    ]
-    logger.info("Launching AHK hotkey script: %s", " ".join(ahk_command))
-    ahk_proc = subprocess.Popen(
-        ahk_command, cwd=config.project_dir, **no_child_log(), **no_console_window())
+    ahk_proc = launch_hotkey_script(
+        ahk_exe=config.paths.ahk_exe, script=config.project_dir / HOTKEY_SCRIPT_NAME,
+        manifest_path=manifest_path, pids_file=pids_file, project_dir=config.project_dir)
 
     # --- The core-session bootstrap, minus the windows ---
     try:  # every ``advance`` below is a cancellation checkpoint too

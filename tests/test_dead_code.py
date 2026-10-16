@@ -336,7 +336,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # notes on Control off, on what was sent to it and on a one-verb channel went.
 # 6099 on 2026-10-16: a paused room hears enter VR, exit VR, recenter and VR
 # reset too, and the note on why it heard only three went.
-MAX_PROSE_LINES = 6099
+# 6097 the same day: the desk and the headset start their hotkey script through
+# one function, and the headset's copy of why it goes up first went.
+MAX_PROSE_LINES = 6097
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
