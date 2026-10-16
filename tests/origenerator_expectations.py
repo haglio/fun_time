@@ -1,7 +1,8 @@
 """What Fun Time relies on of the Origenerator it hosts, read off the code that
 relies on it: the module it starts, the caption it finds the window by, the
-flags of each launch, the words a headset writes on the app's input file and
-every line a room writes on its command file.
+flags of each launch, the words a headset writes on the app's input file, every
+line a room writes on its command file, and what it writes and reads in the
+files an Origenerator opened on its own and a session hand each other.
 
 Origenerator's suite reads the document from this repo's main before that app
 ships anything, and tests/test_origenerator_expectations.py holds it here to
@@ -12,10 +13,12 @@ it.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from fun_time import preview_marker
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
 from fun_time.filter_vocab import decode_filter_command, set_command
@@ -30,6 +33,16 @@ from fun_time.origenerator_switches import (
 )
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, SatelliteState
+from fun_time.standalone_origenerator import (
+    OFFER,
+    OFFER_NAME,
+    SESSION_NAME,
+    SHOWING_NAME,
+    SLIDESHOW_MARK,
+    TAKEOVER_NAME,
+    claim_of,
+    takeover_of,
+)
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.window_roles import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
@@ -68,7 +81,33 @@ def expectations(scratch: Path) -> dict:
         "headset_words": sorted({PRESS, HOSTED_RELEASE, DRAG, HOVER, SCROLL, RIGHT_CLICK}),
         "command_lines": sorted(_the_lines_it_writes(
             build_bridge_config_from_manifest(on_the_monitors), headset_config(scratch / "in_a_headset"))),
+        "handoff": _the_handoff(on_the_monitors, scratch / "on_the_monitors"),
     }
+
+
+_A_SESSION = (4141, 4242)
+_A_WINDOW = 4343
+
+
+def _the_handoff(manifest: LaunchManifest, room: Path) -> dict:
+    return {
+        "offer": {"file": OFFER_NAME, "reads": {"pattern": OFFER.pattern}},
+        "showing": {"file": SHOWING_NAME, "reads": {"pattern": SLIDESHOW_MARK.pattern}},
+        "session": {"file": SESSION_NAME, "writes": [claim_of(*_A_SESSION)]},
+        "takeover": {"file": TAKEOVER_NAME,
+                     "writes": [takeover_of(_A_WINDOW, _the_launch_a_takeover_hands(manifest, room))]},
+    }
+
+
+def _the_launch_a_takeover_hands(manifest: LaunchManifest, room: Path) -> list[str]:
+    """The launch on the monitors, as a takeover hands it: with the room's own
+    files under a stand-in folder and no preview's taskbar identity, so it reads
+    the same from every checkout."""
+    with patch.dict(os.environ):
+        os.environ.pop(preview_marker.FLAG, None)
+        launch = origenerator_session_args(
+            **the_session_it_is_handed(manifest, _A_PLAN, in_a_headset=False))
+    return [word.replace(str(room), "C:\\a room") for word in launch]
 
 
 def _said_after_the_side(line: str) -> str:
