@@ -11,7 +11,7 @@ from app_support.file_channel import read_flag
 from funestra.console import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.file_channel import append_command
 from funestra.flick_advance import FlickAdvanceState
-from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, SET_SPEED
+from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, SET_SPEED, SET_VOLUME
 from funestra.playlist import PlaylistItem, read_playlist, write_playlist
 from funestra.robot_hand import RobotHandState, WaveformShape
 
@@ -155,6 +155,15 @@ def resume_main_lock(main_funestra_cmd_file: Path, *, locked: bool) -> None:
         append_command(Path(main_funestra_cmd_file), LOCK_OFF)
 
 
+def resume_satellite_volumes(carried: BridgeState,
+                             satellite_cmd_files: Mapping[RoomFunestra, Path]) -> None:
+    opens_at = SatelliteState()
+    for funestra, command_file in satellite_cmd_files.items():
+        side = carried.satellite(funestra)
+        if (side.volume, side.muted) != (opens_at.volume, opens_at.muted):
+            append_command(Path(command_file), f"{SET_VOLUME} {side.volume} {int(side.muted)}")
+
+
 def resume_rates(rates: Sequence[tuple[Path, float]]) -> None:
     for command_file, rate in rates:
         if rate != 1.0:
@@ -175,6 +184,7 @@ def resume_what_lives_in_a_funestra(
           for funestra, command_file in satellite_cmd_files.items()),
     ])
     resume_main_lock(main_funestra_cmd_file, locked=carried.main_locked)
+    resume_satellite_volumes(carried, satellite_cmd_files)
     resume_genau(genau_cmd_file, carried)
 
 

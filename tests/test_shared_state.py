@@ -431,6 +431,8 @@ _EXPECTED_STATE_KEYS = {
     "crowned": "main", "majority": "portrait",
     "osr2_funestra": "1",
     "main_speed": "1", "portrait_speed": "1", "landscape_speed": "1",
+    "portrait_volume": "100", "landscape_volume": "100", "portrait_muted": "1",
+    "landscape_muted": "1",
     "main_locked": "1", "main_loop_video": "", "main_loop_in_ms": "0", "main_loop_out_ms": "0",
     "genau_speed": "50", "genau_amplitude": "100",
     "genau_center": "50", "genau_shape": "sine",

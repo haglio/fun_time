@@ -1256,7 +1256,9 @@ def _dispatch_reorder(
 
 
 def _browse_at_defaults(side: SatelliteState) -> bool:
-    return replace(side, nav_anchor="", speed=SatelliteState.speed) == SatelliteState()
+    fresh = SatelliteState()
+    return replace(side, nav_anchor="", speed=fresh.speed, volume=fresh.volume,
+                   muted=fresh.muted) == fresh
 
 
 def satellite_at_defaults(side: SatelliteState, status: SatelliteStatus) -> bool:

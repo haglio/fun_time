@@ -184,7 +184,8 @@ before the queue.
 ## What a reopen re-sends because it lives in a Funestra
 
 Some settings live in a Funestra process while it runs, so they are gone the
-moment a session ends: each Funestra's playback rate, the Main Funestra's hold on
+moment a session ends: each Funestra's playback rate, each satellite's own level and
+mute, the Main Funestra's hold on
 the video it is playing and the loop it runs, and Genau's Amp, Speed and Center bars,
 shape, flick seconds and two switches. The room's state is still the one place they
 are kept: the dispatch loop writes each one down as its Funestra reports it

@@ -55,3 +55,13 @@ class TestTheRoomRecordsWhatEachFunestraReports:
             satellites={RoomFunestra.PORTRAIT: SatelliteStatus(speed=0.5, read_at=PUBLISHED_AT)}))
 
         assert state.satellite(RoomFunestra.PORTRAIT).speed == 1.0
+
+    def test_the_level_and_mute_each_satellites_own_chip_is_at(self):
+        state = with_what_the_funestras_report(BridgeState(), FunestraReports(satellites={
+            RoomFunestra.PORTRAIT: SatelliteStatus(volume=40, muted=False),
+            RoomFunestra.LANDSCAPE: SatelliteStatus()}))
+
+        assert (state.satellite(RoomFunestra.PORTRAIT).volume,
+                state.satellite(RoomFunestra.PORTRAIT).muted) == (40, False)
+        assert (state.satellite(RoomFunestra.LANDSCAPE).volume,
+                state.satellite(RoomFunestra.LANDSCAPE).muted) == (100, True)

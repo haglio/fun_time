@@ -1826,6 +1826,17 @@ def test_reset_leaves_a_side_that_is_already_at_its_defaults_alone(tmp_path: Pat
     assert state.active_funestra == 2  # still the Funestra a bare "next" would reach
 
 
+def test_a_side_whose_own_sound_was_turned_up_has_nothing_to_reset(tmp_path: Path):
+    config = _make_config(tmp_path)
+    heard = _make_state().with_satellite(RoomFunestra.PORTRAIT, volume=40, muted=False)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(count=10)
+        _state, ops = dispatch_command("portrait_reset", heard, config)
+
+    assert (mock_filter.call_count, ops) == (0, [])
+
+
 @pytest.mark.parametrize("narrowed", [
     SatelliteState(locked=True),
     SatelliteState(filter="alpha"),

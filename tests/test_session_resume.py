@@ -32,6 +32,7 @@ from fun_time.session_resume import (
     resume_rates,
     resume_satellite_locks,
     resume_shared_state,
+    resume_what_lives_in_a_funestra,
 )
 from fun_time.shared_state import BridgeState, SatelliteState, read_shared_state, write_shared_state
 from tests.made_up_state import remembered_values, shifted_state
@@ -532,6 +533,21 @@ class TestResumeRates:
         assert not main_funestra_cmd.exists()
 
 
+class TestResumeSatelliteVolumes:
+    def test_a_satellite_gets_back_the_level_and_mute_it_was_left_at(self, tmp_path: Path):
+        portrait_cmd, landscape_cmd = tmp_path / "portrait_cmd.txt", tmp_path / "landscape_cmd.txt"
+        carried = BridgeState().with_satellite(RoomFunestra.PORTRAIT, volume=40, muted=False)
+
+        resume_what_lives_in_a_funestra(
+            carried, main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
+            satellite_cmd_files={RoomFunestra.PORTRAIT: portrait_cmd,
+                                 RoomFunestra.LANDSCAPE: landscape_cmd},
+            genau_cmd_file=tmp_path / "genau_cmd.txt")
+
+        assert portrait_cmd.read_text(encoding="utf-8").splitlines() == ["SET_VOLUME 40 0"]
+        assert not landscape_cmd.exists()
+
+
 class TestResumeMainLock:
     """The Main Funestra opens holding the video it loads, so unlike a satellite's
     lock it is the UNheld video that has to be re-sent."""
@@ -556,7 +572,8 @@ class TestWhatARestartBringsBackOfEachFunestra:
         "SET_SPEED": {"main_speed", "speed"}, "SPEED_UP": {"main_speed", "speed"},
         "SPEED_DOWN": {"main_speed", "speed"}, "LOCK_ON": {"main_locked", "locked"},
         "LOCK_OFF": {"main_locked", "locked"}, "TOGGLE_LOCK": {"main_locked", "locked"},
-        "SET_MAX_INTENSITY": {"max_intensity"}, "SET_VOLUME": {"volume"}, "SHOW": {"main_mode"},
+        "SET_MAX_INTENSITY": {"max_intensity"}, "SET_VOLUME": {"volume", "muted"},
+        "SHOW": {"main_mode"},
         "SET_F_MODE": {"main_scripted_filter"}}
     _NO_SETTING = frozenset({
         "NEXT", "PREV", "QUIT", "RELOAD_PLAYLIST", "SEEK_BACK", "SEEK_FWD", "TRASH", "SHOW_FRAME",
@@ -572,13 +589,20 @@ class TestWhatARestartBringsBackOfEachFunestra:
 
     def test_what_a_restart_resends_is_what_the_rooms_state_keeps(self, tmp_path: Path):
         main_funestra_cmd, portrait_cmd = tmp_path / "main_player_cmd.txt", tmp_path / "portrait_cmd.txt"
+        carried = shifted_state(BridgeState())
 
-        resume_rates([(main_funestra_cmd, 0.25), (portrait_cmd, 1.5)])
-        resume_main_lock(main_funestra_cmd, locked=False)
+        resume_what_lives_in_a_funestra(
+            carried, main_funestra_cmd_file=main_funestra_cmd,
+            satellite_cmd_files={RoomFunestra.PORTRAIT: portrait_cmd},
+            genau_cmd_file=tmp_path / "genau_cmd.txt")
         resume_satellite_locks([(portrait_cmd, True)])
 
         assert {line.split()[0] for command_file in (main_funestra_cmd, portrait_cmd)
-                for line in command_file.read_text(encoding="utf-8").splitlines()} <= {
+                for line in command_file.read_text(encoding="utf-8").splitlines()} == {
+            funestra_verbs.SET_SPEED, funestra_verbs.LOCK_OFF, funestra_verbs.SET_VOLUME,
+            funestra_verbs.LOCK_ON}
+        assert {funestra_verbs.SET_SPEED, funestra_verbs.LOCK_OFF, funestra_verbs.SET_VOLUME,
+                funestra_verbs.LOCK_ON} <= {
             getattr(funestra_verbs, name) for name in self._KEPT_IN_THE_ROOMS_STATE}
 
     def test_what_the_rooms_state_keeps_for_a_funestra_is_remembered(self):

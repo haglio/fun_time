@@ -74,6 +74,8 @@ class SatelliteState:
     nav_anchor: str = ""
     mode: SatellitesMode = KINO_MODE
     speed: float = 1.0
+    volume: int = MAX_VOLUME
+    muted: bool = True
 
 
 def _satellite_key(name: str, funestra: RoomFunestra) -> str:
