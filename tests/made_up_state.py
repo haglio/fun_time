@@ -13,7 +13,7 @@ def _shifted(value):
         return not value
     if isinstance(value, Enum):
         return next(entry for entry in type(value) if entry is not value)
-    if isinstance(value, int):
+    if isinstance(value, int | float):
         return value + 1
     return f"{value}-carried"
 

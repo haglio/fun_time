@@ -95,7 +95,7 @@ from .standalone_origenerator import RELEASE
 from .state_file_names import take_up_the_retired_state_file_names
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .unlogged_notices import UNLOGGED_NOTICE_PORT_FILENAME
-from .voice_control import VoiceController, take_whether_the_mic_was_off
+from .voice_control import VoiceController
 from .win32 import (
     close_window,
     describe_windows,
@@ -884,7 +884,7 @@ def prepare_voice_control(config_path: str) -> PreparedVoice | None:
 
 def start_voice_control(
     prepared: PreparedVoice | None, *, dashboard_cmd_file: Path,
-    dispatch_runner: DispatchLoopRunner, muted: bool = False,
+    dispatch_runner: DispatchLoopRunner,
 ) -> tuple[VoiceController | None, threading.Thread | None]:
     if prepared is None:
         return None, None
@@ -899,7 +899,7 @@ def start_voice_control(
             confirm_commands=settings.confirm_commands,
             second_listener=prepared.second_listener,
         )
-        if muted:
+        if dispatch_runner.state.mic_muted:
             voice_controller.mute()
         dispatch_runner.voice_controller = voice_controller
         voice_controller.active_funestra = lambda: dispatch_runner.state.active_funestra
@@ -1294,7 +1294,6 @@ def run_session(
             prepared_voice,
             dashboard_cmd_file=dashboard_cmd_file,
             dispatch_runner=dispatch_runner,
-            muted=take_whether_the_mic_was_off(state_dir),
         )
     except BaseException:
         _take_down_the_startup(

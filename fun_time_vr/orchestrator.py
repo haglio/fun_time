@@ -41,6 +41,7 @@ from fun_time.funestra_deaths import (
     the_part_that_closed,
 )
 from fun_time.funestra_engine import engine_missing_abort
+from fun_time.funestra_settings import read_funestra_reports
 from fun_time.funestra_status import read_main_funestra_status
 from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import put_the_headset_to_sleep
@@ -118,7 +119,6 @@ from fun_time.single_instance import (
     show_already_running_message,
 )
 from fun_time.state_file_names import take_up_the_retired_state_file_names
-from fun_time.voice_control import take_whether_the_mic_was_off
 from fun_time.vr_videos import shapes_verb
 from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_dispatch_loop import (
@@ -526,7 +526,8 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         # file, so resuming the files without it leaves every HUD describing a
         # different session.  Read before the flags below are seeded, because two of
         # them are what those flags have to be seeded to.
-        carried = resume_shared_state(shared_state_path(state_dir), resumed=resumed)
+        carried = resume_shared_state(shared_state_path(state_dir), resumed=resumed,
+                                      last_reported=read_funestra_reports(bridge_config))
         carried = stock_the_playlists(
             manifest,
             state_dir=state_dir,
@@ -552,12 +553,12 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         ])
         resume_genau_shapes(Path(commands.genau_cmd_file), genau_flick_shapes(carried, bridge_config))
         resume_what_lives_in_a_funestra(
-            main_funestra=(Path(commands.main_funestra_cmd_file), main_funestra_status),
-            satellites=[(Path(commands.portrait_cmd_file), portrait_status),
-                        (Path(commands.landscape_cmd_file), landscape_status)],
-            genau_cmd_file=Path(commands.genau_cmd_file), state_dir=state_dir,
+            carried, main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
+            satellite_cmd_files={RoomFunestra.PORTRAIT: Path(commands.portrait_cmd_file),
+                                 RoomFunestra.LANDSCAPE: Path(commands.landscape_cmd_file)},
+            genau_cmd_file=Path(commands.genau_cmd_file),
         )
-        resume_main_loop(Path(commands.main_funestra_cmd_file), main_funestra_status,
+        resume_main_loop(Path(commands.main_funestra_cmd_file), carried,
                          bridge_config.main_list.file)
 
         # --- The children: the audio companion, then the headset ---
@@ -672,7 +673,6 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             prepared_voice,
             dashboard_cmd_file=dashboard_cmd_file,
             dispatch_runner=dispatch_runner,
-            muted=take_whether_the_mic_was_off(state_dir),
         )
     except BaseException:
         logger.info("The session failed while opening; tearing down %d launched child(ren)",

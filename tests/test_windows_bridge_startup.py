@@ -15,8 +15,6 @@ from urllib.request import url2pathname
 
 import pytest
 from app_support import osr2_hold
-from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from funestra.drive_readout import DriveHud, drive_text
 from funestra.modes import LengthMode, MainMode, SatellitesMode
 from funestra.playlist import PlaylistItem, write_playlist
 from funestra.robot_hand import FULL_INTENSITY
@@ -727,10 +725,8 @@ def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp
     of the Main Funestra's playlist."""
     kwargs = _start_core_session_kwargs(tmp_path)
     left_on = _seed_resumable_session(kwargs)
-    (kwargs["state_dir"] / "main_player_status.txt").write_text(
-        f"video={left_on['main_player'][1]}\nloop_state=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
-        encoding="utf-8",
-    )
+    write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(
+        main_loop_video=left_on["main_player"][1], main_loop_in_ms=2000, main_loop_out_ms=4000))
 
     _run_start_core_session(kwargs)
 
@@ -740,12 +736,9 @@ def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp
 
 
 def _left_playing_at(kwargs: dict, *, main: float, portrait: float, landscape: float) -> None:
-    for status_file, speed in (
-        (kwargs["main_funestra_status_file"], main),
-        (kwargs["portrait"].channels.status, portrait),
-        (kwargs["landscape"].channels.status, landscape),
-    ):
-        Path(status_file).write_text(f"video=\nspeed={speed:g}\n", encoding="utf-8")
+    write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(
+        main_speed=main, portrait=SatelliteState(speed=portrait),
+        landscape=SatelliteState(speed=landscape)))
 
 
 def _queued(command_file) -> list[str]:
@@ -769,7 +762,7 @@ def test_a_reopen_hands_each_funestra_the_rate_it_was_playing_at(tmp_path: Path)
 def test_a_reopen_hands_the_main_funestra_back_the_unlock_it_was_left_in(tmp_path: Path):
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
-    Path(kwargs["main_funestra_status_file"]).write_text("video=\nlocked=0\n", encoding="utf-8")
+    write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(main_locked=False))
 
     _run_start_core_session(kwargs)
 
@@ -779,11 +772,8 @@ def test_a_reopen_hands_the_main_funestra_back_the_unlock_it_was_left_in(tmp_pat
 def test_a_reopen_hands_genau_back_the_robot_hand_it_was_left_with(tmp_path: Path):
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
-    state_dir = Path(kwargs["state_dir"])
-    (state_dir / GENAU_DRIVE).write_text(
-        drive_text(DriveHud(speed=76, amplitude=100, center=50, advance_interval=10)),
-        encoding="utf-8")
-    (state_dir / GENAU_STATUS).write_text("learned=1\n", encoding="utf-8")
+    write_shared_state(shared_state_path(kwargs["state_dir"]),
+                       BridgeState(genau_speed=76, genau_learned=True))
 
     _run_start_core_session(kwargs)
 
@@ -798,10 +788,9 @@ def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path:
     would loop three seconds of a video the user never marked."""
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
-    (kwargs["state_dir"] / "main_player_status.txt").write_text(
-        f"video={tmp_path / 'deleted.mp4'}\nloop_state=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
-        encoding="utf-8",
-    )
+    write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(
+        main_loop_video=str(tmp_path / "deleted.mp4"), main_loop_in_ms=2000,
+        main_loop_out_ms=4000))
 
     _run_start_core_session(kwargs)
 
@@ -1014,10 +1003,9 @@ def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path:
     (state_dir / "main_player_playlist.tsv").write_text(
         f"{vr_clip}\n{watching}\n", encoding="utf-8"
     )
-    (state_dir / "main_player_status.txt").write_text(
-        f"video={watching}\nloop_state=looping\nloop_in_ms=1000\nloop_out_ms=4000\n",
-        encoding="utf-8",
-    )
+    (state_dir / "main_player_status.txt").write_text(f"video={watching}\n", encoding="utf-8")
+    write_shared_state(shared_state_path(state_dir), BridgeState(
+        main_loop_video=watching, main_loop_in_ms=1000, main_loop_out_ms=4000))
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
