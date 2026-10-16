@@ -202,10 +202,10 @@ either resumes whole or is left exactly as the last build wrote it.
 **The state file is written either way.** The alternative was deleting it at
 startup, which is exactly how a session came back playing favorites while every
 HUD said F-mode was off — and then answered "F-mode" by reporting it *enabled*
-and changing nothing you could see. Writing defaults clears a crashed session's
-leftovers just as the delete did, and the state carried forward is only ever the
-state that explains the files on disk: a session built fresh, or rebuilt over
-the top, opens on defaults.
+and changing nothing you could see. Satellites whose playlists had to be built
+fresh start over with them: what described those files (`DESCRIBES_THE_PLAYLIST`
+— each side's lock, filter, F-mode, order, loop and map) is gone with them, and
+everything else the room was left in still comes back.
 
 **The dispatch loop opens on the state file, never on defaults.** Origenerator
 is put back under the cover before the loop's first tick, through the switches'

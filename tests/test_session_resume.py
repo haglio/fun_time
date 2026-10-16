@@ -21,6 +21,7 @@ from fun_time.origenerator_switches import RfbSlot
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import (
     CYCLE_SHAPE,
+    DESCRIBES_THE_PLAYLIST,
     FLICK_SECONDS,
     HAND_AMPLITUDE,
     HAND_CENTER,
@@ -41,6 +42,7 @@ from fun_time.session_resume import (
     resume_shared_state,
 )
 from fun_time.shared_state import BridgeState, SatelliteState, read_shared_state, write_shared_state
+from tests.made_up_state import remembered_values, shifted_state
 
 
 def _clips(tmp_path: Path, *names: str) -> list[str]:
@@ -374,15 +376,20 @@ class TestResumeSatelliteLocks:
 
         assert portrait.read_text(encoding="utf-8").split() == ["RELOAD_PLAYLIST", "LOCK_ON"]
 
-    def test_opens_on_defaults_when_the_playlists_were_built_fresh(self, tmp_path: Path):
-        """Nothing to resume means the builder just wrote three fresh playlists
-        with F-mode off, so last session's state describes files that are gone."""
+    def test_satellites_built_fresh_start_over_and_every_other_setting_comes_back(
+            self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(portrait=SatelliteState(favorites_filter=True, loop="seed")))
+        left = replace(shifted_state(BridgeState()), osr2_control=OSR2_RETRACTED)
+        write_shared_state(state_file, left)
 
         state = resume_shared_state(state_file, resumed=False)
 
-        assert replace(state, main_shuffle_seed=0) == BridgeState()
+        started_over = left
+        for funestra in RoomFunestra.SATELLITES:
+            started_over = started_over.with_satellite(funestra, **{
+                name: getattr(SatelliteState(), name) for name in DESCRIBES_THE_PLAYLIST})
+        assert remembered_values(replace(state, main_shuffle_seed=0)) == remembered_values(
+            replace(started_over, main_shuffle_seed=0))
 
     def test_a_fresh_session_deals_the_main_funestra_a_shuffle_of_its_own(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
