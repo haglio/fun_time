@@ -5,6 +5,7 @@ from dataclasses import fields, replace
 from pathlib import Path
 
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
+from funestra import funestra_verbs
 from funestra.console import OSR2_PARKED, OSR2_RETRACTED
 from funestra.drive_readout import DriveHud, drive_text
 from funestra.flick_advance import FlickAdvanceState
@@ -521,6 +522,39 @@ class TestResumeMainLock:
         resume_main_lock(main_funestra_cmd, locked=True)
 
         assert not main_funestra_cmd.exists()
+
+
+class TestWhatARestartBringsBackOfEachFunestra:
+    _RESENT_FROM_WHAT_THE_FUNESTRA_PUBLISHED = frozenset({
+        "SET_SPEED", "SPEED_UP", "SPEED_DOWN", "LOCK_ON", "LOCK_OFF", "TOGGLE_LOCK"})
+    _KEPT_IN_THE_ROOMS_STATE = {"SET_MAX_INTENSITY": "max_intensity", "SET_VOLUME": "volume",
+                                "SHOW": "main_mode", "SET_F_MODE": "main_scripted_filter"}
+    _NO_SETTING = frozenset({
+        "NEXT", "PREV", "QUIT", "RELOAD_PLAYLIST", "SEEK_BACK", "SEEK_FWD", "TRASH", "SHOW_FRAME",
+        "CLEAR_FRAME", "SET_PACE", "play_file", "step_version"})
+
+    def test_every_verb_a_funestra_answers_comes_back_after_a_restart_or_is_no_setting(self):
+        named = (self._RESENT_FROM_WHAT_THE_FUNESTRA_PUBLISHED
+                 | set(self._KEPT_IN_THE_ROOMS_STATE) | self._NO_SETTING)
+        verbs = set(funestra_verbs.__all__)
+
+        assert verbs == named, (
+            f"say how a restart brings back {sorted(verbs - named)}; "
+            f"a Funestra no longer answers {sorted(named - verbs)}")
+
+    def test_what_a_restart_resends_is_the_rate_and_the_lock(self, tmp_path: Path):
+        main_funestra_cmd, portrait_cmd = tmp_path / "main_player_cmd.txt", tmp_path / "portrait_cmd.txt"
+
+        resume_rates([(main_funestra_cmd, 0.25), (portrait_cmd, 1.5)])
+        resume_main_lock(main_funestra_cmd, locked=False)
+        resume_satellite_locks([(portrait_cmd, True)])
+
+        assert {line.split()[0] for command_file in (main_funestra_cmd, portrait_cmd)
+                for line in command_file.read_text(encoding="utf-8").splitlines()} <= {
+            getattr(funestra_verbs, name) for name in self._RESENT_FROM_WHAT_THE_FUNESTRA_PUBLISHED}
+
+    def test_what_the_rooms_state_keeps_for_a_funestra_is_remembered(self):
+        assert set(self._KEPT_IN_THE_ROOMS_STATE.values()) <= set(RESUMED_FIELDS)
 
 
 class TestResumeGenau:
