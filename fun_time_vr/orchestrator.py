@@ -541,6 +541,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             commands.main_funestra_paused_file, commands.audio_volume_file,
             commands.genau_cmd_file, main_funestra_cmd_file=commands.main_funestra_cmd_file,
             volume=carried.volume, muted=carried.muted, max_intensity=carried.max_intensity,
+            satellite_cmd_files=(commands.portrait_cmd_file, commands.landscape_cmd_file),
             main_list=MainListSettings.of(carried), mode=carried.main_mode,
         )
         # A lock lives in the Funestra process, so it has to be re-sent; the roles read

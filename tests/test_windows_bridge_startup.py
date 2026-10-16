@@ -334,6 +334,7 @@ def _seed_startup_states(tmp_path: Path, **overrides):
         audio_volume_file=tmp_path / "audio_volume.txt",
         genau_cmd_file=tmp_path / "genau_cmd.txt",
         main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
+        satellite_cmd_files=(tmp_path / "portrait_cmd.txt", tmp_path / "landscape_cmd.txt"),
     )
     kwargs.update(overrides)
     return seed_startup_states(
@@ -464,7 +465,7 @@ def test_seed_startup_states_holds_every_funestra_that_can_drive_the_osr2_to_its
         tmp_path: Path):
     sides = (tmp_path / "portrait_cmd.txt", tmp_path / "landscape_cmd.txt")
 
-    _seed_startup_states(tmp_path, max_intensity=30, satellite_cmd_files=sides)
+    _seed_startup_states(tmp_path, max_intensity=30)
 
     assert "SET_MAX_INTENSITY 30" in _main_funestra_verbs(tmp_path)
     for command_file in (tmp_path / "genau_cmd.txt", *sides):

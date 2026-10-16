@@ -256,7 +256,7 @@ def seed_startup_states(
     volume: int = MAX_VOLUME,
     muted: bool = False,
     max_intensity: int = FULL_INTENSITY,
-    satellite_cmd_files: tuple[str | Path, ...] = (),
+    satellite_cmd_files: tuple[str | Path, ...],
     main_list: MainListSettings | None = None,
     mode: MainMode = STARTUP_MAIN_MODE,
 ) -> None:
