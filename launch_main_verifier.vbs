@@ -28,6 +28,7 @@ Sub Report()
   WScript.Echo "interpreter: " & interpreter
   WScript.Echo "directory: " & directory
   WScript.Echo "arguments: " & arguments
+  WScript.Echo "environment: " & "HAGLIO_UPKEEP" & "=" & "1"
   WScript.Echo "command: " & Command()
 End Sub
 
@@ -35,6 +36,7 @@ Sub Launch()
   If Not fso.FileExists(interpreter) Then
     Refuse app & "'s virtual environment is missing:" & vbCrLf & interpreter, vbCritical
   End If
+  shell.Environment("Process").Item("HAGLIO_UPKEEP") = "1"
   shell.CurrentDirectory = directory
   shell.Run Command(), 0, False
 End Sub
