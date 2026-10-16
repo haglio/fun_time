@@ -26,6 +26,7 @@ from app_support.launcher import (
     dry_run,
     run_under_script_host,
 )
+from app_support.production_update import TURN, UPKEEP_MARK
 
 from fun_time.branch_session import (
     LAUNCHER_NAME,
@@ -157,4 +158,15 @@ def test_a_shortcut_that_outlived_its_worktree_says_the_work_is_already_in_fun_t
 def test_the_main_verifier_is_the_machines_upkeep_so_no_update_waits_for_it():
     report = dry_run(PROJECT_DIR / "launch_main_verifier.vbs")
 
-    assert report.values("environment") == ["HAGLIO_UPKEEP=1"]
+    assert report.values("environment") == [f"{UPKEEP_MARK}=1"]
+
+
+@on_windows
+def test_every_launch_waits_out_an_update_of_fun_time_and_of_the_origenerator_it_hosts(tmp_path: Path):
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+    gates = [str(PROJECT_DIR / ".git" / TURN), str(PROJECT_DIR.parent / "origenerator" / ".git" / TURN)]
+
+    for launcher, arguments in (("launch.vbs", ()), ("launch_vr.vbs", ()), ("launch_main_verifier.vbs", ()),
+                                (LAUNCHER_NAME, (str(worktree), "example-branch"))):
+        assert dry_run(PROJECT_DIR / launcher, *arguments).values("gate") == gates, launcher
