@@ -709,8 +709,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, osr2_control=OSR2_PARKED))
 
         portrait = _published(tmp_path, "portrait")
-        assert {"robot_hand_toggle_learned", "robot_hand_park",
-                "robot_hand_release"} <= set(_osr2_commands(portrait))
+        assert {"robot_hand_toggle_learned", "robot_hand_release"} <= set(_osr2_commands(portrait))
         assert portrait.osr2 == Osr2State.OFF
         assert portrait.osr2_control == OSR2_PARKED
         assert [button.command for button in portrait.osr2_controls] == ["broker_panel"]

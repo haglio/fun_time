@@ -893,15 +893,15 @@ def test_the_dashboard_section_lists_its_buttons_in_the_bars_order():
 
 
 def test_the_osr2s_control_is_one_row_park_and_its_undoing_word():
-    """Letting go of the device outright is the console's switch alone now,
-    so the row's phrases are park and unpark, and the switch's id is nothing
-    the row names."""
+    """The switch's own words lead the row, park and unpark are their synonyms,
+    and "OSR2 off" and "OSR2 resume", which he struck, are heard no more."""
     osr2 = _section("OSR2")
     [control] = osr2.groups[0].rows
 
     assert [group.title for group in osr2.groups] == ["Basic", "Robot Hand", "Broker"]
-    assert (control.description, control.voice) == ("control on / off", ("park", "park it", "unpark"))
-    assert {"robot_hand_park", "robot_hand_release", "robot_hand_retract"} <= set(control.commands)
+    assert (control.description, control.voice) == (
+        "control on / off", ("OSR2 control off", "park", "park it", "OSR2 control on", "unpark"))
+    assert set(control.commands) == {"robot_hand_park", "robot_hand_release"}
     assert "osr2_control_off" not in control.commands
     assert _keys(control) == ()
 

@@ -36,8 +36,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # pair is Genau's console's own ± marks beside its drive readout; the enhanced
 # filter is the switch the console draws over a hosted Origenerator's slideshows,
 # which the room hears as "enhanced only" rather than under this id; the OSR2's
-# control-off is the fourth switch beside park, retract and release, which the
-# room says.  The two scene jumps are the VR controllers' A and B with the
+# control-off is the console's switch off, which the room says as park.  The two
+# scene jumps are the VR controllers' A and B with the
 # trigger held.
 HUD_ONLY_COMMAND_IDS = (
     "genau_filter_enhanced",
@@ -324,7 +324,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "robot_hand_learned_on",
     "robot_hand_park",
     "robot_hand_release",
-    "robot_hand_retract",
     "robot_hand_toggle_learned",
     "satellites_action_loop",
     "satellites_cycle_action",

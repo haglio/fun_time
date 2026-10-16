@@ -257,8 +257,9 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["park"] == "robot_hand_park"
         assert VOICE_COMMANDS["park it"] == "robot_hand_park"
         assert VOICE_COMMANDS["stop"] == "relief_omnipause"
-        for phrase in ("un park", "o s r two resume", "oh es are two resume"):
-            assert VOICE_COMMANDS[phrase] == "robot_hand_release", phrase
+        assert VOICE_COMMANDS["un park"] == "robot_hand_release"
+        for phrase in ("o s r two resume", "oh es are two resume"):
+            assert phrase not in VOICE_COMMANDS, phrase
 
     def test_letting_go_of_the_device_is_the_consoles_switch_and_no_phrase(self):
         """"OSR2 off" was said of the fourth control button; park and unpark
@@ -287,8 +288,6 @@ class TestVoiceCommands:
         for joined in ("unpark", "osr2", "o s r 2"):
             assert joined not in VOICE_COMMANDS
         assert friendly_voice("un park") == "unpark"
-        assert friendly_voice("o s r two resume") == "OSR2 resume"
-        assert friendly_voice("oh es are two resume") == "OSR2 resume"
         assert VOICE_COMMANDS["resume"] == "play"
 
     def test_unmute_is_heard_as_two_words_and_shown_as_one(self):

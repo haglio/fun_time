@@ -286,8 +286,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     "was doing.  Control off settles the OSR2 home and "
                     "lets go of it there; the device itself stays on",
                     (),
-                    ("robot_hand_park", "robot_hand_release", "robot_hand_retract"),
-                    voice_display=("park", "park it", "unpark"),
+                    ("robot_hand_park", "robot_hand_release"),
                 ),
             )),
             _Group("Robot Hand", (

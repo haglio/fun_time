@@ -134,15 +134,11 @@ def build_voice_commands(
         # that hold.
         "park": "robot_hand_park",
         "park it": "robot_hand_park",
-        "o s r two off": "robot_hand_park",
-        "oh es are two off": "robot_hand_park",
         "o s r two control off": "robot_hand_park",
         "oh es are two control off": "robot_hand_park",
         "o s r two control on": "robot_hand_release",
         "oh es are two control on": "robot_hand_release",
         "un park": "robot_hand_release",
-        "o s r two resume": "robot_hand_release",
-        "oh es are two resume": "robot_hand_release",
         # Satellite commands (portrait/landscape/satellites nav, lock, weird, cycle)
         # are generated as an order-agnostic grid below the literal — F-mode among
         # them, bare and sided both.
@@ -592,7 +588,6 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     ("omni pause", "omnipause"),
     ("omni play", "omniplay"),
     ("un park", "unpark"),
-    ("un retract", "unretract"),
     ("hi on", "HI on"),
     ("hi off", "HI off"),
     ("o s r two", "OSR2"),
