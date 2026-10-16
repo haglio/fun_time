@@ -342,7 +342,8 @@ def test_no_module_reaches_into_another_ones_privates():
 # called its sibling checkouts rather than Genau's project dirs, and the notes
 # that said Genau and the Main Funestra were run out of them went with the
 # old name.
-MAX_PROSE_LINES = 6075
+# 6072 the same day: the dispatch loop reads the room it was left in once.
+MAX_PROSE_LINES = 6072
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

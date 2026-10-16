@@ -193,7 +193,7 @@ mic goes the same way: the mute lives in the controller this session runs, so th
 dispatch loop writes it down whenever it moves and the next session starts its own
 controller muted.
 
-## Two rules that are easy to lose
+## Three rules that are easy to lose
 
 **Resuming the satellites' playlists is all or nothing.** One build writes
 both, so both rotations are worked out before either is written: a session
@@ -206,6 +206,14 @@ and changing nothing you could see. Writing defaults clears a crashed session's
 leftovers just as the delete did, and the state carried forward is only ever the
 state that explains the files on disk: a session built fresh, or rebuilt over
 the top, opens on defaults.
+
+**The dispatch loop opens on the state file, never on defaults.** Origenerator
+is put back under the cover before the loop's first tick, through the switches'
+own commands, and every command writes the loop's state to the file. A loop
+that held defaults until its first tick wrote them over everything startup had
+just resumed, so until 2026-10-16 every room left with Origenerator holding
+anything came back at full Max intensity, with every other setting at its
+default too.
 
 ## Where the video was left
 
