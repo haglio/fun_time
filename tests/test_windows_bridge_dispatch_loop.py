@@ -3541,6 +3541,18 @@ class TestOpeningInOrigeneratorMode:
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "landscape_open_show"]
 
+    def test_every_setting_the_room_was_left_in_comes_back_with_it(self, tmp_path):
+        state_file = tmp_path / "shared_state.ini"
+        write_shared_state(state_file, _in_origenerator_mode(
+            replace(shifted_state(BridgeState()), rfb_slot=RfbSlot.ORIGENERATOR)))
+        left_in = resume_shared_state(state_file, resumed=True)
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        _the_hosted_app_answers(tmp_path)
+
+        runner.activate_origenerator(wait_for_the_app=self._the_app_answers)
+
+        assert remembered_values(read_shared_state(state_file)) == remembered_values(left_in)
+
     def test_a_room_left_with_only_the_browsers_place_to_origenerator_waits_for_it_too(
             self, tmp_path):
         write_shared_state(tmp_path / "shared_state.ini",

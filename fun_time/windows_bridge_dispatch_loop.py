@@ -341,7 +341,7 @@ class DispatchLoopRunner:
         # reads at the start of one and nothing after.
         self._origenerator_is_up = origenerator_already_open
         self._owed_to_origenerator = (
-            self._what_origenerator_held(showing=origenerator_showing)
+            _what_origenerator_held(left_in, showing=origenerator_showing)
             if config.origenerator_enabled else ())
         # The Robot Hand and a funscript both feed the broker's one T-Code inlet,
         # so in kino mode something has to hand the device between them.
@@ -378,17 +378,6 @@ class DispatchLoopRunner:
         if self.config.origenerator_enabled and state.origenerator_ready:
             return state
         return _with_origenerator_holding_nothing(state)
-
-    def _what_origenerator_held(self, *, showing: bool) -> tuple[str, ...]:
-        """The switches that put Origenerator back on whatever it held when this
-        room was last left, or on all of it for an app taken over mid-slideshow.
-        Read before anything is dispatched, so a switch later is where the room IS."""
-        left_in = read_shared_state(self.shared_state_file) or BridgeState()
-        satellites = tuple(
-            mode_command(funestra.label, ORIGENERATOR_MODE) for funestra in RoomFunestra.SATELLITES
-            if showing or origenerator_shows(left_in.satellite(funestra).mode))
-        in_the_rfb_slot = showing or left_in.rfb_slot is RfbSlot.ORIGENERATOR
-        return (*satellites, *((ORIGENERATOR_ACTIVATE,) if in_the_rfb_slot else ()))
 
     @property
     def activates_origenerator(self) -> bool:
@@ -1044,6 +1033,14 @@ class DispatchLoopRunner:
         browsing = self._browser_process
         if browsing is not None:
             browsing.terminate()
+
+
+def _what_origenerator_held(left_in: BridgeState, *, showing: bool) -> tuple[str, ...]:
+    satellites = tuple(
+        mode_command(funestra.label, ORIGENERATOR_MODE) for funestra in RoomFunestra.SATELLITES
+        if showing or origenerator_shows(left_in.satellite(funestra).mode))
+    in_the_rfb_slot = showing or left_in.rfb_slot is RfbSlot.ORIGENERATOR
+    return (*satellites, *((ORIGENERATOR_ACTIVATE,) if in_the_rfb_slot else ()))
 
 
 def _with_origenerator_holding_nothing(state: BridgeState) -> BridgeState:
