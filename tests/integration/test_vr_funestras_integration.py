@@ -37,10 +37,9 @@ from fun_time.satellite_control import read_satellite_status
 from fun_time_vr.gl_contexts import SharedContexts, hidden_gl_window
 from fun_time_vr.layout import (
     LANDSCAPE,
-    LAYOUT_FILENAME,
     PORTRAIT,
     Layout,
-    read_layout,
+    remembered_layout,
 )
 from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.render import SceneRenderer, immersive_wrap
@@ -146,7 +145,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
 
     renderer = SceneRenderer()
     contexts = SharedContexts(window)
-    remembered = read_layout(config.paths.state_dir / LAYOUT_FILENAME)
+    remembered = remembered_layout(config.paths.state_dir)
     stop = threading.Event()
     main = vrp._MainUnit(manifest, vr, contexts, remembered=remembered, stop=stop)
     satellites = [
