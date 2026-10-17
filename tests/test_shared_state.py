@@ -437,6 +437,7 @@ _EXPECTED_STATE_KEYS = {
     "genau_speed": "50", "genau_amplitude": "100",
     "genau_center": "50", "genau_shape": "sine",
     "mic_muted": "0",
+    "headset_layout": "",
     "genau_flick_seconds": "10", "genau_learned": "0", "genau_locked": "1",
 }
 

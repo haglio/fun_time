@@ -120,9 +120,8 @@ from .layout import (
     PORTRAIT,
     REFERENCE,
     Layout,
-    migrate_layout,
-    read_layout,
     rearranged,
+    remembered_layout,
     shown_at,
     widening,
     write_layout,
@@ -1966,8 +1965,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     commands = manifest.commands
     state_dir = Path(commands.dashboard_cmd_file).parent
     layout_path = state_dir / LAYOUT_FILENAME
-    migrate_layout(layout_path)
-    remembered = read_layout(layout_path)
+    remembered = remembered_layout(state_dir)
     # Before the Funestras and refreshed between them: each opens media.
     cover = _CoverUnit(state_dir)
     _raise_the_cover(session, renderer, cover)

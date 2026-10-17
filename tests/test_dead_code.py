@@ -343,7 +343,8 @@ def test_no_module_reaches_into_another_ones_privates():
 # that said Genau and the Main Funestra were run out of them went with the
 # old name.
 # 6072 the same day: the dispatch loop reads the room it was left in once.
-MAX_PROSE_LINES = 6072
+# 6068 the same day: the headset's layout file stopped being rewritten in place.
+MAX_PROSE_LINES = 6068
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

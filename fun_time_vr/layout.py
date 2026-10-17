@@ -8,6 +8,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 
+from fun_time.funestra_settings import HEADSET_LAYOUT_FILENAME
+from fun_time.shared_state import read_shared_state, shared_state_path
+
 from .scene import Placement, turn_deg, widened
 
 logger = logging.getLogger(__name__)
@@ -24,7 +27,7 @@ REFERENCE = "reference"
 LIBRARY = "library"
 BANNER = "banner"
 GALLERY = "gallery"
-LAYOUT_FILENAME = "vr_layout.json"
+LAYOUT_FILENAME = HEADSET_LAYOUT_FILENAME
 
 FUNESTRAS = (MAIN, LANDSCAPE, PORTRAIT)
 USUAL_ASPECT = {MAIN: 16 / 9, LANDSCAPE: 16 / 9, PORTRAIT: 9 / 16}
@@ -125,48 +128,30 @@ def rearranged(placements: Mapping[str, Placement], *, grow: float,
             if placement != placements[name]}
 
 
-# The word this file knew the main screen by before "main".
+# The word the main screen was known by before "main".
 _LAST_SESSIONS_MAIN = "primary"
 
 
-def migrate_layout(path: Path) -> bool:
-    """Rewrite *path* once if it still names the main screen by its old word:
-    a screen :func:`read_layout` finds nothing for starts in its own default
-    spot, which would have dropped where he placed the main screen."""
-    try:
-        raw = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return False
-    if not isinstance(raw, dict) or _LAST_SESSIONS_MAIN not in raw:
-        return False
-    raw.setdefault(MAIN, raw.pop(_LAST_SESSIONS_MAIN))
-    raw.pop(_LAST_SESSIONS_MAIN, None)
-    try:
-        Path(path).write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
-    except OSError:
-        logger.warning("Could not rewrite the layout in %s", path, exc_info=True)
-        return False
-    return True
-
-
-def _remembered_tilt(written: object, path: Path) -> float:
+def _remembered_tilt(written: object) -> float:
     try:
         return clamp_tilt(float(written))
     except (TypeError, ValueError):
-        logger.warning("Ignoring the remembered tilt in %s", path)
+        logger.warning("Ignoring a remembered tilt of %r", written)
         return 0.0
 
 
-def read_layout(path: Path) -> Layout:
-    """Only where the last session was left holding each screen, and its tilt."""
+def layout_from_json(text: str) -> Layout:
     try:
-        raw = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        raw = json.loads(text)
+    except ValueError:
         return Layout()
     if not isinstance(raw, dict):
         return Layout()
     spots = dict(raw)
-    tilt_deg = _remembered_tilt(spots.pop(_TILT_FIELD, 0.0), path)
+    if _LAST_SESSIONS_MAIN in spots:
+        spots.setdefault(MAIN, spots.pop(_LAST_SESSIONS_MAIN))
+        spots.pop(_LAST_SESSIONS_MAIN, None)
+    tilt_deg = _remembered_tilt(spots.pop(_TILT_FIELD, 0.0))
     remembered: dict[str, Placement] = {}
     for name, spot in spots.items():
         if not isinstance(spot, dict):
@@ -175,8 +160,13 @@ def read_layout(path: Path) -> Layout:
             remembered[name] = clamp_placement(
                 Placement(**{part: float(spot[part]) for part in _FIELDS}))
         except (KeyError, TypeError, ValueError):
-            logger.warning("Ignoring the remembered %s placement in %s", name, path)
+            logger.warning("Ignoring the remembered %s placement", name)
     return Layout(placements=remembered, tilt_deg=tilt_deg)
+
+
+def remembered_layout(state_dir: Path) -> Layout:
+    state = read_shared_state(shared_state_path(state_dir))
+    return layout_from_json(state.headset_layout) if state is not None else Layout()
 
 
 def write_layout(path: Path, layout: Layout) -> bool:

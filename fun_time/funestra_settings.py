@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -19,6 +20,16 @@ from .room_funestras import RoomFunestra
 from .satellite_control import published_satellite_status
 from .shared_state import BridgeState
 
+HEADSET_LAYOUT_FILENAME = "vr_layout.json"
+
+
+def _the_headsets_layout(state_dir: Path) -> str | None:
+    try:
+        reported = json.loads((Path(state_dir) / HEADSET_LAYOUT_FILENAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return json.dumps(reported, separators=(",", ":")) if isinstance(reported, dict) else None
+
 
 @dataclass(frozen=True)
 class FunestraReports:
@@ -26,20 +37,25 @@ class FunestraReports:
     satellites: Mapping[RoomFunestra, FunestraStatus | None] = field(default_factory=dict)
     genau_drive: DriveHud | None = None
     genau: GenauStatus | None = None
+    headset_layout: str | None = None
 
 
-def reports_left_in(state_dir: Path, *, main: MainFunestraStatus | None,
-                    satellites: Mapping[RoomFunestra, FunestraStatus | None]) -> FunestraReports:
-    return FunestraReports(main=main, satellites=satellites,
-                           genau_drive=read_drive(Path(state_dir) / GENAU_DRIVE),
-                           genau=published_genau_status(Path(state_dir) / GENAU_STATUS))
+def reports_published_in(state_dir: Path, *, main_status_file: Path,
+                         satellite_status_files: Mapping[RoomFunestra, Path]) -> FunestraReports:
+    return FunestraReports(
+        main=published_main_funestra_status(Path(main_status_file)),
+        satellites={funestra: published_satellite_status(Path(status_file))
+                    for funestra, status_file in satellite_status_files.items()},
+        genau_drive=read_drive(Path(state_dir) / GENAU_DRIVE),
+        genau=published_genau_status(Path(state_dir) / GENAU_STATUS),
+        headset_layout=_the_headsets_layout(state_dir))
 
 
 def read_funestra_reports(config) -> FunestraReports:
-    return reports_left_in(
-        config.state_dir, main=published_main_funestra_status(config.main_funestra_status_file),
-        satellites={funestra: published_satellite_status(config.satellite(funestra).status_file)
-                    for funestra in RoomFunestra.SATELLITES})
+    return reports_published_in(
+        config.state_dir, main_status_file=config.main_funestra_status_file,
+        satellite_status_files={funestra: config.satellite(funestra).status_file
+                                for funestra in RoomFunestra.SATELLITES})
 
 
 def with_what_the_funestras_report(state: BridgeState, reports: FunestraReports) -> BridgeState:
@@ -64,4 +80,6 @@ def with_what_the_funestras_report(state: BridgeState, reports: FunestraReports)
     if reports.genau is not None:
         state = replace(state, genau_learned=reports.genau.learned_active,
                         genau_locked=reports.genau.locked)
+    if reports.headset_layout is not None:
+        state = replace(state, headset_layout=reports.headset_layout)
     return state
