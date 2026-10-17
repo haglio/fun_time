@@ -2,6 +2,7 @@
 worn, whatever the room or a chip asks before then."""
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -83,3 +84,20 @@ def test_the_sound_goes_live_once(mpv_calls):
     engine.sound_goes_live("Example Headset")
 
     assert routed.call_count == 1
+
+
+def test_no_radio_station_opens_before_the_headset_is_worn(mpv_calls):
+    with patch.object(MpvRenderEngine, "radio_station") as opened:
+        engine = _an_engine()
+
+        assert engine.radio_station([Path("alpha.mp4")]) is None
+        opened.assert_not_called()
+
+
+def test_once_worn_a_radio_station_opens_where_the_headsets_sound_goes(mpv_calls):
+    with patch.object(MpvRenderEngine, "radio_station", return_value="a station") as opened:
+        engine = _an_engine()
+        engine.sound_goes_live("Example Headset")
+
+        assert engine.radio_station([Path("alpha.mp4")]) == "a station"
+        opened.assert_called_once_with([Path("alpha.mp4")])
