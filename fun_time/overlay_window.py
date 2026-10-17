@@ -14,12 +14,13 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Protocol
 
+from app_support.loading_screen import Placement, Screens, over_every_monitor, screens
 from PIL import ImageTk
-from shared_ui.loading_panel import LoadingPanel, icon_image, render
+from shared_ui.loading_handover import TakingOver
+from shared_ui.loading_panel import LoadingPanel, icon_image, render, size
 from shared_ui.palette import LOADING_GROUND, as_hex
 
 from . import preview_marker
-from .monitors import MonitorInfo, virtual_desktop_rect
 from .overlay_progress import (
     CANCEL_WORD,
     CANCELING,
@@ -58,7 +59,7 @@ class Canvas(Protocol):
 
     def show(self, panel: LoadingPanel) -> None: ...
 
-    def center_on(self, x: int, y: int) -> None: ...
+    def place_at(self, x: int, y: int) -> None: ...
 
 
 class _LabelCanvas:
@@ -70,7 +71,7 @@ class _LabelCanvas:
         self._label.image = ImageTk.PhotoImage(render(panel))
         self._label.configure(image=self._label.image)
 
-    def center_on(self, x: int, y: int) -> None:
+    def place_at(self, x: int, y: int) -> None:
         self._label.place_configure(x=x, y=y)
 
 
@@ -86,18 +87,20 @@ class OverlayWindow:
         panel: LoadingPanel,
         title: str,
         stale_timeout_s: float,
+        taking_over: TakingOver,
     ) -> None:
         self._progress_file = progress_file
         self._root = root
         self._canvas = canvas
-        self._panel = panel
+        self._taking_over = taking_over
+        self._panel = replace(panel, fraction=taking_over.carried(0.0))
         self._title = title
         self._stale_timeout_s = stale_timeout_s
         self._unmoved_since = time.time()
         self._status_held = False
         self._offering = False
         self._hwnd = 0
-        self._desktop: MonitorInfo | None = None
+        self._placement: Placement | None = None
 
     @property
     def panel(self) -> LoadingPanel:
@@ -106,6 +109,7 @@ class OverlayWindow:
     @classmethod
     def over_every_monitor(
         cls, progress_file: Path, *, title: str, status: str, stale_timeout_s: float,
+        taking_over: TakingOver | None = None,
     ) -> OverlayWindow:
         # Made first, so the cover goes up over it and it stays under the cover
         # for good: a window put under the cover joins the topmost band only if
@@ -121,15 +125,14 @@ class OverlayWindow:
         root.configure(bg=ground)
 
         label = tk.Label(root, bg=ground, borderwidth=0, highlightthickness=0)
-        label.place(x=0, y=0, anchor=tk.CENTER)
+        label.place(x=0, y=0)
         canvas = _LabelCanvas(label)
-        panel = opening_panel(status)
-        canvas.show(panel)
 
         window = cls(
-            progress_file, root, canvas, panel=panel, title=title,
-            stale_timeout_s=stale_timeout_s,
+            progress_file, root, canvas, panel=opening_panel(status), title=title,
+            stale_timeout_s=stale_timeout_s, taking_over=taking_over or TakingOver(None),
         )
+        canvas.show(window.panel)
         window._cover_every_monitor()
 
         # The focus is taken so Esc lands here rather than on whatever the
@@ -171,20 +174,17 @@ class OverlayWindow:
         self._redraw(status=CANCELING, hint="")
 
     def _cover_every_monitor(self) -> None:
-        desktop = virtual_desktop_rect() or MonitorInfo(
-            x=0, y=0,
-            width=self._root.winfo_screenwidth(), height=self._root.winfo_screenheight(),
-        )
-        if desktop == self._desktop:
+        placement = over_every_monitor(size(), screens() or self._screens_as_tk_sees_them())
+        if placement == self._placement:
             return
-        self._desktop = desktop
-        self._root.geometry(f"{desktop.width}x{desktop.height}+{desktop.x}+{desktop.y}")
-        # Centered on the Main Funestra's monitor rather than the virtual desktop's
-        # midpoint, which may fall between two.
-        self._canvas.center_on(
-            self._root.winfo_screenwidth() // 2 - desktop.x,
-            self._root.winfo_screenheight() // 2 - desktop.y,
-        )
+        self._placement = placement
+        x, y, width, height = placement.window
+        self._root.geometry(f"{width}x{height}+{x}+{y}")
+        self._canvas.place_at(*placement.panel)
+
+    def _screens_as_tk_sees_them(self) -> Screens:
+        whole = (self._root.winfo_screenwidth(), self._root.winfo_screenheight())
+        return Screens(virtual=(0, 0, *whole), primary=whole, pointer_work_area=(0, 0, *whole))
 
     def _poll(self) -> None:
         self._cover_every_monitor()
@@ -214,7 +214,7 @@ class OverlayWindow:
     def _show(self, progress: Progress) -> None:
         self._offering = bool(progress.hint)
         if progress.total > 0:
-            self._redraw(fraction=progress.step / progress.total)
+            self._redraw(fraction=self._taking_over.carried(progress.step / progress.total))
         if progress.hint and what_the_flag_asks(
                 cancel_file_for(self._progress_file)) == CANCEL_WORD:
             self._say_canceling()
@@ -232,7 +232,10 @@ class OverlayWindow:
         ``update()`` returns only once Tk has created, shown and first painted
         the window, so *on_shown* fires when the cover is genuinely on screen --
         a signal teardown can hold its first kill on."""
+        if not (progress := self._read_progress()).malformed and not progress.done:
+            self._show(progress)
         self._root.update()
+        self._taking_over.done(self._panel, covers_every_monitor=True)
         if on_shown is not None:
             on_shown()
         self._root.mainloop()

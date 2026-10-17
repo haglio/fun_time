@@ -8,10 +8,13 @@ nothing else is (``test_the_launch_loads_nothing_the_cover_does_not_need``).
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from app_support import loading_screen
 
 from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
@@ -88,6 +91,8 @@ def open_the_cover(state_dir: Path, *, show_overlays: bool, sibling_checkouts: s
     progress = PhaseProgress(progress_file, cancel_file=cancel_file, hint=esc_cancels)
     progress_file.parent.mkdir(parents=True, exist_ok=True)
     progress.announce(STARTUP_PHASES[0].key)
+    handed = loading_screen.handed_over(os.environ)
+    environment = sibling_checkouts_kwargs(sibling_checkouts).get("env", dict(os.environ))
     loading_proc = subprocess.Popen(
         [
             NAMER.named_exe(sys.executable, "LoadingScreen"),
@@ -95,7 +100,7 @@ def open_the_cover(state_dir: Path, *, show_overlays: bool, sibling_checkouts: s
         ],
         **no_child_log(),
         **no_console_window(),
-        **sibling_checkouts_kwargs(sibling_checkouts),
+        env={**environment, **handed},
     )
     tie_to_this_process(loading_proc)
     logger.info("Loading screen launched (pid=%d)", loading_proc.pid)

@@ -4,7 +4,7 @@
 
 Option Explicit
 
-Dim fso, shell, root, app, interpreter, directory, arguments, base, updater, gates, held(), checkout, label, logPath, readyFile, exitedFlag, notePath, noteText
+Dim fso, shell, root, app, interpreter, directory, arguments, base, updater, gates, held(), checkout, label, logPath, readyFile, exitedFlag, notePath, noteText, screenFolder, screenUp
 
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
@@ -28,6 +28,7 @@ Sub Decide()
   readyFile = fso.BuildPath(checkout, "state\launcher.ready")
   exitedFlag = fso.BuildPath(checkout, "state\launcher.exited")
   notePath = fso.BuildPath(checkout, "state\branch_out_of_date.txt")
+  screenFolder = fso.BuildPath(checkout, "state\launcher.screen")
   arguments = "-m fun_time.branch_session """ & checkout & """"
   For index = 1 To WScript.Arguments.Count - 1
     Select Case LCase(WScript.Arguments(index))
@@ -37,6 +38,7 @@ Sub Decide()
         readyFile = fso.BuildPath(checkout, "state\vr_launcher.ready")
         exitedFlag = fso.BuildPath(checkout, "state\vr_launcher.exited")
         notePath = fso.BuildPath(checkout, "state\branch_out_of_date.txt")
+        screenFolder = fso.BuildPath(checkout, "state\vr_launcher.screen")
         arguments = arguments & " --vr"
       Case Else
         If index = 1 Then label = WScript.Arguments(index)
@@ -69,12 +71,15 @@ Sub Report()
   For Each gate In gates
     WScript.Echo "gate: " & gate
   Next
+  WScript.Echo "loading screen: " & LoadingScreen()
+  WScript.Echo "screen: " & screenFolder
 End Sub
 
 Sub Launch()
   If Not fso.FileExists(interpreter) Then
     Refuse app & "'s virtual environment is missing:" & vbCrLf & interpreter, vbCritical
   End If
+  ShowLoadingScreen
   CatchUp
   HoldGates
   logPath = FreeLog(logPath)
@@ -82,7 +87,9 @@ Sub Launch()
   If fso.FileExists(readyFile) Then fso.DeleteFile readyFile
   If fso.FileExists(exitedFlag) Then fso.DeleteFile exitedFlag
   If fso.FileExists(notePath) Then fso.DeleteFile notePath
+  StopIfCanceled
   shell.Run Command(), 0, False
+  Say "started"
   ReleaseGates
   If Not Started() Then
     noteText = LastLinesOf(notePath, 20)
@@ -92,6 +99,7 @@ Sub Launch()
       Refuse FailedStart(), vbCritical
     End If
   End If
+  Say "ended"
 End Sub
 
 Function Command()
@@ -103,6 +111,7 @@ Function Quote(text)
 End Function
 
 Sub Tell(message, icon)
+  TakeDownLoadingScreen
   If LCase(fso.GetFileName(WScript.FullName)) = "cscript.exe" Then
     WScript.Echo "dialog: " & message
   Else
@@ -120,7 +129,12 @@ Function Update()
 End Function
 
 Sub CatchUp()
-  If fso.FileExists(updater) Then shell.Run Update(), 0, True
+  If Not fso.FileExists(updater) Then Exit Sub
+  shell.Run "cmd /c " & Quote(Update() & " & type nul > " & Quote(fso.BuildPath(screenFolder, "updated"))), 0, False
+  Do Until fso.FileExists(fso.BuildPath(screenFolder, "updated"))
+    StopIfCanceled
+    WScript.Sleep 100
+  Loop
 End Sub
 
 Sub HoldGates()
@@ -131,6 +145,7 @@ Sub HoldGates()
       waited = 0
       Do Until Holds(index)
         If waited >= 900000 Then WScript.Quit 1
+        StopIfCanceled
         WScript.Sleep 500
         waited = waited + 500
       Loop
@@ -151,6 +166,52 @@ Sub ReleaseGates()
   For index = 0 To UBound(held)
     If IsObject(held(index)) Then held(index).Close
   Next
+End Sub
+
+Function LoadingScreen()
+  Dim gate
+  LoadingScreen = Quote(updater) & " -m app_support.loading_screen"
+  For Each gate In gates
+    LoadingScreen = LoadingScreen & " " & Quote(fso.GetParentFolderName(fso.GetParentFolderName(gate)))
+  Next
+End Function
+
+Sub ShowLoadingScreen()
+  Dim name
+  shell.Environment("Process").Item("HAGLIO_LOADING_SCREEN") = screenFolder
+  shell.Environment("Process").Item("HAGLIO_LOADING_SCREEN_LINES") = "[""Updating Fun Time..."", ""Updating Origenerator...""]"
+  If Not fso.FolderExists(fso.GetParentFolderName(screenFolder)) Then fso.CreateFolder fso.GetParentFolderName(screenFolder)
+  If Not fso.FolderExists(screenFolder) Then fso.CreateFolder screenFolder
+  For Each name In Array("shown.json", "taken", "started", "ended", "canceled", "updated")
+    If fso.FileExists(fso.BuildPath(screenFolder, name)) Then fso.DeleteFile fso.BuildPath(screenFolder, name)
+  Next
+  If fso.FileExists(updater) And fso.FileExists(fso.BuildPath(screenFolder, "pictures.json")) Then
+    shell.Run LoadingScreen(), 1, False
+    screenUp = True
+  End If
+End Sub
+
+Sub StopIfCanceled()
+  If fso.FileExists(fso.BuildPath(screenFolder, "canceled")) Then WScript.Quit 0
+End Sub
+
+Sub Say(flag)
+  On Error Resume Next
+  fso.CreateTextFile(fso.BuildPath(screenFolder, flag), True).Close
+  Err.Clear
+  On Error GoTo 0
+End Sub
+
+Sub TakeDownLoadingScreen()
+  Dim waited
+  If screenUp <> True Then Exit Sub
+  screenUp = False
+  Say "ended"
+  waited = 0
+  Do While fso.FileExists(fso.BuildPath(screenFolder, "shown.json")) And waited < 3000
+    WScript.Sleep 100
+    waited = waited + 100
+  Loop
 End Sub
 
 Function FreeLog(preferred)

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
+from app_support import loading_screen
 
 from fun_time.loading_cover import open_the_cover
 from fun_time.overlay_progress import (
@@ -48,6 +52,37 @@ class TestWhatTheCoverSaysBeforeTheScreenIsUp:
         cover = _opened_cover(tmp_path)
 
         assert not parse_progress(cover.progress_file.read_text(encoding="utf-8")).done
+
+
+class TestTheLaunchersLoadingScreen:
+    @pytest.fixture
+    def launched(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(loading_screen.FOLDER, str(tmp_path / "screen"))
+        monkeypatch.setenv(loading_screen.LINES, '["Updating Fun Time..."]')
+        return tmp_path / "screen"
+
+    def test_the_cover_is_told_where_it_meets_the_one_its_launcher_showed(self, tmp_path, launched):
+        popen = MagicMock()
+
+        _opened_cover(tmp_path, popen=popen)
+
+        environment = popen.call_args.kwargs["env"]
+        assert (environment[loading_screen.FOLDER], environment[loading_screen.LINES]) == (
+            str(launched), '["Updating Fun Time..."]')
+
+    def test_nothing_else_the_session_starts_is_told(self, tmp_path, launched):
+        _opened_cover(tmp_path)
+
+        assert loading_screen.FOLDER not in os.environ
+
+    def test_a_cover_on_sibling_checkouts_is_told_as_well(self, tmp_path, launched):
+        popen = MagicMock()
+        with patch("fun_time.loading_cover.subprocess.Popen", popen),              patch("fun_time.loading_cover.wait_for_window_by_title", return_value=0):
+            open_the_cover(tmp_path, show_overlays=True, sibling_checkouts=str(tmp_path))
+
+        environment = popen.call_args.kwargs["env"]
+        assert environment[loading_screen.FOLDER] == str(launched)
+        assert environment["PYTHONPATH"].startswith(str(tmp_path))
 
 
 def test_the_loading_screen_goes_the_moment_the_fun_time_that_raised_it_does(tmp_path: Path):

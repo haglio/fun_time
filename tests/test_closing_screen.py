@@ -51,6 +51,11 @@ class TestMain:
         assert overlay.progress_file == progress_file
         assert overlay.kwargs["title"] == WINDOW_TITLE
 
+    def test_takes_over_from_no_launchers_loading_screen_and_leaves_it_nothing(self, tmp_path, monkeypatch):
+        _progress_file, overlay = self._run_main(tmp_path, monkeypatch)
+
+        assert overlay.kwargs.get("taking_over") is None
+
     def test_reports_ready_only_once_the_cover_is_painted(self, tmp_path, monkeypatch):
         """Teardown holds its first kill for this flag, so writing it any earlier
         than the paint would hand back a promise the screen has not kept."""

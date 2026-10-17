@@ -84,6 +84,7 @@ run = "-m fun_time.orchestrator"
 named-interpreter = "FunTime-Orchestrator.exe"
 log = 'state\launcher.log'
 watch = true
+loading-screen = ["Updating Fun Time...", "Updating Origenerator..."]
 
 [tool.haglio.launchers."launch_vr.vbs"]
 app = "FunTimeVR"
@@ -97,6 +98,7 @@ run = '-m fun_time.branch_session "{checkout}"'
 log = 'state\launcher.log'
 watch = true
 note = 'branch_out_of_date.txt'
+loading-screen = ["Updating Fun Time...", "Updating Origenerator..."]
 
 [tool.haglio.launchers."launch_branch.vbs".checkout-argument]
 missing = """
