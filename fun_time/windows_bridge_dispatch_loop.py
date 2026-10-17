@@ -423,6 +423,7 @@ class DispatchLoopRunner:
             self.state = shared
         # File or no file: this corrects a reading of the room, not the file.
         self.state = self._the_satellite_modes_this_session_can_be_in(self.state)
+        self._record_what_the_funestras_hold()
         if shared is not None and shared != self.state:
             # Nothing else writes the file until a command is dispatched, which on
             # a session nobody is touching may be never.

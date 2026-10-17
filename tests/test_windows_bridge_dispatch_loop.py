@@ -17,6 +17,7 @@ from app_support.state_files import OSR2_SERIAL_RX
 from app_support.threading_utils import wait_until
 from funestra.console import OSR2_PARKED
 from funestra.file_channel import publish_whole
+from funestra.funestra_status import status_fields
 from funestra.hud_status import F_MODE_LABEL
 from funestra.modes import MainMode, SatellitesMode
 from funestra.playlist import PlaylistItem, write_playlist

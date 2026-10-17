@@ -31,7 +31,7 @@ in either orchestrator:
 | Every Funestra's playback rate | yes, re-queued on its command file |
 | The Main Funestra's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, flick seconds, human-inspired motion and hold | yes, same |
-| The mic being off | yes, off the flag the last session wrote |
+| The mic being off | yes, from the room's state |
 | Each satellite's mode (Kino / Origenerator), and what holds the Random Favs Browser's place | yes, entered under the cover before the room is shown |
 | OmniPause | no — a session never opens paused |
 

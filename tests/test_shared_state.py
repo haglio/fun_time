@@ -428,8 +428,6 @@ _EXPECTED_STATE_KEYS = {
     "portrait_widen_clip": "", "landscape_widen_clip": "",
     "portrait_nav_anchor": "", "landscape_nav_anchor": "",
     "volume": "100", "muted": "0", "max_intensity": "100",
-    "portrait_volume": "100", "landscape_volume": "100",
-    "portrait_muted": "1", "landscape_muted": "1",
     "osr2_control": "driving",
     "crowned": "main", "majority": "portrait",
     "osr2_funestra": "1",

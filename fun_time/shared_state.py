@@ -47,8 +47,6 @@ class SatelliteState:
     hud_corner: HudCorner = HudCorner.UPPER_LEFT
     hud_edge: HudEdge = HudEdge.LOWER
     hud_minimized: bool = False
-    volume: int = MAX_VOLUME
-    muted: bool = True
     # This satellite's metadata filter query ("" = none), honored by later rebuilds.
     filter: str = ""
     # Per Funestra, because each HUD carries its own F button; here it keeps the favorites.
@@ -77,6 +75,9 @@ class SatelliteState:
     # re-homes the satellite, or the satellite drifts off the map.
     nav_anchor: str = ""
     mode: SatellitesMode = KINO_MODE
+    speed: float = 1.0
+    volume: int = MAX_VOLUME
+    muted: bool = True
 
 
 def _satellite_key(name: str, funestra: RoomFunestra) -> str:
