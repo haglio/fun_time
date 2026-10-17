@@ -5,14 +5,18 @@ import subprocess
 import sys
 import time
 import tkinter as tk
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
-from shared_ui.loading_panel import LoadingPanel
+import pytest
+from app_support import loading_screen
+from app_support.loading_screen import Screens
+from shared_ui.loading_handover import TakingOver
+from shared_ui.loading_panel import LoadingPanel, size
 from shared_ui.palette import LOADING_ACCENT
 
 from fun_time import overlay_window, preview_marker
-from fun_time.monitors import MonitorInfo
 from fun_time.overlay_progress import (
     Progress,
     cancel_file_for,
@@ -46,9 +50,16 @@ class _FakeRoot:
         self.rearmed = []
         self.geometries: list[str] = []
         self._screen = screen
+        self.painted = 0
 
     def destroy(self):
         self.destroyed = True
+
+    def update(self):
+        self.painted += 1
+
+    def mainloop(self):
+        pass
 
     def after(self, ms, callback):
         self.rearmed.append((ms, callback))
@@ -66,17 +77,17 @@ class _FakeRoot:
 class _FakeCanvas:
     def __init__(self):
         self.shown: list[LoadingPanel] = []
-        self.centered: list[tuple[int, int]] = []
+        self.placed: list[tuple[int, int]] = []
 
     def show(self, panel: LoadingPanel) -> None:
         self.shown.append(panel)
 
-    def center_on(self, x: int, y: int) -> None:
-        self.centered.append((x, y))
+    def place_at(self, x: int, y: int) -> None:
+        self.placed.append((x, y))
 
 
 def _cover(tmp_path: Path, *, stale_timeout_s: float = 5.0,
-           title: str = "Fun Time Loading") -> OverlayWindow:
+           title: str = "Fun Time Loading", taking_over: TakingOver | None = None) -> OverlayWindow:
     """The overlay's live loops over fakes standing in for Tk.
 
     The real window is a borderless cover over every monitor of whoever runs
@@ -91,6 +102,7 @@ def _cover(tmp_path: Path, *, stale_timeout_s: float = 5.0,
         panel=LoadingPanel(wordmark="Fun Time", status="Starting..."),
         title=title,
         stale_timeout_s=stale_timeout_s,
+        taking_over=taking_over or TakingOver(None),
     )
 
 
@@ -397,33 +409,72 @@ class TestTheCoverFollowsTheMonitorsItCovers:
     his primary monitor.  He reported exactly that: the loading overlay never
     appeared there (2026-10-12)."""
 
-    def _covering(self, tmp_path: Path, rects):
+    BEFORE = Screens(virtual=(0, 0, 2560, 1440), primary=(2560, 1440), pointer_work_area=(0, 0, 2560, 1410))
+    AFTER = Screens(virtual=(-1920, 0, 4480, 1440), primary=(2560, 1440), pointer_work_area=(0, 0, 2560, 1410))
+
+    def _covering(self, tmp_path: Path, measured):
         cover = _cover(tmp_path)
         (tmp_path / "progress.txt").write_text("1/5|Starting...", encoding="utf-8")
-        with patch("fun_time.overlay_window.virtual_desktop_rect", side_effect=rects):
-            for _ in rects:
+        with patch("fun_time.overlay_window.screens", side_effect=measured):
+            for _ in measured:
                 cover._poll()
         return cover
 
     def test_a_display_set_that_changes_is_covered_again(self, tmp_path: Path):
-        before = MonitorInfo(x=0, y=0, width=2560, height=1440)
-        after = MonitorInfo(x=-1920, y=0, width=4480, height=1440)
-
-        cover = self._covering(tmp_path, [before, after])
+        cover = self._covering(tmp_path, [self.BEFORE, self.AFTER])
 
         assert cover._root.geometries == ["2560x1440+0+0", "4480x1440+-1920+0"]
 
     def test_a_display_set_that_has_not_moved_is_left_alone(self, tmp_path: Path):
-        same = MonitorInfo(x=0, y=0, width=2560, height=1440)
+        moved_the_pointer = replace(self.BEFORE, pointer_work_area=(2560, 0, 1440, 3410))
 
-        cover = self._covering(tmp_path, [same, same, same])
+        cover = self._covering(tmp_path, [self.BEFORE, moved_the_pointer, self.BEFORE])
 
         assert cover._root.geometries == ["2560x1440+0+0"]
 
-    def test_the_panel_is_centered_again_on_the_new_set(self, tmp_path: Path):
-        before = MonitorInfo(x=0, y=0, width=2560, height=1440)
-        after = MonitorInfo(x=-1920, y=0, width=4480, height=1440)
+    def test_the_panel_is_centered_again_on_the_main_monitor_of_the_new_set(self, tmp_path: Path):
+        width, height = size()
 
-        cover = self._covering(tmp_path, [before, after])
+        cover = self._covering(tmp_path, [self.BEFORE, self.AFTER])
 
-        assert cover._canvas.centered == [(1280, 720), (1280 + 1920, 720)]
+        on_its_middle = (1280 - width // 2, 720 - height // 2)
+        assert cover._canvas.placed == [on_its_middle, (on_its_middle[0] + 1920, on_its_middle[1])]
+
+    def test_screens_windows_cannot_measure_are_covered_as_far_as_tk_sees(self, tmp_path: Path):
+        cover = self._covering(tmp_path, [None])
+
+        assert cover._root.geometries == ["2560x1440+0+0"]
+
+
+class TestTakingOverFromTheLaunchersLoadingScreen:
+    @pytest.fixture
+    def place(self, tmp_path):
+        return loading_screen.MeetingPlace(tmp_path / "screen", ("Updating Fun Time...",))
+
+    def test_its_bar_carries_on_from_where_the_launchers_screen_got(self, tmp_path: Path, place):
+        place.stand(loading_screen.Shown(left=0, top=0, fraction=0.5))
+        cover = _cover(tmp_path, taking_over=TakingOver(place))
+        cover._progress_file.write_text("3/6|Launching companions...", encoding="utf-8")
+
+        cover._poll()
+
+        assert cover.panel.fraction == 0.75
+
+    def test_its_first_frame_already_says_what_the_launch_wrote(self, tmp_path: Path):
+        cover = _cover(tmp_path)
+        cover._progress_file.write_text("0/6|Starting...|Press Esc to cancel opening Fun Time", encoding="utf-8")
+
+        cover.run()
+
+        assert cover._canvas.shown[-1].hint == "Press Esc to cancel opening Fun Time"
+        assert cover._root.painted == 1
+
+    def test_once_up_it_tells_the_launchers_screen_to_go_and_leaves_it_this_panel(self, tmp_path: Path, place):
+        place.stand(loading_screen.Shown(left=0, top=0, fraction=0.5))
+        cover = _cover(tmp_path, taking_over=TakingOver(place))
+        cover._progress_file.write_text("0/6|Starting...|Press Esc to cancel opening Fun Time", encoding="utf-8")
+
+        cover.run()
+
+        assert place.taken
+        assert place.pictures().covers_every_monitor

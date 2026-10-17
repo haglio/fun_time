@@ -20,6 +20,17 @@ class TestWhatTheScreenOpensOn:
         assert window.over_every_monitor.call_args.kwargs["status"] == STARTUP_PHASES[0].message
 
 
+class TestTheLaunchersLoadingScreen:
+    def test_the_startup_cover_takes_over_from_the_one_its_launcher_showed(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["loading_screen", str(tmp_path / "progress.txt")])
+
+        with patch("fun_time.overlay_window.OverlayWindow") as window,              patch("shared_ui.loading_handover.TakingOver") as taking_over:
+            main()
+
+        assert window.over_every_monitor.call_args.kwargs["taking_over"] is (
+            taking_over.from_the_launcher.return_value)
+
+
 class TestWindowTitle:
     def test_title_cannot_be_mistaken_for_the_dashboard(self):
         """Dashboard lookups match the exact title "Fun Time"; the borderless

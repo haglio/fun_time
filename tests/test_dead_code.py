@@ -344,7 +344,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # old name.
 # 6072 the same day: the dispatch loop reads the room it was left in once.
 # 6068 the same day: the headset's layout file stopped being rewritten in place.
-MAX_PROSE_LINES = 6068
+MAX_PROSE_LINES = 6058
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
@@ -421,7 +421,7 @@ _WIN32_REACHES = {
     # caller catches it to fall back rather than to fail.  monitors.py is the
     # module the rest of the family asks for a monitor rather than measuring
     # one, which is why its count is the only one that ever goes up.
-    "fun_time/monitors.py": 13,
+    "fun_time/monitors.py": 7,
 }
 
 # What counts as reaching it.

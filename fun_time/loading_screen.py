@@ -30,6 +30,8 @@ def main() -> None:
         sys.exit(1)
 
     # Tk is the screen's own; the launch imports this module for the title.
+    from shared_ui.loading_handover import TakingOver  # noqa: PLC0415
+
     from .overlay_window import OverlayWindow  # noqa: PLC0415
 
     OverlayWindow.over_every_monitor(
@@ -37,6 +39,7 @@ def main() -> None:
         title=WINDOW_TITLE,
         status=STARTUP_PHASES[0].message,
         stale_timeout_s=STALE_TIMEOUT_S,
+        taking_over=TakingOver.from_the_launcher(),
     ).run()
 
 
