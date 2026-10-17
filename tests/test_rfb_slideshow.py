@@ -151,6 +151,18 @@ def test_a_glance_at_the_rfb_reads_the_cursor_the_foreground_and_his_last_input(
     assert glance == RfbGlance(showing=True, under_cursor=True, foreground=False, idle_s=3.5)
 
 
+def test_a_last_input_windows_will_not_say_reads_as_long_ago():
+    with (
+        patch("fun_time.rfb_slideshow.window_exists", return_value=True),
+        patch("fun_time.rfb_slideshow.is_window_minimized", return_value=False),
+        patch("fun_time.rfb_slideshow.window_under_cursor", return_value=0),
+        patch("fun_time.rfb_slideshow.foreground_window", return_value=0),
+        patch("fun_time.rfb_slideshow.seconds_since_input",
+              side_effect=OSError("GetLastInputInfo failed")),
+    ):
+        assert glance_at(RFB_HWND).idle_s == float("inf")
+
+
 def test_a_closed_or_minimized_rfb_is_not_showing():
     for exists, minimized in ((False, False), (True, True)):
         with (

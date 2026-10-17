@@ -5,14 +5,13 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Protocol
 
-from app_support.win32 import window_exists
+from app_support.win32 import seconds_since_input, window_exists
 
 from .chrome_accessibility import open_chrome_window
 from .chrome_tabs import ChromeTabSwitcher
 from .win32 import (
     foreground_window,
     is_window_minimized,
-    seconds_since_input,
     window_under_cursor,
 )
 
@@ -33,8 +32,15 @@ def glance_at(hwnd: int) -> RfbGlance:
         showing=window_exists(hwnd) and not is_window_minimized(hwnd),
         under_cursor=window_under_cursor() == hwnd,
         foreground=foreground_window() == hwnd,
-        idle_s=seconds_since_input(),
+        idle_s=_idle_s(),
     )
+
+
+def _idle_s() -> float:
+    try:
+        return seconds_since_input()
+    except OSError:
+        return float("inf")
 
 
 class TabSwitcher(Protocol):
