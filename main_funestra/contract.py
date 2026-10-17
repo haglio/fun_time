@@ -17,6 +17,7 @@ class MainChannels(Channels):
             command=args.command_file,
             paused=args.paused_file,
             status=args.status_file,
+            notice=args.notice_file,
             play_points=play_points_path(args),
             console=args.console_file,
             dashboard_cmd=args.dashboard_cmd_file,

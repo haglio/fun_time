@@ -33,8 +33,8 @@ def test_the_band_is_the_funestras_own_controls_in_the_consoles_order():
     browse controls on it, then minimize — ending with the one that acts on the
     window rather than on anything in it."""
     assert _names(_band(latest=False)) == [
-        "prev", "nudge_prev", "nudge_next", "next", "lock", "trash", "fmode", "reset",
-        "shuffle", "latest", "cycle_version", "minimize", "crown"]
+        "prev", "nudge_prev", "nudge_next", "next", "funscript_jump", "lock", "trash", "fmode",
+        "reset", "shuffle", "latest", "cycle_version", "minimize", "crown"]
 
 
 def test_every_button_posts_that_funestras_own_verb():
@@ -67,8 +67,8 @@ def test_the_states_light_and_nothing_else_does():
     assert lit["fmode"].lit and lit["fmode"].favorite
     assert lit["latest"].lit and not lit["shuffle"].lit
     assert not any(lit[name].lit for name in (
-        "prev", "nudge_prev", "nudge_next", "next", "trash", "reset", "cycle_version",
-        "minimize"))
+        "prev", "nudge_prev", "nudge_next", "next", "funscript_jump", "trash", "reset",
+        "cycle_version", "minimize"))
     shuffled = dict(zip(_names(_band(latest=False)), _band(latest=False)))
     assert shuffled["shuffle"].lit and not shuffled["latest"].lit
 
@@ -158,7 +158,17 @@ def test_the_gaps_fall_between_groups_and_nowhere_else():
     for previous, button in pairwise(_band(latest=False)):
         assert button.group_break == (
             previous.command.removeprefix("portrait_")
-            in ("next", "fmode", "reset", "latest", "cycle_version"))
+            in ("funscript_jump", "fmode", "reset", "latest", "cycle_version"))
+
+
+def test_the_funscript_jump_rides_the_transport_as_the_consoles_does():
+    """The same control the Main Funestra's console carries, worn by every
+    satellite beside its transport: a clip's script has lulls too."""
+    jump = {b.command: b for b in _band()}["portrait_funscript_jump"]
+
+    assert shared_mark_name(jump.glyph) == "funscript_jump"
+    assert jump.tooltip == "Skip ahead to where this clip's scripting starts up again"
+    assert not jump.group_break and not jump.lit and not jump.dim
 
 
 def test_the_typed_faces_are_in_the_painters_symbol_face():

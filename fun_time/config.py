@@ -151,6 +151,7 @@ class SatelliteFiles:
     cmd_file: Path
     paused_file: Path
     status_file: Path
+    notice_file: Path
     playlist_file: Path
     hud_file: Path
     origenerator_hud_file: Path
@@ -282,6 +283,7 @@ class ProjectConfig:
             cmd_file=self.paths.state_dir / f"{label}_cmd.txt",
             paused_file=self.paths.state_dir / f"{label}_paused.txt",
             status_file=self.paths.state_dir / f"{label}_status.txt",
+            notice_file=self.paths.state_dir / f"{label}_notice.txt",
             playlist_file=self.paths.state_dir / f"{label}_playlist.tsv",
             hud_file=self.paths.state_dir / f"{label}_hud.json",
             origenerator_hud_file=self.paths.state_dir / f"origenerator_{label}_hud.json",

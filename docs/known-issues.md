@@ -34,7 +34,7 @@
     headset's output) all run in VR as of 2026-09-04, on the engine that moved to
     `funestra` for it; GenauVR, the standalone headset app, is retired with that.
   - The hosted Origenerator IS launched, as of 2026-09-20, so each satellite's
-    Origenerator mode runs in the headset: the shows are the Satellite Funestras'
+    Origenerator mode runs in the headset: the slideshows are the Satellite Funestras'
     own playlists (`fun_time.funestra_handover`), and the headset's satellites are
     Funestras. `fun_time.hosted_origenerator` brings the app up for either shape
     of session and sees it out of either teardown. What a headset has nowhere to

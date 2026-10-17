@@ -251,13 +251,13 @@ Every Funestra says whether it is the one those bare words would reach: the **do
 
 ### Playback speed
 
-Every Funestra has its own playback speed: the Main Funestra's row on its console, and the same **Playback speed** row on each satellite's HUD — slower, the rate, faster. When the Main Funestra's speed changes, both satellites are set to the same speed; a satellite you set on its own keeps its speed until the Main Funestra's changes again. Spoken, a playback speed phrase — "playback speed up", "max speed", "half speed", "reset speed", "speed one point five ex" — reaches the Funestra you last addressed, and "main", "portrait", "landscape" or "both" before or after it aims it at that Funestra. The bare "speed up" and "slow down" still follow whichever engine is driving the OSR2. A satellite answers `SPEED_UP`, `SPEED_DOWN` and `SET_SPEED min|max|<rate>` on its command file, the same three the Main Funestra does.
+Every Funestra has its own playback speed: the Main Funestra's row on its console, and the same **Playback speed** row on each satellite's HUD — slower, the rate, faster. When the Main Funestra's speed changes, both satellites are set to the same speed; a satellite you set on its own keeps its speed until the Main Funestra's changes again. Spoken, a playback speed phrase — "playback speed up", "max speed", "half speed", "reset speed", "speed one point five ex" — reaches the Funestra you last addressed, and "main", "portrait", "landscape" or "satellites" before or after it aims it at that Funestra. The bare "speed up" and "slow down" still follow whichever engine is driving the OSR2. A satellite answers `SPEED_UP`, `SPEED_DOWN` and `SET_SPEED min|max|<rate>` on its command file, the same three the Main Funestra does.
 
 ### Modes
 
-The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Kino** (`H`) and **Genau** (`G`). `\` offsets the Robot Hand's motion by a quarter cycle in either. `N` opens the **library browser** (see below); the chosen video plays in the Main Funestra, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
+The main stack runs in one of two modes: **Kino** and **Genau** (`G`; Kino by its button on the Main Funestra's HUD or the spoken "main kino mode"). `\` offsets the Robot Hand's motion by a quarter cycle in either. "browse" opens the **library browser** (see below); the chosen video plays in the Main Funestra, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
 
-The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive the Main Funestra in every mode (in Genau mode the paused Main Funestra still navigates in the background). A ten-second step has nothing to step through in a video of 10 seconds or shorter, so there every Funestra's HUD draws its back and forward 10s buttons faded, and a key or a spoken "skip" or "back" does nothing but say so over that Funestra. The `;` clip-save key reads the current video/time from the Main Funestra's status file in Kino mode.
+`M`, `.` and `,` step and hold whatever is on the Main Funestra -- the video in Kino mode, Genau's flick in Genau mode -- and `-`/`+` nudge the video ten seconds. A ten-second step has nothing to step through in a video of 10 seconds or shorter, so there every Funestra's HUD draws its back and forward 10s buttons faded, and a key or a spoken "skip" or "back" does nothing but say so over that Funestra. The `;` clip-save key reads the current video/time from the Main Funestra's status file in Kino mode.
 
 Spoken, "kino mode" puts both sides in Kino mode at once; "main kino mode" and "satellite kino mode" do one side, and "genau mode" or "origenerator mode" puts a side back. Genau is heard said either way, the German word or "go now"; "origenerator" is in no dictionary, so the recognizer listens for "aura generator mode".
 
@@ -272,7 +272,7 @@ same video sits in three of them at different trims and upscales
 video got through the pipeline before you can find it, which is the librarian's
 business and not the viewer's.
 
-So `N` opens Fun Time's own browser instead of a file dialog. It shows one tile
+So "browse" opens Fun Time's own browser instead of a file dialog. It shows one tile
 per **video** rather than per file — every rendition of one video collapsed into
 a single *handle* — with a still off each, named after the video, and no stage
 folders anywhere. Arrow keys move the selection, typing jumps to a title,
@@ -294,7 +294,7 @@ since the dispatch loop that launched it holds it until it ends.
 
 In the headset the browser is the desktop's own. Nothing in the headset can see
 a window on the monitors, so a VR session runs the same browser with no window
-at all and hangs what it draws in front of you as a panel. `N`, "browse" and
+at all and hangs what it draws in front of you as a panel. "browse" and
 the console's browse button open it, and the same again puts it away. It is the
 window described below, header, letters and tiles alike, with three differences
 a pointer needs: one trigger press opens a tile, the stick scrolls whichever
@@ -441,27 +441,27 @@ However a session ends — any of those, or a crossing into or out of the headse
 
 The alternative was worse than it sounds: a Funestra that closed itself left the sequencer's layout with a gap nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the Funestras out one press at a time while the dashboard and the audio companion carried on. Launched by hand, outside a session, a satellite or the Main Funestra still closes on its own close, because then that is the whole application; Genau runs only inside a session. See `funestra.session_quit`.
 
-### F-Mode
+### F-mode
 
-F-Mode is **per Funestra** — the Main Funestra, portrait and landscape each have their own — and setting one rebuilds that Funestra's playlist immediately, rather than waiting for the next advance, then sends it `RELOAD_PLAYLIST`. A Funestra that was not named is not rebuilt at all, so narrowing one side never reshuffles the other's queue. What it narrows to differs by Funestra:
+F-mode is **per Funestra** — the Main Funestra, portrait and landscape each have their own — and setting one rebuilds that Funestra's playlist immediately, rather than waiting for the next advance, then sends it `RELOAD_PLAYLIST`. A Funestra that was not named is not rebuilt at all, so narrowing one side never reshuffles the other's queue. What it narrows to differs by Funestra:
 
 - the main playlist (the Main Funestra) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
 - each satellite plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
 
-Every Funestra carries its own F button in the first row of icons on its own HUD (the satellites' control band, the main console's transport row), with that Funestra's reset button just past it. The dashboard's F button, the `F` key and the spoken "all f mode" reach all three at once — they turn F-Mode **on** unless every Funestra is already in it, so the whole-room gesture can never leave half the room narrowed. In Origenerator mode the portrait and Landscape Funestras' part of it is each slideshow's own F-Mode switch, and the dashboard's F button lights off those. A bare spoken "f mode" reaches the Funestra last addressed, and naming a Funestra narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "both f mode off" — either word order, and `both` means the two satellites. A satellite also takes its side's "favorites" — "portrait favorites", "landscape favorites" — as its F-Mode, the word Origenerator's shows answer with their own F-Mode switch in Origenerator mode.
+Every Funestra carries its own F button in the first row of icons on its own HUD (the satellites' control band, the main console's transport row), with that Funestra's reset button just past it. The dashboard's F button, the `F` key and the spoken "all f mode" reach all three at once — they turn F-mode **on** unless every Funestra is already in it, so the whole-room gesture can never leave half the room narrowed. In Origenerator mode the portrait and Landscape Funestras' part of it is each slideshow's own F-mode switch, and the dashboard's F button lights off those. A bare spoken "f mode" reaches the Funestra last addressed, and naming a Funestra narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "satellites f mode off" — either word order, and `satellites` means the two satellites. A satellite also takes its side's "favorites" — "portrait favorites", "landscape favorites" — as its F-mode, the word Origenerator's shows answer with their own F-mode switch in Origenerator mode.
 
-At startup a session with nothing to resume writes the satellites' playlists with F-Mode off (`build_satellite_playlists`), and every session writes the Main Funestra's list from the F-Mode and the other buttons it carries (`fun_time.main_list`); `apply_fmode` rebuilds the named Funestras after that.
+At startup a session with nothing to resume writes the satellites' playlists with F-mode off (`build_satellite_playlists`), and every session writes the Main Funestra's list from the F-mode and the other buttons it carries (`fun_time.main_list`); `apply_fmode` rebuilds the named Funestras after that.
 
-Because the narrowing is invisible in the playlist itself, every HUD says when it is on. Each satellite's status line carries `F-Mode` between the browse order and the act filter (`fun_time/lock_hud.py`), and the Main Funestra's mode HUD carries it beside the length mode or compilation — the Main Funestra is told over `SET_F_MODE`, since a playlist of scripted videos looks like any other. Each HUD's F button lights green off the same per-player flag, published with the rest of that Funestra's panel.
+Because the narrowing is invisible in the playlist itself, every HUD says when it is on. Each satellite's status line carries `F-mode` between the browse order and the act filter (`fun_time/lock_hud.py`), and the Main Funestra's mode HUD carries it beside the length mode or compilation — the Main Funestra is told over `SET_F_MODE`, since a playlist of scripted videos looks like any other. Each HUD's F button lights green off the same per-player flag, published with the rest of that Funestra's panel.
 
-F-Mode is also one of the things a **reset** drops — see below.
+F-mode is also one of the things a **reset** drops — see below.
 
 ### Reset
 
-"Reset" means the same thing on every Funestra: put it back to its defaults, and it is a button on that Funestra's own HUD (next to F-Mode in each satellite's control band and in the main console's transport row) as well as a spoken word. What the defaults cover differs by Funestra, because what each Funestra has does:
+"Reset" means the same thing on every Funestra: put it back to its defaults, and it is a button on that Funestra's own HUD (next to F-mode in each satellite's control band and in the main console's transport row) as well as a spoken word. What the defaults cover differs by Funestra, because what each Funestra has does:
 
-- a satellite (`portrait_reset` / `landscape_reset` / `both reset`) releases its lock, clears its act filter, drops F-Mode, ends any group loop with the widened seed row and frozen map that rode on it, returns the browse to shuffled and starts from the top of a freshly built playlist, and puts its playback speed back to 1×. A Funestra whose speed is the only thing off keeps its browse and the video on screen, as the Main Funestra does. `no filter` is the narrow counterpart — it drops the act filter and leaves the rest standing
-- the Main Funestra (`main_reset`, "main reset" / "reset main") puts back every button its one list is built from — F-Mode off, 2D and VR both in, clips and full videos both in, the browse shuffled and dealt afresh — which leaves any compilation with it, and starts from the top of the new list; it also cancels any A/B loop, unlocks it and puts its playback speed back to 1×
+- a satellite (`portrait_reset` / `landscape_reset` / `both reset`) releases its lock, clears its act filter, drops F-mode, ends any group loop with the widened seed row and frozen map that rode on it, returns the browse to shuffled and starts from the top of a freshly built playlist, and puts its playback speed back to 1×. A Funestra whose speed is the only thing off keeps its browse and the video on screen, as the Main Funestra does. `no filter` is the narrow counterpart — it drops the act filter and leaves the rest standing
+- the Main Funestra (`main_reset`, "main reset" / "reset main") puts back every button its one list is built from — F-mode off, 2D and VR both in, clips and full videos both in, the browse shuffled and dealt afresh — which leaves any compilation with it, and starts from the top of the new list; it also cancels any A/B loop, unlocks it and puts its playback speed back to 1×
 
 **A reset does nothing to a Funestra that is already in one.** Every rebuild after it reshuffles and lands on the new list's first entry, so a press with nothing to put back was the quickest way to keep changing what was playing — press it three times and see three videos. A satellite is skipped whole when its side state is already the default one; the Main Funestra's list is rebuilt only when one of those buttons was narrowing or ordering it or a compilation was playing, and the Main Funestra ignores being told to go somewhere it already is.
 
@@ -469,7 +469,7 @@ Bare "reset" reaches whichever Funestra was last addressed, the Main Funestra in
 
 **A reset with nothing to put back is drawn faded, and takes no press.** The same answer that skips the dispatch rides out to the surfaces that draw the button: the main console's reset, each satellite HUD's, and the dashboards' Reset All go dim while every Funestra they reach is already at its defaults. The Funestras draw that from the button's own dim flag, which fades the mark, leaves it unlit under the pointer and posts nothing. Reset All stays live while a show is hosted — the session cannot see what the show is showing, so it never claims there is nothing to put back.
 
-**Reset All** resets every Funestra at once: it is the dashboard's button beside F-Mode, on the desktop and in the headset alike, and the spoken "reset all" / "all reset". It posts `all_reset`, which the dispatch loop expands the way it expands a `both_*` command — into `main_reset`, `portrait_reset` and `landscape_reset`, each handled exactly as if it had been pressed on its own Funestra.
+**Reset All** resets every Funestra at once: it is the dashboard's button beside F-mode, on the desktop and in the headset alike, and the spoken "reset all" / "all reset". It posts `all_reset`, which the dispatch loop expands the way it expands a `satellites_*` command — into `main_reset`, `portrait_reset` and `landscape_reset`, each handled exactly as if it had been pressed on its own Funestra.
 
 ### Cycle action & cycle seed (satellites)
 
@@ -606,7 +606,7 @@ Cleared before every browse, so abandoning one never replays the last pick.
 
 ### `main_player_playlist.tsv`
 
-One video per line, with a TAB plus the funscript path when one exists. The Main Funestra's one list, written by `fun_time.main_list` alone: at every session's start, and whenever a button it is built from is pressed (2D, VR, clips, full videos, F-Mode, Latest, Shuffle, the reset), each write queueing `RELOAD_PLAYLIST` with `SET_F_MODE` and `SET_LENGTH_MODE` on the Main Funestra's command file. No session reads it back: the next one builds it again from the buttons ([docs/resuming-a-session.md](docs/resuming-a-session.md)). Every playlist is written and read through `funestra.playlist`, one `PlaylistItem` per line.
+One video per line, with a TAB plus the funscript path when one exists. The Main Funestra's one list, written by `fun_time.main_list` alone: at every session's start, and whenever a button it is built from is pressed (2D, VR, clips, full videos, F-mode, Latest, Shuffle, the reset), each write queueing `RELOAD_PLAYLIST` with `SET_F_MODE` and `SET_LENGTH_MODE` on the Main Funestra's command file. No session reads it back: the next one builds it again from the buttons ([docs/resuming-a-session.md](docs/resuming-a-session.md)). Every playlist is written and read through `funestra.playlist`, one `PlaylistItem` per line.
 
 ### `origenerator_cmd.txt`, `origenerator_paused.txt`, `origenerator_status.txt`, `origenerator_portrait_hud.json`, `origenerator_landscape_hud.json`
 
@@ -621,7 +621,7 @@ parking the app, which lets go of both), `FILTER_ENHANCED` (the console's
 enhanced-only switch), `QUIT` and `RELEASE`, `PORTRAIT_SAY:<phrase>` for a
 spoken command the session heard about one side, and `GO_TO|<flick>` once Genau
 has locked on a flick, which takes the gallery to that flick when the app made
-it. The paused flag freezes its shows for OmniPause. The status file says only
+it. The paused flag freezes its slideshows for OmniPause. The status file says only
 that the app is up (`ready=1`), which is what lights every Origenerator button. A
 show the app is asked for on a Funestra still in Kino mode posts
 `portrait_origenerator_activate` / `landscape_origenerator_activate` on the

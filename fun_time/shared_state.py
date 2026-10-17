@@ -29,7 +29,7 @@ from funestra.robot_hand import FULL_INTENSITY, RobotHandState
 
 from .audio_volume import MAX_VOLUME
 from .crown import Crown
-from .mode_plan import STARTUP_MAIN_MODE
+from .mode_plan import STARTUP_MAIN_MODE, EnhancementLevel
 from .origenerator_switches import KINO_MODE, RfbSlot, origenerator_shows
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .room_funestras import RoomFunestra
@@ -51,6 +51,8 @@ class SatelliteState:
     filter: str = ""
     # Per Funestra, because each HUD carries its own F button; here it keeps the favorites.
     favorites_filter: bool = False
+    # Which of its clips get through, by whether an enhanced version exists.
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH
     # Newest-first ("Latest") when set, else shuffled.  Read by every later
     # rebuild, so the satellite reloads the same way.
     latest: bool = False
@@ -105,6 +107,7 @@ class BridgeState:
     main_latest: bool = False
     main_shuffle_seed: int = 0
     main_length_mode: LengthMode = LengthMode.MIXED
+    main_enhancement: EnhancementLevel = EnhancementLevel.BOTH
     # Which shapes of video the Main Funestra's browse may reach: VR masters, flat
     # ones, or both -- the only answer outside the headset, holding one shape.
     main_plays_vr: bool = True

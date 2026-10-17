@@ -49,8 +49,10 @@ class BridgeConfig:
     # Where this session answers whether it is in OmniPause -- baked into the
     # landing page a lock opens, which polls it.
     loopback_port: int = LOOPBACK_PORT
-    # Where the Main Funestra publishes its one-shot notices (a clip jump with nowhere to go).
+    # Where each Funestra publishes its one-shot notices (a jump with nowhere to go).
     main_funestra_notice_file: Path | None = None
+    portrait_notice_file: Path | None = None
+    landscape_notice_file: Path | None = None
     # Which Main Funestra this session launched.  The main_player file quartet is the
     # MAIN FUNESTRA's channel, not the Main Funestra's: in a desktop session the reader is the Main Funestra,
     # and in a VR session it is fun_time_vr's in-process role, which speaks the
@@ -104,6 +106,7 @@ class BridgeConfig:
                 playlist_file=self.portrait_playlist_file,
                 sources=self.portrait_sources,
                 origenerator_hud_file=self.portrait_origenerator_hud_file,
+                notice_file=self.portrait_notice_file,
             )
         return SatelliteChannel(
             cmd_file=self.landscape_cmd_file,
@@ -112,6 +115,7 @@ class BridgeConfig:
             playlist_file=self.landscape_playlist_file,
             sources=self.landscape_sources,
             origenerator_hud_file=self.landscape_origenerator_hud_file,
+            notice_file=self.landscape_notice_file,
         )
 
     @property
@@ -152,6 +156,7 @@ class SatelliteChannel:
     playlist_file: Path
     sources: str
     origenerator_hud_file: Path | None = None
+    notice_file: Path | None = None
 
 
 class Op(StrEnum):

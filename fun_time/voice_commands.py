@@ -75,8 +75,7 @@ ORIGENERATOR_PHRASES: tuple[str, ...] = (
     # a side's Origenerator mode those same two commands are routed to the hosted app
     # instead — one phrase, one meaning per mode, rather than two spellings.
     FAVORITES_PHRASE, "experiments", "requests",
-    "enhanced only", "filter enhanced",
-    # The show's own controls.
+    # The slideshow's own controls.
     "play slideshow", "start slideshow", "pause slideshow", "stop slideshow",
     # The commands about the picture on screen: the built-in detail parts, and Genau.
     "fix face", "fix hands", "fix teeth", "fix eyes", *GENAU_SAID,
@@ -130,47 +129,48 @@ def build_voice_commands(
         # it stays).
         "relief omni pause": "relief_omnipause",
         "stop": "relief_omnipause",
-        # The OSR2 switch: off parks the device, on drives it again.
+        # Stopping the device alone, at either end of its axis, and back off
+        # that hold.
         "park": "robot_hand_park",
         "park it": "robot_hand_park",
-        "o s r two off": "robot_hand_park",
-        "oh es are two off": "robot_hand_park",
         "o s r two control off": "robot_hand_park",
         "oh es are two control off": "robot_hand_park",
         "o s r two control on": "robot_hand_release",
         "oh es are two control on": "robot_hand_release",
         "un park": "robot_hand_release",
-        "o s r two resume": "robot_hand_release",
-        "oh es are two resume": "robot_hand_release",
-        # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
-        # generated as an order-agnostic grid below the literal — F-mode among them,
-        # bare and sided both.
+        # Satellite commands (portrait/landscape/satellites nav, lock, weird, cycle)
+        # are generated as an order-agnostic grid below the literal — F-mode among
+        # them, bare and sided both.
 
         **{phrase: "genau_activate" for said in GENAU_SAID for phrase in (said, f"{said} mode")},
         # Kino mode, said of a side or of neither: the bare phrase puts the
         # main slot AND the satellites on their Funestras, each side's own phrase
         # just that side.
+        "kino": "kino_activate",
         "kino mode": "kino_activate",
         "main kino mode": "main_kino_activate",
         "satellite kino mode": "satellites_kino_activate",
         "satellites kino mode": "satellites_kino_activate",
         # Both satellites' other mode, spoken as explicit modes rather than a
         # toggle, so a phrase misheard twice cannot land on the opposite.
+        "aura generator": "satellites_origenerator_activate",
         "aura generator mode": "satellites_origenerator_activate",
         "start broker": "broker_start",
         "stop broker": "broker_stop",
         # "main next" / "next main" are generated with the satellite grid
         # below (the Main Funestra joins the active-side feature for navigation).
         "projection": "projection_cycle",
+        "cycle projection": "projection_cycle",
         # FunTimeVR: re-zero the scene onto wherever the headset is facing now —
         # the in-app recenter, since the runtime's own menu doesn't reach the app.
         "recenter": "recenter_view",
     "tilt up": "tilt_up",
     "tilt down": "tilt_down",
     "level": "tilt_reset",
-        "browse": "browse_library",
-        "clip": "genaumacher_save",
-        "save clip": "genaumacher_save",
+        **dict.fromkeys(("browse", "open browser", "open file browser", "file browser",
+                         "file browse"), "browse_library"),
+        "save loop": "genaumacher_save",
+        f"save {flick}": "genaumacher_save",
         "record": "main_player_record_down",
         "loop": "main_player_record_up",
         "end loop": "main_player_loop_cancel",
@@ -178,21 +178,21 @@ def build_voice_commands(
         # way "action"/"seed" do on a satellite; the "cycle / next / change version"
         # verb forms come from the cycle-axis grid below.
         "version": "main_player_cycle_version",
-        "clips": "main_player_length_clips",
-        "full": "main_player_length_full",
-        # Which shape of video the Funestra on the main screen may reach, in the
-        # headset, where its library holds both.  "mixed" is taken by the length
-        # above, so the both-shapes phrase names the shapes instead; neither
-        # shape gets no phrase at all, being a browse with nothing in it.
+        # Which lengths of video the Main Funestra's list includes, and which
+        # shapes, in the headset, where its library holds both: each pair said
+        # as what it includes.  Neither length and neither shape get no phrase,
+        # being a browse with nothing in it.
+        "clips only": "main_player_length_clips",
+        "full only": "main_player_length_full",
+        "clips and full": "main_player_length_mixed",
+        "full and clips": "main_player_length_mixed",
         "vr only": "main_projection_vr",
         "flat only": "main_projection_flat",
         "two d only": "main_projection_flat",
         "flat and vr": "main_projection_both",
         "vr and flat": "main_projection_both",
-        # The unfiltered library the Main Funestra opens in, and so the way back out of either
-        # half.  "main reset" contains this and puts back every other default too
-        # (see the main-player grid below); this is the narrow gesture of the pair.
-        "mixed": "main_player_length_mixed",
+        "two d and vr": "main_projection_both",
+        "vr and two d": "main_projection_both",
         # Clip navigation (clips carved from compilations); "full
         # video" is the reliable phrase, "full vid" a fallback.
         "compilation": "main_player_compilation",
@@ -201,12 +201,6 @@ def build_voice_commands(
         "end compilation": "main_player_end_compilation",
         "full video": "main_player_full_vid",
         "full vid": "main_player_full_vid",
-        # Funscript navigation.  A scripted video is mostly not scripted — the action
-        # comes in runs with quiet stretches between them — so one phrase skips the
-        # stretch you are in and the other gives up on the video entirely for the next
-        # one that has a script, landing on its action rather than at its top.
-        "jump to fun script": "main_player_funscript_jump",
-        "next fun scripted": "main_player_next_funscripted",
         # The phrases for the clip jump are library vocabulary, so they come from
         # the content overlay and are merged in below rather than written here.
         # Nothing in these words names an engine, so they follow whichever holds
@@ -223,27 +217,22 @@ def build_voice_commands(
         "human inspired": "robot_hand_toggle_learned",
         "human inspired on": "robot_hand_learned_on",
         "human inspired off": "robot_hand_learned_off",
+        "hi on": "robot_hand_learned_on",
+        "hi off": "robot_hand_learned_off",
         f"previous {flick}": "genau_prev_flick",
         f"next {flick}": "genau_next_flick",
         # Bare "weird" already addresses the active satellite, so Genau's own
-        # action names the flick.  There is no spoken hold to go with it: holding
-        # one is the Main Funestra's lock, said as "main lock" or bare while the
-        # Main Funestra has the floor.
+        # action names the flick.  Holding one is the Main Funestra's lock, so
+        # the flick named after "lock" says that lock.
         f"weird {flick}": "genau_weird_flick",
+        f"lock {flick}": "main_lock_on",
+        f"unlock {flick}": "main_lock_off",
         "offset": "quarter_button",
         # "voice off" / "mic off" both mute voice control (there is no spoken way
         # back — a muted recognizer hears nothing; the dashboard mic button or a
         # restart re-enables it).
         "voice off": "voice_off",
         "mic off": "voice_off",
-        # The Main Funestra's sound, whichever mode owns it.  Each pair's two
-        # words mean the same thing, so a speaker never has to pick between them.
-        "mute": "audio_mute",
-        "un mute": "audio_unmute",
-        "quiet": "audio_volume_down",
-        "quieter": "audio_volume_down",
-        "loud": "audio_volume_up",
-        "louder": "audio_volume_up",
     }
 
     # The spoken phrases for the clip jump describe the library, not the app, so
@@ -264,10 +253,12 @@ def build_voice_commands(
 
     # Satellite commands form a uniform, order-agnostic grid.  Each action
     # works BARE — driving the "active side", whichever satellite was most
-    # recently addressed — or with a side word (portrait / landscape / both)
-    # in EITHER order, and "both …" drives the pair (the dispatch loop expands
-    # it).  Cycle siblings with "action" (same subject(s)+scene, another act)
-    # or "seed" (same config, another subject).
+    # recently addressed — or with a side word in EITHER order; "satellites"
+    # names the pair, whose id the dispatch loop expands.  Cycle siblings with
+    # "action" (same subject(s)+scene, another act) or "seed" (same config,
+    # another subject).
+    _SIDE_WORDS = ("portrait", "landscape", "satellites")
+    _FUNESTRA_WORDS = (*_SIDE_WORDS, "main")
     _SATELLITE_ACTIONS: dict[str, str] = {
         "lock": "lock_on",
         "unlock": "lock_off",
@@ -291,19 +282,19 @@ def build_voice_commands(
         # The two browse orderings, each rescanning the sources so new files are picked
         # up: "latest" reloads newest-first, "shuffle" reshuffles.  Both are sided like
         # every other satellite action — a side put in latest order has to be
-        # shuffleable on its own — and "both latest" is what the P key sends.
+        # shuffleable on its own.
         "latest": "latest",
         "shuffle": "shuffle",
     }
     for _act_word, _act in _SATELLITE_ACTIONS.items():
         commands[_act_word] = f"active_{_act}"
-        for _side in ("portrait", "landscape", "both"):
+        for _side in _SIDE_WORDS:
             _sided = f"{_side}_{_act}"
             commands[f"{_side} {_act_word}"] = _sided
             commands[f"{_act_word} {_side}"] = _sided
 
     # Sided only: the bare word is the Main Funestra's own version axis above.
-    for _side in ("portrait", "landscape", "both"):
+    for _side in _SIDE_WORDS:
         commands[f"{_side} version"] = f"{_side}_cycle_version"
         commands[f"version {_side}"] = f"{_side}_cycle_version"
 
@@ -345,7 +336,7 @@ def build_voice_commands(
     for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
         for _group_word in _group_words:
             commands[_group_word] = f"active_{_group_act}"
-            for _side in ("portrait", "landscape", "both"):
+            for _side in _SIDE_WORDS:
                 _sided = f"{_side}_{_group_act}"
                 commands[f"{_side} {_group_word}"] = _sided
                 commands[f"{_group_word} {_side}"] = _sided
@@ -355,7 +346,7 @@ def build_voice_commands(
     # loop resolves ``active_no_loop`` to the Main Funestra's A-B loop cancel on the Main Funestra, and to
     # a satellite's group loop on portrait/landscape.
     commands["end loop"] = "active_no_loop"
-    for _side in ("portrait", "landscape", "both"):
+    for _side in _SIDE_WORDS:
         commands[f"{_side} end loop"] = f"{_side}_no_loop"
         commands[f"end loop {_side}"] = f"{_side}_no_loop"
 
@@ -399,8 +390,24 @@ def build_voice_commands(
         commands[f"main {_action_word}"] = f"main_{_action}"
         commands[f"{_action_word} main"] = f"main_{_action}"
 
+    # A Funestra's sound, said like the rest of the grid: bare, the Funestra last
+    # addressed; with a side word, that side; "main", the Main Funestra, whose
+    # ids keep the spelling its own console posts.  Each pair's two words mean
+    # the same thing, so a speaker never has to pick between them.
+    _SOUND_WORDS: dict[str, str] = {
+        "mute": "mute", "un mute": "unmute",
+        "quiet": "volume_down", "quieter": "volume_down",
+        "loud": "volume_up", "louder": "volume_up",
+    }
+    for _sound_word, _change in _SOUND_WORDS.items():
+        commands[_sound_word] = f"active_{_change}"
+        for _side in _SIDE_WORDS:
+            commands[f"{_side} {_sound_word}"] = f"{_side}_{_change}"
+            commands[f"{_sound_word} {_side}"] = f"{_side}_{_change}"
+        commands[f"main {_sound_word}"] = commands[f"{_sound_word} main"] = f"audio_{_change}"
+
     # F-mode, per Funestra, sayable in either order like the rest of the grid:
-    # "both" drives the satellites, "main" the Main Funestra, "all" every one --
+    # "satellites" drives the pair, "main" the Main Funestra, "all" every one --
     # the F key.  Bare it reaches the Funestra last addressed, as bare "lock" and
     # "next" do; reading it as the whole room made a spoken "f mode" answer
     # "enabled" on a room that already looked narrowed.  ``_FMODE_PHRASES``
@@ -412,25 +419,31 @@ def build_voice_commands(
     }
     for _fmode_word, (_fmode_act, _fmode_all) in _FMODE_PHRASES.items():
         commands[_fmode_word] = f"active_{_fmode_act}"
-        for _side in ("portrait", "landscape", "both", "main", "all"):
-            _sided = _fmode_all if _side == "all" else f"{_side}_{_fmode_act}"
-            commands[f"{_side} {_fmode_word}"] = _sided
-            commands[f"{_fmode_word} {_side}"] = _sided
+        for _funestra in _FUNESTRA_WORDS:
+            commands[f"{_funestra} {_fmode_word}"] = f"{_funestra}_{_fmode_act}"
+            commands[f"{_fmode_word} {_funestra}"] = f"{_funestra}_{_fmode_act}"
+        commands[f"all {_fmode_word}"] = commands[f"{_fmode_word} all"] = _fmode_all
+    commands["fun scripts"] = commands["main fun scripts"] = commands["fun scripts main"] = "main_fmode_on"
     commands["reset all"] = commands["all reset"] = "all_reset"
 
-    # Mode-named navigation: a mode's name + next/previous (either order) navigates
-    # that mode's Funestra.  Kino drives the main slot's video; Genau steps its own
-    # flick.
-    _MODE_NAV: dict[str, tuple[str, str]] = {
-        # recognizer base -> (next command, previous command)
-        "kino": ("main_next", "main_prev"),
-        **dict.fromkeys(GENAU_SAID, ("genau_next_flick", "genau_prev_flick")),
+    # Which of what a Funestra plays gets through, by whether an enhanced
+    # version exists -- said as the shapes are, as what it includes, of the
+    # Funestra last addressed or the one named.
+    _ENHANCEMENT_PHRASES: dict[str, str] = {
+        "enhanced only": "enhancement_enhanced",
+        "original only": "enhancement_original",
+        "enhanced and original": "enhancement_both",
+        "original and enhanced": "enhancement_both",
     }
-    for _base, (_next_cmd, _prev_cmd) in _MODE_NAV.items():
-        commands[f"{_base} next"] = _next_cmd
-        commands[f"next {_base}"] = _next_cmd
-        commands[f"{_base} previous"] = _prev_cmd
-        commands[f"previous {_base}"] = _prev_cmd
+    for _phrase, _act in _ENHANCEMENT_PHRASES.items():
+        commands[_phrase] = f"active_{_act}"
+        for _funestra in _FUNESTRA_WORDS:
+            commands[f"{_funestra} {_phrase}"] = commands[f"{_phrase} {_funestra}"] = f"{_funestra}_{_act}"
+
+    # "next video" is bare "next" said longer, so it reaches whatever was last
+    # navigated, as "next" does; so do the others said of a video.
+    for _of_a_video in ("next", "previous", "weird", "lock", "unlock"):
+        commands[f"{_of_a_video} video"] = commands[_of_a_video]
 
     _NUMBER_WORDS: dict[str, int] = {
         "zero": 0, "ten": 10, "twenty": 20, "thirty": 30, "forty": 40,
@@ -511,26 +524,53 @@ def build_voice_commands(
             ("one", 100), ("one point two five", 125), ("one point five", 150),
             ("one point seven five", 175), ("two", 200))},
     }
-    for _phrase, _act in _PLAYBACK_SPEEDS.items():
+    # Funscript navigation, said the same way.  A scripted video is mostly not
+    # scripted — the action comes in runs with quiet stretches between them — so
+    # one phrase skips the stretch you are in and the other gives up on the video
+    # entirely for the next one that has a script, landing on its action rather
+    # than at its top.
+    _FUNSCRIPT_MOVES: dict[str, str] = {
+        "jump to fun script": "funscript_jump",
+        "next fun scripted": "next_funscripted",
+    }
+    for _phrase, _act in {**_PLAYBACK_SPEEDS, **_FUNSCRIPT_MOVES}.items():
         commands[_phrase] = f"active_{_act}"
-        for _side, _funestra in (("portrait", "portrait"), ("landscape", "landscape"),
-                              ("both", "both"), ("main", "main_player")):
-            commands[f"{_side} {_phrase}"] = f"{_funestra}_{_act}"
-            commands[f"{_phrase} {_side}"] = f"{_funestra}_{_act}"
+        for _funestra_word in _FUNESTRA_WORDS:
+            _funestra = "main_player" if _funestra_word == "main" else _funestra_word
+            commands[f"{_funestra_word} {_phrase}"] = f"{_funestra}_{_act}"
+            commands[f"{_phrase} {_funestra_word}"] = f"{_funestra}_{_act}"
 
 
     for _verb, _act in (("minimize", "hud_minimize"), ("un minimize", "hud_restore"),
                         ("restore", "hud_restore")):
         commands[f"{_verb} hud"] = f"active_{_act}"
-        for _side in ("portrait", "landscape", "both", "main"):
-            commands[f"{_verb} {_side} hud"] = f"{_side}_{_act}"
+        for _funestra in _FUNESTRA_WORDS:
+            commands[f"{_verb} {_funestra} hud"] = f"{_funestra}_{_act}"
 
-    for _side in ("portrait", "landscape"):
-        for _phrase in origenerator_phrases:
-            _spoken = f"{_side} {_phrase}"
+    # A HUD sent to a corner of its picture by name -- "main hud top right", with
+    # or without "move" in front -- where the Ctrl keys step it round.  "upper"
+    # says the same as "top", and "bottom" the same as "lower".
+    _CORNER_WORDS: dict[str, str] = {
+        f"{_height} {_edge}": f"{_corner}_{_edge}"
+        for _height, _corner in (("top", "upper"), ("upper", "upper"),
+                                 ("lower", "lower"), ("bottom", "lower"))
+        for _edge in ("left", "right")
+    }
+    for _corner_word, _corner in _CORNER_WORDS.items():
+        for _lead in ("", "move "):
+            commands[f"{_lead}hud {_corner_word}"] = f"active_hud_{_corner}"
+            for _funestra in _FUNESTRA_WORDS:
+                commands[f"{_lead}{_funestra} hud {_corner_word}"] = f"{_funestra}_hud_{_corner}"
+
+    for _phrase in origenerator_phrases:
+        _aimed = {f"{_side} {_phrase}": say_command(_side, _phrase) for _side in _SIDE_WORDS}
+        _aimed.update({f"{_phrase} {_side}": say_command(_side, _phrase) for _side in _SIDE_WORDS})
+        if _phrase not in GENAU_SAID:
+            _aimed[_phrase] = say_command("active", _phrase)
+        for _spoken, _command in _aimed.items():
             if _spoken in commands:  # the session already says this to a Funestra
                 raise RuntimeError(f"hosted phrase collides with a session command: {_spoken}")
-            commands[_spoken] = say_command(_side, _phrase)
+            commands[_spoken] = _command
 
 
     # Spoken metadata filters — "portrait beta gamma", "alpha form", "clear portrait" —
@@ -566,6 +606,8 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     ("omni pause", "omnipause"),
     ("omni play", "omniplay"),
     ("un park", "unpark"),
+    ("hi on", "HI on"),
+    ("hi off", "HI off"),
     ("o s r two", "OSR2"),
     ("oh es are two", "OSR2"),
     # Spaced form first: after the joined rewrite it is no longer there to match.

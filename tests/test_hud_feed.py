@@ -17,6 +17,7 @@ from funestra.console import OSR2_PARKED
 from funestra.drive_readout import DriveHud, publish_drive
 from funestra.hud_button import Button
 from funestra.hud_placement import HudCorner
+from funestra.hud_status import F_MODE_LABEL
 from funestra.modes import MainMode, Osr2State, SatellitesMode
 from funestra.satellite_hud import HudCell, HudModel, hud_text, parse_hud
 
@@ -336,7 +337,7 @@ class TestHudPublishing:
 
         portrait = panel(tmp_path, "portrait")
         landscape = panel(tmp_path, "landscape")
-        assert portrait["lock_label"] == "Unlocked · Shuffle · F-Mode"
+        assert portrait["lock_label"] == f"Unlocked · Shuffle · {F_MODE_LABEL}"
         assert f_mode_button(portrait)["lit"] is True
         assert landscape["lock_label"] == "Unlocked · Shuffle"
         assert not f_mode_button(landscape).get("lit")
@@ -401,7 +402,7 @@ class TestHudPublishing:
 
 
     def test_a_hosted_shows_reset_is_never_faded_by_the_session(self, tmp_path):
-        """That reset belongs to the show, whose state this room cannot see, so
+        """That reset belongs to the slideshow, whose state this room cannot see, so
         it stays pressable however settled the Funestra underneath it is."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted = HudModel(funestra="portrait", lock_label="Unlocked \u00b7 Shuffle",

@@ -836,8 +836,8 @@ class TestTheLayoutKeeper:
         assert not path.exists()
 
     def test_a_tilt_off_a_keypress_is_finished_the_moment_it_lands(self, tmp_path):
-        """PgUp is a whole act, not the middle of one, so it does not wait for a
-        release that never comes."""
+        """A spoken "tilt up" is a whole act, not the middle of one, so it does
+        not wait for a release that never comes."""
         path = tmp_path / "vr_layout.json"
         keeper = _LayoutKeeper(path, Layout())
 
@@ -1713,33 +1713,32 @@ class TestDialingTheMainFunestrasWrap:
 
         assert _MainUnit.can_dial_the_wrap.fget(main_unit) is False
 
-    def test_a_zoom_scales_the_field_of_view_it_has_now_and_a_stretch_the_height(self):
+    def test_a_stretch_scales_the_height_it_has_now(self):
         main_unit, dialed = self._main_unit(fov=100.0, height=1.5)
 
-        main_unit.dial_the_wrap(zoom=1.1, stretch=0.8)
+        main_unit.dial_the_wrap(stretch=0.8)
 
-        assert dialed == {"fov": pytest.approx(110.0), "height": pytest.approx(1.2)}
+        assert dialed == {"height": pytest.approx(1.2)}
 
     def test_a_video_never_dialed_starts_from_what_its_projection_carries(self):
         main_unit, dialed = self._main_unit()
 
-        main_unit.dial_the_wrap(zoom=0.5, stretch=2.0)
+        main_unit.dial_the_wrap(stretch=2.0)
 
-        assert dialed == {"fov": pytest.approx(90.0), "height": pytest.approx(2.0)}
+        assert dialed == {"height": pytest.approx(2.0)}
 
-    def test_a_frame_that_zooms_nothing_and_stretches_nothing_dials_nothing(self):
+    def test_a_frame_that_stretches_nothing_dials_nothing(self):
         main_unit, dialed = self._main_unit()
 
-        main_unit.dial_the_wrap(zoom=1.0, stretch=1.0)
+        main_unit.dial_the_wrap(stretch=1.0)
 
         assert dialed == {}
 
-    def test_the_frame_loop_hands_the_sticks_and_the_keyboard_to_the_wrap(self):
+    def test_the_frame_loop_hands_the_sticks_to_the_wrap(self):
         loop = inspect.getsource(funestras._run)
 
         assert "dialing=dialing" in loop
-        assert "zoom = main_unit.verbs.angle_asked.take()" in loop
-        assert "main_unit.dial_the_wrap(zoom=zoom, stretch=thumb.stretch)" in loop
+        assert "main_unit.dial_the_wrap(stretch=thumb.stretch)" in loop
 
 
 class TestTheReadoutOfAWrappedPicture:

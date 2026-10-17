@@ -1,6 +1,6 @@
 """The hosted Origenerator, brought up the same way by either shape of session.
 
-Its shows are the Satellite Funestras' own playlists (:mod:`fun_time.funestra_handover`),
+Its slideshows are the Satellite Funestras' own playlists (:mod:`fun_time.funestra_handover`),
 and the headset's satellites are Funestras, so a VR session hosts it as a desktop
 session does.
 """
@@ -168,7 +168,7 @@ def bring_up_the_hosted_app(
         python_exe=(m.executables.origenerator_python_exe.strip()
                     or origenerator_interpreter(origenerator_dir)),
         origenerator_dir=origenerator_dir,
-        # It imports funestra too (the shows' HUD is the Funestras'
+        # It imports funestra too (the slideshows' HUD is the Funestras'
         # shared one), so a named checkout reaches it like everyone else.
         sibling_checkouts=sibling_checkouts,
         **session,

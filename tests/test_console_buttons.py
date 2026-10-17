@@ -669,6 +669,9 @@ class TestLayout:
         assert video[4:] == ["browse_library", "main_player_record_tap", "genaumacher_save"]
         assert genau[4:] == ["browse_library"]
 
+    def test_the_save_is_named_for_the_loop_it_saves(self):
+        assert _button(MainSlot(main_mode=MainMode.KINO), "genaumacher_save").tooltip == "Save loop"
+
     def test_the_file_actions_stand_apart_from_the_crown_and_from_each_other(self):
         by_action = _placed(MainSlot(main_mode=MainMode.KINO))
         crown, browse = by_action["main_crown"], by_action["browse_library"]

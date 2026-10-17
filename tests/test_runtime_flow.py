@@ -10,6 +10,7 @@ from funestra.modes import MainMode
 
 from fun_time.main_list import MainList, MainListSettings
 from fun_time.media_metadata import metadata_path_for
+from fun_time.mode_plan import EnhancementLevel
 from fun_time.room_funestras import RoomFunestra
 from fun_time.runtime_flow import (
     FMODE_FUNESTRAS,
@@ -531,6 +532,31 @@ def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     assert not landscape_cmd_file.exists()
     portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))
     assert p_clip in portrait and "pt.mp4" not in portrait
+
+
+def test_apply_satellite_filter_narrows_to_the_clips_with_an_enhanced_version(tmp_path: Path):
+    """The enhancement level rides a rebuild the way F-mode and the act filter
+    do, and a level that keeps nothing leaves the playlist in place."""
+    upscaled = tmp_path / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider"
+    upscaled.mkdir(parents=True)
+    paired, alone = upscaled / "abc_topaz.mp4", upscaled / "xyz_topaz.mp4"
+    original = tmp_path / "1_sorted" / "provider" / "portrait" / "abc.mp4"
+    original.parent.mkdir(parents=True)
+    for clip in (paired, alone, original):
+        clip.write_text("x", encoding="utf-8")
+
+    def narrowed(level: EnhancementLevel, media_root: Path | None):
+        return apply_satellite_filter(
+            funestra=2, query="", favorites_filter=False, recent=True, sources=str(upscaled),
+            favs_file=tmp_path / "favs.csv", state_dir=tmp_path / "state",
+            cmd_file=tmp_path / "portrait_cmd.txt", enhancement=level, regen_media_root=media_root)
+
+    assert narrowed(EnhancementLevel.ENHANCED, tmp_path).count == 1
+    assert _satellite_lines(tmp_path / "state", "portrait") == [str(paired)]
+    assert narrowed(EnhancementLevel.ORIGINAL, tmp_path).count == 1
+    assert _satellite_lines(tmp_path / "state", "portrait") == [str(alone)]
+    assert narrowed(EnhancementLevel.ENHANCED, None).applied is False
+    assert _satellite_lines(tmp_path / "state", "portrait") == [str(alone)]
 
 
 def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path: Path):

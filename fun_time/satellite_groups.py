@@ -428,7 +428,9 @@ def no_loop(
         recent=satellite.latest,
         sources=config.satellite(funestra).sources,
         favs_file=config.favs_file,
+        enhancement=satellite.enhancement,
         regen_metadata_root=config.regen_metadata_root,
+        regen_media_root=config.regen_media_root,
     )
     # A non-empty filter that now matches nothing would blank the queue, so the
     # browse is only reshaped when it actually has clips; otherwise the loop's

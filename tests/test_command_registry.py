@@ -68,7 +68,7 @@ _NAV_IDS = frozenset(
 #: Where each HUD sits, and whether it is collapsed: read off the dispatch's own
 #: tables, so a side or a verb added there needs nothing added here.
 _HUD_PLACE_IDS = (frozenset(command_dispatch._HUD_MOVES)
-                  | frozenset(command_dispatch.MAIN_HUD_TURNS)
+                  | frozenset(command_dispatch._HUD_PLACEMENTS)
                   | frozenset(command_dispatch._HUD_COLLAPSES))
 
 
@@ -302,9 +302,12 @@ def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode(
     """The routing guard runs ahead of the handler map, so what it may shadow is
     pinned by rule: every side command about what the Funestra plays goes to the
     hosted app, and the session keeps only what is about the Funestra itself --
-    parking its window, the rate it plays at, and its mode, which is how it is
-    taken back.  A side command the session must go on answering while the app
-    has the Funestra has to be argued here."""
+    parking its window, the rate it plays at, its sound, and its mode, which is how
+    it is taken back.  A side command the session must go on answering while the
+    app has the Funestra has to be argued here: the enhancement level, because
+    the session says it to a slideshow in the app's own words (enhanced only)
+    or as its switch pressed off, and refuses the one level a slideshow has
+    nothing for."""
     side_commands = {command for command in command_dispatch._HANDLERS
                      if command.startswith(("portrait_", "landscape_"))}
     kept = {command for command in side_commands
@@ -314,6 +317,8 @@ def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode(
         f"{side}_{own}"
         for side in ("portrait", "landscape")
         for own in ("minimize", "crown", "speed_up", "speed_down", "speed_reset",
+                    "enhancement_enhanced", "enhancement_original", "enhancement_both",
+                    "mute", "unmute", "volume_down", "volume_up",
                     "speed_min", "speed_max", "take_osr2", "kino_activate",
                     "origenerator_activate")
     } & side_commands, sorted(kept)

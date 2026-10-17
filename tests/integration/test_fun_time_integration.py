@@ -147,7 +147,7 @@ def test_fun_time_spoken_favorites_flips_that_sides_f_mode(
 
 
 def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
-    """Pressing 'g' (genau_activate) then 'h' (main_kino_activate) switches modes."""
+    """genau_activate then main_kino_activate switches the main slot's mode each way."""
     s = shared_integration_session
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode")
@@ -941,7 +941,7 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
             description="the Main Funestra to be playing",
         )
         first.write_dashboard_command("main_player_speed_150")
-        first.write_dashboard_command("main_player_lock")
+        first.write_dashboard_command("main_lock")
         first.wait_until(
             lambda: (first.read_main_funestra_status().speed == 1.5
                      and not first.read_main_funestra_status().locked),

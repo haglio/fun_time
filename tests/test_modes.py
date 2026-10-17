@@ -6,6 +6,7 @@ import random
 from pathlib import Path
 
 from fun_time.media_metadata import load_metadata, metadata_path_for
+from fun_time.mode_plan import EnhancementLevel
 from fun_time.modes import (
     SatelliteBuild,
     build_generated_marker_path,
@@ -103,6 +104,27 @@ def test_build_satellite_playlist_paths_filters_to_favorites_in_f_mode(tmp_path:
     paths = build_satellite_playlist_paths(str(source_root), True, favs_file, rng=random.Random(1))
 
     assert paths == [str(first)]
+
+
+def test_build_satellite_playlist_paths_keeps_the_clips_with_an_enhanced_version_or_without(tmp_path: Path):
+    """"enhanced only" keeps the upscales that have their original beside
+    them, "original only" the clips that have none, and the default both."""
+    upscaled = tmp_path / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider"
+    upscaled.mkdir(parents=True)
+    paired, alone = upscaled / "abc_topaz.mp4", upscaled / "xyz_topaz.mp4"
+    original = tmp_path / "1_sorted" / "provider" / "portrait" / "abc.mp4"
+    original.parent.mkdir(parents=True)
+    for clip in (paired, alone, original):
+        clip.write_text("x", encoding="utf-8")
+    favs = tmp_path / "favs.csv"
+
+    def built(level: EnhancementLevel) -> list[str]:
+        return build_satellite_playlist_paths(
+            str(upscaled), False, favs, enhancement=level, media_root=tmp_path, rng=random.Random(1))
+
+    assert built(EnhancementLevel.ENHANCED) == [str(paired)]
+    assert built(EnhancementLevel.ORIGINAL) == [str(alone)]
+    assert sorted(built(EnhancementLevel.BOTH)) == sorted([str(paired), str(alone)])
 
 
 def test_build_satellite_playlists_writes_each_sides_own_favorites(tmp_path: Path):

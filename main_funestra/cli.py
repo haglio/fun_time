@@ -13,6 +13,7 @@ from functools import partial
 from pathlib import Path
 
 from app_support import ports
+from funestra.notices import NoticeWriter
 from funestra.play_points import play_points_filename
 from funestra.playlist import PlaylistItem, read_playlist
 
@@ -23,7 +24,6 @@ from .kino import Kino
 from .library import collapse_playlist_versions
 from .library_source import LibrarySource, build_library_source
 from .mode_memory import ModeMemory
-from .notice import NoticeWriter
 
 
 def load_config(config_path: Path) -> dict:

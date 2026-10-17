@@ -17,7 +17,7 @@ from .broker_control import write_broker_command
 from .funestra_handover import keep_aside
 from .main_list import MainList, MainListSettings
 from .main_list_builds import BUILDS_HERE, MainListBuild, MainListBuilds
-from .mode_plan import build_mode_switch_plan
+from .mode_plan import EnhancementLevel, build_mode_switch_plan
 from .modes import (
     PLAYLIST_LANDSCAPE,
     PLAYLIST_PORTRAIT,
@@ -128,12 +128,15 @@ def apply_satellite_fmode(
     cmd_file: str | Path,
     recent: bool = False,
     filter_query: str = "",
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH,
     regen_metadata_root: Path | None = None,
+    regen_media_root: Path | None = None,
 ) -> None:
     """Rebuild one satellite's playlist under *enabled* and tell it to re-read.
 
-    F-mode narrows a satellite to the favorites.  The side's own filter and
-    order ride along, so narrowing to favorites does not quietly undo either.
+    F-mode narrows a satellite to the favorites.  The side's own filter, order
+    and enhancement level ride along, so narrowing to favorites does not
+    quietly undo any of them.
     """
     build_one_satellite_playlist(
         sources=sources,
@@ -144,6 +147,8 @@ def apply_satellite_fmode(
         recent=recent,
         filter_query=filter_query,
         metadata_root=regen_metadata_root,
+        enhancement=enhancement,
+        media_root=regen_media_root,
     )
     append_command(Path(cmd_file), RELOAD_PLAYLIST)
 
@@ -156,6 +161,7 @@ class SatelliteFmodeInputs:
     cmd_file: str | Path
     recent: bool = False
     filter_query: str = ""
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH
 
 
 def apply_fmode(
@@ -171,6 +177,7 @@ def apply_fmode(
     main_builds: MainListBuilds = BUILDS_HERE,
     satellites: Mapping[RoomFunestra, SatelliteFmodeInputs],
     regen_metadata_root: Path | None = None,
+    regen_media_root: Path | None = None,
 ) -> FModeFlowResult:
     """Put each of *Funestras* into F-mode, or take it out, and rebuild just those.
 
@@ -198,7 +205,9 @@ def apply_fmode(
                 cmd_file=satellite.cmd_file,
                 recent=satellite.recent,
                 filter_query=satellite.filter_query,
+                enhancement=satellite.enhancement,
                 regen_metadata_root=regen_metadata_root,
+                regen_media_root=regen_media_root,
             )
     return FModeFlowResult(
         funestras=named,
@@ -217,7 +226,9 @@ def satellite_browse_paths(
     recent: bool,
     sources: str,
     favs_file: str | Path,
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH,
     regen_metadata_root: Path | None = None,
+    regen_media_root: Path | None = None,
 ) -> list[str]:
     """The paths a satellite's default browse holds under *query* and the current
     ordering — one clip per group, filter-honoring, Latest/Shuffle-aware.
@@ -228,6 +239,7 @@ def satellite_browse_paths(
     return build_satellite_playlist_paths(
         sources, favorites_filter, Path(favs_file),
         filter_query=query, recent=recent, metadata_root=regen_metadata_root,
+        enhancement=enhancement, media_root=regen_media_root,
     )
 
 
@@ -249,16 +261,18 @@ def apply_satellite_filter(
     state_dir: str | Path,
     cmd_file: str | Path,
     start_at_top: bool = False,
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH,
     regen_metadata_root: Path | None = None,
+    regen_media_root: Path | None = None,
 ) -> SatelliteFilterFlowResult:
     """Rebuild and reload one satellite under *query*.
 
     Ordering follows the caller's ``recent``/``favorites_filter`` just like a full rebuild,
     so the filtered playlist still honors Latest vs Shuffle and F-mode.  A
-    non-empty query that matches nothing leaves the current playlist in place
-    rather than blanking the satellite; ``query == ""`` clears the filter.  The
-    playlist file it writes is the one the satellite plays, so a RELOAD_PLAYLIST
-    verb makes the Funestra pick it up.
+    non-empty query, or an enhancement level, that matches nothing leaves the
+    current playlist in place rather than blanking the satellite; ``query == ""``
+    clears the filter.  The playlist file it writes is the one the satellite
+    plays, so a RELOAD_PLAYLIST verb makes the Funestra pick it up.
 
     That reload keeps the clip on screen playing while it survives the new list, and
     carries on from where it sits — which is right for a filter, and wrong for a
@@ -271,10 +285,12 @@ def apply_satellite_filter(
     name = PLAYLIST_PORTRAIT if funestra == RoomFunestra.PORTRAIT else PLAYLIST_LANDSCAPE
     paths = satellite_browse_paths(
         query=query, favorites_filter=favorites_filter, recent=recent,
-        sources=sources, favs_file=favs_file, regen_metadata_root=regen_metadata_root,
+        sources=sources, favs_file=favs_file, enhancement=enhancement,
+        regen_metadata_root=regen_metadata_root, regen_media_root=regen_media_root,
     )
-    if query and not paths:
-        return SatelliteFilterFlowResult(0, False, f"Filter {label}: no matches for '{query}'")
+    if (query or enhancement is not EnhancementLevel.BOTH) and not paths:
+        return SatelliteFilterFlowResult(
+            0, False, f"Filter {label}: no matches for '{query or f'{enhancement} only'}'")
     playlist_path = build_playlist_file_path(Path(state_dir), name)
     write_playlist_file(playlist_path, paths, metadata_root=regen_metadata_root)
     append_command(Path(cmd_file), RELOAD_PLAYLIST)
@@ -364,7 +380,7 @@ def apply_enter_omnipause(
     write_flag_file(portrait_paused_file, True)
     write_flag_file(landscape_paused_file, True)
     if origenerator_paused_file is not None:
-        # The hosted Origenerator obeys the same flag idiom: its shows stop
+        # The hosted Origenerator obeys the same flag idiom: its slideshows stop
         # their dwell clocks and playing clips until the room resumes.
         write_flag_file(origenerator_paused_file, True)
     append_command(Path(genau_cmd_file), "PAUSE")

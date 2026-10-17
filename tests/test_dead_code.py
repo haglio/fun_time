@@ -290,7 +290,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # name again went, more than paying for the line the sound devices' module added.
 # 6515 on 2026-10-10: the dead ends that answered nothing say which mode
 # ignored them, and the docstrings that called them quiet went with them.
-# 6512 then: the room's F-Mode reaches the hosted shows, and the note saying it
+# 6512 then: the room's F-mode reaches the hosted slideshows, and the note saying it
 # left them alone went with it.
 # 6507 then: whether a program is running is read off the process list instead
 # of asked of tasklist, and the paragraph counting the module's queries went.
@@ -329,22 +329,26 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6166 on 2026-10-13: cruise control left Fun Time, and its notes with it.
 # 6165 the same day: the reveal's two dwells are named, so the comment saying
 # which frames counted went with them.
-# 6145 the same day: Fun Time starts the Main Funestra from its own venv, and the
-# notes on starting it from Genau's went with it.
-# 6105 when the OSR2's four control buttons became one switch, it counted as
-# off once it went quiet, and the broker's verbs came from app_support, so the
-# notes on Control off, on what was sent to it and on a one-verb channel went.
-# 6099 on 2026-10-16: a paused room hears enter VR, exit VR, recenter and VR
-# reset too, and the note on why it heard only three went.
-# 6097 the same day: the desk and the headset start their hotkey script through
-# one function, and the headset's copy of why it goes up first went.
-# 6075 the same day: the checkouts of the shared code a session runs are
-# called its sibling checkouts rather than Genau's project dirs, and the notes
-# that said Genau and the Main Funestra were run out of them went with the
-# old name.
-# 6072 the same day: the dispatch loop reads the room it was left in once.
-# 6068 the same day: the headset's layout file stopped being rewritten in place.
-MAX_PROSE_LINES = 6068
+# 6027 on 2026-10-12: the hotkeys and voice reference's sections now say which
+# part of the room and which mode each row belongs to, and the comments that
+# said so row by row went.
+# 6023 the same day: the Main Funestra's keys reach whatever is on it, and the
+# note on the video navigating behind Genau's flick went with that behavior.
+# 6002 the same day: the reference module says in one paragraph what its tests
+# state, and the notes on each of its fields went.
+# 6130 on 2026-10-13: "kino next" went, and with it the note on mode-named
+# navigation.
+# 6114 the same day: the X key's toggle of both satellites' mode went with
+# the key, and the note on its target with it.
+# 6110 the same day: the lengths are said as the shapes are, and the note on
+# "mixed" being taken went with the word.
+# 6049 on 2026-10-16: "next genau" went, and with it the note on the flick
+# stepped by Genau's name.
+# 6048 the same day: the crossing into VR joined what a paused room hears, and
+# the note on the set's three verbs says so in fewer words.
+# 6040 the same day: the funscript moves and the enhancement level are every
+# Funestra's, and the notes on why only the Main Funestra answered them went.
+MAX_PROSE_LINES = 6002
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

@@ -27,6 +27,7 @@ _FILLED = SatelliteChannels(
     command=Path("state/portrait_cmd.txt"),
     paused=Path("state/portrait_paused.flag"),
     status=Path("state/portrait_status.json"),
+    notice=Path("state/portrait_notice.txt"),
     play_points=Path("state/portrait_play_points.json"),
     hud=Path("state/portrait_hud.json"),
     dashboard_cmd=Path("state/dashboard_cmd.txt"),
@@ -121,6 +122,7 @@ class TestReadOutOfTheManifest:
         assert channels.paused == Path("state/portrait_paused_file")
         assert channels.playlist == Path("state/portrait_playlist_file")
         assert channels.status == Path("state/portrait_status_file")
+        assert channels.notice == Path("state/portrait_notice_file")
         assert channels.hud == Path("state/portrait_hud_file")
 
     def test_the_two_sides_differ_in_every_file_of_their_own(self):

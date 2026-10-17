@@ -106,10 +106,10 @@ as the cover lifts.
 
 A room also opens with Origenerator holding all of it, whatever the last one was
 left in, when the Origenerator it takes over is showing a slideshow: he was
-watching it, so the room comes up with that show on the satellite of its shape,
+watching it, so the room comes up with that slideshow on the satellite of its shape,
 the other satellite on its library and Origenerator in the browser's place, as
 the one mode for the whole side used to open before each satellite had its own.
-The app holds the show through the takeover and plays it there when that side's
+The app holds the slideshow through the takeover and plays it there when that side's
 show is asked for. It says it is showing one beside its offer, in
 `fun_time_showing.txt`, naming its own process the way the offer does, so the
 mark of an app that has since closed is never believed.

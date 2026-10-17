@@ -53,7 +53,7 @@ class TestCommandRules:
 
         ruled_out = {phrase for phrase in rules.phrases if rules.never_rescued(phrase)}
 
-        assert {"quit", "park it", "park", "o s r two off", "relief omni pause", "stop",
+        assert {"quit", "park it", "park", "o s r two control off", "relief omni pause", "stop",
                 "main reset", "portrait reset"} <= ruled_out
         assert not {"landscape lock", "pause", "next", "amp up"} & ruled_out
 
@@ -78,14 +78,14 @@ class TestCommandRules:
         rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
 
         assert rules.written("go now mode") == "genau mode"
-        assert rules.written("o s r two off") == "OSR2 off"
+        assert rules.written("o s r two control on") == "OSR2 control on"
         assert rules.written("landscape next") is None
 
     def test_the_phrases_that_say_genau_are_said_in_german_and_no_others(self):
         rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
 
         assert {rules.said_in(phrase) for phrase in
-                ("go now", "go now mode", "next go now", "portrait go now")} == {"de"}
+                ("go now", "go now mode", "portrait go now")} == {"de"}
         flick = genau_flick_noun().one
         assert {rules.said_in(phrase) for phrase in
                 ("kino mode", f"{flick} seconds five", f"weird {flick}", "next")} == {None}

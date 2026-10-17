@@ -19,9 +19,11 @@ from funestra.console import (
 )
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import (
+    JUMP_TO_FUNSCRIPT,
     LOCK_OFF,
     LOCK_ON,
     NEXT,
+    NEXT_FUNSCRIPTED,
     PREV,
     SEEK_BACK,
     SEEK_FWD,
@@ -38,7 +40,7 @@ from funestra.robot_hand import FULL_INTENSITY
 
 from main_funestra.controls import longer_than_a_step
 
-from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
+from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level, volume_verb
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .broker_control import write_broker_command
 from .content import genau_flick_noun, load_web_providers
@@ -54,14 +56,14 @@ from .event_log import (
 )
 from .filter_vocab import decode_filter_command, set_command
 from .funestra_buttons import MAIN_FUNESTRA_NOUN, SATELLITE_NOUN, too_short_to_step
-from .funestra_handover import show_f_mode
+from .funestra_handover import show_enhanced_filter, show_f_mode
 from .funestra_status import (
     MainFunestraStatus,
     read_genau_status,
     read_main_funestra_status,
 )
 from .lock import MARKED_WEIRD, build_discard_plan, build_lock_toggle_plan
-from .main_list import MainListSettings, new_shuffle_seed, next_length_mode
+from .main_list import MainListSettings, new_shuffle_seed
 from .max_intensity import (
     MAX_INTENSITY_COMMAND,
     funestras_that_can_drive_the_osr2,
@@ -69,13 +71,12 @@ from .max_intensity import (
 )
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .media_metadata import forget_indexed_clip
-from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE, kino_shows
+from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE, EnhancementLevel, kino_shows
 from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
 from .origenerator_switches import (
     BOTH_SATELLITES_MODE_COMMANDS,
     KINO_MODE,
-    ORIGENERATOR_MODE,
     SATELLITE_MODE_COMMANDS,
     RfbSlot,
     origenerator_shows,
@@ -151,7 +152,7 @@ _GENAU_CMD_MAP = {
 
 _GENAUS_FLICK_SECONDS = "genau_flick_seconds_"
 _GENAUS_FLICK_COMMANDS = frozenset({
-    "genau_prev_flick", "genau_next_flick", "genau_weird_flick", "genau_lock", "genau_flip_ends",
+    "genau_prev_flick", "genau_next_flick", "genau_weird_flick", "genau_flip_ends",
 })
 
 
@@ -170,6 +171,12 @@ _SPEED_BY_DRIVER = {
 _PLAYHEAD_ACTS = {
     "nudge_prev": SEEK_BACK,
     "nudge_next": SEEK_FWD,
+}
+# Past the lull the playhead is in, or on to the next scripted item: every
+# Funestra answers both, the Main Funestra under the ids its console posts.
+_FUNSCRIPT_MOVES = {
+    "funscript_jump": JUMP_TO_FUNSCRIPT,
+    "next_funscripted": NEXT_FUNSCRIPTED,
 }
 # A video's own playback rate, as opposed to the motion's, said of one Funestra.
 _PLAYBACK_RATE_ACTS = {
@@ -234,16 +241,11 @@ _MAIN_FUNESTRA_CMD_MAP = {
     "main_player_end_compilation": "END_COMPILATION",
     "main_player_full_vid": "PLAY_FULL_VID",
     "main_player_clip_jump": "PLAY_CLIP_JUMP",
-    # Funscript navigation: past this video's quiet stretch, or on to the next
-    # video in the playlist that has a script at all (landing on its action).
-    # Only the Main Funestra can answer either — it holds the playlist's funscript column and
-    # the parsed script of what is playing.
-    "main_player_funscript_jump": "JUMP_TO_FUNSCRIPT",
-    "main_player_next_funscripted": "NEXT_FUNSCRIPTED",
+    **{f"main_player_{act}": verb for act, verb in _FUNSCRIPT_MOVES.items()},
 }
 
 _VERBS_THE_MAIN_FUNESTRA_ANSWERS = frozenset({
-    "PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP", "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED",
+    "PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP", JUMP_TO_FUNSCRIPT, NEXT_FUNSCRIPTED,
 })
 
 
@@ -425,7 +427,7 @@ _LOCK_STATE_COMMANDS: dict[str, tuple[RoomFunestra, bool]] = {
 }
 
 # "reset" clears a satellite's filter and reshuffles it back to the default
-# browse; "both reset" expands to these two before dispatch.
+# browse; "satellites reset" expands to these two before dispatch.
 _RESET_SIDES: dict[str, tuple[RoomFunestra, ...]] = {
     "portrait_reset": (RoomFunestra.PORTRAIT,),
     "landscape_reset": (RoomFunestra.LANDSCAPE,),
@@ -468,9 +470,11 @@ _MINIMIZE_ROLES: dict[str, str] = {
 
 
 _HUD_MOVES = {f"{funestra.label}_hud_{direction}": (funestra, direction)
-              for funestra in RoomFunestra.SATELLITES
+              for funestra in (*RoomFunestra.SATELLITES, RoomFunestra.MAIN)
               for direction in ("left", "right", "up", "down")}
-MAIN_HUD_TURNS = {"main_hud_clockwise": True, "main_hud_counterclockwise": False}
+_HUD_PLACEMENTS = {f"{funestra.label}_hud_{corner.value}": (funestra, corner)
+                   for funestra in (*RoomFunestra.SATELLITES, RoomFunestra.MAIN)
+                   for corner in HudCorner}
 
 
 _HUD_COLLAPSES = {f"{funestra.label}_hud_{verb}": (funestra, verb == "minimize")
@@ -492,23 +496,52 @@ def _restored_at(command: str, state: BridgeState,
     return _opened_in(funestra, place, state, config)
 
 
+def _hud_corner_of(funestra: RoomFunestra, state: BridgeState) -> HudCorner:
+    if funestra is RoomFunestra.MAIN:
+        return state.main_hud_corner
+    return state.satellite(funestra).hud_corner
+
+
+def _hud_edge_of(funestra: RoomFunestra, state: BridgeState) -> HudEdge:
+    if funestra is RoomFunestra.MAIN:
+        return state.main_hud_edge
+    return state.satellite(funestra).hud_edge
+
+
+def _hung_against(funestra: RoomFunestra, edge: HudEdge, state: BridgeState) -> BridgeState:
+    if funestra is RoomFunestra.MAIN:
+        return replace(state, main_hud_edge=edge)
+    return state.with_satellite(funestra, hud_edge=edge)
+
+
 def _hung_open_against(funestra: RoomFunestra, side: str, state: BridgeState) -> BridgeState:
     if side not in HudEdge:
         return state
+    return _opened(funestra, _hung_against(funestra, HudEdge(side), state), None)
+
+
+def _put_in(funestra: RoomFunestra, corner: HudCorner, state: BridgeState,
+            config: BridgeConfig) -> BridgeState:
     if funestra is RoomFunestra.MAIN:
-        return replace(state, main_hud_edge=HudEdge(side), main_hud_minimized=False)
-    return state.with_satellite(funestra, hud_edge=HudEdge(side), hud_minimized=False)
+        return replace(state, main_hud_corner=corner)
+    _tell_the_hosted_app(funestra, f"hud_corner|{corner}", state, config)
+    return state.with_satellite(funestra, hud_corner=corner)
+
+
+def _opened(funestra: RoomFunestra, state: BridgeState,
+            hosted_app_told_through: BridgeConfig | None) -> BridgeState:
+    if funestra is RoomFunestra.MAIN:
+        return replace(state, main_hud_minimized=False)
+    if hosted_app_told_through is not None:
+        _tell_the_hosted_app(funestra, "hud_minimized|0", state, hosted_app_told_through)
+    return state.with_satellite(funestra, hud_minimized=False)
 
 
 def _opened_in(funestra: RoomFunestra, corner: str, state: BridgeState,
                config: BridgeConfig) -> BridgeState:
     if corner not in HudCorner:
         return state
-    if funestra is RoomFunestra.MAIN:
-        return replace(state, main_hud_corner=HudCorner(corner), main_hud_minimized=False)
-    _tell_the_hosted_app(funestra, f"hud_corner|{corner}", state, config)
-    _tell_the_hosted_app(funestra, "hud_minimized|0", state, config)
-    return state.with_satellite(funestra, hud_corner=HudCorner(corner), hud_minimized=False)
+    return _opened(funestra, _put_in(funestra, HudCorner(corner), state, config), config)
 
 
 def _collapsed_hud(command: str, state: BridgeState,
@@ -528,25 +561,16 @@ def _moved_hud(command: str, state: BridgeState,
     moved = _HUD_MOVES.get(command)
     if moved is not None:
         funestra, direction = moved
-        return _satellite_hud_moved(funestra, state, config, direction=direction)
-    if command in MAIN_HUD_TURNS:
-        clockwise = MAIN_HUD_TURNS[command]
         if config.vr_main_funestra:
-            return replace(state, main_hud_edge=state.main_hud_edge.turned(
-                clockwise=clockwise))
-        return replace(state, main_hud_corner=state.main_hud_corner.turned(
-            clockwise=clockwise))
+            return _hung_against(funestra, _hud_edge_of(funestra, state).toward(direction), state)
+        return _put_in(funestra, _hud_corner_of(funestra, state).toward(direction), state, config)
+    placed = _HUD_PLACEMENTS.get(command)
+    if placed is not None:
+        funestra, corner = placed
+        if config.vr_main_funestra:
+            return _hung_against(funestra, HudEdge.LOWER if corner.lower else HudEdge.UPPER, state)
+        return _put_in(funestra, corner, state, config)
     return None
-
-
-def _satellite_hud_moved(funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, *,
-                         direction: str) -> BridgeState:
-    side = state.satellite(funestra)
-    if config.vr_main_funestra:
-        return state.with_satellite(funestra, hud_edge=side.hud_edge.toward(direction))
-    corner = side.hud_corner.toward(direction)
-    _tell_the_hosted_app(funestra, f"hud_corner|{corner}", state, config)
-    return state.with_satellite(funestra, hud_corner=corner)
 
 
 def _tell_the_hosted_app(funestra: RoomFunestra, action: str, state: BridgeState,
@@ -587,6 +611,20 @@ _LENGTH_COMMANDS: dict[str, LengthMode] = {
     "main_player_length_full": LengthMode.FULL,
     "main_player_length_mixed": LengthMode.MIXED,
     "main_player_length_none": LengthMode.NONE,
+}
+
+# Which of what a Funestra plays gets through, by whether an enhanced version
+# exists: one verb per level on every Funestra, as the shapes have one per state.
+_ENHANCEMENT_COMMANDS: dict[str, tuple[RoomFunestra, EnhancementLevel]] = {
+    f"{funestra.label}_enhancement_{level}": (funestra, level)
+    for funestra in RoomFunestra
+    for level in EnhancementLevel
+}
+
+_ENHANCEMENT_LABELS: dict[EnhancementLevel, str] = {
+    EnhancementLevel.ENHANCED: "Enhanced only",
+    EnhancementLevel.ORIGINAL: "Original only",
+    EnhancementLevel.BOTH: "Enhanced + original",
 }
 
 _PROJECTION_LABELS: dict[tuple[bool, bool], str] = {
@@ -683,7 +721,7 @@ _MAIN_FUNESTRA_RESET_VERBS = (
 # without the F-mode forms here, "main f mode" would be the one way of
 # addressing a Funestra that did not leave it addressed.
 _MAIN_SELECTING_COMMANDS = frozenset(
-    {"main_next", "main_prev", MAIN_RESET, "main_player_lock", "genau_lock",
+    {"main_next", "main_prev", MAIN_RESET,
      take_osr2_command(RoomFunestra.MAIN)}
     | set(_MAIN_LOCK_COMMANDS)
     | {f"main_fmode{suffix}" for suffix in ("", "_on", "_off")}
@@ -797,7 +835,12 @@ def dispatch_command(
     return state, []
 
 
-_VOLUME_STEPS = {"audio_volume_down": -VOLUME_STEP, "audio_volume_up": VOLUME_STEP}
+_STEP_BY = {"volume_down": -VOLUME_STEP, "volume_up": VOLUME_STEP}
+_MUTED_BY = {"mute": True, "unmute": False}
+_VOLUME_STEPS = {f"audio_{change}": step for change, step in _STEP_BY.items()}
+_SATELLITE_SOUND = {f"{funestra.label}_{change}": (funestra, change)
+                    for funestra in RoomFunestra.SATELLITES
+                    for change in (*_MUTED_BY, *_STEP_BY)}
 
 # ``audio_set_volume|<0-100>`` — an absolute level, which is what a slider asks
 # for where every other audio command asks for a step or a state.  The Main Funestra's volume
@@ -819,12 +862,15 @@ def _dispatch_set_volume(
         level = int(argument)
     except ValueError:
         return state, []
-    volume = max(MIN_VOLUME, min(MAX_VOLUME, level))
-    return _dispatch_audio(replace(state, volume=volume, muted=False), config)
+    return _dispatch_audio(replace(state, volume=_level_moved(level, 0), muted=False), config)
 
 # Mute and unmute each assert a state rather than toggling one, so a phrase
 # misheard twice cannot leave the sound the opposite of what was asked for.
-_MUTE_COMMANDS = {"audio_mute": True, "audio_unmute": False}
+_MUTE_COMMANDS = {f"audio_{change}": muted for change, muted in _MUTED_BY.items()}
+
+
+def _level_moved(volume: int, step: int) -> int:
+    return max(MIN_VOLUME, min(MAX_VOLUME, volume + step))
 
 
 def _step_volume(state: BridgeState, step: int) -> BridgeState:
@@ -834,8 +880,11 @@ def _step_volume(state: BridgeState, step: int) -> BridgeState:
     Windows mixer: a "louder" that left the room silent would read as the
     command having been missed.
     """
-    volume = max(MIN_VOLUME, min(MAX_VOLUME, state.volume + step))
-    return replace(state, volume=volume, muted=False)
+    return replace(state, volume=_level_moved(state.volume, step), muted=False)
+
+
+def _sound_notice(volume: int, muted: bool, source: str) -> WindowOp:
+    return WindowOp(op="notice", key="Muted" if muted else f"Volume {volume}%", source=source)
 
 
 def _dispatch_audio(
@@ -850,8 +899,19 @@ def _dispatch_audio(
         volume=state.volume,
         muted=state.muted,
     )
-    message = "Muted" if state.muted else f"Volume {state.volume}%"
-    return state, [WindowOp(op="notice", key=message, source=SOURCE_MAIN)]
+    return state, [_sound_notice(state.volume, state.muted, SOURCE_MAIN)]
+
+
+def _satellite_sound(funestra: RoomFunestra, change: str, state: BridgeState,
+                     config: BridgeConfig, _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    side = state.satellite(funestra)
+    if change in _MUTED_BY:
+        volume, muted = side.volume, _MUTED_BY[change]
+    else:
+        volume, muted = _level_moved(side.volume, _STEP_BY[change]), False
+    send_satellite(config, funestra, volume_verb(volume, muted))
+    return (state.with_satellite(funestra, volume=volume, muted=muted),
+            [_sound_notice(volume, muted, _FUNESTRA_NOTICE_SOURCE[funestra])])
 
 
 def _dispatch_omnipause_toggle(
@@ -948,8 +1008,8 @@ def _sided_fmode_command(funestra: RoomFunestra, target: bool | None) -> str:
 # the opposite of what was asked when a phrase is misheard twice.  The bare
 # command — the F key, the spoken "f mode" — still means all three at once; naming
 # a Funestra reaches that one alone, off its own HUD button or its own spoken
-# phrase.  ``both_fmode`` never arrives here: the dispatch loop expands every
-# both_* into its portrait/landscape pair first.
+# phrase.  ``satellites_fmode`` never arrives here: the dispatch loop expands every
+# satellites_* into its portrait/landscape pair first.
 _FMODE_COMMANDS: dict[str, tuple[tuple[RoomFunestra, ...], bool | None]] = {
     "fmode_toggle": (FMODE_FUNESTRAS, None),
     "fmode_on": (FMODE_FUNESTRAS, True),
@@ -1033,12 +1093,14 @@ def _dispatch_fmode(
         state_dir=config.state_dir,
         main_funestra_cmd_file=config.main_funestra_cmd_file,
         main_builds=config.main_list_builds,
+        regen_media_root=config.regen_media_root,
         satellites={
             funestra: SatelliteFmodeInputs(
                 sources=config.satellite(funestra).sources,
                 cmd_file=config.satellite(funestra).cmd_file,
                 recent=state.satellite(funestra).latest,
                 filter_query=state.satellite(funestra).filter,
+                enhancement=state.satellite(funestra).enhancement,
             )
             for funestra in RoomFunestra.SATELLITES
         },
@@ -1193,7 +1255,59 @@ def _dispatch_main_length(
 def _the_main_list_is_narrowed_or_ordered(state: BridgeState, config: BridgeConfig) -> bool:
     return (state.main_scripted_filter or state.main_latest
             or main_video_shapes(state, config).narrows
-            or state.main_length_mode is not LengthMode.MIXED)
+            or state.main_length_mode is not LengthMode.MIXED
+            or state.main_enhancement is not EnhancementLevel.BOTH)
+
+
+def _dispatch_enhancement(
+    funestra: RoomFunestra, level: EnhancementLevel, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Narrow what *funestra* plays to the clips that have an enhanced version,
+    to the ones that have none, or widen it back; a level that keeps nothing
+    leaves the playlist, and the level, as they were."""
+    if funestra is RoomFunestra.MAIN:
+        return _dispatch_main_enhancement(level, state, config)
+    if hosts(funestra, state, config):
+        return _dispatch_shows_enhancement(funestra, level, state, config)
+    if state.satellite(funestra).enhancement is level:
+        return state, []
+    narrowed = state.with_satellite(funestra, enhancement=level)
+    result = _rebuild_satellite(funestra, narrowed.satellite(funestra).filter, narrowed, config)
+    logger.info(result.log_message)
+    if not result.applied:
+        return state, [WindowOp(op="notice", key=result.log_message,
+                                source=satellite_source(funestra), level=logging.WARNING)]
+    return narrowed, [WindowOp(op="notice", key=_ENHANCEMENT_LABELS[level],
+                               source=satellite_source(funestra), level=NOTICE)]
+
+
+def _dispatch_main_enhancement(
+    level: EnhancementLevel, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    if not kino_shows(state.main_mode):
+        return _ignored(state, _IN_GENAU_MODE)
+    if state.main_enhancement is level:
+        return state, []
+    state = replace(state, main_enhancement=level)
+    _rebuild_the_main_list(state, config)
+    logger.info("Main Funestra enhancement: %s", level)
+    return state, [WindowOp(op="notice", key=_ENHANCEMENT_LABELS[level], source=SOURCE_MAIN,
+                            level=NOTICE)]
+
+
+def _dispatch_shows_enhancement(
+    funestra: RoomFunestra, level: EnhancementLevel, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Said to a side in Origenerator mode: the slideshow's own enhanced-only
+    switch, which the hosted app hears as its words or as the switch pressed
+    off; a slideshow has no originals-only to offer."""
+    if level is EnhancementLevel.ORIGINAL:
+        return _ignored(state, _IN_ORIGENERATOR_MODE)
+    if level is EnhancementLevel.ENHANCED:
+        append_command(config.origenerator_cmd_file, f"{funestra.label.upper()}_SAY:enhanced only")
+    elif show_enhanced_filter(config.satellite(funestra)):
+        append_command(config.origenerator_cmd_file, f"{funestra.label}_enhanced")
+    return state, []
 
 
 def main_funestra_at_defaults(
@@ -1310,7 +1424,8 @@ def _dispatch_reset(
         if not _browse_at_defaults(state.satellite(funestra)):
             state = cancel_lock(funestra, state, config)
             state = state.with_satellite(
-                funestra, latest=False, filter="", favorites_filter=False, nav_anchor="")
+                funestra, latest=False, filter="", favorites_filter=False,
+                enhancement=EnhancementLevel.BOTH, nav_anchor="")
             state = clear_side_grouping(state, funestra)
             result = _rebuild_satellite(funestra, "", state, config, start_at_top=True)
             logger.info("Reset %s: %s", satellite_source(funestra), result.log_message)
@@ -1342,7 +1457,9 @@ def _rebuild_satellite(
         state_dir=config.state_dir,
         cmd_file=config.satellite(funestra).cmd_file,
         start_at_top=start_at_top,
+        enhancement=satellite.enhancement,
         regen_metadata_root=config.regen_metadata_root,
+        regen_media_root=config.regen_media_root,
     )
 
 
@@ -1378,9 +1495,9 @@ def _dispatch_set_filter(
 # Funestra what to play and answers every press on the buttons it drew.  So what
 # is said to that side goes there as it was said, and the session keeps only what
 # is about the Funestra itself -- parking its window, its crown, its rate, taking
-# the OSR2, and its mode.
+# the OSR2, its sound, and its mode.
 _THE_FUNESTRAS_OWN = ("_minimize", "_crown", "_speed_", "_take_osr2", "_kino_activate",
-                      "_origenerator_activate")
+                      "_origenerator_activate", "_mute", "_unmute", "_volume_", "_enhancement_")
 
 
 def _side_said_to(command: str) -> RoomFunestra | None:
@@ -1399,7 +1516,7 @@ def _about_a_satellite(command: str) -> bool:
 
 def _said_to_each_side(command: str) -> tuple[str, ...]:
     target = decode_filter_command(command)
-    if target is None or target[0] != "both":
+    if target is None or target[0] != "satellites":
         return (command,)
     return tuple(set_command(funestra.label, target[1]) for funestra in RoomFunestra.SATELLITES)
 
@@ -1415,7 +1532,7 @@ _ORIGENERATOR_SPEECH: dict[str, tuple[str, str]] = {
         for phrase in ORIGENERATOR_PHRASES
     },
     # One the session already says to a Funestra, which means the same thing to
-    # the hosted app's show on that side.
+    # the hosted app's slideshow on that side.
     "portrait_no_filter": ("portrait", "clear filter"),
     "landscape_no_filter": ("landscape", "clear filter"),
 }
@@ -1428,7 +1545,7 @@ def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfi
     there (:func:`_about_a_satellite`), and so does the app's own spoken vocabulary
     about that side, as the words themselves: the session hears them for the
     whole room and the hosted app matches them.  Public because the dispatch loop
-    asks the same question -- its watch tracking must not book a show's step or
+    asks the same question -- its watch tracking must not book a slideshow's step or
     cull against a library video.
     """
     spoken = _ORIGENERATOR_SPEECH.get(command)
@@ -1475,7 +1592,7 @@ def _origenerator_transport(
     the session's own handling.
 
     None of the player-side bookkeeping (lock flags, favorites, RFB tabs)
-    applies to a show, and a press goes over as it was posted: the app declared
+    applies to a slideshow, and a press goes over as it was posted: the app declared
     the button, so it is what knows the verb.
     """
     if not routes_to_origenerator(command, state, config):
@@ -1601,15 +1718,17 @@ def _transport(funestra: RoomFunestra, verb: str, state: BridgeState, config: Br
     return state, []
 
 
-_SATELLITE_SPEEDS: dict[str, tuple[RoomFunestra, str]] = {
+# A satellite's own playback rate, and its funscript moves: each verb goes to
+# that satellite as it is.
+_SENT_TO_A_SATELLITE: dict[str, tuple[RoomFunestra, str]] = {
     f"{funestra.label}_{act}": (funestra, verb)
     for funestra in RoomFunestra.SATELLITES
-    for act, verb in _PLAYBACK_RATE_ACTS.items()
+    for act, verb in (*_PLAYBACK_RATE_ACTS.items(), *_FUNSCRIPT_MOVES.items())
 }
 
 
-def _satellite_speed(funestra: RoomFunestra, verb: str, state: BridgeState, config: BridgeConfig,
-                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+def _send_to_satellite(funestra: RoomFunestra, verb: str, state: BridgeState, config: BridgeConfig,
+                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     send_satellite(config, funestra, verb)
     return state, []
 
@@ -1646,11 +1765,15 @@ def _no_loop(funestra: RoomFunestra, state: BridgeState, config: BridgeConfig,
 
 def _forward_to_main_funestra(verb: str, state: BridgeState, config: BridgeConfig,
                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """The Main Funestra owns the main slot in kino mode; in genau mode the paused Main Funestra
-    still navigates in the background, and its SEEK commands apply to a live
-    local clock, so rapid nudges stack naturally."""
     append_command(config.main_funestra_cmd_file, verb)
     return state, []
+
+
+def _forward_to_whatever_is_on_the_main_funestra(
+    verb: str, state: BridgeState, config: BridgeConfig, _target_path: str,
+) -> tuple[BridgeState, list[WindowOp]]:
+    forward = _forward_to_main_funestra if kino_shows(state.main_mode) else _forward_to_genau
+    return forward(verb, state, config, _target_path)
 
 
 def _forward_to_main_funestra_on_screen(verb: str, state: BridgeState, config: BridgeConfig,
@@ -1778,9 +1901,9 @@ def _main_length(length: LengthMode, state: BridgeState, config: BridgeConfig,
     return _dispatch_main_length(length, state, config)
 
 
-def _main_length_toggle(state: BridgeState, config: BridgeConfig,
-                        _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return _dispatch_main_length(next_length_mode(state.main_length_mode), state, config)
+def _enhancement(funestra: RoomFunestra, level: EnhancementLevel, state: BridgeState,
+                 config: BridgeConfig, _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_enhancement(funestra, level, state, config)
 
 
 def _main_reset(state: BridgeState, config: BridgeConfig,
@@ -1807,12 +1930,9 @@ def _satellite_switch(funestra: RoomFunestra, target: SatellitesMode, state: Bri
     return _switch_satellite(funestra, target, state, config)
 
 
-def _both_satellites_switch(target: SatellitesMode | None, state: BridgeState,
+def _both_satellites_switch(target: SatellitesMode, state: BridgeState,
                             config: BridgeConfig,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if target is None:
-        held = all(hosts(funestra, state, config) for funestra in RoomFunestra.SATELLITES)
-        target = KINO_MODE if held else ORIGENERATOR_MODE
     refused = _origenerator_refused(state, config, asked_for=origenerator_shows(target))
     if refused is not None:
         return state, refused
@@ -1878,13 +1998,14 @@ def _filter_the_shows_enhanced(state: BridgeState, config: BridgeConfig,
     return state, []
 
 
-def _words_for_a_show_that_is_not_up(state: BridgeState, _config: BridgeConfig,
+def _words_for_a_slideshow_that_is_not_up(state: BridgeState, _config: BridgeConfig,
                                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return _ignored(state, _IN_KINO_MODE)
 
 
 _IN_KINO_MODE = "in Kino mode"
 _IN_GENAU_MODE = "in Genau mode"
+_IN_ORIGENERATOR_MODE = "in Origenerator mode"
 _OUTSIDE_VR = "outside VR"
 _ON_THE_MAIN_FUNESTRA = "on the Main Funestra"
 
@@ -1898,8 +2019,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers: dict[str, Handler] = {}
     handlers.update({cmd: partial(_transport, funestra, verb)
                      for cmd, (funestra, verb) in _TRANSPORT_COMMANDS.items()})
-    handlers.update({cmd: partial(_satellite_speed, funestra, verb)
-                     for cmd, (funestra, verb) in _SATELLITE_SPEEDS.items()})
+    handlers.update({cmd: partial(_send_to_satellite, funestra, verb)
+                     for cmd, (funestra, verb) in _SENT_TO_A_SATELLITE.items()})
     handlers.update({cmd: partial(_step_through, funestra, verb)
                      for cmd, (funestra, verb) in _PLAYHEAD_COMMANDS.items()})
     handlers["portrait_lock"] = partial(_toggle_lock, RoomFunestra.PORTRAIT)
@@ -1924,17 +2045,13 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, funestra in _NO_LOOP_SIDES.items()})
     handlers.update({cmd: partial(_dispatch_lock_action, funestra)
                      for cmd, funestra in _LOCK_ACTION_SIDES.items()})
-    handlers["main_prev"] = partial(_forward_to_main_funestra, PREV)
-    handlers["main_next"] = partial(_forward_to_main_funestra, NEXT)
+    handlers["main_prev"] = partial(_forward_to_whatever_is_on_the_main_funestra, PREV)
+    handlers["main_next"] = partial(_forward_to_whatever_is_on_the_main_funestra, NEXT)
     handlers.update({cmd: partial(_main_lock, verb)
                      for cmd, verb in _MAIN_LOCK_COMMANDS.items()})
-    handlers["genau_lock"] = partial(_main_lock, TOGGLE_LOCK)
-    handlers["main_player_lock"] = partial(_forward_to_main_funestra_on_screen, TOGGLE_LOCK)
     handlers["projection_cycle"] = partial(_forward_to_the_vr_main_funestra, "CYCLE_PROJECTION")
     handlers["projection_cycle_back"] = partial(
         _forward_to_the_vr_main_funestra, "CYCLE_PROJECTION_BACK")
-    handlers["projection_wider"] = partial(_forward_to_the_vr_main_funestra, "WIDEN_PROJECTION")
-    handlers["projection_narrower"] = partial(_forward_to_the_vr_main_funestra, "NARROW_PROJECTION")
     handlers["recenter_view"] = partial(_forward_to_the_vr_main_funestra, "RECENTER")
     handlers["tilt_up"] = partial(_forward_to_the_vr_main_funestra, "TILT_UP")
     handlers["tilt_down"] = partial(_forward_to_the_vr_main_funestra, "TILT_DOWN")
@@ -1948,6 +2065,8 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, muted in _MUTE_COMMANDS.items()})
     handlers.update({cmd: partial(_volume_step, step)
                      for cmd, step in _VOLUME_STEPS.items()})
+    handlers.update({cmd: partial(_satellite_sound, funestra, change)
+                     for cmd, (funestra, change) in _SATELLITE_SOUND.items()})
     handlers["quarter_button"] = partial(_forward_to_genau, "OFFSET_QUARTER_CYCLE")
     handlers["omnipause_toggle"] = _omnipause_toggle
     handlers["enter_omnipause"] = _enter_omnipause
@@ -1962,7 +2081,8 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, (plays_vr, plays_flat) in _PROJECTION_COMMANDS.items()})
     handlers.update({cmd: partial(_main_length, length)
                      for cmd, length in _LENGTH_COMMANDS.items()})
-    handlers["main_player_toggle_length"] = _main_length_toggle
+    handlers.update({cmd: partial(_enhancement, funestra, level)
+                     for cmd, (funestra, level) in _ENHANCEMENT_COMMANDS.items()})
     handlers[MAIN_RESET] = _main_reset
     handlers.update({cmd: partial(_set_filter, funestras, "")
                      for cmd, funestras in _NO_FILTER_SIDES.items()})
@@ -1989,7 +2109,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["genaumacher_save"] = _save_clip
     handlers["genau_weird_flick"] = _mark_genaus_flick_weird
     handlers["genau_filter_enhanced"] = _filter_the_shows_enhanced
-    handlers.update({cmd: _words_for_a_show_that_is_not_up
+    handlers.update({cmd: _words_for_a_slideshow_that_is_not_up
                      for cmd in _ORIGENERATOR_SPEECH if cmd not in handlers})
     return handlers
 

@@ -34,7 +34,7 @@ def _status_label(
     """The HUD's one status line — everything the side is in, at a glance.
 
     This side's words in the slots :func:`funestra.hud_status.status_line` lays
-    out, which is where the grammar lives and why "Locked", "Unlocked" and "F-Mode"
+    out, which is where the grammar lives and why "Locked", "Unlocked" and "F-mode"
     are not spelled here: every Funestra in the room says this line, and a reader
     glancing between two screens is reading one sentence in two places.
 

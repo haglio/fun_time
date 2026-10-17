@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from fun_time.content import Noun
+from fun_time.content import Noun, genau_flick_noun
 from fun_time.filter_vocab import (
     decode_filter_command,
     filter_voice_commands,
@@ -25,6 +25,10 @@ from fun_time.voice_commands import (
     parse_command_line,
 )
 
+# The words that name a satellite side, each the prefix of the ids it reaches.
+SIDES = ("portrait", "landscape", "satellites")
+FUNESTRAS = (*SIDES, "main")
+
 
 class TestCommandLineFormat:
     def test_round_trips_the_utterance_start_and_what_was_said(self):
@@ -36,7 +40,7 @@ class TestCommandLineFormat:
         assert parse_command_line("portrait_next") == CommandLine("portrait_next")
 
     def test_a_command_ending_in_an_unparseable_stamp_stays_whole(self):
-        assert parse_command_line("filter_both_come @ shot") == CommandLine("filter_both_come @ shot")
+        assert parse_command_line("filter_satellites_come @ shot") == CommandLine("filter_satellites_come @ shot")
 
 
 class TestTheSpokenCrossing:
@@ -99,10 +103,12 @@ class TestVoiceCommands:
             "play": "play",
             "go now": "genau_activate",
             "go now mode": "genau_activate",
+            "kino": "kino_activate",
             "kino mode": "kino_activate",
             "main kino mode": "main_kino_activate",
             "satellite kino mode": "satellites_kino_activate",
             "satellites kino mode": "satellites_kino_activate",
+            "aura generator": "satellites_origenerator_activate",
             "aura generator mode": "satellites_origenerator_activate",
             "start broker": "broker_start",
             "stop broker": "broker_stop",
@@ -118,11 +124,18 @@ class TestVoiceCommands:
             # The bare axis word is the literal one; "cycle / next / change
             # version" are generated with the other cycle axes.
             "version": "main_player_cycle_version",
-            "clips": "main_player_length_clips",
-            "full": "main_player_length_full",
+            "clips only": "main_player_length_clips",
+            "full only": "main_player_length_full",
             "browse": "browse_library",
-            "clip": "genaumacher_save",
-            "save clip": "genaumacher_save",
+            "save loop": "genaumacher_save",
+            "cycle projection": "projection_cycle",
+            "vr and two d": "main_projection_both",
+            "two d and vr": "main_projection_both",
+            # The Main Funestra's F-mode named for what it keeps, in the grid's
+            # either order, as "portrait favorites" names a satellite's.
+            "fun scripts": "main_fmode_on",
+            "main fun scripts": "main_fmode_on",
+            "fun scripts main": "main_fmode_on",
             # Engine-agnostic: routed to whichever holds the OSR2, not to Genau
             # by name (the console's own marks are the by-name pair).
             "slow down": "speed_down",
@@ -151,13 +164,15 @@ class TestVoiceCommands:
     def test_genaus_flicks_are_said_in_the_overlays_word(self):
         said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
 
-        assert {phrase: said[phrase] for phrase in ("previous pip", "next pip", "weird pip")} == {
+        assert {phrase: said[phrase] for phrase in ("previous pip", "next pip", "weird pip", "save pip")} == {
             "previous pip": "genau_prev_flick",
             "next pip": "genau_next_flick",
             "weird pip": "genau_weird_flick",
+            "save pip": "genaumacher_save",
         }
         assert [phrase for phrase, command in said.items()
-                if command.startswith("genau_") and "clip" in phrase.split()] == []
+                if command.startswith("genau") and "clip" in phrase.split()] == []
+        assert "clip" not in VOICE_COMMANDS and "save clip" not in VOICE_COMMANDS
 
     def test_marking_a_flick_weird_names_it_where_bare_weird_means_the_active_satellite(self):
         said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
@@ -190,14 +205,44 @@ class TestVoiceCommands:
         """A zero-second interval would step the clip every frame."""
         assert not any(cmd == "genau_flick_seconds_0" for cmd in VOICE_COMMANDS.values())
 
-    def test_audio_phrases_mute_and_step_the_volume(self):
-        """Both words of each pair mean the same thing, so a speaker never has to
-        pick between "quiet" and "quieter"."""
-        assert VOICE_COMMANDS["mute"] == "audio_mute"
-        assert VOICE_COMMANDS["quiet"] == "audio_volume_down"
-        assert VOICE_COMMANDS["quieter"] == "audio_volume_down"
-        assert VOICE_COMMANDS["loud"] == "audio_volume_up"
-        assert VOICE_COMMANDS["louder"] == "audio_volume_up"
+    def test_the_sound_is_said_of_the_funestra_last_addressed_or_of_the_one_named(self):
+        """Mute and the volume steps are sided like every other action a Funestra
+        shares, and both words of each pair mean the same thing, so a speaker
+        never has to pick between "quiet" and "quieter"."""
+        assert VOICE_COMMANDS["mute"] == "active_mute"
+        assert VOICE_COMMANDS["un mute"] == "active_unmute"
+        assert VOICE_COMMANDS["quiet"] == VOICE_COMMANDS["quieter"] == "active_volume_down"
+        assert VOICE_COMMANDS["loud"] == VOICE_COMMANDS["louder"] == "active_volume_up"
+        assert VOICE_COMMANDS["portrait mute"] == VOICE_COMMANDS["mute portrait"] == "portrait_mute"
+        assert VOICE_COMMANDS["landscape louder"] == "landscape_volume_up"
+        assert VOICE_COMMANDS["satellites quiet"] == "satellites_volume_down"
+        assert VOICE_COMMANDS["main mute"] == "audio_mute"
+        assert VOICE_COMMANDS["un mute main"] == "audio_unmute"
+        assert VOICE_COMMANDS["main louder"] == "audio_volume_up"
+
+    def test_the_browser_opens_by_its_other_names_too(self):
+        for phrase in ("browse", "open browser", "open file browser", "file browser", "file browse"):
+            assert VOICE_COMMANDS[phrase] == "browse_library", phrase
+
+    def test_human_inspired_motion_answers_to_its_initials(self):
+        assert VOICE_COMMANDS["hi on"] == "robot_hand_learned_on"
+        assert VOICE_COMMANDS["hi off"] == "robot_hand_learned_off"
+        assert friendly_voice("hi off") == "HI off"
+
+    def test_a_hud_is_sent_to_a_corner_by_name(self):
+        """"main hud top right", with or without "move" in front; "upper" says the
+        same as "top", and "bottom" the same as "lower".  Bare, the Funestra
+        last addressed."""
+        assert VOICE_COMMANDS["main hud top right"] == "main_hud_upper_right"
+        assert VOICE_COMMANDS["move main hud top right"] == "main_hud_upper_right"
+        assert VOICE_COMMANDS["portrait hud lower left"] == "portrait_hud_lower_left"
+        assert VOICE_COMMANDS["landscape hud upper left"] == "landscape_hud_upper_left"
+        assert VOICE_COMMANDS["satellites hud top left"] == "satellites_hud_upper_left"
+        assert VOICE_COMMANDS["hud lower right"] == "active_hud_lower_right"
+        assert VOICE_COMMANDS["move hud lower right"] == "active_hud_lower_right"
+        assert VOICE_COMMANDS["main hud bottom left"] == "main_hud_lower_left"
+        assert VOICE_COMMANDS["move hud bottom right"] == "active_hud_lower_right"
+        assert VOICE_COMMANDS["satellites hud bottom right"] == "satellites_hud_lower_right"
 
     def test_no_phrase_uses_a_word_vosk_cannot_hear(self):
         """A phrase built from a word outside the model's lexicon can never be
@@ -221,19 +266,16 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["park"] == "robot_hand_park"
         assert VOICE_COMMANDS["park it"] == "robot_hand_park"
         assert VOICE_COMMANDS["stop"] == "relief_omnipause"
-        for phrase in ("un park", "o s r two resume", "oh es are two resume"):
-            assert VOICE_COMMANDS[phrase] == "robot_hand_release", phrase
+        assert VOICE_COMMANDS["un park"] == "robot_hand_release"
+        for phrase in ("o s r two resume", "oh es are two resume"):
+            assert phrase not in VOICE_COMMANDS, phrase
 
-    def test_retract_is_no_word_now_the_switch_has_no_retract(self):
-        assert "retract" not in VOICE_COMMANDS
-        assert "un retract" not in VOICE_COMMANDS
-
-    def test_osr2_off_is_the_switch_off(self):
-        """Off parks the device, as the console's switch does.  Spelled with the
-        letters vosk has, like "OSR2 resume", which is the way back."""
+    def test_letting_go_of_the_device_is_the_consoles_switch_and_no_phrase(self):
+        """"OSR2 off" was said of the fourth control button; park and unpark
+        are what a speaker needs, and the switch stays on the console."""
         for phrase in ("o s r two off", "oh es are two off"):
-            assert VOICE_COMMANDS[phrase] == "robot_hand_park", phrase
-            assert friendly_voice(phrase) == "OSR2 off"
+            assert phrase not in VOICE_COMMANDS, phrase
+        assert "osr2_control_off" not in VOICE_COMMANDS.values()
 
     def test_osr2_control_is_the_switch_by_the_name_its_label_gives_it(self):
         for phrase in ("o s r two control off", "oh es are two control off"):
@@ -255,12 +297,10 @@ class TestVoiceCommands:
         for joined in ("unpark", "osr2", "o s r 2"):
             assert joined not in VOICE_COMMANDS
         assert friendly_voice("un park") == "unpark"
-        assert friendly_voice("o s r two resume") == "OSR2 resume"
-        assert friendly_voice("oh es are two resume") == "OSR2 resume"
         assert VOICE_COMMANDS["resume"] == "play"
 
     def test_unmute_is_heard_as_two_words_and_shown_as_one(self):
-        assert VOICE_COMMANDS["un mute"] == "audio_unmute"
+        assert VOICE_COMMANDS["un mute"] == "active_unmute"
         assert friendly_voice("un mute") == "unmute"
 
     def test_reference_popup_phrases_toggle_and_close_help(self):
@@ -279,11 +319,45 @@ class TestVoiceCommands:
         assert len(go_now) == 8
         assert {phrase: VOICE_COMMANDS.get(phrase) for phrase in twins} == twins
 
+    def test_a_hosted_apps_phrase_is_aimed_like_the_grid(self):
+        """Bare it reaches the satellite last navigated, a side word before or
+        after it names a side, and "satellites" says both."""
+        for phrase in ("experiments", "fix hands", "play slideshow", "favorites"):
+            said = phrase.replace(" ", "_")
+            assert VOICE_COMMANDS[phrase] == f"active_say_{said}"
+            assert VOICE_COMMANDS[f"portrait {phrase}"] == f"portrait_say_{said}"
+            assert VOICE_COMMANDS[f"{phrase} landscape"] == f"landscape_say_{said}"
+            assert VOICE_COMMANDS[f"satellites {phrase}"] == f"satellites_say_{said}"
+            assert VOICE_COMMANDS[f"{phrase} satellites"] == f"satellites_say_{said}"
+
+    def test_the_enhancement_level_is_said_as_the_shapes_are_of_any_funestra(self):
+        """What it includes, bare of the Funestra last addressed, with a side
+        word or "main" either way, and "satellites" for both; "enhanced only"
+        is the room's own, and no hosted-app phrase says it another way."""
+        grid = {"enhanced only": "enhancement_enhanced", "original only": "enhancement_original",
+                "enhanced and original": "enhancement_both", "original and enhanced": "enhancement_both"}
+        for phrase, act in grid.items():
+            assert VOICE_COMMANDS[phrase] == f"active_{act}"
+            assert VOICE_COMMANDS[f"main {phrase}"] == VOICE_COMMANDS[f"{phrase} main"] == f"main_{act}"
+            assert VOICE_COMMANDS[f"portrait {phrase}"] == f"portrait_{act}"
+            assert VOICE_COMMANDS[f"{phrase} satellites"] == f"satellites_{act}"
+        assert "active_say_enhanced_only" not in VOICE_COMMANDS.values()
+        assert "filter enhanced" not in VOICE_COMMANDS
+
+    def test_genau_alone_stays_the_mode_and_animates_a_picture_only_with_a_side_named(self):
+        assert VOICE_COMMANDS["genau"] == VOICE_COMMANDS["go now"] == "genau_activate"
+        assert VOICE_COMMANDS["satellites genau"] == "satellites_say_genau"
+        assert VOICE_COMMANDS["go now portrait"] == "portrait_say_go_now"
+        assert not {"active_say_genau", "active_say_go_now"} & set(VOICE_COMMANDS.values())
+
     def test_origenerator_mode_puts_both_satellites_in_it_and_is_shown_as_said(self):
         """The spoken twin of each satellite's Origenerator button, said of both:
-        what holds the Random Favs Browser's place is the dashboard strip's."""
+        what holds the Random Favs Browser's place is the dashboard strip's.
+        The bare name says it too, as bare "genau" and "kino" say theirs."""
         assert VOICE_COMMANDS["aura generator mode"] == "satellites_origenerator_activate"
+        assert VOICE_COMMANDS["aura generator"] == "satellites_origenerator_activate"
         assert friendly_voice("aura generator mode") == "origenerator mode"
+        assert friendly_voice("aura generator") == "origenerator"
 
     def test_dead_genau_phrases_removed(self):
         for phrase in ("enable genau", "disable genau"):
@@ -293,6 +367,7 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["main kino mode"] == "main_kino_activate"
         assert VOICE_COMMANDS["satellite kino mode"] == "satellites_kino_activate"
         assert VOICE_COMMANDS["kino mode"] == "kino_activate"
+        assert VOICE_COMMANDS["kino"] == "kino_activate"
         for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "v l c",
                         "video mode", "main video mode", "satellite video mode",
                         "satellites video mode"):
@@ -306,21 +381,23 @@ class TestVoiceCommands:
 
     def test_a_side_version_is_said_of_that_side_and_never_bare(self):
         """The bare word is the Main Funestra's own axis, so a satellite's
-        renditions are asked for by side — in either word order, "both" with
-        them, as every other satellite action is."""
-        for funestra in ("portrait", "landscape", "both"):
-            assert VOICE_COMMANDS[f"{funestra} version"] == f"{funestra}_cycle_version"
-            assert VOICE_COMMANDS[f"version {funestra}"] == f"{funestra}_cycle_version"
+        renditions are asked for by side — in either word order, "satellites"
+        with them, as every other satellite action is."""
+        for side in SIDES:
+            assert VOICE_COMMANDS[f"{side} version"] == f"{side}_cycle_version"
+            assert VOICE_COMMANDS[f"version {side}"] == f"{side}_cycle_version"
         assert VOICE_COMMANDS["version"] == "main_player_cycle_version"
 
-    def test_main_funestra_length_phrases(self):
-        assert VOICE_COMMANDS["clips"] == "main_player_length_clips"
-        assert VOICE_COMMANDS["full"] == "main_player_length_full"
-        assert VOICE_COMMANDS["mixed"] == "main_player_length_mixed"
-
-    def test_the_length_words_from_before_the_rename_are_gone(self):
-        assert "shorts" not in VOICE_COMMANDS
-        assert "full length" not in VOICE_COMMANDS
+    def test_the_lengths_are_said_like_the_shapes_as_what_is_included(self):
+        """"clips only", "full only", "clips and full": the way "flat only" and
+        "flat and VR" say which shapes play, so the two pairs of buttons on the
+        console read alike.  A bare "clips", "full" or "mixed" is no phrase."""
+        assert VOICE_COMMANDS["clips only"] == "main_player_length_clips"
+        assert VOICE_COMMANDS["full only"] == "main_player_length_full"
+        assert VOICE_COMMANDS["clips and full"] == "main_player_length_mixed"
+        assert VOICE_COMMANDS["full and clips"] == "main_player_length_mixed"
+        for retired in ("clips", "full", "mixed", "shorts", "full length"):
+            assert retired not in VOICE_COMMANDS, retired
 
     def test_end_compilation_leaves_without_naming_a_length(self):
         """"compilation" gets you in; this gets you out, back to whichever length
@@ -339,6 +416,19 @@ class TestVoiceCommands:
         for phrase in ("main reset", "reset main"):
             assert VOICE_COMMANDS[phrase] == "main_reset"
 
+    def test_satellites_is_the_word_for_the_pair_and_both_is_no_longer_heard(self):
+        assert VOICE_COMMANDS["satellites next"] == VOICE_COMMANDS["next satellites"] == "satellites_next"
+        assert VOICE_COMMANDS["satellites f mode"] == "satellites_fmode"
+        assert VOICE_COMMANDS["satellites version"] == "satellites_cycle_version"
+        assert VOICE_COMMANDS["satellites hud top left"] == "satellites_hud_upper_left"
+        assert VOICE_COMMANDS["minimize satellites hud"] == "satellites_hud_minimize"
+        assert VOICE_COMMANDS["satellites half speed"] == "satellites_speed_50"
+        assert VOICE_COMMANDS["satellites quiet"] == "satellites_volume_down"
+        assert VOICE_COMMANDS["satellites end loop"] == "satellites_no_loop"
+        assert VOICE_COMMANDS["satellites loop actions"] == "satellites_action_loop"
+        assert not [phrase for phrase in VOICE_COMMANDS if "both" in phrase.split()]
+        assert not [command for command in VOICE_COMMANDS.values() if command.startswith("both_")]
+
     def test_satellite_grid_supports_both_orders(self):
         """Each satellite action works BARE (→ active side) and with a side word
         in EITHER order: "portrait lock" and "lock portrait" are equivalent."""
@@ -354,7 +444,7 @@ class TestVoiceCommands:
         }
         for word, act in actions.items():
             assert VOICE_COMMANDS[word] == f"active_{act}"
-            for side in ("portrait", "landscape", "both"):
+            for side in SIDES:
                 target = f"{side}_{act}"
                 assert VOICE_COMMANDS[f"{side} {word}"] == target  # side first
                 assert VOICE_COMMANDS[f"{word} {side}"] == target  # side last
@@ -362,11 +452,11 @@ class TestVoiceCommands:
     def test_f_mode_is_sayable_per_funestra_in_either_order(self):
         """Every Funestra has its own F-mode, so each is sayable by naming it — in
         either order, like the rest of the grid.  "main" names the Funestra on the
-        shared slot and "both" means the two satellites."""
+        shared slot and "satellites" means the two satellites."""
         for word, act in (("f mode", "fmode"),
                           ("f mode on", "fmode_on"),
                           ("f mode off", "fmode_off")):
-            for side in ("portrait", "landscape", "both", "main"):
+            for side in FUNESTRAS:
                 assert VOICE_COMMANDS[f"{side} {word}"] == f"{side}_{act}"
                 assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
 
@@ -409,7 +499,7 @@ class TestVoiceCommands:
             assert VOICE_COMMANDS[phrase] == "active_no_loop"
         assert VOICE_COMMANDS["portrait loop actions"] == "portrait_action_loop"
         assert VOICE_COMMANDS["loop actions portrait"] == "portrait_action_loop"
-        assert VOICE_COMMANDS["both no loop"] == "both_no_loop"
+        assert VOICE_COMMANDS["satellites no loop"] == "satellites_no_loop"
         assert VOICE_COMMANDS["more seeds"] == "active_more_seeds"
         assert VOICE_COMMANDS["portrait more seeds"] == "portrait_more_seeds"
         # "widen (the) net" are spoken synonyms for "more seeds".
@@ -434,7 +524,7 @@ class TestVoiceCommands:
         of "lock" and "reset", so they went instead of being disambiguated."""
         for phrase in ("lock all", "loop all", "same all"):
             assert phrase not in VOICE_COMMANDS
-            for side in ("portrait", "landscape", "both"):
+            for side in SIDES:
                 assert f"{side} {phrase}" not in VOICE_COMMANDS
                 assert f"{phrase} {side}" not in VOICE_COMMANDS
         # What they said is still sayable, under the names the grid already used.
@@ -468,19 +558,33 @@ class TestVoiceCommands:
 
         assert spoken == set()
 
-    def test_mode_named_navigation_both_orders(self):
-        """A mode's name + next/previous (either order) navigates its Funestra:
-        Kino drives the main slot, Genau its own flick."""
-        for base, (next_command, previous_command) in (
-                ("kino", ("main_next", "main_prev")),
-                ("genau", ("genau_next_flick", "genau_prev_flick")),
-                ("go now", ("genau_next_flick", "genau_prev_flick"))):
-            assert VOICE_COMMANDS[f"{base} next"] == next_command
-            assert VOICE_COMMANDS[f"next {base}"] == next_command
-            assert VOICE_COMMANDS[f"{base} previous"] == previous_command
-            assert VOICE_COMMANDS[f"previous {base}"] == previous_command
-        for retired in ("video next", "next video", "video previous", "previous video"):
+    def test_the_flick_is_stepped_by_its_own_name_and_no_longer_by_genaus(self):
+        """"next genau" named the mode where the step is of the flick, so the
+        flick's word alone steps it; "next" bare still reaches the Main Funestra."""
+        for base in ("genau", "go now"):
+            for step in ("next", "previous"):
+                assert f"{base} {step}" not in VOICE_COMMANDS, f"{base} {step}"
+                assert f"{step} {base}" not in VOICE_COMMANDS, f"{step} {base}"
+        flick = genau_flick_noun().one
+        assert VOICE_COMMANDS[f"next {flick}"] == "genau_next_flick"
+        assert VOICE_COMMANDS[f"previous {flick}"] == "genau_prev_flick"
+
+    def test_next_video_and_previous_video_say_next_and_previous(self):
+        assert VOICE_COMMANDS["next video"] == VOICE_COMMANDS["next"] == "active_next"
+        assert VOICE_COMMANDS["previous video"] == VOICE_COMMANDS["previous"] == "active_prev"
+        for retired in ("kino next", "next kino", "kino previous", "previous kino",
+                        "video next", "video previous"):
             assert retired not in VOICE_COMMANDS, retired
+
+    def test_weird_lock_and_unlock_take_video_after_them_the_way_next_does(self):
+        assert VOICE_COMMANDS["weird video"] == VOICE_COMMANDS["weird"] == "active_trash"
+        assert VOICE_COMMANDS["lock video"] == VOICE_COMMANDS["lock"] == "active_lock_on"
+        assert VOICE_COMMANDS["unlock video"] == VOICE_COMMANDS["unlock"] == "active_lock_off"
+
+    def test_holding_a_genau_flick_is_the_main_lock_said_with_the_flick_named(self):
+        said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
+
+        assert (said["lock pip"], said["unlock pip"]) == ("main_lock_on", "main_lock_off")
 
     def test_contains_numeric_amp_phrases(self):
         assert VOICE_COMMANDS["amp fifty"] == "robot_hand_amp_50"
@@ -528,7 +632,7 @@ class TestVoiceCommands:
         }
         for phrase, act in grid.items():
             assert VOICE_COMMANDS[phrase] == f"active_{act}"
-            for side in ("portrait", "landscape", "both"):
+            for side in SIDES:
                 assert VOICE_COMMANDS[f"{side} {phrase}"] == f"{side}_{act}"
                 assert VOICE_COMMANDS[f"{phrase} {side}"] == f"{side}_{act}"
             assert VOICE_COMMANDS[f"main {phrase}"] == f"main_player_{act}"
@@ -548,7 +652,7 @@ def test_group_commands_join_the_order_agnostic_grid():
     }.items():
         for word in words:
             assert VOICE_COMMANDS[word] == f"active_{act}"
-            for side in ("portrait", "landscape", "both"):
+            for side in SIDES:
                 assert VOICE_COMMANDS[f"{side} {word}"] == f"{side}_{act}"
                 assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
 
@@ -563,7 +667,7 @@ def test_shuffle_joins_the_order_agnostic_satellite_grid():
     """Shuffle is sided like its counterpart Latest, so a single satellite can be
     reshuffled without disturbing the other."""
     assert VOICE_COMMANDS["shuffle"] == "active_shuffle"
-    for side in ("portrait", "landscape", "both"):
+    for side in SIDES:
         assert VOICE_COMMANDS[f"{side} shuffle"] == f"{side}_shuffle"
         assert VOICE_COMMANDS[f"shuffle {side}"] == f"{side}_shuffle"
 
@@ -574,14 +678,14 @@ def test_skip_and_back_join_the_grid_for_every_funestra():
     addressed, or with the Funestra named either side of them."""
     for word, act in (("skip", "nudge_next"), ("back", "nudge_prev")):
         assert VOICE_COMMANDS[word] == f"active_{act}"
-        for side in ("portrait", "landscape", "both", "main"):
+        for side in FUNESTRAS:
             assert VOICE_COMMANDS[f"{side} {word}"] == f"{side}_{act}"
             assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
 
 
 def test_reset_joins_the_order_agnostic_satellite_grid():
     assert VOICE_COMMANDS["reset"] == "active_reset"
-    for side in ("portrait", "landscape", "both"):
+    for side in SIDES:
         assert VOICE_COMMANDS[f"{side} reset"] == f"{side}_reset"
         assert VOICE_COMMANDS[f"reset {side}"] == f"{side}_reset"
 
@@ -596,7 +700,7 @@ def test_wrong_action_joins_the_order_agnostic_satellite_grid():
     thing.  It is about one clip, like "weird", so it is sided like one: bare it
     reaches the side last addressed, and a side word works in either order."""
     assert VOICE_COMMANDS["wrong action"] == "active_wrong_action"
-    for side in ("portrait", "landscape", "both"):
+    for side in SIDES:
         assert VOICE_COMMANDS[f"{side} wrong action"] == f"{side}_wrong_action"
         assert VOICE_COMMANDS[f"wrong action {side}"] == f"{side}_wrong_action"
     # …and it must not disturb the bare "action", which still cycles.
@@ -623,7 +727,7 @@ def test_voice_commands_include_generated_filter_phrases():
     for query, forms in acts.items():
         for form in forms:
             assert VOICE_COMMANDS[f"portrait {form}"] == set_command("portrait", query)
-            assert VOICE_COMMANDS[form] == set_command("both", query)
+            assert VOICE_COMMANDS[form] == set_command("satellites", query)
 
 
 def test_clearing_a_filter_scopes_like_every_other_satellite_action():
@@ -635,7 +739,7 @@ def test_clearing_a_filter_scopes_like_every_other_satellite_action():
         assert VOICE_COMMANDS[phrase] == "active_no_filter"
         assert VOICE_COMMANDS[f"portrait {phrase}"] == "portrait_no_filter"
         assert VOICE_COMMANDS[f"{phrase} landscape"] == "landscape_no_filter"
-        assert VOICE_COMMANDS[f"both {phrase}"] == "both_no_filter"
+        assert VOICE_COMMANDS[f"satellites {phrase}"] == "satellites_no_filter"
     assert "clear portrait" not in VOICE_COMMANDS
     assert "clear landscape" not in VOICE_COMMANDS
 
@@ -655,11 +759,11 @@ class TestBuildVoiceCommands:
 
     def test_builds_from_explicit_inputs_without_touching_the_module_global(self):
         built = build_voice_commands(
-            filter_commands={"fabricated act": "filter_both_fabricated_act"},
+            filter_commands={"fabricated act": "filter_satellites_fabricated_act"},
             clip_jump_phrases=("fabricated jump phrase",),
         )
         assert built["fabricated jump phrase"] == "main_player_clip_jump"
-        assert built["fabricated act"] == "filter_both_fabricated_act"
+        assert built["fabricated act"] == "filter_satellites_fabricated_act"
         assert "fabricated jump phrase" not in VOICE_COMMANDS
         assert built["quit"] == "quit"
 
@@ -678,7 +782,7 @@ class TestBuildVoiceCommands:
     def test_a_filter_phrase_shadowing_an_existing_command_refuses(self):
         with pytest.raises(RuntimeError, match="collide with existing voice commands"):
             build_voice_commands(
-                filter_commands={"pause": "filter_both_pause"}, clip_jump_phrases=(),
+                filter_commands={"pause": "filter_satellites_pause"}, clip_jump_phrases=(),
             )
 
 

@@ -3,8 +3,8 @@
 The Funestra asks Kino about every line first and answers the rest itself, so
 what is here is only what Kino knows and the Funestra does not: the loop
 gestures, the other versions the library knows, the length modes, Fun Time's own
-filter, the compilation and funscript jumps, and the playlist Kino reads back
-through its library.
+filter, the compilation jumps, and the playlist Kino reads back through its
+library.
 """
 from __future__ import annotations
 
@@ -40,7 +40,6 @@ class KinoControls:
     versions: Any
     modes: Any
     jumps: Any
-    funscript_jumps: Any
     reload_playlist: Callable[[], None]
 
 
@@ -123,16 +122,6 @@ def _play_clip_jump(controls: KinoControls, _value: str) -> bool:
     return True
 
 
-def _jump_to_funscript(controls: KinoControls, _value: str) -> bool:
-    controls.funscript_jumps.jump_to_funscript()
-    return True
-
-
-def _next_funscripted(controls: KinoControls, _value: str) -> bool:
-    controls.funscript_jumps.next_funscripted()
-    return True
-
-
 CONTROLS: tuple[Control, ...] = (
     Control(
         name="loop",
@@ -169,13 +158,6 @@ CONTROLS: tuple[Control, ...] = (
             Verb("PLAY_COMPILATION", _play_compilation),
             Verb("PLAY_FULL_VID", _play_full_vid),
             Verb("PLAY_CLIP_JUMP", _play_clip_jump),
-        ),
-    ),
-    Control(
-        name="funscript_jump",
-        verbs=(
-            Verb("JUMP_TO_FUNSCRIPT", _jump_to_funscript),
-            Verb("NEXT_FUNSCRIPTED", _next_funscripted),
         ),
     ),
 )

@@ -12,7 +12,7 @@ import pytest
 from funestra.playback import Playback
 
 from fun_time.event_log import NOTICE, SOURCE_MAIN
-from fun_time_vr.headset_verbs import ANGLE_STEP, DIAL_STILL_S, TILT_STEP_DEG, HeadsetVerbs
+from fun_time_vr.headset_verbs import DIAL_STILL_S, TILT_STEP_DEG, HeadsetVerbs
 from fun_time_vr.layout import TILT_LIMIT_DEG
 from fun_time_vr.picture_shape import FISHEYE_CIRCLE
 from fun_time_vr.projection import (
@@ -347,26 +347,6 @@ class TestDialingAWrappedPicture:
                 headset.verbs.tick(now=now)
 
         assert "field of view" not in caplog.text
-
-
-class TestTheKeyboardWidensOrNarrowsTheAngle:
-    def test_a_press_asks_the_host_for_a_slightly_wider_angle_once(self, headset):
-        assert headset.verbs.apply("WIDEN_PROJECTION") is True
-
-        assert headset.verbs.angle_asked.take() == pytest.approx(ANGLE_STEP)
-        assert headset.verbs.angle_asked.take() == 1.0
-
-    def test_a_press_asks_for_a_slightly_narrower_one(self, headset):
-        assert headset.verbs.apply("NARROW_PROJECTION") is True
-
-        assert headset.verbs.angle_asked.take() == pytest.approx(1 / ANGLE_STEP)
-
-    def test_presses_before_the_host_looks_add_up(self, headset):
-        for _ in range(3):
-            headset.verbs.apply("WIDEN_PROJECTION")
-        headset.verbs.apply("NARROW_PROJECTION")
-
-        assert headset.verbs.angle_asked.take() == pytest.approx(ANGLE_STEP ** 2)
 
 
 class TestRecenter:

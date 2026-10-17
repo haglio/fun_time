@@ -47,8 +47,8 @@ def _how_many(words: str) -> str:
 
 
 # The Funestra words a speaker can put in any command, and which window a notice
-# about that Funestra flashes over.  "both" is deliberately absent: it addresses
-# two Funestras, and a notice flashes over one.
+# about that Funestra flashes over.  "satellites" is deliberately absent: it
+# addresses two Funestras, and a notice flashes over one.
 _SPOKEN_FUNESTRA_SOURCES: dict[str, str] = {
     "portrait": SOURCE_PORTRAIT,
     "landscape": SOURCE_LANDSCAPE,

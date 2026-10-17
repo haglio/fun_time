@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import html
 import logging
 import time
 from collections.abc import Callable
@@ -30,7 +31,11 @@ from shared_ui.preview_icon import app_icon
 from shared_ui.spacing import BUTTON_RADIUS_HUD, MARGIN_STANDARD
 
 from fun_time import preview_marker
-from fun_time.command_reference import render_reference_html
+from fun_time.command_reference import (
+    NARROWEST_PAGE_PX,
+    reference_details,
+    render_reference_html,
+)
 from fun_time.config import LayoutConfig
 from fun_time.dashboard_actions import (
     ENTER_OMNIPAUSE,
@@ -219,8 +224,8 @@ _ACTION_TOOLTIPS: dict[str, str] = {
     OMNIPAUSE_TOGGLE: "Pause everything",
     HELP_REFERENCE: REFERENCE_WINDOW_TITLE,
     VOICE_TOGGLE: "Voice",
-    FMODE_TOGGLE: "F-Mode on every Funestra",
-    RESET_ALL: ("Reset every Funestra — no filter, no lock, no loop, no F-Mode, "
+    FMODE_TOGGLE: "F-mode on every Funestra",
+    RESET_ALL: ("Reset every Funestra — no filter, no lock, no loop, no F-mode, "
                 "normal speed, shuffled from the top"),
     ENTER_VR: "Enter VR — end this session and open FunTimeVR",
     EXIT_VR: "Exit VR — end this session and open Fun Time on the desktop",
@@ -308,8 +313,8 @@ def build_dashboard_scene(
 # ---------------------------------------------------------------------------
 # PyQt6 rendering widget
 # ---------------------------------------------------------------------------
-from PyQt6.QtCore import QEvent, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QBrush, QKeySequence, QPainter, QPen, QPixmap, QShortcut
+from PyQt6.QtCore import QEvent, QRectF, QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QBrush, QGuiApplication, QKeySequence, QPainter, QPen, QPixmap, QShortcut
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QTextBrowser, QToolTip, QVBoxLayout, QWidget
 
 
@@ -418,6 +423,54 @@ class DashboardWidget(QWidget):
             self.update()
 
 
+class ReferenceBrowser(QTextBrowser):
+    """The reference page, laid out in pixels for the width the browser has."""
+
+    rerendered = pyqtSignal()
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setOpenLinks(False)
+        self.setOpenExternalLinks(False)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.setMinimumWidth(NARROWEST_PAGE_PX + self._width_around_the_page())
+        self._details = reference_details()
+        self._page_width = 0
+        self._render()
+
+    def _width_around_the_page(self) -> int:
+        return (2 * (self.frameWidth() + round(self.document().documentMargin()))
+                + self.verticalScrollBar().sizeHint().width())
+
+    def _render(self) -> None:
+        page = max(NARROWEST_PAGE_PX,
+                   self.viewport().width() - 2 * round(self.document().documentMargin()))
+        if page == self._page_width:
+            return
+        self._page_width = page
+        scrolled = self.verticalScrollBar().value()
+        self.setHtml(render_reference_html(page))
+        self.verticalScrollBar().setValue(scrolled)
+        self.rerendered.emit()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._render()
+
+    def detail_at(self, viewport_pos) -> str:
+        return self._details.get(self.anchorAt(viewport_pos), "")
+
+    def event(self, event) -> bool:
+        if event.type() == QEvent.Type.ToolTip:
+            detail = self.detail_at(self.viewport().mapFromGlobal(event.globalPos()))
+            if detail:
+                QToolTip.showText(event.globalPos(), f"<p>{html.escape(detail)}</p>", self)
+            else:
+                QToolTip.hideText()
+            return True
+        return super().event(event)
+
+
 class RfbSlotStripWidget(QWidget):
     """The strip under the log, hovered and pressed the way a Satellite
     Funestra's HUD is (:mod:`fun_time.rfb_slot_strip`)."""
@@ -481,6 +534,16 @@ def _placed_on_the_strip(snapshot: DashboardSnapshot):
                        x=PAD, y=PAD)
 
 
+REFERENCE_FIRST_SIZE = QSize(1000, 800)
+ROOM_FOR_THE_FRAME_PX = 48
+
+
+def reference_first_size(available: QSize, *, at_least_wide: int) -> QSize:
+    return QSize(max(at_least_wide, min(REFERENCE_FIRST_SIZE.width(),
+                                        available.width() - ROOM_FOR_THE_FRAME_PX)),
+                 min(REFERENCE_FIRST_SIZE.height(), available.height() - ROOM_FOR_THE_FRAME_PX))
+
+
 class ReferenceDialog(QDialog):
     """Modeless popup listing every hotkey and voice command.
 
@@ -501,17 +564,20 @@ class ReferenceDialog(QDialog):
             | Qt.WindowType.WindowCloseButtonHint
         )
         self.setWindowIcon(app_icon(PROJECT_ICON, preview_marker.shown_as()))
-        self._browser = QTextBrowser(self)
-        self._browser.setOpenExternalLinks(False)
-        self._browser.setHtml(render_reference_html())
+        self._browser = ReferenceBrowser(self)
         self._find_bar = FindBar("Find:", "a key or a word…")
         self._find_bar.setContentsMargins(MARGIN_STANDARD, 0, MARGIN_STANDARD, MARGIN_STANDARD)
         self._find_bar.typing_invited.connect(self.typing_invited)
+        self._browser.rerendered.connect(self._find_bar.refresh)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._browser)
         layout.addWidget(self._find_bar)
         QShortcut(QKeySequence.StandardKey.Find, self).activated.connect(self.open_find)
+        self.setMinimumWidth(self._browser.minimumWidth())
+        screen = (QGuiApplication.primaryScreen() if parent is None else parent.screen())
+        self.resize(reference_first_size(screen.availableGeometry().size(),
+                                         at_least_wide=self.minimumWidth()))
 
     def open_find(self) -> None:
         self._find_bar.open_find([self._browser])

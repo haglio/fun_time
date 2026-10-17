@@ -101,7 +101,7 @@ def _band(model) -> dict[str, object]:
 def test_hud_payload_declares_the_browse_order_pair_only_where_the_side_names_an_order():
     """The Funestra draws the Shuffle/Latest pair only for a panel that declares
     it — so a satellite gets the pair, one of the two lit, and the
-    origenerator-mode panel, whose Funestra is black and paused under a show,
+    origenerator-mode panel, whose Funestra is black and paused under a slideshow,
     gets neither."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         newest = _band(hud_model(_panel(latest=True), Path("C:/t")))

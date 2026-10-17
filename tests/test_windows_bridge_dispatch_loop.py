@@ -18,6 +18,7 @@ from app_support.threading_utils import wait_until
 from funestra.console import OSR2_PARKED
 from funestra.file_channel import publish_whole
 from funestra.funestra_status import status_fields
+from funestra.hud_status import F_MODE_LABEL
 from funestra.modes import MainMode, SatellitesMode
 from funestra.playlist import PlaylistItem, write_playlist
 from funestra.status import StatusWriter
@@ -435,12 +436,12 @@ class TestResolveActiveSideCommand:
     """A side-agnostic 'active_*' command is rewritten onto whichever satellite
     is currently active; anything else passes through untouched."""
 
-    def test_group_commands_ride_the_same_active_and_both_plumbing(self):
+    def test_group_commands_ride_the_same_active_and_satellites_plumbing(self):
         # The loop / lock-action commands follow the <scope>_<action> shape, so
         # they resolve and expand without any special-casing.
         assert resolve_active_funestra_command("active_action_loop", 3) == "landscape_action_loop"
         assert resolve_active_funestra_command("active_lock_action", 2) == "portrait_lock_action"
-        assert expand_group_command("both_seed_loop") == ["portrait_seed_loop", "landscape_seed_loop"]
+        assert expand_group_command("satellites_seed_loop") == ["portrait_seed_loop", "landscape_seed_loop"]
 
     def test_rewrites_to_portrait_when_active_funestra_is_portrait(self):
         assert resolve_active_funestra_command("active_lock_on", 2) == "portrait_lock_on"
@@ -456,6 +457,31 @@ class TestResolveActiveSideCommand:
         """The Main Funestra (slot 1) joins the active-side feature for nav."""
         assert resolve_active_funestra_command("active_next", 1) == "main_next"
         assert resolve_active_funestra_command("active_prev", 1) == "main_prev"
+
+    def test_the_funscript_moves_follow_the_funestra_last_navigated_the_main_under_its_own_ids(self):
+        for action, main in (("funscript_jump", "main_player_funscript_jump"),
+                             ("next_funscripted", "main_player_next_funscripted")):
+            assert resolve_active_funestra_command(f"active_{action}", 1) == main
+            assert resolve_active_funestra_command(f"active_{action}", 2) == f"portrait_{action}"
+            assert resolve_active_funestra_command(f"active_{action}", 3) == f"landscape_{action}"
+            assert expand_group_command(f"satellites_{action}") == [
+                f"portrait_{action}", f"landscape_{action}"]
+
+    def test_the_enhancement_level_follows_the_funestra_last_navigated(self):
+        for level in ("enhanced", "original", "both"):
+            assert resolve_active_funestra_command(f"active_enhancement_{level}", 1) == f"main_enhancement_{level}"
+            assert resolve_active_funestra_command(f"active_enhancement_{level}", 2) == f"portrait_enhancement_{level}"
+            assert expand_group_command(f"satellites_enhancement_{level}") == [
+                f"portrait_enhancement_{level}", f"landscape_enhancement_{level}"]
+
+    def test_a_hosted_apps_phrase_said_bare_reaches_the_satellite_last_navigated(self):
+        """Said with the Main Funestra active it resolves to nothing, as weird
+        does: the Main Funestra hosts no slideshow."""
+        assert resolve_active_funestra_command("active_say_fix_face", 2) == "portrait_say_fix_face"
+        assert resolve_active_funestra_command("active_say_fix_face", 3) == "landscape_say_fix_face"
+        assert resolve_active_funestra_command("active_say_fix_face", 1) == "active_say_fix_face"
+        assert expand_group_command("satellites_say_fix_face") == [
+            "portrait_say_fix_face", "landscape_say_fix_face"]
 
     def test_reset_on_the_primary_means_the_main_funestras_own_reset(self):
         """Another phrase that means a different thing on each Funestra: on a
@@ -1317,7 +1343,7 @@ class TestWhatASpokenCommandFlashes:
     def test_favorites_said_to_a_side_in_kino_mode_flashes_its_f_mode_going_on(self, tmp_path):
         flashed = self._run_for_real(tmp_path, "landscape_say_favorites", "landscape favorites")
 
-        assert flashed == [("F-Mode enabled", "landscape", FAVORITE)]
+        assert flashed == [(f"{F_MODE_LABEL} enabled", "landscape", FAVORITE)]
 
     def test_a_hosted_shows_words_in_kino_mode_say_kino_mode_ignored_them(self, tmp_path):
         flashed = self._run_for_real(
@@ -1325,6 +1351,28 @@ class TestWhatASpokenCommandFlashes:
 
         assert flashed == [
             ("ignored in Kino mode: landscape experiments", "landscape", logging.WARNING)]
+
+    def test_a_hosted_shows_words_said_of_both_sides_reach_the_side_that_hosts_a_show(self, tmp_path):
+        """"satellites experiments" with one side in Origenerator mode and the
+        other in Kino mode: the words go to the hosted app for the one, and the
+        one flash says which mode ignored them for the other."""
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        _the_hosted_app_answers(tmp_path)
+        write_shared_state(tmp_path / "shared_state.ini",
+                           _in_origenerator_mode(BridgeState(), RoomFunestra.PORTRAIT))
+        (tmp_path / "dashboard_cmd.txt").write_text(
+            format_spoken_command("satellites_say_experiments", spoken_at=1.0,
+                                  said="satellites experiments"), encoding="utf-8")
+        flashed = []
+        with patch("fun_time.windows_bridge_dispatch_loop.notice",
+                   side_effect=lambda _log, msg, *, source, level=25: flashed.append(
+                       (msg, source, level))):
+            runner.tick()
+
+        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
+            "PORTRAIT_SAY:experiments"]
+        assert flashed == [
+            ("ignored in Kino mode: satellites experiments", "system", logging.WARNING)]
 
     def test_a_jump_the_main_funestra_is_not_there_to_answer_says_genau_mode_ignored_it(
         self, tmp_path,
@@ -1384,10 +1432,10 @@ class TestWhatASpokenCommandFlashes:
     def test_a_pressed_command_flashes_only_what_it_says_itself(self, tmp_path):
         assert self._flashed(tmp_path, "landscape_next") == []
 
-    def test_a_spoken_both_command_says_what_was_heard_once(self, tmp_path):
-        spoken = format_spoken_command("both_next", spoken_at=1.0, said="both next")
+    def test_a_spoken_satellites_command_says_what_was_heard_once(self, tmp_path):
+        spoken = format_spoken_command("satellites_next", spoken_at=1.0, said="satellites next")
 
-        assert self._flashed(tmp_path, spoken) == [("both next", "system", 25)]
+        assert self._flashed(tmp_path, spoken) == [("satellites next", "system", 25)]
 
     def test_a_command_frozen_by_omnipause_says_it_was_ignored(self, tmp_path):
         spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
@@ -1409,7 +1457,7 @@ class TestWhatASpokenCommandFlashes:
         self, tmp_path, command, said,
     ):
         """On a Funestra F-mode flashes which way it went; in origenerator mode the
-        words go to the show on that side, which flashes nothing here."""
+        words go to the slideshow on that side, which flashes nothing here."""
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
@@ -1564,8 +1612,8 @@ class TestOpenRfbTab:
 
         assert calls == []
 
-    def test_lock_both_opens_both_videos_in_one_launch(self, tmp_path):
-        """"lock both" locks two videos in one tick; their RFB tabs must open in
+    def test_lock_satellites_opens_both_videos_in_one_launch(self, tmp_path):
+        """"lock satellites" locks two videos in one tick; their RFB tabs must open in
         a single Chrome launch, or the second races the singleton and is dropped."""
         runner = make_runner(
             tmp_path,
@@ -1576,7 +1624,7 @@ class TestOpenRfbTab:
                 arguments='--profile-directory="Profile 2"'),
         )
         runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=False))
-        (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("satellites_lock_on", encoding="utf-8")
 
         def fake_dispatch(cmd, state, config, target_path=""):
             if cmd == "portrait_lock_on":
@@ -2593,13 +2641,13 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_called_once_with("portrait_fmode_on", None)
 
-    def test_both_fmode_is_expanded_into_the_two_satellites(self, tmp_path):
-        """"both f mode" is sugar, exactly as it is for every other sided command:
+    def test_satellites_fmode_is_expanded_into_the_two_satellites(self, tmp_path):
+        """"satellites f mode" is sugar, exactly as it is for every other sided command:
         there is no combined handler, just the pair run in turn."""
         runner = make_runner(tmp_path)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("both_fmode", encoding="utf-8")
+            cmd_file.write_text("satellites_fmode", encoding="utf-8")
             runner.tick()
         assert [call.args[0] for call in mock_d.call_args_list] == [
             "portrait_fmode", "landscape_fmode",
@@ -3006,22 +3054,27 @@ class TestTheSatellitesTakeTheMainFunestrasRate:
 class TestExpandGroupCommand:
     """A group word is sugar for the Funestras it names, driven one at a time."""
 
-    def test_passes_through_non_both_commands(self):
+    def test_passes_through_non_satellites_commands(self):
         assert expand_group_command("portrait_next") == ["portrait_next"]
         assert expand_group_command("quit") == ["quit"]
 
+    def test_the_satellite_sides_mode_switches_are_said_of_the_side_as_a_whole(self):
+        assert expand_group_command("satellites_kino_activate") == ["satellites_kino_activate"]
+        assert expand_group_command("satellites_origenerator_activate") == [
+            "satellites_origenerator_activate"]
+
     def test_expands_to_portrait_then_landscape(self):
-        assert expand_group_command("both_next") == ["portrait_next", "landscape_next"]
-        assert expand_group_command("both_prev") == ["portrait_prev", "landscape_prev"]
-        assert expand_group_command("both_trash") == ["portrait_trash", "landscape_trash"]
+        assert expand_group_command("satellites_next") == ["portrait_next", "landscape_next"]
+        assert expand_group_command("satellites_prev") == ["portrait_prev", "landscape_prev"]
+        assert expand_group_command("satellites_trash") == ["portrait_trash", "landscape_trash"]
 
     def test_expands_multiword_suffixes(self):
-        assert expand_group_command("both_lock_on") == ["portrait_lock_on", "landscape_lock_on"]
-        assert expand_group_command("both_lock_off") == ["portrait_lock_off", "landscape_lock_off"]
-        assert expand_group_command("both_cycle_action") == [
+        assert expand_group_command("satellites_lock_on") == ["portrait_lock_on", "landscape_lock_on"]
+        assert expand_group_command("satellites_lock_off") == ["portrait_lock_off", "landscape_lock_off"]
+        assert expand_group_command("satellites_cycle_action") == [
             "portrait_cycle_action", "landscape_cycle_action",
         ]
-        assert expand_group_command("both_cycle_seed") == [
+        assert expand_group_command("satellites_cycle_seed") == [
             "portrait_cycle_seed", "landscape_cycle_seed",
         ]
 
@@ -3031,13 +3084,13 @@ class TestExpandGroupCommand:
         ]
 
 
-class TestBothSatelliteCommands:
-    """A polled "both" command drives Portrait then Landscape through the same
+class TestSatellitesCommands:
+    """A polled "satellites" command drives Portrait then Landscape through the same
     per-command handling as the individual satellite commands."""
 
-    def test_both_next_dispatches_to_each_satellite(self, tmp_path):
+    def test_satellites_next_dispatches_to_each_satellite(self, tmp_path):
         runner = make_runner(tmp_path)
-        (tmp_path / "dashboard_cmd.txt").write_text("both_next", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("satellites_next", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
@@ -3046,22 +3099,22 @@ class TestBothSatelliteCommands:
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert commands == ["portrait_next", "landscape_next"]
 
-    def test_lock_both_locks_each_unlocked_satellite(self, tmp_path):
-        """"lock both" (both_lock_on) is the spoken lock said to each side: an
+    def test_lock_satellites_locks_each_unlocked_satellite(self, tmp_path):
+        """"lock satellites" (satellites_lock_on) is the spoken lock said to each side: an
         already-locked side is left alone, so only the unlocked one locks."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=True))
-        (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("satellites_lock_on", encoding="utf-8")
 
         runner.tick()
 
         assert [_told(runner, funestra) for funestra in RoomFunestra.SATELLITES] == [[], ["LOCK_ON"]]
         assert runner.state.satellite(RoomFunestra.LANDSCAPE).locked is True
 
-    def test_unlock_both_unlocks_each_locked_satellite(self, tmp_path):
+    def test_unlock_satellites_unlocks_each_locked_satellite(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(landscape=SatelliteState(locked=True), portrait=SatelliteState(locked=True))
-        (tmp_path / "dashboard_cmd.txt").write_text("both_lock_off", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("satellites_lock_off", encoding="utf-8")
 
         runner.tick()
 
@@ -3175,12 +3228,12 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
                                rfb_slot=RfbSlot.ORIGENERATOR, origenerator_ready=True)
         return runner
 
-    @pytest.mark.parametrize("press", ["main_lock", "genau_lock"])  # the padlock, the comma
-    def test_the_gallery_goes_to_the_flick_genau_holds_once_it_holds_it(self, tmp_path, press):
+    def test_the_gallery_goes_to_the_flick_genau_holds_once_it_holds_it(self, tmp_path):
+        """The padlock and the comma both send main_lock."""
         runner = self._genau_beside_the_gallery(tmp_path)
         _genau_publishes(tmp_path, locked=False, flick=self.FIRST)
 
-        runner._dispatch(press)
+        runner._dispatch("main_lock")
         runner.tick()
         assert _what_the_gallery_heard(tmp_path) == []
 
@@ -3607,6 +3660,18 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
 
         assert build_bridge_config_from_manifest(manifest).main_funestra_notice_file == (
             tmp_path / "elsewhere" / "notices.txt")
+
+    def test_each_satellites_notice_channel_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
+        manifest = self._manifest(
+            cfg_factory, tmp_path,
+            portrait_notice_file=str(tmp_path / "elsewhere" / "portrait_notice.txt"),
+            landscape_notice_file=str(tmp_path / "elsewhere" / "landscape_notice.txt"))
+
+        config = build_bridge_config_from_manifest(manifest)
+
+        assert config.satellite(RoomFunestra.PORTRAIT).notice_file == (
+            tmp_path / "elsewhere" / "portrait_notice.txt")
+        assert config.landscape_notice_file == tmp_path / "elsewhere" / "landscape_notice.txt"
 
 
 class TestTheFunestrasComeHome:

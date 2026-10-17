@@ -498,7 +498,7 @@ def origenerator_session_args(
     input_file: str | Path | None = None,
 ) -> list[str]:
     args = ["--fun-time", *_rect_args("", layout_plan.random_favs_browser)]
-    # The two satellite regions, for a show the hosted app opens itself where a
+    # The two satellite regions, for a slideshow the hosted app opens itself where a
     # session hands it no Funestra.  Unsent, those fell to a rect of zeroes.
     args.extend(_rect_args("portrait-", layout_plan.portrait))
     args.extend(_rect_args("landscape-", layout_plan.landscape))
@@ -580,7 +580,7 @@ def launch_origenerator(
     """Launch the hosted Origenerator, returning its PID.
 
     Its ``--fun-time`` contract (``origenerator.fun_time_mode``): the main
-    window takes the RFB's rect, its shows go to the two Funestras it is handed,
+    window takes the RFB's rect, its slideshows go to the two Funestras it is handed,
     and the file trio is how the session drives and observes it.  Run with
     ``cwd`` in the checkout so ``-m`` resolves that checkout's code — the same
     way its own launcher picks a checkout, and what lets a worktree of it be

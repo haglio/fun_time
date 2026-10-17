@@ -21,7 +21,7 @@ from .origenerator_switches import RfbSlot
 # Kino and Genau both run on the Main Funestra's one window.
 FIXED_TOPMOST_ROLES: tuple[str, ...] = ("portrait", "landscape", "dashboard", "main_player")
 
-# The hosted Origenerator's one window.  Its shows play on the Satellite
+# The hosted Origenerator's one window.  Its slideshows play on the Satellite
 # Funestras, not in windows of its own (fun_time.funestra_handover).
 ORIGENERATOR_ROLE = "origenerator"
 

@@ -103,23 +103,14 @@ Esc::PauseOrCancelStartup()
 Space::QueueCommand("enter_omnipause")
 Enter::QueueCommand("voice_accept")
 NumpadEnter::QueueCommand("voice_accept")
-[::QueueCommand("main_prev")
-SC01A::QueueCommand("main_prev")
-]::QueueCommand("main_next")
-SC01B::QueueCommand("main_next")
-; Mode activation hotkeys: the main slot's two modes.
-g::QueueCommand("genau_activate")
-h::QueueCommand("main_kino_activate")
-; Both Satellite Funestras' mode at once: Kino <-> Origenerator.
-x::QueueCommand("satellites_toggle")
 $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")
 
 \::QueueCommand("quarter_button")
-; The Main Funestra's library browser, on the key the retired mode had.
-n::QueueCommand("browse_library")
 -::QueueCommand("main_nudge_prev")
+; The + key is the = key: no Shift, the way M is pressed without one.
 =::QueueCommand("main_nudge_next")
++=::QueueCommand("main_nudge_next")
 Left::QueueCommand("portrait_prev")
 Right::QueueCommand("portrait_next")
 Up::QueueCommand("portrait_trash")
@@ -138,7 +129,7 @@ s::QueueCommand("landscape_lock")
 e::QueueCommand("landscape_loop")
 ; The shifted step keys walk the versions of the clip on screen -- the upscale
 ; the library plays and the original it was made from -- as they do on the Main
-; Funestra's own side (+[ / +] below).  The map's own row, which they used to walk,
+; Funestra's own side (+m / +SC034 below).  The map's own row, which they used to walk,
 ; is still reachable by clicking a thumbnail.
 +Left::QueueCommand("portrait_cycle_version_back")
 +Right::QueueCommand("portrait_cycle_version")
@@ -153,12 +144,11 @@ e::QueueCommand("landscape_loop")
 +Down::QueueCommand("portrait_nav_down")
 +w::QueueCommand("landscape_nav_up")
 +s::QueueCommand("landscape_nav_down")
-; Where each Funestra's HUD sits.  Ctrl and the side's own step keys move that
-; Funestra's HUD: round the four corners of its picture on the desktop, against a
-; side of its Funestra in the headset.  The Main Funestra has one pair of keys
-; rather than a cluster, so its HUD walks the ring: Ctrl+[ against the clock,
-; Ctrl+] with it.  The bracket scancodes are bound beside the characters for the
-; same reason the step keys are.
+; Where each Funestra's HUD sits.  Ctrl and the Funestra's own step keys move its
+; HUD a step toward that side: round the four corners of its picture on the
+; desktop, against a side of its Funestra in the headset.  The Main Funestra
+; steps on M and the period, so its up and down are K and the comma, the keys
+; above and below them.
 ^Left::QueueCommand("portrait_hud_left")
 ^Right::QueueCommand("portrait_hud_right")
 ^Up::QueueCommand("portrait_hud_up")
@@ -167,17 +157,12 @@ e::QueueCommand("landscape_loop")
 ^d::QueueCommand("landscape_hud_right")
 ^w::QueueCommand("landscape_hud_up")
 ^s::QueueCommand("landscape_hud_down")
-^[::QueueCommand("main_hud_counterclockwise")
-^SC01A::QueueCommand("main_hud_counterclockwise")
-^]::QueueCommand("main_hud_clockwise")
-^SC01B::QueueCommand("main_hud_clockwise")
+^m::QueueCommand("main_hud_left")
+^SC034::QueueCommand("main_hud_right")
+^k::QueueCommand("main_hud_up")
+^SC033::QueueCommand("main_hud_down")
 
-; The video's lock, while the video is on the main slot: it holds instead of
-; walking the playlist.  Genau's flick has a lock key of its own in Genau's
-; cluster below, so each key holds the Funestra whose keys sit around it.  The
-; apostrophe gave up Save clip to take this — that moved one key left, to the
-; semicolon (bound by scancode because a bare ; opens a comment in AHK).
-'::QueueCommand("main_player_lock")
+; Save loop is the semicolon, bound by scancode because a bare ; opens a comment in AHK.
 SC027::QueueCommand("genaumacher_save")
 
 ; The Main Funestra loop recording: hold R to mark, release to loop, press again to cancel.
@@ -196,34 +181,11 @@ r up:: {
     QueueCommand("main_player_record_up")
 }
 
-; The Main Funestra: cycle to another same-content version of the current video.
-; The shifted step keys walk the same versions either way, as the shifted step
-; keys on each satellite side do.
-v::QueueCommand("main_player_cycle_version")
-+[::QueueCommand("main_player_cycle_version_back")
-+SC01A::QueueCommand("main_player_cycle_version_back")
-+]::QueueCommand("main_player_cycle_version")
-+SC01B::QueueCommand("main_player_cycle_version")
-
-; The Main Funestra: cycle the length of what plays — mixed (everything) / clips / full.
-t::QueueCommand("main_player_toggle_length")
-
-; FunTimeVR: cycle the Main Funestra's video's projection.  Desktop Main Funestra ignores the verb.
-p::QueueCommand("projection_cycle")
-!Left::QueueCommand("projection_narrower")
-!Right::QueueCommand("projection_wider")
-
-; FunTimeVR: re-zero the scene onto wherever the headset is facing now (the
-; runtime's own recenter menu doesn't reach this app).  Desktop Main Funestra ignores it.
-z::QueueCommand("recenter_view")
-
-; FunTimeVR: tilt the whole arrangement up and down, for watching from a
-; recliner or flat on your back; Shift+Z stands it upright again beside Z's
-; recenter.  Squeezing a controller's trigger and moving it turns and tilts the
-; whole arrangement — these are for the desk.  Desktop Main Funestra ignores all three.
-PgUp::QueueCommand("tilt_up")
-PgDn::QueueCommand("tilt_down")
-+z::QueueCommand("tilt_reset")
+; The Main Funestra's shifted step keys (M and the period) walk the other
+; versions of the current video either way, as the shifted step keys on each
+; satellite side do.
++m::QueueCommand("main_player_cycle_version_back")
++SC034::QueueCommand("main_player_cycle_version")
 
 ; Robot Hand hotkeys.  Each pair reads left-down / right-up: 7/9 sit
 ; above u/o for amplitude, the way u/o and j/l already work for center and speed.
@@ -237,17 +199,17 @@ o::QueueCommand("robot_hand_center_up")
 ; Genau's motion otherwise.
 j::QueueCommand("speed_down")
 l::QueueCommand("speed_up")
-; Human-inspired motion: real scripting in place of the waveform.
-y::QueueCommand("robot_hand_toggle_learned")
 
-; Genau's flick cluster, laid out like the arrow keys are for the portrait side:
-; K above to condemn the flick, M and . either side for previous and next, and the
-; comma under K to hold it, where Down sits under Up and S under W.  Comma and
-; period by scancode, the way the semicolon is.
+; The Main Funestra's cluster, laid out like the arrow keys are for the portrait
+; side: M and . either side for previous and next, the comma to hold, each
+; reaching whatever is on the Main Funestra -- the video in Kino mode, Genau's
+; flick in Genau mode -- and K above the comma to condemn the flick, where Up
+; sits over Down and W over S.  Comma and period by scancode, the way the
+; semicolon is.
 k::QueueCommand("genau_weird_flick")
-m::QueueCommand("genau_prev_flick")
-SC033::QueueCommand("genau_lock")
-SC034::QueueCommand("genau_next_flick")
+m::QueueCommand("main_prev")
+SC033::QueueCommand("main_lock")
+SC034::QueueCommand("main_next")
 
 ; -------------------- CORE FUNCTIONS --------------------
 
