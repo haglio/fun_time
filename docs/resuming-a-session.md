@@ -194,7 +194,14 @@ the room that opens is the room the last one was showing, whether it was left by
 crossing ([entering-vr.md](entering-vr.md)) or by quitting. The Funestras' status
 files are what they report through, never what a session comes back from. The mic's
 mute is kept the same way: the dispatch loop writes it into the state whenever it
-moves, and the next session starts its own controller muted.
+moves, and the next session starts its own controller muted. So is where the
+headset's screens hang and how far the room is tilted: the headset reports them in
+`vr_layout.json` as they move, the dispatch loop keeps them in the state, and the
+next headset session opens on them (`fun_time_vr.layout.remembered_layout`).
+
+Every startup also takes in what the Funestras and the headset last reported
+before it reads the state, since a change made in the second before a session
+ended can reach a status file after the dispatch loop has stopped writing.
 
 ## Three rules that are easy to lose
 

@@ -140,6 +140,7 @@ class BridgeState:
     genau_learned: bool = False
     genau_locked: bool = True
     mic_muted: bool = False
+    headset_layout: str = ""
     osr2_control: str = OSR2_DRIVING  # the console's OSR2 switch sets it
     crowned: Crown = Crown.MAIN
     majority: Crown = Crown.PORTRAIT

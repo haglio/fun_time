@@ -11,10 +11,13 @@ import math
 import numpy as np
 import pytest
 
+from fun_time.funestra_settings import reports_published_in, with_what_the_funestras_report
+from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time_vr.layout import (
     AZIMUTH_LIMIT_DEG,
     ELEVATION_LIMIT_DEG,
     LANDSCAPE,
+    LAYOUT_FILENAME,
     MAIN,
     MAX_WIDTH_DEG,
     MIN_WIDTH_DEG,
@@ -24,17 +27,64 @@ from fun_time_vr.layout import (
     clamp_width,
     grown,
     nearer,
-    read_layout,
     rearranged,
+    remembered_layout,
     shown_at,
     write_layout,
 )
 from fun_time_vr.scene import MAIN_WIDTH_DEG, RADIUS, Placement, surface_vertices
+from tests.headset_layout_reports import reported_layout
+
+
+class TestTheLayoutTheRoomRemembers:
+    def test_the_screens_and_tilt_the_room_was_left_with_come_back(self, tmp_path):
+        moved = Placement(azimuth_deg=-12.0, elevation_deg=-4.0, width_deg=110.0)
+        write_shared_state(shared_state_path(tmp_path), BridgeState(headset_layout=json.dumps({
+            MAIN: {"azimuth_deg": -12.0, "elevation_deg": -4.0, "width_deg": 110.0},
+            "tilt_deg": -17.5})))
+
+        assert remembered_layout(tmp_path) == Layout({MAIN: moved}, -17.5)
+
+    def test_a_room_that_remembers_no_layout_opens_every_screen_where_it_always_opens(
+            self, tmp_path):
+        write_shared_state(shared_state_path(tmp_path), BridgeState())
+
+        assert remembered_layout(tmp_path) == Layout()
+
+    def test_a_layout_the_room_cannot_read_remembers_nothing(self, tmp_path):
+        write_shared_state(shared_state_path(tmp_path), BridgeState(headset_layout="{not json"))
+
+        assert remembered_layout(tmp_path) == Layout()
+
+    def test_what_one_headset_session_reports_is_where_the_next_one_opens(self, tmp_path):
+        left = Layout({MAIN: Placement(-12.0, -4.0, 110.0)}, 12.5)
+        assert write_layout(tmp_path / LAYOUT_FILENAME, left)
+
+        write_shared_state(shared_state_path(tmp_path), with_what_the_funestras_report(
+            BridgeState(), reports_published_in(tmp_path, main_status_file=tmp_path / "none.txt",
+                                                satellite_status_files={})))
+
+        assert remembered_layout(tmp_path) == left
+
+    def test_a_report_it_cannot_read_leaves_the_layout_the_room_remembers(self, tmp_path):
+        (tmp_path / LAYOUT_FILENAME).write_text("{half a layo", encoding="utf-8")
+        remembering = BridgeState(headset_layout='{"tilt_deg":5.0}')
+
+        state = with_what_the_funestras_report(remembering, reports_published_in(
+            tmp_path, main_status_file=tmp_path / "none.txt", satellite_status_files={}))
+
+        assert state.headset_layout == '{"tilt_deg":5.0}'
+
+    def test_the_main_screen_kept_under_its_old_name_comes_back_as_the_main_screen(self, tmp_path):
+        write_shared_state(shared_state_path(tmp_path), BridgeState(headset_layout=json.dumps({
+            "primary": {"azimuth_deg": 8.0, "elevation_deg": 1.0, "width_deg": 80.0}})))
+
+        assert remembered_layout(tmp_path).placements == {MAIN: Placement(8.0, 1.0, 80.0)}
 
 
 class TestTheRememberedLayout:
     def test_no_file_yet_remembers_nothing(self, tmp_path):
-        assert read_layout(tmp_path / "vr_layout.json") == Layout()
+        assert reported_layout(tmp_path / "vr_layout.json") == Layout()
 
     def test_what_was_written_reads_back(self, tmp_path):
         path = tmp_path / "vr_layout.json"
@@ -43,13 +93,13 @@ class TestTheRememberedLayout:
 
         assert write_layout(path, moved)
 
-        assert read_layout(path) == moved
+        assert reported_layout(path) == moved
 
     def test_a_file_that_cannot_be_read_remembers_nothing(self, tmp_path):
         path = tmp_path / "vr_layout.json"
         path.write_text("{not json", encoding="utf-8")
 
-        assert read_layout(path) == Layout()
+        assert reported_layout(path) == Layout()
 
     def test_a_screen_the_file_names_badly_is_remembered_no_better_than_one_it_leaves_out(
             self, tmp_path):
@@ -61,7 +111,7 @@ class TestTheRememberedLayout:
             PORTRAIT: {"azimuth_deg": "sideways"},
         }), encoding="utf-8")
 
-        layout = read_layout(path)
+        layout = reported_layout(path)
 
         assert layout.placements == {LANDSCAPE: Placement(5.0, 20.0, 24.0)}
 
@@ -71,7 +121,7 @@ class TestTheRememberedLayout:
 
         assert write_layout(path, left)
 
-        assert read_layout(path) == left
+        assert reported_layout(path) == left
 
     def test_a_zoomed_and_moved_main_screen_comes_back_next_session(self, tmp_path):
         path = tmp_path / "vr_layout.json"
@@ -79,7 +129,7 @@ class TestTheRememberedLayout:
 
         assert write_layout(path, Layout({MAIN: zoomed}))
 
-        assert read_layout(path).placements[MAIN] == zoomed
+        assert reported_layout(path).placements[MAIN] == zoomed
 
     def test_remembering_nothing_at_all_reads_back_as_nothing(self, tmp_path):
         """What a reset writes: the file says the session moved no screen and
@@ -89,7 +139,7 @@ class TestTheRememberedLayout:
 
         assert write_layout(path, Layout())
 
-        assert read_layout(path) == Layout()
+        assert reported_layout(path) == Layout()
 
     def test_a_file_written_before_the_tilt_was_remembered_opens_level_with_its_screens(
             self, tmp_path):
@@ -99,7 +149,7 @@ class TestTheRememberedLayout:
             MAIN: {"azimuth_deg": 6.5, "elevation_deg": -14.9, "width_deg": 82.1},
         }), encoding="utf-8")
 
-        assert read_layout(path) == Layout({MAIN: Placement(6.5, -14.9, 82.1)}, 0.0)
+        assert reported_layout(path) == Layout({MAIN: Placement(6.5, -14.9, 82.1)}, 0.0)
 
     def test_a_tilt_the_file_names_badly_leaves_the_room_level_and_the_screens_alone(
             self, tmp_path):
@@ -109,7 +159,7 @@ class TestTheRememberedLayout:
             "tilt_deg": "uphill",
         }), encoding="utf-8")
 
-        layout = read_layout(path)
+        layout = reported_layout(path)
 
         assert layout.tilt_deg == 0.0
         assert layout.placements == {LANDSCAPE: Placement(5.0, 20.0, 24.0)}
@@ -118,7 +168,7 @@ class TestTheRememberedLayout:
         path = tmp_path / "vr_layout.json"
         path.write_text(json.dumps({"tilt_deg": 400.0}), encoding="utf-8")
 
-        assert read_layout(path).tilt_deg == TILT_LIMIT_DEG
+        assert reported_layout(path).tilt_deg == TILT_LIMIT_DEG
 
     def test_a_remembered_placement_is_held_within_the_scene(self, tmp_path):
         """A hand-edited file cannot hang a screen at the viewer's back, at the
@@ -129,7 +179,7 @@ class TestTheRememberedLayout:
             PORTRAIT: {"azimuth_deg": -200.0, "elevation_deg": -89.0, "width_deg": 4000.0},
         }), encoding="utf-8")
 
-        layout = read_layout(path)
+        layout = reported_layout(path)
 
         assert layout.placements[LANDSCAPE] == Placement(
             AZIMUTH_LIMIT_DEG, ELEVATION_LIMIT_DEG, MIN_WIDTH_DEG)

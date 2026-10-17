@@ -97,7 +97,6 @@ from fun_time_vr.layout import (
     REFERENCE,
     Layout,
     clamp_placement,
-    read_layout,
     shown_at,
 )
 from fun_time_vr.library_panel import LIBRARY_SIZE_PX, scroll_from_stick, scroll_line
@@ -140,6 +139,7 @@ from fun_time_vr.surfaces import LatestPicture, PanelBitmap
 from fun_time_vr.video_thread import VideoThread
 from fun_time_vr.wrap_readout import WrapReadout, label
 from main_funestra.genau import GenauChannels
+from tests.headset_layout_reports import reported_layout
 from tests.made_up_genau import made_up_genau
 from tests.satellite_fakes import FakeSatelliteEngine
 
@@ -807,7 +807,7 @@ class TestTheLayoutKeeper:
 
         keeper.settle()
         keeper.pump(threading.Event(), 0.0)
-        assert read_layout(path).placements[PORTRAIT] == moved
+        assert reported_layout(path).placements[PORTRAIT] == moved
 
         written = path.stat().st_mtime_ns
         keeper.pump(threading.Event(), 0.0)
@@ -823,7 +823,7 @@ class TestTheLayoutKeeper:
         keeper.settle()
         keeper.pump(threading.Event(), 0.0)
 
-        assert read_layout(path) == Layout({PORTRAIT: moved}, 12.5)
+        assert reported_layout(path) == Layout({PORTRAIT: moved}, 12.5)
 
     def test_being_told_the_tilt_it_already_holds_is_not_worth_a_file(self, tmp_path):
         """Every frame says what the tilt is, so only a change may owe a write."""
@@ -844,7 +844,7 @@ class TestTheLayoutKeeper:
         keeper.tilt(5.0, carried=False)
         keeper.pump(threading.Event(), 0.0)
 
-        assert read_layout(path).tilt_deg == 5.0
+        assert reported_layout(path).tilt_deg == 5.0
 
     def test_a_tilt_a_hand_is_still_lifting_waits_for_the_release(self, tmp_path):
         """The same reason a screen mid-drag is not worth a file: the gesture
@@ -859,7 +859,7 @@ class TestTheLayoutKeeper:
         keeper.settle()
         keeper.pump(threading.Event(), 0.0)
 
-        assert read_layout(path).tilt_deg == 5.0
+        assert reported_layout(path).tilt_deg == 5.0
 
     def test_a_session_ending_mid_drag_still_keeps_the_screen_where_it_was_left(self, tmp_path):
         path = tmp_path / "vr_layout.json"
@@ -869,7 +869,7 @@ class TestTheLayoutKeeper:
         keeper.place(PORTRAIT, moved)
         keeper.close()
 
-        assert read_layout(path).placements[PORTRAIT] == moved
+        assert reported_layout(path).placements[PORTRAIT] == moved
 
     def test_putting_the_room_back_leaves_the_session_remembering_nothing(self, tmp_path):
         """The file is only where he moved a screen TO and the tilt he left it at,
@@ -881,13 +881,13 @@ class TestTheLayoutKeeper:
         keeper.tilt(-20.0, carried=False)
         keeper.settle()
         keeper.pump(threading.Event(), 0.0)
-        assert read_layout(path) != Layout()
+        assert reported_layout(path) != Layout()
 
         keeper.forget()
         keeper.settle()
         keeper.pump(threading.Event(), 0.0)
 
-        assert read_layout(path) == Layout()
+        assert reported_layout(path) == Layout()
 
 
 class TestWhatTheControllersPost:
@@ -1397,6 +1397,13 @@ class TestWhenTheRoomIsUp:
             users_picture_texture=_picture(True)))
 
         assert _MainUnit.picture_in_the_slot.fget(unit) is unit.users_picture_texture
+
+
+def test_the_headset_opens_its_screens_where_the_room_remembers_them():
+    tree = ast.parse(inspect.getsource(funestras._run))
+    called = {ast.unparse(node.func) for node in ast.walk(tree) if isinstance(node, ast.Call)}
+
+    assert "remembered_layout" in called
 
 
 def test_the_cover_goes_up_before_the_funestras_are_built():

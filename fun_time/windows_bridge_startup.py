@@ -29,7 +29,7 @@ from .child_launch import no_child_log, open_child_log
 from .config import load_config
 from .content import load_web_providers
 from .funestra_handover import take_back_the_list
-from .funestra_settings import reports_left_in
+from .funestra_settings import reports_published_in
 from .funestra_status import (
     is_broker_heartbeat_fresh,
     read_main_funestra_status,
@@ -401,8 +401,10 @@ def start_core_session(
     # what those flags have to be seeded to.
     carried = resume_shared_state(
         shared_state_path(state_path), resumed=resumed,
-        last_reported=reports_left_in(state_path, main=main_funestra_status, satellites={
-            RoomFunestra.PORTRAIT: portrait_status, RoomFunestra.LANDSCAPE: landscape_status}))
+        last_reported=reports_published_in(
+            state_path, main_status_file=Path(main_funestra_status_file),
+            satellite_status_files={slot.funestra: Path(slot.channels.status)
+                                    for slot in (portrait, landscape)}))
     main_list = MainList(sources=main_sources, state_dir=state_path,
                          metadata_root=regen_metadata_root)
     carried = open_the_main_list(main_list, carried, state_file=shared_state_path(state_path),

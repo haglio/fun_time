@@ -205,7 +205,7 @@ class TestResumeSharedState:
         assert state.mic_muted is True
         assert not (tmp_path / "mic_off.flag").exists()
 
-    def test_a_room_that_keeps_them_already_is_not_overruled_by_their_last_reports(
+    def test_what_a_funestra_reported_after_the_room_last_wrote_its_state_comes_back(
             self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(main_speed=0.5))
@@ -213,7 +213,7 @@ class TestResumeSharedState:
         state = resume_shared_state(state_file, resumed=True, last_reported=FunestraReports(
             main=MainFunestraStatus(speed=1.5, read_at=1_700_000_000.0)))
 
-        assert state.main_speed == 0.5
+        assert state.main_speed == 1.5
 
     def test_every_setting_it_remembers_comes_back(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"

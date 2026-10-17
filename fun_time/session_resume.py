@@ -230,9 +230,10 @@ def resume_shared_state(state_file: Path, *, resumed: bool,
     """
     migrate_shared_state(state_file)
     previous = read_shared_state(state_file)
-    if previous is not None and not written_with(state_file, "main_speed"):
-        previous = replace(with_what_the_funestras_report(previous, last_reported),
-                           mic_muted=_the_mic_was_left_off(Path(state_file).parent))
+    if previous is not None:
+        if not written_with(state_file, "mic_muted"):
+            previous = replace(previous, mic_muted=_the_mic_was_left_off(Path(state_file).parent))
+        previous = with_what_the_funestras_report(previous, last_reported)
     state = BridgeState() if previous is None else replace(
         BridgeState(**{field: getattr(previous, field) for field in RESUMED_FIELDS}),
         portrait=_resumed_satellite(previous.satellite(RoomFunestra.PORTRAIT),
