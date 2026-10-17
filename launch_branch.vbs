@@ -103,7 +103,7 @@ Sub Launch()
 End Sub
 
 Function Command()
-  Command = "cmd /c cd /d " & Quote(directory) & " && " & Quote(interpreter) & " " & arguments & " >> " & Quote(logPath) & " 2>&1 & type nul > " & Quote(exitedFlag)
+  Command = "cmd /c cd /d " & Quote(directory) & " && " & Quote(interpreter) & " " & arguments & " >> " & Quote(logPath) & " 2>&1 & type nul > " & Quote(exitedFlag) & " & type nul > " & Quote(fso.BuildPath(screenFolder, "ended"))
 End Function
 
 Function Quote(text)
