@@ -4,7 +4,7 @@ texture, and silent until the headset is worn.
 A sink parked on the stand takes the stream without draining it, and mpv's
 clock follows audio, so an engine heard before the compositor is presenting
 freezes its picture on frame 1.  What the room or a chip asks before then is
-remembered and comes on with the sound.
+remembered and comes on with the sound, and a radio's stations open with it.
 """
 from __future__ import annotations
 
@@ -24,6 +24,9 @@ class HeadsetEngine(MpvRenderEngine):
         self._muted_asked = muted
         if self._sound_live:
             super().set_muted(muted)
+
+    def radio_station(self, clips):
+        return super().radio_station(clips) if self._sound_live else None
 
     def sound_goes_live(self, device: str) -> str | None:
         if self._sound_live:
