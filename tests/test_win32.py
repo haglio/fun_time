@@ -1039,22 +1039,3 @@ class TestWhatHeIsUsing:
             assert win32.window_under_cursor() == 0
         mock.WindowFromPoint.assert_not_called()
 
-    def test_idle_time_is_counted_from_his_last_key_or_mouse_move(self):
-        def last_input(info_byref):
-            info_byref._obj.dwTime = 7_500
-            return 1
-
-        with patch("fun_time.win32._user32") as user32, patch("fun_time.win32._kernel32") as kernel32:
-            user32.GetLastInputInfo.side_effect = last_input
-            kernel32.GetTickCount.return_value = 10_000
-            assert win32.seconds_since_input() == 2.5
-
-    def test_idle_time_survives_the_tick_count_rolling_over_after_49_days(self):
-        def last_input(info_byref):
-            info_byref._obj.dwTime = 2**32 - 1_000
-            return 1
-
-        with patch("fun_time.win32._user32") as user32, patch("fun_time.win32._kernel32") as kernel32:
-            user32.GetLastInputInfo.side_effect = last_input
-            kernel32.GetTickCount.return_value = 1_000
-            assert win32.seconds_since_input() == 2.0

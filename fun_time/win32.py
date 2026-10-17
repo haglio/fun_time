@@ -492,21 +492,6 @@ def window_under_cursor() -> int:
     return int(_user32.GetAncestor(_user32.WindowFromPoint(cursor), GA_ROOT) or 0)
 
 
-class _LastInputInfo(ctypes.Structure):
-    _fields_ = [("cbSize", ctypes.wintypes.UINT), ("dwTime", ctypes.wintypes.DWORD)]
-
-
-_user32.GetLastInputInfo.argtypes = [ctypes.POINTER(_LastInputInfo)]
-_user32.GetLastInputInfo.restype = ctypes.wintypes.BOOL
-_kernel32.GetTickCount.restype = ctypes.wintypes.DWORD
-
-
-def seconds_since_input() -> float:
-    last_input = _LastInputInfo(cbSize=ctypes.sizeof(_LastInputInfo))
-    _user32.GetLastInputInfo(ctypes.byref(last_input))
-    return ((_kernel32.GetTickCount() - last_input.dwTime) % 2**32) / 1000
-
-
 # argtypes matter on 64-bit: without them ctypes marshals the HWND as a 32-bit
 # c_int and truncates the handle, and the process-id out-param pointer must be a
 # real pointer (same reasoning as the SetWindowPos/OpenProcess declarations).
