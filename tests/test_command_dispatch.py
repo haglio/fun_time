@@ -4868,13 +4868,13 @@ class TestOrigeneratorTransport:
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
         for command in ("landscape_say_favorites", "portrait_say_play_slideshow",
-                        "landscape_say_fix_teeth", "portrait_say_filter_enhanced"):
+                        "landscape_say_fix_teeth", "portrait_say_experiments"):
             state, _ = dispatch_command(command, state, config)
         assert _origenerator_cmds(config) == [
             "LANDSCAPE_SAY:favorites",
             "PORTRAIT_SAY:play slideshow",
             "LANDSCAPE_SAY:fix teeth",
-            "PORTRAIT_SAY:filter enhanced",
+            "PORTRAIT_SAY:experiments",
         ]
 
     def test_the_enhancement_level_said_to_a_side_in_origenerator_mode_is_its_shows_switch(

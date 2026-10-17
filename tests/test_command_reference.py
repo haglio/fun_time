@@ -1016,7 +1016,6 @@ def test_the_origenerator_section_speaks_origenerators_own_words():
     assert [row.description for row in origenerator.rows] == [
         "play the experiments or requests", "play, pause, or stop the slideshow",
         "fix the picture on screen", f"animate the picture as a Genau {genau_flick_noun().one}",
-        "show only the enhanced pictures",
     ]
     assert origenerator.rows[0].detail == ""
     assert origenerator.rows[2].detail == "its face, hands, teeth, or eyes"
@@ -1037,7 +1036,6 @@ def test_the_origenerator_column_folds_the_side_word_and_its_note_says_how_to_ai
         ("play slideshow", "start slideshow", "pause slideshow", "stop slideshow"),
         ("fix face", "fix hands", "fix teeth", "fix eyes"),
         ("genau",),
-        ("filter enhanced",),
     ]
     assert origenerator.note == (
         "Alone, a phrase reaches the satellite you last navigated.  Add “portrait”, "

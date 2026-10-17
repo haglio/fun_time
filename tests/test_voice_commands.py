@@ -322,7 +322,7 @@ class TestVoiceCommands:
     def test_a_hosted_apps_phrase_is_aimed_like_the_grid(self):
         """Bare it reaches the satellite last navigated, a side word before or
         after it names a side, and "satellites" says both."""
-        for phrase in ("experiments", "fix hands", "play slideshow", "favorites", "filter enhanced"):
+        for phrase in ("experiments", "fix hands", "play slideshow", "favorites"):
             said = phrase.replace(" ", "_")
             assert VOICE_COMMANDS[phrase] == f"active_say_{said}"
             assert VOICE_COMMANDS[f"portrait {phrase}"] == f"portrait_say_{said}"
@@ -333,7 +333,7 @@ class TestVoiceCommands:
     def test_the_enhancement_level_is_said_as_the_shapes_are_of_any_funestra(self):
         """What it includes, bare of the Funestra last addressed, with a side
         word or "main" either way, and "satellites" for both; "enhanced only"
-        is the room's own now, so no hosted-app phrase says it."""
+        is the room's own, and no hosted-app phrase says it another way."""
         grid = {"enhanced only": "enhancement_enhanced", "original only": "enhancement_original",
                 "enhanced and original": "enhancement_both", "original and enhanced": "enhancement_both"}
         for phrase, act in grid.items():
@@ -342,7 +342,7 @@ class TestVoiceCommands:
             assert VOICE_COMMANDS[f"portrait {phrase}"] == f"portrait_{act}"
             assert VOICE_COMMANDS[f"{phrase} satellites"] == f"satellites_{act}"
         assert "active_say_enhanced_only" not in VOICE_COMMANDS.values()
-        assert VOICE_COMMANDS["filter enhanced"] == "active_say_filter_enhanced"
+        assert "filter enhanced" not in VOICE_COMMANDS
 
     def test_genau_alone_stays_the_mode_and_animates_a_picture_only_with_a_side_named(self):
         assert VOICE_COMMANDS["genau"] == VOICE_COMMANDS["go now"] == "genau_activate"

@@ -643,11 +643,6 @@ _SECTIONS: tuple[_Section, ...] = (
                     "the Genau mode, so name a side or “satellites”",
                     commands=_said_to_a_slideshow(*GENAU_SAID),
                 ),
-                _Row(
-                    "show only the enhanced pictures — \"enhanced only\", under Included "
-                    "video types, says the same to a side in Origenerator mode",
-                    commands=_said_to_a_slideshow("filter enhanced"),
-                ),
             )),
         ),
         note=_ORIGENERATOR_NOTE,

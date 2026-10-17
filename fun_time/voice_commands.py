@@ -75,9 +75,6 @@ ORIGENERATOR_PHRASES: tuple[str, ...] = (
     # a side's Origenerator mode those same two commands are routed to the hosted app
     # instead — one phrase, one meaning per mode, rather than two spellings.
     FAVORITES_PHRASE, "experiments", "requests",
-    # "enhanced only" is the room's own enhancement level, which reaches a
-    # slideshow as these words; this is the app's other spelling of it.
-    "filter enhanced",
     # The slideshow's own controls.
     "play slideshow", "start slideshow", "pause slideshow", "stop slideshow",
     # The commands about the picture on screen: the built-in detail parts, and Genau.
