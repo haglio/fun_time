@@ -65,6 +65,9 @@ LEFT_UNANSWERED: dict[str, str] = {
                   "says, and has no ten-second step through one",
     "nudge_prev": "a show holds each picture or video for as long as its own pace "
                   "says, and has no ten-second step through one",
+    "funscript_jump": "a show's pictures carry no funscript to jump through",
+    "next_funscripted": "a show's pictures carry no funscript, so none is the next "
+                        "scripted one",
 }
 
 
