@@ -260,8 +260,8 @@ def test_read_genau_status_says_whether_the_flick_up_is_flipped(tmp_path: Path):
 
 
 def test_read_main_funestra_status_parses_the_range_a_running_loop_holds(tmp_path: Path):
-    """A loop lives in the Funestra process, so the only record of one is what the Main Funestra
-    publishes — which is how a reopened session can be handed it back."""
+    """A loop lives in the Funestra process, so what the Main Funestra publishes is how the
+    room learns of one, to keep it for a reopened session to hand back."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nloop_state=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",

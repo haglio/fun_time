@@ -922,11 +922,11 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
     """Close Fun Time with the room playing fast and unheld, and it comes back
     that way.
 
-    A Funestra's rate and its hold live in the Funestra process and in nothing the
-    next one reads, so the only record of either is what each Funestra publishes to
-    its status file every tick.  The reopened session re-sends both, and only a
-    real session proves that: they have to survive the force-kill that ends one
-    and arrive as verbs the new Funestra obeys.
+    A Funestra's rate and its hold live in the Funestra process, so the room keeps
+    them as each Funestra publishes them to its status file, and the reopened
+    session re-sends both from the room's state.  Only a real session proves that:
+    they have to survive the force-kill that ends one and arrive as verbs the new
+    Funestra obeys.
     """
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
