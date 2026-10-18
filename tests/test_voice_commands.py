@@ -698,6 +698,27 @@ class TestBuildVoiceCommands:
             )
 
 
+_FUNESTRA_WORDS = frozenset(("portrait", "landscape", "both", "main", "all", "satellite",
+                             "satellites"))
+
+
+def test_a_phrase_naming_a_funestra_takes_the_name_first_or_last():
+    vocabulary = build_voice_commands(
+        filter_commands=filter_voice_commands({"alpha": ("alpha",), "beta gamma": ("beta gamma",)}),
+        clip_jump_phrases=(), flick_flip_phrases=(), genau_flick_words=Noun("flick", "flicks"))
+    missing = {}
+    for phrase, command in vocabulary.items():
+        words = phrase.split()
+        named = [word for word in words if word in _FUNESTRA_WORDS]
+        rest = [word for word in words if word not in _FUNESTRA_WORDS]
+        if len(named) != 1 or not rest:
+            continue
+        for twin in (" ".join(named + rest), " ".join(rest + named)):
+            if vocabulary.get(twin) != command:
+                missing[twin] = command
+    assert missing == {}
+
+
 def test_the_crown_is_given_by_naming_the_funestra_after_the_word_crown():
     assert (VOICE_COMMANDS["crown portrait"], VOICE_COMMANDS["crown main"]) == (
         "portrait_crown", "main_crown")
