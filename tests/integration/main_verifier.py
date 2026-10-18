@@ -14,6 +14,7 @@ import tomllib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from enum import Enum
 from pathlib import Path, PurePosixPath
 from typing import Protocol
 
@@ -42,9 +43,10 @@ INSTALLED_FROM = "installed_from_pyproject.toml"
 _ASKED_EVERY_S = 5
 COVERAGE_MAP_LASTS = timedelta(days=1)
 CONFIRMING_RUNS = 3
-NO_SUCH_TEST = pytest.ExitCode.USAGE_ERROR
+NOT_AT_THAT_COMMIT = pytest.ExitCode.NO_TESTS_COLLECTED
 _PASSED = frozenset({"passed", "flaky"})
 _STILL_FIXING = frozenset({"working", "blocked", "failed"})
+_FIXED_BY_A_SESSION_OF_ITS_OWN = frozenset({"unreliable check", "broken outside main"})
 _log = logging.getLogger("main_verifier")
 _SUMMARY_LINE = re.compile(r"^(?:FAILED|ERROR) (\S+)", re.MULTILINE)
 _BACKGROUNDED = re.compile(r"backgrounded\W+([0-9a-f]{8})\b")
@@ -80,11 +82,25 @@ def next_step(ledger: Ledger, head: str) -> str:
     return "verify"
 
 
+class Verdict(Enum):
+    FAILS = "fails"
+    PASSES = "passes"
+    NONE = "no verdict"
+
+
+_VERDICTS = {pytest.ExitCode.TESTS_FAILED: Verdict.FAILS, pytest.ExitCode.OK: Verdict.PASSES,
+             NOT_AT_THAT_COMMIT: Verdict.PASSES}
+
+
 @dataclass(frozen=True)
 class RunResult:
     exit_code: int
     failed: list[str]
     log: Path
+
+    @property
+    def verdict(self) -> Verdict:
+        return _VERDICTS.get(self.exit_code, Verdict.NONE)
 
 
 @dataclass(frozen=True)
@@ -112,7 +128,6 @@ class Bench(Protocol):
     def start_fix_session(self, fix: FixSession) -> str: ...
     def stop_fix_session(self, session: str) -> None: ...
     def fix_session_states(self) -> dict[str, str]: ...
-    def install_for(self, commit: str) -> None: ...
     def record(self, incident: dict) -> None: ...
     def incidents(self) -> list[dict]: ...
     def coverage_map_is_stale(self) -> bool: ...
@@ -227,10 +242,23 @@ class MachineBench:
         return self.shell(["git", "rev-parse", "origin/main"], cwd=self.primary).strip()
 
     def run(self, commit: str, tests: Sequence[str] = ()) -> RunResult:
-        self._check_out(commit)
+        there = [test for test in tests if self._has(commit, test)]
         log = self._log_for(commit)
-        exit_code = self.suite(self._runner(*tests), self.checkout, log, asked_to_restart=self.asked_to_restart)
+        if tests and not there:
+            log.write_text(f"none of these tests is at {commit} yet:\n{_listed(list(tests))}\n", encoding="utf-8")
+            return RunResult(NOT_AT_THAT_COMMIT, [], log)
+        self.install_for(commit)
+        exit_code = self.suite(self._runner(*there), self.checkout, log, asked_to_restart=self.asked_to_restart)
         return RunResult(exit_code, failed_tests(log.read_text(encoding="utf-8", errors="replace")), log)
+
+    def _has(self, commit: str, test: str) -> bool:
+        path, _, inside = test.partition("::")
+        try:
+            source = self.shell(["git", "show", f"{commit}:{path}"], cwd=self.primary)
+        except CommandFailed:
+            return False
+        names = [name.partition("[")[0] for name in inside.split("::") if name]
+        return all(re.search(rf"\b{re.escape(name)}\b", source) for name in names)
 
     def coverage_map_is_stale(self) -> bool:
         try:
@@ -240,7 +268,7 @@ class MachineBench:
         return age_s >= COVERAGE_MAP_LASTS.total_seconds()
 
     def measure_coverage(self, commit: str) -> None:
-        self._check_out(commit)
+        self.install_for(commit)
         sources = source_files(self.shell(["git", "ls-files", "--", "*.py"], cwd=self.checkout).split())
         measuring = self.state / "main_verifier_coverage"
         measuring.mkdir(parents=True, exist_ok=True)
@@ -408,6 +436,28 @@ def fixing_unreliable_checks(head: str, tests: list[str], log: Path, why: str) -
     ]))
 
 
+def fixing_an_outside_break(head: str, last_passed: str, tests: list[str], log: Path) -> FixSession:
+    checkout = f"fix-outside-{head[:8]}"
+    files = sorted({PurePosixPath(test.split("::")[0]).stem for test in tests})
+    return FixSession(checkout, f"Find what outside Fun Time broke {' and '.join(files)}", "\n".join([
+        *_what_failed(tests),
+        f"They fail the same way on {last_passed}, the last commit of main that passed, so no change shipped "
+        "since then is what failed them: something outside Fun Time's own code changed under them, such as "
+        "the Origenerator a session hosts, a library this computer has installed, the settings Fun Time or "
+        f"Origenerator read, or the machine itself. The failing run's output is in {log}, and the run on "
+        f"{last_passed} is beside it. The verifier took nothing back for them.",
+        "",
+        "Find what changed and put it right where it lives:",
+        "1. Read both failing runs, then compare what those tests reach outside Fun Time now with what it was "
+        f"when {last_passed} passed.",
+        "2. Where the cause is another repo's change, fix it in that repo, the way its CLAUDE.md says, and ship "
+        f"it. Where it is Fun Time's own code after all, fix it on this branch, {branch_of(checkout)}.",
+        "3. Where only he can put it right, such as a key his own settings file does not have yet, never change "
+        "his files yourself: say in your reply exactly what he must do, in plain words, and stop.",
+        "4. Main is tried again the next time a change ships, and the tests above have to pass there.",
+    ]))
+
+
 def _incidents(state: Path) -> list[dict]:
     try:
         lines = (state / INCIDENTS_NAME).read_text(encoding="utf-8").splitlines()
@@ -452,41 +502,55 @@ def cycle(ledger: Ledger, bench: Bench) -> str:
     return outcome
 
 
+class _NoVerdict(Exception):
+    def __init__(self, commit: str, run: RunResult) -> None:
+        super().__init__(commit)
+        self.commit, self.run = commit, run
+
+
 def _verify(ledger: Ledger, bench: Bench, head: str) -> str:
-    bench.install_for(head)
     whole = bench.run(head)
     if whole.exit_code == 0:
         _mark_passed(ledger, bench, head)
         return "passed"
-    again = bench.run(head, whole.failed).exit_code if whole.failed else NO_SUCH_TEST
-    if again == NO_SUCH_TEST:
+    again = bench.run(head, whole.failed).verdict if whole.failed else Verdict.NONE
+    if again is Verdict.NONE:
         bench.record({"kind": "broken run", "commit": head, "log": whole.log})
         ledger.failed(head)
         return "broken run"
-    if again == 0:
+    if again is Verdict.PASSES:
         bench.record({"kind": "flaky", "commit": head, "tests": whole.failed, "log": whole.log})
         _mark_passed(ledger, bench, head)
         return "flaky"
-    outcome = _blame(bench, ledger.verified, head, whole)
+    try:
+        outcome = _blame(bench, ledger.verified, head, whole)
+    except _NoVerdict as unjudged:
+        bench.record({"kind": "could not judge", "commit": head, "no_verdict_on": unjudged.commit,
+                      "tests": whole.failed, "log": unjudged.run.log})
+        outcome = "could not judge"
     ledger.failed(head)
     return outcome
 
 
 def _blame(bench: Bench, last_passed: str | None, head: str, whole: RunResult) -> str:
     def still_fails(commit: str) -> bool:
-        return bench.run(commit, whole.failed).exit_code not in (0, NO_SUCH_TEST)
+        run = bench.run(commit, whole.failed)
+        if run.verdict is Verdict.NONE:
+            raise _NoVerdict(commit, run)
+        return run.verdict is Verdict.FAILS
 
     shipped = bench.commits_since(last_passed, head)
     if wrongly := _taken_back_wrongly(bench, whole.failed, shipped):
         return _ship_again(bench, head, whole, *wrongly)
     if last_passed and still_fails(last_passed):
-        bench.record({"kind": "broken outside main", "commit": head, "last_passed": last_passed,
-                      "tests": whole.failed, "log": whole.log})
+        _record_with_a_fix_session(
+            bench, {"kind": "broken outside main", "commit": head, "last_passed": last_passed,
+                    "tests": whole.failed, "log": whole.log},
+            lambda: fixing_an_outside_break(head, last_passed, whole.failed, whole.log))
         return "broken outside main"
     culprit = first_bad(shipped, still_fails)
     without = [last_passed, *shipped][shipped.index(culprit)]
-    if (_on_every_run(lambda: still_fails(culprit))
-            and (without is None or _on_every_run(lambda: not still_fails(without)))):
+    if all(still_fails(culprit) and (without is None or not still_fails(without)) for _ in range(CONFIRMING_RUNS)):
         return _take_back(bench, culprit, shipped, whole)
     return _unreliable(bench, head, whole, {"suspected": culprit},
                        "Run again by themselves, they passed on some runs and failed on others, so the verifier "
@@ -518,10 +582,6 @@ def _ship_again(bench: Bench, head: str, whole: RunResult, taken_back: dict, tak
                        f"main without #{number}, so #{number} was not what failed them.")
 
 
-def _on_every_run(holds: Callable[[], bool]) -> bool:
-    return all(holds() for _ in range(CONFIRMING_RUNS))
-
-
 def _take_back(bench: Bench, culprit: str, shipped: list[str], whole: RunResult) -> str:
     taken = bench.take_back(culprit, shipped, whole.failed)
     incident = {"kind": "broke main", "commit": culprit, "tests": whole.failed, "log": whole.log,
@@ -537,23 +597,28 @@ def _take_back(bench: Bench, culprit: str, shipped: list[str], whole: RunResult)
 
 
 def _unreliable(bench: Bench, head: str, whole: RunResult, facts: dict, why: str) -> str:
-    incident = {"kind": "unreliable check", "commit": head, "tests": whole.failed, "log": whole.log, **facts}
+    _record_with_a_fix_session(
+        bench, {"kind": "unreliable check", "commit": head, "tests": whole.failed, "log": whole.log, **facts},
+        lambda: fixing_unreliable_checks(head, whole.failed, whole.log, why))
+    return "unreliable check"
+
+
+def _record_with_a_fix_session(bench: Bench, incident: dict, fix: Callable[[], FixSession]) -> None:
     try:
-        if fixing := _session_fixing(bench, whole.failed):
+        if fixing := _session_fixing(bench, incident["tests"]):
             incident["being_fixed_by"] = fixing
         else:
-            incident["fix_session"] = bench.start_fix_session(
-                fixing_unreliable_checks(head, whole.failed, whole.log, why))
+            incident["fix_session"] = bench.start_fix_session(fix())
     except CommandFailed as why_not:
         incident["fix_session_not_started"] = str(why_not)
     bench.record(incident)
-    return "unreliable check"
 
 
 def _session_fixing(bench: Bench, tests: list[str]) -> str | None:
     states = bench.fix_session_states()
     return next((incident["fix_session"] for incident in bench.incidents()
-                 if incident.get("kind") == "unreliable check" and set(incident.get("tests", ())) & set(tests)
+                 if incident.get("kind") in _FIXED_BY_A_SESSION_OF_ITS_OWN
+                 and set(incident.get("tests", ())) & set(tests)
                  and states.get(incident.get("fix_session")) in _STILL_FIXING), None)
 
 
