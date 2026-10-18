@@ -66,7 +66,7 @@ class FakeSatelliteEngine(RefusesSeeks):
     def advanced_to_next(self) -> bool:
         return self.playlist_pos >= 1
 
-    def drop_consumed(self) -> None:
+    def settle_on_the_next(self) -> None:
         while self.playlist_pos > 0:
             self.playlist.pop(0)
             self.playlist_pos -= 1
