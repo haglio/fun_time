@@ -107,9 +107,6 @@ class FakeBench:
     def stop_fix_session(self, session):
         self.stopped.append(session)
 
-    def install_for(self, commit):
-        self.events.append(("install", commit))
-
     def record(self, incident):
         self.recorded.append(incident)
 
@@ -177,14 +174,6 @@ def test_a_fix_session_that_could_not_start_is_recorded_with_why(tmp_path):
 
     assert bench.recorded[0]["taken_back_by"] == 77
     assert bench.recorded[0]["fix_session_not_started"] == "the Claude command line is not signed in"
-
-
-def test_the_verifiers_own_installation_is_brought_up_to_a_head_before_it_is_run(tmp_path):
-    bench = FakeBench("c3", ["a1", "b2", "c3"])
-
-    main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench)
-
-    assert bench.events[:2] == [("install", "c3"), ("run", "c3")]
 
 
 def test_a_failure_that_passes_when_rerun_is_recorded_as_flaky_and_main_still_moves(tmp_path):
@@ -272,7 +261,7 @@ def test_a_fix_session_is_stopped_with_the_claude_command_line(tmp_path):
 
 
 def test_a_run_checks_main_out_where_the_runner_keeps_it_and_names_the_tests_that_failed(tmp_path):
-    shell = FakeShell({})
+    shell = FakeShell({"c3:tests/integration/test_x.py": "def test_y():\n    pass\n"})
     suites = []
 
     def suite(command, cwd, log, asked_to_restart):
@@ -489,7 +478,7 @@ def test_a_change_from_before_the_failing_test_existed_is_never_blamed_for_it(tm
     class NewTestBench(FakeBench):
         def run(self, commit, tests=()):
             if tests and self.commits.index(commit) < self.commits.index("d4"):
-                return main_verifier.RunResult(main_verifier.NO_SUCH_TEST, [], WHOLE_RUN)
+                return main_verifier.RunResult(main_verifier.NOT_AT_THAT_COMMIT, [], WHOLE_RUN)
             return super().run(commit, tests)
 
     bench = NewTestBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="d4")
@@ -503,7 +492,7 @@ def test_failures_that_cannot_be_run_again_by_name_take_nothing_back(tmp_path):
     class MisreadBench(FakeBench):
         def run(self, commit, tests=()):
             if tests:
-                return main_verifier.RunResult(main_verifier.NO_SUCH_TEST, [], WHOLE_RUN)
+                return main_verifier.RunResult(pytest.ExitCode.USAGE_ERROR, [], WHOLE_RUN)
             return super().run(commit, tests)
 
     bench = MisreadBench("c3", ["a1", "b2", "c3"], broken_from="c3")
@@ -514,16 +503,50 @@ def test_failures_that_cannot_be_run_again_by_name_take_nothing_back(tmp_path):
     assert bench.taken_back == [] and ledger.failed_head == "c3"
 
 
-def test_tests_that_now_fail_where_main_last_passed_are_blamed_on_no_change_that_shipped_since(tmp_path):
+def test_a_rerun_that_could_not_start_where_main_last_passed_is_no_pass_and_takes_nothing_back(tmp_path):
+    class CannotStartBench(FakeBench):
+        def run(self, commit, tests=()):
+            if tests and commit == "a1":
+                self.events.append(("run", commit))
+                return main_verifier.RunResult(pytest.ExitCode.USAGE_ERROR, [], Path("a1-run.txt"))
+            return super().run(commit, tests)
+
+    bench = CannotStartBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="b2")
+    ledger = a_ledger(tmp_path, verified="a1")
+
+    assert main_verifier.cycle(ledger, bench) == "could not judge"
+
+    assert bench.taken_back == [] and bench.released == []
+    assert ledger.failed_head == "e5"
+    assert bench.recorded == [{"kind": "could not judge", "commit": "e5", "no_verdict_on": "a1",
+                               "tests": ["tests/integration/test_x.py::test_y"], "log": Path("a1-run.txt")}]
+
+
+def test_tests_that_now_fail_where_main_last_passed_take_nothing_back_and_get_a_session_to_find_the_cause(tmp_path):
     bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="a1")
     ledger = a_ledger(tmp_path, verified="a1")
 
     assert main_verifier.cycle(ledger, bench) == "broken outside main"
 
-    assert bench.taken_back == [] and bench.fixing == []
+    assert bench.taken_back == []
     assert ledger.failed_head == "e5"
+    assert bench.fixing == [main_verifier.fixing_an_outside_break(
+        "e5", "a1", ["tests/integration/test_x.py::test_y"], WHOLE_RUN)]
     assert bench.recorded == [{"kind": "broken outside main", "commit": "e5", "last_passed": "a1",
-                               "tests": ["tests/integration/test_x.py::test_y"], "log": WHOLE_RUN}]
+                               "tests": ["tests/integration/test_x.py::test_y"], "log": WHOLE_RUN,
+                               "fix_session": "812181fb"}]
+
+
+def test_no_second_session_starts_for_tests_broken_outside_main_while_one_is_still_finding_the_cause(tmp_path):
+    earlier = {"kind": "broken outside main", "commit": "d4", "tests": ["tests/integration/test_x.py::test_y"],
+               "fix_session": "1a2b3c4d"}
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="a1", incidents=[earlier],
+                      sessions={"1a2b3c4d": "working"})
+
+    assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "broken outside main"
+
+    assert bench.fixing == []
+    assert bench.recorded[0]["being_fixed_by"] == "1a2b3c4d"
 
 
 def test_a_change_is_taken_back_once_the_failing_tests_fail_every_run_with_it_and_pass_every_run_without_it(
@@ -534,6 +557,16 @@ def test_a_change_is_taken_back_once_the_failing_tests_fail_every_run_with_it_an
 
     assert bench.taken_back[0][0] == "c3"
     assert bench.events.count(("run", "c3")) == bench.events.count(("run", "b2")) == 1 + main_verifier.CONFIRMING_RUNS
+
+
+def test_the_runs_that_confirm_a_change_take_turns_with_and_without_it_so_an_outside_cause_cannot_line_up_with_it(
+        tmp_path):
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3")
+
+    main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench)
+
+    confirming = bench.events[-2 * main_verifier.CONFIRMING_RUNS:]
+    assert confirming == [("run", "c3"), ("run", "b2")] * main_verifier.CONFIRMING_RUNS
 
 
 def test_the_first_change_main_has_not_passed_since_is_pinned_on_its_own_runs_when_no_commit_passed_before_it(
@@ -877,6 +910,59 @@ def test_the_suite_runs_out_of_the_verifiers_own_installation(tmp_path):
     bench.run("c3")
 
     assert suites[0][0] == str(primary / "state" / main_verifier.VERIFIER_VENV / "Scripts" / "python.exe")
+
+
+def test_each_commit_is_run_on_the_libraries_its_own_pyproject_pins(tmp_path):
+    older_pins = PINS.replace("v0.1.410", "v0.1.409")
+    shell = FakeShell({"c3:pyproject.toml": PINS, "b2:pyproject.toml": older_pins,
+                       "b2:tests/integration/test_x.py": "def test_y():\n    pass\n"})
+
+    def suite(command, cwd, log, environment=None, *, asked_to_restart):
+        shell.commands.append((["the suite", *command[3:]], cwd))
+        log.write_text("", encoding="utf-8")
+        return 0
+
+    primary = tmp_path / "fun_time"
+    venv = _a_verifiers_installation(primary)
+    bench = main_verifier.MachineBench(primary=primary, shell=shell, suite=suite)
+
+    bench.run("c3")
+    bench.run("b2", ["tests/integration/test_x.py::test_y"])
+
+    steps = [command[0] if command[0] == "the suite" else "install" for command, _ in shell.commands
+             if command[0] == "the suite" or command[1:4] == ["-m", "pip", "install"]]
+    assert steps == ["install", "the suite", "install", "the suite"]
+    assert (venv / main_verifier.INSTALLED_FROM).read_text(encoding="utf-8") == older_pins
+
+
+def test_only_the_tests_a_commit_already_has_are_run_there(tmp_path):
+    shell = FakeShell({"b2:tests/integration/test_x.py": "def test_y():\n    pass\n"})
+    suites = []
+
+    def suite(command, cwd, log, environment=None, *, asked_to_restart):
+        suites.append(command[3:])
+        log.write_text("", encoding="utf-8")
+        return 0
+
+    bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell, suite=suite)
+
+    bench.run("b2", ["tests/integration/test_x.py::test_y", "tests/integration/test_x.py::test_new"])
+
+    assert suites == [["tests/integration/test_x.py::test_y"]]
+
+
+def test_a_commit_that_has_none_of_the_failing_tests_yet_runs_nothing_and_does_not_fail_them(tmp_path):
+    shell = FakeShell({"b2:tests/integration/test_x.py": "def test_other():\n    pass\n"})
+
+    def suite(command, cwd, log, environment=None, *, asked_to_restart):
+        raise AssertionError("a run started for tests the commit does not have")
+
+    bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell, suite=suite)
+
+    result = bench.run("b2", ["tests/integration/test_x.py::test_y", "tests/integration/test_new.py::test_z"])
+
+    assert result.verdict is main_verifier.Verdict.PASSES
+    assert "test_x.py::test_y" in result.log.read_text(encoding="utf-8")
 
 
 def test_a_fix_session_starts_in_a_checkout_of_its_own_and_is_told_what_broke(tmp_path):
