@@ -21,7 +21,7 @@ import functools
 from collections.abc import Mapping
 from pathlib import Path
 
-from .aimed_phrases import named_first_or_last
+from .aiming import named_first_or_last
 from .content import EXAMPLE_CONTENT, LOCAL_CONTENT, load_content
 
 Acts = Mapping[str, tuple[str, ...]]

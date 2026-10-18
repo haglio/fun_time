@@ -21,6 +21,7 @@ from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, play_file
 from funestra.modes import NoticeLevel, read_mode
 from funestra.playlist import PlaylistItem
 
+from .aiming import resolve_active_funestra_command
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log
 from .command_dispatch import (
@@ -159,60 +160,6 @@ REQUEST_NEWS: dict[str, tuple[str, bool]] = {
     for side in ("portrait", "landscape")
     for news, opened in (("open", True), ("closed", False))
 }
-
-
-# The side-agnostic actions the Main Funestra (the Main Funestra) answers, and what it answers with.
-# Navigation is the same gesture on every Funestra; "end loop" is the same *word* for
-# a different loop — the Main Funestra's A-B loop rather than a satellite's group loop.  A lock
-# is the same thing on all three — repeat-one on what is on screen — so the bare
-# word reaches whichever was last addressed, the Main Funestra included.  So is
-# F-mode, though it narrows each Funestra to something different.
-_MAIN_EQUIVALENTS = {
-    "next": "main_next",
-    "prev": "main_prev",
-    "nudge_next": "main_nudge_next",
-    "nudge_prev": "main_nudge_prev",
-    "no_loop": "main_player_loop_cancel",
-    "lock_on": "main_lock_on",
-    "lock_off": "main_lock_off",
-    "fmode": "main_fmode",
-    "fmode_on": "main_fmode_on",
-    "fmode_off": "main_fmode_off",
-    # And so is a reset — "drop whatever is narrowing this Funestra", which on the
-    # Main Funestra is its length mode and its F-mode where on a satellite it is the
-    # act filter and the loop.
-    "reset": "main_reset",
-    # So are the two browse orders: every Funestra browses newest-first or
-    # shuffled, and the Main Funestra is no exception now that Genau answers them too.
-    "latest": "main_latest",
-    "shuffle": "main_shuffle",
-    "hud_minimize": "main_hud_minimize",
-    "hud_restore": "main_hud_restore",
-}
-
-
-def resolve_active_funestra_command(command: str, active_funestra: int) -> str:
-    """Rewrite a side-agnostic ``active_*`` command onto the active Funestra.
-
-    ``active_next``/``active_prev`` follow the last Funestra navigated — main
-    (the Main Funestra, slot 1), portrait (2), or landscape (3).  ``active_lock_on``/``_off``
-    reach the Main Funestra too, meaning there what they mean on a satellite.  So
-    does ``active_no_loop``, but meaning the loop *it* has: the Main Funestra's A-B loop, where
-    on a satellite the same phrase ends a group loop.  The rest (weird, cycle)
-    exist only on the satellites and resolve to nothing while the Main Funestra is
-    active.  Every non-``active_`` command passes through unchanged.
-    """
-    if not command.startswith("active_"):
-        return command
-    action = command[len("active_"):]
-    if active_funestra == 1:
-        # What each side-agnostic action means on the Main Funestra; anything absent
-        # here simply has no main-player equivalent.
-        if action.startswith("speed_"):
-            return f"main_player_{action}"
-        return _MAIN_EQUIVALENTS.get(action, command)
-    prefix = "portrait_" if active_funestra == 2 else "landscape_"
-    return prefix + action
 
 
 _FUNESTRA_GROUPS = {

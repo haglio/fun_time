@@ -352,7 +352,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6019 the same day: every phrase naming a Funestra takes the name first
 # or last, by one function, and the notes on where a filter's side word went and on
 # the bare "end loop" belonging to the Main Funestra went with the old shapes.
-MAX_PROSE_LINES = 6019
+# 5997 on 2026-10-18: what a bare phrase means on the Main Funestra moved into
+# aiming, and the notes restating that table's rows went with the move.
+MAX_PROSE_LINES = 5997
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
