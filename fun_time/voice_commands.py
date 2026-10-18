@@ -287,9 +287,12 @@ def build_voice_commands(
         for _side in ("portrait", "landscape", "both"):
             commands.update(named_first_or_last(_side, _act_word, f"{_side}_{_act}"))
 
-    # Sided only: the bare word is the Main Funestra's own version axis above.
-    for _side in ("portrait", "landscape", "both"):
-        commands.update(named_first_or_last(_side, "version", f"{_side}_cycle_version"))
+    # The bare word is the Main Funestra's own version axis above.
+    for _funestra_word, _command in (("portrait", "portrait_cycle_version"),
+                                     ("landscape", "landscape_cycle_version"),
+                                     ("both", "both_cycle_version"),
+                                     ("main", "main_player_cycle_version")):
+        commands.update(named_first_or_last(_funestra_word, "version", _command))
 
     # Group commands act on the current clip's GROUP rather than on the playlist,
     # and join the same order-agnostic grid.  "action loop" cycles the subject's
