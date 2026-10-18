@@ -293,6 +293,14 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["aura generator mode"] == "satellites_origenerator_activate"
         assert friendly_voice("aura generator mode") == "origenerator mode"
 
+    def test_one_satellites_own_kino_and_origenerator_modes_are_said_of_it(self):
+        assert VOICE_COMMANDS["portrait kino mode"] == VOICE_COMMANDS["kino mode portrait"] == (
+            "portrait_kino_activate")
+        assert (VOICE_COMMANDS["landscape aura generator mode"]
+                == VOICE_COMMANDS["aura generator mode landscape"]
+                == "landscape_origenerator_activate")
+        assert friendly_voice("landscape aura generator mode") == "landscape origenerator mode"
+
     def test_dead_genau_phrases_removed(self):
         for phrase in ("enable genau", "disable genau"):
             assert phrase not in VOICE_COMMANDS
