@@ -1,7 +1,7 @@
 """Spoken filter vocabulary and command decoding for the Satellite Funestras.
 
-A metadata filter is issued by voice: an optional orientation scope
-("portrait"/"landscape", or none for both Funestras) plus an act drawn from the
+A metadata filter is issued by voice: an act, alone for both Funestras or with
+"portrait", "landscape" or "both" before or after it, drawn from the
 library's ``video.action`` values.  This module is the single source of truth
 mapping those to dispatch commands.  It stays free of the speech runtime so the
 command reference and tests can import it cheaply — the same reason
@@ -91,7 +91,7 @@ def filter_voice_commands(acts: Acts | None = None) -> dict[str, str]:
     for query, forms in acts.items():
         for form in forms:
             out[form] = set_command("both", query)
-            for side in ("portrait", "landscape"):
+            for side in _SCOPE_TOKENS:
                 out.update(named_first_or_last(side, form, set_command(side, query)))
     return out
 
