@@ -21,6 +21,7 @@ from fun_time.filter_vocab import filter_voice_commands
 from .aiming import named_first_or_last, on_the_main_funestra
 from .content import Noun, genau_flick_noun, load_content
 from .crown import Crown
+from .origenerator_switches import KINO_MODE, ORIGENERATOR_MODE, mode_command
 
 # A spoken command carries when the *utterance began*, appended after " @".  A
 # phrase is only recognized once the speaker stops, by which time an
@@ -242,6 +243,9 @@ def build_voice_commands(
                                      ("satellite", "satellites_kino_activate"),
                                      ("satellites", "satellites_kino_activate")):
         commands.update(named_first_or_last(_funestra_word, "kino mode", _command))
+    for _side in ("portrait", "landscape"):
+        for _mode_words, _mode in (("kino mode", KINO_MODE), ("aura generator mode", ORIGENERATOR_MODE)):
+            commands.update(named_first_or_last(_side, _mode_words, mode_command(_side, _mode)))
 
     # The hotkeys & voice reference popup toggles from several spoken names, and
     # closes from any of them prefixed with "close".

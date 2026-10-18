@@ -169,6 +169,14 @@ _SECTIONS: tuple[_Section, ...] = (
                 voice_display=("origenerator mode", "satellite kino mode"),
             ),
             _Row(
+                "Origenerator mode / Kino mode on one Satellite Funestra — what its "
+                "own Origenerator and Kino buttons do",
+                (),
+                ("portrait_origenerator_activate", "portrait_kino_activate",
+                 "landscape_origenerator_activate", "landscape_kino_activate"),
+                voice_display=("portrait origenerator mode", "landscape kino mode"),
+            ),
+            _Row(
                 "Crown the Main Funestra or the Portrait Funestra — while the crowned "
                 "one plays a portrait video it takes most of the secondary monitor, "
                 "and the other tiles what it shows across the strip that is left",
