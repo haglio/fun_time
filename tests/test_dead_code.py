@@ -349,7 +349,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # 6033 on 2026-10-17: a HUD said by name addresses its Funestra like every
 # other command naming one, and the docstring listing how the Main Funestra
 # is addressed went.
-MAX_PROSE_LINES = 6033
+# 6019 the same day: every phrase naming a Funestra takes the name first
+# or last, by one function, and the notes on where a filter's side word went and on
+# the bare "end loop" belonging to the Main Funestra went with the old shapes.
+MAX_PROSE_LINES = 6019
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

@@ -21,6 +21,7 @@ import functools
 from collections.abc import Mapping
 from pathlib import Path
 
+from .aimed_phrases import named_first_or_last
 from .content import EXAMPLE_CONTENT, LOCAL_CONTENT, load_content
 
 Acts = Mapping[str, tuple[str, ...]]
@@ -48,9 +49,6 @@ def load_camera_words(
 ) -> tuple[str, ...]:
     return tuple(load_content(local_path, example_path)["cameras"])
 
-# Spoken scope word -> command scope token.  "" means no orientation was said,
-# so the filter applies to both Funestras.
-_SCOPES: dict[str, str] = {"": "both", "portrait": "portrait", "landscape": "landscape"}
 
 _SCOPE_TOKENS: tuple[str, ...] = ("both", "portrait", "landscape")
 
@@ -91,10 +89,10 @@ def filter_voice_commands(acts: Acts | None = None) -> dict[str, str]:
     acts = load_acts() if acts is None else acts
     out: dict[str, str] = {}
     for query, forms in acts.items():
-        for scope_word, scope in _SCOPES.items():
-            command = set_command(scope, query)
-            for form in forms:
-                out[f"{scope_word} {form}".strip()] = command
+        for form in forms:
+            out[form] = set_command("both", query)
+            for side in ("portrait", "landscape"):
+                out.update(named_first_or_last(side, form, set_command(side, query)))
     return out
 
 

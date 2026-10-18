@@ -529,7 +529,7 @@ def test_kino_mode_is_spoken_as_written_of_either_side_or_of_both():
     for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "video mode"):
         assert retired not in VOICE_COMMANDS, retired
     main_rows = [r for r in _all_rows() if "main_kino_activate" in r.commands]
-    assert main_rows and main_rows[0].voice == ("main kino mode",)
+    assert main_rows and main_rows[0].voice == ("kino mode main", "main kino mode")
     both_rows = [r for r in _all_rows() if "kino_activate" in r.commands]
     assert both_rows and both_rows[0].voice == ("kino mode",)
     genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
