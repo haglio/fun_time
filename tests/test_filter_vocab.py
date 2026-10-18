@@ -54,6 +54,11 @@ def test_bare_act_filters_both_orientation_prefix_scopes_one():
     assert voice["landscape alpha"] == set_command("landscape", "alpha")
 
 
+def test_both_names_the_pair_before_or_after_the_act():
+    voice = filter_voice_commands(ACTS)
+    assert voice["both alpha"] == voice["alpha both"] == set_command("both", "alpha")
+
+
 def test_spoken_form_can_differ_from_the_matched_query():
     voice = filter_voice_commands(ACTS)
     # "delta" is voiced as "delta form", but the command — and therefore the
