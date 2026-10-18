@@ -325,6 +325,11 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["main version"] == VOICE_COMMANDS["version main"] == (
             "main_player_cycle_version")
 
+    def test_the_main_funestras_loop_is_ended_by_naming_it_as_a_satellites_is(self):
+        for words in ("end loop", "no loop", "loop off"):
+            assert VOICE_COMMANDS[f"main {words}"] == VOICE_COMMANDS[f"{words} main"] == (
+                "main_player_loop_cancel")
+
     def test_main_funestra_length_phrases(self):
         assert VOICE_COMMANDS["clips"] == "main_player_length_clips"
         assert VOICE_COMMANDS["full"] == "main_player_length_full"
