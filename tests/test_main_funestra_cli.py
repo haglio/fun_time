@@ -179,6 +179,8 @@ FUN_TIME_ARGV = [
     "--genau-config", "C:/example/genau/genau_config.json",
     "--genau-start-flick", "C:/example/library/flicks/2D/alpha one.mp4",
     "--genau-latest",
+    "--favs-file", "C:/example/library/favs.csv",
+    "--genau-f-mode",
 ]
 
 # What each of those has to land as.  The type matters as much as the value:
@@ -208,6 +210,8 @@ LANDS_AS = {
     "genau_config": Path("C:/example/genau/genau_config.json"),
     "genau_start_flick": "C:/example/library/flicks/2D/alpha one.mp4",
     "genau_latest": True,
+    "favs_file": Path("C:/example/library/favs.csv"),
+    "genau_f_mode": True,
 }
 
 
@@ -302,6 +306,8 @@ EVERY_FLAG_ARGV = [
     "--genau-config", "C:/example/genau/genau_config.json",
     "--genau-start-flick", "C:/example/library/flicks/2D/alpha one.mp4",
     "--genau-latest",
+    "--favs-file", "C:/example/library/favs.csv",
+    "--genau-f-mode",
     "--notify-host", "10.0.0.8",
     "--notify-port", "51001",
     "--no-audio",
@@ -336,6 +342,8 @@ EVERY_FLAG_LANDS_AS = {
     "genau_config": Path("C:/example/genau/genau_config.json"),
     "genau_start_flick": "C:/example/library/flicks/2D/alpha one.mp4",
     "genau_latest": True,
+    "favs_file": Path("C:/example/library/favs.csv"),
+    "genau_f_mode": True,
     "notify_host": "10.0.0.8",
     "notify_port": 51001,
     "no_audio": True,
@@ -370,6 +378,8 @@ NO_FLAGS_LANDS_AS = {
     "genau_config": None,
     "genau_start_flick": None,
     "genau_latest": False,
+    "favs_file": None,
+    "genau_f_mode": False,
     "notify_host": "127.0.0.1",
     "notify_port": 50556,
     "no_audio": False,

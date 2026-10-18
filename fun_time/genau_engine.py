@@ -22,7 +22,8 @@ from funestra.flick_loader import FlickLoadController
 from funestra.flick_renderer import FlickRenderController
 from funestra.flick_selection import FlickSelectionController
 from funestra.flick_sequence import FlickSequenceController
-from funestra.genau_controls import GenauControls
+from funestra.funestra_verbs import LOCK_ON
+from funestra.genau_controls import GenauControls, apply_runtime_command
 from funestra.genau_refresh import GenauRefreshController
 from funestra.learned_motion import LearnedMotionState, load_default_model
 from funestra.robot_hand import RobotHandState, bpm_for_speed
@@ -44,6 +45,7 @@ class GenauEngine:
     controller: GenauRefreshController
     renderer: FlickRenderController
     driver: RobotHandTCodeDriver
+    narrow: Callable[[Callable[[], list[Path]]], None]
 
     @property
     def current_flick(self) -> Path | None:
@@ -89,6 +91,7 @@ def build_genau_engine(
     rescan: Rescan,
     condemned_to: Callable[[Path], Path],
     narrow: Narrow | None = None,
+    say_no_other_flicks: Callable[[], None] = lambda: None,
     set_volume: Callable[[int, bool], None] | None = None,
     stop_event: threading.Event | None = None,
     start_flick: Path | None = None,
@@ -143,7 +146,7 @@ def build_genau_engine(
         set_volume=set_volume,
         reorder_flicks=lambda recent: _reorder(selection, rescan, recent, log),
         keep_shapes=None if narrow is None else (
-            lambda plays_vr, plays_flat: _narrow(selection, narrow, plays_vr, plays_flat, log)),
+            lambda plays_vr, plays_flat: narrow_to(lambda: narrow(plays_vr, plays_flat))),
         play_file=selection.play,
         flick_flip=FlickFlip(metadata_root),
     )
@@ -167,17 +170,25 @@ def build_genau_engine(
         status_file=status_file,
         drive_file=Path(drive_file),
     )
+
+    def holding_what_is_on_screen() -> None:
+        apply_runtime_command(LOCK_ON, controls)
+        say_no_other_flicks()
+
+    def narrow_to(scan: Callable[[], list[Path]]) -> None:
+        _narrow(selection, scan, log, nothing_left=holding_what_is_on_screen)
+
     selection.set_current_flick(selection.current_path)
     return GenauEngine(controls=controls, controller=controller, renderer=renderer,
-                       driver=driver)
+                       driver=driver, narrow=narrow_to)
 
 
-def _rescanned(rescan: Callable[[], list[Path]], log: logging.Logger) -> list[Path]:
+def _rescanned(rescan: Callable[[], list[Path]], log: logging.Logger) -> list[Path] | None:
     try:
         return rescan()
     except (OSError, RuntimeError):
         log.warning("Could not rescan the flicks folder; keeping the sequence", exc_info=True)
-        return []
+        return None
 
 
 def _reorder(selection: FlickSelectionController, rescan: Rescan, recent: bool,
@@ -187,10 +198,13 @@ def _reorder(selection: FlickSelectionController, rescan: Rescan, recent: bool,
         log.info("Browsing %s (%d flicks)", "newest-first" if recent else "reshuffled", len(flicks))
 
 
-def _narrow(selection: FlickSelectionController, narrow: Narrow, plays_vr: bool,
-            plays_flat: bool, log: logging.Logger) -> None:
-    if flicks := _rescanned(lambda: narrow(plays_vr, plays_flat), log):
+def _narrow(selection: FlickSelectionController, scan: Callable[[], list[Path]],
+            log: logging.Logger, *, nothing_left: Callable[[], None]) -> None:
+    flicks = _rescanned(scan, log)
+    if flicks:
         selection.narrow(flicks)
+    elif flicks is not None:
+        nothing_left()
 
 
 def _condemn(flick: Path, weird_dir: Path, log: logging.Logger, start_thread) -> None:

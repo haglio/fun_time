@@ -38,6 +38,7 @@ from .funestra_priority import ahead_on_the_processor
 from .genau import Genau, GenauChannels
 from .input import Input
 from .loading import LoadingCanceled, LoadingScreen
+from .notice import NoticeWriter
 from .window import take_outside_resizes, wear_the_icon
 
 logger = logging.getLogger(__name__)
@@ -63,8 +64,11 @@ def _genau(args):
         channels=channels,
         notifier=GenauNotifier(args.notify_host, args.notify_port),
         tcode_sink=UdpTCodeSink(host=args.tcode_host, port=args.tcode_port),
+        notices=NoticeWriter(args.notice_file),
         start_flick=Path(args.genau_start_flick) if args.genau_start_flick else None,
         latest=args.genau_latest,
+        favs_file=args.favs_file,
+        f_mode=args.genau_f_mode,
         metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,
     )
 

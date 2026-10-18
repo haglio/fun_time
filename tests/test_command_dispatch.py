@@ -40,7 +40,7 @@ from fun_time.main_list import MainListSettings
 from fun_time.main_list_builds import MainListBuild
 from fun_time.media_actions import ensure_in_favs, make_web_url_from_path
 from fun_time.media_metadata import load_metadata, metadata_path_for, normalize_path_key
-from fun_time.modes import write_playlist_file
+from fun_time.modes import is_favorite_path, read_favs_content, write_playlist_file
 from fun_time.origenerator_switches import RfbSlot
 from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_groups import _satellite_group_index, cancel_lock
@@ -48,6 +48,7 @@ from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import resolve_active_funestra_command
+from main_funestra.genau_verbs import genau_f_mode
 from tests.hosted_shows import publish_the_show
 
 
@@ -592,6 +593,43 @@ def test_the_comma_holds_genaus_flick_while_genau_is_on_the_main_screen(tmp_path
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
     assert not config.main_funestra_cmd_file.exists()
+
+
+def _show_on_genau(config: BridgeConfig, flick: Path, *, locked: bool) -> None:
+    config.genau_status_file.write_text(
+        f"flick={flick}\nlocked={'1' if locked else '0'}\n", encoding="utf-8")
+
+
+def test_locking_genaus_flick_puts_it_in_the_favorites_as_a_satellites_lock_does(tmp_path: Path):
+    config = _make_config(tmp_path)
+    flick = tmp_path / "flicks" / "made up flick.mp4"
+    _show_on_genau(config, flick, locked=False)
+
+    dispatch_command("main_lock", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert is_favorite_path(str(flick), read_favs_content(config.favs_file))
+
+
+def test_letting_genaus_flick_go_leaves_the_favorites_as_they_were(tmp_path: Path):
+    config = _make_config(tmp_path)
+    flick = tmp_path / "flicks" / "made up flick.mp4"
+    _show_on_genau(config, flick, locked=True)
+
+    dispatch_command("main_lock", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert not is_favorite_path(str(flick), read_favs_content(config.favs_file))
+
+
+def test_marking_genaus_flick_weird_takes_it_out_of_the_favorites_as_a_satellites_does(
+        tmp_path: Path):
+    config = _make_config(tmp_path)
+    flick = tmp_path / "flicks" / "made up flick.mp4"
+    _show_on_genau(config, flick, locked=True)
+    ensure_in_favs(config.favs_file, str(flick))
+
+    dispatch_command("genau_weird_flick", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert not is_favorite_path(str(flick), read_favs_content(config.favs_file))
 
 
 def test_the_apostrophe_holds_the_video_while_the_video_is_on_the_main_screen(tmp_path: Path):
@@ -1246,6 +1284,17 @@ def test_a_named_funestra_goes_into_f_mode_alone(tmp_path: Path, funestra: RoomF
     assert list(_f_modes(new_state)).count(True) == 1
     assert _f_modes(new_state)[list(RoomFunestra).index(funestra)] is True
     assert mock_fmode.call_args.kwargs["funestras"] == (funestra,)
+
+
+def test_f_mode_on_genau_keeps_its_favorites_and_leaves_kinos_list_alone(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    state, ops, mock_fmode = _dispatch_fmode("main_fmode", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert (state.genau_favorites_filter, state.main_scripted_filter) == (True, False)
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == f"{genau_f_mode(True)}\n"
+    assert mock_fmode.call_args.kwargs["funestras"] == ()
+    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source=SOURCE_MAIN, level=FAVORITE)]
 
 
 def test_the_on_and_off_forms_assert_a_state_rather_than_toggling(tmp_path: Path):
@@ -4349,7 +4398,7 @@ def test_putting_genaus_other_shape_back_names_both(tmp_path):
 
 
 def test_neither_of_genaus_shapes_holds_its_flick(tmp_path, monkeypatch):
-    monkeypatch.setattr("fun_time.command_dispatch.genau_flick_noun", lambda: Noun(one="pip", many="pips"))
+    monkeypatch.setattr("fun_time.content.genau_flick_noun", lambda: Noun(one="pip", many="pips"))
     config = _genau_vr_config(tmp_path)
     only_flat = _make_state(main_mode=MainMode.GENAU, genau_plays_vr=False)
 
@@ -4855,27 +4904,6 @@ class TestOrigeneratorTransport:
             for phrase in ORIGENERATOR_PHRASES:
                 command = VOICE_COMMANDS[f"{funestra} {phrase}"]
                 assert routes_to_origenerator(command, state, config), command
-
-    def test_the_consoles_enhanced_filter_reaches_the_hosted_shows(self, tmp_path):
-        """The shared console draws an enhanced-only switch over a hosted show
-        and posts genau_filter_enhanced for it.  Nothing here answered that verb,
-        so the button lit and the shows played on unchanged (bug 90)."""
-        config = _origenerator_config(tmp_path)
-        state = _in_origenerator_mode()
-
-        state, _ = dispatch_command("genau_filter_enhanced", state, config)
-
-        assert _origenerator_cmds(config) == ["FILTER_ENHANCED"]
-
-    def test_the_enhanced_filter_is_dropped_where_no_show_is_hosted(self, tmp_path):
-        """In kino mode the satellites are Funestras, which have no enhancements
-        to narrow to: the verb goes nowhere rather than onto a channel nothing
-        is draining."""
-        config = _origenerator_config(tmp_path)
-
-        dispatch_command("genau_filter_enhanced", BridgeState(), config)
-
-        assert _origenerator_cmds(config) == []
 
     def test_funestra_mode_routes_nothing_to_origenerator(self, tmp_path):
         config = _origenerator_config(tmp_path)

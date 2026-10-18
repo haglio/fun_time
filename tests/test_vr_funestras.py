@@ -375,7 +375,7 @@ class TestGenauOnTheMainFunestra:
         vr = replace(_A_SESSION, flicks_folder=flicks_folder)
         stop = threading.Event()
         with patch.multiple("fun_time_vr.funestras", GenauInTheHeadset=DEFAULT,
-                            GenauNotifier=DEFAULT, UdpTCodeSink=DEFAULT) as fakes, \
+                            GenauNotifier=DEFAULT, UdpTCodeSink=DEFAULT, NoticeWriter=DEFAULT) as fakes, \
                 patch("fun_time_vr.funestras.read_genau_status",
                       return_value=SimpleNamespace(flick="")), \
                 patch("fun_time_vr.funestras.read_shared_state", return_value=resumed) as read_state:
@@ -410,6 +410,22 @@ class TestGenauOnTheMainFunestra:
         assert built.read_state.call_args.args == (
             shared_state_path(Path(built.manifest.commands.state_dir)),)
         assert built.fakes["GenauInTheHeadset"].call_args.kwargs["latest"] is True
+
+    def test_it_opens_in_the_f_mode_it_was_left_in_over_the_rooms_favorites(self, tmp_path):
+        built = self._users(tmp_path, flicks_folder=tmp_path,
+                            resumed=BridgeState(genau_favorites_filter=True))
+
+        handed = built.fakes["GenauInTheHeadset"].call_args.kwargs
+        assert handed["f_mode"] is True
+        assert handed["favs_file"] == Path(built.manifest.media.favs_file)
+
+    def test_what_it_says_goes_where_the_session_reads_the_main_funestras_notices(self, tmp_path):
+        built = self._users(tmp_path, flicks_folder=tmp_path)
+
+        assert built.fakes["NoticeWriter"].call_args.args == (
+            Path(built.manifest.commands.main_funestra_notice_file),)
+        assert (built.fakes["GenauInTheHeadset"].call_args.kwargs["notices"]
+                is built.fakes["NoticeWriter"].return_value)
 
 
 def test_a_side_screen_hands_its_funestra_the_scripts_its_playlist_names(

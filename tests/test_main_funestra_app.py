@@ -87,6 +87,8 @@ class TestGenauRunsOnItToo:
         assert given["settings"] == "GenauSettings.read(args.genau_config)"
         assert given["notifier"] == "GenauNotifier(args.notify_host, args.notify_port)"
         assert given["tcode_sink"] == "UdpTCodeSink(host=args.tcode_host, port=args.tcode_port)"
+        assert given["notices"] == "NoticeWriter(args.notice_file)"
+        assert (given["favs_file"], given["f_mode"]) == ("args.favs_file", "args.genau_f_mode")
         assert channels == {"command": "args.genau_command_file", "paused": "args.genau_paused_file",
                             "status": "args.genau_status_file", "drive": "args.drive_file"}
 

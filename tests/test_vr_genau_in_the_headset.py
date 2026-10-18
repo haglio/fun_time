@@ -14,8 +14,10 @@ from funestra.console_hud import ModeHud
 from funestra.funestra import User
 
 from fun_time.genau_config import GenauSettings
+from fun_time.media_actions import ensure_in_favs
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
 from main_funestra.genau import GenauChannels
+from main_funestra.genau_verbs import genau_f_mode
 
 
 class FakeSink:
@@ -98,6 +100,7 @@ class World:
         self.flat_dir.mkdir(parents=True)
         for name in flat_flicks:
             (self.flat_dir / name).write_bytes(b"flick")
+        self.favs_file = tmp_path / "favs.csv"
         state = tmp_path / "state"
         state.mkdir()
         self.channels = GenauChannels(
@@ -115,6 +118,7 @@ class World:
             stop_event=self.stop,
             start_flick=start_flick,
             latest=latest,
+            favs_file=self.favs_file,
             decode=lambda _path: _frames(),
             start_thread=start_thread,
             log=logging.getLogger("test.genau_in_the_headset"),
@@ -230,6 +234,29 @@ class TestNarrowingToAShape:
         world.send("NEXT")
 
         assert world.on_screen() == world.flat_dir / "delta.mp4"
+
+
+class TestFMode:
+    def test_it_keeps_the_favorites_of_the_shape_kept(self, tmp_path):
+        world = World(tmp_path, flat_flicks=("delta.mp4", "epsilon.mp4"))
+        ensure_in_favs(world.favs_file, str(world.flat_dir / "epsilon.mp4"))
+        ensure_in_favs(world.favs_file, str(world.vr_dir / "beta_180.mp4"))
+        world.send("SHAPES flat")
+
+        world.genau.apply_command(genau_f_mode(True))
+        world.genau.tick()
+        assert world.on_screen() == world.flat_dir / "epsilon.mp4"
+        world.send("NEXT")
+
+        assert world.on_screen() == world.flat_dir / "epsilon.mp4"
+
+    def test_the_status_line_says_f_mode_while_it_is_on(self, tmp_path):
+        world = World(tmp_path)
+        ensure_in_favs(world.favs_file, str(world.vr_dir / "alpha_180.mp4"))
+
+        world.genau.apply_command(genau_f_mode(True))
+
+        assert world.genau.top_block() == ModeHud(video="alpha_180", scripted_filter=True)
 
 
 class TestWhatThePanelCallsTheFlick:

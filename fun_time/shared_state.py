@@ -116,6 +116,7 @@ class BridgeState:
     genau_latest: bool = False
     genau_plays_vr: bool = True
     genau_plays_flat: bool = True
+    genau_favorites_filter: bool = False
     # The Funestra most recently navigated, as a :class:`Funestra` slot.  Any command
     # naming a Funestra, or a main next/prev, updates it; the player-agnostic "active_*"
     # commands resolve against it — nav reaches all three, the satellite-only

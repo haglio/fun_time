@@ -456,7 +456,7 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             _Row(
                 "F-Mode on the Main Funestra alone — play only the hand-scripted "
-                "videos",
+                f"videos, and in Genau mode only the favorite {_FLICK.many}",
                 (),
                 ("main_fmode", "main_fmode_on", "main_fmode_off"),
             ),

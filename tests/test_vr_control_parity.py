@@ -27,8 +27,10 @@ from functools import partial
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 from funestra import funestra_controls
+from funestra.flick_folder import flat_flicks_in
 from funestra.funestra import Channels, Funestra
 from funestra.funestra_controls import FunestraControls
 from funestra.funestra_controls import apply_command as apply_satellite_command
@@ -41,6 +43,7 @@ from funestra.playlist import read_playlist
 from fun_time.bridge_records import Op
 from fun_time.command_dispatch import dispatch_command
 from fun_time.dashboard_actions import BROWSE_LIBRARY_CLOSE, HELP_REFERENCE_COMMANDS
+from fun_time.genau_config import GenauSettings
 from fun_time.mode_plan import MAIN_KINO_MODE
 from fun_time.modes import PLAYLIST_PORTRAIT, build_playlist_file_path
 from fun_time.origenerator_switches import KINO_MODE as SATELLITE_KINO_MODE
@@ -48,14 +51,18 @@ from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.windows_bridge_dispatch_loop import HANDOFF_COMMANDS
 from fun_time_vr import headset_verbs
+from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
 from fun_time_vr.headset_verbs import HeadsetVerbs
 from main_funestra import controls as main_funestra_controls
+from main_funestra import genau_verbs as genaus_verbs_on_the_main_funestra
 from main_funestra.clip_nav import ClipNav
+from main_funestra.genau import GenauChannels
 from main_funestra.kino import Kino
 from main_funestra.mode_memory import ModeMemory, RememberedMode
 from main_funestra.notice import NoticeWriter
 from tests.dispatch_sweep import every_command, headset_config, sweep
 from tests.satellite_fakes import FakeSatelliteEngine
+from tests.test_vr_genau_in_the_headset import FakeNotifier, FakeSink
 from tests.test_windows_bridge_dispatch_loop import make_runner
 
 # Window ops a VR session raises and nothing acts on: every role lives inside
@@ -127,8 +134,8 @@ WINDOW = (640, 480)
 
 class _TheHeadsetsMainFunestra:
     """The headset's Main Funestra on fakes, built the way the headset builds
-    it: Kino running on it with the headset's own verbs beside it, driven
-    through its command file -- the vocabulary asked of the window itself."""
+    it: Kino and Genau running on it with the headset's own verbs beside them,
+    driven through its command file -- the vocabulary asked of the window itself."""
 
     def __init__(self, tmp_path: Path) -> None:
         videos = tmp_path / "videos"
@@ -153,7 +160,8 @@ class _TheHeadsetsMainFunestra:
             users={MainMode.KINO: partial(
                 Kino, source=None, clip_nav=ClipNav.build([], None),
                 notices=NoticeWriter(None), memory=ModeMemory(None),
-                remembered=RememberedMode(), resolve_playlist=list)},
+                remembered=RememberedMode(), resolve_playlist=list),
+                MainMode.GENAU: lambda _playback: _genau_in_the_headset(tmp_path)},
             window_verbs=self._apply_the_headsets_verb,
         )
         self.verbs = HeadsetVerbs(self.funestra.playback, metadata_root=tmp_path / "metadata",
@@ -169,6 +177,26 @@ class _TheHeadsetsMainFunestra:
         with _the_funestras_refusals() as refused:
             self.funestra.tick(window=WINDOW)
         return not refused
+
+
+def _genau_in_the_headset(tmp_path: Path) -> GenauInTheHeadset:
+    flicks = tmp_path / "flicks"
+    flat = flat_flicks_in(flicks)
+    flat.mkdir(parents=True, exist_ok=True)
+    (flat / "made up flick.mp4").write_bytes(b"flick")
+    state = tmp_path / "genau"
+    return GenauInTheHeadset(
+        flicks_folder=flicks, settings=GenauSettings(shuffle_on_load=False),
+        channels=GenauChannels(command=state / "genau_cmd.txt", paused=state / "genau_paused.txt",
+                               status=state / "genau_status.txt", drive=state / "genau_drive.txt"),
+        notifier=FakeNotifier(), tcode_sink=FakeSink(), favs_file=tmp_path / "favs.csv",
+        decode=lambda _flick: [np.zeros((8, 16, 3), dtype=np.uint8)],
+        start_thread=_every_thread_but_the_beats_reader_at_once)
+
+
+def _every_thread_but_the_beats_reader_at_once(*, target, args=(), name=""):
+    if name != "genau-udp":
+        target(*args)
 
 
 class _the_funestras_refusals:
@@ -233,7 +261,7 @@ def _a_whole_line(verb: str) -> str:
 
     Half a command is refused on purpose, so a vocabulary check that sent
     bare verbs would report every value-taking one as unanswered.  Which ones
-    want a value is read off the three registries rather than listed here, so
+    want a value is read off the registries rather than listed here, so
     a verb that starts taking one cannot leave this check sending it bare.
     """
     if verb not in _VERBS_THAT_TAKE_A_VALUE:
@@ -243,7 +271,8 @@ def _a_whole_line(verb: str) -> str:
 
 _VERBS_THAT_TAKE_A_VALUE = frozenset(
     spelling
-    for registry in (main_funestra_controls.VERBS, headset_verbs.VERBS, funestra_controls.VERBS)
+    for registry in (main_funestra_controls.VERBS, genaus_verbs_on_the_main_funestra.VERBS,
+                     headset_verbs.VERBS, funestra_controls.VERBS)
     for spelling, (_control, verb) in registry.items()
     if verb.takes_a_value
 )

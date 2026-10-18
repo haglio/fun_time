@@ -192,6 +192,11 @@ def test_f_mode_lights_off_what_the_orchestrator_holds():
     assert _button(_payload(), "main_fmode").lit is False
 
 
+def test_in_genau_mode_f_mode_lights_off_genaus_own_and_not_kinos():
+    assert _button(_payload(main_mode=MainMode.GENAU, genau_favorites_filter=True), "main_fmode").lit is True
+    assert _button(_payload(main_mode=MainMode.GENAU, scripted_filter=True), "main_fmode").lit is False
+
+
 def test_the_length_pair_lights_off_what_the_orchestrator_holds():
     """The length narrows Fun Time's one list, so its pair is lit from Fun Time's
     own state, as F-mode and the order are, whatever the Funestra has said."""

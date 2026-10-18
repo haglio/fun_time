@@ -73,12 +73,13 @@ from fun_time.session_handoff import (
     headset_hold_stops_the_runtime,
     report_the_headset_held,
 )
-from fun_time.shared_state import read_shared_state, shared_state_path
+from fun_time.shared_state import BridgeState, read_shared_state, shared_state_path
 from fun_time.unlogged_notices import UnloggedNotices
 from main_funestra.cli import build_parser as build_main_funestra_parser
 from main_funestra.cli import kino_on, library_source, load_config, mode_memory, resolve_playlist
 from main_funestra.genau import GenauChannels
 from main_funestra.kino import Kino
+from main_funestra.notice import NoticeWriter
 from satellite.contract import SatelliteChannels
 
 from . import room, vr_runtime
@@ -716,7 +717,7 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
     if vr.flicks_folder is None:
         return users
     commands = manifest.commands
-    resumed = read_shared_state(shared_state_path(Path(commands.state_dir)))
+    resumed = read_shared_state(shared_state_path(Path(commands.state_dir))) or BridgeState()
     users[MainMode.GENAU] = lambda _playback: GenauInTheHeadset(
         flicks_folder=vr.flicks_folder,
         settings=vr.genau,
@@ -726,9 +727,12 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
         notifier=GenauNotifier(vr.notify_host, vr.notify_port),
         tcode_sink=_SaysWhenItFirstMoves(
             UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "genau"),
+        notices=NoticeWriter(Path(commands.main_funestra_notice_file)),
         stop_event=stop,
         start_flick=read_genau_status(Path(commands.genau_status_file)).flick or None,
-        latest=False if resumed is None else resumed.genau_latest,
+        latest=resumed.genau_latest,
+        favs_file=Path(manifest.media.favs_file),
+        f_mode=resumed.genau_favorites_filter,
         metadata_root=_metadata_root(manifest),
     )
     return users

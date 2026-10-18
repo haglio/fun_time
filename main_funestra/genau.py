@@ -14,9 +14,15 @@ from funestra.console_hud import ModeHud
 from funestra.flick_decode import load_flick_frames
 from funestra.flick_folder import flat_flicks_in, scan_flicks, weird_folder_for
 from funestra.flick_picture import Picture
+from funestra.modes import NoticeLevel
 
+from fun_time.content import no_other_flicks
 from fun_time.genau_config import GenauSettings
 from fun_time.genau_engine import Narrow, build_genau_engine
+from fun_time.modes import keep_favorites
+
+from .genau_verbs import apply_command as answer_genaus_verb
+from .notice import NoticeWriter
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +46,11 @@ class Genau:
         channels: GenauChannels,
         notifier,
         tcode_sink,
+        notices: NoticeWriter | None = None,
         start_flick: Path | None = None,
         latest: bool = False,
+        favs_file: Path | None = None,
+        f_mode: bool = False,
         metadata_root: Path | None = None,
         narrow: Narrow | None = None,
         stop_event: threading.Event | None = None,
@@ -53,12 +62,17 @@ class Genau:
         self._flicks_folder = Path(flicks_folder)
         self._settings = settings
         self._recent = latest
+        self._favs_file = favs_file
+        self._f_mode = f_mode
         self._notifier = notifier
+        self._notices = notices
         self._frame = None
         self._flick: Path | None = None
         self._loading: str | None = None
+        browsed = self._browsed()
+        kept = self._favorites_of(browsed)
         self._engine = build_genau_engine(
-            flicks=self._scan(),
+            flicks=kept or browsed,
             settings=settings,
             command_file=channels.command,
             paused_file=channels.paused,
@@ -70,6 +84,7 @@ class Genau:
             set_loading_text=self._set_loading,
             rescan=self._rescan,
             narrow=narrow,
+            say_no_other_flicks=self._say_no_other_flicks,
             condemned_to=lambda flick: weird_folder_for(flick, self._flicks_folder),
             set_volume=self._the_rooms_level_is_the_funestras,
             stop_event=stop_event,
@@ -80,9 +95,15 @@ class Genau:
             clock=clock,
             log=log,
         )
+        if not kept:
+            self._engine.narrow(self._scan)
 
     def apply_command(self, command: str) -> bool:
-        return False
+        return answer_genaus_verb(command, self)
+
+    def keep_favorites(self, on: bool) -> None:
+        self._f_mode = on
+        self._engine.narrow(self._scan)
 
     def tick(self) -> None:
         self._engine.refresh()
@@ -92,7 +113,7 @@ class Genau:
 
     def top_block(self) -> ModeHud:
         flick = self._engine.current_flick
-        return ModeHud(video="" if flick is None else flick.stem)
+        return ModeHud(video="" if flick is None else flick.stem, scripted_filter=self._f_mode)
 
     def set_showing(self, showing: bool) -> None:
         self._engine.controls.hud.on = not showing
@@ -116,9 +137,21 @@ class Genau:
     def _set_loading(self, text: str | None) -> None:
         self._loading = text
 
+    def _say_no_other_flicks(self) -> None:
+        if self._notices is not None:
+            self._notices.say(no_other_flicks(), level=NoticeLevel.WARNING)
+
     def _scan(self) -> list[Path]:
+        return self._favorites_of(self._browsed())
+
+    def _browsed(self) -> list[Path]:
         return scan_flicks(flat_flicks_in(self._flicks_folder),
-                          shuffle_on_load=self._settings.shuffle_on_load, recent=self._recent)
+                           shuffle_on_load=self._settings.shuffle_on_load, recent=self._recent)
+
+    def _favorites_of(self, flicks: list[Path]) -> list[Path]:
+        if not self._f_mode or self._favs_file is None:
+            return flicks
+        return keep_favorites(flicks, self._favs_file)
 
     def _rescan(self, recent: bool) -> list[Path]:
         self._recent = recent

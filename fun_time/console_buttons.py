@@ -43,7 +43,7 @@ class MainSlot:
 
     main_mode: MainMode = MainMode.KINO
     locked: bool = True
-    scripted_filter: bool = False
+    f_mode: bool = False
     latest: bool | None = None
     loop_state: LoopState = LoopState.NORMAL
     learned: bool = False
@@ -57,8 +57,6 @@ class MainSlot:
     has_other_versions: bool = False
     longer_than_a_step: bool = False
     jump_to: str = ""
-    favorites_filter: bool | None = None
-    enhanced_filter: bool | None = None
     osr2_control: str = OSR2_DRIVING
     # Whether the Funestra is already at every default, which leaves its reset
     # nothing to put back -- the button is drawn faded and takes no press.
@@ -72,7 +70,6 @@ class MainSlot:
 _GLYPHS = {
     "open": "📂", "record": "⏺", "save": "💾", "minus": "−", "plus": "+",
 }
-ENHANCE_FILTER_ICON = shared_mark("enhance_filter")
 FULL_ICON = shared_mark("full")
 CLIPS_ICON = shared_mark("clips")
 VR_ICON = shared_mark("vr_hemisphere")
@@ -216,7 +213,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
             lock_button("main", locked=slot.locked, noun=MAIN_FUNESTRA_NOUN),
             Button("main_fmode", FMODE_ICON,
                    "F-Mode — play only the videos that have a funscript",
-                   lit=slot.scripted_filter, favorite=True),
+                   lit=slot.f_mode, favorite=True),
             reset_button("main", nothing_to_reset=slot.nothing_to_reset),
             *browse_order_buttons("main", latest=slot.latest, remembered=remembered),
             *_projection_buttons(slot, remembered=remembered, things="videos"),
@@ -236,20 +233,10 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
                else "Unlocked — moving on every "
                     f"{slot.pace_s}s; press to hold this {flick.one}",
                lit=slot.locked, favorite=True, group_break=True),
-        *(() if slot.favorites_filter is None else (
-            Button("main_fmode", FMODE_ICON,
-                   "Showing the favorites only — press for all of them"
-                   if slot.favorites_filter
-                   else "F-Mode — play only the favorites",
-                   lit=slot.favorites_filter, favorite=True),
-        )),
-        *(() if slot.enhanced_filter is None else (
-            Button("genau_filter_enhanced", ENHANCE_FILTER_ICON,
-                   "Showing the enhanced pictures only — press for all of them"
-                   if slot.enhanced_filter
-                   else "Show only the pictures that have been enhanced",
-                   lit=slot.enhanced_filter, enhanced=True, group_break=True),
-        )),
+        Button("main_fmode", FMODE_ICON,
+               "Showing the favorites only — press for all of them" if slot.f_mode
+               else "F-Mode — play only the favorites",
+               lit=slot.f_mode, favorite=True),
         Button("genau_flip_ends", FLIP_ENDS_ICON,
                f"Flipped — this {flick.one} stays that way; press to put it back" if slot.flipped
                else f"Flip this {flick.one}, for a picture running opposite the OSR2 — it stays flipped",

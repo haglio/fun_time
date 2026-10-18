@@ -136,8 +136,7 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
     written = [
         *_written_in_a_sweep(on_the_monitors),
         *_written_in_a_sweep(in_a_headset),
-        *_written_by(on_the_monitors, _each_satellites_own_mode_buttons,
-                     _the_consoles_enhanced_only_switch, _the_rooms_f_mode,
+        *_written_by(on_the_monitors, _each_satellites_own_mode_buttons, _the_rooms_f_mode,
                      _the_gallery_following_a_lock_genau_took, _a_taken_over_copy_handed_back,
                      _a_copy_parked_for_the_room_crossing_in),
         *(what_an_adopted_app_is_told("{frames}", "{input}", in_a_headset=in_a_headset)
@@ -177,10 +176,6 @@ def _each_satellites_own_mode_buttons(room: BridgeConfig) -> None:
 def _both_shows_hosted() -> BridgeState:
     hosted = SatelliteState(mode=ORIGENERATOR_MODE)
     return BridgeState(portrait=hosted, landscape=hosted, origenerator_ready=True)
-
-
-def _the_consoles_enhanced_only_switch(room: BridgeConfig) -> None:
-    dispatch_command("genau_filter_enhanced", _both_shows_hosted(), room)
 
 
 def _the_rooms_f_mode(room: BridgeConfig) -> None:

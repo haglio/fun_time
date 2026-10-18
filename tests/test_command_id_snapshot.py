@@ -33,12 +33,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # second one too, to be shown).  The three
 # minimize buttons live on the HUDs (funestra / the Main Funestra's console); the
 # padlock on that console locks whichever Funestra is on the main screen; the speed
-# pair is Genau's console's own ± marks beside its drive readout; the enhanced
-# filter is the switch the console draws over a hosted Origenerator's shows,
-# which the room hears as "enhanced only" rather than under this id.  The two
+# pair is Genau's console's own ± marks beside its drive readout.  The two
 # scene jumps are the VR controllers' B and A with the trigger held.
 HUD_ONLY_COMMAND_IDS = (
-    "genau_filter_enhanced",
     "landscape_kino_activate",
     "landscape_minimize",
     "landscape_origenerator_activate",

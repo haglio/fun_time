@@ -420,6 +420,7 @@ _EXPECTED_STATE_KEYS = {
     "main_shuffle_seed": "0", "main_length_mode": "mixed",
     "main_plays_vr": "1", "main_plays_flat": "1",
     "genau_latest": "0", "genau_plays_vr": "1", "genau_plays_flat": "1",
+    "genau_favorites_filter": "0",
     "active_funestra": "1",
     "portrait_filter": "", "landscape_filter": "",
     "portrait_loop": "", "landscape_loop": "",
