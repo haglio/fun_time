@@ -25,6 +25,7 @@ from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
 from fun_time import load_config
+from fun_time.aiming import resolve_active_funestra_command
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
@@ -66,7 +67,6 @@ from fun_time.windows_bridge_dispatch_loop import (
     detect_sleep_gap,
     expand_group_command,
     poll_dashboard_commands,
-    resolve_active_funestra_command,
 )
 from tests.hosted_shows import publish_the_show
 from tests.made_up_state import remembered_values, shifted_state

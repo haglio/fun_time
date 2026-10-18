@@ -22,16 +22,12 @@ from pathlib import Path
 from funestra.modes import LengthMode, MainMode, SatellitesMode
 
 from fun_time import command_dispatch, dashboard_actions, windows_bridge_dispatch_loop
+from fun_time.aiming import MAIN_EQUIVALENTS, resolve_active_funestra_command
 from fun_time.command_reference import build_reference_sections
 from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
 from fun_time.satellite_buttons import funestra_rows
 from fun_time.voice_commands import VOICE_COMMANDS
-from fun_time.windows_bridge_dispatch_loop import (
-    _MAIN_EQUIVALENTS,
-    REQUEST_NEWS,
-    expand_group_command,
-    resolve_active_funestra_command,
-)
+from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS, expand_group_command
 from tests.test_command_id_snapshot import (
     HUD_ONLY_COMMAND_IDS,
     _ahk_ids,
@@ -227,7 +223,7 @@ def test_the_unresolvable_active_forms_are_exactly_the_satellite_only_actions():
     _, residues = _voice_resolutions()
     for residue in residues:
         action = residue[len("active_"):]
-        assert action not in _MAIN_EQUIVALENTS, residue
+        assert action not in MAIN_EQUIVALENTS, residue
         assert f"portrait_{action}" in _handler_ids(), residue
         assert f"landscape_{action}" in _handler_ids(), residue
 

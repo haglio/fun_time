@@ -18,7 +18,7 @@ from types import MappingProxyType
 
 from fun_time.filter_vocab import filter_voice_commands
 
-from .aimed_phrases import named_first_or_last
+from .aiming import named_first_or_last
 from .content import Noun, genau_flick_noun, load_content
 from .crown import Crown
 

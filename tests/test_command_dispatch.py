@@ -23,6 +23,7 @@ from funestra.hud_placement import HudCorner, HudEdge
 from funestra.modes import LengthMode, MainMode, SatellitesMode
 
 from fun_time import genaumacher_save
+from fun_time.aiming import resolve_active_funestra_command
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.command_dispatch import (
     _discard,
@@ -48,7 +49,6 @@ from fun_time.satellite_groups import _satellite_group_index, cancel_lock
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands
 from fun_time.watch_stats import load_watch_stats
-from fun_time.windows_bridge_dispatch_loop import resolve_active_funestra_command
 from main_funestra.genau_verbs import genau_f_mode
 from tests.hosted_shows import publish_the_show
 
