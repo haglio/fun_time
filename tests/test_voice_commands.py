@@ -321,6 +321,10 @@ class TestVoiceCommands:
             assert VOICE_COMMANDS[f"version {funestra}"] == f"{funestra}_cycle_version"
         assert VOICE_COMMANDS["version"] == "main_player_cycle_version"
 
+    def test_the_main_funestras_version_is_said_of_it_as_a_satellites_is(self):
+        assert VOICE_COMMANDS["main version"] == VOICE_COMMANDS["version main"] == (
+            "main_player_cycle_version")
+
     def test_main_funestra_length_phrases(self):
         assert VOICE_COMMANDS["clips"] == "main_player_length_clips"
         assert VOICE_COMMANDS["full"] == "main_player_length_full"
