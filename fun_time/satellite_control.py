@@ -9,7 +9,6 @@ Its sibling ``broker_control`` is the same idea for the OSR2 broker.
 """
 from __future__ import annotations
 
-import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -35,24 +34,15 @@ class SatelliteStatus(ScriptedStatus):
         return self.position_ms / self.duration_ms
 
 
-REREAD_ATTEMPTS = 5
-REREAD_AFTER_S = 0.005
-
-
 def read_satellite_status(status_file: Path, *,
                           fallback: SatelliteStatus | None = None) -> SatelliteStatus:
     """Parse a native satellite's status file; a blank file reads empty, and one
     that cannot be read is *fallback*, else empty."""
-    for _ in range(REREAD_ATTEMPTS):
-        try:
-            fields = read_key_values(Path(status_file))
-        except PermissionError:
-            time.sleep(REREAD_AFTER_S)
-            continue
-        except OSError:
-            break
-        return _satellite_status_from(fields)
-    return fallback or SatelliteStatus()
+    try:
+        fields = read_key_values(Path(status_file))
+    except OSError:
+        return fallback or SatelliteStatus()
+    return _satellite_status_from(fields)
 
 
 def _satellite_status_from(fields: dict) -> SatelliteStatus:
