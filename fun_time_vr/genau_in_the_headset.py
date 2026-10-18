@@ -3,6 +3,7 @@ its VR flicks with the desktop's flat ones, narrowed to a shape when the room
 asks, and naming the flick still decoding on the panel as it always has there."""
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from funestra.console_hud import ModeHud
@@ -20,9 +21,10 @@ class GenauInTheHeadset(Genau):
         super().__init__(flicks_folder=flicks_folder, narrow=self._narrow, **genaus_own)
 
     def top_block(self) -> ModeHud:
-        return ModeHud(video=self._loading or super().top_block().video)
+        desktops = super().top_block()
+        return replace(desktops, video=self._loading or desktops.video)
 
-    def _scan(self) -> list[Path]:
+    def _browsed(self) -> list[Path]:
         plays_vr, plays_flat = self._shapes
         return keep_shapes(
             scan_flicks(self._flicks_dirs, shuffle_on_load=self._settings.shuffle_on_load,

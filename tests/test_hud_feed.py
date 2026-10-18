@@ -540,6 +540,17 @@ class TestHudPublishing:
         assert published("kino") is True
         assert published("genau") is False
 
+    def test_the_consoles_f_mode_in_genau_mode_is_genaus_own(self, tmp_path):
+        feed = make_feed(tmp_path)
+
+        def f_mode_lit(state: BridgeState) -> bool:
+            feed.publish(state)
+            return next(bool(button.get("lit")) for row in console(tmp_path)["rows"] for button in row
+                        if button["command"] == "main_fmode")
+
+        assert f_mode_lit(BridgeState(main_mode=MainMode.GENAU, genau_favorites_filter=True)) is True
+        assert f_mode_lit(BridgeState(main_mode=MainMode.GENAU, main_scripted_filter=True)) is False
+
     def test_the_console_offers_genaus_shapes_only_where_it_has_vr_clips(self, tmp_path):
         state = BridgeState(main_mode=MainMode.GENAU, genau_plays_vr=False)
 

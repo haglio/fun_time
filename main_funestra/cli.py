@@ -86,6 +86,10 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                    help="The flick Genau opens on: where the last session left it")
     p.add_argument("--genau-latest", action="store_true", default=False,
                    help="Browse Genau's flicks newest-first from the start")
+    p.add_argument("--favs-file", type=Path, default=None,
+                   help="The favorites a lock puts a flick in, which F-Mode keeps")
+    p.add_argument("--genau-f-mode", action="store_true", default=False,
+                   help="Browse only the favorite flicks from the start")
     p.add_argument("--notify-host", default=audio_companion.get("host", "127.0.0.1"),
                    help="Where Genau tells the audio companion which flick is up")
     p.add_argument("--notify-port", type=int,

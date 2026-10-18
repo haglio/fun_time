@@ -626,6 +626,9 @@ def launch_main_funestra(
     metadata_dir: str | Path | None = None,
     genau_start_flick: str = "",
     genau_latest: bool = False,
+    genau_f_mode: bool = False,
+    favs_file: str | Path | None = None,
+    notice_file: str | Path | None = None,
     sibling_checkouts: str | None = None,
 ) -> int:
     """Launch the Main Funestra subprocess, returning its PID.
@@ -697,6 +700,12 @@ def launch_main_funestra(
         cmd += ["--genau-start-flick", genau_start_flick]
     if genau_latest:
         cmd.append("--genau-latest")
+    if genau_f_mode:
+        cmd.append("--genau-f-mode")
+    if favs_file:
+        cmd += ["--favs-file", str(favs_file)]
+    if notice_file:
+        cmd += ["--notice-file", str(notice_file)]
     # Lets the Main Funestra group a video's versions from Evolver's metadata sidecars rather
     # than guessing from clip names.
     if metadata_dir:

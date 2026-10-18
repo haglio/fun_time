@@ -71,7 +71,6 @@
   ],
   "command_lines": [
     "CLOSE_SLIDESHOWS",
-    "FILTER_ENHANCED",
     "GO_TO|{file}",
     "HAND_OVER|{frames}|{input}",
     "LANDSCAPE_SAY:clear filter",

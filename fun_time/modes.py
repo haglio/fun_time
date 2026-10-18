@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import random
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -127,6 +127,11 @@ def is_favorite_path(video_path: str, favs_content: str) -> bool:
     if not video_path or not favs_content:
         return False
     return video_path in favs_content
+
+
+def keep_favorites[P: (str, Path)](paths: Iterable[P], favs_file: Path) -> list[P]:
+    favs_content = read_favs_content(favs_file)
+    return [path for path in paths if is_favorite_path(str(path), favs_content)]
 
 
 def shuffle_paths(paths: list[str], *, rng: random.Random | None = None) -> list[str]:
@@ -291,8 +296,7 @@ def build_satellite_playlist_paths(
 ) -> list[str]:
     files = collect_video_files(source_spec)
     if favorites_filter:
-        favs_content = read_favs_content(favs_file)
-        files = [full_path for full_path in files if is_favorite_path(full_path, favs_content)]
+        files = keep_favorites(files, favs_file)
     # An act filter narrows to videos whose recorded act matches; it needs the
     # metadata root to reach each sidecar, so without it the filter is a no-op.
     # Applied before ordering, so it holds under both Latest and Shuffle.

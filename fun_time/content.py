@@ -71,6 +71,10 @@ def genau_flick_noun() -> Noun:
     return Noun(one=words["one"], many=words["many"])
 
 
+def no_other_flicks() -> str:
+    return f"Including no other {genau_flick_noun().many}"
+
+
 @dataclass(frozen=True)
 class WebProvider:
     """A media provider's library-folder marker and gallery-URL template.

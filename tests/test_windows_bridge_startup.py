@@ -1168,6 +1168,19 @@ def test_the_launch_names_latest_only_for_a_session_left_browsing_it(tmp_path: P
     assert "--genau-latest" not in _launched_main_funestra(tmp_path, genau_latest=False)
 
 
+def test_the_launch_names_f_mode_only_for_a_session_left_in_it(tmp_path: Path):
+    assert "--genau-f-mode" in _launched_main_funestra(tmp_path, genau_f_mode=True)
+    assert "--genau-f-mode" not in _launched_main_funestra(tmp_path, genau_f_mode=False)
+
+
+def test_the_main_funestra_is_handed_the_favorites_and_where_its_notices_are_read(tmp_path: Path):
+    command = _launched_main_funestra(tmp_path, favs_file="a-library/favs.csv",
+                                      notice_file="a-state-dir/main_player_notice.txt")
+
+    assert command[command.index("--favs-file") + 1] == "a-library/favs.csv"
+    assert command[command.index("--notice-file") + 1] == "a-state-dir/main_player_notice.txt"
+
+
 def test_what_the_main_funestra_says_as_it_dies_importing_is_what_the_alert_quotes(tmp_path: Path):
     checkout = tmp_path / "a-fun-time-checkout"
     checkout.mkdir()

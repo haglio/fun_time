@@ -410,6 +410,9 @@ class TestRunStartupSequence:
             # Nothing to resume Genau onto: no status file from a session before.
             "genau_start_flick": "",
             "genau_latest": False,
+            "genau_f_mode": False,
+            "favs_file": str(cfg.paths.favs_file),
+            "notice_file": str(cfg.main_funestra_notice_file),
             # Where a press on the Main Funestra's volume control posts its command — the same
             # file the dashboard and each satellite's HUD write to.
             "dashboard_cmd_file": str(cfg.paths.state_dir / "dashboard_cmd.txt"),
@@ -552,6 +555,20 @@ class TestRunStartupSequence:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert stubs.launch_main_funestra.call_args.kwargs["genau_latest"] is True
+
+    def test_genau_is_launched_in_the_f_mode_it_was_left_in_over_the_rooms_favorites(
+            self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        write_shared_state(shared_state_path(tmp_path), BridgeState(genau_favorites_filter=True))
+
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        given = stubs.launch_main_funestra.call_args.kwargs
+        manifest = LaunchManifest.read(manifest_path)
+        assert given["genau_f_mode"] is True
+        assert given["favs_file"] == manifest.media.favs_file
+        assert given["notice_file"] == manifest.commands.main_funestra_notice_file
 
     def test_genau_is_launched_knowing_where_the_librarys_records_are(self, cfg_factory, tmp_path):
         records = tmp_path / "library" / "videos" / "metadata"

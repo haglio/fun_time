@@ -41,6 +41,7 @@ _.time_on_screen  # main_funestra.genau, off the engine
 _.manifest_fields  # fun_time_vr.orchestrator carries Genau's settings into the manifest
 from_manifest  # satellite.contract; fun_time_vr's Funestra and the sequencer
 top_block  # main_funestra.kino; funestra's Funestra heads its console with it
+_._browsed  # main_funestra.genau's Genau scans through the headset's own
 to_argv  # satellite.contract; the session's satellite launcher
 tcode_udp_host  # fun_time_vr/orchestrator.py
 tcode_udp_port  # fun_time_vr/orchestrator.py

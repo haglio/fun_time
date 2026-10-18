@@ -162,8 +162,7 @@ def _console_verbs() -> frozenset[str]:
         for row in console_rows(
             MainSlot(main_mode=mode, latest=False, plays_vr=plays_vr, plays_flat=plays_flat,
                      length_mode=length_mode, compilation=compilation, has_compilation=True,
-                     jump_to=jump_to, favorites_filter=False, enhanced_filter=False,
-                     has_osr2=has_osr2),
+                     jump_to=jump_to, has_osr2=has_osr2),
             in_vr=in_vr)
         for button in row
     )
@@ -190,9 +189,7 @@ def test_every_verb_the_console_posts_lands_on_a_handler():
     the verbs of the buttons Fun Time declares into this dispatcher.  Nothing
     held the two together once, which is how the flick-seconds pair came to
     post a verb this table had renamed away -- both buttons inert in genau
-    mode, and no test to say so (bug 19).  The enhanced-filter button was the
-    last one carried here as dormant, unanswered because no session had a
-    filter to narrow (bug 90)."""
+    mode, and no test to say so (bug 19)."""
     # Minimize is answered before the handler map, by name; browse and the
     # broker panel are the loop's own branches.
     answered = (_handler_ids() | _loop_branch_ids()

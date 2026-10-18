@@ -74,7 +74,7 @@ _EVERY_FACE_SLOTS = (
     MainSlot(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED, plays_vr=True, plays_flat=True,
              has_compilation=True, has_other_versions=True, jump_to="scene"),
     MainSlot(main_mode=MainMode.KINO, jump_to="clip"),
-    MainSlot(main_mode=MainMode.GENAU, latest=False, favorites_filter=False, enhanced_filter=False),
+    MainSlot(main_mode=MainMode.GENAU, latest=False),
 )
 
 
@@ -138,12 +138,7 @@ class TestTransport:
 
     def test_f_mode_is_the_main_funestras_own_and_lights_while_it_is_on(self):
         assert _button(MainSlot(main_mode=MainMode.KINO), "main_fmode").lit is False
-        assert _button(MainSlot(main_mode=MainMode.KINO, scripted_filter=True), "main_fmode").lit is True
-
-    def test_f_mode_is_not_offered_where_there_is_no_main_funestra_playlist(self):
-        """In genau mode the main slot is Genau's, and the playlist F-mode
-        narrows is not what is playing — the same reason nudge and record go."""
-        assert "main_fmode" not in _actions(MainSlot(main_mode=MainMode.GENAU))
+        assert _button(MainSlot(main_mode=MainMode.KINO, f_mode=True), "main_fmode").lit is True
 
     def test_genau_steps_its_own_flicks_and_can_mark_one_weird(self):
         actions = _actions(MainSlot(main_mode=MainMode.GENAU))
@@ -166,8 +161,7 @@ class TestTransport:
         """Nudge, flick and record act on a video; Genau's flicks are not one."""
         actions = _actions(MainSlot(main_mode=MainMode.GENAU))
 
-        for action in ("main_nudge_prev", "genaumacher_save",
-                       "main_player_record_tap", "main_fmode"):
+        for action in ("main_nudge_prev", "genaumacher_save", "main_player_record_tap"):
             assert action not in actions
 
     def test_genau_browses_its_flicks_from_the_same_button_kino_browses_its_library(self, pips):
@@ -191,56 +185,20 @@ class TestTransport:
                                              "it stays flipped")
 
 
-class TestFavoritesFilter:
-    """The other narrowing switch a genau-mode host can have: its favorites."""
-
-    def test_no_button_where_the_host_has_no_such_filter(self):
-        assert "main_fmode" not in _actions(MainSlot(main_mode=MainMode.GENAU))
-
-    def test_the_button_appears_once_a_host_says_it_has_one(self):
-        assert "main_fmode" in _actions(MainSlot(main_mode=MainMode.GENAU, favorites_filter=False))
-
-    def test_it_lights_while_the_filter_is_on(self):
-        off = _button(MainSlot(main_mode=MainMode.GENAU, favorites_filter=False), "main_fmode")
-        on = _button(MainSlot(main_mode=MainMode.GENAU, favorites_filter=True), "main_fmode")
+class TestGenausFMode:
+    def test_it_keeps_the_favorites_and_says_so(self):
+        off = _button(MainSlot(main_mode=MainMode.GENAU), "main_fmode")
+        on = _button(MainSlot(main_mode=MainMode.GENAU, f_mode=True), "main_fmode")
 
         assert (off.lit, on.lit) == (False, True)
-        assert on.favorite is True   # green: the favorites own it across the family
+        assert off.tooltip == "F-Mode — play only the favorites"
+        assert on.tooltip == "Showing the favorites only — press for all of them"
+        assert on.favorite is True
 
-    def test_it_leads_the_switches_where_it_leads_them_in_the_other_branch(self):
-        """F holds one place on this console whichever branch drew it, and the
-        rest of the narrowing switches group after it."""
-        actions = _actions(MainSlot(main_mode=MainMode.GENAU, favorites_filter=False, enhanced_filter=False))
-
-        assert actions.index("main_fmode") == actions.index("main_lock") + 1
-        assert actions.index("genau_filter_enhanced") == actions.index("main_fmode") + 1
-
-
-class TestEnhancedFilter:
-    """Origenerator's own narrowing switch: keep only the pictures it enhanced."""
-
-    def test_no_button_where_the_host_has_no_such_filter(self):
-        assert "genau_filter_enhanced" not in _actions(MainSlot(main_mode=MainMode.GENAU))
-        assert "genau_filter_enhanced" not in _actions(MainSlot(main_mode=MainMode.KINO))
-
-    def test_it_lights_and_says_which_way_the_press_goes(self):
-        off = _button(MainSlot(main_mode=MainMode.GENAU, enhanced_filter=False), "genau_filter_enhanced")
-        on = _button(MainSlot(main_mode=MainMode.GENAU, enhanced_filter=True), "genau_filter_enhanced")
-
-        assert (off.lit, on.lit) == (False, True)
-        assert "Show only" in off.tooltip
-        assert "press for all of them" in on.tooltip
-
-    def test_it_keeps_the_yellow_an_enhancement_is_marked_with(self):
-        button = _button(MainSlot(main_mode=MainMode.GENAU, enhanced_filter=True), "genau_filter_enhanced")
-
-        assert button.enhanced is True
-        assert button.favorite is False
-
-    def test_it_sits_with_the_switches_after_the_lock(self):
-        actions = _actions(MainSlot(main_mode=MainMode.GENAU, enhanced_filter=False))
-
-        assert actions.index("genau_filter_enhanced") == actions.index("main_lock") + 1
+    def test_it_holds_the_place_it_holds_in_kino_mode_straight_after_the_lock(self):
+        for mode in MainMode:
+            actions = _actions(MainSlot(main_mode=mode))
+            assert actions.index("main_fmode") == actions.index("main_lock") + 1, mode
 
 
 class TestReset:
@@ -254,7 +212,7 @@ class TestReset:
 
     def test_it_is_a_thing_done_rather_than_a_state_held(self):
         for scripted_filter in (False, True):
-            button = _button(MainSlot(main_mode=MainMode.KINO, scripted_filter=scripted_filter),
+            button = _button(MainSlot(main_mode=MainMode.KINO, f_mode=scripted_filter),
                              "main_reset")
             assert button.lit is False
             assert button.favorite is False
@@ -630,7 +588,7 @@ class TestState:
         assert colored == []
 
     def test_f_mode_keeps_the_green_the_other_switches_gave_up(self):
-        assert _button(MainSlot(main_mode=MainMode.KINO, scripted_filter=True), "main_fmode").favorite is True
+        assert _button(MainSlot(main_mode=MainMode.KINO, f_mode=True), "main_fmode").favorite is True
         assert _button(MainSlot(main_mode=MainMode.GENAU), "robot_hand_toggle_learned").favorite is False
 
     def test_the_record_button_tells_marking_from_looping(self):

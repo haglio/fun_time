@@ -37,11 +37,12 @@ from funestra.modes import LengthMode, LoopState, SatellitesMode
 from funestra.robot_hand import FULL_INTENSITY
 
 from main_funestra.controls import longer_than_a_step
+from main_funestra.genau_verbs import genau_f_mode
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .broker_control import write_broker_command
-from .content import genau_flick_noun, load_web_providers
+from .content import load_web_providers, no_other_flicks
 from .crown import CROWNS, Crown
 from .dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
 from .event_log import (
@@ -969,7 +970,7 @@ _FUNESTRA_NOTICE_SOURCE = {
 
 def _funestra_f_mode(state: BridgeState, config: BridgeConfig, funestra: RoomFunestra) -> bool | None:
     if funestra is RoomFunestra.MAIN:
-        return state.main_scripted_filter
+        return state.main_scripted_filter if kino_shows(state.main_mode) else state.genau_favorites_filter
     if hosts(funestra, state, config):
         return show_f_mode(config.satellite(funestra))
     return state.satellite(funestra).favorites_filter
@@ -978,9 +979,18 @@ def _funestra_f_mode(state: BridgeState, config: BridgeConfig, funestra: RoomFun
 def _with_f_mode(state: BridgeState, funestras: tuple[RoomFunestra, ...], enabled: bool) -> BridgeState:
     """*state* with each of *Funestras* put into F-mode, or out of it."""
     for funestra in funestras:
-        state = (replace(state, main_scripted_filter=enabled) if funestra is RoomFunestra.MAIN
-                 else state.with_satellite(funestra, favorites_filter=enabled))
+        if funestra is not RoomFunestra.MAIN:
+            state = state.with_satellite(funestra, favorites_filter=enabled)
+        elif kino_shows(state.main_mode):
+            state = replace(state, main_scripted_filter=enabled)
+        else:
+            state = replace(state, genau_favorites_filter=enabled)
     return state
+
+
+def _genau_among(funestras: tuple[RoomFunestra, ...], state: BridgeState) -> tuple[RoomFunestra, ...]:
+    return () if kino_shows(state.main_mode) else tuple(
+        funestra for funestra in funestras if funestra is RoomFunestra.MAIN)
 
 
 def every_funestra_in_f_mode(state: BridgeState, config: BridgeConfig,
@@ -1023,8 +1033,11 @@ def _dispatch_fmode(
     changed = tuple(funestra for funestra in funestras
                     if funestra not in hosted and _funestra_f_mode(state, config, funestra) != enabled)
     _set_the_hosted_shows_f_mode(hosted, enabled, config)
+    genau = _genau_among(changed, state)
+    if genau:
+        append_command(config.main_funestra_cmd_file, genau_f_mode(enabled))
     result = apply_fmode(
-        funestras=changed,
+        funestras=tuple(funestra for funestra in changed if funestra not in genau),
         enabled=enabled,
         main_list=config.main_list,
         main_settings=MainListSettings.of(state),
@@ -1046,7 +1059,7 @@ def _dispatch_fmode(
     )
     if result.funestras:
         logger.info(result.log_message)
-    state = _with_f_mode(state, result.funestras, enabled)
+    state = _with_f_mode(state, (*result.funestras, *genau), enabled)
     # A rebuilt satellite got a new queue, which drops its lock, its group loop and
     # the widened seed row that rode on the loop — the same as any other rebuild.
     for funestra in RoomFunestra.SATELLITES:
@@ -1154,8 +1167,7 @@ def _dispatch_main_projection(
     if on_main_funestra:
         return state, ops
     return state, [*ops, WindowOp(
-        op="notice", key=f"Including no other {genau_flick_noun().many}",
-        source=SOURCE_MAIN, level=logging.WARNING)]
+        op="notice", key=no_other_flicks(), source=SOURCE_MAIN, level=logging.WARNING)]
 
 
 def _narrow_the_main_funestra(
@@ -1678,6 +1690,8 @@ def _main_lock(verb: str, state: BridgeState, config: BridgeConfig,
     if kino_shows(state.main_mode):
         append_command(config.main_funestra_cmd_file, verb)
         return state, []
+    if _locks_genau(verb, config):
+        ensure_in_favs(config.favs_file, read_genau_status(config.genau_status_file).flick)
     return _lock_genau(verb, state, config)
 
 
@@ -1855,6 +1869,7 @@ def _speed(main_funestra_cmd: str | None, genau_cmd: str | None, by_driver: bool
 
 def _mark_genaus_flick_weird(state: BridgeState, config: BridgeConfig,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    remove_from_favs(config.favs_file, read_genau_status(config.genau_status_file).flick)
     append_command(config.genau_cmd_file, "WEIRD")
     return state, [WindowOp(op="notice", key=MARKED_WEIRD, source=SOURCE_MAIN)]
 
@@ -1868,14 +1883,6 @@ def _save_clip(state: BridgeState, _config: BridgeConfig,
     if state.main_mode == MAIN_GENAU_MODE:
         return _ignored(state, _IN_GENAU_MODE)
     return state, [WindowOp(op="save_clip")]
-
-
-def _filter_the_shows_enhanced(state: BridgeState, config: BridgeConfig,
-                               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if not hosts_a_satellite(state, config):
-        return state, []
-    append_command(config.origenerator_cmd_file, "FILTER_ENHANCED")
-    return state, []
 
 
 def _words_for_a_show_that_is_not_up(state: BridgeState, _config: BridgeConfig,
@@ -1988,7 +1995,6 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, funestra in TAKE_OSR2_COMMANDS.items()})
     handlers["genaumacher_save"] = _save_clip
     handlers["genau_weird_flick"] = _mark_genaus_flick_weird
-    handlers["genau_filter_enhanced"] = _filter_the_shows_enhanced
     handlers.update({cmd: _words_for_a_show_that_is_not_up
                      for cmd in _ORIGENERATOR_SPEECH if cmd not in handlers})
     return handlers

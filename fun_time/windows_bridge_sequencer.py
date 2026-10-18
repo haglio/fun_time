@@ -41,7 +41,7 @@ from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
-from .shared_state import read_shared_state, shared_state_path
+from .shared_state import BridgeState, read_shared_state, shared_state_path
 from .shortcuts import resolve_shortcut
 from .win32 import (
     find_windows_by_class,
@@ -406,8 +406,7 @@ def _launch_the_main_funestra(
     # file: the flick it was left showing, and whether it was browsing Latest off
     # the state the core session just resumed.
     genau_flick = read_genau_status(Path(m.commands.genau_status_file)).flick
-    state = read_shared_state(shared_state_path(state_dir))
-    genau_latest = False if state is None else state.genau_latest
+    state = read_shared_state(shared_state_path(state_dir)) or BridgeState()
     # The Main Funestra's status file is how startup learns the Main Funestra has finished loading, and it
     # can only say that once last session's copy is gone.  start_core_session
     # read that one already, to resume the Main Funestra onto the video it names, so this is
@@ -441,7 +440,10 @@ def _launch_the_main_funestra(
         flicks_dir=m.media.genau_flicks,
         metadata_dir=regen_metadata_raw or None,
         genau_start_flick=genau_flick,
-        genau_latest=genau_latest,
+        genau_latest=state.genau_latest,
+        genau_f_mode=state.genau_favorites_filter,
+        favs_file=m.media.favs_file,
+        notice_file=m.commands.main_funestra_notice_file,
         sibling_checkouts=sibling_checkouts,
     )
     launched.pids.append(main_funestra_pid)

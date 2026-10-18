@@ -447,6 +447,7 @@ F-Mode is **per Funestra** — the Main Funestra, portrait and landscape each ha
 
 - the main playlist (the Main Funestra) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
 - each satellite plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
+- Genau, which has the main slot in Genau mode, keeps only the flicks listed in `favs.csv` — a lock on Genau puts its flick there, as a satellite's lock does — and is told over `SET_GENAU_F_MODE`, since it rescans its own folder rather than playing a list; its F-Mode is its own, apart from the Main Funestra's, the way its browse order is
 
 Every Funestra carries its own F button in the first row of icons on its own HUD (the satellites' control band, the main console's transport row), with that Funestra's reset button just past it. The dashboard's F button, the `F` key and the spoken "all f mode" reach all three at once — they turn F-Mode **on** unless every Funestra is already in it, so the whole-room gesture can never leave half the room narrowed. In Origenerator mode the portrait and Landscape Funestras' part of it is each slideshow's own F-Mode switch, and the dashboard's F button lights off those. A bare spoken "f mode" reaches the Funestra last addressed, and naming a Funestra narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "both f mode off" — either word order, and `both` means the two satellites. A satellite also takes its side's "favorites" — "portrait favorites", "landscape favorites" — as its F-Mode, the word Origenerator's shows answer with their own F-Mode switch in Origenerator mode.
 
@@ -617,8 +618,7 @@ side, exactly as it was said (`portrait_next`, `landscape_lock`,
 them — plus `portrait_open_slideshow` / `landscape_open_slideshow` (that Funestra
 entering its Origenerator mode, which fills it with its base state),
 `portrait_close_slideshow` / `landscape_close_slideshow`, `CLOSE_SLIDESHOWS` (a crossing
-parking the app, which lets go of both), `FILTER_ENHANCED` (the console's
-enhanced-only switch), `QUIT` and `RELEASE`, `PORTRAIT_SAY:<phrase>` for a
+parking the app, which lets go of both), `QUIT` and `RELEASE`, `PORTRAIT_SAY:<phrase>` for a
 spoken command the session heard about one side, and `GO_TO|<flick>` once Genau
 has locked on a flick, which takes the gallery to that flick when the app made
 it. The paused flag freezes its shows for OmniPause. The status file says only

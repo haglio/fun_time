@@ -10,10 +10,14 @@ from pathlib import Path
 import numpy as np
 from funestra.console_hud import ModeHud
 from funestra.funestra import User
+from funestra.modes import NoticeLevel
 
 from fun_time import genau_engine
+from fun_time.content import Noun
 from fun_time.genau_config import GenauSettings
+from fun_time.media_actions import ensure_in_favs
 from main_funestra.genau import Genau, GenauChannels
+from main_funestra.genau_verbs import genau_f_mode
 
 
 class FakeSink:
@@ -42,6 +46,14 @@ class FakeNotifier:
 
     def close(self) -> None:
         self.closed = True
+
+
+class FakeNotices:
+    def __init__(self) -> None:
+        self.said: list[tuple[str, NoticeLevel]] = []
+
+    def say(self, message: str, *, level: NoticeLevel) -> None:
+        self.said.append((message, level))
 
 
 class Clock:
@@ -79,7 +91,9 @@ class _CondemningInTheBackground:
 
 class World:
     def __init__(self, tmp_path: Path, *, flicks=("alpha one.mp4", "beta two.mp4", "gamma three.mp4"),
-                 start_flick=None, latest=False, metadata_root=None, start_thread=_run_now) -> None:
+                 favorites=(), f_mode=False, start_flick=None, latest=False, metadata_root=None,
+                 start_thread=_run_now) -> None:
+        self.favs_file = tmp_path / "favs.csv"
         self.flicks_folder = tmp_path / "flicks"
         self.flat_dir = self.flicks_folder / "2D" / "non_AI"
         self.flat_dir.mkdir(parents=True)
@@ -87,6 +101,8 @@ class World:
             flick = self.flat_dir / name
             flick.write_bytes(b"flick")
             os.utime(flick, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
+        for name in favorites:
+            ensure_in_favs(self.favs_file, str(self.flat_dir / name))
         state = tmp_path / "state"
         state.mkdir()
         self.channels = GenauChannels(
@@ -94,15 +110,19 @@ class World:
             status=state / "genau_status.txt", drive=state / "genau_drive.txt")
         self.sink = FakeSink()
         self.notifier = FakeNotifier()
+        self.notices = FakeNotices()
         self.clock = Clock()
         self.genau = Genau(
             flicks_folder=self.flicks_folder,
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
             notifier=self.notifier,
+            notices=self.notices,
             tcode_sink=self.sink,
             start_flick=start_flick,
             latest=latest,
+            favs_file=self.favs_file,
+            f_mode=f_mode,
             metadata_root=metadata_root,
             decode=lambda _path: _frames(),
             start_thread=start_thread,
@@ -204,6 +224,65 @@ class TestTheFlickOnScreen:
         world.send("LATEST")
 
         assert world.genau.top_block() == ModeHud(video="delta four")
+
+
+class TestFMode:
+    def test_it_keeps_only_the_favorites(self, tmp_path):
+        world = World(tmp_path)
+        ensure_in_favs(world.favs_file, str(world.flat_dir / "gamma three.mp4"))
+
+        assert world.genau.apply_command(genau_f_mode(True)) is True
+        world.send("NEXT")
+
+        assert world.genau.top_block().video == "gamma three"
+
+    def test_off_it_brings_every_flick_back_and_keeps_the_one_on_screen(self, tmp_path):
+        world = World(tmp_path)
+        ensure_in_favs(world.favs_file, str(world.flat_dir / "gamma three.mp4"))
+        world.genau.apply_command(genau_f_mode(True))
+
+        world.genau.apply_command(genau_f_mode(False))
+        assert world.genau.top_block().video == "gamma three"
+        world.send("NEXT")
+
+        assert world.genau.top_block().video == "alpha one"
+
+    def test_the_status_line_says_f_mode_while_it_is_on(self, tmp_path):
+        world = World(tmp_path)
+        ensure_in_favs(world.favs_file, str(world.flat_dir / "gamma three.mp4"))
+
+        world.genau.apply_command(genau_f_mode(True))
+
+        assert world.genau.top_block() == ModeHud(video="gamma three", scripted_filter=True)
+
+    def test_with_no_favorites_it_holds_the_flick_on_screen_and_says_no_other_is_included(
+            self, tmp_path, monkeypatch):
+        monkeypatch.setattr("fun_time.content.genau_flick_noun", lambda: Noun(one="pip", many="pips"))
+        world = World(tmp_path)
+        world.send("LOCK_OFF")
+
+        world.genau.apply_command(genau_f_mode(True))
+        world.tick()
+
+        assert world.genau.top_block().video == "alpha one"
+        assert world.status()["locked"] == "1"
+        assert world.notices.said == [("Including no other pips", NoticeLevel.WARNING)]
+
+    def test_it_opens_in_f_mode_when_the_room_kept_it_on(self, tmp_path):
+        world = World(tmp_path, favorites=("beta two.mp4",), f_mode=True)
+
+        assert world.genau.top_block() == ModeHud(video="beta two", scripted_filter=True)
+
+    def test_opening_in_f_mode_with_no_favorites_holds_the_first_flick_and_says_so(
+            self, tmp_path, monkeypatch):
+        monkeypatch.setattr("fun_time.content.genau_flick_noun", lambda: Noun(one="pip", many="pips"))
+
+        world = World(tmp_path, f_mode=True)
+        world.tick()
+
+        assert world.genau.top_block().video == "alpha one"
+        assert world.status()["locked"] == "1"
+        assert world.notices.said == [("Including no other pips", NoticeLevel.WARNING)]
 
 
 class TestItsPicture:

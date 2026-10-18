@@ -54,6 +54,7 @@ class MainSlotInputs:
     hud_minimized: bool = False
     genau_pace_s: int = 0
     scripted_filter: bool = False
+    genau_favorites_filter: bool = False
     latest: bool = False
     genau_latest: bool = False
     plays_vr: bool | None = None
@@ -76,7 +77,7 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
     slot = MainSlot(
         main_mode=inputs.main_mode,
         locked=main_funestra.locked if video else genau.locked,
-        scripted_filter=inputs.scripted_filter,
+        f_mode=inputs.scripted_filter if video else inputs.genau_favorites_filter,
         latest=inputs.latest if video else inputs.genau_latest,
         loop_state=main_funestra.loop_state,
         learned=genau.learned_active,

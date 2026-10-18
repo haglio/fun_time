@@ -156,6 +156,7 @@ class HudFeed:
             hud_minimized=state.main_hud_minimized,
             active=state.active_funestra == RoomFunestra.MAIN,
             scripted_filter=state.main_scripted_filter,
+            genau_favorites_filter=state.genau_favorites_filter,
             latest=state.main_latest,
             genau_latest=state.genau_latest,
             plays_vr=main_shapes.plays_vr if main_shapes.offered else None,

@@ -35,6 +35,7 @@ from fun_time.session_resume import (
     resume_what_lives_in_a_funestra,
 )
 from fun_time.shared_state import BridgeState, SatelliteState, read_shared_state, write_shared_state
+from main_funestra.genau_verbs import VERBS as GENAUS_VERBS_ON_THE_MAIN_FUNESTRA
 from tests.made_up_state import remembered_values, shifted_state
 
 
@@ -684,10 +685,19 @@ class TestResumeGenau:
                   for line in genau_cmd.read_text(encoding="utf-8").splitlines()}
         assert {self._KEPT_IN_THE_ROOMS_STATE[control] for control in resent} == {
             name for name in RESUMED_FIELDS if name.startswith("genau_")
-            and name not in ("genau_latest", "genau_plays_vr", "genau_plays_flat")}
+            and name not in ("genau_latest", "genau_plays_vr", "genau_plays_flat",
+                             "genau_favorites_filter")}
 
     def test_what_the_rooms_state_keeps_for_genau_is_remembered(self):
         assert set(self._KEPT_IN_THE_ROOMS_STATE.values()) <= set(RESUMED_FIELDS)
+
+    _KEPT_FOR_ITS_LAUNCH = {"f_mode": "genau_favorites_filter"}
+
+    def test_every_verb_genau_answers_on_the_main_funestras_channel_comes_back_at_its_launch(self):
+        controls = {control.name for control, _ in GENAUS_VERBS_ON_THE_MAIN_FUNESTRA.values()}
+
+        assert controls == set(self._KEPT_FOR_ITS_LAUNCH)
+        assert set(self._KEPT_FOR_ITS_LAUNCH.values()) <= set(RESUMED_FIELDS)
 
 
 class TestOpeningTheMainList:
