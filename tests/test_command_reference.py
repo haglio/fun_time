@@ -544,10 +544,11 @@ def test_loop_control_row_consolidates_record_and_cancel():
     assert "R" in _keys(row)
     assert "record" in row.voice
     assert "loop" in row.voice
-    # Record and cancel are one row.  The cancel's phrase, "end loop", is no longer
-    # this row's own: it is the side-agnostic phrase, and reaches the Main Funestra's loop through
-    # the active-side resolution whenever the Main Funestra is the Funestra last addressed.
+    # Record and cancel are one row.  The bare "end loop" is not this row's own: it
+    # reaches the Main Funestra's loop only when that is the Funestra last addressed.
     assert "main_player_loop_cancel" in row.commands
+    assert {"main end loop", "end loop main"} <= set(row.voice)
+    assert "end loop" not in row.voice
 
 
 def test_previous_shape_is_a_separate_keyless_line():

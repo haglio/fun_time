@@ -18,7 +18,7 @@ from types import MappingProxyType
 
 from fun_time.filter_vocab import filter_voice_commands
 
-from .aiming import named_first_or_last
+from .aiming import named_first_or_last, on_the_main_funestra
 from .content import Noun, genau_flick_noun, load_content
 from .crown import Crown
 
@@ -249,12 +249,13 @@ def build_voice_commands(
         commands[_ref_phrase] = "help_reference"
         commands[f"close {_ref_phrase}"] = "help_reference_close"
 
-    # Satellite commands form a uniform, order-agnostic grid.  Each action
-    # works BARE — driving the "active side", whichever satellite was most
-    # recently addressed — or with a side word (portrait / landscape / both)
-    # in EITHER order, and "both …" drives the pair (the dispatch loop expands
-    # it).  Cycle siblings with "action" (same subject(s)+scene, another act)
-    # or "seed" (same config, another subject).
+    def _bare_or_named(words: str, action: str) -> None:
+        commands[words] = f"active_{action}"
+        for side in ("portrait", "landscape", "both"):
+            commands.update(named_first_or_last(side, words, f"{side}_{action}"))
+        if (on_the_main := on_the_main_funestra(action)) is not None:
+            commands.update(named_first_or_last("main", words, on_the_main))
+
     _SATELLITE_ACTIONS: dict[str, str] = {
         "lock": "lock_on",
         "unlock": "lock_off",
@@ -283,9 +284,7 @@ def build_voice_commands(
         "shuffle": "shuffle",
     }
     for _act_word, _act in _SATELLITE_ACTIONS.items():
-        commands[_act_word] = f"active_{_act}"
-        for _side in ("portrait", "landscape", "both"):
-            commands.update(named_first_or_last(_side, _act_word, f"{_side}_{_act}"))
+        _bare_or_named(_act_word, _act)
 
     # The bare word is the Main Funestra's own version axis above.
     for _funestra_word, _command in (("portrait", "portrait_cycle_version"),
@@ -315,8 +314,9 @@ def build_voice_commands(
         # "more seeds" / "widen (the) net" widens cycle-seed's reach on demand until
         # it finds another subject doing the same act.
         "more_seeds": ("more seeds", "widen net", "widen the net"),
-        # "no loop" / "loop off" ends any group loop, back to the browse.
-        "no_loop": ("no loop", "loop off"),
+        # "end loop" / "no loop" / "loop off" ends the loop, whichever kind the
+        # Funestra has.
+        "no_loop": ("end loop", "no loop", "loop off"),
         # "no filter" drops just the filter, where "reset" puts the whole side back
         # to its defaults (lock, order, loop and all); "clear filter" and "show
         # everything" are the same gesture said another way, scoped like the grid.
@@ -330,17 +330,7 @@ def build_voice_commands(
     }
     for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
         for _group_word in _group_words:
-            commands[_group_word] = f"active_{_group_act}"
-            for _side in ("portrait", "landscape", "both"):
-                commands.update(named_first_or_last(_side, _group_word, f"{_side}_{_group_act}"))
-
-    # "end loop" is side-agnostic like the rest of the grid: bare, it reaches the
-    # Funestra last addressed and means that Funestra's own kind of loop — the dispatch
-    # loop resolves ``active_no_loop`` to the Main Funestra's A-B loop cancel on the Main Funestra, and to
-    # a satellite's group loop on portrait/landscape.
-    commands["end loop"] = "active_no_loop"
-    for _side in ("portrait", "landscape", "both"):
-        commands.update(named_first_or_last(_side, "end loop", f"{_side}_no_loop"))
+            _bare_or_named(_group_word, _group_act)
 
     # Every cycle axis is sayable by its bare word — the satellite ones from the grid
     # above, the Main Funestra's "version" from the literal map — and each also takes an explicit
@@ -357,46 +347,19 @@ def build_voice_commands(
         for _cycle_verb in ("cycle", "next", "change"):
             commands[f"{_cycle_verb} {_axis_word}"] = _axis_cmd
 
-    # The main (the Main Funestra) Funestra joins the grid for navigation, its lock and reset —
-    # "main next" / "next main" (either order) — since it has no weird, and its one
-    # cycle axis is "version" above rather than the satellites' action/seed.  It is
-    # only ever "main": in this room "primary" names a monitor, and one word cannot
-    # be both a screen and a Funestra.  Bare "next"/"previous"/"lock"/"unlock" also
-    # reach it whenever it was the last Funestra addressed.  Lock and reset mean what
-    # they mean on a satellite — hold what is on screen, and drop whatever is
-    # narrowing the browse.
-    _MAIN_ACTIONS = {"next": "next", "previous": "prev",
-                     "skip": "nudge_next", "back": "nudge_prev",
-                     "lock": "lock_on", "unlock": "lock_off",
-                     # Its own command rather than a bare "length mixed" forward:
-                     # F-mode is half of what narrows the Main Funestra, and that flag
-                     # is the orchestrator's, not the Main Funestra's.
-                     "reset": "reset",
-                     # The two browse orderings, the satellites' own: "latest" reloads
-                     # newest-first and "shuffle" reshuffles, each rescanning the
-                     # library so a video that arrived since is picked up.  The main
-                     # Funestra had only the shuffle, so a fresh clip sat somewhere in a
-                     # thousand with no way to ask for it.
-                     "latest": "latest", "shuffle": "shuffle"}
-    for _action_word, _action in _MAIN_ACTIONS.items():
-        commands.update(named_first_or_last("main", _action_word, f"main_{_action}"))
-
     # F-mode, per Funestra, sayable in either order like the rest of the grid:
     # "both" drives the satellites, "main" the Main Funestra, "all" every one --
     # the F key.  Bare it reaches the Funestra last addressed, as bare "lock" and
     # "next" do; reading it as the whole room made a spoken "f mode" answer
-    # "enabled" on a room that already looked narrowed.  ``_FMODE_PHRASES``
-    # pairs each phrase with its per-player suffix and all-players command.
+    # "enabled" on a room that already looked narrowed.
     _FMODE_PHRASES: dict[str, tuple[str, str]] = {
         "f mode": ("fmode", "fmode_toggle"),
         "f mode on": ("fmode_on", "fmode_on"),
         "f mode off": ("fmode_off", "fmode_off"),
     }
     for _fmode_word, (_fmode_act, _fmode_all) in _FMODE_PHRASES.items():
-        commands[_fmode_word] = f"active_{_fmode_act}"
-        for _side in ("portrait", "landscape", "both", "main", "all"):
-            _sided = _fmode_all if _side == "all" else f"{_side}_{_fmode_act}"
-            commands.update(named_first_or_last(_side, _fmode_word, _sided))
+        _bare_or_named(_fmode_word, _fmode_act)
+        commands.update(named_first_or_last("all", _fmode_word, _fmode_all))
     commands.update(named_first_or_last("all", "reset", "all_reset"))
 
     # Mode-named navigation: a mode's name + next/previous (either order) navigates
@@ -491,20 +454,16 @@ def build_voice_commands(
             ("one point seven five", 175), ("two", 200))},
     }
     for _phrase, _act in _PLAYBACK_SPEEDS.items():
-        commands[_phrase] = f"active_{_act}"
-        for _side, _funestra in (("portrait", "portrait"), ("landscape", "landscape"),
-                              ("both", "both"), ("main", "main_player")):
-            commands.update(named_first_or_last(_side, _phrase, f"{_funestra}_{_act}"))
+        _bare_or_named(_phrase, _act)
 
 
     for _verb, _act in (("minimize", "hud_minimize"), ("collapse", "hud_minimize"),
                         ("restore", "hud_restore"), ("maximize", "hud_restore"),
                         ("expand", "hud_restore")):
-        commands[f"{_verb} hud"] = commands[f"hud {_verb}"] = f"active_{_act}"
+        for _words in (f"{_verb} hud", f"hud {_verb}"):
+            _bare_or_named(_words, _act)
         for _side in ("portrait", "landscape", "both", "main"):
-            commands[f"{_verb} {_side} hud"] = f"{_side}_{_act}"
-            for _words in (f"{_verb} hud", f"hud {_verb}"):
-                commands.update(named_first_or_last(_side, _words, f"{_side}_{_act}"))
+            commands[f"{_verb} {_side} hud"] = commands[f"{_side} {_verb} hud"]
 
     for _side in ("portrait", "landscape"):
         commands.update(named_first_or_last(_side, FAVORITES_PHRASE,
