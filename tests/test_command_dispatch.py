@@ -1082,16 +1082,6 @@ def test_naming_a_funestras_playback_speed_makes_it_the_active_one(tmp_path: Pat
     assert new_state.active_funestra == 2
 
 
-def test_nudge_and_mode_commands_leave_active_funestra_unchanged(tmp_path: Path):
-    """Only next/prev nav marks the active Funestra: nudges, mode, and genau
-    commands must not disturb the remembered Funestra."""
-    config = _make_config(tmp_path)
-
-    for command in ("main_nudge_next", "main_nudge_prev", "main_kino_activate"):
-        new_state, _ops = dispatch_command(command, _make_state(active_funestra=3), config)
-        assert new_state.active_funestra == 3, command
-
-
 # --- the crown ---
 
 
@@ -1110,13 +1100,6 @@ def test_crowning_the_main_funestra_takes_the_crown_back_from_the_portrait_funes
     assert new_state.crowned is Crown.MAIN
 
 
-def test_crowning_the_portrait_funestra_leaves_bare_commands_where_they_were(tmp_path: Path):
-    new_state, _ops = dispatch_command(
-        "portrait_crown", _make_state(active_funestra=RoomFunestra.MAIN), _make_config(tmp_path))
-
-    assert new_state.active_funestra == RoomFunestra.MAIN
-
-
 # --- the HUD's own minimize button ---
 
 
@@ -1130,7 +1113,7 @@ def test_minimize_parks_that_funestras_window(tmp_path: Path):
     new_state, ops = dispatch_command("portrait_minimize", state, config)
 
     assert ops == [WindowOp(op="minimize_role", key="portrait")]
-    assert new_state == state
+    assert new_state.satellite(RoomFunestra.PORTRAIT) == state.satellite(RoomFunestra.PORTRAIT)
     assert _cmds(config, 2) == []
 
 
@@ -1151,17 +1134,6 @@ def test_the_main_funestras_button_parks_its_window_in_either_mode(tmp_path: Pat
         _state, ops = dispatch_command(
             "main_minimize", _make_state(main_mode=mode), config)
         assert ops == [WindowOp(op="minimize_role", key="main_player")], mode
-
-
-def test_minimizing_a_funestra_does_not_make_it_the_active_funestra(tmp_path: Path):
-    """Every other "<Funestra>_" command marks that Funestra active, and this one must not:
-    a bare "lock" or "next" after it would go to the Funestra just taken off the
-    screen, which is the one place the words cannot be seen to land."""
-    config = _make_config(tmp_path)
-
-    for command in ("portrait_minimize", "landscape_minimize"):
-        new_state, _ops = dispatch_command(command, _make_state(active_funestra=1), config)
-        assert new_state.active_funestra == 1, command
 
 
 # --- quarter_button ---
@@ -3075,7 +3047,8 @@ def test_every_genau_command_is_ignored_with_video_in_the_main_funestra(
     new_state, ops = dispatch_command(command, state, config)
 
     assert not config.genau_cmd_file.exists()
-    assert (new_state, ops) == (state, [WindowOp(op=Op.IGNORED, key="in Kino mode")])
+    assert (new_state, ops) == (replace(state, active_funestra=RoomFunestra.MAIN),
+                                [WindowOp(op=Op.IGNORED, key="in Kino mode")])
 
 
 @pytest.mark.parametrize(("command", "verb"), [
@@ -5290,18 +5263,31 @@ class TestMinimizingAHud:
                 == "landscape_hud_minimize")
 
 
-class TestAddressingAFunestrasHud:
-    """Its HUD named -- said, keyed or clicked -- is that Funestra addressed, so a
-    bare phrase after it reaches the same Funestra."""
+class TestNamingAFunestraAddressesIt:
+    """Whatever is said, keyed or clicked that names a Funestra makes it the one a
+    bare phrase reaches next -- its HUD, its window's minimize, its crown and every
+    Main Funestra and Genau control included."""
 
     @pytest.mark.parametrize(("command", "funestra"), [
         ("portrait_hud_minimize", RoomFunestra.PORTRAIT),
         ("landscape_hud_restore", RoomFunestra.LANDSCAPE),
         ("portrait_hud_left", RoomFunestra.PORTRAIT),
         ("landscape_hud_restore_at|lower_left", RoomFunestra.LANDSCAPE),
+        ("portrait_minimize", RoomFunestra.PORTRAIT),
+        ("landscape_minimize", RoomFunestra.LANDSCAPE),
+        ("portrait_crown", RoomFunestra.PORTRAIT),
         ("main_hud_minimize", RoomFunestra.MAIN),
         ("main_hud_clockwise", RoomFunestra.MAIN),
         ("main_hud_restore_at|upper_right", RoomFunestra.MAIN),
+        ("main_minimize", RoomFunestra.MAIN),
+        ("main_crown", RoomFunestra.MAIN),
+        ("main_nudge_next", RoomFunestra.MAIN),
+        ("main_nudge_prev", RoomFunestra.MAIN),
+        ("main_latest", RoomFunestra.MAIN),
+        ("main_shuffle", RoomFunestra.MAIN),
+        ("main_kino_activate", RoomFunestra.MAIN),
+        ("main_player_cycle_version", RoomFunestra.MAIN),
+        ("genau_next_flick", RoomFunestra.MAIN),
     ])
     def test_it_becomes_the_funestra_a_bare_phrase_reaches(self, tmp_path, command, funestra):
         before = RoomFunestra.LANDSCAPE if funestra is RoomFunestra.MAIN else RoomFunestra.MAIN
@@ -5311,9 +5297,10 @@ class TestAddressingAFunestrasHud:
 
         assert state.active_funestra == funestra
 
-    def test_it_leaves_that_funestras_map_where_it_was(self, tmp_path):
+    @pytest.mark.parametrize("command", ["portrait_hud_minimize", "portrait_minimize"])
+    def test_it_ends_keyboard_navigation_of_that_funestras_map(self, tmp_path, command):
         state = _make_state().with_satellite(RoomFunestra.PORTRAIT, nav_anchor="alpha.mp4")
 
-        state, _ops = dispatch_command("portrait_hud_minimize", state, _make_config(tmp_path))
+        state, _ops = dispatch_command(command, state, _make_config(tmp_path))
 
-        assert state.satellite(RoomFunestra.PORTRAIT).nav_anchor == "alpha.mp4"
+        assert state.satellite(RoomFunestra.PORTRAIT).nav_anchor == ""

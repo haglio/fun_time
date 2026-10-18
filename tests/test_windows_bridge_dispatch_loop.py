@@ -1366,7 +1366,7 @@ class TestWhatASpokenCommandFlashes:
         flashed = self._run_for_real(
             tmp_path, "main_player_compilation", "compilation", main_mode=MainMode.GENAU)
 
-        assert flashed == [("ignored in Genau mode: compilation", "system", logging.WARNING)]
+        assert flashed == [("ignored in Genau mode: compilation", "main", logging.WARNING)]
 
     def test_a_clip_save_with_no_main_funestra_to_save_from_says_genau_mode_ignored_it(
         self, tmp_path,
@@ -1397,7 +1397,7 @@ class TestWhatASpokenCommandFlashes:
             tmp_path, "main_player_compilation", "compilation",
             config=make_config(tmp_path, vr_main_funestra=True), main_mode=MainMode.KINO)
 
-        assert flashed == [("compilation", "system", 25)]
+        assert flashed == [("compilation", "main", 25)]
 
     @pytest.mark.parametrize("command", [
         "main_player_compilation", "main_player_full_vid", "main_player_clip_jump",
