@@ -81,7 +81,7 @@ from .origenerator_switches import (
     RfbSlot,
     origenerator_shows,
 )
-from .osr2_section import TAKE_OSR2_COMMANDS, funestra_with_the_osr2, take_osr2_command
+from .osr2_section import TAKE_OSR2_COMMANDS, funestra_with_the_osr2
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .room_funestras import RoomFunestra
@@ -678,31 +678,21 @@ _MAIN_FUNESTRA_RESET_VERBS = (
     _NORMAL_SPEED,
 )
 
-# What makes the Main Funestra the one a later bare command reaches: navigating it,
-# locking it, or naming its F-mode.  The satellites' own keys select a side the
-# same way, and every ``portrait_``/``landscape_`` command does it by prefix — so
-# without the F-mode forms here, "main f mode" would be the one way of
-# addressing a Funestra that did not leave it addressed.
-_MAIN_SELECTING_COMMANDS = frozenset(
-    {"main_next", "main_prev", MAIN_RESET, "main_player_lock", "genau_lock",
-     take_osr2_command(RoomFunestra.MAIN)}
-    | set(_MAIN_LOCK_COMMANDS)
-    | {f"main_fmode{suffix}" for suffix in ("", "_on", "_off")}
-)
+_NAMED_BY = {"portrait_": RoomFunestra.PORTRAIT, "landscape_": RoomFunestra.LANDSCAPE,
+             "main_": RoomFunestra.MAIN, "genau_": RoomFunestra.MAIN}
 
 
 def command_funestra(command: str) -> RoomFunestra | None:
     """The Funestra a command addresses, or None if it addresses no Funestra."""
-    if command in CROWNS:
-        return None
-    if command.startswith("portrait_"):
-        return RoomFunestra.PORTRAIT
-    if command.startswith("landscape_"):
-        return RoomFunestra.LANDSCAPE
-    if command in _MAIN_SELECTING_COMMANDS or command.startswith(("main_player_speed_",
-                                                                  "main_hud_")):
-        return RoomFunestra.MAIN
-    return None
+    return next((funestra for prefix, funestra in _NAMED_BY.items()
+                 if command.startswith(prefix)), None)
+
+
+def _addressed(funestra: RoomFunestra, command: str, state: BridgeState) -> BridgeState:
+    state = replace(state, active_funestra=funestra)
+    if funestra is RoomFunestra.MAIN or _is_hud_nav_command(command):
+        return state
+    return state.with_satellite(funestra, nav_anchor="")
 
 
 def notice_source(command: str, active_funestra: int | None) -> str:
@@ -720,9 +710,7 @@ def _answered_ahead_of_the_handlers(
         return state, minimize_ops
     placed = (_moved_hud(command, state, config) or _collapsed_hud(command, state, config)
               or _restored_at(command, state, config))
-    if placed is None:
-        return None
-    return replace(placed, active_funestra=command_funestra(command)), []
+    return None if placed is None else (placed, [])
 
 
 def dispatch_command(
@@ -743,21 +731,12 @@ def dispatch_command(
     ignore it.  Empty means "whatever is playing now", which is how every
     keyboard and dashboard command arrives.
     """
+    funestra = command_funestra(command)
+    if funestra is not None:
+        state = _addressed(funestra, command, state)
     answered = _answered_ahead_of_the_handlers(command, state, config)
     if answered is not None:
         return answered
-
-    # Any command naming a Funestra (voice or keyboard nav) makes it the active
-    # Funestra, so a later player-agnostic "active_*" command knows which to drive.
-    funestra = command_funestra(command)
-    if funestra is not None:
-        state = replace(state, active_funestra=funestra)
-        # Every Funestra command except a navigation step ends keyboard navigation on
-        # that Funestra, so its map re-homes on the live clip; nav commands manage
-        # their own anchor.  The Main Funestra has none, so its commands end
-        # nobody's.
-        if not _is_hud_nav_command(command) and funestra is not RoomFunestra.MAIN:
-            state = state.with_satellite(funestra, nav_anchor="")
 
     # Said to two sides in different modes, each side's half goes where its
     # own mode sends it.
