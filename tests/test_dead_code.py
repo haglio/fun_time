@@ -379,7 +379,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # that folder is shown, and the notes on its one queue and its captured rows went.
 # 5852 on 2026-10-25: the watch sampler's tests say what it books and what a
 # spoken command is back-dated to, so its docstrings saying the same went.
-MAX_PROSE_LINES = 5852
+# 5784 on 2026-10-24: whose turn it is to send the OSR2 T-Code is stated whole,
+# whenever it changes, so the notes on what the arbiter remembered between
+# handoffs, and on why it said it all again every second, went.
+MAX_PROSE_LINES = 5784
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

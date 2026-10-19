@@ -432,7 +432,6 @@ def test_the_main_funestra_plays_once_kino_mode_unpauses_it():
 
         apply_mode_switch(
             current_mode="genau", target_mode="kino", omni_paused=False,
-            genau_cmd_file=commands.genau_cmd_file,
             main_funestra_paused_file=commands.main_funestra_paused_file,
             main_funestra_cmd_file=commands.main_funestra_cmd_file,
         )

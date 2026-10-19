@@ -3050,6 +3050,45 @@ class TestKinoModeFunscriptHandoff:
 
         assert sync.call_args.kwargs["holder"] is RoomFunestra.LANDSCAPE
 
+    def test_a_command_that_changes_who_drives_is_stated_before_its_window_ops_run(
+            self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode=MainMode.GENAU)
+        happened = []
+
+        with patch.object(runner.arbiter, "sync",
+                          side_effect=lambda *_a, **kw: happened.append(("stated", kw["paused"]))), \
+             patch.object(runner.windows, "remove_all_topmost",
+                          side_effect=lambda: happened.append(("window ops", None))):
+            runner._handle_command("enter_omnipause")
+
+        assert happened[:2] == [("stated", True), ("window ops", None)]
+
+    @pytest.mark.parametrize("device_on", [True, False])
+    def test_entering_omnipause_stops_the_hand_and_walks_genaus_picture_home_only_with_the_osr2_on(
+            self, tmp_path, device_on):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode=MainMode.GENAU)
+        if device_on:
+            (runner.config.broker_state / OSR2_SERIAL_RX).write_text(str(time.time()),
+                                                                     encoding="utf-8")
+
+        with patch.object(runner.windows, "remove_all_topmost"):
+            runner._handle_command("enter_omnipause")
+
+        verbs = runner.config.genau_cmd_file.read_text(encoding="utf-8").split()
+        assert [verb for verb in verbs if verb in ("PAUSE", "RESUME")] == ["PAUSE"]
+        assert ("PARK" in verbs) is device_on
+
+    def test_a_command_that_leaves_who_drives_alone_waits_for_the_tick(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode=MainMode.KINO)
+
+        with patch.object(runner.arbiter, "sync") as sync:
+            runner._handle_command("main_next")
+
+        sync.assert_not_called()
+
 
 class TestTheSatellitesTakeTheMainFunestrasRate:
     def test_a_rate_the_main_funestra_moves_to_reaches_both_satellites_on_the_periodic_sync(

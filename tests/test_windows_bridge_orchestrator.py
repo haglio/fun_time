@@ -20,7 +20,7 @@ from funestra.console import OSR2_RETRACTED
 from funestra.modes import MainMode
 from shared_ui.preview import Preview, window_title
 
-from fun_time import closing_screen, device_arbiter, windows_bridge_orchestrator
+from fun_time import closing_screen, windows_bridge_orchestrator
 from fun_time.command_dispatch import dispatch_command
 from fun_time.config import load_config
 from fun_time.crown import Crown
@@ -1656,9 +1656,8 @@ class TestClosingScreenLifecycle:
         assert broker_at_cover_up == ["RETRACT"]
 
     def test_nothing_the_session_still_runs_can_set_the_robot_hand_going_again(
-        self, cfg_factory, tmp_path, monkeypatch,
+        self, cfg_factory, tmp_path,
     ):
-        monkeypatch.setattr(device_arbiter, "REASSERT_S", 0.0)
         genau_under_the_cover: list[str] = []
 
         def let_five_dispatch_ticks_pass():

@@ -1,8 +1,7 @@
-"""Who has the OSR2 in kino mode, moment to moment.
+"""Who has the OSR2, moment to moment.
 
-The Robot Hand and a funscript both feed the broker's one UDP T-Code inlet, so exactly
-one may drive.  The arbiter's whole world is the Main Funestra's status file and the two
-command files, so these drive it with nothing else around it.
+The arbiter's whole world is the Funestras' status files and the command files,
+so these drive it with nothing else around it.
 """
 from __future__ import annotations
 
@@ -17,8 +16,7 @@ from funestra.console import (
 from funestra.file_channel import append_command as real_append
 from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
 
-from fun_time.device_arbiter import REASSERT_S, TCODE_OFF, TCODE_ON, DeviceArbiter, SatelliteLine
-from fun_time.mode_plan import build_mode_switch_plan
+from fun_time.device_arbiter import TCODE_OFF, TCODE_ON, DeviceArbiter, SatelliteLine
 from fun_time.room_funestras import RoomFunestra
 from tests.role_window_fakes import FakeClock
 
@@ -47,14 +45,10 @@ def publish_side(tmp_path: Path, funestra: RoomFunestra, *, has_funscript=True, 
     )
 
 
-def side(tmp_path: Path, funestra: RoomFunestra) -> list[str]:
-    path = tmp_path / f"{funestra.label}_cmd.txt"
-    return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-
-
 def publish_main_funestra(driver: DeviceArbiter, *, has_funscript=True, resting=False,
-                position_ms=10, touch_ms=None) -> None:
+                          position_ms=10, touch_ms=None) -> None:
     touch = "" if touch_ms is None else str(touch_ms)
+    driver.main_funestra_status_file.parent.mkdir(parents=True, exist_ok=True)
     driver.main_funestra_status_file.write_text(
         "video=C:\\clip.mp4\n"
         f"position_ms={position_ms}\n"
@@ -65,39 +59,50 @@ def publish_main_funestra(driver: DeviceArbiter, *, has_funscript=True, resting=
     )
 
 
-def genau(driver: DeviceArbiter) -> str:
-    # The arbiter appends its verbs (a shared single slot clobbered a handoff
-    # once), so reads strip the trailing newline.
-    return driver.genau_cmd_file.read_text(encoding="utf-8").strip()
+def told(path: Path) -> list[str]:
+    return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
 
 
-def main_funestra(driver: DeviceArbiter) -> str:
-    return driver.main_funestra_cmd_file.read_text(encoding="utf-8").strip()
+def side(tmp_path: Path, funestra: RoomFunestra) -> list[str]:
+    return told(tmp_path / f"{funestra.label}_cmd.txt")
 
 
-_PARKED_VERBS = ["RESUME", "SET_TCODE_ENABLED 0", "PARK"]
+def genau(driver: DeviceArbiter) -> list[str]:
+    return told(driver.genau_cmd_file)
+
+
+def main_funestra(driver: DeviceArbiter) -> list[str]:
+    return told(driver.main_funestra_cmd_file)
+
+
+def the_hand_is_playing(driver: DeviceArbiter) -> bool:
+    return [verb for verb in genau(driver) if verb in ("PAUSE", "RESUME")][-1] == "RESUME"
+
+
+AN_HOUR_S = 3600
+
+HAND_DRIVES = [TCODE_ON, "RESUME"]
+HAND_YIELDS = ["PAUSE", TCODE_ON]
+PARKED = [TCODE_OFF, "RESUME", "PARK"]
+OMNIPAUSED = ["PAUSE", TCODE_ON, "PARK"]
 
 
 class TestNobodyDriving:
-    """The two control states in which nobody is driving: parked, and the
-    retract a relief pause leaves.  Carried out here rather than at the button because this is
-    the thing that re-states them every second -- a verb fired from a handler
-    would be undone by the arbiter's very next assertion.
-    """
+    """Parked, the retract a relief pause leaves, and OmniPause: carried out here
+    rather than at the button, because the turn is stated here whole -- a verb
+    fired from a handler would be undone by the next statement."""
 
     def test_a_hold_gates_the_funscript_and_switches_genaus_output_off(self, tmp_path):
-        """A script driving through a park is the device ignoring the hold.  The
-        broker walks the device to that end; Genau plays on with its output off,
-        so the console can still draw the motion the hand would be making."""
+        """The broker walks the device to that end; Genau plays on with its output
+        off, so the console can still draw the motion the hand would be making."""
         for mode in ("kino", "genau"):
             driver = make_driver(tmp_path / f"park-{mode}")
-            driver.main_funestra_cmd_file.parent.mkdir(parents=True, exist_ok=True)
             publish_main_funestra(driver)
 
             driver.sync(mode, paused=False, control=OSR2_PARKED)
 
-            assert main_funestra(driver) == "SET_TCODE_ENABLED 0", mode
-            assert genau(driver).splitlines() == _PARKED_VERBS, mode
+            assert main_funestra(driver) == [TCODE_OFF], mode
+            assert genau(driver) == PARKED, mode
 
     def test_each_hold_tells_genau_which_end_it_holds_the_device_at(self, tmp_path):
         driver = make_driver(tmp_path)
@@ -105,7 +110,7 @@ class TestNobodyDriving:
 
         driver.sync("kino", paused=False, control=OSR2_RETRACTED)
 
-        assert genau(driver).splitlines() == ["RESUME", "SET_TCODE_ENABLED 0", "RETRACT"]
+        assert genau(driver) == [TCODE_OFF, "RESUME", "RETRACT"]
 
     def test_a_hold_under_omnipause_leaves_genau_paused(self, tmp_path):
         driver = make_driver(tmp_path)
@@ -113,7 +118,7 @@ class TestNobodyDriving:
 
         driver.sync("genau", paused=True, control=OSR2_RETRACTED)
 
-        assert genau(driver).splitlines() == ["PAUSE", "SET_TCODE_ENABLED 0", "RETRACT"]
+        assert genau(driver) == [TCODE_OFF, "PAUSE", "RETRACT"]
 
     def test_the_room_coming_back_under_a_hold_plays_the_hand_on_unheard_at_once(self, tmp_path):
         driver = make_driver(tmp_path)
@@ -122,20 +127,16 @@ class TestNobodyDriving:
 
         driver.sync("kino", paused=False, control=OSR2_RETRACTED)
 
-        assert genau(driver).splitlines() == [
-            "PAUSE", "SET_TCODE_ENABLED 0", "RETRACT",
-            "RESUME", "SET_TCODE_ENABLED 0", "RETRACT"]
+        assert genau(driver) == [TCODE_OFF, "PAUSE", "RETRACT", TCODE_OFF, "RESUME", "RETRACT"]
 
     def test_a_switched_off_device_keeps_genaus_picture_out_of_every_hold(self, tmp_path):
-        for control, verbs in ((OSR2_PARKED, ["RESUME", "SET_TCODE_ENABLED 0"]),
-                               (OSR2_RETRACTED, ["RESUME", "SET_TCODE_ENABLED 0"])):
+        for control in (OSR2_PARKED, OSR2_RETRACTED):
             driver = make_driver(tmp_path / control, device_on=lambda: False)
-            driver.main_funestra_cmd_file.parent.mkdir(parents=True, exist_ok=True)
             publish_main_funestra(driver)
 
             driver.sync("genau", paused=False, control=control)
 
-            assert genau(driver).splitlines() == verbs, control
+            assert genau(driver) == [TCODE_OFF, "RESUME"], control
 
     def test_a_device_switched_on_under_a_hold_takes_genaus_picture_there_at_once(self, tmp_path):
         device = {"on": False}
@@ -146,52 +147,78 @@ class TestNobodyDriving:
         device["on"] = True
         driver.sync("genau", paused=False, control=OSR2_PARKED)
 
-        assert genau(driver).splitlines() == ["RESUME", "SET_TCODE_ENABLED 0", *_PARKED_VERBS]
+        assert genau(driver) == [TCODE_OFF, "RESUME", *PARKED]
 
-    def test_the_hold_is_re_stated_on_the_heartbeat_and_not_every_tick(self, tmp_path):
-        """Re-stated, so an output switched on from a key or a spoken word goes
-        off again within the second rather than quietly breaking the hold."""
+    def test_a_hold_is_stated_once_however_long_it_lasts(self, tmp_path):
         clock = FakeClock()
         driver = make_driver(tmp_path, clock=clock)
         publish_main_funestra(driver)
 
         driver.sync("kino", paused=False, control=OSR2_PARKED)
+        clock.advance(AN_HOUR_S)
         driver.sync("kino", paused=False, control=OSR2_PARKED)
-        assert genau(driver).splitlines() == _PARKED_VERBS
 
-        clock.advance(REASSERT_S)
-        driver.sync("kino", paused=False, control=OSR2_PARKED)
-        assert genau(driver).splitlines() == _PARKED_VERBS * 2
+        assert genau(driver) == PARKED
 
-    def test_control_coming_back_switches_the_output_on_again(self, tmp_path):
-        """Said once, and in whatever mode the hold was let go in: genau mode has
-        no handoff to re-assert, and a motion nobody switched back on is silent."""
-        clock = FakeClock()
-        driver = make_driver(tmp_path, clock=clock)
+    def test_control_coming_back_in_genau_mode_gives_the_hand_the_device_heard_again(
+            self, tmp_path):
+        driver = make_driver(tmp_path)
         publish_main_funestra(driver)
         driver.sync("kino", paused=False, control=OSR2_PARKED)
 
-        clock.advance(REASSERT_S)
         driver.sync("genau", paused=False, control=OSR2_DRIVING)
         driver.sync("genau", paused=False, control=OSR2_DRIVING)
 
-        assert genau(driver).splitlines() == [*_PARKED_VERBS, "SET_TCODE_ENABLED 1"]
+        assert genau(driver) == [*PARKED, *HAND_DRIVES]
 
-    def test_the_handoff_re_asserts_when_control_comes_back(self, tmp_path):
-        """Nobody had the device through the silence, so re-entry must say who
-        has it again rather than believing the driver it remembered."""
-        clock = FakeClock()
-        driver = make_driver(tmp_path, clock=clock)
+    def test_control_coming_back_hands_the_device_to_whoever_should_have_it(self, tmp_path):
+        driver = make_driver(tmp_path)
         publish_main_funestra(driver)
         driver.sync("kino", paused=False, control=OSR2_DRIVING)
-        clock.advance(REASSERT_S)
         driver.sync("kino", paused=False, control=OSR2_PARKED)
 
-        clock.advance(REASSERT_S)
         driver.sync("kino", paused=False, control=OSR2_DRIVING)
 
-        assert genau(driver).splitlines()[-1] == "PAUSE"
-        assert main_funestra(driver).splitlines()[-1] == "SET_TCODE_ENABLED 1"
+        assert genau(driver)[-2:] == HAND_YIELDS
+        assert main_funestra(driver)[-1] == TCODE_ON
+
+    def test_omnipause_takes_the_device_from_the_script_driving_it(self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_main_funestra(driver)
+        driver.sync("kino", paused=False)
+
+        driver.sync("kino", paused=True)
+
+        assert main_funestra(driver) == [TCODE_ON, TCODE_OFF]
+        assert genau(driver) == [*HAND_YIELDS, *OMNIPAUSED]
+
+    def test_omnipause_with_the_device_switched_off_leaves_genaus_picture_where_it_is(
+            self, tmp_path):
+        driver = make_driver(tmp_path, device_on=lambda: False)
+        publish_main_funestra(driver)
+
+        driver.sync("genau", paused=True)
+
+        assert genau(driver) == ["PAUSE", TCODE_ON]
+
+    def test_leaving_omnipause_in_genau_mode_gives_the_hand_the_device_back(self, tmp_path):
+        driver = make_driver(tmp_path)
+        driver.sync("genau", paused=True)
+
+        driver.sync("genau", paused=False)
+
+        assert genau(driver)[-2:] == HAND_DRIVES
+
+    def test_leaving_omnipause_under_a_side_funestras_script_leaves_the_hand_paused(
+            self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_side(tmp_path, RoomFunestra.PORTRAIT)
+        driver.sync("genau", paused=True, holder=RoomFunestra.PORTRAIT)
+
+        driver.sync("genau", paused=False, holder=RoomFunestra.PORTRAIT)
+
+        assert genau(driver)[-2:] == HAND_YIELDS
+        assert side(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_ON]
 
 
 class TestKinoModeFunscriptHandoff:
@@ -201,18 +228,18 @@ class TestKinoModeFunscriptHandoff:
 
     def test_the_flip_waits_for_the_touch_the_trace_chose(self, tmp_path):
         """The Main Funestra publishes the touch-down its picture drew the blue ending on;
-        The hand keeps the device until the playhead reaches it.  When each side
+        the hand keeps the device until the playhead reaches it.  When each side
         chose its own touch from its own read of the wave, the arbiter could
         take an earlier one — and the leftover drawn blue vanished the moment
         the dot reached it."""
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, resting=True, position_ms=14_000)
-        driver.sync("kino", paused=False)           # the hand's turn first
+        driver.sync("kino", paused=False)
         publish_main_funestra(driver, resting=False, position_ms=15_100, touch_ms=16_400)
 
         driver.sync("kino", paused=False)
 
-        assert genau(driver) == "RESUME"              # still the hand's
+        assert genau(driver) == HAND_DRIVES
 
     def test_the_held_flip_lands_when_the_playhead_reaches_the_touch(self, tmp_path):
         driver = make_driver(tmp_path)
@@ -224,7 +251,7 @@ class TestKinoModeFunscriptHandoff:
         publish_main_funestra(driver, resting=False, position_ms=16_450, touch_ms=16_400)
         driver.sync("kino", paused=False)
 
-        assert genau(driver).splitlines()[-1] == "PAUSE"
+        assert genau(driver)[-2:] == HAND_YIELDS
 
     def test_no_published_touch_flips_at_once(self, tmp_path):
         """The ramp case — a raised floor — has no touch to wait for: the
@@ -236,7 +263,7 @@ class TestKinoModeFunscriptHandoff:
 
         driver.sync("kino", paused=False)
 
-        assert genau(driver).splitlines()[-1] == "PAUSE"
+        assert genau(driver)[-2:] == HAND_YIELDS
 
     def test_a_stalled_playhead_cannot_hold_the_flip_forever(self, tmp_path):
         clock = FakeClock()
@@ -246,10 +273,10 @@ class TestKinoModeFunscriptHandoff:
         publish_main_funestra(driver, resting=False, position_ms=15_100, touch_ms=16_400)
         driver.sync("kino", paused=False)
 
-        clock.advance(PARK_TOUCH_WAIT_CAP_MS / 1000)        # the cap expiring
+        clock.advance(PARK_TOUCH_WAIT_CAP_MS / 1000)
         driver.sync("kino", paused=False)
 
-        assert genau(driver).splitlines()[-1] == "PAUSE"
+        assert genau(driver)[-2:] == HAND_YIELDS
 
     def test_a_seek_into_the_script_s_turn_flips_at_once(self, tmp_path):
         """A hold honors a drawn blue ending, and a seek-entry never drew one:
@@ -259,23 +286,20 @@ class TestKinoModeFunscriptHandoff:
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, resting=True, position_ms=1_000)
         driver.sync("kino", paused=False)
-        publish_main_funestra(driver, resting=False, position_ms=41_000,
-                    touch_ms=42_000)                        # a 40s jump
+        publish_main_funestra(driver, resting=False, position_ms=41_000, touch_ms=42_000)
 
         driver.sync("kino", paused=False)
 
-        assert genau(driver).splitlines()[-1] == "PAUSE"
+        assert genau(driver)[-2:] == HAND_YIELDS
 
     def test_scripted_stretch_drives_from_the_funscript(self, tmp_path):
-        """Each handoff sets BOTH levers, so the two can never both be driving
-        the one inlet."""
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, has_funscript=True, resting=False)
 
         driver.sync("kino", paused=False)
 
-        assert genau(driver) == "PAUSE"               # the hand yields
-        assert main_funestra(driver) == "SET_TCODE_ENABLED 1"   # funscript drives
+        assert genau(driver) == HAND_YIELDS
+        assert main_funestra(driver) == [TCODE_ON]
 
     def test_funscript_gap_hands_the_stretch_to_the_robot_hand(self, tmp_path):
         driver = make_driver(tmp_path)
@@ -283,8 +307,8 @@ class TestKinoModeFunscriptHandoff:
 
         driver.sync("kino", paused=False)
 
-        assert genau(driver) == "RESUME"              # the hand fills the gap
-        assert main_funestra(driver) == "SET_TCODE_ENABLED 0"   # funscript muted
+        assert genau(driver) == HAND_DRIVES
+        assert main_funestra(driver) == [TCODE_OFF]
 
     def test_unscripted_video_drives_from_the_robot_hand(self, tmp_path):
         driver = make_driver(tmp_path)
@@ -292,28 +316,24 @@ class TestKinoModeFunscriptHandoff:
 
         driver.sync("kino", paused=False)
 
-        assert genau(driver) == "RESUME"
-        assert main_funestra(driver) == "SET_TCODE_ENABLED 0"
+        assert genau(driver) == HAND_DRIVES
+        assert main_funestra(driver) == [TCODE_OFF]
 
     def test_commands_written_only_on_change(self, tmp_path):
-        driver = make_driver(tmp_path)
+        clock = FakeClock()
+        driver = make_driver(tmp_path, clock)
         publish_main_funestra(driver, has_funscript=True, resting=False)
         driver.sync("kino", paused=False)
         driver.genau_cmd_file.unlink()
         driver.main_funestra_cmd_file.unlink()
 
-        driver.sync("kino", paused=False)  # unchanged driver -> no re-issue (edge-only)
+        clock.advance(AN_HOUR_S)
+        driver.sync("kino", paused=False)
 
         assert not driver.genau_cmd_file.exists()
         assert not driver.main_funestra_cmd_file.exists()
 
-    def test_a_lost_verb_is_retried_because_the_edge_was_never_recorded(self, tmp_path):
-        """A verb queued on a file channel can still die — a writer replacing
-        the file whole, a drain racing the append, a locked file exhausting
-        its retries — and an arbiter that assumed delivery leaves the session
-        split-brained for a whole cluster: the hand paused, the funscript never
-        enabled, everything idle and grey.  So the edge is recorded only once
-        BOTH verbs actually queued, and a failed one is retried next tick."""
+    def test_a_verb_that_could_not_be_queued_is_stated_again_on_the_next_tick(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, has_funscript=True, resting=False)
 
@@ -322,74 +342,70 @@ class TestKinoModeFunscriptHandoff:
                 return False
             return real_append(path, line, **kwargs)
 
-        with patch("fun_time.device_arbiter.append_command",
-                   side_effect=genau_channel_down):
+        with patch("fun_time.device_arbiter.append_command", side_effect=genau_channel_down):
             driver.sync("kino", paused=False)
 
-        driver.sync("kino", paused=False)  # the channel healthy again: the retry
+        driver.sync("kino", paused=False)
 
-        assert genau(driver).splitlines()[-1] == "PAUSE"
-        assert main_funestra(driver).splitlines()[-1] == "SET_TCODE_ENABLED 1"
+        assert genau(driver) == HAND_YIELDS
+        assert main_funestra(driver) == [TCODE_ON]
 
-    def test_the_standing_pair_is_requeued_on_the_slow_heartbeat(self, tmp_path):
-        """Both verbs are idempotent at their Funestras, so the standing pair
-        goes out again about once a second — a verb lost AFTER the edge was
-        recorded (a writer replacing the file whole) converges within that
-        second instead of at the next handoff."""
-        clock = FakeClock()
-        driver = make_driver(tmp_path, clock)
+    def test_a_script_is_never_switched_on_while_the_hand_has_not_been_told_to_stop(
+            self, tmp_path):
+        driver = make_driver(tmp_path)
         publish_main_funestra(driver, has_funscript=True, resting=False)
-        driver.sync("kino", paused=False)
-        driver.genau_cmd_file.unlink()               # the lost verbs
-        driver.main_funestra_cmd_file.unlink()
 
-        clock.advance(REASSERT_S)                           # a second passes
-        driver.sync("kino", paused=False)
+        def genau_channel_down(path, line, **kwargs):
+            if path == driver.genau_cmd_file:
+                return False
+            return real_append(path, line, **kwargs)
 
-        assert genau(driver) == "PAUSE"
-        assert main_funestra(driver) == "SET_TCODE_ENABLED 1"
+        with patch("fun_time.device_arbiter.append_command", side_effect=genau_channel_down):
+            driver.sync("kino", paused=False)
+
+        assert main_funestra(driver) == []
 
     def test_entering_a_gap_flips_the_driver(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, has_funscript=True, resting=False)
         driver.sync("kino", paused=False)
 
-        publish_main_funestra(driver, has_funscript=True, resting=True)  # gap begins
+        publish_main_funestra(driver, has_funscript=True, resting=True)
         driver.sync("kino", paused=False)
 
-        # Appended after the first flip's PAUSE; the Funestras drain in order.
-        assert genau(driver).splitlines()[-1] == "RESUME"
-        assert main_funestra(driver).splitlines()[-1] == "SET_TCODE_ENABLED 0"
+        assert genau(driver)[-2:] == HAND_DRIVES
+        assert main_funestra(driver)[-1] == TCODE_OFF
 
-    def test_no_arbitration_outside_kino_mode(self, tmp_path):
+    def test_in_genau_mode_the_hand_drives_and_the_main_funestras_script_is_off(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, has_funscript=True, resting=False)
 
         driver.sync("genau", paused=False)
 
-        assert not driver.genau_cmd_file.exists()
-        assert not driver.main_funestra_cmd_file.exists()
+        assert genau(driver) == HAND_DRIVES
+        assert main_funestra(driver) == [TCODE_OFF]
 
-    def test_no_arbitration_when_omnipaused(self, tmp_path):
+    def test_switching_to_genau_mode_under_the_main_funestras_script_takes_it_off_the_osr2(
+            self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, has_funscript=True, resting=False)
+        driver.sync("kino", paused=False)
 
-        driver.sync("kino", paused=True)
+        driver.sync("genau", paused=False)
 
-        assert not driver.genau_cmd_file.exists()
-        assert not driver.main_funestra_cmd_file.exists()
+        assert main_funestra(driver)[-1] == TCODE_OFF
+        assert genau(driver)[-2:] == HAND_DRIVES
 
-    def test_leaving_kino_mode_resets_so_reentry_reapplies(self, tmp_path):
+    def test_coming_back_to_kino_mode_hands_the_device_back_to_the_script(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, has_funscript=True, resting=False)
-        driver.sync("kino", paused=False)  # funscript driving
-
-        driver.sync("genau", paused=False)   # leaves kino mode -> forgets
+        driver.sync("kino", paused=False)
+        driver.sync("genau", paused=False)
         driver.genau_cmd_file.unlink()
 
         driver.sync("kino", paused=False)
 
-        assert genau(driver) == "PAUSE"
+        assert genau(driver) == HAND_YIELDS
 
 
 class TestASideFunestraThatHasTheOsr2:
@@ -401,8 +417,8 @@ class TestASideFunestraThatHasTheOsr2:
         driver.sync("kino", paused=False, holder=RoomFunestra.PORTRAIT)
 
         assert side(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_ON]
-        assert genau(driver) == "PAUSE"
-        assert main_funestra(driver) == TCODE_OFF
+        assert genau(driver) == HAND_YIELDS
+        assert main_funestra(driver) == [TCODE_OFF]
 
     def test_leaves_the_stretches_its_clip_does_not_script_to_the_robot_hand(self, tmp_path):
         driver = make_driver(tmp_path)
@@ -412,8 +428,8 @@ class TestASideFunestraThatHasTheOsr2:
         driver.sync("kino", paused=False, holder=RoomFunestra.PORTRAIT)
 
         assert side(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_OFF]
-        assert genau(driver) == "RESUME"
-        assert main_funestra(driver) == TCODE_OFF
+        assert genau(driver) == HAND_DRIVES
+        assert main_funestra(driver) == [TCODE_OFF]
 
     def test_drives_it_in_genau_mode_as_well(self, tmp_path):
         driver = make_driver(tmp_path)
@@ -422,7 +438,7 @@ class TestASideFunestraThatHasTheOsr2:
         driver.sync("genau", paused=False, holder=RoomFunestra.LANDSCAPE)
 
         assert side(tmp_path, RoomFunestra.LANDSCAPE) == [TCODE_ON]
-        assert genau(driver) == "PAUSE"
+        assert genau(driver) == HAND_YIELDS
 
     def test_a_side_funestra_that_never_had_it_is_told_nothing(self, tmp_path):
         driver = make_driver(tmp_path)
@@ -462,7 +478,20 @@ class TestASideFunestraThatHasTheOsr2:
 
         driver.sync("genau", paused=False, holder=RoomFunestra.MAIN)
 
-        assert genau(driver).splitlines()[-1] == "RESUME"
+        assert genau(driver)[-2:] == HAND_DRIVES
+
+    def test_a_side_funestra_let_go_of_under_omnipause_is_off_the_osr2_once_the_room_comes_back(
+            self, tmp_path):
+        driver = make_driver(tmp_path)
+        publish_side(tmp_path, RoomFunestra.PORTRAIT)
+        driver.sync("genau", paused=False, holder=RoomFunestra.PORTRAIT)
+        driver.sync("genau", paused=True, holder=RoomFunestra.PORTRAIT)
+        driver.sync("genau", paused=True, holder=RoomFunestra.MAIN)
+
+        driver.sync("genau", paused=False, holder=RoomFunestra.MAIN)
+
+        assert side(tmp_path, RoomFunestra.PORTRAIT)[-1] == TCODE_OFF
+        assert genau(driver)[-2:] == HAND_DRIVES
 
     def test_a_side_funestra_let_go_of_while_the_room_is_paused_leaves_the_robot_hand_paused(
             self, tmp_path):
@@ -472,18 +501,8 @@ class TestASideFunestraThatHasTheOsr2:
 
         driver.sync("genau", paused=True, holder=RoomFunestra.MAIN)
 
-        assert genau(driver).splitlines()[-1] == "PAUSE"
-
-    def test_a_mode_switch_under_its_script_pauses_the_robot_hand_again_at_once(self, tmp_path):
-        driver = make_driver(tmp_path)
-        publish_side(tmp_path, RoomFunestra.PORTRAIT)
-        driver.sync("genau", paused=False, holder=RoomFunestra.PORTRAIT)
-        real_append(driver.genau_cmd_file, build_mode_switch_plan(
-            current_mode="genau", target_mode="kino", omni_paused=False).genau_cmd)
-
-        driver.sync("kino", paused=False, holder=RoomFunestra.PORTRAIT)
-
-        assert genau(driver).splitlines()[-1] == "PAUSE"
+        assert not the_hand_is_playing(driver)
+        assert side(tmp_path, RoomFunestra.PORTRAIT)[-1] == TCODE_OFF
 
     def test_a_hold_switches_off_every_funestra_that_has_had_it(self, tmp_path):
         driver = make_driver(tmp_path)
@@ -494,7 +513,7 @@ class TestASideFunestraThatHasTheOsr2:
 
         assert side(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_ON, TCODE_OFF]
         assert side(tmp_path, RoomFunestra.LANDSCAPE) == []
-        assert main_funestra(driver).splitlines()[-1] == TCODE_OFF
+        assert main_funestra(driver)[-1] == TCODE_OFF
 
     def test_the_flip_to_its_script_waits_for_the_touch_its_trace_chose(self, tmp_path):
         clock = FakeClock()

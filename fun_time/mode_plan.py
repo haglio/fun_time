@@ -5,11 +5,9 @@ from dataclasses import dataclass
 from funestra.funestra_verbs import SHOW
 from funestra.modes import MainMode
 
-# The main slot's two modes.  In both the Robot Hand is at work: in genau mode it
-# drives the OSR2 outright under Genau's flicks, and in kino mode the arbiter
-# hands the device between it and the video's funscript.  The axis is in the
-# name because the satellites' own "kino" mode is that same string, and
-# unprefixed the two were one name inside command_dispatch, which handles both.
+# The main slot's two modes.  The axis is in the name because the satellites'
+# own "kino" mode is that same string, and unprefixed the two were one name
+# inside command_dispatch, which handles both.
 MAIN_KINO_MODE = MainMode.KINO
 MAIN_GENAU_MODE = MainMode.GENAU
 MAIN_MODES: tuple[MainMode, ...] = (MAIN_KINO_MODE, MAIN_GENAU_MODE)
@@ -23,7 +21,6 @@ STARTUP_MAIN_MODE = MAIN_KINO_MODE
 class ModeSwitchPlan:
     target_mode: MainMode
     is_transition: bool
-    genau_cmd: str | None
     # What the Main Funestra is told: which of Kino and Genau has its window.
     show_cmd: str | None
     main_funestra_should_play: bool | None
@@ -54,7 +51,6 @@ def build_mode_switch_plan(
         return ModeSwitchPlan(
             target_mode=target_mode,
             is_transition=False,
-            genau_cmd=None,
             show_cmd=None,
             main_funestra_should_play=None,
             log_message=f"Already in {target_mode} mode",
@@ -63,7 +59,6 @@ def build_mode_switch_plan(
     return ModeSwitchPlan(
         target_mode=target_mode,
         is_transition=True,
-        genau_cmd=None if omni_paused else "RESUME",
         show_cmd=show_verb(target_mode),
         main_funestra_should_play=None if omni_paused else kino_shows(target_mode),
         log_message=f"Switched to {target_mode} mode",
