@@ -13,7 +13,6 @@ import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from funestra.file_channel import append_command
 from funestra.modes import MainMode
 from funestra.play_points import play_points_filename
 
@@ -32,7 +31,7 @@ from .funestra_status import (
 )
 from .hosted_origenerator import HostedApp, bring_up_the_hosted_app
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
-from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, kino_shows
+from .mode_plan import STARTUP_MAIN_MODE, kino_shows
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
 from .origenerator_switches import RfbSlot
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
@@ -228,15 +227,6 @@ def release_the_funestras(m: LaunchManifest, main_mode: MainMode) -> None:
     write_flag_file(m.commands.main_funestra_paused_file, not kino_shows(main_mode))
     for flag_file in (m.commands.genau_paused_file, m.commands.audio_paused_file):
         write_flag_file(flag_file, False)
-    # The Robot Hand rides Genau's command channel rather than that flag (see
-    # seed_startup_states, which holds it there), so the mode where it drives
-    # outright has to be told here or it never starts.  Only genau mode: in video
-    # mode the dispatch loop's arbiter picks between the hand and the funscript
-    # on its first tick, and a RESUME here would start the hand against a
-    # funscript that is about to take the device — the same reason leaving
-    # OmniPause resumes it in genau mode alone.
-    if main_mode == MAIN_GENAU_MODE:
-        append_command(Path(m.commands.genau_cmd_file), "RESUME")
 
 
 def run_startup_sequence(

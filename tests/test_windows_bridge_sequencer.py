@@ -621,34 +621,20 @@ class TestRunStartupSequence:
         assert paused["main_funestra_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
-    def test_a_genau_session_hands_genau_the_osr2_at_the_reveal(self, cfg_factory, tmp_path):
-        """Genau's motion rides its command channel, not the paused flag, so the
-        mode where it drives outright is started here — and only here, because
-        startup held it on that channel so it could not drive the device while the
-        loading screen was still up."""
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        _seed_paused_flags(manifest_path)
-        genau_cmd = Path(cfg.genau_cmd_file)
-        genau_cmd.parent.mkdir(parents=True, exist_ok=True)
-        genau_cmd.write_text("", encoding="utf-8")
-
-        _run_revealing_sequence(manifest_path, tmp_path, "genau")
-
-        assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["RESUME"]
-
-    def test_a_kino_session_leaves_the_hand_to_the_arbiter_at_the_reveal(
-        self, cfg_factory, tmp_path,
+    @pytest.mark.parametrize("mode", ["genau", "kino"])
+    def test_the_reveal_leaves_the_hand_to_the_arbiter_in_either_mode(
+        self, cfg_factory, tmp_path, mode,
     ):
-        """No RESUME in kino mode: the dispatch loop's arbiter picks between the
-        Robot Hand and the funscript on its first tick, and starting the hand
-        here would put it on the device against a funscript about to take it."""
+        """The dispatch loop's arbiter says who has the OSR2 on its first tick, in
+        both modes, and starting the hand here would put it on the device against
+        a funscript about to take it."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         _seed_paused_flags(manifest_path)
         genau_cmd = Path(cfg.genau_cmd_file)
         genau_cmd.parent.mkdir(parents=True, exist_ok=True)
         genau_cmd.write_text("", encoding="utf-8")
 
-        _run_revealing_sequence(manifest_path, tmp_path, "kino")
+        _run_revealing_sequence(manifest_path, tmp_path, mode)
 
         assert genau_cmd.read_text(encoding="utf-8") == ""
 

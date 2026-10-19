@@ -32,7 +32,6 @@ def test_kino_to_genau_gives_genau_the_window_and_pauses_kinos_video():
     plan = build_mode_switch_plan(current_mode="kino", target_mode="genau", omni_paused=False)
     assert plan.target_mode == "genau"
     assert plan.is_transition is True
-    assert plan.genau_cmd == "RESUME"
     assert plan.show_cmd == "SHOW genau"
     assert plan.main_funestra_should_play is False
 
@@ -40,7 +39,6 @@ def test_kino_to_genau_gives_genau_the_window_and_pauses_kinos_video():
 def test_genau_to_kino_gives_kino_the_window_and_starts_its_video():
     plan = build_mode_switch_plan(current_mode="genau", target_mode="kino", omni_paused=False)
     assert plan.is_transition is True
-    assert plan.genau_cmd == "RESUME"
     assert plan.show_cmd == "SHOW kino"
     assert plan.main_funestra_should_play is True
 
@@ -49,24 +47,13 @@ def test_a_switch_while_paused_still_says_who_has_the_window_and_starts_nobody()
     for current, target in (("kino", "genau"), ("genau", "kino")):
         plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=True)
         assert plan.show_cmd == f"SHOW {target}", f"{current}->{target}"
-        assert plan.genau_cmd is None
         assert plan.main_funestra_should_play is None
-
-
-def test_every_transition_outside_a_pause_resumes_genau():
-    # In genau mode the Robot Hand drives from here; in kino mode the dispatch
-    # loop's arbiter takes it from here, and may have left Genau paused for a
-    # funscript's stretch — the switch is authoritative either way.
-    for current, target in (("kino", "genau"), ("genau", "kino")):
-        plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=False)
-        assert plan.genau_cmd == "RESUME", f"{current}->{target}"
 
 
 def test_same_mode_is_noop():
     for mode in ("kino", "genau"):
         plan = build_mode_switch_plan(current_mode=mode, target_mode=mode, omni_paused=False)
         assert plan.is_transition is False
-        assert plan.genau_cmd is None
         assert plan.show_cmd is None
         assert plan.main_funestra_should_play is None
 

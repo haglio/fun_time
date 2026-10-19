@@ -73,7 +73,6 @@ def _mode_switch(files, *, current, target, omni_paused=False):
         current_mode=current,
         target_mode=target,
         omni_paused=omni_paused,
-        genau_cmd_file=files["genau_cmd_file"],
         main_funestra_paused_file=files["main_funestra_paused_file"],
         main_funestra_cmd_file=files["main_funestra_cmd_file"],
     )
@@ -85,37 +84,34 @@ def _main_funestra_cmds(files) -> list[str]:
     return cmd_file.read_text(encoding="utf-8").split("\n")[:-1] if cmd_file.exists() else []
 
 
-def test_kino_to_genau_resumes_genau_hands_it_the_window_and_holds_the_video(flow_files):
+def test_kino_to_genau_hands_genau_the_window_and_holds_the_video(flow_files):
     result = _mode_switch(flow_files, current="kino", target="genau")
 
     assert result.next_mode == "genau"
     assert result.is_transition is True
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
     assert flow_files["main_funestra_paused_file"].read_text(encoding="utf-8") == "1"
     assert _main_funestra_cmds(flow_files) == ["SHOW genau"]
 
 
 def test_genau_to_kino_starts_the_video_and_hands_kino_the_window(flow_files):
-    # RESUME either way: the dispatch loop's arbiter takes the hand from here,
-    # pausing it for the funscript's stretches on its next tick.
     result = _mode_switch(flow_files, current="genau", target="kino")
 
     assert result.next_mode == "kino"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
     assert flow_files["main_funestra_paused_file"].read_text(encoding="utf-8") == "0"
     assert _main_funestra_cmds(flow_files) == ["SHOW kino"]
 
 
-def test_a_mode_switch_leaves_the_paused_flags_and_main_funestras_tcode_alone(flow_files):
+def test_a_mode_switch_leaves_who_drives_the_osr2_to_the_arbiter(flow_files):
     """Genau and its audio run in both modes (the paused flags are OmniPause's
-    and the startup hold's), and the arbiter owns the Main Funestra's T-Code lever inside
-    kino mode — so the switch touches neither."""
+    and the startup hold's), and the arbiter alone says which of the hand and a
+    funscript sends -- so the switch touches neither."""
     for current, target in (("kino", "genau"), ("genau", "kino")):
         _mode_switch(flow_files, current=current, target=target)
 
     assert not flow_files["genau_paused_file"].exists()
     assert not flow_files["audio_paused_file"].exists()
-    assert "SET_TCODE_ENABLED 1" not in _main_funestra_cmds(flow_files)
+    assert not flow_files["genau_cmd_file"].exists()
+    assert not any(verb.startswith("SET_TCODE_ENABLED") for verb in _main_funestra_cmds(flow_files))
 
 
 def test_a_mode_switch_during_omnipause_hands_over_the_window_and_resumes_nothing(flow_files):
@@ -612,17 +608,15 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
         landscape_paused_file=flow_files["landscape_paused_file"],
         genau_paused_file=flow_files["genau_paused_file"],
         audio_paused_file=flow_files["audio_paused_file"],
-        genau_cmd_file=flow_files["genau_cmd_file"],
         main_funestra_paused_file=flow_files["main_funestra_paused_file"],
         broker_cmd_file=flow_files["broker_cmd_file"],
-        device_on=True,
     )
 
     assert result.next_omni_paused is True
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["main_funestra_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nPARK\n"
+    assert not flow_files["genau_cmd_file"].exists(), "the hand is the arbiter's to stop"
     assert flow_files["broker_cmd_file"].read_text(encoding="utf-8").split() == ["PARK"]
     # Both satellites are frozen via their paused flag file — a paused native
     # satellite simply cannot auto-advance, so no HTTP re-pause is needed.
@@ -630,7 +624,7 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "1"
 
 
-def test_with_no_broker_to_park_the_device_genau_is_only_paused(flow_files):
+def test_with_no_broker_omnipause_still_freezes_the_room(flow_files):
     apply_enter_omnipause(
         omni_paused=False,
         main_mode=MainMode.GENAU,
@@ -638,30 +632,11 @@ def test_with_no_broker_to_park_the_device_genau_is_only_paused(flow_files):
         landscape_paused_file=flow_files["landscape_paused_file"],
         genau_paused_file=flow_files["genau_paused_file"],
         audio_paused_file=flow_files["audio_paused_file"],
-        genau_cmd_file=flow_files["genau_cmd_file"],
         main_funestra_paused_file=flow_files["main_funestra_paused_file"],
-        device_on=True,
     )
 
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\n"
-
-
-def test_with_the_osr2_switched_off_genau_is_only_paused(flow_files):
-    apply_enter_omnipause(
-        omni_paused=False,
-        main_mode=MainMode.GENAU,
-        portrait_paused_file=flow_files["portrait_paused_file"],
-        landscape_paused_file=flow_files["landscape_paused_file"],
-        genau_paused_file=flow_files["genau_paused_file"],
-        audio_paused_file=flow_files["audio_paused_file"],
-        genau_cmd_file=flow_files["genau_cmd_file"],
-        main_funestra_paused_file=flow_files["main_funestra_paused_file"],
-        broker_cmd_file=flow_files["broker_cmd_file"],
-        device_on=False,
-    )
-
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\n"
-    assert flow_files["broker_cmd_file"].read_text(encoding="utf-8").split() == ["PARK"]
+    assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "1"
+    assert not flow_files["broker_cmd_file"].exists()
 
 
 def _leave_omnipause(files, *, main_mode, broker=True,
@@ -674,7 +649,6 @@ def _leave_omnipause(files, *, main_mode, broker=True,
         landscape_paused_file=files["landscape_paused_file"],
         genau_paused_file=files["genau_paused_file"],
         audio_paused_file=files["audio_paused_file"],
-        genau_cmd_file=files["genau_cmd_file"],
         main_funestra_paused_file=files["main_funestra_paused_file"],
         broker_cmd_file=files["broker_cmd_file"] if broker else None,
     )
@@ -718,7 +692,8 @@ def test_apply_leave_omnipause_in_kino_mode_leaves_genaus_motion_to_the_arbiter(
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 
 
-def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):
+def test_apply_leave_omnipause_in_genau_mode_lifts_genaus_flags_and_leaves_its_hand_to_the_arbiter(
+        flow_files):
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
 
@@ -726,7 +701,7 @@ def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
+    assert not flow_files["genau_cmd_file"].exists()
     assert not flow_files["main_funestra_paused_file"].exists(), "the Main Funestra pause state untouched"
     # Both satellites are unfrozen regardless of the main slot's mode.
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"

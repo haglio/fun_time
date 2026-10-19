@@ -1,14 +1,6 @@
-"""Who has the OSR2, moment to moment — and whether anyone does.
-
-The Robot Hand and a funscript both feed the broker's one UDP T-Code inlet, so only one
-may drive at a time.  This is the arbiter that hands the device between them —
-edge-triggered on the published status of the Funestra that has the OSR2, and
-asserted rather than fired-and-forgotten, because a verb queued on a file
-channel can still die.
-
-Above it sits the console's OSR2 switch: parked, and the retract a relief
-pause leaves, are nobody driving, and this is what carries them out.
-"""
+"""Who may send the OSR2 its T-Code, moment to moment: stated whole, whenever it
+changes, to every party that may be sending -- each Funestra whose funscript has
+had the OSR2, and the Robot Hand."""
 from __future__ import annotations
 
 import time
@@ -17,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
+from app_support import osr2_hold
 from funestra.console import HOLD_VERB, OSR2_DRIVING
 from funestra.file_channel import append_command
 from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
@@ -26,13 +19,11 @@ from .mode_plan import kino_shows
 from .room_funestras import RoomFunestra
 from .satellite_control import read_satellite_status
 
-# How often the standing pair (SET_TCODE_ENABLED + PAUSE/RESUME) is re-queued
-# without an edge, so a verb lost in transit converges instead of staying lost
-# until the next turn boundary.
-REASSERT_S = 1.0
-
 TCODE_OFF = "SET_TCODE_ENABLED 0"
 TCODE_ON = "SET_TCODE_ENABLED 1"
+
+# Further than this between two readings is a seek into the script, not a crossing.
+_FLOWED_MS = 1_500
 
 
 @dataclass(frozen=True)
@@ -41,9 +32,15 @@ class SatelliteLine:
     cmd_file: Path
 
 
-class DeviceArbiter:
-    """The handoff between the Robot Hand and the funscript of the Funestra that has the OSR2."""
+@dataclass(frozen=True)
+class Osr2Turn:
+    script: RoomFunestra | None = None
+    hand_playing: bool = True
+    hand_heard: bool = True
+    held_at: str | None = None
 
+
+class DeviceArbiter:
     def __init__(
         self,
         *,
@@ -60,96 +57,83 @@ class DeviceArbiter:
         self._device_on = device_on
         self._satellites = dict(satellites)
         self._clock = clock
-        # Which Funestra's funscript is driving the OSR2 right now (so the hand is
-        # paused and that Funestra's T-Code is on), or that the Robot Hand is (a
-        # funscript gap or an unscripted clip).  None means "no decision applied
-        # yet" — set while nobody is arbitrating, so the next arbitration
-        # re-asserts the correct driver.
-        self._driving: tuple[RoomFunestra, bool] | None = None
-        self._mode: str | None = None
-        self._have_had_the_device = {RoomFunestra.MAIN}
+        self._may_be_sending = {RoomFunestra.MAIN}
         self._statuses: dict[RoomFunestra, ScriptedStatus] = {}
-        # When the park-touch hold releases the pending hand-to-script flip;
-        # None outside one — see _holding_for_park_touch.
+        self._hand_has_the_stretch_of: RoomFunestra | None = None
         self._park_touch_deadline: float | None = None
-        self._carried_out: tuple[str, bool, bool] | None = None
-        self._asserted_at: float = 0.0
-        # Whether a hold left Genau's output switched off, so a driver taking the
-        # device back knows to switch it on again.
-        self._muted = False
+        self._stated: Osr2Turn | None = None
 
     def sync(self, main_mode: str, *, paused: bool,
              control: str = OSR2_DRIVING, holder: RoomFunestra = RoomFunestra.MAIN) -> None:
-        """Route the OSR2 to *holder*'s funscript or the Robot Hand, moment to
-        moment -- a side Funestra in every mode, the Main Funestra in kino mode.
+        turn = self._turn(main_mode, paused=paused, control=control, holder=holder)
+        if turn != self._stated and self._state(turn):
+            self._stated = turn
 
-        *control* parked or retracted is nobody driving, in every mode, and
-        nothing below runs: there is no device to hand over.
-
-        The funscript drives while it is actively scripting (``has_funscript``
-        and not ``funscript_resting``); the hand drives the unscripted stretches.
-        Each handoff sets both levers: the holder's T-Code on + the hand paused
-        for the funscript, or the holder's T-Code off + the hand resumed, and
-        every other Funestra that has had the device told to keep off it.
-        Edge-triggered, so it fires once per handoff; paused, in a new mode, or
-        where the holder is not arbitrated, the remembered state is cleared so
-        the next arbitration re-asserts.
-
-        The handoff itself is not smoothed here, and nothing waits for the
-        motion: whoever takes the device walks it from where it is to where it
-        needs to be (the Main Funestra's driver parks it over its handoff ramp; the hand climbs
-        back out of the park over the same one).  Waiting here for the hand's next
-        floor-touch made the moment depend on the live motion, and the trace —
-        which had to draw that moment before it happened — could only guess it.
-        """
-        if main_mode != self._mode:
-            self._mode, self._driving = main_mode, None
+    def _turn(self, main_mode: str, *, paused: bool, control: str,
+              holder: RoomFunestra) -> Osr2Turn:
         if control in HOLD_VERB:
-            self._carry_out(control, paused=paused)
-            self._driving = None
-            self._park_touch_deadline = None
-            return
-        self._carried_out = None
-        self._hand_the_output_back()
-        if paused or (holder is RoomFunestra.MAIN and not kino_shows(main_mode)):
-            self._let_the_last_driver_go(holder, paused=paused)
-            self._driving = None
-            self._park_touch_deadline = None
-            return
+            return self._with_no_handoff(Osr2Turn(
+                hand_playing=not paused, hand_heard=False,
+                held_at=self._held_at(HOLD_VERB[control])))
+        if paused:
+            return self._with_no_handoff(Osr2Turn(
+                hand_playing=False, held_at=self._held_at(osr2_hold.PARK)))
+        if holder is RoomFunestra.MAIN and not kino_shows(main_mode):
+            return self._with_no_handoff(Osr2Turn())
+        self._may_be_sending.add(holder)
+        if self._script_takes_it(holder):
+            return Osr2Turn(script=holder, hand_playing=False)
+        return Osr2Turn()
+
+    def _held_at(self, hold: str) -> str | None:
+        return hold if self._device_on() else None
+
+    def _with_no_handoff(self, turn: Osr2Turn) -> Osr2Turn:
+        self._hand_has_the_stretch_of = None
+        self._park_touch_deadline = None
+        return turn
+
+    def _script_takes_it(self, holder: RoomFunestra) -> bool:
         previous = self._statuses.get(holder)
         status = self._read_status(holder, previous)
         self._statuses[holder] = status
-        funscript_driving = status.funscript_driving
-        now = self._clock()
-        if ((holder, funscript_driving) == self._driving
-                and now - self._asserted_at < REASSERT_S):
-            return
-        if funscript_driving and self._driving == (holder, False):
-            # Taking the device FROM the hand: a motion whose floor rests ON the
-            # park is set down where the trace draws its blue ending, on its next
-            # touch-down, so the flip holds for that one touch; a raised floor
-            # takes the ramp and flips at once.  Only a FLOWING crossing holds --
-            # entered by a seek there is no drawn ending to honor, and a hold
-            # there kept the hand swinging under a green picture for its cap.
-            flowed = (previous is not None
-                      and abs(status.position_ms - previous.position_ms) < 1_500)
-            if flowed and self._holding_for_park_touch(now, status):
-                return
+        crossing = (status.funscript_driving and self._hand_has_the_stretch_of is holder
+                    and previous is not None
+                    and abs(status.position_ms - previous.position_ms) < _FLOWED_MS)
+        holding = crossing and self._holding_for_park_touch(status)
+        if not holding:
+            self._park_touch_deadline = None
+        takes_it = status.funscript_driving and not holding
+        self._hand_has_the_stretch_of = None if takes_it else holder
+        return takes_it
+
+    def _state(self, turn: Osr2Turn) -> bool:
+        """Every stop before any start, and no start until every stop is queued."""
+        stops, starts = self._stops_and_starts(turn)
+        stopped = [append_command(path, verb) for path, verb in stops]
+        if not all(stopped):
+            return False
+        started = [append_command(path, verb) for path, verb in starts]
+        return all(started)
+
+    def _stops_and_starts(self, turn: Osr2Turn) -> tuple[list[tuple[Path, str]], ...]:
+        genau = self.genau_cmd_file
+        stops = [(self._cmd_file(funestra), TCODE_OFF) for funestra in RoomFunestra
+                 if funestra in self._may_be_sending and funestra is not turn.script]
+        starts: list[tuple[Path, str]] = []
+        if turn.hand_heard:
+            starts.append((genau, TCODE_ON))
         else:
-            self._park_touch_deadline = None
-        # The edge is recorded only once every verb actually queued.
-        queued = [
-            append_command(self._cmd_file(holder), TCODE_ON if funscript_driving else TCODE_OFF),
-            append_command(self.genau_cmd_file, "PAUSE" if funscript_driving else "RESUME"),
-            *(append_command(self._cmd_file(other), TCODE_OFF)
-              for other in self._have_had_the_device if other is not holder),
-        ]
-        if all(queued):
-            self._driving = (holder, funscript_driving)
-            if funscript_driving:
-                self._have_had_the_device.add(holder)
-            self._asserted_at = now
-            self._park_touch_deadline = None
+            stops.append((genau, TCODE_OFF))
+        if turn.hand_playing:
+            starts.append((genau, "RESUME"))
+        else:
+            stops.append((genau, "PAUSE"))
+        if turn.held_at is not None:
+            starts.append((genau, turn.held_at))
+        if turn.script is not None:
+            starts.append((self._cmd_file(turn.script), TCODE_ON))
+        return stops, starts
 
     def _cmd_file(self, funestra: RoomFunestra) -> Path:
         if funestra is RoomFunestra.MAIN:
@@ -161,57 +145,15 @@ class DeviceArbiter:
             return read_main_funestra_status(self.main_funestra_status_file, fallback=previous)
         return read_satellite_status(self._satellites[funestra].status_file, fallback=previous)
 
-    def _let_the_last_driver_go(self, holder: RoomFunestra, *, paused: bool) -> None:
-        if self._driving is None or self._driving[0] is holder:
-            return
-        last_driver, its_script_drove = self._driving
-        append_command(self._cmd_file(last_driver), TCODE_OFF)
-        if its_script_drove and not paused:
-            append_command(self.genau_cmd_file, "RESUME")
-
-    def _carry_out(self, control: str, *, paused: bool) -> None:
-        """Hold the device where *control* says against both engines, asserted on
-        the heartbeat the way the handoff pair is."""
-        now = self._clock()
-        device_on = self._device_on()
-        if (self._carried_out == (control, paused, device_on)
-                and now - self._asserted_at < REASSERT_S):
-            return
-        genau = ("PAUSE" if paused else "RESUME", TCODE_OFF)
-        if device_on:
-            genau += (HOLD_VERB[control],)
-        queued = [append_command(self._cmd_file(funestra), TCODE_OFF)
-                  for funestra in self._have_had_the_device]
-        queued += [append_command(self.genau_cmd_file, verb) for verb in genau]
-        if all(queued):
-            self._carried_out, self._asserted_at = (control, paused, device_on), now
-            self._muted = True
-
-    def _hand_the_output_back(self) -> None:
-        """Switch Genau's output on again the moment somebody is driving, in
-        whatever mode the hold was let go in."""
-        if self._muted and append_command(self.genau_cmd_file, TCODE_ON):
-            self._muted = False
-
-    def _holding_for_park_touch(self, now: float, status) -> bool:
-        """Whether the hand-to-script flip is still waiting for a touch-down.
-
-        The touch is THE HOLDER'S CHOICE, published with its status: the trace picks
-        one touch-down, draws the blue ending on it, and this side simply ends
-        the hand's turn when the playhead reaches it — one chooser, so the device
-        cannot stop at a different trough than the picture drew.  When each
-        side chose from its own read of the wave, the arbiter could take an
-        earlier touch, and the leftover drawn blue vanished the moment the dot
-        reached it.  No published touch means the ramp case: flip at once.
-        The wall-clock cap keeps a stalled playhead from holding forever.
-        """
+    def _holding_for_park_touch(self, status: ScriptedStatus) -> bool:
+        """Whether the hand-to-script flip still waits for the touch-down the holder's
+        trace drew its blue ending on -- one chooser, so the device cannot stop at a
+        different trough than the picture drew; capped so a stalled playhead cannot
+        hold it forever."""
         touch = status.handoff_touch_ms
         if touch is None or status.position_ms >= touch:
-            self._park_touch_deadline = None
             return False
+        now = self._clock()
         if self._park_touch_deadline is None:
             self._park_touch_deadline = now + PARK_TOUCH_WAIT_CAP_MS / 1000
-        if now < self._park_touch_deadline:
-            return True
-        self._park_touch_deadline = None
-        return False
+        return now < self._park_touch_deadline

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,7 +11,6 @@ from urllib.request import url2pathname
 
 import pytest
 from app_support import osr2_hold
-from app_support.state_files import OSR2_SERIAL_RX
 from funestra.console import (
     OSR2_CONTROL_BUTTONS,
     OSR2_DRIVING,
@@ -3280,17 +3278,6 @@ def test_the_restore_comes_before_the_bands_and_the_focus(tmp_path: Path):
 
     assert order.index("restore_parked") < order.index("restore_all_topmost")
     assert order.index("restore_parked") < order.index("activate_role")
-
-
-def test_entering_omnipause_walks_genaus_picture_home_only_with_the_osr2_on(tmp_path: Path):
-    for device_on, verbs in ((True, ["PAUSE", osr2_hold.PARK]), (False, ["PAUSE"])):
-        config = _make_config(tmp_path / str(device_on))
-        if device_on:
-            (config.broker_state / OSR2_SERIAL_RX).write_text(str(time.time()), encoding="utf-8")
-
-        dispatch_command("enter_omnipause", _make_state(main_mode=MainMode.GENAU), config)
-
-        assert config.genau_cmd_file.read_text(encoding="utf-8").split("\n")[:-1] == verbs, device_on
 
 
 def test_entering_omnipause_parks_nothing_of_its_own(tmp_path: Path):

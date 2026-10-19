@@ -5,7 +5,6 @@ from funestra.console import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import MainMode
 
 from fun_time.omnipause import build_omnipause_plan
-from fun_time.room_funestras import RoomFunestra
 
 
 def test_toggle_enters_omnipause_when_not_already_paused():
@@ -32,26 +31,6 @@ def test_leave_kino_mode_resumes_main_funestra():
 
     assert plan.action == "leave"
     assert plan.resume_main_funestra_playback is True
-
-
-def test_leaving_gives_genau_the_device_back_in_genau_mode():
-    plan = build_omnipause_plan("leave", omni_paused=True, main_mode=MainMode.GENAU)
-
-    assert plan.resume_genau_playback is True
-
-
-def test_leaving_leaves_the_hand_to_the_arbiter_while_a_side_funestra_has_the_osr2():
-    plan = build_omnipause_plan("leave", omni_paused=True, main_mode=MainMode.GENAU,
-                                osr2_funestra=RoomFunestra.PORTRAIT)
-
-    assert plan.resume_genau_playback is False
-
-
-def test_leaving_under_a_hold_plays_the_hand_on_unheard():
-    plan = build_omnipause_plan("leave", omni_paused=True, main_mode=MainMode.GENAU,
-                                osr2_control=OSR2_PARKED)
-
-    assert plan.resume_genau_playback is True
 
 
 def test_leaving_hands_the_osr2_back_unless_a_hold_is_keeping_it():

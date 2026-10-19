@@ -67,15 +67,14 @@ def apply_mode_switch(
     current_mode: str,
     target_mode: str,
     omni_paused: bool,
-    genau_cmd_file: str | Path,
     main_funestra_paused_file: str | Path,
     main_funestra_cmd_file: str | Path,
 ) -> ModeSwitchFlowResult:
-    """Switch the main slot between kino and genau mode, sending each Funestra
+    """Switch the main slot between kino and genau mode, sending the Main Funestra
     what :class:`fun_time.mode_plan.ModeSwitchPlan` says it is owed.
 
-    Queued, never written whole: the files are queues shared with every other
-    writer, and replacing one here erased whatever they had appended since the
+    Queued, never written whole: the file is a queue shared with every other
+    writer, and replacing it here erased whatever it had appended since the
     last drain.
     """
     plan = build_mode_switch_plan(
@@ -86,10 +85,7 @@ def apply_mode_switch(
     if plan.is_transition:
         if plan.main_funestra_should_play is not None:
             write_flag_file(main_funestra_paused_file, not plan.main_funestra_should_play)
-        for cmd_file, cmd in ((genau_cmd_file, plan.genau_cmd),
-                              (main_funestra_cmd_file, plan.show_cmd)):
-            if cmd is not None:
-                append_command(Path(cmd_file), cmd)
+        append_command(Path(main_funestra_cmd_file), plan.show_cmd)
     return ModeSwitchFlowResult(
         next_mode=plan.target_mode,
         is_transition=plan.is_transition,
@@ -343,10 +339,8 @@ def apply_enter_omnipause(
     landscape_paused_file: str | Path,
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
-    genau_cmd_file: str | Path,
     main_funestra_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
-    device_on: bool,
     origenerator_paused_file: str | Path | None = None,
 ) -> OmniPauseFlowResult:
     """Freeze the whole session, and send the OSR2 home."""
@@ -368,11 +362,8 @@ def apply_enter_omnipause(
         # The hosted Origenerator obeys the same flag idiom: its shows stop
         # their dwell clocks and playing clips until the room resumes.
         write_flag_file(origenerator_paused_file, True)
-    append_command(Path(genau_cmd_file), "PAUSE")
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
-        if device_on:
-            append_command(Path(genau_cmd_file), plan.broker_command)
     return OmniPauseFlowResult(
         next_omni_paused=plan.next_omni_paused,
         log_message=plan.log_message,
@@ -387,24 +378,19 @@ def apply_leave_omnipause(
     landscape_paused_file: str | Path,
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
-    genau_cmd_file: str | Path,
     main_funestra_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
     origenerator_paused_file: str | Path | None = None,
     osr2_control: str = OSR2_DRIVING,
-    osr2_funestra: RoomFunestra = RoomFunestra.MAIN,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "leave",
         omni_paused=omni_paused,
         main_mode=main_mode,
         osr2_control=osr2_control,
-        osr2_funestra=osr2_funestra,
     )
     write_flag_file(genau_paused_file, False)
     write_flag_file(audio_paused_file, False)
-    if plan.resume_genau_playback:
-        append_command(Path(genau_cmd_file), "RESUME")
     if plan.resume_main_funestra_playback:
         write_flag_file(main_funestra_paused_file, False)
     if broker_cmd_file is not None:

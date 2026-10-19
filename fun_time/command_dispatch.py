@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
 
-from app_support import osr2_device, osr2_hold
+from app_support import osr2_hold
 from funestra.console import (
     HOLD_VERB,
     OSR2_CONTROL_BUTTONS,
@@ -817,11 +817,9 @@ def _dispatch_enter_omnipause(
         landscape_paused_file=config.landscape_paused_file,
         genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
-        genau_cmd_file=config.genau_cmd_file,
         main_funestra_paused_file=config.main_funestra_paused_file,
         broker_cmd_file=config.broker_cmd_file,
         origenerator_paused_file=config.origenerator_paused_file,
-        device_on=osr2_device.switched_on(config.broker_state),
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     ops = [WindowOp(op="disable_all_topmost"), WindowOp(op="suspend_hotkeys")]
@@ -840,12 +838,10 @@ def _dispatch_leave_omnipause(
         landscape_paused_file=config.landscape_paused_file,
         genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
-        genau_cmd_file=config.genau_cmd_file,
         main_funestra_paused_file=config.main_funestra_paused_file,
         broker_cmd_file=config.broker_cmd_file,
         origenerator_paused_file=config.origenerator_paused_file,
         osr2_control=state.osr2_control,
-        osr2_funestra=funestra_with_the_osr2(state),
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     # Un-minimize first, then re-band, then focus: leaving OmniPause is the room
@@ -1501,7 +1497,6 @@ def _dispatch_mode_switch(
         current_mode=state.main_mode,
         target_mode=target_mode,
         omni_paused=state.omni_paused,
-        genau_cmd_file=config.genau_cmd_file,
         main_funestra_paused_file=config.main_funestra_paused_file,
         main_funestra_cmd_file=config.main_funestra_cmd_file,
     )

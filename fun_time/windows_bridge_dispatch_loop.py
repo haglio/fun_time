@@ -370,11 +370,7 @@ class DispatchLoopRunner:
             # a session nobody is touching may be never.
             write_shared_state(self.shared_state_file, self.state)
 
-        # Hand the OSR2 to the current video's funscript (or back to the Robot
-        # Hand).
-        self.arbiter.sync(self.state.main_mode, paused=self.state.omni_paused,
-                          control=self.state.osr2_control,
-                          holder=funestra_with_the_osr2(self.state))
+        self._state_who_drives_the_osr2()
 
         # Dashboard commands, several at once under rapid hotkey presses.  Each
         # raw line yields a command plus, for a spoken one, when the utterance
@@ -415,6 +411,10 @@ class DispatchLoopRunner:
         if self.rfb_slideshow is not None:
             self.rfb_slideshow.tick(now=now, held=self.state.omni_paused
                                     or self.state.rfb_slot is RfbSlot.ORIGENERATOR)
+
+    def _state_who_drives_the_osr2(self) -> None:
+        main_mode, paused, control, holder = _who_drives_the_osr2_from(self.state)
+        self.arbiter.sync(main_mode, paused=paused, control=control, holder=holder)
 
     def _pause_for_a_click_into_a_text_field(self) -> None:
         if self.press_and_caret_watch is None:
@@ -656,7 +656,9 @@ class DispatchLoopRunner:
         ))
 
     def _take(self, new_state: BridgeState, ops: list[WindowOp]) -> None:
-        self.state = new_state
+        before, self.state = self.state, new_state
+        if _who_drives_the_osr2_from(before) != _who_drives_the_osr2_from(new_state):
+            self._state_who_drives_the_osr2()
         for op in ops:
             handler = _OP_HANDLERS.get(op.op)
             if handler is None:
@@ -963,6 +965,10 @@ class DispatchLoopRunner:
         browsing = self._browser_process
         if browsing is not None:
             browsing.terminate()
+
+
+def _who_drives_the_osr2_from(state: BridgeState) -> tuple[str, bool, str, RoomFunestra]:
+    return state.main_mode, state.omni_paused, state.osr2_control, funestra_with_the_osr2(state)
 
 
 def _what_origenerator_held(left_in: BridgeState, *, showing: bool) -> tuple[str, ...]:
