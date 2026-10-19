@@ -3,18 +3,20 @@ from __future__ import annotations
 
 import json
 import mmap
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from funestra.file_channel import consume_command_file
 
 from fun_time import load_config
-from fun_time.hosted_contract import CONTRACT_FILE
+from fun_time.hosted_contract import CONTRACT_FILE, NO_HOSTED_VOCABULARY
 from fun_time.hosted_origenerator import (
     HAND_OVER,
     TAKE_BACK,
     _adopt_a_kept_origenerator,
     bring_up_the_hosted_app,
+    what_it_answers_by_voice_in,
 )
 from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo
@@ -361,3 +363,29 @@ class TestWhenTheAppWeTookOverNeverAnswers:
 
         assert not launched, "a second copy was launched beside the one we took over"
         assert app is not None and app.taken_over and app.pid == 6060
+
+
+class TestWhatTheHostedAppAnswersByVoice:
+    def test_the_app_the_manifest_names_is_asked_in_its_own_checkout(self, cfg_factory, tmp_path):
+        origenerator = tmp_path / "origenerator"
+        origenerator.mkdir()
+        (origenerator / CONTRACT_FILE).write_text(
+            json.dumps({"spoken_phrases_module": "fabricated.voice"}), encoding="utf-8")
+        _config, manifest = _manifest_for(
+            cfg_factory, tmp_path, {"paths": {"origenerator_dir": str(origenerator)}})
+        asked = []
+
+        def run(argv, **kwargs):
+            asked.append((argv[1:], kwargs["cwd"]))
+            return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(
+                {"phrases": ["fix alpha"], "openers": ["request"], "speech_hint": ""}))
+
+        heard = what_it_answers_by_voice_in(manifest, run=run)
+
+        assert heard.phrases == frozenset({"fix alpha"})
+        assert asked == [(["-m", "fabricated.voice"], str(origenerator))]
+
+    def test_a_session_hosting_none_hears_nothing_of_one(self, cfg_factory, tmp_path):
+        _config, manifest = _manifest_for(cfg_factory, tmp_path, {})
+
+        assert what_it_answers_by_voice_in(manifest) == NO_HOSTED_VOCABULARY

@@ -28,6 +28,7 @@ from fun_time.command_dispatch import (
     _discard,
     _toggle_lock,
     dispatch_command,
+    hosted_satellites,
     routes_to_origenerator,
 )
 from fun_time.content import Noun, WebProvider, load_content, load_web_providers
@@ -45,7 +46,7 @@ from fun_time.origenerator_switches import RfbSlot
 from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_groups import _satellite_group_index, cancel_lock
 from fun_time.shared_state import BridgeState, SatelliteState
-from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
+from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import resolve_active_funestra_command
 from main_funestra.genau_verbs import genau_f_mode
@@ -4567,6 +4568,15 @@ def _in_origenerator_mode(*funestras: RoomFunestra, **fields) -> BridgeState:
     return state
 
 
+def test_the_satellites_the_hosted_app_holds_are_named_by_their_sides(tmp_path):
+    config = _origenerator_config(tmp_path)
+
+    assert hosted_satellites(_in_origenerator_mode(RoomFunestra.PORTRAIT), config) == (
+        frozenset({"portrait"}))
+    assert hosted_satellites(_in_origenerator_mode(RoomFunestra.PORTRAIT),
+                             _make_config(tmp_path)) == frozenset()
+
+
 def _modes(state: BridgeState) -> list[SatellitesMode]:
     return [state.satellite(funestra).mode for funestra in RoomFunestra.SATELLITES]
 
@@ -4894,16 +4904,21 @@ class TestOrigeneratorTransport:
         assert funestra_state.satellite(RoomFunestra.PORTRAIT).filter == ""
         assert _origenerator_cmds(config) == ["PORTRAIT_SAY:clear filter"]  # nothing more
 
-    def test_every_spoken_phrase_has_a_command_to_dispatch(self, tmp_path):
-        """The vocabulary and the routing are generated from one list, so a
-        phrase vosk can hear is a phrase this can send — a phrase recognized
-        with nowhere to go would be heard and silently dropped."""
+    def test_every_phrase_the_hosted_app_answers_reaches_it_said_to_either_side(self, tmp_path):
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
-        for funestra in ("portrait", "landscape"):
-            for phrase in ORIGENERATOR_PHRASES:
-                command = VOICE_COMMANDS[f"{funestra} {phrase}"]
-                assert routes_to_origenerator(command, state, config), command
+        phrases = ("fabricated order", "fix alpha hands")
+        heard = build_voice_commands(filter_commands={}, clip_jump_phrases=(),
+                                     origenerator_phrases=frozenset(phrases))
+
+        for side in ("portrait", "landscape"):
+            for phrase in phrases:
+                state, _ = dispatch_command(heard[f"{side} {phrase}"], state, config)
+
+        assert _origenerator_cmds(config) == [
+            "PORTRAIT_SAY:fabricated order", "PORTRAIT_SAY:fix alpha hands",
+            "LANDSCAPE_SAY:fabricated order", "LANDSCAPE_SAY:fix alpha hands",
+        ]
 
     def test_funestra_mode_routes_nothing_to_origenerator(self, tmp_path):
         config = _origenerator_config(tmp_path)

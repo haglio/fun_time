@@ -154,6 +154,11 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
 
 
 HANDOFF_COMMANDS: dict[str, HandoffTarget] = {"enter_vr": VR, "exit_vr": DESKTOP}
+REQUEST_NEWS: dict[str, tuple[str, bool]] = {
+    f"{side}_request_{news}": (side, opened)
+    for side in ("portrait", "landscape")
+    for news, opened in (("open", True), ("closed", False))
+}
 
 
 # The side-agnostic actions the Main Funestra (the Main Funestra) answers, and what it answers with.
@@ -673,6 +678,8 @@ class DispatchLoopRunner:
             self._handle_voice_toggle(cmd)
         elif cmd == "voice_accept":
             self._accept_what_voice_was_not_sure_of()
+        elif cmd in REQUEST_NEWS:
+            self._pass_on_request_news(*REQUEST_NEWS[cmd])
         else:
             self._dispatch(cmd, spoken_at)
 
@@ -830,6 +837,14 @@ class DispatchLoopRunner:
         write_shared_state(self.shared_state_file, self.state)
         if self.dashboard_enabled:
             self._update_dashboard()
+
+    def _pass_on_request_news(self, side: str, opened: bool) -> None:
+        if self.voice_controller is None:
+            return
+        if opened:
+            self.voice_controller.request_opened(side)
+        else:
+            self.voice_controller.request_closed(side)
 
     def _accept_what_voice_was_not_sure_of(self) -> None:
         if (self.voice_controller is None

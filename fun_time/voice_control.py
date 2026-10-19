@@ -4,8 +4,9 @@ up as it would an AHK hotkey.  Hearing itself is voice_core's."""
 from __future__ import annotations
 
 import logging
+import re
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,7 +16,7 @@ from voice_core.listener import CommandListener, Engines, ListenerEvents, Listen
 from voice_core.listening import Heard
 from voice_core.whisper_reader import WhisperReader
 
-from fun_time.command_dispatch import notice_source
+from fun_time.command_dispatch import notice_source, said_to_the_hosted_app
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_MAIN,
@@ -23,10 +24,12 @@ from fun_time.event_log import (
     SOURCE_SYSTEM,
     notice,
 )
+from fun_time.hosted_contract import NO_HOSTED_VOCABULARY, HostedVocabulary
 from fun_time.unlogged_notices import flash_unlogged
 from fun_time.voice_commands import (
     GENAU_SAID,
     VOICE_COMMANDS,
+    build_voice_commands,
     format_spoken_command,
     friendly_voice,
 )
@@ -38,6 +41,14 @@ DID_NOT_CATCH_IT = "couldn't catch what you said"
 NO_COMMAND = "unrecognized voice command"
 NOTHING_TO_ACCEPT = "Nothing to accept"
 PRESS_ENTER_TO_ACCEPT = "(press Enter to accept)"
+
+
+def _words(text: str | None) -> list[str]:
+    return re.findall(r"[a-z']+", (text or "").lower())
+
+
+def _without_its_first_word(text: str) -> str:
+    return re.sub(r"^\W*[\w']+\W*", "", text, count=1)
 
 
 def _how_many(words: str) -> str:
@@ -96,10 +107,6 @@ def _holds_or_ends_the_room(command: str) -> bool:
     )
 
 
-def _never_rescued(phrase: str) -> bool:
-    return _holds_or_ends_the_room(VOICE_COMMANDS[phrase])
-
-
 def _written(phrase: str) -> str | None:
     friendly = friendly_voice(phrase)
     return friendly if friendly != phrase else None
@@ -109,24 +116,21 @@ def _said_in(phrase: str) -> str | None:
     return "de" if any(said in phrase for said in GENAU_SAID) else None
 
 
-# Relief is the sensation emergency: it acts on the first listener's word, where
-# every other command can wait the half second the second one takes to agree.
-_RELIEF_PHRASES = frozenset(
-    phrase for phrase, command in VOICE_COMMANDS.items() if command == "relief_omnipause")
-
-
-def command_rules(*, confidence_threshold: float, confirm_commands: bool) -> CommandRules:
+def command_rules(commands: Mapping[str, str], *, confidence_threshold: float,
+                  confirm_commands: bool) -> CommandRules:
     """How the listener is to hear Fun Time's phrases.
 
     With *confirm_commands* a command acts only once the second listener has read
     it too; without, whatever the first settles acts at once and the second only
-    rescues what the first could not settle."""
-    unconfirmed = _RELIEF_PHRASES if confirm_commands else frozenset(VOICE_COMMANDS)
+    rescues what the first could not settle.  Relief is the sensation emergency:
+    it acts on the first listener's word either way."""
+    relief = frozenset(phrase for phrase, command in commands.items()
+                       if command == "relief_omnipause")
     return CommandRules(
-        phrases=frozenset(VOICE_COMMANDS),
-        never_rescued=_never_rescued,
+        phrases=frozenset(commands),
+        never_rescued=lambda phrase: _holds_or_ends_the_room(commands[phrase]),
         confidence_threshold=confidence_threshold,
-        stands_alone=unconfirmed.__contains__,
+        stands_alone=(relief if confirm_commands else frozenset(commands)).__contains__,
         written=_written,
         said_in=_said_in,
     )
@@ -151,8 +155,16 @@ class VoiceController:
         sample_rate: int = 16000,
         confirm_commands: bool = True,
         second_listener: Callable[[bytes, str], str] | None = None,
+        hosted: HostedVocabulary = NO_HOSTED_VOCABULARY,
+        hosted_cmd_file: Path | str | None = None,
     ) -> None:
         self.cmd_file = Path(cmd_file)
+        self.commands = (build_voice_commands(origenerator_phrases=hosted.phrases)
+                         if hosted.phrases else VOICE_COMMANDS)
+        self._hosted = hosted
+        self._hosted_cmd_file = hosted_cmd_file
+        self._request_side: str | None = None
+        self.hosted_sides: Callable[[], frozenset[str]] = frozenset
         self._muted = threading.Event()
         self._hold: VoiceHold | None = None
         self._not_sure_of: _NotSureOf | None = None
@@ -165,19 +177,66 @@ class VoiceController:
             sample_rate=sample_rate,
             caption_misses=True,
             miss_dir=self.cmd_file.parent / "voice_misses",
+            speech_hint=hosted.speech_hint,
         )
+        takes_requests = bool(hosted.openers)
         self.listener_events = ListenerEvents(
             heard=self.handle_heard,
             partial=self._say_it_is_being_worked_on,
             recovered=self._announce_the_microphone_is_back,
             keeps_misses=self._is_listening,
+            speech=self.handle_speech if takes_requests else None,
+            wants_words=self.wants_words if takes_requests else None,
         )
         self.engines = Engines(second_opinion=second_listener or WhisperReader(),
-                               second_opinion_in={"de": WhisperReader(language="de")})
+                               second_opinion_in={"de": WhisperReader(language="de")},
+                               take_down=(WhisperReader(for_dictation=True)
+                                          if takes_requests else None))
         self._listener = CommandListener(
-            command_rules(confidence_threshold=confidence_threshold,
+            command_rules(self.commands, confidence_threshold=confidence_threshold,
                           confirm_commands=confirm_commands),
             self.listener_settings, self.listener_events, self.engines)
+
+    def request_opened(self, side: str) -> None:
+        self._request_side = side
+
+    def request_closed(self, side: str) -> None:
+        if self._request_side == side:
+            self._request_side = None
+
+    def _side_taking_a_request(self) -> str | None:
+        side = self._request_side
+        return side if side in self.hosted_sides() else None
+
+    def _heard_through_a_request(self, heard: Heard) -> bool:
+        phrase = heard.recognition.phrase
+        return bool(phrase) and self.commands[phrase] in SUSPEND_EXEMPT_COMMANDS
+
+    def _side_a_request_opens_on(self, text: str | None) -> str | None:
+        said = _words(text)
+        if len(said) < 2 or said[1] not in self._hosted.openers:
+            return None
+        return said[0] if said[0] in self.hosted_sides() else None
+
+    def wants_words(self, heard: Heard) -> bool:
+        if not self._is_listening():
+            return False
+        if self._side_taking_a_request() is not None:
+            return not self._heard_through_a_request(heard)
+        return (not heard.recognition.phrase
+                and self._side_a_request_opens_on(heard.recognition.heard) is not None)
+
+    def handle_speech(self, words: str, heard: Heard) -> None:
+        side = self._side_taking_a_request()
+        if side is not None:
+            append_command(self._hosted_cmd_file, said_to_the_hosted_app(side, words))
+            return
+        side = self._side_a_request_opens_on(words)
+        if side is None:
+            self._report_a_miss(heard)
+            return
+        append_command(self._hosted_cmd_file,
+                       said_to_the_hosted_app(side, _without_its_first_word(words)))
 
     @property
     def is_muted(self) -> bool:
@@ -216,7 +275,7 @@ class VoiceController:
         the dispatcher acts on the video that was on screen when the user started
         talking rather than whatever replaced it during recognition.
         """
-        command = VOICE_COMMANDS[phrase]
+        command = self.commands[phrase]
         if self._muted.is_set():
             return False
         hold = self._hold
@@ -226,10 +285,15 @@ class VoiceController:
             command, spoken_at=spoken_at, said=friendly_voice(phrase)))
 
     def handle_heard(self, heard: Heard) -> None:
-        recognition = heard.recognition
-        if recognition.phrase:
-            self._hand_on(recognition.phrase, spoken_at=heard.spoken_at)
+        if self.wants_words(heard):
             return
+        if heard.recognition.phrase:
+            self._hand_on(heard.recognition.phrase, spoken_at=heard.spoken_at)
+            return
+        self._report_a_miss(heard)
+
+    def _report_a_miss(self, heard: Heard) -> None:
+        recognition = heard.recognition
         if not heard.words_formed or not self._is_listening():
             return
         doubted = recognition.refused_phrase or recognition.unconfirmed_phrase
@@ -263,7 +327,7 @@ class VoiceController:
         hold = self._hold
         if not written and hold is not None and not self._muted.is_set():
             notice(logger, f"ignored {hold.ignored_while}: {friendly_voice(phrase)}",
-                   source=notice_source(VOICE_COMMANDS[phrase], self.active_funestra()),
+                   source=notice_source(self.commands[phrase], self.active_funestra()),
                    level=logging.WARNING)
 
     def _report_words(self, logged: str, shown: str, words: str, *, heard_text: str,

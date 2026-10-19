@@ -20,7 +20,7 @@ from unittest.mock import patch
 
 from fun_time import preview_marker
 from fun_time.bridge_records import BridgeConfig
-from fun_time.command_dispatch import dispatch_command
+from fun_time.command_dispatch import dispatch_command, said_to_the_hosted_app
 from fun_time.filter_vocab import decode_filter_command, set_command
 from fun_time.gallery_follows_genau import GalleryFollowsGenau
 from fun_time.hosted_origenerator import the_session_it_is_handed, what_an_adopted_app_is_told
@@ -141,6 +141,8 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
                      _a_copy_parked_for_the_room_crossing_in),
         *(what_an_adopted_app_is_told("{frames}", "{input}", in_a_headset=in_a_headset)
           for in_a_headset in (False, True)),
+        *(said_to_the_hosted_app(funestra.label, "{words}")
+          for funestra in RoomFunestra.SATELLITES),
     ]
     return {_as_published(line) for line in written
             if _said_after_the_side(line) not in LEFT_UNANSWERED}

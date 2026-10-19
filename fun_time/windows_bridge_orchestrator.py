@@ -17,6 +17,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable, Iterator, Sequence
+from concurrent.futures import Future
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -32,6 +33,7 @@ from .append_only import append_line
 from .broker_control import write_broker_command
 from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
+from .command_dispatch import hosted_satellites
 from .config import VoiceControlConfig, load_config
 from .crown import majority_now
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
@@ -44,6 +46,8 @@ from .funestra_deaths import (
     show_funestra_died_alert,
     the_part_that_closed,
 )
+from .hosted_contract import ASKING_BUDGET_S, NO_HOSTED_VOCABULARY, HostedVocabulary
+from .hosted_origenerator import what_it_answers_by_voice_in
 from .hud_transport import HudPublisher
 from .library_handles import build_library_handles, genau_flick_sources
 from .loading_cover import LoadingCover
@@ -857,9 +861,34 @@ def _serve_loopback(port: int, dispatch_runner: DispatchLoopRunner) -> Threading
 class PreparedVoice:
     settings: VoiceControlConfig
     second_listener: WhisperReader
+    what_the_hosted_app_answers: Future[HostedVocabulary]
+
+    def hosted(self) -> HostedVocabulary:
+        try:
+            return self.what_the_hosted_app_answers.result(timeout=ASKING_BUDGET_S)
+        except Exception:
+            logger.exception("The hosted Origenerator was not heard saying what it answers "
+                             "by voice")
+            return NO_HOSTED_VOCABULARY
 
 
-def prepare_voice_control(config_path: str) -> PreparedVoice | None:
+def _asked_in_the_background(ask: Callable[[], HostedVocabulary]) -> Future[HostedVocabulary]:
+    answer: Future[HostedVocabulary] = Future()
+
+    def ask_it() -> None:
+        try:
+            answer.set_result(ask())
+        except Exception as error:
+            answer.set_exception(error)
+
+    threading.Thread(target=ask_it, daemon=True, name="ask-the-hosted-app").start()
+    return answer
+
+
+def prepare_voice_control(
+    config_path: str, *,
+    ask_the_hosted_app: Callable[[], HostedVocabulary] = lambda: NO_HOSTED_VOCABULARY,
+) -> PreparedVoice | None:
     """Every failure here and in start_voice_control is logged and swallowed: a
     session without voice is a session, and one that refuses to open because a
     microphone stack did not import is not."""
@@ -876,7 +905,8 @@ def prepare_voice_control(config_path: str) -> PreparedVoice | None:
             return None
         second_listener = WhisperReader()
         second_listener.load_ahead()
-        return PreparedVoice(cfg.voice_control, second_listener)
+        return PreparedVoice(cfg.voice_control, second_listener,
+                             _asked_in_the_background(ask_the_hosted_app))
     except Exception:
         logger.exception("Voice control setup failed")
         return None
@@ -898,11 +928,15 @@ def start_voice_control(
             sample_rate=settings.sample_rate,
             confirm_commands=settings.confirm_commands,
             second_listener=prepared.second_listener,
+            hosted=prepared.hosted(),
+            hosted_cmd_file=dispatch_runner.config.origenerator_cmd_file,
         )
         if dispatch_runner.state.mic_muted:
             voice_controller.mute()
         dispatch_runner.voice_controller = voice_controller
         voice_controller.active_funestra = lambda: dispatch_runner.state.active_funestra
+        voice_controller.hosted_sides = lambda: hosted_satellites(dispatch_runner.state,
+                                                                  dispatch_runner.config)
         voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
         voice_thread.start()
         logger.info("Voice control thread launched")
@@ -1172,7 +1206,9 @@ def run_session(
     # Bridge lines land in the log AHK writes to, before the script goes up, so
     # the line naming what was launched is in the file the script then appends.
     add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
-    prepared_voice = prepare_voice_control(manifest.runtime.config_path)
+    prepared_voice = prepare_voice_control(
+        manifest.runtime.config_path,
+        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest))
 
     dashboard_cmd_file = Path(manifest.commands.dashboard_cmd_file)
     ahk_cmd_file = state_dir / "ahk_cmd.txt"
