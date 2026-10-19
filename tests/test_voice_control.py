@@ -606,11 +606,11 @@ def test_a_phrase_of_the_hosted_apps_is_heard_and_handed_on_as_said_to_its_side(
         "landscape_say_fabricated_order @1.000\tlandscape fabricated order\n")
 
 
-_THE_HOSTED_APP = HostedVocabulary(frozenset({"request"}), frozenset({"request"}),
+_THE_HOSTED_APP = HostedVocabulary(frozenset({"request", "gamma shelf"}), frozenset({"request"}),
                                    "Fabricated hint.")
 
 
-class TestARequestSaidToAHostedSatellite:
+class TestWhatIsSaidToASatelliteShowingOrigenerator:
     def _controller(self, tmp_path: Path, *, hosting=("portrait", "landscape")) -> VoiceController:
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
                              hosted=_THE_HOSTED_APP,
@@ -702,6 +702,40 @@ class TestARequestSaidToAHostedSatellite:
 
         assert not (tmp_path / "origenerator_cmd.txt").exists()
         assert vc.accept_what_it_was_not_sure_of()
+
+    def test_a_reading_it_could_not_place_led_by_such_a_side_has_its_words_taken_down(
+            self, tmp_path):
+        vc = self._controller(tmp_path)
+
+        assert vc.wants_words(_heard(Recognition(unrecognized_text="portrait gamma",
+                                                 heard="portrait gamma")))
+
+    def test_words_of_it_that_are_one_of_the_apps_phrases_go_on_as_that_command(self, tmp_path):
+        vc = self._controller(tmp_path)
+        heard = _formed(Recognition(unrecognized_text="portrait gamma", heard="portrait gamma"))
+
+        vc.handle_heard(heard)
+        vc.handle_speech("Portrait gamma shelf.", heard)
+
+        assert parse_command_line((tmp_path / "cmd.txt").read_text(
+            encoding="utf-8").strip()).command == "portrait_say_gamma_shelf"
+
+    @pytest.mark.parametrize("words", ["Portrait next.", "Portrait gamma."])
+    def test_words_of_it_that_are_none_of_the_apps_phrases_go_nowhere(self, tmp_path, words):
+        vc = self._controller(tmp_path)
+        heard = _formed(Recognition(unrecognized_text="portrait gamma", heard="portrait gamma"))
+
+        vc.handle_heard(heard)
+        vc.handle_speech(words, heard)
+
+        assert not (tmp_path / "cmd.txt").exists()
+        assert not (tmp_path / "origenerator_cmd.txt").exists()
+
+    def test_one_led_by_a_side_showing_something_else_takes_no_words(self, tmp_path):
+        vc = self._controller(tmp_path, hosting=("landscape",))
+
+        assert not vc.wants_words(_heard(Recognition(unrecognized_text="portrait gamma",
+                                                     heard="portrait gamma")))
 
     def test_the_listener_takes_words_down_when_asked_with_the_hint_the_app_gave(self, tmp_path):
         vc = self._controller(tmp_path)
