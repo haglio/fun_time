@@ -373,7 +373,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 5887 the same day: every face, color, size and spacing Fun Time drew is the
 # family's, and the notes on why it typed its own, and on the desktop numbers the
 # headset's banner copied, went with them.
-MAX_PROSE_LINES = 5887
+# 5875 on 2026-10-24: a Broker waiting for an unplugged OSR2 counts as running,
+# so the notes on its heartbeat going stale whenever the OSR2 is off went.
+MAX_PROSE_LINES = 5875
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

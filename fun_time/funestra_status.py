@@ -9,7 +9,9 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from app_support import osr2_device
 from app_support.file_channel import read_key_values, stamp_age
+from app_support.osr2_device import Osr2Trouble
 from funestra.modes import LoopState, read_mode
 from funestra.status import FunestraStatus, parse_status
 
@@ -213,3 +215,9 @@ def origenerator_has_published(path: Path) -> bool:
 def is_broker_heartbeat_fresh(path: Path, *, max_age_seconds: float = 3.0, now: float | None = None) -> bool:
     age = stamp_age(path, now)
     return age is not None and age <= max_age_seconds
+
+
+def broker_is_running(heartbeat_file: Path | None, broker_state: Path) -> bool:
+    if heartbeat_file is not None and is_broker_heartbeat_fresh(heartbeat_file):
+        return True
+    return osr2_device.trouble(broker_state) is Osr2Trouble.NOT_FOUND

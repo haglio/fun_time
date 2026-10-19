@@ -471,6 +471,25 @@ class TestHudPublishing:
 
         assert console(tmp_path)["osr2"] == Osr2State.OFF
 
+    def test_the_console_names_an_osr2_the_broker_cannot_find(self, tmp_path):
+        feed = make_feed(tmp_path)
+        (tmp_path / "osr2_not_found.txt").write_text(str(time.time()), encoding="utf-8")
+
+        feed.publish(BridgeState())
+
+        assert console(tmp_path)["osr2"] == Osr2State.UNPLUGGED
+
+    def test_a_broker_waiting_for_an_unplugged_osr2_is_lit_as_running(self, tmp_path):
+        """It renews its word that the OSR2 is unplugged instead of the heartbeat,
+        which stops while it holds no port; the light read that silence as a
+        Broker that was not running."""
+        feed = make_feed(tmp_path)
+        (tmp_path / "osr2_not_found.txt").write_text(str(time.time()), encoding="utf-8")
+
+        feed.publish(BridgeState())
+
+        assert broker_is_up(console(tmp_path))
+
     def test_both_broker_lights_read_the_brokers_directory_not_the_sessions(self, tmp_path):
         """A branch session moves ``state/`` into its worktree; the machine's one
         broker keeps writing where it always did.
@@ -762,6 +781,16 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
 
         assert "robot_hand_park" in _osr2_commands(_published(tmp_path, "landscape"))
         assert _osr2_commands(_published(tmp_path, "portrait")) == ["portrait_take_osr2"]
+
+
+class TestASatelliteWithTheOsr2:
+    def test_names_why_the_osr2_cannot_be_heard(self, tmp_path):
+        feed = make_feed(tmp_path)
+        (tmp_path / "osr2_not_answering.txt").write_text(str(time.time()), encoding="utf-8")
+
+        feed.publish(BridgeState(osr2_funestra=3))
+
+        assert _published(tmp_path, "landscape").osr2 == Osr2State.NO_ANSWER
 
 
 class TestOsr2Mode:

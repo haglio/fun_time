@@ -2884,6 +2884,20 @@ class TestIdempotentVoiceCommands:
             wait_until(lambda: mock_launch.call_count >= 1, timeout=10.0)
         mock_stop.assert_not_called()
 
+    def test_broker_panel_stops_a_broker_waiting_for_an_unplugged_osr2(self, tmp_path):
+        """The light says such a Broker is running, so its press stops it, as it
+        does any running Broker; starting another would only be refused."""
+        runner = make_runner(tmp_path)
+        (tmp_path / "osr2_not_found.txt").write_text(str(time.time()), encoding="utf-8")
+        with patch("fun_time.windows_bridge_dispatch_loop.stop_broker_processes") as mock_stop, \
+             patch("fun_time.windows_bridge_dispatch_loop.launch_broker_tray") as mock_launch:
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("broker_panel", encoding="utf-8")
+            runner.tick()
+            wait_until(lambda: mock_stop.call_count >= 1, timeout=10.0)
+        mock_stop.assert_called_once()
+        mock_launch.assert_not_called()
+
     def test_broker_stop_stops_when_running(self, tmp_path):
         runner = make_runner(tmp_path)
         (tmp_path / "broker_heartbeat.txt").write_text(str(time.time()), encoding="utf-8")
