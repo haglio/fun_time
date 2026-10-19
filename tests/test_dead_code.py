@@ -344,7 +344,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # old name.
 # 6072 the same day: the dispatch loop reads the room it was left in once.
 # 6068 the same day: the headset's layout file stopped being rewritten in place.
-MAX_PROSE_LINES = 6058
+# 6037 on 2026-10-19: the hosted Origenerator says which phrases it answers,
+# so the notes on the list Fun Time kept of them by hand went with the list.
+MAX_PROSE_LINES = 6037
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

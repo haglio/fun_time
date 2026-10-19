@@ -1172,6 +1172,21 @@ class TestDispatchLoopRunner:
 
         assert read_shared_state(tmp_path / "shared_state.ini").mic_muted is False
 
+    def test_a_request_the_hosted_app_says_opened_on_a_side_is_passed_to_the_voice(
+            self, tmp_path):
+        runner = make_runner(tmp_path)
+        heard = []
+        runner.voice_controller = SimpleNamespace(
+            request_opened=lambda side: heard.append(("opened", side)),
+            request_closed=lambda side: heard.append(("closed", side)),
+            is_muted=False, unsuspend=lambda: None, suspend=lambda hold: None)
+        (tmp_path / "dashboard_cmd.txt").write_text(
+            "landscape_request_open\nlandscape_request_closed\n", encoding="utf-8")
+
+        runner.tick()
+
+        assert heard == [("opened", "landscape"), ("closed", "landscape")]
+
     def test_omnipause_suspends_the_voice_controller(self, tmp_path):
         """Omnipause freezes voice the way it freezes the AHK hotkeys: of what a
         paused room says, only the exempt commands reach the dispatch loop."""

@@ -26,6 +26,7 @@ from fun_time.crown import Crown
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
 from fun_time.funestra_deaths import FunestraDied, LaunchedFunestra
+from fun_time.hosted_contract import NO_HOSTED_VOCABULARY, HostedVocabulary
 from fun_time.loading_cover import open_the_cover
 from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.loopback_inbox import PRESS_PORT_FILENAME
@@ -3150,19 +3151,49 @@ class TestTheSessionEndsOnItsMarker:
 class TestStartingVoice:
     @staticmethod
     def _started(config_path, tmp_path, *, controller=None, second_listener=None,
-                 mic_muted=False):
-        runner = MagicMock()
+                 mic_muted=False, hosted=NO_HOSTED_VOCABULARY, runner=None):
+        runner = runner or MagicMock()
         runner.state = BridgeState(mic_muted=mic_muted)
         with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
              patch.object(windows_bridge_orchestrator, "WhisperReader",
-                          return_value=second_listener or MagicMock()), \
-             patch.object(windows_bridge_orchestrator, "VoiceController",
+                          return_value=second_listener or MagicMock()):
+            prepared = windows_bridge_orchestrator.prepare_voice_control(
+                str(config_path), ask_the_hosted_app=lambda: hosted)
+        with patch.object(windows_bridge_orchestrator, "VoiceController",
                           controller or MagicMock()), \
              patch.object(windows_bridge_orchestrator.threading, "Thread"):
             return windows_bridge_orchestrator.start_voice_control(
-                windows_bridge_orchestrator.prepare_voice_control(str(config_path)),
-                dashboard_cmd_file=tmp_path / "dashboard_cmd.txt", dispatch_runner=runner,
+                prepared, dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+                dispatch_runner=runner,
             )
+
+    def test_the_session_hears_what_the_hosted_app_says_it_answers_and_tells_it_there(
+        self, cfg_factory, tmp_path,
+    ):
+        config_path = cfg_factory({"voice_control": {"enabled": True}})
+        controller, runner = MagicMock(), MagicMock()
+        hosted = HostedVocabulary(frozenset({"fix alpha"}), frozenset({"request"}), "")
+
+        self._started(config_path, tmp_path, controller=controller, hosted=hosted,
+                      runner=runner)
+
+        assert controller.call_args.kwargs["hosted"] == hosted
+        assert controller.call_args.kwargs["hosted_cmd_file"] == (
+            runner.config.origenerator_cmd_file)
+
+    def test_the_voice_asks_the_room_which_satellites_the_hosted_app_holds(
+        self, cfg_factory, tmp_path,
+    ):
+        config_path = cfg_factory({"voice_control": {"enabled": True}})
+        controller, runner = MagicMock(), MagicMock()
+
+        with patch.object(windows_bridge_orchestrator, "hosted_satellites",
+                          return_value=frozenset({"landscape"})) as asked:
+            self._started(config_path, tmp_path, controller=controller, runner=runner)
+            sides = controller.return_value.hosted_sides()
+
+        assert sides == frozenset({"landscape"})
+        asked.assert_called_once_with(runner.state, runner.config)
 
     def test_a_microphone_that_will_not_open_leaves_a_session_without_voice(
         self, cfg_factory, tmp_path,
@@ -3261,7 +3292,7 @@ class TestStartingVoice:
             return None, None
 
         with patch.object(windows_bridge_orchestrator, "prepare_voice_control",
-                          side_effect=lambda _config_path: order.append("voice prepared")
+                          side_effect=lambda _config_path, **_asking: order.append("voice prepared")
                           or prepared), \
              patch.object(windows_bridge_orchestrator, "run_startup_sequence",
                           side_effect=the_room_comes_up), \

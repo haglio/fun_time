@@ -19,6 +19,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Iterator
+from functools import partial
 from pathlib import Path
 
 from app_support import osr2_hold
@@ -45,7 +46,7 @@ from fun_time.funestra_settings import read_funestra_reports
 from fun_time.funestra_status import read_main_funestra_status
 from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import put_the_headset_to_sleep
-from fun_time.hosted_origenerator import bring_up_the_hosted_app
+from fun_time.hosted_origenerator import bring_up_the_hosted_app, what_it_answers_by_voice_in
 from fun_time.main_list import MainList, MainListSettings
 from fun_time.manifest import (
     LaunchManifest,
@@ -469,7 +470,9 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
     # The dispatch loop and voice controller log under fun_time.*, which
     # set_up_logging wired for fun_time_vr.orchestrator alone.
     add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
-    prepared_voice = prepare_voice_control(manifest.runtime.config_path)
+    prepared_voice = prepare_voice_control(
+        manifest.runtime.config_path,
+        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest))
     bridge_config = build_bridge_config_from_manifest(manifest, vr_main_funestra=True)
     commands = manifest.commands
     pids_file = state_dir / "bridge_pids.ini"

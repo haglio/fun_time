@@ -120,7 +120,7 @@ from .satellite_groups import (
     wrong_action,
 )
 from .shared_state import BridgeState, SatelliteState
-from .voice_commands import FAVORITES_PHRASE, ORIGENERATOR_PHRASES, say_command
+from .voice_commands import FAVORITES_PHRASE, said_to_a_side, say_command
 from .vr_videos import shapes_verb
 from .watch_stats import record_watch_event, watch_stats_path
 
@@ -1416,21 +1416,20 @@ def _said_to_each_side(command: str) -> tuple[str, ...]:
     return tuple(set_command(funestra.label, target[1]) for funestra in RoomFunestra.SATELLITES)
 
 
-# The hosted app's own spoken vocabulary, one command per phrase.  The session
-# hears them (it owns the room's microphone) and posts the WORDS on the hosted
-# app's channel; matching them is the hosted app's own business, since only it
-# knows which shelves its tree has and which detail parts have detectors.
-_ORIGENERATOR_SPEECH: dict[str, tuple[str, str]] = {
-    **{
-        say_command(side, phrase): (side, phrase)
-        for side in ("portrait", "landscape")
-        for phrase in ORIGENERATOR_PHRASES
-    },
-    # One the session already says to a Funestra, which means the same thing to
-    # the hosted app's show on that side.
+# One the session already says to a Funestra, which means the same thing to the
+# hosted app's show on that side.
+_SAID_TO_A_FUNESTRA_AND_A_SHOW: dict[str, tuple[str, str]] = {
     "portrait_no_filter": ("portrait", "clear filter"),
     "landscape_no_filter": ("landscape", "clear filter"),
 }
+
+
+def _words_for_the_hosted_app(command: str) -> tuple[str, str] | None:
+    return said_to_a_side(command) or _SAID_TO_A_FUNESTRA_AND_A_SHOW.get(command)
+
+
+def said_to_the_hosted_app(side: str, words: str) -> str:
+    return f"{side.upper()}_SAY:{words}"
 
 
 def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfig) -> bool:
@@ -1443,7 +1442,7 @@ def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfi
     asks the same question -- its watch tracking must not book a show's step or
     cull against a library video.
     """
-    spoken = _ORIGENERATOR_SPEECH.get(command)
+    spoken = _words_for_the_hosted_app(command)
     if spoken is not None:
         return hosts(RoomFunestra[spoken[0].upper()], state, config)
     return all(_about_a_satellite(said) and hosts(_side_said_to(said), state, config)
@@ -1472,6 +1471,11 @@ def hosts(funestra: RoomFunestra | None, state: BridgeState, config: BridgeConfi
             and origenerator_shows(state.satellite(funestra).mode))
 
 
+def hosted_satellites(state: BridgeState, config: BridgeConfig) -> frozenset[str]:
+    return frozenset(funestra.label for funestra in RoomFunestra.SATELLITES
+                     if hosts(funestra, state, config))
+
+
 def hosts_a_satellite(state: BridgeState, config: BridgeConfig) -> bool:
     return _hosting(config) and state.origenerator_holds_a_satellite()
 
@@ -1492,10 +1496,9 @@ def _origenerator_transport(
     """
     if not routes_to_origenerator(command, state, config):
         return None
-    spoken = _ORIGENERATOR_SPEECH.get(command)
+    spoken = _words_for_the_hosted_app(command)
     if spoken is not None:
-        funestra_name, phrase = spoken
-        append_command(config.origenerator_cmd_file, f"{funestra_name.upper()}_SAY:{phrase}")
+        append_command(config.origenerator_cmd_file, said_to_the_hosted_app(*spoken))
         return []
     for said in _said_to_each_side(command):
         append_command(config.origenerator_cmd_file, said)
@@ -1885,8 +1888,11 @@ def _save_clip(state: BridgeState, _config: BridgeConfig,
     return state, [WindowOp(op="save_clip")]
 
 
-def _words_for_a_show_that_is_not_up(state: BridgeState, _config: BridgeConfig,
-                                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+def _parsed_words_for_a_show_that_is_not_up(
+        command: str, state: BridgeState, _config: BridgeConfig,
+        _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
+    if said_to_a_side(command) is None:
+        return None
     return _ignored(state, _IN_KINO_MODE)
 
 
@@ -1995,8 +2001,6 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, funestra in TAKE_OSR2_COMMANDS.items()})
     handlers["genaumacher_save"] = _save_clip
     handlers["genau_weird_flick"] = _mark_genaus_flick_weird
-    handlers.update({cmd: _words_for_a_show_that_is_not_up
-                     for cmd in _ORIGENERATOR_SPEECH if cmd not in handlers})
     return handlers
 
 
@@ -2116,4 +2120,5 @@ _PARSED_FORMS = (
     _parsed_satellite_speed,
     _parsed_numeric,
     _parsed_unresolved_active,
+    _parsed_words_for_a_show_that_is_not_up,
 )

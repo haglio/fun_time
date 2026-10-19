@@ -2,11 +2,46 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 CONTRACT_FILE = "origenerator_contract.json"
+ASKING_BUDGET_S = 30.0
+
+
+@dataclass(frozen=True)
+class HostedVocabulary:
+    phrases: frozenset[str] = frozenset()
+    openers: frozenset[str] = frozenset()
+    speech_hint: str = ""
+
+
+NO_HOSTED_VOCABULARY = HostedVocabulary()
+
+
+def what_it_answers_by_voice(checkout: str | Path, *, python_exe: str | Path,
+                             launch_kwargs: dict,
+                             run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+                             ) -> HostedVocabulary:
+    module = (published_by(checkout) or {}).get("spoken_phrases_module")
+    if not module:
+        logger.warning("The Origenerator at %s does not say what it answers by voice, so no "
+                       "phrase of its is heard said to a satellite", checkout)
+        return NO_HOSTED_VOCABULARY
+    try:
+        answer = json.loads(run([str(python_exe), "-m", module], capture_output=True,
+                                text=True, timeout=ASKING_BUDGET_S, check=True,
+                                **launch_kwargs).stdout)
+        return HostedVocabulary(frozenset(answer["phrases"]), frozenset(answer["openers"]),
+                                answer["speech_hint"])
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as error:
+        logger.warning("The Origenerator at %s could not say what it answers by voice (%s), "
+                       "so no phrase of its is heard said to a satellite", checkout, error)
+        return NO_HOSTED_VOCABULARY
 
 
 def published_by(checkout: str | Path) -> dict | None:

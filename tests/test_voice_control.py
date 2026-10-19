@@ -16,6 +16,7 @@ from voice_core.listening import Heard
 from fun_time import voice_control
 from fun_time.content import genau_flick_noun
 from fun_time.filter_vocab import filter_voice_commands
+from fun_time.hosted_contract import HostedVocabulary
 from fun_time.voice_commands import VOICE_COMMANDS, parse_command_line
 from fun_time.voice_control import WHILE_NOT_WEARING_HEADSET, VoiceController, command_rules
 
@@ -41,7 +42,7 @@ MISSES = [
 
 class TestCommandRules:
     def test_every_spoken_phrase_is_one_the_listener_is_told_to_hear(self):
-        rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
+        rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
 
         assert rules.phrases == frozenset(VOICE_COMMANDS)
         assert set(filter_voice_commands()) <= rules.phrases
@@ -49,7 +50,7 @@ class TestCommandRules:
     def test_a_repair_never_lands_on_a_command_that_holds_or_ends_the_room(self):
         """A repair promotes a reading ranked under another: a fine trade for a
         satellite nudge, a bad one for quitting the room or moving the device."""
-        rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
+        rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
 
         ruled_out = {phrase for phrase in rules.phrases if rules.never_rescued(phrase)}
 
@@ -58,31 +59,31 @@ class TestCommandRules:
         assert not {"landscape lock", "pause", "next", "amp up"} & ruled_out
 
     def test_the_configured_bar_is_the_one_a_scored_reading_has_to_reach(self):
-        assert command_rules(confidence_threshold=0.6, confirm_commands=True
+        assert command_rules(VOICE_COMMANDS, confidence_threshold=0.6, confirm_commands=True
                              ).confidence_threshold == 0.6  # noqa: PLR2004
 
     def test_with_commands_confirmed_only_relief_acts_on_the_first_listeners_word_alone(self):
         """The sensation emergency must not wait half a second for a second
         opinion; everything else can."""
-        rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
+        rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
 
         assert {phrase for phrase in rules.phrases if rules.stands_alone(phrase)} == {
             phrase for phrase, command in VOICE_COMMANDS.items() if command == "relief_omnipause"}
 
     def test_with_commands_unconfirmed_every_phrase_acts_on_the_first_listeners_word(self):
-        rules = command_rules(confidence_threshold=0.7, confirm_commands=False)
+        rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=False)
 
         assert all(rules.stands_alone(phrase) for phrase in rules.phrases)
 
     def test_the_second_listener_is_shown_a_sound_alike_phrase_as_it_is_written(self):
-        rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
+        rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
 
         assert rules.written("go now mode") == "genau mode"
         assert rules.written("o s r two off") == "OSR2 off"
         assert rules.written("landscape next") is None
 
     def test_the_phrases_that_say_genau_are_said_in_german_and_no_others(self):
-        rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
+        rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
 
         assert {rules.said_in(phrase) for phrase in
                 ("go now", "go now mode", "next go now", "portrait go now")} == {"de"}
@@ -91,7 +92,7 @@ class TestCommandRules:
                 ("kino mode", f"{flick} seconds five", f"weird {flick}", "next")} == {None}
 
     def test_the_second_listener_is_handed_genau_whichever_spelling_the_first_heard(self):
-        rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
+        rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
         genau_phrases = [phrase for phrase, command in VOICE_COMMANDS.items()
                          if command == "genau_activate"]
 
@@ -593,3 +594,125 @@ class TestWriteCommand:
         vc._write_spoken("play", spoken_at=1.0)
         assert not cmd_file.exists()
 
+
+
+def test_a_phrase_of_the_hosted_apps_is_heard_and_handed_on_as_said_to_its_side(tmp_path):
+    vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
+                         hosted=HostedVocabulary(frozenset({"fabricated order"})))
+
+    vc.handle_heard(_heard(Recognition(phrase="landscape fabricated order")))
+
+    assert (tmp_path / "cmd.txt").read_text(encoding="utf-8") == (
+        "landscape_say_fabricated_order @1.000\tlandscape fabricated order\n")
+
+
+_THE_HOSTED_APP = HostedVocabulary(frozenset({"request"}), frozenset({"request"}),
+                                   "Fabricated hint.")
+
+
+class TestARequestSaidToAHostedSatellite:
+    def _controller(self, tmp_path: Path, *, hosting=("portrait", "landscape")) -> VoiceController:
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
+                             hosted=_THE_HOSTED_APP,
+                             hosted_cmd_file=tmp_path / "origenerator_cmd.txt")
+        vc.hosted_sides = lambda: frozenset(hosting)
+        return vc
+
+    def test_while_one_is_open_the_words_of_everything_said_are_wanted(self, tmp_path):
+        vc = self._controller(tmp_path)
+
+        vc.request_opened("landscape")
+
+        assert vc.wants_words(_heard(Recognition(phrase="landscape next")))
+        assert vc.wants_words(_heard(Recognition(unrecognized_text="alpha beta")))
+
+    def test_the_words_of_an_open_request_go_to_its_side_and_are_acted_on_by_nothing_here(
+            self, tmp_path):
+        vc = self._controller(tmp_path)
+        vc.request_opened("landscape")
+        heard = _heard(Recognition(phrase="landscape next"))
+
+        vc.handle_heard(heard)
+        vc.handle_speech("No feet.", heard)
+
+        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == (
+            "LANDSCAPE_SAY:No feet.\n")
+        assert not (tmp_path / "cmd.txt").exists()
+
+    @pytest.mark.parametrize("phrase, command", [("stop", "relief_omnipause"), ("quit", "quit")])
+    def test_what_a_paused_room_still_hears_is_still_a_command_while_one_is_open(
+            self, tmp_path, phrase, command):
+        vc = self._controller(tmp_path)
+        vc.request_opened("landscape")
+        heard = _heard(Recognition(phrase=phrase))
+
+        wanted = vc.wants_words(heard)
+        vc.handle_heard(heard)
+
+        assert not wanted
+        [line] = (tmp_path / "cmd.txt").read_text(encoding="utf-8").splitlines()
+        assert parse_command_line(line).command == command
+
+    def test_once_it_is_closed_what_is_said_is_a_command_again(self, tmp_path):
+        vc = self._controller(tmp_path)
+        vc.request_opened("landscape")
+
+        vc.request_closed("landscape")
+        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
+
+        assert parse_command_line((tmp_path / "cmd.txt").read_text(
+            encoding="utf-8").strip()).command == "landscape_next"
+
+    def test_one_opened_on_a_side_that_has_left_origenerator_mode_takes_no_words(self, tmp_path):
+        vc = self._controller(tmp_path, hosting=("portrait",))
+
+        vc.request_opened("landscape")
+
+        assert not vc.wants_words(_heard(Recognition(unrecognized_text="alpha beta")))
+
+    def test_a_muted_room_takes_no_words_down_for_one(self, tmp_path):
+        vc = self._controller(tmp_path)
+        vc.request_opened("landscape")
+
+        vc.mute()
+
+        assert not vc.wants_words(_heard(Recognition(unrecognized_text="alpha beta")))
+
+    def test_one_said_whole_in_one_breath_goes_to_the_side_it_names(self, tmp_path):
+        vc = self._controller(tmp_path)
+        heard = _formed(Recognition(unconfirmed_phrase="landscape request",
+                                    heard="landscape request no"))
+
+        wanted = vc.wants_words(heard)
+        vc.handle_heard(heard)
+        vc.handle_speech("Landscape request, no feet, over.", heard)
+
+        assert wanted
+        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == (
+            "LANDSCAPE_SAY:request, no feet, over.\n")
+        assert not vc.accept_what_it_was_not_sure_of()
+
+    def test_one_its_words_do_not_bear_out_is_reported_as_any_other_miss(self, tmp_path):
+        vc = self._controller(tmp_path)
+        heard = _formed(Recognition(unconfirmed_phrase="landscape request",
+                                    heard="landscape request no"))
+
+        vc.handle_heard(heard)
+        vc.handle_speech("Landscape reset.", heard)
+
+        assert not (tmp_path / "origenerator_cmd.txt").exists()
+        assert vc.accept_what_it_was_not_sure_of()
+
+    def test_the_listener_takes_words_down_when_asked_with_the_hint_the_app_gave(self, tmp_path):
+        vc = self._controller(tmp_path)
+
+        assert (vc.listener_events.speech, vc.listener_events.wants_words) == (
+            vc.handle_speech, vc.wants_words)
+        assert vc.engines.take_down is not None
+        assert vc.listener_settings.speech_hint == "Fabricated hint."
+
+
+def test_a_session_whose_hosted_app_opens_no_requests_takes_nothing_down(tmp_path):
+    vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+
+    assert (vc.listener_events.speech, vc.engines.take_down) == (None, None)

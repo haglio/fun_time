@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from fun_time.hosted_contract import CONTRACT_FILE, the_args_it_declares
+from fun_time.hosted_contract import (
+    CONTRACT_FILE,
+    HostedVocabulary,
+    the_args_it_declares,
+    what_it_answers_by_voice,
+)
 
 
 def _a_checkout_declaring(tmp_path: Path, **groups) -> Path:
@@ -55,3 +61,64 @@ def test_a_contract_from_before_the_headset_declares_none_of_its_flags(tmp_path)
         encoding="utf-8")
 
     assert the_args_it_declares(tmp_path, ["--fun-time", "--frames-file", "f.bin"]) == ["--fun-time"]
+
+
+def _answering(stdout: str, asked: list):
+    def run(argv, **kwargs):
+        asked.append((argv, kwargs))
+        return subprocess.CompletedProcess(argv, 0, stdout=stdout, stderr="")
+    return run
+
+
+def test_the_app_is_asked_what_it_answers_by_voice_through_the_module_its_contract_names(
+        tmp_path):
+    checkout = _a_checkout_declaring(tmp_path, spoken_phrases_module="fabricated.voice")
+    asked: list = []
+    answer = json.dumps({"phrases": ["fix alpha", "request"], "openers": ["request"],
+                         "speech_hint": "Fabricated hint."})
+
+    heard = what_it_answers_by_voice(checkout, python_exe="fabricated-python.exe",
+                                     launch_kwargs={"cwd": str(checkout)},
+                                     run=_answering(answer, asked))
+
+    assert heard == HostedVocabulary(frozenset({"fix alpha", "request"}),
+                                     frozenset({"request"}), "Fabricated hint.")
+    assert [(argv, kwargs["cwd"]) for argv, kwargs in asked] == [
+        (["fabricated-python.exe", "-m", "fabricated.voice"], str(checkout))]
+
+
+def test_an_app_whose_contract_names_no_such_module_is_heard_saying_nothing(tmp_path, caplog):
+    checkout = _a_checkout_declaring(tmp_path)
+    asked: list = []
+
+    with caplog.at_level("WARNING", logger="fun_time.hosted_contract"):
+        heard = what_it_answers_by_voice(checkout, python_exe="fabricated-python.exe",
+                                         launch_kwargs={}, run=_answering("", asked))
+
+    assert heard == HostedVocabulary()
+    assert asked == []
+    assert str(checkout) in caplog.text
+
+
+def _failing_with(error: Exception):
+    def run(argv, **kwargs):
+        raise error
+    return run
+
+
+@pytest.mark.parametrize("run", [
+    _answering("not an answer", []),
+    _answering(json.dumps({"phrases": ["fix alpha"]}), []),
+    _failing_with(subprocess.TimeoutExpired(["python"], 30)),
+    _failing_with(subprocess.CalledProcessError(1, ["python"])),
+    _failing_with(OSError("no such interpreter")),
+])
+def test_an_app_that_cannot_answer_is_heard_saying_nothing(tmp_path, caplog, run):
+    checkout = _a_checkout_declaring(tmp_path, spoken_phrases_module="fabricated.voice")
+
+    with caplog.at_level("WARNING", logger="fun_time.hosted_contract"):
+        heard = what_it_answers_by_voice(checkout, python_exe="fabricated-python.exe",
+                                         launch_kwargs={}, run=run)
+
+    assert heard == HostedVocabulary()
+    assert str(checkout) in caplog.text

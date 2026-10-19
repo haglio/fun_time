@@ -14,7 +14,12 @@ from typing import NamedTuple
 
 from funestra.file_channel import append_command
 
-from .hosted_contract import the_args_it_declares
+from .hosted_contract import (
+    NO_HOSTED_VOCABULARY,
+    HostedVocabulary,
+    the_args_it_declares,
+    what_it_answers_by_voice,
+)
 from .manifest import LaunchManifest
 from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
@@ -32,6 +37,7 @@ from .windows_bridge_startup import (
     HandedFunestra,
     launch_origenerator,
     origenerator_interpreter,
+    origenerator_launch_kwargs,
     origenerator_session_args,
 )
 
@@ -165,8 +171,7 @@ def bring_up_the_hosted_app(
                        "in %.0fs; launching ours instead", open_app.pid,
                        _budget_for(open_app))
     origenerator_pid = launch_origenerator(
-        python_exe=(m.executables.origenerator_python_exe.strip()
-                    or origenerator_interpreter(origenerator_dir)),
+        python_exe=_its_interpreter(m, origenerator_dir),
         origenerator_dir=origenerator_dir,
         # It imports funestra too (the shows' HUD is the Funestras'
         # shared one), so a named checkout reaches it like everyone else.
@@ -175,3 +180,19 @@ def bring_up_the_hosted_app(
     )
     logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
     return HostedApp(origenerator_pid, already_open=False, taken_over=False, showing=False)
+
+
+def _its_interpreter(m: LaunchManifest, origenerator_dir: str) -> str | Path:
+    return (m.executables.origenerator_python_exe.strip()
+            or origenerator_interpreter(origenerator_dir))
+
+
+def what_it_answers_by_voice_in(m: LaunchManifest, **asking) -> HostedVocabulary:
+    origenerator_dir = m.runtime.origenerator_dir.strip()
+    if not origenerator_dir:
+        return NO_HOSTED_VOCABULARY
+    return what_it_answers_by_voice(
+        origenerator_dir, python_exe=_its_interpreter(m, origenerator_dir),
+        launch_kwargs=origenerator_launch_kwargs(
+            origenerator_dir=origenerator_dir, sibling_checkouts=m.runtime.sibling_checkouts),
+        **asking)

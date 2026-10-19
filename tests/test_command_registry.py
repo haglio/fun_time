@@ -28,6 +28,7 @@ from fun_time.satellite_buttons import funestra_rows
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import (
     _MAIN_EQUIVALENTS,
+    REQUEST_NEWS,
     expand_group_command,
     resolve_active_funestra_command,
 )
@@ -267,8 +268,9 @@ def test_every_loop_branch_is_reachable_and_known():
         for name in dir(dashboard_actions)
         if isinstance(getattr(dashboard_actions, name), str) and not name.startswith("_")
     )
+    told_by_the_hosted_app = frozenset(REQUEST_NEWS)
     for branch in _loop_branch_ids():
-        assert branch in targets | _ahk_ids() | dashboard, (
+        assert branch in targets | _ahk_ids() | dashboard | told_by_the_hosted_app, (
             f"loop branch {branch!r} is reachable from no surface"
         )
 

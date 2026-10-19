@@ -7,6 +7,7 @@ import pytest
 
 from fun_time.hosted_contract import declared_flags
 from fun_time.room_funestras import RoomFunestra
+from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
 from tests.origenerator_contract import answers, is_read_by, published
 from tests.origenerator_expectations import EXPECTATIONS, LEFT_UNANSWERED, published_text
 
@@ -59,6 +60,10 @@ def test_the_shipped_origenerator_reads_every_word_a_headset_writes(relied_on, s
 
 def test_the_shipped_origenerator_answers_every_line_a_room_writes(relied_on, shipped):
     assert [line for line in relied_on["command_lines"] if not answers(line, shipped)] == []
+
+
+def test_the_room_answers_every_line_the_shipped_origenerator_tells_it_of_a_request(shipped):
+    assert set(shipped["request_lines"]) <= set(REQUEST_NEWS)
 
 
 def test_the_lines_left_unanswered_are_lines_the_shipped_origenerator_refuses(shipped):

@@ -1856,7 +1856,7 @@ class TestOpeningAVrSession:
         start_voice = MagicMock(return_value=(None, None))
         prepared = object()
         order: list[str] = []
-        prepare_voice = MagicMock(side_effect=lambda _path: order.append("voice") or prepared)
+        prepare_voice = MagicMock(side_effect=lambda _path, **_asking: order.append("voice") or prepared)
 
         with _launch_stand_ins(
             orchestrator, [],
@@ -1872,7 +1872,9 @@ class TestOpeningAVrSession:
 
         manifest = LaunchManifest.read(config.paths.state_dir / "windows_bridge_launch.ini")
         assert order == ["voice", "funestras"], "voice was prepared after the Funestra launched"
-        prepare_voice.assert_called_once_with(manifest.runtime.config_path)
+        [(said, asking)] = [(call.args, call.kwargs) for call in prepare_voice.call_args_list]
+        assert said == (manifest.runtime.config_path,)
+        assert asking["ask_the_hosted_app"].args == (manifest,)
         start_voice.assert_called_once_with(
             prepared,
             dashboard_cmd_file=Path(manifest.commands.dashboard_cmd_file),

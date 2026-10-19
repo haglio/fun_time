@@ -39,7 +39,6 @@ from fun_time.content import genau_flick_noun
 from fun_time.filter_vocab import display_forms, set_commands_for_scope
 from fun_time.voice_commands import (
     FAVORITES_PHRASE,
-    ORIGENERATOR_PHRASES,
     VOICE_COMMANDS,
     friendly_voice,
     say_command,
@@ -198,11 +197,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 "side's own \"shuffle\", \"latest\", \"trash\" and \"no filter\" reach the "
                 "show too",
                 (),
-                tuple(
-                    say_command(side, phrase)
-                    for side in ("portrait", "landscape")
-                    for phrase in ORIGENERATOR_PHRASES
-                ),
+                tuple(say_command(side, FAVORITES_PHRASE) for side in ("portrait", "landscape")),
                 voice_display=("landscape experiments", "portrait fix teeth"),
             ),
             _Row(

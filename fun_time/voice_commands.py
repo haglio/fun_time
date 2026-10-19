@@ -12,7 +12,7 @@ neither may import the other.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
@@ -59,32 +59,19 @@ def parse_command_line(line: str) -> CommandLine:
 GENAU_SAID: tuple[str, ...] = ("genau", "go now")
 FAVORITES_PHRASE = "favorites"
 
-# A hosted Origenerator's own vocabulary, said to one of its sides.
-#
-# The session owns the microphone for the whole room — one mic, one
-# transcription — so these are heard HERE and posted on the hosted app's
-# channel as the words themselves (see command_dispatch's origenerator speech).
-# It matches them with its own matcher, which is the only place that knows
-# which shelves its tree has and which detail parts have detectors installed.
-# So this list is the recognizer's half of the deal: vosk can only hear a
-# phrase that is in its grammar, and these are the phrases.
-ORIGENERATOR_PHRASES: tuple[str, ...] = (
-    # The shelves, by the labels its tree wears.  Not "latest" and not "trash":
-    # this session already says both to a satellite ("portrait latest" reorders
-    # that Funestra's browse, "portrait trash" discards its clip), and in
-    # a side's Origenerator mode those same two commands are routed to the hosted app
-    # instead — one phrase, one meaning per mode, rather than two spellings.
-    FAVORITES_PHRASE, "experiments", "requests",
-    "enhanced only", "filter enhanced",
-    # The show's own controls.
-    "play slideshow", "start slideshow", "pause slideshow", "stop slideshow",
-    # The commands about the picture on screen: the built-in detail parts, and Genau.
-    "fix face", "fix hands", "fix teeth", "fix eyes", *GENAU_SAID,
-)
+
+_SAY = "_say_"
 
 
 def say_command(side: str, phrase: str) -> str:
-    return f"{side}_say_{phrase.replace(' ', '_')}"
+    return f"{side}{_SAY}{phrase.replace(' ', '_')}"
+
+
+def said_to_a_side(command: str) -> tuple[str, str] | None:
+    side, said, words = command.partition(_SAY)
+    if not said or side not in ("portrait", "landscape") or not words:
+        return None
+    return side, words.replace("_", " ")
 
 
 def build_voice_commands(
@@ -92,7 +79,7 @@ def build_voice_commands(
     filter_commands: Mapping[str, str] | None = None,
     clip_jump_phrases: tuple[str, ...] | None = None,
     flick_flip_phrases: tuple[str, ...] | None = None,
-    origenerator_phrases: tuple[str, ...] | None = None,
+    origenerator_phrases: Collection[str] = (),
     genau_flick_words: Noun | None = None,
 ) -> Mapping[str, str]:
     """The spoken vocabulary, built as a read-only value.
@@ -100,10 +87,8 @@ def build_voice_commands(
     Every outside-the-code input (the overlay's act-filter and clip-jump
     phrases, the hosted app's own) can be handed in explicitly, so a test can
     build a second vocabulary; None loads each the way the module global does.
-    The collision guards raise from in here — they are what stops a hosted-app
-    or filter phrase silently shadowing a session command."""
-    if origenerator_phrases is None:
-        origenerator_phrases = ORIGENERATOR_PHRASES
+    The filter guard raises from in here; a phrase of the hosted app's that the
+    session already says to a satellite stays the session's."""
     flick = (genau_flick_words or genau_flick_noun()).one
     commands: dict[str, str] = {
         "quit": "quit",
@@ -526,12 +511,7 @@ def build_voice_commands(
             commands[f"{_verb} {_side} hud"] = f"{_side}_{_act}"
 
     for _side in ("portrait", "landscape"):
-        for _phrase in origenerator_phrases:
-            _spoken = f"{_side} {_phrase}"
-            if _spoken in commands:  # the session already says this to a Funestra
-                raise RuntimeError(f"hosted phrase collides with a session command: {_spoken}")
-            commands[_spoken] = say_command(_side, _phrase)
-
+        commands[f"{_side} {FAVORITES_PHRASE}"] = say_command(_side, FAVORITES_PHRASE)
 
     # Spoken metadata filters — "portrait beta gamma", "alpha form", "clear portrait" —
     # generated from the library's action vocabulary (see fun_time.filter_vocab).  The
@@ -542,6 +522,9 @@ def build_voice_commands(
     if _shadowed:
         raise RuntimeError(f"filter phrases collide with existing voice commands: {sorted(_shadowed)}")
     commands.update(filter_commands)
+    for _side in ("portrait", "landscape"):
+        for _phrase in origenerator_phrases:
+            commands.setdefault(f"{_side} {_phrase}", say_command(_side, _phrase))
     return MappingProxyType(commands)
 
 

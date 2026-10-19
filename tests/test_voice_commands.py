@@ -23,7 +23,15 @@ from fun_time.voice_commands import (
     format_spoken_command,
     friendly_voice,
     parse_command_line,
+    said_to_a_side,
+    say_command,
 )
+
+
+def test_the_words_said_to_a_side_are_read_back_off_the_command_they_were_written_as():
+    assert said_to_a_side(say_command("landscape", "fix alpha hands")) == (
+        "landscape", "fix alpha hands")
+    assert said_to_a_side("landscape_next") is None
 
 
 class TestCommandLineFormat:
@@ -276,7 +284,7 @@ class TestVoiceCommands:
         twins = {phrase.replace("go now", "genau"): command.replace("go_now", "genau")
                  for phrase, command in go_now.items()}
 
-        assert len(go_now) == 8
+        assert len(go_now) == 6
         assert {phrase: VOICE_COMMANDS.get(phrase) for phrase in twins} == twins
 
     def test_origenerator_mode_puts_both_satellites_in_it_and_is_shown_as_said(self):
@@ -668,12 +676,20 @@ class TestBuildVoiceCommands:
         with pytest.raises(TypeError):
             built["fabricated"] = "quit"
 
-    def test_a_hosted_phrase_colliding_with_a_session_command_refuses(self):
-        with pytest.raises(RuntimeError, match="collides with a session command"):
-            build_voice_commands(
-                filter_commands={}, clip_jump_phrases=(),
-                origenerator_phrases=("next",),
-            )
+    def test_a_phrase_the_hosted_app_answers_is_heard_said_to_either_satellite(self):
+        built = build_voice_commands(filter_commands={}, clip_jump_phrases=(),
+                                     origenerator_phrases=frozenset({"fabricated order"}))
+
+        assert (built["portrait fabricated order"], built["landscape fabricated order"]) == (
+            "portrait_say_fabricated_order", "landscape_say_fabricated_order")
+
+    def test_a_hosted_phrase_the_session_already_says_to_a_satellite_stays_the_sessions(self):
+        built = build_voice_commands(filter_commands={"portrait alpha": "filter_portrait_alpha"},
+                                     clip_jump_phrases=(),
+                                     origenerator_phrases=frozenset({"next", "alpha"}))
+
+        assert (built["portrait next"], built["portrait alpha"]) == (
+            "portrait_next", "filter_portrait_alpha")
 
     def test_a_filter_phrase_shadowing_an_existing_command_refuses(self):
         with pytest.raises(RuntimeError, match="collide with existing voice commands"):
