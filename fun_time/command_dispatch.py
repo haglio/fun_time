@@ -290,11 +290,11 @@ def _toggle_lock(
     # unlock needs no such rescue: a locked satellite repeats one video and
     # cannot have advanced.
     if not locked and target_path and not same_video(target_path, current_path):
-        play_video(config, funestra, target_path)
         logger.info("Lock back-dated to %s (Funestra %d had advanced)", target_path, funestra)
         current_path = target_path
     plan = build_lock_toggle_plan(funestra=funestra, locked=locked, current_path=current_path)
-    send_satellite(config, funestra, LOCK_ON if plan.next_locked else LOCK_OFF)
+    send_satellite(config, funestra,
+                   f"{LOCK_ON} {current_path}".strip() if plan.next_locked else LOCK_OFF)
     if plan.ensure_in_favs and current_path:
         ensure_in_favs(config.favs_file, current_path)
         # Locking is the strongest positive watch signal ("breeding" weight).
