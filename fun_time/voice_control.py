@@ -32,6 +32,7 @@ from fun_time.voice_commands import (
     build_voice_commands,
     format_spoken_command,
     friendly_voice,
+    said_to_a_side,
 )
 
 logger = logging.getLogger(__name__)
@@ -212,19 +213,27 @@ class VoiceController:
         phrase = heard.recognition.phrase
         return bool(phrase) and self.commands[phrase] in SUSPEND_EXEMPT_COMMANDS
 
+    def _hosted_side_leading(self, text: str | None) -> str | None:
+        said = _words(text)
+        return said[0] if said and said[0] in self.hosted_sides() else None
+
     def _side_a_request_opens_on(self, text: str | None) -> str | None:
         said = _words(text)
         if len(said) < 2 or said[1] not in self._hosted.openers:
             return None
-        return said[0] if said[0] in self.hosted_sides() else None
+        return self._hosted_side_leading(text)
 
     def wants_words(self, heard: Heard) -> bool:
         if not self._is_listening():
             return False
         if self._side_taking_a_request() is not None:
             return not self._heard_through_a_request(heard)
-        return (not heard.recognition.phrase
-                and self._side_a_request_opens_on(heard.recognition.heard) is not None)
+        recognition = heard.recognition
+        if recognition.phrase:
+            return False
+        if recognition.unrecognized_text is not None:
+            return self._hosted_side_leading(recognition.heard) is not None
+        return self._side_a_request_opens_on(recognition.heard) is not None
 
     def handle_speech(self, words: str, heard: Heard) -> None:
         side = self._side_taking_a_request()
@@ -232,11 +241,19 @@ class VoiceController:
             append_command(self._hosted_cmd_file, said_to_the_hosted_app(side, words))
             return
         side = self._side_a_request_opens_on(words)
-        if side is None:
-            self._report_a_miss(heard)
+        if side is not None:
+            append_command(self._hosted_cmd_file,
+                           said_to_the_hosted_app(side, _without_its_first_word(words)))
             return
-        append_command(self._hosted_cmd_file,
-                       said_to_the_hosted_app(side, _without_its_first_word(words)))
+        phrase = " ".join(_words(words))
+        if self._said_to_a_hosted_side(phrase):
+            self._hand_on(phrase, spoken_at=heard.spoken_at)
+            return
+        self._report_a_miss(heard)
+
+    def _said_to_a_hosted_side(self, phrase: str) -> bool:
+        said = said_to_a_side(self.commands.get(phrase, ""))
+        return said is not None and said[0] in self.hosted_sides()
 
     @property
     def is_muted(self) -> bool:
