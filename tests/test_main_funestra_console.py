@@ -1,7 +1,7 @@
 """The console panel Fun Time publishes for the Main Funestra's HUD to draw."""
 from __future__ import annotations
 
-from app_support.osr2_device import Osr2Mode
+from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra.console import (
     OSR2_CONTROL_BUTTONS,
     OSR2_DRIVING,
@@ -81,6 +81,12 @@ class TestOsr2State:
             assert osr2_state(main_mode=mode, osr2_mode=Osr2Mode.CONTROLLED,
                               funscript_driving=False) == Osr2State.ROBOT_HAND
 
+    def test_an_osr2_that_cannot_be_heard_is_named_for_why(self):
+        for trouble, expected in ((Osr2Trouble.NOT_FOUND, Osr2State.UNPLUGGED),
+                                  (Osr2Trouble.NOT_ANSWERING, Osr2State.NO_ANSWER)):
+            assert osr2_state(main_mode=MainMode.KINO, osr2_mode=Osr2Mode.OFF,
+                              funscript_driving=True, trouble=trouble) == expected
+
     def test_a_main_funestra_parked_off_screen_cannot_claim_the_device(self):
         """The reported bug: in genau mode the Main Funestra is paused off screen, but its
         status file still describes the scripted video it was last showing —
@@ -97,6 +103,11 @@ class TestPayload:
         assert payload.main_mode == "kino"
         assert payload.active is True
         assert payload.osr2 == Osr2State.AUTO
+
+    def test_carries_why_the_osr2_cannot_be_heard(self):
+        payload = _payload(osr2_mode=Osr2Mode.OFF, osr2_trouble=Osr2Trouble.NOT_ANSWERING)
+
+        assert payload.osr2 == Osr2State.NO_ANSWER
 
     def test_the_osr2_lines_control_is_the_broker_lit_while_it_runs(self):
         """Broker status moved off the dashboard onto this panel: one button on

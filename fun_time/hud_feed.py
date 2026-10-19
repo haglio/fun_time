@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app_support import osr2_device
-from app_support.osr2_device import Osr2Mode
+from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra.console import aim_row, console_text
 from funestra.drive_readout import read_drive
 from funestra.modes import Osr2State
@@ -27,7 +27,7 @@ from .command_dispatch import (
 from .console_buttons import osr2_controls
 from .crown import Crown
 from .funestra_status import (
-    is_broker_heartbeat_fresh,
+    broker_is_running,
     read_genau_status,
     read_main_funestra_status,
 )
@@ -80,9 +80,8 @@ class HudFeed:
             return
         favs = self._favs_content()
         genau = read_genau_status(self.config.genau_status_file)
-        broker = (is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
-                  if self.config.broker_heartbeat_file else False)
-        osr2_mode = self.osr2_mode()
+        broker = broker_is_running(self.config.broker_heartbeat_file, self.config.broker_state)
+        osr2_mode, osr2_trouble = self.osr2_mode(), self.osr2_trouble()
         with_the_osr2 = funestra_with_the_osr2(state)
 
         def device(funestra: RoomFunestra) -> DeviceBlock:
@@ -92,7 +91,8 @@ class HudFeed:
             return DeviceBlock(
                 rows=(aim_row(learned=genau.learned_active, shape=genau.shape,
                               control=state.osr2_control),),
-                osr2=Osr2State.of(osr2_mode, funscript_driving=scripted.funscript_driving),
+                osr2=Osr2State.of(osr2_mode, funscript_driving=scripted.funscript_driving,
+                                  trouble=osr2_trouble),
                 control=state.osr2_control,
                 controls=osr2_controls(broker=broker),
                 max_intensity=state.max_intensity,
@@ -168,6 +168,7 @@ class HudFeed:
             genau_plays_portrait=state.genau_plays_portrait,
             genau_plays_landscape=state.genau_plays_landscape,
             osr2_mode=osr2_mode,
+            osr2_trouble=osr2_trouble,
             osr2_control=state.osr2_control,
             paused=state.omni_paused,
             broker=broker,
@@ -240,3 +241,6 @@ class HudFeed:
 
     def osr2_mode(self) -> Osr2Mode:
         return osr2_device.mode(self.config.broker_state)
+
+    def osr2_trouble(self) -> Osr2Trouble | None:
+        return osr2_device.trouble(self.config.broker_state)

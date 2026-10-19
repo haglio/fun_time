@@ -52,7 +52,7 @@ from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_SYSTEM, notice
 from .funestra_handover import PanelStamp, hand_back, let_go_since, panel_stamp
 from .funestra_settings import read_funestra_reports, with_what_the_funestras_report
 from .funestra_status import (
-    is_broker_heartbeat_fresh,
+    broker_is_running,
     origenerator_has_published,
     read_genau_status,
     read_main_funestra_status,
@@ -749,16 +749,8 @@ class DispatchLoopRunner:
             return
         self.windows.converge_origenerator_window(self.state.rfb_slot)
 
-    def _broker_heartbeat_is_fresh(self) -> bool:
-        """Whether the broker is currently talking to the OSR2 — not whether it exists.
-
-        osr2_broker writes the heartbeat only while it holds the serial port, so
-        a stale one means "no broker reaching the device", which a live broker
-        with the OSR2 switched off satisfies.  Reading this as "is the broker
-        alive" is what had the start paths killing healthy brokers.
-        """
-        hb = self.config.broker_heartbeat_file
-        return hb is not None and is_broker_heartbeat_fresh(hb)
+    def _broker_is_running(self) -> bool:
+        return broker_is_running(self.config.broker_heartbeat_file, self.config.broker_state)
 
     def _publish_panel(self, filename: str, *, toggling: bool) -> None:
         path = Path(self.config.state_dir) / filename
@@ -799,24 +791,16 @@ class DispatchLoopRunner:
             notice(logger, message, source=SOURCE_MAIN)
 
     def _handle_broker_toggle(self) -> None:
-        """Stop the broker if it is running, start it if it is not.
-
-        Only the stopping half may kill: the heartbeat goes stale on a live
-        broker whenever the OSR2 is off.
-        """
-        if self._broker_heartbeat_is_fresh():
+        """Stop the broker if it is running, start it if it is not; only the
+        stopping half may kill."""
+        if self._broker_is_running():
             stop_broker_processes(self.config.broker_tray_launcher)
         else:
             launch_broker_tray(self.config.broker_tray_launcher)
 
     def _handle_broker_start(self) -> None:
-        """Start the broker if the heartbeat says none is running.
-
-        A start, never a restart: the heartbeat only ticks while the broker
-        holds the serial port, so a broker that cannot reach a powered-off OSR2
-        reads as dead while it is alive and serving every other client.
-        """
-        if not self._broker_heartbeat_is_fresh():
+        """Start the broker if none is running: a start, never a restart."""
+        if not self._broker_is_running():
             threading.Thread(
                 target=lambda: launch_broker_tray(self.config.broker_tray_launcher),
                 daemon=True,
@@ -825,7 +809,7 @@ class DispatchLoopRunner:
 
     def _handle_broker_stop(self) -> None:
         """Stop broker only if currently running."""
-        if self._broker_heartbeat_is_fresh():
+        if self._broker_is_running():
             threading.Thread(
                 target=lambda: stop_broker_processes(
                     self.config.broker_tray_launcher),
