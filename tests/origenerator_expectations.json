@@ -182,7 +182,7 @@
     "showing": {
       "file": "fun_time_showing.txt",
       "reads": {
-        "pattern": "(\\d+) (\\d+)"
+        "pattern": "(\\d+) (\\d+)(?: (portrait|landscape))?"
       }
     },
     "session": {

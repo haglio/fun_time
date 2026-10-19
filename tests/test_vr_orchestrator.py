@@ -332,7 +332,8 @@ class TestOrigeneratorInVr:
             _end_a_vr_session(
                 orchestrator, hosted, ended_by=lambda *_a, **_k: "asked",
                 bring_up_the_hosted_app=MagicMock(return_value=HostedApp(
-                    303, already_open=True, taken_over=True, showing=True)),
+                    303, already_open=True, taken_over=True,
+                    slideshow_on=RoomFunestra.SATELLITES)),
                 resume_playlists=MagicMock(return_value=True),
                 DispatchLoopRunner=orchestrator.DispatchLoopRunner,
             )
@@ -1844,7 +1845,7 @@ class TestOpeningAVrSession:
             _wait_for_the_headset_hold=MagicMock(return_value=True),
             bring_up_the_hosted_app=MagicMock(
                 return_value=HostedApp(6060, already_open=True, taken_over=False,
-                                       showing=False)),
+                                       slideshow_on=())),
             see_the_hosted_app_out=MagicMock(
                 side_effect=lambda *a, **kw: parked.append(kw["keep"]) or True))
 
