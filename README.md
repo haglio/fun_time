@@ -112,9 +112,9 @@ Monitor naming under `layout` now uses:
 
 Serial / mode control:
 
-- the real OSR2 is on `COM4`; the **broker** — the separate `../broker` project — is the only process that talks to it. It forwards UDP T-Code to the OSR2 unconditionally and suppresses serial input while UDP flows, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/broker_mode.txt`.
-- **the Main Funestra** — this repo's `main_funestra` package — never opens `COM4`. It drives the OSR2 itself by sending funscript-derived T-Code to the broker over UDP (the same port Genau uses), reads commands from `state/main_player_cmd.txt`, and publishes playback status to `state/main_player_status.txt`.
-- **Genau** — run on the Main Funestra (`main_funestra/genau.py`) — never opens `COM4` either. It follows the broker-fed state, is the display in Genau mode and the see-through HUD layer over the Main Funestra in Kino mode, and reads clip and Robot Hand commands from `state/genau_cmd.txt`.
+- the real OSR2 is on its USB serial adapter, which the **broker** — the separate `../broker` project — finds on whichever USB socket it is plugged into, by the adapter's USB identity rather than a COM name; the broker is the only process that talks to it. It forwards UDP T-Code to the OSR2 unconditionally and suppresses serial input while UDP flows, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/broker_mode.txt`.
+- **the Main Funestra** — this repo's `main_funestra` package — never opens the OSR2's port. It drives the OSR2 itself by sending funscript-derived T-Code to the broker over UDP (the same port Genau uses), reads commands from `state/main_player_cmd.txt`, and publishes playback status to `state/main_player_status.txt`.
+- **Genau** — run on the Main Funestra (`main_funestra/genau.py`) — never opens the OSR2's port either. It follows the broker-fed state, is the display in Genau mode and the see-through HUD layer over the Main Funestra in Kino mode, and reads clip and Robot Hand commands from `state/genau_cmd.txt`.
 
 See those projects for the serial parsing, COM-port recovery, and playback internals.
 
@@ -673,11 +673,11 @@ The broker and Genau write their own logs (e.g. `broker.log`, `genau_listener.lo
 
 ### Why the broker exists
 
-Windows serial ports are effectively single-owner, so exactly one process can own `COM4`.
+Windows serial ports are effectively single-owner, so exactly one process can own the OSR2's port.
 
 With the broker:
 
-- the broker alone opens real `COM4`
+- the broker alone opens the OSR2's real port
 - The Main Funestra and Genau drive the OSR2 by sending T-Code to the broker over UDP; the broker forwards it and suppresses serial input while UDP flows
 - Genau gets mode/timing info over localhost instead of serial
 
@@ -729,7 +729,7 @@ Check:
 
 - broker is running
 - scheduled task `FunTime Genau Broker` is present and running (`Get-ScheduledTask -TaskName "FunTime Genau Broker"`)
-- OSR2 is still on `COM4`
+- the broker's log says the OSR2 is plugged in (`The OSR2 is plugged in on COMn`), not that it is waiting for it
 - the current video actually has a funscript (`state/main_player_status.txt` shows `has_funscript`) — videos without one play with no OSR2 output by design
 - the broker's log (in `../broker`) for serial/COM-port errors
 
@@ -745,7 +745,7 @@ Check:
 
 ### Broker will not start
 
-The broker is the `../broker` project — check its logs and config there. Also confirm that current serial ports still include the real OSR2 on `COM4`.
+The broker is the `../broker` project — check its logs and config there. Also confirm the OSR2's USB cable is plugged in: the broker's log says which port it found the OSR2 on, or that it is waiting for one.
 
 ### `M` and `.` do not switch Genau flicks
 
