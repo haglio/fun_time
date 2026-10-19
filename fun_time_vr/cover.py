@@ -24,6 +24,7 @@ from fun_time.overlay_progress import (
     CANCELING,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
+    STARTING_VOICE_COMMANDS,
     Phase,
     Progress,
     parse_progress,
@@ -41,6 +42,7 @@ VR_STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("companions", "Launching companions...", 0.6),
     Phase("funestras", "Waiting for Funestras...", 9.0),
     ACTIVATING_ORIGENERATOR,
+    STARTING_VOICE_COMMANDS,
     Phase("finalizing", "Finalizing...", 0.0),  # weightless: the bar reads full
 )
 

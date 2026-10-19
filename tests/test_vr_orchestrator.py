@@ -29,6 +29,7 @@ from fun_time.overlay_progress import (
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     SHUTDOWN_READY_FILENAME,
+    STARTING_VOICE_COMMANDS,
     StartupCancelled,
     parse_progress,
 )
@@ -345,7 +346,7 @@ class TestOrigeneratorInVr:
         bar already full."""
         calls = _call_lines_in_run_vr_bridge()
 
-        assert (calls["activate_origenerator_under_the_cover"]
+        assert (calls["finish_under_the_cover"]
                 < calls["progress.advance"])
 
     def test_the_mode_is_taken_up_before_the_room_is_shown(self):
@@ -353,7 +354,7 @@ class TestOrigeneratorInVr:
         rearrange both Funestras under a room he is already using."""
         calls = _call_lines_in_run_vr_bridge()
 
-        assert (calls["activate_origenerator_under_the_cover"]
+        assert (calls["finish_under_the_cover"]
                 < calls["progress.finish"])
 
 
@@ -1880,3 +1881,16 @@ class TestOpeningAVrSession:
             dashboard_cmd_file=Path(manifest.commands.dashboard_cmd_file),
             dispatch_runner=runner.return_value,
         )
+
+    def test_the_headsets_cover_says_voice_commands_are_starting_until_they_listen(
+            self, config):
+        progress_file = config.paths.state_dir / PROGRESS_FILENAME
+        seen: list[str] = []
+        controller = MagicMock()
+        controller.done_starting.wait.side_effect = lambda _timeout: seen.append(
+            parse_progress(progress_file.read_text(encoding="utf-8")).message) or True
+
+        _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "asked",
+                          start_voice_control=MagicMock(return_value=(controller, None)))
+
+        assert seen == [STARTING_VOICE_COMMANDS.message]

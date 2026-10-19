@@ -15,6 +15,7 @@ from fun_time.overlay_progress import (
     ROOM_PHASES,
     SHUTDOWN_PHASES,
     SHUTDOWN_READY_FILENAME,
+    STARTING_VOICE_COMMANDS,
     STARTUP_PHASES,
     NullProgress,
     Phase,
@@ -174,15 +175,15 @@ class TestStartupPhases:
         keys = [phase.key for phase in STARTUP_PHASES]
         assert len(keys) == len(set(keys))
 
-    def test_the_wait_for_origenerator_runs_before_the_line_that_fills_the_bar(self):
-        """A room left with Origenerator showing waits out that app under the cover.
-        Put after the last line, that wait read as a step past "Finalizing..."
-        with the bar already full -- finished, and still working."""
+    def test_the_waits_under_the_cover_run_before_the_line_that_fills_the_bar(self):
+        """A room left with Origenerator showing waits out that app under the cover,
+        and every room waits for its voice commands to listen.  Put after the last
+        line, a wait read as a step past "Finalizing..." with the bar already full
+        -- finished, and still working."""
         keys = [phase.key for phase in STARTUP_PHASES]
-        activating = keys.index(ACTIVATING_ORIGENERATOR.key)
 
-        assert activating == keys.index("finalizing") - 1
-        assert STARTUP_PHASES[activating].weight > 0, "the bar would be full while it waits"
+        assert keys[-3:] == [ACTIVATING_ORIGENERATOR.key, STARTING_VOICE_COMMANDS.key,
+                             "finalizing"]
 
     def test_the_cover_says_origenerator_is_activating_whatever_it_comes_back_into(self):
         """A room can come back with only one satellite on Origenerator's

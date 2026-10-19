@@ -450,6 +450,23 @@ class TestTheListenerItRuns:
 
         assert seen == []
 
+    def test_it_is_done_starting_once_the_listener_is_listening(self, tmp_path):
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        before = vc.done_starting.is_set()
+
+        vc.listener_events.listening()
+
+        assert (before, vc.done_starting.is_set()) == (False, True)
+
+    def test_it_is_done_starting_once_a_listener_that_could_not_start_has_given_up(
+            self, tmp_path, monkeypatch):
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        monkeypatch.setattr(vc._listener, "run", lambda: (_ for _ in ()).throw(OSError("no mic")))
+
+        vc.run()
+
+        assert vc.done_starting.is_set()
+
     def test_a_listener_that_dies_is_logged_and_does_not_take_the_thread_down(
             self, tmp_path, monkeypatch, caplog):
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")

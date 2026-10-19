@@ -128,9 +128,9 @@ from fun_time.windows_bridge_dispatch_loop import (
 )
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
-    activate_origenerator_under_the_cover,
     add_dispatch_file_handler,
     clear_last_sessions_leftovers,
+    finish_under_the_cover,
     kill_recorded_child,
     launch_hotkey_script,
     let_go_of_a_kept_origenerator,
@@ -651,7 +651,12 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             hud_publisher=hud_publisher,
             origenerator_showing=hosted is not None and hosted.showing,
         )
-        activate_origenerator_under_the_cover(dispatch_runner, progress=progress)
+        voice_controller, voice_thread = start_voice_control(
+            prepared_voice,
+            dashboard_cmd_file=dashboard_cmd_file,
+            dispatch_runner=dispatch_runner,
+        )
+        finish_under_the_cover(dispatch_runner, voice_controller, progress=progress)
         progress.advance("finalizing")  # the last line, after any wait under the cover
 
         # --- The reveal ---
@@ -671,12 +676,6 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         dispatch_thread = threading.Thread(
             target=dispatch_runner.run, daemon=True, name="dispatch-loop")
         dispatch_thread.start()
-
-        voice_controller, voice_thread = start_voice_control(
-            prepared_voice,
-            dashboard_cmd_file=dashboard_cmd_file,
-            dispatch_runner=dispatch_runner,
-        )
     except BaseException:
         logger.info("The session failed while opening; tearing down %d launched child(ren)",
                     len(children))

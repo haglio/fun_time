@@ -42,6 +42,7 @@ from fun_time.overlay_progress import (
     PROGRESS_FILENAME,
     SHUTDOWN_PHASES,
     SHUTDOWN_PROGRESS_FILENAME,
+    STARTING_VOICE_COMMANDS,
     NullProgress,
     PhaseProgress,
     StartupCancelled,
@@ -81,6 +82,7 @@ from fun_time.windows_bridge_orchestrator import (
     POST_LOADING_RESOLVE_TIMEOUT_S,
     SETTLE_PASSES,
     SETTLE_WAIT_S,
+    VOICE_START_BUDGET_S,
     ChildProcess,
     _AppendOnWriteHandler,
     _close_origenerator_gracefully,
@@ -95,6 +97,7 @@ from fun_time.windows_bridge_orchestrator import (
     seat_the_secondary_monitor,
     silence_the_funestras,
     stop_everything,
+    wait_for_voice_under_the_cover,
     write_pids_file,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
@@ -2990,6 +2993,95 @@ class TestTheFunestrasStartWhenTheCoverIsGone:
         assert events.index("cover gone") < events.index("Funestras released"), (
             "the Funestras were started while the cover was still up"
         )
+
+
+class TestTheRoomOpensOnceVoiceCommandsListen:
+    def _run(self, cfg_factory, tmp_path):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        state_dir = tmp_path / "state"
+        events: list[str] = []
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        fake_loading_proc = MagicMock()
+        fake_loading_proc.wait.side_effect = lambda **_kw: events.append("cover gone")
+
+        def fake_popen(cmd, **kwargs):
+            return fake_loading_proc if "loading_screen" in str(cmd) else fake_ahk_proc
+
+        def the_voice_starts(*_args, **_kwargs):
+            events.append("voice started")
+            controller = MagicMock()
+
+            def waited(_timeout):
+                cover_says = parse_progress(
+                    (state_dir / PROGRESS_FILENAME).read_text(encoding="utf-8")).message
+                events.append(f"waited for voice under {cover_says!r}")
+                return True
+
+            controller.done_starting.wait.side_effect = waited
+            return controller, MagicMock()
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator._fix_post_loading_windows",
+                   return_value={}), \
+             patch("fun_time.windows_bridge_orchestrator.release_the_funestras"), \
+             patch("fun_time.windows_bridge_orchestrator.start_voice_control",
+                   side_effect=the_voice_starts), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+            _a_session(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=state_dir,
+                project_dir=tmp_path,
+            )
+        return events
+
+    def test_the_cover_comes_down_once_voice_commands_listen_and_says_so_meanwhile(
+            self, cfg_factory, tmp_path):
+        events = self._run(cfg_factory, tmp_path)
+
+        assert events == [
+            "voice started",
+            f"waited for voice under {STARTING_VOICE_COMMANDS.message!r}",
+            "cover gone",
+        ]
+
+    def test_the_cover_stays_up_however_long_voice_commands_take_to_listen(self, tmp_path):
+        progress_file = tmp_path / PROGRESS_FILENAME
+        controller = MagicMock()
+        heard = []
+        controller.done_starting.wait.side_effect = lambda _timeout: heard.append(
+            heard_from_again_once_stale(progress_file, stale_after_s=STALE_TIMEOUT_S)) or True
+
+        wait_for_voice_under_the_cover(controller, progress=PhaseProgress(progress_file))
+
+        assert heard == [True]
+
+    def test_voice_commands_that_never_listen_hold_the_cover_only_until_the_budget(
+            self, caplog):
+        controller = MagicMock()
+        controller.done_starting.wait.return_value = False
+
+        with caplog.at_level(logging.WARNING, logger="fun_time.windows_bridge_orchestrator"):
+            wait_for_voice_under_the_cover(controller, progress=NullProgress())
+
+        controller.done_starting.wait.assert_called_once_with(VOICE_START_BUDGET_S)
+        assert "Voice commands were not listening after 30s" in caplog.text
+
+    def test_a_session_without_voice_commands_never_says_it_is_starting_them(self):
+        progress = MagicMock()
+
+        wait_for_voice_under_the_cover(None, progress=progress)
+
+        progress.announce.assert_not_called()
 
 
 class TestARoomLeftInOrigeneratorMode:

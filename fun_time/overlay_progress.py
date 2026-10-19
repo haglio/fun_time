@@ -153,6 +153,7 @@ LAUNCH_PHASES: tuple[Phase, ...] = (
 )
 
 ACTIVATING_ORIGENERATOR: Phase = Phase("origenerator", "Activating Origenerator...", 0.5)
+STARTING_VOICE_COMMANDS: Phase = Phase("voice", "Starting voice commands...", 0.5)
 
 # The room as it is built, that wait among the steps rather than after the last.
 ROOM_PHASES: tuple[Phase, ...] = (
@@ -162,6 +163,7 @@ ROOM_PHASES: tuple[Phase, ...] = (
     Phase("funestras", "Waiting for Funestras...", 0.5),
     Phase("windows", "Positioning windows...", 0.5),
     ACTIVATING_ORIGENERATOR,
+    STARTING_VOICE_COMMANDS,
     Phase("finalizing", "Finalizing...", 0.0),
 )
 
