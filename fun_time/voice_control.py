@@ -171,6 +171,7 @@ class VoiceController:
         self._not_sure_of: _NotSureOf | None = None
         self._not_sure_of_lock = threading.Lock()
         self._words_forming = False
+        self.done_starting = threading.Event()
         self.active_funestra: Callable[[], int | None] = lambda: None
         self.listener_settings = ListenerSettings(
             model_name=model_path,
@@ -185,6 +186,7 @@ class VoiceController:
             heard=self.handle_heard,
             partial=self._say_it_is_being_worked_on,
             recovered=self._announce_the_microphone_is_back,
+            listening=self.done_starting.set,
             keeps_misses=self._is_listening,
             speech=self.handle_speech if takes_requests else None,
             wants_words=self.wants_words if takes_requests else None,
@@ -375,3 +377,5 @@ class VoiceController:
             logger.info("Voice control stopped")
         except Exception:
             logger.exception("Voice control thread crashed")
+        finally:
+            self.done_starting.set()

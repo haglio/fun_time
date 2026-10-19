@@ -64,6 +64,7 @@ from .overlay_progress import (
     CANCEL_WORD,
     SHUTDOWN_PHASES,
     SHUTDOWN_PROGRESS_FILENAME,
+    STARTING_VOICE_COMMANDS,
     NullProgress,
     PhaseProgress,
     ProgressReporter,
@@ -946,6 +947,21 @@ def start_voice_control(
     return voice_controller, voice_thread
 
 
+VOICE_START_BUDGET_S = 30.0
+
+
+def wait_for_voice_under_the_cover(
+    voice_controller: VoiceController | None, *, progress: ProgressReporter,
+) -> None:
+    if voice_controller is None:
+        return
+    progress.announce(STARTING_VOICE_COMMANDS.key)
+    with progress.cover_kept_up():
+        if not voice_controller.done_starting.wait(VOICE_START_BUDGET_S):
+            logger.warning("Voice commands were not listening after %.0fs; opening the room "
+                           "without them", VOICE_START_BUDGET_S)
+
+
 # Bounded: an app that died on its way up would hold the room's cover shut.
 ORIGENERATOR_BOOT_BUDGET_S = 120.0
 ORIGENERATOR_BOOT_POLL_S = 0.5
@@ -973,6 +989,17 @@ def activate_origenerator_under_the_cover(
     progress.announce(ACTIVATING_ORIGENERATOR.key)
     runner.activate_origenerator(wait_for_the_app=wait_for_the_app)
     return runner.state.rfb_slot
+
+
+def finish_under_the_cover(
+    runner: DispatchLoopRunner,
+    voice_controller: VoiceController | None,
+    *,
+    progress: ProgressReporter,
+) -> RfbSlot:
+    rfb_slot = activate_origenerator_under_the_cover(runner, progress=progress)
+    wait_for_voice_under_the_cover(voice_controller, progress=progress)
+    return rfb_slot
 
 
 def _build_the_dispatch_loop(
@@ -1306,16 +1333,22 @@ def run_session(
             hud_publisher=hud_publisher,
             env=env,
         )
-        activate_origenerator = partial(
-            activate_origenerator_under_the_cover, dispatch_runner, progress=progress)
+        voice_controller, voice_thread = start_voice_control(
+            prepared_voice,
+            dashboard_cmd_file=dashboard_cmd_file,
+            dispatch_runner=dispatch_runner,
+        )
+
+        finish = partial(finish_under_the_cover, dispatch_runner, voice_controller,
+                         progress=progress)
 
         # The sequencer already positioned all windows in Phase 4 (the reveal).
         if env.show_overlays:
             _reveal_the_room(result, manifest=manifest, cover=cover,
                              hud_publisher=hud_publisher, hud_primed=hud_primed,
-                             before_the_cover_goes=activate_origenerator)
+                             before_the_cover_goes=finish)
         else:
-            activate_origenerator()
+            finish()
 
         # The session is up and its windows are placed.  Writing this file records
         # the children for teardown and, by appearing, hands the keyboard over: the
@@ -1326,11 +1359,6 @@ def run_session(
 
         dispatch_thread = _start_the_dispatch_loop(dispatch_runner)
         loopback_server = _serve_loopback(manifest.loopback_port, dispatch_runner)
-        voice_controller, voice_thread = start_voice_control(
-            prepared_voice,
-            dashboard_cmd_file=dashboard_cmd_file,
-            dispatch_runner=dispatch_runner,
-        )
     except BaseException:
         _take_down_the_startup(
             "The session failed while opening", pids=launched,

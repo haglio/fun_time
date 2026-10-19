@@ -23,6 +23,7 @@ from fun_time.overlay_progress import (
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     SHUTDOWN_READY_FILENAME,
+    STARTING_VOICE_COMMANDS,
     STARTUP_PHASES,
     PhaseProgress,
     StartupCancelled,
@@ -100,16 +101,17 @@ class TestThePhases:
         reported = self._advanced_keys(r'\bprogress\.advance\("([a-z_]+)"\)')
 
         assert reported == {phase.key for phase in VR_STARTUP_PHASES} - {
-            ACTIVATING_ORIGENERATOR.key}
+            ACTIVATING_ORIGENERATOR.key, STARTING_VOICE_COMMANDS.key}
 
-    def test_it_carries_the_wait_the_shared_comeback_announces(self):
-        """The comeback to the mode the last session left is the desktop's own
-        helper, announcing its wait on this cover too -- and like the desktop it
-        is a step before the last line rather than one after it."""
+    def test_it_carries_the_waits_the_desktops_own_steps_announce(self):
+        """The comeback to the mode the last session left and the voice commands
+        starting are the desktop's own helpers, announcing their waits on this
+        cover too -- and like the desktop they are steps before the last line
+        rather than after it."""
         keys = [phase.key for phase in VR_STARTUP_PHASES]
 
-        assert keys.index(ACTIVATING_ORIGENERATOR.key) == keys.index("finalizing") - 1
-        assert ACTIVATING_ORIGENERATOR.weight > 0, "the bar would be full while it waits"
+        assert keys[-3:] == [ACTIVATING_ORIGENERATOR.key, STARTING_VOICE_COMMANDS.key,
+                             "finalizing"]
 
     def test_every_shutdown_phase_the_orchestrator_reports_exists(self):
         reported = self._advanced_keys(r'\bshutdown\.advance\("([a-z_]+)"\)')
