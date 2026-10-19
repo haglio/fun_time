@@ -4771,6 +4771,19 @@ class TestOrigeneratorTransport:
         assert _origenerator_cmds(config) == list(presses)
         assert _cmds(config, 2) == [] and _cmds(config, 3) == []
 
+    def test_a_lock_on_a_hosted_side_names_the_picture_up_when_it_was_asked_for(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = _in_origenerator_mode()
+        _set_current(config, 2, "C:/fixtures/up.png")
+
+        state, _ = dispatch_command("portrait_lock", state, config)
+        state, _ = dispatch_command("portrait_lock_on", state, config,
+                                    target_path="C:/fixtures/meant.png")
+
+        assert _origenerator_cmds(config) == ["portrait_lock|C:/fixtures/up.png",
+                                              "portrait_lock_on|C:/fixtures/meant.png"]
+        assert _cmds(config, 2) == []
+
     def test_a_side_filter_goes_to_the_hosted_app_rather_than_into_a_rebuild(self, tmp_path):
         """A rebuild would write the session's own list over the one the hosted
         app handed that Funestra."""
