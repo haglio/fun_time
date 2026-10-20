@@ -1876,11 +1876,9 @@ class TestOpeningAVrSession:
         [(said, asking)] = [(call.args, call.kwargs) for call in prepare_voice.call_args_list]
         assert said == (manifest.runtime.config_path,)
         assert asking["ask_the_hosted_app"].args == (manifest,)
-        start_voice.assert_called_once_with(
-            prepared,
-            dashboard_cmd_file=Path(manifest.commands.dashboard_cmd_file),
-            dispatch_runner=runner.return_value,
-        )
+        assert asking["dashboard_cmd_file"] == Path(manifest.commands.dashboard_cmd_file)
+        assert asking["hosted_cmd_file"] == Path(manifest.commands.origenerator_cmd_file)
+        start_voice.assert_called_once_with(prepared, dispatch_runner=runner.return_value)
 
     def test_the_headsets_cover_says_voice_commands_are_starting_until_they_listen(
             self, config):

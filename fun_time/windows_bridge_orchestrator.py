@@ -34,7 +34,7 @@ from .broker_control import write_broker_command
 from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
 from .command_dispatch import hosted_satellites
-from .config import VoiceControlConfig, load_config
+from .config import load_config
 from .crown import majority_now
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from .event_log import THE_LISTENERS_LOGGERS
@@ -860,17 +860,17 @@ def _serve_loopback(port: int, dispatch_runner: DispatchLoopRunner) -> Threading
 
 @dataclass(frozen=True)
 class PreparedVoice:
-    settings: VoiceControlConfig
-    second_listener: WhisperReader
-    what_the_hosted_app_answers: Future[HostedVocabulary]
+    controller: Future[VoiceController]
+    thread: threading.Thread
 
-    def hosted(self) -> HostedVocabulary:
-        try:
-            return self.what_the_hosted_app_answers.result(timeout=ASKING_BUDGET_S)
-        except Exception:
-            logger.exception("The hosted Origenerator was not heard saying what it answers "
-                             "by voice")
-            return NO_HOSTED_VOCABULARY
+
+def _what_it_answers(answer: Future[HostedVocabulary]) -> HostedVocabulary:
+    try:
+        return answer.result(timeout=ASKING_BUDGET_S)
+    except Exception:
+        logger.exception("The hosted Origenerator was not heard saying what it answers "
+                         "by voice")
+        return NO_HOSTED_VOCABULARY
 
 
 def _asked_in_the_background(ask: Callable[[], HostedVocabulary]) -> Future[HostedVocabulary]:
@@ -887,12 +887,12 @@ def _asked_in_the_background(ask: Callable[[], HostedVocabulary]) -> Future[Host
 
 
 def prepare_voice_control(
-    config_path: str, *,
+    config_path: str, *, dashboard_cmd_file: Path, hosted_cmd_file: str | Path | None,
     ask_the_hosted_app: Callable[[], HostedVocabulary] = lambda: NO_HOSTED_VOCABULARY,
 ) -> PreparedVoice | None:
-    """Every failure here and in start_voice_control is logged and swallowed: a
-    session without voice is a session, and one that refuses to open because a
-    microphone stack did not import is not."""
+    """Every failure here is logged and swallowed: a session without voice is a
+    session, and one that refuses to open because a microphone stack did not
+    import is not."""
     try:
         cfg = load_config(config_path)
         if not cfg.voice_control.enabled:
@@ -904,47 +904,58 @@ def prepare_voice_control(
         if unavailable:
             logger.error("Voice control enabled but import failed: %s", unavailable)
             return None
+        settings = cfg.voice_control
         second_listener = WhisperReader()
         second_listener.load_ahead()
-        return PreparedVoice(cfg.voice_control, second_listener,
-                             _asked_in_the_background(ask_the_hosted_app))
+        answer = _asked_in_the_background(ask_the_hosted_app)
+        controller: Future[VoiceController] = Future()
+
+        def listen() -> None:
+            try:
+                voice_controller = VoiceController(
+                    cmd_file=dashboard_cmd_file,
+                    model_path=settings.model_path,
+                    confidence_threshold=settings.confidence_threshold,
+                    device_name=settings.device_name,
+                    sample_rate=settings.sample_rate,
+                    confirm_commands=settings.confirm_commands,
+                    second_listener=second_listener,
+                    hosted=_what_it_answers(answer),
+                    hosted_cmd_file=hosted_cmd_file,
+                )
+                voice_controller.mute()
+            except Exception as error:
+                logger.exception("Voice control setup failed")
+                controller.set_exception(error)
+                return
+            controller.set_result(voice_controller)
+            voice_controller.run()
+
+        voice_thread = threading.Thread(target=listen, daemon=True, name="voice-control")
+        voice_thread.start()
+        logger.info("Voice control thread launched")
+        return PreparedVoice(controller, voice_thread)
     except Exception:
         logger.exception("Voice control setup failed")
         return None
 
 
 def start_voice_control(
-    prepared: PreparedVoice | None, *, dashboard_cmd_file: Path,
-    dispatch_runner: DispatchLoopRunner,
+    prepared: PreparedVoice | None, *, dispatch_runner: DispatchLoopRunner,
 ) -> tuple[VoiceController | None, threading.Thread | None]:
     if prepared is None:
         return None, None
     try:
-        settings = prepared.settings
-        voice_controller = VoiceController(
-            cmd_file=dashboard_cmd_file,
-            model_path=settings.model_path,
-            confidence_threshold=settings.confidence_threshold,
-            device_name=settings.device_name,
-            sample_rate=settings.sample_rate,
-            confirm_commands=settings.confirm_commands,
-            second_listener=prepared.second_listener,
-            hosted=prepared.hosted(),
-            hosted_cmd_file=dispatch_runner.config.origenerator_cmd_file,
-        )
-        if dispatch_runner.state.mic_muted:
-            voice_controller.mute()
-        dispatch_runner.voice_controller = voice_controller
-        voice_controller.active_funestra = lambda: dispatch_runner.state.active_funestra
-        voice_controller.hosted_sides = lambda: hosted_satellites(dispatch_runner.state,
-                                                                  dispatch_runner.config)
-        voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
-        voice_thread.start()
-        logger.info("Voice control thread launched")
+        voice_controller = prepared.controller.result(timeout=ASKING_BUDGET_S)
     except Exception:
-        logger.exception("Voice control setup failed")
         return None, None
-    return voice_controller, voice_thread
+    dispatch_runner.voice_controller = voice_controller
+    voice_controller.active_funestra = lambda: dispatch_runner.state.active_funestra
+    voice_controller.hosted_sides = lambda: hosted_satellites(dispatch_runner.state,
+                                                              dispatch_runner.config)
+    if not dispatch_runner.state.mic_muted:
+        voice_controller.unmute()
+    return voice_controller, prepared.thread
 
 
 VOICE_START_BUDGET_S = 30.0
@@ -1233,15 +1244,16 @@ def run_session(
     # Bridge lines land in the log AHK writes to, before the script goes up, so
     # the line naming what was launched is in the file the script then appends.
     add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
-    prepared_voice = prepare_voice_control(
-        manifest.runtime.config_path,
-        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest))
 
     dashboard_cmd_file = Path(manifest.commands.dashboard_cmd_file)
     ahk_cmd_file = state_dir / "ahk_cmd.txt"
     pids_file = state_dir / "bridge_pids.ini"
     clear_last_sessions_leftovers(state_dir, manifest.commands,
                                   pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
+    prepared_voice = prepare_voice_control(
+        manifest.runtime.config_path, dashboard_cmd_file=dashboard_cmd_file,
+        hosted_cmd_file=bridge_config.origenerator_cmd_file,
+        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest))
 
     progress = cover.progress
 
@@ -1334,10 +1346,7 @@ def run_session(
             env=env,
         )
         voice_controller, voice_thread = start_voice_control(
-            prepared_voice,
-            dashboard_cmd_file=dashboard_cmd_file,
-            dispatch_runner=dispatch_runner,
-        )
+            prepared_voice, dispatch_runner=dispatch_runner)
 
         finish = partial(finish_under_the_cover, dispatch_runner, voice_controller,
                          progress=progress)

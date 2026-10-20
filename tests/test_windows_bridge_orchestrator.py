@@ -3240,24 +3240,55 @@ class TestTheSessionEndsOnItsMarker:
         assert told_to_exit()
 
 
+class _RunsAtOnce:
+    def __init__(self, *, target, **_kwargs) -> None:
+        self._target = target
+
+    def start(self) -> None:
+        self._target()
+
+
 class TestStartingVoice:
     @staticmethod
-    def _started(config_path, tmp_path, *, controller=None, second_listener=None,
-                 mic_muted=False, hosted=NO_HOSTED_VOCABULARY, runner=None):
-        runner = runner or MagicMock()
-        runner.state = BridgeState(mic_muted=mic_muted)
+    def _prepared(config_path, tmp_path, *, controller=None, second_listener=None,
+                  hosted=NO_HOSTED_VOCABULARY):
         with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
              patch.object(windows_bridge_orchestrator, "WhisperReader",
-                          return_value=second_listener or MagicMock()):
-            prepared = windows_bridge_orchestrator.prepare_voice_control(
-                str(config_path), ask_the_hosted_app=lambda: hosted)
-        with patch.object(windows_bridge_orchestrator, "VoiceController",
+                          return_value=second_listener or MagicMock()), \
+             patch.object(windows_bridge_orchestrator, "VoiceController",
                           controller or MagicMock()), \
-             patch.object(windows_bridge_orchestrator.threading, "Thread"):
-            return windows_bridge_orchestrator.start_voice_control(
-                prepared, dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-                dispatch_runner=runner,
-            )
+             patch.object(windows_bridge_orchestrator.threading, "Thread", _RunsAtOnce):
+            return windows_bridge_orchestrator.prepare_voice_control(
+                str(config_path), dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+                hosted_cmd_file=tmp_path / "origenerator_cmd.txt",
+                ask_the_hosted_app=lambda: hosted)
+
+    @classmethod
+    def _started(cls, config_path, tmp_path, *, mic_muted=False, runner=None, **preparing):
+        runner = runner or MagicMock()
+        runner.state = BridgeState(mic_muted=mic_muted)
+        prepared = cls._prepared(config_path, tmp_path, **preparing)
+        return windows_bridge_orchestrator.start_voice_control(prepared, dispatch_runner=runner)
+
+    def test_voice_starts_listening_as_it_is_prepared_and_acts_on_nothing_until_handed_the_room(
+            self, cfg_factory, tmp_path):
+        config_path = cfg_factory({"voice_control": {"enabled": True}})
+        controller = MagicMock()
+
+        self._prepared(config_path, tmp_path, controller=controller)
+
+        controller.return_value.run.assert_called_once_with()
+        controller.return_value.mute.assert_called_once_with()
+        controller.return_value.unmute.assert_not_called()
+
+    def test_a_room_left_with_the_mic_on_hears_commands_once_voice_is_handed_the_room(
+            self, cfg_factory, tmp_path):
+        config_path = cfg_factory({"voice_control": {"enabled": True}})
+        controller = MagicMock()
+
+        self._started(config_path, tmp_path, controller=controller, mic_muted=False)
+
+        controller.return_value.unmute.assert_called_once_with()
 
     def test_the_session_hears_what_the_hosted_app_says_it_answers_and_tells_it_there(
         self, cfg_factory, tmp_path,
@@ -3270,8 +3301,7 @@ class TestStartingVoice:
                       runner=runner)
 
         assert controller.call_args.kwargs["hosted"] == hosted
-        assert controller.call_args.kwargs["hosted_cmd_file"] == (
-            runner.config.origenerator_cmd_file)
+        assert controller.call_args.kwargs["hosted_cmd_file"] == tmp_path / "origenerator_cmd.txt"
 
     def test_the_voice_asks_the_room_which_satellites_the_hosted_app_holds(
         self, cfg_factory, tmp_path,
@@ -3319,39 +3349,40 @@ class TestStartingVoice:
         assert controller.call_args.kwargs["second_listener"] is second_listener
 
     def test_a_session_that_listens_starts_loading_its_second_listener_when_voice_is_prepared(
-        self, cfg_factory,
+        self, cfg_factory, tmp_path,
     ):
         config_path = cfg_factory({"voice_control": {"enabled": True}})
         second_listener = MagicMock()
 
-        with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
-             patch.object(windows_bridge_orchestrator, "WhisperReader",
-                          return_value=second_listener):
-            prepared = windows_bridge_orchestrator.prepare_voice_control(str(config_path))
+        self._prepared(config_path, tmp_path, second_listener=second_listener)
 
         second_listener.load_ahead.assert_called_once_with()
-        assert prepared.second_listener is second_listener
 
     @pytest.mark.parametrize(("enabled", "unavailable"), [(False, ""), (True, "No module named vosk")])
     def test_a_session_that_will_not_listen_loads_no_second_listener(
-        self, cfg_factory, enabled, unavailable,
+        self, cfg_factory, tmp_path, enabled, unavailable,
     ):
         config_path = cfg_factory({"voice_control": {"enabled": enabled}})
 
         with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=unavailable), \
              patch.object(windows_bridge_orchestrator, "WhisperReader") as second_listener:
-            prepared = windows_bridge_orchestrator.prepare_voice_control(str(config_path))
+            prepared = windows_bridge_orchestrator.prepare_voice_control(
+                str(config_path), dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+                hosted_cmd_file=None)
 
         assert prepared is None
         second_listener.assert_not_called()
 
-    def test_a_session_that_will_not_listen_never_loads_the_microphone_stack(self, cfg_factory):
+    def test_a_session_that_will_not_listen_never_loads_the_microphone_stack(
+            self, cfg_factory, tmp_path):
         """Every integration session is one: loading the stack only to say it is
         there spent a start the import of two native libraries."""
         config_path = cfg_factory({"voice_control": {"enabled": False}})
 
         with patch.object(windows_bridge_orchestrator, "why_unavailable") as asked:
-            windows_bridge_orchestrator.prepare_voice_control(str(config_path))
+            windows_bridge_orchestrator.prepare_voice_control(
+                str(config_path), dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+                hosted_cmd_file=None)
 
         asked.assert_not_called()
 
@@ -3410,7 +3441,7 @@ class TestStartingVoice:
 
         self._started(config_path, tmp_path, controller=controller, mic_muted=True)
 
-        controller.return_value.mute.assert_called_once_with()
+        controller.return_value.unmute.assert_not_called()
 
 
 class TestTheHudPublisherASessionStarts:
