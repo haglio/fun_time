@@ -470,9 +470,6 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
     # The dispatch loop and voice controller log under fun_time.*, which
     # set_up_logging wired for fun_time_vr.orchestrator alone.
     add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
-    prepared_voice = prepare_voice_control(
-        manifest.runtime.config_path,
-        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest))
     bridge_config = build_bridge_config_from_manifest(manifest, vr_main_funestra=True)
     commands = manifest.commands
     pids_file = state_dir / "bridge_pids.ini"
@@ -480,6 +477,10 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
     dashboard_cmd_file = Path(commands.dashboard_cmd_file)
     clear_last_sessions_leftovers(
         state_dir, commands, pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
+    prepared_voice = prepare_voice_control(
+        manifest.runtime.config_path, dashboard_cmd_file=dashboard_cmd_file,
+        hosted_cmd_file=bridge_config.origenerator_cmd_file,
+        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest))
 
     cover = _Cover(state_dir, cancelable=cancelable)
     progress = cover.progress
@@ -652,10 +653,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             origenerator_showing=hosted is not None and hosted.showing,
         )
         voice_controller, voice_thread = start_voice_control(
-            prepared_voice,
-            dashboard_cmd_file=dashboard_cmd_file,
-            dispatch_runner=dispatch_runner,
-        )
+            prepared_voice, dispatch_runner=dispatch_runner)
         finish_under_the_cover(dispatch_runner, voice_controller, progress=progress)
         progress.advance("finalizing")  # the last line, after any wait under the cover
 
