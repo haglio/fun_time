@@ -87,9 +87,6 @@ class FakeSatelliteEngine(RefusesSeeks):
     def push_still(self) -> None:
         self.pushes += 1
 
-    def radio_station(self, clips) -> None:
-        return None
-
     def seek_ms(self, ms: float) -> None:
         self.refuse_if_asked()
         self.seeks.append(ms)
