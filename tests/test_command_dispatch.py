@@ -1479,6 +1479,18 @@ def test_lock_video_command_when_already_locked_switches_and_stays_locked(tmp_pa
     assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
 
 
+def test_a_double_click_on_a_satellite_already_locked_favorites_the_clip_it_picks(
+        tmp_path: Path):
+    config = _make_config(tmp_path)
+    _set_current(config, 2, r"C:\vids\portrait\held.mp4")
+    picked = r"C:\vids\portrait\lock_me.mp4"
+
+    dispatch_command(f"portrait_lock_video|{picked}",
+                     _make_state(portrait=SatelliteState(locked=True)), config)
+
+    assert is_favorite_path(picked, read_favs_content(config.favs_file))
+
+
 # --- HUD keyboard navigation ---
 
 
@@ -3673,6 +3685,15 @@ def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
     assert [op.level for op in notices] == [FAVORITE]
 
 
+def test_a_loop_of_one_clip_puts_it_in_the_favorites_as_every_lock_does(tmp_path: Path):
+    config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
+    _set_current(config, 2, paths["only"])
+
+    dispatch_command("portrait_action_loop", _make_state(), config)
+
+    assert is_favorite_path(paths["only"], read_favs_content(config.favs_file))
+
+
 def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):
     """The HUD reads this flag to freeze its map on the looped group and keep the
     loop button lit while the clip auto-advances, so it must live in the state."""
@@ -4993,7 +5014,7 @@ def test_toggle_lock_locks_and_favorites_when_unlocked(tmp_path: Path, caplog):
 
     with (
         patch("fun_time.lock.ensure_in_favs") as favs,
-        caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"),
+        caplog.at_level(logging.INFO, logger="fun_time.satellite_groups"),
     ):
         state, _ops = _toggle_lock(2, _make_state(portrait=SatelliteState(locked=False)), config)
 
