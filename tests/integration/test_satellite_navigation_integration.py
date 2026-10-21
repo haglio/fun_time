@@ -31,7 +31,7 @@ from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 
-from .integration_support import published_status
+from .integration_support import clip_of_a_test_pattern, published_status
 from .lone_satellite import LoneSatellite, a_lone_satellite, library_clips_of
 from .run_clock import Budget
 
@@ -201,13 +201,13 @@ def test_latest_puts_the_newest_clip_on_screen(satellite):
     dispatch over a small real source tree with mtimes we set, so "newest" is a fact
     of the filesystem rather than of a stub.
     """
-    linked: list[str] = []
-    for i, video in enumerate(_playlist_videos(satellite)):
-        dest = satellite.sources / f"clip{i}.mp4"
-        os.link(video, dest)  # the same bytes under a path whose mtime is ours
-        os.utime(dest, (1000 + i * 1000, 1000 + i * 1000))
-        linked.append(str(dest))
-    oldest, newest = linked[0], linked[-1]
+    made: list[str] = []
+    for i in range(4):
+        clip = clip_of_a_test_pattern(satellite.sources / f"clip{i}.mp4", size="240x426",
+                                      seconds=3)
+        os.utime(clip, (1000 + i * 1000, 1000 + i * 1000))
+        made.append(str(clip))
+    oldest, newest = made[0], made[-1]
 
     # Start on the oldest, which the rebuilt list still holds: without the jump to
     # the head, the reload would simply keep playing it.

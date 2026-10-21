@@ -1085,3 +1085,42 @@ def test_no_check_waits_in_the_walls_seconds():
     assert waits == {}, (
         "these lines wait in the wall's seconds, which a run that other work starves spends "
         f"without running; wait through seen_within and the helpers built on it: {waits}")
+
+
+def _calls_os(node: ast.AST, name: str) -> bool:
+    return (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name) and node.func.value.id == "os"
+            and node.func.attr == name)
+
+
+def _clips_made_in(function: ast.AST) -> set[str]:
+    return {target.id for node in ast.walk(function)
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)
+            and getattr(node.value.func, "id", "") == "clip_of_a_test_pattern"
+            for target in node.targets if isinstance(target, ast.Name)}
+
+
+def _links_or_dates_what_it_did_not_make(tree: ast.AST) -> list[int]:
+    found = set()
+    for function in ast.walk(tree):
+        if not isinstance(function, ast.FunctionDef):
+            continue
+        made = _clips_made_in(function)
+        found |= {node.lineno for node in ast.walk(function)
+                  if _calls_os(node, "link") or (_calls_os(node, "utime") and not (
+                      node.args and isinstance(node.args[0], ast.Name)
+                      and node.args[0].id in made))}
+    return sorted(found)
+
+
+def test_no_check_links_a_file_or_dates_any_but_a_clip_it_made():
+    integration = Path(integration_support.__file__).parent
+    reaches = {path.name: lines for path in sorted(integration.glob("*.py"))
+               if path.name != "integration_support.py"
+               and (lines := _links_or_dates_what_it_did_not_make(
+                   ast.parse(path.read_text(encoding="utf-8"))))}
+
+    assert reaches == {}, (
+        "a hard link to a library clip shares that clip's dates, so a date set through one "
+        "rewrites his library; date only a clip the check made with clip_of_a_test_pattern: "
+        f"{reaches}")
