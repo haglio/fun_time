@@ -16,8 +16,6 @@ from funestra.drive_readout import read_drive
 from funestra.modes import Osr2State
 from funestra.satellite_hud import HudModel, hud_text, parse_hud
 
-from main_funestra.controls import longer_than_a_step
-
 from .bridge_records import BridgeConfig
 from .command_dispatch import (
     genau_flick_shapes,
@@ -42,6 +40,7 @@ from .osr2_section import DeviceBlock, funestra_with_the_osr2
 from .room_funestras import RoomFunestra
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .shared_state import BridgeState
+from .ten_second_steps import longer_than_a_step
 
 # The satellites play ~5 s clips, so the HUD map has to track the current clip
 # almost the instant it changes — but not at the loop's own 20 Hz.  Building a
