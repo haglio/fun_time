@@ -23,13 +23,13 @@ from .funestra_buttons import (
     PREV_FACE,
     TRASH_ICON,
     browse_order_buttons,
-    lit_or_remembered,
     lock_button,
     minimize_button,
     reset_button,
     transport,
     versions_button,
 )
+from .inclusion_pairs import LENGTH, PROJECTION, Included, InclusionPair, lengths_included
 from .mode_plan import kino_shows
 from .osr2_section import take_osr2_button
 from .room_funestras import RoomFunestra
@@ -70,10 +70,6 @@ class MainSlot:
 _GLYPHS = {
     "open": "📂", "record": "⏺", "save": "💾", "minus": "−", "plus": "+",
 }
-FULL_ICON = shared_mark("full")
-CLIPS_ICON = shared_mark("clips")
-VR_ICON = shared_mark("vr_hemisphere")
-FLAT_ICON = shared_mark("flat_2d")
 COMPILATION_ICON = shared_mark("compilation")
 CLIP_TO_SCENE_ICON = shared_mark("clip_to_scene")
 SCENE_TO_CLIP_ICON = shared_mark("scene_to_clip")
@@ -141,43 +137,23 @@ def _file_controls(slot: MainSlot) -> tuple[Button, ...]:
     )
 
 
-def _inclusion_button(command: str, mark: str, kind: str, *, on: bool,
-                      remembered: bool, group_break: bool = False) -> Button:
-    tooltip = f"Including {kind}" if on else f"Not including {kind}"
-    return Button(command, mark, tooltip, group_break=group_break,
-                  **lit_or_remembered(on, remembered))
+def _inclusions(slot: MainSlot) -> tuple[tuple[InclusionPair, Included], ...]:
+    shown = []
+    if slot.plays_vr is not None and slot.plays_flat is not None:
+        shown.append((PROJECTION, (bool(slot.plays_flat), bool(slot.plays_vr))))
+    if kino_shows(slot.main_mode):
+        shown.append((LENGTH, lengths_included(slot.length_mode)))
+    return tuple(shown)
 
 
-def _projection_buttons(slot: MainSlot, *, remembered: bool, things: str) -> tuple[Button, ...]:
-    if slot.plays_vr is None or slot.plays_flat is None:
-        return ()
-    flat, vr = bool(slot.plays_flat), bool(slot.plays_vr)
-    return (
-        _inclusion_button(
-            ("main_projection_vr" if vr else "main_projection_none") if flat
-            else ("main_projection_both" if vr else "main_projection_flat"),
-            FLAT_ICON, f"2D {things}", on=flat, remembered=remembered, group_break=True),
-        _inclusion_button(
-            ("main_projection_flat" if flat else "main_projection_none") if vr
-            else ("main_projection_both" if flat else "main_projection_vr"),
-            VR_ICON, f"VR {things}", on=vr, remembered=remembered),
-    )
+def title_filters(slot: MainSlot) -> tuple[str, ...]:
+    return tuple(word for pair, included in _inclusions(slot)
+                 if (word := pair.title_word(included)))
 
 
-def _length_buttons(slot: MainSlot, *, remembered: bool) -> tuple[Button, ...]:
-    mixed = slot.length_mode is LengthMode.MIXED
-    clips = mixed or slot.length_mode is LengthMode.CLIPS
-    full = mixed or slot.length_mode is LengthMode.FULL
-    return (
-        _inclusion_button(
-            ("main_player_length_full" if full else "main_player_length_none") if clips
-            else ("main_player_length_mixed" if full else "main_player_length_clips"),
-            CLIPS_ICON, "clips", on=clips, remembered=remembered, group_break=True),
-        _inclusion_button(
-            ("main_player_length_clips" if clips else "main_player_length_none") if full
-            else ("main_player_length_mixed" if clips else "main_player_length_full"),
-            FULL_ICON, "full videos", on=full, remembered=remembered),
-    )
+def _inclusion_buttons(slot: MainSlot, *, remembered: bool, things: str) -> tuple[Button, ...]:
+    return tuple(button for pair, included in _inclusions(slot)
+                 for button in pair.buttons(included, remembered=remembered, things=things))
 
 
 def _compilation_button(slot: MainSlot) -> Button:
@@ -216,8 +192,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
                    lit=slot.f_mode, favorite=True),
             reset_button("main", nothing_to_reset=slot.nothing_to_reset),
             *browse_order_buttons("main", latest=slot.latest, remembered=remembered),
-            *_projection_buttons(slot, remembered=remembered, things="videos"),
-            *_length_buttons(slot, remembered=remembered),
+            *_inclusion_buttons(slot, remembered=remembered, things="videos"),
             _compilation_button(slot),
             _clip_scene_button(slot),
             versions_button("main_player_cycle_version", noun=MAIN_FUNESTRA_NOUN,
@@ -243,7 +218,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
                lit=slot.flipped, group_break=True),
         Button("genau_weird_flick", TRASH_ICON, "Mark weird — move it out", danger=True),
         *browse_order_buttons("main", latest=slot.latest),
-        *_projection_buttons(slot, remembered=False, things=flick.many),
+        *_inclusion_buttons(slot, remembered=False, things=flick.many),
     )
 
 

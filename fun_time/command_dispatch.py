@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
 
@@ -59,6 +59,14 @@ from .funestra_status import (
     MainFunestraStatus,
     read_genau_status,
     read_main_funestra_status,
+)
+from .inclusion_pairs import (
+    LENGTH,
+    PROJECTION,
+    Included,
+    InclusionPair,
+    length_mode,
+    lengths_included,
 )
 from .lock import MARKED_WEIRD, build_discard_plan
 from .main_list import MainListSettings, new_shuffle_seed, next_length_mode
@@ -519,29 +527,6 @@ _REORDER_COMMANDS: dict[str, tuple[RoomFunestra, bool]] = {
     "main_shuffle": (RoomFunestra.MAIN, False),
     "portrait_shuffle": (RoomFunestra.PORTRAIT, False),
     "landscape_shuffle": (RoomFunestra.LANDSCAPE, False),
-}
-
-# Which shapes of video the Main Funestra's browse may reach.  One verb per state
-# rather than a toggle each: the console's pair of buttons has four states
-# between them, and a press names the state it asks for.
-_PROJECTION_COMMANDS: dict[str, tuple[bool, bool]] = {
-    "main_projection_both": (True, True),
-    "main_projection_vr": (True, False),
-    "main_projection_flat": (False, True),
-    "main_projection_none": (False, False),
-}
-
-_LENGTH_COMMANDS: dict[str, LengthMode] = {
-    "main_player_length_clips": LengthMode.CLIPS,
-    "main_player_length_full": LengthMode.FULL,
-    "main_player_length_mixed": LengthMode.MIXED,
-    "main_player_length_none": LengthMode.NONE,
-}
-
-_PROJECTION_LABELS: dict[tuple[bool, bool], str] = {
-    (True, True): "2D + VR",
-    (True, False): "VR only",
-    (False, True): "2D only",
 }
 
 
@@ -1034,11 +1019,11 @@ def _dispatch_main_reorder(
 
 
 def _rebuild_the_main_list(state: BridgeState, config: BridgeConfig, *,
-                           start_at_top: bool = False) -> None:
+                           start_at_top: bool = False, says: str = "") -> None:
     rebuild_main_list(config.main_list, MainListSettings.of(state),
                       main_funestra_cmd_file=config.main_funestra_cmd_file,
                       on_screen=_on_the_main_funestra(config),
-                      start_at_top=start_at_top, builds=config.main_list_builds)
+                      start_at_top=start_at_top, builds=config.main_list_builds, says=says)
 
 
 def _on_the_main_funestra(config: BridgeConfig) -> str:
@@ -1055,68 +1040,84 @@ def genau_flick_shapes(state: BridgeState, config: BridgeConfig) -> VideoShapes:
                        plays_flat=state.genau_plays_flat)
 
 
-def _dispatch_main_projection(
-    plays_vr: bool, plays_flat: bool, state: BridgeState, config: BridgeConfig
-) -> tuple[BridgeState, list[WindowOp]]:
-    """Narrow what the main slot's Funestra browses to a shape of video, or widen it back.
-
-    Asking for the state already running changes nothing: a reorder is what
-    reshuffles, and this must not become a second way to do it.  Ignored where
-    that Funestra's library holds one shape.
-    """
-    on_main_funestra = kino_shows(state.main_mode)
-    shapes = (main_video_shapes if on_main_funestra else genau_flick_shapes)(state, config)
-    if not shapes.offered:
-        logger.info("Nothing but flat %s in this session; shape filter ignored",
-                    "videos" if on_main_funestra else "flicks")
-        return state, []
-    if (shapes.plays_vr, shapes.plays_flat) == (plays_vr, plays_flat):
-        return state, []
-    if on_main_funestra:
-        state, ops = _narrow_the_main_funestra(plays_vr, plays_flat, state, config)
-    else:
-        state, ops = _narrow_genau(plays_vr, plays_flat, state, config)
-    label = _PROJECTION_LABELS.get((plays_vr, plays_flat))
-    logger.info("%s shapes: %s", "Main Funestra" if on_main_funestra else "Genau", label or "neither")
-    if label:
-        return state, [*ops, WindowOp(op="notice", key=label, source=SOURCE_MAIN, level=NOTICE)]
-    if on_main_funestra:
-        return state, ops
-    return state, [*ops, WindowOp(
-        op="notice", key=no_other_flicks(), source=SOURCE_MAIN, level=logging.WARNING)]
+@dataclass(frozen=True)
+class _Inclusions:
+    kinds: str
+    read: Callable[[BridgeState], Included]
+    write: Callable[[BridgeState, Included], BridgeState]
+    offered: Callable[[BridgeState, BridgeConfig], bool] = lambda _state, _config: True
+    tell_genau: Callable[[BridgeConfig, Included], None] | None = None
+    a_compilation_is_left_by_asking_again: bool = False
 
 
-def _narrow_the_main_funestra(
-    plays_vr: bool, plays_flat: bool, state: BridgeState, config: BridgeConfig
-) -> tuple[BridgeState, list[WindowOp]]:
-    state = replace(state, main_plays_vr=plays_vr, main_plays_flat=plays_flat)
-    _rebuild_the_main_list(state, config)
-    return state, []
+def _shapes_offered_on_the_main_funestra(state: BridgeState, config: BridgeConfig) -> bool:
+    return main_video_shapes(state, config).offered
 
 
-def _narrow_genau(
-    plays_vr: bool, plays_flat: bool, state: BridgeState, config: BridgeConfig
-) -> tuple[BridgeState, list[WindowOp]]:
-    state = replace(state, genau_plays_vr=plays_vr, genau_plays_flat=plays_flat)
-    if not (plays_vr or plays_flat):
-        append_command(config.genau_cmd_file, LOCK_ON)
-        return state, []
+def _shapes_offered_in_genau(state: BridgeState, config: BridgeConfig) -> bool:
+    return genau_flick_shapes(state, config).offered
+
+
+def _tell_genau_its_shapes(config: BridgeConfig, wanted: Included) -> None:
+    plays_flat, plays_vr = wanted
     append_command(config.genau_cmd_file, shapes_verb(plays_vr=plays_vr, plays_flat=plays_flat))
-    return state, []
 
 
-def _dispatch_main_length(
-    length: LengthMode, state: BridgeState, config: BridgeConfig
+_INCLUSIONS_ON_THE_MAIN_FUNESTRA: dict[InclusionPair, _Inclusions] = {
+    PROJECTION: _Inclusions(
+        "shapes",
+        read=lambda state: (state.main_plays_flat, state.main_plays_vr),
+        write=lambda state, wanted: replace(
+            state, main_plays_flat=wanted[0], main_plays_vr=wanted[1]),
+        offered=_shapes_offered_on_the_main_funestra),
+    LENGTH: _Inclusions(
+        "lengths",
+        read=lambda state: lengths_included(state.main_length_mode),
+        write=lambda state, wanted: replace(state, main_length_mode=length_mode(wanted)),
+        a_compilation_is_left_by_asking_again=True),
+}
+
+_INCLUSIONS_IN_GENAU: dict[InclusionPair, _Inclusions] = {
+    PROJECTION: _Inclusions(
+        "shapes",
+        read=lambda state: (state.genau_plays_flat, state.genau_plays_vr),
+        write=lambda state, wanted: replace(
+            state, genau_plays_flat=wanted[0], genau_plays_vr=wanted[1]),
+        offered=_shapes_offered_in_genau,
+        tell_genau=_tell_genau_its_shapes),
+}
+
+
+def _dispatch_inclusion(
+    pair: InclusionPair, wanted: Included, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    if not kino_shows(state.main_mode):
+    """Asking for what is already playing changes nothing: a rebuild
+    reshuffles, and this must not become a second way to reshuffle."""
+    on_the_main_funestra = kino_shows(state.main_mode)
+    inclusions = (_INCLUSIONS_ON_THE_MAIN_FUNESTRA if on_the_main_funestra
+                  else _INCLUSIONS_IN_GENAU).get(pair)
+    if inclusions is None:
         return _ignored(state, _IN_GENAU_MODE)
-    if (length is state.main_length_mode
-            and not read_main_funestra_status(config.main_funestra_status_file).compilation):
+    if not inclusions.offered(state, config):
+        logger.info("Nothing but one kind of %s in this session; %s filter ignored",
+                    "video" if on_the_main_funestra else "flick", inclusions.kinds)
         return state, []
-    state = replace(state, main_length_mode=length)
-    _rebuild_the_main_list(state, config)
-    logger.info("Main Funestra length: %s", length)
-    return state, []
+    if inclusions.read(state) == wanted and not (
+            inclusions.a_compilation_is_left_by_asking_again
+            and read_main_funestra_status(config.main_funestra_status_file).compilation):
+        return state, []
+    state = inclusions.write(state, wanted)
+    logger.info("%s %s: %s", "Main Funestra" if on_the_main_funestra else "Genau",
+                inclusions.kinds, pair.flash(wanted) or "neither")
+    if on_the_main_funestra:
+        _rebuild_the_main_list(state, config, says=pair.flash(wanted))
+        return state, [WindowOp(op=Op.NARROWING_ANSWERS)]
+    if not any(wanted):
+        append_command(config.genau_cmd_file, LOCK_ON)
+        return state, [WindowOp(op="notice", key=no_other_flicks(), source=SOURCE_MAIN,
+                                level=logging.WARNING)]
+    inclusions.tell_genau(config, wanted)
+    return state, [WindowOp(op=Op.NARROWING_ANSWERS)]
 
 
 def _the_main_list_is_narrowed_or_ordered(state: BridgeState, config: BridgeConfig) -> bool:
@@ -1663,20 +1664,15 @@ def _reset(funestras: tuple[RoomFunestra, ...], state: BridgeState, config: Brid
     return _dispatch_reset(funestras, state, config)
 
 
-def _main_projection(plays_vr: bool, plays_flat: bool, state: BridgeState,
-                     config: BridgeConfig,
-                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return _dispatch_main_projection(plays_vr, plays_flat, state, config)
-
-
-def _main_length(length: LengthMode, state: BridgeState, config: BridgeConfig,
-                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return _dispatch_main_length(length, state, config)
+def _include(pair: InclusionPair, wanted: Included, state: BridgeState, config: BridgeConfig,
+             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_inclusion(pair, wanted, state, config)
 
 
 def _main_length_toggle(state: BridgeState, config: BridgeConfig,
                         _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return _dispatch_main_length(next_length_mode(state.main_length_mode), state, config)
+    return _dispatch_inclusion(
+        LENGTH, lengths_included(next_length_mode(state.main_length_mode)), state, config)
 
 
 def _main_reset(state: BridgeState, config: BridgeConfig,
@@ -1836,10 +1832,9 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, (funestra, recent) in _REORDER_COMMANDS.items()})
     handlers.update({cmd: partial(_reset, funestras)
                      for cmd, funestras in _RESET_SIDES.items()})
-    handlers.update({cmd: partial(_main_projection, plays_vr, plays_flat)
-                     for cmd, (plays_vr, plays_flat) in _PROJECTION_COMMANDS.items()})
-    handlers.update({cmd: partial(_main_length, length)
-                     for cmd, length in _LENGTH_COMMANDS.items()})
+    handlers.update({cmd: partial(_include, pair, wanted)
+                     for pair in (PROJECTION, LENGTH)
+                     for cmd, wanted in pair.asked.items()})
     handlers["main_player_toggle_length"] = _main_length_toggle
     handlers[MAIN_RESET] = _main_reset
     handlers.update({cmd: partial(_set_filter, funestras, "")

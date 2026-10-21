@@ -105,6 +105,7 @@ def rebuild_main_list(
     on_screen: str = "",
     start_at_top: bool = False,
     builds: MainListBuilds = BUILDS_HERE,
+    says: str = "",
 ) -> None:
     """``start_at_top`` is the reorder's, and means here what it means for a
     satellite: the Main Funestra keeps the video on screen across a reload whenever the new list
@@ -114,7 +115,7 @@ def rebuild_main_list(
     builds.build(MainListBuild(
         main_list=main_list, settings=settings,
         main_funestra_cmd_file=Path(main_funestra_cmd_file),
-        on_screen=on_screen, start_at_top=start_at_top,
+        on_screen=on_screen, start_at_top=start_at_top, says=says,
     ))
 
 

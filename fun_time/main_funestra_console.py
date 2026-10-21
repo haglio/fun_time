@@ -13,7 +13,7 @@ from funestra.hud_placement import HudCorner, HudEdge
 from funestra.modes import LengthMode, MainMode, Osr2State
 from funestra.robot_hand import FULL_INTENSITY
 
-from .console_buttons import MainSlot, console_rows, osr2_controls, osr2_rows
+from .console_buttons import MainSlot, console_rows, osr2_controls, osr2_rows, title_filters
 from .funestra_status import GenauStatus, MainFunestraStatus
 from .mode_plan import kino_shows
 from .ten_second_steps import longer_than_a_step
@@ -108,6 +108,7 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         paused=inputs.paused,
         locked=slot.locked,
         latest=slot.latest,
+        filters=title_filters(slot),
         rows=console_rows(slot, in_vr=inputs.in_vr),
         osr2_rows=osr2_rows(slot),
         osr2_controls=osr2_controls(broker=inputs.broker) if inputs.has_osr2 else (),

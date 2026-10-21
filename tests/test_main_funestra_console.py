@@ -238,6 +238,20 @@ def test_the_shapes_reported_are_the_shapes_of_whoever_is_showing():
     assert _button(_payload(main_mode=MainMode.GENAU, **both), "main_projection_none").lit is True
 
 
+def test_the_hud_title_names_each_pair_left_on_one_side_in_the_order_they_sit():
+    assert _payload().filters == ()
+    assert _payload(length_mode=LengthMode.CLIPS).filters == ("Clips",)
+    assert _payload(plays_vr=True, plays_flat=False,
+                    length_mode=LengthMode.FULL).filters == ("VR", "Full")
+
+
+def test_the_hud_title_in_genau_mode_names_genaus_own_narrowing():
+    narrowed = dict(plays_vr=True, plays_flat=False, length_mode=LengthMode.CLIPS,
+                    genau_plays_vr=False, genau_plays_flat=True)
+
+    assert _payload(main_mode=MainMode.GENAU, **narrowed).filters == ("2D",)
+
+
 def test_the_published_text_carries_the_rows_the_funestra_draws():
     payload = _payload(main_mode=MainMode.GENAU, broker=True)
 

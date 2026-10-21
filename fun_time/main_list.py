@@ -10,8 +10,6 @@ from pathlib import Path
 from funestra.funestra_verbs import SET_F_MODE
 from funestra.modes import LengthMode
 
-from main_funestra.controls import SET_LENGTH_MODE
-
 from .media_metadata import (
     EXCERPT,
     FULL_LENGTH,
@@ -56,7 +54,7 @@ class MainListSettings:
 
     @property
     def labels(self) -> list[str]:
-        return [f"{SET_F_MODE} {int(self.scripted_filter)}", f"{SET_LENGTH_MODE} {self.length}"]
+        return [f"{SET_F_MODE} {int(self.scripted_filter)}"]
 
 
 _KINDS_OF_LENGTH = {

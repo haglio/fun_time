@@ -177,6 +177,7 @@ class Op(StrEnum):
     OPEN_RFB_TAB = "open_rfb_tab"
     SAVE_CLIP = "save_clip"
     MAIN_FUNESTRA_ANSWERS = "main_funestra_answers"
+    NARROWING_ANSWERS = "narrowing_answers"
     IGNORED = "ignored"
     TAKE_BACK_FUNESTRAS = "take_back_funestras"
     FOLLOW_THE_LOCK = "follow_the_lock"

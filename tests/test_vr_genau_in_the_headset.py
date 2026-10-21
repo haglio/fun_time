@@ -14,11 +14,13 @@ from funestra.console_hud import ModeHud
 from funestra.funestra import User
 
 from fun_time.arrivals import LOOK_EVERY_S
+from fun_time.content import no_other_flicks
 from fun_time.genau_config import GenauSettings
 from fun_time.media_actions import ensure_in_favs
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
 from main_funestra.genau import GenauChannels
 from main_funestra.genau_verbs import genau_f_mode
+from main_funestra.notice import NoticeWriter
 
 
 class FakeSink:
@@ -111,6 +113,7 @@ class World:
         self.notifier = FakeNotifier()
         self.stop = threading.Event()
         self.now = 100.0
+        self.notice_file = state / "notice.txt"
         self.genau = GenauInTheHeadset(
             flicks_folder=self.flicks_folder,
             settings=GenauSettings(shuffle_on_load=False),
@@ -121,6 +124,7 @@ class World:
             start_flick=start_flick,
             latest=latest,
             favs_file=self.favs_file,
+            notices=NoticeWriter(self.notice_file),
             decode=lambda _path: _frames(),
             start_thread=start_thread,
             clock=lambda: self.now,
@@ -139,6 +143,12 @@ class World:
 
     def on_screen(self) -> Path | None:
         return self.genau.picture().flick
+
+    def notice(self) -> str:
+        if not self.notice_file.exists():
+            return ""
+        lines = self.notice_file.read_text(encoding="utf-8").splitlines()
+        return next(line.partition("=")[2] for line in lines if line.startswith("message="))
 
 
 def test_genau_in_the_headset_is_a_thing_a_funestra_runs(tmp_path):
@@ -205,6 +215,20 @@ class TestNarrowingToAShape:
         assert world.on_screen() == world.flat_dir / "epsilon.mp4"
         world.send("NEXT")
         assert world.on_screen() == world.flat_dir / "delta.mp4"
+
+    def test_it_says_which_shape_it_kept(self, tmp_path):
+        world = World(tmp_path, flat_flicks=("delta.mp4",))
+
+        world.send("SHAPES flat")
+
+        assert world.notice() == "2D only"
+
+    def test_a_shape_with_no_flicks_says_only_that_there_are_none(self, tmp_path):
+        world = World(tmp_path)
+
+        world.send("SHAPES flat")
+
+        assert world.notice() == no_other_flicks()
 
     def test_a_flick_on_screen_of_the_shape_kept_stays_up(self, tmp_path):
         world = World(tmp_path, flat_flicks=("delta.mp4",),

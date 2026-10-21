@@ -81,14 +81,11 @@ class TestTheVersions:
 
 
 class TestTheLibrary:
-    def test_the_length_is_named_and_never_walked_here(self):
-        """The length key is Fun Time's to walk, since it narrows Fun Time's list."""
-        controls, spies = _controls()
+    def test_the_length_is_fun_times_to_name_and_walk(self):
+        controls, _spies = _controls()
 
-        assert apply_command("SET_LENGTH_MODE clips", controls) is True
+        assert apply_command("SET_LENGTH_MODE clips", controls) is False
         assert apply_command("TOGGLE_LENGTH_MODE", controls) is False
-
-        assert spies["modes"].calls == [("set_length", "clips")]
 
     def test_end_compilation_goes_back_to_the_main_list(self):
         controls, spies = _controls()
@@ -135,7 +132,7 @@ class TestTheLibrary:
 ACCEPTED_COMMANDS = [
     "RECORD_DOWN", "RECORD_UP", "RECORD_TAP", "LOOP_CANCEL", "SET_LOOP 1000 2000",
     "CYCLE_VERSION", "CYCLE_VERSION_BACK",
-    "RELOAD_PLAYLIST", "SET_LENGTH_MODE clips", "END_COMPILATION",
+    "RELOAD_PLAYLIST", "END_COMPILATION",
     "SET_F_MODE 1",
     "PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP",
     "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED",
@@ -155,7 +152,7 @@ class TestTheVerbsFunTimeCanSend:
 
         assert apply_command(command, controls) is False
 
-    @pytest.mark.parametrize("command", ["SET_LOOP", "SET_LENGTH_MODE", "SET_F_MODE"])
+    @pytest.mark.parametrize("command", ["SET_LOOP", "SET_F_MODE"])
     def test_a_verb_that_wants_a_value_is_refused_without_one(self, command):
         controls, _spies = _controls()
 

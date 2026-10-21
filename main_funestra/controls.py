@@ -2,8 +2,7 @@
 
 The Funestra asks Kino about every line first and answers the rest itself, so
 what is here is only what Kino knows and the Funestra does not: the loop
-gestures, the other versions the library knows, the length modes, Fun Time's own
-filter, the compilation and funscript jumps, and the playlist Kino reads back
+gestures, the other versions the library knows, Fun Time's own filter, the compilation and funscript jumps, and the playlist Kino reads back
 through its library.
 """
 from __future__ import annotations
@@ -18,13 +17,10 @@ from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE
 from .loop_verbs import LOOP_CANCEL, RECORD_DOWN, RECORD_TAP, RECORD_UP, SET_LOOP
 
 __all__ = [
-    "SET_LENGTH_MODE",
     "VERBS",
     "KinoControls",
     "apply_command",
 ]
-
-SET_LENGTH_MODE = "SET_LENGTH_MODE"
 
 
 @dataclass
@@ -87,11 +83,6 @@ def _reload_playlist(controls: KinoControls, _value: str) -> bool:
     return True
 
 
-def _set_length_mode(controls: KinoControls, value: str) -> bool:
-    controls.modes.set_length(value)
-    return True
-
-
 def _end_compilation(controls: KinoControls, _value: str) -> bool:
     controls.modes.end_compilation()
     return True
@@ -147,13 +138,6 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(name="playlist", verbs=(Verb(RELOAD_PLAYLIST, _reload_playlist),)),
     Control(
-        name="length_mode",
-        verbs=(
-            Verb(SET_LENGTH_MODE, _set_length_mode, takes_a_value=True),
-            Verb("END_COMPILATION", _end_compilation),
-        ),
-    ),
-    Control(
         name="f_mode",
         verbs=(Verb(SET_F_MODE, _set_scripted_filter, takes_a_value=True),),
     ),
@@ -161,6 +145,7 @@ CONTROLS: tuple[Control, ...] = (
         name="compilation",
         verbs=(
             Verb("PLAY_COMPILATION", _play_compilation),
+            Verb("END_COMPILATION", _end_compilation),
             Verb("PLAY_FULL_VID", _play_full_vid),
             Verb("PLAY_CLIP_JUMP", _play_clip_jump),
         ),

@@ -2,10 +2,9 @@
 
 The *compilation* is one anthology's clips standing in for the playlist, which
 :mod:`main_funestra.clip_jumps` owns because entering one is what puts you
-there.  The length and *F-mode* are Fun Time's narrowing of the Main player's
-one list, and Kino cannot see either: the narrowed list it receives is
-indistinguishable from any other, so each has to be said outright for the
-console to show it.
+there.  *F-mode* is Fun Time's narrowing of the Main player's one list, and
+Kino cannot see it: the narrowed list it receives is indistinguishable from any
+other, so it has to be said outright for the console to show it.
 
 They are gathered here because the console draws them as one line and the mode
 memory writes the compilation down.
@@ -13,7 +12,6 @@ memory writes the compilation down.
 from __future__ import annotations
 
 from funestra.console_hud import ModeHud
-from funestra.modes import LengthMode, read_mode
 from funestra.playback import funscripts_of
 
 from .mode_memory import RememberedMode
@@ -33,12 +31,7 @@ class Modes:
         self._jumps = jumps
         self.versions = versions
         self._the_main_list = the_main_list
-        self._length_mode: LengthMode | None = None
         self._scripted_filter = False
-
-    @property
-    def length_mode(self) -> LengthMode | None:
-        return self._length_mode
 
     @property
     def scripted_filter(self) -> bool:
@@ -47,9 +40,6 @@ class Modes:
     def set_scripted_filter(self, on: bool) -> None:
         self._scripted_filter = on
 
-    def set_length(self, said: str) -> None:
-        self._length_mode = read_mode(LengthMode, said.strip().lower(), self._length_mode)
-
     def end_compilation(self) -> None:
         self._jumps.end_compilation(self._the_main_list())
 
@@ -57,7 +47,6 @@ class Modes:
     def hud(self) -> ModeHud:
         return ModeHud(
             video=self._name_on_screen,
-            length_mode=self.length_mode,
             compilation=self._jumps.compilation,
             position=self._playback.index + 1,
             total=len(self._playback.playlist),

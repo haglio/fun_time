@@ -4350,6 +4350,19 @@ def test_a_main_reorder_in_kino_mode_still_reaches_main_funestra(tmp_path):
     assert not config.genau_cmd_file.exists()
 
 
+def test_a_length_press_hands_the_rebuild_what_it_left_to_say(tmp_path):
+    config, builds = _recording(_make_config(tmp_path))
+
+    state, ops = dispatch_command("main_player_length_clips", _make_state(), config)
+
+    assert builds.asked[-1].says == "Clips only"
+    assert ops == [WindowOp(op=Op.NARROWING_ANSWERS)]
+
+    dispatch_command("main_player_length_mixed", state, config)
+
+    assert builds.asked[-1].says == "Clips + Full"
+
+
 def _vr_config(tmp_path):
     """A session whose rotation holds both shapes, as the headset's does."""
     config = _make_config(tmp_path)
@@ -4364,7 +4377,8 @@ def test_a_shape_press_narrows_the_browse_and_rebuilds_the_playlist(tmp_path):
 
     assert (state.main_plays_vr, state.main_plays_flat) == (True, False)
     assert builds.asked[-1].settings.plays_flat is False
-    assert ops[0].op == "notice" and ops[0].key == "VR only"
+    assert builds.asked[-1].says == "VR only"
+    assert ops == [WindowOp(op=Op.NARROWING_ANSWERS)]
 
 
 def test_a_narrowing_carries_on_from_the_video_on_screen(tmp_path):
@@ -4443,10 +4457,10 @@ def test_a_shape_press_in_genau_mode_narrows_genaus_flicks(tmp_path):
     assert (state.main_plays_vr, state.main_plays_flat) == (True, True)
     assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHAPES vr"]
     assert builds.asked == []
-    assert [op.key for op in ops] == ["VR only"]
+    assert ops == [WindowOp(op=Op.NARROWING_ANSWERS)]
 
 
-def test_putting_genaus_other_shape_back_names_both(tmp_path):
+def test_putting_genaus_other_shape_back_asks_it_for_both(tmp_path):
     config = _genau_vr_config(tmp_path)
     narrowed = _make_state(main_mode=MainMode.GENAU, genau_plays_vr=False)
 
@@ -4454,7 +4468,7 @@ def test_putting_genaus_other_shape_back_names_both(tmp_path):
 
     assert (state.genau_plays_vr, state.genau_plays_flat) == (True, True)
     assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHAPES vr flat"]
-    assert [op.key for op in ops] == ["2D + VR"]
+    assert ops == [WindowOp(op=Op.NARROWING_ANSWERS)]
 
 
 def test_neither_of_genaus_shapes_holds_its_flick(tmp_path, monkeypatch):

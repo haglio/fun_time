@@ -242,8 +242,8 @@ def test_toggle_fmode_tells_main_funestra_the_flag_on_the_same_write_as_the_relo
         )
         return main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()
 
-    assert told(True)[:3] == ["RELOAD_PLAYLIST", "SET_F_MODE 1", "SET_LENGTH_MODE mixed"]
-    assert told(False) == ["RELOAD_PLAYLIST", "SET_F_MODE 0", "SET_LENGTH_MODE mixed"]
+    assert told(True)[:2] == ["RELOAD_PLAYLIST", "SET_F_MODE 1"]
+    assert told(False) == ["RELOAD_PLAYLIST", "SET_F_MODE 0"]
 
 
 def test_the_main_funestra_can_be_started_at_the_top_of_the_new_list(tmp_path: Path):
@@ -274,7 +274,7 @@ def test_the_main_funestra_can_be_started_at_the_top_of_the_new_list(tmp_path: P
     )
 
     assert main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
-        "RELOAD_PLAYLIST", "SET_F_MODE 0", "SET_LENGTH_MODE mixed", f"PLAY_FILE {new}\t{script}",
+        "RELOAD_PLAYLIST", "SET_F_MODE 0", f"PLAY_FILE {new}\t{script}",
     ]
 
 
