@@ -28,6 +28,7 @@ from fun_time import load_config
 from fun_time.aiming import resolve_active_funestra_command
 from fun_time.arrivals import keep_looking
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
+from fun_time.content import load_web_providers
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
 from fun_time.dashboard_runtime import load_dashboard_snapshot
@@ -40,6 +41,7 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.media_metadata import normalize_path_key
+from fun_time.modes import is_favorite_path, read_favs_content
 from fun_time.origenerator_switches import RfbSlot
 from fun_time.regen import build_regen_url
 from fun_time.rfb_slideshow import RfbSlideshow
@@ -3282,19 +3284,95 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
 
         assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.FIRST}"]
 
-    @pytest.mark.parametrize(("main_mode", "rfb_slot"), [
-        (MainMode.KINO, RfbSlot.ORIGENERATOR),   # the Main Funestra's lock, not Genau's
-        (MainMode.GENAU, RfbSlot.RFB),           # the gallery parked under the browser
-    ])
-    def test_a_lock_leaves_the_gallery_alone_unless_genau_and_the_gallery_are_both_up(
-            self, tmp_path, main_mode, rfb_slot):
+    def test_a_lock_asks_origenerator_to_go_to_the_flick_with_the_browser_in_its_place(
+            self, tmp_path):
         runner = self._genau_beside_the_gallery(tmp_path)
-        runner.state = replace(runner.state, main_mode=main_mode, rfb_slot=rfb_slot)
+        runner.state = replace(runner.state, rfb_slot=RfbSlot.RFB)
         _genau_publishes(tmp_path, locked=True, flick=self.FIRST)
 
         runner._dispatch("main_lock_on")
         runner.tick()
 
+        assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.FIRST}"]
+
+    def test_the_flick_genau_holds_goes_in_the_favorites_as_a_satellites_lock_does(
+            self, tmp_path):
+        runner = self._genau_beside_the_gallery(tmp_path)
+        _genau_publishes(tmp_path, locked=False, flick=self.FIRST)
+
+        runner._dispatch("main_lock")
+        _genau_publishes(tmp_path, locked=True, flick=self.NEXT)
+        runner.tick()
+
+        favorites = read_favs_content(runner.config.favs_file)
+        assert is_favorite_path(self.NEXT, favorites)
+        assert not is_favorite_path(self.FIRST, favorites)
+
+
+def _the_main_funestra_publishes(tmp_path, *, locked: bool, video: str) -> None:
+    (tmp_path / "main_player_status.txt").write_text(
+        f"video={video}\nlocked={int(locked)}\nspeed=1\n", encoding="utf-8")
+
+
+class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
+    MADE_HERE = r"C:\library\videos\made here\gen_00042_.mp4"
+
+    def _kino_beside_origenerator(self, tmp_path):
+        runner = make_runner(tmp_path, config=_hosting(tmp_path), origenerator_pid=700)
+        _the_hosted_app_answers(tmp_path)
+        runner.state = replace(runner.state, main_mode=MainMode.KINO,
+                               rfb_slot=RfbSlot.RFB, origenerator_ready=True)
+        return runner
+
+    def test_origenerator_is_asked_to_go_to_the_video_once_the_main_funestra_holds_it(
+            self, tmp_path):
+        runner = self._kino_beside_origenerator(tmp_path)
+        _the_main_funestra_publishes(tmp_path, locked=False, video=self.MADE_HERE)
+
+        runner._dispatch("main_lock")
+        runner.tick()
+        assert _what_the_gallery_heard(tmp_path) == []
+
+        _the_main_funestra_publishes(tmp_path, locked=True, video=self.MADE_HERE)
+        runner.tick()
+        assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.MADE_HERE}"]
+
+    def test_the_video_goes_in_the_favorites_and_counts_as_a_lock_once_it_is_held(
+            self, tmp_path):
+        runner = self._kino_beside_origenerator(tmp_path)
+        _the_main_funestra_publishes(tmp_path, locked=False, video=self.MADE_HERE)
+
+        runner._dispatch("main_lock")
+        runner.tick()
+        assert not is_favorite_path(self.MADE_HERE, read_favs_content(runner.config.favs_file))
+
+        _the_main_funestra_publishes(tmp_path, locked=True, video=self.MADE_HERE)
+        runner.tick()
+        assert is_favorite_path(self.MADE_HERE, read_favs_content(runner.config.favs_file))
+        stats = load_watch_stats(tmp_path / "watch_stats.json")
+        assert stats[normalize_path_key(self.MADE_HERE)]["locks"] == 1
+
+    def test_a_video_a_website_made_opens_its_page_with_the_browser_put_back_in_its_place(
+            self, tmp_path):
+        runner = make_runner(
+            tmp_path, config=_hosting(tmp_path), origenerator_pid=700, rfb_hwnd=12345,
+            rfb_shortcut=Shortcut(target=r"C:\Chrome\chrome.exe", work_dir=r"C:\Chrome",
+                                  arguments=""))
+        _the_hosted_app_answers(tmp_path)
+        runner.state = replace(runner.state, main_mode=MainMode.KINO,
+                               rfb_slot=RfbSlot.ORIGENERATOR, origenerator_ready=True)
+        made_by_a_website = rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4"
+        _the_main_funestra_publishes(tmp_path, locked=False, video=made_by_a_website)
+        calls: list[tuple[str, object]] = []
+        exists, activate, open_tab = TestOpenRfbTab._rfb_patches(calls)
+
+        with exists, activate, open_tab:
+            runner._dispatch("main_lock")
+            _the_main_funestra_publishes(tmp_path, locked=True, video=made_by_a_website)
+            runner.tick()
+
+        assert runner.state.rfb_slot is RfbSlot.RFB
+        assert [what for what, _ in calls] == ["activate", "open"]
         assert _what_the_gallery_heard(tmp_path) == []
 
 

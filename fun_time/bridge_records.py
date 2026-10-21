@@ -179,7 +179,7 @@ class Op(StrEnum):
     MAIN_FUNESTRA_ANSWERS = "main_funestra_answers"
     IGNORED = "ignored"
     TAKE_BACK_FUNESTRAS = "take_back_funestras"
-    FOLLOW_GENAUS_LOCK = "follow_genaus_lock"
+    FOLLOW_THE_LOCK = "follow_the_lock"
 
 
 @dataclass(frozen=True)
