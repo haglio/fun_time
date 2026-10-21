@@ -41,7 +41,7 @@ from main_funestra.genau_verbs import genau_f_mode
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .broker_control import write_broker_command
-from .content import load_web_providers, no_other_flicks
+from .content import no_other_flicks
 from .crown import CROWNS, Crown
 from .dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
 from .event_log import (
@@ -60,14 +60,14 @@ from .funestra_status import (
     read_genau_status,
     read_main_funestra_status,
 )
-from .lock import MARKED_WEIRD, build_discard_plan, build_lock_toggle_plan
+from .lock import MARKED_WEIRD, a_lock_holds, build_discard_plan
 from .main_list import MainListSettings, new_shuffle_seed, next_length_mode
 from .max_intensity import (
     MAX_INTENSITY_COMMAND,
     funestras_that_can_drive_the_osr2,
     publish_max_intensity,
 )
-from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
+from .media_actions import ensure_in_favs, move_to_weird, remove_from_favs
 from .media_metadata import forget_indexed_clip
 from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE, kino_shows
 from .modes import VideoShapes, is_favorite_path, read_favs_content
@@ -81,8 +81,6 @@ from .origenerator_switches import (
     origenerator_shows,
 )
 from .osr2_section import TAKE_OSR2_COMMANDS, funestra_with_the_osr2
-from .random_favs_browser import FavEntry, target_for_fav
-from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .room_funestras import RoomFunestra
 from .runtime_flow import (
     FMODE_FUNESTRAS,
@@ -122,7 +120,6 @@ from .shared_state import BridgeState, SatelliteState
 from .ten_second_steps import why_it_cannot_step
 from .voice_commands import FAVORITES_PHRASE, said_to_a_side, say_command
 from .vr_videos import shapes_verb
-from .watch_stats import record_watch_event, watch_stats_path
 
 logger = logging.getLogger(__name__)
 
@@ -282,49 +279,20 @@ def _lock_as_said(
 def _toggle_lock(
     funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    locked = state.satellite(funestra).locked
+    label = RoomFunestra(funestra).label
+    if state.satellite(funestra).locked:
+        send_satellite(config, funestra, LOCK_OFF)
+        send_satellite(config, funestra, NEXT)
+        logger.info("Unlocked %s satellite", label)
+        return state.with_satellite(funestra, locked=False), []
     current_path = satellite_current(config, funestra)
-    # "Lock" names the video the speaker had in front of them.  If the satellite
-    # auto-advanced while the phrase was being recognized, bring that video back
-    # and lock it — the whole point of the lock is to keep watching *it*.  An
-    # unlock needs no such rescue: a locked satellite repeats one video and
-    # cannot have advanced.
-    if not locked and target_path and not same_video(target_path, current_path):
+    if target_path and not same_video(target_path, current_path):
         play_video(config, funestra, target_path)
         logger.info("Lock back-dated to %s (Funestra %d had advanced)", target_path, funestra)
         current_path = target_path
-    plan = build_lock_toggle_plan(funestra=funestra, locked=locked, current_path=current_path)
-    send_satellite(config, funestra, LOCK_ON if plan.next_locked else LOCK_OFF)
-    if plan.ensure_in_favs and current_path:
-        ensure_in_favs(config.favs_file, current_path)
-        # Locking is the strongest positive watch signal ("breeding" weight).
-        record_watch_event(watch_stats_path(config.state_dir), current_path, "lock")
-    if plan.advance_playlist:
-        # Unlocking moves on from the clip you were dwelling on, rather than
-        # replaying it once more before the auto-advance.
-        send_satellite(config, funestra, NEXT)
-    if plan.log_message:
-        logger.info(plan.log_message)
-    lock_ops: list[WindowOp] = []
-    if plan.open_rfb_tab and current_path:
-        # Resolved exactly like an RFB startup tab, and deferred after the same
-        # Ctrl+R landing page, so a lock never drops a heavy generate page on you.
-        providers = load_web_providers()
-        target = target_for_fav(
-            FavEntry(local_path=current_path, web_url=make_web_url_from_path(current_path, providers)),
-            config.regen,
-            providers,
-        )
-        if target.url:
-            uri = write_lock_tab_page(
-                tabs_dir(config.state_dir), target, loopback_port=config.loopback_port)
-            lock_ops.append(WindowOp(op="open_rfb_tab", key=uri))
-    # A lock does not end a group loop: it holds one clip (mpv ``loop_file``) and
-    # leaves the loop's queue exactly as it was, so unlocking drops the side straight
-    # back into cycling that group.  The loop therefore stays in state — a lock is a
-    # pause at one position *inside* the loop, and the HUD goes on drawing the loop
-    # (lit button, group rectangle, frozen map) with the held clip ringed.
-    return state.with_satellite(funestra, locked=plan.next_locked), lock_ops
+    send_satellite(config, funestra, LOCK_ON)
+    logger.info("Locked %s satellite", label)
+    return state.with_satellite(funestra, locked=True), a_lock_holds(current_path, config)
 
 
 def _discard(
@@ -349,41 +317,27 @@ def _discard(
         # A locked satellite is repeat-one; drop the lock so TRASH advances into
         # the playlist instead of looping the clip that replaced the discarded one.
         send_satellite(config, funestra, LOCK_OFF)
-    if plan.remove_from_favs:
-        remove_from_favs(config.favs_file, condemned)
-    if plan.advance_playlist:
-        if plan.drop_from_playlist:
-            if already_moved_on:
-                play_video(config, funestra, condemned)
-            # TRASH drops the current clip from the playlist and plays the next.
-            send_satellite(config, funestra, TRASH)
-        elif not already_moved_on:
-            # A demotion leaves the clip in the playlist, so this is a plain
-            # advance (NEXT) and PREV comes straight back to it.  Nothing has to
-            # be done to the clip itself, so a satellite that already moved on is
-            # left alone rather than dragged back to a clip it would leave again.
-            send_satellite(config, funestra, NEXT)
+    remove_from_favs(config.favs_file, condemned)
+    if plan.condemns:
+        if already_moved_on:
+            play_video(config, funestra, condemned)
+        send_satellite(config, funestra, TRASH)
+    elif not already_moved_on:
+        # A demotion leaves the clip in the playlist, so this is a plain
+        # advance (NEXT) and PREV comes straight back to it.  Nothing has to
+        # be done to the clip itself, so a satellite that already moved on is
+        # left alone rather than dragged back to a clip it would leave again.
+        send_satellite(config, funestra, NEXT)
     state = state.with_satellite(funestra, locked=False)
     lock_ops: list[WindowOp] = []
-    if plan.move_to_weird:
+    if plan.condemns:
         move_to_weird(config.weird_dir, Path(condemned))
         state, lock_ops = lock_a_loop_left_with_one_clip(funestra, state, config, condemned)
         forget_indexed_clip(condemned)
-    if plan.log_message:
-        logger.info(plan.log_message)
-    # Which of the two things this key does is invisible otherwise: both look
-    # like "the clip went away", and the ★ that tells them apart is gone by the
-    # time you could read it.  The color says it too — undoing a favoriting is
-    # green, condemning a clip that was never one is not.
-    discard_ops = (
-        [WindowOp(
-            op="notice", key=plan.notice_message, source=satellite_source(funestra),
-            level=FAVORITE if plan.notice_about_favorites else NOTICE,
-        )]
-        if plan.notice_message
-        else []
-    )
-    return state, [*discard_ops, *lock_ops]
+    logger.info(plan.log_message)
+    notice = WindowOp(op="notice", key=plan.notice_message, source=satellite_source(funestra),
+                      level=NOTICE if plan.condemns else FAVORITE)
+    return state, [notice, *lock_ops]
 
 
 # The satellite and the variation axis each cycle command reaches.

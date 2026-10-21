@@ -2,104 +2,53 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .bridge_records import BridgeConfig, Op, WindowOp
+from .content import load_web_providers
+from .media_actions import ensure_in_favs, make_web_url_from_path
+from .random_favs_browser import FavEntry, target_for_fav
+from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .room_funestras import RoomFunestra
+from .watch_stats import record_watch_event, watch_stats_path
 
 MARKED_WEIRD = "Marked weird"
 
 
+def a_lock_holds(item: str, config: BridgeConfig) -> list[WindowOp]:
+    if not item:
+        return []
+    ensure_in_favs(config.favs_file, item)
+    record_watch_event(watch_stats_path(config.state_dir), item, "lock")
+    return _where_more_of_it_is_made(item, config)
+
+
+def _where_more_of_it_is_made(item: str, config: BridgeConfig) -> list[WindowOp]:
+    providers = load_web_providers()
+    target = target_for_fav(
+        FavEntry(local_path=item, web_url=make_web_url_from_path(item, providers)),
+        config.regen, providers)
+    if not target.url:
+        return []
+    page = write_lock_tab_page(tabs_dir(config.state_dir), target,
+                               loopback_port=config.loopback_port)
+    return [WindowOp(op=Op.OPEN_RFB_TAB, key=page)]
+
+
 @dataclass(frozen=True)
-class LockActionPlan:
-    next_locked: bool
-    ensure_in_favs: bool
-    remove_from_favs: bool
-    advance_playlist: bool
-    # Whether advancing also takes the clip out of the playlist it is advancing
-    # from.  Only a condemned clip is dropped; everything else just moves on and
-    # stays where it was, so stepping back lands on it again.
-    drop_from_playlist: bool
-    move_to_weird: bool
-    open_rfb_tab: bool
+class DiscardPlan:
+    condemns: bool
     log_message: str
-    # The glanceable version of ``log_message``, flashed over the Funestra the
-    # action was about.  Empty when there is nothing to announce — the action
-    # was a no-op, or the log line is all it warrants.
-    notice_message: str = ""
-    # Whether that notice is about the favorites, which is what decides its
-    # color: the caller flashes those green and everything else white.  Said as
-    # a fact about the action rather than as a log level, so this module stays
-    # free of logging — the two things a discard can be look identical otherwise.
-    notice_about_favorites: bool = False
-
-    @classmethod
-    def lock(cls, funestra_name: str, *, current_path: str) -> LockActionPlan:
-        return cls(
-            next_locked=True,
-            ensure_in_favs=bool(current_path),
-            remove_from_favs=False,
-            advance_playlist=False,
-            drop_from_playlist=False,
-            move_to_weird=False,
-            open_rfb_tab=True,
-            log_message=f"Locked {funestra_name} satellite",
-        )
-
-    @classmethod
-    def unlock(cls, funestra_name: str) -> LockActionPlan:
-        return cls(
-            next_locked=False,
-            ensure_in_favs=False,
-            remove_from_favs=False,
-            advance_playlist=True,
-            drop_from_playlist=False,
-            move_to_weird=False,
-            open_rfb_tab=False,
-            log_message=f"Unlocked {funestra_name} satellite",
-        )
-
-    @classmethod
-    def demote(cls, funestra: RoomFunestra, current_path: str) -> LockActionPlan:
-        return cls(
-            next_locked=False,
-            ensure_in_favs=False,
-            remove_from_favs=True,
-            advance_playlist=True,
-            drop_from_playlist=False,
-            move_to_weird=False,
-            open_rfb_tab=False,
-            log_message=f"Removed from favorites on Funestra {funestra}: {current_path}",
-            notice_message="Unfavorited",
-            notice_about_favorites=True,
-        )
-
-    @classmethod
-    def condemn(cls, funestra: RoomFunestra, current_path: str) -> LockActionPlan:
-        return cls(
-            next_locked=False,
-            ensure_in_favs=False,
-            remove_from_favs=True,
-            advance_playlist=True,
-            drop_from_playlist=True,
-            move_to_weird=True,
-            open_rfb_tab=False,
-            log_message=f"Discarding from Funestra {funestra}: {current_path}",
-            notice_message=MARKED_WEIRD,
-        )
-
-
-def build_lock_toggle_plan(*, funestra: RoomFunestra, locked: bool, current_path: str) -> LockActionPlan:
-    funestra_name = RoomFunestra(funestra).label
-    if locked:
-        return LockActionPlan.unlock(funestra_name)
-    return LockActionPlan.lock(funestra_name, current_path=current_path)
+    notice_message: str
 
 
 def build_discard_plan(
     *, funestra: RoomFunestra, current_path: str, is_favorite: bool = False
-) -> LockActionPlan:
-    """Two steps, not one verdict: locking is what put a clip in the favs list,
-    so a first discard only takes it back out, and a second — the clip no longer
-    a favorite — condemns it.
-    """
+) -> DiscardPlan:
     if is_favorite:
-        return LockActionPlan.demote(funestra, current_path)
-    return LockActionPlan.condemn(funestra, current_path)
+        return DiscardPlan(
+            condemns=False,
+            log_message=f"Removed from favorites on Funestra {funestra}: {current_path}",
+            notice_message="Unfavorited")
+    return DiscardPlan(
+        condemns=True,
+        log_message=f"Discarding from Funestra {funestra}: {current_path}",
+        notice_message=MARKED_WEIRD)

@@ -146,7 +146,7 @@ def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
 
     path = rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4"
     _set_current(config, 2, path)
-    with patch("fun_time.command_dispatch.ensure_in_favs"):
+    with patch("fun_time.lock.ensure_in_favs"):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
     assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
@@ -165,7 +165,7 @@ def test_lock_landing_page_plays_the_locked_video(tmp_path: Path):
     video.write_bytes(b"")
 
     _set_current(config, 2, str(video))
-    with patch("fun_time.command_dispatch.ensure_in_favs"):
+    with patch("fun_time.lock.ensure_in_favs"):
         _, ops = dispatch_command("portrait_lock", state, config)
 
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
@@ -178,7 +178,7 @@ def test_locking_the_same_video_twice_reuses_one_landing_page(tmp_path: Path):
     keys = []
     for _ in range(2):
         _set_current(config, 2, rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4")
-        with patch("fun_time.command_dispatch.ensure_in_favs"):
+        with patch("fun_time.lock.ensure_in_favs"):
             _, ops = dispatch_command("portrait_lock", _make_state(portrait=SatelliteState(locked=False)), config)
         keys += [op.key for op in ops if op.op == "open_rfb_tab"]
 
@@ -195,7 +195,7 @@ def test_portrait_lock_records_a_lock_watch_event(tmp_path: Path):
     video.write_text("x", encoding="utf-8")
 
     _set_current(config, 2, str(video))
-    with patch("fun_time.command_dispatch.ensure_in_favs"):
+    with patch("fun_time.lock.ensure_in_favs"):
         dispatch_command("portrait_lock", state, config)
 
     stats = load_watch_stats(config.state_dir / "watch_stats.json")
@@ -221,7 +221,7 @@ def test_the_locks_landing_page_polls_the_port_this_session_serves_on(tmp_path: 
 
 
     _set_current(config, 2, rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4")
-    with patch("fun_time.command_dispatch.ensure_in_favs"):
+    with patch("fun_time.lock.ensure_in_favs"):
         _new_state, ops = dispatch_command("portrait_lock", state, config)
 
     [rfb_op] = [op for op in ops if op.op == "open_rfb_tab"]
@@ -233,7 +233,7 @@ def test_portrait_lock_no_open_rfb_tab_op_for_unknown_video(tmp_path: Path):
     state = _make_state(portrait=SatelliteState(locked=False))
 
     _set_current(config, 2, r"C:\videos\other\xyz.mp4")
-    with patch("fun_time.command_dispatch.ensure_in_favs"):
+    with patch("fun_time.lock.ensure_in_favs"):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
     assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
@@ -258,7 +258,7 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
 
     path = rf"C:\videos\{load_web_providers()[0].marker}\def_456.mp4"
     _set_current(config, 3, path)
-    with patch("fun_time.command_dispatch.ensure_in_favs"):
+    with patch("fun_time.lock.ensure_in_favs"):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
     assert new_state.satellite(RoomFunestra.LANDSCAPE).locked is True
@@ -289,8 +289,8 @@ def test_landscape_lock_emits_regen_url_when_metadata_present(tmp_path: Path):
     providers = (WebProvider(marker="provider", gallery_url="https://example.com/image/{id}"),)
 
     _set_current(config, 3, str(video))
-    with patch("fun_time.command_dispatch.ensure_in_favs"), patch(
-        "fun_time.command_dispatch.load_web_providers", return_value=providers
+    with patch("fun_time.lock.ensure_in_favs"), patch(
+        "fun_time.lock.load_web_providers", return_value=providers
     ):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
@@ -307,7 +307,7 @@ def test_portrait_lock_toggles_lock_on(tmp_path: Path):
     state = _make_state(portrait=SatelliteState(locked=False))
 
     _set_current(config, 2, "C:\\clips\\portrait.mp4")
-    with patch("fun_time.command_dispatch.ensure_in_favs"):
+    with patch("fun_time.lock.ensure_in_favs"):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
     assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
@@ -334,7 +334,7 @@ def test_landscape_lock_toggles_lock_on(tmp_path: Path):
     state = _make_state(landscape=SatelliteState(locked=False))
 
     _set_current(config, 3, "C:\\clips\\landscape.mp4")
-    with patch("fun_time.command_dispatch.ensure_in_favs"):
+    with patch("fun_time.lock.ensure_in_favs"):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
     assert new_state.satellite(RoomFunestra.LANDSCAPE).locked is True
@@ -350,7 +350,7 @@ def test_a_spoken_lock_locks_an_unlocked_satellite(command, funestra, tmp_path: 
     config = _make_config(tmp_path)
     _set_current(config, funestra, "C:\\clips\\scene one.mp4")
 
-    with patch("fun_time.command_dispatch.ensure_in_favs"):
+    with patch("fun_time.lock.ensure_in_favs"):
         new_state, _ops = dispatch_command(command, _make_state(), config)
 
     assert new_state.satellite(funestra).locked is True
@@ -401,7 +401,7 @@ def test_portrait_lock_returns_to_the_video_that_was_playing_when_spoken(tmp_pat
     now_playing = "C:\\clips\\advanced_to.mp4"
 
     _set_current(config, 2, now_playing)
-    with patch("fun_time.command_dispatch.ensure_in_favs") as favs:
+    with patch("fun_time.lock.ensure_in_favs") as favs:
         new_state, _ops = dispatch_command("portrait_lock", state, config, target_path=meant)
 
     # Back-dated: bring the spoken video back (PLAY_FILE) then LOCK_ON it.
@@ -1041,7 +1041,7 @@ def test_landscape_command_sets_active_funestra_to_landscape(tmp_path: Path):
     state = _make_state(landscape=SatelliteState(locked=False), active_funestra=2)
 
     _set_current(config, 3, "C:\\clips\\l.mp4")
-    with patch("fun_time.command_dispatch.ensure_in_favs"):
+    with patch("fun_time.lock.ensure_in_favs"):
         new_state, _ops = dispatch_command("landscape_lock", state, config)
 
     assert new_state.active_funestra == 3
@@ -3711,7 +3711,7 @@ def test_locking_holds_your_place_in_a_loop_rather_than_ending_it(tmp_path: Path
     clip = r"C:\videos\provider2\abc_123.mp4"
 
     _set_current(config, 2, clip)
-    with patch("fun_time.command_dispatch.ensure_in_favs"):
+    with patch("fun_time.lock.ensure_in_favs"):
         state, _ops = dispatch_command(
             "portrait_lock",
             _make_state(portrait=SatelliteState(locked=False, loop="action", map_anchor=clip, widen_clip=clip)),
@@ -4958,18 +4958,13 @@ class TestOmniPauseWithOrigenerator:
 
 
 # --- the lock helpers, at the file channel ----------------------------------
-# Each lock action appends a verb to the satellite's command file — LOCK to
-# hold the current clip, UNLOCK to release it, NEXT to advance, TRASH to drop
-# and move on.  These drive the three helpers directly; the routing through
-# dispatch_command is covered above, and the pure decision table they follow
-# is tests/test_lock.py's.
 
 def test_toggle_lock_locks_and_favorites_when_unlocked(tmp_path: Path, caplog):
     config = _make_config(tmp_path)
     _set_current(config, 2, "clip.mp4")
 
     with (
-        patch("fun_time.command_dispatch.ensure_in_favs") as favs,
+        patch("fun_time.lock.ensure_in_favs") as favs,
         caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"),
     ):
         state, _ops = _toggle_lock(2, _make_state(portrait=SatelliteState(locked=False)), config)
@@ -5019,7 +5014,7 @@ def test_locking_a_known_video_opens_an_rfb_tab(tmp_path: Path):
 
     _set_current(config, 2, rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4")
 
-    with patch("fun_time.command_dispatch.ensure_in_favs"):
+    with patch("fun_time.lock.ensure_in_favs"):
         _state, ops = _toggle_lock(2, _make_state(portrait=SatelliteState(locked=False)), config)
 
     assert any(op.op == "open_rfb_tab" for op in ops)
@@ -5104,6 +5099,32 @@ def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path
     assert [(op.op, op.key, op.source) for op in ops] == [
         ("notice", "Unfavorited", "landscape")
     ]
+
+
+def test_an_unfavoriting_is_said_in_the_favorites_green_and_a_condemning_in_white(
+        tmp_path: Path):
+    config = _make_config(tmp_path)
+    kept = _favorite_clip(tmp_path, config, "kept.mp4")
+    odd = tmp_path / "clips" / "odd.mp4"
+    odd.write_bytes(b"")
+
+    _set_current(config, 3, str(kept))
+    _state, demoted = _discard(3, _make_state(), config)
+    _set_current(config, 3, str(odd))
+    _state, condemned = _discard(3, _make_state(), config)
+
+    assert [(op.key, op.level) for op in demoted] == [("Unfavorited", FAVORITE)]
+    assert [(op.key, op.level) for op in condemned] == [("Marked weird", NOTICE)]
+
+
+def test_discarding_a_locked_favorite_lets_the_side_go(tmp_path: Path):
+    config = _make_config(tmp_path)
+    _set_current(config, 3, str(_favorite_clip(tmp_path, config, "kept.mp4")))
+
+    state, _ops = _discard(3, _make_state(landscape=SatelliteState(locked=True)), config)
+
+    assert state.satellite(RoomFunestra.LANDSCAPE).locked is False
+    assert _cmds(config, 3) == ["LOCK_OFF", "NEXT"]
 
 
 def test_demoting_a_favorite_the_funestra_already_left_does_not_drag_it_back(tmp_path: Path):
