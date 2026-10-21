@@ -557,6 +557,12 @@ def test_a_shortcut_is_refused_before_the_launcher_has_landed(repo_with_worktree
         )
 
 
+def _commit_a_file(repo: Path, name: str, message: str) -> None:
+    (repo / name).write_text(message, encoding="utf-8")
+    git(repo, "add", name)
+    git(repo, "commit", "-m", message, when="2026-04-01T12:00:00")
+
+
 def test_a_shortcut_is_refused_for_a_worktree_missing_work_the_primary_has(primary_with_launcher):
     git(primary_with_launcher.primary, "commit", "--allow-empty", "-m",
          "Work that landed after the branch was cut", when="2026-04-01T12:00:00")
@@ -567,6 +573,15 @@ def test_a_shortcut_is_refused_for_a_worktree_missing_work_the_primary_has(prima
         )
 
     assert not (primary_with_launcher.primary / "Verify example-newer.lnk").exists()
+
+
+def test_a_worktree_holding_a_copy_of_the_hotfix_production_runs_misses_nothing(
+        repo_with_worktrees):
+    for checkout in (repo_with_worktrees.primary, repo_with_worktrees.newer):
+        _commit_a_file(checkout, "hotfix.txt", "A hotfix production runs")
+
+    assert branch_session.commits_missing(
+        repo_with_worktrees.newer, repo_with_worktrees.primary) == 0
 
 
 def test_a_shortcut_is_refused_for_a_branch_built_on_a_library_newer_than_this_computer_has(

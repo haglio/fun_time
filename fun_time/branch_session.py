@@ -96,10 +96,11 @@ DETACHED = "(detached)"
 _SUPERSEDED_PATH_KEYS = ("portrait_dir", "landscape_dir")
 
 
-def _git(args: list[str], cwd: Path) -> str:
+def _git(args: list[str], cwd: Path, *, stdin: str | None = None) -> str:
     result = subprocess.run(
         ["git", *args],
         cwd=str(cwd),
+        input=stdin,
         capture_output=True,
         text=True,
         check=True,
@@ -628,9 +629,18 @@ def prune_stale_shortcuts(primary: Path) -> list[Path]:
     return removed
 
 
+def _patch_of_each(worktree: Path, revisions: str) -> dict[str, str]:
+    patches = _git(["patch-id", "--stable"], worktree,
+                   stdin=_git(["log", "-p", "--no-color", revisions], worktree))
+    return {commit: patch for patch, commit in (line.split() for line in patches.splitlines())}
+
+
 def commits_missing(worktree: Path, primary: Path) -> int:
     primary_head = _git(["rev-parse", "HEAD"], primary).strip()
-    return int(_git(["rev-list", "--count", f"HEAD..{primary_head}"], worktree).strip())
+    held = set(_patch_of_each(worktree, f"{primary_head}..HEAD").values())
+    theirs = _patch_of_each(worktree, f"HEAD..{primary_head}")
+    return sum(1 for commit in _git(["rev-list", f"HEAD..{primary_head}"], worktree).split()
+               if theirs.get(commit) not in held)
 
 
 class OutOfDateWorktree(RuntimeError):
