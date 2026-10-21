@@ -21,6 +21,7 @@ from pathlib import Path
 
 from app_support.json_store import locked_update
 from app_support.mirrored_tree import LIBRARY_DIR_NAME, library_roots_beside, mirrored_path
+from funestra.video_families import action_group_key, normalized_text, seed_group_key
 
 
 def normalize_path_key(path: str) -> str:
@@ -205,10 +206,6 @@ def reject_action(video_path: str | Path, metadata_root: str | Path | None) -> s
     return struck
 
 
-def _norm_text(value: object) -> str:
-    return " ".join(str(value or "").split()).lower()
-
-
 def filter_haystack(metadata: dict) -> str:
     """Lowercased, whitespace-collapsed text a filter query is matched against.
 
@@ -226,7 +223,7 @@ def filter_haystack(metadata: dict) -> str:
     backfill tool's backlog (see :data:`WRONG_ACTION_FIELD`), not something to
     guess at from its prompt.
     """
-    return _norm_text((metadata.get("video") or {}).get("action"))
+    return normalized_text((metadata.get("video") or {}).get("action"))
 
 
 def matches_query(metadata: dict, query: str) -> bool:
@@ -236,7 +233,7 @@ def matches_query(metadata: dict, query: str) -> bool:
     act, so "alpha" catches the "Alpha, Theta Motion" action and "beta gamma"
     catches the "Beta Gamma" action while ignoring word order noise.
     """
-    normalized = _norm_text(query)
+    normalized = normalized_text(query)
     if not normalized:
         return True
     return normalized in filter_haystack(metadata)
@@ -253,89 +250,9 @@ def path_matches_query(
     by a video whose sidecar records an act, so videos with no sidecar — and
     videos still waiting for an act — drop out of a filtered build.
     """
-    if not _norm_text(query):
+    if not normalized_text(query):
         return True
     return matches_query(recorded_for(video_path, metadata_root), query)
-
-
-# Fields that pin down the generated image (subject(s) + situation).  "created"
-# is deliberately excluded: regenerating the identical config on another day
-# yields the same picture.  Public, like the video's below: they are what this
-# app reads off a record another repo writes, and
-# tests/test_library_record_contract.py holds them to what it promises.
-IMAGE_IDENTITY_FIELDS = (
-    "positive_prompt",
-    "negative_prompt",
-    "model",
-    "resolution",
-    "aspect_ratio",
-    "quality",
-    "style",
-    "creativity",
-    "seed",
-)
-
-# Video-block fields shared by every variation axis; "action" and "seed" are
-# appended per key kind ("created" excluded as above).
-VIDEO_BASE_FIELDS = (
-    "prompt",
-    "model",
-    "resolution",
-    "aspect_ratio",
-    "quality",
-)
-
-
-def _field_key(prefix: str, block: dict, fields: tuple[str, ...]) -> str:
-    return prefix + "|" + "|".join(_norm_text(block.get(f)) for f in fields)
-
-
-def action_group_key(metadata: dict) -> str | None:
-    """Identity of the subject(s) + situation a video shows, or None if unknown.
-
-    Videos sharing a key form an "action group": the same subject rendered
-    doing different things.  For image-to-video clips the source image IS the
-    subject, so the key is the image's full generation identity.  For
-    text-to-video clips the subject is pinned by the video prompt + seed, so
-    only the action dropdown is left free.
-    """
-    source = metadata.get("source_image")
-    if source:
-        return _field_key("img", source, IMAGE_IDENTITY_FIELDS)
-    video = metadata.get("video") or {}
-    if not video.get("prompt"):
-        return None
-    return _field_key("t2v", video, VIDEO_BASE_FIELDS + ("seed",))
-
-
-_IMAGE_FAMILY_FIELDS = tuple(f for f in IMAGE_IDENTITY_FIELDS if f != "seed")
-
-
-def _seed_key(
-    metadata: dict, image_fields: tuple[str, ...], video_fields: tuple[str, ...]
-) -> tuple[str, str] | None:
-    """(family, seed) for a video, familied by *image_fields* / *video_fields*.
-
-    Returns None when the metadata lacks a seed or a prompt to family by.
-    """
-    source = metadata.get("source_image")
-    if source:
-        if not source.get("seed") or not source.get("positive_prompt"):
-            return None
-        return _field_key("img", source, image_fields), _norm_text(source.get("seed"))
-    video = metadata.get("video") or {}
-    if not video.get("seed") or not video.get("prompt"):
-        return None
-    return _field_key("t2v", video, video_fields), _norm_text(video.get("seed"))
-
-
-def seed_group_key(metadata: dict) -> tuple[str, str] | None:
-    """(family, seed) placing a video among its same-config-different-seed kin.
-
-    Videos sharing a family were generated from the identical configuration
-    with only the seed varied — the same scenario cast with a different subject.
-    """
-    return _seed_key(metadata, _IMAGE_FAMILY_FIELDS, VIDEO_BASE_FIELDS + ("action",))
 
 
 def scene_tags(metadata: dict) -> frozenset[str]:
@@ -348,7 +265,7 @@ def scene_tags(metadata: dict) -> frozenset[str]:
     """
     source = metadata.get("source_image") or {}
     text = source.get("positive_prompt") or (metadata.get("video") or {}).get("prompt") or ""
-    return frozenset(tag for tag in (_norm_text(part) for part in str(text).split(",")) if tag)
+    return frozenset(tag for tag in (normalized_text(part) for part in str(text).split(",")) if tag)
 
 
 def _tag_overlap(one: frozenset[str], other: frozenset[str]) -> float:
@@ -439,7 +356,7 @@ def indexed_act(index: GroupIndex, path: str) -> str:
     capitals -- is the ordinary case in a hand-labeled library, and this is what
     keeps it from mattering.
     """
-    return _norm_text(index.act_of(path))
+    return normalized_text(index.act_of(path))
 
 
 def seed_family_items(index: GroupIndex, path: str) -> list[str]:
@@ -509,7 +426,7 @@ def widened_seed_items(
                 other_key,
             )
             for other_key, other in index.entries.items()
-            if other_key not in seen and _norm_text(other.action) == action
+            if other_key not in seen and normalized_text(other.action) == action
         ),
         # Nearest first; the path key only breaks ties, so the row is stable.
         key=lambda scored: (-scored[0], -scored[1], scored[2]),

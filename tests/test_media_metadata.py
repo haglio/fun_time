@@ -13,7 +13,6 @@ from funestra.satellite_hud import label_is_filtered
 from fun_time.media_metadata import (
     GroupIndexCache,
     action_group_items,
-    action_group_key,
     action_label,
     build_group_index,
     cached_group_index,
@@ -25,7 +24,6 @@ from fun_time.media_metadata import (
     recorded_for,
     reject_action,
     seed_family_items,
-    seed_group_key,
     version_group_of,
     video_title,
     watch_weight_of,
@@ -200,80 +198,6 @@ def test_a_video_kept_on_another_drive_is_read_through_its_outlying_folder(tmp_p
 def test_a_videos_version_family_is_the_group_evolver_recorded():
     assert version_group_of({"version": {"group": "y", "processed": True}}) == "y"
     assert version_group_of({"clip": {"compilation": "Vol6"}}) == ""
-
-
-# --- action_group_key ---
-
-
-def test_action_group_key_groups_videos_from_the_same_source_image():
-    """Same exact source image = same subject(s) & situation, whatever the video step did."""
-    zeta = _i2v_meta(action="Zeta Massage", video_seed="111")
-    alpha = _i2v_meta(action="Alpha", video_seed="222")
-    other_subject = _i2v_meta(action="Alpha", video_seed="222", image_overrides={"seed": "999"})
-
-    assert action_group_key(zeta) == action_group_key(alpha)
-    assert action_group_key(zeta) != action_group_key(other_subject)
-
-
-def _t2v_meta(*, action: str, seed: str, prompt: str = "a subject on a beach") -> dict:
-    return {
-        "video": {
-            "prompt": prompt,
-            "model": "Video v3",
-            "action": action,
-            "resolution": "1280x720",
-            "aspect_ratio": "16:9",
-            "quality": "720p",
-            "seed": seed,
-            "created": "2026-03-13",
-        }
-    }
-
-
-def test_action_group_key_for_text_to_video_frees_only_the_action():
-    """No source image: the subject is pinned by the video prompt + seed instead."""
-    dancing = _t2v_meta(action="Dancing", seed="42")
-    twirling = _t2v_meta(action="Twirling", seed="42")
-    other_subject = _t2v_meta(action="Dancing", seed="43")
-
-    assert action_group_key(dancing) == action_group_key(twirling)
-    assert action_group_key(dancing) != action_group_key(other_subject)
-    assert action_group_key(dancing) != action_group_key(_i2v_meta(action="Dancing", video_seed="42"))
-
-
-def test_a_clip_with_no_generation_identity_joins_no_action_group():
-    assert action_group_key({}) is None
-    assert action_group_key({"video": {"action": "Alpha", "seed": "1"}}) is None
-
-
-# --- seed_group_key ---
-
-
-def test_seed_group_key_families_by_image_config_with_seed_free():
-    """Same image prompt+settings with different seeds = same scenario, different subject."""
-    subject_a = _i2v_meta(action="Alpha", video_seed="1")
-    subject_b = _i2v_meta(action="Zeta Massage", video_seed="2", image_overrides={"seed": "999"})
-    other_prompt = _i2v_meta(
-        action="Alpha", video_seed="1", image_overrides={"positive_prompt": "elf queen"}
-    )
-
-    family_a, seed_a = seed_group_key(subject_a)
-    family_b, seed_b = seed_group_key(subject_b)
-
-    assert family_a == family_b
-    assert seed_a != seed_b
-    assert seed_group_key(other_prompt)[0] != family_a
-
-
-def test_seed_group_key_for_text_to_video_keeps_action_in_the_family():
-    """T2V configuration includes the action dropdown; only the seed is free."""
-    subject_a = _t2v_meta(action="Dancing", seed="42")
-    subject_b = _t2v_meta(action="Dancing", seed="43")
-    different_action = _t2v_meta(action="Twirling", seed="44")
-
-    assert seed_group_key(subject_a)[0] == seed_group_key(subject_b)[0]
-    assert seed_group_key(subject_a)[0] != seed_group_key(different_action)[0]
-    assert seed_group_key({"video": {"prompt": "x"}}) is None
 
 
 # --- build_group_index ---
