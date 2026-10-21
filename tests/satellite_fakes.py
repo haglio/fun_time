@@ -32,7 +32,6 @@ class FakeSatelliteEngine(RefusesSeeks):
         self.speed = 1.0
         self.pace_s: float | None = None
         self.showing_picture = False
-        self.showing_video = True
         # How many times the loop has asked for a still's move to be
         # carried on — the Funestra's own account of where it has got to lives
         # in funestra, and this only counts the asking.
@@ -86,9 +85,6 @@ class FakeSatelliteEngine(RefusesSeeks):
 
     def push_still(self) -> None:
         self.pushes += 1
-
-    def radio_station(self, clips) -> None:
-        return None
 
     def seek_ms(self, ms: float) -> None:
         self.refuse_if_asked()
