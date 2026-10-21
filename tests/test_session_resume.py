@@ -578,7 +578,7 @@ class TestWhatARestartBringsBackOfEachFunestra:
         "SET_F_MODE": {"main_scripted_filter"}}
     _NO_SETTING = frozenset({
         "NEXT", "PREV", "QUIT", "RELOAD_PLAYLIST", "SEEK_BACK", "SEEK_FWD", "TRASH", "SHOW_FRAME",
-        "CLEAR_FRAME", "SET_PACE", "HOLD_PICTURE", "PLAY_FILE", "NEXT_VERSION", "PREV_VERSION"})
+        "CLEAR_FRAME", "SET_PACE", "PLAY_FILE", "NEXT_VERSION", "PREV_VERSION"})
     _RESENT_EVERY_SECOND_BY_THE_DEVICE_ARBITER = frozenset({"SET_TCODE_ENABLED"})
 
     def test_every_verb_a_funestra_answers_comes_back_after_a_restart_or_is_no_setting(self):
