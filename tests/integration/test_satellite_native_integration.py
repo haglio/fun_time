@@ -170,6 +170,29 @@ def test_a_satellite_holds_a_picture_for_the_pace_it_is_sent_and_under_a_lock():
         assert satellite.video() == held, "a locked picture moved on at a one-second pace"
 
 
+def _locked_on(satellite: LoneSatellite) -> str | None:
+    status = read_satellite_status(satellite.status)
+    return status.video if status.locked else None
+
+
+def test_a_lock_naming_the_picture_a_satellite_moved_on_from_brings_it_back_and_holds_it():
+    satellite = a_lone_satellite()
+    pictures = _pictures(satellite.sources / "pictures", 3)
+    satellite.send(f"{SET_PACE} 1")
+
+    with satellite.launched(pictures, width=480, height=640):
+        first = satellite.wait_for(lambda: _the_picture_on_screen(satellite),
+                                   desc="the satellite to show a picture")
+        satellite.wait_for(lambda: read_satellite_status(satellite.status).video not in ("", first),
+                           desc="the picture to move on at a one-second pace")
+
+        satellite.send(f"{LOCK_ON} {first}")
+        satellite.wait_for(lambda: _locked_on(satellite) == first,
+                           desc="the lock to bring back the picture it named")
+        let_seconds_pass(3.0)
+        assert satellite.video() == first, "the picture a lock brought back moved on"
+
+
 def test_a_frame_put_up_over_a_picture_moves_on_when_the_picture_would_have():
     satellite = a_lone_satellite()
     pictures = _pictures(satellite.sources / "pictures", 3)

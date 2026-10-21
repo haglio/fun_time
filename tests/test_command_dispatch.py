@@ -150,7 +150,7 @@ def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
     assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
-    assert _cmds(config, 2) == ["LOCK_ON"]
+    assert _cmds(config, 2) == [f"LOCK_ON {path}"]
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
     assert f'"{make_web_url_from_path(path)}"' in _tab_page(rfb_ops[0].key)
@@ -262,7 +262,7 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
     assert new_state.satellite(RoomFunestra.LANDSCAPE).locked is True
-    assert _cmds(config, 3) == ["LOCK_ON"]
+    assert _cmds(config, 3) == [f"LOCK_ON {path}"]
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
     assert f'"{make_web_url_from_path(path)}"' in _tab_page(rfb_ops[0].key)
@@ -312,7 +312,7 @@ def test_portrait_lock_toggles_lock_on(tmp_path: Path):
 
     assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
     assert new_state.satellite(RoomFunestra.LANDSCAPE).locked is False
-    assert _cmds(config, 2) == ["LOCK_ON"]
+    assert _cmds(config, 2) == ["LOCK_ON C:\\clips\\portrait.mp4"]
 
 
 def test_portrait_lock_toggles_lock_off(tmp_path: Path):
@@ -338,7 +338,7 @@ def test_landscape_lock_toggles_lock_on(tmp_path: Path):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
     assert new_state.satellite(RoomFunestra.LANDSCAPE).locked is True
-    assert _cmds(config, 3) == ["LOCK_ON"]
+    assert _cmds(config, 3) == ["LOCK_ON C:\\clips\\landscape.mp4"]
 
 
 # --- the spoken "lock" and "unlock": the state asked for, not a flip ---
@@ -354,7 +354,7 @@ def test_a_spoken_lock_locks_an_unlocked_satellite(command, funestra, tmp_path: 
         new_state, _ops = dispatch_command(command, _make_state(), config)
 
     assert new_state.satellite(funestra).locked is True
-    assert _cmds(config, funestra) == ["LOCK_ON"]
+    assert _cmds(config, funestra) == ["LOCK_ON C:\\clips\\scene one.mp4"]
 
 
 @pytest.mark.parametrize(("command", "funestra"), [
@@ -404,8 +404,7 @@ def test_portrait_lock_returns_to_the_video_that_was_playing_when_spoken(tmp_pat
     with patch("fun_time.command_dispatch.ensure_in_favs") as favs:
         new_state, _ops = dispatch_command("portrait_lock", state, config, target_path=meant)
 
-    # Back-dated: bring the spoken video back (PLAY_FILE) then LOCK_ON it.
-    assert _cmds(config, 2) == [f"PLAY_FILE {meant}", "LOCK_ON"]
+    assert _cmds(config, 2) == [f"LOCK_ON {meant}"]
     assert favs.call_args[0][1] == meant
     assert new_state.satellite(RoomFunestra.PORTRAIT).locked is True
 
@@ -4755,6 +4754,19 @@ class TestOrigeneratorTransport:
         assert _origenerator_cmds(config) == list(presses)
         assert _cmds(config, 2) == [] and _cmds(config, 3) == []
 
+    def test_a_lock_on_a_hosted_side_names_the_picture_up_when_it_was_asked_for(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = _in_origenerator_mode()
+        _set_current(config, 2, "C:/fixtures/up.png")
+
+        state, _ = dispatch_command("portrait_lock", state, config)
+        state, _ = dispatch_command("portrait_lock_on", state, config,
+                                    target_path="C:/fixtures/meant.png")
+
+        assert _origenerator_cmds(config) == ["portrait_lock|C:/fixtures/up.png",
+                                              "portrait_lock_on|C:/fixtures/meant.png"]
+        assert _cmds(config, 2) == []
+
     def test_a_side_filter_goes_to_the_hosted_app_rather_than_into_a_rebuild(self, tmp_path):
         """A rebuild would write the session's own list over the one the hosted
         app handed that Funestra."""
@@ -4938,8 +4950,7 @@ def test_toggle_lock_locks_and_favorites_when_unlocked(tmp_path: Path, caplog):
         state, _ops = _toggle_lock(2, _make_state(portrait=SatelliteState(locked=False)), config)
 
     assert state.satellite(RoomFunestra.PORTRAIT).locked is True
-    # Locking holds the current clip (LOCK) and does not advance past it.
-    assert _cmds(config, 2) == ["LOCK_ON"]
+    assert _cmds(config, 2) == ["LOCK_ON clip.mp4"]
     assert favs.call_args[0][1] == "clip.mp4"
     assert "Locked portrait satellite" in caplog.text
 

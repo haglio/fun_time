@@ -58,7 +58,7 @@ class WatchSampler:
 
         The clock advances whether or not the room is paused, so resuming does
         not fire an off-cadence sample the moment the pause lifts.  The
-        satellites *hosted* are left out: in their Origenerator mode they play
+        satellites *hosted* book nothing: in their Origenerator mode they play
         the hosted app's pictures, which are no library videos to book a watch
         against.
         """
@@ -74,12 +74,10 @@ class WatchSampler:
         """Sample each satellite's current video for the trackers and timelines,
         from the status file its native Funestra publishes."""
         for which, status_file in self.satellite_status_files.items():
-            if which in hosted:
-                continue
             status = read_satellite_status(status_file)
-            if status.fraction is None:
-                continue
             self._timelines[which].observe(status.video, now=now)
+            if which in hosted or status.fraction is None:
+                continue
             for event, video in self._trackers[which].observe(status.video, status.fraction):
                 record_watch_event(self.stats_file, video, event)
 

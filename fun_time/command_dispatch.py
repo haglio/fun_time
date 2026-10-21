@@ -290,11 +290,11 @@ def _toggle_lock(
     # unlock needs no such rescue: a locked satellite repeats one video and
     # cannot have advanced.
     if not locked and target_path and not same_video(target_path, current_path):
-        play_video(config, funestra, target_path)
         logger.info("Lock back-dated to %s (Funestra %d had advanced)", target_path, funestra)
         current_path = target_path
     plan = build_lock_toggle_plan(funestra=funestra, locked=locked, current_path=current_path)
-    send_satellite(config, funestra, LOCK_ON if plan.next_locked else LOCK_OFF)
+    send_satellite(config, funestra,
+                   f"{LOCK_ON} {current_path}".strip() if plan.next_locked else LOCK_OFF)
     if plan.ensure_in_favs and current_path:
         ensure_in_favs(config.favs_file, current_path)
         # Locking is the strongest positive watch signal ("breeding" weight).
@@ -749,7 +749,7 @@ def dispatch_command(
 
     # In its Origenerator mode what is said to a side is the hosted app's to
     # answer -- ahead of the handler lookup, whose Funestra handlers it shadows.
-    routed = _origenerator_transport(command, state, config)
+    routed = _origenerator_transport(command, state, config, target_path)
     if routed is not None:
         return state, routed
 
@@ -1460,7 +1460,7 @@ def origenerator_holds_the_rfb_slot(state: BridgeState, config: BridgeConfig) ->
 
 
 def _origenerator_transport(
-    command: str, state: BridgeState, config: BridgeConfig
+    command: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> list[WindowOp] | None:
     """Hand a side's press to the hosted app, or ``None`` to fall through to
     the session's own handling.
@@ -1476,8 +1476,19 @@ def _origenerator_transport(
         append_command(config.origenerator_cmd_file, said_to_the_hosted_app(*spoken))
         return []
     for said in _said_to_each_side(command):
-        append_command(config.origenerator_cmd_file, said)
+        append_command(config.origenerator_cmd_file, _aimed_if_a_lock(said, config, target_path))
     return []
+
+
+_LOCKS = ("lock", "lock_on")
+
+
+def _aimed_if_a_lock(said: str, config: BridgeConfig, target_path: str) -> str:
+    funestra = _side_said_to(said)
+    if said.removeprefix(f"{funestra.label}_") not in _LOCKS:
+        return said
+    aimed_at = target_path or satellite_current(config, funestra)
+    return f"{said}|{aimed_at}" if aimed_at else said
 
 
 def _rfb_slot_ops(rfb_slot: RfbSlot) -> list[WindowOp]:
