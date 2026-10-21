@@ -119,10 +119,17 @@ class MainList:
             return FULL_LENGTH
         return video_type_of(recorded_for(video, self.metadata_root)) or FULL_LENGTH
 
-    def _lets_through(self, video: str, length: LengthMode) -> bool:
+    def _of_the_length(self, video: str, length: LengthMode) -> bool:
         if length is LengthMode.MIXED:
             return True
         return self._kind_of(video) in _KINDS_OF_LENGTH.get(length, frozenset())
+
+    def lets_through(self, videos: list[str], settings: MainListSettings) -> list[str]:
+        kept = [video for video in self.shapes(settings).keep(videos)
+                if self._of_the_length(video, settings.length)]
+        if settings.scripted_filter:
+            kept = [video for video in kept if has_handcrafted_funscript(video, self.metadata_root)]
+        return kept
 
     def videos(self, settings: MainListSettings, *, on_screen: str = "",
                from_the_top: bool = False) -> list[str]:
@@ -131,11 +138,7 @@ class MainList:
     def _listed(self, settings: MainListSettings, on_screen: str,
                 from_the_top: bool) -> tuple[list[str], list[str]]:
         every = collect_video_files(self.sources)
-        let_through = {video for video in self.shapes(settings).keep(every)
-                       if self._lets_through(video, settings.length)}
-        if settings.scripted_filter:
-            let_through = {video for video in let_through
-                           if has_handcrafted_funscript(video, self.metadata_root)}
+        let_through = set(self.lets_through(every, settings))
         ordered = rotated_onto(sort_paths_by_recency(every) if settings.latest
                                else _shuffled(every, settings.shuffle_seed),
                                "" if from_the_top else on_screen, path_of=str)
