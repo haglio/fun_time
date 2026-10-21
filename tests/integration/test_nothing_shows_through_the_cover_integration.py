@@ -37,10 +37,13 @@ from pathlib import Path
 
 import pytest
 
+from fun_time import loading_cover, transition_screen
+from fun_time.loading_cover import open_the_cover
 from fun_time.loading_reveal import LoadingReveal
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from fun_time.overlay_progress import PROGRESS_FILENAME
-from fun_time.win32 import is_window_topmost, show_own_window
+from fun_time.session_handoff import DESKTOP, keep_the_crossing_cover, launch_crossing_cover
+from fun_time.win32 import find_window_for_process, is_window_topmost, show_own_window
 from fun_time.windows_bridge_sequencer import (
     apply_topmost_bands,
 )
@@ -54,6 +57,7 @@ from .integration_support import (
     ended_within,
     joined_within,
     seen_within,
+    this_checkouts_siblings,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -247,3 +251,100 @@ def test_the_panel_revealed_under_a_cover_too_busy_to_answer_never_shows_through
         # Inside the block that owns the window: a destroyed one reads as not
         # topmost, so an assertion after it passes whatever the reveal did.
         assert is_window_topmost(panel), "the panel never got back into the band"
+
+
+class _Launches:
+    """``subprocess.Popen``, keeping hold of the loading screen it starts."""
+
+    def __init__(self, popen) -> None:
+        self._popen = popen
+        self.loading_screen: subprocess.Popen | None = None
+
+    def __call__(self, args, **kwargs):
+        process = self._popen(args, **kwargs)
+        if "fun_time.loading_screen" in args:
+            self.loading_screen = process
+        return process
+
+
+class _TheWayBack(threading.Thread):
+    """Which of "Returning to Fun Time..." and the loading screen can be seen,
+    sampled until stopped.  The first is looked at first, so a sample that finds
+    neither means it went before the loading screen was up -- never that both
+    changed between the two looks."""
+
+    def __init__(self, crossing: subprocess.Popen, launches: _Launches) -> None:
+        super().__init__(daemon=True)
+        self._crossing = crossing
+        self._launches = launches
+        self.stopped = threading.Event()
+        self.bare_samples = 0
+        self.loading_screen_seen = False
+
+    def run(self) -> None:
+        while not self.stopped.is_set():
+            crossing = find_window_for_process(self._crossing.pid, transition_screen.WINDOW_TITLE)
+            screen = self._launches.loading_screen
+            loading = bool(screen and find_window_for_process(screen.pid, LOADING_SCREEN_TITLE))
+            self.loading_screen_seen |= loading
+            self.bare_samples += not (crossing or loading)
+            time.sleep(0.005)
+
+
+def _the_way_back(state_dir: Path, monkeypatch, *, waiting_s: float) -> _TheWayBack:
+    """A launch from "Returning to Fun Time..." that waits *waiting_s* for its
+    loading screen, with the launch's usual wait set to none at all -- so every
+    loading screen is later than that -- watched until both have been seen."""
+    monkeypatch.setattr(loading_cover, "WINDOW_WAIT_S", 0.0)
+    monkeypatch.setattr(loading_cover, "WINDOW_WAIT_UNDER_A_CROSSING_S", waiting_s)
+    launches = _Launches(subprocess.Popen)
+    monkeypatch.setattr(subprocess, "Popen", launches)
+    siblings = this_checkouts_siblings()
+    crossing = launch_crossing_cover(state_dir, DESKTOP, sibling_checkouts=siblings)
+    stop_keeping_it_up = keep_the_crossing_cover(state_dir)
+    try:
+        assert seen_within(lambda: find_window_for_process(
+            crossing.pid, transition_screen.WINDOW_TITLE), seconds=60.0), (
+            '"Returning to Fun Time..." never came up')
+        watcher = _TheWayBack(crossing, launches)
+        watcher.start()
+        cover = open_the_cover(state_dir, show_overlays=True, sibling_checkouts=siblings)
+        try:
+            assert ended_within(crossing, 30.0), (
+                '"Returning to Fun Time..." never handed over to the loading screen')
+            assert seen_within(lambda: watcher.loading_screen_seen, seconds=60.0), (
+                "the loading screen never came up")
+        finally:
+            watcher.stopped.set()
+            joined_within(watcher, 5.0)
+            cover.take_it_down()
+        return watcher
+    finally:
+        stop_keeping_it_up()
+        if crossing.poll() is None:
+            crossing.kill()
+
+
+@pytest.mark.real_startup_waits
+def test_the_way_back_from_vr_never_shows_the_desktop_before_a_late_loading_screen(
+        tmp_path, monkeypatch):
+    """"Returning to Fun Time..." stands until the loading screen is up to take
+    over from it.  The launch used to give the loading screen a few seconds and
+    take "Returning to Fun Time..." down whether or not it had come, so on a busy
+    computer the desktop showed between the two."""
+    watcher = _the_way_back(tmp_path, monkeypatch, waiting_s=60.0)
+
+    assert watcher.bare_samples == 0, (
+        f'the desktop showed between "Returning to Fun Time..." and the loading '
+        f"screen, in {watcher.bare_samples} samples")
+
+
+@pytest.mark.real_startup_waits
+def test_a_way_back_that_stops_waiting_first_shows_the_desktop(tmp_path, monkeypatch):
+    """The old hand-over, run so the check above is known to see what it rules
+    out: a sample finding neither screen is a sample of the bare desktop."""
+    watcher = _the_way_back(tmp_path, monkeypatch, waiting_s=0.0)
+
+    assert watcher.bare_samples > 0, (
+        '"Returning to Fun Time..." went before the loading screen was up, and no '
+        "sample found the desktop between them")
