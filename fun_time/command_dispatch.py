@@ -292,7 +292,7 @@ def _toggle_lock(
         current_path = target_path
     send_satellite(config, funestra, LOCK_ON)
     logger.info("Locked %s satellite", label)
-    return state.with_satellite(funestra, locked=True), a_lock_holds(current_path, config)
+    return state.with_satellite(funestra, locked=True), a_lock_holds(current_path, state, config)
 
 
 def _discard(
@@ -1389,14 +1389,10 @@ def _said_to_sides_in_two_modes(command: str, state: BridgeState,
     return said if len(hosted) > 1 else ()
 
 
-def _hosting(config: BridgeConfig) -> bool:
-    return config.origenerator_enabled and config.origenerator_cmd_file is not None
-
-
 def hosts(funestra: RoomFunestra | None, state: BridgeState, config: BridgeConfig) -> bool:
     """Whether the hosted app holds *funestra*: a Satellite Funestra in its
     Origenerator mode, in a session hosting the app."""
-    return (funestra in RoomFunestra.SATELLITES and _hosting(config)
+    return (funestra in RoomFunestra.SATELLITES and config.hosts_origenerator
             and origenerator_shows(state.satellite(funestra).mode))
 
 
@@ -1406,7 +1402,7 @@ def hosted_satellites(state: BridgeState, config: BridgeConfig) -> frozenset[str
 
 
 def hosts_a_satellite(state: BridgeState, config: BridgeConfig) -> bool:
-    return _hosting(config) and state.origenerator_holds_a_satellite()
+    return config.hosts_origenerator and state.origenerator_holds_a_satellite()
 
 
 def origenerator_holds_the_rfb_slot(state: BridgeState, config: BridgeConfig) -> bool:

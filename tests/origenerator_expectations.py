@@ -24,6 +24,7 @@ from fun_time.command_dispatch import dispatch_command, said_to_the_hosted_app
 from fun_time.filter_vocab import decode_filter_command, set_command
 from fun_time.gallery_follows_genau import GalleryFollowsGenau
 from fun_time.hosted_origenerator import the_session_it_is_handed, what_an_adopted_app_is_told
+from fun_time.lock import go_to_line
 from fun_time.manifest import LaunchManifest
 from fun_time.origenerator_switches import (
     KINO_MODE,
@@ -149,8 +150,10 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
 
 
 def _as_published(line: str) -> str:
-    """A filter's row is an act of his content overlay, which this document
-    never carries."""
+    """A filter's row is an act of his content overlay, and a go-to's file is a
+    video of his library, neither of which this document carries."""
+    if line.startswith(go_to_line("")):
+        return go_to_line("{file}")
     filtered = decode_filter_command(line)
     return line if filtered is None else set_command(filtered[0], "{row}")
 

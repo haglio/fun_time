@@ -228,6 +228,35 @@ def test_the_locks_landing_page_polls_the_port_this_session_serves_on(tmp_path: 
     assert omnipause_url(8771) in _tab_page(rfb_op.key)
 
 
+def test_a_lock_on_a_video_no_website_made_asks_origenerator_to_go_to_it(tmp_path: Path):
+    config = _origenerator_config(tmp_path)
+    video = r"C:\videos\made here\gen_00042_.mp4"
+    _set_current(config, 2, video)
+
+    dispatch_command("portrait_lock", _up(), config)
+
+    assert _origenerator_cmds(config) == [f"GO_TO|{video}"]
+
+
+def test_a_lock_on_a_video_a_website_made_leaves_origenerator_out_of_it(tmp_path: Path):
+    config = _origenerator_config(tmp_path)
+    _set_current(config, 2, rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4")
+
+    _state, ops = dispatch_command("portrait_lock", _up(), config)
+
+    assert [op.op for op in ops] == ["open_rfb_tab"]
+    assert _origenerator_cmds(config) == []
+
+
+def test_a_lock_asks_nothing_of_an_origenerator_still_starting(tmp_path: Path):
+    config = _origenerator_config(tmp_path)
+    _set_current(config, 2, r"C:\videos\made here\gen_00042_.mp4")
+
+    dispatch_command("portrait_lock", _make_state(origenerator_ready=False), config)
+
+    assert _origenerator_cmds(config) == []
+
+
 def test_portrait_lock_no_open_rfb_tab_op_for_unknown_video(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=False))

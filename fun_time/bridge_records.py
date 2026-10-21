@@ -115,6 +115,10 @@ class BridgeConfig:
         )
 
     @property
+    def hosts_origenerator(self) -> bool:
+        return self.origenerator_enabled and self.origenerator_cmd_file is not None
+
+    @property
     def main_list(self) -> MainList:
         return MainList(sources=self.main_sources, state_dir=self.state_dir,
                         vr_dirs=self.vr_library_dirs, metadata_root=self.regen_metadata_root)

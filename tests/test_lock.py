@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fun_time.lock import a_lock_holds, build_discard_plan
+from fun_time.shared_state import BridgeState
 from fun_time.watch_stats import watch_stats_path
 from tests.test_windows_bridge_dispatch_loop import make_config
 
@@ -8,7 +9,7 @@ from tests.test_windows_bridge_dispatch_loop import make_config
 def test_a_lock_with_nothing_on_screen_holds_nothing(tmp_path):
     config = make_config(tmp_path)
 
-    assert a_lock_holds("", config) == []
+    assert a_lock_holds("", BridgeState(), config) == []
     assert not config.favs_file.exists()
     assert not watch_stats_path(config.state_dir).exists()
 
