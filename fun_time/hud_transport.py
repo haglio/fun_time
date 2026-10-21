@@ -105,7 +105,7 @@ def hud_model(panel: HudPanel, cache_dir: Path,
         hud_edge=panel.hud_edge,
         hud_minimized=panel.hud_minimized,
         locked=panel.locked,
-        lock_label=panel.lock_label,
+        title=panel.title,
         active=panel.active,
         is_favorite=panel.is_favorite,
         rows=funestra_rows(panel.funestra, locked=panel.locked,
@@ -137,7 +137,7 @@ def hosted_model(funestra: str, hosted: HudModel | None, *, active: bool,
                  hud_minimized: bool = False) -> HudModel:
     """What *Funestra* wears while the hosted app holds its Funestra: that app's own
     panel, or the mode's name while it has none, under the session's row."""
-    panel = hosted or HudModel(funestra=funestra, lock_label=ORIGENERATOR_MODE_LABEL)
+    panel = hosted or HudModel(funestra=funestra, title=ORIGENERATOR_MODE_LABEL)
     row = mode_row(funestra, mode=ORIGENERATOR_MODE,
                    origenerator_ready=origenerator_ready, in_vr=in_vr, crowned=crowned)
     model = replace(panel, funestra=funestra, active=active, hud_corner=hud_corner,

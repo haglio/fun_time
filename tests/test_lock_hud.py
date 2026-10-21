@@ -67,7 +67,7 @@ def test_panel_gathers_action_and_seed_siblings_and_labels_the_lock():
 
     assert panel.funestra == "portrait"
     assert panel.locked is True
-    assert panel.lock_label == "Locked · Shuffle"
+    assert panel.title == "Locked · Shuffle"
     assert panel.current == CUR
     assert panel.action_siblings == sorted([A1, A2])
     assert panel.seed_siblings == [S1]
@@ -93,7 +93,7 @@ def test_panel_labels_an_unlocked_satellite():
     panel = _panel("landscape", locked=False, current=CUR, index=index)
 
     assert panel.locked is False
-    assert panel.lock_label == "Unlocked · Shuffle"
+    assert panel.title == "Unlocked · Shuffle"
     assert panel.action_siblings == [A1]  # siblings show whether locked or not
 
 
@@ -393,8 +393,8 @@ def test_the_status_line_holds_every_state_the_side_is_in():
     )
     locked = _panel("portrait", locked=True, current=CUR, index=index)
 
-    assert looping.lock_label == "Looping seeds · Latest · beta gamma"
-    assert locked.lock_label == "Locked · Shuffle"
+    assert looping.title == "Looping seeds · Latest · beta gamma"
+    assert locked.title == "Locked · Shuffle"
 
 
 def test_the_status_line_says_when_f_mode_is_narrowing_the_library():
@@ -406,8 +406,8 @@ def test_the_status_line_says_when_f_mode_is_narrowing_the_library():
     on = _panel("portrait", locked=False, current=CUR, index=index, favorites_filter=True)
     off = _panel("portrait", locked=False, current=CUR, index=index)
 
-    assert on.lock_label == "Unlocked · Shuffle · F-Mode"
-    assert "F-Mode" not in off.lock_label
+    assert on.title == "Unlocked · Shuffle · F-Mode"
+    assert "F-Mode" not in off.title
 
 
 def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
@@ -421,7 +421,7 @@ def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
         favorites_filter=True, filter_query="beta gamma",
     )
 
-    assert panel.lock_label == "Unlocked · Shuffle · F-Mode · beta gamma"
+    assert panel.title == "Unlocked · Shuffle · F-Mode · beta gamma"
 
 
 def test_the_status_line_names_the_axis_that_is_looping():
@@ -434,8 +434,8 @@ def test_the_status_line_names_the_axis_that_is_looping():
     actions = _panel("portrait", locked=False, current=CUR, index=action_index,
                               loop_axis="action", map_anchor=CUR)
 
-    assert seeds.lock_label.startswith("Looping seeds")
-    assert actions.lock_label.startswith("Looping actions")
+    assert seeds.title.startswith("Looping seeds")
+    assert actions.title.startswith("Looping actions")
 
 
 def test_the_lock_word_stands_down_while_a_loop_runs():
@@ -448,8 +448,8 @@ def test_the_lock_word_stands_down_while_a_loop_runs():
         "portrait", locked=False, current=CUR, index=index, loop_axis="seed", map_anchor=CUR,
     )
 
-    assert "Locked" not in panel.lock_label and "Unlocked" not in panel.lock_label
-    assert "Shuffle" in panel.lock_label
+    assert "Locked" not in panel.title and "Unlocked" not in panel.title
+    assert "Shuffle" in panel.title
 
 
 def test_a_lock_taken_inside_a_loop_joins_the_line_instead_of_replacing_it():
@@ -462,7 +462,7 @@ def test_a_lock_taken_inside_a_loop_joins_the_line_instead_of_replacing_it():
         "portrait", locked=True, current=CUR, index=index, loop_axis="seed", map_anchor=CUR,
     )
 
-    assert panel.lock_label == "Looping seeds · Locked · Shuffle"
+    assert panel.title == "Looping seeds · Locked · Shuffle"
 
 
 def test_a_lock_inside_a_loop_keeps_the_loops_chrome_and_rings_the_held_clip():
@@ -491,8 +491,8 @@ def test_the_status_line_says_looping_without_counting():
         "portrait", locked=False, current=CUR, index=index, loop_axis="seed", map_anchor=CUR,
     )
 
-    assert "Looping seeds" in panel.lock_label
-    assert "3" not in panel.lock_label
+    assert "Looping seeds" in panel.title
+    assert "3" not in panel.title
 
 
 def test_the_panel_counts_the_seeds_and_actions_the_map_stands_for():
@@ -872,7 +872,7 @@ def test_only_the_active_funestras_panel_is_marked_active(tmp_path: Path):
 
 def test_a_satellites_panel_says_f_mode_only_when_that_side_is_in_it(tmp_path: Path):
     """F-mode is sided now — each satellite has its own button for it — so the
-    status line says it on the Funestra it is on, and the other panel stays silent."""
+    title says it on the Funestra it is on, and the other panel stays silent."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
@@ -883,8 +883,8 @@ def test_a_satellites_panel_says_f_mode_only_when_that_side_is_in_it(tmp_path: P
     landscape = build_satellite_panel(
         SatelliteInputs("landscape", sources=sources, current=current), metadata_root, "")
 
-    assert "F-Mode" in portrait.lock_label
-    assert "F-Mode" not in landscape.lock_label
+    assert "F-Mode" in portrait.title
+    assert "F-Mode" not in landscape.title
     # …and the flag itself rides along, so the Funestra's own button can light.
     assert (portrait.favorites_filter, landscape.favorites_filter) == (True, False)
 

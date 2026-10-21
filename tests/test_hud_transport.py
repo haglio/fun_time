@@ -16,7 +16,7 @@ from tests.drive_fakes import folders_listed
 
 def _panel(**overrides) -> HudPanel:
     base = dict(
-        funestra="portrait", locked=True, lock_label="Locked",
+        funestra="portrait", locked=True, title="Locked",
         current="C:/v/cur.mp4", seed_siblings=["C:/v/s1.mp4"], action_siblings=["C:/v/a1.mp4"],
         current_action="alpha", action_labels=("gamma",),
     )
@@ -35,7 +35,7 @@ def test_hud_payload_carries_the_map_with_its_cached_thumbnails():
 
     assert model.funestra == "portrait"
     assert model.locked is True
-    assert model.lock_label == "Locked"
+    assert model.title == "Locked"
     assert model.current_action == "alpha"
     assert model.corner == HudCell(path="C:/v/cur.mp4", thumb=str(_thumb("C:/v/cur.mp4")))
     assert model.seeds == (HudCell(path="C:/v/s1.mp4", thumb=str(_thumb("C:/v/s1.mp4"))),)
@@ -228,7 +228,7 @@ def test_publish_writes_the_file_only_when_the_panel_changes(tmp_path: Path):
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         assert publisher.publish("portrait", _panel()) is True
         assert publisher.publish("portrait", _panel()) is False
-        assert publisher.publish("portrait", _panel(locked=False, lock_label="Unlocked")) is True
+        assert publisher.publish("portrait", _panel(locked=False, title="Unlocked")) is True
 
     assert json.loads(hud_file.read_text(encoding="utf-8"))["locked"] is False
 

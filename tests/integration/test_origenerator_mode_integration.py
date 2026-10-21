@@ -247,7 +247,7 @@ _STUB_MAIN = textwrap.dedent(
         queued = append_command(handed(side, "cmd_file"), "RELOAD_PLAYLIST")
         note(f"{side}: list written, reload queued={queued}")
         publish_whole(handed(side, "hud_file"), hud_text(
-            HudModel(funestra=side, lock_label=f"Stub {side} slideshow")))
+            HudModel(funestra=side, title=f"Stub {side} slideshow")))
         held.add(side)
 
     def close_slideshow(side):
@@ -638,7 +638,7 @@ def _panel_of(hud_file: Path, funestra: RoomFunestra):
     if not hud_file.exists():
         return None
     panel = parse_hud(hud_file.read_text(encoding="utf-8"))
-    if panel is None or panel.lock_label != f"Stub {funestra.label} slideshow":
+    if panel is None or panel.title != f"Stub {funestra.label} slideshow":
         return None
     return panel
 

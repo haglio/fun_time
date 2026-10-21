@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from funestra.hud_placement import HudCorner, HudEdge
-from funestra.hud_status import LATEST_LABEL, SHUFFLE_LABEL, looping_label, status_line
+from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL, hud_title, looping_label
 from funestra.modes import SatellitesMode
 
 from fun_time.media_metadata import (
@@ -28,12 +28,12 @@ from fun_time.modes import collect_video_files
 from fun_time.thumbnail_cache import thumbnail_for
 
 
-def _status_label(
+def _title(
     locked: bool, loop_axis: str, latest: bool, filter_query: str, favorites_filter: bool
 ) -> str:
-    """The HUD's one status line — everything the side is in, at a glance.
+    """The HUD's one title — everything the side is in, at a glance.
 
-    This side's words in the slots :func:`funestra.hud_status.status_line` lays
+    This side's words in the slots :func:`funestra.hud_title.hud_title` lays
     out, which is where the grammar lives and why "Locked", "Unlocked" and "F-Mode"
     are not spelled here: every Funestra in the room says this line, and a reader
     glancing between two screens is reading one sentence in two places.
@@ -45,12 +45,12 @@ def _status_label(
     phrase from the vocabulary in *that* position can only be the filter.  How big
     each axis is belongs to the map, which prints its own counts.
     """
-    return status_line(
+    return hud_title(
         playing_set=looping_label(loop_axis) if loop_axis else "",
         locked=locked,
         order=LATEST_LABEL if latest else SHUFFLE_LABEL,
         f_mode=favorites_filter,
-        filter_label=filter_query,
+        filters=(filter_query,),
     )
 
 
@@ -68,7 +68,7 @@ class HudPanel:
 
     funestra: str
     locked: bool
-    lock_label: str
+    title: str
     current: str
     seed_siblings: list[str]
     action_siblings: list[str]
@@ -78,7 +78,7 @@ class HudPanel:
     # Whether the clip on screen is one of the favorites — the star the HUD
     # marks at the head of the line naming that very clip.
     is_favorite: bool = False
-    # Whether THIS Funestra's F-mode is on — said in the status line already, and
+    # Whether THIS Funestra's F-mode is on — said in the title already, and
     # riding along so the Funestra's own button can light the way ``locked`` does.
     favorites_filter: bool = False
     latest: bool | None = None
@@ -481,7 +481,7 @@ def build_hud_panel(
         hud_corner=inputs.hud_corner,
         hud_edge=inputs.hud_edge,
         hud_minimized=inputs.hud_minimized,
-        lock_label=_status_label(inputs.locked, hold.active_loop, inputs.latest, inputs.filter_query, inputs.favorites_filter),
+        title=_title(inputs.locked, hold.active_loop, inputs.latest, inputs.filter_query, inputs.favorites_filter),
         is_favorite=inputs.is_favorite,
         favorites_filter=inputs.favorites_filter,
         latest=inputs.latest,
