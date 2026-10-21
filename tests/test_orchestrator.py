@@ -30,6 +30,7 @@ from fun_time.orchestrator import (
 from fun_time.project_paths import PROJECT_DIR, SIBLING_CHECKOUTS_OVERRIDE_NAME
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import VR, request_handoff
+from fun_time.windows_bridge_orchestrator import SessionOver
 
 
 def _a_cover() -> MagicMock:
@@ -60,7 +61,8 @@ def _a_launch(**overrides):
         "engine_missing_abort": MagicMock(return_value=False),
         "prepare_orchestrator_launcher": MagicMock(),
         "wake_the_headset": MagicMock(),
-        "run_windows_bridge": MagicMock(return_value=0),
+        "run_windows_bridge": MagicMock(return_value=SessionOver(0)),
+        "show_funestra_died_alert": MagicMock(),
         "put_the_headset_to_sleep": MagicMock(),
         **overrides,
     }
@@ -388,10 +390,11 @@ class TestRunController:
         cover = _a_cover()
 
         with patch("fun_time.orchestrator.write_windows_bridge_manifest", return_value=cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME) as writer, \
-             patch("fun_time.windows_bridge_orchestrator.run_session", return_value=0) as bridge:
+             patch("fun_time.windows_bridge_orchestrator.run_session",
+                   return_value=SessionOver(0)) as bridge:
             result = run_windows_bridge(cfg, logger, SessionEnvironment(), cover)
 
-        assert result == 0
+        assert result == SessionOver(0)
         # The manifest is written from the config plus the one switch the
         # process edge read, which decides whether this session has a dashboard.
         writer.assert_called_once_with(cfg, dashboard_enabled=True)
@@ -493,7 +496,7 @@ class TestTheCrossingIntoTheOtherSession:
     """
 
     def _main(self, cfg_path: Path, *, during_session=lambda: None):
-        run_bridge = MagicMock(side_effect=lambda *_a, **_k: (during_session(), 0)[1])
+        run_bridge = MagicMock(side_effect=lambda *_a, **_k: (during_session(), SessionOver(0))[1])
         with _a_launch(run_windows_bridge=run_bridge) as launch, \
              patch("fun_time.session_handoff.subprocess.Popen") as popen:
             return main(["--config", str(cfg_path)]), popen, launch
@@ -546,6 +549,54 @@ class TestTheCrossingIntoTheOtherSession:
 
         launch.put_the_headset_to_sleep.assert_called_once_with(
             load_config(cfg_path).paths.state_dir, crossing=False)
+
+
+class TestTheHeadsetIsAsleepBeforeTheRoomSaysWhyItClosed:
+    def test_the_headset_sleeps_before_the_words_go_up(self, cfg_path: Path):
+        order: list[str] = []
+
+        with _a_launch(
+            run_windows_bridge=MagicMock(return_value=SessionOver(1, why="a part closed itself")),
+            put_the_headset_to_sleep=MagicMock(side_effect=lambda *_a, **_k: order.append("asleep")),
+            show_funestra_died_alert=MagicMock(side_effect=order.append),
+        ):
+            code = main(["--config", str(cfg_path)])
+
+        assert order == ["asleep", "a part closed itself"]
+        assert code == 1
+
+    def test_a_crossing_starts_only_once_the_words_are_answered(self, cfg_path: Path):
+        config = load_config(cfg_path)
+        order: list[str] = []
+
+        def a_session_that_asked_to_cross(*_args):
+            request_handoff(config.paths.state_dir, VR)
+            return SessionOver(1, why="a part closed itself")
+
+        with _a_launch(
+            run_windows_bridge=MagicMock(side_effect=a_session_that_asked_to_cross),
+            show_funestra_died_alert=MagicMock(side_effect=order.append),
+        ), patch("fun_time.session_handoff.subprocess.Popen",
+                 side_effect=lambda *_a, **_k: order.append("relay")):
+            main(["--config", str(cfg_path)])
+
+        assert order == ["a part closed itself", "relay"]
+
+    def test_an_error_that_ends_fun_time_puts_the_headset_to_sleep_even_mid_crossing(
+        self, cfg_path: Path,
+    ):
+        config = load_config(cfg_path)
+
+        def an_error_of_its_own(*_args):
+            request_handoff(config.paths.state_dir, VR)
+            raise RuntimeError("an error of its own")
+
+        with _a_launch(run_windows_bridge=MagicMock(side_effect=an_error_of_its_own)) as launch, \
+             pytest.raises(RuntimeError, match="an error of its own"):
+            main(["--config", str(cfg_path)])
+
+        launch.put_the_headset_to_sleep.assert_called_once_with(
+            config.paths.state_dir, crossing=False)
 
 
 class TestMainDescribesTheSessionsTaskbarButton:
@@ -615,7 +666,8 @@ class TestTheCoverGoesUpFirst:
             open_the_cover=MagicMock(side_effect=lambda *_a, **_k: order.append("cover") or cover),
             engine_missing_abort=MagicMock(
                 side_effect=lambda *_a, **_k: order.append("engine") or False),
-            run_windows_bridge=MagicMock(side_effect=lambda *_a: order.append("session") or 0),
+            run_windows_bridge=MagicMock(
+                side_effect=lambda *_a: order.append("session") or SessionOver(0)),
         ):
             main(["--config", str(cfg_path)])
         return order

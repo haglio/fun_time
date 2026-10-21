@@ -25,7 +25,7 @@ from fun_time.config import load_config
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
-from fun_time.funestra_deaths import FunestraDied, LaunchedFunestra
+from fun_time.funestra_deaths import FunestraDied, LaunchedFunestra, part_closed_message
 from fun_time.hosted_contract import NO_HOSTED_VOCABULARY, HostedVocabulary
 from fun_time.loading_cover import open_the_cover
 from fun_time.loading_screen import STALE_TIMEOUT_S
@@ -84,6 +84,7 @@ from fun_time.windows_bridge_orchestrator import (
     SETTLE_WAIT_S,
     VOICE_START_BUDGET_S,
     ChildProcess,
+    SessionOver,
     _AppendOnWriteHandler,
     _close_origenerator_gracefully,
     _fix_post_loading_windows,
@@ -106,7 +107,7 @@ from tests.role_window_fakes import HOSTED_HWND, HOSTED_PID, RFB_HWND, lookup_ho
 from tests.sleeps import sleeps_in
 
 
-def _a_session(**kwargs) -> int:
+def _a_session(**kwargs) -> SessionOver:
     """A session the way a launch runs one: under a cover raised before it.
 
     The cover goes up in :mod:`fun_time.orchestrator`, before the checks and the
@@ -689,7 +690,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.get_process_creation_time", side_effect=lambda pid: pid * 10), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=fake_kill_tree):
 
-            code = _a_session(
+            ended = _a_session(
                 manifest_path=manifest_path,
                 ahk_exe=str(tmp_path / "ahk.exe"),
                 hotkey_script=str(tmp_path / "hotkeys.ahk"),
@@ -698,7 +699,7 @@ class TestRunPythonOrchestratedBridge:
             )
 
         assert calls == ["launch_loading", "launch_ahk", "startup_sequence", "launch_closing"]
-        assert code == 0
+        assert ended == SessionOver(0)
 
         # Should have killed all 5 child processes
         assert 200 in killed_pids  # main_player
@@ -956,7 +957,7 @@ class TestRunPythonOrchestratedBridge:
             assert _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
-            ) == 0
+            ) == SessionOver(0)
 
     def test_passes_manifest_and_pids_file_to_ahk(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
@@ -1991,7 +1992,7 @@ class TestAFunestraThatDiedWhileTheRoomCameUp:
     status timeout and opened on the browser alone, and Ctrl+Alt+Q was the only way
     out (2026-09-22)."""
 
-    def test_the_half_built_room_is_torn_down_and_the_reason_goes_on_screen(
+    def test_the_half_built_room_is_torn_down_and_the_reason_goes_back_to_the_launch(
         self, cfg_factory, tmp_path,
     ):
         cfg = load_config(cfg_factory())
@@ -1999,7 +2000,6 @@ class TestAFunestraThatDiedWhileTheRoomCameUp:
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
         state_dir = tmp_path / "state"
         killed: list[int] = []
-        shown: list[str] = []
 
         def a_funestra_died(**_kwargs):
             raise FunestraDied(
@@ -2008,19 +2008,23 @@ class TestAFunestraThatDiedWhileTheRoomCameUp:
                 launched_pids=[300, 400])
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-                   side_effect=a_funestra_died),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
-                   return_value=MagicMock(wait=MagicMock(return_value=0))),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
-                   side_effect=killed.append),              patch("fun_time.windows_bridge_orchestrator.close_window"),              patch("fun_time.windows_bridge_orchestrator.show_funestra_died_alert",
-                   side_effect=shown.append):
-            code = _a_session(
+                   side_effect=a_funestra_died), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   return_value=MagicMock(wait=MagicMock(return_value=0))), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
+                   side_effect=killed.append), \
+             patch("fun_time.windows_bridge_orchestrator.close_window"), \
+             patch("shared_ui.alert.show_alert") as put_up:
+            ended = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk", state_dir=state_dir, project_dir=tmp_path)
 
-        assert code == 1
+        assert ended.exit_code == 1
         assert {300, 400} <= set(killed)
-        assert "the Main Funestra" in shown[0]
-        assert "The engine (libmpv) could not be loaded." in shown[0]
+        assert "the Main Funestra" in ended.why
+        assert "The engine (libmpv) could not be loaded." in ended.why
         assert not (state_dir / "bridge_pids.ini").exists()
+        put_up.assert_not_called()
 
     def test_the_line_saying_why_is_written_once_the_half_built_room_is_down(
         self, cfg_factory, tmp_path,
@@ -2049,8 +2053,7 @@ class TestAFunestraThatDiedWhileTheRoomCameUp:
                  patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
                        side_effect=lambda pid: happened.append(f"ended {pid}")), \
                  patch("fun_time.windows_bridge_orchestrator.close_window"), \
-                 patch("fun_time.windows_bridge_orchestrator.show_funestra_died_alert",
-                       side_effect=lambda _text: happened.append("alert")):
+                 patch("shared_ui.alert.show_alert"):
                 _a_session(
                     manifest_path=manifest_path, ahk_exe="ahk.exe",
                     hotkey_script="hotkeys.ahk", state_dir=tmp_path / "state",
@@ -2058,8 +2061,32 @@ class TestAFunestraThatDiedWhileTheRoomCameUp:
         finally:
             logging.getLogger(windows_bridge_orchestrator.__name__).removeHandler(noted)
 
-        assert happened[-2:] == ["said why", "alert"]
-        assert {"ended 300", "ended 400"} <= set(happened[:-2])
+        assert happened[-1] == "said why"
+        assert {"ended 300", "ended 400"} <= set(happened[:-1])
+
+
+class TestAPartThatClosedItselfWhileTheRoomWasUp:
+    def test_the_words_saying_so_go_back_to_the_launch_unshown(self, cfg_factory, tmp_path):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        hotkeys = MagicMock()
+        hotkeys.poll.return_value = None
+        hotkeys.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   side_effect=lambda **kwargs: _fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=hotkeys), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.the_part_that_closed",
+                   return_value="the Portrait Funestra"), \
+             patch("shared_ui.alert.show_alert") as put_up:
+            ended = _a_session(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state", project_dir=tmp_path)
+
+        assert ended == SessionOver(1, why=part_closed_message("the Portrait Funestra"))
+        put_up.assert_not_called()
 
 
 class TestStartupCancellation:
@@ -2098,12 +2125,12 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.close_window", side_effect=closed.append), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
 
-            code = _a_session(
+            ended = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
 
-        assert code == 0
+        assert ended == SessionOver(0)
         assert {300, 400, 200} <= set(killed)
         assert 1234 in closed
         # The hotkey script is up from the start of a launch, so a cancelled one
@@ -2248,12 +2275,12 @@ class TestStartupCancellation:
                    return_value=(None, threading.Event())) as mock_priming, \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
 
-            code = _a_session(
+            ended = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
 
-        assert code == 0
+        assert ended == SessionOver(0)
         assert {200, 300, 400, 500, 700} <= set(killed)
         assert (state_dir / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
         assert not (state_dir / "bridge_pids.ini").exists()
@@ -2362,12 +2389,12 @@ class TestStartupCancellation:
                    return_value=(None, threading.Event())), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
 
-            code = _a_session(
+            ended = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
 
-        assert code == 0
+        assert ended == SessionOver(0)
         assert not stale.exists()  # cleared before startup
         # Startup ran to completion: the stale flag was not honored as a cancel.
         assert [c for c in popen_cmds if "ahk.exe" in str(c)]
