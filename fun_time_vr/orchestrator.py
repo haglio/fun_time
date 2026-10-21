@@ -839,7 +839,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)
-    exit_code = run_vr_bridge(config, env, cancelable=not args.no_cancel)
+    try:
+        exit_code = run_vr_bridge(config, env, cancelable=not args.no_cancel)
+    except BaseException:
+        put_the_headset_to_sleep(config.paths.state_dir, crossing=False)
+        raise
     hand_over_if_asked(config, logger)  # last: the relay waits on this process's mutex
     return exit_code
 

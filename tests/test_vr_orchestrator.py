@@ -981,6 +981,28 @@ def test_a_runtime_fun_time_woke_is_put_to_sleep_when_vr_is_the_last_room(
     assert stopped == [tmp_path]
 
 
+def test_an_error_that_ends_fun_time_vr_puts_the_runtime_fun_time_woke_to_sleep(
+        config, monkeypatch):
+    stopped = []
+    monkeypatch.setattr(
+        "fun_time_vr.vr_runtime.stop_the_runtime_a_session_started", stopped.append)
+    state_dir = config.paths.state_dir
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / OUR_RUNTIME_NAME).write_text("", encoding="utf-8")
+
+    with patch.object(orchestrator, "load_config", return_value=config), \
+         patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
+         patch.object(orchestrator, "install_exception_logging"), \
+         patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+         patch.object(orchestrator, "engine_missing_abort", return_value=False), \
+         patch.object(orchestrator, "run_vr_bridge",
+                      side_effect=RuntimeError("an error of its own")), \
+         pytest.raises(RuntimeError, match="an error of its own"):
+        orchestrator.main([])
+
+    assert stopped == [state_dir]
+
+
 class TestGenausRoleInTheManifest:
     """What the headset needs to run Genau's engine, carried in the one file
     it reads: the folder, the companion's address, and the engine's numbers."""
