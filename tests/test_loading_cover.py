@@ -26,7 +26,7 @@ from fun_time.session_handoff import (
 
 def _opened_cover(state_dir, *, cancelable=True, popen=None):
     with patch("fun_time.loading_cover.subprocess.Popen", popen or MagicMock()), \
-         patch("fun_time.loading_cover.wait_for_window_by_title", return_value=0):
+         patch("fun_time.loading_cover.wait_for_window", return_value=0):
         return open_the_cover(state_dir, show_overlays=True, sibling_checkouts="",
                               cancelable=cancelable)
 
@@ -77,7 +77,8 @@ class TestTheLaunchersLoadingScreen:
 
     def test_a_cover_on_sibling_checkouts_is_told_as_well(self, tmp_path, launched):
         popen = MagicMock()
-        with patch("fun_time.loading_cover.subprocess.Popen", popen),              patch("fun_time.loading_cover.wait_for_window_by_title", return_value=0):
+        with patch("fun_time.loading_cover.subprocess.Popen", popen), \
+             patch("fun_time.loading_cover.wait_for_window", return_value=0):
             open_the_cover(tmp_path, show_overlays=True, sibling_checkouts=str(tmp_path))
 
         environment = popen.call_args.kwargs["env"]

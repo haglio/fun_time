@@ -182,7 +182,7 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
 
     A unit test mocks the startup that would have opened the session's windows,
     so every lookup the orchestrator makes can only time out — and it times out
-    on the wall clock, because ``win32.wait_for_window_by_title`` polls with
+    on the wall clock, because ``win32.wait_for_window`` polls with
     ``time.sleep``.  One startup pass is the loading cover plus five role
     resolutions, so CI paid 20s per test that ran one, and
     ``test_windows_bridge_orchestrator.py`` alone was 359s of it.
@@ -201,8 +201,9 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
     """
     if request.node.get_closest_marker("real_startup_waits"):
         return
-    for module in (windows_bridge_orchestrator, loading_cover):
-        monkeypatch.setattr(module, "wait_for_window_by_title", lambda _title, **_kwargs: 0)
+    monkeypatch.setattr(windows_bridge_orchestrator, "wait_for_window_by_title",
+                        lambda _title, **_kwargs: 0)
+    monkeypatch.setattr(loading_cover, "wait_for_window", lambda _find, _timeout_s: 0)
     monkeypatch.setattr(windows_bridge_orchestrator, "CLOSING_SCREEN_READY_TIMEOUT_S", 0)
     monkeypatch.setattr(windows_bridge_orchestrator, "POST_LOADING_RESOLVE_TIMEOUT_S", 0)
 

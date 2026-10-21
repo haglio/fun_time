@@ -814,7 +814,7 @@ def _reveal_the_room(
     cover.progress.advance("finalizing")
 
     role_hwnds = _fix_post_loading_windows(
-        result, overlay_hwnd=cover.hwnd, rfb_slot=rfb_slot)
+        result, overlay_hwnd=cover.window(), rfb_slot=rfb_slot)
     seat_the_secondary_monitor(manifest, role_hwnds)
 
     cover.take_it_down()
