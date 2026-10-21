@@ -21,6 +21,7 @@ from funestra.modes import MainMode
 from shared_ui.preview import Preview, window_title
 
 from fun_time import closing_screen, device_arbiter, windows_bridge_orchestrator
+from fun_time.command_dispatch import dispatch_command
 from fun_time.config import load_config
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
@@ -105,6 +106,7 @@ from fun_time.windows_bridge_sequencer import StartupResult
 from tests.cover_beats import heard_from_again_once_stale
 from tests.role_window_fakes import HOSTED_HWND, HOSTED_PID, RFB_HWND, lookup_hosted
 from tests.sleeps import sleeps_in
+from tests.test_windows_bridge_dispatch_loop import make_config
 
 
 def _a_session(**kwargs) -> SessionOver:
@@ -2872,6 +2874,26 @@ class TestOpenEventLog:
             orch_logger.setLevel(original[3])
             orch_logger.propagate = original[4]
 
+
+    @pytest.mark.parametrize(("command", "said"), [
+        ("portrait_lock", "Locked portrait satellite"),
+        ("origenerator_activate", "Origenerator in the Random Favs Browser's place"),
+    ])
+    def test_what_a_dispatched_command_says_reaches_the_bridge_log(self, tmp_path, command, said):
+        config = replace(make_config(tmp_path), origenerator_enabled=True,
+                         origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
+        before = {name: (list(logging.getLogger(name).handlers), logging.getLogger(name).level)
+                  for name in logging.root.manager.loggerDict if name.startswith("fun_time")}
+        try:
+            add_dispatch_file_handler(tmp_path / "bridge.log")
+            dispatch_command(command, BridgeState(origenerator_ready=True), config)
+            assert said in (tmp_path / "bridge.log").read_text(encoding="utf-8")
+        finally:
+            for name in logging.root.manager.loggerDict:
+                if name.startswith("fun_time"):
+                    handlers, level = before.get(name, ([], logging.NOTSET))
+                    logging.getLogger(name).handlers[:] = handlers
+                    logging.getLogger(name).setLevel(level)
 
     def test_what_the_familys_listener_says_is_this_sessions_record_too(self, tmp_path):
         """voice_core says how each utterance ended under its own name, not
