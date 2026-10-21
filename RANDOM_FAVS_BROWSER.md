@@ -4,7 +4,7 @@ Fun Time can open a Chrome window on the left side of the secondary monitor.
 
 How it works:
 
-- Fun Time reads the favorites from `favs.csv` (written by the lock hotkey), which pairs each favorite's local video path with its gallery link.
+- Fun Time reads the favorites from `favs.csv` (written by every lock), which pairs each favorite's local video path with its gallery link.
 - At launch, it picks a random subset of 10 and resolves where each one should open (see below).
 - It launches a project-local Chrome shortcut.
 - It waits for the new Chrome window and sizes it to the full left third of the secondary monitor.
@@ -24,7 +24,7 @@ Clicking into a text field in the RFB, whether a page's prompt or search field o
 
 ### Where a tab actually goes
 
-A favorite's gallery link is usually dead — the generation provider does not keep old generations around. So each tab resolves to the provider's **regenerate** page, with the video's original prompts packed into a `#ft=` fragment that the userscript below fills in. That page can only recreate a video its own site made from a recorded prompt. Every other favorite falls back to its stored gallery link — a video from another provider (whichever provider's library folder holds it, on the site its gallery link names), or one whose sidecar records no prompt — and a favorite with no gallery link either, such as a video Origenerator made, opens no tab at all. `target_for_fav` in `fun_time/random_favs_browser.py` is the single resolver; both the startup tabs and the lock hotkey go through it, so they cannot drift apart.
+A favorite's gallery link is usually dead — the generation provider does not keep old generations around. So each tab resolves to the provider's **regenerate** page, with the video's original prompts packed into a `#ft=` fragment that the userscript below fills in. That page can only recreate a video its own site made from a recorded prompt. Every other favorite falls back to its stored gallery link — a video from another provider (whichever provider's library folder holds it, on the site its gallery link names), or one whose sidecar records no prompt — and a favorite with no gallery link either, such as a video Origenerator made, opens no tab at all: a lock on one asks the hosted Origenerator to come up over the browser on it instead. `target_for_fav` in `fun_time/random_favs_browser.py` is the single resolver; both the startup tabs and every lock go through it, so they cannot drift apart.
 
 ### Which window the tab lands in
 
