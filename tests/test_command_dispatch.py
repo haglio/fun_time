@@ -248,6 +248,17 @@ def test_a_lock_on_a_video_a_website_made_leaves_origenerator_out_of_it(tmp_path
     assert _origenerator_cmds(config) == []
 
 
+def test_a_lock_on_a_video_a_website_made_puts_the_browser_back_over_origenerator(
+        tmp_path: Path):
+    config = _origenerator_config(tmp_path)
+    _set_current(config, 2, rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4")
+
+    state, ops = dispatch_command("portrait_lock", _up(rfb_slot=RfbSlot.ORIGENERATOR), config)
+
+    assert state.rfb_slot is RfbSlot.RFB
+    assert [op.op for op in ops] == ["hide_role", "restack_rfb", "open_rfb_tab"]
+
+
 def test_a_lock_asks_nothing_of_an_origenerator_still_starting(tmp_path: Path):
     config = _origenerator_config(tmp_path)
     _set_current(config, 2, r"C:\videos\made here\gen_00042_.mp4")

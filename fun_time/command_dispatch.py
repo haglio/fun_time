@@ -81,6 +81,7 @@ from .origenerator_switches import (
     origenerator_shows,
 )
 from .osr2_section import TAKE_OSR2_COMMANDS, funestra_with_the_osr2
+from .rfb_slot import origenerator_refused, switch_the_rfb_slot
 from .room_funestras import RoomFunestra
 from .runtime_flow import (
     FMODE_FUNESTRAS,
@@ -292,7 +293,7 @@ def _toggle_lock(
         current_path = target_path
     send_satellite(config, funestra, LOCK_ON)
     logger.info("Locked %s satellite", label)
-    return state.with_satellite(funestra, locked=True), a_lock_holds(current_path, state, config)
+    return a_lock_holds(current_path, state.with_satellite(funestra, locked=True), config)
 
 
 def _discard(
@@ -1430,35 +1431,6 @@ def _origenerator_transport(
     return []
 
 
-def _rfb_slot_ops(rfb_slot: RfbSlot) -> list[WindowOp]:
-    """The window work of the browser's place changing hands -- the RFB-slot
-    counterpart of :func:`_main_slot_ops`: Origenerator's window restored over
-    the browser and the pair stacked (``restack_rfb``), the browser out of the
-    band and that window in it, or that window parked and the browser put back."""
-    if rfb_slot is RfbSlot.ORIGENERATOR:
-        return [
-            WindowOp(op="show_role", key="origenerator"),
-            WindowOp(op="activate_role", key="origenerator"),
-            WindowOp(op="restack_rfb"),
-        ]
-    return [WindowOp(op="hide_role", key="origenerator"), WindowOp(op="restack_rfb")]
-
-
-def _origenerator_refused(state: BridgeState, config: BridgeConfig, *,
-                          asked_for: bool) -> list[WindowOp] | None:
-    """The notice a switch toward Origenerator (*asked_for*) or away from it is
-    refused with, or None.  Whatever draws its Origenerator button dim over the
-    app's boot posts nothing; this answers the key and the spoken word, which
-    have no dim button to look at."""
-    if not config.origenerator_enabled:
-        return [WindowOp(op="notice", key="No Origenerator configured",
-                         level=logging.WARNING)]
-    if asked_for and not state.origenerator_ready:
-        return [WindowOp(op="notice", key="Origenerator is still starting",
-                         level=logging.WARNING)]
-    return None
-
-
 def _switch_satellite(funestra: RoomFunestra, target: SatellitesMode, state: BridgeState,
                       config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
     result = apply_satellite_switch(
@@ -1744,7 +1716,7 @@ def _mode_switch(target: str, state: BridgeState, config: BridgeConfig,
 def _satellite_switch(funestra: RoomFunestra, target: SatellitesMode, state: BridgeState,
                       config: BridgeConfig,
                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    refused = _origenerator_refused(state, config, asked_for=origenerator_shows(target))
+    refused = origenerator_refused(state, config, asked_for=origenerator_shows(target))
     if refused is not None:
         return state, refused
     return _switch_satellite(funestra, target, state, config)
@@ -1756,7 +1728,7 @@ def _both_satellites_switch(target: SatellitesMode | None, state: BridgeState,
     if target is None:
         held = all(hosts(funestra, state, config) for funestra in RoomFunestra.SATELLITES)
         target = KINO_MODE if held else ORIGENERATOR_MODE
-    refused = _origenerator_refused(state, config, asked_for=origenerator_shows(target))
+    refused = origenerator_refused(state, config, asked_for=origenerator_shows(target))
     if refused is not None:
         return state, refused
     ops: list[WindowOp] = []
@@ -1764,19 +1736,6 @@ def _both_satellites_switch(target: SatellitesMode | None, state: BridgeState,
         state, more = _switch_satellite(funestra, target, state, config)
         ops.extend(more)
     return state, ops
-
-
-def _rfb_slot_switch(target: RfbSlot, state: BridgeState, config: BridgeConfig,
-                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    refused = _origenerator_refused(state, config,
-                                    asked_for=target is RfbSlot.ORIGENERATOR)
-    if refused is not None:
-        return state, refused
-    if state.rfb_slot is target:
-        return state, []
-    logger.info("Origenerator in the Random Favs Browser's place"
-                if target is RfbSlot.ORIGENERATOR else "The Random Favs Browser back in its place")
-    return replace(state, rfb_slot=target), _rfb_slot_ops(target)
 
 
 def _speed(main_funestra_cmd: str | None, genau_cmd: str | None, by_driver: bool,
@@ -1910,8 +1869,8 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, (funestra, mode) in SATELLITE_MODE_COMMANDS.items()})
     handlers.update({cmd: partial(_both_satellites_switch, mode)
                      for cmd, mode in BOTH_SATELLITES_MODE_COMMANDS.items()})
-    handlers[RFB_ACTIVATE] = partial(_rfb_slot_switch, RfbSlot.RFB)
-    handlers[ORIGENERATOR_ACTIVATE] = partial(_rfb_slot_switch, RfbSlot.ORIGENERATOR)
+    handlers[RFB_ACTIVATE] = partial(switch_the_rfb_slot, RfbSlot.RFB)
+    handlers[ORIGENERATOR_ACTIVATE] = partial(switch_the_rfb_slot, RfbSlot.ORIGENERATOR)
     handlers["kino_activate"] = _kino_activate
     handlers.update({command: partial(_crown, crown) for command, crown in CROWNS.items()})
     handlers.update({cmd: partial(_speed, verb, verb, True)
