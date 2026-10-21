@@ -641,23 +641,23 @@ def _show_on_genau(config: BridgeConfig, flick: Path, *, locked: bool) -> None:
         f"flick={flick}\nlocked={'1' if locked else '0'}\n", encoding="utf-8")
 
 
-def test_locking_genaus_flick_puts_it_in_the_favorites_as_a_satellites_lock_does(tmp_path: Path):
+def test_a_lock_on_genaus_flick_follows_what_genau_holds(tmp_path: Path):
     config = _make_config(tmp_path)
-    flick = tmp_path / "flicks" / "made up flick.mp4"
-    _show_on_genau(config, flick, locked=False)
+    _show_on_genau(config, tmp_path / "flicks" / "made up flick.mp4", locked=False)
 
-    dispatch_command("main_lock", _make_state(main_mode=MainMode.GENAU), config)
+    _state, ops = dispatch_command("main_lock", _make_state(main_mode=MainMode.GENAU), config)
 
-    assert is_favorite_path(str(flick), read_favs_content(config.favs_file))
+    assert ops == [WindowOp(op=Op.FOLLOW_THE_LOCK, key=MainMode.GENAU)]
 
 
-def test_letting_genaus_flick_go_leaves_the_favorites_as_they_were(tmp_path: Path):
+def test_letting_genaus_flick_go_follows_nothing(tmp_path: Path):
     config = _make_config(tmp_path)
     flick = tmp_path / "flicks" / "made up flick.mp4"
     _show_on_genau(config, flick, locked=True)
 
-    dispatch_command("main_lock", _make_state(main_mode=MainMode.GENAU), config)
+    _state, ops = dispatch_command("main_lock", _make_state(main_mode=MainMode.GENAU), config)
 
+    assert ops == []
     assert not is_favorite_path(str(flick), read_favs_content(config.favs_file))
 
 
@@ -4479,6 +4479,22 @@ def test_neither_of_genaus_shapes_holds_its_flick(tmp_path, monkeypatch):
     assert (state.genau_plays_vr, state.genau_plays_flat) == (False, False)
     assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["LOCK_ON"]
     assert [op.key for op in ops] == ["Including no other pips"]
+
+
+def test_genau_holding_its_flick_for_want_of_shapes_is_not_a_lock_of_his(tmp_path):
+    config = _genau_vr_config(tmp_path)
+    config.origenerator_enabled = True
+    config.origenerator_cmd_file = config.state_dir / "origenerator_cmd.txt"
+    flick = tmp_path / "flicks" / "made up flick.mp4"
+    _show_on_genau(config, flick, locked=False)
+    only_flat = _make_state(main_mode=MainMode.GENAU, genau_plays_vr=False,
+                            rfb_slot=RfbSlot.ORIGENERATOR, origenerator_ready=True)
+
+    _state, ops = dispatch_command("main_projection_none", only_flat, config)
+
+    assert Op.FOLLOW_THE_LOCK not in [op.op for op in ops]
+    assert _origenerator_cmds(config) == []
+    assert not is_favorite_path(str(flick), read_favs_content(config.favs_file))
 
 
 def test_asking_genau_for_the_shapes_it_already_plays_sends_it_nothing(tmp_path):

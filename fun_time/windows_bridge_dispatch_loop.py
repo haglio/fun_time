@@ -57,13 +57,14 @@ from .funestra_status import (
     read_genau_status,
     read_main_funestra_status,
 )
-from .gallery_follows_genau import GalleryFollowsGenau
 from .genaumacher_save import save_clip_session
 from .headset_power import the_headset_is_ready
 from .hud_feed import HudFeed
 from .hud_transport import HudPublisher
 from .latest_arrivals import LatestArrivals
 from .library_browser import browse_library
+from .lock import a_lock_holds
+from .lock_follower import LockFollower, what_the_main_slot_holds
 from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
 from .main_list_builds import BuildsOffTheLoop
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
@@ -301,10 +302,7 @@ class DispatchLoopRunner:
             satellite_cmd_files=tuple(
                 config.satellite(funestra).cmd_file for funestra in RoomFunestra.SATELLITES),
         )
-        self.gallery_follows_genau = GalleryFollowsGenau(
-            genau_status_file=config.genau_status_file,
-            origenerator_cmd_file=config.origenerator_cmd_file,
-        )
+        self.lock_follower = LockFollower(what_the_main_slot_holds(config))
         self.latest_arrivals = LatestArrivals(config)
 
     def _record_what_the_funestras_hold(self) -> None:
@@ -407,7 +405,9 @@ class DispatchLoopRunner:
                 self._update_dashboard()
         self.bring_the_funestras_home(now=now)
         self.latest_arrivals.deliver(self.state, coming_home=self._coming_home)
-        self.gallery_follows_genau.sync()
+        held = self.lock_follower.held()
+        if held:
+            self._take(*a_lock_holds(held, self.state, self.config))
         self.watch.sample_due(now=now, paused=self.state.omni_paused,
                               hosted=tuple(funestra for funestra in RoomFunestra.SATELLITES
                                            if hosts(funestra, self.state, self.config)))
@@ -660,10 +660,12 @@ class DispatchLoopRunner:
         # it here would count a library clip as skipped or discarded.
         if not routes_to_origenerator(command, self.state, self.config):
             self.watch.note_command(command)
-        new_state, ops = dispatch_command(
+        self._take(*dispatch_command(
             command, self.state, self.config,
             target_path=self.watch.video_at(command, spoken_at),
-        )
+        ))
+
+    def _take(self, new_state: BridgeState, ops: list[WindowOp]) -> None:
         self.state = new_state
         for op in ops:
             handler = _OP_HANDLERS.get(op.op)
@@ -1079,8 +1081,8 @@ def _run_take_back_funestras(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner.expect_the_funestras_home((RoomFunestra[op.key.upper()],), now=time.monotonic())
 
 
-def _run_follow_genaus_lock(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    runner.gallery_follows_genau.expect_a_lock()
+def _run_follow_the_lock(runner: DispatchLoopRunner, op: WindowOp) -> None:
+    runner.lock_follower.follow(op.key)
 
 
 def _run_ahk_passthrough(runner: DispatchLoopRunner, op: WindowOp) -> None:
@@ -1106,7 +1108,7 @@ _OP_HANDLERS = {
     Op.MAIN_FUNESTRA_ANSWERS: _run_main_funestra_answers,
     Op.IGNORED: _run_ignored,
     Op.TAKE_BACK_FUNESTRAS: _run_take_back_funestras,
-    Op.FOLLOW_GENAUS_LOCK: _run_follow_genaus_lock,
+    Op.FOLLOW_THE_LOCK: _run_follow_the_lock,
 }
 assert set(_OP_HANDLERS) == set(Op), "every window op needs a handler"
 

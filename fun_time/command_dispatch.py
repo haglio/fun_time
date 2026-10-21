@@ -67,7 +67,7 @@ from .max_intensity import (
     funestras_that_can_drive_the_osr2,
     publish_max_intensity,
 )
-from .media_actions import ensure_in_favs, move_to_weird, remove_from_favs
+from .media_actions import move_to_weird, remove_from_favs
 from .media_metadata import forget_indexed_clip
 from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE, kino_shows
 from .modes import VideoShapes, is_favorite_path, read_favs_content
@@ -1099,7 +1099,8 @@ def _narrow_genau(
 ) -> tuple[BridgeState, list[WindowOp]]:
     state = replace(state, genau_plays_vr=plays_vr, genau_plays_flat=plays_flat)
     if not (plays_vr or plays_flat):
-        return _lock_genau(LOCK_ON, state, config)
+        append_command(config.genau_cmd_file, LOCK_ON)
+        return state, []
     append_command(config.genau_cmd_file, shapes_verb(plays_vr=plays_vr, plays_flat=plays_flat))
     return state, []
 
@@ -1392,10 +1393,6 @@ def hosts_a_satellite(state: BridgeState, config: BridgeConfig) -> bool:
     return config.hosts_origenerator and state.origenerator_holds_a_satellite()
 
 
-def origenerator_holds_the_rfb_slot(state: BridgeState, config: BridgeConfig) -> bool:
-    return config.origenerator_enabled and state.rfb_slot is RfbSlot.ORIGENERATOR
-
-
 def _origenerator_transport(
     command: str, state: BridgeState, config: BridgeConfig
 ) -> list[WindowOp] | None:
@@ -1575,24 +1572,22 @@ def _forward_to_the_vr_main_funestra(verb: str, state: BridgeState, config: Brid
 def _main_lock(verb: str, state: BridgeState, config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if kino_shows(state.main_mode):
-        append_command(config.main_funestra_cmd_file, verb)
-        return state, []
-    if _locks_genau(verb, config):
-        ensure_in_favs(config.favs_file, read_genau_status(config.genau_status_file).flick)
-    return _lock_genau(verb, state, config)
-
-
-def _lock_genau(verb: str, state: BridgeState,
-                config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
-    append_command(config.genau_cmd_file, verb)
-    if origenerator_holds_the_rfb_slot(state, config) and _locks_genau(verb, config):
-        return state, [WindowOp(op="follow_genaus_lock")]
+        cmd_file = config.main_funestra_cmd_file
+        locked = read_main_funestra_status(config.main_funestra_status_file).locked
+    else:
+        cmd_file = config.genau_cmd_file
+        locked = read_genau_status(config.genau_status_file).locked
+    append_command(cmd_file, verb)
+    if verb == LOCK_ON or (verb == TOGGLE_LOCK and not locked):
+        return state, [WindowOp(op=Op.FOLLOW_THE_LOCK, key=state.main_mode)]
     return state, []
 
 
-def _locks_genau(verb: str, config: BridgeConfig) -> bool:
-    return verb == LOCK_ON or (
-        verb == TOGGLE_LOCK and not read_genau_status(config.genau_status_file).locked)
+def _lock_kino_on_the_main_funestra(verb: str, state: BridgeState, config: BridgeConfig,
+                                    target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    if not kino_shows(state.main_mode):
+        return _ignored(state, _IN_GENAU_MODE)
+    return _main_lock(verb, state, config, target_path)
 
 
 def _forward_to_genau(verb: str, state: BridgeState, config: BridgeConfig,
@@ -1813,7 +1808,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_main_lock, verb)
                      for cmd, verb in _MAIN_LOCK_COMMANDS.items()})
     handlers["genau_lock"] = partial(_main_lock, TOGGLE_LOCK)
-    handlers["main_player_lock"] = partial(_forward_to_main_funestra_on_screen, TOGGLE_LOCK)
+    handlers["main_player_lock"] = partial(_lock_kino_on_the_main_funestra, TOGGLE_LOCK)
     handlers["projection_cycle"] = partial(_forward_to_the_vr_main_funestra, "CYCLE_PROJECTION")
     handlers["projection_cycle_back"] = partial(
         _forward_to_the_vr_main_funestra, "CYCLE_PROJECTION_BACK")

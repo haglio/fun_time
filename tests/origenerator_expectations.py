@@ -22,7 +22,6 @@ from fun_time import preview_marker
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command, said_to_the_hosted_app
 from fun_time.filter_vocab import decode_filter_command, set_command
-from fun_time.gallery_follows_genau import GalleryFollowsGenau
 from fun_time.hosted_origenerator import the_session_it_is_handed, what_an_adopted_app_is_told
 from fun_time.lock import go_to_line
 from fun_time.manifest import LaunchManifest
@@ -138,7 +137,7 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
         *_written_in_a_sweep(on_the_monitors),
         *_written_in_a_sweep(in_a_headset),
         *_written_by(on_the_monitors, _each_satellites_own_mode_buttons, _the_rooms_f_mode,
-                     _the_gallery_following_a_lock_genau_took, _a_taken_over_copy_handed_back,
+                     _a_taken_over_copy_handed_back,
                      _a_copy_parked_for_the_room_crossing_in),
         *(what_an_adopted_app_is_told("{frames}", "{input}", in_a_headset=in_a_headset)
           for in_a_headset in (False, True)),
@@ -189,14 +188,6 @@ def _the_rooms_f_mode(room: BridgeConfig) -> None:
     with patch("fun_time.command_dispatch.apply_fmode",
                return_value=SimpleNamespace(funestras=(), log_message="")):
         dispatch_command("fmode_toggle", _both_shows_hosted(), room)
-
-
-def _the_gallery_following_a_lock_genau_took(room: BridgeConfig) -> None:
-    room.genau_status_file.write_text("locked=1\nflick={file}\n", encoding="utf-8")
-    follow = GalleryFollowsGenau(genau_status_file=room.genau_status_file,
-                                 origenerator_cmd_file=room.origenerator_cmd_file)
-    follow.expect_a_lock()
-    follow.sync()
 
 
 def _a_taken_over_copy_handed_back(room: BridgeConfig) -> None:
