@@ -11,6 +11,7 @@ import argparse
 import logging
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.win32 import mutex_name, stamp_pinned_shortcuts
@@ -19,6 +20,7 @@ from .branch_session import describe_the_session_on_the_taskbar
 from .checkout_overrides import apply_this_checkouts_overrides
 from .config import DEFAULT_CONFIG_PATH, load_config
 from .event_log import open_event_log
+from .funestra_deaths import show_funestra_died_alert
 from .funestra_engine import engine_missing_abort
 from .headset_power import put_the_headset_to_sleep, wake_the_headset
 from .loading_cover import LoadingCover, open_the_cover
@@ -30,6 +32,7 @@ from .session_handoff import (
     clear_handoff_request,
     hand_over_if_asked,
     keep_the_crossing_cover,
+    pending_handoff,
 )
 from .single_instance import (
     MUTEX_ORCHESTRATOR,
@@ -37,6 +40,9 @@ from .single_instance import (
     show_already_running_message,
 )
 from .win32_taskbar import APP_USER_MODEL_ID
+
+if TYPE_CHECKING:
+    from .windows_bridge_orchestrator import SessionOver
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -86,7 +92,7 @@ def validate_config(config) -> None:
 
 
 
-def run_windows_bridge(config, logger, env: SessionEnvironment, cover: LoadingCover) -> int:
+def run_windows_bridge(config, logger, env: SessionEnvironment, cover: LoadingCover) -> SessionOver:
     # Seconds of import on a cold machine: it loads under the cover, not ahead of it.
     from .windows_bridge_orchestrator import run_session  # noqa: PLC0415
 
@@ -96,7 +102,7 @@ def run_windows_bridge(config, logger, env: SessionEnvironment, cover: LoadingCo
 
     logger.info("Launching Python-orchestrated Windows bridge using config %s", config.config_path)
 
-    exit_code = run_session(
+    ended = run_session(
         manifest_path=manifest_path,
         ahk_exe=str(config.paths.ahk_exe),
         hotkey_script=str(hotkey_script),
@@ -105,8 +111,8 @@ def run_windows_bridge(config, logger, env: SessionEnvironment, cover: LoadingCo
         cover=cover,
         env=env,
     )
-    logger.info("Windows bridge exited with code %s", exit_code)
-    return exit_code
+    logger.info("Windows bridge exited with code %s", ended.exit_code)
+    return ended
 
 
 def stamp_shortcut_aumid() -> None:
@@ -167,6 +173,7 @@ def main(argv: list[str] | None = None) -> int:
     env = SessionEnvironment.from_environ(os.environ)
     config = load_config(args.config)
     config = apply_this_checkouts_overrides(config, integration=env.integration)
+    state_dir = config.paths.state_dir
     logger = set_up_logging(config)
 
     _mutex_handle = claim_the_session(mutex_name(MUTEX_ORCHESTRATOR, config.instance_id))
@@ -179,9 +186,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     logger.info("Loaded config from %s", config.config_path)
-    keep_the_crossing_cover(config.paths.state_dir)  # a crossing at either end
+    keep_the_crossing_cover(state_dir)  # a crossing at either end
     ensure_runtime_files(config)
-    clear_handoff_request(config.paths.state_dir)
+    clear_handoff_request(state_dir)
     validate_config(config)
 
     if args.check:
@@ -190,10 +197,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # Before anything else logs, and before the dashboard launches the panel
     # that tails it: this session's event log starts empty and starts collecting.
-    open_event_log(config.paths.state_dir)
+    open_event_log(state_dir)
     # Everything below happens under the cover, and says so on it as it runs.
     cover = open_the_cover(
-        config.paths.state_dir, show_overlays=env.show_overlays,
+        state_dir, show_overlays=env.show_overlays,
         sibling_checkouts=config.paths.sibling_checkouts_path, cancelable=not args.no_cancel,
     )
     try:
@@ -216,14 +223,17 @@ def main(argv: list[str] | None = None) -> int:
         # Every child below is named as it is launched; this one process cannot be,
         # because it is the one doing the naming -- see prepare_orchestrator_launcher.
         prepare_orchestrator_launcher()
-        wake_the_headset(config.paths.state_dir, integration=env.integration)
-        exit_code = run_windows_bridge(config, logger, env, cover)
+        wake_the_headset(state_dir, integration=env.integration)
+        ended = run_windows_bridge(config, logger, env, cover)
     except BaseException:
         cover.take_it_down()  # else it stands out its staleness guard over the wreck
+        put_the_headset_to_sleep(state_dir, crossing=False)
         raise
-    crossing = hand_over_if_asked(config, logger)  # the relay waits on the mutex above
-    put_the_headset_to_sleep(config.paths.state_dir, crossing=crossing is not None)
-    return exit_code
+    put_the_headset_to_sleep(state_dir, crossing=pending_handoff(state_dir) is not None)
+    if ended.why:
+        show_funestra_died_alert(ended.why)
+    hand_over_if_asked(config, logger)  # last: the relay waits on the mutex above
+    return ended.exit_code
 
 
 if __name__ == "__main__":

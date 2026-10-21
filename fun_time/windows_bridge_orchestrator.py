@@ -43,7 +43,6 @@ from .funestra_deaths import (
     FunestraDied,
     funestra_died_message,
     part_closed_message,
-    show_funestra_died_alert,
     the_part_that_closed,
 )
 from .hosted_contract import ASKING_BUDGET_S, NO_HOSTED_VOCABULARY, HostedVocabulary
@@ -466,7 +465,7 @@ def _take_down_the_startup(
     sibling_checkouts: str,
     canceled: bool = False,
     release_origenerator_via: Path | None = None,
-) -> int:
+) -> SessionOver:
     """Tear down a startup that is not becoming a session, then exit.
 
     Kills every child so far and closes the browser *before* the overlay comes
@@ -495,7 +494,7 @@ def _take_down_the_startup(
     if back_to is None:
         drop_crossing_cover(state_dir)  # else: no way out of an empty machine
         release_the_headset(state_dir)
-    return _CANCELLED_EXIT_CODE
+    return SessionOver(_CANCELLED_EXIT_CODE)
 
 
 class _AppendOnWriteHandler(logging.Handler):
@@ -1112,6 +1111,12 @@ class SessionEnd:
     closed: str | None = None  # the part of the room that closed itself, ending it
 
 
+@dataclass(frozen=True)
+class SessionOver:
+    exit_code: int
+    why: str = ""
+
+
 def _wait_for_the_session_to_end(
     ahk_proc: subprocess.Popen, state_dir: Path, *, children: dict,
     poll_s: float = 0.1,
@@ -1142,7 +1147,7 @@ def _run_until_the_hotkeys_exit(
     dispatch: tuple[DispatchLoopRunner, threading.Thread],
     loopback_server: ThreadingHTTPServer | None,
     sibling_checkouts: str,
-) -> int:
+) -> SessionOver:
     """Hold the session open, then take it down — in that order, always.
 
     The hotkey script marking the end, or going, IS the session ending, so this
@@ -1214,9 +1219,7 @@ def _run_until_the_hotkeys_exit(
             elif crossing is None:  # the quit chord after an Esc that had parked it
                 let_go_of_a_kept_origenerator(state_dir, origenerator_cmd_file)
 
-    if closed is not None:
-        show_funestra_died_alert(part_closed_message(closed))  # the cover is down by now
-    return exit_code
+    return SessionOver(exit_code, why="" if closed is None else part_closed_message(closed))
 
 
 def run_session(
@@ -1228,7 +1231,7 @@ def run_session(
     project_dir: str | Path,
     cover: LoadingCover,
     env: SessionEnvironment = ORDINARY_SESSION,
-) -> int:
+) -> SessionOver:
     """Hold a session under the cover already standing over it, then close it."""
     manifest_path = Path(manifest_path)
     state_dir = Path(state_dir)
@@ -1306,8 +1309,7 @@ def run_session(
         )
         said = funestra_died_message(died.funestra, died.said)
         logger.error(said)
-        show_funestra_died_alert(said)  # after the teardown: the cover is down by now
-        return 1
+        return SessionOver(1, why=said)
 
     launched = [getattr(result, key) for key in _CHILD_PID_KEYS
                 if not (key == "origenerator_pid" and result.origenerator_taken_over)]
