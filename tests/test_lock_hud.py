@@ -381,7 +381,7 @@ def test_ending_a_widened_loop_keeps_the_row_wide():
     assert panel.seed_siblings == [near]  # still the widened row, not CUR's exact family
 
 
-def test_the_status_line_holds_every_state_the_side_is_in():
+def test_the_title_holds_every_state_the_side_is_in():
     """One line to read the satellite off: the lock, what is looping, which order its
     browse is in, and the filter.  Anything the HUD knows about how the Funestra is
     behaving belongs up there, not spread around the panel."""
@@ -397,7 +397,7 @@ def test_the_status_line_holds_every_state_the_side_is_in():
     assert locked.title == "Locked · Shuffle"
 
 
-def test_the_status_line_says_when_f_mode_is_narrowing_the_library():
+def test_the_title_says_when_f_mode_is_narrowing_the_library():
     """F-mode is a filtering layer of its own — favorites only — sitting under
     whatever else the Funestra is doing.  Left off the line, a Funestra that has been cut
     to a handful of clips looks identical to one browsing everything."""
@@ -424,7 +424,7 @@ def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
     assert panel.title == "Unlocked · Shuffle · F-Mode · beta gamma"
 
 
-def test_the_status_line_names_the_axis_that_is_looping():
+def test_the_title_names_the_axis_that_is_looping():
     """"Looping" alone leaves you looking at the map to find out which axis it is."""
     seed_index = _index(current=CUR, seed_sibs=[S1])
     action_index = _index(current=CUR, action_sibs=[A1])
@@ -482,7 +482,7 @@ def test_a_lock_inside_a_loop_keeps_the_loops_chrome_and_rings_the_held_clip():
     assert panel.playing == S1           # …held on the item it had reached
 
 
-def test_the_status_line_says_looping_without_counting():
+def test_the_title_says_looping_without_counting():
     """The size of each axis is on the map itself now, so this line just says what is
     looping, not how much of it."""
     index = _index(current=CUR, seed_sibs=[S1, "C:/vids/seed2.mp4"])

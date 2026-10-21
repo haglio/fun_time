@@ -299,7 +299,7 @@ class TestFMode:
 
         assert world.on_screen() == world.flat_dir / "epsilon.mp4"
 
-    def test_the_status_line_says_f_mode_while_it_is_on(self, tmp_path):
+    def test_the_title_says_f_mode_while_it_is_on(self, tmp_path):
         world = World(tmp_path)
         ensure_in_favs(world.favs_file, str(world.vr_dir / "alpha_180.mp4"))
 
