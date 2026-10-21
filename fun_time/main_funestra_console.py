@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from app_support.osr2_device import Osr2Mode
+from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra.console import OSR2_DRIVING, ConsoleModel
 from funestra.hud_placement import HudCorner, HudEdge
 from funestra.modes import LengthMode, MainMode, Osr2State
@@ -21,7 +21,8 @@ from .mode_plan import kino_shows
 
 MAIN_FUNESTRA_CONSOLE_FILENAME = "main_player_console.json"
 
-def osr2_state(*, main_mode: MainMode, osr2_mode: Osr2Mode, funscript_driving: bool) -> Osr2State:
+def osr2_state(*, main_mode: MainMode, osr2_mode: Osr2Mode, funscript_driving: bool,
+               trouble: Osr2Trouble | None = None) -> Osr2State:
     """Which of the OSR2 states has the device, for the console to badge.
 
     Only a Main Funestra that is *on screen* can be driving: ``funscript_driving`` is read
@@ -32,7 +33,8 @@ def osr2_state(*, main_mode: MainMode, osr2_mode: Osr2Mode, funscript_driving: b
     "something other than the Robot Hand has the device" — so every ± mark and
     draggable band on the drive readout went dead.
     """
-    return Osr2State.of(osr2_mode, funscript_driving=funscript_driving and kino_shows(main_mode))
+    return Osr2State.of(osr2_mode, funscript_driving=funscript_driving and kino_shows(main_mode),
+                        trouble=trouble)
 
 
 @dataclass(frozen=True)
@@ -47,6 +49,7 @@ class MainSlotInputs:
     active: bool
     osr2_mode: Osr2Mode
     broker: bool
+    osr2_trouble: Osr2Trouble | None = None
     osr2_control: str = OSR2_DRIVING
     paused: bool = False
     hud_corner: HudCorner = HudCorner.UPPER_LEFT
@@ -104,7 +107,8 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         hud_minimized=inputs.hud_minimized,
         active=inputs.active,
         osr2=osr2_state(main_mode=inputs.main_mode, osr2_mode=inputs.osr2_mode,
-                        funscript_driving=main_funestra.funscript_driving),
+                        funscript_driving=main_funestra.funscript_driving,
+                        trouble=inputs.osr2_trouble),
         osr2_control=slot.osr2_control,  # beside what has the device, what is DONE to it
         paused=inputs.paused,
         locked=slot.locked,

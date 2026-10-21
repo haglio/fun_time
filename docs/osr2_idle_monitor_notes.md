@@ -11,23 +11,23 @@ A previous agent attempted to build this feature and failed. This document captu
 
 ## Hardware facts (verified)
 
-- The OSR2 connects via USB-serial (COM4).
-- The USB cable is **always physically connected**, so **COM4 is always enumerated** regardless of whether the OSR2 is powered on or off. Checking COM port presence is useless.
+- The OSR2 connects via a USB-serial adapter, a CH340 (VID:PID 1A86:7523) with no serial number, so Windows names its COM port after the USB socket it is plugged into. The broker finds it by that identity, never by a COM name.
+- The adapter stays **enumerated whether the OSR2 is powered on or off**, so its presence says nothing about the device. Checking port presence is useless for that.
 - The OSR2 has a physical power switch. "On" means the firmware is running.
 
 ## Broker architecture (verified by reading code and logs)
 
 - `broker_app.py` runs at Windows startup via `launch_broker_tray.vbs`.
-- It opens a serial session: virtual port (COM8/COM15) <-> real port (COM4).
+- It opens a serial session: virtual port (COM8/COM15) <-> the OSR2's port, found by the adapter's USB identity before every session.
 - `broker_heartbeat.txt` is written every 0.5s **unconditionally** (even if the OSR2 is off). Heartbeat freshness tells you the broker process is alive, NOT that the device is on.
-- `forward_real_to_virtual`: reads data FROM the OSR2 (COM4) and writes to the virtual port.
+- `forward_real_to_virtual`: reads data FROM the OSR2 and writes to the virtual port.
 - `forward_virtual_to_real`: reads data FROM the virtual port (MFP TCode commands) and writes to the OSR2. This path is **skipped** when `auto_mode.is_active` is True.
 - `BrokerAutoController.handle_line()` parses lines from the OSR2 looking for "tcode task started", "is on", BPM data, motion data. These set `auto_mode.is_active`.
 
 ## What data actually flows (verified from broker.log and genau_listener.log)
 
 ### MFP-controlled content
-When MultiFunPlayer plays a video with a funscript, it sends TCode commands to the virtual COM port. These flow through `forward_virtual_to_real` to COM4. **This is reliable and observable.**
+When MultiFunPlayer plays a video with a funscript, it sends TCode commands to the virtual COM port. These flow through `forward_virtual_to_real` to the OSR2. **This is reliable and observable.**
 
 ### OSR2 built-in free mode ("auto mode on the OSR2")
 The OSR2's firmware generates motion internally. The only PC-visible signal is the **initial status message** ("tcode task started", "free mode is on") sent via serial when:
