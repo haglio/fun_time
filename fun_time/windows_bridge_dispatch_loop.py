@@ -517,7 +517,6 @@ class DispatchLoopRunner:
 
     def _handle_line(self, line: CommandLine) -> None:
         source = notice_source(line.command, self.state.active_funestra)
-        frozen = self._frozen(line.command, line.spoken_at)
         answers_before = self._answers
         self._ignored_because = ""
         resolved = resolve_active_funestra_command(line.command, self.state.active_funestra)
@@ -525,9 +524,8 @@ class DispatchLoopRunner:
             self._handle_command(command, line.spoken_at)
         if not line.said:
             return
-        ignored_because = self._voice_hold().ignored_while if frozen else self._ignored_because
-        if ignored_because:
-            self._flash(f"ignored {ignored_because}: {line.said}", source=source,
+        if self._ignored_because:
+            self._flash(f"ignored {self._ignored_because}: {line.said}", source=source,
                         level=logging.WARNING)
         elif self._answers == answers_before:
             self._flash(line.said, source=source)
@@ -535,10 +533,6 @@ class DispatchLoopRunner:
     def _flash(self, message: str, *, source: str, level: int = NOTICE) -> None:
         self._answers += 1
         notice(logger, message, source=source, level=level)
-
-    def _frozen(self, cmd: str, spoken_at: float | None) -> bool:
-        hold = self._voice_hold()
-        return spoken_at is not None and hold is not None and cmd not in hold.heard
 
     def _headset(self, signal: str) -> None:
         off = signal == HEADSET_OFF
@@ -557,13 +551,6 @@ class DispatchLoopRunner:
         """
         if cmd in HEADSET_SIGNALS:
             self._headset(cmd)
-            return
-        if self._frozen(cmd, spoken_at):
-            # Freeze SPOKEN commands while paused — ``spoken_at`` marks a voice
-            # line, and the deliberate mouse stays live because a click is not an
-            # accident.  Backstops VoiceController's own suspend, closing the
-            # entry race where a phrase is written in the tick before the flag.
-            logger.debug("OmniPause dropped spoken command: %s", cmd)
             return
         self._send_press(cmd)
         if cmd == "quit":

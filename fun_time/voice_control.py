@@ -6,6 +6,8 @@ from __future__ import annotations
 import logging
 import re
 import threading
+import time
+from bisect import bisect_right
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -101,6 +103,23 @@ DURING_OMNIPAUSE = VoiceHold(SUSPEND_EXEMPT_COMMANDS, "during OmniPause")
 WHILE_NOT_WEARING_HEADSET = VoiceHold(frozenset({"quit"}), "while not wearing headset")
 
 
+class VoiceHolds:
+    def __init__(self) -> None:
+        self._changes: list[tuple[float, VoiceHold | None]] = []
+
+    @property
+    def now(self) -> VoiceHold | None:
+        return self._changes[-1][1] if self._changes else None
+
+    def change(self, hold: VoiceHold | None, *, at: float) -> None:
+        if hold != self.now:
+            self._changes.append((at, hold))
+
+    def when(self, moment: float) -> VoiceHold | None:
+        changes_by_then = bisect_right(self._changes, moment, key=lambda change: change[0])
+        return self._changes[changes_by_then - 1][1] if changes_by_then else None
+
+
 def _holds_or_ends_the_room(command: str) -> bool:
     return (
         command in {"quit", "relief_omnipause", "robot_hand_park"}
@@ -158,6 +177,7 @@ class VoiceController:
         second_listener: Callable[[bytes, str], str] | None = None,
         hosted: HostedVocabulary = NO_HOSTED_VOCABULARY,
         hosted_cmd_file: Path | str | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.cmd_file = Path(cmd_file)
         self.commands = (build_voice_commands(origenerator_phrases=hosted.phrases)
@@ -167,7 +187,8 @@ class VoiceController:
         self._request_side: str | None = None
         self.hosted_sides: Callable[[], frozenset[str]] = frozenset
         self._muted = threading.Event()
-        self._hold: VoiceHold | None = None
+        self._clock = clock
+        self._holds = VoiceHolds()
         self._not_sure_of: _NotSureOf | None = None
         self._not_sure_of_lock = threading.Lock()
         self._words_forming = False
@@ -191,7 +212,8 @@ class VoiceController:
             speech=self.handle_speech if takes_requests else None,
             wants_words=self.wants_words if takes_requests else None,
         )
-        self.engines = Engines(second_opinion=second_listener or WhisperReader(),
+        self.engines = Engines(clock=clock,
+                               second_opinion=second_listener or WhisperReader(),
                                second_opinion_in={"de": WhisperReader(language="de")},
                                take_down=(WhisperReader(for_dictation=True)
                                           if takes_requests else None))
@@ -226,7 +248,7 @@ class VoiceController:
         return self._hosted_side_leading(text)
 
     def wants_words(self, heard: Heard) -> bool:
-        if not self._is_listening():
+        if not self._listened_to_when(heard.spoken_at):
             return False
         if self._side_taking_a_request() is not None:
             return not self._heard_through_a_request(heard)
@@ -268,7 +290,10 @@ class VoiceController:
         A muted or omnipaused room's talk is discarded, so it is not captioned
         either.
         """
-        return not self._muted.is_set() and self._hold is None
+        return not self._muted.is_set() and self._holds.now is None
+
+    def _listened_to_when(self, spoken_at: float) -> bool:
+        return not self._muted.is_set() and self._holds.when(spoken_at) is None
 
     def mute(self) -> None:
         """Suppress command output (voice still listens but discards)."""
@@ -281,23 +306,23 @@ class VoiceController:
         self._muted.clear()
 
     def suspend(self, hold: VoiceHold = DURING_OMNIPAUSE) -> None:
-        self._hold = hold
+        self._holds.change(hold, at=self._clock())
 
     def unsuspend(self) -> None:
-        self._hold = None
+        self._holds.change(None, at=self._clock())
 
     def _write_spoken(self, phrase: str, *, spoken_at: float) -> bool:
         """Append the phrase's command to the dashboard command file; return whether it was.
 
-        No-op (returns False) when muted, and — while held — for everything the
-        hold does not hear.  The line carries *spoken_at*, so
+        No-op (returns False) when muted, and for everything the hold it was said
+        under does not hear.  The line carries *spoken_at*, so
         the dispatcher acts on the video that was on screen when the user started
         talking rather than whatever replaced it during recognition.
         """
         command = self.commands[phrase]
         if self._muted.is_set():
             return False
-        hold = self._hold
+        hold = self._holds.when(spoken_at)
         if hold is not None and command not in hold.heard:
             return False
         return append_command(self.cmd_file, format_spoken_command(
@@ -313,7 +338,7 @@ class VoiceController:
 
     def _report_a_miss(self, heard: Heard) -> None:
         recognition = heard.recognition
-        if not heard.words_formed or not self._is_listening():
+        if not heard.words_formed or not self._listened_to_when(heard.spoken_at):
             return
         doubted = recognition.refused_phrase or recognition.unconfirmed_phrase
         if doubted:
@@ -343,7 +368,7 @@ class VoiceController:
 
     def _hand_on(self, phrase: str, *, spoken_at: float) -> None:
         written = self._write_spoken(phrase, spoken_at=spoken_at)
-        hold = self._hold
+        hold = self._holds.when(spoken_at)
         if not written and hold is not None and not self._muted.is_set():
             notice(logger, f"ignored {hold.ignored_while}: {friendly_voice(phrase)}",
                    source=notice_source(self.commands[phrase], self.active_funestra()),

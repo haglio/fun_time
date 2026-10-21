@@ -1195,7 +1195,7 @@ class TestDispatchLoopRunner:
         paused room says, only the exempt commands reach the dispatch loop."""
         runner = make_runner(tmp_path)
         vc_cmd = tmp_path / "vc_cmd.txt"
-        vc = VoiceController(cmd_file=vc_cmd, model_path="unused")
+        vc = VoiceController(cmd_file=vc_cmd, model_path="unused", clock=lambda: 0.0)
         runner.voice_controller = vc
         runner.state = replace(runner.state, omni_paused=True)
 
@@ -1303,12 +1303,6 @@ class TestWhatASpokenCommandFlashes:
 
         assert self._flashed(tmp_path, spoken, [ignored]) == [
             ("ignored in Kino mode: landscape experiments", "landscape", logging.WARNING)]
-
-    def test_a_command_heard_with_the_headset_off_says_it_was_ignored(self, tmp_path):
-        spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
-
-        assert self._flashed(tmp_path, f"{HEADSET_OFF}\n{spoken}") == [
-            ("ignored while not wearing headset: landscape next", "landscape", logging.WARNING)]
 
     @pytest.mark.parametrize(("active_funestra", "source"), [(2, "portrait"), (1, "main")])
     def test_a_bare_command_flashes_over_the_funestra_it_reached(
@@ -1430,12 +1424,6 @@ class TestWhatASpokenCommandFlashes:
         spoken = format_spoken_command("both_next", spoken_at=1.0, said="both next")
 
         assert self._flashed(tmp_path, spoken) == [("both next", "system", 25)]
-
-    def test_a_command_frozen_by_omnipause_says_it_was_ignored(self, tmp_path):
-        spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
-
-        assert self._flashed(tmp_path, spoken, omni_paused=True) == [
-            ("ignored during OmniPause: landscape next", "landscape", logging.WARNING)]
 
     def test_a_named_command_flashes_over_its_funestra_whichever_is_active(self, tmp_path):
         spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
@@ -2373,37 +2361,28 @@ class TestBrowsingFromTheHeadset:
 # OmniPause voice freeze
 # ---------------------------------------------------------------------------
 
-class TestOmnipauseVoiceFreeze:
-    """Under OmniPause a *spoken* command is frozen unless a paused room still
-    hears it.
+class TestWhatAPausedRoomCarriesOut:
 
-    A mis-heard phrase must not act on a paused room — that is the whole bug.
-    ``spoken_at`` is what marks a voice line; the deliberate mouse (dashboard,
-    lock HUD) stays live, because a click cannot mis-fire the way a phrase can,
-    and those channels write the command file with no ``spoken_at`` stamp.  This
-    is the dispatch-loop backstop to VoiceController's own suspend, closing the
-    entry race where a phrase is written in the tick before the suspend flag is
-    set.
-    """
-
-    def test_freezes_a_spoken_command_under_omnipause(self, tmp_path):
+    def test_a_command_said_before_the_pause_is_carried_out_when_it_arrives_during_it(
+        self, tmp_path,
+    ):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True)
+        now = [5.0]
+        vc = VoiceController(cmd_file=tmp_path / "dashboard_cmd.txt", model_path="unused",
+                             clock=lambda: now[0])
+        runner.voice_controller = vc
+        runner.tick()
+        now[0] = 10.0
+        runner.state = replace(runner.state, omni_paused=True)
+        runner.tick()
+
+        vc.handle_heard(Heard(Recognition(phrase="landscape next"), spoken_at=7.0, peak=2000,
+                              audio=b"", candidates={}))
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
-            runner._handle_command("landscape_next", spoken_at=123.0)
-        mock_dispatch.assert_not_called()
+            runner.tick()
 
-    def test_freezes_a_spoken_reference_popup_under_omnipause(self, tmp_path):
-        """The bug it was born from: room noise heard as "help" opening the
-        reference popup mid-pause.  Frozen, it never reaches the dashboard —
-        the popup gets no exemption from the freeze, by the user's call."""
-        for command in ("help_reference", "help_reference_close"):
-            runner = make_runner(tmp_path)
-            runner.state = BridgeState(omni_paused=True)
-            with patch.object(runner, "_send_press") as mock_press:
-                runner._handle_command(command, spoken_at=123.0)
-            mock_press.assert_not_called()
+        assert [call.args[0] for call in mock_dispatch.call_args_list] == ["landscape_next"]
 
     def test_keeps_the_mouse_live_under_omnipause(self, tmp_path):
         """A lock-HUD click (bare command, no ``spoken_at``) still acts while
@@ -2443,7 +2422,6 @@ class TestOmnipauseVoiceFreeze:
         assert verb in (tmp_path / "main_player_cmd.txt").read_text(encoding="utf-8").split()
 
     def test_outside_omnipause_a_spoken_command_dispatches(self, tmp_path):
-        """The freeze is OmniPause-only: live, the same phrase dispatches."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -2483,17 +2461,6 @@ class TestWithTheHeadsetOff:
             runner._handle_command(HEADSET_ON)
         mock_dispatch.assert_not_called()
 
-    @pytest.mark.parametrize("command", ["genau_weird_flick", "play", "relief_omnipause"])
-    def test_nothing_spoken_with_the_headset_off_is_acted_on_but_quit(self, tmp_path, command):
-        runner = make_runner(tmp_path)
-        runner._handle_command(HEADSET_OFF)
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
-            mock_dispatch.return_value = (runner.state, [])
-            runner._handle_command(command, spoken_at=123.0)
-        mock_dispatch.assert_not_called()
-        mock_toggle.assert_not_called()
-
     def test_a_spoken_quit_with_the_headset_off_still_quits(self, tmp_path):
         runner = make_runner(tmp_path)
         runner._handle_command(HEADSET_OFF)
@@ -2515,7 +2482,8 @@ class TestWithTheHeadsetOff:
         runner = make_runner(tmp_path)
         runner._last_watch_sample = float("inf")
         vc_cmd = tmp_path / "vc_cmd.txt"
-        runner.voice_controller = VoiceController(cmd_file=vc_cmd, model_path="unused")
+        runner.voice_controller = VoiceController(cmd_file=vc_cmd, model_path="unused",
+                                                  clock=lambda: 0.0)
 
         runner._handle_command(HEADSET_OFF)
         runner.voice_controller._write_spoken("landscape next", spoken_at=1.0)
