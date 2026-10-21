@@ -572,6 +572,68 @@ def test_fun_time_main_funestra_nudge_seeks_playback(shared_integration_session:
         _nudge(s, "main_nudge_prev", by_ms=-SEEK_STEP_MS)
 
 
+def _flashed_since(session: FunTimeIntegrationSession, count: int) -> list[tuple[str, str]]:
+    return [(notice.message, notice.source) for notice in session.notices()[count:]]
+
+
+def _said_to_the_portrait_funestra(session: FunTimeIntegrationSession, command: str,
+                                   said: str) -> int:
+    flashed_before = len(session.notices())
+    session.write_dashboard_command(
+        format_spoken_command(command, spoken_at=time.monotonic(), said=said))
+    return flashed_before
+
+
+def _refused_in_place(session: FunTimeIntegrationSession, portrait: SatelliteFiles,
+                      command: str, said: str, warning: str) -> None:
+    held_ms = read_satellite_status(portrait.status_file).position_ms
+    flashed_before = _said_to_the_portrait_funestra(session, command, said)
+    session.wait_until(
+        lambda: (warning, "portrait") in _flashed_since(session, flashed_before),
+        description=lambda: f'"{warning}" over the Portrait Funestra; it flashed '
+                            f"{_flashed_since(session, flashed_before)}",
+    )
+    assert (said, "portrait") not in _flashed_since(session, flashed_before)
+    assert not seen_within(
+        lambda: abs(read_satellite_status(portrait.status_file).position_ms - held_ms)
+        > NUDGE_SLACK_MS,
+        seconds=2.0,
+    ), read_satellite_status(portrait.status_file)
+
+
+def test_fun_time_a_spoken_step_with_less_than_ten_seconds_to_go_stays_put_and_says_why(
+    shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
+):
+    """A clip made for the test, since each step it refuses needs one longer than ten seconds."""
+    s = shared_integration_session
+    portrait = s.config.satellite(RoomFunestra.PORTRAIT)
+    clip = clip_of_a_test_pattern(tmp_path / "twenty seconds.mp4", size="360x640", seconds=20)
+    s.write_dashboard_command("play")
+    append_command(portrait.cmd_file, play_file(PlaylistItem(clip)))
+    try:
+        s.wait_until(
+            lambda: _showing(portrait) == clip.resolve()
+            and read_satellite_status(portrait.status_file).position_ms >= 4_000,
+            description="the Portrait Funestra four seconds into the test clip",
+        )
+        start_ms = _held_still(s, portrait).position_ms
+        assert start_ms < SEEK_STEP_MS, start_ms
+
+        _refused_in_place(s, portrait, "portrait_nudge_prev", "portrait back",
+                          "Less than 10s into this clip")
+        _said_to_the_portrait_funestra(s, "portrait_nudge_next", "portrait skip")
+        s.wait_until(
+            lambda: abs(read_satellite_status(portrait.status_file).position_ms
+                        - (start_ms + SEEK_STEP_MS)) <= NUDGE_SLACK_MS,
+            description="the skip with room to go to land ten seconds on",
+        )
+        _refused_in_place(s, portrait, "portrait_nudge_next", "portrait skip",
+                          "Less than 10s left in this clip")
+    finally:
+        write_flag(portrait.paused_file, False)
+        append_command(portrait.cmd_file, RELOAD_PLAYLIST)
+
+
 def test_fun_time_main_funestra_record_loop_cancel_cycle(shared_integration_session: FunTimeIntegrationSession):
     """The record gesture round-trips through the Main Funestra: record → looping → cancel,
     observed through the Main Funestra's published loop state."""
