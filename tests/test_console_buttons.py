@@ -520,8 +520,7 @@ class TestDriveControls:
     def test_the_switch_row_is_there_in_both_modes(self):
         for mode in MainMode:
             actions = _actions(MainSlot(main_mode=mode))
-            for action in ("robot_hand_toggle_learned", "robot_hand_cycle_shape", "quarter_button",
-                           "robot_hand_park"):
+            for action in ("robot_hand_toggle_learned", "robot_hand_cycle_shape", "robot_hand_park"):
                 assert action in actions, (mode, action)
 
     def test_the_funscript_jump_rides_the_row_under_a_video_alone(self):
@@ -538,8 +537,7 @@ class TestDriveControls:
         for mode in MainMode:
             row = osr2_rows(MainSlot(main_mode=mode))[0]
             commands = [b.command for b in row if b.command]
-            assert commands[1:4] == [
-                "robot_hand_toggle_learned", "robot_hand_cycle_shape", "quarter_button"], mode
+            assert commands[1:3] == ["robot_hand_toggle_learned", "robot_hand_cycle_shape"], mode
         assert (_button(MainSlot(main_mode=MainMode.GENAU), "robot_hand_toggle_learned").glyph
                 == shared_mark("human"))
         assert _button(MainSlot(main_mode=MainMode.GENAU), "robot_hand_toggle_learned").lit is False

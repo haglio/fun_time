@@ -115,7 +115,6 @@ x::QueueCommand("satellites_toggle")
 $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")
 
-\::QueueCommand("quarter_button")
 ; The Main Funestra's library browser, on the key the retired mode had.
 n::QueueCommand("browse_library")
 -::QueueCommand("main_nudge_prev")

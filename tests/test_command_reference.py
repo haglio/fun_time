@@ -506,16 +506,10 @@ def test_section_titles_run_global_robot_hand_genau_main_funestra_satellites():
         assert retired not in titles, f"{retired!r} should be folded in"
 
 
-def test_the_backslash_key_offsets_the_hand_and_the_browser_has_its_own_key():
-    """The backslash offsets the Robot Hand's motion in either mode — it used to
-    open the Main Funestra's library browser in kino mode, and that browser now has the key
-    the retired mode had."""
+def test_the_library_browser_has_the_key_the_retired_mode_had():
     sections = build_reference_sections()
     by_title = {s.title: s for s in sections}
-    hand_backslash = [r for r in by_title["Robot Hand"].rows if "\\" in _keys(r)]
-    assert [r.commands for r in hand_backslash] == [("quarter_button",)]
-    assert not [r for r in by_title["Main Funestra"].rows if "\\" in _keys(r)]
-    browser = [r for r in by_title["Main Funestra"].rows if "browse_library" in r.commands]
+    browser =[r for r in by_title["Main Funestra"].rows if "browse_library" in r.commands]
     assert len(browser) == 1 and _keys(browser[0]) == ("N",)
     assert "browse" in browser[0].voice
 
@@ -600,12 +594,6 @@ def test_previous_next_pairs_are_ordered_previous_then_next():
                 nxt = "Next " + d[len("Previous "):]
                 if nxt in descs:
                     assert descs.index(d) < descs.index(nxt), f"{d!r} should precede {nxt!r}"
-
-
-def test_offset_voice_on_genau_backslash_row():
-    rows = _all_rows()
-    offset_rows = [r for r in rows if "\\" in _keys(r) and "quarter_button" in r.commands]
-    assert offset_rows and "offset" in offset_rows[0].voice
 
 
 def test_the_clip_navigation_row_quotes_only_what_voice_answers():

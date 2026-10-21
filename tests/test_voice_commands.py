@@ -149,7 +149,6 @@ class TestVoiceCommands:
             "human inspired": "robot_hand_toggle_learned",
             "human inspired on": "robot_hand_learned_on",
             "human inspired off": "robot_hand_learned_off",
-            "offset": "quarter_button",
             "voice off": "voice_off",
             "mic off": "voice_off",
         }

@@ -282,7 +282,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "projection_cycle_back",
     "projection_narrower",
     "projection_wider",
-    "quarter_button",
     "quit",
     "recenter_view",
     "relief_omnipause",

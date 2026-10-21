@@ -667,8 +667,7 @@ class TestResumeGenau:
         "volume": "volume", "browse_order": "genau_latest", "shapes": "genau_plays_vr",
         "hold": "osr2_control"}
     _NO_SETTING = frozenset({
-        "quit", "flick", "condemn", "play_file", "flip_ends", "quarter_cycle", "pause", "tcode",
-        "hud"})
+        "quit", "flick", "condemn", "play_file", "flip_ends", "pause", "tcode", "hud"})
 
     def test_every_control_genau_has_comes_back_after_a_restart_or_is_no_setting(self):
         named = set(self._KEPT_IN_THE_ROOMS_STATE) | self._NO_SETTING

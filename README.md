@@ -255,7 +255,7 @@ Every Funestra has its own playback speed: the Main Funestra's row on its consol
 
 ### Modes
 
-The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Kino** (`H`) and **Genau** (`G`). `\` offsets the Robot Hand's motion by a quarter cycle in either. `N` opens the **library browser** (see below); the chosen video plays in the Main Funestra, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
+The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Kino** (`H`) and **Genau** (`G`). `N` opens the **library browser** (see below); the chosen video plays in the Main Funestra, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
 
 The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive the Main Funestra in every mode (in Genau mode the paused Main Funestra still navigates in the background). A ten-second step has nothing to step through in a video of 10 seconds or shorter, so there every Funestra's HUD draws its back and forward 10s buttons faded; and wherever a step has less than 10 seconds to go (back in a video's first 10 seconds, forward in its last 10), a key, a press of either button or a spoken "skip" or "back" does nothing but say so over that Funestra. The `;` clip-save key reads the current video/time from the Main Funestra's status file in Kino mode.
 
@@ -545,8 +545,6 @@ The audio companion and the Python dispatch loop both read this file as the auth
 Written by `fun_time/command_dispatch.py` when Genau or Robot Hand commands are dispatched.
 
 The verbs it may carry are the registry in `../funestra`'s `funestra/genau_controls.py`.
-
-`OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
 
 Human-inspired motion replaces the waveform with what real scripts do, inside the
 Amp and Center bars' range and at the Speed bar's pace. The flick interval is how

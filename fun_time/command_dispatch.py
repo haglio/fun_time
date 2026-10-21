@@ -1937,7 +1937,6 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, muted in _MUTE_COMMANDS.items()})
     handlers.update({cmd: partial(_volume_step, step)
                      for cmd, step in _VOLUME_STEPS.items()})
-    handlers["quarter_button"] = partial(_forward_to_genau, "OFFSET_QUARTER_CYCLE")
     handlers["omnipause_toggle"] = _omnipause_toggle
     handlers["enter_omnipause"] = _enter_omnipause
     handlers["relief_omnipause"] = _relief_omnipause
