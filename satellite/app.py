@@ -12,10 +12,10 @@ import pygame
 from app_support.logging_utils import install_exception_logging
 from app_support.win32 import set_app_user_model_id
 from funestra.funestra import Funestra
+from funestra.funestra_priority import ahead_on_the_processor
 from funestra.playlist import PlaylistItem
 from funestra.sdl_hints import deliver_the_focusing_click
 
-from main_funestra.funestra_priority import ahead_on_the_processor
 from main_funestra.input import Input
 from main_funestra.window import take_outside_resizes, wear_the_icon
 
