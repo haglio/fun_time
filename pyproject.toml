@@ -135,6 +135,11 @@ environment = { HAGLIO_UPKEEP = "1" }
 commit-file = 'state\main_verifier_passed.txt'
 also-runs = ["origenerator"]
 
+# What a hotfix runs before production takes it (app_support.hotfix), beside the
+# tests its branch changed: every entry point still imports as its launcher starts it.
+[tool.haglio.hotfix]
+checks = ["tests/test_launch_smoke.py"]
+
 # What Fun Time relies on Windows to keep: the shortcut it is pinned from, kept in
 # this checkout to pin from and in the Start menu, and the Start menu's shortcut
 # into the headset. `python -m app_support.windows_settings --write` makes this
