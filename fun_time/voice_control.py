@@ -16,6 +16,7 @@ from funestra.file_channel import append_command
 from voice_core.commands import CommandRules
 from voice_core.listener import CommandListener, Engines, ListenerEvents, ListenerSettings
 from voice_core.listening import Heard
+from voice_core.speech import hears_speech
 from voice_core.whisper_reader import WhisperReader
 
 from fun_time.command_dispatch import notice_source, said_to_the_hosted_app
@@ -216,7 +217,8 @@ class VoiceController:
                                second_opinion=second_listener or WhisperReader(),
                                second_opinion_in={"de": WhisperReader(language="de")},
                                take_down=(WhisperReader(for_dictation=True)
-                                          if takes_requests else None))
+                                          if takes_requests else None),
+                               hears_speech=hears_speech())
         self._listener = CommandListener(
             command_rules(self.commands, confidence_threshold=confidence_threshold,
                           confirm_commands=confirm_commands),
