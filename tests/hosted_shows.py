@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from funestra.hud_button import Button
 from funestra.hud_marks import FMODE_ICON
-from funestra.hud_status import F_MODE_LABEL
+from funestra.hud_title import F_MODE_LABEL
 from funestra.satellite_hud import HudModel, hud_text
 
 from fun_time.bridge_records import BridgeConfig

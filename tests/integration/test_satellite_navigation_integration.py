@@ -332,7 +332,7 @@ def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
 
         def publish(row: list[str], loop: str) -> None:
             publisher.publish("portrait", HudPanel(
-                funestra="portrait", locked=False, lock_label="Looping seeds", current=playing,
+                funestra="portrait", locked=False, title="Looping seeds", current=playing,
                 seed_siblings=[v for v in row if v != playing], action_siblings=[],
                 seed_count=len(row), active_loop=loop, playing=playing,
             ))

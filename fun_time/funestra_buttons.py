@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from funestra.hud_button import Button
 from funestra.hud_marks import MINIMIZE_ICON, shared_mark
-from funestra.hud_status import LATEST_LABEL, SHUFFLE_LABEL
+from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
 
 from .ten_second_steps import too_short_to_step
 

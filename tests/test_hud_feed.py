@@ -155,8 +155,8 @@ class TestHudPublishing:
         landscape = panel(tmp_path, "landscape")
         assert portrait["player"] == "portrait"
         assert portrait["locked"] is True
-        # The status line composes the lot — lock, order, and the filter unlabeled.
-        assert portrait["lock_label"] == "Locked · Shuffle · alpha"
+        # The title composes the lot — lock, order, and the filter unlabeled.
+        assert portrait["title"] == "Locked · Shuffle · alpha"
         assert portrait["corner"]["path"] == "C:/v/p.mp4"
         assert landscape["locked"] is False
         assert landscape["corner"]["path"] == "C:/v/l.mp4"
@@ -188,7 +188,7 @@ class TestHudPublishing:
         minimize for the Funestra's window -- and says which Funestra has the floor."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted = HudModel(
-            funestra="portrait", lock_label="Unlocked · Shuffle",
+            funestra="portrait", title="Unlocked · Shuffle",
             corner=HudCell(path="C:/g/scene one.png"),
             seeds=(HudCell(path="C:/g/scene two.png"),), seed_count=2,
             rows=((Button("portrait_next", "N", "Next slide"),),),
@@ -201,7 +201,7 @@ class TestHudPublishing:
         portrait = parse_hud((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
         assert portrait.corner.path == "C:/g/scene one.png"
         assert portrait.seeds == hosted.seeds
-        assert portrait.lock_label == "Unlocked · Shuffle"
+        assert portrait.title == "Unlocked · Shuffle"
         assert portrait.active is True
         assert [button.command for button in portrait.rows[0]] == [
             "portrait_kino_activate", "portrait_origenerator_activate", "portrait_minimize",
@@ -223,7 +223,7 @@ class TestHudPublishing:
             published = parse_hud((tmp_path / f"{funestra}_hud.json").read_text(encoding="utf-8"))
             assert published.corner is None
             assert published.seeds == ()
-            assert published.lock_label == "Origenerator mode"
+            assert published.title == "Origenerator mode"
             crown = ["portrait_crown"] if funestra == "portrait" else []
             assert [[button.command for button in row] for row in published.rows] == [
                 [f"{funestra}_kino_activate", f"{funestra}_origenerator_activate",
@@ -237,7 +237,7 @@ class TestHudPublishing:
 
         portrait, landscape = (parse_hud((tmp_path / f"{funestra}_hud.json").read_text(
             encoding="utf-8")) for funestra in ("portrait", "landscape"))
-        assert portrait.lock_label == "Origenerator mode"
+        assert portrait.title == "Origenerator mode"
         assert [(button.command, button.lit) for button in landscape.rows[0][:2]] == [
             ("landscape_kino_activate", True), ("landscape_origenerator_activate", False)]
         assert landscape.corner.path == "C:/v/l.mp4"
@@ -269,7 +269,7 @@ class TestHudPublishing:
         go: the Funestra keeps the panel it had rather than flashing the mode's."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted_file = tmp_path / "origenerator_portrait_hud.json"
-        hosted_file.write_text(hud_text(HudModel(funestra="portrait", lock_label="Locked")),
+        hosted_file.write_text(hud_text(HudModel(funestra="portrait", title="Locked")),
                                encoding="utf-8")
         state = _hosted(BridgeState())
         feed.publish(state)
@@ -283,7 +283,7 @@ class TestHudPublishing:
         with patch.object(Path, "read_text", busy):
             feed.publish(replace(state, active_funestra=3))
 
-        assert panel(tmp_path, "portrait")["lock_label"] == "Locked"
+        assert panel(tmp_path, "portrait")["title"] == "Locked"
 
     def test_what_the_hosted_app_says_about_the_picture_on_screen_reaches_the_funestra(
         self, tmp_path,
@@ -323,7 +323,7 @@ class TestHudPublishing:
     def test_the_published_panel_says_when_that_sides_f_mode_is_on(self, tmp_path):
         """The flag lives on the bridge state and nowhere the Funestra can see, so the
         publish is the only way F-mode reaches the screen a satellite is on — as the
-        status line, and as the flag its own button lights off.
+        title, and as the flag its own button lights off.
 
         It is sided: the satellite that is not in F-mode must not say it is."""
         feed, state = make_feed(tmp_path), BridgeState()
@@ -336,9 +336,9 @@ class TestHudPublishing:
 
         portrait = panel(tmp_path, "portrait")
         landscape = panel(tmp_path, "landscape")
-        assert portrait["lock_label"] == "Unlocked · Shuffle · F-Mode"
+        assert portrait["title"] == "Unlocked · Shuffle · F-Mode"
         assert f_mode_button(portrait)["lit"] is True
-        assert landscape["lock_label"] == "Unlocked · Shuffle"
+        assert landscape["title"] == "Unlocked · Shuffle"
         assert not f_mode_button(landscape).get("lit")
 
     def test_a_side_at_every_default_draws_its_reset_faded(self, tmp_path):
@@ -404,7 +404,7 @@ class TestHudPublishing:
         """That reset belongs to the show, whose state this room cannot see, so
         it stays pressable however settled the Funestra underneath it is."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
-        hosted = HudModel(funestra="portrait", lock_label="Unlocked \u00b7 Shuffle",
+        hosted = HudModel(funestra="portrait", title="Unlocked \u00b7 Shuffle",
                           rows=((Button("portrait_reset", "R", "Reset the show"),),))
         (tmp_path / "origenerator_portrait_hud.json").write_text(
             hud_text(hosted), encoding="utf-8")
@@ -840,7 +840,7 @@ class TestWhatThePanelSaysAboutWhereItSits:
 
     def test_a_side_the_hosted_app_holds_wears_the_sessions_own_corner(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
-        hosted = hud_text(HudModel(funestra="portrait", lock_label="Slideshow",
+        hosted = hud_text(HudModel(funestra="portrait", title="Slideshow",
                                    corner=HudCell(path="C:/p/one.png")))
         (tmp_path / "origenerator_portrait_hud.json").write_text(hosted, encoding="utf-8")
         state = _hosted(replace(

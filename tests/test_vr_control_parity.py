@@ -7,7 +7,7 @@ inside the one VR process, with the headset's own verbs beside Kino's on the
 Main Funestra, the hosted Origenerator answers a side in its mode as it does
 on the desktop, and the windows the desktop's ops act on do not exist.  So a
 control can be perfectly routed and still be dead in the headset — which is
-exactly how the main-slot padlock and F-mode's status line came to be dead
+exactly how the main-slot padlock and F-mode's word in the title came to be dead
 there with the whole suite green.
 
 This module closes that.  It walks every command the reference can produce —

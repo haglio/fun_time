@@ -255,7 +255,7 @@ class TestResumeSharedState:
 
     def test_carries_each_side_s_filter_and_order(self, tmp_path: Path):
         """Both narrowed the playlist that just came back, so both are still in
-        force and belong on the status line."""
+        force and belong in the title."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(landscape=SatelliteState(filter="beta gamma", latest=True), portrait=SatelliteState(filter="alpha", latest=True)))
 

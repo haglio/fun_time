@@ -32,7 +32,7 @@ from funestra.funestra_verbs import (
     TRASH,
 )
 from funestra.hud_placement import HudCorner, HudEdge
-from funestra.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
+from funestra.hud_title import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
 from funestra.modes import LengthMode, LoopState, SatellitesMode
 from funestra.robot_hand import FULL_INTENSITY
 

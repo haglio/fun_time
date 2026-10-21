@@ -163,7 +163,7 @@ class TestPayload:
 
     def test_declares_what_the_main_funestra_published_about_its_video(self):
         """The compilation, version and clip-jump buttons are lit and named from
-        the Main Funestra's own status lines: only it knows them, and a Funestra
+        the Main Funestra's own titles: only it knows them, and a Funestra
         that says nothing leaves them dim."""
         known = _payload(main_funestra=MainFunestraStatus(
             compilation="Vol 3", has_compilation=True, has_other_versions=True, jump_to="scene"))
