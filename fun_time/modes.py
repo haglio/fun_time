@@ -33,9 +33,13 @@ def source_roots(source_spec: str) -> list[Path]:
 
 
 def collect_video_files(source_spec: str) -> list[str]:
+    return videos_in(source_roots(source_spec))
+
+
+def videos_in(roots: Iterable[Path]) -> list[str]:
     files: list[str] = []
     seen: set[str] = set()
-    for root_path in source_roots(source_spec):
+    for root_path in roots:
         for video in _videos_under(root_path):
             key = normalize_path_key(video)
             if key in seen:
@@ -284,6 +288,23 @@ def _collapse_recent(
         ordered, group_key_of, items_of, lambda items: max(items, key=dates.modified))
 
 
+def satellite_narrowing(
+    files: list[str],
+    favorites_filter: bool,
+    favs_file: Path,
+    *,
+    filter_query: str = "",
+    metadata_root: Path | None = None,
+) -> list[str]:
+    if favorites_filter:
+        files = keep_favorites(files, favs_file)
+    # An act filter narrows to videos whose recorded act matches; it needs the
+    # metadata root to reach each sidecar, so without it the filter is a no-op.
+    if filter_query and metadata_root is not None:
+        files = [path for path in files if path_matches_query(path, metadata_root, filter_query)]
+    return files
+
+
 def build_satellite_playlist_paths(
     source_spec: str,
     favorites_filter: bool,
@@ -294,19 +315,9 @@ def build_satellite_playlist_paths(
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
 ) -> list[str]:
-    files = collect_video_files(source_spec)
-    if favorites_filter:
-        files = keep_favorites(files, favs_file)
-    # An act filter narrows to videos whose recorded act matches; it needs the
-    # metadata root to reach each sidecar, so without it the filter is a no-op.
-    # Applied before ordering, so it holds under both Latest and Shuffle.
+    files = satellite_narrowing(collect_video_files(source_spec), favorites_filter, favs_file,
+                                filter_query=filter_query, metadata_root=metadata_root)
     filtered = bool(filter_query) and metadata_root is not None
-    if filtered:
-        files = [
-            full_path
-            for full_path in files
-            if path_matches_query(full_path, metadata_root, filter_query)
-        ]
     # With a metadata root, both orders collapse to one slot per group: Latest
     # (recent) keeps newest-first, the shuffle build weighted-randomizes.  A
     # filtered view collapses seed families (one per param-set) rather than
