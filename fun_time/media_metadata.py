@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+from bisect import insort
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -394,6 +395,16 @@ class GroupIndex:
     def act_of(self, path: str) -> str:
         return self.entry(path).action
 
+    def learn(self, path: str, metadata_root: str | Path | None) -> None:
+        if self.contains(path):
+            return
+        entry = _entry_for(path, recorded_for(path, metadata_root))
+        self.entries[normalize_path_key(path)] = entry
+        if entry.action_key is not None:
+            insort(self.action_items.setdefault(entry.action_key, []), path)
+        if entry.seed_key is not None:
+            insort(self.seed_items.setdefault(entry.seed_key[0], []), path)
+
     def forget(self, path: str) -> None:
         key = normalize_path_key(path)
         if self.entries.pop(key, None) is None:
@@ -554,25 +565,16 @@ def build_group_index(
     Videos without a metadata sidecar are remembered (for staleness checks)
     but belong to no group.
     """
-    entries: dict[str, ClipEntry] = {}
-    action_items: dict[str, list[str]] = {}
-    seed_items: dict[str, list[str]] = {}
+    index = GroupIndex(entries={}, action_items={}, seed_items={})
     for path in video_paths:
-        entry = _entry_for(path, recorded_for(path, metadata_root))
-        entries[normalize_path_key(path)] = entry
-        if entry.action_key is not None:
-            action_items.setdefault(entry.action_key, []).append(path)
-        if entry.seed_key is not None:
-            seed_items.setdefault(entry.seed_key[0], []).append(path)
-    for items in (*action_items.values(), *seed_items.values()):
-        items.sort()
-    return GroupIndex(entries=entries, action_items=action_items, seed_items=seed_items)
+        index.learn(path, metadata_root)
+    return index
 
 
 class GroupIndexCache:
     """Indexes held per library key, so a ~1000-file scan happens once: one is
-    rebuilt only when a probe path is missing from it, which is what happens when
-    a new arrival starts playing.  The session runs on :data:`SESSION_INDEXES`;
+    rebuilt only when a probe path is missing from it, and learns a clip that
+    arrives while it is held.  The session runs on :data:`SESSION_INDEXES`;
     anything wanting its own — over another library, or to drop without touching
     the session's — makes one of these."""
 
@@ -593,6 +595,11 @@ class GroupIndexCache:
             self._indexes[cache_key] = index
         return index
 
+    def learn(self, cache_key: str, path: str, metadata_root: str | Path | None) -> None:
+        index = self._indexes.get(cache_key)
+        if index is not None:
+            index.learn(path, metadata_root)
+
     def forget(self, path: str) -> None:
         for index in self._indexes.values():
             index.forget(path)
@@ -607,4 +614,5 @@ SESSION_INDEXES = GroupIndexCache()
 
 cached_group_index = SESSION_INDEXES.index_for
 reset_group_index_cache = SESSION_INDEXES.clear
+learn_indexed_clip = SESSION_INDEXES.learn
 forget_indexed_clip = SESSION_INDEXES.forget

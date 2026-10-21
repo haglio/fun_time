@@ -356,7 +356,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # aiming, and the notes restating that table's rows went with the move.
 # 5971 the same day: one helper says a phrase bare or of each Funestra that has
 # it, and the notes on the Main Funestra's own grid went with that grid.
-MAX_PROSE_LINES = 5971
+MAX_PROSE_LINES = 5970
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

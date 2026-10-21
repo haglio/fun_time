@@ -13,6 +13,7 @@ from funestra.funestra import User
 from funestra.modes import NoticeLevel
 
 from fun_time import genau_engine
+from fun_time.arrivals import LOOK_EVERY_S
 from fun_time.content import Noun
 from fun_time.genau_config import GenauSettings
 from fun_time.media_actions import ensure_in_favs
@@ -224,6 +225,53 @@ class TestTheFlickOnScreen:
         world.send("LATEST")
 
         assert world.genau.top_block() == ModeHud(video="delta four")
+
+
+class TestWhatArrivesInItsFolder:
+    def test_under_latest_it_comes_up_after_the_flick_on_screen(self, tmp_path):
+        world = World(tmp_path, latest=True)
+        world.genau.set_showing(True)
+
+        (world.flat_dir / "delta four.mp4").write_bytes(b"flick")
+        world.tick(LOOK_EVERY_S)
+        world.send("NEXT")
+
+        assert world.genau.top_block().video == "delta four"
+
+    def test_under_shuffle_it_waits_its_turn(self, tmp_path):
+        world = World(tmp_path)
+        world.genau.set_showing(True)
+
+        (world.flat_dir / "delta four.mp4").write_bytes(b"flick")
+        world.tick(LOOK_EVERY_S)
+        world.send("NEXT")
+
+        assert world.genau.top_block().video == "beta two"
+
+    def test_while_kino_has_the_window_it_waits_until_genau_has_it_again(self, tmp_path):
+        world = World(tmp_path, latest=True)
+
+        (world.flat_dir / "delta four.mp4").write_bytes(b"flick")
+        world.tick(LOOK_EVERY_S)
+        world.send("NEXT")
+        moved_on_to_out_of_sight = world.genau.top_block().video
+        world.genau.set_showing(True)
+        world.tick(LOOK_EVERY_S)
+        world.send("NEXT")
+
+        assert (moved_on_to_out_of_sight, world.genau.top_block().video) == (
+            "beta two", "delta four")
+
+    def test_in_f_mode_only_a_favorite_comes_up_next(self, tmp_path):
+        world = World(tmp_path, latest=True, favorites=("alpha one.mp4", "beta two.mp4"),
+                      f_mode=True)
+        world.genau.set_showing(True)
+
+        (world.flat_dir / "delta four.mp4").write_bytes(b"flick")
+        world.tick(LOOK_EVERY_S)
+        world.send("NEXT")
+
+        assert world.genau.top_block().video == "alpha one"
 
 
 class TestFMode:

@@ -16,10 +16,11 @@ from funestra.flick_folder import flat_flicks_in, scan_flicks, weird_folder_for
 from funestra.flick_picture import Picture
 from funestra.modes import NoticeLevel
 
+from fun_time.arrivals import LOOK_EVERY_S, Arrivals
 from fun_time.content import no_other_flicks
 from fun_time.genau_config import GenauSettings
 from fun_time.genau_engine import Narrow, build_genau_engine
-from fun_time.modes import keep_favorites
+from fun_time.modes import keep_favorites, videos_in
 
 from .genau_verbs import apply_command as answer_genaus_verb
 from .notice import NoticeWriter
@@ -69,6 +70,8 @@ class Genau:
         self._frame = None
         self._flick: Path | None = None
         self._loading: str | None = None
+        self._showing = False
+        self._clock = clock
         browsed = self._browsed()
         kept = self._favorites_of(browsed)
         self._engine = build_genau_engine(
@@ -97,6 +100,9 @@ class Genau:
         )
         if not kept:
             self._engine.narrow(self._scan)
+        self._arrivals = Arrivals(lambda: videos_in(self._folders()))
+        self._arrivals.look()
+        self._next_look = clock() + LOOK_EVERY_S
 
     def apply_command(self, command: str) -> bool:
         return answer_genaus_verb(command, self)
@@ -106,7 +112,15 @@ class Genau:
         self._engine.narrow(self._scan)
 
     def tick(self) -> None:
+        self._put_up_what_arrived()
         self._engine.refresh()
+
+    def _put_up_what_arrived(self) -> None:
+        if self._clock() < self._next_look:
+            return
+        self._next_look = self._clock() + LOOK_EVERY_S
+        self._arrivals.look()
+        self._arrivals.hand_to(_GenausFlicks(self))
 
     def status_fields(self) -> dict[str, str]:
         return {}
@@ -116,6 +130,7 @@ class Genau:
         return ModeHud(video="" if flick is None else flick.stem, scripted_filter=self._f_mode)
 
     def set_showing(self, showing: bool) -> None:
+        self._showing = showing
         self._engine.controls.hud.on = not showing
 
     def picture(self) -> Picture:
@@ -145,8 +160,15 @@ class Genau:
         return self._favorites_of(self._browsed())
 
     def _browsed(self) -> list[Path]:
-        return scan_flicks(flat_flicks_in(self._flicks_folder),
-                           shuffle_on_load=self._settings.shuffle_on_load, recent=self._recent)
+        return self._shaped(scan_flicks(self._folders(),
+                                        shuffle_on_load=self._settings.shuffle_on_load,
+                                        recent=self._recent))
+
+    def _folders(self) -> tuple[Path, ...]:
+        return (flat_flicks_in(self._flicks_folder),)
+
+    def _shaped(self, flicks: list[Path]) -> list[Path]:
+        return flicks
 
     def _favorites_of(self, flicks: list[Path]) -> list[Path]:
         if not self._f_mode or self._favs_file is None:
@@ -160,3 +182,22 @@ class Genau:
     @staticmethod
     def _the_rooms_level_is_the_funestras(_level: int, _muted: bool) -> None:
         pass
+
+
+@dataclass(frozen=True)
+class _GenausFlicks:
+    genau: Genau
+    name: str = "Genau"
+
+    def in_latest(self) -> bool:
+        return self.genau._recent
+
+    def plays_its_own_list(self) -> bool:
+        return self.genau._showing
+
+    def lets_through(self, paths: list[str]) -> list[str]:
+        flicks = [Path(path) for path in paths]
+        return [str(flick) for flick in self.genau._favorites_of(self.genau._shaped(flicks))]
+
+    def put_up_next(self, path: str) -> None:
+        self.genau._engine.play_next(Path(path))

@@ -13,6 +13,7 @@ import pytest
 from funestra.console_hud import ModeHud
 from funestra.funestra import User
 
+from fun_time.arrivals import LOOK_EVERY_S
 from fun_time.genau_config import GenauSettings
 from fun_time.media_actions import ensure_in_favs
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
@@ -109,6 +110,7 @@ class World:
         self.sink = FakeSink()
         self.notifier = FakeNotifier()
         self.stop = threading.Event()
+        self.now = 100.0
         self.genau = GenauInTheHeadset(
             flicks_folder=self.flicks_folder,
             settings=GenauSettings(shuffle_on_load=False),
@@ -121,6 +123,7 @@ class World:
             favs_file=self.favs_file,
             decode=lambda _path: _frames(),
             start_thread=start_thread,
+            clock=lambda: self.now,
             log=logging.getLogger("test.genau_in_the_headset"),
         )
         self.genau.tick()  # the first pass puts the first flick's frame up
@@ -128,6 +131,10 @@ class World:
     def send(self, line: str) -> None:
         self.channels.command.write_text(line + "\n", encoding="utf-8")
         self.genau.tick()
+        self.genau.tick()
+
+    def tick(self, seconds: float) -> None:
+        self.now += seconds
         self.genau.tick()
 
     def on_screen(self) -> Path | None:
@@ -234,6 +241,24 @@ class TestNarrowingToAShape:
         world.send("NEXT")
 
         assert world.on_screen() == world.flat_dir / "delta.mp4"
+
+
+class TestWhatArrivesInItsFolders:
+    def test_under_latest_one_of_the_shape_kept_comes_up_next_and_the_other_shape_does_not(
+            self, tmp_path):
+        world = World(tmp_path, latest=True)
+        world.genau.set_showing(True)
+        world.send("SHAPES vr")
+
+        (world.vr_dir / "delta_180.mp4").write_bytes(b"flick")
+        (world.flat_dir / "scene one.mp4").write_bytes(b"flick")
+        world.tick(LOOK_EVERY_S)
+        world.send("NEXT")
+        first = world.on_screen()
+        world.send("NEXT")
+
+        assert (first, world.on_screen()) == (world.vr_dir / "delta_180.mp4",
+                                              world.vr_dir / "beta_180.mp4")
 
 
 class TestFMode:
