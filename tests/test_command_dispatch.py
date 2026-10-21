@@ -1136,18 +1136,6 @@ def test_the_main_funestras_button_parks_its_window_in_either_mode(tmp_path: Pat
         assert ops == [WindowOp(op="minimize_role", key="main_player")], mode
 
 
-# --- quarter_button ---
-
-
-def test_quarter_button_writes_genau_offset_command(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state()
-
-    new_state, ops = dispatch_command("quarter_button", state, config)
-
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "OFFSET_QUARTER_CYCLE\n"
-
-
 # --- omnipause_toggle ---
 
 

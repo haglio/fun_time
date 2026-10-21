@@ -281,7 +281,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 (),
                 ("robot_hand_release",),
             ),
-            _Row("Offset the motion a ¼ cycle", ("\\",), ("quarter_button",)),
         ),
     ),
     _Section(

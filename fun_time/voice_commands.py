@@ -213,7 +213,6 @@ def build_voice_commands(
         # one is the Main Funestra's lock, said as "main lock" or bare while the
         # Main Funestra has the floor.
         f"weird {flick}": "genau_weird_flick",
-        "offset": "quarter_button",
         # "voice off" / "mic off" both mute voice control (there is no spoken way
         # back — a muted recognizer hears nothing; the dashboard mic button or a
         # restart re-enables it).
