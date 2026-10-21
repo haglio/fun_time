@@ -1065,7 +1065,7 @@ def _run_save_clip(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     ).start()
 
 
-def _run_main_funestra_answers(runner: DispatchLoopRunner, _op: WindowOp) -> None:
+def _run_an_answer_given_elsewhere(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner._answers += 1
 
 
@@ -1105,7 +1105,8 @@ _OP_HANDLERS = {
     Op.UNSUSPEND_HOTKEYS: _run_ahk_passthrough,
     Op.OPEN_RFB_TAB: _run_open_rfb_tab,
     Op.SAVE_CLIP: _run_save_clip,
-    Op.MAIN_FUNESTRA_ANSWERS: _run_main_funestra_answers,
+    Op.MAIN_FUNESTRA_ANSWERS: _run_an_answer_given_elsewhere,
+    Op.NARROWING_ANSWERS: _run_an_answer_given_elsewhere,
     Op.IGNORED: _run_ignored,
     Op.TAKE_BACK_FUNESTRAS: _run_take_back_funestras,
     Op.FOLLOW_THE_LOCK: _run_follow_the_lock,

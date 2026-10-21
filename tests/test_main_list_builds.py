@@ -31,16 +31,14 @@ def test_a_rebuild_writes_the_list_from_the_video_on_screen(tmp_path):
     assert build.main_list.file.read_text(encoding="utf-8").splitlines()[0] == str(videos[3])
 
 
-def test_a_rebuild_tells_the_main_funestra_what_its_buttons_built_it_under(tmp_path):
-    """Kino cannot read F-mode or the length off the list it is handed, so its
-    HUD only knows them because it is told, on the write the reload rides."""
+def test_a_rebuild_tells_the_main_funestra_its_f_mode_on_the_write_the_reload_rides(tmp_path):
     build = _main_list_build(tmp_path, MainListSettings(scripted_filter=True,
                                                         length=LengthMode.CLIPS))
 
     build.run()
 
-    assert build.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()[:3] == [
-        "RELOAD_PLAYLIST", "SET_F_MODE 1", "SET_LENGTH_MODE clips"]
+    assert build.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()[:2] == [
+        "RELOAD_PLAYLIST", "SET_F_MODE 1"]
 
 
 def test_a_press_that_leaves_no_video_holds_the_one_on_screen_locked_and_says_so(tmp_path, caplog):
@@ -61,6 +59,33 @@ def test_a_press_that_leaves_no_video_holds_the_one_on_screen_locked_and_says_so
     assert build.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()[-1] == "LOCK_ON"
     assert [record.getMessage() for record in caplog.records
             if record.levelno == logging.WARNING] == ["Including no other videos"]
+
+
+def test_a_press_that_leaves_videos_says_what_it_asked_for(tmp_path, caplog):
+    library = tmp_path / "library"
+    library.mkdir()
+    (library / "scene one.mp4").write_text("x", encoding="utf-8")
+    build = _main_list_build(tmp_path, MainListSettings(), says="Clips + Full")
+
+    with caplog.at_level(logging.INFO):
+        build.run()
+
+    assert [record.getMessage() for record in caplog.records
+            if record.levelno >= logging.INFO] == ["Clips + Full"]
+
+
+def test_a_press_that_leaves_no_video_says_only_that(tmp_path, caplog):
+    library = tmp_path / "library"
+    library.mkdir()
+    (library / "scene one.mp4").write_text("x", encoding="utf-8")
+    build = _main_list_build(tmp_path, MainListSettings(length=LengthMode.CLIPS),
+                             says="Clips only")
+
+    with caplog.at_level(logging.INFO):
+        build.run()
+
+    assert [record.getMessage() for record in caplog.records
+            if record.levelno >= logging.INFO] == ["Including no other videos"]
 
 
 def test_a_build_replacing_one_that_owed_a_jump_to_the_top_still_owes_it(tmp_path):

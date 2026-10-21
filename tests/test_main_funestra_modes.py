@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-from funestra.modes import LengthMode
 from funestra.playback import Playback
 from funestra.playlist import PlaylistItem
 
@@ -88,38 +86,6 @@ def _modes(*, compilation: str = "", current: Path = FIRST, title: str = "",
     return modes, playback, jumps
 
 
-class TestTheLengthItIsTold:
-    def test_until_it_is_told_it_names_no_length(self):
-        modes, _playback, _jumps = _modes()
-
-        assert modes.length_mode is None
-
-    @pytest.mark.parametrize("said", ["clips", "CLIPS", " clips "])
-    def test_being_told_names_it_however_it_was_said(self, said):
-        modes, _playback, _jumps = _modes()
-
-        modes.set_length(said)
-
-        assert modes.length_mode is LengthMode.CLIPS
-
-    def test_being_told_moves_nothing_on_the_playback(self):
-        """The list it plays is Fun Time's; the label rides beside its reload."""
-        modes, playback, jumps = _modes(compilation="Vol6")
-
-        modes.set_length("none")
-
-        assert (playback.loaded, playback.replaced, playback.locks, jumps.left) == ([], [], [], 0)
-
-    @pytest.mark.parametrize("said", ["", "medium", "shorts full"])
-    def test_a_length_there_is_no_such_thing_as_changes_nothing(self, said):
-        modes, _playback, _jumps = _modes()
-        modes.set_length("full")
-
-        modes.set_length(said)
-
-        assert modes.length_mode is LengthMode.FULL
-
-
 class TestLeavingACompilationWithoutNamingALength:
     def test_the_main_list_fun_time_wrote_is_what_next_reaches(self):
         modes, _playback, jumps = _modes(compilation="Vol6")
@@ -151,14 +117,13 @@ class TestFunTimesOwnFilter:
 
 
 class TestWhatTheConsoleIsToldToDraw:
-    def test_it_names_the_video_the_length_and_the_place_in_the_playlist(self):
+    def test_it_names_the_video_and_the_place_in_the_playlist(self):
         modes, playback, _jumps = _modes()
-        modes.set_length("clips")
         playback.index = 1
 
         hud = modes.hud
 
-        assert (hud.video, hud.length_mode) == ("Jane Doe - scene one", LengthMode.CLIPS)
+        assert hud.video == "Jane Doe - scene one"
         assert (hud.position, hud.total) == (2, 2)
 
     def test_the_name_is_the_librarys_record_of_the_video_not_its_filename(self):

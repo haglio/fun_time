@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from funestra.funestra import User
-from funestra.modes import LengthMode, LoopState, NoticeLevel
+from funestra.modes import LoopState, NoticeLevel
 from funestra.playback import Playback
 from funestra.playlist import PlaylistItem
 
@@ -142,16 +142,6 @@ class TestItsVerbs:
 
         assert world.playback.playlist == [world.first, elsewhere]
         assert world.kino.status_fields()["compilation"] == ""
-
-    def test_a_length_named_is_what_its_console_says_and_moves_nothing(self, tmp_path):
-        """The Main player's list is Fun Time's, narrowed to the length before
-        Kino is told it."""
-        world = World(tmp_path)
-
-        assert world.kino.apply_command("SET_LENGTH_MODE clips") is True
-
-        assert world.kino.top_block().length_mode is LengthMode.CLIPS
-        assert world.playback.current_video == world.first
 
 
 class TestItsPassEachFrame:

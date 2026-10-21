@@ -30,6 +30,8 @@ from funestra.robot_hand import RobotHandState, bpm_for_speed
 from funestra.robot_hand_beat import BeatEngine
 from funestra.robot_hand_driver import RobotHandTCodeDriver
 
+from .inclusion_pairs import PROJECTION
+
 logger = logging.getLogger(__name__)
 
 CONDEMN_RETRY_S = 0.25
@@ -93,6 +95,7 @@ def build_genau_engine(
     condemned_to: Callable[[Path], Path],
     narrow: Narrow | None = None,
     say_no_other_flicks: Callable[[], None] = lambda: None,
+    say: Callable[[str], None] = lambda _words: None,
     set_volume: Callable[[int, bool], None] | None = None,
     stop_event: threading.Event | None = None,
     start_flick: Path | None = None,
@@ -147,7 +150,9 @@ def build_genau_engine(
         set_volume=set_volume,
         reorder_flicks=lambda recent: _reorder(selection, rescan, recent, log),
         keep_shapes=None if narrow is None else (
-            lambda plays_vr, plays_flat: narrow_to(lambda: narrow(plays_vr, plays_flat))),
+            lambda plays_vr, plays_flat: narrow_to(
+                lambda: narrow(plays_vr, plays_flat),
+                says=PROJECTION.flash((plays_flat, plays_vr)))),
         play_file=selection.play,
         flick_flip=FlickFlip(metadata_root),
     )
@@ -176,8 +181,9 @@ def build_genau_engine(
         apply_runtime_command(LOCK_ON, controls)
         say_no_other_flicks()
 
-    def narrow_to(scan: Callable[[], list[Path]]) -> None:
-        _narrow(selection, scan, log, nothing_left=holding_what_is_on_screen)
+    def narrow_to(scan: Callable[[], list[Path]], *, says: str = "") -> None:
+        _narrow(selection, scan, log, nothing_left=holding_what_is_on_screen,
+                kept=lambda: say(says) if says else None)
 
     selection.set_current_flick(selection.current_path)
     return GenauEngine(controls=controls, controller=controller, renderer=renderer,
@@ -200,10 +206,12 @@ def _reorder(selection: FlickSelectionController, rescan: Rescan, recent: bool,
 
 
 def _narrow(selection: FlickSelectionController, scan: Callable[[], list[Path]],
-            log: logging.Logger, *, nothing_left: Callable[[], None]) -> None:
+            log: logging.Logger, *, nothing_left: Callable[[], None],
+            kept: Callable[[], object]) -> None:
     flicks = _rescanned(scan, log)
     if flicks:
         selection.narrow(flicks)
+        kept()
     elif flicks is not None:
         nothing_left()
 

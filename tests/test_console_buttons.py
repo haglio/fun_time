@@ -29,10 +29,6 @@ from shared_ui.icon_geometry import RENAMED_MARKS, glyph_names
 
 from fun_time import console_buttons
 from fun_time.console_buttons import (
-    CLIPS_ICON,
-    FLAT_ICON,
-    FULL_ICON,
-    VR_ICON,
     MainSlot,
     console_rows,
     osr2_controls,
@@ -40,9 +36,13 @@ from fun_time.console_buttons import (
 )
 from fun_time.content import Noun
 from fun_time.funestra_buttons import LATEST_ICON
+from fun_time.inclusion_pairs import LENGTH, PROJECTION
 from fun_time.osr2_section import take_osr2_button
 from fun_time.room_funestras import RoomFunestra
 from tests.symbol_face import typed_in_the_symbol_face
+
+FLAT_ICON, VR_ICON = PROJECTION.first.mark, PROJECTION.second.mark
+CLIPS_ICON, FULL_ICON = LENGTH.first.mark, LENGTH.second.mark
 
 _MINUS, _PLUS = "−", "+"
 

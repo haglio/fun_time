@@ -26,6 +26,7 @@ class MainListBuild:
     main_funestra_cmd_file: Path
     on_screen: str = ""
     start_at_top: bool = False
+    says: str = ""
 
     def run(self) -> None:
         written = self.main_list.write(self.settings, on_screen=self.on_screen,
@@ -38,6 +39,8 @@ class MainListBuild:
             verbs.append(play_file(scripted_item(written.videos[0], self.main_list.metadata_root)))
         for verb in verbs:
             append_command(Path(self.main_funestra_cmd_file), verb)
+        if self.says and not written.nothing_left:
+            notice(logger, self.says, source=SOURCE_MAIN)
 
     def replacing(self, waiting: MainListBuild) -> MainListBuild:
         return replace(self, start_at_top=self.start_at_top or waiting.start_at_top)

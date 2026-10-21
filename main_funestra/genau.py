@@ -88,6 +88,7 @@ class Genau:
             rescan=self._rescan,
             narrow=narrow,
             say_no_other_flicks=self._say_no_other_flicks,
+            say=self._say,
             condemned_to=lambda flick: weird_folder_for(flick, self._flicks_folder),
             set_volume=self._the_rooms_level_is_the_funestras,
             stop_event=stop_event,
@@ -155,6 +156,10 @@ class Genau:
     def _say_no_other_flicks(self) -> None:
         if self._notices is not None:
             self._notices.say(no_other_flicks(), level=NoticeLevel.WARNING)
+
+    def _say(self, words: str) -> None:
+        if self._notices is not None:
+            self._notices.say(words, level=NoticeLevel.NOTICE)
 
     def _scan(self) -> list[Path]:
         return self._favorites_of(self._browsed())

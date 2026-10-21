@@ -1418,6 +1418,11 @@ class TestWhatASpokenCommandFlashes:
         with patch.object(DispatchLoopRunner, "_handle_genaumacher_save"):
             assert self._flashed(tmp_path, spoken, [WindowOp(op="save_clip")]) == []
 
+    def test_a_narrowing_that_says_its_words_where_it_is_done_says_nothing_now(self, tmp_path):
+        spoken = format_spoken_command("main_player_length_clips", spoken_at=1.0, said="clips")
+
+        assert self._flashed(tmp_path, spoken, [WindowOp(op=Op.NARROWING_ANSWERS)]) == []
+
     def test_a_pressed_command_flashes_only_what_it_says_itself(self, tmp_path):
         assert self._flashed(tmp_path, "landscape_next") == []
 

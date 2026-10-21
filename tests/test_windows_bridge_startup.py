@@ -364,8 +364,7 @@ def test_seed_startup_states_gives_kino_the_window_for_a_fresh_session(tmp_path:
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd)
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SET_VOLUME 100 0"]
-    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0",
-                                          "SET_LENGTH_MODE mixed"]
+    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
 def _main_funestra_verbs(tmp_path: Path) -> list[str]:
@@ -383,8 +382,7 @@ def test_seed_startup_states_gives_genau_the_window_for_a_genau_session(tmp_path
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="genau")
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SET_VOLUME 100 0"]
-    assert _main_funestra_verbs(tmp_path) == ["SHOW genau", "SET_VOLUME 100 0", "SET_F_MODE 0",
-                                          "SET_LENGTH_MODE mixed"]
+    assert _main_funestra_verbs(tmp_path) == ["SHOW genau", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
 def test_seed_startup_states_holds_every_funestra_for_the_reveal(tmp_path: Path):
@@ -430,8 +428,7 @@ def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path
     _seed_startup_states(tmp_path, audio_volume_file=volume_file)
 
     assert read_volume(volume_file) == MAX_VOLUME
-    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0",
-                                          "SET_LENGTH_MODE mixed"]
+    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
 def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: Path):
@@ -491,7 +488,7 @@ def test_seed_startup_states_tells_main_funestra_what_its_list_is_narrowed_to(tm
                                                                length=LengthMode.CLIPS))
 
     assert _main_funestra_verbs(tmp_path) == [
-        "SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 1", "SET_LENGTH_MODE clips"]
+        "SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 1"]
 
 
 def _start_core_session_kwargs(tmp_path: Path) -> dict:

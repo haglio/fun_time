@@ -85,10 +85,11 @@ _OPS_WITH_NO_WINDOWS = frozenset({
 # Funestras back from a hosted app is file work on the Funestras' own channels, as
 # is following a main lock to what the main slot's Funestra says it holds, and
 # the line that says a spoken command was ignored, which the loop writes in
-# place of what was heard.
+# place of what was heard, and the words a narrowing of the Main Funestra's
+# browse says where it is done.
 _OPS_THAT_STILL_ACT = frozenset({
     Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS, Op.SAVE_CLIP, Op.OPEN_RFB_TAB,
-    Op.TAKE_BACK_FUNESTRAS, Op.FOLLOW_THE_LOCK, Op.IGNORED,
+    Op.TAKE_BACK_FUNESTRAS, Op.FOLLOW_THE_LOCK, Op.IGNORED, Op.NARROWING_ANSWERS,
 })
 
 _OPS_A_HEADSET_NEVER_RAISES = frozenset({Op.MAIN_FUNESTRA_ANSWERS})
