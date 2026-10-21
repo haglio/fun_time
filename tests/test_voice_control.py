@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
+from voice_core.speech import HearsSpeech
 
 from fun_time import voice_control
 from fun_time.content import genau_flick_noun
@@ -111,6 +112,12 @@ def test_the_listener_is_handed_a_reader_for_the_phrases_said_in_german(tmp_path
     vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
 
     assert set(vc.engines.second_opinion_in) == {"de"}
+
+
+def test_the_listener_is_handed_a_speech_detector_so_a_loud_room_cannot_hold_words_open(tmp_path):
+    vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+
+    assert isinstance(vc.engines.hears_speech, HearsSpeech)
 
 
 class TestHandleHeard:
