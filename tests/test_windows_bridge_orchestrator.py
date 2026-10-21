@@ -30,6 +30,7 @@ from fun_time.funestra_deaths import FunestraDied, LaunchedFunestra, part_closed
 from fun_time.hosted_contract import NO_HOSTED_VOCABULARY, HostedVocabulary
 from fun_time.loading_cover import open_the_cover
 from fun_time.loading_screen import STALE_TIMEOUT_S
+from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from fun_time.loopback_inbox import PRESS_PORT_FILENAME
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
@@ -3042,6 +3043,61 @@ class TestTheFunestrasStartWhenTheCoverIsGone:
         assert events.index("cover gone") < events.index("Funestras released"), (
             "the Funestras were started while the cover was still up"
         )
+
+
+class TestALoadingScreenSlowerThanTheLaunchsWait:
+    """The launch gives the loading screen a few seconds to put its window up, then
+    goes on without it.  On a loaded machine the screen came up later than that,
+    and the finishing pass, told there was no screen, put every Funestra into the
+    band over it; the settle walk then read the screen as burying them and put
+    them back over it, pass after pass, each time showing through it until the
+    screen took the top back -- and "Finalizing..." stood for the whole walk.
+    """
+
+    SCREEN_PID = 4100
+    SCREEN_HWND = 4101
+
+    def test_the_room_is_banded_under_the_screen_once_it_is_up(self, cfg_factory, tmp_path):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        banded_under: list[int] = []
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        screen = MagicMock(pid=self.SCREEN_PID)
+
+        def fake_popen(cmd, **kwargs):
+            return screen if "loading_screen" in str(cmd) else fake_ahk_proc
+
+        def up_by_the_finishing_pass(pid, title, **_kwargs):
+            return self.SCREEN_HWND if (pid, title) == (
+                self.SCREEN_PID, LOADING_SCREEN_TITLE) else 0
+
+        def the_finishing_pass(_result, *, overlay_hwnd=0, **_kwargs):
+            banded_under.append(overlay_hwnd)
+            return {}
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   side_effect=fake_popen), \
+             patch("fun_time.loading_cover.wait_for_window", return_value=0), \
+             patch("fun_time.loading_cover.find_window_for_process",
+                   side_effect=up_by_the_finishing_pass), \
+             patch("fun_time.windows_bridge_orchestrator._fix_post_loading_windows",
+                   side_effect=the_finishing_pass), \
+             patch("fun_time.windows_bridge_orchestrator.release_the_funestras"), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+            _a_session(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+
+        assert banded_under == [self.SCREEN_HWND]
 
 
 class TestTheRoomOpensOnceVoiceCommandsListen:

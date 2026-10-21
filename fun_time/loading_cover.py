@@ -36,7 +36,7 @@ from .session_handoff import (
     drop_crossing_cover,
     returning_from_a_crossing,
 )
-from .win32 import wait_for_window_by_title
+from .win32 import find_window_for_process, wait_for_window
 from .win32_job import tie_to_this_process
 
 # A child of the orchestrator's own logger: the cover is up before the session
@@ -53,10 +53,12 @@ class LoadingCover:
 
     process: subprocess.Popen | None  # None where a run wants no cover at all
     progress: ProgressReporter
-    hwnd: int
     progress_file: Path
     cancel_file: Path
     turns_back_to: HandoffTarget | None
+
+    def window(self) -> int:
+        return find_window_for_process(self.process.pid, WINDOW_TITLE, include_hidden=True)
 
     def take_it_down(self) -> None:
         """DONE, then hold until the screen is off the monitors: a cover left
@@ -73,7 +75,7 @@ class LoadingCover:
 
 def open_the_cover(state_dir: Path, *, show_overlays: bool, sibling_checkouts: str,
                    cancelable: bool = True) -> LoadingCover:
-    """The loading screen over every monitor, its window resolved."""
+    """The loading screen over every monitor, given WINDOW_WAIT_S to come up."""
     returning = returning_from_a_crossing(state_dir)
     esc_cancels = ("" if not cancelable
                    else DESKTOP.crossing_hint if returning
@@ -86,7 +88,7 @@ def open_the_cover(state_dir: Path, *, show_overlays: bool, sibling_checkouts: s
     if turns_back_to is None:
         cancel_file.unlink(missing_ok=True)
     if not show_overlays:
-        return LoadingCover(None, NullProgress(), 0, progress_file, cancel_file, turns_back_to)
+        return LoadingCover(None, NullProgress(), progress_file, cancel_file, turns_back_to)
 
     progress = PhaseProgress(progress_file, cancel_file=cancel_file, hint=esc_cancels)
     progress_file.parent.mkdir(parents=True, exist_ok=True)
@@ -104,16 +106,12 @@ def open_the_cover(state_dir: Path, *, show_overlays: bool, sibling_checkouts: s
     )
     tie_to_this_process(loading_proc)
     logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
-    overlay_hwnd = wait_for_window_by_title(
-        WINDOW_TITLE, timeout_s=WINDOW_WAIT_S, exact=True, include_hidden=True,
-    )
-    if overlay_hwnd:
+    cover = LoadingCover(loading_proc, progress, progress_file, cancel_file, turns_back_to)
+    if overlay_hwnd := wait_for_window(cover.window, WINDOW_WAIT_S):
         logger.info("Loading cover resolved (hwnd=%d)", overlay_hwnd)
     else:
-        logger.warning("The loading cover's window did not appear; startup "
-                       "will show through whatever it raises")
+        logger.warning("The loading cover's window was not up after %.0fs; the launch "
+                       "goes on while it comes up", WINDOW_WAIT_S)
     # Handed over here, not at the reveal, which it would sit on top of.
     drop_crossing_cover(state_dir)
-    return LoadingCover(
-        loading_proc, progress, overlay_hwnd, progress_file, cancel_file, turns_back_to,
-    )
+    return cover

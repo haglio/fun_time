@@ -222,10 +222,16 @@ def wait_for_window_by_title(
     from the interpreter PID that owns the window).  *include_hidden* is
     forwarded to :func:`find_window_by_title` for SW_HIDE'd windows.
     """
+    return wait_for_window(
+        lambda: find_window_by_title(title, exact=exact, include_hidden=include_hidden),
+        timeout_s,
+    )
+
+
+def wait_for_window(find: Callable[[], int], timeout_s: float) -> int:
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        hwnd = find_window_by_title(title, exact=exact, include_hidden=include_hidden)
-        if hwnd:
+        if hwnd := find():
             return hwnd
         time.sleep(0.1)
     return 0
