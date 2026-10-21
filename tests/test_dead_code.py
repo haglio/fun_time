@@ -359,7 +359,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # 5907 on 2026-10-21: which of the library's videos belong together is said
 # once, in funestra, and the notes on the fields a family is built from went
 # with the rule.
-MAX_PROSE_LINES = 5907
+# 5901 on 2026-10-21: the Main Funestra's three pairs of inclusion buttons
+# became one shape, and the notes on what each pair said, and where, went with
+# their separate code.
+MAX_PROSE_LINES = 5901
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
