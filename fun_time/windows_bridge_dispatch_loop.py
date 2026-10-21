@@ -15,6 +15,7 @@ from pathlib import Path
 
 from app_support import osr2_device
 from app_support.file_channel import consume_command_file, read_flag
+from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import force_foreground_window, window_exists
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, play_file
@@ -22,6 +23,7 @@ from funestra.modes import NoticeLevel, read_mode
 from funestra.playlist import PlaylistItem
 
 from .aiming import resolve_active_funestra_command
+from .arrivals import keep_looking
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log
 from .command_dispatch import (
@@ -60,6 +62,7 @@ from .genaumacher_save import save_clip_session
 from .headset_power import the_headset_is_ready
 from .hud_feed import HudFeed
 from .hud_transport import HudPublisher
+from .latest_arrivals import LatestArrivals
 from .library_browser import browse_library
 from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
 from .main_list_builds import BuildsOffTheLoop
@@ -302,6 +305,7 @@ class DispatchLoopRunner:
             genau_status_file=config.genau_status_file,
             origenerator_cmd_file=config.origenerator_cmd_file,
         )
+        self.latest_arrivals = LatestArrivals(config)
 
     def _record_what_the_funestras_hold(self) -> None:
         now = time.monotonic()
@@ -402,6 +406,7 @@ class DispatchLoopRunner:
             if self.dashboard_enabled:
                 self._update_dashboard()
         self.bring_the_funestras_home(now=now)
+        self.latest_arrivals.deliver(self.state, coming_home=self._coming_home)
         self.gallery_follows_genau.sync()
         self.watch.sample_due(now=now, paused=self.state.omni_paused,
                               hosted=tuple(funestra for funestra in RoomFunestra.SATELLITES
@@ -943,6 +948,8 @@ class DispatchLoopRunner:
         self._log_topmost_state("startup")
         if self.press_and_caret_watch is not None:
             self.press_and_caret_watch.start()
+        start_daemon_thread(target=keep_looking, args=(self.latest_arrivals.look, self._stop),
+                            name="latest-arrivals")
         last_wall = time.time()
         while not self._stop.is_set():
             now = time.time()

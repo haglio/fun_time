@@ -46,6 +46,7 @@ class GenauEngine:
     renderer: FlickRenderController
     driver: RobotHandTCodeDriver
     narrow: Callable[[Callable[[], list[Path]]], None]
+    play_next: Callable[[Path], None]
 
     @property
     def current_flick(self) -> Path | None:
@@ -180,7 +181,7 @@ def build_genau_engine(
 
     selection.set_current_flick(selection.current_path)
     return GenauEngine(controls=controls, controller=controller, renderer=renderer,
-                       driver=driver, narrow=narrow_to)
+                       driver=driver, narrow=narrow_to, play_next=selection.play_next)
 
 
 def _rescanned(rescan: Callable[[], list[Path]], log: logging.Logger) -> list[Path] | None:

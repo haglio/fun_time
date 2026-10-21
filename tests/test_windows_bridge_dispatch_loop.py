@@ -26,6 +26,7 @@ from voice_core.listening import Heard
 
 from fun_time import load_config
 from fun_time.aiming import resolve_active_funestra_command
+from fun_time.arrivals import keep_looking
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
@@ -1810,6 +1811,32 @@ class TestAClickIntoATextField:
         runner.close()
 
         assert watch.stopped
+
+
+class TestWhatArrivesInTheLibrary:
+    def test_the_libraries_are_looked_at_from_a_thread_of_their_own_for_as_long_as_the_loop_runs(
+            self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.stop()
+
+        with patch("fun_time.windows_bridge_dispatch_loop.start_daemon_thread") as start:
+            runner.run()
+
+        looking = start.call_args.kwargs
+        assert looking["target"] is keep_looking
+        assert looking["args"] == (runner.latest_arrivals.look, runner._stop)
+
+    def test_each_tick_hands_it_to_the_room_holding_the_satellites_on_their_way_home(
+            self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.expect_the_funestras_home((RoomFunestra.PORTRAIT,), now=time.monotonic() + 3600)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.let_go_since", return_value=False), \
+             patch.object(runner.latest_arrivals, "deliver") as deliver:
+            runner.tick()
+
+        assert deliver.call_args.args == (runner.state,)
+        assert set(deliver.call_args.kwargs["coming_home"]) == {RoomFunestra.PORTRAIT}
 
 
 class TestModeSwitchVisibility:

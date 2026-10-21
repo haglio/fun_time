@@ -442,6 +442,43 @@ def test_a_second_cache_holds_its_own_indexes(tmp_path: Path):
         "portrait", paths_supplier=list, metadata_root=metadata_root)
 
 
+def test_a_clip_learned_after_the_build_stands_in_its_groups_as_if_built_in(tmp_path: Path):
+    media_root, metadata_root, paths = _library(tmp_path, {
+        "subject1_zeta": _i2v_meta(action="Zeta Massage", video_seed="1"),
+        "subject1_alpha": _i2v_meta(action="Alpha", video_seed="2"),
+        "subject2_alpha": _i2v_meta(action="Alpha", video_seed="3", image_overrides={"seed": "9"}),
+    })
+    index = build_group_index([paths["subject1_zeta"], paths["subject2_alpha"]], metadata_root)
+
+    index.learn(paths["subject1_alpha"], metadata_root)
+
+    assert index == build_group_index(paths.values(), metadata_root)
+
+
+def test_a_cache_learns_a_clip_into_the_index_it_holds_for_its_library_without_a_rescan(
+        tmp_path: Path):
+    media_root, metadata_root, paths = _library(tmp_path, {
+        "known": _i2v_meta(action="Alpha", video_seed="1"),
+        "arrived": _i2v_meta(action="Zeta Massage", video_seed="2"),
+    })
+    cache, scans = GroupIndexCache(), []
+
+    def supplier() -> list[str]:
+        scans.append(1)
+        return [paths["known"]]
+
+    held = cache.index_for("portrait", paths_supplier=supplier, metadata_root=metadata_root)
+    cache.learn("portrait", paths["arrived"], metadata_root)
+    cache.learn("landscape", paths["arrived"], metadata_root)
+
+    assert held.contains(paths["arrived"])
+    assert cache.index_for("portrait", paths_supplier=supplier, metadata_root=metadata_root,
+                           must_contain=paths["arrived"]) is held
+    assert len(scans) == 1
+    assert cache.index_for("landscape", paths_supplier=list,
+                           metadata_root=metadata_root).entries == {}
+
+
 # --- attribute filtering: haystack + query matching ------------------------
 
 def test_filter_haystack_is_the_recorded_act_lowercased():

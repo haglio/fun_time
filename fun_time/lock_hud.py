@@ -512,9 +512,8 @@ def build_satellite_panel(
 ) -> HudPanel:
     index: GroupIndex | None = None
     if inputs.current:
-        # must_contain=None: read the up-front index (see prime_group_indexes),
-        # never a per-clip rebuild — the library does not change during a session,
-        # so the map is drawn from memory the instant the clip changes.
+        # The up-front index, never a per-clip rebuild: what arrives is learned into
+        # it as it is put up next (fun_time.latest_arrivals).
         sources = inputs.sources
         index = cached_group_index(
             sources,
@@ -530,10 +529,8 @@ def build_satellite_panel(
 
 
 def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) -> None:
-    """Build both satellites' group indexes up front — under the loading screen,
-    before the first clip is drawn — so the map is instant on the first refresh
-    and no later refresh pays for a rebuild.  The library is fixed for the run,
-    so one build is enough (a Latest reload is what would extend it)."""
+    """Build both satellites' group indexes under the loading screen, so the map
+    is instant on the first refresh and no later refresh pays for a rebuild."""
     for source in sources:
         if source:
             cached_group_index(
