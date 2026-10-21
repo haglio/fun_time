@@ -4,7 +4,7 @@
 app-support @ git+https://github.com/haglio/app_support@v0.1.247
 shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.220
 funestra @ git+https://github.com/haglio/funestra@v0.1.546
-voice-core @ git+https://github.com/haglio/voice_core@v0.1.64
+voice-core @ git+https://github.com/haglio/voice_core@v0.1.65
 numpy
 opencv-python
 pillow
