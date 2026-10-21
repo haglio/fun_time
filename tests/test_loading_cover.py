@@ -8,7 +8,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from app_support import loading_screen
 
+from fun_time import loading_cover, win32
 from fun_time.loading_cover import open_the_cover
+from fun_time.loading_screen import WINDOW_TITLE
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     PROGRESS_FILENAME,
@@ -17,11 +19,14 @@ from fun_time.overlay_progress import (
 )
 from fun_time.session_handoff import (
     DESKTOP,
+    STARTUP_TIMEOUT_S,
     VR,
+    crossing_progress_path,
     drop_crossing_cover,
     raise_crossing_cover,
     returning_from_a_crossing,
 )
+from tests.made_up_clocks import SleepDrivenClock
 
 
 def _opened_cover(state_dir, *, cancelable=True, popen=None):
@@ -199,3 +204,71 @@ class TestEscOnTheWayBackFromACancelledCrossing:
         assert returning_from_a_crossing(tmp_path), (
             "DONE is the other session's word that it is up, not a deletion"
         )
+
+
+@pytest.mark.real_startup_waits
+class TestTheWayBackFromVr:
+    """Leaving VR, "Returning to Fun Time..." stands over the monitors until the
+    loading screen is up to take over from it.  The launch gives the loading
+    screen a few seconds; on a busy computer it came up later than that, and
+    "Returning to Fun Time..." had gone by then, so the desktop showed between
+    the two.
+    """
+
+    @pytest.fixture
+    def clock(self, monkeypatch) -> SleepDrivenClock:
+        clock = SleepDrivenClock()
+        monkeypatch.setattr(win32, "time", clock)
+        return clock
+
+    @staticmethod
+    def _a_screen_seen_from(clock: SleepDrivenClock, seconds: float, monkeypatch) -> None:
+        """Its window exists before it is shown, and counts only once it can be seen."""
+        def its_window(_pid, title, *, include_hidden=False) -> int:
+            return 77 if title == WINDOW_TITLE and (include_hidden or clock.now >= seconds) else 0
+
+        monkeypatch.setattr(loading_cover, "find_window_for_process", its_window)
+
+    @staticmethod
+    def _launched(state_dir: Path) -> None:
+        with patch("fun_time.loading_cover.subprocess.Popen", MagicMock()):
+            open_the_cover(state_dir, show_overlays=True, sibling_checkouts="")
+
+    def test_returning_to_fun_time_stays_up_until_a_late_loading_screen_can_be_seen(
+            self, tmp_path, clock, monkeypatch):
+        raise_crossing_cover(tmp_path, DESKTOP)
+        seen_from = loading_cover.WINDOW_WAIT_S + 3.0
+        self._a_screen_seen_from(clock, seen_from, monkeypatch)
+
+        self._launched(tmp_path)
+
+        assert parse_progress(crossing_progress_path(tmp_path).read_text(encoding="utf-8")).done
+        assert seen_from <= clock.now < seen_from + 1.0, (
+            f"handed over at {clock.now:.1f}s, to a loading screen seen from {seen_from:.1f}s")
+
+    def test_a_launch_with_nothing_to_hand_over_waits_only_the_usual_few_seconds(
+            self, tmp_path, clock, monkeypatch):
+        """Nothing on the monitors is waiting on the loading screen then, and the
+        launch's own work is held for as long as it waits."""
+        self._a_screen_seen_from(clock, loading_cover.WINDOW_WAIT_S + 3.0, monkeypatch)
+
+        self._launched(tmp_path)
+
+        assert clock.now == pytest.approx(loading_cover.WINDOW_WAIT_S, abs=0.2)
+
+    def test_a_loading_screen_never_seen_holds_the_way_back_only_so_long(
+            self, tmp_path, clock, monkeypatch):
+        raise_crossing_cover(tmp_path, DESKTOP)
+        self._a_screen_seen_from(clock, float("inf"), monkeypatch)
+
+        self._launched(tmp_path)
+
+        assert parse_progress(crossing_progress_path(tmp_path).read_text(encoding="utf-8")).done
+        assert clock.now == pytest.approx(loading_cover.WINDOW_WAIT_UNDER_A_CROSSING_S, abs=0.2)
+
+
+def test_the_way_back_leaves_fun_time_most_of_the_time_the_crossing_gives_it():
+    """The crossing calls itself failed, and says so in an alert, when the
+    arriving Fun Time has not reported in within STARTUP_TIMEOUT_S -- and the
+    wait for the loading screen comes before that report."""
+    assert loading_cover.WINDOW_WAIT_UNDER_A_CROSSING_S <= STARTUP_TIMEOUT_S / 2

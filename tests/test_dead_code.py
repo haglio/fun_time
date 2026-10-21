@@ -364,7 +364,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # their separate code.
 # 5897 the same day: voice alone holds what is said, by when it was said, so the
 # dispatch loop's note on its own second hold went with that hold.
-MAX_PROSE_LINES = 5897
+# 5896 the same day: the launch waits for its loading screen two ways, each
+# named, and the docstring giving the one wait went.
+MAX_PROSE_LINES = 5896
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
