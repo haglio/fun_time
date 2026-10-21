@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 import pytest
+from funestra import video_families
 
 from fun_time import media_metadata
 
@@ -50,8 +51,8 @@ def test_the_act_and_its_rejection_are_where_evolver_says():
 
 def test_every_field_a_clips_identity_is_built_from_is_promised():
     """These decide which clips are kin; a moved field makes each its own."""
-    assert set(media_metadata.VIDEO_BASE_FIELDS) <= _fields("video")
-    assert set(media_metadata.IMAGE_IDENTITY_FIELDS) <= _fields("source_image")
+    assert set(video_families.VIDEO_BASE_FIELDS) <= _fields("video")
+    assert set(video_families.IMAGE_IDENTITY_FIELDS) <= _fields("source_image")
 
 
 def test_what_a_clip_is_called_and_what_it_was_cut_from_are_promised():
