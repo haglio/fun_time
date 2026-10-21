@@ -9,7 +9,7 @@ from tests.test_windows_bridge_dispatch_loop import make_config
 def test_a_lock_with_nothing_on_screen_holds_nothing(tmp_path):
     config = make_config(tmp_path)
 
-    assert a_lock_holds("", BridgeState(), config) == []
+    assert a_lock_holds("", BridgeState(), config) == (BridgeState(), [])
     assert not config.favs_file.exists()
     assert not watch_stats_path(config.state_dir).exists()
 
