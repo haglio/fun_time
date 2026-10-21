@@ -411,6 +411,7 @@ class TestRunStartupSequence:
             "genau_start_flick": "",
             "genau_latest": False,
             "genau_f_mode": False,
+            "genau_orientations": (True, True),
             "favs_file": str(cfg.paths.favs_file),
             "notice_file": str(cfg.main_funestra_notice_file),
             # Where a press on the Main Funestra's volume control posts its command — the same

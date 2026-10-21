@@ -342,6 +342,12 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["full"] == "main_player_length_full"
         assert VOICE_COMMANDS["mixed"] == "main_player_length_mixed"
 
+    def test_main_funestra_orientation_phrases_say_it_the_way_the_shapes_are_said(self):
+        assert VOICE_COMMANDS["portrait only"] == "main_orientation_portrait"
+        assert VOICE_COMMANDS["landscape only"] == "main_orientation_landscape"
+        assert VOICE_COMMANDS["portrait and landscape"] == "main_orientation_both"
+        assert VOICE_COMMANDS["landscape and portrait"] == "main_orientation_both"
+
     def test_the_length_words_from_before_the_rename_are_gone(self):
         assert "shorts" not in VOICE_COMMANDS
         assert "full length" not in VOICE_COMMANDS

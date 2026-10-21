@@ -2,6 +2,7 @@
 own status, over a fabricated flicks folder whose decode hands back numbered frames."""
 from __future__ import annotations
 
+import json
 import logging
 import os
 import threading
@@ -16,9 +17,11 @@ from fun_time import genau_engine
 from fun_time.arrivals import LOOK_EVERY_S
 from fun_time.content import Noun
 from fun_time.genau_config import GenauSettings
+from fun_time.inclusion_pairs import BOTH
 from fun_time.media_actions import ensure_in_favs
+from fun_time.media_metadata import metadata_path_for
 from main_funestra.genau import Genau, GenauChannels
-from main_funestra.genau_verbs import genau_f_mode
+from main_funestra.genau_verbs import genau_f_mode, genau_orientations
 
 
 class FakeSink:
@@ -93,7 +96,7 @@ class _CondemningInTheBackground:
 class World:
     def __init__(self, tmp_path: Path, *, flicks=("alpha one.mp4", "beta two.mp4", "gamma three.mp4"),
                  favorites=(), f_mode=False, start_flick=None, latest=False, metadata_root=None,
-                 start_thread=_run_now) -> None:
+                 turned=(), orientations=BOTH, start_thread=_run_now) -> None:
         self.favs_file = tmp_path / "favs.csv"
         self.flicks_folder = tmp_path / "flicks"
         self.flat_dir = self.flicks_folder / "2D" / "non_AI"
@@ -104,6 +107,11 @@ class World:
             os.utime(flick, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
         for name in favorites:
             ensure_in_favs(self.favs_file, str(self.flat_dir / name))
+        for name, orientation in turned:
+            sidecar = metadata_path_for(self.flat_dir / name, metadata_root)
+            sidecar.parent.mkdir(parents=True, exist_ok=True)
+            sidecar.write_text(json.dumps({"video": {"orientation": orientation}}),
+                               encoding="utf-8")
         state = tmp_path / "state"
         state.mkdir()
         self.channels = GenauChannels(
@@ -124,6 +132,7 @@ class World:
             latest=latest,
             favs_file=self.favs_file,
             f_mode=f_mode,
+            orientations=orientations,
             metadata_root=metadata_root,
             decode=lambda _path: _frames(),
             start_thread=start_thread,
@@ -273,6 +282,18 @@ class TestWhatArrivesInItsFolder:
 
         assert world.genau.top_block().video == "alpha one"
 
+    def test_with_landscape_left_out_only_a_portrait_flick_comes_up_next(self, tmp_path):
+        world = World(tmp_path, latest=True, metadata_root=tmp_path / "metadata",
+                      turned=(("alpha one.mp4", "portrait"), ("beta two.mp4", "portrait")),
+                      orientations=(True, False))
+        world.genau.set_showing(True)
+
+        (world.flat_dir / "delta four.mp4").write_bytes(b"flick")
+        world.tick(LOOK_EVERY_S)
+        world.send("NEXT")
+
+        assert world.genau.top_block().video == "alpha one"
+
 
 class TestFMode:
     def test_it_keeps_only_the_favorites(self, tmp_path):
@@ -401,3 +422,53 @@ def test_closing_it_closes_the_device_line_and_the_audio_companion(tmp_path):
     world.genau.close()
 
     assert (world.sink.closed, world.notifier.closed) == (True, True)
+
+
+class TestTurnedAsAsked:
+    """The console's portrait and landscape pair, said to Genau on the Main
+    Funestra's channel, over the orientations Evolver measured its flicks in."""
+
+    _TURNED = (("alpha one.mp4", "portrait"), ("beta two.mp4", "landscape"))
+
+    def _world(self, tmp_path, **over) -> World:
+        return World(tmp_path, metadata_root=tmp_path / "metadata", turned=self._TURNED, **over)
+
+    def _shown(self, world: World, steps: int = 3) -> list[str]:
+        shown = []
+        for _step in range(steps):
+            shown.append(world.genau.top_block().video)
+            world.send("NEXT")
+        return shown
+
+    def test_portrait_only_steps_through_the_portrait_flicks_alone(self, tmp_path):
+        world = self._world(tmp_path)
+
+        assert world.genau.apply_command(genau_orientations((True, False))) is True
+
+        assert set(self._shown(world)) == {"alpha one"}
+
+    def test_landscape_only_keeps_the_unmeasured_flicks_too(self, tmp_path):
+        world = self._world(tmp_path)
+
+        world.genau.apply_command(genau_orientations((False, True)))
+
+        assert set(self._shown(world, steps=4)) == {"beta two", "gamma three"}
+
+    def test_it_says_which_orientation_it_kept(self, tmp_path):
+        world = self._world(tmp_path)
+
+        world.genau.apply_command(genau_orientations((True, False)))
+
+        assert world.notices.said[-1] == ("Portrait only", NoticeLevel.NOTICE)
+
+    def test_it_opens_turned_the_way_the_room_left_it(self, tmp_path):
+        world = self._world(tmp_path, orientations=(True, False))
+
+        assert set(self._shown(world)) == {"alpha one"}
+
+    def test_the_favorites_it_keeps_are_the_ones_turned_as_asked(self, tmp_path):
+        world = self._world(tmp_path, favorites=("alpha one.mp4", "beta two.mp4"), f_mode=True)
+
+        world.genau.apply_command(genau_orientations((False, True)))
+
+        assert set(self._shown(world)) == {"beta two"}

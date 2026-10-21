@@ -29,7 +29,14 @@ from .funestra_buttons import (
     transport,
     versions_button,
 )
-from .inclusion_pairs import LENGTH, PROJECTION, Included, InclusionPair, lengths_included
+from .inclusion_pairs import (
+    LENGTH,
+    ORIENTATION,
+    PROJECTION,
+    Included,
+    InclusionPair,
+    lengths_included,
+)
 from .mode_plan import kino_shows
 from .osr2_section import take_osr2_button
 from .room_funestras import RoomFunestra
@@ -50,6 +57,8 @@ class MainSlot:
     shape: str = "sine"
     plays_vr: bool | None = None
     plays_flat: bool | None = None
+    plays_portrait: bool = True
+    plays_landscape: bool = True
     pace_s: int = 0
     length_mode: LengthMode = LengthMode.MIXED
     compilation: str = ""
@@ -143,6 +152,7 @@ def _inclusions(slot: MainSlot) -> tuple[tuple[InclusionPair, Included], ...]:
         shown.append((PROJECTION, (bool(slot.plays_flat), bool(slot.plays_vr))))
     if kino_shows(slot.main_mode):
         shown.append((LENGTH, lengths_included(slot.length_mode)))
+    shown.append((ORIENTATION, (slot.plays_portrait, slot.plays_landscape)))
     return tuple(shown)
 
 

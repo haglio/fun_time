@@ -687,18 +687,21 @@ class TestResumeGenau:
         assert {self._KEPT_IN_THE_ROOMS_STATE[control] for control in resent} == {
             name for name in RESUMED_FIELDS if name.startswith("genau_")
             and name not in ("genau_latest", "genau_plays_vr", "genau_plays_flat",
-                             "genau_favorites_filter")}
+                             "genau_favorites_filter", "genau_plays_portrait",
+                             "genau_plays_landscape")}
 
     def test_what_the_rooms_state_keeps_for_genau_is_remembered(self):
         assert set(self._KEPT_IN_THE_ROOMS_STATE.values()) <= set(RESUMED_FIELDS)
 
-    _KEPT_FOR_ITS_LAUNCH = {"f_mode": "genau_favorites_filter"}
+    _KEPT_FOR_ITS_LAUNCH = {"f_mode": ("genau_favorites_filter",),
+                            "orientations": ("genau_plays_portrait", "genau_plays_landscape")}
 
     def test_every_verb_genau_answers_on_the_main_funestras_channel_comes_back_at_its_launch(self):
         controls = {control.name for control, _ in GENAUS_VERBS_ON_THE_MAIN_FUNESTRA.values()}
 
         assert controls == set(self._KEPT_FOR_ITS_LAUNCH)
-        assert set(self._KEPT_FOR_ITS_LAUNCH.values()) <= set(RESUMED_FIELDS)
+        assert {field for fields in self._KEPT_FOR_ITS_LAUNCH.values() for field in fields} <= set(
+            RESUMED_FIELDS)
 
 
 class TestOpeningTheMainList:

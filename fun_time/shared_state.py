@@ -109,6 +109,8 @@ class BridgeState:
     # ones, or both -- the only answer outside the headset, holding one shape.
     main_plays_vr: bool = True
     main_plays_flat: bool = True
+    main_plays_portrait: bool = True
+    main_plays_landscape: bool = True
     # Genau's own, kept apart from ``main_latest`` even though the two Funestras
     # share the main slot: ``main_latest`` describes the playlist file we built
     # for the Main Funestra, and a Genau reorder rewrites nothing of the Main Funestra's.  One flag for both
@@ -116,6 +118,8 @@ class BridgeState:
     genau_latest: bool = False
     genau_plays_vr: bool = True
     genau_plays_flat: bool = True
+    genau_plays_portrait: bool = True
+    genau_plays_landscape: bool = True
     genau_favorites_filter: bool = False
     # The Funestra most recently navigated, as a :class:`Funestra` slot.  Any command
     # naming a Funestra, or a main next/prev, updates it; the player-agnostic "active_*"

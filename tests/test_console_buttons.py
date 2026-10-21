@@ -36,13 +36,14 @@ from fun_time.console_buttons import (
 )
 from fun_time.content import Noun
 from fun_time.funestra_buttons import LATEST_ICON
-from fun_time.inclusion_pairs import LENGTH, PROJECTION
+from fun_time.inclusion_pairs import LENGTH, ORIENTATION, PROJECTION
 from fun_time.osr2_section import take_osr2_button
 from fun_time.room_funestras import RoomFunestra
 from tests.symbol_face import typed_in_the_symbol_face
 
 FLAT_ICON, VR_ICON = PROJECTION.first.mark, PROJECTION.second.mark
 CLIPS_ICON, FULL_ICON = LENGTH.first.mark, LENGTH.second.mark
+PORTRAIT_ICON, LANDSCAPE_ICON = ORIENTATION.first.mark, ORIENTATION.second.mark
 
 _MINUS, _PLUS = "−", "+"
 
@@ -710,3 +711,51 @@ class TestFaces:
 
     def test_the_bin_takes_something_away(self):
         assert _button(MainSlot(main_mode=MainMode.GENAU), "genau_weird_flick").danger is True
+
+
+class TestOrientationPair:
+    """Portrait and landscape, the same way 2D/VR and clips/full let theirs in."""
+
+    def _pair(self, main_mode=MainMode.KINO, *, things=None, **over) -> tuple[Button, ...]:
+        rows = console_rows(MainSlot(main_mode=main_mode, latest=False, **over))
+        by_face = {b.glyph: b for row in rows for b in row
+                   if b.command.startswith("main_orientation")}
+        return tuple(by_face[face] for face in (PORTRAIT_ICON, LANDSCAPE_ICON) if face in by_face)
+
+    def test_they_wear_the_familys_portrait_and_landscape_marks(self):
+        assert (shared_mark_name(PORTRAIT_ICON), shared_mark_name(LANDSCAPE_ICON)) == (
+            "portrait", "landscape")
+        assert {"portrait", "landscape"} <= set(glyph_names())
+
+    def test_both_lit_and_each_press_asks_for_the_other_alone(self):
+        portrait, landscape = self._pair()
+
+        assert (portrait.lit, landscape.lit) == (True, True)
+        assert (portrait.command, landscape.command) == (
+            "main_orientation_landscape", "main_orientation_portrait")
+
+    def test_the_dark_one_asks_for_both_and_the_last_lit_one_for_neither(self):
+        portrait, landscape = self._pair(plays_portrait=False)
+
+        assert (portrait.lit, landscape.lit) == (False, True)
+        assert (portrait.command, landscape.command) == (
+            "main_orientation_both", "main_orientation_none")
+
+    def test_they_sit_right_after_clips_and_full_in_a_group_of_their_own(self):
+        placed = place_rows(console_rows(MainSlot(main_mode=MainMode.KINO, latest=False)), x=0, y=0)
+        rect_of = {b.glyph: rect for rect, b in placed}
+        full, portrait, landscape = rect_of[FULL_ICON], rect_of[PORTRAIT_ICON], rect_of[LANDSCAPE_ICON]
+
+        assert portrait[0] - (full[0] + full[2]) == GROUP_GAP
+        assert landscape[0] - (portrait[0] + portrait[2]) == GAP
+
+    def test_they_name_the_videos_and_the_flicks_where_the_other_pairs_do(self, pips):
+        assert {b.tooltip for b in self._pair()} == {
+            "Including portrait videos", "Including landscape videos"}
+        assert {b.tooltip for b in self._pair(MainMode.GENAU, plays_landscape=False)} == {
+            "Including portrait pips", "Not including landscape pips"}
+
+    def test_inside_a_compilation_they_read_as_held(self):
+        pair = self._pair(compilation="Volume 6")
+
+        assert pair and all(b.remembered and not b.lit for b in pair)

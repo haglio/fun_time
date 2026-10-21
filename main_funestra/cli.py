@@ -15,6 +15,7 @@ from pathlib import Path
 from app_support import ports
 from funestra.play_points import play_points_filename
 from funestra.playlist import PlaylistItem, read_playlist
+from shared_ui.orientation import ORIENTATIONS
 
 from fun_time.win32_desktop import on_hidden_desktop
 
@@ -88,6 +89,8 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                    help="Browse Genau's flicks newest-first from the start")
     p.add_argument("--favs-file", type=Path, default=None,
                    help="The favorites a lock puts a flick in, which F-Mode keeps")
+    p.add_argument("--genau-orientations", nargs="*", choices=ORIENTATIONS, default=None,
+                   help="The orientations of flick Genau plays; absent is both")
     p.add_argument("--genau-f-mode", action="store_true", default=False,
                    help="Browse only the favorite flicks from the start")
     p.add_argument("--notify-host", default=audio_companion.get("host", "127.0.0.1"),

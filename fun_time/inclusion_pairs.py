@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from funestra.hud_button import Button
 from funestra.hud_marks import shared_mark
 from funestra.modes import LengthMode
+from shared_ui.orientation import LANDSCAPE, PORTRAIT
 
 from .funestra_buttons import lit_or_remembered
 
@@ -81,6 +82,13 @@ LENGTH = InclusionPair(
     Kind("Full", shared_mark("full"), "full videos"),
     {(True, True): "main_player_length_mixed", (True, False): "main_player_length_clips",
      (False, True): "main_player_length_full", (False, False): "main_player_length_none"},
+)
+
+ORIENTATION = InclusionPair(
+    Kind("Portrait", shared_mark(PORTRAIT), "portrait {things}"),
+    Kind("Landscape", shared_mark(LANDSCAPE), "landscape {things}"),
+    {(True, True): "main_orientation_both", (True, False): "main_orientation_portrait",
+     (False, True): "main_orientation_landscape", (False, False): "main_orientation_none"},
 )
 
 _LENGTHS: dict[Included, LengthMode] = {

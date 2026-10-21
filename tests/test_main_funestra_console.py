@@ -252,6 +252,13 @@ def test_the_hud_title_in_genau_mode_names_genaus_own_narrowing():
     assert _payload(main_mode=MainMode.GENAU, **narrowed).filters == ("2D",)
 
 
+def test_the_hud_title_names_the_orientation_last_in_either_mode():
+    assert _payload(length_mode=LengthMode.CLIPS, plays_landscape=False).filters == (
+        "Clips", "Portrait")
+    assert _payload(main_mode=MainMode.GENAU, plays_landscape=False,
+                    genau_plays_portrait=False).filters == ("Landscape",)
+
+
 def test_the_published_text_carries_the_rows_the_funestra_draws():
     payload = _payload(main_mode=MainMode.GENAU, broker=True)
 

@@ -15,11 +15,14 @@ from funestra.flick_decode import load_flick_frames
 from funestra.flick_folder import flat_flicks_in, scan_flicks, weird_folder_for
 from funestra.flick_picture import Picture
 from funestra.modes import NoticeLevel
+from shared_ui.orientation import PORTRAIT
 
 from fun_time.arrivals import LOOK_EVERY_S, Arrivals
 from fun_time.content import no_other_flicks
 from fun_time.genau_config import GenauSettings
 from fun_time.genau_engine import Narrow, build_genau_engine
+from fun_time.inclusion_pairs import BOTH, ORIENTATION, Included
+from fun_time.media_metadata import recorded_for, recorded_orientation
 from fun_time.modes import keep_favorites, videos_in
 
 from .genau_verbs import apply_command as answer_genaus_verb
@@ -52,6 +55,7 @@ class Genau:
         latest: bool = False,
         favs_file: Path | None = None,
         f_mode: bool = False,
+        orientations: Included = BOTH,
         metadata_root: Path | None = None,
         narrow: Narrow | None = None,
         stop_event: threading.Event | None = None,
@@ -65,6 +69,8 @@ class Genau:
         self._recent = latest
         self._favs_file = favs_file
         self._f_mode = f_mode
+        self._orientations = orientations
+        self._metadata_root = metadata_root
         self._notifier = notifier
         self._notices = notices
         self._frame = None
@@ -73,9 +79,10 @@ class Genau:
         self._showing = False
         self._clock = clock
         browsed = self._browsed()
-        kept = self._favorites_of(browsed)
+        turned = self._turned_as_asked(browsed)
+        kept = self._favorites_of(turned)
         self._engine = build_genau_engine(
-            flicks=kept or browsed,
+            flicks=kept or turned or browsed,
             settings=settings,
             command_file=channels.command,
             paused_file=channels.paused,
@@ -111,6 +118,10 @@ class Genau:
     def keep_favorites(self, on: bool) -> None:
         self._f_mode = on
         self._engine.narrow(self._scan)
+
+    def keep_orientations(self, orientations: Included) -> None:
+        self._orientations = orientations
+        self._engine.narrow(self._scan, says=ORIENTATION.flash(orientations))
 
     def tick(self) -> None:
         self._put_up_what_arrived()
@@ -162,7 +173,18 @@ class Genau:
             self._notices.say(words, level=NoticeLevel.NOTICE)
 
     def _scan(self) -> list[Path]:
-        return self._favorites_of(self._browsed())
+        return self._kept_of(self._browsed())
+
+    def _kept_of(self, flicks: list[Path]) -> list[Path]:
+        return self._favorites_of(self._turned_as_asked(flicks))
+
+    def _turned_as_asked(self, flicks: list[Path]) -> list[Path]:
+        if self._orientations == BOTH:
+            return flicks
+        portrait, landscape = self._orientations
+        return [flick for flick in flicks
+                if (portrait if recorded_orientation(recorded_for(flick, self._metadata_root))
+                    == PORTRAIT else landscape)]
 
     def _browsed(self) -> list[Path]:
         return self._shaped(scan_flicks(self._folders(),
@@ -202,7 +224,7 @@ class _GenausFlicks:
 
     def lets_through(self, paths: list[str]) -> list[str]:
         flicks = [Path(path) for path in paths]
-        return [str(flick) for flick in self.genau._favorites_of(self.genau._shaped(flicks))]
+        return [str(flick) for flick in self.genau._kept_of(self.genau._shaped(flicks))]
 
     def put_up_next(self, path: str) -> None:
         self.genau._engine.play_next(Path(path))

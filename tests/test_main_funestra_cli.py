@@ -181,6 +181,7 @@ FUN_TIME_ARGV = [
     "--genau-latest",
     "--favs-file", "C:/example/library/favs.csv",
     "--genau-f-mode",
+    "--genau-orientations", "portrait",
 ]
 
 # What each of those has to land as.  The type matters as much as the value:
@@ -212,6 +213,7 @@ LANDS_AS = {
     "genau_latest": True,
     "favs_file": Path("C:/example/library/favs.csv"),
     "genau_f_mode": True,
+    "genau_orientations": ["portrait"],
 }
 
 
@@ -308,6 +310,7 @@ EVERY_FLAG_ARGV = [
     "--genau-latest",
     "--favs-file", "C:/example/library/favs.csv",
     "--genau-f-mode",
+    "--genau-orientations", "portrait",
     "--notify-host", "10.0.0.8",
     "--notify-port", "51001",
     "--no-audio",
@@ -344,6 +347,7 @@ EVERY_FLAG_LANDS_AS = {
     "genau_latest": True,
     "favs_file": Path("C:/example/library/favs.csv"),
     "genau_f_mode": True,
+    "genau_orientations": ["portrait"],
     "notify_host": "10.0.0.8",
     "notify_port": 51001,
     "no_audio": True,
@@ -380,6 +384,7 @@ NO_FLAGS_LANDS_AS = {
     "genau_latest": False,
     "favs_file": None,
     "genau_f_mode": False,
+    "genau_orientations": None,
     "notify_host": "127.0.0.1",
     "notify_port": 50556,
     "no_audio": False,
