@@ -41,7 +41,7 @@ Runtime state:
 
 Local runtime data:
 
-- `favs.csv` — favorites CSV written when a satellite is locked
+- `favs.csv` — favorites CSV written whenever something is locked
 - `Fun Time.lnk` — convenience shortcut
 
 ## Recommended project-local paths
@@ -511,12 +511,24 @@ It ranks every stamped clip in the configured library by that weight — "Rising
 
 ## Favorites CSV behavior
 
-When a satellite is locked, the current media item is added to `favs.csv`.
+Every lock adds the item it holds to `favs.csv`, through one routine
+(`fun_time.lock.a_lock_holds`), however it was asked for:
 
-Specifically:
+- a satellite's lock key, its padlock button, or "lock" said to it
+- a double-click on a thumbnail in a satellite's HUD, locked or not
+- a loop button on a video with no siblings, which locks it
+- the Main Funestra's lock in Kino mode, and Genau's in Genau mode
 
-- locking the portrait satellite writes its current item to `favs.csv`
-- locking the landscape satellite writes its current item to `favs.csv`
+The Main Funestra and Genau decide what a press holds, so their item is the one
+each reports holding once it has read the press (`fun_time.lock_follower`). The
+room's own holds — a session reopening locked, a loop left with one video by a
+discard, Genau holding its flick when no shape is left — add nothing.
+
+A lock also counts as a lock in the watch stats, and opens where more of the
+item is made: a video a website made opens that site's page in the Random Favs
+Browser, putting the browser back in its place first when Origenerator holds it,
+and anything else is offered to the hosted Origenerator as `GO_TO|<file>`, which
+comes up over the browser on the item in its folder when it made it.
 
 The CSV contains two columns:
 
@@ -619,9 +631,11 @@ them — plus `portrait_open_slideshow` / `landscape_open_slideshow` (that Funes
 entering its Origenerator mode, which fills it with its base state),
 `portrait_close_slideshow` / `landscape_close_slideshow`, `CLOSE_SLIDESHOWS` (a crossing
 parking the app, which lets go of both), `QUIT` and `RELEASE`, `PORTRAIT_SAY:<phrase>` for a
-spoken command the session heard about one side, and `GO_TO|<flick>` once Genau
-has locked on a flick, which takes the gallery to that flick when the app made
-it. The paused flag freezes its shows for OmniPause. The status file says only
+spoken command the session heard about one side, and `GO_TO|<file>` once a lock
+holds an item no website made (see "Favorites CSV behavior"), which the app
+answers only for an item it made: it asks for its place over the Random Favs
+Browser (`origenerator_activate` on the dashboard's channel) and goes to the item
+in its folder. The paused flag freezes its shows for OmniPause. The status file says only
 that the app is up (`ready=1`), which is what lights every Origenerator button. A
 show the app is asked for on a Funestra still in Kino mode posts
 `portrait_origenerator_activate` / `landscape_origenerator_activate` on the
