@@ -136,12 +136,14 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   sift the dead from the live.
 - **The `.git/agent-merge.lock` is retired here** — the GitHub queue serializes.
 - **The production checkout is the production updater's to move, and only to
-  a commit the main verifier passed.** `main` advances only on origin (via the
+  a commit the main verifier passed, or to a hotfix he asked for.** `main` advances only on origin (via the
   queue). Worktrees update with `git rebase origin/main`; the primary checkout
   moves only when app_support's production updater brings it, libraries first,
   to the commit the main verifier last passed, which it does only while
   nothing of his runs out of this venv or Origenerator's (`[tool.haglio.production]`
-  in pyproject.toml), so never pull it, reset it or merge into it yourself.
+  in pyproject.toml), so never pull it, reset it or merge into it yourself. A
+  hotfix reaches it only through the hotfixing skill's route, which runs the
+  checks `[tool.haglio.hotfix]` names.
 - **A red required check** (`.github/workflows/merge-gate.yml`) can't land.
 - **A PR sitting with green checks has stalled in one of two ways, and only
   `isInMergeQueue` tells them apart.** `mergeStateStatus` reads `CLEAN` and
