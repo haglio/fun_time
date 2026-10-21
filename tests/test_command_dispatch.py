@@ -3313,7 +3313,7 @@ def test_leaving_omnipause_brings_the_main_funestra_forward_in_either_mode(
 def test_the_main_funestras_nudge_pair_seeks_the_main_funestra_in_either_mode(
         tmp_path: Path, main_mode: MainMode):
     config = _make_config(tmp_path)
-    _publish_status(config.main_funestra_status_file, duration_ms=60_000)
+    _publish_status(config.main_funestra_status_file, duration_ms=60_000, position_ms=30_000)
     state = _make_state(main_mode=main_mode)
 
     _state, back_ops = dispatch_command("main_nudge_prev", state, config)
@@ -3327,7 +3327,8 @@ def test_a_satellites_nudge_pair_seeks_that_satellite_and_leaves_its_lock_alone(
         tmp_path: Path):
     config = _make_config(tmp_path)
     for funestra in RoomFunestra.SATELLITES:
-        _publish_status(config.satellite(funestra).status_file, duration_ms=60_000)
+        _publish_status(config.satellite(funestra).status_file, duration_ms=60_000,
+                        position_ms=30_000)
     state = _make_state(portrait=SatelliteState(locked=True))
 
     state, forward_ops = dispatch_command("portrait_nudge_next", state, config)
@@ -3359,6 +3360,42 @@ def test_a_ten_second_step_on_a_video_of_ten_seconds_or_shorter_does_nothing_and
     assert [(op.op, op.key, op.source) for op in ops] == [("notice", *notice)]
     assert not config.main_funestra_cmd_file.exists()
     assert _cmds(config, RoomFunestra.PORTRAIT) == []
+
+
+@pytest.mark.parametrize(("command", "status_of", "position_ms", "notice"), [
+    ("portrait_nudge_prev", lambda config: config.satellite(RoomFunestra.PORTRAIT).status_file,
+     6_000, ("Less than 10s into this clip", SOURCE_PORTRAIT)),
+    ("portrait_nudge_next", lambda config: config.satellite(RoomFunestra.PORTRAIT).status_file,
+     54_000, ("Less than 10s left in this clip", SOURCE_PORTRAIT)),
+    ("main_nudge_prev", lambda config: config.main_funestra_status_file,
+     6_000, ("Less than 10s into this video", SOURCE_MAIN)),
+])
+def test_a_ten_second_step_with_less_than_ten_seconds_to_go_stays_put_and_says_why(
+        tmp_path: Path, command, status_of, position_ms, notice):
+    config = _make_config(tmp_path)
+    _publish_status(status_of(config), duration_ms=60_000, position_ms=position_ms)
+
+    _state, ops = dispatch_command(command, _make_state(), config)
+
+    assert [(op.op, op.key, op.source) for op in ops] == [("notice", *notice)]
+    assert not config.main_funestra_cmd_file.exists()
+    assert _cmds(config, RoomFunestra.PORTRAIT) == []
+
+
+@pytest.mark.parametrize(("command", "position_ms", "verb"), [
+    ("portrait_nudge_prev", 10_000, "SEEK_BACK"),
+    ("portrait_nudge_next", 49_999, "SEEK_FWD"),
+])
+def test_a_ten_second_step_with_just_ten_seconds_to_go_still_steps(
+        tmp_path: Path, command, position_ms, verb):
+    config = _make_config(tmp_path)
+    _publish_status(config.satellite(RoomFunestra.PORTRAIT).status_file,
+                    duration_ms=60_000, position_ms=position_ms)
+
+    _state, ops = dispatch_command(command, _make_state(), config)
+
+    assert ops == []
+    assert _cmds(config, RoomFunestra.PORTRAIT) == [verb]
 
 
 # --- main_player record commands ---

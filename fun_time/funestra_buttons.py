@@ -23,6 +23,14 @@ def too_short_to_step(noun: str) -> str:
     return f"this {noun} is 10s or shorter"
 
 
+def too_near_the_start_to_step_back(noun: str) -> str:
+    return f"less than 10s into this {noun}"
+
+
+def too_near_the_end_to_step_forward(noun: str) -> str:
+    return f"less than 10s left in this {noun}"
+
+
 def transport(funestra: str, *, noun: str, longer_than_a_step: bool) -> tuple[Button, ...]:
     too_short = "" if longer_than_a_step else f" ({too_short_to_step(noun)})"
     return (

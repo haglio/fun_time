@@ -114,8 +114,8 @@ def landed_hosting_none(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
 
 
 def test_the_sweep_sends_every_funestra_its_ten_second_steps(landed):
-    """A step is refused on a video of ten seconds or shorter, so the sweep
-    plays a long one on every Funestra; on none, it would never send a step."""
+    """A step is refused with less than ten seconds to go, so the sweep holds
+    every Funestra halfway through a long video; else it would never send one."""
     for channel in ("main_funestra_cmd_file", "portrait_cmd_file", "landscape_cmd_file"):
         assert {"SEEK_FWD", "SEEK_BACK"} <= set(_sent_to(landed, channel)), channel
 
