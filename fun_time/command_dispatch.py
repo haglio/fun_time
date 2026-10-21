@@ -18,6 +18,7 @@ from funestra.console import (
     OSR2_RETRACTED,
 )
 from funestra.file_channel import append_command
+from funestra.funestra_controls import SEEK_STEP_MS
 from funestra.funestra_verbs import (
     LOCK_OFF,
     LOCK_ON,
@@ -35,6 +36,7 @@ from funestra.hud_placement import HudCorner, HudEdge
 from funestra.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
 from funestra.modes import LengthMode, LoopState, SatellitesMode
 from funestra.robot_hand import FULL_INTENSITY
+from funestra.status import FunestraStatus
 
 from main_funestra.controls import longer_than_a_step
 from main_funestra.genau_verbs import genau_f_mode
@@ -54,7 +56,13 @@ from .event_log import (
     SOURCE_SYSTEM,
 )
 from .filter_vocab import decode_filter_command, set_command
-from .funestra_buttons import MAIN_FUNESTRA_NOUN, SATELLITE_NOUN, too_short_to_step
+from .funestra_buttons import (
+    MAIN_FUNESTRA_NOUN,
+    SATELLITE_NOUN,
+    too_near_the_end_to_step_forward,
+    too_near_the_start_to_step_back,
+    too_short_to_step,
+)
 from .funestra_handover import show_f_mode
 from .funestra_status import (
     MainFunestraStatus,
@@ -1611,16 +1619,27 @@ _PLAYHEAD_COMMANDS: dict[str, tuple[RoomFunestra, str]] = {
 }
 
 
+def _why_it_cannot_step(verb: str, status: FunestraStatus, noun: str) -> str | None:
+    if not longer_than_a_step(status.duration_ms):
+        return too_short_to_step(noun)
+    if verb == SEEK_BACK and status.position_ms < SEEK_STEP_MS:
+        return too_near_the_start_to_step_back(noun)
+    if verb == SEEK_FWD and not longer_than_a_step(status.duration_ms - status.position_ms):
+        return too_near_the_end_to_step_forward(noun)
+    return None
+
+
 def _step_through(funestra: RoomFunestra, verb: str, state: BridgeState, config: BridgeConfig,
                   _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if funestra is RoomFunestra.MAIN:
-        duration_ms = read_main_funestra_status(config.main_funestra_status_file).duration_ms
+        status = read_main_funestra_status(config.main_funestra_status_file)
         noun = MAIN_FUNESTRA_NOUN
     else:
-        duration_ms = read_satellite_status(config.satellite(funestra).status_file).duration_ms
+        status = read_satellite_status(config.satellite(funestra).status_file)
         noun = SATELLITE_NOUN
-    if not longer_than_a_step(duration_ms):
-        return state, [WindowOp(op="notice", key=too_short_to_step(noun).capitalize(),
+    cannot = _why_it_cannot_step(verb, status, noun)
+    if cannot is not None:
+        return state, [WindowOp(op="notice", key=cannot.capitalize(),
                                 source=_FUNESTRA_NOTICE_SOURCE[funestra], level=logging.WARNING)]
     if funestra is RoomFunestra.MAIN:
         append_command(config.main_funestra_cmd_file, verb)

@@ -133,8 +133,9 @@ def sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[st
     for status_file in (config.main_funestra_status_file,
                         *(config.satellite(funestra).status_file for funestra in RoomFunestra.SATELLITES)):
         status_file.parent.mkdir(parents=True, exist_ok=True)
-        status_file.write_text("video=C:/v/scene one.mp4\nduration_ms=3600000\n",
-                               encoding="utf-8")
+        status_file.write_text(
+            "video=C:/v/scene one.mp4\nduration_ms=3600000\nposition_ms=1800000\n",
+            encoding="utf-8")
     landed: dict[str, dict[str, list[str]]] = {}
     for main_mode in MAIN_MODES:
         for satellites_mode in satellites_modes:
