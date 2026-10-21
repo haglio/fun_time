@@ -60,7 +60,7 @@ from .funestra_status import (
     read_genau_status,
     read_main_funestra_status,
 )
-from .lock import MARKED_WEIRD, a_lock_holds, build_discard_plan
+from .lock import MARKED_WEIRD, build_discard_plan
 from .main_list import MainListSettings, new_shuffle_seed, next_length_mode
 from .max_intensity import (
     MAX_INTENSITY_COMMAND,
@@ -104,6 +104,7 @@ from .satellite_groups import (
     group_loop,
     is_single_video_loop,
     lock_a_loop_left_with_one_clip,
+    lock_satellite,
     loop_cycle,
     more_seeds,
     navigate_hud,
@@ -280,20 +281,12 @@ def _lock_as_said(
 def _toggle_lock(
     funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    label = RoomFunestra(funestra).label
-    if state.satellite(funestra).locked:
-        send_satellite(config, funestra, LOCK_OFF)
-        send_satellite(config, funestra, NEXT)
-        logger.info("Unlocked %s satellite", label)
-        return state.with_satellite(funestra, locked=False), []
-    current_path = satellite_current(config, funestra)
-    if target_path and not same_video(target_path, current_path):
-        play_video(config, funestra, target_path)
-        logger.info("Lock back-dated to %s (Funestra %d had advanced)", target_path, funestra)
-        current_path = target_path
-    send_satellite(config, funestra, LOCK_ON)
-    logger.info("Locked %s satellite", label)
-    return a_lock_holds(current_path, state.with_satellite(funestra, locked=True), config)
+    if not state.satellite(funestra).locked:
+        return lock_satellite(funestra, state, config, target_path)
+    send_satellite(config, funestra, LOCK_OFF)
+    send_satellite(config, funestra, NEXT)
+    logger.info("Unlocked %s satellite", RoomFunestra(funestra).label)
+    return state.with_satellite(funestra, locked=False), []
 
 
 def _discard(
@@ -581,15 +574,8 @@ def _dispatch_lock_action(
 def _dispatch_lock_video(
     funestra: RoomFunestra, path: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Double-click a HUD thumbnail: switch to *path* and lock it (repeat-one).
-
-    When already locked the satellite is repeat-one, so playing the picked clip
-    just moves the lock onto it; when unlocked, toggling the lock with the target
-    both switches to it and locks it (the same back-dating a spoken "lock" uses).
-    """
-    if state.satellite(funestra).locked:
-        return switch_to_video(funestra, path, state, config)
-    return _toggle_lock(funestra, state, config, target_path=path)
+    """Double-click a HUD thumbnail: switch to *path* and lock it."""
+    return lock_satellite(funestra, state, config, path)
 
 
 _NAV_DIRECTIONS = ("up", "down")

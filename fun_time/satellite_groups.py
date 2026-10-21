@@ -11,6 +11,7 @@ from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST, play_fil
 
 from .bridge_records import BridgeConfig, WindowOp
 from .event_log import FAVORITE
+from .lock import a_lock_holds
 from .lock_hud import cell_path, hud_map_cells, locate_cell, navigate_cell
 from .media_metadata import (
     GroupIndex,
@@ -65,6 +66,20 @@ def play_video(config: BridgeConfig, funestra: RoomFunestra, path: str) -> None:
     it is already queued, else splices it in after the current clip and plays it.
     """
     send_satellite(config, funestra, play_file(scripted_item(path, config.regen_metadata_root)))
+
+
+def lock_satellite(
+    funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, aimed_at: str = ""
+) -> tuple[BridgeState, list[WindowOp]]:
+    on_screen = satellite_current(config, funestra)
+    clip = aimed_at or on_screen
+    if not same_video(clip, on_screen):
+        play_video(config, funestra, clip)
+        logger.info("Lock moved Funestra %d onto %s", funestra, clip)
+    if not state.satellite(funestra).locked:
+        send_satellite(config, funestra, LOCK_ON)
+    logger.info("Locked %s satellite", RoomFunestra(funestra).label)
+    return a_lock_holds(clip, state.with_satellite(funestra, locked=True), config)
 
 
 def cancel_lock(funestra: RoomFunestra, state: BridgeState, config: BridgeConfig) -> BridgeState:
@@ -295,13 +310,8 @@ def group_loop(
         # LOCK this one.  Never a dead end — the loop buttons are still valid with
         # one video, they just mean "lock" then.  A lock is not a loop, so any
         # prior loop (and widened row) is dropped.
-        send_satellite(config, funestra, LOCK_ON)
-        state = state.with_satellite(funestra, locked=True)
-        state = clear_side_grouping(state, funestra)
-        # Green: locking a clip puts it in the favorites, so it says so in the
-        # color the favorites own.
-        return state, [WindowOp(op="notice", key="Locked", source=source,
-                                level=FAVORITE)]
+        state, ops = lock_satellite(funestra, clear_side_grouping(state, funestra), config, current)
+        return state, [WindowOp(op="notice", key="Locked", source=source, level=FAVORITE), *ops]
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
     state = cancel_lock(funestra, state, config)
     # Write the group as the side's playlist with the current clip first, then
