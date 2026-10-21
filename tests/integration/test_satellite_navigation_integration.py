@@ -5,7 +5,7 @@ through the command/paused/status file quartet — ``append_command`` in,
 ``read_satellite_status`` out — the exact channel fun_time's dispatch loop uses.
 Complements ``test_satellite_native_integration`` (which proves basic
 play/lock/pause) by covering navigation inverses, wrap-around, discard, playlist
-reload and PLAY_FILE.
+reload, PLAY_FILE, and a clip that arrives while the side plays its Latest list.
 
 Requires: FUN_TIME_RUN_INTEGRATION=1 and a real display (the hidden-desktop runner).
 """
@@ -25,8 +25,10 @@ from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
 from fun_time.filter_vocab import load_camera_words
 from fun_time.hud_transport import HudPublisher
+from fun_time.latest_arrivals import LatestArrivals
 from fun_time.lock_hud import HudPanel
 from fun_time.modes import write_playlist_file
+from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
@@ -219,6 +221,27 @@ def test_latest_puts_the_newest_clip_on_screen(satellite):
     _drained(satellite)
     satellite.wait_for(lambda: Path(satellite.video()) == Path(newest),
                        desc="the newest clip to come up")
+
+
+def test_a_clip_that_arrives_under_latest_comes_up_after_the_one_on_screen(satellite):
+    """What the session hands a Funestra that plays its Latest list when a clip comes
+    into its library, read by the real Funestra: the clip on screen stays up, and
+    the next one is the clip that came in."""
+    clip_of_a_test_pattern(satellite.sources / "already there.mp4", size="240x426", seconds=3)
+    arrivals = LatestArrivals(_bridge_config(satellite))
+    arrivals.look()
+    arrived = clip_of_a_test_pattern(satellite.sources / "arrived.mp4", size="240x426",
+                                     seconds=3)
+    arrivals.look()
+    on_screen = satellite.video()
+
+    arrivals.deliver(BridgeState().with_satellite(RoomFunestra.PORTRAIT, latest=True))
+    _drained(satellite)
+    still_up = satellite.video()
+    satellite.send("NEXT")
+
+    satellite.wait_for(lambda: Path(satellite.video()) == arrived, desc="the clip that came in")
+    assert still_up == on_screen
 
 
 def test_no_loop_keeps_the_clip_on_screen_playing(satellite):
