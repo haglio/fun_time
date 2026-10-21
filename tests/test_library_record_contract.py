@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 from funestra import video_families
+from shared_ui.orientation import ORIENTATIONS
 
 from fun_time import media_metadata
 
@@ -61,6 +62,13 @@ def test_what_a_clip_is_called_and_what_it_was_cut_from_are_promised():
     assert media_metadata.TITLE_FIELD in record["top_level_keys"]
     assert {"performer", "source"} <= _fields("clip")
     assert "group" in _fields("version")
+
+
+def test_the_orientation_the_portrait_and_landscape_buttons_read_is_promised():
+    """A field or a word spelled differently here leaves every video counted
+    landscape, silently, which is what an unmeasured one is."""
+    assert media_metadata.ORIENTATION_FIELD in _fields("video")
+    assert set(_record()["video_orientations"]) == set(ORIENTATIONS)
 
 
 def test_the_playback_weight_this_app_draws_by_is_promised():

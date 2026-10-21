@@ -36,7 +36,7 @@ from funestra.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
 from funestra.modes import LengthMode, LoopState, SatellitesMode
 from funestra.robot_hand import FULL_INTENSITY
 
-from main_funestra.genau_verbs import genau_f_mode
+from main_funestra.genau_verbs import genau_f_mode, genau_orientations
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import BridgeConfig, Op, WindowOp
@@ -62,6 +62,7 @@ from .funestra_status import (
 )
 from .inclusion_pairs import (
     LENGTH,
+    ORIENTATION,
     PROJECTION,
     Included,
     InclusionPair,
@@ -1063,6 +1064,10 @@ def _tell_genau_its_shapes(config: BridgeConfig, wanted: Included) -> None:
     append_command(config.genau_cmd_file, shapes_verb(plays_vr=plays_vr, plays_flat=plays_flat))
 
 
+def _tell_genau_its_orientations(config: BridgeConfig, wanted: Included) -> None:
+    append_command(config.main_funestra_cmd_file, genau_orientations(wanted))
+
+
 _INCLUSIONS_ON_THE_MAIN_FUNESTRA: dict[InclusionPair, _Inclusions] = {
     PROJECTION: _Inclusions(
         "shapes",
@@ -1075,6 +1080,11 @@ _INCLUSIONS_ON_THE_MAIN_FUNESTRA: dict[InclusionPair, _Inclusions] = {
         read=lambda state: lengths_included(state.main_length_mode),
         write=lambda state, wanted: replace(state, main_length_mode=length_mode(wanted)),
         a_compilation_is_left_by_asking_again=True),
+    ORIENTATION: _Inclusions(
+        "orientations",
+        read=lambda state: (state.main_plays_portrait, state.main_plays_landscape),
+        write=lambda state, wanted: replace(
+            state, main_plays_portrait=wanted[0], main_plays_landscape=wanted[1])),
 }
 
 _INCLUSIONS_IN_GENAU: dict[InclusionPair, _Inclusions] = {
@@ -1085,6 +1095,12 @@ _INCLUSIONS_IN_GENAU: dict[InclusionPair, _Inclusions] = {
             state, genau_plays_flat=wanted[0], genau_plays_vr=wanted[1]),
         offered=_shapes_offered_in_genau,
         tell_genau=_tell_genau_its_shapes),
+    ORIENTATION: _Inclusions(
+        "orientations",
+        read=lambda state: (state.genau_plays_portrait, state.genau_plays_landscape),
+        write=lambda state, wanted: replace(
+            state, genau_plays_portrait=wanted[0], genau_plays_landscape=wanted[1]),
+        tell_genau=_tell_genau_its_orientations),
 }
 
 
@@ -1123,7 +1139,8 @@ def _dispatch_inclusion(
 def _the_main_list_is_narrowed_or_ordered(state: BridgeState, config: BridgeConfig) -> bool:
     return (state.main_scripted_filter or state.main_latest
             or main_video_shapes(state, config).narrows
-            or state.main_length_mode is not LengthMode.MIXED)
+            or state.main_length_mode is not LengthMode.MIXED
+            or not (state.main_plays_portrait and state.main_plays_landscape))
 
 
 def main_funestra_at_defaults(
@@ -1833,7 +1850,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_reset, funestras)
                      for cmd, funestras in _RESET_SIDES.items()})
     handlers.update({cmd: partial(_include, pair, wanted)
-                     for pair in (PROJECTION, LENGTH)
+                     for pair in (PROJECTION, LENGTH, ORIENTATION)
                      for cmd, wanted in pair.asked.items()})
     handlers["main_player_toggle_length"] = _main_length_toggle
     handlers[MAIN_RESET] = _main_reset

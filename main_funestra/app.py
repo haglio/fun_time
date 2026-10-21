@@ -36,6 +36,7 @@ from .cli import (
 )
 from .contract import MainChannels
 from .genau import Genau, GenauChannels
+from .genau_verbs import orientations_from
 from .input import Input
 from .loading import LoadingCanceled, LoadingScreen
 from .notice import NoticeWriter
@@ -69,6 +70,7 @@ def _genau(args):
         latest=args.genau_latest,
         favs_file=args.favs_file,
         f_mode=args.genau_f_mode,
+        orientations=orientations_from(args.genau_orientations),
         metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,
     )
 

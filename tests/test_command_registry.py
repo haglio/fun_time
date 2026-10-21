@@ -49,6 +49,7 @@ _CONSOLE_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {
     # a second, deliberate press on the button that is already the only one lit.
     "main_projection_none",
     "main_player_length_none",
+    "main_orientation_none",
     "main_player_record_tap",
     # A VR controller's stick pushed left; pushed right it posts the P key's own id.
     "projection_cycle_back",

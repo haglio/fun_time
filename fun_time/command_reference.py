@@ -428,9 +428,18 @@ _SECTIONS: tuple[_Section, ...] = (
                  "main_player_length_mixed", "main_player_length_none"),
             ),
             _Row(
-                "Reset the Main Funestra — back to every default: every length and "
-                "shape (leaving any compilation), no lock, no loop, no F-Mode, "
-                "normal speed, shuffled from the top",
+                "Orientation of what plays, the video here and Genau's "
+                f"{_FLICK.many} in Genau mode: \"portrait only\", \"landscape only\" or "
+                "\"portrait and landscape\" — the console's own pair of buttons reaches a "
+                "fourth state, neither, which holds what is on screen",
+                (),
+                ("main_orientation_portrait", "main_orientation_landscape",
+                 "main_orientation_both", "main_orientation_none"),
+            ),
+            _Row(
+                "Reset the Main Funestra — back to every default: every length, "
+                "shape and orientation (leaving any compilation), no lock, no loop, "
+                "no F-Mode, normal speed, shuffled from the top",
                 (),
                 ("main_reset",),
             ),

@@ -61,6 +61,10 @@ class MainSlotInputs:
     length_mode: LengthMode = LengthMode.MIXED
     genau_plays_vr: bool | None = None
     genau_plays_flat: bool | None = None
+    plays_portrait: bool = True
+    plays_landscape: bool = True
+    genau_plays_portrait: bool = True
+    genau_plays_landscape: bool = True
     nothing_to_reset: bool = False
     in_vr: bool = False
     crowned: bool = True
@@ -83,6 +87,8 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         shape=genau.shape,
         plays_vr=inputs.plays_vr if video else inputs.genau_plays_vr,
         plays_flat=inputs.plays_flat if video else inputs.genau_plays_flat,
+        plays_portrait=inputs.plays_portrait if video else inputs.genau_plays_portrait,
+        plays_landscape=inputs.plays_landscape if video else inputs.genau_plays_landscape,
         pace_s=inputs.genau_pace_s,
         length_mode=inputs.length_mode,
         compilation=main_funestra.compilation,

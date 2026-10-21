@@ -24,6 +24,20 @@ def _the_list(tmp_path: Path, sources: str, **where) -> MainList:
     return MainList(sources=sources, state_dir=tmp_path / "state", **where)
 
 
+def _recorded_library(tmp_path, records: dict[str, dict | None]) -> tuple[MainList, dict[str, str]]:
+    root = tmp_path / "videos" / "videos" / "main"
+    metadata_root = tmp_path / "videos" / "metadata"
+    videos = {}
+    for name, record in records.items():
+        (video,) = _videos(root, f"{name}.mp4")
+        videos[name] = str(video)
+        if record is not None:
+            sidecar = metadata_path_for(video, metadata_root)
+            sidecar.parent.mkdir(parents=True, exist_ok=True)
+            sidecar.write_text(json.dumps(record), encoding="utf-8")
+    return _the_list(tmp_path, str(root), metadata_root=metadata_root), videos
+
+
 class TestFMode:
     def test_it_keeps_the_hand_scripted_video_and_drops_the_bulk_scripted_one(self, tmp_path):
         """The bulk run is what made "has a funscript" stop meaning anything: the
@@ -108,21 +122,8 @@ class TestLength:
     """What Evolver recorded each video as decides the clips and full videos
     buttons; a video it has no record of counts as a full video."""
 
-    def _library(self, tmp_path, kinds: dict[str, dict | None]) -> tuple[MainList, dict[str, str]]:
-        root = tmp_path / "videos" / "videos" / "main"
-        metadata_root = tmp_path / "videos" / "metadata"
-        videos = {}
-        for name, record in kinds.items():
-            (video,) = _videos(root, f"{name}.mp4")
-            videos[name] = str(video)
-            if record is not None:
-                sidecar = metadata_path_for(video, metadata_root)
-                sidecar.parent.mkdir(parents=True, exist_ok=True)
-                sidecar.write_text(json.dumps(record), encoding="utf-8")
-        return _the_list(tmp_path, str(root), metadata_root=metadata_root), videos
-
     def _kinds(self, tmp_path):
-        return self._library(tmp_path, {
+        return _recorded_library(tmp_path, {
             "short": {"video": {"type": "short"}},
             "excerpt": {"video": {"type": "excerpt"}},
             "carved": {"clip": {"compilation": "Vol6", "index": 1}},
@@ -197,6 +198,58 @@ class TestLength:
             clips = the_list.videos(MainListSettings(length=LengthMode.CLIPS))
 
         assert (full, clips) == ([str(vr_video)], [])
+
+
+class TestOrientation:
+    """Which way round Evolver measured each video decides the portrait and
+    landscape buttons; a video it has not measured counts as landscape."""
+
+    def _turned(self, tmp_path):
+        return _recorded_library(tmp_path, {
+            "tall": {"video": {"orientation": "portrait", "type": "short"}},
+            "tall whole": {"video": {"orientation": "portrait", "type": "full_length"}},
+            "wide": {"video": {"orientation": "landscape", "type": "short"}},
+            "unmeasured": None,
+        })
+
+    def test_portrait_only_holds_the_videos_measured_portrait(self, tmp_path):
+        the_list, videos = self._turned(tmp_path)
+
+        kept = the_list.videos(MainListSettings(plays_landscape=False))
+
+        assert sorted(kept) == sorted(videos[name] for name in ("tall", "tall whole"))
+
+    def test_landscape_only_holds_the_rest_and_the_unmeasured(self, tmp_path):
+        the_list, videos = self._turned(tmp_path)
+
+        kept = the_list.videos(MainListSettings(plays_portrait=False))
+
+        assert sorted(kept) == sorted(videos[name] for name in ("wide", "unmeasured"))
+
+    def test_neither_orientation_lets_no_video_through(self, tmp_path):
+        the_list, _videos_named = self._turned(tmp_path)
+
+        assert the_list.videos(MainListSettings(plays_portrait=False,
+                                                plays_landscape=False)) == []
+
+    def test_an_orientation_and_a_length_narrow_together(self, tmp_path):
+        the_list, videos = self._turned(tmp_path)
+
+        kept = the_list.videos(MainListSettings(plays_landscape=False, length=LengthMode.CLIPS))
+
+        assert kept == [videos["tall"]]
+
+    def test_a_vr_video_is_landscape_and_no_question_is_asked_about_it(self, tmp_path):
+        vr_dir = tmp_path / "VR"
+        (vr_video,) = _videos(vr_dir, "scene one.mp4")
+        the_list = _the_list(tmp_path, str(vr_dir), vr_dirs=str(vr_dir),
+                             metadata_root=tmp_path / "videos" / "metadata")
+
+        with files_that_never_answer(vr_dir):
+            wide = the_list.videos(MainListSettings(plays_portrait=False))
+            tall = the_list.videos(MainListSettings(plays_landscape=False))
+
+        assert (wide, tall) == ([str(vr_video)], [])
 
 
 class TestOrder:

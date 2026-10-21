@@ -4363,6 +4363,51 @@ def test_a_length_press_hands_the_rebuild_what_it_left_to_say(tmp_path):
     assert builds.asked[-1].says == "Clips + Full"
 
 
+def test_an_orientation_press_narrows_the_main_funestras_list_and_says_so(tmp_path):
+    config, builds = _recording(_make_config(tmp_path))
+
+    state, ops = dispatch_command("main_orientation_portrait", _make_state(), config)
+
+    assert (state.main_plays_portrait, state.main_plays_landscape) == (True, False)
+    assert builds.asked[-1].settings.plays_landscape is False
+    assert builds.asked[-1].says == "Portrait only"
+    assert ops == [WindowOp(op=Op.NARROWING_ANSWERS)]
+
+
+def test_an_orientation_press_in_genau_mode_tells_genau_on_the_main_funestras_channel(tmp_path):
+    config, builds = _recording(_make_config(tmp_path))
+
+    state, ops = dispatch_command(
+        "main_orientation_landscape", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert (state.genau_plays_portrait, state.genau_plays_landscape) == (False, True)
+    assert (state.main_plays_portrait, state.main_plays_landscape) == (True, True)
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
+        "SET_GENAU_ORIENTATIONS landscape"]
+    assert builds.asked == [] and ops == [WindowOp(op=Op.NARROWING_ANSWERS)]
+
+
+def test_neither_orientation_holds_genaus_flick_as_neither_shape_does(tmp_path, monkeypatch):
+    monkeypatch.setattr("fun_time.content.genau_flick_noun", lambda: Noun(one="pip", many="pips"))
+    config = _make_config(tmp_path)
+    only_portrait = _make_state(main_mode=MainMode.GENAU, genau_plays_landscape=False)
+
+    _state, ops = dispatch_command("main_orientation_none", only_portrait, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["LOCK_ON"]
+    assert [op.key for op in ops] == ["Including no other pips"]
+
+
+def test_a_narrowed_orientation_is_something_main_reset_puts_back(tmp_path):
+    config, builds = _recording(_make_config(tmp_path))
+
+    state, _ops = dispatch_command(
+        "main_reset", _make_state(main_plays_landscape=False), config)
+
+    assert (state.main_plays_portrait, state.main_plays_landscape) == (True, True)
+    assert builds.asked[-1].settings.plays_landscape is True
+
+
 def _vr_config(tmp_path):
     """A session whose rotation holds both shapes, as the headset's does."""
     config = _make_config(tmp_path)

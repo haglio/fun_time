@@ -39,6 +39,7 @@ from funestra.genau_controls import VERBS as GENAU_VERBS
 from funestra.modes import MainMode
 from funestra.playback import Playback
 from funestra.playlist import read_playlist
+from shared_ui.orientation import PORTRAIT
 
 from fun_time.bridge_records import Op
 from fun_time.command_dispatch import dispatch_command
@@ -267,7 +268,11 @@ def _a_whole_line(verb: str) -> str:
     """
     if verb not in _VERBS_THAT_TAKE_A_VALUE:
         return verb
-    return f"{verb} {MAIN_KINO_MODE if verb == SHOW else 1}"
+    return f"{verb} {_WORDS_FOR.get(verb, 1)}"
+
+
+_WORDS_FOR = {SHOW: MAIN_KINO_MODE,
+              genaus_verbs_on_the_main_funestra.SET_GENAU_ORIENTATIONS: PORTRAIT}
 
 
 _VERBS_THAT_TAKE_A_VALUE = frozenset(

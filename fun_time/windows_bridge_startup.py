@@ -19,6 +19,7 @@ from funestra.file_channel import append_command
 from funestra.modes import MainMode
 from funestra.robot_hand import FULL_INTENSITY
 
+from main_funestra.genau_verbs import orientation_words
 from satellite.contract import SatelliteChannels, WindowPlacement
 
 from . import broker_contract, preview_marker
@@ -35,6 +36,7 @@ from .funestra_status import (
     read_main_funestra_status,
 )
 from .hosted_contract import the_args_it_declares
+from .inclusion_pairs import BOTH, Included
 from .main_list import MainList, MainListSettings
 from .max_intensity import publish_max_intensity
 from .mode_plan import STARTUP_MAIN_MODE, show_verb
@@ -627,6 +629,7 @@ def launch_main_funestra(
     genau_start_flick: str = "",
     genau_latest: bool = False,
     genau_f_mode: bool = False,
+    genau_orientations: Included = BOTH,
     favs_file: str | Path | None = None,
     notice_file: str | Path | None = None,
     sibling_checkouts: str | None = None,
@@ -702,6 +705,8 @@ def launch_main_funestra(
         cmd.append("--genau-latest")
     if genau_f_mode:
         cmd.append("--genau-f-mode")
+    if genau_orientations != BOTH:
+        cmd += ["--genau-orientations", *orientation_words(genau_orientations)]
     if favs_file:
         cmd += ["--favs-file", str(favs_file)]
     if notice_file:

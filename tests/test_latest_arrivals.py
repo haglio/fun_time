@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import replace
 from pathlib import Path
@@ -10,7 +11,7 @@ from funestra.playlist import PlaylistItem
 
 from fun_time.latest_arrivals import LatestArrivals
 from fun_time.lock_hud import prime_group_indexes
-from fun_time.media_metadata import cached_group_index
+from fun_time.media_metadata import cached_group_index, metadata_path_for
 from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState
@@ -199,3 +200,17 @@ class TestTheMainFunestraPlayingItsLatestList:
         arrivals.deliver(replace(MAIN_LATEST, main_scripted_filter=True))
 
         assert _queued(config.main_funestra_cmd_file) == [_next(scripted, script)]
+
+    def test_with_landscape_left_out_puts_up_only_a_portrait_video(self, tmp_path):
+        library = tmp_path / "library"
+        videos, metadata = library / "videos" / "videos", library / "videos" / "metadata"
+        arrivals, config = _watching(tmp_path, main_sources=str(videos), regen_metadata_root=metadata)
+        portrait, _landscape = _video(videos, "feature two.mp4"), _video(videos, "feature three.mp4")
+        sidecar = metadata_path_for(Path(portrait), metadata)
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(json.dumps({"video": {"orientation": "portrait"}}), encoding="utf-8")
+        arrivals.look()
+
+        arrivals.deliver(replace(MAIN_LATEST, main_plays_landscape=False))
+
+        assert _queued(config.main_funestra_cmd_file) == [_next(portrait)]

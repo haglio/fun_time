@@ -1170,6 +1170,20 @@ def test_the_launch_names_f_mode_only_for_a_session_left_in_it(tmp_path: Path):
     assert "--genau-f-mode" not in _launched_main_funestra(tmp_path, genau_f_mode=False)
 
 
+def test_the_launch_names_genaus_orientations_only_for_a_session_left_narrowed(tmp_path: Path):
+    def named(orientations) -> list[str]:
+        command = _launched_main_funestra(tmp_path, genau_orientations=orientations)
+        if "--genau-orientations" not in command:
+            return []
+        at = command.index("--genau-orientations") + 1
+        return ["--genau-orientations", *[word for word in command[at:at + 2]
+                                           if word in ("portrait", "landscape")]]
+
+    assert named((True, True)) == []
+    assert named((True, False)) == ["--genau-orientations", "portrait"]
+    assert named((False, False)) == ["--genau-orientations"]
+
+
 def test_the_main_funestra_is_handed_the_favorites_and_where_its_notices_are_read(tmp_path: Path):
     command = _launched_main_funestra(tmp_path, favs_file="a-library/favs.csv",
                                       notice_file="a-state-dir/main_player_notice.txt")

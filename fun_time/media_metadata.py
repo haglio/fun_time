@@ -22,6 +22,7 @@ from pathlib import Path
 from app_support.json_store import locked_update
 from app_support.mirrored_tree import LIBRARY_DIR_NAME, library_roots_beside, mirrored_path
 from funestra.video_families import action_group_key, normalized_text, seed_group_key
+from shared_ui.orientation import LANDSCAPE, ORIENTATIONS
 
 
 def normalize_path_key(path: str) -> str:
@@ -81,6 +82,15 @@ def video_type_of(payload: dict) -> str:
     if isinstance(video, dict) and video.get("type"):
         return str(video["type"])
     return EXCERPT if isinstance(payload.get("clip"), dict) else ""
+
+
+ORIENTATION_FIELD = "orientation"
+
+
+def recorded_orientation(payload: dict) -> str:
+    video = payload.get("video")
+    said = video.get(ORIENTATION_FIELD) if isinstance(video, dict) else None
+    return said if said in ORIENTATIONS else LANDSCAPE
 
 
 WATCH_BLOCK = "watch"

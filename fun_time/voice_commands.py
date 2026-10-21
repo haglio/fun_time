@@ -172,6 +172,12 @@ def build_voice_commands(
         "two d only": "main_projection_flat",
         "flat and vr": "main_projection_both",
         "vr and flat": "main_projection_both",
+        "portrait only": "main_orientation_portrait",
+        "only portrait": "main_orientation_portrait",
+        "landscape only": "main_orientation_landscape",
+        "only landscape": "main_orientation_landscape",
+        "portrait and landscape": "main_orientation_both",
+        "landscape and portrait": "main_orientation_both",
         # The unfiltered library the Main Funestra opens in, and so the way back out of either
         # half.  "main reset" contains this and puts back every other default too
         # (see the main-player grid below); this is the narrow gesture of the pair.
