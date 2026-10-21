@@ -14,10 +14,8 @@ from pathlib import Path
 
 from funestra.file_channel import append_command
 from voice_core.commands import CommandRules
-from voice_core.listener import CommandListener, Engines, ListenerEvents, ListenerSettings
+from voice_core.listener import CommandListener, ListenerEvents, ListenerSettings, engines_for
 from voice_core.listening import Heard
-from voice_core.speech import hears_speech
-from voice_core.whisper_reader import WhisperReader
 
 from fun_time.command_dispatch import notice_source, said_to_the_hosted_app
 from fun_time.event_log import (
@@ -213,16 +211,12 @@ class VoiceController:
             speech=self.handle_speech if takes_requests else None,
             wants_words=self.wants_words if takes_requests else None,
         )
-        self.engines = Engines(clock=clock,
-                               second_opinion=second_listener or WhisperReader(),
-                               second_opinion_in={"de": WhisperReader(language="de")},
-                               take_down=(WhisperReader(for_dictation=True)
-                                          if takes_requests else None),
-                               hears_speech=hears_speech())
-        self._listener = CommandListener(
-            command_rules(self.commands, confidence_threshold=confidence_threshold,
-                          confirm_commands=confirm_commands),
-            self.listener_settings, self.listener_events, self.engines)
+        rules = command_rules(self.commands, confidence_threshold=confidence_threshold,
+                              confirm_commands=confirm_commands)
+        self.engines = engines_for(rules, self.listener_events, clock=clock,
+                                   second_opinion=second_listener)
+        self._listener = CommandListener(rules, self.listener_settings, self.listener_events,
+                                         self.engines)
 
     def request_opened(self, side: str) -> None:
         self._request_side = side
