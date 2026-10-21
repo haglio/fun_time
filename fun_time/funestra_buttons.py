@@ -6,6 +6,8 @@ from funestra.hud_button import Button
 from funestra.hud_marks import MINIMIZE_ICON, shared_mark
 from funestra.hud_status import LATEST_LABEL, SHUFFLE_LABEL
 
+from .ten_second_steps import too_short_to_step
+
 PREV_FACE = "⏮"
 NEXT_FACE = "⏭"
 LOCK_FACE = "🔒"
@@ -17,18 +19,6 @@ VERSIONS_ICON = shared_mark("versions")
 _NONE_FOR_THIS_ONE = " (none for this one)"
 MAIN_FUNESTRA_NOUN = "video"
 SATELLITE_NOUN = "clip"
-
-
-def too_short_to_step(noun: str) -> str:
-    return f"this {noun} is 10s or shorter"
-
-
-def too_near_the_start_to_step_back(noun: str) -> str:
-    return f"less than 10s into this {noun}"
-
-
-def too_near_the_end_to_step_forward(noun: str) -> str:
-    return f"less than 10s left in this {noun}"
 
 
 def transport(funestra: str, *, noun: str, longer_than_a_step: bool) -> tuple[Button, ...]:

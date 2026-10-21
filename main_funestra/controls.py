@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from funestra.control_registry import Control, Verb, bind, look_up
-from funestra.funestra_controls import SEEK_STEP_MS
 from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE
 
 from .loop_verbs import LOOP_CANCEL, RECORD_DOWN, RECORD_TAP, RECORD_UP, SET_LOOP
@@ -23,14 +22,9 @@ __all__ = [
     "VERBS",
     "KinoControls",
     "apply_command",
-    "longer_than_a_step",
 ]
 
 SET_LENGTH_MODE = "SET_LENGTH_MODE"
-
-
-def longer_than_a_step(duration_ms: float) -> bool:
-    return duration_ms > SEEK_STEP_MS
 
 
 @dataclass
