@@ -17,6 +17,7 @@ from pathlib import Path
 import pygame
 from app_support.win32 import set_app_user_model_id
 from funestra.funestra import Funestra
+from funestra.funestra_priority import ahead_on_the_processor
 from funestra.genau_notifier import GenauNotifier
 from funestra.modes import MainMode
 from funestra.sdl_hints import deliver_the_focusing_click
@@ -34,7 +35,6 @@ from .cli import (
     resolve_playlist,
 )
 from .contract import MainChannels
-from .funestra_priority import ahead_on_the_processor
 from .genau import Genau, GenauChannels
 from .input import Input
 from .loading import LoadingCanceled, LoadingScreen
