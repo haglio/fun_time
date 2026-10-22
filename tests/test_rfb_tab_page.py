@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from shared_ui import palette
+
 from fun_time.loopback_server import omnipause_url
 from fun_time.rfb_tab_page import (
     TabTarget,
@@ -33,6 +35,14 @@ def test_render_tab_page_embeds_the_target_and_the_label():
     assert "__FT_TARGET__" not in html
     assert "__FT_LABEL__" not in html
     assert "__FT_VIDEO__" not in html
+
+
+def test_render_tab_page_wears_the_familys_colors():
+    html = render_tab_page(TabTarget(REGEN_URL, "label"))
+
+    assert "__PALETTE_" not in html
+    assert {palette.as_hex(palette.BG_PRIMARY), palette.as_hex(palette.TEXT_PRIMARY)} <= {
+        word.strip(";") for word in html.split()}
 
 
 def test_render_tab_page_escapes_a_script_breakout():

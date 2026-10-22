@@ -54,6 +54,7 @@ from funestra.playlist import PlaylistItem, read_playlist
 from funestra.pointer import OMNIPAUSE_TOGGLE
 from funestra.tcode import UdpTCodeSink
 from funestra.tcode_driver import FunscriptTCodeDriver
+from shared_ui.palette import BLUE, BORDER_DEFAULT, WHITE, as_fractions
 
 from fun_time import preview_marker
 from fun_time.dashboard_actions import (
@@ -228,11 +229,11 @@ MAIN_TICK_HZ = 120.0
 OFF_THE_PANEL = (-1, -1)
 
 LASER_REACH_M = 3.0  # when the laser meets no screen
-HANDLE_COLOR = (0.85, 0.85, 0.9, 0.35)
-HOT_HANDLE_COLOR = (0.3, 0.6, 1.0, 0.85)
-LASER_COLOR = (1.0, 1.0, 1.0, 0.55)
-CURSOR_COLOR = (1.0, 1.0, 1.0, 0.9)
-CONTROLLER_COLOR = (0.8, 0.8, 0.85, 1.0)
+HANDLE_COLOR = as_fractions(BORDER_DEFAULT, 0.35)
+HOT_HANDLE_COLOR = as_fractions(BLUE, 0.85)
+LASER_COLOR = as_fractions(WHITE, 0.55)
+CURSOR_COLOR = as_fractions(WHITE, 0.9)
+CONTROLLER_COLOR = as_fractions(BORDER_DEFAULT)
 
 
 def _show_error_popup(message: str) -> None:

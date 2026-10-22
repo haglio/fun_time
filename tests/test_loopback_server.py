@@ -7,6 +7,7 @@ import urllib.error
 import urllib.request
 
 import pytest
+from shared_ui import palette
 
 from fun_time.loopback_server import (
     LOOPBACK_PORT,
@@ -51,6 +52,19 @@ def test_serves_the_userscript_with_a_javascript_content_type(tmp_path):
         server.shutdown()
     assert body == script.read_bytes()
     assert "javascript" in content_type
+
+
+def test_serves_the_userscript_in_the_familys_colors(tmp_path):
+    script = tmp_path / USERSCRIPT_NAME
+    script.write_text("note.style.color = '__PALETTE_GREEN__';\n", encoding="utf-8")
+    server = make_server(port=0, script_path=script)
+    port = _serve(server)
+    try:
+        with _get(port, f"/{USERSCRIPT_NAME}") as resp:
+            body = resp.read().decode("utf-8")
+    finally:
+        server.shutdown()
+    assert body == f"note.style.color = '{palette.as_hex(palette.GREEN)}';\n"
 
 
 def test_reflects_edits_without_a_restart(tmp_path):

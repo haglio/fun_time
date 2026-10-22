@@ -26,6 +26,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from app_support import ports
+from shared_ui.palette import with_palette
 
 # Baked into the userscript's @updateURL/@downloadURL header, so the two must
 # stay in lockstep (a regression test pins them). 127.0.0.1-only.
@@ -78,7 +79,7 @@ def _make_handler(script_path: Path, omni_paused: Callable[[], bool]):
                 self.send_error(404)
                 return
             try:
-                body = script_path.read_bytes()
+                body = with_palette(script_path.read_text(encoding="utf-8")).encode("utf-8")
             except OSError:
                 self.send_error(404)
                 return
