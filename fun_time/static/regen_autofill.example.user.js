@@ -40,8 +40,8 @@
     const note = document.createElement("pre");
     note.style.cssText =
       "position:fixed;top:8px;right:8px;z-index:99999;max-width:40ch;" +
-      "padding:8px;background:#000;color:#0f0;font:12px/1.4 monospace;" +
-      "white-space:pre-wrap;border:1px solid #0f0;";
+      "padding:8px;background:__PALETTE_BLACK__;color:__PALETTE_GREEN__;" +
+      "font:12px/1.4 monospace;white-space:pre-wrap;border:1px solid __PALETTE_GREEN__;";
     note.textContent =
       "Fun Time regen payload:\n" + JSON.stringify(payload, null, 2);
     document.body.appendChild(note);
