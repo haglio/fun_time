@@ -90,10 +90,7 @@ RESERVED_IN_FILENAMES = r'[<>:"/\|?*]'
 FIELD_SEPARATOR = "\t"
 DETACHED = "(detached)"
 
-# Superseded by the plural forms in :func:`_primary_resolved_values`.  A stale
-# singular left in the file still names a path, and it is one this rewrite never
-# pinned — so it goes rather than rides along into the worktree.
-_SUPERSEDED_PATH_KEYS = ("portrait_dir", "landscape_dir")
+_SUPERSEDED_PATH_KEYS = ("portrait_dir", "landscape_dir", "genau_dir")
 
 
 def _git(args: list[str], cwd: Path, *, stdin: str | None = None) -> str:
@@ -155,7 +152,6 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
             "portrait_dirs": paths.portrait_dirs,
             "landscape_dirs": paths.landscape_dirs,
             "weird_dir": paths.weird_dir,
-            "genau_dir": paths.genau_dir,
             "favs_file": paths.favs_file,
             "state_dir": paths.state_dir,
             "broker_state_dir": paths.broker_state_dir,

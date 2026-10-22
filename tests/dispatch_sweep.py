@@ -17,7 +17,7 @@ from fun_time.shared_state import BridgeState
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time_vr.orchestrator import build_vr_manifest
-from tests.made_up_genau import made_up_genau
+from tests.made_up_genau import with_made_up_genau
 
 # The channels a dispatch writes to.  The paused flags and the broker mailbox
 # carry no vocabulary of their own — the headset and the broker read them
@@ -64,7 +64,6 @@ def room_config(root: Path, *, names_an_origenerator: bool = True):
         "portrait_dirs": [str(folders["portrait"])],
         "landscape_dirs": [str(folders["landscape"])],
         "weird_dir": str(folders["weird"]),
-        "genau_dir": str(made_up_genau(root)),
         "favs_file": str(favs_file),
         "state_dir": str(folders["state"]),
     }
@@ -80,7 +79,7 @@ def room_config(root: Path, *, names_an_origenerator: bool = True):
         "audio_companion": {"host": "127.0.0.1", "port": 50556},
         "vr": {"library_dirs": [str(folders["vr"])]},
     }), encoding="utf-8")
-    return load_config(config_file)
+    return with_made_up_genau(load_config(config_file), root)
 
 
 def every_command() -> list[str]:

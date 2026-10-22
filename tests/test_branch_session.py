@@ -182,6 +182,16 @@ def test_every_path_a_branch_session_reads_is_the_one_the_live_session_reads(che
     assert branch.loopback_port == live.loopback_port
 
 
+def test_a_genau_dir_left_in_the_live_config_does_not_ride_along_into_the_branch_config(checkouts):
+    branch_config = branch_session.build_branch_config(
+        checkouts.worktree,
+        primary_config_path=checkouts.config_path,
+        primary=checkouts.primary,
+    )
+
+    assert "genau_dir" not in json.loads(branch_config.read_text(encoding="utf-8"))["paths"]
+
+
 def test_the_branch_session_keeps_its_state_inside_the_worktree(checkouts):
     """The one thing it must not share. ``state/`` holds the command files,
     playlists, thumbnails, logs and resume point a session writes as it runs, so

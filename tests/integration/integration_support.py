@@ -13,10 +13,12 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
+from unittest import mock
 
 import pytest
+from app_support import haglio_settings
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from funestra.file_channel import append_command
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
@@ -48,6 +50,7 @@ from fun_time.win32_process import (
     is_process_alive,
 )
 from fun_time.windows_bridge_orchestrator import ChildProcess, kill_recorded_child
+from tests.made_up_genau import write_settings_naming_genau
 from tests.scratch import remove_scratch
 
 from . import run_clock
@@ -847,7 +850,7 @@ def state_dir_of(root: Path) -> Path:
     return root.resolve() / "integration_runtime" / "state"
 
 
-def build_integration_config(tmp_path: Path, *, genau_dir: Path | None = None) -> Path:
+def build_integration_config(tmp_path: Path) -> Path:
     real = load_config(real_config_path())
     state_dir = state_dir_of(tmp_path)
     integration_root = state_dir.parent
@@ -874,10 +877,9 @@ def build_integration_config(tmp_path: Path, *, genau_dir: Path | None = None) -
     config["paths"]["weird_dir"] = str(weird_dir)
     config["paths"]["favs_file"] = str(favs_file)
     config["paths"]["state_dir"] = str(state_dir)
+    config["paths"].pop("genau_dir", None)
     config["random_favs_browser"]["enabled"] = False
     run_from_this_installation(config)
-    if genau_dir is not None:
-        config["paths"]["genau_dir"] = str(genau_dir)
     apply_this_checkouts_siblings(config)
 
     point_the_main_funestra_at(config, primary_dir)
@@ -904,6 +906,21 @@ def build_integration_temp_root() -> Path:
     root = Path(tempfile.mkdtemp(prefix="fun_time_integration_")).resolve()
     RUN_ROOTS.append(root)
     return root
+
+
+def the_machines_own_settings() -> dict:
+    with mock.patch.dict(os.environ):
+        os.environ.pop(haglio_settings.SETTINGS_ENV, None)
+        return haglio_settings.load()
+
+
+@contextlib.contextmanager
+def genau_where_this_machine_keeps_it() -> Iterator[None]:
+    machines = the_machines_own_settings()
+    settings = write_settings_naming_genau(
+        build_integration_temp_root(), Path(machines["genau_dir"]), Path(machines["genau_audio_dir"]))
+    with mock.patch.dict(os.environ, {haglio_settings.SETTINGS_ENV: str(settings)}):
+        yield
 
 
 def keep_what_the_run_logged(keep_in: Path) -> Path | None:

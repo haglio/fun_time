@@ -8,7 +8,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from app_support.flick_folder import audio_in
 
 from fun_time import checkout_overrides, orchestrator
 from fun_time.config import load_config
@@ -31,6 +30,7 @@ from fun_time.project_paths import PROJECT_DIR, SIBLING_CHECKOUTS_OVERRIDE_NAME
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import VR, request_handoff
 from fun_time.windows_bridge_orchestrator import SessionOver
+from tests.made_up_genau import point_the_shared_settings_at
 
 
 def _a_cover() -> MagicMock:
@@ -343,12 +343,22 @@ class TestValidateConfig:
 
         validate_config(cfg)
 
-    def test_names_genaus_folder_when_nothing_in_it_is_laid_out_as_flicks_are(self, cfg_factory, tmp_path: Path):
+    def test_names_genaus_folder_when_nothing_in_it_is_laid_out_as_flicks_are(
+            self, cfg_path: Path, tmp_path: Path, monkeypatch):
         genau = tmp_path / "bare_genau"
-        audio_in(genau).mkdir(parents=True)
-        cfg = self._make_config_with_stubs(cfg_factory({"paths": {"genau_dir": str(genau)}}))
+        genau.mkdir()
+        point_the_shared_settings_at(monkeypatch, genau)
+        cfg = self._make_config_with_stubs(cfg_path)
 
         with pytest.raises(FileNotFoundError, match="bare_genau"):
+            validate_config(cfg)
+
+    def test_names_genaus_audio_folder_when_it_is_missing(
+            self, cfg_path: Path, genaus_folder: Path, tmp_path: Path, monkeypatch):
+        point_the_shared_settings_at(monkeypatch, genaus_folder, tmp_path / "no_such_audio")
+        cfg = self._make_config_with_stubs(cfg_path)
+
+        with pytest.raises(FileNotFoundError, match="no_such_audio"):
             validate_config(cfg)
 
     def test_raises_when_random_favs_browser_shortcut_missing_if_enabled(self, cfg_factory: Path):

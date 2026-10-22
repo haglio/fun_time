@@ -59,7 +59,7 @@ def build_windows_bridge_manifest(
             "favs_file": str(config.paths.favs_file),
             "genau_flicks": str(config.paths.flicks_dir),
             "genau_vr_flicks": "",
-            "genau_audio": str(config.paths.audio_dir),
+            "genau_audio": str(config.paths.genau_audio_dir),
         },
         "modules": {
             "main_funestra_module": "main_funestra",

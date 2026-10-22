@@ -24,6 +24,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from app_support import haglio_settings
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 
 from fun_time import funestra_status, windows_bridge_orchestrator
@@ -40,6 +41,7 @@ from tests.integration.integration_support import (
     await_window,
     close_udp_sinks,
     ended_within,
+    genau_where_this_machine_keeps_it,
     isolate_shared_resources,
     joined_within,
     let_seconds_pass,
@@ -713,6 +715,29 @@ def test_a_checkout_with_no_override_names_no_siblings(tmp_path, monkeypatch):
 
     assert config == {}
     assert integration_support.this_checkouts_siblings() == ""
+
+
+def test_a_run_finds_genau_where_this_machine_keeps_it_and_reads_the_rest_of_the_shared_settings_as_the_example(
+        tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    (home / ".haglio").mkdir(parents=True)
+    (home / ".haglio" / "settings.json").write_text(json.dumps({
+        **haglio_settings.EXAMPLE, "genau_dir": "M:/machine/genau",
+        "genau_audio_dir": "M:/machine/audio", "genau_flick_words": {"one": "pip", "many": "pips"},
+    }), encoding="utf-8")
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(integration_support, "build_integration_temp_root", lambda: tmp_path / "run")
+    (tmp_path / "run").mkdir()
+    before_the_run = haglio_settings.value("genau_dir")
+
+    with genau_where_this_machine_keeps_it():
+        in_the_run = (haglio_settings.value("genau_dir"), haglio_settings.value("genau_audio_dir"),
+                      haglio_settings.value("genau_flick_words"))
+
+    assert in_the_run == (str(Path("M:/machine/genau")), str(Path("M:/machine/audio")),
+                          haglio_settings.EXAMPLE["genau_flick_words"])
+    assert haglio_settings.value("genau_dir") == before_the_run
 
 
 def test_a_clip_reads_at_speed_only_when_its_first_bytes_arrive_in_time():

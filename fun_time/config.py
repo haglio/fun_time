@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from app_support import ports, state_files
+from app_support import haglio_settings, ports, state_files
 from app_support.config_reader import (
     optional_section,
     require_path,
@@ -16,7 +16,7 @@ from app_support.config_reader import (
     require_value,
     resolve_path,
 )
-from app_support.flick_folder import audio_in, flicks_folder_in
+from app_support.flick_folder import flicks_folder_in
 
 from .loopback_server import LOOPBACK_PORT
 from .project_paths import PROJECT_DIR
@@ -38,6 +38,7 @@ class PathsConfig:
     landscape_dirs: tuple[Path, ...]
     weird_dir: Path
     genau_dir: Path
+    genau_audio_dir: Path
     favs_file: Path
     state_dir: Path
     # Where the machine's one OSR2 broker keeps its own channel: the heartbeat and
@@ -66,10 +67,6 @@ class PathsConfig:
         if found is None:
             raise FileNotFoundError(f"No folder in {self.genau_dir} is laid out as Genau's flicks are")
         return found
-
-    @property
-    def audio_dir(self) -> Path:
-        return audio_in(self.genau_dir)
 
     @property
     def sibling_checkouts_path(self) -> str:
@@ -326,7 +323,8 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir
         portrait_dirs=_load_dir_list(paths_raw, "portrait_dirs", "portrait_dir", source_path, project_dir),
         landscape_dirs=_load_dir_list(paths_raw, "landscape_dirs", "landscape_dir", source_path, project_dir),
         weird_dir=require_path(paths_raw, "weird_dir", source_path, base=project_dir, context="config.paths"),
-        genau_dir=require_path(paths_raw, "genau_dir", source_path, base=project_dir, context="config.paths"),
+        genau_dir=Path(haglio_settings.value("genau_dir")),
+        genau_audio_dir=Path(haglio_settings.value("genau_audio_dir")),
         favs_file=require_path(paths_raw, "favs_file", source_path, base=project_dir, context="config.paths"),
         state_dir=state_dir,
         broker_state_dir=resolve_path(project_dir, paths_raw["broker_state_dir"]) if paths_raw.get("broker_state_dir") else state_dir,
