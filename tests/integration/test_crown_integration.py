@@ -23,7 +23,7 @@ from fun_time.win32 import window_rect
 from fun_time.win32_loader import Win32Rect
 from fun_time.window_layout import WindowRect, secondary_monitor_rects
 from fun_time.windows_bridge_startup import SATELLITE_PORTRAIT_TITLE
-from tests.made_up_genau import made_up_genau
+from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
 
 from .integration_support import (
     SESSION_MONITORS,
@@ -91,13 +91,15 @@ def test_a_portrait_video_on_the_crowned_main_funestra_trades_places_with_the_po
         session.stop()
 
 
-def test_a_portrait_genau_flick_on_the_crowned_main_funestra_trades_places_with_the_portrait_funestra():
+def test_a_portrait_genau_flick_on_the_crowned_main_funestra_trades_places_with_the_portrait_funestra(
+        monkeypatch):
     temp_root = build_integration_temp_root()
     genau = made_up_genau(temp_root)
+    point_the_shared_settings_at(monkeypatch, genau)
     played_from = flat_flicks_in(flicks_folder_in(genau)) / "AI"
     played_from.mkdir()
     _tall_test_pattern(played_from, seconds=2)
-    session = FunTimeIntegrationSession(build_integration_config(temp_root, genau_dir=genau))
+    session = FunTimeIntegrationSession(build_integration_config(temp_root))
     try:
         session.start()
         portrait = await_window(SATELLITE_PORTRAIT_TITLE, 10, exact=True)

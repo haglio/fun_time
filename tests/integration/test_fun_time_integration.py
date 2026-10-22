@@ -36,7 +36,7 @@ from fun_time.win32 import (
 )
 from fun_time.win32_process import is_process_alive
 from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
-from tests.made_up_genau import made_up_genau
+from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
 
 from .integration_support import (
     COMMAND_BUDGET_S,
@@ -1035,10 +1035,10 @@ def _flicks_oldest_to_newest(folder: Path, *names: str) -> list[Path]:
     return flicks
 
 
-def _config_whose_genau_browses_in_folder_order(temp_root: Path, genau: Path) -> Path:
-    """Genau on *genau*, unshuffled, so the order it reopens in can be
-    told from the order it was left in."""
-    config_path = build_integration_config(temp_root, genau_dir=genau)
+def _config_whose_genau_browses_in_folder_order(temp_root: Path) -> Path:
+    """Genau unshuffled, so the order it reopens in can be told from the order
+    it was left in."""
+    config_path = build_integration_config(temp_root)
     config = json.loads(config_path.read_text(encoding="utf-8"))
     genau_config_path = Path(config["paths"]["genau_config_path"])
     genau_config = json.loads(genau_config_path.read_text(encoding="utf-8"))
@@ -1056,7 +1056,7 @@ def _wait_for_genau_on(session: FunTimeIntegrationSession, flick: Path, waiting_
 
 
 @pytest.mark.timeout(TWO_SESSIONS_BUDGET_S)
-def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing():
+def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing(monkeypatch):
     """Close Fun Time with Genau browsing Latest and it comes back browsing
     Latest, on the flick it was on.
 
@@ -1072,10 +1072,11 @@ def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing():
     """
     temp_root = build_integration_temp_root()
     genau = made_up_genau(temp_root)
+    point_the_shared_settings_at(monkeypatch, genau)
     played_from = flat_flicks_in(flicks_folder_in(genau)) / "AI"
     played_from.mkdir()
     alpha, beta, gamma = _flicks_oldest_to_newest(played_from, "alpha.mp4", "beta.mp4", "gamma.mp4")
-    config_path = _config_whose_genau_browses_in_folder_order(temp_root, genau)
+    config_path = _config_whose_genau_browses_in_folder_order(temp_root)
 
     first = FunTimeIntegrationSession(config_path)
     try:

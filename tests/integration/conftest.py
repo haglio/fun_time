@@ -33,6 +33,7 @@ from .integration_support import (
     RootsLeftBehind,
     clear_run_roots,
     close_udp_sinks,
+    genau_where_this_machine_keeps_it,
     keep_what_the_run_logged,
 )
 from .line_record import require_a_run_that_holds_the_machine
@@ -202,6 +203,12 @@ def _release_the_runs_udp_sinks():
     """
     yield
     close_udp_sinks()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _genau_where_this_machine_keeps_it():
+    with genau_where_this_machine_keeps_it():
+        yield
 
 
 @pytest.fixture

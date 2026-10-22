@@ -84,7 +84,7 @@ def validate_config(config) -> None:
     for landscape_dir in config.paths.landscape_dirs:
         require_dir(landscape_dir)
     require_dir(config.paths.flicks_dir)
-    require_dir(config.paths.audio_dir)
+    require_dir(config.paths.genau_audio_dir)
     require_file(config.project_dir / HOTKEY_SCRIPT_NAME)
     if config.paths.genau_config_path:
         require_file(config.paths.genau_config_path)

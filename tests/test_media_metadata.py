@@ -115,13 +115,18 @@ def test_a_library_folder_kept_on_another_drive_mirrors_as_the_same_tree_would_b
     assert result == metadata_root / "VR" / "finished" / "scene one.json"
 
 
-def test_a_genau_flick_mirrors_from_beside_the_library():
-    """Genau's flicks sit next to the video tree rather than inside it, and
-    Evolver files their records the same way."""
+@pytest.mark.parametrize("flicks_folder", [
+    Path("D:/suite/videos/genau/flicks"),
+    Path("D:/suite/videos/videos/genau/flicks"),
+], ids=["beside the video tree", "inside the video tree"])
+def test_a_genau_flicks_record_is_filed_in_the_same_place_wherever_genaus_folder_sits(
+        flicks_folder: Path):
     metadata_root = Path("D:/suite/videos/metadata")
+    flick = flicks_folder / "VR" / "loop.mp4"
+    filed = metadata_root / "genau" / "flicks" / "VR" / "loop.json"
 
-    assert metadata_path_for(Path("D:/suite/videos/genau/flicks/loop.mp4"), metadata_root) == (
-        metadata_root / "genau" / "flicks" / "loop.json")
+    assert metadata_path_for(flick, metadata_root) == filed
+    assert metadata_path_for(flick, metadata_root, outlying_dirs=[flicks_folder / "VR"]) == filed
 
 
 def test_an_outlying_folder_inside_no_library_folder_is_measured_from_the_folder_holding_it(

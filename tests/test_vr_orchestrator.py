@@ -86,7 +86,7 @@ from fun_time_vr.orchestrator import (
     vr_main_sources,
 )
 from tests.cover_beats import heard_from_again_once_stale
-from tests.made_up_genau import made_up_genau
+from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
 
 
 @pytest.fixture
@@ -112,7 +112,6 @@ def config(tmp_path, monkeypatch):
             "portrait_dirs": ["%(flat)s"],
             "landscape_dirs": ["%(flat)s"],
             "weird_dir": "%(weird)s",
-            "genau_dir": "%(genau)s",
             "favs_file": "%(favs)s",
             "state_dir": "%(state)s"
           },
@@ -133,13 +132,13 @@ def config(tmp_path, monkeypatch):
             "python": str(python).replace("\\", "/"),
             "flat": str(flat_dir).replace("\\", "/"),
             "weird": str(tmp_path / "weird").replace("\\", "/"),
-            "genau": str(made_up_genau(tmp_path)).replace("\\", "/"),
             "favs": str(tmp_path / "favs.csv").replace("\\", "/"),
             "state": str(tmp_path / "state").replace("\\", "/"),
             "vr": str(vr_dir).replace("\\", "/"),
         },
         encoding="utf-8",
     )
+    point_the_shared_settings_at(monkeypatch, made_up_genau(tmp_path))
     return load_config(config_path)
 
 

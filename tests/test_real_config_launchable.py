@@ -30,6 +30,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from app_support import haglio_settings
 
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.orchestrator import validate_config
@@ -44,6 +45,11 @@ pytestmark = pytest.mark.skipif(
 
 # A worktree's ``.git`` is a file pointing at the Main Funestra's admin dir, not a dir.
 _IN_A_WORKTREE = (Path(__file__).resolve().parents[1] / ".git").is_file()
+
+
+@pytest.fixture(autouse=True)
+def _the_settings_this_machine_has(monkeypatch):
+    monkeypatch.delenv(haglio_settings.SETTINGS_ENV, raising=False)
 
 
 def test_the_default_config_loads():

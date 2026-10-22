@@ -12,7 +12,6 @@
       "C:/path/to/library/landscape"
     ],
     "weird_dir": "C:/path/to/library/misc",
-    "genau_dir": "C:/path/to/library/genau",
     "favs_file": "favs.csv",
     "state_dir": "state",
     "broker_state_dir": "state",

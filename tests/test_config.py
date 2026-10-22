@@ -15,6 +15,7 @@ from fun_time.config import ProjectConfig, load_config
 from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
 from fun_time.room_funestras import RoomFunestra
+from tests.made_up_genau import point_the_shared_settings_at
 
 # ---------------------------------------------------------------------------
 # load_config
@@ -290,14 +291,27 @@ class TestRegenConfig:
         assert cfg.paths.landscape_dirs[0] == (tmp_path / "landscape").resolve()
 
 
-class TestGenausFolder:
-    def test_the_flicks_are_the_one_folder_in_it_laid_out_as_flicks_are(self, cfg_factory, tmp_path: Path):
+class TestGenausFolders:
+    def test_the_settings_all_of_haglio_shares_say_where_genaus_flicks_and_audio_are(
+            self, cfg_path: Path, tmp_path: Path, monkeypatch):
         genau = tmp_path / "another_genau"
         flat_flicks_in(genau / "made_up_name").mkdir(parents=True)
+        audio = tmp_path / "somewhere_else" / "sounds"
+        point_the_shared_settings_at(monkeypatch, genau, audio)
 
-        cfg = load_config(cfg_factory({"paths": {"genau_dir": str(genau)}}))
+        cfg = load_config(cfg_path)
 
-        assert cfg.paths.flicks_dir == cfg.paths.genau_dir / "made_up_name"
+        assert (cfg.paths.genau_dir, cfg.paths.flicks_dir, cfg.paths.genau_audio_dir) == (
+            genau, genau / "made_up_name", audio)
+
+    def test_a_genau_dir_left_in_the_config_file_is_not_where_genau_is(
+            self, cfg_factory, genaus_folder: Path, tmp_path: Path):
+        old = tmp_path / "old_genau"
+        flat_flicks_in(old / "old_name").mkdir(parents=True)
+
+        cfg = load_config(cfg_factory({"paths": {"genau_dir": str(old)}}))
+
+        assert cfg.paths.genau_dir == genaus_folder
 
 
 # ---------------------------------------------------------------------------

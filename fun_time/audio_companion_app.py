@@ -29,7 +29,7 @@ SUPPORTED_EXTS = [".mp3", ".wav", ".ogg", ".flac", ".m4a"]
 def build_parser(config) -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Play Genau companion audio.")
     ap.add_argument("--config", help="Path to a JSON config file.")
-    ap.add_argument("--audio-folder", default=str(config.paths.audio_dir))
+    ap.add_argument("--audio-folder", default=str(config.paths.genau_audio_dir))
     ap.add_argument("--host", default=config.audio_companion.host)
     ap.add_argument("--port", type=int, default=config.audio_companion.port)
     ap.add_argument("--mode-file", default=str(config.broker_mode_file))

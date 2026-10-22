@@ -99,7 +99,7 @@ Example:
 }
 ```
 
-Genau's playback settings — `shuffle_on_load` among them — are read out of Genau's own config file, the one `paths.genau_config_path` names, and never out of this one.
+Genau's playback settings — `shuffle_on_load` among them — are read out of Genau's own config file, the one `paths.genau_config_path` names, and never out of this one. Where Genau's folder and the folder of its sounds are is not in this config either: `genau_dir` and `genau_audio_dir` in the settings all of Haglio shares, `~/.haglio/settings.json`, say so for every app.
 
 The layout values that used to be hard-coded in AutoHotkey now live under `layout`.
 
@@ -568,8 +568,8 @@ and the phrase a speaker says ("flick seconds thirty", in whatever word the
 counting while the room is paused, so OmniPause leaves the flick on screen where
 the user left it. `TOGGLE_LOCK` (the `,` key) pins the current flick while the
 interval runs on around it; `WEIRD` condemns the flick, moving the file to the
-same place in `videos/genau/weird/` that it had in the flicks folder (a
-`2D/AI` flick to `weird/2D/AI`) and taking up its successor.
+same place in the `weird` folder of Genau's folder (`genau_dir`) that it had in
+the flicks folder (a `2D/AI` flick to `weird/2D/AI`) and taking up its successor.
 
 Genau, on the Main Funestra, consumes and clears this file.
 

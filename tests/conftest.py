@@ -60,7 +60,7 @@ from fun_time.media_metadata import reset_group_index_cache
 from fun_time_vr import orchestrator as vr_orchestrator
 from fun_time_vr import vr_runtime, windows_sound
 from tests.logging_state import logging_given_back
-from tests.made_up_genau import made_up_genau
+from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
 from tests.scratch import scratch_dir
 from tests.thread_state import no_thread_outlives_this
 
@@ -358,7 +358,6 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
     """Write a minimal valid config JSON to tmp_path and return the path."""
     # Create stub directories / files that config validation expects.
     (tmp_path / "state").mkdir(exist_ok=True)
-    genau = made_up_genau(tmp_path)
     (tmp_path / "videos" / "videos" / "portrait").mkdir(parents=True, exist_ok=True)
     (tmp_path / "videos" / "videos" / "landscape").mkdir(parents=True, exist_ok=True)
     (tmp_path / "weird").mkdir(exist_ok=True)
@@ -372,7 +371,6 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "portrait_dir": str(tmp_path / "videos" / "videos" / "portrait"),
             "landscape_dir": str(tmp_path / "videos" / "videos" / "landscape"),
             "weird_dir": str(tmp_path / "weird"),
-            "genau_dir": str(genau),
             "favs_file": str(tmp_path / "favs.csv"),
             "state_dir": str(tmp_path / "state"),
         },
@@ -405,13 +403,22 @@ def _deep_merge(base: dict, override: dict) -> None:
 
 
 @pytest.fixture
-def cfg_path(tmp_path: Path) -> Path:
+def genaus_folder(tmp_path: Path, monkeypatch) -> Path:
+    """Genau's folders, made up in the test's own folder, named by the settings
+    all of Haglio shares as this test reads them."""
+    folder = made_up_genau(tmp_path)
+    point_the_shared_settings_at(monkeypatch, folder)
+    return folder
+
+
+@pytest.fixture
+def cfg_path(tmp_path: Path, genaus_folder: Path) -> Path:
     """Return path to a written minimal valid config file."""
     return _write_config(tmp_path)
 
 
 @pytest.fixture
-def cfg_factory(tmp_path: Path):
+def cfg_factory(tmp_path: Path, genaus_folder: Path):
     """Return a factory that writes a config with optional overrides."""
     def factory(overrides: dict | None = None) -> Path:
         return _write_config(tmp_path, overrides)
