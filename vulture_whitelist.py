@@ -17,6 +17,7 @@ _.pick  # the Funestra hands them the projection picked off the list
 _.set_bar  # the Funestra hands them the angle the Angle bar is set to
 _.leaveEvent  # Qt calls it when the pointer leaves the dashboard bar
 _.mouseMoveEvent  # Qt event override
+_.decorationPosition  # Qt's item view reads it off the style option, to put a letter's mark after it
 _.ERROR_CHECKING  # PyOpenGL reads it once, when OpenGL.GL is first imported
 _.optionxform  # ConfigParser hook, set to keep key case
 _.resizable  # pygame's Window property, set so SDL takes a resize from outside

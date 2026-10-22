@@ -39,13 +39,12 @@ from fun_time.funestra_buttons import LATEST_ICON
 from fun_time.inclusion_pairs import LENGTH, ORIENTATION, PROJECTION
 from fun_time.osr2_section import take_osr2_button
 from fun_time.room_funestras import RoomFunestra
-from tests.symbol_face import typed_in_the_symbol_face
 
 FLAT_ICON, VR_ICON = PROJECTION.first.mark, PROJECTION.second.mark
 CLIPS_ICON, FULL_ICON = LENGTH.first.mark, LENGTH.second.mark
 PORTRAIT_ICON, LANDSCAPE_ICON = ORIENTATION.first.mark, ORIENTATION.second.mark
 
-_MINUS, _PLUS = "−", "+"
+_MINUS, _PLUS = shared_mark("minus"), shared_mark("plus")
 
 
 @pytest.fixture
@@ -689,18 +688,16 @@ class TestLayout:
 
 
 class TestFaces:
-    def test_every_typed_face_is_in_the_painters_symbol_face(self):
-        typed = {b.glyph for b in _every_button() if len(b.glyph) == 1 and not b.glyph.isalnum()}
-
-        assert typed
-        for face in typed:
-            assert typed_in_the_symbol_face(face), ascii(face)
+    def test_no_button_types_a_face_of_its_own(self):
+        """Every face is one of the family's marks or a word: a typed symbol is
+        a font's picture of the control rather than the family's."""
+        assert not {b.glyph for b in _every_button() if len(b.glyph) == 1 and not b.glyph.isalnum()}
 
     def test_every_mark_a_button_names_is_one_the_family_draws(self):
         named = {shared_mark_name(b.glyph) for b in _every_button()
                  if b.glyph.startswith(SHARED_MARK)}
 
-        assert {"trash", "reset", "wave"} <= named
+        assert {"trash", "reset", "wave", "crown", "folder", "chevron_left", "lock"} <= named
         assert not named - set(glyph_names())
 
     def test_no_button_asks_for_a_mark_by_a_name_the_family_has_retired(self):

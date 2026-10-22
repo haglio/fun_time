@@ -4,12 +4,14 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from funestra.hud_marks import shared_mark
+
 from .mode_plan import kino_shows
 
 if TYPE_CHECKING:
     from .shared_state import BridgeState
 
-CROWN_ICON = "\U0001F451"
+CROWN_ICON = shared_mark("crown")
 
 
 class Crown(StrEnum):

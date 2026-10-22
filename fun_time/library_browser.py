@@ -39,6 +39,9 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QListWidget,
     QListWidgetItem,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -58,7 +61,7 @@ from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, make_font
 from shared_ui.foreground import bring_to_front
 from shared_ui.icons import glyph_icon
 from shared_ui.mark_button import fill_square_with_mark
-from shared_ui.spacing import BUTTON_RADIUS, MARGIN_STANDARD
+from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS, MARGIN_STANDARD
 
 from . import preview_marker
 from .checkout_overrides import sibling_checkouts_kwargs
@@ -96,9 +99,6 @@ SIDEBAR_WIDTH = 220
 # that open on a digit or a bracket, and each of those under a heading of its own
 # first character would be an index with more headings in it than names.
 NON_LETTER_HEADING = "#"
-
-OPEN_MARK = "▾"
-CLOSED_MARK = "▸"
 
 # What the tile that goes back up is called, at the two places it can appear.
 UP_LABEL = "back"
@@ -302,6 +302,13 @@ class LibraryGrid(BrowseList):
             self._collect_timer.stop()
 
 
+class _MarkAfterTheLetterInItsInk(QStyledItemDelegate):
+    def initStyleOption(self, option, index) -> None:  # Qt override
+        super().initStyleOption(option, index)
+        option.decorationPosition = QStyleOptionViewItem.Position.Right
+        option.state |= QStyle.StateFlag.State_Enabled
+
+
 class FolderIndex(BrowseList):
     """The folder's letters, A to Z, each opening onto its names when clicked.
 
@@ -322,6 +329,8 @@ class FolderIndex(BrowseList):
         self._on_reveal = on_reveal
         self._on_activate = on_activate
         self.setFixedWidth(SIDEBAR_WIDTH)
+        self.setItemDelegate(_MarkAfterTheLetterInItsInk(self))
+        self.setIconSize(QSize(BUTTON_ICON, BUTTON_ICON))
         self.setStyleSheet(
             f"QListWidget {{ background-color: {BG_SECONDARY.name()};"
             f" color: {TEXT_PRIMARY.name()};"
@@ -411,21 +420,20 @@ class FolderIndex(BrowseList):
     def _open_only(self, heading_row: int | None) -> None:
         self._open_heading = heading_row
         heading = None
+        marks = {"open": glyph_icon("chevron_down"), "closed": glyph_icon("chevron_right"),
+                 "empty": QIcon()}
         for row, line in enumerate(self.lines):
             if line.is_heading:
                 heading = row
-                self.item(row).setText(self._letter_label(row))
+                self.item(row).setIcon(marks[self._letter_state(row)])
                 self.item(row).setForeground(TEXT_PRIMARY if self._has_names(row) else TEXT_MUTED)
             else:
                 self.setRowHidden(row, heading != heading_row)
 
-    def _letter_label(self, row: int) -> str:
-        letter = self.lines[row].label
+    def _letter_state(self, row: int) -> str:
         if row == self._open_heading:
-            return f"{letter} {OPEN_MARK}"
-        if self._has_names(row):
-            return f"{letter} {CLOSED_MARK}"
-        return letter
+            return "open"
+        return "closed" if self._has_names(row) else "empty"
 
     def _has_names(self, row: int) -> bool:
         return row + 1 < len(self.lines) and not self.lines[row + 1].is_heading

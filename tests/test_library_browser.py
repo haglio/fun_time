@@ -12,8 +12,16 @@ import pytest
 from PIL import Image
 from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
 from PyQt6.QtGui import QIcon, QKeyEvent, QMouseEvent
-from PyQt6.QtWidgets import QAbstractItemView, QApplication, QListWidget
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QListWidget,
+    QStyle,
+    QStyleOptionViewItem,
+)
 from shared_ui.colors import TEXT_MUTED, TEXT_PRIMARY
+from shared_ui.icons import glyph_icon
+from shared_ui.spacing import BUTTON_ICON
 
 from fun_time import load_config
 from fun_time.library_browser import (
@@ -713,9 +721,35 @@ def test_a_letter_says_whether_it_is_open_closed_or_empty(browser, tmp_path: Pat
 
     _click(window.index, _letter_row(window.index, "A"))
 
-    assert [window.index.item(_letter_row(window.index, letter)).text() for letter in "ABC"] == [
-        "A ▾", "B", "C ▸",
+    assert [(window.index.item(_letter_row(window.index, letter)).text(),
+             _mark_on(window.index, letter)) for letter in "ABC"] == [
+        ("A", "chevron_down"), ("B", None), ("C", "chevron_right"),
     ]
+
+
+def _mark_on(index, letter: str) -> str | None:
+    """Which of the family's chevrons a letter wears, read off its icon."""
+    icon = index.item(_letter_row(index, letter)).icon()
+    if icon.isNull():
+        return None
+    drawn = icon.pixmap(BUTTON_ICON).toImage()
+    return next(name for name in ("chevron_down", "chevron_right")
+                if glyph_icon(name).pixmap(BUTTON_ICON).toImage() == drawn)
+
+
+def test_a_letter_wears_its_mark_after_it_in_its_own_ink(browser, tmp_path: Path):
+    """A heading takes no selection, so Qt would draw it disabled, and a disabled
+    item's mark is the gray one."""
+    window = browser([_handle("Alpha Scene", section="main")],
+                     thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    window.open_folder(("main",))
+    option = QStyleOptionViewItem()
+
+    window.index.itemDelegate().initStyleOption(
+        option, window.index.model().index(_letter_row(window.index, "A"), 0))
+
+    assert option.decorationPosition == QStyleOptionViewItem.Position.Right
+    assert option.state & QStyle.StateFlag.State_Enabled
 
 
 def test_a_letter_with_nothing_under_it_is_grayed_out(browser, tmp_path: Path):

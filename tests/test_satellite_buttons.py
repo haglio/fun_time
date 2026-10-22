@@ -5,12 +5,22 @@ from __future__ import annotations
 from itertools import pairwise
 
 from funestra.hud_button import FIT_THE_WORD, Button
-from funestra.hud_marks import FMODE_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
+from funestra.hud_marks import (
+    BACK_ICON,
+    FMODE_ICON,
+    FORWARD_ICON,
+    LOCK_ICON,
+    MINIMIZE_ICON,
+    NEXT_ICON,
+    PREVIOUS_ICON,
+    SHARED_MARK,
+    shared_mark,
+    shared_mark_name,
+)
 from funestra.modes import SatellitesMode
 from shared_ui.icon_geometry import glyph_names
 
 from fun_time.satellite_buttons import funestra_rows
-from tests.symbol_face import typed_in_the_symbol_face
 
 
 def _band(**fields) -> tuple[Button, ...]:
@@ -141,8 +151,7 @@ def test_the_origenerator_button_is_dim_until_that_app_is_up():
 
 def test_the_faces_are_the_familys_marks_where_it_has_them():
     """The bin is the bin Origenerator's toolbar wears, reset the gear with the
-    circular arrow, F-mode its magenta badge; the transport and the padlock stay
-    typed, since the family draws neither."""
+    circular arrow, F-mode its magenta badge."""
     faces = _faces()
     named = {name: shared_mark_name(face) for name, face in faces.items()
              if face.startswith(SHARED_MARK)}
@@ -150,8 +159,6 @@ def test_the_faces_are_the_familys_marks_where_it_has_them():
     assert named["trash"] == "trash" and named["reset"] == "reset"
     assert not set(named.values()) - set(glyph_names())
     assert faces["fmode"] == FMODE_ICON
-    assert all(not faces[name].startswith(SHARED_MARK)
-               for name in ("prev", "nudge_prev", "nudge_next", "next", "lock"))
 
 
 def test_the_gaps_fall_between_groups_and_nowhere_else():
@@ -161,12 +168,15 @@ def test_the_gaps_fall_between_groups_and_nowhere_else():
             in ("next", "fmode", "reset", "latest", "cycle_version"))
 
 
-def test_the_typed_faces_are_in_the_painters_symbol_face():
-    typed = {face for face in _faces().values() if len(face) == 1 and not face.isalnum()}
+def test_no_face_is_typed():
+    assert not {face for face in _faces().values() if len(face) == 1 and not face.isalnum()}
 
-    assert typed
-    for face in typed:
-        assert typed_in_the_symbol_face(face), ascii(face)
+
+def test_the_transport_the_lock_and_the_crown_wear_the_familys_marks():
+    faces = _faces()
+
+    assert [faces[name] for name in ("prev", "nudge_prev", "nudge_next", "next", "lock", "crown")] == [
+        PREVIOUS_ICON, BACK_ICON, FORWARD_ICON, NEXT_ICON, LOCK_ICON, shared_mark("crown")]
 
 
 def test_the_ten_second_steps_are_dim_on_a_clip_of_ten_seconds_or_shorter():
