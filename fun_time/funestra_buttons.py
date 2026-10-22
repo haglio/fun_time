@@ -3,14 +3,19 @@ once so a control reads and looks the same whichever Funestra wears it."""
 from __future__ import annotations
 
 from funestra.hud_button import Button
-from funestra.hud_marks import MINIMIZE_ICON, shared_mark
+from funestra.hud_marks import (
+    BACK_ICON,
+    FORWARD_ICON,
+    LOCK_ICON,
+    MINIMIZE_ICON,
+    NEXT_ICON,
+    PREVIOUS_ICON,
+    shared_mark,
+)
 from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
 
 from .ten_second_steps import too_short_to_step
 
-PREV_FACE = "⏮"
-NEXT_FACE = "⏭"
-LOCK_FACE = "🔒"
 TRASH_ICON = shared_mark("trash")
 RESET_ICON = shared_mark("reset")
 SHUFFLE_ICON = shared_mark("shuffle")
@@ -24,18 +29,18 @@ SATELLITE_NOUN = "clip"
 def transport(funestra: str, *, noun: str, longer_than_a_step: bool) -> tuple[Button, ...]:
     too_short = "" if longer_than_a_step else f" ({too_short_to_step(noun)})"
     return (
-        Button(f"{funestra}_prev", PREV_FACE, f"Previous {noun}"),
-        Button(f"{funestra}_nudge_prev", "⏪", f"Back 10s{too_short}",
+        Button(f"{funestra}_prev", PREVIOUS_ICON, f"Previous {noun}"),
+        Button(f"{funestra}_nudge_prev", BACK_ICON, f"Back 10s{too_short}",
                dim=not longer_than_a_step),
-        Button(f"{funestra}_nudge_next", "⏩", f"Forward 10s{too_short}",
+        Button(f"{funestra}_nudge_next", FORWARD_ICON, f"Forward 10s{too_short}",
                dim=not longer_than_a_step),
-        Button(f"{funestra}_next", NEXT_FACE, f"Next {noun}"),
+        Button(f"{funestra}_next", NEXT_ICON, f"Next {noun}"),
     )
 
 
 def lock_button(funestra: str, *, locked: bool, noun: str) -> Button:
     return Button(
-        f"{funestra}_lock", LOCK_FACE,
+        f"{funestra}_lock", LOCK_ICON,
         f"Locked — this {noun} repeats; press to play on through the playlist" if locked
         else f"Unlocked — plays on through the playlist; press to hold this {noun}",
         lit=locked, favorite=True, group_break=True)

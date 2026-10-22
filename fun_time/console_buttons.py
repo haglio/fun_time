@@ -10,17 +10,21 @@ from dataclasses import dataclass
 
 from funestra.console import OSR2_DRIVING, ROW_LABEL_W, VALUE_W, aim_row
 from funestra.hud_button import Button
-from funestra.hud_marks import BROKER_ICON, FMODE_ICON, shared_mark
+from funestra.hud_marks import (
+    BROKER_ICON,
+    FMODE_ICON,
+    LOCK_ICON,
+    NEXT_ICON,
+    PREVIOUS_ICON,
+    shared_mark,
+)
 from funestra.modes import LengthMode, LoopState, MainMode
 from shared_ui.spacing import BUTTON_WORD_W
 
 from .content import genau_flick_noun
 from .crown import CROWN_ICON, Crown
 from .funestra_buttons import (
-    LOCK_FACE,
     MAIN_FUNESTRA_NOUN,
-    NEXT_FACE,
-    PREV_FACE,
     TRASH_ICON,
     browse_order_buttons,
     lock_button,
@@ -75,10 +79,11 @@ class MainSlot:
     has_osr2: bool = True
 
 
-# The glyphs this console types, as against the family's marks it names below.
-_GLYPHS = {
-    "open": "📂", "record": "⏺", "save": "💾", "minus": "−", "plus": "+",
-}
+OPEN_ICON = shared_mark("folder")
+RECORD_ICON = shared_mark("disc")
+SAVE_ICON = shared_mark("save")
+LESS_ICON = shared_mark("minus")
+MORE_ICON = shared_mark("plus")
 COMPILATION_ICON = shared_mark("compilation")
 CLIP_TO_SCENE_ICON = shared_mark("clip_to_scene")
 SCENE_TO_CLIP_ICON = shared_mark("scene_to_clip")
@@ -131,18 +136,18 @@ def osr2_controls(*, broker: bool) -> tuple[Button, ...]:
 
 def _file_controls(slot: MainSlot) -> tuple[Button, ...]:
     if not kino_shows(slot.main_mode):
-        return (Button("browse_library", _GLYPHS["open"], f"Browse the {genau_flick_noun().many}",
+        return (Button("browse_library", OPEN_ICON, f"Browse the {genau_flick_noun().many}",
                        group_break=True),)
     return (
-        Button("browse_library", _GLYPHS["open"], "Browse the library", group_break=True),
-        Button("main_player_record_tap", _GLYPHS["record"],
+        Button("browse_library", OPEN_ICON, "Browse the library", group_break=True),
+        Button("main_player_record_tap", RECORD_ICON,
                "Stop recording — mark the loop's out point"
                if slot.loop_state is LoopState.RECORDING else
                "Looping — press to drop the loop" if slot.loop_state is LoopState.LOOPING
                else "Record loop",
                warn=slot.loop_state is LoopState.RECORDING,
                hold=slot.loop_state is LoopState.LOOPING, group_break=True),
-        Button("genaumacher_save", _GLYPHS["save"], "Save clip"),
+        Button("genaumacher_save", SAVE_ICON, "Save clip"),
     )
 
 
@@ -210,9 +215,9 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
         )
     flick = genau_flick_noun()
     return (
-        Button("genau_prev_flick", PREV_FACE, f"Previous {flick.one}"),
-        Button("genau_next_flick", NEXT_FACE, f"Next {flick.one}"),
-        Button("main_lock", LOCK_FACE,
+        Button("genau_prev_flick", PREVIOUS_ICON, f"Previous {flick.one}"),
+        Button("genau_next_flick", NEXT_ICON, f"Next {flick.one}"),
+        Button("main_lock", LOCK_ICON,
                f"Locked — this {flick.one} repeats; press to move on every "
                f"{slot.pace_s}s" if slot.locked
                else "Unlocked — moving on every "
@@ -235,10 +240,10 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
 def _playback_speed_row() -> tuple[Button, ...]:
     return (
         Button("", "Playback speed", "", width=ROW_LABEL_W),
-        Button("main_player_speed_down", _GLYPHS["minus"], "Play the video slower",
+        Button("main_player_speed_down", LESS_ICON, "Play the video slower",
                group_break=True),
         Button("", "", "", width=VALUE_W, host_value="playback_speed"),
-        Button("main_player_speed_up", _GLYPHS["plus"], "Play the video faster"),
+        Button("main_player_speed_up", MORE_ICON, "Play the video faster"),
     )
 
 
@@ -246,9 +251,9 @@ def _flick_seconds_row() -> tuple[Button, ...]:
     flick = genau_flick_noun()
     return (
         Button("", f"{flick.one.capitalize()} seconds", "", width=ROW_LABEL_W),
-        Button("genau_flick_seconds_down", _GLYPHS["minus"], "Move on sooner", group_break=True),
+        Button("genau_flick_seconds_down", LESS_ICON, "Move on sooner", group_break=True),
         Button("", "", "", width=VALUE_W, host_value="advance_interval"),
-        Button("genau_flick_seconds_up", _GLYPHS["plus"], f"Leave each {flick.one} longer"),
+        Button("genau_flick_seconds_up", MORE_ICON, f"Leave each {flick.one} longer"),
     )
 
 
