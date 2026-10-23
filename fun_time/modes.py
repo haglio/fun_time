@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support.mirrored_tree import LIBRARY_DIR_NAME, mirrored_path
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.playlist import PlaylistItem, write_playlist
 
@@ -69,35 +70,30 @@ def _videos_under(root: Path) -> Iterator[str]:
             yield entry.path
 
 
-# A third mirror of the video tree, beside ``scripts`` and Evolver's ``metadata``:
-# which funscripts a bulk run wrote rather than a person, which nothing else on disk
-# records.  It marks beside the script, so ``scripts`` stays the one complete tree.
-LIBRARY_MARKER = "\\videos\\videos\\"
-SCRIPTS_MARKER = "\\videos\\scripts\\scripts\\"
-GENERATED_MARKER = "\\videos\\scripts\\generated\\"
-GENERATED_SUFFIX = ".generated"
+SCRIPTS_TREE = Path("scripts", "scripts")
+GENERATED_TREE = Path("scripts", "generated")
 
 
-def _as_in_the_library(normalized: str, metadata_root: Path | None) -> str:
-    if metadata_root is None:
-        return normalized
-    return str(metadata_root.parent.parent) + LIBRARY_MARKER + normalized.split(LIBRARY_MARKER, 1)[1]
+def _library_folder_of(video: Path) -> Path | None:
+    return next((folder for folder in reversed(video.parents)
+                 if folder.name.lower() == folder.parent.name.lower() == LIBRARY_DIR_NAME), None)
 
 
-def _mirrored_path(video_path: str, marker: str, suffix: str, metadata_root: Path | None) -> str:
-    normalized = str(Path(video_path))
-    if LIBRARY_MARKER not in normalized:
+def _mirrored_path(video_path: str, tree: Path, suffix: str, metadata_root: Path | None) -> str:
+    video = Path(video_path)
+    library = _library_folder_of(video)
+    if library is None:
         return ""
-    mirrored = _as_in_the_library(normalized, metadata_root).replace(LIBRARY_MARKER, marker, 1)
-    return str(Path(mirrored).with_suffix(suffix))
+    trees_beside = metadata_root.parent if metadata_root is not None else library.parent
+    return str(mirrored_path(video, roots=(library,), mirror_root=trees_beside / tree, suffix=suffix))
 
 
 def build_mirrored_funscript_path(video_path: str, metadata_root: Path | None = None) -> str:
-    return _mirrored_path(video_path, SCRIPTS_MARKER, ".funscript", metadata_root)
+    return _mirrored_path(video_path, SCRIPTS_TREE, ".funscript", metadata_root)
 
 
 def build_generated_marker_path(video_path: str, metadata_root: Path | None = None) -> str:
-    return _mirrored_path(video_path, GENERATED_MARKER, GENERATED_SUFFIX, metadata_root)
+    return _mirrored_path(video_path, GENERATED_TREE, ".generated", metadata_root)
 
 
 def matching_funscript(video_path: str, metadata_root: Path | None = None) -> str | None:
