@@ -14,7 +14,7 @@ from tests.child_reports import (
     an_interpreter_asleep,
     running,
 )
-from tests.process_state import ProcessesLeftRunning, no_process_outlives_this
+from tests.process_state import ProcessesLeftRunning, no_process_outlives_this, the_guard_for
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -72,3 +72,13 @@ def test_what_a_process_leaves_running_ends_with_it():
         holder.stdin.close()
 
     assert all_gone_within([left], 10.0)
+
+
+def test_every_test_runs_inside_it(request):
+    assert "_no_process_outlives_its_test" in request.fixturenames
+
+
+def test_an_integration_test_is_left_to_the_job_its_runner_holds():
+    with contextlib.ExitStack() as afterwards:
+        with the_guard_for(Path(__file__).parent / "integration" / "test_a_session.py"):
+            afterwards.enter_context(an_interpreter_asleep())

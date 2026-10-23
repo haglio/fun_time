@@ -61,6 +61,7 @@ from fun_time_vr import orchestrator as vr_orchestrator
 from fun_time_vr import vr_runtime, windows_sound
 from tests.logging_state import logging_given_back
 from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
+from tests.process_state import the_guard_for
 from tests.scratch import scratch_dir
 from tests.thread_state import no_thread_outlives_this
 
@@ -296,6 +297,12 @@ def _logging_is_given_back():
 @pytest.fixture(autouse=True)
 def _no_thread_outlives_its_test():
     with no_thread_outlives_this():
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _no_process_outlives_its_test(request):
+    with the_guard_for(request.path):
         yield
 
 
