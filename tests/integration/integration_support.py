@@ -33,8 +33,6 @@ from fun_time.funestra_status import (
 )
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 from fun_time.modes import (
-    LIBRARY_MARKER,
-    SCRIPTS_MARKER,
     build_mirrored_funscript_path,
     has_handcrafted_funscript,
     matching_funscript,
@@ -842,9 +840,7 @@ def environment_with_this_checkouts_siblings() -> dict[str, str]:
 
 
 def point_the_main_funestra_at(config: dict, videos_dir: Path) -> None:
-    main_funestra = config.setdefault("main_player", {})
-    main_funestra["videos_dir"] = str(videos_dir)
-    main_funestra["scripts_dir"] = str(videos_dir).replace(LIBRARY_MARKER, SCRIPTS_MARKER)
+    config.setdefault("main_player", {})["videos_dir"] = str(videos_dir)
 
 
 def state_dir_of(root: Path) -> Path:

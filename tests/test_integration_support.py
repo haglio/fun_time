@@ -542,8 +542,6 @@ def test_a_runs_main_funestra_browses_the_runs_copy_of_the_library_not_the_machi
     point_the_main_funestra_at(config, run_videos)
 
     assert config["main_player"]["videos_dir"] == str(run_videos)
-    assert config["main_player"]["scripts_dir"] == str(
-        Path("C:\\Temp\\fun_time_integration_run\\integration_runtime\\videos\\scripts\\scripts\\primary"))
 
 
 def _a_machines_config_over_a_made_up_library(root: Path) -> Path:
@@ -566,7 +564,7 @@ def _a_machines_config_over_a_made_up_library(root: Path) -> Path:
         main_player_library_dirs=[str(films)],
         portrait_dirs=[str(sides["portrait"])], landscape_dirs=[str(sides["landscape"])],
         genau_config_path=str(genau_config_path), state_dir=str(root / "state"))
-    config["main_player"].update(videos_dir=str(films), scripts_dir=str(scripts))
+    config["main_player"]["videos_dir"] = str(films)
     config["regen"]["metadata_root"] = str(library / "metadata")
     config_path = root / "fun_time_config.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")

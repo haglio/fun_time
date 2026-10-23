@@ -48,9 +48,7 @@ class TestResolvePlaylist:
         # groups fold them to one slot — the larger — matching the rotation the
         # Main Funestra shows and the set "cycle version" walks.
         vids = tmp_path / "videos"
-        scripts = tmp_path / "scripts"
         vids.mkdir()
-        scripts.mkdir()
         original = vids / "Jane-540.mp4"
         upscale = vids / "Jane-540_topaz.mp4"
         original.write_text("sm")
@@ -59,7 +57,7 @@ class TestResolvePlaylist:
         playlist.write_text(f"{original}\n{upscale}\n", encoding="utf-8")
         args = build_parser({}).parse_args([
             "--playlist", str(playlist),
-            "--videos-dir", str(vids), "--scripts-dir", str(scripts),
+            "--videos-dir", str(vids),
         ])
         source = library_source(args)
 
@@ -74,13 +72,11 @@ class TestLibrarySource:
 
     def test_built_from_dirs(self, tmp_path):
         vids = tmp_path / "videos"
-        scripts = tmp_path / "scripts"
         vids.mkdir()
-        scripts.mkdir()
         vid = vids / "a-1080p.mp4"
         vid.write_text("x")
         args = build_parser({}).parse_args([
-            "--videos-dir", str(vids), "--scripts-dir", str(scripts),
+            "--videos-dir", str(vids),
         ])
         assert library_source(args) is not None
 
@@ -88,16 +84,14 @@ class TestLibrarySource:
         """Fun Time passes --playlist for the list it plays, but the Main Funestra still needs
         the source for the other versions of a video and the compilations."""
         vids = tmp_path / "videos"
-        scripts = tmp_path / "scripts"
         vids.mkdir()
-        scripts.mkdir()
         vid = vids / "a-1080p.mp4"
         vid.write_text("x")
         playlist = tmp_path / "main_player_playlist.tsv"
         playlist.write_text(f"{vid}\n", encoding="utf-8")
         args = build_parser({}).parse_args([
             "--playlist", str(playlist),
-            "--videos-dir", str(vids), "--scripts-dir", str(scripts),
+            "--videos-dir", str(vids),
         ])
         assert library_source(args) is not None
 
@@ -105,13 +99,11 @@ class TestLibrarySource:
         """The loading screen hangs off this callback, so a source built without
         forwarding it leaves the window frozen for the whole wait."""
         vids = tmp_path / "videos"
-        scripts = tmp_path / "scripts"
         vids.mkdir()
-        scripts.mkdir()
         vid = vids / "a-1080p.mp4"
         vid.write_text("x")
         args = build_parser({}).parse_args([
-            "--videos-dir", str(vids), "--scripts-dir", str(scripts),
+            "--videos-dir", str(vids),
         ])
         seen = []
 
@@ -120,15 +112,15 @@ class TestLibrarySource:
         assert PHASE_DISCOVER in seen
 
     def test_kino_knows_nothing_from_genaus_folder(self, tmp_path):
-        vids, scripts, flicks = tmp_path / "videos", tmp_path / "scripts", tmp_path / "flicks"
-        for folder in (vids, scripts, flicks / "2D" / "AI"):
+        vids, flicks = tmp_path / "videos", tmp_path / "flicks"
+        for folder in (vids, flicks / "2D" / "AI"):
             folder.mkdir(parents=True)
         scene = vids / "scene one.mp4"
         genau_flick = flicks / "2D" / "AI" / "flick one.mp4"
         for video in (scene, genau_flick):
             video.write_text("x")
         args = build_parser({}).parse_args([
-            "--videos-dir", str(vids), "--scripts-dir", str(scripts), "--flicks-dir", str(flicks),
+            "--videos-dir", str(vids), "--flicks-dir", str(flicks),
         ])
         source = library_source(args)
 
@@ -263,7 +255,6 @@ class TestTheRestOfTheFlags:
     def test_the_library_directories_and_the_silent_run(self, tmp_path):
         args = build_parser({}).parse_args([
             "--videos-dir", str(tmp_path / "videos"),
-            "--scripts-dir", str(tmp_path / "scripts"),
             "--flicks-dir", str(tmp_path / "flicks"),
             "--state-dir", str(tmp_path / "state"),
             "--notice-file", str(tmp_path / "notice.txt"),
@@ -271,7 +262,6 @@ class TestTheRestOfTheFlags:
         ])
 
         assert args.videos_dir == tmp_path / "videos"
-        assert args.scripts_dir == tmp_path / "scripts"
         assert args.flicks_dir == tmp_path / "flicks"
         assert args.state_dir == tmp_path / "state"
         assert args.notice_file == tmp_path / "notice.txt"
@@ -284,7 +274,6 @@ class TestTheRestOfTheFlags:
 EVERY_FLAG_ARGV = [
     "--config", "C:/example/genau_config.json",
     "--videos-dir", "C:/example/library/videos",
-    "--scripts-dir", "C:/example/library/scripts",
     "--flicks-dir", "C:/example/library/flicks",
     "--state-dir", "C:/example/state",
     "--metadata-dir", "C:/example/library/metadata",
@@ -321,7 +310,6 @@ EVERY_FLAG_ARGV = [
 EVERY_FLAG_LANDS_AS = {
     "config": Path("C:/example/genau_config.json"),
     "videos_dir": Path("C:/example/library/videos"),
-    "scripts_dir": Path("C:/example/library/scripts"),
     "flicks_dir": Path("C:/example/library/flicks"),
     "state_dir": Path("C:/example/state"),
     "metadata_dir": Path("C:/example/library/metadata"),
@@ -358,7 +346,6 @@ EVERY_FLAG_LANDS_AS = {
 NO_FLAGS_LANDS_AS = {
     "config": None,
     "videos_dir": None,
-    "scripts_dir": None,
     "flicks_dir": None,
     "state_dir": None,
     "metadata_dir": None,
@@ -426,7 +413,6 @@ class TestTheConfigsOwnDefaults:
     CONFIG = {
         "main_player": {
             "videos_dir": "C:/example/library/videos",
-            "scripts_dir": "C:/example/library/scripts",
             "metadata_dir": "C:/example/library/metadata",
             "tcode_udp_host": "10.0.0.7",
             "tcode_udp_port": 51000,
@@ -435,7 +421,6 @@ class TestTheConfigsOwnDefaults:
 
     @pytest.mark.parametrize("name, expected", [
         ("videos_dir", Path("C:/example/library/videos")),
-        ("scripts_dir", Path("C:/example/library/scripts")),
         ("metadata_dir", Path("C:/example/library/metadata")),
         ("tcode_host", "10.0.0.7"),
         ("tcode_port", 51000),

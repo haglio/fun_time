@@ -18,13 +18,11 @@ def _make_video(path: Path, body: str = "x") -> Path:
 class TestBuildLibrarySource:
     def test_version_index_covers_all_entries(self, tmp_path):
         vids = tmp_path / "videos"
-        scripts = tmp_path / "scripts"
         vids.mkdir()
-        scripts.mkdir()
         big = _make_video(vids / "Jane-1080p.mp4", body="a bigger body here")
         small = _make_video(vids / "Jane-540.mp4", body="sm")
 
-        source = build_library_source(vids, scripts)
+        source = build_library_source(vids)
 
         # Both versions map to the same ordered pair list (canonical first).
         assert source.version_index[big] == source.version_index[small]
@@ -72,13 +70,11 @@ class TestBuildProgress:
 
     def test_reports_the_walk(self, tmp_path):
         vids = tmp_path / "videos"
-        scripts = tmp_path / "scripts"
         vids.mkdir()
-        scripts.mkdir()
         _make_video(vids / "a.mp4")
         seen: list[str] = []
 
-        build_library_source(vids, scripts, on_progress=seen.append)
+        build_library_source(vids, on_progress=seen.append)
 
         assert seen == [PHASE_DISCOVER]
 
@@ -86,9 +82,7 @@ class TestBuildProgress:
         """Closing the window mid-wait has to end the wait, not be noticed once
         it is over — so the callback aborts the build by raising."""
         vids = tmp_path / "videos"
-        scripts = tmp_path / "scripts"
         vids.mkdir()
-        scripts.mkdir()
 
         class GaveUp(Exception):
             """Whatever the caller raises — the build has no opinion on it."""
@@ -97,7 +91,7 @@ class TestBuildProgress:
             raise GaveUp
 
         with pytest.raises(GaveUp):
-            build_library_source(vids, scripts, on_progress=give_up)
+            build_library_source(vids, on_progress=give_up)
 
 
 def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_path):
