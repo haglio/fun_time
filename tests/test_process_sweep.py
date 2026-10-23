@@ -1,12 +1,11 @@
 """A sweep of the machine's processes is a question this process asks Windows."""
 from __future__ import annotations
 
-import subprocess
-import sys
 from unittest.mock import patch
 
 from fun_time.process_sweep import Running, processes_matching
 from fun_time.win32_process import ProcessEntry
+from tests.child_reports import an_interpreter_asleep
 
 TABLE = [
     ProcessEntry(pid=10, parent=1, image="pythonw.exe"),
@@ -50,12 +49,7 @@ def test_a_sweep_starts_no_process_of_its_own():
 
 
 def test_it_finds_a_real_process_by_what_it_was_started_with():
-    child = subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(60)", "swept-for-by-a-test"])
-    try:
+    with an_interpreter_asleep("swept-for-by-a-test") as child:
         found = processes_matching(r"^python\.exe$", r"swept-for-by-a-test")
-    finally:
-        child.kill()
-        child.wait()
 
     assert child.pid in {each.pid for each in found}

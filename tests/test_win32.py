@@ -44,6 +44,7 @@ from fun_time.win32_process import (
     is_process_alive,
     process_table,
 )
+from tests.child_reports import an_interpreter_asleep
 from tests.sleeps import sleeps_in
 
 
@@ -358,13 +359,8 @@ class TestIsProcessAlive:
 
 class TestCommandLineOf:
     def test_a_running_process_says_what_it_was_started_with(self):
-        child = subprocess.Popen(
-            [sys.executable, "-c", "import time; time.sleep(60)", "started-to-be-read"])
-        try:
+        with an_interpreter_asleep("started-to-be-read") as child:
             assert "started-to-be-read" in command_line_of(child.pid)
-        finally:
-            child.kill()
-            child.wait()
 
     def test_a_process_this_one_may_not_open_has_none(self):
         with patch("fun_time.win32_process._kernel32") as mock:
