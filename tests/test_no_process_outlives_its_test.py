@@ -12,6 +12,7 @@ from tests.child_reports import (
     StartedProcess,
     all_gone_within,
     an_interpreter_asleep,
+    an_interpreter_running,
     running,
 )
 from tests.process_state import ProcessesLeftRunning, no_process_outlives_this, the_guard_for
@@ -21,6 +22,12 @@ ROOT = Path(__file__).resolve().parent.parent
 _STARTS_ONE_AND_ENDS = (
     "import subprocess, sys;"
     "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(2)', 'outlived-its-parent'])"
+)
+
+_RECORDS_ITS_EXIT_CODE_HALF_A_SECOND_BEFORE_IT_ENDS = (
+    "import ctypes, time;"
+    "ctypes.windll.ntdll.NtTerminateProcess(None, 7);"
+    "time.sleep(0.5)"
 )
 
 _LEAVES_ONE_RUNNING_UNTIL_TOLD_TO_END = (
@@ -52,7 +59,8 @@ def test_a_process_whose_parent_has_ended_is_still_named():
 def test_a_process_that_ends_a_moment_later_is_waited_for_until_it_has():
     with contextlib.ExitStack() as afterwards:
         with no_process_outlives_this():
-            ending = afterwards.enter_context(an_interpreter_asleep(for_s=0.5))
+            ending = afterwards.enter_context(
+                an_interpreter_running(_RECORDS_ITS_EXIT_CODE_HALF_A_SECOND_BEFORE_IT_ENDS))
 
         assert ending.poll() is not None
 
