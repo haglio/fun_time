@@ -27,7 +27,11 @@ from tests.git_isolation import forget_the_enclosing_repository
 forget_the_enclosing_repository(os.environ)
 
 import pytest
+from hypothesis import settings
 from PyQt6.QtWidgets import QApplication
+
+settings.register_profile("on_a_machine_other_runs_share", deadline=None)
+settings.load_profile("on_a_machine_other_runs_share")
 
 # The same sibling-checkout override the orchestrator applies at launch: in a
 # worktree whose branch leans on unlanded changes to the shared code, the suite

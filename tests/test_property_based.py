@@ -6,7 +6,7 @@ formatting functions never crash on arbitrary input.
 from __future__ import annotations
 
 import pytest
-from hypothesis import assume, given
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from fun_time.content import WebProvider
@@ -18,6 +18,10 @@ _PROVIDERS = (
     WebProvider(marker="alpha", gallery_url="https://example.com/alpha/{id}"),
     WebProvider(marker="beta", gallery_url="https://example.com/beta/{id}"),
 )
+
+
+def test_no_example_is_held_to_the_clock_of_a_machine_other_runs_share():
+    assert settings().deadline is None
 
 
 # ---------------------------------------------------------------------------
