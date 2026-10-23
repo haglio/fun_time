@@ -35,6 +35,7 @@ from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 from fun_time.modes import (
     LIBRARY_MARKER,
     SCRIPTS_MARKER,
+    build_mirrored_funscript_path,
     has_handcrafted_funscript,
     matching_funscript,
 )
@@ -857,11 +858,13 @@ def build_integration_config(tmp_path: Path) -> Path:
     weird_dir = integration_root / "weird"
     portrait_dir = integration_root / "portrait"
     landscape_dir = integration_root / "landscape"
-    primary_dir = integration_root / "videos" / "videos" / "primary"
+    library = integration_root / "videos"
+    primary_dir = library / "videos" / "primary"
+    metadata_root = library / "metadata"
     for path in (state_dir, weird_dir, portrait_dir, landscape_dir, primary_dir):
         path.mkdir(parents=True, exist_ok=True)
 
-    _link_primary_samples(real, primary_dir)
+    _link_primary_samples(real, primary_dir, metadata_root=metadata_root)
     portrait_paths = _link_sample_files(real.paths.portrait_dirs, portrait_dir, count=2)
     landscape_paths = _link_sample_files(real.paths.landscape_dirs, landscape_dir, count=2)
 
@@ -883,6 +886,7 @@ def build_integration_config(tmp_path: Path) -> Path:
     apply_this_checkouts_siblings(config)
 
     point_the_main_funestra_at(config, primary_dir)
+    config.setdefault("regen", {})["metadata_root"] = str(metadata_root)
     genau_config = json.loads(Path(config["paths"]["genau_config_path"]).read_text(encoding="utf-8"))
     isolate_shared_resources(config, genau_config)
     test_genau_config = integration_root / "genau_integration_config.json"
@@ -1071,11 +1075,13 @@ def _read_head(path, size: int) -> None:
         fh.read(size)
 
 
-def _link_primary_samples(real_config, dest_dir: Path, *, count: int = 5) -> list[Path]:
+def _link_primary_samples(real_config, dest_dir: Path, *, metadata_root: Path,
+                          count: int = 5) -> list[Path]:
+    machines_metadata_root = real_config.regen.metadata_root
     candidates = [(candidate, source_root)
                   for source_root in real_config.paths.main_funestra_library_dirs
                   for candidate in library_clips([source_root])
-                  if has_handcrafted_funscript(str(candidate))]
+                  if has_handcrafted_funscript(str(candidate), machines_metadata_root)]
     if not candidates:
         raise FileNotFoundError(
             "Could not find a main-library video with a hand-authored funscript for "
@@ -1094,13 +1100,11 @@ def _link_primary_samples(real_config, dest_dir: Path, *, count: int = 5) -> lis
         target = dest_dir / relative_video
         target.parent.mkdir(parents=True, exist_ok=True)
         _safe_link(candidate, target)
-        mirrored = matching_funscript(str(candidate))
-        if mirrored:
-            temp_mirrored_root = Path(
-                str(dest_dir).replace(LIBRARY_MARKER, SCRIPTS_MARKER))
-            mirrored_dest = (temp_mirrored_root / relative_video).with_suffix(".funscript")
-            mirrored_dest.parent.mkdir(parents=True, exist_ok=True)
-            _safe_link(Path(mirrored), mirrored_dest)
+        script = matching_funscript(str(candidate), machines_metadata_root)
+        if script:
+            copied = Path(build_mirrored_funscript_path(str(target), metadata_root))
+            copied.parent.mkdir(parents=True, exist_ok=True)
+            _safe_link(Path(script), copied)
         targets.append(target)
     return targets
 

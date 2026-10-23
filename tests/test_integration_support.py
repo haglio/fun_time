@@ -26,11 +26,16 @@ from unittest.mock import patch
 import pytest
 from app_support import haglio_settings
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
+from funestra.playlist import read_playlist
 
 from fun_time import funestra_status, windows_bridge_orchestrator
+from fun_time.config import load_config
 from fun_time.funestra_status import MainFunestraStatus
 from fun_time.loopback_server import LOOPBACK_PORT
+from fun_time.main_list import MainListSettings
+from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
 from fun_time.monitors import enumerate_monitors
+from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from tests.integration import integration_support, run_clock
 from tests.integration.integration_support import (
@@ -39,6 +44,7 @@ from tests.integration.integration_support import (
     SESSION_MONITORS,
     FunTimeIntegrationSession,
     await_window,
+    build_integration_config,
     close_udp_sinks,
     ended_within,
     genau_where_this_machine_keeps_it,
@@ -540,6 +546,53 @@ def test_a_runs_main_funestra_browses_the_runs_copy_of_the_library_not_the_machi
         Path("C:\\Temp\\fun_time_integration_run\\integration_runtime\\videos\\scripts\\scripts\\primary"))
 
 
+def _a_machines_config_over_a_made_up_library(root: Path) -> Path:
+    library = root / "videos"
+    films = library / "videos" / "films"
+    scripts = library / "scripts" / "scripts" / "films"
+    sides = {side: library / "videos" / "made" / side for side in ("portrait", "landscape")}
+    for folder in (films / "full", scripts / "full", *sides.values()):
+        folder.mkdir(parents=True)
+    for name in ("scene one", "scene two"):
+        (films / "full" / f"{name}.mp4").write_bytes(b"")
+        (scripts / "full" / f"{name}.funscript").write_text("{}", encoding="utf-8")
+    for folder in sides.values():
+        for name in ("alpha", "beta"):
+            (folder / f"{name}.mp4").write_bytes(b"")
+    config, genau_config = _the_users_config()
+    genau_config_path = root / "genau_config.json"
+    genau_config_path.write_text(json.dumps(genau_config), encoding="utf-8")
+    config["paths"].update(
+        main_player_library_dirs=[str(films)],
+        portrait_dirs=[str(sides["portrait"])], landscape_dirs=[str(sides["landscape"])],
+        genau_config_path=str(genau_config_path), state_dir=str(root / "state"))
+    config["main_player"].update(videos_dir=str(films), scripts_dir=str(scripts))
+    config["regen"]["metadata_root"] = str(library / "metadata")
+    config_path = root / "fun_time_config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    return config_path
+
+
+def test_a_runs_room_plays_each_main_video_with_the_funscript_the_run_copied_for_it(
+        tmp_path, monkeypatch):
+    machine = _a_machines_config_over_a_made_up_library(tmp_path / "machine")
+    monkeypatch.setattr(integration_support, "real_config_path", lambda: machine)
+    run = tmp_path / "run"
+    try:
+        config = load_config(build_integration_config(run))
+        manifest = LaunchManifest.read(write_windows_bridge_manifest(
+            config, config.paths.state_dir / "windows_bridge_launch.ini"))
+        main_list = build_bridge_config_from_manifest(manifest).main_list
+        main_list.write(MainListSettings())
+    finally:
+        close_udp_sinks()
+
+    played = read_playlist(main_list.file)
+    assert played
+    assert all(item.funscript is not None and run in item.funscript.parents for item in played), [
+        item.funscript for item in played]
+
+
 def test_the_runs_tcode_port_is_bound_so_the_stream_has_somewhere_to_land(isolated_ports):
     """Moving T-Code off the broker is not enough — it has to arrive somewhere.
 
@@ -828,7 +881,9 @@ def test_the_main_funestras_draw_never_waits_on_a_video_it_lists(tmp_path, monke
     room.mkdir(parents=True)
 
     linked = integration_support._link_primary_samples(
-        SimpleNamespace(paths=SimpleNamespace(main_funestra_library_dirs=[library])), room, count=2)
+        SimpleNamespace(paths=SimpleNamespace(main_funestra_library_dirs=[library]),
+                        regen=SimpleNamespace(metadata_root=tmp_path / "drawn" / "videos" / "metadata")),
+        room, metadata_root=tmp_path / "room" / "videos" / "metadata", count=2)
 
     assert sorted(path.name for path in linked) == ["one.mp4", "two.mp4"]
 
