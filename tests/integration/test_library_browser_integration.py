@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 from PIL import Image, ImageDraw
 from PyQt6.QtCore import QEvent, QPointF, Qt, QTimer
-from PyQt6.QtGui import QFontDatabase, QMouseEvent, QTextDocumentFragment
+from PyQt6.QtGui import QFontDatabase, QMouseEvent
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from fun_time.config import load_config
@@ -200,7 +200,7 @@ def test_opening_a_folder_takes_a_double_click_too(tmp_path: Path):
 
         _double_click(window, 0)
 
-        words = QTextDocumentFragment.fromHtml(window.header.text()).toPlainText()
+        words = window.header.plain_text()
         assert words == f"{TOP_LEVEL_NAME} / {SECTIONS[0]}"
     finally:
         window.close()

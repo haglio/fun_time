@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import configparser
-import html
 import queue
 import string
 import subprocess
@@ -38,7 +37,6 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QHBoxLayout,
-    QLabel,
     QListWidget,
     QListWidgetItem,
     QToolButton,
@@ -51,11 +49,11 @@ from shared_ui.colors import (
     BG_PRIMARY,
     BG_SECONDARY,
     BLUE,
-    BLUE_LIGHT,
     TEXT_MUTED,
     TEXT_PRIMARY,
     hovered,
 )
+from shared_ui.folder_path import FolderPath
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, make_font
 from shared_ui.foreground import bring_to_front
 from shared_ui.icons import glyph_icon
@@ -501,7 +499,7 @@ class LibraryBrowserWindow(QWidget):
             go_up=self.go_up, on_reveal=self.grid.reveal, on_activate=self._activate,
         )
         self.header = folder_header()
-        self.header.linkActivated.connect(self._open_depth)
+        self.header.step_clicked.connect(self._open_depth)
         self.dismiss_button = None
         if on_dismiss is not None:
             self.dismiss_button = dismiss_button(lambda: self._dismiss(on_dismiss))
@@ -548,7 +546,7 @@ class LibraryBrowserWindow(QWidget):
         """Show *path* in both halves: its folder tiles, or the videos it holds."""
         folder = folder_at(self._handles, path)
         self._path = folder.path
-        self.header.setText(breadcrumbs(self._top_level_name, folder.path))
+        self.header.set_path([self._top_level_name, *folder.path])
         self.grid.show_folder(folder)
         self.index.show_rows(self.grid.rows)
 
@@ -556,8 +554,8 @@ class LibraryBrowserWindow(QWidget):
         self.close()
         on_dismiss()
 
-    def _open_depth(self, depth: str) -> None:
-        self.open_folder(self._path[: int(depth)])
+    def _open_depth(self, depth: int) -> None:
+        self.open_folder(self._path[:depth])
 
     def go_up(self) -> None:
         """Leave the folder being shown for the one that holds it."""
@@ -638,20 +636,8 @@ def alphabetical_index(rows: Sequence[object]) -> list[IndexLine]:
     return lines
 
 
-def breadcrumbs(top_level_name: str, path: Sequence[str]) -> str:
-    steps = [html.escape(step) for step in (top_level_name, *path)]
-    link_style = f"color: {BLUE_LIGHT.name()}; text-decoration: none;"
-    links = [
-        f'<a href="{depth}" style="{link_style}">{step}</a>'
-        for depth, step in enumerate(steps[:-1])
-    ]
-    return " / ".join([*links, steps[-1]])
-
-
-def folder_header() -> QLabel:
-    header = QLabel()
-    header.setTextFormat(Qt.TextFormat.RichText)
-    header.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
+def folder_header() -> FolderPath:
+    header = FolderPath(" / ")
     header.setFont(make_font(FONT_UI, SIZE_HEADING, bold=True))
     header.setStyleSheet(
         f"QLabel {{ background-color: {BG_SECONDARY.name()}; color: {TEXT_PRIMARY.name()};"
