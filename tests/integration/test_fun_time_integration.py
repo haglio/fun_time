@@ -244,6 +244,8 @@ def test_fun_time_the_max_intensity_holds_a_funscript_down_through_its_gaps_too(
     sink = s.config.main_funestra_tcode.port
     s.write_dashboard_command("main_kino_activate")
     s.write_dashboard_command("play")
+    s.wait_until(lambda: s.read_main_funestra_status().has_funscript,
+                 description="the Main Funestra to play a video with a funscript")
     try:
         free = _osr2_heard_until(sink, _osr2_swinging)
         s.write_dashboard_command("max_intensity_0")
