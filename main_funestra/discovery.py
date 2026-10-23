@@ -4,10 +4,12 @@ from pathlib import Path
 
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 
+from fun_time.modes import scripted_item
+
 from .library import LibraryEntry
 
 
-def discover_entries(videos_dir: Path, scripts_dir: Path) -> list[LibraryEntry]:
+def discover_entries(videos_dir: Path, *, metadata_root: Path | None) -> list[LibraryEntry]:
     """Pair every video under *videos_dir* with its funscript and file size.
 
     Videos without a matching funscript get ``funscript=None`` — they play
@@ -20,12 +22,10 @@ def discover_entries(videos_dir: Path, scripts_dir: Path) -> list[LibraryEntry]:
     for video in sorted(videos_dir.rglob("*")):
         if not video.is_file() or video.suffix.lower() not in SUPPORTED_VIDEO_EXTS:
             continue
-        relative = video.relative_to(videos_dir)
-        funscript = scripts_dir / relative.with_suffix(".funscript")
         entries.append(
             LibraryEntry(
                 video=video,
-                funscript=funscript if funscript.exists() else None,
+                funscript=scripted_item(str(video), metadata_root).funscript,
                 size=video.stat().st_size,
             )
         )

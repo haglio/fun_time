@@ -48,7 +48,6 @@ class LibrarySource:
 
 def build_library_source(
     videos_dir: Path,
-    scripts_dir: Path,
     *,
     metadata_root: Path | None = None,
     on_progress: Callable[[str], None] | None = None,
@@ -62,5 +61,5 @@ def build_library_source(
     """
     if on_progress is not None:
         on_progress(PHASE_DISCOVER)
-    return LibrarySource(entries=discover_entries(videos_dir, scripts_dir),
+    return LibrarySource(entries=discover_entries(videos_dir, metadata_root=metadata_root),
                          metadata_root=metadata_root)

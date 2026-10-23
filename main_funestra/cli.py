@@ -41,7 +41,6 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                    help="Fun Time's config file, whose main_player section supplies "
                         "the defaults below")
     p.add_argument("--videos-dir", type=Path, default=main_funestra.get("videos_dir"))
-    p.add_argument("--scripts-dir", type=Path, default=main_funestra.get("scripts_dir"))
     p.add_argument("--flicks-dir", type=Path,
                    help="Genau's delivery folder, which Genau mode plays from")
     p.add_argument("--state-dir", type=Path,
@@ -143,18 +142,16 @@ def library_source(
     *,
     on_progress: Callable[[str], None] | None = None,
 ) -> LibrarySource | None:
-    """Build the :class:`LibrarySource`, or None when the library dirs are absent.
+    """Build the :class:`LibrarySource`, or None when no ``--videos-dir`` is known.
 
-    Built whenever ``--videos-dir``/``--scripts-dir`` are known — including under
-    Fun Time, which passes the list it plays as ``--playlist`` but whose versions
-    and compilations this source knows.  *on_progress* goes straight through to
-    the build, where the wait is.
+    Built under Fun Time too, which passes the list it plays as ``--playlist``
+    but whose versions and compilations this source knows.  *on_progress* goes
+    straight through to the build, where the wait is.
     """
-    if args.videos_dir is None or args.scripts_dir is None:
+    if args.videos_dir is None:
         return None
     return build_library_source(
         Path(args.videos_dir),
-        Path(args.scripts_dir),
         metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,
         on_progress=on_progress,
     )
