@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import NamedTuple
 
@@ -10,10 +13,27 @@ from tests.integration.run_clock import Budget
 
 A_STARVED_CHILDS_START_S = 120.0
 
+THE_INTERPRETER_NOT_A_VENVS_LAUNCHER = sys._base_executable
+
 
 class StartedProcess(NamedTuple):
     pid: int
     started_at: int | None
+
+    @classmethod
+    def of(cls, pid: int) -> StartedProcess:
+        return cls(pid, get_process_creation_time(pid))
+
+
+@contextmanager
+def an_interpreter_asleep(*args: str, for_s: float = 60.0) -> Iterator[subprocess.Popen]:
+    child = subprocess.Popen(
+        [THE_INTERPRETER_NOT_A_VENVS_LAUNCHER, "-c", f"import time; time.sleep({for_s})", *args])
+    try:
+        yield child
+    finally:
+        child.kill()
+        child.wait()
 
 
 def pid_written_to(path: Path, *, by: subprocess.Popen | None = None) -> int:
@@ -32,8 +52,8 @@ def with_what_it_started(pid: int) -> list[StartedProcess]:
     budget = Budget(5.0)
     while not list_child_pids(pid) and not budget.expired():
         time.sleep(0.1)
-    parent = StartedProcess(pid, get_process_creation_time(pid))
-    children = [StartedProcess(each, get_process_creation_time(each)) for each in list_child_pids(pid)]
+    parent = StartedProcess.of(pid)
+    children = [StartedProcess.of(each) for each in list_child_pids(pid)]
     return [parent, *(child for child in children if _born_after(child, parent))]
 
 
