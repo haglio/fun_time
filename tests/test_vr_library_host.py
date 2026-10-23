@@ -181,8 +181,7 @@ class TestPressing:
         browse, _reader, _said = headset
         browse.apply("open 1 C:/videos/Alpha Scene.mp4")
         header = browse.window.header
-        assert header.text().startswith('<a href="0"')
-        assert TOP_LEVEL_NAME in header.text()
+        assert header.plain_text().startswith(f"{TOP_LEVEL_NAME} / ")
 
         _press(browse, _center_of(header, header.rect().adjusted(0, 0, -header.width() + 60, 0)))
 
@@ -222,8 +221,8 @@ class TestBrowsingGenausFlicks:
 
         grid = browse.window.grid
         assert browse.window.isVisible()
-        assert browse.window.header.text().endswith("AI")
-        assert FLICKS_TOP_LEVEL_NAME in browse.window.header.text()
+        assert browse.window.header.plain_text().endswith("AI")
+        assert FLICKS_TOP_LEVEL_NAME in browse.window.header.plain_text()
         assert grid.rows[grid.currentRow()].title == "Loop Two"
 
     def test_with_no_flick_up_it_opens_on_the_vr_and_2d_folders(self, headset):
@@ -269,7 +268,7 @@ class TestBrowsingGenausFlicks:
         browse.apply("open 2 C:/videos/Alpha Scene.mp4")
 
         assert "Alpha Scene" in _names(browse)
-        assert TOP_LEVEL_NAME in browse.window.header.text()
+        assert TOP_LEVEL_NAME in browse.window.header.plain_text()
 
 
 class TestServing:
@@ -350,7 +349,7 @@ class TestWhileTheLibraryIsStillBeingRead:
         browse.apply("flicks 1")
 
         assert browse.window.isVisible()
-        assert FLICKS_TOP_LEVEL_NAME in browse.window.header.text()
+        assert FLICKS_TOP_LEVEL_NAME in browse.window.header.plain_text()
 
     def test_the_library_asked_for_after_the_flicks_waits_for_its_read(self, waiting, tmp_path):
         browse, _said = waiting

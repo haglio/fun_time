@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 from PIL import Image
 from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
-from PyQt6.QtGui import QIcon, QKeyEvent, QMouseEvent, QTextDocumentFragment
+from PyQt6.QtGui import QIcon, QKeyEvent, QMouseEvent
 from PyQt6.QtWidgets import QAbstractItemView, QApplication, QListWidget
 from shared_ui.colors import TEXT_MUTED, TEXT_PRIMARY
 
@@ -76,7 +76,7 @@ def _header_links(window) -> dict[str, str]:
 
 
 def _header_words(window) -> str:
-    return QTextDocumentFragment.fromHtml(window.header.text()).toPlainText()
+    return window.header.plain_text()
 
 
 def _click(view: QAbstractItemView, row: int) -> None:
