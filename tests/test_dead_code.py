@@ -368,7 +368,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # named, and the docstring giving the one wait went.
 # 5893 on 2026-10-22: Genau's folders come from the settings all of Haglio shares,
 # and the note on the config keys a branch config drops went with a test of it.
-MAX_PROSE_LINES = 5892
+# 5889 on 2026-10-23: one rule pairs a video with its funscript, built on the
+# mirrored tree every app shares, and the notes on the copies it replaced went.
+MAX_PROSE_LINES = 5889
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
