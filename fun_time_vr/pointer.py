@@ -10,7 +10,7 @@ import numpy as np
 from .layout import clamp_elevation, clamp_placement, clamp_width
 from .matrices import quat_to_rotation_matrix
 from .scene import (
-    RADIUS,
+    RADIUS_M,
     Placement,
     center_height,
     elevation_at,
@@ -93,7 +93,7 @@ class SurfacePoint:
     distance: float
 
 
-def cylinder_hit(ray: Ray, radius: float = RADIUS) -> SurfacePoint | None:
+def cylinder_hit(ray: Ray, radius: float = RADIUS_M) -> SurfacePoint | None:
     ox, oy, oz = ray.origin
     dx, dy, dz = ray.direction
     a = dx * dx + dz * dz
@@ -119,7 +119,7 @@ _EDGE_ON_DEG = 89.0
 
 
 def screen_uv(
-    point: SurfacePoint, placement: Placement, aspect: float, radius: float = RADIUS,
+    point: SurfacePoint, placement: Placement, aspect: float, radius: float = RADIUS_M,
 ) -> tuple[float, float]:
     off_center = math.radians(max(-_EDGE_ON_DEG, min(
         _EDGE_ON_DEG, turn_deg(placement.azimuth_deg, point.azimuth_deg))))
@@ -137,7 +137,7 @@ SURFACE = "surface"
 
 
 def handle_extent(placement: Placement, aspect: float) -> tuple[float, float]:
-    du = RADIUS * math.radians(HANDLE_DEG) / (2.0 * half_width(placement.width_deg))
+    du = RADIUS_M * math.radians(HANDLE_DEG) / (2.0 * half_width(placement.width_deg))
     return du, du * aspect
 
 
@@ -178,7 +178,7 @@ def laser_vertices(ray: Ray, *, length: float) -> np.ndarray:
     return np.array(rows, dtype=np.float32)
 
 
-def cursor_vertices(point: SurfacePoint, radius: float = RADIUS) -> np.ndarray:
+def cursor_vertices(point: SurfacePoint, radius: float = RADIUS_M) -> np.ndarray:
     return surface_vertices(
         Placement(point.azimuth_deg, elevation_at(point.y, radius), CURSOR_DEG),
         aspect=1.0, radius=radius,
@@ -186,7 +186,7 @@ def cursor_vertices(point: SurfacePoint, radius: float = RADIUS) -> np.ndarray:
 
 
 def handle_vertices(
-    placement: Placement, *, aspect: float, resizable: bool, radius: float = RADIUS,
+    placement: Placement, *, aspect: float, resizable: bool, radius: float = RADIUS_M,
 ) -> dict[str, list[np.ndarray]]:
     du, dv = handle_extent(placement, aspect)
     strips = {MOVE: [surface_vertices(placement, aspect=aspect, radius=radius, v=(1.0, 1.0 + dv))]}
@@ -201,7 +201,7 @@ def handle_vertices(
 class Grab:
     def __init__(
         self, handle: str, placement: Placement, *, start: SurfacePoint, aspect: float = 1.0,
-        widened_by: float = 1.0, radius: float = RADIUS,
+        widened_by: float = 1.0, radius: float = RADIUS_M,
     ) -> None:
         self.handle = handle
         self._placement = placement

@@ -55,6 +55,7 @@ from funestra.pointer import OMNIPAUSE_TOGGLE
 from funestra.tcode import UdpTCodeSink
 from funestra.tcode_driver import FunscriptTCodeDriver
 from shared_ui.palette import BLUE, BORDER_DEFAULT, WHITE, as_fractions
+from shared_ui.type_scale import SIZE_SMALL, in_pixels
 
 from fun_time import preview_marker
 from fun_time.dashboard_actions import (
@@ -155,6 +156,7 @@ from .picture_look import PictureLook
 from .playback_watch import STALLED, PlaybackWatch
 from .pointer import (
     DRAG,
+    HANDLE_DEG,
     PRESS,
     SURFACE,
     Frame,
@@ -192,9 +194,13 @@ from .room import Hanging, Hangs
 from .satellite_hud import HUD, hud_screen_name, screen_kind
 from .scene import (
     MAIN_WIDTH_DEG,
+    RADIUS_M,
     Placement,
     attached_below,
     attached_to,
+    center_height,
+    elevation_at,
+    half_width,
     quad_layer_placement,
     surface_vertices,
     widened,
@@ -971,11 +977,23 @@ class _PanelUnit:
         self._buttons.close()
 
 
+_DASH_WIDTH_DEG = 40.0
+_A_WIDE_VIDEO = 16 / 9
+
+
+def _two_handles_over_the_main(width_deg: float) -> float:
+    main = _MainUnit.SPOTS[MAIN]
+    main_top = center_height(main) + half_width(main.width_deg) / _A_WIDE_VIDEO
+    dash_drop = half_width(width_deg) * dash_height() / DASH_WIDTH_PX
+    return elevation_at(main_top + 2 * RADIUS_M * math.radians(HANDLE_DEG) + dash_drop)
+
+
 class _DashUnit:
     # Painted like the console; the pair's handle while it carries one, and a spot for that.
 
     SPOTS = {
-        DASH: Placement(azimuth_deg=0.0, elevation_deg=33.1, width_deg=40.0),
+        DASH: Placement(azimuth_deg=0.0, elevation_deg=_two_handles_over_the_main(_DASH_WIDTH_DEG),
+                        width_deg=_DASH_WIDTH_DEG),
         # Carrying the console, the video having wrapped the viewer: lower, under it.
         PANEL: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=40.0),
     }
@@ -1266,9 +1284,10 @@ class _LibraryUnit:
 
 
 BANNER_ELEVATION_DEG = 24.0
-BANNER_FONT_PX = 44
-BANNER_MAX_WIDTH_PX = 1600
 BANNER_PX_PER_DEG = 40.0
+# The family's small type as big as it reads on the console, drawn at the banner's density.
+BANNER_FONT_PX = round(in_pixels(SIZE_SMALL) * BANNER_PX_PER_DEG * DEG_PER_PX)
+BANNER_MAX_WIDTH_PX = 1600
 
 
 class _BannerUnit:

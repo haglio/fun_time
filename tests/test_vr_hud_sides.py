@@ -7,7 +7,7 @@ from funestra.outside_buttons import OutsideButtons
 
 from fun_time_vr.hud_sides import HudSides, side_named, side_screen_name, sides
 from fun_time_vr.pointer import HANDLE_DEG, PRESS, RELEASE, PressEvent
-from fun_time_vr.scene import RADIUS, Placement, center_height, half_width
+from fun_time_vr.scene import RADIUS_M, Placement, center_height, half_width
 
 PICTURE = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
 
@@ -33,7 +33,7 @@ class TestTheSidesThePanelIsNotAgainst:
 
         side_bottom = center_height(placement) - half_width(placement.width_deg) / upper.screen.aspect
         picture_top = center_height(PICTURE) + half_width(PICTURE.width_deg) / (16 / 9)
-        assert side_bottom >= picture_top + RADIUS * math.radians(HANDLE_DEG)
+        assert side_bottom >= picture_top + RADIUS_M * math.radians(HANDLE_DEG)
 
 
 class TestAFunestrasSides:

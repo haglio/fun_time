@@ -127,7 +127,7 @@ from fun_time_vr.render import immersive_wrap
 from fun_time_vr.satellite_hud import hud_screen_name
 from fun_time_vr.scene import (
     MAIN_WIDTH_DEG,
-    RADIUS,
+    RADIUS_M,
     Placement,
     attached_below,
     attached_to,
@@ -2907,4 +2907,4 @@ class TestWhereItHangsToStart:
             SPOTS[DASH], aspect=DASH_WIDTH_PX / dash_height())[:, 1].min()
 
         assert dash_lower_edge - main_top == pytest.approx(
-            2 * RADIUS * np.radians(HANDLE_DEG), rel=0.05)
+            2 * RADIUS_M * np.radians(HANDLE_DEG), rel=0.05)

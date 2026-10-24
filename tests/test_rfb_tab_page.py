@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from shared_ui import palette
+from shared_ui.type_scale import FONT_UI, SIZE_BODY, in_pixels
 
 from fun_time.loopback_server import omnipause_url
 from fun_time.rfb_tab_page import (
@@ -37,12 +39,14 @@ def test_render_tab_page_embeds_the_target_and_the_label():
     assert "__FT_VIDEO__" not in html
 
 
-def test_render_tab_page_wears_the_familys_colors():
+def test_render_tab_page_wears_the_familys_look():
     html = render_tab_page(TabTarget(REGEN_URL, "label"))
 
-    assert "__PALETTE_" not in html
+    assert re.search(r"__(PALETTE|TYPE|SPACING)_", html) is None
     assert {palette.as_hex(palette.BG_PRIMARY), palette.as_hex(palette.TEXT_PRIMARY)} <= {
         word.strip(";") for word in html.split()}
+    assert f"font-family: '{FONT_UI}';" in html
+    assert f"font-size: {in_pixels(SIZE_BODY)}px;" in html
 
 
 def test_render_tab_page_escapes_a_script_breakout():

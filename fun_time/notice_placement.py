@@ -1,10 +1,20 @@
-"""Which window a notice flashes over, and where on it -- read by the session's
-own notice feed as well as by the overlay that draws one."""
+"""Which window a notice flashes over, where on it, and the shape it takes -- read
+by the session's own notice feed, the overlay that draws one, and the headset's banner."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from shared_ui.spacing import BUTTON_RADIUS, MARGIN_DIALOG, MARGIN_STANDARD
+from shared_ui.type_scale import SIZE_HEADING
+
 from fun_time.dashboard_layout import Rect, Size
+
+NOTICE_TYPE_SIZE = SIZE_HEADING
+NOTICE_PAD_V = MARGIN_STANDARD
+NOTICE_PAD_H = MARGIN_DIALOG
+NOTICE_RADIUS = BUTTON_RADIUS
+# Gap from the top edge of the target window to the notice.
+NOTICE_TOP_MARGIN = MARGIN_DIALOG
 
 
 @dataclass(frozen=True)

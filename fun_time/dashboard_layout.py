@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, fields
 
-from shared_ui.spacing import BUTTON_GAP, BUTTON_GROUP_GAP, BUTTON_SIZE_HUD
+from shared_ui.spacing import BUTTON_GAP, BUTTON_GROUP_GAP, BUTTON_SIZE_HUD, MARGIN_STANDARD
 
 
 @dataclass(frozen=True)
@@ -70,7 +70,7 @@ def client_rect_filling_frame(
 BUTTON = BUTTON_SIZE_HUD
 GAP = BUTTON_GAP
 GROUP_GAP = BUTTON_GROUP_GAP  # between one group of controls and the next
-PAD = 10             # inset from the bar's edges
+PAD = MARGIN_STANDARD  # inset from the bar's edges
 APP_ICON = 24
 APP_TITLE_W = 108
 # The log stream below the bar.  Shorter than it was: the filter controls moved up

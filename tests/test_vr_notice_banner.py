@@ -6,6 +6,7 @@ import logging
 import numpy as np
 
 from fun_time.event_log import FAVORITE, NOTICE
+from fun_time.notice_placement import NOTICE_TOP_MARGIN
 from fun_time_vr.funestras import MAIN_VIDEO_CAP_PX, SATELLITE_VIDEO_CAP_PX
 from fun_time_vr.notice_banner import (
     MIN_FONT_PX,
@@ -89,11 +90,11 @@ class TestWhereItSits:
         assert 0 < y < 1080 // 10
 
     def test_it_sits_where_the_desktop_sits_it(self):
-        """The desktop puts its banner 28px down a Funestra's window; on a picture
-        this tall that is the same place, and it was twice as far down."""
+        """On a picture as tall as a Funestra's window the banner sits where the
+        desktop sits its notice; it was once twice as far down."""
         _x, y = banner_placement(_banner(), 1920, 1000)
 
-        assert 20 <= y <= 36
+        assert y == NOTICE_TOP_MARGIN
 
     def test_it_never_starts_off_the_left_of_a_narrow_picture(self):
         banner = _banner("landscape shuffle", max_width=4000, size=64)

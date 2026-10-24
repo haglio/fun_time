@@ -50,8 +50,8 @@ from fun_time.event_log import (
 )
 from fun_time_vr import dash_panel
 from fun_time_vr.dash_panel import (
-    _FONT_PX,
-    _SMALL_PX,
+    _LABEL_PX,
+    _WORDMARK_PX,
     DASH_WIDTH_PX,
     LOG_ROWS,
     VERBOSITY_CHIP,
@@ -159,7 +159,7 @@ class TestItIsTheDesktopsBar:
         def written_in(face):
             image = Image.new("RGBA", (DASH_WIDTH_PX, dash_height()), (*BG_PRIMARY, 235))
             ImageDraw.Draw(image).text((title.x, title.y + 4), "Fun Time",
-                                       font=load_font(_FONT_PX, face), fill=LOADING_ACCENT)
+                                       font=load_font(_WORDMARK_PX, face), fill=LOADING_ACCENT)
             return _app_name_mask(image)
 
         painted = _app_name_mask(paint_dash(DashState(), []))
@@ -220,7 +220,7 @@ class TestItIsOneRow:
                    for left, right in pairwise(chips))
         assert chips[-1].x + chips[-1].width + PAD == DASH_WIDTH_PX
         for source, chip in zip(SOURCES, chips, strict=True):
-            label = int(load_font(_SMALL_PX).getlength(SOURCE_LABELS[source]))
+            label = int(load_font(_LABEL_PX).getlength(SOURCE_LABELS[source]))
             assert chip.width == label + 2 * BUTTON_PAD_H_TIGHT, source
 
     def test_nothing_on_the_row_is_drawn_over_anything_else(self):

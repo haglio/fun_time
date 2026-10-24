@@ -32,7 +32,7 @@ from fun_time_vr.layout import (
     shown_at,
     write_layout,
 )
-from fun_time_vr.scene import MAIN_WIDTH_DEG, RADIUS, Placement, surface_vertices
+from fun_time_vr.scene import MAIN_WIDTH_DEG, RADIUS_M, Placement, surface_vertices
 from tests.headset_layout_reports import reported_layout
 
 
@@ -198,7 +198,7 @@ class TestTheLimits:
         that its corners are too far away to take hold of."""
         widest = surface_vertices(Placement(0.0, 0.0, MAX_WIDTH_DEG), aspect=16 / 9)
 
-        assert math.hypot(widest[0, 0], widest[0, 2]) == pytest.approx(2 * RADIUS)
+        assert math.hypot(widest[0, 0], widest[0, 2]) == pytest.approx(2 * RADIUS_M)
         assert clamp_width(4000.0) == MAX_WIDTH_DEG
         assert clamp_width(MAIN_WIDTH_DEG * 1.5) == MAIN_WIDTH_DEG * 1.5
 

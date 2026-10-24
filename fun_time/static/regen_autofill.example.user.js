@@ -39,9 +39,11 @@
   function pinNote(payload) {
     const note = document.createElement("pre");
     note.style.cssText =
-      "position:fixed;top:8px;right:8px;z-index:99999;max-width:40ch;" +
-      "padding:8px;background:__PALETTE_BLACK__;color:__PALETTE_GREEN__;" +
-      "font:12px/1.4 monospace;white-space:pre-wrap;border:1px solid __PALETTE_GREEN__;";
+      "position:fixed;top:__SPACING_MARGIN_STANDARD__;right:__SPACING_MARGIN_STANDARD__;" +
+      "z-index:99999;max-width:40ch;padding:__SPACING_MARGIN_STANDARD__;" +
+      "background:__PALETTE_BLACK__;color:__PALETTE_GREEN__;" +
+      "font:__TYPE_SIZE_SMALL__/1.4 '__TYPE_FONT_UI__';white-space:pre-wrap;" +
+      "border:1px solid __PALETTE_GREEN__;";
     note.textContent =
       "Fun Time regen payload:\n" + JSON.stringify(payload, null, 2);
     document.body.appendChild(note);

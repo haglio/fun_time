@@ -61,7 +61,14 @@ from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, make_font
 from shared_ui.foreground import bring_to_front
 from shared_ui.icons import glyph_icon
 from shared_ui.mark_button import fill_square_with_mark
-from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS, MARGIN_STANDARD
+from shared_ui.spacing import (
+    BUTTON_ICON,
+    BUTTON_RADIUS,
+    GAP_MEDIUM,
+    GAP_SMALL,
+    MARGIN_DIALOG,
+    MARGIN_STANDARD,
+)
 
 from . import preview_marker
 from .checkout_overrides import sibling_checkouts_kwargs
@@ -104,9 +111,8 @@ NON_LETTER_HEADING = "#"
 UP_LABEL = "back"
 UP_TO_LIBRARY = "all folders"
 
-# The hairline between a folder tile's four stills, so they read as four
-# pictures rather than one.
-MONTAGE_GAP = 2
+# Between a folder tile's four stills, so they read as four pictures rather than one.
+MONTAGE_GAP = GAP_SMALL
 
 # How often the grid picks up thumbnails the background extractor has finished.
 THUMBNAIL_POLL_MS = 150
@@ -159,12 +165,12 @@ class LibraryGrid(BrowseList):
         self.setWordWrap(True)
         self.setUniformItemSizes(True)
         self.setIconSize(QSize(ICON_WIDTH, ICON_HEIGHT))
-        self.setSpacing(6)
+        self.setSpacing(GAP_MEDIUM)
         self.setStyleSheet(
             f"QListWidget {{ background-color: {BG_PRIMARY.name()};"
             f" color: {TEXT_PRIMARY.name()}; border: none; }}"
             f" QListWidget::item {{ background-color: {BG_SECONDARY.name()};"
-            " border-radius: 4px; padding: 4px; }"
+            f" border-radius: {BUTTON_RADIUS}px; padding: {GAP_SMALL}px; }}"
             f" QListWidget::item:selected {{ background-color: {BLUE.name()}; }}"
         )
 
@@ -335,7 +341,7 @@ class FolderIndex(BrowseList):
             f"QListWidget {{ background-color: {BG_SECONDARY.name()};"
             f" color: {TEXT_PRIMARY.name()};"
             f" border: none; border-right: 1px solid {BG_PRIMARY.name()}; }}"
-            " QListWidget::item { padding: 2px 6px; }"
+            f" QListWidget::item {{ padding: {GAP_SMALL}px {MARGIN_STANDARD}px; }}"
             f" QListWidget::item:selected {{ background-color: {BLUE.name()}; }}"
         )
 
@@ -649,7 +655,7 @@ def folder_header() -> FolderPath:
     header.setFont(make_font(FONT_UI, SIZE_HEADING, bold=True))
     header.setStyleSheet(
         f"QLabel {{ background-color: {BG_SECONDARY.name()}; color: {TEXT_PRIMARY.name()};"
-        " padding: 8px 12px; }"
+        f" padding: {MARGIN_STANDARD}px {MARGIN_DIALOG}px; }}"
     )
     return header
 

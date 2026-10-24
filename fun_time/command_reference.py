@@ -34,6 +34,8 @@ from shared_ui.palette import (
     TEXT_PRIMARY,
     as_hex,
 )
+from shared_ui.spacing import GAP_DIALOG, GAP_SMALL, MARGIN_STANDARD
+from shared_ui.type_scale import FONT_UI, SIZE_BODY, SIZE_HEADING
 
 from fun_time.content import genau_flick_noun
 from fun_time.filter_vocab import display_forms, set_commands_for_scope
@@ -695,7 +697,7 @@ _BORDER = as_hex(BORDER_SUBTLE)
 def _keycap(label: str) -> str:
     return (
         f'<span style="background:{_KEYCAP_BG};border:1px solid {_BORDER};'
-        f'padding:1px 5px;color:{_TEXT};font-family:Consolas,monospace">'
+        f'padding:0 {GAP_SMALL}px;color:{_TEXT};font-family:\'{FONT_UI}\'">'
         f"{html.escape(label)}</span>"
     )
 
@@ -704,7 +706,7 @@ def _cell(content: str, *, width: str = "") -> str:
     width_attr = f' width="{width}"' if width else ""
     return (
         f'<td valign="top"{width_attr} '
-        f'style="padding:3px 8px;color:{_TEXT}">{content}</td>'
+        f'style="padding:{GAP_SMALL}px {MARGIN_STANDARD}px;color:{_TEXT}">{content}</td>'
     )
 
 
@@ -718,16 +720,17 @@ def render_reference_html() -> str:
     # ("Hotkeys & Voice Commands Reference"), so it opens straight into the first section.
     parts: list[str] = [
         f'<body style="background:{_BG};color:{_TEXT};'
-        'font-family:\'Segoe UI\',sans-serif;font-size:10pt">',
+        f'font-family:\'{FONT_UI}\';font-size:{SIZE_BODY}pt">',
     ]
     for section in build_reference_sections():
         parts.append(
-            f'<h3 style="color:{_ACCENT};margin:14px 0 2px 0">'
+            f'<h3 style="color:{_ACCENT};font-size:{SIZE_HEADING}pt;'
+            f'margin:{GAP_DIALOG}px 0 {GAP_SMALL}px 0">'
             f"{html.escape(section.title)}</h3>"
         )
         if section.note:
             parts.append(
-                f'<div style="color:{_MUTED};margin:0 0 4px 0">'
+                f'<div style="color:{_MUTED};margin:0 0 {GAP_SMALL}px 0">'
                 f"{html.escape(section.note)}</div>"
             )
         # A two-sided section spends its width on a key column per side, so the

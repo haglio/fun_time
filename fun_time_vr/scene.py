@@ -14,7 +14,7 @@ from funestra.hud_placement import HudEdge
 
 # The view matrix is rotation-only (no head translation reaches the scene), so
 # the radius sets apparent scale only.
-RADIUS = 2.0
+RADIUS_M = 2.0
 
 MAIN_WIDTH_DEG = 72.0
 
@@ -26,15 +26,15 @@ class Placement:
     width_deg: float
 
 
-def center_height(placement: Placement, radius: float = RADIUS) -> float:
+def center_height(placement: Placement, radius: float = RADIUS_M) -> float:
     return radius * math.tan(math.radians(placement.elevation_deg))
 
 
-def elevation_at(height: float, radius: float = RADIUS) -> float:
+def elevation_at(height: float, radius: float = RADIUS_M) -> float:
     return math.degrees(math.atan2(height, radius))
 
 
-def half_width(width_deg: float, radius: float = RADIUS) -> float:
+def half_width(width_deg: float, radius: float = RADIUS_M) -> float:
     return radius * math.tan(math.radians(width_deg) / 2.0)
 
 
@@ -91,7 +91,7 @@ def quad_layer_placement(
     aspect: float,
     scene_yaw_deg: float = 0.0,
     scene_pitch_deg: float = 0.0,
-    radius: float = RADIUS,
+    radius: float = RADIUS_M,
 ) -> tuple[tuple[float, float, float], tuple[float, float, float, float], tuple[float, float]]:
     """Pose and size for the compositor quad carrying the rectangle
     :func:`surface_vertices` draws: ``(position, orientation_xyzw, (width,
@@ -121,7 +121,7 @@ def attached_below(
     width_deg: float,
     hanging_aspect: float,
     gap_deg: float = 0.0,
-    radius: float = RADIUS,
+    radius: float = RADIUS_M,
 ) -> Placement:
     return attached_to(HudEdge.LOWER, placement, aspect=aspect, width_deg=width_deg,
                        hanging_aspect=hanging_aspect, gap_deg=gap_deg, radius=radius)
@@ -135,7 +135,7 @@ def attached_to(
     width_deg: float,
     hanging_aspect: float,
     gap_deg: float = 0.0,
-    radius: float = RADIUS,
+    radius: float = RADIUS_M,
 ) -> Placement:
     if edge in (HudEdge.LEFT, HudEdge.RIGHT):
         step = placement.width_deg / 2 + gap_deg + width_deg / 2
@@ -176,7 +176,7 @@ def surface_vertices(
     placement: Placement,
     *,
     aspect: float,
-    radius: float = RADIUS,
+    radius: float = RADIUS_M,
     u: tuple[float, float] = (0.0, 1.0),
     v: tuple[float, float] = (0.0, 1.0),
 ) -> np.ndarray:

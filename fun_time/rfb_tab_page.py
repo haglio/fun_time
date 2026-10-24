@@ -20,7 +20,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from shared_ui.palette import with_palette
+from shared_ui.pages import with_family_look
 
 from .loopback_server import LOOPBACK_PORT, omnipause_url
 
@@ -67,7 +67,7 @@ def render_tab_page(target: TabTarget, *, loopback_port: int = LOOPBACK_PORT) ->
     *loopback_port* is where this session answers whether it is in OmniPause;
     a page polling any other port never freezes, silently.
     """
-    template = with_palette(_TEMPLATE_PATH.read_text(encoding="utf-8"))
+    template = with_family_look(_TEMPLATE_PATH.read_text(encoding="utf-8"))
     for token, value in (
         ('"__FT_TARGET__"', target.url),
         ('"__FT_LABEL__"', target.label),
