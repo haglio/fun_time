@@ -33,6 +33,7 @@ class FakeSatelliteEngine(RefusesSeeks):
         self.pace_s: float | None = None
         self.showing_picture = False
         self.showing_video = True
+        self.idle = False
         # How many times the loop has asked for a still's move to be
         # carried on — the Funestra's own account of where it has got to lives
         # in funestra, and this only counts the asking.
