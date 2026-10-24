@@ -62,8 +62,8 @@ from main_funestra.kino import Kino
 from main_funestra.mode_memory import ModeMemory, RememberedMode
 from main_funestra.notice import NoticeWriter
 from tests.dispatch_sweep import every_command, headset_config, sweep
+from tests.genau_fakes import FakeNotifier, FakeSink
 from tests.satellite_fakes import FakeSatelliteEngine
-from tests.test_vr_genau_in_the_headset import FakeNotifier, FakeSink
 from tests.test_windows_bridge_dispatch_loop import make_runner
 
 # Window ops a VR session raises and nothing acts on: every role lives inside

@@ -21,34 +21,7 @@ from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
 from main_funestra.genau import GenauChannels
 from main_funestra.genau_verbs import genau_f_mode
 from main_funestra.notice import NoticeWriter
-
-
-class FakeSink:
-    def __init__(self) -> None:
-        self.sent: list[str] = []
-        self.closed = False
-
-    def send(self, command: str) -> None:
-        self.sent.append(command)
-
-    def close(self) -> None:
-        self.closed = True
-
-
-class FakeNotifier:
-    def __init__(self) -> None:
-        self.flicks: list[Path] = []
-        self.visible: list[bool] = []
-        self.closed = False
-
-    def notify_flick(self, path: Path) -> None:
-        self.flicks.append(path)
-
-    def notify_visible(self, is_visible: bool) -> None:
-        self.visible.append(is_visible)
-
-    def close(self) -> None:
-        self.closed = True
+from tests.genau_fakes import FakeNotifier, FakeSink
 
 
 def _frames(count: int = 8, width: int = 16, height: int = 8) -> list[np.ndarray]:

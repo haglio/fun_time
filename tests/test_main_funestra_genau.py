@@ -22,34 +22,7 @@ from fun_time.media_actions import ensure_in_favs
 from fun_time.media_metadata import metadata_path_for
 from main_funestra.genau import Genau, GenauChannels
 from main_funestra.genau_verbs import genau_f_mode, genau_orientations
-
-
-class FakeSink:
-    def __init__(self) -> None:
-        self.sent: list[str] = []
-        self.closed = False
-
-    def send(self, command: str) -> None:
-        self.sent.append(command)
-
-    def close(self) -> None:
-        self.closed = True
-
-
-class FakeNotifier:
-    def __init__(self) -> None:
-        self.flicks: list[Path] = []
-        self.visible: list[bool] = []
-        self.closed = False
-
-    def notify_flick(self, path: Path) -> None:
-        self.flicks.append(path)
-
-    def notify_visible(self, is_visible: bool) -> None:
-        self.visible.append(is_visible)
-
-    def close(self) -> None:
-        self.closed = True
+from tests.genau_fakes import FakeNotifier, FakeSink
 
 
 class FakeNotices:

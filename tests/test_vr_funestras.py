@@ -13,7 +13,7 @@ import threading
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import DEFAULT, patch
+from unittest.mock import DEFAULT, MagicMock, patch
 
 import numpy as np
 import pytest
@@ -364,6 +364,14 @@ def test_the_main_slot_drives_the_headsets_osr2_inlet(tmp_path, faked_collaborat
     assert faked_collaborators["UdpTCodeSink"].call_args.args == ("127.0.0.9", 8123)
     assert (faked_collaborators["Funestra"].call_args.kwargs["tcode"]
             is faked_collaborators["FunscriptTCodeDriver"].return_value)
+
+
+def test_the_first_move_log_passes_wanting_on_to_the_osr2(tmp_path):
+    sink = MagicMock()
+
+    funestras._SaysWhenItFirstMoves(sink, "main").want(True)
+
+    sink.want.assert_called_once_with(True)
 
 
 class TestGenauOnTheMainFunestra:
