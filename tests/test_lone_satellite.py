@@ -39,7 +39,7 @@ def _publishes(satellite: LoneSatellite, *, video: str, position_ms: int, durati
         current_video=Path(video), position_ms=position_ms, duration_ms=duration_ms,
         is_paused=False, is_locked=False, speed=1.0, showing_picture=False,
         playlist_length=playlist_length, has_funscript=False, funscript_resting=False,
-        portrait=None)
+        portrait=None, loads=1, idle=False)
     StatusWriter(satellite.status, lambda played: status_fields(played, None)).write(playback)
 
 
