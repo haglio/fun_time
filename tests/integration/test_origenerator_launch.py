@@ -39,13 +39,23 @@ from fun_time.windows_bridge_startup import (
     origenerator_launch_command,
     origenerator_launch_kwargs,
 )
-from tests.integration.integration_support import run_within, this_checkouts_siblings
+from tests.integration.integration_support import (
+    on_the_settings_this_machine_has,
+    run_within,
+    this_checkouts_siblings,
+)
 from tests.origenerator_contract import named_checkout
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
     reason="Fun Time integration tests require Windows",
 )
+
+
+@pytest.fixture(autouse=True)
+def _the_settings_this_machine_has():
+    with on_the_settings_this_machine_has():
+        yield
 
 # Rects with no bearing on anything: --check-launch never places a window, and
 # the point here is that the app can PARSE and boot on the contract's shape.
