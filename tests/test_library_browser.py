@@ -101,7 +101,17 @@ def _backspace() -> QKeyEvent:
 
 
 @pytest.fixture
-def browser(tmp_path):
+def stills_finished(tmp_path):
+    """Every still being cut ends before ``tmp_path`` goes: a cut holds its
+    video open, and Windows will not delete an open file."""
+    yield
+    for extractor in threading.enumerate():
+        if extractor.name == "library-thumbnails":
+            extractor.join(timeout=10.0)
+
+
+@pytest.fixture
+def browser(tmp_path, stills_finished):
     """Build LibraryBrowserWindow(s) that always close with the test.
 
     Each construction is a real top-level Qt window in the shared session
@@ -119,11 +129,6 @@ def browser(tmp_path):
     yield build
     for window in opened:
         window.close()
-    # A still being cut from a video in tmp_path holds that video open, and
-    # Windows will not delete an open file.
-    for extractor in threading.enumerate():
-        if extractor.name == "library-thumbnails":
-            extractor.join(timeout=10.0)
 
 
 def test_a_browse_opens_on_the_librarys_own_folders(browser, tmp_path: Path):
@@ -994,6 +999,7 @@ def test_a_browse_runs_on_the_checkouts_the_session_runs(tmp_path: Path):
     assert launched[0]["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
 
 
+@pytest.mark.usefixtures("stills_finished")
 def test_the_desktops_genau_browse_forks_into_vr_and_2d_with_the_ai_flicks_apart_in_2d(
     tmp_path: Path, cfg_factory,
 ):
