@@ -58,7 +58,7 @@ class WatchSampler:
 
         The clock advances whether or not the room is paused, so resuming does
         not fire an off-cadence sample the moment the pause lifts.  The
-        satellites *hosted* are left out: in their Origenerator mode they play
+        satellites *hosted* book nothing: in their Origenerator mode they play
         the hosted app's pictures, which are no library videos to book a watch
         against.
         """
@@ -71,26 +71,15 @@ class WatchSampler:
         self._sample_main()
 
     def _sample_satellites(self, *, now: float, hosted: Collection[int]) -> None:
-        """Sample each satellite's current video for the trackers and timelines,
-        from the status file its native Funestra publishes."""
         for which, status_file in self.satellite_status_files.items():
-            if which in hosted:
-                continue
             status = read_satellite_status(status_file)
-            if status.fraction is None:
-                continue
             self._timelines[which].observe(status.video, now=now)
+            if which in hosted or status.fraction is None:
+                continue
             for event, video in self._trackers[which].observe(status.video, status.fraction):
                 record_watch_event(self.stats_file, video, event)
 
     def _sample_main(self) -> None:
-        """Sample the Main Funestra's current video for watch tracking.
-
-        The Main Funestra publishes its playback to the status file; the watched fraction is
-        position/duration.  A paused Funestra, one with nothing loaded, or one
-        whose duration is not yet known yields no usable sample, so those ticks
-        are dropped rather than fed to the tracker.
-        """
         status = read_main_funestra_status(self.main_funestra_status_file)
         if not status.video or status.paused or status.duration_ms <= 0:
             return
@@ -99,9 +88,6 @@ class WatchSampler:
             record_watch_event(self.stats_file, video, event)
 
     def note_command(self, command: str) -> None:
-        """Tell the trackers what the user just did to a Funestra, so an early
-        departure is classified as a skip (nav) or as nothing at all (a trash,
-        whose file is going away and must not be booked against anyone)."""
         for which, nav_commands in NAV_COMMANDS.items():
             if command in nav_commands:
                 self._trackers[which].note_user_nav()
@@ -110,14 +96,6 @@ class WatchSampler:
             self._trackers[discard_which].note_discard()
 
     def video_at(self, command: str, spoken_at: float | None) -> str:
-        """The video *command* was aimed at, or "" for "whatever is playing now".
-
-        A phrase is only recognized once the speaker stops, so a satellite can
-        have auto-advanced between "lock…" and "…portrait".  The satellite's
-        timeline says which video was on screen when the utterance began — the
-        one the speaker was looking at, and therefore meant.  Hotkeys are
-        instantaneous and name no video.
-        """
         if spoken_at is None:
             return ""
         timeline = self._timelines.get(command_funestra(command))

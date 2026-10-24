@@ -226,6 +226,15 @@ class TestBackDating:
 
         assert sampler.video_at("landscape_trash", 100.7) == "C:\\clips\\landscape.mp4"
 
+    def test_a_side_showing_the_hosted_apps_pictures_is_back_dated_too(self, tmp_path):
+        sampler = make_sampler(tmp_path)
+        status = sampler.satellite_status_files[2]
+        for at, picture in ((100.0, "C:\\pictures\\meant.png"), (101.0, "C:\\pictures\\next.png")):
+            status.write_text(f"video={picture}\nposition_ms=0\nduration_ms=0\n", encoding="utf-8")
+            sampler.sample_due(now=at, paused=False, hosted=(2,))
+
+        assert sampler.video_at("portrait_lock_on", 100.2) == "C:\\pictures\\meant.png"
+
     def test_a_hotkey_command_names_no_video(self, tmp_path):
         """A keypress is instantaneous: it means whatever is playing right now."""
         sampler = make_sampler(tmp_path)
