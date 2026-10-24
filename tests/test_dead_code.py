@@ -370,7 +370,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # and the note on the config keys a branch config drops went with a test of it.
 # 5889 on 2026-10-23: one rule pairs a video with its funscript, built on the
 # mirrored tree every app shares, and the notes on the copies it replaced went.
-MAX_PROSE_LINES = 5889
+# 5887 the same day: every face, color, size and spacing Fun Time drew is the
+# family's, and the notes on why it typed its own, and on the desktop numbers the
+# headset's banner copied, went with them.
+MAX_PROSE_LINES = 5887
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
