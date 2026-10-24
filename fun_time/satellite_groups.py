@@ -71,15 +71,22 @@ def play_video(config: BridgeConfig, funestra: RoomFunestra, path: str) -> None:
 def lock_satellite(
     funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, aimed_at: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
+    item = lock_on_what_was_meant(funestra, config, aimed_at,
+                                  already_locked=state.satellite(funestra).locked)
+    return a_lock_holds(item, state.with_satellite(funestra, locked=True), config)
+
+
+def lock_on_what_was_meant(funestra: RoomFunestra, config: BridgeConfig, aimed_at: str = "", *,
+                           already_locked: bool = False) -> str:
     on_screen = satellite_current(config, funestra)
-    clip = aimed_at or on_screen
-    if not same_video(clip, on_screen):
-        play_video(config, funestra, clip)
-        logger.info("Lock moved Funestra %d onto %s", funestra, clip)
-    if not state.satellite(funestra).locked:
+    item = aimed_at or on_screen
+    if not same_video(item, on_screen):
+        play_video(config, funestra, item)
+        logger.info("Lock moved Funestra %d onto %s", funestra, item)
+    if not already_locked:
         send_satellite(config, funestra, LOCK_ON)
     logger.info("Locked %s satellite", RoomFunestra(funestra).label)
-    return a_lock_holds(clip, state.with_satellite(funestra, locked=True), config)
+    return item
 
 
 def cancel_lock(funestra: RoomFunestra, state: BridgeState, config: BridgeConfig) -> BridgeState:
