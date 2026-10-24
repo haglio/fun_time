@@ -1816,6 +1816,9 @@ class _SaysWhenItFirstMoves:  # places the OSR2's first move against the rest of
         self._role = role
         self._said = False
 
+    def want(self, wanted: bool) -> None:
+        self._sink.want(wanted)
+
     def send(self, command: str) -> None:
         if not self._said:
             self._said = True
