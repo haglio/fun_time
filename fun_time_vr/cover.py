@@ -15,6 +15,8 @@ from pathlib import Path
 from PIL import Image
 from shared_ui.loading_panel import LoadingPanel, Metrics, icon_image, render
 from shared_ui.palette import LOADING_GROUND
+from shared_ui.spacing import GAP_DIALOG
+from shared_ui.type_scale import SIZE_BODY, SIZE_HEADING, SIZE_SMALL, in_pixels
 
 from fun_time import preview_marker
 from fun_time.overlay_progress import (
@@ -323,9 +325,10 @@ class CoverAnchor:
 
 _WORDMARK = "Fun Time VR"
 
-# The desktop panel's proportions scaled for a surface read at arm's length in
-# the headset: a larger name and larger lines over the desktop bar's own size.
-HEADSET = Metrics(icon=96, wordmark_px=30, status_px=17, hint_px=13, gaps=(14, 12, 14, 12))
+# The desktop panel's lines a step of the family's type larger, for a surface
+# read at arm's length in the headset; its name is the family's largest already.
+HEADSET = Metrics(icon=96, wordmark_px=in_pixels(SIZE_HEADING), status_px=in_pixels(SIZE_BODY),
+                  hint_px=in_pixels(SIZE_SMALL), gaps=(GAP_DIALOG,) * 4)
 
 # The eye is cleared to the panel's own ground before the panel is drawn, as
 # ``glClearColor``'s floats, straight through: nothing enables

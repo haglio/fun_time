@@ -4,9 +4,9 @@ from __future__ import annotations
 import logging
 
 import numpy as np
+from shared_ui.notice_shape import NOTICE_TOP_MARGIN
 
 from fun_time.event_log import FAVORITE, NOTICE
-from fun_time.notice_placement import NOTICE_TOP_MARGIN
 from fun_time_vr.funestras import MAIN_VIDEO_CAP_PX, SATELLITE_VIDEO_CAP_PX
 from fun_time_vr.notice_banner import (
     MIN_FONT_PX,
