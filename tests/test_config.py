@@ -177,16 +177,12 @@ class TestLoadConfig:
         assert cfg.random_favs_browser.enabled is False
 
 
-class TestTheMainFunestrasOsr2Inlet:
+class TestTheOsr2Slot:
     def test_is_the_brokers_own_where_the_config_names_none(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        assert (cfg.main_funestra_tcode.host, cfg.main_funestra_tcode.port) == (
-            "127.0.0.1", ports.TCODE_UDP)
+        assert load_config(cfg_path).osr2_slot_port == ports.OSR2_SLOT
 
-    def test_is_the_one_the_main_funestra_section_names(self, cfg_factory):
-        cfg = load_config(cfg_factory(
-            {"main_player": {"tcode_udp_host": "127.0.0.9", "tcode_udp_port": 50600}}))
-        assert (cfg.main_funestra_tcode.host, cfg.main_funestra_tcode.port) == ("127.0.0.9", 50600)
+    def test_is_the_one_the_config_names(self, cfg_factory):
+        assert load_config(cfg_factory({"osr2_slot_port": 50600})).osr2_slot_port == 50600
 
 
 class TestRegenConfig:

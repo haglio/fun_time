@@ -30,6 +30,8 @@ from .notice import NoticeWriter
 
 logger = logging.getLogger(__name__)
 
+ROBOT_HAND = "robot hand"
+
 
 @dataclass(frozen=True)
 class GenauChannels:

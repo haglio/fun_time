@@ -205,8 +205,6 @@ def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, di
     manifest["vr"] = {
         "funestra_module": VR_FUNESTRAS_MODULE,
         "library_dirs": "|".join(str(path) for path in config.vr.library_dirs),
-        "tcode_udp_host": config.vr.tcode_udp_host,
-        "tcode_udp_port": str(config.vr.tcode_udp_port),
         "audio_device": config.vr.audio_device or "",
         "compositor_layers": "1" if config.vr.compositor_layers else "0",
         # Genau's role: its flicks folder, its companion's address, and its

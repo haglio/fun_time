@@ -86,7 +86,7 @@ class TestGenauRunsOnItToo:
         assert given["flicks_folder"] == "args.flicks_dir"
         assert given["settings"] == "GenauSettings.read(args.genau_config)"
         assert given["notifier"] == "GenauNotifier(args.notify_host, args.notify_port)"
-        assert given["tcode_sink"] == "UdpTCodeSink(host=args.tcode_host, port=args.tcode_port)"
+        assert given["tcode_sink"] == "Osr2Sender(ROBOT_HAND, port=args.osr2_port)"
         assert given["notices"] == "NoticeWriter(args.notice_file)"
         assert (given["favs_file"], given["f_mode"]) == ("args.favs_file", "args.genau_f_mode")
         assert given["orientations"] == "orientations_from(args.genau_orientations)"
@@ -150,17 +150,17 @@ class TestWhichConfigTheFlagsAreReadAgainst:
 
     def test_a_named_config_supplies_the_defaults(self, tmp_path, monkeypatch):
         config = tmp_path / "genau_config.json"
-        config.write_text('{"main_player": {"tcode_udp_port": 51000}}', encoding="utf-8")
+        config.write_text('{"main_player": {"videos_dir": "C:/example/videos"}}', encoding="utf-8")
 
         args = self._main(monkeypatch, ["--config", str(config)])
 
-        assert args.tcode_port == 51000
+        assert args.videos_dir == Path("C:/example/videos")
 
     def test_a_flag_still_beats_the_config_it_named(self, tmp_path, monkeypatch):
         config = tmp_path / "genau_config.json"
-        config.write_text('{"main_player": {"tcode_udp_port": 51000}}', encoding="utf-8")
+        config.write_text('{"main_player": {"videos_dir": "C:/example/videos"}}', encoding="utf-8")
 
         args = self._main(
-            monkeypatch, ["--config", str(config), "--tcode-port", "50999"])
+            monkeypatch, ["--config", str(config), "--videos-dir", "C:/example/elsewhere"])
 
-        assert args.tcode_port == 50999
+        assert args.videos_dir == Path("C:/example/elsewhere")

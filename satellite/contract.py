@@ -10,8 +10,9 @@ from pathlib import Path
 
 from funestra.funestra import Channels
 
-#: field, the flag it is given by -- none for the main slot's console, which no
-#: satellite is given -- and the manifest's kind of file, ``None`` where it has none.
+#: field, the flag it is given by -- none for what no satellite is given: the main
+#: slot's console, and the broker's old T-Code inlet -- and the manifest's kind of
+#: file, ``None`` where it has none.
 CHANNELS = (
     ("playlist", "--playlist", "playlist"),
     ("command", "--command-file", "cmd"),
@@ -22,8 +23,8 @@ CHANNELS = (
     ("console", None, None),
     ("dashboard_cmd", "--dashboard-cmd-file", None),
     ("drive", "--drive-file", None),
-    ("tcode_host", "--tcode-host", None),
-    ("tcode_port", "--tcode-port", None),
+    ("tcode_host", None, None),
+    ("tcode_port", None, None),
     ("osr2_sender", "--osr2-sender", None),
     ("osr2_port", "--osr2-port", None),
 )
@@ -57,9 +58,6 @@ def _argv(record, table) -> list[str]:
 class SatelliteChannels(Channels):
     """The files a Funestra is driven through, as a satellite is launched with them."""
 
-    osr2_sender: str | None = None
-    osr2_port: int | None = None
-
     @classmethod
     def from_args(cls, args) -> SatelliteChannels:
         # Spelled out rather than read off CHANNELS: the dead-code gate asks
@@ -73,8 +71,6 @@ class SatelliteChannels(Channels):
             hud=args.hud_file,
             dashboard_cmd=args.dashboard_cmd_file,
             drive=args.drive_file,
-            tcode_host=args.tcode_host,
-            tcode_port=args.tcode_port,
             osr2_sender=args.osr2_sender,
             osr2_port=args.osr2_port,
         )
@@ -86,8 +82,8 @@ class SatelliteChannels(Channels):
             play_points=play_points,
             dashboard_cmd=Path(commands.dashboard_cmd_file),
             drive=Path(commands.genau_drive_file),
-            tcode_host=commands.tcode_udp_host,
-            tcode_port=int(commands.tcode_udp_port),
+            osr2_sender=funestra,
+            osr2_port=int(commands.osr2_slot_port),
             **{field: Path(commands.funestra_file(funestra, kind))
                for field, _flag, kind in CHANNELS if kind is not None},
         )

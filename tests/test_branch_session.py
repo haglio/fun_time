@@ -89,7 +89,7 @@ def _write_config(path: Path, **paths: str) -> Path:
             "media_root": "generated",
             "metadata_root": "C:/metadata",
         },
-        "vr": {"library_dirs": ["vr"], "tcode_udp_port": 50557},
+        "vr": {"library_dirs": ["vr"]},
     }
     path.write_text(json.dumps(raw), encoding="utf-8")
     return path

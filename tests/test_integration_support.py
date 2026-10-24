@@ -45,7 +45,7 @@ from tests.integration.integration_support import (
     FunTimeIntegrationSession,
     await_window,
     build_integration_config,
-    close_udp_sinks,
+    close_the_runs_osr2s,
     ended_within,
     genau_where_this_machine_keeps_it,
     isolate_shared_resources,
@@ -66,7 +66,7 @@ from tests.integration.run_clock import keep_time_by
 from tests.made_up_clocks import SleepDrivenClock, StarvedRun
 from tests.made_up_machine import running
 
-BROKER_TCODE_PORT = 50557
+OSR2_SLOT_PORT = 50558
 GENAU_INBOUND_PORT = 50555
 AUDIO_COMPANION_PORT = 50556
 
@@ -95,7 +95,6 @@ def _the_users_config() -> tuple[dict, dict]:
             "udp_port": GENAU_INBOUND_PORT,
             "notify_host": "127.0.0.1",
             "notify_port": AUDIO_COMPANION_PORT,
-            "tcode_udp_port": BROKER_TCODE_PORT,
         },
     }
     return config, genau_config
@@ -103,13 +102,13 @@ def _the_users_config() -> tuple[dict, dict]:
 
 @pytest.fixture
 def isolated_ports():
-    """The rewritten pair, with the run's sink ports released afterwards."""
+    """The rewritten pair, with the run's own slot for the OSR2 closed afterwards."""
     config, genau_config = _the_users_config()
     isolate_shared_resources(config, genau_config)
     try:
         yield config, genau_config
     finally:
-        close_udp_sinks()
+        close_the_runs_osr2s()
 
 
 LIVE_ORCHESTRATOR = (
@@ -418,18 +417,13 @@ def test_a_move_sent_to_the_osr2_while_the_run_is_starved_is_still_heard(monkeyp
     run_time(_StarvedFor(10_000))
     asked = itertools.count()
 
-    def recvfrom(_size):
-        if next(asked) == 5_000:
-            return b"L0999", ("127.0.0.1", 50_001)
-        raise BlockingIOError
+    def take():
+        return [(0.0, "portrait", "L0999")] if next(asked) == 5_000 else []
 
-    def recv(_size):
-        raise BlockingIOError
+    monkeypatch.setattr(integration_support, "the_runs_osr2",
+                        lambda _port: SimpleNamespace(take=take))
 
-    monkeypatch.setattr(integration_support, "the_runs_tcode_sink", lambda _port: SimpleNamespace(
-        setblocking=lambda _blocking: None, recv=recv, recvfrom=recvfrom))
-
-    assert [sender for _at, sender, _height in tcode_heard(50_000, seconds=3)] == [50_001]
+    assert [sender for _at, sender, _height in tcode_heard(50_000, seconds=3)] == ["portrait"]
 
 
 def test_the_seconds_a_check_lets_pass_are_the_seconds_the_run_could_run(monkeypatch, run_time):
@@ -502,37 +496,19 @@ def test_the_integration_config_never_shares_the_live_sessions_audio_port(isolat
     assert genau_config["genau"]["notify_port"] == config["audio_companion"]["port"]
 
 
-def test_the_integration_config_never_streams_tcode_to_the_machines_broker(isolated_ports):
-    """T-Code is the one output that reaches hardware, and it leaves by UDP.
+def test_the_integration_config_never_reaches_the_machines_osr2(isolated_ports):
+    """T-Code is the one output that reaches hardware.
 
-    The Main Funestra and Genau both stream to the broker's inlet, and the broker holds the
-    OSR2's serial port — one process, one device, for the whole machine.  A run
-    that keeps the production inlet therefore drives the user's OSR2 while they
-    are using it, and no amount of desktop or state-dir isolation touches that:
-    a socket is not per-desktop.  This is the leak the whole live-session guard
-    existed to work around.
-
-    Both senders move to one port together, so a future test can watch a run's
-    own stream where it lands.
+    Every Funestra and Genau reach the OSR2 through the broker's slot, and the
+    broker holds the OSR2's serial port — one process, one device, for the whole
+    machine.  A run that kept the production slot would therefore drive the
+    user's OSR2 while they are using it, and no amount of desktop or state-dir
+    isolation touches that: a socket is not per-desktop.
     """
-    config, genau_config = isolated_ports
+    config, _genau_config = isolated_ports
 
-    assert genau_config["genau"]["tcode_udp_port"] != BROKER_TCODE_PORT
-    assert config["main_player"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
-    # The VR Main Funestra is the third sender at that inlet; it moves with them.
-    assert config["vr"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
-
-
-def test_a_config_with_no_main_funestra_section_still_keeps_the_run_off_the_broker():
-    """The Main Funestra falls back to the broker's own port for a key its section does not name."""
-    config, genau_config = _the_users_config()
-    del config["main_player"]
-    try:
-        isolate_shared_resources(config, genau_config)
-
-        assert config["main_player"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
-    finally:
-        close_udp_sinks()
+    assert config["osr2_slot_port"] != OSR2_SLOT_PORT
+    assert integration_support.the_runs_osr2(config["osr2_slot_port"]).port == config["osr2_slot_port"]
 
 
 def test_a_runs_main_funestra_browses_the_runs_copy_of_the_library_not_the_machines():
@@ -583,7 +559,7 @@ def test_a_runs_room_plays_each_main_video_with_the_funscript_the_run_copied_for
         main_list = build_bridge_config_from_manifest(manifest).main_list
         main_list.write(MainListSettings())
     finally:
-        close_udp_sinks()
+        close_the_runs_osr2s()
 
     played = read_playlist(main_list.file)
     assert played
@@ -591,20 +567,11 @@ def test_a_runs_room_plays_each_main_video_with_the_funscript_the_run_copied_for
         item.funscript for item in played]
 
 
-def test_the_runs_tcode_port_is_bound_so_the_stream_has_somewhere_to_land(isolated_ports):
-    """Moving T-Code off the broker is not enough — it has to arrive somewhere.
+def test_the_runs_slot_listens_so_the_runs_senders_have_somewhere_to_connect(isolated_ports):
+    config, _genau_config = isolated_ports
 
-    ``UdpTCodeSink.send`` is a bare ``sendto`` with no handler.  A datagram sent
-    at a port nothing has bound draws an ICMP port-unreachable, which Windows
-    hands back to the sender as WSAECONNRESET on a later call — so an unbound
-    port would kill Genau's T-Code thread with an error the isolation invented.
-    Binding it absorbs the stream the way the broker does.
-    """
-    _config, genau_config = isolated_ports
-    port = genau_config["genau"]["tcode_udp_port"]
-
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as rival, pytest.raises(OSError):
-        rival.bind(("127.0.0.1", port))
+    with socket.create_connection(("127.0.0.1", config["osr2_slot_port"]), timeout=5.0):
+        pass
 
 
 def test_a_run_serves_its_loopback_surface_somewhere_of_its_own(isolated_ports):
@@ -698,7 +665,7 @@ def test_no_endpoint_of_the_machines_survives_anywhere_in_a_runs_config(isolated
     instead of taking turns on it.
     """
     config, genau_config = isolated_ports
-    machines_own = {AUDIO_COMPANION_PORT, GENAU_INBOUND_PORT, BROKER_TCODE_PORT, LOOPBACK_PORT}
+    machines_own = {AUDIO_COMPANION_PORT, GENAU_INBOUND_PORT, OSR2_SLOT_PORT, LOOPBACK_PORT}
 
     survivors = [
         value

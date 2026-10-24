@@ -57,9 +57,8 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--height", type=int, default=900)
     p.add_argument("--x", type=int, default=None)
     p.add_argument("--y", type=int, default=None)
-    p.add_argument("--tcode-host", default=main_funestra.get("tcode_udp_host", "127.0.0.1"))
-    p.add_argument("--tcode-port", type=int,
-                   default=main_funestra.get("tcode_udp_port", ports.TCODE_UDP))
+    p.add_argument("--osr2-port", type=int, default=None,
+                   help="The broker's one slot for the OSR2, where it is not the broker's own")
     p.add_argument("--command-file", type=Path, default=None,
                    help="Poll this file for orchestrator commands")
     p.add_argument("--paused-file", type=Path, default=None,

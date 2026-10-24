@@ -41,6 +41,7 @@ import numpy as np
 from app_support import ports
 from app_support.file_channel import read_flag
 from app_support.logging_utils import install_exception_logging
+from app_support.osr2_slot import Osr2Sender
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import set_app_user_model_id
 from funestra.file_channel import append_command
@@ -52,7 +53,6 @@ from funestra.modes import MainMode
 from funestra.play_points import play_points_filename
 from funestra.playlist import PlaylistItem, read_playlist
 from funestra.pointer import OMNIPAUSE_TOGGLE
-from funestra.tcode import UdpTCodeSink
 from funestra.tcode_driver import FunscriptTCodeDriver
 from shared_ui.palette import BLUE, BORDER_DEFAULT, WHITE, as_fractions
 from shared_ui.type_scale import SIZE_SMALL, in_pixels
@@ -79,7 +79,7 @@ from fun_time.shared_state import BridgeState, read_shared_state, shared_state_p
 from fun_time.unlogged_notices import UnloggedNotices
 from main_funestra.cli import build_parser as build_main_funestra_parser
 from main_funestra.cli import kino_on, library_source, load_config, mode_memory, resolve_playlist
-from main_funestra.genau import GenauChannels
+from main_funestra.genau import ROBOT_HAND, GenauChannels
 from main_funestra.kino import Kino
 from main_funestra.notice import NoticeWriter
 from satellite.contract import SatelliteChannels
@@ -268,8 +268,6 @@ class VrSettings:
     """The ``[vr]`` section the VR orchestrator adds to the launch manifest -- read
     here rather than in :mod:`fun_time.manifest`, which a desktop session writes."""
 
-    tcode_udp_host: str
-    tcode_udp_port: int
     library_dirs: tuple[Path, ...]
     audio_device: str
     compositor_layers: bool
@@ -286,8 +284,6 @@ class VrSettings:
         parser.read(str(path), encoding="utf-8")
         vr = parser["vr"]
         return cls(
-            tcode_udp_host=vr["tcode_udp_host"],
-            tcode_udp_port=int(vr["tcode_udp_port"]),
             library_dirs=_folders(vr["library_dirs"]),
             audio_device=parser.get("vr", "audio_device", fallback=""),
             compositor_layers=parser.get(
@@ -557,8 +553,7 @@ class _MainUnit(_VideoUnit):
                 drive=Path(commands.genau_drive_file),
             ),
             playlist=library.playlist(),
-            tcode=FunscriptTCodeDriver(_SaysWhenItFirstMoves(
-                UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "main")),
+            tcode=FunscriptTCodeDriver(_osr2_slot(commands, MAIN)),
             locked=True, sound_is_the_rooms=True,
             users=_users(manifest, vr, stop,
                          kino=library.kino()),
@@ -732,8 +727,7 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
             command=Path(commands.genau_cmd_file), paused=Path(commands.genau_paused_file),
             status=Path(commands.genau_status_file), drive=Path(commands.genau_drive_file)),
         notifier=GenauNotifier(vr.notify_host, vr.notify_port),
-        tcode_sink=_SaysWhenItFirstMoves(
-            UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "genau"),
+        tcode_sink=_osr2_slot(commands, ROBOT_HAND),
         notices=NoticeWriter(Path(commands.main_funestra_notice_file)),
         stop_event=stop,
         start_flick=read_genau_status(Path(commands.genau_status_file)).flick or None,
@@ -776,8 +770,7 @@ class _SatelliteUnit(_VideoUnit):
         self.panel = PanelBitmap()
         self.funestra = Funestra(
             self.engine, channels=channels, playlist=read_playlist(channels.playlist),
-            tcode=FunscriptTCodeDriver(_SaysWhenItFirstMoves(
-                UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), funestra)),
+            tcode=FunscriptTCodeDriver(_osr2_slot(commands, funestra)),
             panel_surface=self.panel,
         )
         self.hud_texture = FrameTexture()
@@ -1827,6 +1820,10 @@ class _SaysWhenItFirstMoves:  # places the OSR2's first move against the rest of
 
     def close(self) -> None:
         self._sink.close()
+
+
+def _osr2_slot(commands, sender: str) -> _SaysWhenItFirstMoves:
+    return _SaysWhenItFirstMoves(Osr2Sender(sender, port=int(commands.osr2_slot_port)), sender)
 
 
 def _still_blank(main_unit, satellites: Sequence, panel) -> tuple[str, ...]:

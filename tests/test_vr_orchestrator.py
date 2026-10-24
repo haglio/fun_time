@@ -122,8 +122,7 @@ def config(tmp_path, monkeypatch):
           "audio_companion": {"host": "127.0.0.1", "port": 50556},
           "vr": {
             "library_dirs": ["%(vr)s"],
-            "audio_device": "Example Headset",
-            "tcode_udp_port": 50557
+            "audio_device": "Example Headset"
           }
         }
         """
@@ -146,8 +145,6 @@ class TestVrConfig:
     def test_vr_section_loads(self, config, tmp_path):
         assert config.vr.library_dirs == (tmp_path / "library" / "VR" / "finished",)
         assert config.vr.audio_device == "Example Headset"
-        assert config.vr.tcode_udp_host == "127.0.0.1"
-        assert config.vr.tcode_udp_port == 50557
         # Off by default: the bundled Pimax runtime accepts quad layers and
         # never composites them (screens submitted that way don't appear).
         assert config.vr.compositor_layers is False
@@ -181,8 +178,6 @@ class TestVrManifest:
         vr = manifest["vr"]
         assert vr["funestra_module"] == VR_FUNESTRAS_MODULE
         assert vr["library_dirs"] == str(config.vr.library_dirs[0])
-        assert vr["tcode_udp_host"] == "127.0.0.1"
-        assert vr["tcode_udp_port"] == "50557"
         assert vr["audio_device"] == "Example Headset"
         assert vr["compositor_layers"] == "0"
 

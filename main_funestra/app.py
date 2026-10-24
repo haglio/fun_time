@@ -15,13 +15,13 @@ import os
 from pathlib import Path
 
 import pygame
+from app_support.osr2_slot import Osr2Sender
 from app_support.win32 import set_app_user_model_id
 from funestra.funestra import Funestra
 from funestra.funestra_priority import ahead_on_the_processor
 from funestra.genau_notifier import GenauNotifier
 from funestra.modes import MainMode
 from funestra.sdl_hints import deliver_the_focusing_click
-from funestra.tcode import UdpTCodeSink
 
 from fun_time.genau_config import GenauSettings
 
@@ -35,7 +35,7 @@ from .cli import (
     resolve_playlist,
 )
 from .contract import MainChannels
-from .genau import Genau, GenauChannels
+from .genau import ROBOT_HAND, Genau, GenauChannels
 from .genau_verbs import orientations_from
 from .input import Input
 from .loading import LoadingCanceled, LoadingScreen
@@ -64,7 +64,7 @@ def _genau(args):
         flicks_folder=args.flicks_dir, settings=GenauSettings.read(args.genau_config),
         channels=channels,
         notifier=GenauNotifier(args.notify_host, args.notify_port),
-        tcode_sink=UdpTCodeSink(host=args.tcode_host, port=args.tcode_port),
+        tcode_sink=Osr2Sender(ROBOT_HAND, port=args.osr2_port),
         notices=NoticeWriter(args.notice_file),
         start_flick=Path(args.genau_start_flick) if args.genau_start_flick else None,
         latest=args.genau_latest,

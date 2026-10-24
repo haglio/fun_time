@@ -3,7 +3,9 @@ from __future__ import annotations
 import configparser
 import contextlib
 import json
+import logging
 import os
+import queue
 import random
 import re
 import shutil
@@ -19,7 +21,9 @@ from unittest import mock
 
 import pytest
 from app_support import haglio_settings
+from app_support.osr2_slot import Osr2Slot
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 
@@ -601,11 +605,6 @@ class FunTimeIntegrationSession:
 
 
 
-# Ports this process binds on the run's behalf, so the run's own T-Code has
-# somewhere to land.  Held for as long as any session might still be sending.
-_udp_sinks: list[socket.socket] = []
-
-
 def _free_udp_port() -> int:
     """A loopback port the OS says is free, for something else to bind."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
@@ -620,52 +619,61 @@ def _free_tcp_port() -> int:
         return probe.getsockname()[1]
 
 
-def _sink_udp_port() -> int:
-    """A loopback port bound here for the rest of the run, and never read.
+class TheRunsOsr2:
+    """The broker's own slot, on a port of the run's: what the sender holding it
+    sends is heard here, as the OSR2 would hear it, and goes no further."""
 
-    Moving a stream off a shared port is only half of isolating it: it has to
-    arrive somewhere.  ``UdpTCodeSink.send`` is a bare ``sendto`` with no
-    handler, and a datagram sent at a port nothing has bound draws an ICMP
-    port-unreachable that Windows reports back to the sender as WSAECONNRESET on
-    a later call — so an unbound port would kill Genau's T-Code thread with an
-    error the isolation itself invented.  A bound socket absorbs the stream the
-    way the broker does; nothing reads it, so the datagrams fill the receive
-    buffer and are dropped.
-    """
-    sink = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sink.bind(("127.0.0.1", 0))
-    _udp_sinks.append(sink)
-    return sink.getsockname()[1]
+    def __init__(self) -> None:
+        self._heard: queue.Queue[tuple[float, str, str]] = queue.Queue()
+        self._slot = Osr2Slot(port=0, logger=logging.getLogger(__name__),
+                              start_thread=start_daemon_thread)
+        self._slot.write_through(
+            lambda sender, line: self._heard.put((run_clock.now(), sender, line)))
+        self._slot.start()
+        self.port = self._slot.address[1]
+
+    def take(self) -> list[tuple[float, str, str]]:
+        """Every line heard since the last take: when, from whom, and what."""
+        lines = []
+        while True:
+            try:
+                lines.append(self._heard.get_nowait())
+            except queue.Empty:
+                return lines
+
+    def close(self) -> None:
+        self._slot.close()
 
 
-def the_runs_tcode_sink(port: int) -> socket.socket:
-    return next(sink for sink in _udp_sinks if sink.getsockname()[1] == port)
+_the_runs_osr2s: dict[int, TheRunsOsr2] = {}
 
 
-def tcode_heard(port: int, *, seconds: float) -> list[tuple[float, int, float]]:
-    sink = the_runs_tcode_sink(port)
-    sink.setblocking(False)
-    while True:
-        try:
-            sink.recv(65536)
-        except BlockingIOError:
-            break
-    heard: list[tuple[float, int, float]] = []
+def _a_slot_of_the_runs_own() -> int:
+    osr2 = TheRunsOsr2()
+    _the_runs_osr2s[osr2.port] = osr2
+    return osr2.port
+
+
+def the_runs_osr2(port: int) -> TheRunsOsr2:
+    return _the_runs_osr2s[port]
+
+
+def tcode_heard(port: int, *, seconds: float) -> list[tuple[float, str, float]]:
+    osr2 = the_runs_osr2(port)
+    osr2.take()
+    heard: list[tuple[float, str, float]] = []
     budget = Budget(seconds)
     started = run_clock.now()
     while not budget.expired():
-        try:
-            datagram, (_host, sender) = sink.recvfrom(65536)
-        except BlockingIOError:
+        lines = osr2.take()
+        if not lines:
             time.sleep(0.02)
-            continue
-        at = round(run_clock.now() - started, 2)
-        heard += [(at, sender, int(digits) / (10 ** len(digits) - 1))
-                  for digits in re.findall(rb"L0(\d+)", datagram)]
+        heard += [(round(at - started, 2), sender, int(digits) / (10 ** len(digits) - 1))
+                  for at, sender, line in lines for digits in re.findall(r"L0(\d+)", line)]
     return heard
 
 
-def senders(heard: list[tuple[float, int, float]]) -> dict[int, tuple]:
+def senders(heard: list[tuple[float, str, float]]) -> dict[str, tuple]:
     """Each sender heard: how many moves, over which seconds, between which heights."""
     return {sender: (len(moves), min(at for at, _h in moves), max(at for at, _h in moves),
                      round(min(h for _at, h in moves), 2), round(max(h for _at, h in moves), 2))
@@ -673,14 +681,14 @@ def senders(heard: list[tuple[float, int, float]]) -> dict[int, tuple]:
             for moves in [[(at, h) for at, s, h in heard if s == sender]]}
 
 
-def close_udp_sinks() -> None:
-    """Release every sink port bound for this run."""
-    while _udp_sinks:
-        _udp_sinks.pop().close()
+def close_the_runs_osr2s() -> None:
+    while _the_runs_osr2s:
+        _port, osr2 = _the_runs_osr2s.popitem()
+        osr2.close()
 
 
-def _isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
-    """Move every UDP endpoint this run would otherwise share with the machine.
+def _isolate_shared_ports(config: dict, genau_config: dict) -> None:
+    """Move every port this run would otherwise share with the machine.
 
     Three fixed ports are machine-global, and a socket is not per-desktop — so
     the hidden desktop does nothing for any of them:
@@ -695,13 +703,12 @@ def _isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
       a second Genau bind it rather than refusing — so two Genaus split one
       datagram stream between them at random, and a run's Genau swallows packets
       meant for the user's.
-    * The **broker's T-Code inlet** is the one output that reaches hardware.  The
-      broker holds the OSR2's serial port, so a run that keeps the production
-      inlet drives the user's device while they are using it.  Genau, the Main
-      Funestra and the VR Main Funestra move to one sink together, so a run's stream
-      stays watchable where it lands.  Both Funestras read their port from Fun
-      Time's own config and fall back to the broker's for a section that is
-      missing, so theirs is set whether or not the section is there.
+    * The **broker's slot for the OSR2** is the one output that reaches hardware.
+      The broker holds the OSR2's serial port, so a run that kept the production
+      slot would drive the user's device while they are using it.  The run gets
+      a slot of its own, the broker's own code on a port of the run's, where
+      every Funestra and Genau of the run connect, so a run's stream is heard
+      where it lands.
     """
     companion_port = _free_udp_port()
     config["audio_companion"]["port"] = companion_port
@@ -709,10 +716,7 @@ def _isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
 
     genau_config["genau"]["udp_port"] = _free_udp_port()
 
-    tcode_port = _sink_udp_port()
-    genau_config["genau"]["tcode_udp_port"] = tcode_port
-    for funestra in ("main_player", "vr"):
-        config.setdefault(funestra, {})["tcode_udp_port"] = tcode_port
+    config["osr2_slot_port"] = _a_slot_of_the_runs_own()
 
 
 def real_config_path() -> Path:
@@ -753,7 +757,7 @@ def isolate_shared_resources(config: dict, genau_config: dict) -> None:
     terms, where a ``FUN_TIME_RUN_INTEGRATION`` branch would be a second
     behavior that only the tests exercise.
     """
-    _isolate_shared_udp_ports(config, genau_config)
+    _isolate_shared_ports(config, genau_config)
 
     # The loopback server binds a fixed TCP port, and the loser of a race for it
     # loses the surface entirely: no Tampermonkey auto-update, and RFB tab pages

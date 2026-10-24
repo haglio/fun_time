@@ -417,6 +417,7 @@ def _launch_the_main_funestra(
         console_file=m.commands.main_funestra_console_file,
         drive_file=m.commands.genau_drive_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
+        osr2_port=m.commands.osr2_slot_port,
         log_file=main_funestra_log,
         state_dir=state_dir,
         main_funestra_x=main_media_rect.x,

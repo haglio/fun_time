@@ -1574,6 +1574,7 @@ def test_launching_the_main_funestra_starts_it_and_says_which_process_it_is(tmp_
             console_file="state/main_player_console.json",
             drive_file="state/genau_drive.txt",
             dashboard_cmd_file="state/dashboard_cmd.txt",
+            osr2_port="50599",
             log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
             main_funestra_x=100,
             main_funestra_y=200,
@@ -1625,6 +1626,8 @@ def test_launching_the_main_funestra_starts_it_and_says_which_process_it_is(tmp_
         "a-state-dir/genau_status.txt",
         "--genau-config",
         "a-genau-checkout/genau_config.json",
+        "--osr2-port",
+        "50599",
     ]
 
 

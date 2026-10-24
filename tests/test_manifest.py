@@ -71,7 +71,7 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
         "origenerator_frames_file", "origenerator_input_file",
         "origenerator_cmd_file", "origenerator_paused_file",
         "origenerator_status_file",
-        "tcode_udp_host", "tcode_udp_port",
+        "osr2_slot_port",
     },
     "dashboard": {"enabled"},
     "loopback": {"port"},
@@ -223,7 +223,7 @@ class TestReadingItBack:
         it, so the reader has to pass over what it does not know."""
         cfg = load_config(cfg_path)
         data = build_windows_bridge_manifest(cfg)
-        data["vr"] = {"tcode_udp_port": "8000"}
+        data["vr"] = {"osr2_slot_port": "8000"}
         path = write_manifest_data(data, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
 
         assert LaunchManifest.read(path).commands.main_funestra_cmd_file

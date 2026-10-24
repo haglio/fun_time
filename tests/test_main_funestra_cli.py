@@ -283,8 +283,7 @@ EVERY_FLAG_ARGV = [
     "--height", "1024",
     "--x", "1920",
     "--y", "0",
-    "--tcode-host", "10.0.0.7",
-    "--tcode-port", "51000",
+    "--osr2-port", "51000",
     "--command-file", "C:/example/state/main_player_cmd.txt",
     "--paused-file", "C:/example/state/main_player_paused.txt",
     "--status-file", "C:/example/state/main_player_status.txt",
@@ -319,8 +318,7 @@ EVERY_FLAG_LANDS_AS = {
     "height": 1024,
     "x": 1920,
     "y": 0,
-    "tcode_host": "10.0.0.7",
-    "tcode_port": 51000,
+    "osr2_port": 51000,
     "command_file": Path("C:/example/state/main_player_cmd.txt"),
     "paused_file": Path("C:/example/state/main_player_paused.txt"),
     "status_file": Path("C:/example/state/main_player_status.txt"),
@@ -355,8 +353,7 @@ NO_FLAGS_LANDS_AS = {
     "height": 900,
     "x": None,
     "y": None,
-    "tcode_host": "127.0.0.1",
-    "tcode_port": 50557,
+    "osr2_port": None,
     "command_file": None,
     "paused_file": None,
     "status_file": None,
@@ -414,32 +411,22 @@ class TestTheConfigsOwnDefaults:
         "main_player": {
             "videos_dir": "C:/example/library/videos",
             "metadata_dir": "C:/example/library/metadata",
-            "tcode_udp_host": "10.0.0.7",
-            "tcode_udp_port": 51000,
         },
     }
 
     @pytest.mark.parametrize("name, expected", [
         ("videos_dir", Path("C:/example/library/videos")),
         ("metadata_dir", Path("C:/example/library/metadata")),
-        ("tcode_host", "10.0.0.7"),
-        ("tcode_port", 51000),
     ])
     def test_a_configured_value_is_what_the_flag_would_have_said(self, name, expected):
         args = build_parser(self.CONFIG).parse_args([])
 
         assert getattr(args, name) == expected
 
-    def test_the_device_defaults_to_the_port_the_family_listens_on(self):
-        """50557 is the broker's, and Genau's."""
-        args = build_parser({}).parse_args([])
-
-        assert (args.tcode_host, args.tcode_port) == ("127.0.0.1", 50557)
-
     def test_a_flag_beats_the_configured_value(self):
-        args = build_parser(self.CONFIG).parse_args(["--tcode-port", "50999"])
+        args = build_parser(self.CONFIG).parse_args(["--videos-dir", "C:/example/elsewhere"])
 
-        assert args.tcode_port == 50999
+        assert args.videos_dir == Path("C:/example/elsewhere")
 
     def test_genaus_folder_and_the_state_folder_come_only_from_the_launch(self):
         args = build_parser({"flicks_dir": "C:/example/a", "state_dir": "C:/example/b",

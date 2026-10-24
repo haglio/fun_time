@@ -210,7 +210,7 @@ def test_fun_time_the_max_intensity_pushes_the_robot_hand_down_and_leaves_it_the
     shared_integration_session: FunTimeIntegrationSession,
 ):
     s = shared_integration_session
-    sink = s.config.main_funestra_tcode.port
+    sink = s.config.osr2_slot_port
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode")
     try:
@@ -241,7 +241,7 @@ def test_fun_time_the_max_intensity_holds_a_funscript_down_through_its_gaps_too(
     shared_integration_session: FunTimeIntegrationSession,
 ):
     s = shared_integration_session
-    sink = s.config.main_funestra_tcode.port
+    sink = s.config.osr2_slot_port
     s.write_dashboard_command("main_kino_activate")
     s.write_dashboard_command("play")
     s.wait_until(lambda: s.read_main_funestra_status().has_funscript,
@@ -734,13 +734,13 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
     shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
 ):
     s = shared_integration_session
-    sink = s.config.main_funestra_tcode.port
+    sink = s.config.osr2_slot_port
     before = senders(tcode_heard(sink, seconds=2))
     with _the_portrait_funestra_driving_the_osr2(s, tmp_path) as (portrait, video):
         let_seconds_pass(1.0)
         scripted = senders(tcode_heard(sink, seconds=4))
-        assert len(scripted) == 1, (before, scripted)
-        ((portraits_line, (_moves, _first, _last, lowest, highest)),) = scripted.items()
+        assert list(scripted) == [RoomFunestra.PORTRAIT.label], (before, scripted)
+        ((_moves, _first, _last, lowest, highest),) = scripted.values()
         assert highest - lowest > 0.5, scripted
 
         s.write_dashboard_command("speed_up")
@@ -754,14 +754,14 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
                      description="the Portrait Funestra to reach a stretch with no funscript")
         let_seconds_pass(2.0)
         resting = senders(tcode_heard(sink, seconds=4))
-        assert resting and portraits_line not in resting, (portraits_line, resting)
+        assert resting and RoomFunestra.PORTRAIT.label not in resting, resting
 
 
 def test_fun_time_the_max_intensity_holds_a_side_funestras_funscript_down_too(
     shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
 ):
     s = shared_integration_session
-    sink = s.config.main_funestra_tcode.port
+    sink = s.config.osr2_slot_port
     with _the_portrait_funestra_driving_the_osr2(s, tmp_path):
         try:
             free = _osr2_heard_until(sink, _osr2_swinging)
@@ -1126,7 +1126,7 @@ def test_fun_time_reopens_holding_the_osr2_to_the_max_intensity_it_was_closed_at
         first.stop()
 
     second = FunTimeIntegrationSession(config_path)
-    sink = second.config.main_funestra_tcode.port
+    sink = second.config.osr2_slot_port
     try:
         second.start()
         came_back_at = getattr(read_shared_state(state_file), "max_intensity", None)

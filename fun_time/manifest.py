@@ -96,8 +96,7 @@ def build_windows_bridge_manifest(
             "origenerator_status_file": str(config.origenerator_status_file),
             "origenerator_frames_file": str(config.origenerator_frames_file),
             "origenerator_input_file": str(config.origenerator_input_file),
-            "tcode_udp_host": config.main_funestra_tcode.host,
-            "tcode_udp_port": str(config.main_funestra_tcode.port),
+            "osr2_slot_port": str(config.osr2_slot_port),
         },
         "dashboard": {
             "enabled": "1" if dashboard_enabled else "0",
@@ -249,8 +248,7 @@ class CommandFiles:
     origenerator_input_file: str = ""
     portrait_origenerator_hud_file: str = ""
     landscape_origenerator_hud_file: str = ""
-    tcode_udp_host: str = "127.0.0.1"
-    tcode_udp_port: str = str(ports.TCODE_UDP)
+    osr2_slot_port: str = str(ports.OSR2_SLOT)
 
     def funestra_file(self, funestra: str, kind: str) -> str:
         """One satellite side's file of a given kind, asked for by side rather
