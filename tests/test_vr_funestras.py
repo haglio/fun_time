@@ -13,10 +13,11 @@ import threading
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import DEFAULT, MagicMock, patch
+from unittest.mock import DEFAULT, MagicMock, call, patch
 
 import numpy as np
 import pytest
+from app_support import ports
 from app_support.file_channel import write_flag
 from funestra.console_hud import ModeHud
 from funestra.flick_picture import Picture
@@ -138,7 +139,7 @@ from fun_time_vr.stacking import Stacking
 from fun_time_vr.surfaces import LatestPicture, PanelBitmap
 from fun_time_vr.video_thread import VideoThread
 from fun_time_vr.wrap_readout import WrapReadout, label
-from main_funestra.genau import GenauChannels
+from main_funestra.genau import ROBOT_HAND, GenauChannels
 from tests.headset_layout_reports import reported_layout
 from tests.made_up_genau import with_made_up_genau
 from tests.satellite_fakes import FakeSatelliteEngine
@@ -162,8 +163,6 @@ def test_the_vr_section_reads_back_with_its_key_case_intact(tmp_path):
     path = tmp_path / "windows_bridge_launch.ini"
     path.write_text(
         "[vr]\n"
-        "tcode_udp_host=127.0.0.1\n"
-        "tcode_udp_port=8000\n"
         "library_dirs=C:/vr/one|C:/vr/two\n"
         "audio_device=Example Headset\n"
         "compositor_layers=1\n",
@@ -171,8 +170,6 @@ def test_the_vr_section_reads_back_with_its_key_case_intact(tmp_path):
 
     vr = VrSettings.read(path)
 
-    assert vr.tcode_udp_host == "127.0.0.1"
-    assert vr.tcode_udp_port == 8000
     assert [str(p).replace("\\", "/") for p in vr.library_dirs] == ["C:/vr/one", "C:/vr/two"]
     assert vr.audio_device == "Example Headset"
     assert vr.compositor_layers is True
@@ -182,9 +179,7 @@ def test_the_compositor_falls_back_to_off_when_the_section_does_not_say(tmp_path
     """The one key here with a fallback: a manifest written before layers
     existed must not turn them on."""
     path = tmp_path / "windows_bridge_launch.ini"
-    path.write_text(
-        "[vr]\ntcode_udp_host=127.0.0.1\ntcode_udp_port=8000\nlibrary_dirs=\n",
-        encoding="utf-8")
+    path.write_text("[vr]\nlibrary_dirs=\n", encoding="utf-8")
 
     assert VrSettings.read(path).compositor_layers is False
 
@@ -193,9 +188,7 @@ def test_a_session_that_names_no_audio_device_reads_back_as_none_named(tmp_path)
     """The Main Funestra asks mpv for a device only when the session named one,
     so an unnamed device has to arrive as the empty string rather than absent."""
     path = tmp_path / "windows_bridge_launch.ini"
-    path.write_text(
-        "[vr]\ntcode_udp_host=127.0.0.1\ntcode_udp_port=8000\nlibrary_dirs=\n",
-        encoding="utf-8")
+    path.write_text("[vr]\nlibrary_dirs=\n", encoding="utf-8")
 
     assert VrSettings.read(path).audio_device == ""
 
@@ -207,11 +200,10 @@ def test_a_session_that_names_no_audio_device_reads_back_as_none_named(tmp_path)
 # which manifest field each path comes from, not what is done with it afterwards.
 _UNIT_COLLABORATORS = (
     "HeadsetEngine", "VideoThread", "RenderTarget", "FrameTexture", "Funestra",
-    "HeadsetVerbs", "PictureLook", "_TheLibrary", "FunscriptTCodeDriver", "UdpTCodeSink",
+    "HeadsetVerbs", "PictureLook", "_TheLibrary", "FunscriptTCodeDriver", "Osr2Sender",
 )
 
-_A_SESSION = VrSettings(tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-                        audio_device="", compositor_layers=False)
+_A_SESSION = VrSettings(library_dirs=(), audio_device="", compositor_layers=False)
 
 
 # The video thread is faked above, so no GL context is ever asked for.
@@ -222,14 +214,15 @@ SPOTS = {name: spot for kind in vars(funestras).values() if isinstance(kind, typ
          for name, spot in getattr(kind, "SPOTS", {}).items()}
 
 
-def _manifest_for_a_vr_session(tmp_path) -> LaunchManifest:
+def _manifest_for_a_vr_session(tmp_path, *, osr2_slot_port: int = ports.OSR2_SLOT) -> LaunchManifest:
     """A real manifest, written by the writer the VR launcher uses, whose
     channel files live in the test's own folder: the example config names a
     `state` beside the checkout, which a session run from this checkout
     writes into, and a command it left there reached a unit under test."""
     config = load_config(Path("fun_time_config.example.json"))
     config = with_made_up_genau(
-        replace(config, paths=replace(config.paths, state_dir=tmp_path, broker_state_dir=tmp_path)),
+        replace(config, paths=replace(config.paths, state_dir=tmp_path, broker_state_dir=tmp_path),
+                osr2_slot_port=osr2_slot_port),
         tmp_path)
     path = write_manifest_data(
         build_vr_manifest(config), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
@@ -356,12 +349,10 @@ def test_the_library_names_the_sessions_notice_file_to_kino(tmp_path):
     assert library.args.notice_file == Path(manifest.commands.main_funestra_notice_file)
 
 
-def test_the_main_slot_drives_the_headsets_osr2_inlet(tmp_path, faked_collaborators):
-    vr = replace(_A_SESSION, tcode_udp_host="127.0.0.9", tcode_udp_port=8123)
+def test_the_main_slot_reaches_the_osr2_through_the_brokers_slot(tmp_path, faked_collaborators):
+    _a_main_unit(tmp_path, manifest=_manifest_for_a_vr_session(tmp_path, osr2_slot_port=8123))
 
-    _a_main_unit(tmp_path, vr=vr)
-
-    assert faked_collaborators["UdpTCodeSink"].call_args.args == ("127.0.0.9", 8123)
+    assert faked_collaborators["Osr2Sender"].call_args == call("main", port=8123)
     assert (faked_collaborators["Funestra"].call_args.kwargs["tcode"]
             is faked_collaborators["FunscriptTCodeDriver"].return_value)
 
@@ -379,11 +370,11 @@ class TestGenauOnTheMainFunestra:
     where the session names its flicks folder."""
 
     def _users(self, tmp_path, *, flicks_folder, resumed=None):
-        manifest = _manifest_for_a_vr_session(tmp_path)
+        manifest = _manifest_for_a_vr_session(tmp_path, osr2_slot_port=8123)
         vr = replace(_A_SESSION, flicks_folder=flicks_folder)
         stop = threading.Event()
         with patch.multiple("fun_time_vr.funestras", GenauInTheHeadset=DEFAULT,
-                            GenauNotifier=DEFAULT, UdpTCodeSink=DEFAULT, NoticeWriter=DEFAULT) as fakes, \
+                            GenauNotifier=DEFAULT, Osr2Sender=DEFAULT, NoticeWriter=DEFAULT) as fakes, \
                 patch("fun_time_vr.funestras.read_genau_status",
                       return_value=SimpleNamespace(flick="")), \
                 patch("fun_time_vr.funestras.read_shared_state", return_value=resumed) as read_state:
@@ -427,6 +418,11 @@ class TestGenauOnTheMainFunestra:
         assert handed["f_mode"] is True
         assert handed["favs_file"] == Path(built.manifest.media.favs_file)
 
+    def test_its_robot_hand_reaches_the_osr2_through_the_brokers_slot(self, tmp_path):
+        built = self._users(tmp_path, flicks_folder=tmp_path)
+
+        assert built.fakes["Osr2Sender"].call_args == call(ROBOT_HAND, port=8123)
+
     def test_what_it_says_goes_where_the_session_reads_the_main_funestras_notices(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path)
 
@@ -448,14 +444,12 @@ def test_a_side_screen_hands_its_funestra_the_scripts_its_playlist_names(
     assert faked_collaborators["Funestra"].call_args.kwargs["playlist"] == items
 
 
-def test_a_side_screen_drives_the_headsets_osr2_inlet_with_its_clips_script(
+def test_a_side_screen_reaches_the_osr2_through_the_brokers_slot_with_its_clips_script(
         tmp_path, faked_collaborators):
-    vr = replace(_A_SESSION, tcode_udp_host="127.0.0.9", tcode_udp_port=8123)
+    _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path, osr2_slot_port=8123),
+                   _NO_GL_CONTEXTS, vr=_A_SESSION, remembered={})
 
-    _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
-                   vr=vr, remembered={})
-
-    assert faked_collaborators["UdpTCodeSink"].call_args.args == ("127.0.0.9", 8123)
+    assert faked_collaborators["Osr2Sender"].call_args == call(PORTRAIT, port=8123)
     assert (faked_collaborators["Funestra"].call_args.kwargs["tcode"]
             is faked_collaborators["FunscriptTCodeDriver"].return_value)
 
@@ -573,7 +567,7 @@ def a_fake_engine(tmp_path):
     with patch.multiple("fun_time_vr.funestras", VideoThread=_AVideoThread,
                         RenderTarget=_FakeRenderTarget, FrameTexture=_FakeTexture,
                         _TheLibrary=lambda *args, **kwargs: _ALibrary(tmp_path),
-                        UdpTCodeSink=DEFAULT):
+                        Osr2Sender=DEFAULT):
         yield
 
 
@@ -790,10 +784,7 @@ def test_a_screen_rehangs_when_its_placement_moves_and_only_then():
 
 
 def _a_satellite_unit(tmp_path, funestra, remembered):
-    vr = VrSettings(
-        tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
-        audio_device="", compositor_layers=False,
-    )
+    vr = VrSettings(library_dirs=(), audio_device="", compositor_layers=False)
     return _SatelliteUnit(funestra, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
                           vr=vr, remembered=remembered)
 

@@ -35,10 +35,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--drive-file", type=Path, default=None,
                    help="The motion Genau publishes, drawn under the OSR2 line "
                         "while this Funestra has the OSR2")
-    p.add_argument("--tcode-host", default=None,
-                   help="Where this Funestra's funscript drives the OSR2 from, while it "
-                        "has the OSR2: the broker's T-Code inlet")
-    p.add_argument("--tcode-port", type=int, default=None)
     p.add_argument("--osr2-sender", default=None,
                    help="The name this Funestra's funscript reaches the OSR2 under, "
                         "through the broker's one slot, while it has the OSR2")

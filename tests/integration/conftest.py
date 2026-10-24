@@ -32,7 +32,7 @@ from .hidden_desktop import REFUSED_EXIT_CODE, on_hidden_desktop, require_hidden
 from .integration_support import (
     RootsLeftBehind,
     clear_run_roots,
-    close_udp_sinks,
+    close_the_runs_osr2s,
     genau_where_this_machine_keeps_it,
     keep_what_the_run_logged,
 )
@@ -202,7 +202,7 @@ def _release_the_runs_udp_sinks():
     and each has to stay bound while any session might still be sending at it.
     """
     yield
-    close_udp_sinks()
+    close_the_runs_osr2s()
 
 
 @pytest.fixture(scope="session", autouse=True)

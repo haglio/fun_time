@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 from funestra.funestra import Channels
 
+from fun_time.room_funestras import RoomFunestra
+
 from .cli import play_points_path
 
 
@@ -21,6 +23,6 @@ class MainChannels(Channels):
             console=args.console_file,
             dashboard_cmd=args.dashboard_cmd_file,
             drive=args.drive_file,
-            tcode_host=args.tcode_host,
-            tcode_port=args.tcode_port,
+            osr2_sender=RoomFunestra.MAIN.label,
+            osr2_port=args.osr2_port,
         )

@@ -382,7 +382,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 5784 on 2026-10-24: whose turn it is to send the OSR2 T-Code is stated whole,
 # whenever it changes, so the notes on what the arbiter remembered between
 # handoffs, and on why it said it all again every second, went.
-MAX_PROSE_LINES = 5784
+# 5783 the same day: every sender reaches the OSR2 through the broker's one slot,
+# and the note on the inlet the arbiter's senders all fed went with it.
+MAX_PROSE_LINES = 5783
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

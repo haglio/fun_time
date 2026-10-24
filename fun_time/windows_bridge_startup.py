@@ -197,7 +197,7 @@ def ensure_broker(
     """Start the broker if one is not already running, or replace a stale one.
 
     A healthy broker outlives the session that launched it: the user's own tools
-    keep talking to it over the shared UDP inlet, and osr2_broker installs a
+    keep talking to it through its slot for the OSR2, and osr2_broker installs a
     self-healing scheduled task that keeps one alive.  Killing a live broker to
     relaunch our own would drop every client mid-stream.
 
@@ -632,6 +632,7 @@ def launch_main_funestra(
     genau_orientations: Included = BOTH,
     favs_file: str | Path | None = None,
     notice_file: str | Path | None = None,
+    osr2_port: str | None = None,
     sibling_checkouts: str | None = None,
 ) -> int:
     """Launch the Main Funestra subprocess, returning its PID.
@@ -711,6 +712,8 @@ def launch_main_funestra(
         cmd += ["--favs-file", str(favs_file)]
     if notice_file:
         cmd += ["--notice-file", str(notice_file)]
+    if osr2_port:
+        cmd += ["--osr2-port", osr2_port]
     # Lets the Main Funestra group a video's versions from Evolver's metadata sidecars rather
     # than guessing from clip names.
     if metadata_dir:

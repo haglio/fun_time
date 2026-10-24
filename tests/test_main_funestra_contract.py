@@ -17,7 +17,7 @@ def _args(*extra: str):
         "--console-file", "C:/state/main_player_console.json",
         "--drive-file", "C:/state/genau_drive.txt",
         "--dashboard-cmd-file", "C:/state/dashboard_cmd.txt",
-        "--tcode-host", "127.0.0.1", "--tcode-port", "51000",
+        "--osr2-port", "51000",
         *extra,
     ])
 
@@ -32,7 +32,7 @@ def test_every_file_fun_time_names_lands_on_its_channel():
     assert channels.console == Path("C:/state/main_player_console.json")
     assert channels.drive == Path("C:/state/genau_drive.txt")
     assert channels.dashboard_cmd == Path("C:/state/dashboard_cmd.txt")
-    assert (channels.tcode_host, channels.tcode_port) == ("127.0.0.1", 51000)
+    assert (channels.osr2_sender, channels.osr2_port) == ("main", 51000)
 
 
 def test_where_each_video_was_left_is_kept_in_the_state_dir():

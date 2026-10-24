@@ -14,7 +14,7 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
     ended_within,
-    the_runs_tcode_sink,
+    the_runs_osr2,
 )
 from .run_clock import Budget
 
@@ -24,14 +24,8 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _moves_waiting(sink) -> int:
-    moves = 0
-    while True:
-        try:
-            sink.recv(65536)
-        except BlockingIOError:
-            return moves
-        moves += 1
+def _moves_waiting(osr2) -> int:
+    return len(osr2.take())
 
 
 def test_quitting_stops_the_robot_hand_before_anything_closes_and_parks_the_osr2():
@@ -40,8 +34,7 @@ def test_quitting_stops_the_robot_hand_before_anything_closes_and_parks_the_osr2
     session = FunTimeIntegrationSession(config_path)
     try:
         session.start(env_overrides={"FUN_TIME_INTEGRATION_OVERLAYS": "1"})
-        sink = the_runs_tcode_sink(session.config.vr.tcode_udp_port)
-        sink.setblocking(False)
+        sink = the_runs_osr2(session.config.osr2_slot_port)
         session.write_dashboard_command("genau_activate")
         session.wait_for_new_log("Switched to genau mode", timeout=COMMAND_BUDGET_S)
         _moves_waiting(sink)

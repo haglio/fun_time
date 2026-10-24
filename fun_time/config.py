@@ -117,26 +117,18 @@ class VoiceControlConfig:
 
 
 @dataclass(frozen=True)
-class TcodeTarget:
-    host: str = "127.0.0.1"
-    port: int = ports.TCODE_UDP
-
-
-@dataclass(frozen=True)
 class VrConfig:
     """What FunTimeVR needs beyond the desktop session's own config.
 
     ``library_dirs`` joins the main rotation alongside ``main_player_library_dirs``;
     ``audio_device`` routes the Main Funestra's sound to the headset by substring
-    match; the T-Code endpoint is the broker's UDP inlet.  ``compositor_layers`` hands flat screens to the runtime
+    match.  ``compositor_layers`` hands flat screens to the runtime
     as quad layers — off by default because the bundled "Pimax OpenXR 0.1.0"
     accepts them in xrEndFrame and then never composites them.
     """
 
     library_dirs: tuple[Path, ...] = ()
     audio_device: str | None = None
-    tcode_udp_host: str = "127.0.0.1"
-    tcode_udp_port: int = ports.TCODE_UDP
     compositor_layers: bool = False
 
 
@@ -167,9 +159,9 @@ class ProjectConfig:
     # Named here so a second session can be given one of its own; the default is
     # what the userscript's @updateURL is pinned to.
     loopback_port: int = LOOPBACK_PORT
+    osr2_slot_port: int = ports.OSR2_SLOT
     # FunTimeVR's additions; the desktop session never reads them.
     vr: VrConfig = VrConfig()
-    main_funestra_tcode: TcodeTarget = TcodeTarget()
     # Config key ``instance_id``; read through the property below.
     instance_id_override: str | None = None
 
@@ -419,8 +411,6 @@ def _load_vr_config(raw: dict[str, Any] | None, project_dir: Path) -> VrConfig:
     return VrConfig(
         library_dirs=tuple(resolve_path(project_dir, str(value)) for value in library_dirs_raw),
         audio_device=str(audio_device) if audio_device else None,
-        tcode_udp_host=str(values.get("tcode_udp_host", "127.0.0.1")),
-        tcode_udp_port=int(values.get("tcode_udp_port", ports.TCODE_UDP)),
         compositor_layers=bool(values.get("compositor_layers", False)),
     )
 
@@ -474,7 +464,6 @@ def load_config(config_path: str | Path | None = None, *, project_dir: Path | No
     voice_raw = optional_section(raw, "voice_control", path)
     regen_raw = optional_section(raw, "regen", path)
     vr_raw = optional_section(raw, "vr", path)
-    main_funestra_raw = optional_section(raw, "main_player", path) or {}
 
     return ProjectConfig(
         project_dir=project_dir,
@@ -486,10 +475,8 @@ def load_config(config_path: str | Path | None = None, *, project_dir: Path | No
         voice_control=_load_voice_control_config(voice_raw),
         regen=_load_regen_config(regen_raw, project_dir),
         loopback_port=int(raw.get("loopback_port", LOOPBACK_PORT)),
+        osr2_slot_port=int(raw.get("osr2_slot_port", ports.OSR2_SLOT)),
         vr=_load_vr_config(vr_raw, project_dir),
-        main_funestra_tcode=TcodeTarget(
-            host=str(main_funestra_raw.get("tcode_udp_host", "127.0.0.1")),
-            port=int(main_funestra_raw.get("tcode_udp_port", ports.TCODE_UDP))),
         instance_id_override=str(raw["instance_id"]) if raw.get("instance_id") else None,
     )
 

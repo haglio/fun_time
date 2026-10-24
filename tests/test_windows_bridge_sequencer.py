@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from app_support import ports
 from funestra.modes import MainMode, SatellitesMode
 
 from fun_time import windows_bridge_sequencer
@@ -417,6 +418,7 @@ class TestRunStartupSequence:
             # Where a press on the Main Funestra's volume control posts its command — the same
             # file the dashboard and each satellite's HUD write to.
             "dashboard_cmd_file": str(cfg.paths.state_dir / "dashboard_cmd.txt"),
+            "osr2_port": str(ports.OSR2_SLOT),
             # Which checkouts to run — empty in an ordinary session, so the Funestra
             # resolves through its venv.
             "sibling_checkouts": "",
@@ -580,6 +582,16 @@ class TestRunStartupSequence:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert Path(stubs.launch_main_funestra.call_args.kwargs["metadata_dir"]) == records
+
+    def test_the_main_funestra_reaches_the_osr2_through_the_slot_the_config_names(
+            self, cfg_factory, tmp_path):
+        cfg = load_config(cfg_factory({"osr2_slot_port": 50599}))
+        manifest_path = write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert stubs.launch_main_funestra.call_args.kwargs["osr2_port"] == "50599"
 
     def test_a_genau_session_opens_with_the_main_funestra_up_and_in_the_band(self, cfg_factory, tmp_path):
         """Reopening in genau mode: the session is still BUILT in kino mode — the Main Funestra loads

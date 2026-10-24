@@ -286,8 +286,6 @@ class DispatchLoopRunner:
         self._owed_to_origenerator = (
             _what_origenerator_held(left_in, showing=origenerator_showing)
             if config.origenerator_enabled else ())
-        # The Robot Hand and a funscript both feed the broker's one T-Code inlet,
-        # so in kino mode something has to hand the device between them.
         self.arbiter = DeviceArbiter(
             main_funestra_status_file=config.main_funestra_status_file,
             main_funestra_cmd_file=config.main_funestra_cmd_file,

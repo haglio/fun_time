@@ -23,8 +23,6 @@ _FILLED = SatelliteChannels(
     hud=Path("state/portrait_hud.json"),
     dashboard_cmd=Path("state/dashboard_cmd.txt"),
     drive=Path("state/genau_drive.txt"),
-    tcode_host="127.0.0.1",
-    tcode_port=50557,
     osr2_sender="portrait",
     osr2_port=50558,
 )
@@ -137,12 +135,14 @@ class TestReadOutOfTheManifest:
 
         assert portrait.dashboard_cmd == landscape.dashboard_cmd
 
-    def test_each_side_sends_its_funscript_to_the_main_funestras_osr2_inlet(self):
-        commands = replace(self._commands(), tcode_udp_host="127.0.0.2", tcode_udp_port="50599")
+    def test_each_side_reaches_the_osr2_through_the_brokers_slot_under_its_own_name(self):
+        commands = replace(self._commands(), osr2_slot_port="50599")
 
         portrait = SatelliteChannels.from_manifest(commands, "portrait")
+        landscape = SatelliteChannels.from_manifest(commands, "landscape")
 
-        assert (portrait.tcode_host, portrait.tcode_port) == ("127.0.0.2", 50599)
+        assert (portrait.osr2_sender, portrait.osr2_port) == ("portrait", 50599)
+        assert (landscape.osr2_sender, landscape.osr2_port) == ("landscape", 50599)
 
     def test_the_motion_each_side_draws_is_the_one_genau_publishes(self):
         commands = self._commands()
