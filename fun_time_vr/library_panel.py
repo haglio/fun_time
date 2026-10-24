@@ -11,6 +11,7 @@ from funestra.file_channel import append_command, consume_command_file
 from PIL import Image, ImageDraw
 from shared_ui.lettering import load_font
 from shared_ui.palette import BG_PRIMARY, TEXT_MUTED
+from shared_ui.type_scale import SIZE_HEADING, in_pixels
 
 from fun_time.process_identity import NAMER
 
@@ -35,7 +36,7 @@ WHEEL_NOTCH = 120
 _NOTCHES_PER_S = 8.0
 _ENDING_S = 2.0
 _READING = "Reading the library…"
-_READING_PX = 20
+_READING_PX = in_pixels(SIZE_HEADING)
 
 
 def open_line(token: int, video: str, *, flicks: bool = False) -> str:

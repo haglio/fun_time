@@ -12,17 +12,22 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QLabel
 from shared_ui.colors import BG_SECONDARY
-from shared_ui.fonts import FONT_UI, SIZE_HEADING, make_font
+from shared_ui.fonts import FONT_UI, make_font
 
 from fun_time.dashboard_layout import Rect, Size
 from fun_time.event_log import EventRecord
 from fun_time.log_panel import level_color
-from fun_time.notice_placement import top_center_position
+from fun_time.notice_placement import (
+    NOTICE_PAD_H,
+    NOTICE_PAD_V,
+    NOTICE_RADIUS,
+    NOTICE_TOP_MARGIN,
+    NOTICE_TYPE_SIZE,
+    top_center_position,
+)
 
 # How long a flashed notice lingers before fading out.
 NOTICE_LINGER_MS = 2200
-# Gap from the top edge of the target window to the overlay.
-NOTICE_TOP_MARGIN = 28
 
 
 class NoticeOverlay(QLabel):
@@ -44,7 +49,7 @@ class NoticeOverlay(QLabel):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        self.setFont(make_font(FONT_UI, SIZE_HEADING, bold=True))
+        self.setFont(make_font(FONT_UI, NOTICE_TYPE_SIZE, bold=True))
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._hide_timer = QTimer(self)
         self._hide_timer.setSingleShot(True)
@@ -57,7 +62,7 @@ class NoticeOverlay(QLabel):
             f"background-color: {BG_SECONDARY.name()};"
             f" color: {level_color(record.level).name()};"
             f" border: 1px solid {level_color(record.level).name()};"
-            " padding: 8px 16px; border-radius: 4px;"
+            f" padding: {NOTICE_PAD_V}px {NOTICE_PAD_H}px; border-radius: {NOTICE_RADIUS}px;"
         )
         self.adjustSize()
         x, y = top_center_position(

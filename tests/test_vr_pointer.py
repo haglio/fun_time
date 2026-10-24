@@ -49,7 +49,7 @@ from fun_time_vr.pointer import (
     screen_uv,
 )
 from fun_time_vr.scene import (
-    RADIUS,
+    RADIUS_M,
     Placement,
     scene_placement_quaternion,
     surface_vertices,
@@ -65,7 +65,7 @@ class TestTheCylinderThePointerIsReadOn:
 
         assert point.azimuth_deg == pytest.approx(0.0)
         assert point.y == pytest.approx(0.0)
-        assert point.distance == pytest.approx(RADIUS)
+        assert point.distance == pytest.approx(RADIUS_M)
 
     def test_a_ray_from_the_hand_lands_where_it_points_not_where_the_head_does(self):
         # The hand sits half a meter right of the eye and points a little left,
@@ -75,7 +75,7 @@ class TestTheCylinderThePointerIsReadOn:
         point = cylinder_hit(ray)
 
         x = 0.5 - 0.25 * point.distance / math.hypot(0.25, 1.0)
-        assert point.azimuth_deg == pytest.approx(math.degrees(math.asin(x / RADIUS)), abs=1e-6)
+        assert point.azimuth_deg == pytest.approx(math.degrees(math.asin(x / RADIUS_M)), abs=1e-6)
         assert point.y == pytest.approx(-0.3)
         assert point.distance > 0
 
@@ -95,7 +95,7 @@ _A_SCREEN = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
 
 
 def _on_the_cylinder(azimuth_deg: float, y: float) -> SurfacePoint:
-    return SurfacePoint(azimuth_deg=azimuth_deg, y=y, distance=RADIUS)
+    return SurfacePoint(azimuth_deg=azimuth_deg, y=y, distance=RADIUS_M)
 
 
 def _corners(placement: Placement, aspect: float) -> np.ndarray:
@@ -107,7 +107,7 @@ def _seen_at(placement: Placement, aspect: float, u: float, v: float) -> Surface
     left = lower_left + (upper_left - lower_left) * v
     right = lower_right + (upper_right - lower_right) * v
     x, y, z = left + (right - left) * u
-    return _on_the_cylinder(math.degrees(math.atan2(x, -z)), y * RADIUS / math.hypot(x, z))
+    return _on_the_cylinder(math.degrees(math.atan2(x, -z)), y * RADIUS_M / math.hypot(x, z))
 
 
 def _drawn_size(placement: Placement, aspect: float) -> tuple[float, float]:
@@ -116,20 +116,20 @@ def _drawn_size(placement: Placement, aspect: float) -> tuple[float, float]:
             float(np.linalg.norm(upper_left - lower_left)))
 
 
-_HANDLE = RADIUS * math.radians(HANDLE_DEG)
+_HANDLE = RADIUS_M * math.radians(HANDLE_DEG)
 
 
 def _anchored(anchor: tuple[float, float], side: float, width_deg: float, aspect: float) -> Placement:
     """The screen *width_deg* wide whose upper corner across from *side* is seen at *anchor*."""
     azimuth, y = anchor
     half = math.radians(width_deg) / 2
-    lift = y / math.cos(half) - RADIUS * math.tan(half) / aspect
-    return Placement(azimuth + side * width_deg / 2, math.degrees(math.atan2(lift, RADIUS)), width_deg)
+    lift = y / math.cos(half) - RADIUS_M * math.tan(half) / aspect
+    return Placement(azimuth + side * width_deg / 2, math.degrees(math.atan2(lift, RADIUS_M)), width_deg)
 
 
 class TestWhereOnAScreenAPointLands:
     def test_the_screens_center_is_the_middle_of_the_picture(self):
-        lift = RADIUS * math.tan(math.radians(_A_SCREEN.elevation_deg))
+        lift = RADIUS_M * math.tan(math.radians(_A_SCREEN.elevation_deg))
 
         u, v = screen_uv(_on_the_cylinder(38.0, lift), _A_SCREEN, aspect=16 / 9)
 
@@ -267,7 +267,7 @@ class TestTheHandles:
 
 
 def _lift(placement: Placement) -> float:
-    return RADIUS * math.tan(math.radians(placement.elevation_deg))
+    return RADIUS_M * math.tan(math.radians(placement.elevation_deg))
 
 
 class TestAGrab:
@@ -442,7 +442,7 @@ class TestTheTrigger:
 
 def _aim_at(azimuth_deg: float, y: float) -> tuple:
     """A controller at the head, pointed at that spot on the cylinder."""
-    return ((0.0, 0.0, 0.0), scene_placement_quaternion(-azimuth_deg, math.degrees(math.atan2(y, RADIUS))))
+    return ((0.0, 0.0, 0.0), scene_placement_quaternion(-azimuth_deg, math.degrees(math.atan2(y, RADIUS_M))))
 
 
 def _aim_at_uv(screen: Screen, u: float, v: float) -> tuple:
@@ -624,7 +624,7 @@ class TestThePointerOverTheScene:
         assert pressed.hover.handle == SURFACE
         assert dragged.carried == pytest.approx(
             (end.azimuth_deg - start.azimuth_deg,
-             math.degrees(math.atan2(end.y, RADIUS)) - math.degrees(math.atan2(start.y, RADIUS))),
+             math.degrees(math.atan2(end.y, RADIUS_M)) - math.degrees(math.atan2(start.y, RADIUS_M))),
             abs=1e-5)
         assert pressed.moved == dragged.moved == {}
         assert pressed.events == dragged.events == let_go.events == ()
@@ -813,7 +813,7 @@ class TestThePointerOverTheScene:
         self._frame(pointer, _hands(right=_aim_at(-100.0, 0.0), right_trigger=1.0))
 
         turned = self._frame(pointer, _hands(
-            right=_aim_at(-90.0, RADIUS * math.tan(math.radians(5.0))), right_trigger=1.0))
+            right=_aim_at(-90.0, RADIUS_M * math.tan(math.radians(5.0))), right_trigger=1.0))
 
         assert turned.carried == pytest.approx((10.0, 5.0), abs=1e-6)
 
@@ -914,14 +914,14 @@ class TestWhatIsDrawnForThePointer:
         assert azimuths[-1] == pytest.approx(_A_SCREEN.azimuth_deg + 14.0, abs=1e-4)
         assert bar[:, 1].min() == pytest.approx(screen[:, 1].max(), abs=1e-6)
         assert bar[:, 1].max() - bar[:, 1].min() == pytest.approx(
-            RADIUS * math.radians(HANDLE_DEG), abs=1e-6)
+            RADIUS_M * math.radians(HANDLE_DEG), abs=1e-6)
 
     def test_the_corner_squares_sit_just_clear_of_the_lower_corners(self):
         """Outside the picture rather than straddling it, so the scrubber along
         its lower edge is not a quarter covered at each end."""
         strips = handle_vertices(_A_SCREEN, aspect=16 / 9, resizable=True)
         screen = surface_vertices(_A_SCREEN, aspect=16 / 9)
-        handle = RADIUS * math.radians(HANDLE_DEG)
+        handle = RADIUS_M * math.radians(HANDLE_DEG)
 
         left, right = strips[RESIZE]
         assert left[:, 1].max() == pytest.approx(screen[:, 1].min(), abs=1e-6)
@@ -941,7 +941,7 @@ class TestACarryByTheHand:
 
         yaw, tilt_deg = carried_heading(0.0, (10.0, 5.0))
         turned = yaw_rotation_matrix(yaw) @ pitch_rotation_matrix(math.radians(tilt_deg))
-        after = scene_ray(_aim_at(10.0, RADIUS * math.tan(math.radians(5.0))),
+        after = scene_ray(_aim_at(10.0, RADIUS_M * math.tan(math.radians(5.0))),
                           head=(0.0, 0.0, 0.0), scene_rotation=turned)
 
         assert after.direction == pytest.approx(before.direction, abs=1e-6)

@@ -32,7 +32,9 @@ from shared_ui.spacing import (
     BUTTON_GROUP_GAP,
     BUTTON_PAD_H_TIGHT,
     BUTTON_SIZE_HUD,
+    GAP_SMALL,
 )
+from shared_ui.type_scale import SIZE_SMALL, SIZE_TINY, in_pixels
 
 from fun_time import preview_marker
 from fun_time.dashboard_controls import BarControl, bar_controls, mark_side
@@ -50,8 +52,8 @@ from .console_panel import level_color
 
 _DIAL_W = 92  # the name and the arrow beside it
 _ROW_H = 16
-_FONT_PX = 13
-_SMALL_PX = 11
+_WORDMARK_PX = in_pixels(SIZE_SMALL)
+_LABEL_PX = in_pixels(SIZE_TINY)
 LOG_ROWS = 8
 
 # The dial, and one action per stop while it is open, named so a press carries
@@ -111,7 +113,7 @@ def source_chips() -> dict[str, Rect]:  # left to right, in SOURCES order
     chips: dict[str, Rect] = {}
     x = dial.x + dial.width + BUTTON_GROUP_GAP
     for source in SOURCES:
-        width = int(load_font(_SMALL_PX).getlength(SOURCE_LABELS[source])) + 2 * BUTTON_PAD_H_TIGHT
+        width = int(load_font(_LABEL_PX).getlength(SOURCE_LABELS[source])) + 2 * BUTTON_PAD_H_TIGHT
         chips[source] = Rect(x, dial.y, width, BUTTON_SIZE_HUD)
         x += width + BUTTON_GAP
     return chips
@@ -165,7 +167,7 @@ def _app_mark(size: int, shown_as: Preview | None) -> Image.Image | None:
     return None if icon is None else icon.resize((size, size), Image.LANCZOS)
 
 
-_TIP_PAD = 4
+_TIP_PAD = GAP_SMALL
 
 
 def _paint_tip(draw, under: Rect, text: str, font) -> None:
@@ -201,7 +203,7 @@ def paint_dash(state: DashState, records,
     panel = Image.new("RGBA", (DASH_WIDTH_PX, dash_height()), (*BG_PRIMARY, 235))
     draw = ImageDraw.Draw(panel)
     bar = compute_dashboard_bar_layout()
-    wordmark, small = load_font(_FONT_PX, WORDMARK_FACE), load_font(_SMALL_PX)
+    wordmark, small = load_font(_WORDMARK_PX, WORDMARK_FACE), load_font(_LABEL_PX)
 
     mark = _app_mark(bar.app_icon.height, shown_as)
     if mark is not None:

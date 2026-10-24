@@ -44,6 +44,8 @@ from shared_ui.spacing import (
     BUTTON_PAD_H_TIGHT,
     BUTTON_RADIUS_HUD,
     BUTTON_SIZE_HUD,
+    GAP_SMALL,
+    MARGIN_STANDARD,
 )
 
 from fun_time.event_log import (
@@ -99,7 +101,7 @@ def level_color(level: int) -> QColor:
 # The hover copy button.  Small enough to sit within a single log row without
 # swallowing it, and inset from the row's top-right corner.
 _COPY_BUTTON_SIZE = 18
-_COPY_BUTTON_MARGIN = 2
+_COPY_BUTTON_MARGIN = GAP_SMALL
 _COPY_ICON_SIZE = 12
 # How long the button shows a tick instead of the sheets after a copy.  Without
 # it a click produces no visible result at all and reads as having missed.
@@ -183,8 +185,8 @@ class LogPanelWidget(QWidget):
     def _build_ui(self) -> None:
         self.setStyleSheet(f"background-color: {BG_PRIMARY.name()};")
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(6, 6, 6, 6)
-        outer.setSpacing(4)
+        outer.setContentsMargins(MARGIN_STANDARD, MARGIN_STANDARD, MARGIN_STANDARD, MARGIN_STANDARD)
+        outer.setSpacing(GAP_SMALL)
 
         # The verbosity dial and the five source toggles share one row — its own
         # widget, so the dashboard can lift it up into the top bar beside the
@@ -292,7 +294,7 @@ class LogPanelWidget(QWidget):
         # this suite has paid enough for widgets that grab focus on a click.
         self._copy_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._copy_button.setStyleSheet(
-            "QToolButton { border: none; border-radius: 3px;"
+            f"QToolButton {{ border: none; border-radius: {BUTTON_RADIUS_HUD}px;"
             f" background: {BG_BUTTON.name()}; }}"
             f" QToolButton:hover {{ background: {BLUE.name()}; }}"
         )

@@ -16,7 +16,8 @@ from shared_ui.palette import (
     TEXT_MUTED,
     TEXT_PRIMARY,
 )
-from shared_ui.spacing import BUTTON_MARK, BUTTON_RADIUS, BUTTON_SIZE
+from shared_ui.spacing import BUTTON_MARK, BUTTON_RADIUS, BUTTON_SIZE, MARGIN_DIALOG
+from shared_ui.type_scale import SIZE_HEADING, SIZE_SMALL, in_pixels
 
 from fun_time.command_reference import build_reference_sections
 from fun_time.dashboard_layout import Rect
@@ -41,9 +42,9 @@ REFERENCE_WIDTH_DEG = 54.0
 PREV_PAGE = "reference_prev"
 NEXT_PAGE = "reference_next"
 
-_PAD = 12
-_TITLE_PX = 17
-_ROW_PX = 12
+_PAD = MARGIN_DIALOG
+_TITLE_PX = in_pixels(SIZE_HEADING)
+_ROW_PX = in_pixels(SIZE_SMALL)
 _ROW_H = 17
 _HEAD_H = BUTTON_SIZE + _PAD
 # The desktop table's three columns: press, say, and what it does.

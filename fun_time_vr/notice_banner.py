@@ -16,26 +16,36 @@ import numpy as np
 from PIL import Image, ImageDraw
 from shared_ui.lettering import load_font, wrap_text
 from shared_ui.palette import BG_SECONDARY
+from shared_ui.spacing import GAP_SMALL
+from shared_ui.type_scale import in_pixels
+
+from fun_time.notice_placement import (
+    NOTICE_PAD_H,
+    NOTICE_PAD_V,
+    NOTICE_RADIUS,
+    NOTICE_TOP_MARGIN,
+    NOTICE_TYPE_SIZE,
+)
 
 from .console_panel import level_color
 from .surfaces import red_and_blue_swapped
 
 # The type as a fraction of the height, never under the desktop's own; the rest
-# of the shape is in multiples of it (the desktop's 16/8 padding, 1px border and
-# 4px radius against its 19px type), so the proportions hold on any picture.
+# of the shape is the desktop's in multiples of it, so the proportions hold on any picture.
 FONT_FRACTION = 0.030
-MIN_FONT_PX = 19
-_PAD_X = 0.84
-_PAD_Y = 0.42
-_BORDER = 1 / 19
-_RADIUS = 4 / 19
+MIN_FONT_PX = in_pixels(NOTICE_TYPE_SIZE)
+_PAD_X = NOTICE_PAD_H / MIN_FONT_PX
+_PAD_Y = NOTICE_PAD_V / MIN_FONT_PX
+_BORDER = 1 / MIN_FONT_PX
+_RADIUS = NOTICE_RADIUS / MIN_FONT_PX
 
-# The desktop's own 28px down a Funestra's window, as a fraction.
-TOP_MARGIN_FRACTION = 0.028
+# The desktop's own margin down a Funestra's window, as a fraction of one this tall.
+_WINDOW_HEIGHT_PX = 1000
+TOP_MARGIN_FRACTION = NOTICE_TOP_MARGIN / _WINDOW_HEIGHT_PX
 
 WIDTH_FRACTION = 0.9  # most of the picture's width, never all of it
 MAX_LINES = 3
-_LINE_GAP = 0.25
+_LINE_GAP = GAP_SMALL / MIN_FONT_PX
 
 
 def font_px(height: int) -> int:  # the type size for a picture this tall

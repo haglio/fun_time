@@ -9,7 +9,7 @@ from funestra.hud_placement import HudEdge
 from fun_time_vr.matrices import pitch_rotation_matrix, yaw_rotation_matrix
 from fun_time_vr.scene import (
     MAIN_WIDTH_DEG,
-    RADIUS,
+    RADIUS_M,
     Placement,
     attached_below,
     attached_to,
@@ -49,8 +49,8 @@ class TestSurfaceVertices:
         middle = verts.mean(axis=0)
         facing = np.cross(upper_right - upper_left, upper_left - lower_left)
 
-        assert math.hypot(middle[0], middle[2]) == pytest.approx(RADIUS, rel=1e-5)
-        toward_the_viewer = np.array([-middle[0], 0.0, -middle[2]]) / RADIUS
+        assert math.hypot(middle[0], middle[2]) == pytest.approx(RADIUS_M, rel=1e-5)
+        toward_the_viewer = np.array([-middle[0], 0.0, -middle[2]]) / RADIUS_M
         np.testing.assert_allclose(facing / np.linalg.norm(facing), toward_the_viewer, atol=1e-5)
 
     def test_columns_span_the_angular_width_around_the_center(self):
@@ -80,7 +80,7 @@ class TestSurfaceVertices:
         verts = surface_vertices(_A_SATELLITE, aspect=9 / 16)
         center_y = (verts[:, 1].max() + verts[:, 1].min()) / 2
         assert center_y == pytest.approx(
-            RADIUS * math.tan(math.radians(_A_SATELLITE.elevation_deg)), rel=1e-5
+            RADIUS_M * math.tan(math.radians(_A_SATELLITE.elevation_deg)), rel=1e-5
         )
 
     def test_the_screen_is_flat_not_curved(self):
@@ -108,9 +108,9 @@ class TestQuadLayerPlacement:
         position, _orientation, _size = quad_layer_placement(_A_SATELLITE, aspect=16 / 9)
         assert _azimuth_deg(position[0], position[2]) == pytest.approx(
             _A_SATELLITE.azimuth_deg, abs=1e-5)
-        assert math.hypot(position[0], position[2]) == pytest.approx(RADIUS, rel=1e-6)
+        assert math.hypot(position[0], position[2]) == pytest.approx(RADIUS_M, rel=1e-6)
         assert position[1] == pytest.approx(
-            RADIUS * math.tan(math.radians(_A_SATELLITE.elevation_deg)), rel=1e-6
+            RADIUS_M * math.tan(math.radians(_A_SATELLITE.elevation_deg)), rel=1e-6
         )
 
     def test_quad_faces_the_viewer(self):
@@ -119,14 +119,14 @@ class TestQuadLayerPlacement:
         position, orientation, _size = quad_layer_placement(
             Placement(-38.0, 0.0, 28.0), aspect=1.0)
         front = _rotate_by_quat(orientation, (0.0, 0.0, 1.0))
-        toward_viewer = (-position[0] / RADIUS, 0.0, -position[2] / RADIUS)
+        toward_viewer = (-position[0] / RADIUS_M, 0.0, -position[2] / RADIUS_M)
         assert front == pytest.approx(toward_viewer, abs=1e-6)
 
     def test_quad_subtends_the_screen_width(self):
         _position, _orientation, (width, _height) = quad_layer_placement(
             Placement(0.0, 0.0, MAIN_WIDTH_DEG), aspect=16 / 9,
         )
-        subtended = 2 * math.degrees(math.atan((width / 2) / RADIUS))
+        subtended = 2 * math.degrees(math.atan((width / 2) / RADIUS_M))
         assert subtended == pytest.approx(MAIN_WIDTH_DEG, abs=1e-6)
 
     def test_height_follows_the_aspect_ratio(self):
@@ -156,11 +156,11 @@ class TestQuadLayerPlacement:
             Placement(0.0, 0.0, MAIN_WIDTH_DEG), aspect=16 / 9, scene_pitch_deg=pitch,
         )
         assert position == pytest.approx(
-            (0.0, RADIUS * math.sin(math.radians(pitch)),
-             -RADIUS * math.cos(math.radians(pitch))), abs=1e-6,
+            (0.0, RADIUS_M * math.sin(math.radians(pitch)),
+             -RADIUS_M * math.cos(math.radians(pitch))), abs=1e-6,
         )
         front = _rotate_by_quat(orientation, (0.0, 0.0, 1.0))
-        toward_viewer = tuple(-c / RADIUS for c in position)
+        toward_viewer = tuple(-c / RADIUS_M for c in position)
         assert front == pytest.approx(toward_viewer, abs=1e-6)
 
     def test_the_quad_lands_where_the_eye_pass_would_draw_the_screen(self):
@@ -207,7 +207,7 @@ class TestAttachedBelow:
         flush_top = surface_vertices(flush, aspect=2.0)[:, 1].max()
         spaced_top = surface_vertices(spaced, aspect=2.0)[:, 1].max()
 
-        assert flush_top - spaced_top == pytest.approx(RADIUS * math.radians(1.0), abs=1e-6)
+        assert flush_top - spaced_top == pytest.approx(RADIUS_M * math.radians(1.0), abs=1e-6)
 
 
 class TestAttachedAgainstASide:
