@@ -377,7 +377,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # so the notes on its heartbeat going stale whenever the OSR2 is off went.
 # 5870 on 2026-10-25: the library browser extracts a folder's stills only while
 # that folder is shown, and the notes on its one queue and its captured rows went.
-MAX_PROSE_LINES = 5870
+# 5852 on 2026-10-25: the watch sampler's tests say what it books and what a
+# spoken command is back-dated to, so its docstrings saying the same went.
+MAX_PROSE_LINES = 5852
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
