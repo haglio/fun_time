@@ -908,15 +908,17 @@ def build_integration_temp_root() -> Path:
     return root
 
 
-def the_machines_own_settings() -> dict:
+@contextlib.contextmanager
+def on_the_settings_this_machine_has() -> Iterator[None]:
     with mock.patch.dict(os.environ):
         os.environ.pop(haglio_settings.SETTINGS_ENV, None)
-        return haglio_settings.load()
+        yield
 
 
 @contextlib.contextmanager
 def genau_where_this_machine_keeps_it() -> Iterator[None]:
-    machines = the_machines_own_settings()
+    with on_the_settings_this_machine_has():
+        machines = haglio_settings.load()
     settings = write_settings_naming_genau(
         build_integration_temp_root(), Path(machines["genau_dir"]), Path(machines["genau_audio_dir"]))
     with mock.patch.dict(os.environ, {haglio_settings.SETTINGS_ENV: str(settings)}):

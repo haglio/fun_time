@@ -30,10 +30,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from app_support import haglio_settings
 
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.orchestrator import validate_config
+from tests.integration.integration_support import on_the_settings_this_machine_has
 
 # Off the machine the whole file is uncollected (see tests/conftest.py); this
 # mark only backstops a direct invocation naming the file, which bypasses
@@ -48,8 +48,9 @@ _IN_A_WORKTREE = (Path(__file__).resolve().parents[1] / ".git").is_file()
 
 
 @pytest.fixture(autouse=True)
-def _the_settings_this_machine_has(monkeypatch):
-    monkeypatch.delenv(haglio_settings.SETTINGS_ENV, raising=False)
+def _the_settings_this_machine_has():
+    with on_the_settings_this_machine_has():
+        yield
 
 
 def test_the_default_config_loads():
