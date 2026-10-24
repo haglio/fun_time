@@ -3,7 +3,7 @@
 # Runtime (pyproject [project.dependencies])
 app-support @ git+https://github.com/haglio/app_support@v0.1.259
 shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.224
-funestra @ git+https://github.com/haglio/funestra@v0.1.552
+funestra @ git+https://github.com/haglio/funestra@v0.1.554
 voice-core @ git+https://github.com/haglio/voice_core@v0.1.66
 numpy
 opencv-python
