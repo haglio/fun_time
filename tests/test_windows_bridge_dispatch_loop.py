@@ -3545,7 +3545,7 @@ def _publish_status(path: Path, *, speed: float) -> None:
     playback = SimpleNamespace(
         current_video="C:/v/n.mp4", position_ms=0, duration_ms=0, is_paused=False,
         is_locked=False, speed=speed, showing_picture=False, playlist_length=1,
-        has_funscript=False, funscript_resting=False, portrait=None)
+        has_funscript=False, funscript_resting=False, portrait=None, loads=1, idle=False)
     StatusWriter(path, lambda played: status_fields(played, None)).write(playback)
 
 
