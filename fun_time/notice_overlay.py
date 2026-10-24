@@ -13,18 +13,18 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QLabel
 from shared_ui.colors import BG_SECONDARY
 from shared_ui.fonts import FONT_UI, make_font
-
-from fun_time.dashboard_layout import Rect, Size
-from fun_time.event_log import EventRecord
-from fun_time.log_panel import level_color
-from fun_time.notice_placement import (
+from shared_ui.notice_shape import (
     NOTICE_PAD_H,
     NOTICE_PAD_V,
     NOTICE_RADIUS,
     NOTICE_TOP_MARGIN,
     NOTICE_TYPE_SIZE,
-    top_center_position,
 )
+
+from fun_time.dashboard_layout import Rect, Size
+from fun_time.event_log import EventRecord
+from fun_time.log_panel import level_color
+from fun_time.notice_placement import top_center_position
 
 # How long a flashed notice lingers before fading out.
 NOTICE_LINGER_MS = 2200

@@ -66,6 +66,7 @@ from shared_ui.spacing import (
     BUTTON_RADIUS,
     GAP_MEDIUM,
     GAP_SMALL,
+    HAIRLINE,
     MARGIN_DIALOG,
     MARGIN_STANDARD,
 )
@@ -111,8 +112,9 @@ NON_LETTER_HEADING = "#"
 UP_LABEL = "back"
 UP_TO_LIBRARY = "all folders"
 
-# Between a folder tile's four stills, so they read as four pictures rather than one.
-MONTAGE_GAP = GAP_SMALL
+# The hairline between a folder tile's four stills, so they read as four
+# pictures rather than one.
+MONTAGE_GAP = HAIRLINE
 
 # How often the grid picks up thumbnails the background extractor has finished.
 THUMBNAIL_POLL_MS = 150

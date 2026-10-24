@@ -15,17 +15,16 @@ import math
 import numpy as np
 from PIL import Image, ImageDraw
 from shared_ui.lettering import load_font, wrap_text
-from shared_ui.palette import BG_SECONDARY
-from shared_ui.spacing import GAP_SMALL
-from shared_ui.type_scale import in_pixels
-
-from fun_time.notice_placement import (
+from shared_ui.notice_shape import (
     NOTICE_PAD_H,
     NOTICE_PAD_V,
     NOTICE_RADIUS,
     NOTICE_TOP_MARGIN,
     NOTICE_TYPE_SIZE,
 )
+from shared_ui.palette import BG_SECONDARY
+from shared_ui.spacing import GAP_SMALL
+from shared_ui.type_scale import in_pixels
 
 from .console_panel import level_color
 from .surfaces import red_and_blue_swapped
