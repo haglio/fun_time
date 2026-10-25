@@ -10,6 +10,7 @@ import threading
 import time
 from dataclasses import replace
 from functools import partial
+from itertools import count
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -1713,8 +1714,8 @@ class TestClosingScreenLifecycle:
 
         real_wait = windows_bridge_orchestrator._wait_for_closing_screen
 
-        def recording_wait(ready_file, proc):
-            real_wait(ready_file, proc)
+        def recording_wait(ready_file, proc, **kwargs):
+            real_wait(ready_file, proc, **kwargs)
             seen_when_killing.append(ready_file.exists())
 
         with patch.object(windows_bridge_orchestrator, "_wait_for_closing_screen",
@@ -1963,6 +1964,70 @@ class TestWaitForClosingScreen:
             )
 
         assert "anyway" in caplog.text
+
+
+class _AStarvedClosingScreen:
+    """Paints at its fourth look, and goes at its fourth look after DONE."""
+
+    pid = 4242
+
+    def __init__(self, progress_file: Path) -> None:
+        self._progress_file = progress_file
+        self._looks_before_done = 0
+        self._looks_after_done = 0
+        self.killed = False
+
+    def poll(self) -> int | None:
+        if parse_progress(self._progress_file.read_text(encoding="utf-8")).done:
+            self._looks_after_done += 1
+            return 0 if self._looks_after_done >= 4 else None
+        self._looks_before_done += 1
+        if self._looks_before_done == 4:
+            ready_file_for(self._progress_file).write_text("", encoding="utf-8")
+        return None
+
+    def kill(self) -> None:
+        self.killed = True
+
+
+def _a_teardown_under_a_starved_screen(tmp_path, *, now) -> tuple[_AStarvedClosingScreen, bool]:
+    """The screen, and whether it was painted when teardown was let go."""
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    screen = _AStarvedClosingScreen(state_dir / SHUTDOWN_PROGRESS_FILENAME)
+    with patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=screen), \
+         patch("fun_time.windows_bridge_orchestrator.tie_to_this_process"), \
+         windows_bridge_orchestrator._closing_screen(
+             state_dir, enabled=True, sibling_checkouts="", now=now):
+        painted = ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
+    return screen, painted
+
+
+@pytest.mark.real_startup_waits
+class TestAClosingScreenStarvedOfProcessor:
+    """An integration run is below normal, so on a machine whose processors
+    other work holds, the wall goes by while the run's own seconds stand still."""
+
+    def test_is_given_its_time_to_paint_on_the_clock_it_is_handed(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            windows_bridge_orchestrator, "CLOSING_SCREEN_READY_TIMEOUT_S", 0.05
+        )
+
+        _screen, painted = _a_teardown_under_a_starved_screen(tmp_path, now=lambda: 0.0)
+
+        assert painted
+
+    def test_is_given_its_time_to_go_on_the_clock_it_is_handed(self, tmp_path):
+        screen, _painted = _a_teardown_under_a_starved_screen(tmp_path, now=lambda: 0.0)
+
+        assert not screen.killed
+
+    def test_is_killed_once_its_time_to_go_is_up_on_the_clock_it_is_handed(self, tmp_path):
+        ten_seconds_a_look = partial(next, count(0.0, 10.0))
+
+        screen, _painted = _a_teardown_under_a_starved_screen(tmp_path, now=ten_seconds_a_look)
+
+        assert screen.killed
 
 
 def _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, *, word, popen=None, before=None,
