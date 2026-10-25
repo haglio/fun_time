@@ -28,7 +28,6 @@ forget_the_enclosing_repository(os.environ)
 
 import pytest
 from hypothesis import settings
-from PyQt6.QtWidgets import QApplication
 
 settings.register_profile("on_a_machine_other_runs_share", deadline=None)
 settings.load_profile("on_a_machine_other_runs_share")
@@ -44,6 +43,7 @@ from fun_time.project_paths import apply_sibling_checkouts_to_sys_path
 apply_sibling_checkouts_to_sys_path()
 
 from app_support import haglio_settings
+from shared_ui.application import application
 
 os.environ[haglio_settings.SETTINGS_ENV] = haglio_settings.THE_EXAMPLE
 
@@ -79,9 +79,8 @@ if not DEFAULT_CONFIG_PATH.is_file():
 
 @pytest.fixture(autouse=True, scope="session")
 def _qapp():
-    """Ensure a QApplication instance exists for the test session."""
-    app = QApplication.instance() or QApplication([])
-    yield app
+    with application([]) as app:
+        yield app
 
 
 # The window wrappers in fun_time.win32 all funnel through a few user32 calls, and
