@@ -448,6 +448,9 @@ class DispatchLoopRunner:
             self.state = replace(self.state, majority=most)
             write_shared_state(self.shared_state_file, self.state)
 
+    def hear_as_a_lock(self, phrases: frozenset[str]) -> None:
+        self.config = replace(self.config, origenerator_lock_phrases=phrases)
+
     def expect_the_funestras_home(self, funestras: tuple[RoomFunestra, ...], *,
                                   now: float) -> None:
         """*funestras* are on their way back from the hosted app."""

@@ -949,6 +949,7 @@ def start_voice_control(
     except Exception:
         return None, None
     dispatch_runner.voice_controller = voice_controller
+    dispatch_runner.hear_as_a_lock(voice_controller.hosted.lock_phrases)
     voice_controller.active_funestra = lambda: dispatch_runner.state.active_funestra
     voice_controller.hosted_sides = lambda: hosted_satellites(dispatch_runner.state,
                                                               dispatch_runner.config)

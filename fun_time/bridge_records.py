@@ -75,6 +75,7 @@ class BridgeConfig:
     origenerator_enabled: bool = False
     origenerator_cmd_file: Path | None = None
     origenerator_paused_file: Path | None = None
+    origenerator_lock_phrases: frozenset[str] = frozenset()
     # Where the hosted app publishes which Funestras it holds.  Read every tick
     # until it appears: the file existing is how a session learns the app has
     # finished booting, which is when Origenerator is first offered.
