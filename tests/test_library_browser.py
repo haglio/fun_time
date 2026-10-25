@@ -5,6 +5,7 @@ import os
 import re
 import string
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -48,6 +49,7 @@ from fun_time.library_tree import SubFolder
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.thumbnail_cache import thumbnail_path
 from tests.drive_fakes import files_that_never_answer, folders_listed
+from tests.still_fakes import ExtractionsHeldAtTheFirst, still_extractions
 
 
 def _handle(title: str, *versions: str, section: str = "main") -> LibraryHandle:
@@ -107,6 +109,19 @@ def _backspace() -> QKeyEvent:
     return QKeyEvent(
         QEvent.Type.KeyPress, Qt.Key.Key_Backspace.value, Qt.KeyboardModifier.NoModifier,
     )
+
+
+def _pictured(window, rows: list[int]) -> bool:
+    return all(not window.grid.item(row).icon().isNull() for row in rows)
+
+
+def _until(condition, *, within_s: float = 10.0) -> None:
+    """Let the browse's own timers run until *condition* holds."""
+    deadline = time.monotonic() + within_s
+    while not condition() and time.monotonic() < deadline:
+        QApplication.processEvents()
+        time.sleep(0.01)
+    assert condition()
 
 
 @pytest.fixture
@@ -375,6 +390,40 @@ def test_a_cached_still_becomes_the_tile_and_only_misses_are_extracted(browser, 
     assert not window.grid.item(pictured_row).icon().isNull()
     assert window.grid.item(bare_row).icon().isNull()
     assert rows_needing_stills(window.grid.rows, cache) == [bare_row]
+
+
+def test_closing_the_browse_extracts_no_still_after_the_one_in_hand(
+    browser, tmp_path: Path, monkeypatch,
+):
+    extractions = ExtractionsHeldAtTheFirst()
+    monkeypatch.setattr(library_browser, "thumbnail_for", extractions)
+    window = browser(
+        [_handle("alpha scene"), _handle("beta scene")],
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _video: None,
+    )
+    assert extractions.holding.wait(10.0)
+
+    window.close()
+    extractions.let_every_extraction_end()
+
+    assert len(extractions.asked) == 1
+    assert not any(extraction.is_alive() for extraction in still_extractions())
+
+
+def test_a_folder_opened_while_the_one_above_is_extracted_gets_every_still_of_its_own(
+    browser, tmp_path: Path, monkeypatch,
+):
+    extractions = ExtractionsHeldAtTheFirst()
+    monkeypatch.setattr(library_browser, "thumbnail_for", extractions)
+    handles = [_handle(f"scene {name}") for name in ("alpha", "beta", "gamma", "delta", "epsilon")]
+    window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _video: None)
+    assert extractions.holding.wait(10.0)
+
+    window.open_folder(("main",))
+    extractions.let_go.set()
+
+    _until(lambda: _pictured(window, [window.grid.rows.index(handle) for handle in handles]))
 
 
 def test_a_folder_opens_pictured_on_a_drive_stuck_on_its_videos(browser, tmp_path: Path):

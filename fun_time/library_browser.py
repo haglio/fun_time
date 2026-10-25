@@ -185,11 +185,7 @@ class LibraryGrid(BrowseList):
         # which of the two the user made.
         self.itemActivated.connect(lambda item: on_activate(self.row(item)))
 
-        # Rows whose still is not cached yet are extracted off the event loop and
-        # collected here; the timer below hands them to the grid.  A cold cache
-        # would otherwise block the browse on hundreds of HEVC decodes.
-        self._extracted: queue.Queue[int] = queue.Queue()
-        self._extractor: threading.Thread | None = None
+        self._extraction: _ThumbnailExtraction | None = None
         self._collect_timer = QTimer(self)
         self._collect_timer.timeout.connect(self._collect_thumbnails)
 
@@ -265,38 +261,28 @@ class LibraryGrid(BrowseList):
         return item
 
     def start_thumbnail_extraction(self, listings: FolderListings | None = None) -> None:
-        """Fill in the stills the cache did not already have, in the background."""
+        self.stop_thumbnail_extraction()
         pending = rows_needing_stills(self.rows, self._thumbnail_cache, listings)
-        if not pending or (self._extractor is not None and self._extractor.is_alive()):
-            return
-        self._extractor = threading.Thread(
-            target=self._extract, args=(pending, tuple(self.rows)), daemon=True,
-            name="library-thumbnails",
-        )
-        self._extractor.start()
-        self._collect_timer.start(THUMBNAIL_POLL_MS)
+        if pending:
+            self._extraction = _ThumbnailExtraction(
+                [(row, previews_of(self.rows[row])) for row in pending], self._thumbnail_cache,
+            )
+            self._extraction.start()
+            self._collect_timer.start(THUMBNAIL_POLL_MS)
 
-    def _extract(self, rows: Sequence[int], showing: Sequence[object]) -> None:
-        # The rows are captured, not read live: opening a folder mid-extraction
-        # replaces them, and a still must never land on whatever row now sits at
-        # that index in another folder.
-        listings = FolderListings()
-        for row in rows:
-            for preview in previews_of(showing[row]):
-                thumbnail_for(preview, self._thumbnail_cache, listings=listings)
-            self._extracted.put(row)
+    def stop_thumbnail_extraction(self) -> None:
+        if self._extraction is not None:
+            self._extraction.stop()
+        self._extraction = None
+        self._collect_timer.stop()
 
     def _collect_thumbnails(self) -> None:
+        extraction = self._extraction
+        finished = not extraction.is_alive()
         listings = FolderListings()
-        while True:
-            try:
-                row = self._extracted.get_nowait()
-            except queue.Empty:
-                break
-            item = self.item(row)
-            what = self.rows[row] if row < len(self.rows) else None
-            if item is None or what is None:
-                continue
+        while not extraction.extracted.empty():
+            row = extraction.extracted.get_nowait()
+            item, what = self.item(row), self.rows[row]
             stills = [
                 cached for cached in (
                     cached_thumbnail(preview, self._thumbnail_cache, listings)
@@ -306,8 +292,32 @@ class LibraryGrid(BrowseList):
             if stills:
                 item.setIcon(montage_icon(stills) if isinstance(what, SubFolder)
                              else fitted_icon(stills[0]))
-        if self._extractor is not None and not self._extractor.is_alive():
+        if finished:
             self._collect_timer.stop()
+
+
+class _ThumbnailExtraction(threading.Thread):
+    """One folder's missing stills, off the event loop: a cold cache is hundreds
+    of HEVC decodes, and the browse must never wait on them."""
+
+    def __init__(self, pending: Sequence[tuple[int, Sequence[str]]], thumbnail_cache: Path) -> None:
+        super().__init__(daemon=True, name="library-thumbnails")
+        self._pending = pending
+        self._thumbnail_cache = thumbnail_cache
+        self._stopped = threading.Event()
+        self.extracted: queue.Queue[int] = queue.Queue()
+
+    def stop(self) -> None:
+        self._stopped.set()
+
+    def run(self) -> None:
+        listings = FolderListings()
+        for row, previews in self._pending:
+            for preview in previews:
+                if self._stopped.is_set():
+                    return
+                thumbnail_for(preview, self._thumbnail_cache, listings=listings)
+            self.extracted.put(row)
 
 
 class _MarkAfterTheLetterInItsInk(QStyledItemDelegate):
@@ -588,6 +598,7 @@ class LibraryBrowserWindow(QWidget):
         blocked on a process that had nothing left to do.
         """
         super().closeEvent(event)
+        self.grid.stop_thumbnail_extraction()
         if self._on_close is not None:
             self._on_close()
 

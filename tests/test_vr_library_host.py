@@ -23,6 +23,7 @@ from fun_time_vr.library_host import (
     serve_once,
 )
 from fun_time_vr.library_panel import LIBRARY_SIZE_PX
+from tests.still_fakes import ExtractionsHeldAtTheFirst
 
 
 def _handle(title: str, section: str) -> LibraryHandle:
@@ -263,6 +264,21 @@ class TestBrowsingGenausFlicks:
 
         assert said == ["picked C:/videos/Loop Two.mp4"]
         assert not browse.window.isVisible()
+
+    def test_the_library_put_away_for_the_flicks_extracts_no_more_of_its_stills(
+        self, headset, monkeypatch,
+    ):
+        browse, _reader, _said = headset
+        extractions = ExtractionsHeldAtTheFirst()
+        monkeypatch.setattr(library_browser, "thumbnail_for", extractions)
+        browse.apply("open 1")
+        assert extractions.holding.wait(10.0)
+
+        browse.apply("flicks 2")
+        extractions.let_every_extraction_end()
+
+        library = {handle.preview for handle in _LIBRARY}
+        assert len([video for video in extractions.asked if video in library]) == 1
 
     def test_the_library_opened_after_the_flicks_is_the_library_again(self, headset):
         browse, _reader, _said = headset

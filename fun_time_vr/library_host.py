@@ -100,7 +100,7 @@ class HeadsetBrowse:
 
     def _put_away(self) -> None:
         if self.window is not None:
-            self.window.hide()
+            self.window.close()
         self.window = None
 
     def apply(self, line: str) -> None:
