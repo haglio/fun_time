@@ -24,6 +24,7 @@ from pathlib import Path
 
 from app_support import osr2_hold
 from app_support.subprocess_utils import tie_to_this_process
+from app_support.threading_utils import wait_until
 from funestra.console import HOLD_VERB
 from funestra.file_channel import append_command
 from voice_core.listener import why_unavailable
@@ -50,7 +51,7 @@ from .hosted_contract import ASKING_BUDGET_S, NO_HOSTED_VOCABULARY, HostedVocabu
 from .hosted_origenerator import what_it_answers_by_voice_in
 from .hud_transport import HudPublisher
 from .library_handles import build_library_handles, genau_flick_sources
-from .loading_cover import LoadingCover
+from .loading_cover import EXIT_WAIT_S, LoadingCover
 from .lock_hud import prime_group_indexes
 from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
@@ -354,28 +355,29 @@ def _shutdown_children(
 CLOSING_SCREEN_READY_TIMEOUT_S = 5.0
 
 
-def _wait_for_closing_screen(ready_file: Path, proc: subprocess.Popen) -> None:
+def _wait_for_closing_screen(ready_file: Path, proc: subprocess.Popen, *,
+                             now: Callable[[], float] = time.monotonic) -> None:
     """Block until the cover is painted over every monitor.  Two ways out
     besides the flag: the screen died, so none is coming; or waiting has come to
     cost more than the flicker would."""
-    deadline = time.monotonic() + CLOSING_SCREEN_READY_TIMEOUT_S
-    while time.monotonic() < deadline:
-        if ready_file.exists():
-            return
-        if proc.poll() is not None:
-            logger.warning("Closing screen exited before it was ready")
-            return
-        time.sleep(0.05)
-    logger.warning(
-        "Closing screen not ready after %.1fs; closing anyway",
-        CLOSING_SCREEN_READY_TIMEOUT_S,
-    )
+    try:
+        wait_until(lambda: ready_file.exists() or proc.poll() is not None,
+                   timeout=CLOSING_SCREEN_READY_TIMEOUT_S, interval=0.05, now=now)
+    except TimeoutError:
+        logger.warning(
+            "Closing screen not ready after %.1fs; closing anyway",
+            CLOSING_SCREEN_READY_TIMEOUT_S,
+        )
+        return
+    if not ready_file.exists():
+        logger.warning("Closing screen exited before it was ready")
 
 
 @contextlib.contextmanager
 def _closing_screen(
     state_dir: Path, *, enabled: bool, sibling_checkouts: str,
     crossing: HandoffTarget | None = None, esc_cancels: str = "",
+    now: Callable[[], float] = time.monotonic,
 ) -> Iterator[ProgressReporter]:
     """Cover every monitor while the session comes down, then uncover it.
 
@@ -409,15 +411,15 @@ def _closing_screen(
         ], **no_child_log(), **no_console_window(), **sibling_checkouts_kwargs(sibling_checkouts))
         tie_to_this_process(proc)
     logger.info("Teardown cover launched (pid=%d)", proc.pid)
-    _wait_for_closing_screen(ready_file, proc)
+    _wait_for_closing_screen(ready_file, proc, now=now)
     try:
         yield progress
     finally:
         if crossing is None:
             progress.finish()
             try:
-                proc.wait(timeout=3.0)
-            except subprocess.TimeoutExpired:
+                wait_until(lambda: proc.poll() is not None, timeout=EXIT_WAIT_S, now=now)
+            except TimeoutError:
                 proc.kill()
                 logger.warning("Closing screen did not exit, killed")
             progress_file.unlink(missing_ok=True)
