@@ -18,11 +18,14 @@ import sys
 import threading
 import time
 import uuid
+from ctypes import wintypes
 from pathlib import Path
 
 import pytest
 from app_support.threading_utils import wait_until
 
+from fun_time.win32_loader import load_dll
+from tests.integration import session_lock
 from tests.integration.session_lock import (
     Place,
     SingleInstanceLock,
@@ -173,31 +176,15 @@ def test_runs_waiting_for_the_lock_get_it_in_the_order_they_started_waiting():
     others that queued after it went first: each waiter asked again every two
     seconds, so whichever asked at the right moment won."""
     name = _unique_name()
-    blocker = SingleInstanceLock(name)
-    assert blocker.acquire(timeout=1.0) is True
-    entered: list[int] = []
-    waiting: list[threading.Event] = []
+    blocker = _held_by_the_test(name)
+    order: list[str] = []
+    runs = _join_in_turn(name, order, 6)
 
-    def run(number: int, noticed: threading.Event) -> None:
-        with hold_integration_lock(name=name, notify_every_s=0.05,
-                                   notify=lambda _waited: noticed.set()):
-            entered.append(number)
-
-    threads = []
-    for number in range(6):
-        noticed = threading.Event()
-        waiting.append(noticed)
-        threads.append(threading.Thread(target=run, args=(number, noticed)))
-        threads[-1].start()
-        assert noticed.wait(timeout=10.0), f"run {number} never started waiting"
-        time.sleep(0.1)
-
-    blocker.release()
     blocker.close()
-    for thread in threads:
-        thread.join(timeout=10)
+    for run in runs:
+        run.join(timeout=10)
 
-    assert entered == list(range(6))
+    assert order == [str(number) for number in range(6)]
 
 
 def test_hold_integration_lock_queues_until_free_then_releases():
@@ -253,6 +240,15 @@ def _start_run(name: str, order: list[str], label: str, *, once=lambda _state: T
     return thread, waiting
 
 
+def _join_in_turn(name: str, order: list[str], runs: int, **kind) -> list[threading.Thread]:
+    started = []
+    for number in range(runs):
+        run, waiting = _start_run(name, order, str(number), **kind)
+        assert waiting.wait(timeout=10), f"run {number} never started waiting"
+        started.append(run)
+    return started
+
+
 def _held_by_the_test(name: str) -> SingleInstanceLock:
     blocker = SingleInstanceLock(name)
     assert blocker.acquire(timeout=1.0)
@@ -295,17 +291,76 @@ def test_short_runs_get_the_lock_in_the_order_they_started_waiting():
     name = _unique_name()
     blocker = _held_by_the_test(name)
     order: list[str] = []
-    runs = []
-    for number in range(4):
-        run, waiting = _start_run(name, order, f"short {number}", short=True)
-        assert waiting.wait(timeout=10)
-        runs.append(run)
+    runs = _join_in_turn(name, order, 4, short=True)
 
     blocker.close()
     for run in runs:
         run.join(timeout=10)
 
-    assert order == [f"short {number}" for number in range(4)]
+    assert order == [str(number) for number in range(4)]
+
+
+_kernel32 = load_dll("kernel32", use_last_error=True)
+_kernel32.OpenThread.restype = wintypes.HANDLE
+_kernel32.OpenThread.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+_kernel32.SuspendThread.argtypes = [wintypes.HANDLE]
+_kernel32.ResumeThread.argtypes = [wintypes.HANDLE]
+_kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+_THREAD_SUSPEND_RESUME = 0x0002
+
+
+def _suspend_a_moment(run: threading.Thread) -> None:
+    thread = _kernel32.OpenThread(_THREAD_SUSPEND_RESUME, False, run.native_id)
+    assert thread
+    try:
+        _kernel32.SuspendThread(thread)
+        time.sleep(0.05)
+        _kernel32.ResumeThread(thread)
+    finally:
+        _kernel32.CloseHandle(thread)
+
+
+@pytest.mark.parametrize("short", [False, True], ids=["full runs", "short runs"])
+def test_a_run_keeps_its_place_in_line_while_something_suspends_it(short):
+    name = _unique_name()
+    blocker = _held_by_the_test(name)
+    order: list[str] = []
+    runs = _join_in_turn(name, order, 4, short=short)
+
+    _suspend_a_moment(runs[1])
+
+    blocker.close()
+    for run in runs:
+        run.join(timeout=10)
+
+    assert order == [str(number) for number in range(4)]
+
+
+@pytest.mark.parametrize("short", [False, True], ids=["full runs", "short runs"])
+def test_a_run_says_it_is_waiting_only_once_it_has_its_place_in_line(monkeypatch, short):
+    joining = session_lock._Lane.join
+    slowed = threading.Event()
+
+    def slow_to_join_the_first_time(lane) -> None:
+        if not slowed.is_set():
+            slowed.set()
+            time.sleep(0.3)
+        joining(lane)
+
+    monkeypatch.setattr(session_lock._Lane, "join", slow_to_join_the_first_time)
+    name = _unique_name()
+    blocker = _held_by_the_test(name)
+    order: list[str] = []
+    first, first_waiting = _start_run(name, order, "first", short=short)
+    assert first_waiting.wait(timeout=10)
+    second, second_waiting = _start_run(name, order, "second", short=short)
+    assert second_waiting.wait(timeout=10)
+
+    blocker.close()
+    for run in (first, second):
+        run.join(timeout=10)
+
+    assert order == ["first", "second"]
 
 
 def test_a_full_run_goes_first_once_short_runs_have_held_the_lock_as_long_as_it_gives_way():
