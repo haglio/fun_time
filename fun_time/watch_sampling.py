@@ -2,24 +2,25 @@
 
 Every Funestra's current clip is sampled twice a second and fed to the trackers,
 which classify playback into completions and skips for the stats file.  The two
-satellites also feed a timeline, which is what lets a spoken command be
-back-dated to the video that was on screen when the speaker started talking.
+satellites also feed a history of what each had on screen, so a spoken command can be
+back-dated to the video on screen when the speaker started talking.
 """
 from __future__ import annotations
 
 from collections.abc import Collection
 from pathlib import Path
 
+from funestra.on_screen_history import OnScreenHistory
+
 from .command_dispatch import command_funestra
 from .funestra_status import read_main_funestra_status
 from .satellite_control import read_satellite_status
-from .video_timeline import VideoTimeline
 from .watch_stats import WatchTracker, record_watch_event
 
 # Twice a second: the cadence for sampling every Funestra's current clip (both
 # satellites and the Main Funestra feed).  A satellite video switch is only ever
 # bracketed by two samples, so this also bounds how far a back-dated command can
-# misplace a switch (the timeline halves it again by dating the switch to the
+# misplace a switch (the history halves it again by dating the switch to the
 # bracket's midpoint).  Skipped under OmniPause, where playback is frozen.
 SAMPLE_INTERVAL_S = 0.5
 
@@ -36,7 +37,7 @@ DISCARD_COMMANDS: dict[str, int] = {"portrait_trash": 2, "landscape_trash": 3}
 
 
 class WatchSampler:
-    """The trackers, the timelines, and the files they are fed from."""
+    """The trackers, the histories, and the files they are fed from."""
 
     def __init__(
         self,
@@ -50,7 +51,8 @@ class WatchSampler:
         self.stats_file = stats_file
         self._trackers: dict[int, WatchTracker] = {1: WatchTracker(), 2: WatchTracker(),
                                                    3: WatchTracker()}
-        self._timelines: dict[int, VideoTimeline] = {2: VideoTimeline(), 3: VideoTimeline()}
+        self._on_screen: dict[int, OnScreenHistory] = {2: OnScreenHistory(),
+                                                       3: OnScreenHistory()}
         self._last_sample = 0.0
 
     def sample_due(self, *, now: float, paused: bool, hosted: Collection[int] = ()) -> None:
@@ -71,7 +73,7 @@ class WatchSampler:
         self._sample_main()
 
     def _sample_satellites(self, *, now: float, hosted: Collection[int]) -> None:
-        """Sample each satellite's current video for the trackers and timelines,
+        """Sample each satellite's current video for the trackers and histories,
         from the status file its native Funestra publishes."""
         for which, status_file in self.satellite_status_files.items():
             if which in hosted:
@@ -79,7 +81,7 @@ class WatchSampler:
             status = read_satellite_status(status_file)
             if status.fraction is None:
                 continue
-            self._timelines[which].observe(status.video, now=now)
+            self._on_screen[which].observe(status.video, now=now)
             for event, video in self._trackers[which].observe(status.video, status.fraction):
                 record_watch_event(self.stats_file, video, event)
 
@@ -114,13 +116,13 @@ class WatchSampler:
 
         A phrase is only recognized once the speaker stops, so a satellite can
         have auto-advanced between "lock…" and "…portrait".  The satellite's
-        timeline says which video was on screen when the utterance began — the
+        history says which video was on screen when the utterance began — the
         one the speaker was looking at, and therefore meant.  Hotkeys are
         instantaneous and name no video.
         """
         if spoken_at is None:
             return ""
-        timeline = self._timelines.get(command_funestra(command))
-        if timeline is None:
+        history = self._on_screen.get(command_funestra(command))
+        if history is None:
             return ""
-        return timeline.path_at(spoken_at)
+        return history.path_at(spoken_at)

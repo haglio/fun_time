@@ -375,7 +375,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # headset's banner copied, went with them.
 # 5875 on 2026-10-24: a Broker waiting for an unplugged OSR2 counts as running,
 # so the notes on its heartbeat going stale whenever the OSR2 is off went.
-MAX_PROSE_LINES = 5875
+# 5853 when the history a spoken word is resolved against moved to funestra, its
+# notes with it, taken down to what the tree measured.
+MAX_PROSE_LINES = 5853
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
