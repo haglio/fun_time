@@ -4,7 +4,6 @@ from __future__ import annotations
 import os
 import re
 import string
-import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -50,6 +49,8 @@ from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.thumbnail_cache import thumbnail_path
 from tests.drive_fakes import files_that_never_answer, folders_listed
 from tests.still_fakes import ExtractionsHeldAtTheFirst, still_extractions
+
+pytestmark = pytest.mark.usefixtures("no_still_is_extracted_from_the_made_up_videos")
 
 
 def _handle(title: str, *versions: str, section: str = "main") -> LibraryHandle:
@@ -125,17 +126,7 @@ def _until(condition, *, within_s: float = 10.0) -> None:
 
 
 @pytest.fixture
-def stills_finished(tmp_path):
-    """Every still being cut ends before ``tmp_path`` goes: a cut holds its
-    video open, and Windows will not delete an open file."""
-    yield
-    for extractor in threading.enumerate():
-        if extractor.name == "library-thumbnails":
-            extractor.join(timeout=10.0)
-
-
-@pytest.fixture
-def browser(tmp_path, stills_finished):
+def browser(tmp_path):
     """Build LibraryBrowserWindow(s) that always close with the test.
 
     Each construction is a real top-level Qt window in the shared session
@@ -1102,7 +1093,6 @@ def test_a_browse_runs_on_the_checkouts_the_session_runs(tmp_path: Path):
     assert launched[0]["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
 
 
-@pytest.mark.usefixtures("stills_finished")
 def test_the_desktops_genau_browse_forks_into_vr_and_2d_with_the_ai_flicks_apart_in_2d(
     tmp_path: Path, cfg_factory,
 ):

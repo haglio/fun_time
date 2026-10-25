@@ -25,6 +25,8 @@ from fun_time_vr.library_host import (
 from fun_time_vr.library_panel import LIBRARY_SIZE_PX
 from tests.still_fakes import ExtractionsHeldAtTheFirst
 
+pytestmark = pytest.mark.usefixtures("no_still_is_extracted_from_the_made_up_videos")
+
 
 def _handle(title: str, section: str) -> LibraryHandle:
     return LibraryHandle(title=title, versions=(f"C:/videos/{title}.mp4",), section=section)
@@ -34,11 +36,6 @@ _LIBRARY = (
     [_handle(f"Scene {index:02d}", "VR") for index in range(40)]
     + [_handle("Alpha Scene", "2D/batch_one"), _handle("Beta Scene", "2D/batch_two")]
 )
-
-
-@pytest.fixture(autouse=True)
-def _no_still_is_cut_from_the_made_up_videos(monkeypatch):
-    monkeypatch.setattr(library_browser, "thumbnail_for", lambda *_args, **_kwargs: None)
 
 
 @pytest.fixture
