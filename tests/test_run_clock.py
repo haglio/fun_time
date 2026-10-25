@@ -11,13 +11,11 @@ import time
 
 import pytest
 
-from fun_time.win32_job import a_job_whose_processes_end_with_it
 from tests.integration import run_clock
 from tests.integration.run_clock import (
     Budget,
     OnTimeClock,
     RunClock,
-    busy_seconds_of_job,
     keep_time_by,
     machine_busy_seconds,
     watch_for_a_timeout,
@@ -105,32 +103,15 @@ def test_each_stretch_is_counted_at_its_own_speed():
     assert clock.seconds() == pytest.approx(60.0)
 
 
-_CREATE_SUSPENDED = 0x00000004
-
-
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 accounting")
-def test_the_machines_busy_time_and_a_jobs_are_read_from_windows():
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.AssignProcessToJobObject.argtypes = [wt.HANDLE, wt.HANDLE]
-    kernel32.CloseHandle.argtypes = [wt.HANDLE]
-    ntdll = ctypes.WinDLL("ntdll")
-    ntdll.NtResumeProcess.argtypes = [wt.HANDLE]
-    job = a_job_whose_processes_end_with_it()
+def test_the_machines_busy_time_is_read_from_windows():
     machine_before = machine_busy_seconds()
-    worker = subprocess.Popen(
-        [sys.executable, "-c", "import time\nt = time.process_time()\n"
-         "while time.process_time() - t < 0.3: pass"],
-        creationflags=_CREATE_SUSPENDED | subprocess.CREATE_NO_WINDOW)
-    try:
-        assert kernel32.AssignProcessToJobObject(job, int(worker._handle))
-        ntdll.NtResumeProcess(int(worker._handle))
-        worker.wait(timeout=120)
 
-        assert busy_seconds_of_job(job) >= 0.25
-        assert machine_busy_seconds() - machine_before >= 0.25
-    finally:
-        worker.kill()
-        kernel32.CloseHandle(job)
+    subprocess.run([sys._base_executable, "-c", "import time\nt = time.process_time()\n"
+                    "while time.process_time() - t < 0.3: pass"],
+                   creationflags=subprocess.CREATE_NO_WINDOW, check=True, timeout=120)
+
+    assert machine_busy_seconds() - machine_before >= 0.25
 
 
 def test_a_budget_ends_when_the_run_has_had_its_seconds(frozen):

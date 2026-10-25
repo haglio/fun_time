@@ -15,19 +15,13 @@ import time
 from collections.abc import Callable
 from typing import Protocol
 
+from app_support.win32 import busy_seconds_of_the_job_this_process_runs_in
+
 from fun_time.win32_loader import load_dll
 
 _kernel32 = load_dll("kernel32", use_last_error=True)
 _kernel32.GetSystemTimes.argtypes = [ctypes.POINTER(wt.FILETIME)] * 3
 _kernel32.GetSystemTimes.restype = wt.BOOL
-_kernel32.QueryInformationJobObject.argtypes = [
-    wt.HANDLE, ctypes.c_int, wt.LPVOID, wt.DWORD, ctypes.POINTER(wt.DWORD)]
-_kernel32.QueryInformationJobObject.restype = wt.BOOL
-_kernel32.GetCurrentProcess.restype = wt.HANDLE
-_kernel32.GetProcessTimes.argtypes = [wt.HANDLE] + [ctypes.POINTER(wt.FILETIME)] * 4
-_kernel32.GetProcessTimes.restype = wt.BOOL
-
-_JOB_OBJECT_BASIC_ACCOUNTING_INFORMATION = 1
 
 
 class _ThreadEntry(ctypes.Structure):
@@ -66,14 +60,6 @@ _READY, _DEFERRED_READY = 1, 7
 _WAITING_FOR_A_PROCESSOR = frozenset({_READY, _DEFERRED_READY})
 
 
-class _BasicAccounting(ctypes.Structure):
-    _fields_ = [("TotalUserTime", ctypes.c_int64), ("TotalKernelTime", ctypes.c_int64),
-                ("ThisPeriodTotalUserTime", ctypes.c_int64),
-                ("ThisPeriodTotalKernelTime", ctypes.c_int64),
-                ("TotalPageFaultCount", wt.DWORD), ("TotalProcesses", wt.DWORD),
-                ("ActiveProcesses", wt.DWORD), ("TotalTerminatedProcesses", wt.DWORD)]
-
-
 def _seconds(filetime: wt.FILETIME) -> float:
     return ((filetime.dwHighDateTime << 32) | filetime.dwLowDateTime) / 10_000_000
 
@@ -82,18 +68,6 @@ def machine_busy_seconds() -> float:
     idle, kernel, user = wt.FILETIME(), wt.FILETIME(), wt.FILETIME()
     _kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user))
     return _seconds(kernel) - _seconds(idle) + _seconds(user)
-
-
-def busy_seconds_of_job(job: int | None = None) -> float:
-    """*job* None is the job this process runs in, or this process alone outside one."""
-    spent = _BasicAccounting()
-    if _kernel32.QueryInformationJobObject(job, _JOB_OBJECT_BASIC_ACCOUNTING_INFORMATION,
-                                           ctypes.byref(spent), ctypes.sizeof(spent), None):
-        return (spent.TotalUserTime + spent.TotalKernelTime) / 10_000_000
-    created, ended, kernel, user = (wt.FILETIME() for _ in range(4))
-    _kernel32.GetProcessTimes(_kernel32.GetCurrentProcess(), ctypes.byref(created),
-                              ctypes.byref(ended), ctypes.byref(kernel), ctypes.byref(user))
-    return _seconds(kernel) + _seconds(user)
 
 
 class Clock(Protocol):
@@ -109,7 +83,7 @@ WALL = _Wall()
 
 
 class RunClock:
-    def __init__(self, *, run_busy: Callable[[], float] = busy_seconds_of_job,
+    def __init__(self, *, run_busy: Callable[[], float] = busy_seconds_of_the_job_this_process_runs_in,
                  machine_busy: Callable[[], float] = machine_busy_seconds,
                  processors: int | None = None, wall: Callable[[], float] = time.monotonic) -> None:
         self._run_busy = run_busy

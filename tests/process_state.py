@@ -1,37 +1,19 @@
 from __future__ import annotations
 
 import contextlib
-import ctypes
-import ctypes.wintypes as wt
 import functools
 import os
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from fun_time.win32_job import a_job_whose_processes_end_with_it
-from fun_time.win32_loader import get_last_error, load_dll
+from app_support.win32 import JobObject, a_job_ending_with_this_process
+
 from fun_time.win32_process import command_line_of
 from tests.child_reports import StartedProcess, all_gone_within, running
 from tests.integration.hidden_desktop import INTEGRATION_DIR
 from tests.thread_state import TIME_TO_END_S
 
 _THE_INTEGRATION_SUITE = Path(__file__).resolve().parents[1] / INTEGRATION_DIR
-
-_kernel32 = load_dll("kernel32", use_last_error=True)
-_kernel32.GetCurrentProcess.restype = wt.HANDLE
-_kernel32.AssignProcessToJobObject.argtypes = [wt.HANDLE, wt.HANDLE]
-_kernel32.AssignProcessToJobObject.restype = wt.BOOL
-_kernel32.QueryInformationJobObject.argtypes = [
-    wt.HANDLE, ctypes.c_int, wt.LPVOID, wt.DWORD, ctypes.POINTER(wt.DWORD)]
-_kernel32.QueryInformationJobObject.restype = wt.BOOL
-
-_JOB_OBJECT_BASIC_PROCESS_ID_LIST = 3
-
-
-class _ProcessIdList(ctypes.Structure):
-    _fields_ = [("NumberOfAssignedProcesses", wt.DWORD),
-                ("NumberOfProcessIdsInList", wt.DWORD),
-                ("ProcessIdList", ctypes.c_size_t * 1024)]
 
 
 class ProcessesLeftRunning(AssertionError):
@@ -42,21 +24,12 @@ class ProcessesLeftRunning(AssertionError):
 
 
 @functools.cache
-def the_job_this_process_holds() -> int:
-    job = a_job_whose_processes_end_with_it()
-    if not _kernel32.AssignProcessToJobObject(job, _kernel32.GetCurrentProcess()):
-        raise ctypes.WinError(get_last_error())
-    return job
+def the_job_this_process_holds() -> JobObject:
+    return a_job_ending_with_this_process()
 
 
 def _started_by_this_process() -> set[StartedProcess]:
-    listed = _ProcessIdList()
-    if not _kernel32.QueryInformationJobObject(
-            the_job_this_process_holds(), _JOB_OBJECT_BASIC_PROCESS_ID_LIST,
-            ctypes.byref(listed), ctypes.sizeof(listed), None):
-        raise ctypes.WinError(get_last_error())
-    pids = listed.ProcessIdList[:listed.NumberOfProcessIdsInList]
-    return {StartedProcess.of(pid) for pid in pids if pid != os.getpid()}
+    return {StartedProcess.of(pid) for pid in the_job_this_process_holds().process_ids() if pid != os.getpid()}
 
 
 @contextlib.contextmanager
