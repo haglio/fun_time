@@ -722,6 +722,9 @@ def _the_portrait_funestra_driving_the_osr2(s: FunTimeIntegrationSession, tmp_pa
         s.wait_for_new_log("Locked portrait satellite")
         s.wait_until(lambda: read_satellite_status(portrait.status_file).funscript_driving,
                      description="the Portrait Funestra's funscript to be driving")
+        s.wait_until(lambda: RoomFunestra.PORTRAIT.label in senders(
+            tcode_heard(s.config.osr2_slot_port, seconds=1)),
+            description="the OSR2 to hear the Portrait Funestra")
         yield portrait, video
     finally:
         s.write_dashboard_command("main_take_osr2")
@@ -738,7 +741,6 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
     sink = s.config.osr2_slot_port
     before = senders(tcode_heard(sink, seconds=2))
     with _the_portrait_funestra_driving_the_osr2(s, tmp_path) as (portrait, video):
-        let_seconds_pass(1.0)
         scripted = senders(tcode_heard(sink, seconds=4))
         assert list(scripted) == [RoomFunestra.PORTRAIT.label], (before, scripted)
         ((_moves, _first, _last, lowest, highest),) = scripted.values()
