@@ -493,7 +493,7 @@ class _StopTheRun(Exception):
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 process creation")
 def test_a_run_that_never_decides_an_exit_code_is_ended_at_the_ceiling_with_its_children():
-    with _launches_recorded() as launched:
+    with _launches_recorded() as launched, _timed_by_the_wall():
         assert hidden_desktop._run_the_suite(_python("-c", "import time; time.sleep(60)"),
                                              sys.executable, 1) == hidden_desktop.WEDGED_EXIT_CODE
 
@@ -553,6 +553,10 @@ def test_the_ceiling_leaves_a_green_suite_room_to_finish():
 
 def _python(*python_args: str) -> list[str]:
     return [build_run_argv([])[0], *python_args]
+
+
+def _timed_by_the_wall():
+    return patch.object(hidden_desktop, "_the_runs_own_time", lambda _job: contextlib.nullcontext())
 
 
 @contextlib.contextmanager
