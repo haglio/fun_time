@@ -107,14 +107,17 @@ as the cover lifts.
 A room also opens with Origenerator in the browser's place and on one satellite,
 whatever the last one was left in, when the Origenerator it takes over is showing
 a slideshow: he was watching it, so the room comes up with that show on the
-satellite of its shape, which is the monitor the app showed it on, and the other
-satellite as the last session left it (his calls, 2026-10-13 and 2026-10-17).
-The app holds the show through the takeover and plays it there when that side's
-show is asked for. It says it is showing one beside its offer, in
-`fun_time_showing.txt`, naming its own process the way the offer does, so the
-mark of an app that has since closed is never believed, and then the show's
-shape, `portrait` or `landscape`; a mark naming no shape is from an app older
-than that, and puts Origenerator on both satellites.
+satellite of its shape and the other satellite as the last session left it (his
+calls, 2026-10-13 and 2026-10-17). A slideshow of both shapes puts Origenerator
+on both satellites instead, each playing the slideshow's items of its own
+shape, since only landscape content ever shows on the landscape satellite and
+only portrait on the portrait one (his call, 2026-10-25). The app holds the show
+through the takeover and plays each side's part there when that side's show is
+asked for. It says it is showing one beside its offer, in `fun_time_showing.txt`,
+naming its own process the way the offer does, so the mark of an app that has
+since closed is never believed, and then the shape of its items, `portrait`,
+`landscape` or `both`; a mark naming no shape is from an app older than that, and
+puts Origenerator on both satellites too.
 
 Coming back to a Funestra's Origenerator mode means putting back what the mode took. While the hosted app
 has a satellite, that Funestra's playlist file holds the app's pictures and the

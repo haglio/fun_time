@@ -49,17 +49,24 @@ def _mark_a_slideshow(checkout, mark):
     (checkout / "state" / "fun_time_showing.txt").write_text(mark, encoding="utf-8")
 
 
-@pytest.mark.parametrize(("monitor", "satellite"), [
+@pytest.mark.parametrize(("shape", "satellite"), [
     ("portrait", RoomFunestra.PORTRAIT), ("landscape", RoomFunestra.LANDSCAPE)])
-def test_an_open_app_showing_a_slideshow_names_the_satellite_of_its_monitor(
-        tmp_path, monitor, satellite):
+def test_an_open_app_showing_a_slideshow_names_the_satellite_of_its_shape(
+        tmp_path, shape, satellite):
     _offer(tmp_path, _this_process())
-    _mark_a_slideshow(tmp_path, f"{_this_process()} {monitor}")
+    _mark_a_slideshow(tmp_path, f"{_this_process()} {shape}")
 
     assert the_open_origenerator(tmp_path).slideshow_on == (satellite,)
 
 
-def test_a_slideshow_mark_from_before_it_named_its_monitor_could_be_on_either_satellite(
+def test_an_open_app_showing_a_slideshow_of_both_shapes_names_both_satellites(tmp_path):
+    _offer(tmp_path, _this_process())
+    _mark_a_slideshow(tmp_path, f"{_this_process()} both")
+
+    assert the_open_origenerator(tmp_path).slideshow_on == RoomFunestra.SATELLITES
+
+
+def test_a_slideshow_mark_from_before_it_named_its_shape_could_be_on_either_satellite(
         tmp_path):
     _offer(tmp_path, _this_process())
     _mark_a_slideshow(tmp_path, _this_process())
@@ -75,7 +82,7 @@ def test_a_slideshow_mark_naming_another_process_is_no_slideshow(tmp_path, mark)
     assert the_open_origenerator(tmp_path).slideshow_on == ()
 
 
-def test_a_slideshow_mark_naming_a_monitor_this_session_does_not_know_is_no_slideshow(
+def test_a_slideshow_mark_naming_a_shape_this_session_does_not_know_is_no_slideshow(
         tmp_path):
     _offer(tmp_path, _this_process())
     _mark_a_slideshow(tmp_path, f"{_this_process()} sideways")
