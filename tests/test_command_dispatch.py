@@ -5116,6 +5116,32 @@ class TestALockOnAHostedSide:
         assert (ops, _cmds(config, RoomFunestra.PORTRAIT), _origenerator_cmds(config)) == (
             [], to_the_funestra, [command])
 
+    def test_the_hosted_apps_own_word_for_its_lock_is_the_sides_spoken_lock(self, tmp_path):
+        """Judged, as every spoken lock is, by when he began saying it."""
+        config = replace(_origenerator_config(tmp_path),
+                         origenerator_lock_phrases=frozenset({"hold"}))
+        meant = "C:\\pictures\\meant.png"
+        _set_current(config, RoomFunestra.PORTRAIT, "C:\\pictures\\moved on to.png")
+
+        state, _ = dispatch_command("portrait_say_hold", _in_origenerator_mode(), config,
+                                    target_path=meant)
+        dispatch_command("portrait_say_fabricated_order", state, config)
+
+        assert _cmds(config, RoomFunestra.PORTRAIT) == [f"PLAY_FILE {meant}", "LOCK_ON"]
+        assert _origenerator_cmds(config) == ["portrait_lock_on", "PORTRAIT_SAY:fabricated order"]
+
+    def test_the_same_word_said_to_a_side_in_kino_mode_is_ignored_as_before(self, tmp_path):
+        config = replace(_origenerator_config(tmp_path),
+                         origenerator_lock_phrases=frozenset({"hold"}))
+        _set_current(config, RoomFunestra.PORTRAIT, "C:\\clips\\scene one.mp4")
+
+        state, ops = dispatch_command("portrait_say_hold",
+                                      _in_origenerator_mode(RoomFunestra.LANDSCAPE), config)
+
+        assert ops == [WindowOp(op=Op.IGNORED, key="in Kino mode")]
+        assert (_cmds(config, RoomFunestra.PORTRAIT), _origenerator_cmds(config)) == ([], [])
+        assert not state.satellite(RoomFunestra.PORTRAIT).locked
+
 
 class TestOmniPauseWithOrigenerator:
     def test_enter_freezes_the_hosted_app_too(self, tmp_path):

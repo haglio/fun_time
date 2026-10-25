@@ -22,6 +22,7 @@ from .aiming import named_first_or_last, on_the_main_funestra
 from .content import Noun, genau_flick_noun, load_content
 from .crown import Crown
 from .origenerator_switches import KINO_MODE, ORIGENERATOR_MODE, mode_command
+from .room_funestras import RoomFunestra
 
 # A spoken command carries when the *utterance began*, appended after " @".  A
 # phrase is only recognized once the speaker stops, by which time an
@@ -59,6 +60,7 @@ def parse_command_line(line: str) -> CommandLine:
 
 
 GENAU_SAID: tuple[str, ...] = ("genau", "go now")
+_SATELLITE_SIDES = tuple(funestra.label for funestra in RoomFunestra.SATELLITES)
 FAVORITES_PHRASE = "favorites"
 
 
@@ -71,7 +73,7 @@ def say_command(side: str, phrase: str) -> str:
 
 def said_to_a_side(command: str) -> tuple[str, str] | None:
     side, said, words = command.partition(_SAY)
-    if not said or side not in ("portrait", "landscape") or not words:
+    if not said or side not in _SATELLITE_SIDES or not words:
         return None
     return side, words.replace("_", " ")
 
@@ -248,7 +250,7 @@ def build_voice_commands(
                                      ("satellite", "satellites_kino_activate"),
                                      ("satellites", "satellites_kino_activate")):
         commands.update(named_first_or_last(_funestra_word, "kino mode", _command))
-    for _side in ("portrait", "landscape"):
+    for _side in _SATELLITE_SIDES:
         for _mode_words, _mode in (("kino mode", KINO_MODE), ("aura generator mode", ORIGENERATOR_MODE)):
             commands.update(named_first_or_last(_side, _mode_words, mode_command(_side, _mode)))
 
@@ -260,7 +262,7 @@ def build_voice_commands(
 
     def _bare_or_named(words: str, action: str) -> None:
         commands[words] = f"active_{action}"
-        for side in ("portrait", "landscape", "both"):
+        for side in (*_SATELLITE_SIDES, "both"):
             commands.update(named_first_or_last(side, words, f"{side}_{action}"))
         if (on_the_main := on_the_main_funestra(action)) is not None:
             commands.update(named_first_or_last("main", words, on_the_main))
@@ -471,10 +473,10 @@ def build_voice_commands(
                         ("expand", "hud_restore")):
         for _words in (f"{_verb} hud", f"hud {_verb}"):
             _bare_or_named(_words, _act)
-        for _side in ("portrait", "landscape", "both", "main"):
+        for _side in (*_SATELLITE_SIDES, "both", "main"):
             commands[f"{_verb} {_side} hud"] = commands[f"{_side} {_verb} hud"]
 
-    for _side in ("portrait", "landscape"):
+    for _side in _SATELLITE_SIDES:
         commands.update(named_first_or_last(_side, FAVORITES_PHRASE,
                                             say_command(_side, FAVORITES_PHRASE)))
 
@@ -487,7 +489,7 @@ def build_voice_commands(
     if _shadowed:
         raise RuntimeError(f"filter phrases collide with existing voice commands: {sorted(_shadowed)}")
     commands.update(filter_commands)
-    for _side in ("portrait", "landscape"):
+    for _side in _SATELLITE_SIDES:
         for _phrase in origenerator_phrases:
             for _spoken, _said in named_first_or_last(
                     _side, _phrase, say_command(_side, _phrase)).items():

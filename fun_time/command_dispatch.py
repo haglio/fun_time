@@ -696,6 +696,7 @@ def dispatch_command(
     funestra = command_funestra(command)
     if funestra is not None:
         state = _addressed(funestra, command, state)
+    command = _a_lock_said_in_the_hosted_apps_words(command, state, config)
     answered = _answered_ahead_of_the_handlers(command, state, config)
     if answered is not None:
         return answered
@@ -1401,6 +1402,15 @@ def _words_for_the_hosted_app(command: str) -> tuple[str, str] | None:
 
 def said_to_the_hosted_app(side: str, words: str) -> str:
     return f"{side.upper()}_SAY:{words}"
+
+
+def _a_lock_said_in_the_hosted_apps_words(command: str, state: BridgeState,
+                                          config: BridgeConfig) -> str:
+    said = said_to_a_side(command)
+    if (said is None or said[1] not in config.origenerator_lock_phrases
+            or not routes_to_origenerator(command, state, config)):
+        return command
+    return _lock_said(RoomFunestra[said[0].upper()], True)
 
 
 def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfig) -> bool:

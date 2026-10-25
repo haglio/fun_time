@@ -181,7 +181,7 @@ class VoiceController:
         self.cmd_file = Path(cmd_file)
         self.commands = (build_voice_commands(origenerator_phrases=hosted.phrases)
                          if hosted.phrases else VOICE_COMMANDS)
-        self._hosted = hosted
+        self.hosted = hosted
         self._hosted_cmd_file = hosted_cmd_file
         self._request_side: str | None = None
         self.hosted_sides: Callable[[], frozenset[str]] = frozenset
@@ -239,7 +239,7 @@ class VoiceController:
 
     def _side_a_request_opens_on(self, text: str | None) -> str | None:
         said = _words(text)
-        if len(said) < 2 or said[1] not in self._hosted.openers:
+        if len(said) < 2 or said[1] not in self.hosted.openers:
             return None
         return self._hosted_side_leading(text)
 

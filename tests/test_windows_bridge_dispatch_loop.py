@@ -1455,6 +1455,22 @@ class TestWhatASpokenCommandFlashes:
         assert flashed == [(said, "landscape")]
 
 
+def test_a_word_the_room_hears_as_a_lock_locks_a_side_showing_the_hosted_app(tmp_path):
+    runner = make_runner(tmp_path, config=_hosting(tmp_path))
+    _the_hosted_app_answers(tmp_path)
+    write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(BridgeState()))
+    runner.hear_as_a_lock(frozenset({"hold"}))
+    (tmp_path / "dashboard_cmd.txt").write_text(
+        format_spoken_command("portrait_say_hold", spoken_at=1.0, said="portrait hold"),
+        encoding="utf-8")
+
+    runner.tick()
+
+    assert (tmp_path / "portrait_cmd.txt").read_text(encoding="utf-8").split() == ["LOCK_ON"]
+    assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
+        "portrait_lock_on"]
+
+
 class TestOpenRfbTab:
     """A lock's tab has to reach the session's own Chrome window.
 

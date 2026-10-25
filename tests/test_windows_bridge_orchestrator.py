@@ -3422,6 +3422,17 @@ class TestStartingVoice:
         assert sides == frozenset({"landscape"})
         asked.assert_called_once_with(runner.state, runner.config)
 
+    def test_the_room_hears_as_a_lock_the_words_the_hosted_app_takes_as_its_lock(
+        self, cfg_factory, tmp_path,
+    ):
+        config_path = cfg_factory({"voice_control": {"enabled": True}})
+        controller, runner = MagicMock(), MagicMock()
+        controller.return_value.hosted = HostedVocabulary(lock_phrases=frozenset({"hold"}))
+
+        self._started(config_path, tmp_path, controller=controller, runner=runner)
+
+        runner.hear_as_a_lock.assert_called_once_with(frozenset({"hold"}))
+
     def test_a_microphone_that_will_not_open_leaves_a_session_without_voice(
         self, cfg_factory, tmp_path,
     ):

@@ -18,6 +18,7 @@ class HostedVocabulary:
     phrases: frozenset[str] = frozenset()
     openers: frozenset[str] = frozenset()
     speech_hint: str = ""
+    lock_phrases: frozenset[str] = frozenset()
 
 
 NO_HOSTED_VOCABULARY = HostedVocabulary()
@@ -37,7 +38,7 @@ def what_it_answers_by_voice(checkout: str | Path, *, python_exe: str | Path,
                                 text=True, timeout=ASKING_BUDGET_S, check=True,
                                 **launch_kwargs).stdout)
         return HostedVocabulary(frozenset(answer["phrases"]), frozenset(answer["openers"]),
-                                answer["speech_hint"])
+                                answer["speech_hint"], frozenset(answer.get("lock_phrases", ())))
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as error:
         logger.warning("The Origenerator at %s could not say what it answers by voice (%s), "
                        "so no phrase of its is heard said to a satellite", checkout, error)

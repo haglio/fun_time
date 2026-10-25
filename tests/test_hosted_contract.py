@@ -87,6 +87,17 @@ def test_the_app_is_asked_what_it_answers_by_voice_through_the_module_its_contra
         (["fabricated-python.exe", "-m", "fabricated.voice"], str(checkout))]
 
 
+def test_the_phrases_its_lock_answers_are_heard_where_it_names_them(tmp_path):
+    checkout = _a_checkout_declaring(tmp_path, spoken_phrases_module="fabricated.voice")
+    answer = json.dumps({"phrases": ["hold", "fix alpha"], "openers": [], "speech_hint": "",
+                         "lock_phrases": ["hold"]})
+
+    heard = what_it_answers_by_voice(checkout, python_exe="fabricated-python.exe",
+                                     launch_kwargs={}, run=_answering(answer, []))
+
+    assert heard.lock_phrases == frozenset({"hold"})
+
+
 def test_an_app_whose_contract_names_no_such_module_is_heard_saying_nothing(tmp_path, caplog):
     checkout = _a_checkout_declaring(tmp_path)
     asked: list = []
