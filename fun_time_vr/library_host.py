@@ -13,6 +13,7 @@ from funestra.file_channel import append_command, consume_command_file
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt, QTimer
 from PyQt6.QtGui import QImage, QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import QApplication, QWidget
+from shared_ui.application import application
 from shared_ui.chrome import family_stylesheet
 
 from fun_time.library_browser import (
@@ -239,44 +240,44 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     os.environ.setdefault("QT_QPA_FONTDIR", str(_windows_fonts_offscreen_qt_lacks()))
-    app = QApplication([sys.argv[0], "-platform", "offscreen"])
-    app.setStyleSheet(family_stylesheet())
-    config = load_browser_config(args.manifest_path)
-    flicks = load_flick_browser_config(args.manifest_path)
-    width, height = LIBRARY_SIZE_PX
-    frames = FrameWriter(args.frames, max_pixels=width * height)
-    browse = HeadsetBrowse(
-        thumbnail_cache=config.thumbnail_cache, frames=frames,
-        say=lambda line: append_command(args.output, line),
-        flicks=lambda: read_the_flicks(flicks),
-    )
-    kept = args.input.with_name(LISTING_FILENAME)
-    landed: list[Sequence[LibraryHandle]] = []
-    start_daemon_thread(
-        target=lambda: landed.append(read_the_library(config, kept)), name="library-read")
-    # Once the browse is up: what the drive holds now, kept for the next one.
-    start_daemon_thread(
-        target=lambda: read_the_library(config, kept, afresh=True), name="library-reread")
-    ticks = 0
+    with application([sys.argv[0], "-platform", "offscreen"]) as app:
+        app.setStyleSheet(family_stylesheet())
+        config = load_browser_config(args.manifest_path)
+        flicks = load_flick_browser_config(args.manifest_path)
+        width, height = LIBRARY_SIZE_PX
+        frames = FrameWriter(args.frames, max_pixels=width * height)
+        browse = HeadsetBrowse(
+            thumbnail_cache=config.thumbnail_cache, frames=frames,
+            say=lambda line: append_command(args.output, line),
+            flicks=lambda: read_the_flicks(flicks),
+        )
+        kept = args.input.with_name(LISTING_FILENAME)
+        landed: list[Sequence[LibraryHandle]] = []
+        start_daemon_thread(
+            target=lambda: landed.append(read_the_library(config, kept)), name="library-read")
+        # Once the browse is up: what the drive holds now, kept for the next one.
+        start_daemon_thread(
+            target=lambda: read_the_library(config, kept, afresh=True), name="library-reread")
+        ticks = 0
 
-    def parent_alive() -> bool:
-        nonlocal ticks
-        ticks += 1
-        return ticks % _PARENT_CHECK_EVERY != 0 or is_process_alive(args.parent)
+        def parent_alive() -> bool:
+            nonlocal ticks
+            ticks += 1
+            return ticks % _PARENT_CHECK_EVERY != 0 or is_process_alive(args.parent)
 
-    def tick() -> None:
-        if browse.window is None and landed:
-            browse.take_the_library(landed.pop())
-        if not serve_once(browse, args.input, parent_alive=parent_alive, now=time.monotonic()):
-            app.quit()
+        def tick() -> None:
+            if browse.window is None and landed:
+                browse.take_the_library(landed.pop())
+            if not serve_once(browse, args.input, parent_alive=parent_alive, now=time.monotonic()):
+                app.quit()
 
-    timer = QTimer()
-    timer.timeout.connect(tick)
-    timer.start(_POLL_MS)
-    try:
-        return app.exec()
-    finally:
-        frames.close()
+        timer = QTimer()
+        timer.timeout.connect(tick)
+        timer.start(_POLL_MS)
+        try:
+            return app.exec()
+        finally:
+            frames.close()
 
 
 if __name__ == "__main__":

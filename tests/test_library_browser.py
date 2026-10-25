@@ -5,8 +5,9 @@ import os
 import re
 import string
 import threading
+from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from PIL import Image
@@ -23,7 +24,7 @@ from shared_ui.colors import TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.icons import glyph_icon
 from shared_ui.spacing import BUTTON_ICON
 
-from fun_time import load_config
+from fun_time import library_browser, load_config
 from fun_time.library_browser import (
     ICON_HEIGHT,
     ICON_WIDTH,
@@ -926,6 +927,25 @@ def test_opening_the_browser_brings_it_in_front_of_the_funestras(tmp_path: Path)
         assert main([str(manifest), str(tmp_path / "pick.txt")]) == 0
 
     assert forward.call_count == 1
+
+
+def test_the_browser_runs_on_an_application_made_where_it_is_let_go_of_safely(
+        tmp_path: Path, monkeypatch):
+    made = []
+
+    @contextmanager
+    def application(argv):
+        made.append(argv)
+        yield MagicMock(exec=MagicMock(return_value=7))
+
+    monkeypatch.setattr(library_browser, "application", application)
+    manifest = tmp_path / "windows_bridge_launch.ini"
+    manifest.write_text("", encoding="utf-8")
+
+    with patch("fun_time.library_browser.LibraryBrowserWindow"),          patch("fun_time.library_browser.bring_to_front"):
+        assert main([str(manifest), str(tmp_path / "pick.txt")]) == 7
+
+    assert made == [[]]
 
 
 def test_the_browser_reads_its_library_from_the_session_manifest(tmp_path: Path, cfg_factory):

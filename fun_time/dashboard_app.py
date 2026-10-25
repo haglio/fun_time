@@ -11,6 +11,7 @@ from pathlib import Path
 from app_support.logging_utils import install_exception_logging
 from funestra.file_channel import append_command
 from PyQt6.QtGui import QColor, QFont, QImage
+from shared_ui.application import application
 from shared_ui.chrome import family_stylesheet
 from shared_ui.colors import (
     BG_BUTTON,
@@ -650,7 +651,7 @@ PRESS_FLASH_S = 0.2
 
 from app_support.win32 import set_app_user_model_id
 from PyQt6.QtCore import QTimer
-from PyQt6.QtWidgets import QApplication, QMainWindow
+from PyQt6.QtWidgets import QMainWindow
 
 
 class DashboardWindow(QMainWindow):
@@ -987,21 +988,21 @@ def main(argv: list[str] | None = None) -> int:
     except OSError:
         pass  # Non-fatal — taskbar grouping just won't work
 
-    app = QApplication.instance() or QApplication([])
-    # The family's chrome, on the application: a tooltip is a top-level popup,
-    # and only a sheet set here reaches it.
-    app.setStyleSheet(family_stylesheet())
+    with application([]) as app:
+        # The family's chrome, on the application: a tooltip is a top-level popup,
+        # and only a sheet set here reaches it.
+        app.setStyleSheet(family_stylesheet())
 
-    app_config = load_dashboard_app_config(Path(args.manifest_path))
-    record_source_checkout(app_config.state_dir)
-    launch_geometry = rect_from_arguments(args)
-    rfb_rect = rect_from_arguments(args, prefix="rfb_")
-    _window = build_dashboard_window(
-        app_config,
-        launch_geometry=launch_geometry,
-        rfb_rect=rfb_rect,
-    )
-    return app.exec()
+        app_config = load_dashboard_app_config(Path(args.manifest_path))
+        record_source_checkout(app_config.state_dir)
+        launch_geometry = rect_from_arguments(args)
+        rfb_rect = rect_from_arguments(args, prefix="rfb_")
+        _window = build_dashboard_window(
+            app_config,
+            launch_geometry=launch_geometry,
+            rfb_rect=rfb_rect,
+        )
+        return app.exec()
 
 
 if __name__ == "__main__":

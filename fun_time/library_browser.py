@@ -35,7 +35,6 @@ from PyQt6.QtCore import QSize, Qt, QTimer
 from PyQt6.QtGui import QIcon, QPainter, QPalette, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QHBoxLayout,
     QListWidget,
     QListWidgetItem,
@@ -46,6 +45,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shared_ui.application import application
 from shared_ui.chrome import family_stylesheet
 from shared_ui.colors import (
     BG_BUTTON,
@@ -871,26 +871,26 @@ def main(argv: list[str] | None = None) -> int:
     except OSError:
         pass  # Non-fatal — taskbar identity just falls back to the default
 
-    app = QApplication.instance() or QApplication([])
-    # The family's chrome, on the application: a tooltip is a top-level popup,
-    # and only a sheet set here reaches it.
-    app.setStyleSheet(family_stylesheet())
+    with application([]) as app:
+        # The family's chrome, on the application: a tooltip is a top-level popup,
+        # and only a sheet set here reaches it.
+        app.setStyleSheet(family_stylesheet())
 
-    config = (load_flick_browser_config if args.genau else load_browser_config)(args.manifest_path)
-    result_file = Path(args.result_file)
-    window = LibraryBrowserWindow(
-        config.handles(),
-        thumbnail_cache=config.thumbnail_cache,
-        on_pick=lambda video: result_file.write_text(video, encoding="utf-8"),
-        on_close=app.quit,
-        playing=args.playing,
-        top_level_name=config.top_level_name,
-    )
-    if None not in {args.x, args.y, args.width, args.height}:
-        window.setGeometry(args.x, args.y, args.width, args.height)
-    window.show()
-    bring_to_front(window)
-    return app.exec()
+        config = (load_flick_browser_config if args.genau else load_browser_config)(args.manifest_path)
+        result_file = Path(args.result_file)
+        window = LibraryBrowserWindow(
+            config.handles(),
+            thumbnail_cache=config.thumbnail_cache,
+            on_pick=lambda video: result_file.write_text(video, encoding="utf-8"),
+            on_close=app.quit,
+            playing=args.playing,
+            top_level_name=config.top_level_name,
+        )
+        if None not in {args.x, args.y, args.width, args.height}:
+            window.setGeometry(args.x, args.y, args.width, args.height)
+        window.show()
+        bring_to_front(window)
+        return app.exec()
 
 
 if __name__ == "__main__":
