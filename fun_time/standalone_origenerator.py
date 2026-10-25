@@ -17,7 +17,7 @@ TAKEOVER_NAME = "fun_time_takeover.json"
 SESSION_NAME = "fun_time_session.txt"
 RELEASE = "RELEASE"
 OFFER = re.compile(rf"(\d+) (\d+)(?: ({OFFER_STILL_STARTING}))?")
-SLIDESHOW_MARK = re.compile(r"(\d+) (\d+)(?: (portrait|landscape))?")
+SLIDESHOW_MARK = re.compile(r"(\d+) (\d+)(?: (portrait|landscape|both))?")
 
 
 class OpenOrigenerator(NamedTuple):
@@ -61,7 +61,7 @@ def _satellites_its_slideshow_is_on(checkout: Path, pid: int,
     mark = _read(_state_dir(checkout) / SHOWING_NAME, SLIDESHOW_MARK)
     if mark is None or (int(mark[1]), int(mark[2])) != (pid, created_at):
         return ()
-    if mark[3] is None:
+    if mark[3] in (None, "both"):
         return RoomFunestra.SATELLITES
     return (RoomFunestra.PORTRAIT,) if mark[3] == "portrait" else (RoomFunestra.LANDSCAPE,)
 
