@@ -522,7 +522,9 @@ Every lock adds the item it holds to `favs.csv`, through one routine
 The Main Funestra and Genau decide what a press holds, so their item is the one
 each reports holding once it has read the press (`fun_time.lock_follower`). The
 room's own holds — a session reopening locked, a loop left with one video by a
-discard, Genau holding its flick when no shape is left — add nothing.
+discard, Genau holding its flick when no shape is left — add nothing, and nor
+does a satellite's lock in its Origenerator mode, which the hosted app stars in
+its own gallery (see `origenerator_cmd.txt` below).
 
 A lock also counts as a lock in the watch stats, and opens where more of the
 item is made: a video a website made opens that site's page in the Random Favs
@@ -623,9 +625,17 @@ One video per line, with a TAB plus the funscript path when one exists. The Main
 
 The hosted Origenerator's channel, spoken in the same idioms as the satellites'
 (`funestra.file_channel`). The command file carries whatever is said to a
-side, exactly as it was said (`portrait_next`, `landscape_lock`,
+side, exactly as it was said (`portrait_next`, `landscape_trash`,
 `portrait_fmode`, …) — the app declared those buttons, so it is what answers
-them — plus `portrait_open_slideshow` / `landscape_open_slideshow` (that Funestra
+them — but for a Lock, which cannot wait for the app to read the press: the
+session locks that Funestra itself the moment a press or a spoken lock reaches
+it (a spoken lock first bringing back the item that was up when it began), then
+sends it on as it was asked, `portrait_lock` for a press and `portrait_lock_on`
+for a spoken lock, while a spoken unlock goes on as `portrait_lock_off` alone.
+The app's own padlock says whether a press locks or lets go, since its Funestra
+is also locked while a spoken request or a run holds the picture; a lock gets the
+star, the better version and the gallery there. Then there are
+`portrait_open_slideshow` / `landscape_open_slideshow` (that Funestra
 entering its Origenerator mode, which fills it with its base state),
 `portrait_close_slideshow` / `landscape_close_slideshow`, `CLOSE_SLIDESHOWS` (a crossing
 parking the app, which lets go of both), `QUIT` and `RELEASE`, `PORTRAIT_SAY:<phrase>` for a

@@ -113,6 +113,7 @@ from .satellite_groups import (
     group_loop,
     is_single_video_loop,
     lock_a_loop_left_with_one_clip,
+    lock_on_what_was_meant,
     lock_satellite,
     loop_cycle,
     more_seeds,
@@ -282,20 +283,42 @@ def _lock_as_said(
     funestra: RoomFunestra, locked: bool, state: BridgeState, config: BridgeConfig,
     target_path: str = "",
 ) -> tuple[BridgeState, list[WindowOp]]:
+    if hosts(funestra, state, config):
+        return _lock_a_hosted_side(funestra, _lock_said(funestra, locked), state, config,
+                                   target_path)
     if state.satellite(funestra).locked == locked:
         return state, []
-    return _toggle_lock(funestra, state, config, target_path)
+    return _set_lock(funestra, locked, state, config, target_path)
 
 
 def _toggle_lock(
     funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    if not state.satellite(funestra).locked:
+    if hosts(funestra, state, config):
+        return _lock_a_hosted_side(funestra, _lock_pressed(funestra), state, config, target_path)
+    return _set_lock(funestra, not state.satellite(funestra).locked, state, config, target_path)
+
+
+def _lock_a_hosted_side(
+    funestra: RoomFunestra, said: str, state: BridgeState, config: BridgeConfig,
+    target_path: str,
+) -> tuple[BridgeState, list[WindowOp]]:
+    if said != _lock_said(funestra, False):
+        lock_on_what_was_meant(funestra, config, target_path)
+    append_command(config.origenerator_cmd_file, said)
+    return state, []
+
+
+def _set_lock(
+    funestra: RoomFunestra, locked: bool, state: BridgeState, config: BridgeConfig,
+    target_path: str,
+) -> tuple[BridgeState, list[WindowOp]]:
+    if locked:
         return lock_satellite(funestra, state, config, target_path)
-    send_satellite(config, funestra, LOCK_OFF)
+    state = cancel_lock(funestra, state, config)
     send_satellite(config, funestra, NEXT)
     logger.info("Unlocked %s satellite", RoomFunestra(funestra).label)
-    return state.with_satellite(funestra, locked=False), []
+    return state, []
 
 
 def _discard(
@@ -376,11 +399,23 @@ _LOCK_ACTION_SIDES: dict[str, RoomFunestra] = {
     "landscape_lock_action": RoomFunestra.LANDSCAPE,
 }
 
+
+def _lock_said(funestra: RoomFunestra, locked: bool) -> str:
+    return f"{funestra.label}_lock_{'on' if locked else 'off'}"
+
+
+def _lock_pressed(funestra: RoomFunestra) -> str:
+    return f"{funestra.label}_lock"
+
+
 _LOCK_STATE_COMMANDS: dict[str, tuple[RoomFunestra, bool]] = {
-    f"{funestra.label}_lock_{'on' if locked else 'off'}": (funestra, locked)
+    _lock_said(funestra, locked): (funestra, locked)
     for funestra in RoomFunestra.SATELLITES
     for locked in (True, False)
 }
+
+_LOCK_TOGGLES: dict[str, RoomFunestra] = {_lock_pressed(funestra): funestra
+                                          for funestra in RoomFunestra.SATELLITES}
 
 # "reset" clears a satellite's filter and reshuffles it back to the default
 # browse; "both reset" expands to these two before dispatch.
@@ -1325,9 +1360,10 @@ def _dispatch_set_filter(
 # Funestra what to play and answers every press on the buttons it drew.  So what
 # is said to that side goes there as it was said, and the session keeps only what
 # is about the Funestra itself -- parking its window, its crown, its rate, taking
-# the OSR2, and its mode.
+# the OSR2, its mode, and its lock, which cannot wait for the app to read a press.
 _THE_FUNESTRAS_OWN = ("_minimize", "_crown", "_speed_", "_take_osr2", "_kino_activate",
                       "_origenerator_activate")
+_THE_FUNESTRAS_LOCK = frozenset({*_LOCK_TOGGLES, *_LOCK_STATE_COMMANDS})
 
 
 def _side_said_to(command: str) -> RoomFunestra | None:
@@ -1338,7 +1374,7 @@ def _side_said_to(command: str) -> RoomFunestra | None:
 
 def _about_a_satellite(command: str) -> bool:
     """Whether *command* is said to one satellite side, about what it plays."""
-    if _side_said_to(command) is None:
+    if _side_said_to(command) is None or command in _THE_FUNESTRAS_LOCK:
         return False
     verb = command.removeprefix("filter_").partition("|")[0]
     return not any(own in verb for own in _THE_FUNESTRAS_OWN)
@@ -1794,8 +1830,8 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, (funestra, verb) in _SATELLITE_SPEEDS.items()})
     handlers.update({cmd: partial(_step_through, funestra, verb)
                      for cmd, (funestra, verb) in _PLAYHEAD_COMMANDS.items()})
-    handlers["portrait_lock"] = partial(_toggle_lock, RoomFunestra.PORTRAIT)
-    handlers["landscape_lock"] = partial(_toggle_lock, RoomFunestra.LANDSCAPE)
+    handlers.update({cmd: partial(_toggle_lock, funestra)
+                     for cmd, funestra in _LOCK_TOGGLES.items()})
     handlers.update({cmd: partial(_lock_as_said, funestra, locked)
                      for cmd, (funestra, locked) in _LOCK_STATE_COMMANDS.items()})
     handlers["portrait_trash"] = partial(_discard, RoomFunestra.PORTRAIT)

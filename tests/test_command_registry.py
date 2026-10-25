@@ -299,8 +299,10 @@ def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode(
     pinned by rule: every side command about what the Funestra plays goes to the
     hosted app, and the session keeps only what is about the Funestra itself --
     parking its window, the rate it plays at, and its mode, which is how it is
-    taken back.  A side command the session must go on answering while the app
-    has the Funestra has to be argued here."""
+    taken back -- and its lock, which locks the Funestra the moment it is asked
+    for, since a slideshow moves on while the app has yet to read a press.  A side
+    command the session must go on answering while the app has the Funestra has
+    to be argued here."""
     side_commands = {command for command in command_dispatch._HANDLERS
                      if command.startswith(("portrait_", "landscape_"))}
     kept = {command for command in side_commands
@@ -311,5 +313,5 @@ def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode(
         for side in ("portrait", "landscape")
         for own in ("minimize", "crown", "speed_up", "speed_down", "speed_reset",
                     "speed_min", "speed_max", "take_osr2", "kino_activate",
-                    "origenerator_activate")
+                    "origenerator_activate", "lock", "lock_on", "lock_off")
     } & side_commands, sorted(kept)
