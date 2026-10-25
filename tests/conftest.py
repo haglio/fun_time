@@ -51,6 +51,7 @@ os.environ[haglio_settings.SETTINGS_ENV] = haglio_settings.THE_EXAMPLE
 from fun_time import (
     chrome_accessibility,
     closing_screen,
+    library_browser,
     loading_cover,
     loading_screen,
     orchestrator,
@@ -290,6 +291,11 @@ def _runs_record_their_place_in_line_away_from_the_machine(monkeypatch, tmp_path
 @pytest.fixture
 def unmuted(monkeypatch):
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO")
+
+
+@pytest.fixture
+def no_still_is_extracted_from_the_made_up_videos(monkeypatch):
+    monkeypatch.setattr(library_browser, "thumbnail_for", lambda *_args, **_kwargs: None)
 
 
 @pytest.fixture(autouse=True)
