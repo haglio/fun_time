@@ -437,7 +437,6 @@ def no_loop(
         favorites_filter=satellite.favorites_filter,
         recent=satellite.latest,
         sources=config.satellite(funestra).sources,
-        favs_file=config.favs_file,
         regen_metadata_root=config.regen_metadata_root,
     )
     # A non-empty filter that now matches nothing would blank the queue, so the

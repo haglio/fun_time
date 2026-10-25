@@ -4,13 +4,13 @@ Fun Time can open a Chrome window on the left side of the secondary monitor.
 
 How it works:
 
-- Fun Time reads the favorites from `favs.csv` (written by every lock), which pairs each favorite's local video path with its gallery link.
+- Fun Time reads the favorites off the metadata sidecars (every lock marks one), each beside the gallery link its video came from.
 - At launch, it picks a random subset of 10 and resolves where each one should open (see below).
 - It launches a project-local Chrome shortcut.
 - It waits for the new Chrome window and sizes it to the full left third of the secondary monitor.
 - `Ctrl+Alt+Q` closes the RFB Chrome window gracefully (sends WM_CLOSE to the captured hwnd).
 
-Configuration lives in `fun_time_config.json` under `random_favs_browser` (the Chrome shortcut path, the profile to target, and the favorites file).
+Configuration lives in `fun_time_config.json` under `random_favs_browser` (the Chrome shortcut path and the profile to target); the sidecars are the ones under `regen.metadata_root`.
 
 ### The slideshow
 
@@ -40,7 +40,7 @@ The destination cannot travel on Chrome's command line: a regenerate URL runs to
 
 The clip is played straight from `file://` — muted, looped, and paused whenever its tab is not the visible one (ten background decoders is real CPU). When a clip cannot load, the page leaves it hidden and the rest of the tab still works.
 
-It is **not** the video the favorite records. Every library video exists twice: the source original under `1_sorted/<source>/<orientation>/`, and the Topaz upscale under `2_outbox/upscaled_by_orientation/<orientation>/<source>/` with a `_topaz` suffix, which is what plays full-size and what `favs.csv` stores. The upscales are hundreds of megabytes of **HEVC** — a codec Chrome decodes only through a platform decoder, and in practice not at these resolutions — while the originals are a couple of megabytes of H.264 that any Chrome plays, `--disable-gpu` included. `fun_time/media_renditions.py` maps one to the other (note the two trees nest source and orientation in opposite orders); the clip is the original, and a video with no original on disk falls back to itself.
+It is **not** the video the favorite records. Every library video exists twice: the source original under `1_sorted/<source>/<orientation>/`, and the Topaz upscale under `2_outbox/upscaled_by_orientation/<orientation>/<source>/` with a `_topaz` suffix, which is what plays full-size and what a favorite marks. The upscales are hundreds of megabytes of **HEVC** — a codec Chrome decodes only through a platform decoder, and in practice not at these resolutions — while the originals are a couple of megabytes of H.264 that any Chrome plays, `--disable-gpu` included. `fun_time/media_renditions.py` maps one to the other (note the two trees nest source and orientation in opposite orders); the clip is the original, and a video with no original on disk falls back to itself.
 
 ## Prompt autofill userscript
 

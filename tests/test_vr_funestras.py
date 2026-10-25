@@ -425,7 +425,6 @@ class TestGenauOnTheMainFunestra:
 
         handed = built.fakes["GenauInTheHeadset"].call_args.kwargs
         assert handed["f_mode"] is True
-        assert handed["favs_file"] == Path(built.manifest.media.favs_file)
 
     def test_what_it_says_goes_where_the_session_reads_the_main_funestras_notices(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path)

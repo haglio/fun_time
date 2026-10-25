@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 import json
 import random
 from dataclasses import dataclass
@@ -9,7 +8,7 @@ from typing import TypeVar
 
 from .config import ProjectConfig, RegenConfig
 from .content import WebProvider
-from .favs_csv import hyperlink_parts
+from .media_metadata import favorites_in
 from .media_renditions import original_rendition
 from .regen import regen_url_for_video
 from .rfb_tab_page import TabTarget
@@ -35,24 +34,6 @@ def resolve_profile_directory(user_data_dir: Path, profile_name: str) -> str:
     return ""
 
 
-def extract_url_from_hyperlink(cell: str) -> str:
-    """The URL from a HYPERLINK cell; a plain non-formula cell passes through."""
-    cell = cell.strip()
-    parts = hyperlink_parts(cell)
-    if parts is None:
-        return "" if cell.startswith('=HYPERLINK("') else cell
-    return parts[0]
-
-
-def extract_path_from_hyperlink(cell: str) -> str:
-    """The local path from a ``local_file`` HYPERLINK cell — the display text,
-    which holds the unescaped Windows path (the file:// URI does not)."""
-    cell = cell.strip()
-    parts = hyperlink_parts(cell)
-    if parts is None:
-        return "" if cell.startswith('=HYPERLINK("') else cell
-    return parts[1]
-
 
 @dataclass(frozen=True)
 class FavEntry:
@@ -62,20 +43,11 @@ class FavEntry:
     web_url: str
 
 
-def load_favs_entries(favs_file: Path) -> list[FavEntry]:
-    """Read every favorite from *favs_file*, keeping both of its columns."""
-    if not favs_file.is_file():
+def favorite_entries(metadata_root: Path | None) -> list[FavEntry]:
+    if metadata_root is None:
         return []
-    entries: list[FavEntry] = []
-    with favs_file.open("r", encoding="utf-8", newline="") as fh:
-        for row in csv.DictReader(fh):
-            entry = FavEntry(
-                local_path=extract_path_from_hyperlink(row.get("local_file", "")),
-                web_url=extract_url_from_hyperlink(row.get("web_url", "")),
-            )
-            if entry.local_path or entry.web_url:
-                entries.append(entry)
-    return entries
+    return [FavEntry(local_path=str(favorite.video), web_url=favorite.page)
+            for favorite in favorites_in(metadata_root)]
 
 
 def target_for_fav(entry: FavEntry, regen: RegenConfig, providers: tuple[WebProvider, ...]) -> TabTarget:
@@ -127,7 +99,7 @@ def build_manifest(config: ProjectConfig, providers: tuple[WebProvider, ...]) ->
         target
         for target in (
             target_for_fav(entry, config.regen, providers)
-            for entry in load_favs_entries(config.paths.favs_file)
+            for entry in favorite_entries(config.regen.metadata_root)
         )
         if target.url
     ]

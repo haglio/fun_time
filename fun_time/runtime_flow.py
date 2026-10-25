@@ -124,7 +124,6 @@ def apply_satellite_fmode(
     funestra: RoomFunestra,
     enabled: bool,
     sources: str,
-    favs_file: str | Path,
     state_dir: str | Path,
     cmd_file: str | Path,
     recent: bool = False,
@@ -139,7 +138,6 @@ def apply_satellite_fmode(
     build_one_satellite_playlist(
         sources=sources,
         name=PLAYLIST_PORTRAIT if funestra == RoomFunestra.PORTRAIT else PLAYLIST_LANDSCAPE,
-        favs_file=Path(favs_file),
         state_dir=Path(state_dir),
         favorites_filter=enabled,
         recent=recent,
@@ -166,7 +164,6 @@ def apply_fmode(
     main_list: MainList,
     main_settings: MainListSettings,
     main_on_screen: str = "",
-    favs_file: str | Path,
     state_dir: str | Path,
     main_funestra_cmd_file: str | Path,
     main_builds: MainListBuilds = BUILDS_HERE,
@@ -194,7 +191,6 @@ def apply_fmode(
                 funestra=funestra,
                 enabled=enabled,
                 sources=satellite.sources,
-                favs_file=favs_file,
                 state_dir=state_dir,
                 cmd_file=satellite.cmd_file,
                 recent=satellite.recent,
@@ -217,7 +213,6 @@ def satellite_browse_paths(
     favorites_filter: bool,
     recent: bool,
     sources: str,
-    favs_file: str | Path,
     regen_metadata_root: Path | None = None,
 ) -> list[str]:
     """The paths a satellite's default browse holds under *query* and the current
@@ -227,7 +222,7 @@ def satellite_browse_paths(
     target "no loop" reshapes the queue back to when a group loop ends.
     """
     return build_satellite_playlist_paths(
-        sources, favorites_filter, Path(favs_file),
+        sources, favorites_filter,
         filter_query=query, recent=recent, metadata_root=regen_metadata_root,
     )
 
@@ -246,7 +241,6 @@ def apply_satellite_filter(
     favorites_filter: bool,
     recent: bool,
     sources: str,
-    favs_file: str | Path,
     state_dir: str | Path,
     cmd_file: str | Path,
     start_at_top: bool = False,
@@ -272,7 +266,7 @@ def apply_satellite_filter(
     name = PLAYLIST_PORTRAIT if funestra == RoomFunestra.PORTRAIT else PLAYLIST_LANDSCAPE
     paths = satellite_browse_paths(
         query=query, favorites_filter=favorites_filter, recent=recent,
-        sources=sources, favs_file=favs_file, regen_metadata_root=regen_metadata_root,
+        sources=sources, regen_metadata_root=regen_metadata_root,
     )
     if query and not paths:
         return SatelliteFilterFlowResult(0, False, f"Filter {label}: no matches for '{query}'")

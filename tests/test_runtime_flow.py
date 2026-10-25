@@ -141,11 +141,6 @@ def test_toggle_fmode_replaces_playlists_and_reloads_main_funestra(tmp_path: Pat
     mirrored = tmp_path / "videos" / "scripts" / "scripts" / "primary" / "main.funscript"
     mirrored.parent.mkdir(parents=True, exist_ok=True)
     mirrored.write_text("{}", encoding="utf-8")
-    favs_file = tmp_path / "favs.csv"
-    favs_file.write_text(
-        f'local_file,web_url\r\n"x","{portrait_video}"\r\n"x","{landscape_video}"\r\n',
-        encoding="utf-8",
-    )
     state_dir = tmp_path / "state"
     portrait_cmd_file = tmp_path / "portrait_cmd.txt"
     landscape_cmd_file = tmp_path / "landscape_cmd.txt"
@@ -160,7 +155,6 @@ def test_toggle_fmode_replaces_playlists_and_reloads_main_funestra(tmp_path: Pat
         enabled=True,
         main_list=MainList(sources=str(primary_root), state_dir=tmp_path / "state"),
         main_settings=MainListSettings(),
-        favs_file=favs_file,
         state_dir=state_dir,
         main_funestra_cmd_file=main_funestra_cmd_file,
     )
@@ -202,7 +196,6 @@ def test_fmode_on_one_funestra_leaves_the_others_playlists_untouched(tmp_path: P
         enabled=True,
         main_list=MainList(sources="", state_dir=tmp_path / "state"),
         main_settings=MainListSettings(),
-        favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         main_funestra_cmd_file=main_funestra_cmd_file,
     )
@@ -237,7 +230,7 @@ def test_toggle_fmode_tells_main_funestra_the_flag_on_the_same_write_as_the_relo
             enabled=enabled,
             main_list=MainList(sources=str(root), state_dir=tmp_path / "state"),
             main_settings=MainListSettings(),
-            favs_file=tmp_path / "favs.csv", state_dir=tmp_path / "state",
+            state_dir=tmp_path / "state",
             main_funestra_cmd_file=main_funestra_cmd_file,
         )
         return main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()
@@ -305,7 +298,6 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path
         enabled=False,
         main_list=MainList(sources="", state_dir=tmp_path / "state"),
         main_settings=MainListSettings(),
-        favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
         regen_metadata_root=metadata_root,
@@ -333,7 +325,6 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
         enabled=False,
         main_list=MainList(sources="", state_dir=tmp_path / "state"),
         main_settings=MainListSettings(),
-        favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
     )
@@ -356,7 +347,7 @@ def test_a_rebuild_can_start_the_side_at_the_top_of_the_new_list(tmp_path: Path)
 
     apply_satellite_filter(
         funestra=2, query="", favorites_filter=False, recent=True, start_at_top=True,
-        sources=str(portrait_root), favs_file=tmp_path / "favs.csv",
+        sources=str(portrait_root),
         state_dir=tmp_path / "state", cmd_file=cmd_file,
     )
 
@@ -375,7 +366,7 @@ def test_a_rebuild_leaves_the_clip_on_screen_alone_by_default(tmp_path: Path):
 
     apply_satellite_filter(
         funestra=2, query="", favorites_filter=False, recent=False,
-        sources=str(portrait_root), favs_file=tmp_path / "favs.csv",
+        sources=str(portrait_root),
         state_dir=tmp_path / "state", cmd_file=cmd_file,
     )
 
@@ -390,7 +381,6 @@ def _reorder(tmp_path: Path, sources: Path, *, recent: bool, query: str = "", **
         favorites_filter=False,
         recent=recent,
         sources=str(sources),
-        favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         cmd_file=tmp_path / "portrait_cmd.txt",
         **roots,
@@ -475,7 +465,6 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
         enabled=False,  # F-mode OFF, so only the metadata filter applies
         main_list=MainList(sources="", state_dir=tmp_path / "state"),
         main_settings=MainListSettings(),
-        favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
         regen_metadata_root=metadata_root,
@@ -518,7 +507,6 @@ def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
         favorites_filter=False,
         recent=True,
         sources=str(portrait_root),
-        favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         cmd_file=portrait_cmd_file,
         regen_metadata_root=metadata_root,
@@ -549,7 +537,6 @@ def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path:
         favorites_filter=False,
         recent=True,
         sources=str(portrait_root),
-        favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         cmd_file=cmd_file,
         regen_metadata_root=metadata_root,
@@ -573,7 +560,6 @@ def test_apply_satellite_filter_clear_restores_everything(tmp_path: Path):
         favorites_filter=False,
         recent=True,
         sources=str(portrait_root),
-        favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         cmd_file=tmp_path / "portrait_cmd.txt",
         regen_metadata_root=metadata_root,
@@ -596,7 +582,6 @@ def test_a_satellites_browse_is_the_filter_applied_to_the_library(tmp_path: Path
         favorites_filter=False,
         recent=True,
         sources=str(portrait_root),
-        favs_file=tmp_path / "favs.csv",
         regen_metadata_root=metadata_root,
     )
 

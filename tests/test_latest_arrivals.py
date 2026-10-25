@@ -11,7 +11,7 @@ from funestra.playlist import PlaylistItem
 
 from fun_time.latest_arrivals import LatestArrivals
 from fun_time.lock_hud import prime_group_indexes
-from fun_time.media_metadata import cached_group_index, metadata_path_for
+from fun_time.media_metadata import cached_group_index, mark_favorite, metadata_path_for
 from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState
@@ -73,7 +73,8 @@ class TestASatellitePlayingItsLatestList:
         library = tmp_path / "portrait"
         arrivals, config = _watching(tmp_path, portrait_sources=str(library))
         favorite, _other = _video(library, "alpha.mp4"), _video(library, "beta.mp4")
-        config.favs_file.write_text(f"local_file,web_url\n{favorite},\n", encoding="utf-8")
+        config.regen_metadata_root = tmp_path / "metadata"
+        mark_favorite(favorite, config.regen_metadata_root, True)
         arrivals.look()
 
         arrivals.deliver(PORTRAIT_LATEST.with_satellite(

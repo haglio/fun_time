@@ -31,7 +31,7 @@ from fun_time.funestra_status import (
     MainFunestraStatus,
     read_main_funestra_status,
 )
-from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
+from fun_time.media_metadata import is_favorite, mark_favorite
 from fun_time.modes import (
     build_mirrored_funscript_path,
     has_handcrafted_funscript,
@@ -277,9 +277,6 @@ class FunTimeIntegrationSession:
     def broker_mode_file(self) -> Path:
         return self.config.broker_mode_file
 
-    @property
-    def favs_file(self) -> Path:
-        return self.config.paths.favs_file
 
     @property
     def weird_dir(self) -> Path:
@@ -425,11 +422,8 @@ class FunTimeIntegrationSession:
         """Press a Dash button the way `dashboard_app` presses it."""
         append_command(self.dashboard_cmd_file, action)
 
-    def favs_contains(self, path: Path) -> bool:
-        if not self.favs_file.exists():
-            return False
-        text = self.favs_file.read_text(encoding="utf-8", errors="ignore")
-        return str(path.resolve()) in text
+    def is_favorite(self, path: Path) -> bool:
+        return is_favorite(path, self.config.regen.metadata_root)
 
     def notices(self) -> list[EventRecord]:
         """Every announcement in this session's event log so far.
@@ -852,9 +846,9 @@ def build_integration_config(tmp_path: Path) -> Path:
     state_dir = state_dir_of(tmp_path)
     integration_root = state_dir.parent
     weird_dir = integration_root / "weird"
-    portrait_dir = integration_root / "portrait"
-    landscape_dir = integration_root / "landscape"
     library = integration_root / "videos"
+    portrait_dir = library / "videos" / "portrait"
+    landscape_dir = library / "videos" / "landscape"
     primary_dir = library / "videos" / "primary"
     metadata_root = library / "metadata"
     for path in (state_dir, weird_dir, portrait_dir, landscape_dir, primary_dir):
@@ -864,17 +858,15 @@ def build_integration_config(tmp_path: Path) -> Path:
     portrait_paths = _link_sample_files(real.paths.portrait_dirs, portrait_dir, count=2)
     landscape_paths = _link_sample_files(real.paths.landscape_dirs, landscape_dir, count=2)
 
-    favs_file = integration_root / "favs.csv"
-    ensure_favs_csv_exists(favs_file)
     for path in [*portrait_paths, *landscape_paths]:
-        ensure_in_favs(favs_file, str(path.resolve()))
+        mark_favorite(path.resolve(), metadata_root, True)
 
     config = json.loads(real.config_path.read_text(encoding="utf-8"))
     config["paths"]["main_player_library_dirs"] = [str(primary_dir)]
     config["paths"]["portrait_dirs"] = [str(portrait_dir)]
     config["paths"]["landscape_dirs"] = [str(landscape_dir)]
     config["paths"]["weird_dir"] = str(weird_dir)
-    config["paths"]["favs_file"] = str(favs_file)
+    config["paths"]["favs_file"] = str(integration_root / "favs.csv")
     config["paths"]["state_dir"] = str(state_dir)
     config["paths"].pop("genau_dir", None)
     config["random_favs_browser"]["enabled"] = False

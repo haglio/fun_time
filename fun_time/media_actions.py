@@ -10,14 +10,6 @@ def csv_escape(value: str) -> str:
     return '"' + value.replace('"', '""') + '"'
 
 
-def ensure_favs_csv_exists(favs_file: Path) -> None:
-    favs_file.parent.mkdir(parents=True, exist_ok=True)
-    if favs_file.exists() and favs_file.stat().st_size > 0:
-        return
-    with favs_file.open("w", encoding="utf-8", newline="") as fp:
-        fp.write(f"{FAVS_HEADER}\r\n")
-
-
 def to_file_uri(win_path: str) -> str:
     if not win_path:
         return ""
@@ -56,10 +48,9 @@ def make_web_cell(
 def ensure_in_favs(
     favs_file: Path, full_path: str, providers: tuple[WebProvider, ...] | None = None
 ) -> None:
-    if not full_path:
+    if not full_path or not favs_file.is_file():
         return
 
-    ensure_favs_csv_exists(favs_file)
     local_cell = make_local_cell(full_path)
     web_cell = make_web_cell(full_path, providers)
     content = favs_file.read_text(encoding="utf-8")

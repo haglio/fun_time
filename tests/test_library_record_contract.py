@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 import pytest
+from app_support import favorites
 from funestra import video_families
 from shared_ui.orientation import ORIENTATIONS
 
@@ -75,3 +76,9 @@ def test_the_playback_weight_this_app_draws_by_is_promised():
     """A weight read as missing is a clip shuffled as though nobody had ever
     watched it."""
     assert "weight" in _fields(media_metadata.WATCH_BLOCK)
+
+
+def test_the_favorite_f_mode_keeps_is_the_mark_evolver_promises():
+    """A key spelled differently there leaves F-mode keeping nothing, and the
+    HUD's star dark on every clip, with nothing to say why."""
+    assert favorites.FAVORITE_KEY in _record()["top_level_keys"]

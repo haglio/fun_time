@@ -69,17 +69,17 @@ from .inclusion_pairs import (
     length_mode,
     lengths_included,
 )
-from .lock import MARKED_WEIRD, build_discard_plan
+from .lock import MARKED_WEIRD, build_discard_plan, unfavorite
 from .main_list import MainListSettings, new_shuffle_seed, next_length_mode
 from .max_intensity import (
     MAX_INTENSITY_COMMAND,
     funestras_that_can_drive_the_osr2,
     publish_max_intensity,
 )
-from .media_actions import move_to_weird, remove_from_favs
-from .media_metadata import forget_indexed_clip
+from .media_actions import move_to_weird
+from .media_metadata import forget_indexed_clip, is_favorite
 from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE, kino_shows
-from .modes import VideoShapes, is_favorite_path, read_favs_content
+from .modes import VideoShapes
 from .omnipause import build_omnipause_plan
 from .origenerator_switches import (
     BOTH_SATELLITES_MODE_COMMANDS,
@@ -311,16 +311,16 @@ def _discard(
         logger.info("Nothing discarded on Funestra %d: it has not said which clip it is showing", funestra)
         return state, []
     already_moved_on = bool(target_path) and not same_video(target_path, current_path)
-    # Whether this is a demotion or a condemnation is read from the same favs
-    # file that lights the HUD's ★ for this clip, so the key does what the badge
+    # Whether this is a demotion or a condemnation is read from the same record
+    # that lights the HUD's ★ for this clip, so the key does what the badge
     # on screen implies: a starred clip loses the star, an unstarred one goes.
-    is_favorite = is_favorite_path(condemned, read_favs_content(config.favs_file))
-    plan = build_discard_plan(funestra=funestra, current_path=condemned, is_favorite=is_favorite)
+    plan = build_discard_plan(funestra=funestra, current_path=condemned,
+                              is_favorite=is_favorite(condemned, config.regen_metadata_root))
     if locked:
         # A locked satellite is repeat-one; drop the lock so TRASH advances into
         # the playlist instead of looping the clip that replaced the discarded one.
         send_satellite(config, funestra, LOCK_OFF)
-    remove_from_favs(config.favs_file, condemned)
+    unfavorite(condemned, config)
     if plan.condemns:
         if already_moved_on:
             play_video(config, funestra, condemned)
@@ -944,7 +944,6 @@ def _dispatch_fmode(
         main_list=config.main_list,
         main_settings=MainListSettings.of(state),
         main_on_screen=_on_the_main_funestra(config),
-        favs_file=config.favs_file,
         state_dir=config.state_dir,
         main_funestra_cmd_file=config.main_funestra_cmd_file,
         main_builds=config.main_list_builds,
@@ -1285,7 +1284,6 @@ def _rebuild_satellite(
         favorites_filter=satellite.favorites_filter,
         recent=satellite.latest,
         sources=config.satellite(funestra).sources,
-        favs_file=config.favs_file,
         state_dir=config.state_dir,
         cmd_file=config.satellite(funestra).cmd_file,
         start_at_top=start_at_top,
@@ -1751,7 +1749,7 @@ def _speed(main_funestra_cmd: str | None, genau_cmd: str | None, by_driver: bool
 
 def _mark_genaus_flick_weird(state: BridgeState, config: BridgeConfig,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    remove_from_favs(config.favs_file, read_genau_status(config.genau_status_file).flick)
+    unfavorite(read_genau_status(config.genau_status_file).flick, config)
     append_command(config.genau_cmd_file, "WEIRD")
     return state, [WindowOp(op="notice", key=MARKED_WEIRD, source=SOURCE_MAIN)]
 
