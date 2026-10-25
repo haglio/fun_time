@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support import loading_screen
+from app_support.subprocess_utils import tie_to_this_process
 
 from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
@@ -37,7 +38,6 @@ from .session_handoff import (
     returning_from_a_crossing,
 )
 from .win32 import find_window_for_process, wait_for_window
-from .win32_job import tie_to_this_process
 
 # A child of the orchestrator's own logger: the cover is up before the session
 # has handlers of its own, and the launch's log is where its timing is read back.

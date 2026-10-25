@@ -39,7 +39,6 @@ from tests.integration.hidden_desktop import (
     _repo_root,
     build_gate_argv,
     build_run_argv,
-    close_run_job,
     create_run_job,
     main,
 )
@@ -51,14 +50,13 @@ from tests.made_up_clocks import StarvedRun
 
 
 def _run_in_a_run_job(probe: str) -> None:
-    job = create_run_job()
-    pi = _launch_on_desktop(subprocess.list2cmdline([sys.executable, "-c", probe]),
-                            None, str(_repo_root()), job)
-    try:
-        hidden_desktop._wait_for_the_run(pi.hProcess, ceiling_s=A_STARVED_CHILDS_START_S)
-    finally:
-        _close_process_handles(pi)
-        close_run_job(job)
+    with create_run_job() as job:
+        pi = _launch_on_desktop(subprocess.list2cmdline([sys.executable, "-c", probe]),
+                                None, str(_repo_root()), job)
+        try:
+            hidden_desktop._wait_for_the_run(pi.hProcess, ceiling_s=A_STARVED_CHILDS_START_S)
+        finally:
+            _close_process_handles(pi)
 
 
 def test_a_hidden_desktop_launch_is_muted_however_the_caller_leaves_the_environment():
@@ -523,7 +521,6 @@ def test_a_script_run_where_nothing_is_focused_is_waited_on_in_the_seconds_the_r
     try:
         with patch.object(hidden_desktop, "_user32"), \
              patch.object(hidden_desktop, "create_run_job"), \
-             patch.object(hidden_desktop, "close_run_job"), \
              patch.object(hidden_desktop, "_launch_on_desktop"), \
              patch.object(hidden_desktop, "_close_process_handles"), \
              patch.object(hidden_desktop, "_exit_code", lambda _process: (
@@ -537,17 +534,13 @@ def test_a_script_run_where_nothing_is_focused_is_waited_on_in_the_seconds_the_r
 
 
 def test_the_runner_counts_the_runs_job_as_the_run_and_everything_else_as_other_work():
-    asked: list[object] = []
+    asked: list[str] = []
+    the_runs_job = SimpleNamespace(busy_seconds=lambda: asked.append("the run's job") or 0.0)
 
-    def busy(job) -> float:
-        asked.append(job)
-        return 0.0
-
-    with patch.object(hidden_desktop, "busy_seconds_of_job", busy), \
-         hidden_desktop._the_runs_own_time(job=4242):
+    with hidden_desktop._the_runs_own_time(the_runs_job):
         run_clock.now()
 
-    assert asked and set(asked) == {4242}
+    assert asked
     assert run_clock.now() == pytest.approx(run_clock.WALL.seconds(), abs=1.0)
 
 
@@ -710,14 +703,13 @@ def test_a_process_launched_into_the_run_job_dies_when_the_job_closes(tmp_path):
     """The runner holds the job's only handle, so however the runner ends — a
     clean exit, a crash, a kill — Windows terminates whatever the run left
     running.  No integration run can strand a Funestra for the next one to trip on."""
-    job = create_run_job()
     cmdline = subprocess.list2cmdline([sys.executable, "-c", "import time; time.sleep(60)"])
-    pi = _launch_on_desktop(cmdline, None, str(tmp_path), job)
-    try:
-        assert is_process_alive(pi.dwProcessId), "child should be running, not left suspended"
-    finally:
-        _close_process_handles(pi)
-        close_run_job(job)
+    with create_run_job() as job:
+        pi = _launch_on_desktop(cmdline, None, str(tmp_path), job)
+        try:
+            assert is_process_alive(pi.dwProcessId), "child should be running, not left suspended"
+        finally:
+            _close_process_handles(pi)
 
     assert _wait_until_dead(pi.dwProcessId)
 
@@ -736,14 +728,13 @@ def test_the_broker_a_run_starts_survives_that_runs_job(tmp_path):
         f"pathlib.Path({str(pid_file)!r}).write_text(str(p.pid));"
         "import time; time.sleep(60)"
     )
-    job = create_run_job()
     cmdline = subprocess.list2cmdline([sys.executable, "-c", spawn_broker])
-    pi = _launch_on_desktop(cmdline, None, str(_repo_root()), job)
-    try:
-        broker_pid = pid_written_to(pid_file)
-    finally:
-        _close_process_handles(pi)
-        close_run_job(job)
+    with create_run_job() as job:
+        pi = _launch_on_desktop(cmdline, None, str(_repo_root()), job)
+        try:
+            broker_pid = pid_written_to(pid_file)
+        finally:
+            _close_process_handles(pi)
 
     try:
         assert _wait_until_dead(pi.dwProcessId), "the run itself must still be killed"

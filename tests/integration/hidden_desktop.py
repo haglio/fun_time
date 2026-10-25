@@ -47,21 +47,20 @@ import subprocess
 import sys
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
-from functools import partial
 from pathlib import Path
 from time import monotonic
 
 from app_support.integration_runs import runs_dir
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+from app_support.win32 import JobObject
 
 from fun_time.checkout_overrides import primary_of
-from fun_time.win32_job import a_job_whose_processes_end_with_it
 from fun_time.win32_loader import load_dll, win_functype
 
 from .coverage_map import CoverageMap, Picked, changed_paths, tests_to_run, the_machine_s_map
 from .flake_gate_install import flake_gate_python
 from .line_record import RUN_RECORD_ENV, Visit
-from .run_clock import WALL, Budget, RunClock, busy_seconds_of_job, keep_time_by
+from .run_clock import WALL, Budget, RunClock, keep_time_by
 from .session_lock import (
     FULL_RUN_GIVES_WAY_S,
     INTEGRATION_LOCK_NAME,
@@ -152,8 +151,6 @@ CREATE_SUSPENDED = 0x00000004
 CREATE_UNICODE_ENVIRONMENT = 0x00000400
 WAIT_TIMEOUT = 0x00000102
 STILL_ACTIVE = 259
-JOB_OBJECT_LIMIT_PRIORITY_CLASS = 0x00000020
-JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x00000800
 
 
 class _STARTUPINFOW(ctypes.Structure):
@@ -189,8 +186,6 @@ _kernel32.GetExitCodeProcess.argtypes = [wt.HANDLE, ctypes.POINTER(wt.DWORD)]
 _kernel32.GetExitCodeProcess.restype = wt.BOOL
 _kernel32.CloseHandle.argtypes = [wt.HANDLE]
 _kernel32.CloseHandle.restype = wt.BOOL
-_kernel32.AssignProcessToJobObject.argtypes = [wt.HANDLE, wt.HANDLE]
-_kernel32.AssignProcessToJobObject.restype = wt.BOOL
 _kernel32.ResumeThread.argtypes = [wt.HANDLE]
 _kernel32.ResumeThread.restype = wt.DWORD
 _kernel32.TerminateProcess.argtypes = [wt.HANDLE, wt.UINT]
@@ -283,7 +278,7 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def create_run_job() -> int:
+def create_run_job() -> JobObject:
     """A job object that outlives nothing: destroying it kills its processes.
 
     The runner holds the job's only handle, so whichever way the runner ends —
@@ -292,19 +287,12 @@ def create_run_job() -> int:
     A run therefore cannot strand a Funestra (or an AHK, or an orchestrator) for
     the next run to trip over.
 
-    ``BREAKAWAY_OK`` is what lets the broker opt out with
+    Letting its processes break away is what lets the broker opt out with
     CREATE_BREAKAWAY_FROM_JOB: it is a service that outlives the session that
     starts it, so it must not be swept up with the run.
     """
-    return a_job_whose_processes_end_with_it(
-        more_limits=JOB_OBJECT_LIMIT_BREAKAWAY_OK | JOB_OBJECT_LIMIT_PRIORITY_CLASS,
-        priority_class=subprocess.BELOW_NORMAL_PRIORITY_CLASS,
-    )
-
-
-def close_run_job(job: int) -> None:
-    """Drop the job's last handle, terminating whatever the run left running."""
-    _kernel32.CloseHandle(job)
+    return JobObject(processes_end_with_it=True, processes_may_break_away=True,
+                     priority_class=subprocess.BELOW_NORMAL_PRIORITY_CLASS)
 
 
 def _close_process_handles(pi: _PROCESS_INFORMATION) -> None:
@@ -328,7 +316,7 @@ def _environment_block(environment: Mapping[str, str] | None) -> ctypes.Array | 
     return ctypes.create_unicode_buffer("".join(f"{name}={value}\0" for name, value in entries))
 
 
-def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: int,
+def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: JobObject,
                        environment: Mapping[str, str] | None = None) -> _PROCESS_INFORMATION:
     """Start *cmdline* on *desktop*, inside *job*, and let it run.
 
@@ -353,11 +341,12 @@ def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: int,
                                   ctypes.byref(si), ctypes.byref(pi))
     if not ok:
         raise ctypes.WinError(ctypes.get_last_error())
-    if not _kernel32.AssignProcessToJobObject(job, pi.hProcess):
-        error = ctypes.get_last_error()
+    try:
+        job.hold(pi.hProcess)
+    except OSError:
         _kernel32.TerminateProcess(pi.hProcess, 1)
         _close_process_handles(pi)
-        raise ctypes.WinError(error)
+        raise
     _kernel32.ResumeThread(pi.hThread)
     return pi
 
@@ -376,8 +365,7 @@ def run_where_nothing_is_focused(argv: list[str], timeout_seconds: float = 20.0)
     if not hdesk:
         raise ctypes.WinError(ctypes.get_last_error())
     try:
-        job = create_run_job()
-        try:
+        with create_run_job() as job:
             pi = _launch_on_desktop(subprocess.list2cmdline(argv), desktop, str(_repo_root()), job)
             try:
                 if (code := _exit_code_within(pi.hProcess, timeout_seconds)) is None:
@@ -388,8 +376,6 @@ def run_where_nothing_is_focused(argv: list[str], timeout_seconds: float = 20.0)
                 return code
             finally:
                 _close_process_handles(pi)
-        finally:
-            close_run_job(job)
     finally:
         _user32.CloseDesktop(hdesk)
 
@@ -407,8 +393,8 @@ _TEARDOWN_GRACE_MS = 2000
 
 
 @contextmanager
-def _the_runs_own_time(job: int) -> Iterator[None]:
-    keep_time_by(RunClock(run_busy=partial(busy_seconds_of_job, job)))
+def _the_runs_own_time(job: JobObject) -> Iterator[None]:
+    keep_time_by(RunClock(run_busy=job.busy_seconds))
     try:
         yield
     finally:
@@ -581,8 +567,7 @@ def _run_the_suite(argv: list[str], venv_python: str | Path, ceiling_s: float) -
           f"(off-screen, focus-safe)…", file=sys.stderr, flush=True)
     try:
         cmdline = subprocess.list2cmdline(argv)
-        job = create_run_job()
-        try:
+        with create_run_job() as job:
             pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job,
                                     environment=_venv_environment(venv_python))
             try:
@@ -590,8 +575,6 @@ def _run_the_suite(argv: list[str], venv_python: str | Path, ceiling_s: float) -
                     return _wait_for_the_run(pi.hProcess, ceiling_s)
             finally:
                 _close_process_handles(pi)
-        finally:
-            close_run_job(job)
     finally:
         _user32.CloseDesktop(hdesk)
 

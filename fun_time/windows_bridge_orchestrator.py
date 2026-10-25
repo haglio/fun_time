@@ -23,6 +23,7 @@ from functools import partial
 from pathlib import Path
 
 from app_support import osr2_hold
+from app_support.subprocess_utils import tie_to_this_process
 from funestra.console import HOLD_VERB
 from funestra.file_channel import append_command
 from voice_core.listener import why_unavailable
@@ -111,7 +112,6 @@ from .win32 import (
     windows_obscuring,
 )
 from .win32_events import PressAndCaretWatch
-from .win32_job import tie_to_this_process
 from .win32_process import get_process_creation_time
 from .window_layout import SecondaryMonitorRects, screen_layout, secondary_monitor_rects
 from .windows_bridge_dispatch_loop import (
