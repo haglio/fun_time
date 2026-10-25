@@ -39,6 +39,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Where this Funestra's funscript drives the OSR2 from, while it "
                         "has the OSR2: the broker's T-Code inlet")
     p.add_argument("--tcode-port", type=int, default=None)
+    p.add_argument("--osr2-sender", default=None,
+                   help="The name this Funestra's funscript reaches the OSR2 under, "
+                        "through the broker's one slot, while it has the OSR2")
+    p.add_argument("--osr2-port", type=int, default=None)
     p.add_argument("--dashboard-cmd-file", type=Path, default=None,
                    help="Where a click on the lock HUD, or on the picture itself, "
                         "posts its fun_time command")

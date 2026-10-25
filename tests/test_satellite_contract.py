@@ -1,13 +1,5 @@
-"""The group of values a satellite is launched with, held to all three readers.
-
-They were declared three times over in modules that do not reference each other
--- argparse flags in ``satellite/cli.py``, an argv builder in
-``fun_time/windows_bridge_startup.py``, and a third reading out of the launch
-manifest by the headset's own in-process satellite -- so adding one file to
-the contract meant finding all three.  What holds them together now is the
-round trip: a record spelled into argv and parsed straight back must be the
-record it started as, which no spelling can survive being wrong on one side of.
-"""
+"""What a satellite is launched with, held together by the round trip: a record
+spelled into argv and parsed straight back must be the record it started as."""
 from __future__ import annotations
 
 from dataclasses import MISSING, fields, replace
@@ -33,6 +25,8 @@ _FILLED = SatelliteChannels(
     drive=Path("state/genau_drive.txt"),
     tcode_host="127.0.0.1",
     tcode_port=50557,
+    osr2_sender="portrait",
+    osr2_port=50558,
 )
 
 _PLACED = WindowPlacement(x=2560, y=0, width=1440, height=2500,
