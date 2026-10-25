@@ -82,6 +82,9 @@ class _Wall:
 WALL = _Wall()
 
 
+_OVERDRAWN_AT_MOST_S = 1.0
+
+
 class RunClock:
     def __init__(self, *, run_busy: Callable[[], float] = busy_seconds_of_the_job_this_process_runs_in,
                  machine_busy: Callable[[], float] = machine_busy_seconds,
@@ -92,6 +95,7 @@ class RunClock:
         self._wall = wall
         self._lock = threading.Lock()
         self._seconds = 0.0
+        self._overdrawn = 0.0
         self._last = self._readings()
 
     def _readings(self) -> tuple[float, float, float]:
@@ -103,8 +107,9 @@ class RunClock:
             elapsed = now[0] - self._last[0]
             if elapsed > 0:
                 others = (now[1] - self._last[1]) - (now[2] - self._last[2])
-                free = self._processors - others / elapsed
-                self._seconds += elapsed * min(1.0, max(0.0, free))
+                free = self._processors * elapsed - others - self._overdrawn
+                self._seconds += min(elapsed, max(0.0, free))
+                self._overdrawn = min(_OVERDRAWN_AT_MOST_S, max(0.0, -free))
             self._last = now
             return self._seconds
 

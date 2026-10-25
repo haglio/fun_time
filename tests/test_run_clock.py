@@ -103,6 +103,46 @@ def test_each_stretch_is_counted_at_its_own_speed():
     assert clock.seconds() == pytest.approx(60.0)
 
 
+class _AMachineReadATickOut(_Machine):
+    """Windows counts each processor's busy time a clock tick at a time, so a reading
+    is a little ahead of the truth or a little behind it, never the same twice."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._readings = 0
+
+    def clock(self) -> RunClock:
+        return RunClock(run_busy=lambda: self.run, machine_busy=self._read_busy,
+                        processors=16, wall=lambda: self.at)
+
+    def _read_busy(self) -> float:
+        self._readings += 1
+        return self.others + self.run + (0.03 if self._readings % 2 else -0.03)
+
+
+def test_a_run_read_every_few_ticks_has_none_of_the_time_other_work_holds_every_processor_for():
+    machine = _AMachineReadATickOut()
+    clock = machine.clock()
+
+    for _ in range(200):
+        machine.spend(0.05, others_hold=16.0)
+        clock.seconds()
+
+    assert clock.seconds() == pytest.approx(0.0, abs=0.1)
+
+
+def test_a_reading_far_out_holds_the_clock_back_a_second_at_most():
+    machine = _Machine()
+    clock = machine.clock()
+    machine.spend(0.05, others_hold=16.0)
+    machine.others += 100.0
+    clock.seconds()
+
+    machine.spend(10.0, others_hold=15.0)
+
+    assert clock.seconds() == pytest.approx(9.0)
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 accounting")
 def test_the_machines_busy_time_is_read_from_windows():
     machine_before = machine_busy_seconds()
