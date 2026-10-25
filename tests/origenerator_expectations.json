@@ -145,5 +145,6 @@
     "portrait_seed_loop",
     "portrait_shuffle",
     "portrait_trash"
-  ]
+  ],
+  "said_at_field": "said_at_epoch_seconds"
 }
