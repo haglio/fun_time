@@ -355,6 +355,11 @@ class TestTheHostedOrigenerator:
         assert landed["kino/origenerator/portrait_next"]["origenerator_cmd_file"] == [
             "portrait_next"]
 
+    def test_a_lock_locks_the_funestra_and_then_tells_the_hosted_app(self, landed):
+        assert landed["kino/origenerator/portrait_lock"] == {
+            "portrait_cmd_file": ["LOCK_ON"], "origenerator_cmd_file": ["portrait_lock"],
+            "__ops__": []}
+
 
 # What the loop in front of the dispatch answers itself, all of it about the
 # room as a whole: its end and its crossing, its pause, its windows and panels,

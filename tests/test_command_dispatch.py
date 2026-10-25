@@ -4904,10 +4904,11 @@ class TestOrigeneratorTransport:
     def test_every_press_on_a_hosted_side_routes_as_it_was_posted(self, tmp_path):
         """The buttons on that Funestra's panel are the hosted app's own, and so is
         the map under them -- whatever it declared, it answers, so the session
-        routes every one of them without needing to know what it means."""
+        routes every one of them but the Lock without needing to know what it
+        means."""
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
-        presses = ("portrait_prev", "portrait_trash", "portrait_lock", "portrait_reset",
+        presses = ("portrait_prev", "portrait_trash", "portrait_reset",
                    "portrait_fmode", "portrait_enhanced", "portrait_seed_loop",
                    "portrait_more_seeds", "portrait_play_video|C:/fixtures/one.png",
                    "landscape_lock_video|C:/fixtures/two.png", "landscape_no_loop")
@@ -5059,6 +5060,61 @@ class TestOrigeneratorTransport:
         state, _ = dispatch_command("portrait_next", BridgeState(), config)
         assert _origenerator_cmds(config) == []
         assert _cmds(config, 2) == ["NEXT"]
+
+
+class TestALockOnAHostedSide:
+    """A key press is instantaneous, so a side in its Origenerator mode is locked
+    the moment its Lock is asked for, not once the hosted app has read the press,
+    by which time its slideshow can have moved on.  The hosted app is told after,
+    and gives the lock the rest of what a lock gives there."""
+
+    @pytest.mark.parametrize("funestra_locked", [False, True])
+    @pytest.mark.parametrize("kept_for_kino", [False, True])
+    def test_a_pressed_lock_locks_the_funestra_and_leaves_the_rest_to_the_hosted_app(
+            self, kept_for_kino, funestra_locked, tmp_path):
+        config = _origenerator_config(tmp_path)
+        picture = tmp_path / "scene one.png"
+        picture.write_text("x", encoding="utf-8")
+        _set_current(config, RoomFunestra.PORTRAIT, str(picture), locked=funestra_locked)
+
+        state, ops = dispatch_command(
+            "portrait_lock", _in_origenerator_mode(portrait=SatelliteState(locked=kept_for_kino)),
+            config)
+
+        assert _cmds(config, RoomFunestra.PORTRAIT) == ["LOCK_ON"]
+        assert _origenerator_cmds(config) == ["portrait_lock"]
+        assert (ops, state.satellite(RoomFunestra.PORTRAIT).locked) == ([], kept_for_kino)
+        assert config.favs_file.read_text(encoding="utf-8") == "local_file,web_url\n"
+        assert not (config.state_dir / "watch_stats.json").exists()
+
+    def test_a_spoken_lock_brings_back_the_picture_up_when_he_began_and_locks_that(
+            self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        meant = "C:\\pictures\\meant.png"
+        _set_current(config, RoomFunestra.PORTRAIT, "C:\\pictures\\moved on to.png")
+
+        dispatch_command("portrait_lock_on", _in_origenerator_mode(), config, target_path=meant)
+
+        assert _cmds(config, RoomFunestra.PORTRAIT) == [f"PLAY_FILE {meant}", "LOCK_ON"]
+        assert _origenerator_cmds(config) == ["portrait_lock_on"]
+
+    @pytest.mark.parametrize("funestra_locked", [False, True])
+    @pytest.mark.parametrize(("command", "to_the_funestra"), [
+        ("portrait_lock_on", ["LOCK_ON"]), ("portrait_lock_off", [])])
+    def test_a_lock_or_a_letting_go_said_is_handed_on_whatever_the_funestra_says_of_its_lock(
+            self, command, to_the_funestra, funestra_locked, tmp_path):
+        """The hosted app's padlock says which it is: the Funestra is also locked
+        while a spoken request or a run holds its picture.  Letting go never steps
+        it on to the next."""
+        config = _origenerator_config(tmp_path)
+        _set_current(config, RoomFunestra.PORTRAIT, "C:\\pictures\\up.png", locked=funestra_locked)
+
+        _state, ops = dispatch_command(
+            command, _in_origenerator_mode(portrait=SatelliteState(locked=not funestra_locked)),
+            config)
+
+        assert (ops, _cmds(config, RoomFunestra.PORTRAIT), _origenerator_cmds(config)) == (
+            [], to_the_funestra, [command])
 
 
 class TestOmniPauseWithOrigenerator:
