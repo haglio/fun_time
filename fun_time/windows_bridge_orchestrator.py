@@ -887,6 +887,7 @@ def _asked_in_the_background(ask: Callable[[], HostedVocabulary]) -> Future[Host
 
 def prepare_voice_control(
     config_path: str, *, dashboard_cmd_file: Path, hosted_cmd_file: str | Path | None,
+    hosted_said_at_suffix: str = "",
     ask_the_hosted_app: Callable[[], HostedVocabulary] = lambda: NO_HOSTED_VOCABULARY,
 ) -> PreparedVoice | None:
     """Every failure here is logged and swallowed: a session without voice is a
@@ -921,6 +922,7 @@ def prepare_voice_control(
                     second_listener=second_listener,
                     hosted=_what_it_answers(answer),
                     hosted_cmd_file=hosted_cmd_file,
+                    hosted_said_at_suffix=hosted_said_at_suffix,
                 )
                 voice_controller.mute()
             except Exception as error:
@@ -1257,6 +1259,7 @@ def run_session(
     prepared_voice = prepare_voice_control(
         manifest.runtime.config_path, dashboard_cmd_file=dashboard_cmd_file,
         hosted_cmd_file=bridge_config.origenerator_cmd_file,
+        hosted_said_at_suffix=bridge_config.origenerator_said_at_suffix,
         ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest))
 
     progress = cover.progress

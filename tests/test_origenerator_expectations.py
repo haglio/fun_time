@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from fun_time.hosted_contract import declared_flags
+from fun_time.hosted_contract import SAID_AT_FIELD, declared_flags
 from fun_time.room_funestras import RoomFunestra
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
 from tests.origenerator_contract import answers, is_read_by, published
@@ -52,6 +52,14 @@ def test_every_launch_carries_every_flag_the_shipped_origenerator_requires(relie
                for launch, flags in relied_on["launches"].items()}
 
     assert not any(missing.values()), missing
+
+
+def test_a_shipped_origenerator_taking_when_a_line_was_said_takes_it_in_the_field_filled(
+        relied_on, shipped):
+    suffix = shipped.get("said_at_suffix", "")
+
+    assert relied_on["said_at_field"] == SAID_AT_FIELD
+    assert not suffix or "{" + SAID_AT_FIELD + "}" in suffix
 
 
 def test_the_shipped_origenerator_reads_every_word_a_headset_writes(relied_on, shipped):

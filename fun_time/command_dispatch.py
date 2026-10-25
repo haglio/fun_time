@@ -60,6 +60,7 @@ from .funestra_status import (
     read_genau_status,
     read_main_funestra_status,
 )
+from .hosted_contract import with_when_said
 from .inclusion_pairs import (
     LENGTH,
     ORIENTATION,
@@ -681,6 +682,7 @@ def dispatch_command(
     config: BridgeConfig,
     *,
     target_path: str = "",
+    spoken_at: float | None = None,
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Dispatch a dashboard/hotkey command, returning updated state and window operations.
 
@@ -706,13 +708,14 @@ def dispatch_command(
     if halves := _said_to_sides_in_two_modes(command, state, config):
         ops: list[WindowOp] = []
         for half in halves:
-            state, more = dispatch_command(half, state, config, target_path=target_path)
+            state, more = dispatch_command(half, state, config, target_path=target_path,
+                                           spoken_at=spoken_at)
             ops.extend(more)
         return state, ops
 
     # In its Origenerator mode what is said to a side is the hosted app's to
     # answer -- ahead of the handler lookup, whose Funestra handlers it shadows.
-    routed = _origenerator_transport(command, state, config)
+    routed = _origenerator_transport(command, state, config, spoken_at)
     if routed is not None:
         return state, routed
 
@@ -1458,7 +1461,7 @@ def hosts_a_satellite(state: BridgeState, config: BridgeConfig) -> bool:
 
 
 def _origenerator_transport(
-    command: str, state: BridgeState, config: BridgeConfig
+    command: str, state: BridgeState, config: BridgeConfig, spoken_at: float | None
 ) -> list[WindowOp] | None:
     """Hand a side's press to the hosted app, or ``None`` to fall through to
     the session's own handling.
@@ -1470,11 +1473,11 @@ def _origenerator_transport(
     if not routes_to_origenerator(command, state, config):
         return None
     spoken = _words_for_the_hosted_app(command)
-    if spoken is not None:
-        append_command(config.origenerator_cmd_file, said_to_the_hosted_app(*spoken))
-        return []
-    for said in _said_to_each_side(command):
-        append_command(config.origenerator_cmd_file, said)
+    lines = ([said_to_the_hosted_app(*spoken)] if spoken is not None
+             else _said_to_each_side(command))
+    for line in lines:
+        append_command(config.origenerator_cmd_file,
+                       with_when_said(line, spoken_at, config.origenerator_said_at_suffix))
     return []
 
 

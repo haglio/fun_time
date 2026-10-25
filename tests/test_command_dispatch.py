@@ -4711,6 +4711,31 @@ def test_the_satellites_the_hosted_app_holds_are_named_by_their_sides(tmp_path):
                              _make_config(tmp_path)) == frozenset()
 
 
+def test_a_spoken_weird_reaches_a_hosted_side_with_when_it_was_said(tmp_path):
+    config = replace(_origenerator_config(tmp_path),
+                     origenerator_said_at_suffix=" @{said_at_epoch_seconds}")
+    said_two_seconds_ago = time.monotonic() - 2.0
+
+    dispatch_command("portrait_trash", _in_origenerator_mode(RoomFunestra.PORTRAIT), config,
+                     spoken_at=said_two_seconds_ago)
+
+    [line] = _origenerator_cmds(config)
+    command, _, stamp = line.partition(" @")
+    assert command == "portrait_trash"
+    assert float(stamp) == pytest.approx(time.time() - 2.0, abs=0.5)
+
+
+def test_a_spoken_lock_reaches_a_hosted_side_with_no_time_to_go_back_to_again(tmp_path):
+    config = replace(_origenerator_config(tmp_path),
+                     origenerator_said_at_suffix=" @{said_at_epoch_seconds}")
+    _set_current(config, RoomFunestra.PORTRAIT, "C:\\pictures\\moved on to.png")
+
+    dispatch_command("portrait_lock_on", _in_origenerator_mode(RoomFunestra.PORTRAIT), config,
+                     target_path="C:\\pictures\\meant.png", spoken_at=time.monotonic() - 2.0)
+
+    assert _origenerator_cmds(config) == ["portrait_lock_on"]
+
+
 def _modes(state: BridgeState) -> list[SatellitesMode]:
     return [state.satellite(funestra).mode for funestra in RoomFunestra.SATELLITES]
 

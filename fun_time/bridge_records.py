@@ -74,6 +74,7 @@ class BridgeConfig:
     # offers Origenerator and its commands report a dead end.
     origenerator_enabled: bool = False
     origenerator_cmd_file: Path | None = None
+    origenerator_said_at_suffix: str = ""
     origenerator_paused_file: Path | None = None
     origenerator_lock_phrases: frozenset[str] = frozenset()
     # Where the hosted app publishes which Funestras it holds.  Read every tick

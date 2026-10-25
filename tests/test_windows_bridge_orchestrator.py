@@ -3356,7 +3356,7 @@ class _RunsAtOnce:
 class TestStartingVoice:
     @staticmethod
     def _prepared(config_path, tmp_path, *, controller=None, second_listener=None,
-                  hosted=NO_HOSTED_VOCABULARY):
+                  hosted=NO_HOSTED_VOCABULARY, said_at_suffix=""):
         with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
              patch.object(windows_bridge_orchestrator, "WhisperReader",
                           return_value=second_listener or MagicMock()), \
@@ -3366,6 +3366,7 @@ class TestStartingVoice:
             return windows_bridge_orchestrator.prepare_voice_control(
                 str(config_path), dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
                 hosted_cmd_file=tmp_path / "origenerator_cmd.txt",
+                hosted_said_at_suffix=said_at_suffix,
                 ask_the_hosted_app=lambda: hosted)
 
     @classmethod
@@ -3407,6 +3408,17 @@ class TestStartingVoice:
 
         assert controller.call_args.kwargs["hosted"] == hosted
         assert controller.call_args.kwargs["hosted_cmd_file"] == tmp_path / "origenerator_cmd.txt"
+
+    def test_the_voice_ends_a_line_said_to_the_hosted_app_the_way_the_app_publishes(
+        self, cfg_factory, tmp_path,
+    ):
+        config_path = cfg_factory({"voice_control": {"enabled": True}})
+        controller = MagicMock()
+
+        self._prepared(config_path, tmp_path, controller=controller,
+                       said_at_suffix=" @{said_at_epoch_seconds}")
+
+        assert controller.call_args.kwargs["hosted_said_at_suffix"] == " @{said_at_epoch_seconds}"
 
     def test_the_voice_asks_the_room_which_satellites_the_hosted_app_holds(
         self, cfg_factory, tmp_path,

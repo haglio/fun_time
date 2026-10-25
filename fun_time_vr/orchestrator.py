@@ -480,6 +480,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
     prepared_voice = prepare_voice_control(
         manifest.runtime.config_path, dashboard_cmd_file=dashboard_cmd_file,
         hosted_cmd_file=bridge_config.origenerator_cmd_file,
+        hosted_said_at_suffix=bridge_config.origenerator_said_at_suffix,
         ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest))
 
     cover = _Cover(state_dir, cancelable=cancelable)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import socket
 import threading
@@ -247,6 +248,19 @@ def test_either_session_hosts_the_origenerator_its_config_names(cfg_factory, tmp
     assert build_bridge_config_from_manifest(manifest).origenerator_enabled
     assert build_bridge_config_from_manifest(
         manifest, vr_main_funestra=True).origenerator_enabled
+
+
+def test_the_session_ends_a_line_said_aloud_the_way_its_origenerator_publishes(
+        cfg_factory, tmp_path):
+    origenerator_dir = tmp_path / "origenerator"
+    origenerator_dir.mkdir()
+    (origenerator_dir / "origenerator_contract.json").write_text(
+        json.dumps({"said_at_suffix": " @{said_at_epoch_seconds}"}), encoding="utf-8")
+    config = load_config(cfg_factory({"paths": {"origenerator_dir": str(origenerator_dir)}}))
+    manifest = LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini"))
+
+    assert build_bridge_config_from_manifest(manifest).origenerator_said_at_suffix == (
+        " @{said_at_epoch_seconds}")
 
 
 def test_each_side_reads_the_hosted_panel_where_the_manifest_names_it(cfg_factory, tmp_path):
@@ -584,6 +598,16 @@ class TestDispatchLoopRunner:
 
         assert mock_dispatch.call_args[0][0] == "portrait_lock_on"
         assert mock_dispatch.call_args.kwargs["target_path"] == "C:\\clips\\meant.mp4"
+
+    def test_a_spoken_command_carries_when_it_was_said_to_the_dispatch(self, tmp_path):
+        runner = make_runner(tmp_path)
+        (tmp_path / "dashboard_cmd.txt").write_text("portrait_lock_on @100.200", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+            mock_dispatch.return_value = (runner.state, [])
+            runner.tick()
+
+        assert mock_dispatch.call_args.kwargs["spoken_at"] == 100.2
 
     def test_the_tick_samples_every_funestra_on_the_watch_cadence(self, tmp_path):
         """Watch tracking rides the tick, and knows whether the room is paused —
@@ -1624,7 +1648,7 @@ class TestOpenRfbTab:
         runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=False))
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
 
-        def fake_dispatch(cmd, state, config, target_path=""):
+        def fake_dispatch(cmd, state, config, target_path="", spoken_at=None):
             if cmd == "portrait_lock_on":
                 return replace(state, portrait=SatelliteState(locked=True)), [WindowOp(op="open_rfb_tab", key="http://p")]
             if cmd == "landscape_lock_on":
@@ -3106,7 +3130,7 @@ class TestBothSatelliteCommands:
         (tmp_path / "dashboard_cmd.txt").write_text("both_next", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-            mock_dispatch.side_effect = lambda cmd, state, config, target_path="": (state, [])
+            mock_dispatch.side_effect = lambda cmd, state, config, target_path="", spoken_at=None: (state, [])
             runner.tick()
 
         commands = [c[0][0] for c in mock_dispatch.call_args_list]

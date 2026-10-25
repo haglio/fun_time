@@ -25,7 +25,7 @@ from fun_time.event_log import (
     SOURCE_SYSTEM,
     notice,
 )
-from fun_time.hosted_contract import NO_HOSTED_VOCABULARY, HostedVocabulary
+from fun_time.hosted_contract import NO_HOSTED_VOCABULARY, HostedVocabulary, with_when_said
 from fun_time.unlogged_notices import flash_unlogged
 from fun_time.voice_commands import (
     GENAU_SAID,
@@ -176,6 +176,7 @@ class VoiceController:
         second_listener: Callable[[bytes, str], str] | None = None,
         hosted: HostedVocabulary = NO_HOSTED_VOCABULARY,
         hosted_cmd_file: Path | str | None = None,
+        hosted_said_at_suffix: str = "",
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.cmd_file = Path(cmd_file)
@@ -183,6 +184,7 @@ class VoiceController:
                          if hosted.phrases else VOICE_COMMANDS)
         self.hosted = hosted
         self._hosted_cmd_file = hosted_cmd_file
+        self._hosted_said_at_suffix = hosted_said_at_suffix
         self._request_side: str | None = None
         self.hosted_sides: Callable[[], frozenset[str]] = frozenset
         self._muted = threading.Event()
@@ -258,18 +260,21 @@ class VoiceController:
     def handle_speech(self, words: str, heard: Heard) -> None:
         side = self._side_taking_a_request()
         if side is not None:
-            append_command(self._hosted_cmd_file, said_to_the_hosted_app(side, words))
+            self._tell_the_hosted_app(side, words, heard)
             return
         side = self._side_a_request_opens_on(words)
         if side is not None:
-            append_command(self._hosted_cmd_file,
-                           said_to_the_hosted_app(side, _without_its_first_word(words)))
+            self._tell_the_hosted_app(side, _without_its_first_word(words), heard)
             return
         phrase = " ".join(_words(words))
         if self._said_to_a_hosted_side(phrase):
             self._hand_on(phrase, spoken_at=heard.spoken_at)
             return
         self._report_a_miss(heard)
+
+    def _tell_the_hosted_app(self, side: str, words: str, heard: Heard) -> None:
+        append_command(self._hosted_cmd_file, with_when_said(
+            said_to_the_hosted_app(side, words), heard.spoken_at, self._hosted_said_at_suffix))
 
     def _said_to_a_hosted_side(self, phrase: str) -> bool:
         said = said_to_a_side(self.commands.get(phrase, ""))

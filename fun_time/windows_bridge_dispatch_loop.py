@@ -59,6 +59,7 @@ from .funestra_status import (
 )
 from .genaumacher_save import save_clip_session
 from .headset_power import the_headset_is_ready
+from .hosted_contract import said_at_suffix_of
 from .hud_feed import HudFeed
 from .hud_transport import HudPublisher
 from .latest_arrivals import LatestArrivals
@@ -653,6 +654,7 @@ class DispatchLoopRunner:
         self._take(*dispatch_command(
             command, self.state, self.config,
             target_path=self.watch.video_at(command, spoken_at),
+            spoken_at=spoken_at,
         ))
 
     def _take(self, new_state: BridgeState, ops: list[WindowOp]) -> None:
@@ -1142,6 +1144,8 @@ def build_bridge_config_from_manifest(
         regen_generate_image_url=manifest.regen.generate_image_url,
         origenerator_enabled=bool(manifest.runtime.origenerator_dir.strip()),
         origenerator_cmd_file=Path(v) if (v := commands.origenerator_cmd_file.strip()) else None,
+        origenerator_said_at_suffix=(
+            said_at_suffix_of(v) if (v := manifest.runtime.origenerator_dir.strip()) else ""),
         origenerator_paused_file=Path(v) if (v := commands.origenerator_paused_file.strip()) else None,
         origenerator_status_file=Path(v) if (v := commands.origenerator_status_file.strip()) else None,
         portrait_origenerator_hud_file=(

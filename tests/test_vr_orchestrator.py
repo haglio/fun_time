@@ -1899,6 +1899,8 @@ class TestOpeningAVrSession:
         assert asking["ask_the_hosted_app"].args == (manifest,)
         assert asking["dashboard_cmd_file"] == Path(manifest.commands.dashboard_cmd_file)
         assert asking["hosted_cmd_file"] == Path(manifest.commands.origenerator_cmd_file)
+        assert asking["hosted_said_at_suffix"] == build_bridge_config_from_manifest(
+            manifest).origenerator_said_at_suffix
         start_voice.assert_called_once_with(prepared, dispatch_runner=runner.return_value)
 
     def test_the_headsets_cover_says_voice_commands_are_starting_until_they_listen(

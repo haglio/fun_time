@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -9,8 +10,10 @@ import pytest
 from fun_time.hosted_contract import (
     CONTRACT_FILE,
     HostedVocabulary,
+    said_at_suffix_of,
     the_args_it_declares,
     what_it_answers_by_voice,
+    with_when_said,
 )
 
 
@@ -133,3 +136,32 @@ def test_an_app_that_cannot_answer_is_heard_saying_nothing(tmp_path, caplog, run
 
     assert heard == HostedVocabulary()
     assert str(checkout) in caplog.text
+
+
+def test_a_line_for_something_said_carries_when_it_was_said_by_the_wall_clock():
+    said_two_seconds_ago = time.monotonic() - 2.0
+
+    line = with_when_said("portrait_lock", said_two_seconds_ago, " @{said_at_epoch_seconds}")
+
+    command, _, stamp = line.partition(" @")
+    assert command == "portrait_lock"
+    assert float(stamp) == pytest.approx(time.time() - 2.0, abs=0.5)
+
+
+@pytest.mark.parametrize(("spoken_at", "suffix"), [
+    (None, " @{said_at_epoch_seconds}"),
+    (12.0, ""),
+])
+def test_a_line_goes_as_it_is_with_no_time_or_to_an_app_that_takes_none(spoken_at, suffix):
+    assert with_when_said("portrait_lock", spoken_at, suffix) == "portrait_lock"
+
+
+def test_a_line_carries_its_time_in_the_suffix_the_app_publishes(tmp_path):
+    checkout = _a_checkout_declaring(tmp_path, said_at_suffix=" @{said_at_epoch_seconds}")
+
+    assert said_at_suffix_of(checkout) == " @{said_at_epoch_seconds}"
+
+
+def test_an_app_that_publishes_no_suffix_is_sent_no_time(tmp_path):
+    assert said_at_suffix_of(_a_checkout_declaring(tmp_path)) == ""
+    assert said_at_suffix_of(tmp_path / "no checkout here") == ""
