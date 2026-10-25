@@ -375,7 +375,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # headset's banner copied, went with them.
 # 5875 on 2026-10-24: a Broker waiting for an unplugged OSR2 counts as running,
 # so the notes on its heartbeat going stale whenever the OSR2 is off went.
-MAX_PROSE_LINES = 5875
+# 5870 on 2026-10-25: the library browser extracts a folder's stills only while
+# that folder is shown, and the notes on its one queue and its captured rows went.
+MAX_PROSE_LINES = 5870
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
