@@ -6,6 +6,7 @@ floor, the microphone, the kept clips -- is voice_core's and is tested there.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -662,10 +663,12 @@ _THE_HOSTED_APP = HostedVocabulary(frozenset({"request", "gamma shelf"}), frozen
 
 
 class TestWhatIsSaidToASatelliteShowingOrigenerator:
-    def _controller(self, tmp_path: Path, *, hosting=("portrait", "landscape")) -> VoiceController:
+    def _controller(self, tmp_path: Path, *, hosting=("portrait", "landscape"),
+                    said_at_suffix="") -> VoiceController:
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
                              hosted=_THE_HOSTED_APP,
                              hosted_cmd_file=tmp_path / "origenerator_cmd.txt",
+                             hosted_said_at_suffix=said_at_suffix,
                              clock=lambda: HELD_FROM)
         vc.hosted_sides = lambda: frozenset(hosting)
         return vc
@@ -690,6 +693,20 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == (
             "LANDSCAPE_SAY:No feet.\n")
         assert not (tmp_path / "cmd.txt").exists()
+
+    def test_the_words_of_an_open_request_carry_when_they_were_said_to_an_app_taking_it(
+            self, tmp_path):
+        vc = self._controller(tmp_path, said_at_suffix=" @{said_at_epoch_seconds}")
+        vc.request_opened("landscape")
+        heard = replace(_heard(Recognition(phrase="landscape next")),
+                        spoken_at=time.monotonic() - 2.0)
+
+        vc.handle_speech("No feet.", heard)
+
+        line = (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").strip()
+        words, _, stamp = line.partition(" @")
+        assert words == "LANDSCAPE_SAY:No feet."
+        assert float(stamp) == pytest.approx(time.time() - 2.0, abs=0.5)
 
     @pytest.mark.parametrize("phrase, command", [("stop", "relief_omnipause"), ("quit", "quit")])
     def test_what_a_paused_room_still_hears_is_still_a_command_while_one_is_open(

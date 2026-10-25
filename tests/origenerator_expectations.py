@@ -19,6 +19,7 @@ from unittest.mock import patch
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command, said_to_the_hosted_app
 from fun_time.filter_vocab import decode_filter_command, set_command
+from fun_time.hosted_contract import SAID_AT_FIELD
 from fun_time.hosted_origenerator import the_session_it_is_handed, what_an_adopted_app_is_told
 from fun_time.lock import go_to_line
 from fun_time.manifest import LaunchManifest
@@ -68,6 +69,7 @@ def expectations(scratch: Path) -> dict:
         "headset_words": sorted({PRESS, HOSTED_RELEASE, DRAG, HOVER, SCROLL, RIGHT_CLICK}),
         "command_lines": sorted(_the_lines_it_writes(
             build_bridge_config_from_manifest(on_the_monitors), headset_config(scratch / "in_a_headset"))),
+        "said_at_field": SAID_AT_FIELD,
     }
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import subprocess
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 CONTRACT_FILE = "origenerator_contract.json"
 ASKING_BUDGET_S = 30.0
+SAID_AT_FIELD = "said_at_epoch_seconds"
 
 
 @dataclass(frozen=True)
@@ -78,3 +80,15 @@ def the_args_it_declares(checkout: str | Path, args: list[str]) -> list[str]:
         logger.warning("The Origenerator at %s does not declare %s, so it is sent its session "
                        "without them", checkout, ", ".join(left_off))
     return [word for flag in flags if flag[0] in declared for word in flag]
+
+
+def said_at_suffix_of(checkout: str | Path) -> str:
+    return (published_by(checkout) or {}).get("said_at_suffix", "")
+
+
+def with_when_said(line: str, spoken_at: float | None, suffix: str) -> str:
+    placeholder = "{" + SAID_AT_FIELD + "}"
+    if spoken_at is None or placeholder not in suffix:
+        return line
+    said_at = time.time() - (time.monotonic() - spoken_at)
+    return line + suffix.replace(placeholder, f"{said_at:.3f}")
