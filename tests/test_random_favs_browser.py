@@ -215,7 +215,7 @@ def test_build_manifest_opens_another_sites_favorite_at_its_gallery(cfg_factory,
 def test_build_manifest_opens_a_favorite_with_no_recorded_prompt_at_its_gallery(cfg_factory, tmp_path: Path):
     stamped_by_evolver = {
         "video": {"type": "short", "action": "Alpha", "duration_seconds": 5.0},
-        "provenance": {"upscale": {"recipe": "example"}},
+        "provenance": {"upscale": {"app": "evolver"}},
         "watch": {"weight": 1.0},
         "favorite": True,
     }
