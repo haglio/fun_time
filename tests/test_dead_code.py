@@ -398,7 +398,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # HUD went.
 # 5743 the same day: the spreadsheet itself is gone, and with it the notes on
 # its cell format and on the run that carried its pages onto the records.
-MAX_PROSE_LINES = 5743
+# 5721 the same day: the history a spoken word is back-dated against moved to
+# funestra, and its notes went with it.
+MAX_PROSE_LINES = 5721
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
