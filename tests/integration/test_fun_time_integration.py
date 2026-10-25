@@ -36,6 +36,7 @@ from fun_time.win32 import (
 )
 from fun_time.win32_process import is_process_alive
 from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
+from main_funestra.genau import ROBOT_HAND
 from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
 
 from .integration_support import (
@@ -755,6 +756,33 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
         let_seconds_pass(2.0)
         resting = senders(tcode_heard(sink, seconds=4))
         assert resting and RoomFunestra.PORTRAIT.label not in resting, resting
+
+
+def test_fun_time_the_osr2_taken_back_under_omnipause_hears_only_the_robot_hand_after_it(
+    shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
+):
+    s = shared_integration_session
+    sink = s.config.osr2_slot_port
+    s.write_dashboard_command("genau_activate")
+    s.wait_for_new_log("Switched to genau mode")
+    try:
+        with _the_portrait_funestra_driving_the_osr2(s, tmp_path):
+            portrait_alone = senders(tcode_heard(sink, seconds=4))
+            s.write_dashboard_command("omnipause_toggle")
+            s.wait_for_new_log("OmniPause: entering")
+            s.write_dashboard_command("main_take_osr2")
+            s.wait_for_new_log("Dispatching command: main_take_osr2")
+            s.write_dashboard_command("omnipause_toggle")
+            s.wait_for_new_log("OmniPause: leaving")
+            s.wait_until(lambda: ROBOT_HAND in senders(tcode_heard(sink, seconds=1)),
+                         description="the Robot Hand to drive the OSR2 again")
+            after_the_pause = senders(tcode_heard(sink, seconds=4))
+    finally:
+        s.write_dashboard_command("main_kino_activate")
+        s.wait_for_new_log("Switched to kino mode")
+
+    assert list(portrait_alone) == [RoomFunestra.PORTRAIT.label], portrait_alone
+    assert list(after_the_pause) == [ROBOT_HAND], after_the_pause
 
 
 def test_fun_time_the_max_intensity_holds_a_side_funestras_funscript_down_too(
