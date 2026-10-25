@@ -135,9 +135,8 @@ def pytest_sessionfinish(session, exitstatus):
     try:
         clear_run_roots()
     except RootsLeftBehind as left_behind:
-        # pytest.exit rather than letting it propagate, for the reason the
-        # refusal above gives: a hook's exception reads as a broken harness.
-        pytest.exit(str(left_behind), returncode=exitstatus or pytest.ExitCode.TESTS_FAILED)
+        print(f"\n[integration] {left_behind}", file=sys.stderr, flush=True)
+        session.exitstatus = exitstatus or pytest.ExitCode.TESTS_FAILED
 
 
 @pytest.fixture(autouse=True)
