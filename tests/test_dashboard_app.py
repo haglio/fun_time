@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -27,7 +28,7 @@ from shared_ui.spacing import BUTTON_MARK_INSET, BUTTON_RADIUS_HUD, MARGIN_STAND
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
-from fun_time import load_config, preview_marker
+from fun_time import dashboard_app, load_config, preview_marker
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import (
     ENTER_VR,
@@ -1417,6 +1418,25 @@ def test_closing_the_window_ends_the_listener(dashboard_app_config):
     assert not window._press_channel.listening
     listener.join(timeout=5.0)
     assert not listener.is_alive()
+
+
+def test_the_dashboard_runs_on_an_application_made_where_it_is_let_go_of_safely(
+        cfg_path, monkeypatch):
+    made = []
+
+    @contextmanager
+    def application(argv):
+        made.append(argv)
+        yield MagicMock(exec=MagicMock(return_value=7))
+
+    monkeypatch.setattr(dashboard_app, "application", application)
+    monkeypatch.setattr(dashboard_app, "set_up_logging", lambda: None)
+    monkeypatch.setattr(dashboard_app, "set_app_user_model_id", lambda _identity: None)
+    monkeypatch.setattr(dashboard_app, "build_dashboard_window", lambda *_args, **_kwargs: None)
+    manifest = write_windows_bridge_manifest(load_config(cfg_path))
+
+    assert dashboard_app.main([str(manifest)]) == 7
+    assert made == [[]]
 
 
 # --- the notice feed ---------------------------------------------------------

@@ -1,9 +1,11 @@
 """The desktop's library browser, run with no window for the headset to show."""
 from __future__ import annotations
 
+import sys
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -12,6 +14,7 @@ from PyQt6.QtCore import QPoint
 from fun_time import library_browser
 from fun_time.library_browser import FLICKS_TOP_LEVEL_NAME, TOP_LEVEL_NAME
 from fun_time.library_handles import LibraryHandle
+from fun_time_vr import library_host
 from fun_time_vr.frame_channel import FrameReader, FrameWriter
 from fun_time_vr.library_host import (
     LISTING_FILENAME,
@@ -412,3 +415,26 @@ class TestTheListingItKeeps:
             read_the_library(self._config(tmp_path), kept)
 
         assert len(list(tmp_path.glob(f"{kept.stem}_*.json"))) == 2
+
+
+def test_the_headsets_browse_runs_on_an_application_made_where_it_is_let_go_of_safely(
+        tmp_path, monkeypatch):
+    made = []
+
+    @contextmanager
+    def application(argv):
+        made.append(argv)
+        yield MagicMock(exec=MagicMock(return_value=7))
+
+    monkeypatch.setattr(library_host, "application", application)
+    monkeypatch.setenv("QT_QPA_FONTDIR", str(tmp_path))
+    for name in ("load_browser_config", "load_flick_browser_config", "FrameWriter",
+                 "HeadsetBrowse", "start_daemon_thread"):
+        monkeypatch.setattr(library_host, name, MagicMock())
+
+    ran = library_host.main([str(tmp_path / "manifest.ini"), "--input", str(tmp_path / "in.txt"),
+                             "--output", str(tmp_path / "out.txt"),
+                             "--frames", str(tmp_path / "frames"), "--parent", "1"])
+
+    assert ran == 7
+    assert made == [[sys.argv[0], "-platform", "offscreen"]]
