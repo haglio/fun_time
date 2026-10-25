@@ -130,13 +130,25 @@ def test_only_a_failed_run_keeps_its_logs_and_either_way_its_roots_go():
     assert clear.call_count == 2
 
 
-def test_a_root_left_behind_ends_the_run_saying_which():
+def test_a_root_left_behind_fails_a_passing_run_saying_which(capsys):
+    session = _a_session()
     refusal = RootsLeftBehind("C:/Temp/fun_time_integration_abc: still open")
     with patch.object(conftest, "clear_run_roots", side_effect=refusal):
-        with pytest.raises(pytest.exit.Exception, match="fun_time_integration_abc") as ended:
-            conftest.pytest_sessionfinish(session=_a_session(), exitstatus=0)
+        conftest.pytest_sessionfinish(session=session, exitstatus=pytest.ExitCode.OK)
 
-    assert ended.value.returncode == pytest.ExitCode.TESTS_FAILED
+    assert session.exitstatus == pytest.ExitCode.TESTS_FAILED
+    assert "fun_time_integration_abc" in capsys.readouterr().err
+
+
+def test_a_root_left_behind_leaves_pytest_to_say_why_a_failed_run_failed():
+    session = _a_session()
+    with (
+        patch.object(conftest, "keep_what_the_run_logged", return_value=None),
+        patch.object(conftest, "clear_run_roots", side_effect=RootsLeftBehind("held")),
+    ):
+        conftest.pytest_sessionfinish(session=session, exitstatus=pytest.ExitCode.TESTS_FAILED)
+
+    assert session.exitstatus == pytest.ExitCode.TESTS_FAILED
 
 
 def test_failure_evidence_lands_in_the_checkouts_ignored_state_dir():
