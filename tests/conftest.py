@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import _winapi
+import gc
 import json
 import os
 import re
@@ -307,6 +308,18 @@ def _no_thread_outlives_its_test():
 def _no_process_outlives_its_test(request):
     with the_guard_for(request.path):
         yield
+
+
+def pytest_configure(config):
+    gc.disable()
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_protocol(item, nextitem):
+    try:
+        return (yield)
+    finally:
+        gc.collect(0 if nextitem is not None and nextitem.path == item.path else 2)
 
 
 _THE_RUN = pytest.StashKey[pytest.Session]()
