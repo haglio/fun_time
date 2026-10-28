@@ -59,7 +59,7 @@ from fun_time_vr.cover import (
     WEARER_STATUS,
     CoverWatcher,
 )
-from fun_time_vr.dash_panel import DASH_WIDTH_PX, dash_actions, dash_height
+from fun_time_vr.dash_panel import DASH_DEG_PER_PX, DASH_WIDTH_PX, dash_actions, dash_height
 from fun_time_vr.funestras import (
     OFF_THE_PANEL,
     VrSettings,
@@ -2729,14 +2729,18 @@ class TestWhereTheDashboardHangs:
 
     def test_it_opens_in_whichever_of_the_two_the_last_session_left_it_in(self, tmp_path):
         """Both are remembered, so a dashboard dragged in one of them must not
-        be found in the other's place the next time that one comes up."""
+        be found in the other's place the next time that one comes up -- at its
+        own width, whatever width an older session wrote down beside the spot."""
         floating = Placement(azimuth_deg=-30.0, elevation_deg=40.0, width_deg=44.0)
         carrying = Placement(azimuth_deg=15.0, elevation_deg=-20.0, width_deg=36.0)
         remembered = {DASH: floating, PANEL: carrying}
+        own = DASH_WIDTH_PX * DASH_DEG_PER_PX
 
-        assert self._placed(tmp_path, remembered=remembered).screen.placement == floating
+        assert self._placed(tmp_path, remembered=remembered).screen.placement == replace(
+            floating, width_deg=own)
         assert self._placed(
-            tmp_path, wrapped=True, remembered=remembered).screen.placement == carrying
+            tmp_path, wrapped=True, remembered=remembered).screen.placement == replace(
+            carrying, width_deg=own)
 
     def test_a_vr_reset_puts_both_of_its_spots_back_wherever_it_was_dragged(self, tmp_path):
         dash = self._placed(tmp_path)
@@ -2909,3 +2913,10 @@ class TestWhereItHangsToStart:
 
         assert dash_lower_edge - main_top == pytest.approx(
             2 * RADIUS_M * np.radians(HANDLE_DEG), rel=0.05)
+
+    def test_the_dash_is_as_wide_as_its_pixels_at_its_own_scale_in_either_of_its_spots(self):
+        """So its lettering keeps one size, whatever width its layout comes to."""
+        own = DASH_WIDTH_PX * DASH_DEG_PER_PX
+
+        assert SPOTS[DASH].width_deg == pytest.approx(own)
+        assert SPOTS[PANEL].width_deg == pytest.approx(own)
