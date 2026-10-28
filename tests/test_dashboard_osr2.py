@@ -99,21 +99,17 @@ def test_until_the_room_publishes_a_part_it_draws_nothing(widget):
     assert set(raw[3::4]) == {0}
 
 
-def test_it_repaints_only_when_the_part_or_the_readout_has_changed(widget, tmp_path, monkeypatch):
+def test_every_read_repaints_it_once_a_part_is_up_for_the_dot_walks_by_the_clock(
+        widget, tmp_path, monkeypatch):
     repaints = []
     monkeypatch.setattr(widget, "update", lambda: repaints.append("repaint"))
-    _publish(tmp_path, _part())
 
-    widget.poll()
-    widget.poll()
-    _hand_on(tmp_path, RoomFunestra.MAIN, _readout())
     widget.poll()
     _publish(tmp_path, _part())
     widget.poll()
-    _publish(tmp_path, _part(broker=False))
     widget.poll()
 
-    assert repaints == ["repaint"] * 3
+    assert repaints == ["repaint"] * 2
 
 
 def test_it_holds_the_room_a_whole_part_takes_before_one_has_arrived(widget, tmp_path):

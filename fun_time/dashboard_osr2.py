@@ -51,11 +51,10 @@ class Osr2PartWidget(PressablePicture):
         if part is None:
             return
         same_holder = self._part is not None and part.funestra == self._part.funestra
-        readout = (read_drive(osr2_readout_path(self._state_dir, part.funestra))
-                   or (self._readout if same_holder else None))
-        if (part, readout) != (self._part, self._readout):
-            self._part, self._readout = part, readout
-            self.update()
+        self._readout = (read_drive(osr2_readout_path(self._state_dir, part.funestra))
+                         or (self._readout if same_holder else None))
+        self._part = part
+        self.update()
 
     def shutdown(self) -> None:
         self._timer.stop()
