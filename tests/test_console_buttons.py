@@ -185,6 +185,13 @@ class TestTransport:
                                              "it stays flipped")
 
 
+class TestKinosFMode:
+    def test_it_plays_only_the_well_funscripted_videos(self):
+        button = _button(MainSlot(main_mode=MainMode.KINO), "main_fmode")
+
+        assert button.tooltip == "F-Mode — play only the well funscripted videos"
+
+
 class TestGenausFMode:
     def test_it_keeps_the_favorites_and_says_so(self):
         off = _button(MainSlot(main_mode=MainMode.GENAU), "main_fmode")

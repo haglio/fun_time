@@ -482,6 +482,14 @@ def test_the_reference_names_genaus_flicks_in_the_overlays_word():
             if re.search(r"Genau(?:'s)? clips?\b", row.description)] == []
 
 
+def test_the_main_funestras_f_mode_plays_only_the_well_funscripted_videos():
+    flick = genau_flick_noun()
+    f_mode = next(row for row in _all_rows() if "main_fmode" in row.commands)
+
+    assert f_mode.description == ("F-Mode on the Main Funestra alone — play only the well funscripted "
+                                  f"videos, and in Genau mode only the favorite {flick.many}")
+
+
 def test_genau_mode_row_lists_genau_phrase_and_g_key():
     rows = _all_rows()
     genau_rows = [r for r in rows if "genau_activate" in r.commands]
