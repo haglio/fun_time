@@ -19,7 +19,8 @@ import numpy as np
 import pytest
 from app_support import ports
 from app_support.file_channel import write_flag
-from funestra.console_hud import ModeHud
+from funestra.console_hud import ConsoleHud, ModeHud
+from funestra.device_panel import DevicePanel
 from funestra.flick_picture import Picture
 from funestra.host_controls import BarHud, HostControlsHud
 from funestra.hud_placement import HudEdge
@@ -50,6 +51,7 @@ from fun_time.overlay_progress import (
     SHUTDOWN_READY_FILENAME,
     PhaseProgress,
 )
+from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, shared_state_path
 from fun_time_vr import funestras, room
 from fun_time_vr.console_panel import DEG_PER_PX, PANEL_WIDTH_PX
@@ -59,7 +61,16 @@ from fun_time_vr.cover import (
     WEARER_STATUS,
     CoverWatcher,
 )
-from fun_time_vr.dash_panel import DASH_DEG_PER_PX, DASH_WIDTH_PX, dash_actions, dash_height
+from fun_time_vr.dash_panel import (
+    DASH_DEG_PER_PX,
+    DASH_WIDTH_PX,
+    DashState,
+    dash_actions,
+    dash_height,
+    osr2_part_rect,
+    paint_dash,
+    with_the_osr2_part,
+)
 from fun_time_vr.funestras import (
     OFF_THE_PANEL,
     VrSettings,
@@ -143,6 +154,7 @@ from fun_time_vr.wrap_readout import WrapReadout, label
 from main_funestra.genau import ROBOT_HAND, GenauChannels
 from tests.headset_layout_reports import reported_layout
 from tests.made_up_genau import with_made_up_genau
+from tests.made_up_osr2_parts import a_part, a_readout, band_of, center_of, handed_on, published
 from tests.satellite_fakes import FakeSatelliteEngine
 
 
@@ -2191,6 +2203,7 @@ def _a_dash(tmp_path, *, wrapped=False, texture=None, remembered=None):
             notices=NoticeBoard(tmp_path / "event_log.jsonl"),
             dashboard_state_file=tmp_path / "dashboard_state.ini",
             reference_flag=tmp_path / REFERENCE_OPEN_FILENAME,
+            state_dir=tmp_path,
         )
     if texture is not None:
         dash.texture = texture
@@ -2237,6 +2250,134 @@ class TestTheDashUnderThePointer:
         unit.pump(threading.Event(), 0.0)
 
         assert not (tmp_path / "dashboard_cmd.txt").exists()
+
+
+class TestTheOsr2PartOnTheDash:
+    """The OSR2 part the room publishes, at the dashboard's right end as on the
+    desktop's: read from the same two files, and drawn and pressed the same way."""
+
+    @staticmethod
+    def _uv(x: int, y: int) -> tuple[float, float]:
+        place = osr2_part_rect()
+        return ((place.x + x + 0.5) / DASH_WIDTH_PX, 1 - (place.y + y + 0.5) / dash_height())
+
+    @staticmethod
+    def _in_its_room(image) -> np.ndarray:
+        place = osr2_part_rect()
+        return np.asarray(image)[place.y:place.y + place.height, place.x:place.x + place.width]
+
+    @staticmethod
+    def _pumped(unit) -> None:
+        unit.pump(threading.Event(), 0.0)
+
+    def test_it_draws_the_part_the_room_publishes_with_its_holders_readout(self, tmp_path):
+        unit = _a_dash(tmp_path)
+        part = published(tmp_path, a_part(RoomFunestra.PORTRAIT))
+        readout = handed_on(tmp_path, RoomFunestra.PORTRAIT, a_readout())
+
+        self._pumped(unit)
+
+        drawn = with_the_osr2_part(paint_dash(DashState(), []), DevicePanel(post=[].append).picture(
+            ConsoleHud(console=part, drive=readout)))
+        assert np.array_equal(self._in_its_room(unit._image), self._in_its_room(drawn))
+
+    def test_until_the_room_publishes_one_the_room_kept_for_it_stays_empty(self, tmp_path):
+        unit = _a_dash(tmp_path)
+
+        self._pumped(unit)
+
+        assert np.array_equal(self._in_its_room(unit._image),
+                              self._in_its_room(paint_dash(DashState(), [])))
+
+    def test_each_pump_draws_it_afresh_while_one_is_up_for_the_dot_walks_by_the_clock(
+            self, tmp_path, monkeypatch):
+        unit = _a_dash(tmp_path)
+        published(tmp_path, a_part())
+        asked = []
+        draw = unit._pointer.part.picture
+        monkeypatch.setattr(unit._pointer.part, "picture",
+                            lambda hud: asked.append(hud) or draw(hud))
+
+        self._pumped(unit)
+        self._pumped(unit)
+
+        assert len(asked) == 2
+
+    def test_it_hangs_a_new_picture_only_once_what_it_draws_has_changed(self, tmp_path):
+        unit = _a_dash(tmp_path)
+        published(tmp_path, a_part())
+        self._pumped(unit)
+        first = unit._image
+
+        self._pumped(unit)
+        unchanged = unit._image
+        handed_on(tmp_path, RoomFunestra.MAIN, a_readout())
+        self._pumped(unit)
+
+        assert unchanged is first
+        assert unit._image is not first
+
+    def test_a_part_that_changes_on_its_own_leaves_the_bar_and_the_log_as_painted(
+            self, tmp_path, monkeypatch):
+        """The readout moves at its own pace while the OSR2 runs, and the bar and
+        the log need painting only when they change."""
+        unit = _a_dash(tmp_path)
+        published(tmp_path, a_part())
+        painted = []
+        paint = funestras.paint_dash
+        monkeypatch.setattr(funestras, "paint_dash",
+                            lambda *drawn, **shown: painted.append(drawn) or paint(*drawn, **shown))
+
+        self._pumped(unit)
+        handed_on(tmp_path, RoomFunestra.MAIN, a_readout())
+        self._pumped(unit)
+
+        assert len(painted) == 1
+
+    def test_a_press_on_one_of_its_buttons_posts_where_the_bars_presses_go(self, tmp_path):
+        unit = _a_dash(tmp_path)
+        part = published(tmp_path, a_part())
+        self._pumped(unit)
+
+        unit.point(Frame(events=[
+            PressEvent(PRESS, DASH, *self._uv(*center_of(part, "broker_panel")))]))
+        self._pumped(unit)
+
+        posted = (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8")
+        assert posted.split() == ["broker_panel"]
+
+    def test_a_drag_along_a_band_of_its_readout_goes_on_setting_it_until_let_go(self, tmp_path):
+        unit = _a_dash(tmp_path)
+        published(tmp_path, a_part())
+        handed_on(tmp_path, RoomFunestra.MAIN, a_readout())
+        self._pumped(unit)
+        x, y, width, height = band_of(a_part(), a_readout(), "speed")
+        middle = y + height // 2
+
+        unit.point(Frame(events=[
+            PressEvent(PRESS, DASH, *self._uv(x + 2, middle)),
+            PressEvent(DRAG, DASH, *self._uv(x + width - 2, middle)),
+            PressEvent(RELEASE, DASH),
+            PressEvent(DRAG, DASH, *self._uv(x + width // 2, middle)),
+        ]))
+        self._pumped(unit)
+
+        posted = (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8").split()
+        assert [command.rsplit("_", 1)[0] for command in posted] == ["robot_hand_speed"] * 2
+        assert posted[0] != posted[1]
+
+    def test_the_ray_resting_on_one_of_its_buttons_lights_it(self, tmp_path):
+        unit = _a_dash(tmp_path)
+        part = published(tmp_path, a_part())
+        self._pumped(unit)
+        unlit = self._in_its_room(unit._image).copy()
+        x, y = center_of(part, "broker_panel")
+
+        unit.point(Frame(hover=Hover(DASH, SURFACE, *self._uv(x, y))))
+        self._pumped(unit)
+
+        lit = self._in_its_room(unit._image)
+        assert not np.array_equal(lit[y - 4:y + 4, x - 4:x + 4], unlit[y - 4:y + 4, x - 4:x + 4])
 
 
 class _FakeLibraryHost:
