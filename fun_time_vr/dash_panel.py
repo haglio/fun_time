@@ -1,4 +1,4 @@
-"""The dashboard, hanging in the headset: the control bar and the log stream.
+"""The dashboard, hanging in the headset: the control bar, the log, the OSR2 part.
 
 The desktop's is a Qt window a VR session never launches, so this paints the
 same thing with Pillow -- the bar's own geometry, the family's own marks and
@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass, replace
 from functools import cache
 
+from funestra.device_panel import DevicePanel
 from PIL import Image, ImageDraw
 from shared_ui.button_pil import button, slab
 from shared_ui.dropdown_pil import paint_field, paint_list
@@ -269,15 +270,36 @@ def paint_dash(state: DashState, records,
     return panel
 
 
+def _within_the_part(px: int, py: int) -> tuple[int, int]:
+    place = osr2_part_rect()
+    return px - place.x, py - place.y
+
+
+def with_the_osr2_part(dash: Image.Image,
+                       picture: tuple[bytes, tuple[int, int]] | None) -> Image.Image:
+    if picture is None:
+        return dash
+    raw, size = picture
+    place = osr2_part_rect()
+    shown = dash.copy()
+    shown.alpha_composite(Image.frombytes("RGBA", size, raw), (place.x, place.y))
+    return shown
+
+
 class DashPointer:
-    """A press, turned into what the desktop's bar does: the bar's controls post
-    its commands, the dial changes only what this shows."""
+    """A press, turned into what the desktop's Dashboard does: the bar's controls post
+    its commands, the dial changes only what this shows, the OSR2 part answers itself."""
 
     def __init__(self, *, post, state: DashState | None = None) -> None:
         self._post = post
         self.state = state or DashState()
+        self.part = DevicePanel(post=post)
+        self._held = self._held_on_the_part = False
 
     def press(self, px: int, py: int) -> str | None:  # the action, or None
+        self._held, self._held_on_the_part = True, _on(osr2_part_rect(), (px, py))
+        if self._held_on_the_part:
+            self.part.press(*_within_the_part(px, py))
         for action, rect in dash_actions(dial_open=self.state.dial_open).items():
             if not _on(rect, (px, py)):
                 continue
@@ -288,6 +310,22 @@ class DashPointer:
         # Anywhere else closes an open list, as clicking off a dropdown does.
         self.state = replace(self.state, dial_open=False)
         return None
+
+    def drag(self, px: int, py: int) -> None:
+        if self._held_on_the_part:
+            self.part.move(*_within_the_part(px, py))
+
+    def release(self) -> None:
+        self._held = self._held_on_the_part = False
+        self.part.release()
+
+    def hover(self, at: tuple[int, int] | None) -> None:
+        if self._held:
+            return
+        if at is not None and _on(osr2_part_rect(), at):
+            self.part.move(*_within_the_part(*at))
+        else:
+            self.part.leave()
 
     def _act(self, action: str) -> None:
         if action == VERBOSITY_CHIP:

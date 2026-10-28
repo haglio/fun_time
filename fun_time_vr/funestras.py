@@ -63,6 +63,7 @@ from fun_time.dashboard_actions import (
     LIBRARY_OPEN_FILENAME,
     REFERENCE_OPEN_FILENAME,
 )
+from fun_time.dashboard_osr2_model import Osr2PartReader
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_path, notice
 from fun_time.funestra_status import read_genau_status, read_main_funestra_status
@@ -101,7 +102,14 @@ from .cover import (
     paint_cover,
     scene_ready_file,
 )
-from .dash_panel import DASH_DEG_PER_PX, DASH_WIDTH_PX, DashPointer, dash_height, paint_dash
+from .dash_panel import (
+    DASH_DEG_PER_PX,
+    DASH_WIDTH_PX,
+    DashPointer,
+    dash_height,
+    paint_dash,
+    with_the_osr2_part,
+)
 from .gallery_panel import GalleryPanel
 from .gallery_panel import hover_line as gallery_hover_line
 from .gallery_panel import scroll_line as gallery_scroll_line
@@ -159,6 +167,7 @@ from .pointer import (
     DRAG,
     HANDLE_DEG,
     PRESS,
+    RELEASE,
     SURFACE,
     Frame,
     HandInput,
@@ -1000,7 +1009,7 @@ class _DashUnit:
     def __init__(self, main_unit: _MainUnit, *,
                  remembered: Mapping[str, Placement], dashboard_cmd_file: Path,
                  notices: NoticeBoard, dashboard_state_file: Path,
-                 reference_flag: Path) -> None:
+                 reference_flag: Path, state_dir: Path) -> None:
         self._main_unit = main_unit
         self._notices = notices
         self._state_file = dashboard_state_file
@@ -1010,8 +1019,11 @@ class _DashUnit:
         self._pointer = DashPointer(
             post=lambda command: append_command(dashboard_cmd_file, command))
         self._shown_as = preview_marker.shown_as()
+        self._osr2 = Osr2PartReader(state_dir)
         self._presses = _Presses(DASH)
         self._lock = threading.Lock()
+        self._bar_and_log = None
+        self._painted = None
         self._image = None
         self._key = None
         self._uploaded = None
@@ -1059,8 +1071,13 @@ class _DashUnit:
     def pump(self, stop: threading.Event, now: float) -> None:
         size = (DASH_WIDTH_PX, dash_height())
         for event in self._presses.drain():
+            at = surface_pixel(event.u, event.v, size)
             if event.kind == PRESS:
-                self._pointer.press(*surface_pixel(event.u, event.v, size))
+                self._pointer.press(*at)
+            elif event.kind == DRAG:
+                self._pointer.drag(*at)
+            elif event.kind == RELEASE:
+                self._pointer.release()
         # The snapshot the desktop's own bar reads.
         snapshot = load_dashboard_snapshot(self._state_file)
         self._pointer.session_state(
@@ -1073,10 +1090,17 @@ class _DashUnit:
         records = self._notices.records
         aim = self._presses.hover
         hover = surface_pixel(*aim[1], size) if aim is not None else None
-        key = (self._pointer.state, records, hover)
+        self._pointer.hover(hover)
+        published = self._osr2.read()
+        part = None if published is None else self._pointer.part.picture(published)
+        painted = (self._pointer.state, records, hover)
+        if painted != self._painted:
+            self._bar_and_log = paint_dash(*painted, shown_as=self._shown_as)
+            self._painted = painted
+        key = (painted, part)
         if key == self._key:
             return
-        image = paint_dash(self._pointer.state, records, hover, shown_as=self._shown_as)
+        image = with_the_osr2_part(self._bar_and_log, part)
         with self._lock:
             self._image = image
         self._key = key
@@ -2020,6 +2044,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
         notices=notices,
         dashboard_state_file=Path(commands.dashboard_state_file),
         reference_flag=reference_flag,
+        state_dir=Path(commands.state_dir),
     )
     panel = _PanelUnit(main_unit, dash)
     reference = _ReferenceUnit(dash, panel, flag=reference_flag)

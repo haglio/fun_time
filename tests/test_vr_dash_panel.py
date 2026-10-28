@@ -5,6 +5,8 @@ import logging
 from itertools import pairwise
 
 import numpy as np
+from funestra.console_hud import ConsoleHud
+from funestra.device_panel import DevicePanel
 from PIL import Image, ImageDraw
 from shared_ui.lettering import BOLD_FACE, WORDMARK_FACE, load_font
 from shared_ui.palette import (
@@ -67,7 +69,9 @@ from fun_time_vr.dash_panel import (
     osr2_part_rect,
     paint_dash,
     verbosity_name,
+    with_the_osr2_part,
 )
+from tests.made_up_osr2_parts import a_part, a_readout, center_of
 
 _A_PREVIEW = Preview(feature="the new reference popup")
 
@@ -90,6 +94,28 @@ def _a_spot_on_the_log() -> tuple[int, int]:
     OSR2 part, where nothing takes a press."""
     dial = dash_actions()[VERBOSITY_CHIP]
     return dial.x + dial.width + 1, dash_height() - 1
+
+
+def _on_the_part(x: int, y: int) -> tuple[int, int]:
+    place = osr2_part_rect()
+    return place.x + x, place.y + y
+
+
+class _HeardByThePart:
+    def __init__(self) -> None:
+        self.heard: list[tuple] = []
+
+    def press(self, x: int, y: int) -> None:
+        self.heard.append(("press", x, y))
+
+    def move(self, x: int, y: int) -> None:
+        self.heard.append(("move", x, y))
+
+    def release(self) -> None:
+        self.heard.append(("release",))
+
+    def leave(self) -> None:
+        self.heard.append(("leave",))
 
 
 def _apart(first, second) -> bool:
@@ -620,3 +646,86 @@ class TestTheVrReset:
         inside = painted[rect.y + 2:rect.y + rect.height - 2, rect.x + 2:rect.x + rect.width - 2, :3]
 
         assert len(np.unique(inside.reshape(-1, 3), axis=0)) > 2
+
+
+class TestTheOsr2Part:
+    """The part the room publishes, at the right end from the top, as the
+    desktop's Dashboard draws it, and pressed there."""
+
+    def test_its_picture_is_drawn_in_the_room_kept_for_it(self):
+        dash = paint_dash(DashState(), [])
+        raw, (width, height) = DevicePanel(post=[].append).picture(
+            ConsoleHud(console=a_part(), drive=a_readout()))
+        place = osr2_part_rect()
+
+        shown = np.asarray(with_the_osr2_part(dash, (raw, (width, height))))
+
+        part = np.frombuffer(raw, np.uint8).reshape(height, width, 4)
+        opaque = part[..., 3] == 255
+        region = shown[place.y:place.y + height, place.x:place.x + width]
+        assert np.array_equal(region[opaque], part[opaque])
+        assert np.array_equal(shown[:, :place.x], np.asarray(dash)[:, :place.x])
+
+    def test_until_the_room_publishes_one_the_dash_is_as_painted(self):
+        dash = paint_dash(DashState(), [])
+
+        assert with_the_osr2_part(dash, None) is dash
+
+    def test_a_press_on_one_of_its_buttons_posts_that_buttons_command(self):
+        pointer, posted = _pointer()
+        part = a_part()
+        pointer.part.picture(ConsoleHud(console=part))
+
+        pointer.press(*_on_the_part(*center_of(part, "broker_panel")))
+
+        assert posted == ["broker_panel"]
+
+    def test_a_drag_after_a_press_on_it_reaches_it_in_its_own_pixels_until_let_go(self):
+        pointer, _posted = _pointer()
+        pointer.part = heard = _HeardByThePart()
+
+        pointer.press(*_on_the_part(10, 20))
+        pointer.drag(*_on_the_part(30, 40))
+        pointer.release()
+        pointer.drag(*_on_the_part(50, 60))
+
+        assert heard.heard == [("press", 10, 20), ("move", 30, 40), ("release",)]
+
+    def test_a_drag_begun_anywhere_else_never_reaches_it(self):
+        pointer, _posted = _pointer()
+        pointer.part = heard = _HeardByThePart()
+
+        pointer.press(*_a_spot_on_the_log())
+        pointer.drag(*_on_the_part(30, 40))
+        pointer.release()
+
+        assert heard.heard == [("release",)]
+
+    def test_the_ray_resting_on_it_reaches_it_and_resting_anywhere_else_takes_it_off(self):
+        pointer, _posted = _pointer()
+        pointer.part = heard = _HeardByThePart()
+
+        pointer.hover(_on_the_part(5, 6))
+        pointer.hover(_middle(QUIT_BUTTON))
+        pointer.hover(None)
+
+        assert heard.heard == [("move", 5, 6), ("leave",), ("leave",)]
+
+    def test_while_a_press_is_held_where_the_ray_rests_is_the_drags_to_say(self):
+        pointer, _posted = _pointer()
+        pointer.part = heard = _HeardByThePart()
+
+        pointer.press(*_a_spot_on_the_log())
+        pointer.hover(_on_the_part(5, 6))
+        pointer.release()
+        pointer.hover(_on_the_part(7, 8))
+
+        assert heard.heard == [("release",), ("move", 7, 8)]
+
+    def test_a_press_on_it_closes_the_open_list_as_a_press_anywhere_off_the_list_does(self):
+        pointer, _posted = _pointer()
+        pointer.press(*_middle(VERBOSITY_CHIP))
+
+        pointer.press(*_on_the_part(5, 6))
+
+        assert not pointer.state.dial_open

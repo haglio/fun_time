@@ -43,3 +43,10 @@ def center_of(part: ConsoleModel, command: str) -> tuple[int, int]:
     painter.rgba(ConsoleHud(console=part))
     x, y, width, height = next(rect for rect, button in painter.buttons if button.command == command)
     return x + width // 2, y + height // 2
+
+
+def band_of(part: ConsoleModel, readout: DriveHud, axis: str) -> tuple[int, int, int, int]:
+    """Where the readout's band for *axis* is, in the part's own pixels."""
+    painter = ConsolePainter(device_only=True)
+    painter.rgba(ConsoleHud(console=part, drive=readout))
+    return next(track.rect for track in painter.tracks if track.axis == axis)
