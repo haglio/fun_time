@@ -188,15 +188,9 @@ class LogPanelWidget(QWidget):
         outer.setContentsMargins(MARGIN_STANDARD, MARGIN_STANDARD, MARGIN_STANDARD, MARGIN_STANDARD)
         outer.setSpacing(GAP_SMALL)
 
-        # The verbosity dial and the five source toggles share one row — its own
-        # widget, so the dashboard can lift it up into the top bar beside the
-        # app's own buttons rather than spend a row of the strip on it.  The
-        # toggles are compact checkable buttons with short labels (the full name
-        # is the tooltip) rather than word-labeled tick controls.
-        self.controls = QWidget()
-        controls = QHBoxLayout(self.controls)
-        controls.setContentsMargins(0, 0, 0, 0)
+        controls = QHBoxLayout()
         controls.setSpacing(0)
+        outer.addLayout(controls)
         self._verbosity = _LevelDial(self)
         self._verbosity.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))
         self._verbosity.setFixedHeight(BUTTON_SIZE_HUD)
@@ -251,7 +245,7 @@ class LogPanelWidget(QWidget):
                 controls.addSpacing(BUTTON_GAP)
             controls.addWidget(button)
             self._source_buttons[source] = button
-        # No trailing stretch: the dashboard right-justifies this row.
+        controls.addStretch(1)
 
         self._list = QListWidget(self)
         self._list.setFont(make_font(FONT_UI, SIZE_SMALL))

@@ -42,8 +42,7 @@ def test_the_vr_reset_stands_beside_the_crossing_it_belongs_with():
 def test_the_bar_is_wide_enough_for_the_control_only_a_headset_session_draws():
     """The VR reset is the bar's last button and shows only in the headset, so a
     width measured to the crossing beside it fitted the desktop and not VR: the
-    reset was cut in half at the bar's edge, and whatever follows the bar on the
-    row -- the log's verbosity dropdown -- was drawn over what was left of it."""
+    reset was cut in half at the bar's edge."""
     layout = compute_dashboard_bar_layout()
     last = layout.vr_reset_button
 

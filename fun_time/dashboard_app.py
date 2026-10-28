@@ -311,7 +311,7 @@ def build_dashboard_scene(
 # ---------------------------------------------------------------------------
 from PyQt6.QtCore import QEvent, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QKeySequence, QPainter, QPen, QPixmap, QShortcut
-from PyQt6.QtWidgets import QDialog, QHBoxLayout, QTextBrowser, QToolTip, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QDialog, QTextBrowser, QToolTip, QVBoxLayout, QWidget
 
 
 class DashboardWidget(QWidget):
@@ -329,9 +329,6 @@ class DashboardWidget(QWidget):
 
     def set_scene(self, scene: DashboardScene) -> None:
         self._scene = scene
-        # Sized to its contents: the bar shares its row with the log's filter
-        # controls now, so it takes only the width its own buttons need and leaves
-        # the rest of the row to them.
         self.setFixedSize(scene.width, scene.height)
         self.update()
 
@@ -699,20 +696,11 @@ class DashboardWindow(QMainWindow):
         self._widget.action_triggered.connect(self._on_action)
         self._log_widget = LogPanelWidget(
             event_log_path(app_config.state_dir), ui_state_path(app_config.state_dir))
-        # The bar's buttons and the log's filters share one row, so the Dash is
-        # a row shorter and the Random Favs Browser below it that much taller.
-        top_row = QWidget(self)
-        top_layout = QHBoxLayout(top_row)
-        top_layout.setContentsMargins(0, 0, 0, 0)
-        top_layout.setSpacing(0)
-        top_layout.addWidget(self._widget)
-        top_layout.addWidget(self._log_widget.controls)
-        top_layout.addStretch(1)
         central = QWidget(self)
         central_layout = QVBoxLayout(central)
         central_layout.setContentsMargins(0, 0, 0, 0)
         central_layout.setSpacing(0)
-        central_layout.addWidget(top_row)
+        central_layout.addWidget(self._widget, 0, Qt.AlignmentFlag.AlignLeft)
         central_layout.addWidget(self._log_widget, 1)
         self._strip = RfbSlotStripWidget() if app_config.rfb_slot_strip else None
         if self._strip is not None:

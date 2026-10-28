@@ -388,7 +388,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # handoffs, and on why it said it all again every second, went.
 # 5783 the same day: every sender reaches the OSR2 through the broker's one slot,
 # and the note on the inlet the arbiter's senders all fed went with it.
-MAX_PROSE_LINES = 5783
+# 5769 on 2026-10-28: the log's filters stand on a row of their own inside the
+# log panel again, so the notes on the Dashboard lifting them into the bar's row
+# went.
+MAX_PROSE_LINES = 5769
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
