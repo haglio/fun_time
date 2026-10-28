@@ -14,9 +14,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support import file_channel
-from funestra.console import OSR2_DRIVING, ConsoleModel, console_text, read_console
-from funestra.console_hud import ConsoleHud, ConsolePainter
-from funestra.modes import MainMode, Osr2State
 from PyQt6.QtCore import QPoint, QRect, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtTest import QTest
@@ -80,9 +77,7 @@ from fun_time.event_log import (
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
 from fun_time.origenerator_switches import RfbSlot
-from fun_time.osr2_section import osr2_part, osr2_part_path
 from fun_time.project_paths import PROJECT_ICON
-from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time.unlogged_notices import flash_unlogged
 from fun_time.voice_control import VoiceController
@@ -93,6 +88,7 @@ from fun_time.window_layout import (
 )
 from fun_time.windows_bridge_dispatch_loop import expand_group_command, poll_dashboard_commands
 from tests.integration.integration_support import environment_with_this_checkouts_siblings
+from tests.made_up_osr2_parts import a_part, center_of, published
 from tests.sleeps import sleeps_in
 
 
@@ -1819,30 +1815,14 @@ def test_the_strips_origenerator_takes_no_press_while_that_app_is_starting(strip
 # --- the OSR2 part at the window's right end -------------------------------------
 
 
-def _publish_the_osr2_part(app_config) -> ConsoleModel:
-    path = osr2_part_path(app_config.state_dir)
-    path.write_text(console_text(osr2_part(
-        RoomFunestra.MAIN, main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND,
-        control=OSR2_DRIVING, paused=False, learned=False, shape="sine", broker=True,
-        max_intensity=100)), encoding="utf-8")
-    return read_console(path)
-
-
-def _center_of(part: ConsoleModel, command: str) -> QPoint:
-    painter = ConsolePainter(device_only=True)
-    painter.rgba(ConsoleHud(console=part))
-    x, y, width, height = next(rect for rect, button in painter.buttons if button.command == command)
-    return QPoint(x + width // 2, y + height // 2)
-
-
 def test_a_press_on_the_osr2_part_is_posted_where_the_bars_presses_are(
         dashboard_window, dashboard_app_config):
-    part = _publish_the_osr2_part(dashboard_app_config)
+    part = published(dashboard_app_config.state_dir, a_part())
     osr2 = dashboard_window._osr2
     osr2.poll()
     osr2.grab()
 
-    QTest.mouseClick(osr2, Qt.MouseButton.LeftButton, pos=_center_of(part, "broker_panel"))
+    QTest.mouseClick(osr2, Qt.MouseButton.LeftButton, pos=QPoint(*center_of(part, "broker_panel")))
 
     assert poll_dashboard_commands(dashboard_app_config.dashboard_cmd_file) == ["broker_panel"]
 
