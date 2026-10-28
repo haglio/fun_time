@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import configparser
 import contextlib
-import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from app_support import origenerator_handoff as handoff
 from app_support import ports
+from app_support.origenerator_handoff import hand_over, take_the_takeover
 from funestra.modes import MainMode, SatellitesMode
 
 from fun_time import windows_bridge_sequencer
@@ -43,10 +44,6 @@ from fun_time.shared_state import (
     write_shared_state,
 )
 from fun_time.shortcuts import Shortcut
-from fun_time.standalone_origenerator import (
-    take_it_over,
-    the_takeover_it_was_handed,
-)
 from fun_time.win32_process import get_process_creation_time
 from fun_time.window_layout import (
     MonitorRect,
@@ -1456,13 +1453,13 @@ class TestOrigeneratorLaunch:
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         open_app = os.getpid()
-        offered = f"{open_app} {created_at or get_process_creation_time(open_app)}"
+        offered = handoff.Process(open_app, created_at or get_process_creation_time(open_app))
         (checkout / "state").mkdir(parents=True)
-        (checkout / "state" / "fun_time_offer.txt").write_text(
-            f"{offered}{' starting' if starting else ''}\n", encoding="utf-8")
+        (checkout / "state" / handoff.OFFER).write_text(
+            f"{handoff.offer_of(offered, starting=starting)}\n", encoding="utf-8")
         if showing_on:
-            (checkout / "state" / "fun_time_showing.txt").write_text(
-                f"{offered} {showing_on}", encoding="utf-8")
+            (checkout / "state" / handoff.SHOWING).write_text(
+                handoff.slideshow_mark_of(offered, showing_on), encoding="utf-8")
         return cfg, manifest_path, checkout, open_app
 
     @contextlib.contextmanager
@@ -1475,13 +1472,11 @@ class TestOrigeneratorLaunch:
         """
         handed: dict = {}
 
-        def answer(checkout, **kw):
-            take_it_over(checkout, **kw)
-            waiting = the_takeover_it_was_handed(checkout)
-            handed.update(json.loads(waiting.read_text(encoding="utf-8")))
-            waiting.unlink()
+        def answer(place, **kw):
+            hand_over(place, **kw)
+            handed.update(take_the_takeover(place)._asdict())
 
-        with patch("fun_time.hosted_origenerator.take_it_over", side_effect=answer):
+        with patch("app_support.origenerator_handoff.hand_over", side_effect=answer):
             yield handed
 
     def test_an_origenerator_still_starting_is_taken_over_rather_than_launched(
@@ -1596,9 +1591,7 @@ class TestOrigeneratorLaunch:
         with _sequencer_stubs(launch_origenerator=dict()):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert (checkout / "state" / "fun_time_session.txt").read_text(
-            encoding="utf-8").split() == [
-                str(os.getpid()), str(get_process_creation_time(os.getpid()))]
+        assert handoff.a_session_claims_the_osr2(checkout / "state")
 
     def test_a_session_with_no_checkout_claims_nothing(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -1606,7 +1599,7 @@ class TestOrigeneratorLaunch:
         with _sequencer_stubs(launch_origenerator=dict()):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert not list(tmp_path.glob("**/fun_time_session.txt"))
+        assert not list(tmp_path.glob(f"**/{handoff.SESSION}"))
 
     def test_an_app_taken_over_before_a_crossing_is_adopted_as_one_to_hand_back(
         self, cfg_factory, tmp_path
@@ -1727,7 +1720,7 @@ class TestOrigeneratorLaunch:
 
         stubs.launch_origenerator.assert_called_once()
         assert result.origenerator_pid == ORIGENERATOR_PID
-        assert not (checkout / "state" / "fun_time_takeover.json").exists()
+        assert not handoff.a_takeover_waits_in(checkout / "state")
 
 
 class TestOrigeneratorDoesNotHoldTheRoomUp:
