@@ -11,7 +11,7 @@ from pathlib import Path
 
 from app_support import osr2_device
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
-from funestra.console import aim_row, console_text
+from funestra.console import console_text
 from funestra.drive_readout import read_drive
 from funestra.modes import MainMode, Osr2State
 from funestra.satellite_hud import HudModel, hud_text, parse_hud
@@ -40,7 +40,6 @@ from .osr2_section import (
     DASHBOARD_OSR2_PART,
     DeviceBlock,
     funestra_with_the_osr2,
-    osr2_controls,
     osr2_part,
 )
 from .room_funestras import RoomFunestra
@@ -96,14 +95,7 @@ class HudFeed:
         def device(funestra: RoomFunestra) -> DeviceBlock:
             if funestra is not with_the_osr2:
                 return DeviceBlock.offered_to(funestra)
-            return DeviceBlock(
-                rows=(aim_row(learned=genau.learned_active, shape=genau.shape,
-                              control=state.osr2_control),),
-                osr2=osr2,
-                control=state.osr2_control,
-                controls=osr2_controls(broker=broker),
-                max_intensity=state.max_intensity,
-                paused=state.omni_paused)
+            return DeviceBlock.held_by(funestra, osr2)
 
         def satellite(funestra: RoomFunestra) -> SatelliteInputs:
             name = funestra.label
@@ -175,9 +167,6 @@ class HudFeed:
             genau_plays_landscape=state.genau_plays_landscape,
             osr2_mode=osr2_mode,
             osr2_trouble=osr2_trouble,
-            osr2_control=state.osr2_control,
-            paused=state.omni_paused,
-            broker=broker,
             # The console's buttons are lit and named from what each Funestra
             # published, since the Funestra drawing it is not always their subject.
             main_funestra=main_funestra,
@@ -187,7 +176,6 @@ class HudFeed:
             in_vr=self.config.vr_main_funestra,
             crowned=state.crowned is Crown.MAIN,
             has_osr2=with_the_osr2 is RoomFunestra.MAIN,
-            max_intensity=state.max_intensity,
         ))))
         self.publisher.publish_text(DASHBOARD_OSR2_PART, console_text(osr2_part(
             with_the_osr2, main_mode=state.main_mode, osr2=osr2, control=state.osr2_control,

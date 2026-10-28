@@ -10,6 +10,8 @@ from pathlib import Path
 
 from funestra.funestra import Channels
 
+from fun_time.osr2_section import osr2_readout_path
+
 #: field, the flag it is given by -- none for what no satellite is given: the main
 #: slot's console, and the broker's old T-Code inlet -- and the manifest's kind of
 #: file, ``None`` where it has none.
@@ -88,6 +90,7 @@ class SatelliteChannels(Channels):
             drive=Path(commands.genau_drive_file),
             osr2_sender=funestra,
             osr2_port=int(commands.osr2_slot_port),
+            osr2_readout=osr2_readout_path(Path(commands.state_dir), funestra),
             **{field: Path(commands.funestra_file(funestra, kind))
                for field, _flag, kind in CHANNELS if kind is not None},
         )

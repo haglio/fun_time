@@ -24,7 +24,7 @@ from fun_time.bridge_records import BridgeConfig
 from fun_time.crown import Crown
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
-from fun_time.osr2_section import DASHBOARD_OSR2_PART
+from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_button
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, SatelliteState
 
@@ -109,6 +109,10 @@ def console(tmp_path) -> dict:
     return json.loads((tmp_path / "main_player_console.json").read_text(encoding="utf-8"))
 
 
+def dashboard(tmp_path) -> dict:
+    return json.loads((tmp_path / "dashboard_osr2.json").read_text(encoding="utf-8"))
+
+
 def f_mode_button(published: dict) -> dict:
     """The F-mode button a published satellite panel declares, as written."""
     return next(button for row in published["rows"] for button in row
@@ -134,7 +138,7 @@ def version_button(published: dict) -> dict:
 
 
 def broker_is_up(published: dict) -> bool:
-    """What the published console's OSR2-line control says of the broker: lit
+    """What the published OSR2 part's broker button says of the broker: lit
     while the service runs, red (``warn``) while it is down."""
     (broker,) = published["osr2_controls"]
     assert broker["command"] == "broker_panel"
@@ -163,26 +167,6 @@ class TestHudPublishing:
         assert landscape["locked"] is False
         assert landscape["corner"]["path"] == "C:/v/l.mp4"
 
-    def test_the_console_is_told_what_the_room_does_to_the_osr2(self, tmp_path):
-        """The state is the session's; the Funestra drawing the console has no way
-        to know it, which is why it is published like the rest of the room."""
-        feed = make_feed(tmp_path)
-
-        feed.publish(replace(BridgeState(), osr2_control=OSR2_PARKED))
-
-        assert console(tmp_path)["osr2_control"] == OSR2_PARKED
-
-    def test_the_console_is_told_the_room_is_paused(self, tmp_path):
-        make_feed(tmp_path).publish(replace(BridgeState(), omni_paused=True))
-
-        assert console(tmp_path)["paused"] is True
-
-    def test_the_console_is_told_the_max_intensity_the_session_holds(self, tmp_path):
-        feed = make_feed(tmp_path)
-
-        feed.publish(replace(BridgeState(), max_intensity=35))
-
-        assert console(tmp_path)["max_intensity"] == 35
 
     def test_a_side_the_hosted_app_has_wears_that_apps_own_panel(self, tmp_path):
         """The hosted app publishes the Funestra's map, line and buttons; the
@@ -447,17 +431,15 @@ class TestHudPublishing:
         assert active(1) is True   # the Main Funestra holds it
         assert active(2) is False  # a satellite does
 
-    def test_the_console_says_what_has_the_osr2_and_whether_the_broker_is_up(self, tmp_path):
-        """Broker status is the Main Funestra's alone — it moved off the dashboard onto
-        this panel — and the OSR2 state comes down as one word for the console to
-        badge."""
+    def test_the_console_says_what_has_the_osr2_and_the_osr2_part_whether_the_broker_is_up(
+            self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
         (tmp_path / "broker_heartbeat.txt").write_text(str(time.time()), encoding="utf-8")
 
         feed.publish(state)
 
         published = console(tmp_path)
-        assert broker_is_up(published)
+        assert broker_is_up(dashboard(tmp_path))
         assert published["osr2"] in ("off", "auto", "funscript", "genau", "idle")
 
     def test_the_console_says_the_osr2_is_off_while_a_video_still_drives_it_gone_quiet(self, tmp_path):
@@ -490,7 +472,7 @@ class TestHudPublishing:
 
         feed.publish(BridgeState())
 
-        assert broker_is_up(console(tmp_path))
+        assert broker_is_up(dashboard(tmp_path))
 
     def test_both_broker_lights_read_the_brokers_directory_not_the_sessions(self, tmp_path):
         """A branch session moves ``state/`` into its worktree; the machine's one
@@ -510,20 +492,20 @@ class TestHudPublishing:
         ))
         state = BridgeState()
 
-        def published(state_dir: Path) -> dict:
+        def published(state_dir: Path) -> tuple[dict, dict]:
             now = time.time()
             (state_dir / "broker_heartbeat.txt").write_text(str(now), encoding="utf-8")
             (state_dir / "osr2_serial_rx.txt").write_text(str(now), encoding="utf-8")
             feed.publish(state)
-            return console(tmp_path)
+            return console(tmp_path), dashboard(tmp_path)
 
         # The worktree's own state dir: fresh stamps nothing reads.
-        session = published(tmp_path)
-        assert not broker_is_up(session)
+        session, session_part = published(tmp_path)
+        assert not broker_is_up(session_part)
         assert session["osr2"] == "off"
 
-        broker = published(broker_state)
-        assert broker_is_up(broker)
+        broker, broker_part = published(broker_state)
+        assert broker_is_up(broker_part)
         assert broker["osr2"] != "off"
 
     def test_the_consoles_lock_names_genaus_pace_off_its_drive_readout(self, tmp_path):
@@ -750,6 +732,15 @@ class TestTheOsr2PartIsOnTheDashboard:
         assert (part.osr2, part.osr2_control) == (Osr2State.OFF, OSR2_PARKED)
         assert [button.command for button in part.osr2_controls] == ["broker_panel"]
 
+    def test_its_aim_row_follows_genaus_own_switches(self, tmp_path):
+        (tmp_path / "genau_status.txt").write_text("learned=1\nshape=sawtooth\n", encoding="utf-8")
+
+        make_feed(tmp_path).publish(BridgeState())
+
+        rows = {b.command: b for row in _dashboard_osr2(tmp_path).osr2_rows for b in row}
+        assert rows["robot_hand_toggle_learned"].lit is True
+        assert rows["robot_hand_cycle_shape"].tooltip == "Waveform: Sawtooth"
+
     def test_it_is_told_the_room_is_paused(self, tmp_path):
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, omni_paused=True))
 
@@ -791,35 +782,22 @@ class TestTheOsr2PartIsOnTheDashboard:
 
 
 class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
-    def test_the_main_console_has_it_to_begin_with(self, tmp_path):
-        make_feed(tmp_path).publish(BridgeState())
-
-        assert console(tmp_path)["has_osr2"] is True
-        assert "robot_hand_park" in _console_osr2_commands(tmp_path)
-        for funestra in ("portrait", "landscape"):
-            assert _osr2_commands(_published(tmp_path, funestra)) == [f"{funestra}_take_osr2"]
-            assert _published(tmp_path, funestra).osr2 == ""
-
-    def test_a_side_funestra_that_takes_it_carries_the_whole_section(self, tmp_path):
+    def test_the_side_funestra_that_takes_it_wears_only_its_osr2_button_lit(self, tmp_path):
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, osr2_control=OSR2_PARKED))
 
         portrait = _published(tmp_path, "portrait")
-        assert {"robot_hand_toggle_learned", "robot_hand_release"} <= set(_osr2_commands(portrait))
-        assert portrait.osr2 == Osr2State.OFF
-        assert portrait.osr2_control == OSR2_PARKED
-        assert [button.command for button in portrait.osr2_controls] == ["broker_panel"]
+        assert portrait.osr2_rows == ((osr2_button(RoomFunestra.PORTRAIT, has_it=True),),)
+        assert (portrait.osr2_controls, portrait.max_intensity) == ((), None)
 
-    def test_the_side_funestra_that_has_it_is_told_the_room_is_paused(self, tmp_path):
-        make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, omni_paused=True))
+    def test_the_main_console_has_it_to_begin_with_and_wears_its_button_lit(self, tmp_path):
+        make_feed(tmp_path).publish(BridgeState())
 
-        assert _published(tmp_path, "portrait").paused is True
-        assert _published(tmp_path, "landscape").paused is False
-
-    def test_the_side_funestra_that_has_it_carries_the_max_intensity_on_its_line(self, tmp_path):
-        make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, max_intensity=35))
-
-        assert _published(tmp_path, "portrait").max_intensity == 35
-        assert _published(tmp_path, "landscape").max_intensity is None
+        assert console(tmp_path)["has_osr2"] is True
+        (button, *_jump), = console(tmp_path)["osr2_rows"]
+        assert (button["command"], button.get("lit")) == ("main_take_osr2", True)
+        for funestra in ("portrait", "landscape"):
+            assert _osr2_commands(_published(tmp_path, funestra)) == [f"{funestra}_take_osr2"]
+            assert _published(tmp_path, funestra).osr2 == ""
 
     def test_the_funestras_it_left_carry_the_button_that_takes_it(self, tmp_path):
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2))
@@ -840,13 +818,15 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
 
         assert _published(tmp_path, "portrait").osr2 == Osr2State.FUNSCRIPT
 
-    def test_a_side_the_hosted_app_has_carries_it_as_well(self, tmp_path):
+    def test_a_side_the_hosted_app_has_wears_its_button_too(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
 
         feed.publish(_hosted(BridgeState(osr2_funestra=3)))
 
-        assert "robot_hand_park" in _osr2_commands(_published(tmp_path, "landscape"))
-        assert _osr2_commands(_published(tmp_path, "portrait")) == ["portrait_take_osr2"]
+        assert _published(tmp_path, "landscape").osr2_rows == (
+            (osr2_button(RoomFunestra.LANDSCAPE, has_it=True),),)
+        assert _published(tmp_path, "portrait").osr2_rows == (
+            (osr2_button(RoomFunestra.PORTRAIT, has_it=False),),)
 
 
 class TestASatelliteWithTheOsr2:

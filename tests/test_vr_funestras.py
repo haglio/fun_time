@@ -43,6 +43,7 @@ from fun_time.manifest import (
     LaunchManifest,
     write_manifest_data,
 )
+from fun_time.osr2_section import osr2_readout_path
 from fun_time.overlay_progress import (
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
@@ -289,6 +290,7 @@ def test_the_main_funestra_is_handed_every_file_it_needs_out_of_the_manifest(
     assert channels.console == Path(commands.main_funestra_console_file)
     assert channels.dashboard_cmd == Path(commands.dashboard_cmd_file)
     assert channels.drive == Path(commands.genau_drive_file)
+    assert channels.osr2_readout == osr2_readout_path(Path(commands.state_dir), "main")
     # The one that is not a path: without it `route_audio` never asks mpv for the
     # headset's sink, and the Main Funestra's sound stays on the room speakers.
     assert unit._audio_device == "Example Headset"

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from fun_time.osr2_section import osr2_readout_path
 from main_funestra.cli import build_parser
 from main_funestra.contract import MainChannels
 
@@ -37,6 +38,10 @@ def test_every_file_fun_time_names_lands_on_its_channel():
 
 def test_where_each_video_was_left_is_kept_in_the_state_dir():
     assert MainChannels.from_args(_args()).play_points == Path("C:/state/main_player_play_points.json")
+
+
+def test_the_osr2_readout_it_hands_on_is_kept_in_the_state_dir():
+    assert MainChannels.from_args(_args()).osr2_readout == osr2_readout_path(Path("C:/state"), "main")
 
 
 def test_a_main_funestra_draws_the_console_never_a_satellite_panel():

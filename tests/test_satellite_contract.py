@@ -6,6 +6,7 @@ from dataclasses import MISSING, fields, replace
 from pathlib import Path
 
 from fun_time.manifest import CommandFiles
+from fun_time.osr2_section import osr2_readout_path
 from satellite.cli import build_parser
 from satellite.contract import (
     CHANNELS,
@@ -153,6 +154,16 @@ class TestReadOutOfTheManifest:
 
         assert portrait.drive == landscape.drive == Path(commands.genau_drive_file)
         assert portrait.dashboard_cmd == Path("state/dashboard_cmd_file")
+
+    def test_each_side_hands_on_its_motion_to_a_file_of_its_own_in_the_state_folder(self):
+        commands = self._commands()
+
+        portrait = SatelliteChannels.from_manifest(commands, "portrait")
+        landscape = SatelliteChannels.from_manifest(commands, "landscape")
+
+        assert portrait.osr2_readout == osr2_readout_path(Path(commands.state_dir), "portrait")
+        assert landscape.osr2_readout == osr2_readout_path(Path(commands.state_dir), "landscape")
+        assert portrait.osr2_readout != landscape.osr2_readout
 
     def test_the_play_points_are_named_by_a_rule_rather_than_a_key(self):
         """The manifest does not carry one: where a side left each clip is

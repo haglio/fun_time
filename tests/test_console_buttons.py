@@ -5,24 +5,19 @@ import pytest
 from funestra.console import (
     GAP,
     GROUP_GAP,
-    OSR2_CONTROL_BUTTONS,
     OSR2_DRIVING,
-    OSR2_PARKED,
-    OSR2_RETRACTED,
     hit_test,
     place_rows,
     tooltip_at,
 )
 from funestra.hud_button import BUTTON, Button
 from funestra.hud_marks import (
-    BROKER_ICON,
     MINIMIZE_ICON,
     SHARED_MARK,
     shared_mark,
     shared_mark_name,
 )
-from funestra.modes import LengthMode, LoopState, MainMode
-from funestra.robot_hand import WaveformShape
+from funestra.modes import LengthMode, LoopState, MainMode, Osr2State
 from funestra.satellite_hud import HudModel
 from funestra.satellite_hud_paint import HudRenderer
 from shared_ui.icon_geometry import RENAMED_MARKS, glyph_names
@@ -36,7 +31,7 @@ from fun_time.console_buttons import (
 from fun_time.content import Noun
 from fun_time.funestra_buttons import LATEST_ICON
 from fun_time.inclusion_pairs import LENGTH, ORIENTATION, PROJECTION
-from fun_time.osr2_section import osr2_controls, take_osr2_button
+from fun_time.osr2_section import osr2_button, osr2_part
 from fun_time.room_funestras import RoomFunestra
 
 FLAT_ICON, VR_ICON = PROJECTION.first.mark, PROJECTION.second.mark
@@ -79,49 +74,10 @@ _EVERY_FACE_SLOTS = (
 
 def _every_button() -> list[Button]:
     declared = [b for slot in _EVERY_FACE_SLOTS for row in _every_row(slot) for b in row]
-    return declared + list(osr2_controls(broker=True))
-
-
-class TestTheOsr2Switch:
-    """One switch saying what the room is doing to the OSR2: on while driving,
-    off while parked, and a press flips it."""
-
-    def test_the_switch_is_there_in_both_modes(self):
-        for mode in MainMode:
-            assert OSR2_CONTROL_BUTTONS[OSR2_PARKED] in _actions(MainSlot(main_mode=mode)), mode
-
-    def test_it_is_on_while_driving_and_a_press_parks(self):
-        switch = _button(MainSlot(main_mode=MainMode.KINO, osr2_control=OSR2_DRIVING),
-                         OSR2_CONTROL_BUTTONS[OSR2_PARKED])
-
-        assert switch.lit
-
-    @pytest.mark.parametrize("control", [OSR2_PARKED, OSR2_RETRACTED])
-    def test_it_is_off_while_held_and_a_press_drives(self, control):
-        switch = _button(MainSlot(main_mode=MainMode.KINO, osr2_control=control),
-                         OSR2_CONTROL_BUTTONS[OSR2_DRIVING])
-
-        assert not switch.lit
-
-
-class TestOsr2Controls:
-    """The device's own control: the broker that talks to the OSR2 at all."""
-
-    def test_the_broker_is_a_control_and_says_which_way_a_press_goes(self):
-        (running,), (down,) = osr2_controls(broker=True), osr2_controls(broker=False)
-
-        assert running.command == down.command == "broker_panel"
-        assert running.lit is True
-        assert down.lit is False and down.warn is True
-        assert (running.tooltip, down.tooltip) == (
-            "Broker is running — press to stop it",
-            "Broker is not running — press to start it",
-        )
-
-    def test_the_broker_asks_for_its_own_icon_rather_than_the_word(self):
-        (broker,) = osr2_controls(broker=True)
-
-        assert broker.glyph == BROKER_ICON
+    part = osr2_part(RoomFunestra.MAIN, main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND,
+                     control=OSR2_DRIVING, paused=False, learned=False, shape="sine",
+                     broker=True, max_intensity=100)
+    return [*declared, *(b for row in part.osr2_rows for b in row), *part.osr2_controls]
 
 
 class TestTransport:
@@ -523,12 +479,6 @@ class TestPaceRows:
 
 
 class TestDriveControls:
-    def test_the_switch_row_is_there_in_both_modes(self):
-        for mode in MainMode:
-            actions = _actions(MainSlot(main_mode=mode))
-            for action in ("robot_hand_toggle_learned", "robot_hand_cycle_shape", "robot_hand_park"):
-                assert action in actions, (mode, action)
-
     def test_the_funscript_jump_rides_the_row_under_a_video_alone(self):
         assert "main_player_funscript_jump" in _actions(MainSlot(main_mode=MainMode.KINO))
         assert "main_player_funscript_jump" not in _actions(MainSlot(main_mode=MainMode.GENAU))
@@ -539,43 +489,17 @@ class TestDriveControls:
         for action in ("robot_hand_amplitude_up", "robot_hand_center_down", "robot_hand_speed_up"):
             assert action not in actions
 
-    def test_human_inspired_motion_follows_the_switch_and_wears_the_stick_figure(self):
-        for mode in MainMode:
-            row = osr2_rows(MainSlot(main_mode=mode))[0]
-            commands = [b.command for b in row if b.command]
-            assert commands[1:3] == ["robot_hand_toggle_learned", "robot_hand_cycle_shape"], mode
-        assert (_button(MainSlot(main_mode=MainMode.GENAU), "robot_hand_toggle_learned").glyph
-                == shared_mark("human"))
-        assert _button(MainSlot(main_mode=MainMode.GENAU), "robot_hand_toggle_learned").lit is False
-        lit = _button(MainSlot(main_mode=MainMode.GENAU, learned=True), "robot_hand_toggle_learned")
-        assert lit.lit is True
-        assert (lit.favorite, lit.warn, lit.hold) == (False, False, False)
+class TestTheOsr2Button:
+    def test_a_console_that_has_the_osr2_wears_its_button_lit_in_place_of_the_aim_row(self):
+        slot = MainSlot(main_mode=MainMode.GENAU)
 
-    def test_the_waveform_button_names_the_waveform(self):
-        slot = MainSlot(main_mode=MainMode.GENAU, shape="rounded_square")
-
-        assert _button(slot, "robot_hand_cycle_shape").tooltip == "Waveform: Square"
-
-    def test_the_waveform_button_wears_the_waveform_the_motion_is_in(self):
-        faces = {_button(MainSlot(main_mode=MainMode.GENAU, shape=shape.value),
-                         "robot_hand_cycle_shape").glyph
-                 for shape in WaveformShape}
-
-        assert len(faces) == len(WaveformShape)
-
-
-class TestTheRowsThatAimTheDevice:
-    def test_ride_with_the_device_rather_than_among_the_rows_above_its_line(self):
-        slot = MainSlot(main_mode=MainMode.VIDEO)
-
-        assert "robot_hand_park" in [b.command for row in osr2_rows(slot) for b in row]
-        assert "robot_hand_park" not in [b.command for row in console_rows(slot) for b in row]
+        assert osr2_rows(slot) == ((osr2_button(RoomFunestra.MAIN, has_it=True),),)
 
     def test_a_console_that_gave_the_osr2_away_offers_it_back_there(self):
         slot = MainSlot(main_mode=MainMode.VIDEO, has_osr2=False)
 
-        assert osr2_rows(slot) == ((take_osr2_button(RoomFunestra.MAIN),),)
-        assert take_osr2_button(RoomFunestra.MAIN) not in [b for row in console_rows(slot) for b in row]
+        assert osr2_rows(slot) == ((osr2_button(RoomFunestra.MAIN, has_it=False),),)
+        assert osr2_button(RoomFunestra.MAIN, has_it=False) not in [b for row in console_rows(slot) for b in row]
 
 
 class TestState:
@@ -586,14 +510,13 @@ class TestState:
         assert _button(slot, "genau_activate").lit is False
 
     def test_nothing_but_the_recording_and_its_loop_takes_a_color_of_its_own(self):
-        colored = [b.command for row in _every_row(MainSlot(main_mode=MainMode.GENAU, learned=True, locked=True))
+        colored = [b.command for row in _every_row(MainSlot(main_mode=MainMode.GENAU, locked=True))
                    for b in row if b.warn or b.hold]
 
         assert colored == []
 
     def test_f_mode_keeps_the_green_the_other_switches_gave_up(self):
         assert _button(MainSlot(main_mode=MainMode.KINO, f_mode=True), "main_fmode").favorite is True
-        assert _button(MainSlot(main_mode=MainMode.GENAU), "robot_hand_toggle_learned").favorite is False
 
     def test_the_record_button_tells_marking_from_looping(self):
         idle = _button(MainSlot(main_mode=MainMode.KINO), "main_player_record_tap")

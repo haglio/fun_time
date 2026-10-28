@@ -8,15 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
-from funestra.console import OSR2_DRIVING, ConsoleModel
+from funestra.console import ConsoleModel
 from funestra.hud_placement import HudCorner, HudEdge
 from funestra.modes import LengthMode, MainMode, Osr2State
-from funestra.robot_hand import FULL_INTENSITY
 
 from .console_buttons import MainSlot, console_rows, osr2_rows, title_filters
 from .funestra_status import GenauStatus, MainFunestraStatus
 from .mode_plan import kino_shows
-from .osr2_section import osr2_controls
 from .ten_second_steps import longer_than_a_step
 
 MAIN_FUNESTRA_CONSOLE_FILENAME = "main_player_console.json"
@@ -48,10 +46,7 @@ class MainSlotInputs:
     genau: GenauStatus
     active: bool
     osr2_mode: Osr2Mode
-    broker: bool
     osr2_trouble: Osr2Trouble | None = None
-    osr2_control: str = OSR2_DRIVING
-    paused: bool = False
     hud_corner: HudCorner = HudCorner.UPPER_LEFT
     hud_edge: HudEdge = HudEdge.LOWER
     hud_minimized: bool = False
@@ -73,7 +68,6 @@ class MainSlotInputs:
     in_vr: bool = False
     crowned: bool = True
     has_osr2: bool = True
-    max_intensity: int = FULL_INTENSITY
 
 
 def console_model(inputs: MainSlotInputs) -> ConsoleModel:
@@ -87,8 +81,6 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         f_mode=inputs.scripted_filter if video else inputs.genau_favorites_filter,
         latest=inputs.latest if video else inputs.genau_latest,
         loop_state=main_funestra.loop_state,
-        learned=genau.learned_active,
-        shape=genau.shape,
         plays_vr=inputs.plays_vr if video else inputs.genau_plays_vr,
         plays_flat=inputs.plays_flat if video else inputs.genau_plays_flat,
         plays_portrait=inputs.plays_portrait if video else inputs.genau_plays_portrait,
@@ -100,7 +92,6 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         has_other_versions=main_funestra.has_other_versions,
         longer_than_a_step=longer_than_a_step(main_funestra.duration_ms),
         jump_to=main_funestra.jump_to,
-        osr2_control=inputs.osr2_control,
         nothing_to_reset=inputs.nothing_to_reset,
         flipped=genau.flipped,
         crowned=inputs.crowned,
@@ -115,16 +106,12 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         osr2=osr2_state(main_mode=inputs.main_mode, osr2_mode=inputs.osr2_mode,
                         funscript_driving=main_funestra.funscript_driving,
                         trouble=inputs.osr2_trouble),
-        osr2_control=slot.osr2_control,  # beside what has the device, what is DONE to it
-        paused=inputs.paused,
         locked=slot.locked,
         latest=slot.latest,
         filters=title_filters(slot),
         rows=console_rows(slot, in_vr=inputs.in_vr),
         osr2_rows=osr2_rows(slot),
-        osr2_controls=osr2_controls(broker=inputs.broker) if inputs.has_osr2 else (),
         has_osr2=inputs.has_osr2,
-        max_intensity=inputs.max_intensity,
     )
 
 

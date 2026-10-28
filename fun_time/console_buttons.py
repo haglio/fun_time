@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from funestra.console import OSR2_DRIVING, ROW_LABEL_W, VALUE_W, aim_row
+from funestra.console import ROW_LABEL_W, VALUE_W
 from funestra.hud_button import Button
 from funestra.hud_marks import (
     FMODE_ICON,
@@ -41,7 +41,7 @@ from .inclusion_pairs import (
     lengths_included,
 )
 from .mode_plan import kino_shows
-from .osr2_section import take_osr2_button
+from .osr2_section import osr2_button
 from .room_funestras import RoomFunestra
 
 
@@ -56,8 +56,6 @@ class MainSlot:
     f_mode: bool = False
     latest: bool | None = None
     loop_state: LoopState = LoopState.NORMAL
-    learned: bool = False
-    shape: str = "sine"
     plays_vr: bool | None = None
     plays_flat: bool | None = None
     plays_portrait: bool = True
@@ -69,7 +67,6 @@ class MainSlot:
     has_other_versions: bool = False
     longer_than_a_step: bool = False
     jump_to: str = ""
-    osr2_control: str = OSR2_DRIVING
     # Whether the Funestra is already at every default, which leaves its reset
     # nothing to put back -- the button is drawn faded and takes no press.
     nothing_to_reset: bool = False
@@ -121,7 +118,7 @@ def console_rows(slot: MainSlot, *, in_vr: bool = False) -> tuple[tuple[Button, 
 
 
 def osr2_rows(slot: MainSlot) -> tuple[tuple[Button, ...], ...]:
-    return (_control_row(slot) if slot.has_osr2 else (take_osr2_button(RoomFunestra.MAIN),),)
+    return (_control_row(slot),)
 
 
 def _file_controls(slot: MainSlot) -> tuple[Button, ...]:
@@ -249,10 +246,10 @@ def _flick_seconds_row() -> tuple[Button, ...]:
 
 def _control_row(slot: MainSlot) -> tuple[Button, ...]:
     return (
-        *aim_row(learned=slot.learned, shape=slot.shape, control=slot.osr2_control),
+        osr2_button(RoomFunestra.MAIN, has_it=slot.has_osr2),
         *((
             Button("main_player_funscript_jump", FUNSCRIPT_JUMP_ICON,
                    "Skip ahead to where this video's scripting starts up again",
                    group_break=True),
-        ) if kino_shows(slot.main_mode) else ()),
+        ) if slot.has_osr2 and kino_shows(slot.main_mode) else ()),
     )

@@ -3,17 +3,12 @@ from __future__ import annotations
 
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra.console import (
-    OSR2_CONTROL_BUTTONS,
-    OSR2_DRIVING,
-    OSR2_PARKED,
     ConsoleModel,
     console_text,
     parse_console,
     read_console,
 )
 from funestra.console_hud import ConsoleHud, ConsolePainter, hud_xy
-from funestra.drive_layout import MAX_INTENSITY
-from funestra.drive_readout import DriveHud
 from funestra.hud_button import Button
 from funestra.modes import LengthMode, LoopState, MainMode, Osr2State
 
@@ -22,7 +17,7 @@ from fun_time.main_funestra_console import MainSlotInputs, console_model, osr2_s
 
 
 def _payload(**overrides) -> ConsoleModel:
-    base = dict(main_mode=MainMode.KINO, active=False, osr2_mode=Osr2Mode.CONTROLLED, broker=False,
+    base = dict(main_mode=MainMode.KINO, active=False, osr2_mode=Osr2Mode.CONTROLLED,
                 main_funestra=MainFunestraStatus(), genau=GenauStatus())
     base.update(overrides)
     return console_model(MainSlotInputs(**base))
@@ -34,26 +29,6 @@ def _button(model: ConsoleModel, action: str) -> Button:
 
 def _actions(model: ConsoleModel) -> list[str]:
     return [b.command for row in (*model.rows, *model.osr2_rows) for b in row if b.command]
-
-
-def test_the_panel_carries_what_the_room_does_to_the_osr2():
-    """Beside what HAS the device: the console's OSR2 switch lights off this,
-    and the pill says so over the driver's name when nothing is sent."""
-    assert _payload().osr2_control == OSR2_DRIVING
-    assert _payload(osr2_control=OSR2_PARKED).osr2_control == OSR2_PARKED
-    assert not _button(_payload(osr2_control=OSR2_PARKED),
-                       OSR2_CONTROL_BUTTONS[OSR2_DRIVING]).lit
-
-
-def test_the_panel_carries_the_max_intensity_the_session_holds_for_its_slider():
-    assert _payload(max_intensity=35).max_intensity == 35
-
-
-def test_the_rows_that_aim_the_device_ride_with_the_device():
-    payload = _payload()
-
-    assert "robot_hand_park" in [b.command for row in payload.osr2_rows for b in row]
-    assert "robot_hand_park" not in [b.command for row in payload.rows for b in row]
 
 
 class TestOsr2State:
@@ -109,27 +84,11 @@ class TestPayload:
 
         assert payload.osr2 == Osr2State.NO_ANSWER
 
-    def test_the_osr2_lines_control_is_the_broker_lit_while_it_runs(self):
-        """Broker status moved off the dashboard onto this panel: one button on
-        the OSR2 line, blue while the service is up, red while it is down."""
-        (running,), (stopped,) = _payload(broker=True).osr2_controls, _payload().osr2_controls
-
-        assert running.command == stopped.command == "broker_panel"
-        assert running.lit and not running.warn and "stop" in running.tooltip
-        assert stopped.warn and not stopped.lit and "start" in stopped.tooltip
-
     def test_the_osr2_state_is_read_off_the_main_funestras_own_funscript(self):
         driving = MainFunestraStatus(has_funscript=True)
 
         assert _payload(main_mode=MainMode.KINO, main_funestra=driving).osr2 == Osr2State.FUNSCRIPT
         assert _payload(main_mode=MainMode.GENAU, main_funestra=driving).osr2 == Osr2State.ROBOT_HAND
-
-    def test_declares_genaus_own_switches_on_the_control_row(self):
-        payload = _payload(genau=GenauStatus(learned_active=True, shape="sawtooth"))
-
-        assert _button(payload, "robot_hand_toggle_learned").lit is True
-        assert _button(_payload(), "robot_hand_toggle_learned").lit is False
-        assert _button(payload, "robot_hand_cycle_shape").tooltip == "Waveform: Sawtooth"
 
     def test_declares_the_main_funestras_loop_machine_on_the_record_button(self):
         """The console is drawn in genau mode too, by a Funestra with no loop machine
@@ -271,94 +230,30 @@ def test_the_hud_title_names_the_orientation_last_in_either_mode():
 
 
 def test_the_published_text_carries_the_rows_the_funestra_draws():
-    payload = _payload(main_mode=MainMode.GENAU, broker=True)
+    payload = _payload(main_mode=MainMode.GENAU)
 
     parsed = parse_console(console_text(payload))
 
     assert parsed == payload
-    assert parsed.rows and parsed.osr2_controls
+    assert parsed.rows and parsed.osr2_rows
 
 
-class TestTheReadoutTheWordLeaves:
-    """The panel this module publishes and the drive readout a press lands on,
-    joined up.
-
-    Kept together because the failure lived in the seam and neither half could
-    see it: this module was tested for the *word* it publishes and the console
-    painter for what it does with a word handed to it, so a genau-mode session
-    publishing "funscript" — the console's word for "somebody else has the
-    device" — passed both suites while every ± mark and every draggable band on
-    Genau's own readout silently refused to be pressed.
-    """
-
+class TestTheDeclaredRows:
     @staticmethod
     def _readout(payload: ConsoleModel, tmp_path):
-        """The painter, fed *payload* the way the Funestra is fed it, with a live
-        motion on the readout; plus where the panel sits in the window."""
         panel = tmp_path / "main_player_console.json"
         panel.write_text(console_text(payload), encoding="utf-8")
         console = read_console(panel)
         assert console is not None
-
         painter = ConsolePainter()
-        painter.rgba(ConsoleHud(
-            console=console,
-            drive=DriveHud(speed=50, amplitude=60, center=50,
-                           waveform=tuple(0.5 for _ in range(80))),
-        ))
+        painter.rgba(ConsoleHud(console=console))
         return painter, hud_xy()
-
-    @staticmethod
-    def _readouts_own(painter):
-        return [track for track in painter.tracks
-                if track.axis != MAX_INTENSITY and track.handle_of is None]
 
     @staticmethod
     def _center(rect, origin):
         left, top = origin
         x, y, w, h = rect
         return left + x + w // 2, top + y + h // 2
-
-    def test_genaus_marks_and_bands_answer_a_press_in_genau_mode(self, tmp_path):
-        """Even with the video the Main Funestra is parked on carrying a funscript: the Main Funestra is not
-        on screen there, so nothing of its is driving and Genau's controls are
-        live.  This is the reported bug — 20 presses to move one level, because
-        19 of them landed on a readout dimmed by a paused Funestra's playlist."""
-        painter, origin = self._readout(
-            _payload(main_mode=MainMode.GENAU, main_funestra=MainFunestraStatus(has_funscript=True)), tmp_path)
-
-        marks = {b.command: r for r, b in painter.buttons
-                 if b.command.startswith(("robot_hand_amplitude", "robot_hand_center", "robot_hand_speed"))}
-        assert marks, "the readout drew no marks to press"
-        for action, rect in marks.items():
-            assert painter.press_at(*self._center(rect, origin)) == action
-
-        for track in self._readouts_own(painter):
-            painter.press_at(*self._center(track.rect, origin))
-            assert painter.holding, f"the {track.axis} band at {track.rect} refused a press"
-
-    def test_a_funscripts_own_turn_still_refuses_the_readout(self, tmp_path):
-        """The other half of the rule, and the reason for it: in kino mode the two
-        drivers take turns on one device, and adjusting a motion Genau is not
-        sending is what put both of them on it at once."""
-        painter, origin = self._readout(
-            _payload(main_mode=MainMode.KINO, main_funestra=MainFunestraStatus(has_funscript=True)), tmp_path)
-
-        for track in self._readouts_own(painter):
-            assert painter.press_at(*self._center(track.rect, origin)) == ""
-            assert not painter.holding
-        for rect, button in painter.buttons:
-            if button.command.startswith(("genau_amplitude", "robot_hand_center")):
-                assert painter.press_at(*self._center(rect, origin)) == ""
-
-    def test_the_max_intensity_holds_a_funscripts_turn_down_too_so_it_stays_pressable(
-            self, tmp_path):
-        painter, origin = self._readout(
-            _payload(main_mode=MainMode.KINO, main_funestra=MainFunestraStatus(has_funscript=True),
-                     max_intensity=50), tmp_path)
-        (max_intensity,) = [track for track in painter.tracks if track.axis == MAX_INTENSITY]
-
-        assert painter.press_at(*self._center(max_intensity.rect, origin)).startswith("max_intensity_")
 
     def test_the_declared_rows_are_what_the_funestra_presses(self, tmp_path):
         """The whole way round: a button declared here, published, read back and
