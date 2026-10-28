@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from funestra.console import OSR2_DRIVING, ROW_LABEL_W, VALUE_W, aim_row
 from funestra.hud_button import Button
 from funestra.hud_marks import (
-    BROKER_ICON,
     FMODE_ICON,
     LOCK_ICON,
     NEXT_ICON,
@@ -123,15 +122,6 @@ def console_rows(slot: MainSlot, *, in_vr: bool = False) -> tuple[tuple[Button, 
 
 def osr2_rows(slot: MainSlot) -> tuple[tuple[Button, ...], ...]:
     return (_control_row(slot) if slot.has_osr2 else (take_osr2_button(RoomFunestra.MAIN),),)
-
-
-def osr2_controls(*, broker: bool) -> tuple[Button, ...]:
-    return (
-        Button("broker_panel", BROKER_ICON,
-               "Broker is running — press to stop it" if broker
-               else "Broker is not running — press to start it",
-               lit=broker, warn=not broker),
-    )
 
 
 def _file_controls(slot: MainSlot) -> tuple[Button, ...]:

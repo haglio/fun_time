@@ -9,8 +9,9 @@ from funestra.drive_readout import DriveHud
 from funestra.hud_placement import HudEdge
 from shared_ui.palette import AMBER, GREEN, RED, TEXT_MUTED, TEXT_PRIMARY
 
-from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
+from fun_time.console_buttons import MainSlot, console_rows
 from fun_time.event_log import FAVORITE, NOTICE
+from fun_time.osr2_section import osr2_controls
 from fun_time_vr.console_panel import PANEL_WIDTH_PX, level_color, panel_hangs_from
 
 

@@ -13,9 +13,10 @@ from funestra.hud_placement import HudCorner, HudEdge
 from funestra.modes import LengthMode, MainMode, Osr2State
 from funestra.robot_hand import FULL_INTENSITY
 
-from .console_buttons import MainSlot, console_rows, osr2_controls, osr2_rows, title_filters
+from .console_buttons import MainSlot, console_rows, osr2_rows, title_filters
 from .funestra_status import GenauStatus, MainFunestraStatus
 from .mode_plan import kino_shows
+from .osr2_section import osr2_controls
 from .ten_second_steps import longer_than_a_step
 
 MAIN_FUNESTRA_CONSOLE_FILENAME = "main_player_console.json"
