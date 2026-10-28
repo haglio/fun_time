@@ -6,6 +6,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 
 from app_support.logging_utils import install_exception_logging
@@ -59,6 +60,7 @@ from fun_time.dashboard_layout import (
     compute_dashboard_bar_layout,
     rect_from_arguments,
 )
+from fun_time.dashboard_osr2 import Osr2PartWidget
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import event_log_path
 from fun_time.loading_reveal import LoadingReveal
@@ -311,7 +313,7 @@ def build_dashboard_scene(
 # ---------------------------------------------------------------------------
 from PyQt6.QtCore import QEvent, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QKeySequence, QPainter, QPen, QPixmap, QShortcut
-from PyQt6.QtWidgets import QDialog, QTextBrowser, QToolTip, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QDialog, QHBoxLayout, QTextBrowser, QToolTip, QVBoxLayout, QWidget
 
 
 class DashboardWidget(QWidget):
@@ -689,23 +691,27 @@ class DashboardWindow(QMainWindow):
             | Qt.WindowType.WindowCloseButtonHint
         )
 
-        # The window spans the whole left column: the control bar across the
-        # top and the log stream filling the rest.  The log is a child rather
-        # than a window of its own, so it rides the dashboard's topmost band.
         self._widget = DashboardWidget()
         self._widget.action_triggered.connect(self._on_action)
         self._log_widget = LogPanelWidget(
             event_log_path(app_config.state_dir), ui_state_path(app_config.state_dir))
-        central = QWidget(self)
-        central_layout = QVBoxLayout(central)
-        central_layout.setContentsMargins(0, 0, 0, 0)
-        central_layout.setSpacing(0)
-        central_layout.addWidget(self._widget, 0, Qt.AlignmentFlag.AlignLeft)
-        central_layout.addWidget(self._log_widget, 1)
+        column = QVBoxLayout()
+        column.setSpacing(0)
+        column.addWidget(self._widget, 0, Qt.AlignmentFlag.AlignLeft)
+        column.addWidget(self._log_widget, 1)
         self._strip = RfbSlotStripWidget() if app_config.rfb_slot_strip else None
         if self._strip is not None:
             self._strip.action_triggered.connect(self._on_action)
-            central_layout.addWidget(self._strip)
+            column.addWidget(self._strip)
+        self._osr2 = Osr2PartWidget(app_config.state_dir)
+        self._osr2.action_triggered.connect(
+            partial(write_dashboard_command, app_config.dashboard_cmd_file))
+        central = QWidget(self)
+        central_layout = QHBoxLayout(central)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+        central_layout.addLayout(column, 1)
+        central_layout.addWidget(self._osr2, 0, Qt.AlignmentFlag.AlignTop)
         self.setCentralWidget(central)
 
         if launch_geometry is not None:
@@ -774,6 +780,7 @@ class DashboardWindow(QMainWindow):
         self._refresh_timer.stop()
         self._notice_timer.stop()
         self._log_widget.shutdown()
+        self._osr2.shutdown()
         self._notices.shutdown()
 
     def changeEvent(self, event: object) -> None:

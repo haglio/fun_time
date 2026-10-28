@@ -82,8 +82,9 @@ def test_dashboard_sits_at_the_top_left_corner_of_the_left_column(cfg_path: Path
 
 def test_dashboard_spans_the_whole_left_column_above_the_rfb(cfg_path: Path):
     """The dashboard now embeds the log stream, so its window spans the full
-    left-column width — the control bar across the top, the log filling the rest —
-    rather than leaving room for a second log-panel window beside it."""
+    left-column width — the control bar and the log down its left, the OSR2 part
+    at its right end — rather than leaving room for a second log-panel window
+    beside it."""
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
