@@ -8,7 +8,7 @@ from funestra.modes import LengthMode
 
 from fun_time.main_list import MainList, MainListSettings, WrittenList, next_length_mode
 from fun_time.media_metadata import metadata_path_for
-from fun_time.modes import build_generated_marker_path
+from fun_time.modes import build_generated_marker_path, build_mirrored_funscript_path
 from tests.drive_fakes import files_that_never_answer
 
 
@@ -22,6 +22,14 @@ def _videos(folder: Path, *names: str) -> list[Path]:
 
 def _the_list(tmp_path: Path, sources: str, **where) -> MainList:
     return MainList(sources=sources, state_dir=tmp_path / "state", **where)
+
+
+def _script(video: str, metadata_root: Path, *, last_ms: int) -> None:
+    script = Path(build_mirrored_funscript_path(video, metadata_root))
+    script.parent.mkdir(parents=True, exist_ok=True)
+    actions = [{"at": at, "pos": 100 * (index % 2)}
+               for index, at in enumerate(range(0, last_ms + 1, 500))]
+    script.write_text(json.dumps({"actions": actions}), encoding="utf-8")
 
 
 def _recorded_library(tmp_path, records: dict[str, dict | None]) -> tuple[MainList, dict[str, str]]:
@@ -93,6 +101,54 @@ class TestFMode:
             MainListSettings(scripted_filter=True))
 
         assert videos == [str(kept)]
+
+    def test_it_drops_a_video_whose_script_is_in_action_for_under_30_percent_of_it(self, tmp_path):
+        the_list, videos = _recorded_library(tmp_path, {
+            "mostly scripted": {"video": {"duration_seconds": 100.0}},
+            "barely scripted": {"video": {"duration_seconds": 100.0}},
+        })
+        _script(videos["mostly scripted"], the_list.metadata_root, last_ms=60_000)
+        _script(videos["barely scripted"], the_list.metadata_root, last_ms=29_000)
+
+        kept = the_list.videos(MainListSettings(scripted_filter=True))
+
+        assert kept == [videos["mostly scripted"]]
+
+    def test_a_video_whose_script_is_in_action_for_exactly_30_percent_of_it_stays(self, tmp_path):
+        the_list, videos = _recorded_library(tmp_path, {
+            "just scripted enough": {"video": {"duration_seconds": 30.0}},
+        })
+        _script(videos["just scripted enough"], the_list.metadata_root, last_ms=9_000)
+
+        kept = the_list.videos(MainListSettings(scripted_filter=True))
+
+        assert kept == [videos["just scripted enough"]]
+
+    def test_a_video_whose_running_time_nothing_records_stays(self, tmp_path):
+        the_list, videos = _recorded_library(tmp_path, {
+            "unmeasured": {"video": {"type": "full_length"}},
+            "garbled": {"video": {"duration_seconds": "long"}},
+        })
+        for video in videos.values():
+            _script(video, the_list.metadata_root, last_ms=1_000)
+
+        kept = the_list.videos(MainListSettings(scripted_filter=True))
+
+        assert sorted(kept) == sorted(videos.values())
+
+    def test_a_headset_video_is_judged_by_the_record_the_headset_finds_for_it(self, tmp_path):
+        metadata_root = tmp_path / "library" / "videos" / "metadata"
+        vr_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
+        (video,) = _videos(vr_dir, "scene one.mp4")
+        sidecar = metadata_path_for(video, metadata_root, outlying_dirs=[vr_dir])
+        sidecar.parent.mkdir(parents=True)
+        sidecar.write_text(json.dumps({"video": {"duration_seconds": 100.0}}), encoding="utf-8")
+        _script(str(video), metadata_root, last_ms=10_000)
+        the_list = _the_list(tmp_path, str(vr_dir), vr_dirs=str(vr_dir), metadata_root=metadata_root)
+
+        kept = the_list.videos(MainListSettings(scripted_filter=True))
+
+        assert kept == []
 
 
 class TestShapes:

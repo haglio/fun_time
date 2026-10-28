@@ -38,8 +38,8 @@ from fun_time.funestra_status import (
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 from fun_time.modes import (
     build_mirrored_funscript_path,
-    has_handcrafted_funscript,
     matching_funscript,
+    plays_in_f_mode,
 )
 from fun_time.monitors import MonitorRect
 from fun_time.process_identity import NAMER
@@ -1083,12 +1083,11 @@ def _link_primary_samples(real_config, dest_dir: Path, *, metadata_root: Path,
     candidates = [(candidate, source_root)
                   for source_root in real_config.paths.main_funestra_library_dirs
                   for candidate in library_clips([source_root])
-                  if has_handcrafted_funscript(str(candidate), machines_metadata_root)]
+                  if plays_in_f_mode(str(candidate), machines_metadata_root)]
     if not candidates:
         raise FileNotFoundError(
-            "Could not find a main-library video with a hand-authored funscript for "
-            "integration config — F-mode plays those, so a session built without one "
-            "would come up empty"
+            "Could not find a main-library video F-mode plays for integration config "
+            "-- a session built without one would come up empty"
         )
     chosen = sample_library_clips(
         candidates, min(count, len(candidates)), desc="funscripted main-library clips")
