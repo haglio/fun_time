@@ -7,7 +7,7 @@ shared_ui and event_log rather than drawn to match.
 """
 from __future__ import annotations
 
-import time
+import re
 from dataclasses import dataclass, replace
 from functools import cache
 
@@ -46,6 +46,7 @@ from fun_time.event_log import (
     SOURCES,
     EventRecord,
 )
+from fun_time.log_panel_model import format_record
 from fun_time.project_paths import PROJECT_ICON
 
 from .console_panel import DEG_PER_PX, level_color
@@ -96,11 +97,6 @@ class DashState:  # what the bar shows, and what the log is filtered to
 def verbosity_name(verbosity: int) -> str:
     named = {level: name for name, level in LEVELS_BY_NAME.items()}
     return named.get(verbosity, "NOTICE")
-
-
-def format_row(record: EventRecord) -> str:  # the desktop panel's own shape
-    clock = time.strftime("%H:%M:%S", time.localtime(record.ts))
-    return f"{clock}  {record.source:<9}  {record.message}"
 
 
 def dial_rect() -> Rect:
@@ -155,6 +151,41 @@ def _log_top() -> int:
 
 def dash_height() -> int:
     return _log_top() + LOG_ROWS * _ROW_H + PAD
+
+
+def _wrapped(text: str, font, width: int) -> list[str]:
+    lines = [""]
+    for word in re.findall(r"\S+\s*", text):
+        if lines[-1] and font.getlength(lines[-1] + word.rstrip()) > width:
+            lines.append("")
+        while font.getlength(word.rstrip()) > width:
+            kept = _widest_start(word, font, width)
+            lines[-1] += word[:kept]
+            lines.append("")
+            word = word[kept:]
+        lines[-1] += word
+    return [line.rstrip() for line in lines]
+
+
+def _widest_start(word: str, font, width: int) -> int:
+    kept = len(word)
+    while kept > 1 and font.getlength(word[:kept]) > width:
+        kept -= 1
+    return kept
+
+
+def log_lines(state: DashState, records) -> list[tuple[str, int]]:
+    font, width = load_font(_LABEL_PX), DASH_WIDTH_PX - 2 * PAD
+    room = (dash_height() - PAD - _log_top()) // _ROW_H
+    shown: list[tuple[str, int]] = []
+    for record in reversed(records):
+        if not state.accepts(record):
+            continue
+        lines = [(line, record.level) for line in _wrapped(format_record(record), font, width)]
+        if shown and len(shown) + len(lines) > room:
+            break
+        shown[:0] = lines
+    return shown[:room]
 
 
 def _label(draw, rect: Rect, text: str, font, ink) -> None:
@@ -226,10 +257,9 @@ def paint_dash(state: DashState, records,
         on = source in state.sources
         _chip(draw, rect, SOURCE_LABELS[source], on=on, font=small, hover=hover)
 
-    rows = [r for r in records if state.accepts(r)][-LOG_ROWS:]
-    for index, record in enumerate(rows):
-        draw.text((PAD, _log_top() + index * _ROW_H), format_row(record)[:96],
-                  font=small, fill=(*level_color(record.level), 255))
+    for index, (line, level) in enumerate(log_lines(state, records)):
+        draw.text((PAD, _log_top() + index * _ROW_H), line, font=small,
+                  fill=(*level_color(level), 255))
 
     if state.dial_open:
         paint_list(panel, _open_list(state), small)

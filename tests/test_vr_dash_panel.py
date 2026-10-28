@@ -48,6 +48,7 @@ from fun_time.event_log import (
     SOURCES,
     EventRecord,
 )
+from fun_time.log_panel_model import format_record
 from fun_time_vr import dash_panel
 from fun_time_vr.dash_panel import (
     _LABEL_PX,
@@ -61,7 +62,7 @@ from fun_time_vr.dash_panel import (
     dash_actions,
     dash_height,
     dial_stops,
-    format_row,
+    log_lines,
     paint_dash,
     verbosity_name,
 )
@@ -71,6 +72,15 @@ _A_PREVIEW = Preview(feature="the new reference popup")
 
 def _record(message: str, *, level: int = NOTICE, source: str = SOURCE_SYSTEM) -> EventRecord:
     return EventRecord(ts=1_700_000_000.0, level=level, source=source, message=message)
+
+
+_LOG_FONT = load_font(_LABEL_PX)
+_LOG_WIDTH = DASH_WIDTH_PX - 2 * PAD
+
+
+def _written(rows: list[str]) -> str:
+    """Every character the rows carry but the spaces they were broken at."""
+    return "".join(rows).replace(" ", "")
 
 
 def _pointer(**state):
@@ -193,12 +203,49 @@ class TestItIsTheDesktopsBar:
         assert rect.width == rect.height == BUTTON_SIZE_HUD
         assert ("power", BUTTON_SIZE_HUD - 2 * BUTTON_MARK_INSET) in asked
 
-    def test_a_row_reads_the_way_the_log_panel_writes_it(self):
-        row = format_row(_record("portrait next", source=SOURCE_PORTRAIT))
 
-        assert row.endswith("portrait next")
-        assert "portrait" in row
-        assert row[2] == ":" and row[5] == ":"  # a clock leads
+class TestTheLogWrapsAsTheDesktopsDoes:
+    """The desktop's log wraps a line too long for it onto the rows under it and
+    never cuts one, so the headset's does the same."""
+
+    def test_a_record_reads_the_way_the_log_panel_writes_it(self):
+        record = _record("portrait next", source=SOURCE_PORTRAIT)
+
+        assert log_lines(DashState(), [record]) == [(format_record(record), NOTICE)]
+
+    def test_a_record_too_long_for_a_row_goes_on_to_the_rows_under_it_whole(self):
+        record = _record(" ".join(f"word{n}" for n in range(40)))
+
+        rows = [row for row, _level in log_lines(DashState(), [record])]
+
+        assert len(rows) > 1
+        assert all(_LOG_FONT.getlength(row) <= _LOG_WIDTH for row in rows)
+        assert _written(rows) == _written([format_record(record)])
+
+    def test_a_word_too_wide_for_a_row_breaks_where_it_meets_the_edge(self):
+        record = _record("Could not open C:" + "\\made_up_folder" * 30 + "\\scene one.mp4")
+
+        rows = [row for row, _level in log_lines(DashState(), [record])]
+
+        assert len(rows) > 2
+        assert all(_LOG_FONT.getlength(row) <= _LOG_WIDTH for row in rows)
+        assert _written(rows) == _written([format_record(record)])
+
+    def test_it_shows_the_newest_records_newest_last_as_many_as_its_rows_hold(self):
+        records = [_record(f"line {n}") for n in range(LOG_ROWS * 4)]
+
+        rows = log_lines(DashState(), records)
+
+        assert len(rows) >= LOG_ROWS
+        assert rows == [(format_record(record), NOTICE) for record in records[-len(rows):]]
+
+    def test_a_record_too_long_for_the_rows_left_is_left_out_whole_rather_than_cut(self):
+        room = len(log_lines(DashState(), [_record(f"line {n}") for n in range(LOG_ROWS * 4)]))
+        too_long = _record(" ".join(f"word{n}" for n in range(40)))
+        newer = [_record(f"line {n}") for n in range(room - 1)]
+
+        assert log_lines(DashState(), [too_long, *newer]) == [
+            (format_record(record), NOTICE) for record in newer]
 
 
 class TestItIsOneRow:
