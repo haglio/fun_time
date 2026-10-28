@@ -57,6 +57,7 @@ from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
 from .modes import collect_video_files
 from .origenerator_switches import CLOSE_SLIDESHOWS, RfbSlot
+from .osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from .overlay_progress import (
     ACTIVATING_ORIGENERATOR,
     CANCEL_CLOSING_FUN_TIME,
@@ -718,6 +719,7 @@ def start_hud_priming(
                for funestra in RoomFunestra.SATELLITES},
             # The Main Funestra's console rides the same publisher as the satellites' maps.
             "main_player": Path(manifest.commands.main_funestra_console_file),
+            DASHBOARD_OSR2_PART: osr2_part_path(Path(manifest.commands.state_dir)),
         },
         cache_dir,
         load_camera_words(),

@@ -25,6 +25,7 @@ from fun_time.command_dispatch import dispatch_command
 from fun_time.config import load_config
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
+from fun_time.dashboard_app import load_dashboard_app_config
 from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
 from fun_time.funestra_deaths import FunestraDied, LaunchedFunestra, part_closed_message
 from fun_time.hosted_contract import NO_HOSTED_VOCABULARY, HostedVocabulary
@@ -38,6 +39,7 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.origenerator_switches import ORIGENERATOR_MODE, RfbSlot
+from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCELING,
@@ -3561,20 +3563,30 @@ class TestStartingVoice:
 
 
 class TestTheHudPublisherASessionStarts:
-    def test_it_names_the_camera_words_the_content_overlay_lists(self, tmp_path: Path):
-        """The desktop session and the headset's both start their publisher here,
-        so this is the one place the overlay's words reach every Funestra's panel."""
-        bridge_config = SimpleNamespace(
-            portrait_sources="", landscape_sources="", state_dir=tmp_path)
-        manifest = SimpleNamespace(commands=SimpleNamespace(
-            funestra_file=lambda funestra, kind: str(tmp_path / f"{funestra}_{kind}.json"),
-            main_funestra_console_file=str(tmp_path / "console.json")))
+    @staticmethod
+    def _started(cfg_factory, tmp_path, *, camera_words=()) -> tuple[MagicMock, Path]:
+        manifest_path = write_windows_bridge_manifest(load_config(cfg_factory({})))
+        bridge_config = SimpleNamespace(portrait_sources="", landscape_sources="", state_dir=tmp_path)
 
         with patch("fun_time.windows_bridge_orchestrator.load_camera_words",
-                   return_value=("Side", "XYZ")),              patch("fun_time.windows_bridge_orchestrator.HudPublisher") as publisher,              patch("fun_time.windows_bridge_orchestrator.threading.Thread"):
-            windows_bridge_orchestrator.start_hud_priming(bridge_config, manifest, enabled=True)
+                   return_value=camera_words),              patch("fun_time.windows_bridge_orchestrator.HudPublisher") as publisher,              patch("fun_time.windows_bridge_orchestrator.threading.Thread"):
+            windows_bridge_orchestrator.start_hud_priming(
+                bridge_config, LaunchManifest.read(manifest_path), enabled=True)
+        return publisher, manifest_path
+
+    def test_it_names_the_camera_words_the_content_overlay_lists(self, cfg_factory, tmp_path):
+        """The desktop session and the headset's both start their publisher here,
+        so this is the one place the overlay's words reach every Funestra's panel."""
+        publisher, _manifest_path = self._started(cfg_factory, tmp_path,
+                                                  camera_words=("Side", "XYZ"))
 
         assert publisher.call_args.args[2] == ("Side", "XYZ")
+
+    def test_it_publishes_the_osr2_part_where_the_dashboard_reads_it(self, cfg_factory, tmp_path):
+        publisher, manifest_path = self._started(cfg_factory, tmp_path)
+
+        assert publisher.call_args.args[0][DASHBOARD_OSR2_PART] == osr2_part_path(
+            load_dashboard_app_config(manifest_path).state_dir)
 
     def test_genaus_clips_are_warmed_for_its_browser_as_the_library_is_for_the_videos(
         self, cfg_factory, tmp_path: Path,
