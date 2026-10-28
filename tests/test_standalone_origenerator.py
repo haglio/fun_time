@@ -1,109 +1,58 @@
 from __future__ import annotations
 
-import json
-import os
-
 import pytest
+from app_support import origenerator_handoff as handoff
 
 from fun_time.room_funestras import RoomFunestra
 from fun_time.standalone_origenerator import (
     OpenOrigenerator,
     claim_the_osr2,
-    take_it_over,
     the_open_origenerator,
 )
-from fun_time.win32_process import get_process_creation_time
 
 
-def _offer(checkout, offer):
-    (checkout / "state").mkdir(exist_ok=True)
-    (checkout / "state" / "fun_time_offer.txt").write_text(offer, encoding="utf-8")
+def _offer(checkout, *, starting=False):
+    handoff.offer_this_process(checkout / "state", starting=starting)
 
 
-def _this_process():
-    return f"{os.getpid()} {get_process_creation_time(os.getpid())}"
+def _mark_a_slideshow(checkout, shape):
+    mark = handoff.slideshow_mark_of(handoff.this_process(), shape)
+    (checkout / "state" / handoff.SHOWING).write_text(mark, encoding="utf-8")
 
 
-@pytest.mark.parametrize("offer", ["", "1234", "1234 soon", "one two"])
-def test_an_offer_that_names_no_process_is_no_open_app(tmp_path, offer):
-    _offer(tmp_path, offer)
-
+def test_no_offer_is_no_open_app(tmp_path):
     assert the_open_origenerator(tmp_path) is None
 
 
 def test_an_open_app_is_the_process_its_offer_names(tmp_path):
-    _offer(tmp_path, _this_process())
+    _offer(tmp_path)
 
     assert the_open_origenerator(tmp_path) == OpenOrigenerator(
-        os.getpid(), starting=False, checkout=tmp_path, slideshow_on=())
+        handoff.this_process().pid, starting=False, place=tmp_path / "state", slideshow_on=())
 
 
 def test_an_app_still_starting_says_so_in_its_offer(tmp_path):
-    _offer(tmp_path, f"{_this_process()} starting")
+    _offer(tmp_path, starting=True)
 
-    assert the_open_origenerator(tmp_path) == OpenOrigenerator(
-        os.getpid(), starting=True, checkout=tmp_path, slideshow_on=())
-
-
-def _mark_a_slideshow(checkout, mark):
-    (checkout / "state" / "fun_time_showing.txt").write_text(mark, encoding="utf-8")
+    assert the_open_origenerator(tmp_path).starting
 
 
-@pytest.mark.parametrize(("shape", "satellite"), [
-    ("portrait", RoomFunestra.PORTRAIT), ("landscape", RoomFunestra.LANDSCAPE)])
-def test_an_open_app_showing_a_slideshow_names_the_satellite_of_its_shape(
-        tmp_path, shape, satellite):
-    _offer(tmp_path, _this_process())
-    _mark_a_slideshow(tmp_path, f"{_this_process()} {shape}")
+def test_an_open_app_is_taken_over_through_the_checkout_its_offer_stood_in(tmp_path):
+    _offer(tmp_path)
 
-    assert the_open_origenerator(tmp_path).slideshow_on == (satellite,)
+    assert the_open_origenerator(tmp_path).checkout == tmp_path
 
 
-def test_an_open_app_showing_a_slideshow_of_both_shapes_names_both_satellites(tmp_path):
-    _offer(tmp_path, _this_process())
-    _mark_a_slideshow(tmp_path, f"{_this_process()} both")
+@pytest.mark.parametrize(("shape", "satellites"), [
+    ("portrait", (RoomFunestra.PORTRAIT,)),
+    ("landscape", (RoomFunestra.LANDSCAPE,)),
+    ("both", RoomFunestra.SATELLITES)])
+def test_an_open_app_showing_a_slideshow_names_the_satellites_of_its_shape(
+        tmp_path, shape, satellites):
+    _offer(tmp_path)
+    _mark_a_slideshow(tmp_path, shape)
 
-    assert the_open_origenerator(tmp_path).slideshow_on == RoomFunestra.SATELLITES
-
-
-def test_a_slideshow_mark_from_before_it_named_its_shape_could_be_on_either_satellite(
-        tmp_path):
-    _offer(tmp_path, _this_process())
-    _mark_a_slideshow(tmp_path, _this_process())
-
-    assert the_open_origenerator(tmp_path).slideshow_on == RoomFunestra.SATELLITES
-
-
-@pytest.mark.parametrize("mark", ["", "1234 5678", "1234 5678 portrait", "garbled"])
-def test_a_slideshow_mark_naming_another_process_is_no_slideshow(tmp_path, mark):
-    _offer(tmp_path, _this_process())
-    _mark_a_slideshow(tmp_path, mark)
-
-    assert the_open_origenerator(tmp_path).slideshow_on == ()
-
-
-def test_a_slideshow_mark_naming_a_shape_this_session_does_not_know_is_no_slideshow(
-        tmp_path):
-    _offer(tmp_path, _this_process())
-    _mark_a_slideshow(tmp_path, f"{_this_process()} sideways")
-
-    assert the_open_origenerator(tmp_path).slideshow_on == ()
-
-
-def test_an_offer_with_a_word_this_session_does_not_know_is_no_open_app(tmp_path):
-    _offer(tmp_path, f"{_this_process()} sleeping")
-
-    assert the_open_origenerator(tmp_path) is None
-
-
-def test_a_takeover_lands_whole_under_its_own_name(tmp_path):
-    (tmp_path / "state").mkdir()
-
-    take_it_over(tmp_path, pid=4321, args=["--fun-time", "--x", "0"])
-
-    assert [p.name for p in (tmp_path / "state").iterdir()] == ["fun_time_takeover.json"]
-    assert json.loads((tmp_path / "state" / "fun_time_takeover.json").read_text(
-        encoding="utf-8")) == {"pid": 4321, "args": ["--fun-time", "--x", "0"]}
+    assert the_open_origenerator(tmp_path).slideshow_on == satellites
 
 
 def test_a_session_hosting_a_worktree_finds_the_everyday_copy_on_its_library(tmp_path):
@@ -113,20 +62,10 @@ def test_a_session_hosting_a_worktree_finds_the_everyday_copy_on_its_library(tmp
     everyday = tmp_path / "origenerator"
     worktree = everyday / ".claude" / "worktrees" / "my-branch"
     worktree.mkdir(parents=True)
-    _offer(everyday, _this_process())
+    _offer(everyday)
 
     assert the_open_origenerator(worktree) == OpenOrigenerator(
-        os.getpid(), starting=False, checkout=everyday, slideshow_on=())
-
-
-def _claim_in(checkout):
-    return (checkout / "state" / "fun_time_session.txt").read_text(encoding="utf-8")
-
-
-def test_a_session_claims_the_osr2_by_its_own_process(tmp_path):
-    claim_the_osr2(tmp_path)
-
-    assert _claim_in(tmp_path) == _this_process()
+        handoff.this_process().pid, starting=False, place=everyday / "state", slideshow_on=())
 
 
 def test_a_session_hosting_a_worktree_claims_the_osr2_in_its_primary_checkout_too(tmp_path):
@@ -135,4 +74,5 @@ def test_a_session_hosting_a_worktree_claims_the_osr2_in_its_primary_checkout_to
 
     claim_the_osr2(worktree)
 
-    assert (_claim_in(worktree), _claim_in(primary)) == (_this_process(), _this_process())
+    assert [handoff.a_session_claims_the_osr2(checkout / "state")
+            for checkout in (worktree, primary)] == [True, True]

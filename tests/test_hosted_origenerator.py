@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from app_support.origenerator_handoff import hand_over, take_the_takeover
 from funestra.file_channel import consume_command_file
 
 from fun_time import load_config
@@ -21,11 +22,7 @@ from fun_time.hosted_origenerator import (
 from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo
 from fun_time.session_handoff import keep_the_origenerator, kept_origenerator
-from fun_time.standalone_origenerator import (
-    OpenOrigenerator,
-    take_it_over,
-    the_takeover_it_was_handed,
-)
+from fun_time.standalone_origenerator import OpenOrigenerator
 from fun_time.window_layout import WindowLayoutPlan, WindowRect, screen_layout
 from fun_time.windows_bridge_startup import (
     HandedFunestra,
@@ -309,10 +306,10 @@ class TestWhenTheAppWeTookOverNeverAnswers:
             cfg_factory, tmp_path, {"paths": {"origenerator_dir": str(origenerator)}})
         launched = {}
 
-        def answer(checkout, **kw):
-            take_it_over(checkout, **kw)
+        def answer(place, **kw):
+            hand_over(place, **kw)
             if it_reads_the_takeover:
-                the_takeover_it_was_handed(checkout).unlink()
+                take_the_takeover(place)
 
         monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
         with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors), \
@@ -320,9 +317,9 @@ class TestWhenTheAppWeTookOverNeverAnswers:
              patch("fun_time.hosted_origenerator.BOOTING_ANSWER_BUDGET_S", 0.05), \
              patch("fun_time.hosted_origenerator.the_open_origenerator",
                    return_value=OpenOrigenerator(6060, starting=False,
-                                                 checkout=origenerator,
+                                                 place=origenerator / "state",
                                                  slideshow_on=())), \
-             patch("fun_time.hosted_origenerator.take_it_over", side_effect=answer), \
+             patch("app_support.origenerator_handoff.hand_over", side_effect=answer), \
              patch("fun_time.hosted_origenerator.launch_origenerator",
                    side_effect=lambda **kw: launched.update(kw) or 91):
             app = bring_up_the_hosted_app(manifest, sibling_checkouts="")
@@ -346,10 +343,11 @@ class TestWhenTheAppWeTookOverNeverAnswers:
         monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
         with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors), \
              patch("fun_time.hosted_origenerator.the_open_origenerator",
-                   return_value=OpenOrigenerator(6060, starting=False, checkout=origenerator,
+                   return_value=OpenOrigenerator(6060, starting=False,
+                                                 place=origenerator / "state",
                                                  slideshow_on=())), \
-             patch("fun_time.hosted_origenerator.take_it_over",
-                   side_effect=lambda _checkout, **kw: handed.update(kw)):
+             patch("app_support.origenerator_handoff.hand_over",
+                   side_effect=lambda _place, **kw: handed.update(kw)):
             bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=True)
 
         assert [word for word in handed["args"] if word.startswith("--")] == flags

@@ -8,7 +8,7 @@ import pytest
 from fun_time.hosted_contract import declared_flags
 from fun_time.room_funestras import RoomFunestra
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
-from tests.origenerator_contract import answers, is_read_by, published
+from tests.origenerator_contract import answers, published
 from tests.origenerator_expectations import EXPECTATIONS, LEFT_UNANSWERED, published_text
 
 REWRITE = "FUN_TIME_REWRITE_ORIGENERATOR_EXPECTATIONS"
@@ -76,19 +76,3 @@ def test_the_lines_left_unanswered_are_lines_the_shipped_origenerator_refuses(sh
 
 def test_every_line_left_unanswered_says_why():
     assert [said for said, why in LEFT_UNANSWERED.items() if not why.strip()] == []
-
-
-def test_the_shipped_origenerator_names_each_file_the_two_apps_hand_each_other_alike(
-        relied_on, shipped):
-    assert {side: entry["file"] for side, entry in shipped["handoff"].items()} == {
-        side: entry["file"] for side, entry in relied_on["handoff"].items()}
-
-
-def test_what_either_app_writes_in_a_handoff_file_is_what_the_other_reads(relied_on, shipped):
-    unread = [(side, written)
-              for writer, reader in ((relied_on, shipped), (shipped, relied_on))
-              for side, entry in writer["handoff"].items()
-              for written in entry.get("writes", ())
-              if not is_read_by(written, reader["handoff"][side]["reads"])]
-
-    assert unread == []

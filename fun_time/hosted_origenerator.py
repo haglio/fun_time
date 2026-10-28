@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
+from app_support import origenerator_handoff as handoff
 from funestra.file_channel import append_command
 
 from .hosted_contract import (
@@ -24,13 +25,7 @@ from .manifest import LaunchManifest
 from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .session_handoff import forget_the_kept_origenerator, kept_origenerator
-from .standalone_origenerator import (
-    OpenOrigenerator,
-    claim_the_osr2,
-    take_it_over,
-    the_open_origenerator,
-    the_takeover_it_was_handed,
-)
+from .standalone_origenerator import OpenOrigenerator, claim_the_osr2, the_open_origenerator
 from .win32_process import get_process_creation_time
 from .window_layout import WindowLayoutPlan, screen_layout
 from .windows_bridge_startup import (
@@ -77,9 +72,8 @@ def _budget_for(open_app: OpenOrigenerator) -> float:
 
 
 def _it_took_the_takeover(open_app: OpenOrigenerator) -> bool:
-    takeover = the_takeover_it_was_handed(open_app.checkout)
     give_up_at = time.monotonic() + _budget_for(open_app)
-    while takeover.exists():
+    while handoff.a_takeover_waits_in(open_app.place):
         if time.monotonic() >= give_up_at:
             return False
         time.sleep(_PUBLISH_POLL_S)
@@ -158,9 +152,9 @@ def bring_up_the_hosted_app(
         Path(funestra.hud_file).unlink(missing_ok=True)
     open_app = the_open_origenerator(origenerator_dir)
     if open_app is not None:
-        take_it_over(open_app.checkout, pid=open_app.pid,
-                     args=the_args_it_declares(open_app.checkout,
-                                               origenerator_session_args(**session)))
+        handoff.hand_over(open_app.place, pid=open_app.pid,
+                          args=the_args_it_declares(open_app.checkout,
+                                                    origenerator_session_args(**session)))
         logger.info("Took over the Origenerator %s from %s (pid %d)",
                     "still starting" if open_app.starting else "already open",
                     open_app.checkout, open_app.pid)
