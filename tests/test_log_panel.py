@@ -14,7 +14,14 @@ from shared_ui.colors import TEXT_PRIMARY, hovered
 from shared_ui.fonts import SIZE_TINY
 from shared_ui.icons import glyph_pixmap
 from shared_ui.palette import BG_BUTTON, BLUE, TEXT_MUTED
-from shared_ui.spacing import BUTTON_GAP, BUTTON_GROUP_GAP, BUTTON_PAD_H_TIGHT, BUTTON_SIZE_HUD
+from shared_ui.spacing import (
+    BUTTON_GAP,
+    BUTTON_GROUP_GAP,
+    BUTTON_PAD_H_TIGHT,
+    BUTTON_SIZE_HUD,
+    GAP_SMALL,
+    MARGIN_STANDARD,
+)
 
 from fun_time.event_log import FAVORITE, NOTICE, EventRecord, event_line
 from fun_time.log_panel import _COPY_ICON_SIZE, LogPanelWidget, level_color
@@ -365,10 +372,20 @@ def test_the_level_dial_shows_an_arrow_pointing_down(panel_factory):
     assert apex > widest
 
 
+def test_the_filter_row_sits_above_the_list_inside_the_panels_own_margins(panel_factory):
+    panel = panel_factory(["Clip state"])
+    panel.layout().activate()
+    dial, toggles = panel._verbosity, list(panel._source_buttons.values())
+
+    assert (dial.x(), dial.y()) == (MARGIN_STANDARD, MARGIN_STANDARD)
+    assert {toggle.y() for toggle in toggles} == {MARGIN_STANDARD}
+    assert toggles[-1].x() + toggles[-1].width() <= panel.width() - MARGIN_STANDARD
+    assert panel._list.y() == MARGIN_STANDARD + BUTTON_SIZE_HUD + GAP_SMALL
+
+
 def test_the_filter_row_sets_the_dial_a_group_apart_from_the_toggles(panel_factory):
     panel = panel_factory(["Clip state"])
-    panel.controls.adjustSize()
-    panel.controls.layout().activate()
+    panel.layout().activate()
     toggles = list(panel._source_buttons.values())
 
     def gap(left, right) -> int:

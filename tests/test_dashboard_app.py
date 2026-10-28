@@ -60,6 +60,7 @@ from fun_time.dashboard_app import (
 from fun_time.dashboard_layout import (
     GAP,
     GROUP_GAP,
+    LOG_LIST_HEIGHT,
     RFB_SLOT_STRIP_HEIGHT,
     Rect,
     compute_dashboard_bar_layout,
@@ -121,6 +122,35 @@ def dashboard_window(dashboard_app_config):
         dashboard_app_config,
         launch_geometry=DashboardLaunchGeometry(x=100, y=200, width=300, height=400),
     )
+    try:
+        yield window
+    finally:
+        window.close()
+
+
+def _lay_out(widget: QWidget) -> None:
+    if widget.layout() is not None:
+        widget.layout().activate()
+    for child in widget.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly):
+        _lay_out(child)
+
+
+def _placed_where_a_session_places_it(app_config):
+    plan = compute_window_layout(
+        primary_monitor=Rect(0, 0, 2560, 1392), secondary_monitor=Rect(2560, 0, 1440, 3440),
+        layout_config=app_config.layout, rfb_slot_strip=app_config.rfb_slot_strip)
+    window = build_dashboard_window(app_config, launch_geometry=plan.dashboard)
+    _lay_out(window)
+    return window
+
+
+def _at(window, widget) -> QPoint:
+    return widget.mapTo(window, QPoint(0, 0))
+
+
+@pytest.fixture
+def placed_window(dashboard_app_config):
+    window = _placed_where_a_session_places_it(dashboard_app_config)
     try:
         yield window
     finally:
@@ -209,36 +239,20 @@ def test_reset_all_takes_no_press_but_still_names_itself_when_every_funestra_is_
 
 
 def test_the_bar_is_only_as_wide_as_its_own_buttons():
-    """It shares its row with the log's filter controls now, so it takes the width
-    its buttons need and leaves the rest to them."""
     layout = compute_dashboard_bar_layout()
 
     assert _scene().width == layout.width
     assert _scene().height == layout.height
 
 
-def test_the_log_filters_follow_the_bar_a_group_gap_on(dashboard_app_config):
-    """Past the LAST control the bar carries -- the VR reset, which only a
-    session in the headset draws, out past the crossing.  Measured to the
-    crossing instead, the bar was too narrow for its own widest state: the reset
-    was cut off at the bar's edge and the filters crowded up against it."""
-    window = build_dashboard_window(
-        dashboard_app_config,
-        launch_geometry=DashboardLaunchGeometry(x=0, y=0, width=1200, height=300),
-    )
-    try:
-        for widget in (window, window.centralWidget(), window._widget.parentWidget()):
-            widget.layout().activate()
-        layout = compute_dashboard_bar_layout()
+def test_the_log_filters_sit_in_the_log_panel_under_the_bar(placed_window):
+    dial = _at(placed_window, placed_window._log_widget._verbosity)
 
-        def left(widget) -> int:
-            return widget.mapTo(window, QPoint(0, 0)).x()
+    assert dial == QPoint(MARGIN_STANDARD, compute_dashboard_bar_layout().height + MARGIN_STANDARD)
 
-        last = layout.vr_reset_button
-        bar_right = left(window._widget) + last.x + last.width
-        assert left(window._log_widget._verbosity) - bar_right == GROUP_GAP
-    finally:
-        window.close()
+
+def test_the_filter_row_makes_the_window_taller_rather_than_the_list_shorter(placed_window):
+    assert placed_window._log_widget._list.height() == LOG_LIST_HEIGHT
 
 
 def test_the_window_is_the_bar_and_the_log_under_it():
