@@ -69,6 +69,7 @@ from fun_time.funestra_status import read_genau_status, read_main_funestra_statu
 from fun_time.genau_config import GenauSettings
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item
+from fun_time.osr2_section import osr2_readout_path
 from fun_time.project_paths import PROJECT_VR_ICON
 from fun_time.session_handoff import (
     headset_hold_asked,
@@ -551,6 +552,7 @@ class _MainUnit(_VideoUnit):
                 console=Path(commands.main_funestra_console_file),
                 dashboard_cmd=self._dashboard_cmd_file,
                 drive=Path(commands.genau_drive_file),
+                osr2_readout=osr2_readout_path(Path(commands.state_dir), MAIN),
             ),
             playlist=library.playlist(),
             tcode=FunscriptTCodeDriver(_osr2_slot(commands, MAIN)),

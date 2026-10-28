@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from funestra.funestra import Channels
 
+from fun_time.osr2_section import osr2_readout_path
 from fun_time.room_funestras import RoomFunestra
 
 from .cli import play_points_path
@@ -25,4 +26,6 @@ class MainChannels(Channels):
             drive=args.drive_file,
             osr2_sender=RoomFunestra.MAIN.label,
             osr2_port=args.osr2_port,
+            osr2_readout=(osr2_readout_path(args.state_dir, RoomFunestra.MAIN.label)
+                          if args.state_dir else None),
         )

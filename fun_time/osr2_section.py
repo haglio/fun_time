@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from funestra.console import ConsoleModel, aim_row
@@ -18,6 +19,10 @@ if TYPE_CHECKING:
 DASHBOARD_OSR2_PART = "dashboard_osr2"
 
 
+def osr2_readout_path(state_dir: Path, funestra: str) -> Path:
+    return Path(state_dir) / f"{funestra}_osr2_readout.txt"
+
+
 def take_osr2_command(funestra: RoomFunestra) -> str:
     return f"{funestra.label}_take_osr2"
 
@@ -32,10 +37,13 @@ def funestra_with_the_osr2(state) -> RoomFunestra:
         return RoomFunestra.MAIN
 
 
-def take_osr2_button(funestra: RoomFunestra) -> Button:
+def osr2_button(funestra: RoomFunestra, *, has_it: bool) -> Button:
+    if has_it:
+        return Button(take_osr2_command(funestra), "OSR2",
+                      "This Funestra has the OSR2 — it follows this Funestra's funscripts",
+                      width=BUTTON_WORD_W, lit=True)
     return Button(take_osr2_command(funestra), "OSR2",
-                  "Take over the OSR2 — it follows this Funestra's funscripts, "
-                  "and its controls move here",
+                  "Take over the OSR2 — it follows this Funestra's funscripts",
                   width=BUTTON_WORD_W)
 
 
@@ -65,16 +73,14 @@ def osr2_part(holder: RoomFunestra, *, main_mode: MainMode, osr2: Osr2State, con
 class DeviceBlock:
     rows: tuple[tuple[Button, ...], ...] = ()
     osr2: str = ""
-    control: str = ""
-    controls: tuple[Button, ...] = ()
-    max_intensity: int | None = None
-    paused: bool = False
 
     @classmethod
     def offered_to(cls, funestra: RoomFunestra) -> DeviceBlock:
-        return cls(rows=((take_osr2_button(funestra),),))
+        return cls(rows=((osr2_button(funestra, has_it=False),),))
+
+    @classmethod
+    def held_by(cls, funestra: RoomFunestra, osr2: Osr2State) -> DeviceBlock:
+        return cls(rows=((osr2_button(funestra, has_it=True),),), osr2=osr2)
 
     def worn_by(self, model: HudModel) -> HudModel:
-        return replace(model, osr2_rows=self.rows, osr2=self.osr2,
-                       osr2_control=self.control, osr2_controls=self.controls,
-                       max_intensity=self.max_intensity, paused=self.paused)
+        return replace(model, osr2_rows=self.rows, osr2=self.osr2)
