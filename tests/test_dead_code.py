@@ -391,7 +391,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # 5769 on 2026-10-28: the log's filters stand on a row of their own inside the
 # log panel again, so the notes on the Dashboard lifting them into the bar's row
 # went.
-MAX_PROSE_LINES = 5769
+# 5761 the same day: the OSR2 part stands at the Dashboard's right end, and the
+# notes saying the bar and the log fill the whole window went to tests of where
+# each one stands.
+MAX_PROSE_LINES = 5761
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

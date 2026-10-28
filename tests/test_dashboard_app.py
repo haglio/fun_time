@@ -14,6 +14,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support import file_channel
+from funestra.console import OSR2_DRIVING, ConsoleModel, console_text, read_console
+from funestra.console_hud import ConsoleHud, ConsolePainter
+from funestra.modes import MainMode, Osr2State
 from PyQt6.QtCore import QPoint, QRect, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtTest import QTest
@@ -77,7 +80,9 @@ from fun_time.event_log import (
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
 from fun_time.origenerator_switches import RfbSlot
+from fun_time.osr2_section import osr2_part, osr2_part_path
 from fun_time.project_paths import PROJECT_ICON
+from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time.unlogged_notices import flash_unlogged
 from fun_time.voice_control import VoiceController
@@ -1434,6 +1439,14 @@ def test_closing_the_window_ends_the_listener(dashboard_app_config):
     assert not listener.is_alive()
 
 
+def test_closing_the_window_stops_reading_the_osr2_part(dashboard_app_config):
+    window = build_dashboard_window(dashboard_app_config)
+
+    window.close()
+
+    assert not window._osr2._timer.isActive()
+
+
 def test_the_dashboard_runs_on_an_application_made_where_it_is_let_go_of_safely(
         cfg_path, monkeypatch):
     made = []
@@ -1761,13 +1774,20 @@ def test_only_a_session_hosting_origenerator_gives_its_dashboard_the_strip(
     assert plain.rfb_slot_strip is False
 
 
-def test_the_strip_sits_under_the_log(strip_window, dashboard_window):
-    central = strip_window.centralWidget().layout()
-    widgets = [central.itemAt(n).widget() for n in range(central.count())]
+def test_the_bar_the_log_and_the_strip_stand_in_one_column_left_of_the_osr2_part(
+        cfg_factory, tmp_path, dashboard_window):
+    window = _placed_where_a_session_places_it(_strip_app_config(cfg_factory, tmp_path))
+    try:
+        bar, log, strip, osr2 = window._widget, window._log_widget, window._strip, window._osr2
 
-    assert widgets[-2:] == [strip_window._log_widget, strip_window._strip]
-    assert strip_window._strip.height() == RFB_SLOT_STRIP_HEIGHT
-    assert dashboard_window._strip is None
+        assert _at(window, bar) == QPoint(0, 0)
+        assert _at(window, log) == QPoint(0, bar.height())
+        assert _at(window, strip) == QPoint(0, bar.height() + log.height())
+        assert log.width() == strip.width() == _at(window, osr2).x()
+        assert (strip.height(), strip.y() + strip.height()) == (RFB_SLOT_STRIP_HEIGHT, window.height())
+        assert dashboard_window._strip is None
+    finally:
+        window.close()
 
 
 def test_the_strip_lights_whatever_holds_the_browsers_place(strip_window):
@@ -1794,3 +1814,40 @@ def test_the_strips_origenerator_takes_no_press_while_that_app_is_starting(strip
     _press_the_strip(strip_window, "Origenerator")
 
     assert poll_dashboard_commands(strip_window._app_config.dashboard_cmd_file) == []
+
+
+# --- the OSR2 part at the window's right end -------------------------------------
+
+
+def _publish_the_osr2_part(app_config) -> ConsoleModel:
+    path = osr2_part_path(app_config.state_dir)
+    path.write_text(console_text(osr2_part(
+        RoomFunestra.MAIN, main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND,
+        control=OSR2_DRIVING, paused=False, learned=False, shape="sine", broker=True,
+        max_intensity=100)), encoding="utf-8")
+    return read_console(path)
+
+
+def _center_of(part: ConsoleModel, command: str) -> QPoint:
+    painter = ConsolePainter(device_only=True)
+    painter.rgba(ConsoleHud(console=part))
+    x, y, width, height = next(rect for rect, button in painter.buttons if button.command == command)
+    return QPoint(x + width // 2, y + height // 2)
+
+
+def test_a_press_on_the_osr2_part_is_posted_where_the_bars_presses_are(
+        dashboard_window, dashboard_app_config):
+    part = _publish_the_osr2_part(dashboard_app_config)
+    osr2 = dashboard_window._osr2
+    osr2.poll()
+    osr2.grab()
+
+    QTest.mouseClick(osr2, Qt.MouseButton.LeftButton, pos=_center_of(part, "broker_panel"))
+
+    assert poll_dashboard_commands(dashboard_app_config.dashboard_cmd_file) == ["broker_panel"]
+
+
+def test_the_osr2_part_stands_at_the_windows_right_end_from_its_top(placed_window):
+    osr2 = placed_window._osr2
+
+    assert _at(placed_window, osr2) == QPoint(placed_window.width() - osr2.width(), 0)

@@ -67,11 +67,6 @@ def compute_window_layout(
         height=primary_monitor.height,
     )
 
-    # The left column stacks the dashboard above the RFB.  The dashboard spans
-    # the full column width — its control bar across the top and the embedded log
-    # stream filling everything under it — at its natural height.  The RFB then
-    # fills the whole rectangle from the dashboard's lower edge down to the
-    # monitor's lower edge.
     left_width = primary_monitor.width - landscape_width
     dashboard = WindowRect(
         x=primary_monitor.x,

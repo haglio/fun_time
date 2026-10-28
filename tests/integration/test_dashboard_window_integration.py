@@ -115,33 +115,36 @@ def _build_merged_dashboard(cfg_path: Path):
     return window, manifest_path.parent
 
 
-def test_log_stream_fills_the_window_under_the_control_bar(cfg_path: Path):
-    """The bar runs along the top and the log takes everything beneath it,
-    full width — where it used to be a strip beside a drawing of the monitors."""
+def test_log_stream_fills_the_column_under_the_control_bar(cfg_path: Path):
+    """The bar runs along the top and the log takes everything beneath it, down
+    the window's left -- where it used to be a strip beside a drawing of the
+    monitors -- and the OSR2 part stands at the window's right end, from its top."""
     window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
-        bar, log, central = window._widget, window._log_widget, window.centralWidget()
+        bar, log, osr2 = window._widget, window._log_widget, window._osr2
+        central = window.centralWidget()
         # The log starts at the bar's lower edge ...
         assert log.y() == bar.y() + bar.height()
-        # ... spans the window rather than a strip of it ...
-        assert log.width() == central.width()
-        # ... and the two together fill the window's client height.
+        # ... runs across to the OSR2 part, which ends at the window's edge ...
+        assert log.width() == osr2.x()
+        assert (osr2.x() + osr2.width(), osr2.y()) == (central.width(), 0)
+        # ... and the bar and the log together fill the window's client height.
         assert bar.height() + log.height() == central.height()
         assert log.height() > bar.height()
     finally:
         window.close()
 
 
-def test_in_a_session_hosting_origenerator_the_strip_takes_the_windows_lower_edge(
+def test_in_a_session_hosting_origenerator_the_strip_takes_the_columns_lower_edge(
         cfg_factory, tmp_path: Path):
-    """Under the log, full width, as tall as the bar, and the log stops above it."""
+    """Under the log, as wide as it, as tall as the bar, and the log stops above it."""
     (tmp_path / "origenerator").mkdir()
     window, _state_dir = _build_merged_dashboard(
         cfg_factory({"paths": {"origenerator_dir": str(tmp_path / "origenerator")}}))
     try:
         central, log, strip = window.centralWidget(), window._log_widget, window._strip
         assert strip.height() == RFB_SLOT_STRIP_HEIGHT
-        assert strip.width() == central.width()
+        assert strip.width() == log.width()
         assert strip.y() == log.y() + log.height()
         assert strip.y() + strip.height() == central.height()
     finally:
@@ -267,6 +270,7 @@ def test_closing_the_dashboard_stops_its_pollers_and_the_log_tail(cfg_path: Path
     assert not window._refresh_timer.isActive()
     assert not window._notice_timer.isActive()
     assert not log._timer.isActive()
+    assert not window._osr2._timer.isActive()
     assert window._notices.overlay is None
     if overlay is not None:
         assert not overlay.isVisible()

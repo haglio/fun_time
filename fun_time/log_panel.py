@@ -141,7 +141,7 @@ class _LevelDial(QComboBox):
 
 
 class LogPanelWidget(QWidget):
-    """Tails the event log, filling the dashboard window under the control bar.
+    """Tails the event log, under the dashboard's control bar.
 
     A child of the dashboard window rather than a window of its own, so it rides
     the dashboard's topmost band, minimize/restore and close for free instead of

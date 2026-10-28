@@ -35,7 +35,6 @@ landscape_hud_file
 
 # --- Read from a sibling package, which is a scan of its own ---
 build_genau_engine  # main_funestra.genau builds Genau's engine with it
-osr2_readout_path  # satellite.contract, main_funestra.contract and fun_time_vr name each Funestra's with it
 _.current_flick  # main_funestra.genau, off the engine
 _.playhead  # main_funestra.genau, off the engine
 _.time_on_screen  # main_funestra.genau, off the engine
