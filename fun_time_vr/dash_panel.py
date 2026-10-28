@@ -39,6 +39,7 @@ from shared_ui.type_scale import SIZE_SMALL, SIZE_TINY, in_pixels
 from fun_time import preview_marker
 from fun_time.dashboard_controls import BarControl, bar_controls, mark_side
 from fun_time.dashboard_layout import PAD, Rect, compute_dashboard_bar_layout
+from fun_time.dashboard_osr2_model import room_for_a_whole_part
 from fun_time.event_log import (
     LEVEL_NAMES,
     LEVELS_BY_NAME,
@@ -100,8 +101,7 @@ def verbosity_name(verbosity: int) -> str:
 
 
 def dial_rect() -> Rect:
-    bar = compute_dashboard_bar_layout()
-    return Rect(bar.width, bar.quit_button.y, _DIAL_W, BUTTON_SIZE_HUD)
+    return Rect(PAD, compute_dashboard_bar_layout().height + PAD, _DIAL_W, BUTTON_SIZE_HUD)
 
 
 def source_chips() -> dict[str, Rect]:  # left to right, in SOURCES order
@@ -115,12 +115,12 @@ def source_chips() -> dict[str, Rect]:  # left to right, in SOURCES order
     return chips
 
 
-def _row_end() -> int:
-    last = list(source_chips().values())[-1]
-    return last.x + last.width
+@cache
+def osr2_part_rect() -> Rect:
+    return Rect(compute_dashboard_bar_layout().width, 0, *room_for_a_whole_part())
 
 
-DASH_WIDTH_PX = _row_end() + PAD
+DASH_WIDTH_PX = osr2_part_rect().x + osr2_part_rect().width
 DASH_DEG_PER_PX = DEG_PER_PX
 
 
@@ -146,11 +146,12 @@ def dash_actions(*, dial_open: bool = False) -> dict[str, Rect]:
 
 
 def _log_top() -> int:
-    return compute_dashboard_bar_layout().height
+    dial = dial_rect()
+    return dial.y + dial.height + GAP_SMALL
 
 
 def dash_height() -> int:
-    return _log_top() + LOG_ROWS * _ROW_H + PAD
+    return max(_log_top() + LOG_ROWS * _ROW_H + PAD, osr2_part_rect().height)
 
 
 def _wrapped(text: str, font, width: int) -> list[str]:
@@ -175,7 +176,7 @@ def _widest_start(word: str, font, width: int) -> int:
 
 
 def log_lines(state: DashState, records) -> list[tuple[str, int]]:
-    font, width = load_font(_LABEL_PX), DASH_WIDTH_PX - 2 * PAD
+    font, width = load_font(_LABEL_PX), osr2_part_rect().x - 2 * PAD
     room = (dash_height() - PAD - _log_top()) // _ROW_H
     shown: list[tuple[str, int]] = []
     for record in reversed(records):

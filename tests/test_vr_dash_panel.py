@@ -38,6 +38,7 @@ from fun_time.dashboard_actions import (
     VR_RESET,
 )
 from fun_time.dashboard_layout import PAD, compute_dashboard_bar_layout
+from fun_time.dashboard_osr2_model import room_for_a_whole_part
 from fun_time.event_log import (
     LEVELS_BY_NAME,
     NOTICE,
@@ -63,6 +64,7 @@ from fun_time_vr.dash_panel import (
     dash_height,
     dial_stops,
     log_lines,
+    osr2_part_rect,
     paint_dash,
     verbosity_name,
 )
@@ -75,12 +77,24 @@ def _record(message: str, *, level: int = NOTICE, source: str = SOURCE_SYSTEM) -
 
 
 _LOG_FONT = load_font(_LABEL_PX)
-_LOG_WIDTH = DASH_WIDTH_PX - 2 * PAD
+_LOG_WIDTH = osr2_part_rect().x - 2 * PAD
 
 
 def _written(rows: list[str]) -> str:
     """Every character the rows carry but the spaces they were broken at."""
     return "".join(rows).replace(" ", "")
+
+
+def _a_spot_on_the_log() -> tuple[int, int]:
+    """Under the filters, right of where the dial's list hangs and left of the
+    OSR2 part, where nothing takes a press."""
+    dial = dash_actions()[VERBOSITY_CHIP]
+    return dial.x + dial.width + 1, dash_height() - 1
+
+
+def _apart(first, second) -> bool:
+    return (first.x + first.width <= second.x or second.x + second.width <= first.x
+            or first.y + first.height <= second.y or second.y + second.height <= first.y)
 
 
 def _pointer(**state):
@@ -223,7 +237,7 @@ class TestTheLogWrapsAsTheDesktopsDoes:
         assert _written(rows) == _written([format_record(record)])
 
     def test_a_word_too_wide_for_a_row_breaks_where_it_meets_the_edge(self):
-        record = _record("Could not open C:" + "\\made_up_folder" * 30 + "\\scene one.mp4")
+        record = _record("Could not open C:" + "\\made_up_folder" * 12 + "\\scene one.mp4")
 
         rows = [row for row, _level in log_lines(DashState(), [record])]
 
@@ -248,38 +262,68 @@ class TestTheLogWrapsAsTheDesktopsDoes:
             (format_record(record), NOTICE) for record in newer]
 
 
-class TestItIsOneRow:
-    def test_the_bar_the_dial_and_the_windows_run_along_one_row(self):
+class TestTheColumnBesideTheOsr2Part:
+    """The desktop's Dashboard, laid out the same way: the bar with its row to
+    itself, the log's filters on a row of their own under it at the log's left
+    margin, the log under them, and the OSR2 part at the right end."""
+
+    def test_the_bar_has_its_row_to_itself(self):
         bar = compute_dashboard_bar_layout()
         actions = dash_actions()
         buttons = [actions[action] for action in (
             QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE,
             FMODE_TOGGLE, RESET_ALL, EXIT_VR, VR_RESET)]
+
+        assert {rect.y for rect in buttons} == {bar.quit_button.y}
+        assert all(actions[name].y >= bar.height for name in (VERBOSITY_CHIP, *SOURCES))
+
+    def test_the_dial_and_the_windows_run_along_a_row_of_their_own_at_the_logs_left_margin(self):
+        bar = compute_dashboard_bar_layout()
+        actions = dash_actions()
         dial = actions[VERBOSITY_CHIP]
         chips = [actions[source] for source in SOURCES]
-        row = (*buttons, dial, *chips)
 
-        assert {rect.y for rect in row} == {bar.quit_button.y}
-        assert {rect.height for rect in row} == {BUTTON_SIZE_HUD}
-        assert dial.x == buttons[-1].x + buttons[-1].width + BUTTON_GROUP_GAP
+        assert (dial.x, dial.y) == (PAD, bar.height + PAD)
+        assert {rect.y for rect in chips} == {dial.y}
+        assert {rect.height for rect in (dial, *chips)} == {BUTTON_SIZE_HUD}
         assert chips[0].x == dial.x + dial.width + BUTTON_GROUP_GAP
         assert all(right.x == left.x + left.width + BUTTON_GAP
                    for left, right in pairwise(chips))
-        assert chips[-1].x + chips[-1].width + PAD == DASH_WIDTH_PX
         for source, chip in zip(SOURCES, chips, strict=True):
             label = int(load_font(_LABEL_PX).getlength(SOURCE_LABELS[source]))
             assert chip.width == label + 2 * BUTTON_PAD_H_TIGHT, source
 
-    def test_nothing_on_the_row_is_drawn_over_anything_else(self):
-        """The dial was measured from the crossing rather than from the last
-        control on the bar, so in VR -- the one place the VR reset is drawn --
-        it was painted over that button's right half."""
-        placed = list(dash_actions().items())
+    def test_the_osr2_part_has_its_right_end_from_the_top_with_room_for_a_whole_one(self):
+        part = osr2_part_rect()
+
+        assert (part.x + part.width, part.y) == (DASH_WIDTH_PX, 0)
+        assert (part.width, part.height) == room_for_a_whole_part()
+        assert part.height <= dash_height()
+
+    def test_the_column_left_of_it_is_as_wide_as_the_bar_and_holds_the_filters(self):
+        last_window = dash_actions()[SOURCES[-1]]
+
+        assert osr2_part_rect().x == compute_dashboard_bar_layout().width
+        assert last_window.x + last_window.width + PAD <= osr2_part_rect().x
+
+    def test_nothing_on_it_is_drawn_over_anything_else(self):
+        """The dial was once measured from the crossing rather than from the
+        last control on the bar, and was painted over the VR reset's right half."""
+        placed = [*dash_actions().items(), ("the OSR2 part", osr2_part_rect())]
 
         for index, (name, first) in enumerate(placed):
             for other, second in placed[index + 1:]:
-                assert (first.x + first.width <= second.x
-                        or second.x + second.width <= first.x), f"{name} over {other}"
+                assert _apart(first, second), f"{name} over {other}"
+
+    def test_the_log_is_written_under_the_filters_and_never_under_the_osr2_part(self):
+        dial = dash_actions()[VERBOSITY_CHIP]
+        quiet = np.asarray(paint_dash(DashState(), [])).astype(int)
+        spoken = np.asarray(paint_dash(
+            DashState(), [_record(" ".join(f"word{n}" for n in range(40)))])).astype(int)
+        inked = np.argwhere((quiet != spoken).any(axis=2))
+
+        assert inked[:, 0].min() >= dial.y + dial.height
+        assert inked[:, 1].max() <= osr2_part_rect().x - PAD
 
 
 class TestWhatAPressDoes:
@@ -345,7 +389,7 @@ class TestWhatAPressDoes:
         pointer, _posted = _pointer()
         pointer.press(*_middle(VERBOSITY_CHIP))
 
-        pointer.press(DASH_WIDTH_PX - 1, dash_height() - 1)
+        pointer.press(*_a_spot_on_the_log())
 
         assert not pointer.state.dial_open
 
@@ -377,7 +421,7 @@ class TestWhatAPressDoes:
     def test_a_press_on_nothing_posts_nothing(self):
         pointer, posted = _pointer()
 
-        assert pointer.press(DASH_WIDTH_PX - 1, dash_height() - 1) is None
+        assert pointer.press(*_a_spot_on_the_log()) is None
         assert posted == []
 
     def test_the_session_half_of_the_state_does_not_disturb_the_filters(self):
