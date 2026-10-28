@@ -262,14 +262,21 @@ class TestTheLogWrapsAsTheDesktopsDoes:
         assert all(_LOG_FONT.getlength(row) <= _LOG_WIDTH for row in rows)
         assert _written(rows) == _written([format_record(record)])
 
-    def test_a_word_too_wide_for_a_row_breaks_where_it_meets_the_edge(self):
-        record = _record("Could not open C:" + "\\made_up_folder" * 12 + "\\scene one.mp4")
+    def test_a_word_too_wide_for_a_row_keeps_a_row_of_its_own_whole(self):
+        """As the desktop's log does: it wraps only where words end."""
+        a_path = "C:" + "\\made_up_folder" * 12 + "\\scene_one.mp4"
+        record = _record(f"Could not open {a_path}")
 
         rows = [row for row, _level in log_lines(DashState(), [record])]
 
-        assert len(rows) > 2
-        assert all(_LOG_FONT.getlength(row) <= _LOG_WIDTH for row in rows)
-        assert _written(rows) == _written([format_record(record)])
+        assert rows == [format_record(record).removesuffix(f" {a_path}"), a_path]
+
+    def test_a_line_break_in_a_record_starts_a_new_row_there(self):
+        record = _record("first made up line\nsecond made up line")
+
+        rows = [row for row, _level in log_lines(DashState(), [record])]
+
+        assert rows == format_record(record).split("\n")
 
     def test_it_shows_the_newest_records_newest_last_as_many_as_its_rows_hold(self):
         records = [_record(f"line {n}") for n in range(LOG_ROWS * 4)]
@@ -350,6 +357,14 @@ class TestTheColumnBesideTheOsr2Part:
 
         assert inked[:, 0].min() >= dial.y + dial.height
         assert inked[:, 1].max() <= osr2_part_rect().x - PAD
+
+    def test_a_word_too_wide_for_a_row_is_clipped_at_the_columns_edge(self):
+        """With no mark, as the desktop's log is, which turns Qt's ellipsis off."""
+        quiet = np.asarray(paint_dash(DashState(), [])).astype(int)
+        clipped = np.asarray(paint_dash(DashState(), [_record("x" * 200)])).astype(int)
+        inked = np.argwhere((quiet != clipped).any(axis=2))
+
+        assert osr2_part_rect().x - PAD - 8 < inked[:, 1].max() <= osr2_part_rect().x - PAD
 
 
 class TestWhatAPressDoes:

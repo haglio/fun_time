@@ -7,7 +7,6 @@ shared_ui and event_log rather than drawn to match.
 """
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, replace
 from functools import cache
 
@@ -16,7 +15,7 @@ from PIL import Image, ImageDraw
 from shared_ui.button_pil import button, slab
 from shared_ui.dropdown_pil import paint_field, paint_list
 from shared_ui.icons_pil import glyph_image
-from shared_ui.lettering import WORDMARK_FACE, load_font
+from shared_ui.lettering import WORDMARK_FACE, load_font, wrap_text
 from shared_ui.loading_panel import icon_image
 from shared_ui.palette import (
     BG_BUTTON,
@@ -155,35 +154,18 @@ def dash_height() -> int:
     return max(_log_top() + LOG_ROWS * _ROW_H + PAD, osr2_part_rect().height)
 
 
-def _wrapped(text: str, font, width: int) -> list[str]:
-    lines = [""]
-    for word in re.findall(r"\S+\s*", text):
-        if lines[-1] and font.getlength(lines[-1] + word.rstrip()) > width:
-            lines.append("")
-        while font.getlength(word.rstrip()) > width:
-            kept = _widest_start(word, font, width)
-            lines[-1] += word[:kept]
-            lines.append("")
-            word = word[kept:]
-        lines[-1] += word
-    return [line.rstrip() for line in lines]
-
-
-def _widest_start(word: str, font, width: int) -> int:
-    kept = len(word)
-    while kept > 1 and font.getlength(word[:kept]) > width:
-        kept -= 1
-    return kept
+def _log_size() -> tuple[int, int]:
+    return osr2_part_rect().x - 2 * PAD, dash_height() - PAD - _log_top()
 
 
 def log_lines(state: DashState, records) -> list[tuple[str, int]]:
-    font, width = load_font(_LABEL_PX), osr2_part_rect().x - 2 * PAD
-    room = (dash_height() - PAD - _log_top()) // _ROW_H
+    font, (width, height) = load_font(_LABEL_PX), _log_size()
+    room = height // _ROW_H
     shown: list[tuple[str, int]] = []
     for record in reversed(records):
         if not state.accepts(record):
             continue
-        lines = [(line, record.level) for line in _wrapped(format_record(record), font, width)]
+        lines = [(line, record.level) for line in wrap_text(font, format_record(record), width)]
         if shown and len(shown) + len(lines) > room:
             break
         shown[:0] = lines
@@ -259,9 +241,11 @@ def paint_dash(state: DashState, records,
         on = source in state.sources
         _chip(draw, rect, SOURCE_LABELS[source], on=on, font=small, hover=hover)
 
+    log = Image.new("RGBA", _log_size(), (0, 0, 0, 0))
+    pen = ImageDraw.Draw(log)
     for index, (line, level) in enumerate(log_lines(state, records)):
-        draw.text((PAD, _log_top() + index * _ROW_H), line, font=small,
-                  fill=(*level_color(level), 255))
+        pen.text((0, index * _ROW_H), line, font=small, fill=(*level_color(level), 255))
+    panel.alpha_composite(log, (PAD, _log_top()))
 
     if state.dial_open:
         paint_list(panel, _open_list(state), small)

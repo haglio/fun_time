@@ -49,6 +49,12 @@ class TestTheBanner:
         banner's way of showing one is the cut."""
         assert _banner("x" * 300, max_width=400).width <= 400
 
+    def test_a_line_break_in_a_notice_starts_a_new_line_as_on_the_desktops_notice(self):
+        spaced = _banner("first made up line second made up line", max_width=4000)
+        broken = _banner("first made up line\nsecond made up line", max_width=4000)
+
+        assert broken.height > spaced.height
+
     def test_a_notice_too_wide_for_one_line_goes_on_to_another_rather_than_lose_its_end(self):
         one_line = _banner("not sure enough of: portrait next", max_width=4000)
         wrapped = _banner("not sure enough of: portrait next (press Enter to accept)",
