@@ -203,7 +203,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
             *transport("main", noun=MAIN_FUNESTRA_NOUN, longer_than_a_step=slot.longer_than_a_step),
             lock_button("main", locked=slot.locked, noun=MAIN_FUNESTRA_NOUN),
             Button("main_fmode", FMODE_ICON,
-                   "F-Mode — play only the videos that have a funscript",
+                   "F-Mode — play only the well funscripted videos",
                    lit=slot.f_mode, favorite=True),
             reset_button("main", nothing_to_reset=slot.nothing_to_reset),
             *browse_order_buttons("main", latest=slot.latest, remembered=remembered),
