@@ -14,7 +14,7 @@ import math
 
 import numpy as np
 from PIL import Image, ImageDraw
-from shared_ui.lettering import load_font, wrap_text
+from shared_ui.lettering import fit_text, load_font, wrap_text
 from shared_ui.notice_shape import (
     NOTICE_PAD_H,
     NOTICE_PAD_V,
@@ -55,8 +55,9 @@ def paint_banner(message: str, level: int, *, max_width: int, size: int) -> Imag
     """The banner, sized to what it says and to the picture it goes on."""
     font = load_font(size)
     pad_x, pad_y = round(size * _PAD_X), round(size * _PAD_Y)
-    text = "\n".join(wrap_text(font, message, max(1, max_width - 2 * pad_x),
-                               max_lines=MAX_LINES))
+    room = max(1, max_width - 2 * pad_x)
+    text = "\n".join(fit_text(font, line, room)
+                     for line in wrap_text(font, message, room, max_lines=MAX_LINES))
     spacing = round(size * _LINE_GAP)
     ink = level_color(level)
     probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
