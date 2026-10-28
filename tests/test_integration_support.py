@@ -853,6 +853,31 @@ def test_the_main_funestras_draw_never_waits_on_a_video_it_lists(tmp_path, monke
     assert sorted(path.name for path in linked) == ["one.mp4", "two.mp4"]
 
 
+def test_the_main_funestras_draw_takes_only_the_videos_f_mode_plays(tmp_path, monkeypatch):
+    library = tmp_path / "drawn" / "videos" / "videos"
+    library.mkdir(parents=True)
+    for name in ("played", "passed over"):
+        (library / f"{name}.mp4").write_bytes(b"")
+    machines_metadata_root = tmp_path / "drawn" / "videos" / "metadata"
+    judged_against = set()
+
+    def plays_in_f_mode(video, metadata_root):
+        judged_against.add(metadata_root)
+        return Path(video).stem == "played"
+
+    monkeypatch.setattr(integration_support, "plays_in_f_mode", plays_in_f_mode)
+    room = tmp_path / "room" / "videos" / "videos"
+    room.mkdir(parents=True)
+
+    linked = integration_support._link_primary_samples(
+        SimpleNamespace(paths=SimpleNamespace(main_funestra_library_dirs=[library]),
+                        regen=SimpleNamespace(metadata_root=machines_metadata_root)),
+        room, metadata_root=tmp_path / "room" / "videos" / "metadata", count=2)
+
+    assert [path.name for path in linked] == ["played.mp4"]
+    assert judged_against == {machines_metadata_root}
+
+
 def test_a_sides_draw_never_waits_on_a_video_it_lists(tmp_path, monkeypatch):
     library = tmp_path / "drawn"
     library.mkdir()

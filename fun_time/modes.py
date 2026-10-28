@@ -8,10 +8,18 @@ from pathlib import Path
 
 from app_support.mirrored_tree import LIBRARY_DIR_NAME, mirrored_path
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
+from funestra.funscript import load as load_funscript
 from funestra.playlist import PlaylistItem, write_playlist
 
 from .folder_listings import FolderListings
-from .media_metadata import GroupIndex, build_group_index, normalize_path_key, path_matches_query
+from .media_metadata import (
+    GroupIndex,
+    build_group_index,
+    normalize_path_key,
+    path_matches_query,
+    recorded_duration_seconds,
+    recorded_for,
+)
 from .vr_videos import keep_shapes
 from .watch_stats import passes_inclusion, weighted_shuffle
 
@@ -107,11 +115,27 @@ def has_matching_funscript(video_path: str, metadata_root: Path | None = None) -
 
 
 def has_handcrafted_funscript(video_path: str, metadata_root: Path | None = None) -> bool:
-    """Whether a person wrote *video_path*'s funscript — what F-mode plays."""
+    """Whether a person wrote *video_path*'s funscript."""
     if not has_matching_funscript(video_path, metadata_root):
         return False
     marker = build_generated_marker_path(video_path, metadata_root)
     return not (marker and Path(marker).exists())
+
+
+LEAST_SCRIPTED_SHARE = 0.30
+
+
+def plays_in_f_mode(video_path: str, metadata_root: Path | None = None, *,
+                    outlying_dirs: Iterable[Path] = ()) -> bool:
+    if not has_handcrafted_funscript(video_path, metadata_root):
+        return False
+    duration_seconds = recorded_duration_seconds(
+        recorded_for(video_path, metadata_root, outlying_dirs=outlying_dirs))
+    if duration_seconds is None:
+        return True
+    duration_ms = round(duration_seconds * 1000)
+    script = load_funscript(Path(build_mirrored_funscript_path(video_path, metadata_root)))
+    return script.active_ms(duration_ms) >= LEAST_SCRIPTED_SHARE * duration_ms
 
 
 def read_favs_content(favs_file: Path) -> str:

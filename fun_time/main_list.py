@@ -25,7 +25,7 @@ from .modes import (
     VideoShapes,
     build_playlist_file_path,
     collect_video_files,
-    has_handcrafted_funscript,
+    plays_in_f_mode,
     rotated_onto,
     sort_paths_by_recency,
     source_roots,
@@ -138,7 +138,9 @@ class MainList:
         kept = [video for video in self.shapes(settings).keep(videos)
                 if self._lets_through(video, settings)]
         if settings.scripted_filter:
-            kept = [video for video in kept if has_handcrafted_funscript(video, self.metadata_root)]
+            vr_roots = source_roots(self.vr_dirs)
+            kept = [video for video in kept
+                    if plays_in_f_mode(video, self.metadata_root, outlying_dirs=vr_roots)]
         return kept
 
     def videos(self, settings: MainListSettings, *, on_screen: str = "",
