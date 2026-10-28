@@ -942,6 +942,9 @@ class TestWhatTheControllersPost:
         assert command_file.read_text(encoding="utf-8").split() == ["main_scene_next"]
 
 
+_THE_DASHS_SHAPE = DASH_WIDTH_PX / dash_height()
+
+
 class _FakePanelTexture:
     """A FrameTexture with real numbers where the panel does arithmetic on them."""
 
@@ -976,7 +979,7 @@ class TestThePanelUnderTheSlot:
             _flick_projection=(Path("flick.mp4"), projection),
             screen=SimpleNamespace(placement=SPOTS[MAIN]),
         ))
-        dash = SimpleNamespace(texture=SimpleNamespace(ready=True, aspect=560 / 218),
+        dash = SimpleNamespace(texture=SimpleNamespace(ready=True, aspect=_THE_DASHS_SHAPE),
                                screen=SimpleNamespace(placement=SPOTS[PANEL]))
         with patch("fun_time_vr.funestras.FrameTexture", _FakePanelTexture):
             unit = _PanelUnit(main_unit, dash)
@@ -2763,7 +2766,7 @@ class TestTheReferenceUnderTheDashboard:
 
     def _unit(self, tmp_path, *, carrying_the_console=False):
         dash = SimpleNamespace(screen=SimpleNamespace(placement=SPOTS[DASH]),
-                               texture=SimpleNamespace(aspect=2.5),
+                               texture=SimpleNamespace(aspect=_THE_DASHS_SHAPE),
                                carrying_the_console=carrying_the_console)
         panel = SimpleNamespace(
             screen=SimpleNamespace(placement=Placement(0.0, 20.0, PANEL_WIDTH_PX * DEG_PER_PX)),
@@ -2792,9 +2795,9 @@ class TestTheReferenceUnderTheDashboard:
         followed = self._placed(unit)
 
         assert under.azimuth_deg == SPOTS[DASH].azimuth_deg
-        assert self._meets(SPOTS[DASH], 2.5, under)
+        assert self._meets(SPOTS[DASH], _THE_DASHS_SHAPE, under)
         assert followed.azimuth_deg == -40.0
-        assert self._meets(dash.screen.placement, 2.5, followed)
+        assert self._meets(dash.screen.placement, _THE_DASHS_SHAPE, followed)
         assert under.width_deg == followed.width_deg == REFERENCE_WIDTH_DEG
 
     def test_it_hangs_below_the_console_while_the_console_hangs_from_the_dashboard(
