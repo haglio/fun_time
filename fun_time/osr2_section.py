@@ -19,6 +19,10 @@ if TYPE_CHECKING:
 DASHBOARD_OSR2_PART = "dashboard_osr2"
 
 
+def osr2_part_path(state_dir: Path) -> Path:
+    return Path(state_dir) / f"{DASHBOARD_OSR2_PART}.json"
+
+
 def osr2_readout_path(state_dir: Path, funestra: str) -> Path:
     return Path(state_dir) / f"{funestra}_osr2_readout.txt"
 

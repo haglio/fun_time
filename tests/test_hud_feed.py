@@ -24,7 +24,7 @@ from fun_time.bridge_records import BridgeConfig
 from fun_time.crown import Crown
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
-from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_button
+from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_button, osr2_part_path
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, SatelliteState
 
@@ -85,7 +85,7 @@ def make_feed(tmp_path, *, config=None) -> HudFeed:
         {"portrait": tmp_path / "portrait_hud.json",
          "landscape": tmp_path / "landscape_hud.json",
          "main_player": tmp_path / "main_player_console.json",
-         DASHBOARD_OSR2_PART: tmp_path / "dashboard_osr2.json"},
+         DASHBOARD_OSR2_PART: osr2_part_path(tmp_path)},
         tmp_path / "thumbs",
         (),
     )
@@ -110,7 +110,7 @@ def console(tmp_path) -> dict:
 
 
 def dashboard(tmp_path) -> dict:
-    return json.loads((tmp_path / "dashboard_osr2.json").read_text(encoding="utf-8"))
+    return json.loads(osr2_part_path(tmp_path).read_text(encoding="utf-8"))
 
 
 def f_mode_button(published: dict) -> dict:
@@ -709,7 +709,7 @@ def _console_osr2_commands(tmp_path) -> list[str]:
 
 
 def _dashboard_osr2(tmp_path) -> ConsoleModel:
-    return read_console(tmp_path / "dashboard_osr2.json")
+    return read_console(osr2_part_path(tmp_path))
 
 
 def _dashboard_osr2_commands(tmp_path) -> list[str]:
