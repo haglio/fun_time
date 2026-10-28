@@ -48,7 +48,7 @@ from fun_time.event_log import (
 )
 from fun_time.project_paths import PROJECT_ICON
 
-from .console_panel import level_color
+from .console_panel import DEG_PER_PX, level_color
 
 _DIAL_W = 92  # the name and the arrow beside it
 _ROW_H = 16
@@ -125,6 +125,7 @@ def _row_end() -> int:
 
 
 DASH_WIDTH_PX = _row_end() + PAD
+DASH_DEG_PER_PX = DEG_PER_PX
 
 
 def dial_stops() -> dict[str, Rect]:

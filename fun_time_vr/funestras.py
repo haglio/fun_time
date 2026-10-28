@@ -101,7 +101,7 @@ from .cover import (
     paint_cover,
     scene_ready_file,
 )
-from .dash_panel import DASH_WIDTH_PX, DashPointer, dash_height, paint_dash
+from .dash_panel import DASH_DEG_PER_PX, DASH_WIDTH_PX, DashPointer, dash_height, paint_dash
 from .gallery_panel import GalleryPanel
 from .gallery_panel import hover_line as gallery_hover_line
 from .gallery_panel import scroll_line as gallery_scroll_line
@@ -972,7 +972,7 @@ class _PanelUnit:
         self._buttons.close()
 
 
-_DASH_WIDTH_DEG = 40.0
+_DASH_WIDTH_DEG = DASH_WIDTH_PX * DASH_DEG_PER_PX
 _A_WIDE_VIDEO = 16 / 9
 
 
@@ -983,6 +983,10 @@ def _two_handles_over_the_main(width_deg: float) -> float:
     return elevation_at(main_top + 2 * RADIUS_M * math.radians(HANDLE_DEG) + dash_drop)
 
 
+def _at_the_dashs_own_width(placement: Placement) -> Placement:
+    return replace(placement, width_deg=_DASH_WIDTH_DEG)
+
+
 class _DashUnit:
     # Painted like the console; the pair's handle while it carries one, and a spot for that.
 
@@ -990,7 +994,7 @@ class _DashUnit:
         DASH: Placement(azimuth_deg=0.0, elevation_deg=_two_handles_over_the_main(_DASH_WIDTH_DEG),
                         width_deg=_DASH_WIDTH_DEG),
         # Carrying the console, the video having wrapped the viewer: lower, under it.
-        PANEL: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=40.0),
+        PANEL: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=_DASH_WIDTH_DEG),
     }
 
     def __init__(self, main_unit: _MainUnit, *,
@@ -1001,8 +1005,8 @@ class _DashUnit:
         self._notices = notices
         self._state_file = dashboard_state_file
         self._reference_flag = reference_flag
-        self._floating = remembered.get(DASH, self.SPOTS[DASH])
-        self._wrapped = remembered.get(PANEL, self.SPOTS[PANEL])
+        self._floating = _at_the_dashs_own_width(remembered.get(DASH, self.SPOTS[DASH]))
+        self._wrapped = _at_the_dashs_own_width(remembered.get(PANEL, self.SPOTS[PANEL]))
         self._pointer = DashPointer(
             post=lambda command: append_command(dashboard_cmd_file, command))
         self._shown_as = preview_marker.shown_as()
