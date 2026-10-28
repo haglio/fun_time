@@ -31,13 +31,12 @@ from fun_time import console_buttons
 from fun_time.console_buttons import (
     MainSlot,
     console_rows,
-    osr2_controls,
     osr2_rows,
 )
 from fun_time.content import Noun
 from fun_time.funestra_buttons import LATEST_ICON
 from fun_time.inclusion_pairs import LENGTH, ORIENTATION, PROJECTION
-from fun_time.osr2_section import take_osr2_button
+from fun_time.osr2_section import osr2_controls, take_osr2_button
 from fun_time.room_funestras import RoomFunestra
 
 FLAT_ICON, VR_ICON = PROJECTION.first.mark, PROJECTION.second.mark

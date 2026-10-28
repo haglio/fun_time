@@ -24,7 +24,8 @@ from funestra.modes import LengthMode, MainMode, SatellitesMode
 from fun_time import command_dispatch, dashboard_actions, windows_bridge_dispatch_loop
 from fun_time.aiming import MAIN_EQUIVALENTS, resolve_active_funestra_command
 from fun_time.command_reference import build_reference_sections
-from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
+from fun_time.console_buttons import MainSlot, console_rows
+from fun_time.osr2_section import osr2_controls
 from fun_time.satellite_buttons import funestra_rows
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS, expand_group_command

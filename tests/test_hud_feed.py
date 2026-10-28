@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 from app_support.osr2_device import Osr2Mode
-from funestra.console import OSR2_PARKED
+from funestra.console import OSR2_PARKED, ConsoleModel, read_console
 from funestra.drive_readout import DriveHud, publish_drive
 from funestra.hud_button import Button
 from funestra.hud_placement import HudCorner
@@ -24,6 +24,7 @@ from fun_time.bridge_records import BridgeConfig
 from fun_time.crown import Crown
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
+from fun_time.osr2_section import DASHBOARD_OSR2_PART
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, SatelliteState
 
@@ -83,7 +84,8 @@ def make_feed(tmp_path, *, config=None) -> HudFeed:
     publisher = HudPublisher(
         {"portrait": tmp_path / "portrait_hud.json",
          "landscape": tmp_path / "landscape_hud.json",
-         "main_player": tmp_path / "main_player_console.json"},
+         "main_player": tmp_path / "main_player_console.json",
+         DASHBOARD_OSR2_PART: tmp_path / "dashboard_osr2.json"},
         tmp_path / "thumbs",
         (),
     )
@@ -722,6 +724,70 @@ def _osr2_commands(model: HudModel) -> list[str]:
 
 def _console_osr2_commands(tmp_path) -> list[str]:
     return [button.get("command", "") for row in console(tmp_path)["osr2_rows"] for button in row]
+
+
+def _dashboard_osr2(tmp_path) -> ConsoleModel:
+    return read_console(tmp_path / "dashboard_osr2.json")
+
+
+def _dashboard_osr2_commands(tmp_path) -> list[str]:
+    return [button.command for row in _dashboard_osr2(tmp_path).osr2_rows for button in row]
+
+
+class TestTheOsr2PartIsOnTheDashboard:
+    def test_it_is_the_main_funestras_to_begin_with(self, tmp_path):
+        make_feed(tmp_path).publish(BridgeState())
+
+        assert _dashboard_osr2(tmp_path).funestra == "main"
+        assert "robot_hand_park" in _dashboard_osr2_commands(tmp_path)
+
+    def test_it_is_the_whole_section_of_the_side_funestra_that_takes_it(self, tmp_path):
+        make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, osr2_control=OSR2_PARKED))
+
+        part = _dashboard_osr2(tmp_path)
+        assert part.funestra == "portrait"
+        assert {"robot_hand_toggle_learned", "robot_hand_release"} <= set(_dashboard_osr2_commands(tmp_path))
+        assert (part.osr2, part.osr2_control) == (Osr2State.OFF, OSR2_PARKED)
+        assert [button.command for button in part.osr2_controls] == ["broker_panel"]
+
+    def test_it_is_told_the_room_is_paused(self, tmp_path):
+        make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, omni_paused=True))
+
+        assert _dashboard_osr2(tmp_path).paused is True
+
+    def test_it_carries_the_max_intensity_on_its_line(self, tmp_path):
+        make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, max_intensity=35))
+
+        assert _dashboard_osr2(tmp_path).max_intensity == 35
+
+    def test_it_says_a_scripted_side_funestras_funscript_has_the_osr2(self, tmp_path):
+        feed = make_feed(tmp_path)
+        (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
+        (tmp_path / "portrait_status.txt").write_text(
+            "video=C:/v/p.mp4\nhas_funscript=1\nfunscript_resting=0\n", encoding="utf-8")
+
+        with patch("app_support.file_channel.time") as mock_time:
+            mock_time.time.return_value = 110.0
+            feed.publish(BridgeState(osr2_funestra=2))
+
+        assert _dashboard_osr2(tmp_path).osr2 == Osr2State.FUNSCRIPT
+
+    def test_it_names_why_a_side_funestras_osr2_cannot_be_heard(self, tmp_path):
+        feed = make_feed(tmp_path)
+        (tmp_path / "osr2_not_answering.txt").write_text(str(time.time()), encoding="utf-8")
+
+        feed.publish(BridgeState(osr2_funestra=3))
+
+        assert _dashboard_osr2(tmp_path).osr2 == Osr2State.NO_ANSWER
+
+    def test_its_readout_is_composed_unless_genau_has_the_main_funestras_slot(self, tmp_path):
+        feed = make_feed(tmp_path)
+
+        feed.publish(BridgeState(main_mode=MainMode.GENAU))
+        genau_on_the_main = _dashboard_osr2(tmp_path).main_mode
+        feed.publish(BridgeState(main_mode=MainMode.GENAU, osr2_funestra=2))
+
+        assert (genau_on_the_main, _dashboard_osr2(tmp_path).main_mode) == (MainMode.GENAU, MainMode.KINO)
 
 
 class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:

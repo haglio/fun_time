@@ -13,7 +13,7 @@ from app_support import osr2_device
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra.console import aim_row, console_text
 from funestra.drive_readout import read_drive
-from funestra.modes import Osr2State
+from funestra.modes import MainMode, Osr2State
 from funestra.satellite_hud import HudModel, hud_text, parse_hud
 
 from .bridge_records import BridgeConfig
@@ -24,19 +24,25 @@ from .command_dispatch import (
     main_video_shapes,
     satellite_at_defaults,
 )
-from .console_buttons import osr2_controls
 from .crown import Crown
 from .funestra_status import (
+    MainFunestraStatus,
     broker_is_running,
     read_genau_status,
     read_main_funestra_status,
 )
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SatelliteInputs, build_satellite_panel
-from .main_funestra_console import MainSlotInputs, console_model
+from .main_funestra_console import MainSlotInputs, console_model, osr2_state
 from .media_renditions import renditions
 from .modes import is_favorite_path, read_favs_content
-from .osr2_section import DeviceBlock, funestra_with_the_osr2
+from .osr2_section import (
+    DASHBOARD_OSR2_PART,
+    DeviceBlock,
+    funestra_with_the_osr2,
+    osr2_controls,
+    osr2_part,
+)
 from .room_funestras import RoomFunestra
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .shared_state import BridgeState
@@ -83,16 +89,17 @@ class HudFeed:
         broker = broker_is_running(self.config.broker_heartbeat_file, self.config.broker_state)
         osr2_mode, osr2_trouble = self.osr2_mode(), self.osr2_trouble()
         with_the_osr2 = funestra_with_the_osr2(state)
+        main_funestra = read_main_funestra_status(self.config.main_funestra_status_file)
+        osr2 = self._holders_osr2(with_the_osr2, state.main_mode, main_funestra,
+                                  osr2_mode, osr2_trouble)
 
         def device(funestra: RoomFunestra) -> DeviceBlock:
             if funestra is not with_the_osr2:
                 return DeviceBlock.offered_to(funestra)
-            scripted = read_satellite_status(self.config.satellite(funestra).status_file)
             return DeviceBlock(
                 rows=(aim_row(learned=genau.learned_active, shape=genau.shape,
                               control=state.osr2_control),),
-                osr2=Osr2State.of(osr2_mode, funscript_driving=scripted.funscript_driving,
-                                  trouble=osr2_trouble),
+                osr2=osr2,
                 control=state.osr2_control,
                 controls=osr2_controls(broker=broker),
                 max_intensity=state.max_intensity,
@@ -145,7 +152,6 @@ class HudFeed:
         # The main console: the controls for whichever Funestra owns the slot,
         # what has the OSR2, whether the broker is up, and which Funestra a bare
         # command reaches -- none of which the Funestra can see for itself.
-        main_funestra = read_main_funestra_status(self.config.main_funestra_status_file)
         main_shapes = main_video_shapes(state, self.config)
         genau_shapes = genau_flick_shapes(state, self.config)
         self.publisher.publish_text("main_player", console_text(console_model(MainSlotInputs(
@@ -183,6 +189,19 @@ class HudFeed:
             has_osr2=with_the_osr2 is RoomFunestra.MAIN,
             max_intensity=state.max_intensity,
         ))))
+        self.publisher.publish_text(DASHBOARD_OSR2_PART, console_text(osr2_part(
+            with_the_osr2, main_mode=state.main_mode, osr2=osr2, control=state.osr2_control,
+            paused=state.omni_paused, learned=genau.learned_active, shape=genau.shape,
+            broker=broker, max_intensity=state.max_intensity)))
+
+    def _holders_osr2(self, holder: RoomFunestra, main_mode: MainMode,
+                      main_funestra: MainFunestraStatus, osr2_mode: Osr2Mode,
+                      trouble: Osr2Trouble | None) -> Osr2State:
+        if holder is RoomFunestra.MAIN:
+            return osr2_state(main_mode=main_mode, osr2_mode=osr2_mode,
+                              funscript_driving=main_funestra.funscript_driving, trouble=trouble)
+        scripted = read_satellite_status(self.config.satellite(holder).status_file)
+        return Osr2State.of(osr2_mode, funscript_driving=scripted.funscript_driving, trouble=trouble)
 
     def _hosted_panel(self, funestra: RoomFunestra) -> HudModel | None:
         """The hosted app's panel for *Funestra*'s side, or None; one it is
