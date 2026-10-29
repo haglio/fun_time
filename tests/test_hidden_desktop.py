@@ -26,9 +26,16 @@ import pytest
 from app_support.integration_runs import read_runs
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
+from fun_time.process_tree import kill_process_tree
 from fun_time.win32_loader import load_dll
 from fun_time.win32_process import is_process_alive
-from tests.child_reports import A_STARVED_CHILDS_START_S, pid_written_to
+from tests.child_reports import (
+    A_STARVED_CHILDS_START_S,
+    StartedProcess,
+    all_gone_within,
+    pid_written_to,
+    running,
+)
 from tests.git_repo import git
 from tests.integration import hidden_desktop, run_clock
 from tests.integration.coverage_map import Picked
@@ -37,6 +44,7 @@ from tests.integration.hidden_desktop import (
     _close_process_handles,
     _launch_on_desktop,
     _repo_root,
+    _venv_environment,
     build_gate_argv,
     build_run_argv,
     create_run_job,
@@ -47,6 +55,7 @@ from tests.integration.main_verifier import measured_run_environment, measured_s
 from tests.integration.run_clock import keep_time_by
 from tests.integration.session_lock import Place, SingleInstanceLock, Waiting, hold_integration_lock
 from tests.made_up_clocks import StarvedRun
+from tests.thread_state import TIME_TO_END_S
 
 
 def _run_in_a_run_job(probe: str) -> None:
@@ -707,15 +716,16 @@ def test_a_process_launched_into_the_run_job_dies_when_the_job_closes(tmp_path):
     """The runner holds the job's only handle, so however the runner ends — a
     clean exit, a crash, a kill — Windows terminates whatever the run left
     running.  No integration run can strand a Funestra for the next one to trip on."""
-    cmdline = subprocess.list2cmdline([sys.executable, "-c", "import time; time.sleep(60)"])
+    cmdline = subprocess.list2cmdline(_python("-c", "import time; time.sleep(60)"))
     with create_run_job() as job:
         pi = _launch_on_desktop(cmdline, None, str(tmp_path), job)
         try:
             assert is_process_alive(pi.dwProcessId), "child should be running, not left suspended"
+            launched = StartedProcess.of(pi.dwProcessId)
         finally:
             _close_process_handles(pi)
 
-    assert _wait_until_dead(pi.dwProcessId)
+    assert all_gone_within([launched], TIME_TO_END_S)
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 job objects")
@@ -725,26 +735,29 @@ def test_the_broker_a_run_starts_survives_that_runs_job(tmp_path):
     one process a run may leave."""
     pid_file = tmp_path / "broker_pid.txt"
     spawn_broker = (
-        "import pathlib, subprocess, sys;"
+        "import pathlib, subprocess;"
         "from fun_time.orchestrator_broker import broker_launch_kwargs;"
-        "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'],"
+        "from tests.child_reports import THE_INTERPRETER_NOT_A_VENVS_LAUNCHER;"
+        "p = subprocess.Popen([THE_INTERPRETER_NOT_A_VENVS_LAUNCHER, '-c', 'import time; time.sleep(60)'],"
         " **broker_launch_kwargs());"
         f"pathlib.Path({str(pid_file)!r}).write_text(str(p.pid));"
         "import time; time.sleep(60)"
     )
-    cmdline = subprocess.list2cmdline([sys.executable, "-c", spawn_broker])
     with create_run_job() as job:
-        pi = _launch_on_desktop(cmdline, None, str(_repo_root()), job)
+        pi = _launch_on_desktop(subprocess.list2cmdline(_python("-c", spawn_broker)), None,
+                                str(_repo_root()), job, _venv_environment(sys.executable))
         try:
-            broker_pid = pid_written_to(pid_file)
+            run = StartedProcess.of(pi.dwProcessId)
+            broker = StartedProcess.of(pid_written_to(pid_file))
         finally:
             _close_process_handles(pi)
 
     try:
-        assert _wait_until_dead(pi.dwProcessId), "the run itself must still be killed"
-        assert is_process_alive(broker_pid), "the broker must break away from the run's job"
+        assert all_gone_within([run], TIME_TO_END_S), "the run itself must still be killed"
+        assert running(broker), "the broker must break away from the run's job"
     finally:
-        subprocess.run(["taskkill", "/PID", str(broker_pid), "/T", "/F"], capture_output=True)
+        if running(broker):
+            kill_process_tree(broker.pid)
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
