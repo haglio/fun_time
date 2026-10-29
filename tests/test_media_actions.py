@@ -3,15 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fun_time.content import WebProvider
-from fun_time.favs_csv import FAVS_HEADER
-from fun_time.media_actions import (
-    ensure_in_favs,
-    make_local_cell,
-    make_web_cell,
-    make_web_url_from_path,
-    move_to_weird,
-    remove_from_favs,
-)
+from fun_time.media_actions import make_web_url_from_path, move_to_weird
 
 # Explicit providers keep these tests independent of the ambient content overlay
 # (the real content.local.json is absent on a public checkout).
@@ -21,94 +13,10 @@ _PROVIDERS = (
 )
 
 
-def _favs(tmp_path: Path) -> Path:
-    favs = tmp_path / "favs.csv"
-    favs.write_text(f"{FAVS_HEADER}\r\n", encoding="utf-8", newline="")
-    return favs
-
-
 def test_make_web_url_from_path_supports_known_roots():
     assert make_web_url_from_path(r"C:\images\alpha\abc_123.png", _PROVIDERS) == "https://example.com/alpha/abc"
     assert make_web_url_from_path(r"C:\images\beta\def_456.jpg", _PROVIDERS) == "https://example.com/beta/def"
     assert make_web_url_from_path(r"C:\images\other\ghi_789.jpg", _PROVIDERS) == ""
-
-
-def test_make_cells_build_clickable_csv_formulas():
-    path = r"C:\folder with space\image_123.png"
-
-    assert make_local_cell(path) == '=HYPERLINK("file:///C:/folder%20with%20space/image_123.png";"C:\\folder with space\\image_123.png")'
-    assert make_web_cell(r"C:\root\alpha\hello_456.png", _PROVIDERS) == '=HYPERLINK("https://example.com/alpha/hello";"https://example.com/alpha/hello")'
-
-
-def test_ensure_in_favs_appends_only_once(tmp_path: Path):
-    favs = _favs(tmp_path)
-    full_path = r"C:\root\alpha\hello_456.png"
-
-    ensure_in_favs(favs, full_path, _PROVIDERS)
-    ensure_in_favs(favs, full_path, _PROVIDERS)
-
-    lines = favs.read_text(encoding="utf-8").splitlines()
-    assert lines[0] == "local_file,web_url"
-    assert len(lines) == 2
-    assert "https://example.com/alpha/hello" in lines[1]
-
-
-def test_a_favorite_lists_no_row_once_favs_csv_is_gone(tmp_path: Path):
-    """Retired: the record says which videos are favorites, and nothing makes the list again."""
-    favs = tmp_path / "favs.csv"
-
-    ensure_in_favs(favs, r"C:\root\alpha\hello_456.png", _PROVIDERS)
-
-    assert not favs.exists()
-
-
-def test_remove_from_favs_preserves_other_rows_and_header(tmp_path: Path):
-    favs = _favs(tmp_path)
-    keep = r"C:\root\alpha\keep_123.png"
-    remove = r"C:\root\alpha\remove_456.png"
-    ensure_in_favs(favs, keep, _PROVIDERS)
-    ensure_in_favs(favs, remove, _PROVIDERS)
-
-    remove_from_favs(favs, remove)
-
-    text = favs.read_text(encoding="utf-8")
-    assert "local_file,web_url" in text
-    assert "keep_123" in text
-    assert "remove_456" not in text
-
-
-def test_favs_csv_rows_end_in_crlf(tmp_path: Path):
-    """favs.csv is on-disk public surface — evolver reads it back — and every
-    writer here terminates rows with explicit CRLF.  Read the bytes: a
-    splitlines() readback normalises the terminator away, which is how the
-    contract stayed unpinned while three call sites spelled it."""
-    favs = _favs(tmp_path)
-    ensure_in_favs(favs, r"C:\root\alpha\keep_123.png", _PROVIDERS)
-    ensure_in_favs(favs, r"C:\root\alpha\remove_456.png", _PROVIDERS)
-    remove_from_favs(favs, r"C:\root\alpha\remove_456.png")
-
-    raw = favs.read_bytes()
-    assert raw.endswith(b"\r\n")
-    assert raw.count(b"\r\n") == 2  # header + the kept row, nothing bare-\n
-    assert raw.replace(b"\r\n", b"").count(b"\n") == 0
-
-
-def test_remove_from_favs_drops_blank_lines_and_leaves_a_missing_file_alone(tmp_path: Path):
-    favs = _favs(tmp_path)
-    ensure_in_favs(favs, r"C:\root\alpha\keep_123.png", _PROVIDERS)
-    # A hand-edited file can carry stray empty lines; a rewrite tidies them.
-    with favs.open("a", encoding="utf-8", newline="") as fp:
-        fp.write("\r\n\r\n")
-
-    remove_from_favs(favs, r"C:\root\alpha\gone_999.png")
-
-    lines = favs.read_text(encoding="utf-8").splitlines()
-    assert lines == [line for line in lines if line], "blank lines survived the rewrite"
-    assert len(lines) == 2  # header + kept row
-
-    missing = tmp_path / "nowhere.csv"
-    remove_from_favs(missing, r"C:\root\alpha\keep_123.png")
-    assert not missing.exists()
 
 
 def test_move_to_weird_leaves_nothing_for_a_missing_source(tmp_path: Path):

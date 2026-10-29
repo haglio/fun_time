@@ -60,8 +60,6 @@ from tests.hosted_shows import publish_the_show
 def _make_config(tmp_path: Path, *, vr_main_funestra: bool = False) -> BridgeConfig:
     state_dir = tmp_path / "state"
     state_dir.mkdir(parents=True, exist_ok=True)
-    favs_file = tmp_path / "favs.csv"
-    favs_file.write_text("local_file,web_url\n", encoding="utf-8")
     weird_dir = tmp_path / "weird"
     weird_dir.mkdir(exist_ok=True)
     return BridgeConfig(
@@ -74,7 +72,6 @@ def _make_config(tmp_path: Path, *, vr_main_funestra: bool = False) -> BridgeCon
         landscape_paused_file=state_dir / "landscape_paused.txt",
         landscape_status_file=state_dir / "landscape_status.txt",
         landscape_playlist_file=state_dir / "landscape_playlist.tsv",
-        favs_file=favs_file,
         weird_dir=weird_dir,
         state_dir=state_dir,
         main_sources=str(tmp_path / "primary"),

@@ -138,8 +138,6 @@ def _bridge_config(satellite: LoneSatellite) -> BridgeConfig:
     # to be the same directory or the rebuild would land beside the running Funestra.
     state_dir = satellite.folder
     runtime = state_dir.parent
-    favs = state_dir / "favs.csv"
-    favs.write_text("local_file,web_url\n", encoding="utf-8")
     return BridgeConfig(
         portrait_cmd_file=satellite.cmd,
         portrait_paused_file=satellite.paused,
@@ -149,7 +147,6 @@ def _bridge_config(satellite: LoneSatellite) -> BridgeConfig:
         landscape_paused_file=state_dir / "landscape_paused.txt",
         landscape_status_file=state_dir / "landscape_status.txt",
         landscape_playlist_file=state_dir / "landscape_playlist.tsv",
-        favs_file=favs,
         weird_dir=runtime / "weird",
         state_dir=state_dir,
         main_sources=str(runtime / "primary"),

@@ -1116,7 +1116,6 @@ def build_bridge_config_from_manifest(
         landscape_paused_file=Path(commands.landscape_paused_file),
         landscape_status_file=Path(commands.landscape_status_file),
         landscape_playlist_file=Path(commands.landscape_playlist_file),
-        favs_file=Path(manifest.media.favs_file),
         weird_dir=Path(manifest.media.weird_dir),
         state_dir=Path(commands.state_dir),
         loopback_port=manifest.loopback_port,

@@ -3,11 +3,10 @@
 The whole mechanism turns on which checkout a config is read against. Every
 relative path in it resolves against the checkout that imported the package — so
 the live config read from a worktree quietly names files *inside that worktree*:
-an empty ``favs.csv``, a broker launcher one directory above
-``.claude/worktrees``, a Chrome shortcut that is untracked and therefore
-nowhere. These tests load the generated config anchored on the worktree, which
-is precisely how the branch session will read it, and assert it still lands on
-the machine's real files.
+a broker launcher one directory above ``.claude/worktrees``, a Chrome shortcut
+that is untracked and therefore nowhere. These tests load the generated config
+anchored on the worktree, which is precisely how the branch session will read
+it, and assert it still lands on the machine's real files.
 """
 from __future__ import annotations
 
@@ -44,10 +43,9 @@ REPO_DIR = Path(__file__).resolve().parent.parent
 def _write_config(path: Path, **paths: str) -> Path:
     """A config shaped like the machine's, with the same values left relative.
 
-    ``favs.csv``, ``state``, the broker launcher and the browser shortcut are
-    relative in the real one; the rest are absolute. Both kinds are here so the
-    rewrite is tested on values that need pinning and values that must survive
-    untouched.
+    ``state``, the broker launcher and the browser shortcut are relative in the
+    real one; the rest are absolute. Both kinds are here so the rewrite is
+    tested on values that need pinning and values that must survive untouched.
     """
     raw = {
         "paths": {
@@ -59,7 +57,6 @@ def _write_config(path: Path, **paths: str) -> Path:
             "landscape_dirs": ["C:/library/landscape"],
             "weird_dir": "C:/library/misc",
             "genau_dir": "C:/library/genau",
-            "favs_file": "favs.csv",
             "state_dir": "state",
             "genau_config_path": "C:/genau/genau_config.json",
             # Relative on purpose: a sibling checkout sits one directory up from

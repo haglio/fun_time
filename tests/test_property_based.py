@@ -10,7 +10,7 @@ from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from fun_time.content import WebProvider
-from fun_time.media_actions import csv_escape, make_web_url_from_path, to_file_uri
+from fun_time.media_actions import make_web_url_from_path
 
 # Explicit providers keep these independent of the ambient content overlay
 # (the real content.local.json is absent on a public checkout).
@@ -22,51 +22,6 @@ _PROVIDERS = (
 
 def test_no_example_is_held_to_the_clock_of_a_machine_other_runs_share():
     assert settings().deadline is None
-
-
-# ---------------------------------------------------------------------------
-# media_actions: csv_escape
-# ---------------------------------------------------------------------------
-
-@given(value=st.text(max_size=500))
-def test_csv_escape_always_wraps_in_quotes(value: str):
-    result = csv_escape(value)
-    assert result.startswith('"')
-    assert result.endswith('"')
-
-
-
-@given(value=st.text(max_size=500))
-def test_csv_escape_doubles_internal_quotes(value: str):
-    result = csv_escape(value)
-    # Strip outer quotes and verify no lone internal quotes
-    inner = result[1:-1]
-    # All quotes in the inner part should be doubled
-    i = 0
-    while i < len(inner):
-        if inner[i] == '"':
-            assert i + 1 < len(inner) and inner[i + 1] == '"', \
-                f"Lone quote at position {i} in escaped value"
-            i += 2
-        else:
-            i += 1
-
-
-# ---------------------------------------------------------------------------
-# media_actions: to_file_uri
-# ---------------------------------------------------------------------------
-
-@given(path=st.text(min_size=1, max_size=500))
-def test_to_file_uri_starts_with_file_prefix(path: str):
-    result = to_file_uri(path)
-    assert result.startswith("file:///")
-
-
-def test_to_file_uri_of_nothing_is_nothing():
-    # The one input the prefix property excludes: no path means no URI at
-    # all, not "file:///" pointing nowhere.
-    assert to_file_uri("") == ""
-
 
 
 # ---------------------------------------------------------------------------

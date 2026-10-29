@@ -872,7 +872,6 @@ def build_integration_config(tmp_path: Path) -> Path:
     config["paths"]["portrait_dirs"] = [str(portrait_dir)]
     config["paths"]["landscape_dirs"] = [str(landscape_dir)]
     config["paths"]["weird_dir"] = str(weird_dir)
-    config["paths"]["favs_file"] = str(integration_root / "favs.csv")
     config["paths"]["state_dir"] = str(state_dir)
     config["paths"].pop("genau_dir", None)
     config["random_favs_browser"]["enabled"] = False

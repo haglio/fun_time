@@ -395,7 +395,6 @@ def test_the_config_reads_only_what_the_bar_needs(cfg_path: Path, tmp_path: Path
 
     assert app_config.layout.primary_monitor == config.layout.primary_monitor
     assert app_config.dashboard_cmd_file.name == "dashboard_cmd.txt"
-    assert not hasattr(app_config, "favs_file")
 
 
 def test_write_dashboard_command_retries_past_a_transient_file_lock(
