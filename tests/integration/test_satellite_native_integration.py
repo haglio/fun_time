@@ -143,7 +143,7 @@ def _images(folder: Path, count: int) -> list[Path]:
 
 def _the_image_on_screen(satellite: LoneSatellite) -> str | None:
     status = read_satellite_status(satellite.status)
-    return status.video if status.picture else None
+    return status.video if status.image else None
 
 
 def test_a_satellite_holds_an_image_for_the_pace_it_is_sent_and_under_a_lock():

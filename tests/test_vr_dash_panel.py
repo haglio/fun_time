@@ -669,7 +669,7 @@ class TestTheOsr2Part:
 
     def test_its_frame_is_drawn_in_the_room_kept_for_it(self):
         dash = paint_dash(DashState(), [])
-        raw, (width, height) = DevicePanel(post=[].append).picture(
+        raw, (width, height) = DevicePanel(post=[].append).drawing(
             ConsoleHud(console=a_part(), drive=a_readout()))
         place = osr2_part_rect()
 
@@ -689,7 +689,7 @@ class TestTheOsr2Part:
     def test_a_press_on_one_of_its_buttons_posts_that_buttons_command(self):
         pointer, posted = _pointer()
         part = a_part()
-        pointer.part.picture(ConsoleHud(console=part))
+        pointer.part.drawing(ConsoleHud(console=part))
 
         pointer.press(*_on_the_part(*center_of(part, "broker_panel")))
 

@@ -21,7 +21,7 @@ from app_support import ports
 from app_support.file_channel import write_flag
 from funestra.console_hud import ConsoleHud, ModeHud
 from funestra.device_panel import DevicePanel
-from funestra.flick_picture import Picture
+from funestra.flick_overlay import FlickFrame
 from funestra.host_controls import BarHud, HostControlsHud
 from funestra.hud_placement import HudEdge
 from funestra.modes import MainMode
@@ -319,7 +319,7 @@ def test_the_main_funestra_is_the_desktops_with_the_headsets_own_surfaces(
     assert (handed["locked"], handed["sound_is_the_rooms"]) == (True, True)
     assert handed["panel_surface"] is unit.panel
     assert unit.panel.width == PANEL_WIDTH_PX
-    assert handed["users_picture"] is unit.users_picture
+    assert handed["users_frames"] is unit.users_frames
     handed["window_verbs"]("TILT_UP")
     unit.verbs.apply.assert_called_once_with("TILT_UP")
 
@@ -537,7 +537,7 @@ class _AKino:
     def set_showing(self, _showing: bool) -> None:
         pass
 
-    def picture(self) -> None:
+    def own_frame(self) -> None:
         return None
 
     def close(self) -> None:
@@ -1973,7 +1973,7 @@ class TestGenausFrameInTheSlot:
     def _unit(self, *, showing=True, vr_dirs=()):
         unit = _MainUnit.__new__(_MainUnit)
         unit.funestra = SimpleNamespace(showing=MainMode.GENAU if showing else MainMode.KINO)
-        unit.users_picture = LatestFrame()
+        unit.users_frames = LatestFrame()
         unit.users_frame_texture = _FakeTexture()
         unit._uploaded_frame = None
         unit._flick_projection = (None, "")
@@ -1984,7 +1984,7 @@ class TestGenausFrameInTheSlot:
 
     def _handed(self, unit, flick: Path):
         frame = np.zeros((360, 640, 3), dtype=np.uint8)
-        unit.users_picture.show(Picture(frame=frame, flick=flick), (640, 360))
+        unit.users_frames.show(FlickFrame(frame=frame, flick=flick), (640, 360))
         unit._show_the_users_frame()
         return frame
 
@@ -2279,7 +2279,7 @@ class TestTheOsr2PartOnTheDash:
 
         self._pumped(unit)
 
-        drawn = with_the_osr2_part(paint_dash(DashState(), []), DevicePanel(post=[].append).picture(
+        drawn = with_the_osr2_part(paint_dash(DashState(), []), DevicePanel(post=[].append).drawing(
             ConsoleHud(console=part, drive=readout)))
         assert np.array_equal(self._in_its_room(unit._image), self._in_its_room(drawn))
 
@@ -2296,8 +2296,8 @@ class TestTheOsr2PartOnTheDash:
         unit = _a_dash(tmp_path)
         published(tmp_path, a_part())
         asked = []
-        draw = unit._pointer.part.picture
-        monkeypatch.setattr(unit._pointer.part, "picture",
+        draw = unit._pointer.part.drawing
+        monkeypatch.setattr(unit._pointer.part, "drawing",
                             lambda hud: asked.append(hud) or draw(hud))
 
         self._pumped(unit)

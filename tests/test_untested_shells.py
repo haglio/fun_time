@@ -29,7 +29,7 @@ HELD_BY_THE_SHELLS: dict[str, dict[str, type]] = {
     "fun_time_vr/video_thread.py": {"engine": MpvRenderEngine},
     "fun_time_vr/funestras.py": {
         "engine": HeadsetEngine, "funestra": Funestra, "verbs": HeadsetVerbs,
-        "panel": PanelBitmap, "users_picture": LatestFrame,
+        "panel": PanelBitmap, "users_frames": LatestFrame,
     },
 }
 

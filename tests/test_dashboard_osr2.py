@@ -14,7 +14,7 @@ from tests.made_up_osr2_parts import a_part, a_readout, handed_on, published
 
 
 def _drawn(part: ConsoleModel, readout: DriveHud | None = None):
-    return DevicePanel(post=[].append).picture(ConsoleHud(console=part, drive=readout))
+    return DevicePanel(post=[].append).drawing(ConsoleHud(console=part, drive=readout))
 
 
 @pytest.fixture
@@ -34,12 +34,12 @@ def test_it_draws_the_part_the_room_publishes_with_its_holders_readout(widget, t
 
     widget.poll()
 
-    assert widget.picture() == _drawn(part, readout)
+    assert widget.drawing() == _drawn(part, readout)
 
 
 def test_until_the_room_publishes_a_part_it_draws_nothing(widget):
     widget.poll()
-    raw, _size = widget.picture()
+    raw, _size = widget.drawing()
 
     assert set(raw[3::4]) == {0}
 
@@ -75,7 +75,7 @@ def test_it_reads_the_part_by_itself_ten_times_a_second(widget, tmp_path):
     widget._timer.timeout.emit()
 
     assert (widget._timer.isActive(), widget._timer.interval()) == (True, 100)
-    assert widget.picture() == _drawn(part)
+    assert widget.drawing() == _drawn(part)
 
 
 def test_once_shut_down_it_reads_nothing_more(widget):

@@ -115,7 +115,7 @@ class World:
         self.genau.tick()
 
     def on_screen(self) -> Path | None:
-        return self.genau.picture().flick
+        return self.genau.own_frame().flick
 
     def notice(self) -> str:
         if not self.notice_file.exists():
@@ -145,10 +145,10 @@ class TestTheFlickOnScreen:
     def test_the_frame_handed_over_says_which_flick_it_is_of(self, tmp_path):
         world = World(tmp_path)
 
-        picture = world.genau.picture()
+        flick_frame = world.genau.own_frame()
 
-        assert picture.frame is not None
-        assert picture.flick == world.vr_dir / "alpha_180.mp4"
+        assert flick_frame.frame is not None
+        assert flick_frame.flick == world.vr_dir / "alpha_180.mp4"
 
 
 class TestTheDesktopsFlicksAreBrowsedToo:
@@ -228,7 +228,7 @@ class TestNarrowingToAShape:
         world.genau.tick()
 
         assert world.on_screen() == world.flat_dir / "delta.mp4"
-        assert world.genau.picture().frame is not None
+        assert world.genau.own_frame().frame is not None
 
     def test_a_reorder_rescans_under_the_shape_kept(self, tmp_path):
         world = World(tmp_path, flat_flicks=("delta.mp4",))

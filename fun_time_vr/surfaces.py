@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 
 import numpy as np
-from funestra.flick_picture import Picture
+from funestra.flick_overlay import FlickFrame
 
 
 def red_and_blue_swapped(pixels: np.ndarray) -> np.ndarray:
@@ -53,9 +53,9 @@ class PanelBitmap:
 class LatestFrame:
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._flick_frame: Picture | None = None
+        self._flick_frame: FlickFrame | None = None
 
-    def show(self, flick_frame: Picture, _window: tuple[int, int]) -> None:
+    def show(self, flick_frame: FlickFrame, _window: tuple[int, int]) -> None:
         with self._lock:
             self._flick_frame = flick_frame
 
@@ -64,6 +64,6 @@ class LatestFrame:
             self._flick_frame = None
 
     @property
-    def flick_frame(self) -> Picture | None:
+    def flick_frame(self) -> FlickFrame | None:
         with self._lock:
             return self._flick_frame

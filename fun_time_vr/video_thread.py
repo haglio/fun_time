@@ -206,7 +206,7 @@ class VideoThread:
         return np.frombuffer(pixels, np.uint8).reshape(still.height, still.width, 4)
 
     def _draw_next(self, targets: list[RenderTarget], mark: GpuMark):
-        if not self.engine.has_picture_to_draw:
+        if not self.engine.has_frame_to_draw:
             return None
         size = capped_size(self.engine.video_dims, self._cap_px)
         if size is None:

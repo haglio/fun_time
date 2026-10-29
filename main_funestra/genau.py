@@ -13,7 +13,7 @@ from app_support.threading_utils import start_daemon_thread
 from funestra.console_hud import ModeHud
 from funestra.flick_decode import load_flick_frames
 from funestra.flick_folder import flat_flicks_in, scan_flicks, weird_folder_for
-from funestra.flick_picture import Picture
+from funestra.flick_overlay import FlickFrame
 from funestra.modes import NoticeLevel
 from shared_ui.orientation import PORTRAIT
 
@@ -145,10 +145,10 @@ class Genau:
         self._showing = showing
         self._engine.controls.hud.on = not showing
 
-    def picture(self) -> Picture:
+    def own_frame(self) -> FlickFrame:
         played, count = self._engine.playhead()
         elapsed_s, interval_s = self._engine.time_on_screen
-        return Picture(frame=self._frame, played=played, count=count,
+        return FlickFrame(frame=self._frame, played=played, count=count,
                        elapsed_ms=elapsed_s * 1000.0, interval_ms=interval_s * 1000.0,
                        loading=self._loading,
                        seek_time=lambda ms: self._engine.seek_the_time_on_screen(ms / 1000.0),
