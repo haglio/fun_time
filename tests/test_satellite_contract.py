@@ -20,6 +20,7 @@ _FILLED = SatelliteChannels(
     command=Path("state/portrait_cmd.txt"),
     paused=Path("state/portrait_paused.flag"),
     status=Path("state/portrait_status.json"),
+    notice=Path("state/portrait_notice.txt"),
     play_points=Path("state/portrait_play_points.json"),
     hud=Path("state/portrait_hud.json"),
     dashboard_cmd=Path("state/dashboard_cmd.txt"),
@@ -67,12 +68,9 @@ class TestNothingHasDrifted:
     """Each table below is the one place its group is written down, so the
     checks here are what stop a fourth declaration growing back."""
 
-    _OFFERED_BEFORE_A_SATELLITE_IS_GIVEN_IT = frozenset({"notice"})
-
     def test_every_field_has_a_row_and_every_row_has_a_field(self):
         assert tuple(field for field, _flag, _kind in CHANNELS) == tuple(
-            field.name for field in fields(SatelliteChannels)
-            if field.name not in self._OFFERED_BEFORE_A_SATELLITE_IS_GIVEN_IT)
+            field.name for field in fields(SatelliteChannels))
         assert tuple(field for field, _flag in PLACEMENT) == tuple(
             field.name for field in fields(WindowPlacement))
 
@@ -118,6 +116,7 @@ class TestReadOutOfTheManifest:
         assert channels.paused == Path("state/portrait_paused_file")
         assert channels.playlist == Path("state/portrait_playlist_file")
         assert channels.status == Path("state/portrait_status_file")
+        assert channels.notice == Path("state/portrait_notice_file")
         assert channels.hud == Path("state/portrait_hud_file")
 
     def test_the_two_sides_differ_in_every_file_of_their_own(self):

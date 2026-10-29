@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 from funestra.console_hud import ModeHud
 from funestra.funestra import User
+from funestra.notices import NoticeWriter
 
 from fun_time.arrivals import LOOK_EVERY_S
 from fun_time.content import no_other_flicks
@@ -20,7 +21,6 @@ from fun_time.media_metadata import mark_favorite
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
 from main_funestra.genau import GenauChannels
 from main_funestra.genau_verbs import genau_f_mode
-from main_funestra.notice import NoticeWriter
 from tests.genau_fakes import FakeNotifier, FakeSink
 
 

@@ -37,12 +37,14 @@ def test_parser_accepts_the_file_quartet_and_geometry(tmp_path):
         "--command-file", str(tmp_path / "cmd.txt"),
         "--paused-file", str(tmp_path / "paused.txt"),
         "--status-file", str(tmp_path / "status.txt"),
+        "--notice-file", str(tmp_path / "notice.txt"),
         "--play-points-file", str(tmp_path / "points.json"),
         "--x", "2560", "--y", "0", "--width", "1440", "--height", "2500",
     ])
     assert args.command_file == tmp_path / "cmd.txt"
     assert args.paused_file == tmp_path / "paused.txt"
     assert args.status_file == tmp_path / "status.txt"
+    assert args.notice_file == tmp_path / "notice.txt"
     assert args.play_points_file == tmp_path / "points.json"
     assert (args.x, args.y, args.width, args.height) == (2560, 0, 1440, 2500)
 

@@ -77,12 +77,16 @@ def versions_button(command: str, *, noun: str, has_other_versions: bool) -> But
         dim=not has_other_versions, group_break=True)
 
 
-def funscript_jump_button(command: str, *, noun: str, has_osr2: bool) -> Button:
+def funscript_jump_button(command: str, *, noun: str, has_osr2: bool,
+                          has_funscript: bool) -> Button:
+    missing = " and ".join(why for why, lacking in (
+        ("this Funestra doesn't have the OSR2", not has_osr2),
+        (f"this {noun} has no funscript", not has_funscript)) if lacking)
     return Button(
         command, FUNSCRIPT_JUMP_ICON,
         f"Skip ahead to where this {noun}'s scripting starts up again"
-        + ("" if has_osr2 else " (this Funestra doesn't have the OSR2)"),
-        dim=not has_osr2)
+        + (f" ({missing})" if missing else ""),
+        dim=bool(missing))
 
 
 def minimize_button(funestra: str) -> Button:

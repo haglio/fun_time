@@ -964,6 +964,26 @@ def test_funscript_jump_is_refused_while_a_satellite_has_the_osr2(tmp_path: Path
                             level=logging.WARNING)]
 
 
+def test_a_satellites_skip_ahead_reaches_it_while_it_has_the_osr2(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(osr2_funestra=RoomFunestra.LANDSCAPE)
+
+    dispatch_command("landscape_funscript_jump", state, config)
+
+    assert config.landscape_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT\n"
+
+
+def test_a_satellites_skip_ahead_is_refused_while_another_funestra_has_the_osr2(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(osr2_funestra=RoomFunestra.MAIN)
+
+    _, ops = dispatch_command("portrait_funscript_jump", state, config)
+
+    assert not config.portrait_cmd_file.exists()
+    assert ops == [WindowOp(op="notice", key="The portrait Satellite doesn't have the OSR2",
+                            level=logging.WARNING)]
+
+
 def test_next_funscripted_writes_next_funscripted(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_player_next_funscripted", _make_state(main_mode=MainMode.KINO), config)
@@ -996,10 +1016,30 @@ def test_clip_nav_voice_phrases():
 
 def test_funscript_nav_voice_phrases_are_split_for_vosk():
     """The small vosk model has no "funscript" token, so the recognizer listens
-    for the two-word form; the reference rejoins it (see friendly_voice)."""
-    assert VOICE_COMMANDS["jump to fun script"] == "main_player_funscript_jump"
-    assert VOICE_COMMANDS["next fun scripted"] == "main_player_next_funscripted"
+    for the two-word form; the reference rejoins it (see friendly_voice).  Said
+    bare it follows the Funestra last navigated; with "main" it is the Main
+    Funestra's own, under the ids its console posts."""
+    assert VOICE_COMMANDS["jump to fun script"] == "active_funscript_jump"
+    assert VOICE_COMMANDS["next fun scripted"] == "active_next_funscripted"
+    assert VOICE_COMMANDS["main jump to fun script"] == "main_player_funscript_jump"
+    assert VOICE_COMMANDS["next fun scripted main"] == "main_player_next_funscripted"
+    assert VOICE_COMMANDS["portrait jump to fun script"] == "portrait_funscript_jump"
+    assert VOICE_COMMANDS["both next fun scripted"] == "both_next_funscripted"
     assert "jump to funscript" not in VOICE_COMMANDS
+
+
+@pytest.mark.parametrize(("command", "verb"), [
+    ("portrait_funscript_jump", "JUMP_TO_FUNSCRIPT"),
+    ("landscape_next_funscripted", "NEXT_FUNSCRIPTED"),
+])
+def test_a_satellites_funscript_move_goes_to_that_satellite_as_the_nudges_do(
+        tmp_path: Path, command: str, verb: str):
+    config = _make_config(tmp_path)
+    funestra = RoomFunestra.PORTRAIT if command.startswith("portrait") else RoomFunestra.LANDSCAPE
+
+    dispatch_command(command, _make_state(osr2_funestra=funestra), config)
+
+    assert _cmds(config, funestra) == [verb]
 
 
 # --- landscape_prev / landscape_next ---

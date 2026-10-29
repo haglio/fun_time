@@ -35,8 +35,10 @@ from funestra.funestra import Channels, Funestra
 from funestra.funestra_controls import FunestraControls
 from funestra.funestra_controls import apply_command as apply_satellite_command
 from funestra.funestra_verbs import SHOW
+from funestra.funscript_jumps import FunscriptJumps
 from funestra.genau_controls import VERBS as GENAU_VERBS
 from funestra.modes import MainMode
+from funestra.notices import NoticeWriter
 from funestra.playback import Playback
 from funestra.playlist import read_playlist
 from shared_ui.orientation import PORTRAIT
@@ -60,7 +62,6 @@ from main_funestra.clip_nav import ClipNav
 from main_funestra.genau import GenauChannels
 from main_funestra.kino import Kino
 from main_funestra.mode_memory import ModeMemory, RememberedMode
-from main_funestra.notice import NoticeWriter
 from tests.dispatch_sweep import every_command, headset_config, sweep
 from tests.genau_fakes import FakeNotifier, FakeSink
 from tests.satellite_fakes import FakeSatelliteEngine
@@ -300,7 +301,9 @@ class TestTheSatellites:
                 session = Playback(list(clips), engine=FakeSatelliteEngine())
                 handled = apply_satellite_command(
                     _a_satellite_line(verb, clips[0]),
-                    FunestraControls(session, reload_playlist=lambda: None),
+                    FunestraControls(session, reload_playlist=lambda: None,
+                                     funscript_jumps=FunscriptJumps(
+                                         session, NoticeWriter(None))),
                 )
                 if not handled:
                     dead[verb] = where

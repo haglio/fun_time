@@ -116,6 +116,8 @@ class HudPanel:
     has_other_versions: bool = False
     longer_than_a_step: bool = False
     crowned: bool = False
+    has_osr2: bool = False
+    has_funscript: bool = False
 
 
 def _others(items: list[str], current: str) -> list[str]:
@@ -302,6 +304,8 @@ class SatelliteInputs:
     has_other_versions: bool = False
     longer_than_a_step: bool = False
     mode: SatellitesMode | None = None
+    has_osr2: bool = False
+    has_funscript: bool = False
 
 
 @dataclass(frozen=True)
@@ -503,6 +507,8 @@ def build_hud_panel(
         has_other_versions=inputs.has_other_versions,
         longer_than_a_step=inputs.longer_than_a_step,
         crowned=crowned,
+        has_osr2=inputs.has_osr2,
+        has_funscript=inputs.has_funscript,
     )
 
 

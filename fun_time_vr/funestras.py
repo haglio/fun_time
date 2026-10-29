@@ -50,6 +50,7 @@ from funestra.funestra import Channels, Funestra
 from funestra.funestra_verbs import play_file
 from funestra.genau_notifier import GenauNotifier
 from funestra.modes import MainMode
+from funestra.notices import NoticeWriter
 from funestra.play_points import play_points_filename
 from funestra.playlist import PlaylistItem, read_playlist
 from funestra.pointer import OMNIPAUSE_TOGGLE
@@ -83,7 +84,6 @@ from main_funestra.cli import build_parser as build_main_funestra_parser
 from main_funestra.cli import kino_on, library_source, load_config, mode_memory, resolve_playlist
 from main_funestra.genau import ROBOT_HAND, GenauChannels
 from main_funestra.kino import Kino
-from main_funestra.notice import NoticeWriter
 from satellite.contract import SatelliteChannels
 
 from . import room, vr_runtime

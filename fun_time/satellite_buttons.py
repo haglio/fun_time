@@ -12,6 +12,7 @@ from .funestra_buttons import (
     SATELLITE_NOUN,
     TRASH_ICON,
     browse_order_buttons,
+    funscript_jump_button,
     lock_button,
     minimize_button,
     reset_button,
@@ -37,13 +38,18 @@ def funestra_rows(funestra: str, *, locked: bool = False, favorites_filter: bool
                 has_other_versions: bool = False,
                 longer_than_a_step: bool = False,
                 in_vr: bool = False,
-                crowned: bool = False) -> tuple[tuple[Button, ...], ...]:
+                crowned: bool = False,
+                has_osr2: bool = False,
+                has_funscript: bool = False,
+                ) -> tuple[tuple[Button, ...], ...]:
     rows: list[tuple[Button, ...]] = []
     if mode is not None:
         rows.append(mode_row(funestra, mode=mode, origenerator_ready=origenerator_ready,
                              in_vr=in_vr, crowned=crowned))
     rows.append((
         *transport(funestra, noun=SATELLITE_NOUN, longer_than_a_step=longer_than_a_step),
+        funscript_jump_button(f"{funestra}_funscript_jump", noun=SATELLITE_NOUN,
+                              has_osr2=has_osr2, has_funscript=has_funscript),
         lock_button(funestra, locked=locked, noun=SATELLITE_NOUN),
         Button(f"{funestra}_trash", TRASH_ICON,
                "Unfavorite it — or mark weird when it is not a favorite", danger=True),

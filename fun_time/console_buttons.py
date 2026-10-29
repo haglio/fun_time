@@ -74,6 +74,7 @@ class MainSlot:
     flipped: bool = False
     crowned: bool = True
     has_osr2: bool = True
+    has_funscript: bool = False
 
 
 OPEN_ICON = shared_mark("folder")
@@ -189,7 +190,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
         return (
             *transport("main", noun=MAIN_FUNESTRA_NOUN, longer_than_a_step=slot.longer_than_a_step),
             funscript_jump_button("main_player_funscript_jump", noun=MAIN_FUNESTRA_NOUN,
-                                  has_osr2=slot.has_osr2),
+                                  has_osr2=slot.has_osr2, has_funscript=slot.has_funscript),
             lock_button("main", locked=slot.locked, noun=MAIN_FUNESTRA_NOUN),
             Button("main_fmode", FMODE_ICON,
                    "F-Mode — play only the well funscripted videos",

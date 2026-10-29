@@ -27,6 +27,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Flag file that owns the paused state when present")
     p.add_argument("--status-file", type=Path, default=None,
                    help="Publish playback status to this file")
+    p.add_argument("--notice-file", type=Path, default=None,
+                   help="Publish one-shot notices here for Fun Time to flash over "
+                        "this Funestra")
     p.add_argument("--play-points-file", type=Path, default=None,
                    help="Where this Funestra writes down the point each clip was "
                         "left at, so playing one again picks up there")
