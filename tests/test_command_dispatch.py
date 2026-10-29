@@ -4931,7 +4931,9 @@ class TestOrigeneratorTransport:
         presses = ("portrait_prev", "portrait_trash", "portrait_reset",
                    "portrait_fmode", "portrait_enhanced", "portrait_seed_loop",
                    "portrait_more_seeds", "portrait_play_video|C:/fixtures/one.png",
-                   "landscape_lock_video|C:/fixtures/two.png", "landscape_no_loop")
+                   "landscape_lock_video|C:/fixtures/two.png", "landscape_no_loop",
+                   "portrait_clip_seconds_up", "landscape_clip_seconds_down",
+                   "portrait_foot_press|30|7", "landscape_foot_wheel|-1|10|5")
         for command in presses:
             state, _ = dispatch_command(command, state, config)
         assert _origenerator_cmds(config) == list(presses)
