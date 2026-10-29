@@ -1621,6 +1621,15 @@ def _forward_to_main_funestra_on_screen(verb: str, state: BridgeState, config: B
     return state, []
 
 
+def _skip_ahead_on_the_main_funestra(state: BridgeState, config: BridgeConfig,
+                                     target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    if kino_shows(state.main_mode) and funestra_with_the_osr2(state) is not RoomFunestra.MAIN:
+        return state, [WindowOp(op="notice", key="The Main Funestra doesn't have the OSR2",
+                                level=logging.WARNING)]
+    return _forward_to_main_funestra_on_screen(
+        _MAIN_FUNESTRA_CMD_MAP["main_player_funscript_jump"], state, config, target_path)
+
+
 def _forward_to_the_vr_main_funestra(verb: str, state: BridgeState, config: BridgeConfig,
                                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if not config.vr_main_funestra:
@@ -1878,6 +1887,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["vr_reset"] = partial(_forward_to_the_vr_main_funestra, "LAYOUT_RESET")
     handlers.update({cmd: partial(_forward_to_main_funestra_on_screen, verb)
                      for cmd, verb in _MAIN_FUNESTRA_CMD_MAP.items()})
+    handlers["main_player_funscript_jump"] = _skip_ahead_on_the_main_funestra
     handlers.update({cmd: partial(_set_muted, muted)
                      for cmd, muted in _MUTE_COMMANDS.items()})
     handlers.update({cmd: partial(_volume_step, step)

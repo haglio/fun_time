@@ -21,6 +21,7 @@ RESET_ICON = shared_mark("reset")
 SHUFFLE_ICON = shared_mark("shuffle")
 LATEST_ICON = shared_mark("latest")
 VERSIONS_ICON = shared_mark("versions")
+FUNSCRIPT_JUMP_ICON = shared_mark("funscript_jump")
 _NONE_FOR_THIS_ONE = " (none for this one)"
 MAIN_FUNESTRA_NOUN = "video"
 SATELLITE_NOUN = "clip"
@@ -74,6 +75,14 @@ def versions_button(command: str, *, noun: str, has_other_versions: bool) -> But
         command, VERSIONS_ICON,
         f"Another version of this {noun}" + ("" if has_other_versions else _NONE_FOR_THIS_ONE),
         dim=not has_other_versions, group_break=True)
+
+
+def funscript_jump_button(command: str, *, noun: str, has_osr2: bool) -> Button:
+    return Button(
+        command, FUNSCRIPT_JUMP_ICON,
+        f"Skip ahead to where this {noun}'s scripting starts up again"
+        + ("" if has_osr2 else " (this Funestra doesn't have the OSR2)"),
+        dim=not has_osr2)
 
 
 def minimize_button(funestra: str) -> Button:

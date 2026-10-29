@@ -26,6 +26,7 @@ from .funestra_buttons import (
     MAIN_FUNESTRA_NOUN,
     TRASH_ICON,
     browse_order_buttons,
+    funscript_jump_button,
     lock_button,
     minimize_button,
     reset_button,
@@ -83,7 +84,6 @@ MORE_ICON = shared_mark("plus")
 COMPILATION_ICON = shared_mark("compilation")
 CLIP_TO_SCENE_ICON = shared_mark("clip_to_scene")
 SCENE_TO_CLIP_ICON = shared_mark("scene_to_clip")
-FUNSCRIPT_JUMP_ICON = shared_mark("funscript_jump")
 FLIP_ENDS_ICON = shared_mark("flip_ends")
 
 MODE_BUTTONS = (
@@ -188,8 +188,8 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
         remembered = bool(slot.compilation)
         return (
             *transport("main", noun=MAIN_FUNESTRA_NOUN, longer_than_a_step=slot.longer_than_a_step),
-            Button("main_player_funscript_jump", FUNSCRIPT_JUMP_ICON,
-                   "Skip ahead to where this video's scripting starts up again"),
+            funscript_jump_button("main_player_funscript_jump", noun=MAIN_FUNESTRA_NOUN,
+                                  has_osr2=slot.has_osr2),
             lock_button("main", locked=slot.locked, noun=MAIN_FUNESTRA_NOUN),
             Button("main_fmode", FMODE_ICON,
                    "F-Mode — play only the well funscripted videos",
