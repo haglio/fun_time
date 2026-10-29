@@ -188,6 +188,8 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
         remembered = bool(slot.compilation)
         return (
             *transport("main", noun=MAIN_FUNESTRA_NOUN, longer_than_a_step=slot.longer_than_a_step),
+            Button("main_player_funscript_jump", FUNSCRIPT_JUMP_ICON,
+                   "Skip ahead to where this video's scripting starts up again"),
             lock_button("main", locked=slot.locked, noun=MAIN_FUNESTRA_NOUN),
             Button("main_fmode", FMODE_ICON,
                    "F-Mode — play only the well funscripted videos",
@@ -245,11 +247,4 @@ def _flick_seconds_row() -> tuple[Button, ...]:
 
 
 def _control_row(slot: MainSlot) -> tuple[Button, ...]:
-    return (
-        osr2_button(RoomFunestra.MAIN, has_it=slot.has_osr2),
-        *((
-            Button("main_player_funscript_jump", FUNSCRIPT_JUMP_ICON,
-                   "Skip ahead to where this video's scripting starts up again",
-                   group_break=True),
-        ) if slot.has_osr2 and kino_shows(slot.main_mode) else ()),
-    )
+    return (osr2_button(RoomFunestra.MAIN, has_it=slot.has_osr2),)

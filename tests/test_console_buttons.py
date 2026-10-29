@@ -408,10 +408,12 @@ class TestLock:
 
     def test_it_pairs_with_f_mode_and_stands_apart_from_everything_else(self):
         by_action = _placed(MainSlot(main_mode=MainMode.KINO))
-        step, lock = by_action["main_next"], by_action["main_lock"]
+        step, skip = by_action["main_next"], by_action["main_player_funscript_jump"]
+        lock = by_action["main_lock"]
         fmode, reset = by_action["main_fmode"], by_action["main_reset"]
 
-        assert lock[0] - (step[0] + step[2]) == GROUP_GAP
+        assert skip[0] - (step[0] + step[2]) == GAP
+        assert lock[0] - (skip[0] + skip[2]) == GROUP_GAP
         assert fmode[0] - (lock[0] + lock[2]) == GAP
         assert reset[0] - (fmode[0] + fmode[2]) == GROUP_GAP
 
@@ -478,10 +480,30 @@ class TestPaceRows:
         assert satellite == console != []
 
 
-class TestDriveControls:
-    def test_the_funscript_jump_rides_the_row_under_a_video_alone(self):
-        assert "main_player_funscript_jump" in _actions(MainSlot(main_mode=MainMode.KINO))
+class TestSkipAhead:
+    @staticmethod
+    def _transport_row(slot: MainSlot) -> list[str]:
+        return [button.command for button in next(
+            row for row in console_rows(slot) if any(b.command == "main_prev" for b in row))]
+
+    def test_skip_ahead_follows_previous_and_next_as_on_every_satellite(self):
+        row = self._transport_row(MainSlot(main_mode=MainMode.KINO))
+
+        assert row[:6] == ["main_prev", "main_nudge_prev", "main_nudge_next", "main_next",
+                           "main_player_funscript_jump", "main_lock"]
+
+    @pytest.mark.parametrize("has_osr2", [True, False])
+    def test_skip_ahead_is_there_whether_or_not_the_main_funestra_has_the_osr2(self, has_osr2):
+        slot = MainSlot(main_mode=MainMode.KINO, has_osr2=has_osr2)
+
+        assert "main_player_funscript_jump" in self._transport_row(slot)
+        assert osr2_rows(slot) == ((osr2_button(RoomFunestra.MAIN, has_it=has_osr2),),)
+
+    def test_skip_ahead_rides_a_video_alone(self):
         assert "main_player_funscript_jump" not in _actions(MainSlot(main_mode=MainMode.GENAU))
+
+
+class TestDriveControls:
 
     def test_the_axis_arrows_are_not_console_buttons(self):
         actions = _actions(MainSlot(main_mode=MainMode.KINO))
