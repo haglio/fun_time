@@ -17,6 +17,7 @@ import ctypes.wintypes
 import logging
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -266,13 +267,13 @@ def _without_hanging(call, hwnd, *args, what: str) -> bool:
     session with it; ``TestAWindowThatHasStoppedAnswering`` tells that story and
     holds every rule below.
 
-    So the call is made on a throwaway thread and waited on for
+    So the call is made on that window's own thread of calls and waited on for
     STALLED_WINDOW_TIMEOUT_S.  A healthy window answers in microseconds and nothing
     changes — including the ORDER the caller makes these calls in, which is what
     stacks Genau's HUD above the Main Funestra's video and which posting the requests
     (SWP_ASYNCWINDOWPOS) would have given up.  A window that does not answer is
-    named in the log, and the call it gave up on is still carried out once that
-    window takes messages again — after everything placed meanwhile.
+    named in the log, and the call it gave up on, with every later one, is still
+    carried out in turn once that window takes messages again.
 
     Our OWN windows are called straight, and must be: the send would go to this
     process's UI thread, which is the very thread waiting here.  See
@@ -282,22 +283,49 @@ def _without_hanging(call, hwnd, *args, what: str) -> bool:
         call(hwnd, *args)
         return True
 
-    done = threading.Event()
-
-    def run() -> None:
-        try:
-            call(hwnd, *args)
-        finally:
-            done.set()
-
-    threading.Thread(target=run, daemon=True, name=f"win32-{what}").start()
-    if done.wait(STALLED_WINDOW_TIMEOUT_S):
+    if _ONE_CALL_AT_A_TIME.make(hwnd, lambda: call(hwnd, *args), what=what).wait(
+            STALLED_WINDOW_TIMEOUT_S):
         return True
     logger.warning(
         "%s did not return in %.1fs — that window has stopped answering; "
         "carrying on without it", what, STALLED_WINDOW_TIMEOUT_S,
     )
     return False
+
+
+class _CallsPerWindow:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._waiting: dict[int, deque[tuple[Callable[[], object], threading.Event, str]]] = {}
+
+    def make(self, hwnd: int, call: Callable[[], object], *, what: str) -> threading.Event:
+        done = threading.Event()
+        with self._lock:
+            first = hwnd not in self._waiting
+            self._waiting.setdefault(hwnd, deque()).append((call, done, what))
+        if first:
+            threading.Thread(target=self._make_in_turn, args=(hwnd,), daemon=True,
+                             name=f"win32-calls-to-{hwnd}").start()
+        return done
+
+    def _make_in_turn(self, hwnd: int) -> None:
+        finished = False
+        while not finished:
+            with self._lock:
+                call, done, what = self._waiting[hwnd][0]
+            try:
+                call()
+            except Exception:
+                logger.exception("%s failed", what)
+            with self._lock:
+                self._waiting[hwnd].popleft()
+                finished = not self._waiting[hwnd]
+                if finished:
+                    del self._waiting[hwnd]
+            done.set()
+
+
+_ONE_CALL_AT_A_TIME = _CallsPerWindow()
 
 
 def move_window(hwnd: int, x: int, y: int, w: int, h: int, *, activate: bool = True) -> None:
