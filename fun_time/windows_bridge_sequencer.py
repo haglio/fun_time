@@ -567,7 +567,7 @@ def _wait_for_the_room_to_be_drawing(
     progress: ProgressReporter,
     funestras: list[LaunchedFunestra] = (),
 ) -> None:
-    """Hold the cover until every Funestra has a picture under it.
+    """Hold the cover until every Funestra has a frame under it.
 
     The Main Funestra is the third Funestra and by now the only one still loading: its window
     has been up since half a second after launch with its own loading screen
@@ -767,7 +767,7 @@ def _resolve_satellite_hwnds() -> tuple[int, int]:
     )
 
 
-# How long the curtain waits for the two satellites to have a picture up.
+# How long the curtain waits for the two satellites to have a frame up.
 # Their windows exist within a second of launch and stay BLACK until mpv has
 # opened the first clip and drawn a frame — on the 4K landscape library that is
 # several seconds — so a reveal timed on the windows alone lifts on two black

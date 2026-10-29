@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from fun_time_vr.picture_shape import FISHEYE_CIRCLE, FULL_FRAME
+from fun_time_vr.frame_shape import FISHEYE_CIRCLE, FULL_FRAME
 from fun_time_vr.projection import (
     EQUIRECT_180_SBS,
     EQUIRECT_360,
@@ -200,8 +200,8 @@ class TestResolve:
         assert ProjectionMemory(None, (videos / "VR",)).resolve(str(video)) == EQUIRECT_180_SBS
 
 
-class TestWhatThePictureShowed:
-    def test_a_video_whose_picture_is_a_circle_opens_as_a_fisheye(self, library):
+class TestWhatTheFrameshowed:
+    def test_a_video_whose_frame_is_a_circle_opens_as_a_fisheye(self, library):
         videos, metadata = library
         video = videos / "VR" / "finished" / "scene one.mp4"
         memory = ProjectionMemory(metadata, (videos / "VR",))
@@ -210,7 +210,7 @@ class TestWhatThePictureShowed:
 
         assert memory.resolve(str(video)) == FISHEYE_180_SBS
 
-    def test_his_own_choice_outranks_what_the_picture_showed(self, library):
+    def test_his_own_choice_outranks_what_the_frame_showed(self, library):
         videos, metadata = library
         video = videos / "VR" / "finished" / "scene one.mp4"
         memory = ProjectionMemory(metadata, (videos / "VR",))
@@ -220,7 +220,7 @@ class TestWhatThePictureShowed:
 
         assert memory.resolve(str(video)) == EQUIRECT_180_SBS
 
-    def test_a_name_that_says_which_fisheye_it_is_outranks_the_picture(self, library):
+    def test_a_name_that_says_which_fisheye_it_is_outranks_the_frame(self, library):
         videos, metadata = library
         video = videos / "VR" / "finished" / "scene three (fisheye).mp4"
         memory = ProjectionMemory(metadata, (videos / "VR",))
@@ -229,7 +229,7 @@ class TestWhatThePictureShowed:
 
         assert memory.resolve(str(video)) == FISHEYE_190_SBS
 
-    def test_a_picture_that_fills_the_frame_leaves_the_default_alone(self, library):
+    def test_a_frame_that_fills_the_frame_leaves_the_default_alone(self, library):
         videos, metadata = library
         video = videos / "VR" / "finished" / "scene one.mp4"
         memory = ProjectionMemory(metadata, (videos / "VR",))

@@ -47,20 +47,20 @@ def test_a_video_watched_to_the_end_is_recorded_as_a_completion(tmp_path):
     assert stats[normalize_path_key(str(video))]["completions"] == 1
 
 
-def test_a_satellite_playing_the_hosted_apps_pictures_books_nothing(tmp_path):
+def test_a_satellite_playing_the_hosted_apps_images_books_nothing(tmp_path):
     """In its Origenerator mode a satellite shows that app's slideshow, which is
-    no library video: a picture held to its end is no completion."""
-    picture = tmp_path / "scene one.png"
-    picture.write_text("x", encoding="utf-8")
+    no library video: an image held to its end is no completion."""
+    image = tmp_path / "scene one.png"
+    image.write_text("x", encoding="utf-8")
     sampler = make_sampler(tmp_path)
 
     for now, fraction in ((100.0, 0.1), (101.1, 0.9)):
-        _publish(tmp_path / "portrait_status.txt", picture, fraction=fraction)
+        _publish(tmp_path / "portrait_status.txt", image, fraction=fraction)
         sampler.sample_due(now=now, paused=False, hosted=(2,))
     _publish(tmp_path / "portrait_status.txt", tmp_path / "next.png", fraction=0.0)
     sampler.sample_due(now=102.2, paused=False, hosted=(2,))
 
-    assert normalize_path_key(str(picture)) not in load_watch_stats(tmp_path / "watch_stats.json")
+    assert normalize_path_key(str(image)) not in load_watch_stats(tmp_path / "watch_stats.json")
 
 
 def _publish_main_funestra(path: Path, video, *, position_ms: int, duration_ms: int,
@@ -226,14 +226,14 @@ class TestBackDating:
 
         assert sampler.video_at("landscape_trash", 100.7) == "C:\\clips\\landscape.mp4"
 
-    def test_a_side_showing_the_hosted_apps_pictures_is_back_dated_too(self, tmp_path):
+    def test_a_side_showing_the_hosted_apps_images_is_back_dated_too(self, tmp_path):
         sampler = make_sampler(tmp_path)
         status = sampler.satellite_status_files[2]
-        for at, picture in ((100.0, "C:\\pictures\\meant.png"), (101.0, "C:\\pictures\\next.png")):
-            status.write_text(f"video={picture}\nposition_ms=0\nduration_ms=0\n", encoding="utf-8")
+        for at, image in ((100.0, "C:\\images\\meant.png"), (101.0, "C:\\images\\next.png")):
+            status.write_text(f"video={image}\nposition_ms=0\nduration_ms=0\n", encoding="utf-8")
             sampler.sample_due(now=at, paused=False, hosted=(2,))
 
-        assert sampler.video_at("portrait_lock_on", 100.2) == "C:\\pictures\\meant.png"
+        assert sampler.video_at("portrait_lock_on", 100.2) == "C:\\images\\meant.png"
 
     def test_a_hotkey_command_names_no_video(self, tmp_path):
         """A keypress is instantaneous: it means whatever is playing right now."""

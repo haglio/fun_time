@@ -5,7 +5,7 @@ cannot tell a Funestra handed its list back from one the app never took.  So the
 press has to come after the app has both Funestras, or it is answered by a room
 that never entered the mode at all, and the app's lists land on the Funestras
 after the test that pressed it has ended.  The test that runs next then reads a
-playlist holding the app's picture and reports that the Funestras had no lists of
+playlist holding the app's items and reports that the Funestras had no lists of
 their own, which is how the hosted-shows test went red on 2026-09-16 and again
 on 2026-09-18.
 """
@@ -24,11 +24,11 @@ _LOOKS_BEFORE_THE_APP_ANSWERS = 2
 class _Satellite:
     """One Funestra's playlist and status files, as the session addresses them."""
 
-    def __init__(self, room: _Room, funestra: RoomFunestra, own_clip: Path, picture: Path):
+    def __init__(self, room: _Room, funestra: RoomFunestra, own_clip: Path, image: Path):
         self._room = room
         self._funestra = funestra
         self._own_clip = own_clip
-        self._picture = picture
+        self._image = image
         self.playlist_file = room.state_dir / f"{funestra.label}_playlist.tsv"
         self.status_file = room.state_dir / f"{funestra.label}_status.txt"
         self.taken = False
@@ -46,7 +46,7 @@ class _Satellite:
             self._play(self._own_clip)
         elif self.looks >= _LOOKS_BEFORE_THE_APP_ANSWERS:
             self.taken = True
-            self._play(self._picture)
+            self._play(self._image)
 
 
 class _Paths:
@@ -66,8 +66,8 @@ class _Room:
     def __init__(self, tmp_path: Path):
         self.state_dir = tmp_path / "state"
         self.state_dir.mkdir()
-        pictures = tmp_path / "pictures"
-        pictures.mkdir()
+        images = tmp_path / "images"
+        images.mkdir()
         folders = {}
         self._satellites = {}
         self.pressed = False
@@ -79,7 +79,7 @@ class _Room:
             folders[funestra] = folder
             self._satellites[funestra] = _Satellite(
                 self, funestra, folder / f"{funestra.label}-clip-one.mp4",
-                pictures / f"{funestra.label}.png")
+                images / f"{funestra.label}.png")
         self.config = self
         self.paths = _Paths(folders[RoomFunestra.PORTRAIT], folders[RoomFunestra.LANDSCAPE])
 

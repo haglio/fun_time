@@ -311,7 +311,7 @@ still reading.
 
 The grid is one you **walk**. It opens on the library's own folders — one tile
 per folder under a `main_player_library_dirs` source, showing four of its videos laid out
-two by two (drawn at random, so a folder is never the same picture twice) and a
+two by two (drawn at random, so a folder is never the same thumbnail twice) and a
 count — and opening one shows what is in it: either the folders it was split
 into, or its videos. A tile at the head of every folder goes back up, and so
 does Backspace. The folder you are in is named across the top of the window,
@@ -370,7 +370,7 @@ tall video and a wide one keep their own proportions rather than both being
 squashed into the tile's shape. Stills are cached under `state/hud_thumbnails/` — the same cache the satellites'
 HUD maps paint from — and warmed in the background at startup, one per handle,
 taken off the *smallest* rendition: a 2.7 GB upscale and the original it came
-from make the same picture, and only one of them is cheap to open.
+from make the same thumbnail, and only one of them is cheap to open.
 
 In Genau mode the same key, word and button browse **Genau's flicks** instead,
 under a header that starts at **Genau**: one tile per flick, named for its file,
@@ -411,7 +411,7 @@ A press posts `max_intensity_<0-100>` to the dashboard command file; the bridge 
 - `Esc` toggles OmniPause; `Space` enters it.
 - Clicking into a text field in the Random Favs Browser or in Origenerator enters it too, so what you type goes into the field instead of to the hotkeys. A click anywhere else in those windows leaves the room playing.
 - While OmniPaused, the global hotkeys are suspended — only `Esc` (toggle OmniPause), `Shift+Esc` (Relief Omnipause) and `Ctrl+Alt+Q` (quit) stay active.
-- Entering it parks the OSR2, and in Genau mode Genau's picture goes home with the device: it holds for the second the broker waits, then glides to the flick's parked end as the device settles there. `Shift+Esc` is OmniPause and Retract together: the OSR2 goes to the far end, the picture with it, the OSR2 line says Retracted with the OSR2 switch off, and it stays retracted after the room resumes until you switch it on again. Park holds the picture with the device the same way, and when the Robot Hand takes the device back the picture eases onto its motion as the device does. With the OSR2 switched off there is no device for the picture to follow, so none of these moves it: OmniPause stops it where it is, and a park leaves it playing.
+- Entering it parks the OSR2, and in Genau mode Genau's frame goes home with the device: it holds for the second the broker waits, then glides to the flick's parked end as the device settles there. `Shift+Esc` is OmniPause and Retract together: the OSR2 goes to the far end, the frame with it, the OSR2 line says Retracted with the OSR2 switch off, and it stays retracted after the room resumes until you switch it on again. Park holds the frame with the device the same way, and when the Robot Hand takes the device back the frame eases onto its motion as the device does. With the OSR2 switched off there is no device for the frame to follow, so none of these moves it: OmniPause stops it where it is, and a park leaves it playing.
 
 ### With the headset off
 
@@ -633,7 +633,7 @@ it (a spoken lock first bringing back the item that was up when it began), then
 sends it on as it was asked, `portrait_lock` for a press and `portrait_lock_on`
 for a spoken lock, while a spoken unlock goes on as `portrait_lock_off` alone.
 The app's own padlock says whether a press locks or lets go, since its Funestra
-is also locked while a spoken request or a run holds the picture; a lock gets the
+is also locked while a spoken request or a run holds the image; a lock gets the
 star, the better version and the gallery there. Then there are
 `portrait_open_slideshow` / `landscape_open_slideshow` (that Funestra
 entering its Origenerator mode, which fills it with its base state),

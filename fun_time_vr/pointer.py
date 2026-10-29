@@ -311,7 +311,7 @@ class Screen:
     pressable: bool = False
     right_clicks: bool = False
     immersive: bool = False  # wrapped round the viewer: no rectangle, so no hover
-    picture: bool = False
+    item: bool = False
     widened_by: float = 1.0
 
 
@@ -436,7 +436,7 @@ class Pointer:
         if edge == PRESS and hover.handle in (MOVE, RESIZE):
             self._grab = (screen, Grab(hover.handle, screen.placement, start=point,
                                        aspect=screen.aspect, widened_by=screen.widened_by))
-        elif edge == PRESS and screen.picture:
+        elif edge == PRESS and screen.item:
             self._start_squeeze(aim, scene_rotation, PressEvent(
                 PRESS, screen.name, hover.u, hover.v) if screen.pressable else None)
         elif edge == PRESS and screen.right_clicks and hands[self.hand].stick_pressed:

@@ -1,4 +1,4 @@
-"""Which picture the frame loop may show, and which texture a video may paint into.
+"""Which frame the frame loop may show, and which texture a video may paint into.
 
 Every Funestra paints on a thread and a GL context of its own, so the two sides
 have to agree on three textures without either waiting on the other.  This is
@@ -12,22 +12,22 @@ from fun_time_vr.funestras import MAIN_VIDEO_CAP_PX
 WIDE = "C:/videos/wide.mp4"
 
 
-def test_there_is_nothing_to_show_before_the_first_picture():
+def test_there_is_nothing_to_show_before_the_first_frame():
     assert FrameRelay().take() is None
 
 
-def test_a_painted_picture_is_shown_once_with_its_size_and_the_video_it_shows():
+def test_a_painted_frame_is_shown_once_with_its_size_and_the_video_it_shows():
     relay = FrameRelay()
 
     relay.painted(0, texture=7, width=1920, height=1080, video=WIDE)
 
-    picture = relay.take()
-    assert (picture.slot, picture.texture, picture.width, picture.height) == (0, 7, 1920, 1080)
-    assert picture.video == WIDE
+    frame = relay.take()
+    assert (frame.slot, frame.texture, frame.width, frame.height) == (0, 7, 1920, 1080)
+    assert frame.video == WIDE
     assert relay.take() is None
 
 
-def test_a_newer_picture_waits_until_the_one_being_copied_is_let_go():
+def test_a_newer_frame_waits_until_the_one_being_copied_is_let_go():
     """The frame loop's copy runs on the graphics card after the call returns, so
     the texture it copies out of is off limits until the card says it is done."""
     relay = FrameRelay()
@@ -41,7 +41,7 @@ def test_a_newer_picture_waits_until_the_one_being_copied_is_let_go():
     assert relay.take().slot == 1
 
 
-def test_the_video_never_paints_over_the_picture_the_loop_is_copying():
+def test_the_video_never_paints_over_the_frame_the_loop_is_copying():
     relay = FrameRelay()
     relay.painted(0, texture=7, width=640, height=480, video=WIDE)
     relay.take()
@@ -50,8 +50,8 @@ def test_the_video_never_paints_over_the_picture_the_loop_is_copying():
     assert relay.slot_to_paint() == 2
 
 
-def test_there_is_always_somewhere_to_paint_the_next_picture():
-    """What the third texture is for: with the newest picture waiting to be taken
+def test_there_is_always_somewhere_to_paint_the_next_frame():
+    """What the third texture is for: with the newest frame waiting to be taken
     and another being copied, a video that had only two would have to stop
     painting until the frame loop let one go."""
     relay = FrameRelay()
@@ -72,18 +72,18 @@ def test_a_video_inside_the_cap_is_painted_at_its_own_size():
     assert capped_size((1280, 720), 2048) == (1280, 720)
 
 
-def test_the_main_picture_keeps_a_7k_videos_own_size():
+def test_the_main_frame_keeps_a_7k_videos_own_size():
     assert capped_size((7168, 3584), MAIN_VIDEO_CAP_PX) == (7168, 3584)
 
 
 def test_there_is_no_size_to_paint_until_mpv_says_what_the_video_is():
     """Between files mpv reports (0, 0), and a target sized from that would be
-    the teardown flicker the last picture is held through."""
+    the teardown flicker the last frame is held through."""
     assert capped_size((0, 0), 2048) is None
 
 
 class TestTheStillAVideoThreadIsAskedFor:
-    """The picture check reads a frame to tell a fisheye recording from a 180 one.
+    """The projection check reads a frame to tell a fisheye recording from a 180 one.
     It used to ask mpv for a screenshot from its own thread, which on an offscreen
     Funestra is "No render context set" -- the render context belongs to the thread
     that paints, and asking wedged the Funestra instead (2026-09-20)."""
@@ -96,14 +96,14 @@ class TestTheStillAVideoThreadIsAskedFor:
         asked.ask()
 
         assert asked.wanted
-        asked.leave("a picture")
+        asked.leave("a frame")
 
-        assert asked.take() == "a picture"
+        assert asked.take() == "a frame"
 
     def test_and_only_once(self):
         asked = StillAsked()
         asked.ask()
-        asked.leave("a picture")
+        asked.leave("a frame")
         asked.take()
 
         assert asked.take() is None
@@ -116,8 +116,8 @@ class TestTheStillAVideoThreadIsAskedFor:
     def test_asking_again_while_one_is_waiting_does_not_lose_it(self):
         asked = StillAsked()
         asked.ask()
-        asked.leave("a picture")
+        asked.leave("a frame")
 
         asked.ask()
 
-        assert asked.take() == "a picture"
+        assert asked.take() == "a frame"

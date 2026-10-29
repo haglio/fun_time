@@ -273,7 +273,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # module, and every paragraph of the two they replaced, and of the watch on a
 # Funestra that dies while the room comes up, is a test in test_funestra_engine.py
 # or test_funestra_deaths.py.
-# 7629 on 2026-09-28: the picture look, the still it asks the paint thread for and
+# 7629 on 2026-09-28: the frame look, the still it asks the paint thread for and
 # the headset's browse each said why mpv's render context is thread-bound or a
 # drive is slow to list, and each now says it once; the projection ring's order,
 # its restart on an unknown name and the stops the voice command listed are

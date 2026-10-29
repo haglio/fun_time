@@ -19,7 +19,7 @@ from fun_time.win32_desktop import on_hidden_desktop
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="A Satellite Funestra of Fun Time's room")
     p.add_argument("--playlist", type=Path, default=None,
-                   help="Video or picture list to play, one per line; a funscript "
+                   help="Video or image list to play, one per line; a funscript "
                         "column after a TAB is ignored")
     p.add_argument("--command-file", type=Path, default=None,
                    help="Poll this file for orchestrator commands")
@@ -43,7 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Where this Funestra hands on the motion it composes while it "
                         "has the OSR2, for the Dashboard to draw")
     p.add_argument("--dashboard-cmd-file", type=Path, default=None,
-                   help="Where a click on the lock HUD, or on the picture itself, "
+                   help="Where a click on the lock HUD, or on the item itself, "
                         "posts its fun_time command")
     p.add_argument("--width", type=int, default=1200)
     p.add_argument("--height", type=int, default=900)
@@ -57,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
                         "indicator; without it a satellite still opens muted, but "
                         "its chip can unmute it")
     p.add_argument("--tile", action="store_true", default=False,
-                   help="Show a portrait picture side by side, as many times as "
+                   help="Show a portrait item side by side, as many times as "
                         "fit, while the window is wider than it is tall")
     p.add_argument("--taskbar-identity", default=None,
                    help="Group this window under the launching application's taskbar "

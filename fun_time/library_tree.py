@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 from .library_handles import LibraryHandle
 
-# How many videos a folder tile is pictured with.  Four says what kind of thing
+# How many videos a folder tile is thumbnailed with.  Four says what kind of thing
 # is inside where one said almost nothing about a folder of hundreds, and still
 # leaves each cell big enough to read at a tile's size.
 FOLDER_PREVIEWS = 4
@@ -28,7 +28,7 @@ FOLDER_PREVIEWS = 4
 
 @dataclass(frozen=True)
 class SubFolder:
-    """A folder tile: what it is called, how much is in it, and its pictures."""
+    """A folder tile: what it is called, how much is in it, and its thumbnails."""
 
     name: str
     count: int

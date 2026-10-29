@@ -128,7 +128,7 @@ def _anchored(anchor: tuple[float, float], side: float, width_deg: float, aspect
 
 
 class TestWhereOnAScreenAPointLands:
-    def test_the_screens_center_is_the_middle_of_the_picture(self):
+    def test_the_screens_center_is_the_middle_of_the_frame(self):
         lift = RADIUS_M * math.tan(math.radians(_A_SCREEN.elevation_deg))
 
         u, v = screen_uv(_on_the_cylinder(38.0, lift), _A_SCREEN, aspect=16 / 9)
@@ -158,7 +158,7 @@ class TestWhereOnAScreenAPointLands:
 
     def test_a_spot_on_the_far_side_of_the_viewer_is_nowhere_on_the_screen(self):
         """Carried on round past the viewer, a flat screen's plane lands this spot in
-        the middle of its picture: a laser pointed the other way pressed it."""
+        the middle of its frame: a laser pointed the other way pressed it."""
         far_side = _on_the_cylinder(_A_SCREEN.azimuth_deg - 180.0, -_lift(_A_SCREEN))
 
         u, v = screen_uv(far_side, _A_SCREEN, aspect=16 / 9)
@@ -223,7 +223,7 @@ class TestTheRayInTheScene:
 
 class TestTheHandles:
     """A screen's chrome: a bar to move it by, hanging just above its top edge so
-    it takes nothing from the picture, and two corner squares to resize it by."""
+    it takes nothing from the frame, and two corner squares to resize it by."""
 
     _ASPECT = 16 / 9
     _DU = _HANDLE / _drawn_size(_A_SCREEN, _ASPECT)[0]
@@ -232,7 +232,7 @@ class TestTheHandles:
     def _at(self, u: float, v: float) -> str | None:
         return handle_at(u, v, _A_SCREEN, aspect=self._ASPECT)
 
-    def test_the_picture_itself_is_the_surface(self):
+    def test_the_frame_itself_is_the_surface(self):
         assert self._at(0.5, 0.5) == SURFACE
         assert self._at(0.0, 1.0) == SURFACE
 
@@ -241,9 +241,9 @@ class TestTheHandles:
         assert self._at(0.0, 1.0 + self._DV / 2) == MOVE
         assert self._at(0.5, 1.0 + self._DV * 1.5) is None
 
-    def test_the_lower_corners_resize_it_from_clear_of_the_picture(self):
+    def test_the_lower_corners_resize_it_from_clear_of_the_frame(self):
         """Diagonally outside each lower corner rather than straddling it, so the
-        scrubber along the picture's lower edge keeps the whole of that edge."""
+        scrubber along the frame's lower edge keeps the whole of that edge."""
         assert self._at(1.0 + self._DU / 2, -self._DV / 2) == RESIZE
         assert self._at(-self._DU / 2, -self._DV / 2) == RESIZE
         assert self._at(1.0 - self._DU / 4, self._DV / 4) == SURFACE
@@ -295,7 +295,7 @@ class TestAGrab:
         assert raised.width_deg == _A_SCREEN.width_deg
 
     def test_the_spot_taken_hold_of_stays_under_the_pointer_as_it_is_dragged(self):
-        """Off a flat screen's middle its picture stands further out than the
+        """Off a flat screen's middle its frame stands further out than the
         cylinder the pointer is read on, so a rise there moves the screen further."""
         start = _seen_at(_A_SCREEN, self._ASPECT, 0.15, 1.02)
         grab = Grab(MOVE, _A_SCREEN, start=start, aspect=self._ASPECT)
@@ -344,7 +344,7 @@ class TestAGrab:
 
     def test_the_two_corners_carry_the_screen_opposite_ways(self):
         """Each pins the corner across from it, so the same growth from the left
-        handle and from the right leaves the picture in different places — which
+        handle and from the right leaves the screen in different places — which
         is the whole reason for two handles rather than one."""
         wider = 2 * _A_SCREEN.width_deg
         pulled = {}
@@ -360,7 +360,7 @@ class TestAGrab:
     @pytest.mark.parametrize("side", [1.0, -1.0])
     def test_a_corner_swung_on_past_the_half_turn_holds_the_widest(self, side):
         """Past a half turn the short way round reverses: the width read off it
-        collapsed to MIN_WIDTH_DEG and the picture vanished out of the headset
+        collapsed to MIN_WIDTH_DEG and the screen vanished out of the headset
         mid-drag.  The width already reached says which way round was meant."""
         anchor = self._upper(_A_SCREEN, -side)
         grab = Grab(RESIZE, _A_SCREEN, start=self._corner(_A_SCREEN, side), aspect=self._ASPECT)
@@ -382,7 +382,7 @@ class TestAGrab:
         assert grab.dragged_to(_on_the_cylinder(144.0, -30.0)).width_deg == MAX_WIDTH_DEG
 
 
-class TestAGrabOnAPictureShownNarrowerThanItsSize:
+class TestAGrabOnAFrameshownNarrowerThanItsSize:
     _TALL = 9 / 16
     _BY = 0.5
     _SIZE = Placement(azimuth_deg=0.0, elevation_deg=0.0, width_deg=80.0)
@@ -467,7 +467,7 @@ def _hands(right=None, left=None, *, right_trigger=0.0, left_trigger=0.0,
 _LANDSCAPE = Screen("landscape", Placement(38.0, 10.0, 28.0), aspect=16 / 9,
                     movable=True, resizable=True)
 _PORTRAIT = Screen("portrait", Placement(-38.0, 10.0, 28.0), aspect=9 / 16,
-                   movable=True, resizable=True, pressable=True, picture=True)
+                   movable=True, resizable=True, pressable=True, item=True)
 _PANEL = Screen("panel", Placement(0.0, 32.0, 24.0), aspect=1.3, pressable=True)
 _GALLERY = Screen("gallery", Placement(-68.0, 2.0, 26.0), aspect=0.7,
                   movable=True, resizable=True, pressable=True, right_clicks=True)
@@ -526,17 +526,17 @@ class TestThePointerOverTheScene:
         assert released.settled
         assert released.moved["landscape"].azimuth_deg == pytest.approx(43.0, abs=1e-4)
 
-    def test_a_picture_shown_narrower_than_its_size_is_dragged_by_its_bar_at_its_size(self):
+    def test_a_frame_shown_narrower_than_its_size_is_dragged_by_its_bar_at_its_size(self):
         size = _LANDSCAPE.placement
-        picture = replace(_LANDSCAPE, placement=widened(size, 0.5), widened_by=0.5)
+        frame = replace(_LANDSCAPE, placement=widened(size, 0.5), widened_by=0.5)
         pointer = Pointer()
-        _du, dv = handle_extent(picture.placement, picture.aspect)
+        _du, dv = handle_extent(frame.placement, frame.aspect)
         bar = (0.5, 1 + dv / 2)
 
-        self._frame(pointer, _hands(right=_aim_at_uv(picture, *bar), right_trigger=1.0),
-                    screens=[picture])
-        dragged = self._frame(pointer, _hands(right=_aim_turned(picture, 5.0, bar[1]),
-                                              right_trigger=1.0), screens=[picture])
+        self._frame(pointer, _hands(right=_aim_at_uv(frame, *bar), right_trigger=1.0),
+                    screens=[frame])
+        dragged = self._frame(pointer, _hands(right=_aim_turned(frame, 5.0, bar[1]),
+                                              right_trigger=1.0), screens=[frame])
 
         assert dragged.moved["landscape"].width_deg == pytest.approx(size.width_deg)
         assert (dragged.hover.u, dragged.hover.v) == pytest.approx(bar, abs=1e-6)
@@ -609,8 +609,8 @@ class TestThePointerOverTheScene:
         assert not released.settled
         assert self._frame(pointer, _hands(right=_aim_at_uv(_PANEL, 0.5, 0.75))).events == ()
 
-    def test_a_squeeze_on_a_funestras_picture_that_moves_carries_the_main_funestra_instead(self):
-        landscape = replace(_LANDSCAPE, pressable=True, picture=True)
+    def test_a_squeeze_on_a_funestras_frame_that_moves_carries_the_main_funestra_instead(self):
+        landscape = replace(_LANDSCAPE, pressable=True, item=True)
         pointer = Pointer()
         start, end = (_seen_at(landscape.placement, landscape.aspect, u, 0.5) for u in (0.5, 0.7))
 
@@ -630,7 +630,7 @@ class TestThePointerOverTheScene:
         assert pressed.events == dragged.events == let_go.events == ()
         assert let_go.settled
 
-    def test_a_click_where_a_wrapped_picture_is_all_there_is_presses_it_when_let_go(self):
+    def test_a_click_where_a_wrapped_frame_is_all_there_is_presses_it_when_let_go(self):
         """A VR180 or 360 Main Funestra is round the viewer rather than hanging in
         the scene, so it has no rectangle to aim at — it is what a squeeze lands
         on wherever no hanging screen is, reported at its middle since there is
@@ -697,7 +697,7 @@ class TestThePointerOverTheScene:
         assert released.events == (PressEvent(PRESS, "primary", 0.5, 0.5),
                                    PressEvent(RELEASE, "primary"))
 
-    def test_a_click_on_a_funestras_picture_presses_it_when_let_go(self):
+    def test_a_click_on_a_funestras_frame_presses_it_when_let_go(self):
         portrait = _PORTRAIT
         pointer = Pointer()
         scene = [portrait, _PANEL]
@@ -716,9 +716,9 @@ class TestThePointerOverTheScene:
         assert release == PressEvent(RELEASE, "portrait")
 
     @pytest.mark.parametrize("u, v", [(0.3, 0.02), (0.97, 0.02)], ids=["lower edge", "corner"])
-    def test_a_squeeze_along_a_pictures_lower_edge_is_a_click_on_it_like_any_other(self, u, v):
-        """The row that was drawn along a picture's lower edge is on the panel
-        beside it now, so no part of a picture seeks or sets the level: a
+    def test_a_squeeze_along_a_frames_lower_edge_is_a_click_on_it_like_any_other(self, u, v):
+        """The row that was drawn along a frame's lower edge is on the panel
+        beside it now, so no part of a frame seeks or sets the level: a
         squeeze there still sat on an invisible scrubber and chip for two
         weeks after the row moved."""
         portrait = _PORTRAIT
@@ -917,7 +917,7 @@ class TestWhatIsDrawnForThePointer:
             RADIUS_M * math.radians(HANDLE_DEG), abs=1e-6)
 
     def test_the_corner_squares_sit_just_clear_of_the_lower_corners(self):
-        """Outside the picture rather than straddling it, so the scrubber along
+        """Outside the frame rather than straddling it, so the scrubber along
         its lower edge is not a quarter covered at each end."""
         strips = handle_vertices(_A_SCREEN, aspect=16 / 9, resizable=True)
         screen = surface_vertices(_A_SCREEN, aspect=16 / 9)

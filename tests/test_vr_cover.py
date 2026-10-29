@@ -553,7 +553,7 @@ def test_a_checkpoint_still_raises_for_the_vr_phases(tmp_path: Path):
 class TestTheRoomComingUp:
     """The signal the orchestrator holds the cover for.  Without it the reveal
     happens on the Funestra's first STATUS write -- a role having picked a video,
-    not a frame of one having reached the headset -- and the four pictures land
+    not a frame of one having reached the headset -- and the four frames land
     in the open, one at a time, which is the whole thing the cover is for."""
 
     def test_nothing_is_said_while_the_room_is_still_blank(self, tmp_path: Path):
@@ -609,11 +609,11 @@ class TestTheRoomComingUp:
 
         assert marker.exists()
 
-    def test_the_screens_with_no_picture_are_named_when_the_grace_runs_out(
+    def test_the_screens_with_no_frame_are_named_when_the_grace_runs_out(
             self, tmp_path: Path, caplog):
         """Three of his sessions revealed on the grace with the room long since
         full, and the line said only that some of it was blank -- which sent the
-        next reader hunting a slow picture that was never there."""
+        next reader hunting a slow frame that was never there."""
         clock = _Clock()
         ready = SceneReady(tmp_path / SCENE_READY_FILENAME,
                            grace_s=SCENE_READY_GRACE_S, clock=clock)

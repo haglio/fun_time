@@ -34,7 +34,7 @@ def test_it_is_built_muted_whatever_it_will_play(mpv_calls):
 
 def test_an_unmute_asked_before_the_headset_is_worn_waits(mpv_calls):
     """A sink parked on the stand takes the stream without draining it, and
-    mpv's clock follows audio: unmuted then, the picture freezes on frame 1."""
+    mpv's clock follows audio: unmuted then, the video freezes on frame 1."""
     _built, set_muted, _routed = mpv_calls
     engine = _an_engine()
 

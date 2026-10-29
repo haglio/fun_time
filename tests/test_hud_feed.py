@@ -271,7 +271,7 @@ class TestHudPublishing:
 
         assert panel(tmp_path, "portrait")["title"] == "Locked"
 
-    def test_what_the_hosted_app_says_about_the_picture_on_screen_reaches_the_funestra(
+    def test_what_the_hosted_app_says_about_the_image_on_screen_reaches_the_funestra(
         self, tmp_path,
     ):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
@@ -653,7 +653,7 @@ class TestHudPublishing:
 
         Believing the blank republishes an empty panel, which the Funestra renders
         as a HUD with nothing on it, and the next tick puts it back: the map
-        blinks.  It is most visible under OmniPause, where the picture is frozen
+        blinks.  It is most visible under OmniPause, where the frame is frozen
         and the map is the only thing that can move.
         """
         feed, state = make_feed(tmp_path), BridgeState()

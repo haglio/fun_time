@@ -148,7 +148,7 @@ from fun_time_vr.scene import (
     widened,
 )
 from fun_time_vr.stacking import Stacking
-from fun_time_vr.surfaces import LatestPicture, PanelBitmap
+from fun_time_vr.surfaces import LatestFrame, PanelBitmap
 from fun_time_vr.video_thread import VideoThread
 from fun_time_vr.wrap_readout import WrapReadout, label
 from main_funestra.genau import ROBOT_HAND, GenauChannels
@@ -213,7 +213,7 @@ def test_a_session_that_names_no_audio_device_reads_back_as_none_named(tmp_path)
 # which manifest field each path comes from, not what is done with it afterwards.
 _UNIT_COLLABORATORS = (
     "HeadsetEngine", "VideoThread", "RenderTarget", "FrameTexture", "Funestra",
-    "HeadsetVerbs", "PictureLook", "_TheLibrary", "FunscriptTCodeDriver", "Osr2Sender",
+    "HeadsetVerbs", "FrameLook", "_TheLibrary", "FunscriptTCodeDriver", "Osr2Sender",
 )
 
 _A_SESSION = VrSettings(library_dirs=(), audio_device="", compositor_layers=False)
@@ -265,7 +265,7 @@ def _a_main_unit(tmp_path, *, remembered=None, vr=_A_SESSION, manifest=None) -> 
 
 
 def test_the_main_slot_opens_where_the_last_session_left_it(tmp_path, faked_collaborators):
-    """Genau's picture and the video take turns in the one slot, so both open in
+    """Genau's flick and the video take turns in the one slot, so both open in
     whatever the last drag on it settled."""
     moved = Placement(azimuth_deg=18.0, elevation_deg=-6.0, width_deg=95.0)
 
@@ -311,7 +311,7 @@ def test_the_main_funestra_is_handed_every_file_it_needs_out_of_the_manifest(
 def test_the_main_funestra_is_the_desktops_with_the_headsets_own_surfaces(
         tmp_path, faked_collaborators):
     """Locked and sounding as the room says, as the desktop's opens; its panel
-    on a bitmap held to the console's one width, a User's picture handed over,
+    on a bitmap held to the console's one width, a User's frames handed over,
     and the headset's own verbs asked after what runs on it."""
     unit = _a_main_unit(tmp_path)
 
@@ -487,7 +487,7 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
     assert channels.play_points == Path(commands.state_dir) / play_points_filename(funestra)
     assert channels.hud == Path(commands.funestra_file(funestra, "hud"))
     assert channels.dashboard_cmd == Path(commands.dashboard_cmd_file)
-    # The HUD paints onto a bitmap of its own, hanging under the picture, not
+    # The HUD paints onto a bitmap of its own, hanging under the frame, not
     # into the video through mpv as the desktop satellite's does.
     assert handed["panel_surface"] is unit.panel
 
@@ -558,7 +558,7 @@ class _ALibrary:
 
 
 class _FakeRenderTarget:
-    """A sized-nothing target: no GL, and no picture yet."""
+    """A sized-nothing target: no GL, and no frame yet."""
 
     def __init__(self) -> None:
         self.width = self.height = 0
@@ -567,7 +567,7 @@ class _FakeRenderTarget:
         self.texture = 0
 
     ready = False
-    has_picture = False
+    has_frame = False
     aspect = 16 / 9
 
     def close(self) -> None:
@@ -591,9 +591,9 @@ def _dashboard_asked(tmp_path) -> list[str]:
 
 
 class TestTheMainFunestrasPass:
-    def test_the_main_screen_blends_nothing_into_its_picture(self, tmp_path, a_fake_engine):
+    def test_the_main_screen_blends_nothing_into_its_frame(self, tmp_path, a_fake_engine):
         """The console goes onto the bitmap hanging under the slot, wrapped or
-        flat, so the picture itself comes through untouched."""
+        flat, so the frame itself comes through untouched."""
         unit = _a_main_unit(tmp_path)
 
         unit.pump(threading.Event(), 0.0)
@@ -601,7 +601,7 @@ class TestTheMainFunestrasPass:
         assert unit.engine.overlays == {}
         assert unit.panel.take()[0] is not None
 
-    def test_a_squeeze_on_the_picture_asks_the_room_to_pause(self, tmp_path, a_fake_engine):
+    def test_a_squeeze_on_the_frame_asks_the_room_to_pause(self, tmp_path, a_fake_engine):
         unit = _a_main_unit(tmp_path)
 
         unit.point(Frame(events=(PressEvent(PRESS, MAIN, 0.5, 0.5), PressEvent(RELEASE, MAIN))))
@@ -611,7 +611,7 @@ class TestTheMainFunestrasPass:
 
     def test_a_squeeze_on_the_panel_does_not(self, tmp_path, a_fake_engine):
         """The panel places a press on its own buttons; what lands on none of
-        them is the panel's all the same, never the picture's."""
+        them is the panel's all the same, never the item's."""
         unit = _a_main_unit(tmp_path)
         unit.pump(threading.Event(), 0.0)
 
@@ -961,7 +961,7 @@ class _FakePanelTexture:
 
 class TestThePanelUnderTheSlot:
     """The console in the headset: the bitmap the Main Funestra draws, docked
-    under whichever picture fills the main slot -- and, while the video wraps
+    under whichever item fills the main slot -- and, while the video wraps
     the viewer and there is nothing to dock to, under the dashboard."""
 
     def _unit(self, *, wrapped=False, showing=False, edge=HudEdge.LOWER, minimized=False):
@@ -975,7 +975,7 @@ class TestThePanelUnderTheSlot:
             panel=PanelBitmap(width=PANEL_WIDTH_PX),
             verbs=_VerbsStandIn(projection_of=lambda _video: projection, **_NEVER_DIALED),
             target=SimpleNamespace(ready=True, aspect=16 / 9, video=None),
-            users_picture_texture=SimpleNamespace(ready=True, aspect=4 / 3),
+            users_frame_texture=SimpleNamespace(ready=True, aspect=4 / 3),
             _flick_projection=(Path("flick.mp4"), projection),
             screen=SimpleNamespace(placement=SPOTS[MAIN]),
         ))
@@ -1021,17 +1021,17 @@ class TestThePanelUnderTheSlot:
         followed = self._placed(p.unit)
 
         assert docked.azimuth_deg == SPOTS[MAIN].azimuth_deg
-        assert docked.elevation_deg < 0.0  # under the picture, never over it
+        assert docked.elevation_deg < 0.0  # under the frame, never over it
         assert followed.azimuth_deg == -40.0
         assert followed.elevation_deg < docked.elevation_deg  # a bigger Funestra hangs lower
         assert followed.width_deg == docked.width_deg == PANEL_WIDTH_PX * DEG_PER_PX
 
-    def test_it_rides_under_genaus_picture_at_the_flicks_own_shape(self):
+    def test_it_rides_under_genaus_frame_at_the_flicks_own_shape(self):
         p = self._unit(showing=True)
 
         placed = self._placed(p.unit)
 
-        flick = p.main_unit.users_picture_texture.aspect
+        flick = p.main_unit.users_frame_texture.aspect
         assert placed == attached_below(
             shown_at(MAIN, p.main_unit.screen.placement, flick), aspect=flick,
             width_deg=PANEL_WIDTH_PX * DEG_PER_PX, hanging_aspect=_FakePanelTexture.aspect,
@@ -1042,10 +1042,10 @@ class TestThePanelUnderTheSlot:
 
         placed = self._placed(p.unit)
 
-        assert placed.elevation_deg > 0.0  # over the picture
+        assert placed.elevation_deg > 0.0  # over the frame
 
     def test_a_wrapped_console_hangs_from_the_dashboard_instead(self):
-        """No picture to dock to, so it docks to the one thing above it -- which
+        """No item to dock to, so it docks to the one thing above it -- which
         is what carries the handle the pair is moved by."""
         p = self._unit(wrapped=True, edge=HudEdge.UPPER)
 
@@ -1123,7 +1123,7 @@ class TestThePanelUnderTheSlot:
 
 
 class TestASatellitesButtonsInTheHeadset:
-    """Beside a satellite's picture hang its HUD, the minus between the two, and
+    """Beside a satellite's item hang its HUD, the minus between the two, and
     a plus beside each side the HUD is not against."""
 
     @staticmethod
@@ -1146,7 +1146,7 @@ class TestASatellitesButtonsInTheHeadset:
     def _hanging_names(unit) -> list[str]:
         return [hanging.screen.name for hanging in unit.hangings()]
 
-    def test_its_hud_hangs_past_the_minus_beside_the_picture(self, tmp_path, faked_collaborators):
+    def test_its_hud_hangs_past_the_minus_beside_the_frame(self, tmp_path, faked_collaborators):
         unit = self._unit(tmp_path)
 
         assert unit.hud_screen.placement == attached_to(
@@ -1367,27 +1367,27 @@ class TestTheCoverUnit:
 # --- What the cover is held for -------------------------------------------
 
 
-def _picture(painted):
-    """A texture that is always sized, and holds a picture only when *painted*
+def _frame(painted):
+    """A texture that is always sized, and holds a frame only when *painted*
     -- the two states the room gate has to tell apart."""
-    return SimpleNamespace(ready=True, has_picture=painted)
+    return SimpleNamespace(ready=True, has_frame=painted)
 
 
 def _room(*, main=True, portrait=True, landscape=True, panel=True, console=True):
     return dict(
-        main_unit=SimpleNamespace(screen_name="main", picture_in_the_slot=_picture(main)),
-        satellites=[SimpleNamespace(screen_name="portrait", target=_picture(portrait)),
-                    SimpleNamespace(screen_name="landscape", target=_picture(landscape))],
-        panel=SimpleNamespace(texture=_picture(panel), in_the_room=console),
+        main_unit=SimpleNamespace(screen_name="main", texture_in_the_slot=_frame(main)),
+        satellites=[SimpleNamespace(screen_name="portrait", target=_frame(portrait)),
+                    SimpleNamespace(screen_name="landscape", target=_frame(landscape))],
+        panel=SimpleNamespace(texture=_frame(panel), in_the_room=console),
     )
 
 
 class TestWhenTheRoomIsUp:
-    def test_every_picture_present_leaves_nothing_blank(self):
+    def test_every_frame_present_leaves_nothing_blank(self):
         assert _still_blank(**_room()) == ()
 
     @pytest.mark.parametrize("blank", ["main", "portrait", "landscape", "panel"])
-    def test_a_screen_with_no_picture_is_named(self, blank):
+    def test_a_screen_with_no_frame_is_named(self, blank):
         """Revealed here, that one arrives in the open a moment later — and the
         console among them, because a room with no controls in it is not up.
         Named rather than counted: the give-up line said only that some of the
@@ -1399,20 +1399,20 @@ class TestWhenTheRoomIsUp:
         waited out the whole 25s grace for as long as he left it closed."""
         assert _still_blank(**_room(panel=False, console=False)) == ()
 
-    def test_a_sized_texture_is_not_a_picture(self):
+    def test_a_sized_texture_is_not_a_frame(self):
         """A video target is ready the moment mpv reports the clip's
         dimensions, a frame or more before it presents anything -- so the room
         read as up almost as soon as the loop began, the cover came off in a
         blink nobody saw, and the OSR2 was released onto black."""
         scene = _room()
-        scene["main_unit"] = SimpleNamespace(screen_name="main", picture_in_the_slot=(
-            SimpleNamespace(ready=True, has_picture=False)))
+        scene["main_unit"] = SimpleNamespace(screen_name="main", texture_in_the_slot=(
+            SimpleNamespace(ready=True, has_frame=False)))
 
         assert _still_blank(**scene) == ("main",)
 
-    def test_a_target_is_marked_painted_where_its_picture_lands(self):
+    def test_a_target_is_marked_painted_where_its_frame_lands(self):
         """The other half of that contract, pinned in the source because the copy
-        itself needs a GL context: the flag the gate reads is set where a picture
+        itself needs a GL context: the flag the gate reads is set where a frame
         is copied in, never beside the ``ensure`` that only sizes the texture."""
         source = ast.unparse(ast.parse(inspect.getsource(VideoThread.show_newest).lstrip()))
         before, copied, after = source.partition("glCopyImageSubData")
@@ -1421,14 +1421,14 @@ class TestWhenTheRoomIsUp:
         assert "target.painted = True" not in before
 
     def test_the_main_slot_counts_once_wherever_the_scene_is(self):
-        """In genau mode Genau's picture has the scene and the video waits
-        paused under it, so asking the video for a picture would hold the
+        """In genau mode Genau's flick has the scene and the video waits
+        paused under it, so asking the video for a frame would hold the
         cover over a room that is finished."""
         unit = _like(_MainUnit, SimpleNamespace(
-            owns_the_slot=False, target=_picture(False),
-            users_picture_texture=_picture(True)))
+            owns_the_slot=False, target=_frame(False),
+            users_frame_texture=_frame(True)))
 
-        assert _MainUnit.picture_in_the_slot.fget(unit) is unit.users_picture_texture
+        assert _MainUnit.texture_in_the_slot.fget(unit) is unit.users_frame_texture
 
 
 def test_the_headset_opens_its_screens_where_the_room_remembers_them():
@@ -1591,7 +1591,7 @@ def _posted(tree) -> list[str]:
             if isinstance(node, ast.Call) and ast.unparse(node.func) == "posts.post"]
 
 
-def test_the_controllers_reach_the_pictures_own_controls_and_the_worker():
+def test_the_controllers_reach_the_frames_own_controls_and_the_worker():
     tree = ast.parse(inspect.getsource(funestras._run))
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
     (made,) = [call for call in calls if ast.unparse(call.func) == "Pointer"]
@@ -1667,27 +1667,27 @@ class _AMainStandIn(SimpleNamespace):
     """A stand-in with the main unit's own answers about what fills the slot."""
 
     wraps_the_viewer = _MainUnit.wraps_the_viewer
-    picture_in_the_slot = _MainUnit.picture_in_the_slot
+    texture_in_the_slot = _MainUnit.texture_in_the_slot
 
 
-def _a_main_slot(*, picture=True, projection=FLAT, showing=False, flick=True,
+def _a_main_slot(*, frame=True, projection=FLAT, showing=False, flick=True,
                  flick_projection=FLAT, video=None, fov=None, height=None, verbs=None):
-    """The main slot as the room reads it: the video or Genau's picture in it."""
+    """The main slot as the room reads it: the video or Genau's flick in it."""
     return _like(_MainUnit, _AMainStandIn(
-        target=SimpleNamespace(ready=picture, aspect=16 / 9, video=video),
+        target=SimpleNamespace(ready=frame, aspect=16 / 9, video=video),
         verbs=verbs or _VerbsStandIn(
             projection_of=lambda _video: projection,
             fov_of=lambda _video: fov, height_of=lambda _video: height,
             _video=Path(video or "v.mp4")),
-        users_picture_texture=SimpleNamespace(ready=flick, aspect=4 / 3),
+        users_frame_texture=SimpleNamespace(ready=flick, aspect=4 / 3),
         _flick_projection=(Path("flick.mp4"), flick_projection),
         screen=SimpleNamespace(placement=SPOTS[MAIN]),
         owns_the_slot=not showing,
     ))
 
 
-class TestTheMainFunestrasPictureIsWrappedAsItsOwnVideo:
-    """The last video's picture stays up while the next video opens, so it is
+class TestTheMainFunestrasFrameIsWrappedAsItsOwnVideo:
+    """The last video's frame stays up while the next video opens, so it is
     wrapped the way its own video is, not the way the next one will be."""
 
     WIDE, FLAT_VIDEO = "C:/videos/wide.mp4", "C:/videos/flat.mp4"
@@ -1697,12 +1697,12 @@ class TestTheMainFunestrasPictureIsWrappedAsItsOwnVideo:
             projection_of={self.WIDE: EQUIRECT_180_SBS, self.FLAT_VIDEO: FLAT}.get,
             _video=Path(video), **_NEVER_DIALED))
 
-    def test_a_vr_videos_picture_stays_round_the_viewer_while_a_flat_one_opens(self):
+    def test_a_vr_videos_frame_stays_round_the_viewer_while_a_flat_one_opens(self):
         (hanging,) = self._showing(self.WIDE).hangings()
 
         assert hanging.wrap == immersive_wrap(EQUIRECT_180_SBS)
 
-    def test_a_flat_videos_picture_stays_on_its_screen_while_a_vr_one_opens(self):
+    def test_a_flat_videos_frame_stays_on_its_screen_while_a_vr_one_opens(self):
         (hanging,) = self._showing(self.FLAT_VIDEO).hangings()
 
         assert hanging.wrap is None
@@ -1726,21 +1726,21 @@ class TestDialingTheMainFunestrasWrap:
         main_unit.dial_the_wrap = lambda **dials: _MainUnit.dial_the_wrap(main_unit, **dials)
         return main_unit, dialed
 
-    def test_a_picture_is_drawn_at_the_field_of_view_and_height_dialed_for_its_video(self):
+    def test_a_frame_is_drawn_at_the_field_of_view_and_height_dialed_for_its_video(self):
         main_unit, _ = self._main_unit(fov=140.0, height=1.2)
 
         (hanging,) = main_unit.hangings()
 
         assert hanging.wrap == immersive_wrap(FISHEYE_180_SBS, fov_deg=140.0, height=1.2)
 
-    def test_a_wrapped_picture_can_be_dialed_but_never_a_flat_one_or_the_360(self):
+    def test_a_wrapped_frame_can_be_dialed_but_never_a_flat_one_or_the_360(self):
         for projection, dialed in ((FISHEYE_180_SBS, True), (EQUIRECT_180_SBS, True),
                                    (RECTILINEAR_SBS, True), (EQUIRECT_360, False), (FLAT, False)):
             main_unit, _ = self._main_unit(projection=projection)
 
             assert _MainUnit.can_dial_the_wrap.fget(main_unit) is dialed, projection
 
-    def test_the_picture_is_left_alone_while_a_flick_holds_the_slot(self):
+    def test_the_frame_is_left_alone_while_a_flick_holds_the_slot(self):
         main_unit, _ = self._main_unit(showing=True)
 
         assert _MainUnit.can_dial_the_wrap.fget(main_unit) is False
@@ -1774,7 +1774,7 @@ class TestDialingTheMainFunestrasWrap:
         assert "main_unit.dial_the_wrap(zoom=zoom, stretch=thumb.stretch)" in loop
 
 
-class TestTheReadoutOfAWrappedPicture:
+class TestTheReadoutOfAWrappedFrame:
     VIDEO = "C:/videos/wide.mp4"
 
     def _main_unit(self, *, projection=FISHEYE_180_SBS, fov=None, height=None, showing=False):
@@ -1805,17 +1805,17 @@ class TestTheReadoutOfAWrappedPicture:
         assert "main_unit.flash_the_readout(now)" in inspect.getsource(funestras._run)
 
 
-class TestTheBannerOverAWrappedPicture:
+class TestTheBannerOverAWrappedFrame:
     def _main_unit(self, *, wraps):
         return SimpleNamespace(
             _notices=SimpleNamespace(banner=lambda _screen: "a banner"), wraps_the_viewer=wraps,
             screen_name=MAIN)
 
-    def test_a_flat_picture_takes_its_banner_into_itself(self):
-        assert _MainUnit.banner_into_the_picture(self._main_unit(wraps=False)) == "a banner"
+    def test_a_flat_frame_takes_its_banner_into_itself(self):
+        assert _MainUnit.banner_into_the_frame(self._main_unit(wraps=False)) == "a banner"
 
-    def test_a_wrapped_picture_takes_none_into_itself(self):
-        assert _MainUnit.banner_into_the_picture(self._main_unit(wraps=True)) is None
+    def test_a_wrapped_frame_takes_none_into_itself(self):
+        assert _MainUnit.banner_into_the_frame(self._main_unit(wraps=True)) is None
 
     def _floating(self, *, wraps, banner):
         unit = SimpleNamespace(
@@ -1828,7 +1828,7 @@ class TestTheBannerOverAWrappedPicture:
         _BannerUnit.pump(unit, None, now=0.0)
         return unit
 
-    def test_it_floats_the_banner_in_front_while_the_picture_wraps_the_viewer(self):
+    def test_it_floats_the_banner_in_front_while_the_frame_wraps_the_viewer(self):
         notice = SimpleNamespace(message="Fisheye · 158° · height 1.20", level=NOTICE)
 
         unit = self._floating(wraps=True, banner=notice)
@@ -1841,7 +1841,7 @@ class TestTheBannerOverAWrappedPicture:
         assert unit.screen.placement.width_deg == pytest.approx(
             unit._image.width / funestras.BANNER_PX_PER_DEG)
 
-    def test_it_hangs_nothing_over_a_flat_picture_which_draws_its_own(self):
+    def test_it_hangs_nothing_over_a_flat_frame_which_draws_its_own(self):
         notice = SimpleNamespace(message="Flat", level=NOTICE)
 
         assert _BannerUnit.hangings(self._floating(wraps=False, banner=notice)) == ()
@@ -1884,8 +1884,8 @@ class TestTheMainSlotUnderThePointer:
         assert screen.placement == SPOTS[MAIN]
         assert screen.aspect == 16 / 9
 
-    def test_a_flat_main_funestra_is_a_picture_a_squeeze_clicks_or_carries(self):
-        assert self._slot().picture
+    def test_a_flat_main_funestra_is_a_frame_a_squeeze_clicks_or_carries(self):
+        assert self._slot().item
 
     def test_genaus_flick_is_what_the_pointer_finds_there_while_it_has_the_scene(self):
         """It hangs in the same slot, at its own shape — so the handles stay
@@ -1921,15 +1921,15 @@ class TestTheMainSlotUnderThePointer:
         assert wrap.wrap == immersive_wrap(EQUIRECT_180_SBS)
 
     @pytest.mark.parametrize("state", [
-        {"picture": False},
+        {"frame": False},
         {"showing": True, "flick": False},
     ])
-    def test_a_slot_with_no_picture_in_it_is_not_in_the_scene_at_all(self, state):
+    def test_a_slot_with_no_frame_in_it_is_not_in_the_scene_at_all(self, state):
         """Still waiting for its first frame, or standing aside for the other
         Funestra: there is nothing there for the ray to find."""
         assert self._slot(**state) is None
 
-    def test_a_drag_on_the_slot_moves_genaus_picture_with_the_video(self):
+    def test_a_drag_on_the_slot_moves_genaus_frame_with_the_video(self):
         """They share it, so a drag while one is showing must not leave the
         other hanging where the slot used to be."""
         main_unit = _a_main_slot()
@@ -1959,23 +1959,23 @@ class TestTheMainSlotUnderThePointer:
         console = screens[-1]
         assert (console.pressable, console.movable, console.resizable) == (True, False, False)
 
-    def test_a_satellite_is_a_picture_and_the_console_is_not(self):
+    def test_a_satellite_is_a_frame_and_the_console_is_not(self):
         screens = {screen.name: screen for screen in self._the_room_around_the_slot()}
 
-        assert screens[LANDSCAPE].picture
-        assert not screens[PANEL].picture
+        assert screens[LANDSCAPE].item
+        assert not screens[PANEL].item
 
 
-class TestGenausPictureInTheSlot:
-    """Genau is handed finished pictures rather than decoding its own: the
+class TestGenausFrameInTheSlot:
+    """Genau is handed finished frames rather than decoding its own: the
     frame its engine chose, handed over by the Funestra as a User's own
-    picture, is uploaded untouched and wrapped the way its flick is."""
+    frame, is uploaded untouched and wrapped the way its flick is."""
 
     def _unit(self, *, showing=True, vr_dirs=()):
         unit = _MainUnit.__new__(_MainUnit)
         unit.funestra = SimpleNamespace(showing=MainMode.GENAU if showing else MainMode.KINO)
-        unit.users_picture = LatestPicture()
-        unit.users_picture_texture = _FakeTexture()
+        unit.users_picture = LatestFrame()
+        unit.users_frame_texture = _FakeTexture()
         unit._uploaded_frame = None
         unit._flick_projection = (None, "")
         unit._vr_dirs = vr_dirs
@@ -1986,7 +1986,7 @@ class TestGenausPictureInTheSlot:
     def _handed(self, unit, flick: Path):
         frame = np.zeros((360, 640, 3), dtype=np.uint8)
         unit.users_picture.show(Picture(frame=frame, flick=flick), (640, 360))
-        unit._show_the_users_picture()
+        unit._show_the_users_frame()
         return frame
 
     def test_the_frame_is_uploaded_untouched(self):
@@ -1994,15 +1994,15 @@ class TestGenausPictureInTheSlot:
 
         frame = self._handed(unit, Path("C:/flicks/VR/alpha_180.mp4"))
 
-        assert unit.users_picture_texture.uploads == [frame]
+        assert unit.users_frame_texture.uploads == [frame]
 
     def test_a_frame_is_uploaded_once_however_many_frames_the_loop_runs(self):
         unit = self._unit()
 
         self._handed(unit, Path("C:/flicks/VR/alpha_180.mp4"))
-        unit._show_the_users_picture()
+        unit._show_the_users_frame()
 
-        assert len(unit.users_picture_texture.uploads) == 1
+        assert len(unit.users_frame_texture.uploads) == 1
 
     def test_a_flick_in_the_vr_folder_wraps_the_viewer_and_a_flat_one_hangs_on_the_screen(self):
         vr = Path("C:/flicks/VR")
@@ -2021,12 +2021,12 @@ class TestGenausPictureInTheSlot:
 
         self._handed(unit, Path("C:/flicks/VR/alpha_180.mp4"))
 
-        assert unit.users_picture_texture.uploads == []
+        assert unit.users_frame_texture.uploads == []
 
     def test_nothing_hangs_before_a_frame_has_arrived(self):
         unit = self._unit()
 
-        unit._show_the_users_picture()
+        unit._show_the_users_frame()
 
         assert unit.hangings() == ()
 
@@ -2073,7 +2073,7 @@ class TestEveryHangingScreenIsDrawn:
         renderer = _FakeRenderer()
         session = SimpleNamespace(
             bind_eye_framebuffer=lambda _i: None, release_eye_framebuffer=lambda _i: None)
-        main_unit = _a_main_slot(picture=projection is not None, projection=projection or FLAT,
+        main_unit = _a_main_slot(frame=projection is not None, projection=projection or FLAT,
                                  flick=False)
         main_unit.target.texture = object()
         main_unit.screen = SimpleNamespace(ready=True, mesh=MAIN, placement=SPOTS[MAIN])
@@ -2104,7 +2104,7 @@ class TestEveryHangingScreenIsDrawn:
         assert "reference" in self._draw(showing=True).screens
 
     def test_and_stays_out_of_them_while_it_is_down(self):
-        """It covers the picture, so it is drawn only while it is asked for."""
+        """It covers the item, so it is drawn only while it is asked for."""
         assert "reference" not in self._draw(showing=False).screens
 
     def test_the_browse_reaches_them_while_it_is_up(self):
@@ -2216,7 +2216,7 @@ def _a_dash(tmp_path, *, wrapped=False, texture=None, remembered=None):
 class TestTheDashUnderThePointer:
     """It was drawn and it was up to date, and the pointer had never heard of
     it: no button did anything, and there was no handle to move it off the
-    picture it was covering."""
+    item it was covering."""
 
     def _unit(self, tmp_path):
         return _a_dash(tmp_path)
@@ -2306,7 +2306,7 @@ class TestTheOsr2PartOnTheDash:
 
         assert len(asked) == 2
 
-    def test_it_hangs_a_new_picture_only_once_what_it_draws_has_changed(self, tmp_path):
+    def test_it_hangs_a_new_frame_only_once_what_it_draws_has_changed(self, tmp_path):
         unit = _a_dash(tmp_path)
         published(tmp_path, a_part())
         self._pumped(unit)
@@ -2732,7 +2732,7 @@ class TestWhatComesForwardTogether:
         assert self._arranged(stacking, [], dash=dash, reference_up=True) == [
             MAIN, DASH, REFERENCE]
 
-    def test_a_satellites_hud_brings_its_picture_forward_with_it(self):
+    def test_a_satellites_hud_brings_its_frame_forward_with_it(self):
         stacking = Stacking()
         stacking.take(MAIN)
         stacking.take(hud_screen_name(LANDSCAPE))
@@ -2814,7 +2814,7 @@ class TestTheReferenceUnderTheDashboard:
 class TestWhereTheDashboardHangs:
     """Two remembered spots: its own above the Main Funestra, and the one it takes
     with the console under it -- dragged there, it must not drop over the
-    picture the next time a flat video comes back."""
+    video the next time a flat video comes back."""
 
     def _placed(self, tmp_path, *, wrapped=False, remembered=None):
         dash = _a_dash(tmp_path, wrapped=wrapped, texture=_FakePanelTexture(),
@@ -2823,13 +2823,13 @@ class TestWhereTheDashboardHangs:
             dash.render_latest_frame()
         return dash
 
-    def test_it_keeps_its_own_place_while_a_picture_is_in_the_slot(self, tmp_path):
+    def test_it_keeps_its_own_place_while_a_frame_is_in_the_slot(self, tmp_path):
         """A flat video's dashboard is where the session left it, and where it
         always was: the console docking under it is the wrapped case alone."""
         assert self._placed(tmp_path).screen.placement == SPOTS[DASH]
 
     def test_a_flat_video_does_not_move_it_with_the_console(self, tmp_path):
-        """The console rides under the picture there, and the dashboard rides
+        """The console rides under the video there, and the dashboard rides
         nothing: dragging the Funestra must leave the dashboard alone."""
         dash = self._placed(tmp_path)
 
@@ -2863,7 +2863,7 @@ class TestWhereTheDashboardHangs:
 
     def test_the_other_spot_is_untouched_by_it(self, tmp_path):
         """Dragged down over a wrapped video, it must not be down there over the
-        picture when the next flat one comes up."""
+        video when the next flat one comes up."""
         dash = self._placed(tmp_path, wrapped=True)
 
         dash.placement = Placement(azimuth_deg=25.0, elevation_deg=-12.0, width_deg=40.0)
@@ -2955,7 +2955,7 @@ class TestTheSpotEachScreenStartsIn:
 
     def test_only_the_screens_a_controller_places_keep_one(self):
         """The console is one of them: a video that wraps the viewer leaves no
-        picture to dock it under, so the dashboard carries it and keeps a second
+        item to dock it under, so the dashboard carries it and keeps a second
         spot for that.  The reference is not -- it hangs from the dashboard,
         wherever that was put."""
         assert set(SPOTS) == {MAIN, PORTRAIT, LANDSCAPE, PANEL, DASH, LIBRARY, GALLERY}

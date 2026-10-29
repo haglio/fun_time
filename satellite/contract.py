@@ -100,7 +100,7 @@ class SatelliteChannels(Channels):
 @dataclass(frozen=True)
 class WindowPlacement:
     """Where a satellite's window opens, what it is called, whose it is, the icon
-    it wears, and whether it tiles a portrait picture across it."""
+    it wears, and whether it tiles a portrait item across it."""
 
     x: int | None = None
     y: int | None = None

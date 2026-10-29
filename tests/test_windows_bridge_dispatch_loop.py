@@ -207,7 +207,7 @@ def _mailbox(runner: DispatchLoopRunner) -> list[str]:
     return runner.ahk_cmd_file.read_text(encoding="utf-8").split()
 
 
-def test_the_loop_holds_genaus_picture_out_of_a_park_while_the_osr2_is_quiet(tmp_path):
+def test_the_loop_holds_genaus_image_out_of_a_park_while_the_osr2_is_quiet(tmp_path):
     runner = make_runner(tmp_path)
 
     runner.arbiter.sync("genau", paused=False, control=OSR2_PARKED)
@@ -3065,7 +3065,7 @@ class TestKinoModeFunscriptHandoff:
         assert happened[:2] == [("stated", True), ("window ops", None)]
 
     @pytest.mark.parametrize("device_on", [True, False])
-    def test_entering_omnipause_stops_the_hand_and_walks_genaus_picture_home_only_with_the_osr2_on(
+    def test_entering_omnipause_stops_the_hand_and_walks_genaus_image_home_only_with_the_osr2_on(
             self, tmp_path, device_on):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode=MainMode.GENAU)
@@ -3832,7 +3832,7 @@ class TestTheFunestrasComeHome:
             channel = config.satellite(funestra)
             write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / f"{funestra.label}.mp4")])
             keep_aside(channel)
-            write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "picture.png")])
+            write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "image.png")])
             publish_whole(channel.origenerator_hud_file, f'{{"Funestra": "{funestra.label}"}}')
         runner.expect_the_funestras_home(RoomFunestra.SATELLITES, now=100.0)
         return runner, config

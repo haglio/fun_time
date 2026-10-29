@@ -19,7 +19,7 @@ from pathlib import Path
 from fun_time.media_metadata import load_metadata, metadata_path_for, recorded_for
 from fun_time.vr_videos import VR_FILENAME_TOKENS, is_vr_video
 
-from .picture_shape import FISHEYE_CIRCLE
+from .frame_shape import FISHEYE_CIRCLE
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ _FILENAME_HINTS: tuple[tuple[str, str], ...] = tuple(
 
 _SIDECAR_BLOCK = "vr"
 _PROJECTION_FIELD = "projection"
-_PICTURE_FIELD = "picture"
+_SHAPE_FIELD = "picture"
 _FOV_FIELD = "fov"
 _HEIGHT_FIELD = "height"
 
@@ -117,7 +117,7 @@ class ProjectionMemory:
         if chosen:
             return chosen
         named = default_projection(video_path, self.vr_dirs)
-        if named == EQUIRECT_180_SBS and self._kept(video_path, _PICTURE_FIELD) == FISHEYE_CIRCLE:
+        if named == EQUIRECT_180_SBS and self._kept(video_path, _SHAPE_FIELD) == FISHEYE_CIRCLE:
             return FISHEYE_180_SBS
         return named
 
@@ -141,12 +141,12 @@ class ProjectionMemory:
         return self._keep(video_path, _HEIGHT_FIELD, height)
 
     def note_shape(self, video_path: str, shape: str) -> bool:
-        return self._keep(video_path, _PICTURE_FIELD, shape)
+        return self._keep(video_path, _SHAPE_FIELD, shape)
 
     def wants_a_look(self, video_path: str) -> bool:
         return (default_projection(video_path, self.vr_dirs) == EQUIRECT_180_SBS
                 and not self.saved(video_path)
-                and not self._kept(video_path, _PICTURE_FIELD))
+                and not self._kept(video_path, _SHAPE_FIELD))
 
     def _kept(self, video_path: str, field: str) -> object:
         block = recorded_for(video_path, self.metadata_root,

@@ -72,11 +72,11 @@ def test_a_folder_carries_the_way_back_up():
 
 
 
-def test_a_folder_pictures_itself_with_four_of_its_videos():
+def test_a_folder_thumbnails_itself_with_four_of_its_videos():
     """One still says almost nothing about a folder of hundreds.
 
     Four, drawn at random, say what kind of thing is in there — and change from
-    browse to browse, so a folder is never represented by the same picture twice
+    browse to browse, so a folder is never represented by the same thumbnail twice
     running.
     """
     handles = [_handle(f"Scene {i}", "big_batch") for i in range(10)]
@@ -90,7 +90,7 @@ def test_a_folder_pictures_itself_with_four_of_its_videos():
     assert child.previews != other.previews, "a different browse picks differently"
 
 
-def test_a_folder_with_less_than_four_pictures_itself_with_what_it_has():
+def test_a_folder_with_less_than_four_thumbnails_itself_with_what_it_has():
     handles = [_handle("Beta Scene", "big_batch"), _handle("Gamma Scene", "big_batch")]
 
     child = folder_at(handles, ()).children[0]

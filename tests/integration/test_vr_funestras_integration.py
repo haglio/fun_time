@@ -174,7 +174,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         target=pump_channels, daemon=True, name="file-channels",
     )
 
-    def has_picture(unit) -> bool:
+    def has_frame(unit) -> bool:
         """Whether a horizontal strip through the target's middle holds any
         non-black pixel — resilient to a clip that opens on a dark scene."""
         strip = np.zeros((1, 64, 4), dtype=np.uint8)
@@ -221,7 +221,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
                 desc=f"{name} target allocation",
             )
         wait_for(
-            lambda: (run_frames(9, measure=False) or any(has_picture(unit) for unit in units)),
+            lambda: (run_frames(9, measure=False) or any(has_frame(unit) for unit in units)),
             desc="a unit to render a non-black frame",
         )
 
@@ -259,7 +259,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         )
         stalled = [name for unit, name in zip(units, ("main", "portrait", "landscape"), strict=True)
                    if not unit.layer_dirty]
-        assert not stalled, f"no new picture reached the scene from {stalled} in six seconds"
+        assert not stalled, f"no new frame reached the scene from {stalled} in six seconds"
 
         # Commands travel the file channel through the worker thread.
         first_video = published_status(
@@ -300,7 +300,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
             satellites[1].layer_dirty = False
             wait_for(
                 lambda: run_frames(9, measure=False) or satellites[1].layer_dirty,
-                desc="a picture of the clip the landscape satellite moved to",
+                desc="a frame of the clip the landscape satellite moved to",
             )
         transition_ms = sorted(ms for one in transitions for ms in one)
         transition_median = transition_ms[len(transition_ms) // 2]

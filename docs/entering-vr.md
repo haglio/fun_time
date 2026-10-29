@@ -287,7 +287,7 @@ desktop orchestrator sees for itself and a headset cannot report. The dwell (2s)
 is how long the cover must have been drawn to the headset before the room may be
 revealed; without one the loading screen was over before anyone had it on, which
 is what its first verifications saw — nothing at all. The grace (25s) is the cap
-on a screen that never gets a picture at all, which a satellite with an empty
+on a screen that never gets a frame at all, which a satellite with an empty
 playlist never does, and its line names the screen it gave up on. A console the
 Funestra has minimized is not one of those screens and is not waited for: with
 the minus drawn beside the panel rather than on it, as it is in the headset, a

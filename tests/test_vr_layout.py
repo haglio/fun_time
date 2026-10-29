@@ -287,7 +287,7 @@ def _area(placement: Placement, aspect: float) -> float:
     return float(np.ptp(corners[:, 0]) * np.ptp(corners[:, 1]))
 
 
-class TestAPictureKeepsItsArea:
+class TestAFrameKeepsItsArea:
     def test_a_clip_taller_than_it_is_wide_covers_what_a_widescreen_one_does_in_the_main_slot(
             self):
         slot = Placement(0.0, 0.0, 80.0)
@@ -297,7 +297,7 @@ class TestAPictureKeepsItsArea:
 
     @pytest.mark.parametrize("name, usual", [
         (MAIN, 16 / 9), (LANDSCAPE, 16 / 9), (PORTRAIT, 9 / 16)])
-    def test_a_picture_of_its_screens_usual_shape_is_as_wide_as_the_screen_was_left(
+    def test_a_frame_of_its_screens_usual_shape_is_as_wide_as_the_screen_was_left(
             self, name, usual):
         left = Placement(30.0, 20.0, 38.0)
 

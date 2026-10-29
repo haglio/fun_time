@@ -1,5 +1,5 @@
 """The two surfaces a headset gives a Funestra: the panel as a bitmap to hang
-beside the picture, and a User's own picture as a frame to hang in the slot."""
+beside the item, and a User's own frames to hang in the slot."""
 from __future__ import annotations
 
 import numpy as np
@@ -7,7 +7,7 @@ from funestra.flick_picture import Picture
 from funestra.funestra import PanelSurface, UsersPicture
 from funestra.satellite_hud import MARGIN
 
-from fun_time_vr.surfaces import LatestPicture, PanelBitmap
+from fun_time_vr.surfaces import LatestFrame, PanelBitmap
 
 
 class TestThePanelBitmap:
@@ -57,24 +57,24 @@ class TestThePanelBitmap:
         assert PanelBitmap().in_the_window(5, 7) == (5, 7)
 
 
-class TestTheLatestPicture:
-    def test_it_is_where_a_funestra_puts_a_users_own_picture(self):
-        assert isinstance(LatestPicture(), UsersPicture)
+class TestTheLatestFrame:
+    def test_it_is_where_a_funestra_puts_a_users_own_frame(self):
+        assert isinstance(LatestFrame(), UsersPicture)
 
-    def test_the_picture_put_up_is_the_one_the_render_thread_finds(self):
-        latest = LatestPicture()
+    def test_the_frame_put_up_is_the_one_the_render_thread_finds(self):
+        latest = LatestFrame()
         frame = np.zeros((8, 16, 3), dtype=np.uint8)
 
         latest.show(Picture(frame=frame, played=3, count=8), (640, 480))
 
-        assert latest.picture.frame is frame
-        assert latest.picture.played == 3
+        assert latest.flick_frame.frame is frame
+        assert latest.flick_frame.played == 3
 
     def test_there_is_none_before_one_is_up_and_none_again_once_it_is_down(self):
-        latest = LatestPicture()
-        assert latest.picture is None
+        latest = LatestFrame()
+        assert latest.flick_frame is None
 
         latest.show(Picture(frame=np.zeros((8, 16, 3), dtype=np.uint8)), (640, 480))
         latest.hide()
 
-        assert latest.picture is None
+        assert latest.flick_frame is None

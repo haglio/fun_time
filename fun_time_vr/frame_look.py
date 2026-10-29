@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
 
-from .picture_shape import FISHEYE_CIRCLE, FULL_FRAME, shape_of
+from .frame_shape import FISHEYE_CIRCLE, FULL_FRAME, shape_of
 
 # The library's fisheye recordings open on up to half a minute of black, which
 # says nothing; three minutes of looks outlasts that with room to spare.
@@ -16,8 +16,8 @@ LOOKS = 90
 _LOOKS_TO_BELIEVE = {FISHEYE_CIRCLE: 2, FULL_FRAME: 3}
 
 
-class PictureLook:
-    """What a VR video's own picture shows, off :class:`VideoThread`'s own
+class FrameLook:
+    """What a VR video's own frame shows, off :class:`VideoThread`'s own
     still -- see its ``_paint_a_still`` for why nowhere else can ask."""
 
     def __init__(self, video, *, start_thread=start_daemon_thread,
@@ -29,7 +29,7 @@ class PictureLook:
 
     def look_at(self, video: Path, on_shape: Callable[[Path, str], None]) -> None:
         self._latest_look = look = object()
-        self._start_thread(target=self._look, args=(look, video, on_shape), name="picture-look")
+        self._start_thread(target=self._look, args=(look, video, on_shape), name="frame-look")
 
     def stop_looking(self) -> None:
         self._latest_look = None

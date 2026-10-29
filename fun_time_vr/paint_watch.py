@@ -2,7 +2,7 @@ from __future__ import annotations
 
 FLUSH_AFTER_S = 1.0
 GIVE_UP_AFTER_S = 5.0
-NO_PICTURE_AFTER_S = 6.0
+NO_FRAME_AFTER_S = 6.0
 READ_EVERY_S = 1.0
 
 WAIT = "wait"
@@ -33,7 +33,7 @@ class GpuWait:
         return WAIT
 
 
-class PictureWatch:
+class FrameWatch:
     def __init__(self) -> None:
         self._gap: tuple[float, float] | None = None
         self._read_at: float | None = None
@@ -52,7 +52,7 @@ class PictureWatch:
             return None
         since, first_position_ms = self._gap
         gone = now - since
-        if position_ms == first_position_ms or gone < NO_PICTURE_AFTER_S or self._said:
+        if position_ms == first_position_ms or gone < NO_FRAME_AFTER_S or self._said:
             return None
         self._said = True
         return gone

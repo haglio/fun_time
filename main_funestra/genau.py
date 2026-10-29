@@ -1,5 +1,5 @@
 """Genau, as it runs on the Main Funestra: the room drives it through files of its
-own, and with the window it brings its own picture, a flick scrubbed to the OSR2."""
+own, and with the window it brings its own flick, scrubbed to the OSR2."""
 from __future__ import annotations
 
 import logging

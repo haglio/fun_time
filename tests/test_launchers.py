@@ -134,7 +134,7 @@ def test_a_branch_launch_reads_the_note_branch_session_leaves_where_it_leaves_it
 
 
 @on_windows
-def test_a_new_previews_first_click_shows_the_pictures_an_earlier_preview_left(tmp_path: Path):
+def test_a_new_previews_first_click_shows_the_snapshots_an_earlier_preview_left(tmp_path: Path):
     worktree = tmp_path / "worktree"
     worktree.mkdir()
 

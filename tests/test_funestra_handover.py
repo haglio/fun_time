@@ -44,7 +44,7 @@ def test_coming_home_lands_the_funestra_on_the_clip_it_left(tmp_path):
     _playing(channel, str(tmp_path / "two.mp4"))
 
     keep_aside(channel)
-    write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "picture.png")])
+    write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "image.png")])
     assert hand_back(channel) is True
 
     assert _paths(channel.playlist_file) == ["two.mp4", "three.mp4", "one.mp4"]
@@ -110,7 +110,7 @@ def test_a_side_that_never_came_home_keeps_the_list_it_left_with(tmp_path):
     channel = _channel(tmp_path)
     write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "one.mp4")])
     keep_aside(channel)
-    write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "picture.png")])
+    write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "image.png")])
 
     keep_aside(channel)
 

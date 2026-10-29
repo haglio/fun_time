@@ -188,11 +188,11 @@ def test_a_video_with_no_recorded_family_stands_alone_under_its_own_name(tmp_pat
     ]
 
 
-def test_a_handle_plays_its_largest_version_but_pictures_its_smallest(tmp_path: Path):
+def test_a_handle_plays_its_largest_version_but_thumbnails_its_smallest(tmp_path: Path):
     """The thumbnail comes off the cheapest rendition to decode.
 
     An upscale is many times the size of the original it came from — minutes
-    rather than seconds to open — for a picture that is the same either way.
+    rather than seconds to open — for a video that is the same either way.
     """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"

@@ -133,62 +133,62 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
             f"the satellite stopped publishing after the HUD redrew ({before} -> {after})")
 
 
-def _pictures(folder: Path, count: int) -> list[Path]:
+def _images(folder: Path, count: int) -> list[Path]:
     folder.mkdir(parents=True, exist_ok=True)
-    pictures = [folder / f"picture {i}.png" for i in range(count)]
-    for i, picture in enumerate(pictures):
-        Image.new("RGB", (480, 640), (60 * i % 256, 90, 160)).save(picture)
-    return pictures
+    images = [folder / f"image {i}.png" for i in range(count)]
+    for i, image in enumerate(images):
+        Image.new("RGB", (480, 640), (60 * i % 256, 90, 160)).save(image)
+    return images
 
 
-def _the_picture_on_screen(satellite: LoneSatellite) -> str | None:
+def _the_image_on_screen(satellite: LoneSatellite) -> str | None:
     status = read_satellite_status(satellite.status)
     return status.video if status.picture else None
 
 
-def test_a_satellite_holds_a_picture_for_the_pace_it_is_sent_and_under_a_lock():
+def test_a_satellite_holds_an_image_for_the_pace_it_is_sent_and_under_a_lock():
     satellite = a_lone_satellite()
-    pictures = _pictures(satellite.sources / "pictures", 3)
+    images = _images(satellite.sources / "images", 3)
     satellite.send(f"{SET_PACE} 0")
 
-    with satellite.launched(pictures, width=480, height=640):
-        first = satellite.wait_for(lambda: _the_picture_on_screen(satellite),
-                                   desc="the satellite to show a picture")
+    with satellite.launched(images, width=480, height=640):
+        first = satellite.wait_for(lambda: _the_image_on_screen(satellite),
+                                   desc="the satellite to show an image")
         # Past the four seconds a Funestra opens at, so only the nought can be holding it.
         let_seconds_pass(6.0)
-        assert satellite.video() == first, "a picture held at a pace of nought moved on"
+        assert satellite.video() == first, "an image held at a pace of nought moved on"
 
         satellite.send(f"{SET_PACE} 1")
         satellite.wait_for(lambda: read_satellite_status(satellite.status).video not in ("", first),
-                           desc="the picture to move on at a one-second pace")
+                           desc="the image to move on at a one-second pace")
 
         satellite.send(LOCK_ON)
         satellite.wait_for(lambda: read_satellite_status(satellite.status).locked,
                            desc="the satellite to lock")
         held = satellite.video()
         let_seconds_pass(3.0)
-        assert satellite.video() == held, "a locked picture moved on at a one-second pace"
+        assert satellite.video() == held, "a locked image moved on at a one-second pace"
 
 
-def test_a_frame_put_up_over_a_picture_moves_on_when_the_picture_would_have():
+def test_a_frame_put_up_over_an_image_moves_on_when_the_image_would_have():
     satellite = a_lone_satellite()
-    pictures = _pictures(satellite.sources / "pictures", 3)
-    frames = _pictures(satellite.sources / "frames", 2)
+    images = _images(satellite.sources / "images", 3)
+    frames = _images(satellite.sources / "frames", 2)
     satellite.send(f"{SET_PACE} 4")
 
-    with satellite.launched(pictures, width=480, height=640):
-        first = satellite.wait_for(lambda: _the_picture_on_screen(satellite),
-                                   desc="the satellite to show a picture")
+    with satellite.launched(images, width=480, height=640):
+        first = satellite.wait_for(lambda: _the_image_on_screen(satellite),
+                                   desc="the satellite to show an image")
         second = satellite.wait_for(
             lambda: (lambda video: video if video not in ("", first) else None)(
                 read_satellite_status(satellite.status).video),
-            desc="the next picture")
+            desc="the next image")
         satellite.send(f"{SHOW_FRAME} {frames[0]}")
         time.sleep(1.0)
         satellite.send(f"{SHOW_FRAME} {frames[1]}")
         time.sleep(0.5)
         assert satellite.video() == second, (
-            "a picture with frames put up over it moved on at the first frame")
+            "an image with frames put up over it moved on at the first frame")
 
         satellite.wait_for(lambda: read_satellite_status(satellite.status).video not in ("", second),
-                           desc="the picture under the frames to move on at its pace")
+                           desc="the image under the frames to move on at its pace")

@@ -26,15 +26,15 @@ def _pixels(width: int, height: int, value: int) -> bytes:
 
 class TestWhereAPressLanded:
     """The room's pointer gives a fraction across the screen; the app is told the
-    pixel of the picture it is looking at, since that is the only frame of
+    pixel of the window it is looking at, since that is the only frame of
     reference the two share."""
 
-    def test_a_press_is_placed_on_the_picture_that_is_up(self):
+    def test_a_press_is_placed_on_the_frame_that_is_up(self):
         event = PressEvent(kind=PRESS, screen="gallery", u=0.5, v=0.5)
 
         assert event_line(event, (800, 600)) == f"{PRESS} 400 300"
 
-    def test_the_picture_is_measured_bottom_up_the_way_a_screen_is(self):
+    def test_the_frame_is_measured_bottom_up_the_way_a_screen_is(self):
         """A room's v runs up from the screen's lower edge and a window's y runs
         down from its top, so the top of the gallery is v=1."""
         top = PressEvent(kind=PRESS, screen="gallery", u=0.0, v=1.0)
@@ -60,8 +60,8 @@ class TestWhereAPressLanded:
         assert event_line(event, (800, 600)) == f"{RIGHT_CLICK} 400 300"
 
 
-class TestTheChannelThePictureArrivesThrough:
-    def test_the_last_picture_written_is_the_one_read(self, tmp_path):
+class TestTheChannelTheFrameArrivesThrough:
+    def test_the_last_frame_written_is_the_one_read(self, tmp_path):
         panel = GalleryPanel(tmp_path)
         writer = FrameWriter(tmp_path / FRAME_FILENAME, max_pixels=64)
         try:
@@ -92,7 +92,7 @@ class TestTheChannelThePictureArrivesThrough:
         assert consume_command_file(tmp_path / INPUT_FILENAME,
                                     uppercase=False) == [f"{PRESS} 4 2"]
 
-    def test_a_press_before_any_picture_is_dropped(self, tmp_path):
+    def test_a_press_before_any_frame_is_dropped(self, tmp_path):
         """Nothing has said how big the window is, so there is no pixel to name
         -- and a guessed one aims the press somewhere else in the gallery."""
         panel = GalleryPanel(tmp_path)
@@ -107,7 +107,7 @@ class TestTheChannelThePictureArrivesThrough:
 class TestSayingWhenTheAppHasGoneQuiet:
     """The room is the healthy side of this boundary: when the hosted app stops
     publishing and stops reading, the room is the only party that can still say
-    so.  He met that silence as a window showing a picture from four hours
+    so.  He met that silence as a window showing a frame from four hours
     earlier that answered no press, and nothing anywhere wrote a line about it.
     """
 
@@ -145,7 +145,7 @@ class TestSayingWhenTheAppHasGoneQuiet:
 
 
     def test_an_app_that_has_published_nothing_at_all_is_said_once(self, tmp_path):
-        """A screen that has never had a picture is blank, which is a fault
+        """A screen that has never had a frame is blank, which is a fault
         whether or not anyone has pointed at it: his 2026-10-08 session showed
         no Origenerator window in the room for four minutes and neither side
         wrote a line about it."""

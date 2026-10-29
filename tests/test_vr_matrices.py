@@ -127,7 +127,7 @@ class TestPitch:
     def test_tilting_inside_the_yaw_leaves_the_screens_level(self):
         # The composition order is the whole of it: yaw @ pitch tilts the
         # arrangement about its own horizontal axis, so that axis stays level.
-        # pitch @ yaw tilts about the world's, which rolls the picture by an
+        # pitch @ yaw tilts about the world's, which rolls the frame by an
         # amount that grows with the yaw -- a screen visibly off-square.
         yaw, pitch = math.radians(60.0), math.radians(30.0)
         scene_right = np.array([1.0, 0.0, 0.0, 1.0], dtype=np.float32)

@@ -656,17 +656,17 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
 def test_a_session_that_ended_hosting_resumes_its_own_clips_not_the_hosted_apps(
         tmp_path: Path):
     """Every room is BUILT in kino mode, so a room whose last session ended with
-    the hosted app holding the Funestras must not open playing that app's pictures
+    the hosted app holding the Funestras must not open playing that app's items
     — which it did, held on a still nothing would page.  The session's own list
     was waiting beside each of them the whole time."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     left_on = _seed_resumable_session(kwargs)
-    a_picture = tmp_path / "a picture.png"
+    an_image = tmp_path / "an image.png"
     for name in ("portrait", "landscape"):
         playlist = state_dir / f"{name}_playlist.tsv"
         playlist.rename(state_dir / f"{name}_playlist.kept.tsv")
-        write_playlist(playlist, [PlaylistItem(a_picture)])
+        write_playlist(playlist, [PlaylistItem(an_image)])
 
     _run_start_core_session(kwargs)
 

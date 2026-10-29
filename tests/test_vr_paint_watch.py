@@ -6,19 +6,19 @@ from fun_time_vr.paint_watch import (
     FLUSH_AFTER_S,
     GIVE_UP,
     GIVE_UP_AFTER_S,
-    NO_PICTURE_AFTER_S,
+    NO_FRAME_AFTER_S,
     READ_EVERY_S,
     WAIT,
+    FrameWatch,
     GpuWait,
-    PictureWatch,
 )
 
 
 class TestWaitingForTheGpu:
-    def test_a_picture_the_gpu_has_finished_is_done_at_once(self):
+    def test_a_frame_the_gpu_has_finished_is_done_at_once(self):
         assert GpuWait().judge(reached=True, now=0.0) == DONE
 
-    def test_a_picture_still_on_the_gpu_is_waited_for(self):
+    def test_a_frame_still_on_the_gpu_is_waited_for(self):
         wait = GpuWait()
 
         assert [wait.judge(reached=False, now=t) for t in (0.0, 0.3, FLUSH_AFTER_S * 0.9)] == [
@@ -48,12 +48,12 @@ class TestWaitingForTheGpu:
         assert wait.judge(reached=False, now=GIVE_UP_AFTER_S + 0.1 + FLUSH_AFTER_S) == FLUSH
 
 
-class TestWatchingForPictures:
+class TestWatchingForFrames:
     def _gap(self, watch, *readings):
         return [watch.read(position_ms=position, now=now) for position, now in readings]
 
     def test_a_video_that_keeps_drawing_asks_for_a_reading_only_once_a_gap_starts(self):
-        watch = PictureWatch()
+        watch = FrameWatch()
         watch.drew()
 
         assert watch.wants_a_reading(now=0.0)
@@ -62,23 +62,23 @@ class TestWatchingForPictures:
         assert watch.wants_a_reading(now=READ_EVERY_S)
 
     def test_a_video_that_played_on_with_nothing_drawn_is_said_once_with_the_gaps_length(self):
-        watch = PictureWatch()
+        watch = FrameWatch()
 
-        assert self._gap(watch, (1_000.0, 0.0), (4_000.0, NO_PICTURE_AFTER_S * 0.9),
-                         (7_000.0, NO_PICTURE_AFTER_S), (9_000.0, NO_PICTURE_AFTER_S * 3)) == [
-            None, None, NO_PICTURE_AFTER_S, None]
+        assert self._gap(watch, (1_000.0, 0.0), (4_000.0, NO_FRAME_AFTER_S * 0.9),
+                         (7_000.0, NO_FRAME_AFTER_S), (9_000.0, NO_FRAME_AFTER_S * 3)) == [
+            None, None, NO_FRAME_AFTER_S, None]
 
     def test_a_video_holding_still_is_not_a_gap(self):
-        """Paused, or a file still opening: no picture is owed while nothing plays."""
-        watch = PictureWatch()
+        """Paused, or a file still opening: no frame is owed while nothing plays."""
+        watch = FrameWatch()
 
-        assert self._gap(watch, (1_000.0, 0.0), (1_000.0, NO_PICTURE_AFTER_S * 5)) == [None, None]
+        assert self._gap(watch, (1_000.0, 0.0), (1_000.0, NO_FRAME_AFTER_S * 5)) == [None, None]
 
-    def test_a_picture_ends_the_gap_and_a_new_gap_is_said_again(self):
-        watch = PictureWatch()
-        self._gap(watch, (1_000.0, 0.0), (7_000.0, NO_PICTURE_AFTER_S))
+    def test_a_frame_ends_the_gap_and_a_new_gap_is_said_again(self):
+        watch = FrameWatch()
+        self._gap(watch, (1_000.0, 0.0), (7_000.0, NO_FRAME_AFTER_S))
 
         watch.drew()
 
-        assert self._gap(watch, (8_000.0, 10.0), (20_000.0, 10.0 + NO_PICTURE_AFTER_S)) == [
-            None, NO_PICTURE_AFTER_S]
+        assert self._gap(watch, (8_000.0, 10.0), (20_000.0, 10.0 + NO_FRAME_AFTER_S)) == [
+            None, NO_FRAME_AFTER_S]

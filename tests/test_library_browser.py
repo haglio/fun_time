@@ -112,7 +112,7 @@ def _backspace() -> QKeyEvent:
     )
 
 
-def _pictured(window, rows: list[int]) -> bool:
+def _thumbnailed(window, rows: list[int]) -> bool:
     return all(not window.grid.item(row).icon().isNull() for row in rows)
 
 
@@ -367,18 +367,18 @@ def test_abandoning_the_browse_reports_nothing(browser, tmp_path: Path):
 def test_a_cached_still_becomes_the_tile_and_only_misses_are_extracted(browser, tmp_path: Path):
     cache = tmp_path / "cache"
     cache.mkdir()
-    pictured = tmp_path / "alpha.mp4"
-    pictured.write_bytes(b"\0")
+    thumbnailed = tmp_path / "alpha.mp4"
+    thumbnailed.write_bytes(b"\0")
     bare = tmp_path / "beta.mp4"
     bare.write_bytes(b"\0")
-    Image.new("RGB", (16, 9)).save(thumbnail_path(pictured, cache), "JPEG")
+    Image.new("RGB", (16, 9)).save(thumbnail_path(thumbnailed, cache), "JPEG")
 
-    handles = [_handle("alpha scene", str(pictured)), _handle("Beta Scene", str(bare))]
+    handles = [_handle("alpha scene", str(thumbnailed)), _handle("Beta Scene", str(bare))]
     window = browser(handles, thumbnail_cache=cache, on_pick=lambda _video: None)
     window.open_folder(("main",))
 
-    pictured_row, bare_row = (window.grid.rows.index(handle) for handle in handles)
-    assert not window.grid.item(pictured_row).icon().isNull()
+    thumbnailed_row, bare_row = (window.grid.rows.index(handle) for handle in handles)
+    assert not window.grid.item(thumbnailed_row).icon().isNull()
     assert window.grid.item(bare_row).icon().isNull()
     assert rows_needing_stills(window.grid.rows, cache) == [bare_row]
 
@@ -414,10 +414,10 @@ def test_a_folder_opened_while_the_one_above_is_extracted_gets_every_still_of_it
     window.open_folder(("main",))
     extractions.let_go.set()
 
-    _until(lambda: _pictured(window, [window.grid.rows.index(handle) for handle in handles]))
+    _until(lambda: _thumbnailed(window, [window.grid.rows.index(handle) for handle in handles]))
 
 
-def test_a_folder_opens_pictured_on_a_drive_stuck_on_its_videos(browser, tmp_path: Path):
+def test_a_folder_opens_thumbnailed_on_a_drive_stuck_on_its_videos(browser, tmp_path: Path):
     """The headset's browse draws its tiles on the thread that serves it, so a
     question put to each video froze the whole browse on the one the drive was
     stuck on.  The folder's listing dates every still instead, once per folder
@@ -442,7 +442,7 @@ def test_a_folder_opens_pictured_on_a_drive_stuck_on_its_videos(browser, tmp_pat
     assert len(read) == 2
 
 
-def test_a_folder_tile_is_pictured_with_a_still_from_inside_it(browser, tmp_path: Path):
+def test_a_folder_tile_is_thumbnailed_with_a_still_from_inside_it(browser, tmp_path: Path):
     cache = tmp_path / "cache"
     cache.mkdir()
     video = tmp_path / "alpha.mp4"
@@ -1247,7 +1247,7 @@ def test_a_still_is_scaled_to_fit_its_tile_and_never_stretched(browser, tmp_path
     """Grown until it meets an edge, with its proportions untouched.
 
     A tall video and a wide one are the same tile, so one of the two axes always
-    has room to spare; filling both would squash whichever picture does not share
+    has room to spare; filling both would squash whichever thumbnail does not share
     the tile's shape.  The cached stills are capped well below the tile, so this
     scales *up* as well as down — a still left at its own size sits in a corner
     of the space it was given.

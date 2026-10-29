@@ -5060,9 +5060,9 @@ class TestALockOnAHostedSide:
     def test_a_pressed_lock_locks_the_funestra_and_leaves_the_rest_to_the_hosted_app(
             self, kept_for_kino, funestra_locked, tmp_path):
         config = _origenerator_config(tmp_path)
-        picture = tmp_path / "scene one.png"
-        picture.write_text("x", encoding="utf-8")
-        _set_current(config, RoomFunestra.PORTRAIT, str(picture), locked=funestra_locked)
+        image = tmp_path / "scene one.png"
+        image.write_text("x", encoding="utf-8")
+        _set_current(config, RoomFunestra.PORTRAIT, str(image), locked=funestra_locked)
 
         state, ops = dispatch_command(
             "portrait_lock", _in_origenerator_mode(portrait=SatelliteState(locked=kept_for_kino)),
@@ -5074,11 +5074,11 @@ class TestALockOnAHostedSide:
         assert config.favs_file.read_text(encoding="utf-8") == "local_file,web_url\n"
         assert not (config.state_dir / "watch_stats.json").exists()
 
-    def test_a_spoken_lock_brings_back_the_picture_up_when_he_began_and_locks_that(
+    def test_a_spoken_lock_brings_back_the_image_up_when_he_began_and_locks_that(
             self, tmp_path):
         config = _origenerator_config(tmp_path)
-        meant = "C:\\pictures\\meant.png"
-        _set_current(config, RoomFunestra.PORTRAIT, "C:\\pictures\\moved on to.png")
+        meant = "C:\\images\\meant.png"
+        _set_current(config, RoomFunestra.PORTRAIT, "C:\\images\\moved on to.png")
 
         dispatch_command("portrait_lock_on", _in_origenerator_mode(), config, target_path=meant)
 
@@ -5091,10 +5091,10 @@ class TestALockOnAHostedSide:
     def test_a_lock_or_a_letting_go_said_is_handed_on_whatever_the_funestra_says_of_its_lock(
             self, command, to_the_funestra, funestra_locked, tmp_path):
         """The hosted app's padlock says which it is: the Funestra is also locked
-        while a spoken request or a run holds its picture.  Letting go never steps
+        while a spoken request or a run holds its item.  Letting go never steps
         it on to the next."""
         config = _origenerator_config(tmp_path)
-        _set_current(config, RoomFunestra.PORTRAIT, "C:\\pictures\\up.png", locked=funestra_locked)
+        _set_current(config, RoomFunestra.PORTRAIT, "C:\\images\\up.png", locked=funestra_locked)
 
         _state, ops = dispatch_command(
             command, _in_origenerator_mode(portrait=SatelliteState(locked=not funestra_locked)),
@@ -5107,8 +5107,8 @@ class TestALockOnAHostedSide:
         """Judged, as every spoken lock is, by when he began saying it."""
         config = replace(_origenerator_config(tmp_path),
                          origenerator_lock_phrases=frozenset({"hold"}))
-        meant = "C:\\pictures\\meant.png"
-        _set_current(config, RoomFunestra.PORTRAIT, "C:\\pictures\\moved on to.png")
+        meant = "C:\\images\\meant.png"
+        _set_current(config, RoomFunestra.PORTRAIT, "C:\\images\\moved on to.png")
 
         state, _ = dispatch_command("portrait_say_hold", _in_origenerator_mode(), config,
                                     target_path=meant)
@@ -5398,7 +5398,7 @@ class TestASessionThatHostsNoOrigenerator:
 
 
 class TestWhereEachHudSits:
-    """The Ctrl keys move a Funestra's HUD: round the corners of its picture on the
+    """The Ctrl keys move a Funestra's HUD: round the corners of its item on the
     desktop, against a side of its Funestra in the headset."""
 
     def test_a_side_key_moves_that_funestras_hud_to_that_corner(self, tmp_path):

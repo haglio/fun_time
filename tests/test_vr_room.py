@@ -80,25 +80,25 @@ class _Quad:
         self.mesh, self.ready = name, ready
 
 
-class _Picture:
+class _Frame:
     def __init__(self, name: str) -> None:
         self.texture = name
 
 
 def _hanging(name: str, *, ready: bool = True, blend: bool = False, **rest) -> Hanging:
     return Hanging(_screen(name, **{k: v for k, v in rest.items() if k in _SCREEN_FLAGS}),
-                mesh=_Quad(name, ready=ready), picture=_Picture(name), blend=blend,
+                mesh=_Quad(name, ready=ready), frame=_Frame(name), blend=blend,
                 **{k: v for k, v in rest.items() if k not in _SCREEN_FLAGS})
 
 
-_SCREEN_FLAGS = ("movable", "resizable", "pressable", "immersive", "picture")
+_SCREEN_FLAGS = ("movable", "resizable", "pressable", "immersive", "item")
 
 
 class TestWhatReachesTheEyes:
     def _drawn(self, *hangings: Hanging, as_quads=()):
         return room.drawn(hangings, screens=[one.screen for one in hangings], as_quads=set(as_quads))
 
-    def test_each_screen_is_drawn_with_its_own_picture(self):
+    def test_each_screen_is_drawn_with_its_own_frame(self):
         assert self._drawn(_hanging("notes"), _hanging("clock", blend=True)) == [
             ("notes", "notes", False), ("clock", "clock", True)]
 
@@ -107,7 +107,7 @@ class TestWhatReachesTheEyes:
 
         drawn = room.drawn([one, other], screens=[other.screen, one.screen], as_quads=set())
 
-        assert [mesh for mesh, _picture, _blend in drawn] == ["clock", "notes"]
+        assert [mesh for mesh, _frame, _blend in drawn] == ["clock", "notes"]
 
     def test_a_screen_the_compositor_took_as_a_quad_is_left_out(self):
         """The runtime composites those over this layer, so drawing it here
@@ -118,13 +118,13 @@ class TestWhatReachesTheEyes:
     def test_a_screen_with_no_quad_yet_is_left_out(self):
         assert self._drawn(_hanging("notes", ready=False)) == []
 
-    def test_a_picture_round_the_viewer_is_no_part_of_the_flat_pass(self):
-        wrap = Hanging(_screen("main", immersive=True), picture=_Picture("main"), wrap=7)
+    def test_a_frame_round_the_viewer_is_no_part_of_the_flat_pass(self):
+        wrap = Hanging(_screen("main", immersive=True), frame=_Frame("main"), wrap=7)
 
         assert self._drawn(wrap) == []
 
     def test_the_one_round_the_viewer_is_found_by_itself(self):
-        wrap = Hanging(_screen("main", immersive=True), picture=_Picture("main"), wrap=7)
+        wrap = Hanging(_screen("main", immersive=True), frame=_Frame("main"), wrap=7)
 
         assert room.wrapped([_hanging("clock"), wrap]) is wrap
 

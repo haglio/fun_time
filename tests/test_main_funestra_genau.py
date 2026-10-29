@@ -1,4 +1,4 @@
-"""Genau as it runs on the Main Funestra: its own channel, its own picture, its
+"""Genau as it runs on the Main Funestra: its own channel, its own frames, its
 own status, over a fabricated flicks folder whose decode hands back numbered frames."""
 from __future__ import annotations
 
@@ -327,8 +327,8 @@ class TestFMode:
         assert world.notices.said == [("Including no other pips", NoticeLevel.WARNING)]
 
 
-class TestItsPicture:
-    def test_the_frame_the_motion_chose_is_the_picture_counted_up(self, tmp_path):
+class TestItsFrame:
+    def test_the_frame_the_motion_chose_is_the_frame_counted_up(self, tmp_path):
         world = World(tmp_path)
         world.send("RESUME")
         shown = set()
@@ -353,7 +353,7 @@ class TestItsPicture:
 
         assert len(world.sink.sent) > sent_before
 
-    def test_the_picture_carries_the_flicks_time_on_screen(self, tmp_path):
+    def test_the_frame_carries_the_flicks_time_on_screen(self, tmp_path):
         """Genau opens with its flick held and nothing elapsed of the ten
         seconds a flick gets."""
         world = World(tmp_path)
@@ -371,7 +371,7 @@ class TestItsPicture:
 
         assert world.genau.picture().elapsed_ms == 7_000.0
 
-    def test_what_is_still_decoding_is_said_on_the_picture(self, tmp_path):
+    def test_what_is_still_decoding_is_said_on_the_frame(self, tmp_path):
         world = World(tmp_path)
 
         assert world.genau.picture().loading is None

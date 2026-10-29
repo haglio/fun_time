@@ -36,9 +36,9 @@ def side_named(name: str) -> HudEdge | None:
     return HudEdge(edge) if owner.endswith(f"/{SIDE}") and edge in HudEdge else None
 
 
-def sides(outside, screen_name: str, picture: Placement, aspect: float, *,
+def sides(outside, screen_name: str, item: Placement, aspect: float, *,
           panel_edge: HudEdge) -> tuple[Side, ...]:
-    return tuple(_side(outside, screen_name, picture, aspect, edge)
+    return tuple(_side(outside, screen_name, item, aspect, edge)
                  for edge in HudEdge if edge is not panel_edge)
 
 
@@ -46,11 +46,11 @@ def _gap_deg(edge: HudEdge) -> float:
     return HANDLE_DEG + HUD_GAP_DEG if edge is HudEdge.UPPER else HUD_GAP_DEG
 
 
-def _side(outside, screen_name: str, picture: Placement, aspect: float,
+def _side(outside, screen_name: str, item: Placement, aspect: float,
           edge: HudEdge) -> Side:
     bgra = outside.plus_beside(edge).bgra
     height, width = bgra.shape[:2]
-    placement = attached_to(edge, picture, aspect=aspect, width_deg=width * DEG_PER_PX,
+    placement = attached_to(edge, item, aspect=aspect, width_deg=width * DEG_PER_PX,
                             hanging_aspect=width / height, gap_deg=_gap_deg(edge))
     return Side(edge, Screen(side_screen_name(screen_name, edge), placement, width / height,
                              pressable=True), bgra)
@@ -68,9 +68,9 @@ class HudSides:
         self._hung: tuple[Side, ...] = ()
         self._shown: Side | None = None
 
-    def hang(self, outside, picture: Placement, aspect: float, *, panel_edge: HudEdge) -> None:
+    def hang(self, outside, item: Placement, aspect: float, *, panel_edge: HudEdge) -> None:
         self._outside = outside
-        self._hung = sides(outside, self._screen_name, picture, aspect, panel_edge=panel_edge)
+        self._hung = sides(outside, self._screen_name, item, aspect, panel_edge=panel_edge)
         shown = next((side for side in self._hung if side.edge is self.pointed_at), None)
         if shown is not None:
             if self._shown is None or shown.bgra is not self._shown.bgra:
@@ -85,7 +85,7 @@ class HudSides:
         return tuple(
             Hanging(side.screen, blend=True, forward_with=self._screen_name)
             if side is not self._shown else
-            Hanging(side.screen, mesh=self._mesh, picture=self._texture, blend=True,
+            Hanging(side.screen, mesh=self._mesh, frame=self._texture, blend=True,
                     forward_with=self._screen_name)
             for side in self._hung)
 

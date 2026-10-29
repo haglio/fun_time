@@ -12,9 +12,9 @@ import pytest
 from funestra.playback import Playback
 
 from fun_time.event_log import NOTICE, SOURCE_MAIN
+from fun_time_vr.frame_shape import FISHEYE_CIRCLE
 from fun_time_vr.headset_verbs import ANGLE_STEP, DIAL_STILL_S, TILT_STEP_DEG, HeadsetVerbs
 from fun_time_vr.layout import TILT_LIMIT_DEG
-from fun_time_vr.picture_shape import FISHEYE_CIRCLE
 from fun_time_vr.projection import (
     EQUIRECT_180_SBS,
     FISHEYE_180_SBS,
@@ -29,7 +29,7 @@ HOUR_MS = 3_600_000.0
 
 
 class _ALook:
-    """PictureLook's surface, with the looking done by hand: ``found`` is the
+    """FrameLook's surface, with the looking done by hand: ``found`` is the
     call the real one makes from its own thread once it has seen a shape twice."""
 
     def __init__(self, looked: list[Path]) -> None:
@@ -83,9 +83,9 @@ def test_a_verb_that_is_not_the_headsets_own_is_refused(headset):
     assert headset.verbs.apply("QUIT") is False
 
 
-class TestTheProjectionAPictureIsWrappedIn:
-    """The headset keeps a video's last picture up while the next one opens, and
-    that picture goes on being wrapped the way its own video is."""
+class TestTheProjectionAFrameIsWrappedIn:
+    """The headset keeps a video's last frame up while the next one opens, and
+    that frame goes on being wrapped the way its own video is."""
 
     def test_it_opens_on_the_first_item_in_its_projection(self, headset):
         assert headset.verbs.projection == EQUIRECT_180_SBS
@@ -101,7 +101,7 @@ class TestTheProjectionAPictureIsWrappedIn:
 
 
 class TestLookingAtWhatIsOnScreen:
-    """A VR video nobody has chosen a projection for gets its picture looked at,
+    """A VR video nobody has chosen a projection for gets its frame looked at,
     and a fisheye circle found there is what it opens in from then on."""
 
     def _looking(self, headset):
@@ -136,7 +136,7 @@ class TestLookingAtWhatIsOnScreen:
 
         assert look.ended
 
-    def test_a_circle_found_in_the_picture_is_what_it_opens_in_from_then_on(self, headset):
+    def test_a_circle_found_in_the_frame_is_what_it_opens_in_from_then_on(self, headset):
         look = _ALook([])
         headset.verbs.look_with(look)
         _step(headset, -1)
@@ -222,7 +222,7 @@ class TestProjectionCycling:
             RECTILINEAR_SBS)
 
 
-class TestDialingAWrappedPicture:
+class TestDialingAWrappedFrame:
     def test_a_video_nobody_has_dialed_has_neither_a_field_of_view_nor_a_height(self, headset):
         one, *_ = headset.files
         assert headset.verbs.fov_of(str(one)) is None
@@ -492,7 +492,7 @@ class TestScenes:
 
         assert engine.seeks[-1] == 0.0
 
-    def test_a_video_with_no_scenes_marked_says_so_on_its_picture(self, headset, caplog):
+    def test_a_video_with_no_scenes_marked_says_so_on_its_frame(self, headset, caplog):
         headset.engine.position_ms = 45_000.0
 
         with caplog.at_level(logging.DEBUG, logger="fun_time_vr.headset_verbs"):
@@ -502,7 +502,7 @@ class TestScenes:
         assert self._told(caplog) == [(NOTICE, SOURCE_MAIN)] * 2
         assert headset.engine.seeks == []
 
-    def test_no_scene_left_to_go_to_is_said_on_its_picture_too(self, headset, caplog):
+    def test_no_scene_left_to_go_to_is_said_on_its_frame_too(self, headset, caplog):
         verbs, engine = self._on_a_video_with_scenes_at(headset, 0, 120, 300)
 
         with caplog.at_level(logging.DEBUG, logger="fun_time_vr.headset_verbs"):

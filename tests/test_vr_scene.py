@@ -69,7 +69,7 @@ class TestSurfaceVertices:
         assert lower[4] == pytest.approx(0.0)
 
     @pytest.mark.parametrize("aspect", [16 / 9, 9 / 16])
-    def test_its_shape_is_the_videos_so_the_picture_fills_it_edge_to_edge(self, aspect):
+    def test_its_shape_is_the_videos_so_the_frame_fills_it_edge_to_edge(self, aspect):
         verts = surface_vertices(Placement(0.0, 0.0, 36.0), aspect=aspect)
         width = verts[:, 0].max() - verts[:, 0].min()
         height = verts[:, 1].max() - verts[:, 1].min()
@@ -182,27 +182,27 @@ class TestQuadLayerPlacement:
 
 class TestAttachedBelow:
     """A strip hanging under a screen's lower edge, centered on it: the satellite's
-    HUD, which follows the picture wherever it is dragged and however it is
+    HUD, which follows the screen wherever it is dragged and however it is
     resized."""
 
-    _PICTURE = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
+    _FRAME = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
 
     def test_it_is_centered_under_the_screen_at_the_width_it_is_given(self):
-        hud = attached_below(self._PICTURE, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
+        hud = attached_below(self._FRAME, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
 
-        assert hud.azimuth_deg == self._PICTURE.azimuth_deg
+        assert hud.azimuth_deg == self._FRAME.azimuth_deg
         assert hud.width_deg == 20.0
 
     def test_its_top_edge_meets_the_screens_lower_edge(self):
-        hud = attached_below(self._PICTURE, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
-        picture = surface_vertices(self._PICTURE, aspect=9 / 16)
+        hud = attached_below(self._FRAME, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
+        frame = surface_vertices(self._FRAME, aspect=9 / 16)
         strip = surface_vertices(hud, aspect=2.0)
 
-        assert strip[:, 1].max() == pytest.approx(picture[:, 1].min(), abs=1e-6)
+        assert strip[:, 1].max() == pytest.approx(frame[:, 1].min(), abs=1e-6)
 
     def test_a_gap_holds_it_off_the_edge_by_that_arc(self):
-        flush = attached_below(self._PICTURE, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
-        spaced = attached_below(self._PICTURE, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0,
+        flush = attached_below(self._FRAME, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
+        spaced = attached_below(self._FRAME, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0,
                                 gap_deg=1.0)
         flush_top = surface_vertices(flush, aspect=2.0)[:, 1].max()
         spaced_top = surface_vertices(spaced, aspect=2.0)[:, 1].max()
@@ -213,43 +213,43 @@ class TestAttachedBelow:
 class TestAttachedAgainstASide:
     """The same strip against the other three sides of a screen: what the Ctrl
     keys ask for in the headset, where a HUD hangs beside its Funestra rather than
-    over its picture."""
+    over its item."""
 
-    _PICTURE = Placement(azimuth_deg=0.0, elevation_deg=10.0, width_deg=28.0)
+    _FRAME = Placement(azimuth_deg=0.0, elevation_deg=10.0, width_deg=28.0)
 
     def _hanging(self, edge, **extra):
-        return attached_to(edge, self._PICTURE, aspect=9 / 16, width_deg=20.0,
+        return attached_to(edge, self._FRAME, aspect=9 / 16, width_deg=20.0,
                            hanging_aspect=2.0, **extra)
 
     def test_the_lower_side_is_where_it_hung_before(self):
         assert self._hanging(HudEdge.LOWER) == attached_below(
-            self._PICTURE, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
+            self._FRAME, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
 
     def test_against_the_upper_side_its_lower_edge_meets_the_screens_top(self):
         hanging = self._hanging(HudEdge.UPPER)
-        picture = surface_vertices(self._PICTURE, aspect=9 / 16)
+        frame = surface_vertices(self._FRAME, aspect=9 / 16)
         strip = surface_vertices(hanging, aspect=2.0)
 
-        assert hanging.azimuth_deg == self._PICTURE.azimuth_deg
-        assert strip[:, 1].min() == pytest.approx(picture[:, 1].max(), abs=1e-6)
+        assert hanging.azimuth_deg == self._FRAME.azimuth_deg
+        assert strip[:, 1].min() == pytest.approx(frame[:, 1].max(), abs=1e-6)
 
     def test_against_a_left_or_right_side_it_keeps_the_screens_elevation(self):
         for edge in (HudEdge.LEFT, HudEdge.RIGHT):
             hanging = self._hanging(edge)
-            assert hanging.elevation_deg == self._PICTURE.elevation_deg
+            assert hanging.elevation_deg == self._FRAME.elevation_deg
             assert hanging.width_deg == 20.0
 
     def test_against_the_right_side_it_starts_where_the_screen_ends(self):
         hanging = self._hanging(HudEdge.RIGHT)
 
         assert hanging.azimuth_deg == pytest.approx(
-            self._PICTURE.azimuth_deg + 28.0 / 2 + 20.0 / 2)
+            self._FRAME.azimuth_deg + 28.0 / 2 + 20.0 / 2)
 
     def test_against_the_left_side_it_ends_where_the_screen_starts(self):
         hanging = self._hanging(HudEdge.LEFT)
 
         assert hanging.azimuth_deg == pytest.approx(
-            self._PICTURE.azimuth_deg - 28.0 / 2 - 20.0 / 2)
+            self._FRAME.azimuth_deg - 28.0 / 2 - 20.0 / 2)
 
     def test_a_gap_holds_it_off_whichever_side_it_hangs_against(self):
         assert self._hanging(HudEdge.RIGHT, gap_deg=1.0).azimuth_deg == pytest.approx(

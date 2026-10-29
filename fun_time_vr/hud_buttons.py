@@ -26,11 +26,11 @@ class HudButtons:
                                  texture=toggle_texture, tip_mesh=tip_mesh,
                                  tip_texture=tip_texture)
 
-    def hang(self, outside, picture: Placement, aspect: float, *, edge: HudEdge,
+    def hang(self, outside, item: Placement, aspect: float, *, edge: HudEdge,
              with_sides: bool = True) -> None:
-        self._toggle.hang(outside, picture, aspect, edge=edge)
+        self._toggle.hang(outside, item, aspect, edge=edge)
         if with_sides:
-            self._sides.hang(outside, picture, aspect, panel_edge=edge)
+            self._sides.hang(outside, item, aspect, panel_edge=edge)
         else:
             self._sides.unhang()
 

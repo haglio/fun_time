@@ -149,7 +149,7 @@ class HeadsetVerbs:
         video = str(self._video)
         self._projections[video] = self._remembered.resolve(video)
         self._restore_fov_and_height(video)
-        self._look_at_the_picture(self._video)
+        self._look_at_the_frame(self._video)
         self._scene_starts = scene_starts_ms(
             recorded_for(self._video, self._metadata_root, outlying_dirs=self._vr_dirs))
 
@@ -181,9 +181,9 @@ class HeadsetVerbs:
 
     def look_with(self, look) -> None:
         self._look = look
-        self._look_at_the_picture(self._video)
+        self._look_at_the_frame(self._video)
 
-    def _look_at_the_picture(self, video: Path) -> None:
+    def _look_at_the_frame(self, video: Path) -> None:
         if self._look is None:
             return
         if self._remembered.wants_a_look(str(video)):
@@ -195,7 +195,7 @@ class HeadsetVerbs:
         self._remembered.note_shape(str(video), shape)
         self._projections[str(video)] = self._remembered.resolve(str(video))
         logger.info(
-            "Projection: %s (%s, off its picture)", self._projections[str(video)], video.name)
+            "Projection: %s (%s, off its frame)", self._projections[str(video)], video.name)
 
     def next_scene(self) -> None:
         position = self._playback.position_ms

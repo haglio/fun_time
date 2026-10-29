@@ -4,7 +4,7 @@ session, saying which part.
 His rule (2026-10-08): "If one component of Fun Time dies, the whole thing
 should die." Origenerator Core was closed for not responding in the middle of a
 session (2026-10-07 23:31), and the room carried on without it: the
-Satellites stayed in Origenerator mode on a frozen picture, their HUDs still
+Satellites stayed in Origenerator mode on a frozen slideshow, their HUDs still
 answering presses that went nowhere.
 """
 from __future__ import annotations

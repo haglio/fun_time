@@ -7,8 +7,8 @@ in VR all three are funestra Funestras in this one, each playing through
 :class:`fun_time_vr.headset_engine.HeadsetEngine` into a texture.  Kino and
 Genau run on the Main Funestra as they do on the desktop, with the headset's
 own verbs beside them (:mod:`fun_time_vr.headset_verbs`); each Funestra draws
-its panel on a bitmap that hangs beside its picture and hands a User's own
-picture over as a frame (:mod:`fun_time_vr.surfaces`), and the controllers move
+its panel on a bitmap that hangs beside its item and hands a User's own
+frames over to hang in the slot (:mod:`fun_time_vr.surfaces`), and the controllers move
 and resize every screen (:mod:`fun_time_vr.pointer`).
 
 ``_pump_channels`` owns every file channel, since file I/O under a sync client
@@ -16,7 +16,7 @@ can stall for arbitrary milliseconds: the satellites' Funestras and the room's
 panels on one worker, the Main Funestra on a worker of its own at Genau's
 rate; each video paints on a thread and GL context of its own
 (:mod:`fun_time_vr.video_thread`), since a clip change costs mpv whole frames.
-The frame loop only copies each newest picture into the scene and hands the
+The frame loop only copies each newest frame into the scene and hands the
 compositor its layers.  With ``vr.compositor_layers=true`` flat screens go as
 quad layers instead; the cost is in docs/known-issues.md.  Both ends of a
 session are covered from here (:mod:`fun_time_vr.cover`), the headset having
@@ -110,6 +110,7 @@ from .dash_panel import (
     paint_dash,
     with_the_osr2_part,
 )
+from .frame_look import FrameLook
 from .gallery_panel import GalleryPanel
 from .gallery_panel import hover_line as gallery_hover_line
 from .gallery_panel import scroll_line as gallery_scroll_line
@@ -161,7 +162,6 @@ from .matrices import (
 from .notice_banner import banner_bgra, paint_banner
 from .notices import NoticeBoard
 from .perf import FramePerf
-from .picture_look import PictureLook
 from .playback_watch import STALLED, PlaybackWatch
 from .pointer import (
     DRAG,
@@ -217,7 +217,7 @@ from .scene import (
 )
 from .scheduling import ahead_of_background_work
 from .stacking import Stacking
-from .surfaces import LatestPicture, PanelBitmap
+from .surfaces import LatestFrame, PanelBitmap
 from .thumbs import Thumbs, strongest
 from .video_thread import VideoThread
 from .wrap_readout import WrapReadout, readout
@@ -381,8 +381,8 @@ class _VideoUnit:
         )
 
     def _window(self) -> tuple[int, int]:
-        """The picture's own pixels, which is the window the Funestra places
-        its panel in; the panel hangs beside the picture, so only the
+        """The frame's own pixels, which is the window the Funestra places
+        its panel in; the panel hangs beside the item, so only the
         placing's arithmetic sees these numbers."""
         return max(1, self.target.width), max(1, self.target.height)
 
@@ -431,7 +431,7 @@ class _VideoUnit:
         append_command(self._dashboard_cmd_file, command)
 
     def overlay_banner(self, notice) -> None:
-        """Flash *notice* over this picture, or clear what was flashing,
+        """Flash *notice* over this screen, or clear what was flashing,
         repainted only when it changes."""
         if not self.target.ready:
             return
@@ -461,20 +461,20 @@ class _VideoUnit:
         self.screen.close()
 
 
-def _in_the_slot(screen, picture, wrap: Wrap | None) -> tuple[Hanging, ...]:
+def _in_the_slot(screen, frame, wrap: Wrap | None) -> tuple[Hanging, ...]:
     """Round the viewer rather than on a screen leaves no rectangle to aim at."""
     if wrap is not None:
-        return (Hanging(Screen(MAIN, screen.placement, picture.aspect,
+        return (Hanging(Screen(MAIN, screen.placement, frame.aspect,
                                pressable=True, immersive=True),
-                        picture=picture, wrap=wrap),)
-    return (Hanging(_picture_screen(MAIN, screen.placement, picture.aspect),
-                    mesh=screen, picture=picture),)
+                        frame=frame, wrap=wrap),)
+    return (Hanging(_item_screen(MAIN, screen.placement, frame.aspect),
+                    mesh=screen, frame=frame),)
 
 
-def _picture_screen(name: str, placement: Placement, aspect: float) -> Screen:
+def _item_screen(name: str, placement: Placement, aspect: float) -> Screen:
     by = widening(name, aspect)
     return Screen(name, widened(placement, by), aspect, movable=True, resizable=True,
-                  pressable=True, picture=True, widened_by=by)
+                  pressable=True, item=True, widened_by=by)
 
 
 def _metadata_root(manifest) -> Path | None:
@@ -542,8 +542,8 @@ class _MainUnit(_VideoUnit):
         self._presses = _Presses(MAIN, PANEL)
         self._vr_dirs = () if vr.flicks_folder is None else (vr_flicks_in(vr.flicks_folder),)
         self.panel = PanelBitmap(width=PANEL_WIDTH_PX)
-        self.users_picture = LatestPicture()
-        self.users_picture_texture = FrameTexture()
+        self.users_picture = LatestFrame()
+        self.users_frame_texture = FrameTexture()
         self._uploaded_frame = None
         self._flick_projection: tuple[Path | None, str] = (None, "")
         library = _TheLibrary(manifest, vr, while_reading=while_reading)
@@ -574,10 +574,10 @@ class _MainUnit(_VideoUnit):
         self.verbs = HeadsetVerbs(
             self.funestra.playback, metadata_root=_metadata_root(manifest),
             vr_dirs=tuple(vr.library_dirs), tilt_deg=remembered.tilt_deg)
-        # A VR video nobody has chosen a projection for gets its picture read off
+        # A VR video nobody has chosen a projection for gets its frame read off
         # the thread that paints it: a fisheye circle found there opens it as a
         # fisheye rather than drawing its lower edge into a point as a 180 does.
-        self.verbs.look_with(PictureLook(self.video))
+        self.verbs.look_with(FrameLook(self.video))
 
     def _apply_the_headsets_verb(self, command: str) -> bool:
         """The Funestra asks after what runs on it; the verbs are built around
@@ -586,22 +586,22 @@ class _MainUnit(_VideoUnit):
 
     @property
     def owns_the_slot(self) -> bool:
-        """Whether the video is what fills the main slot, Genau's picture
+        """Whether the video is what fills the main slot, Genau's flick
         filling it otherwise."""
         return self.funestra.showing == MainMode.KINO
 
     @property
-    def picture_in_the_slot(self) -> RenderTarget | FrameTexture:
-        return self.target if self.owns_the_slot else self.users_picture_texture
+    def texture_in_the_slot(self) -> RenderTarget | FrameTexture:
+        return self.target if self.owns_the_slot else self.users_frame_texture
 
     def hangings(self) -> tuple[Hanging, ...]:
         if self.owns_the_slot:
             if not self.target.ready:
                 return ()
             return _in_the_slot(self.screen, self.target, self.verbs.wrap_of(self.target.video))
-        if not self.users_picture_texture.ready:
+        if not self.users_frame_texture.ready:
             return ()
-        return _in_the_slot(self.screen, self.users_picture_texture,
+        return _in_the_slot(self.screen, self.users_frame_texture,
                             immersive_wrap(self._flick_projection[1]))
 
     @property
@@ -618,8 +618,8 @@ class _MainUnit(_VideoUnit):
             return None
         return readout(self.verbs.projection, self.verbs.wrap)
 
-    def banner_into_the_picture(self):
-        """A banner drawn into a picture wrapped round the viewer lands on the seam
+    def banner_into_the_frame(self):
+        """A banner drawn into a frame wrapped round the viewer lands on the seam
         between its two eyes; the floating one carries it instead."""
         if self._notices is None or self.wraps_the_viewer:
             return None
@@ -645,26 +645,26 @@ class _MainUnit(_VideoUnit):
 
     def render_latest_frame(self) -> None:
         super().render_latest_frame()
-        self._show_the_users_picture()
+        self._show_the_users_frame()
 
-    def _show_the_users_picture(self) -> None:
+    def _show_the_users_frame(self) -> None:
         """The frame the User in front put up -- Genau's, scrubbed to the OSR2
         -- uploaded untouched, and wrapped the way its flick is."""
         if self.owns_the_slot:
             return
-        picture = self.users_picture.picture
-        if picture is None or picture.frame is None:
+        latest = self.users_picture.flick_frame
+        if latest is None or latest.frame is None:
             return
-        if picture.frame is not self._uploaded_frame:
-            self.users_picture_texture.upload(picture.frame)
-            self._uploaded_frame = picture.frame
-            if picture.flick != self._flick_projection[0]:
+        if latest.frame is not self._uploaded_frame:
+            self.users_frame_texture.upload(latest.frame)
+            self._uploaded_frame = latest.frame
+            if latest.flick != self._flick_projection[0]:
                 self._flick_projection = (
-                    picture.flick, default_projection(str(picture.flick), self._vr_dirs))
-        if self.users_picture_texture.ready:
+                    latest.flick, default_projection(str(latest.flick), self._vr_dirs))
+        if self.users_frame_texture.ready:
             self.screen.rehang_at(
-                shown_at(MAIN, self.screen.placement, self.users_picture_texture.aspect),
-                self.users_picture_texture.aspect)
+                shown_at(MAIN, self.screen.placement, self.users_frame_texture.aspect),
+                self.users_frame_texture.aspect)
 
     def pump(self, stop: threading.Event, now: float) -> None:
         self._take_presses()
@@ -674,7 +674,7 @@ class _MainUnit(_VideoUnit):
             stop.set()
         self._watch_progress(now)
         if self._notices is not None:
-            self.overlay_banner(self.banner_into_the_picture())
+            self.overlay_banner(self.banner_into_the_frame())
 
     def _take_presses(self) -> None:
         for event in self._presses.drain():
@@ -716,10 +716,10 @@ class _MainUnit(_VideoUnit):
             playback.seek_to(position_ms)
 
     def close(self) -> None:
-        self.verbs.close()  # before the Funestra: its looks read a picture from one
+        self.verbs.close()  # before the Funestra: its looks read a frame from one
         self.video.close()  # frees mpv on the thread whose context it renders in
         self.funestra.close()  # what runs on it, and the line to the device
-        self.users_picture_texture.close()
+        self.users_frame_texture.close()
         self._close_graphics()
 
 
@@ -769,7 +769,7 @@ class _SatelliteUnit(_VideoUnit):
             remembered.get(funestra, self.SPOTS[funestra]),
         )
         commands = manifest.commands
-        self.screen_name = funestra  # its notices flash over its own picture
+        self.screen_name = funestra  # its notices flash over its own frame
         self._notices = notices
         # What a launched satellite is given on its command line, read out of
         # the manifest instead: this one runs in the headset's own process.
@@ -798,16 +798,16 @@ class _SatelliteUnit(_VideoUnit):
     def hangings(self) -> tuple[Hanging, ...]:
         if not self.target.ready:
             return ()
-        picture = Hanging(
-            _picture_screen(self.screen_name, self.screen.placement, self.target.aspect),
-            mesh=self.screen, picture=self.target)
+        frame = Hanging(
+            _item_screen(self.screen_name, self.screen.placement, self.target.aspect),
+            mesh=self.screen, frame=self.target)
         beside = self._buttons.hangings()
         if not self.hud_ready:
-            return (picture, *beside)
-        return (picture, *beside, Hanging(
+            return (frame, *beside)
+        return (frame, *beside, Hanging(
             Screen(hud_screen_name(self.screen_name), self.hud_screen.placement,
                    self.hud_texture.aspect, pressable=True),
-            mesh=self.hud_screen, picture=self.hud_texture, blend=True,
+            mesh=self.hud_screen, frame=self.hud_texture, blend=True,
             forward_with=self.screen_name))
 
     def hangs_by(self) -> dict[str, Hangs]:
@@ -904,8 +904,8 @@ def _upload(unit) -> bool:
 
 
 class _PanelUnit:
-    """The console the Main Funestra draws, hanging under whichever picture
-    fills the main slot -- or, while that picture wraps the viewer and there is
+    """The console the Main Funestra draws, hanging under whichever item
+    fills the main slot -- or, while that item wraps the viewer and there is
     nothing to dock to, under the dashboard."""
 
     SPOTS: dict[str, Placement] = {}
@@ -931,7 +931,7 @@ class _PanelUnit:
             return beside
         return (*beside, Hanging(
             Screen(PANEL, self.screen.placement, self.texture.aspect, pressable=True),
-            mesh=self.screen, picture=self.texture, blend=True, docked_to=MAIN))
+            mesh=self.screen, frame=self.texture, blend=True, docked_to=MAIN))
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {}  # it hangs from whatever is above it, and is never dragged
@@ -956,7 +956,7 @@ class _PanelUnit:
             if rgba is not None:
                 self.texture.upload(rgba)
         wrapped = self._main_unit.wraps_the_viewer
-        slot_aspect = self._main_unit.picture_in_the_slot.aspect
+        slot_aspect = self._main_unit.texture_in_the_slot.aspect
         under, aspect = (
             (self._dash.screen.placement, self._dash.texture.aspect) if wrapped else
             (shown_at(MAIN, self._main_unit.screen.placement, slot_aspect), slot_aspect))
@@ -1060,7 +1060,7 @@ class _DashUnit:
         return (Hanging(
             Screen(DASH, self.screen.placement, self.texture.aspect,
                    movable=True, pressable=True),
-            mesh=self.screen, picture=self.texture, blend=True),)
+            mesh=self.screen, frame=self.texture, blend=True),)
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {DASH: Hangs((self,), kept_as=lambda: self.layout_key)}
@@ -1143,7 +1143,7 @@ class _ReferenceUnit:
             return ()  # nothing to point at on a panel that is not there
         return (Hanging(
             Screen(REFERENCE, self.screen.placement, self.texture.aspect, pressable=True),
-            mesh=self.screen, picture=self.texture, blend=True, forward_with=DASH),)
+            mesh=self.screen, frame=self.texture, blend=True, forward_with=DASH),)
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {}  # it moves with the dashboard it hangs from
@@ -1183,7 +1183,7 @@ class _ReferenceUnit:
 
 
 class _LibraryUnit:
-    # A browse to read and press: dead ahead and wide, over the picture while it is up.
+    # A browse to read and press: dead ahead and wide, over the frame while it is up.
     SPOTS = {LIBRARY: Placement(azimuth_deg=0.0, elevation_deg=4.0, width_deg=80.0)}
 
     def __init__(
@@ -1229,7 +1229,7 @@ class _LibraryUnit:
         return (Hanging(
             Screen(LIBRARY, self.screen.placement, self.texture.aspect,
                    movable=True, pressable=True),
-            mesh=self.screen, picture=self.texture, blend=True, in_front=True),)
+            mesh=self.screen, frame=self.texture, blend=True, in_front=True),)
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {LIBRARY: Hangs((self.screen,))}
@@ -1314,7 +1314,7 @@ BANNER_MAX_WIDTH_PX = 1600
 
 
 class _BannerUnit:
-    """The main screen's banner, floating in front of a picture wrapped round the viewer."""
+    """The main screen's banner, floating in front of a frame wrapped round the viewer."""
 
     SPOTS: dict[str, Placement] = {}
 
@@ -1333,7 +1333,7 @@ class _BannerUnit:
             return ()
         return (Hanging(
             Screen(BANNER, self.screen.placement, self.texture.aspect),
-            mesh=self.screen, picture=self.texture, blend=True, in_front=True),)
+            mesh=self.screen, frame=self.texture, blend=True, in_front=True),)
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {}
@@ -1394,7 +1394,7 @@ class _GalleryUnit:  # the hosted app's window
         return (Hanging(
             Screen(GALLERY, self.screen.placement, self.texture.aspect,
                    movable=True, resizable=True, pressable=True, right_clicks=True),
-            mesh=self.screen, picture=self.texture, blend=True),)
+            mesh=self.screen, frame=self.texture, blend=True),)
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {GALLERY: Hangs((self.screen,))}
@@ -1857,14 +1857,14 @@ def _osr2_slot(commands, sender: str) -> _SaysWhenItFirstMoves:
 
 
 def _still_blank(main_unit, satellites: Sequence, panel) -> tuple[str, ...]:
-    """Which screens the session opens with have yet to RENDER a picture, as
-    against merely being sized (``has_picture``, never ``ready``); the main slot
+    """Which screens the session opens with have yet to RENDER a frame, as
+    against merely being sized (``has_frame``, never ``ready``); the main slot
     counts once.  Named, so the reveal can say which one it gave up on."""
-    pictures = [(main_unit.screen_name, main_unit.picture_in_the_slot)]
-    pictures += [(satellite.screen_name, satellite.target) for satellite in satellites]
+    frames = [(main_unit.screen_name, main_unit.texture_in_the_slot)]
+    frames += [(satellite.screen_name, satellite.target) for satellite in satellites]
     if panel.in_the_room:
-        pictures.append((PANEL, panel.texture))
-    return tuple(name for name, picture in pictures if not picture.has_picture)
+        frames.append((PANEL, panel.texture))
+    return tuple(name for name, frame in frames if not frame.has_frame)
 
 
 def _hands_for_the_funestras(
@@ -1914,7 +1914,7 @@ def _draw_eyes(
         view_proj32 = np.ascontiguousarray(view_proj, dtype=np.float32)
         if wrap is not None:
             inv32 = np.ascontiguousarray(np.linalg.inv(view_proj), dtype=np.float32)
-            renderer.draw_immersive(wrap.wrap, wrap.picture.texture, inv32, eye_index)
+            renderer.draw_immersive(wrap.wrap, wrap.frame.texture, inv32, eye_index)
         for mesh, texture, blend in flat:
             renderer.draw_screen(mesh, texture, view_proj32, blend=blend)
         pointing.draw(renderer, view_proj32)
@@ -2213,7 +2213,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                 as_quads: set[str] = set()
                 if use_layers:
                     # The mpv-backed screens as quads, out of the scene as each is
-                    # taken -- and a picture wrapping the view is never taken.
+                    # taken -- and a frame wrapping the view is never taken.
                     for index, unit in enumerate([main_unit, *satellites]):
                         if unit is main_unit and (
                                 main_unit.wraps_the_viewer or not main_unit.owns_the_slot):
@@ -2241,7 +2241,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                 cover.settled()
             glfw.poll_events()
             perf.note("wait", (t1 - t0) * 1e3)
-            perf.note("pictures", (t2 - t1) * 1e3)
+            perf.note("frames", (t2 - t1) * 1e3)
             perf.note("layers", (t3 - t2) * 1e3)
             perf.note("eyes", (t4 - t3) * 1e3)
             perf.note("end", (t5 - t4) * 1e3)
