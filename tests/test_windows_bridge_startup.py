@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import configparser
 import json
-import logging
 import os
 import shutil
 import subprocess
@@ -52,7 +51,6 @@ from fun_time.windows_bridge_startup import (
     _build_satellite_launch_command,
     ensure_broker,
     launch_audio_companion,
-    launch_broker_tray,
     launch_core_apps,
     launch_main_funestra,
     launch_origenerator,
@@ -69,31 +67,6 @@ from satellite.contract import SatelliteChannels, WindowPlacement
 from tests.made_up_machine import running
 
 
-def test_launch_broker_tray_uses_the_brokers_own_launch_kwargs(tmp_path: Path):
-    """The tray launches with the broker's own kwargs, not the ordinary
-    hidden-window ones: it has to break away from an integration run's job
-    object and outlive the run."""
-    launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
-    launcher.parent.mkdir()
-    launcher.touch()
-
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen") as popen, \
-         patch("fun_time.windows_bridge_startup.broker_launch_kwargs", return_value={"creationflags": 1}):
-        launch_broker_tray(launcher)
-
-    popen.assert_called_once_with(
-        ["wscript.exe", str(launcher)], cwd=launcher.parent, creationflags=1,
-        **no_child_log(),
-    )
-
-
-def test_launch_broker_tray_skips_launch_when_no_launcher():
-    with patch("fun_time.windows_bridge_startup.subprocess.Popen") as popen:
-        launch_broker_tray(None)
-
-    popen.assert_not_called()
-
-
 def test_ensure_broker_does_not_kill_on_a_merely_stale_heartbeat(tmp_path: Path):
     """A stale heartbeat is not proof of a dead broker.  osr2_broker stops
     ticking it whenever it cannot hold the serial port, so a powered-off OSR2
@@ -103,17 +76,14 @@ def test_ensure_broker_does_not_kill_on_a_merely_stale_heartbeat(tmp_path: Path)
     launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
     launcher.parent.mkdir()
     launcher.touch()
-    heartbeat = tmp_path / "broker_heartbeat.txt"
 
-    with patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=False), \
+    with patch("fun_time.windows_bridge_startup.broker.is_running", return_value=False), \
          patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop, \
-         patch("fun_time.windows_bridge_startup.subprocess.Popen") as popen, \
-         patch("fun_time.windows_bridge_startup.broker_launch_kwargs", return_value={}):
-        ensure_broker(heartbeat, launcher)
+         patch("fun_time.windows_bridge_startup.broker.start") as start:
+        ensure_broker(tmp_path, launcher)
 
     stop.assert_not_called()
-    popen.assert_called_once_with(
-        ["wscript.exe", str(launcher)], cwd=launcher.parent, **no_child_log())
+    start.assert_called_once_with(launcher)
 
 
 def test_ensure_broker_restarts_a_broker_older_than_its_own_code(tmp_path: Path):
@@ -126,14 +96,13 @@ def test_ensure_broker_restarts_a_broker_older_than_its_own_code(tmp_path: Path)
     launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
     launcher.parent.mkdir()
     launcher.touch()
-    heartbeat = tmp_path / "broker_heartbeat.txt"
 
     with patch("fun_time.windows_bridge_startup.broker_source_mtime", return_value=2000.0), \
          patch("fun_time.windows_bridge_startup.broker_process_started_at", return_value=1000.0), \
-         patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=True), \
+         patch("fun_time.windows_bridge_startup.broker.is_running", return_value=True), \
          patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop, \
-         patch("fun_time.windows_bridge_startup.launch_broker_tray") as launch:
-        ensure_broker(heartbeat, launcher)
+         patch("fun_time.windows_bridge_startup.broker.start") as launch:
+        ensure_broker(tmp_path, launcher)
 
     stop.assert_called_once()
     launch.assert_called_once_with(launcher)
@@ -149,9 +118,9 @@ def test_ensure_broker_does_not_kill_a_broker_newer_than_its_code(tmp_path: Path
 
     with patch("fun_time.windows_bridge_startup.broker_source_mtime", return_value=1000.0), \
          patch("fun_time.windows_bridge_startup.broker_process_started_at", return_value=2000.0), \
-         patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=True), \
+         patch("fun_time.windows_bridge_startup.broker.is_running", return_value=True), \
          patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop:
-        ensure_broker(tmp_path / "broker_heartbeat.txt", launcher)
+        ensure_broker(tmp_path, launcher)
 
     stop.assert_not_called()
 
@@ -164,23 +133,12 @@ def test_ensure_broker_does_not_ask_about_the_process_when_it_cannot_read_the_co
     ordinary startup never sweeps the machine's processes to ask a question the
     cheap half has already settled."""
     with patch("fun_time.windows_bridge_startup.broker_process_started_at") as started, \
-         patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=True), \
+         patch("fun_time.windows_bridge_startup.broker.is_running", return_value=True), \
          patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop:
-        ensure_broker(tmp_path / "broker_heartbeat.txt", tmp_path / "nowhere" / "launch.vbs")
+        ensure_broker(tmp_path, tmp_path / "nowhere" / "launch.vbs")
 
     started.assert_not_called()
     stop.assert_not_called()
-
-
-def test_a_missing_tray_launcher_says_so_rather_than_going_quiet(tmp_path: Path, caplog):
-    """The one thing the second, deleted broker policy said that this one did
-    not: a session whose config names no tray launcher (or names a file that is
-    not there) gets no broker, and used to get no line about it either — which
-    is a silent OSR2 with nothing anywhere to explain it."""
-    with caplog.at_level(logging.WARNING, logger="fun_time.windows_bridge_startup"):
-        launch_broker_tray(tmp_path / "nowhere" / "launch_broker_tray.vbs")
-
-    assert any("broker" in record.getMessage().lower() for record in caplog.records)
 
 
 def test_ensure_broker_leaves_a_live_broker_alone(tmp_path: Path):
@@ -188,12 +146,11 @@ def test_ensure_broker_leaves_a_live_broker_alone(tmp_path: Path):
     session's, or the one osr2_broker's self-healing task keeps up.  With nothing
     saying its code has moved on, startup leaves it be: the user's own tools keep
     talking to it, and tearing it down would drop every client mid-stream."""
-    heartbeat = tmp_path / "broker_heartbeat.txt"
-    with patch("fun_time.windows_bridge_startup.is_broker_heartbeat_fresh", return_value=True) as fresh, \
-         patch("fun_time.windows_bridge_startup.launch_broker_tray") as launch:
-        ensure_broker(heartbeat, tmp_path / "launch_broker_tray.vbs")
+    with patch("fun_time.windows_bridge_startup.broker.is_running", return_value=True) as running, \
+         patch("fun_time.windows_bridge_startup.broker.start") as launch:
+        ensure_broker(tmp_path, tmp_path / "launch_broker_tray.vbs")
 
-    fresh.assert_called_once_with(heartbeat)
+    running.assert_called_once_with(tmp_path)
     launch.assert_not_called()
 
 
@@ -501,7 +458,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
     return dict(
         config_path="fun_time_config.json",
         broker_cmd_file=state_dir / "broker_cmd.txt",
-        broker_heartbeat_file=state_dir / "broker_heartbeat.txt",
+        broker_state_dir=state_dir,
         random_favs_browser_manifest_file=tmp_path / "browser_manifest.txt",
         genau_paused_file=tmp_path / "genau_paused.txt",
         genau_cmd_file=tmp_path / "genau_cmd.txt",
@@ -549,7 +506,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         [state_dir / "portrait_status.txt", state_dir / "landscape_status.txt"],
     )
     # Startup leaves a live broker alone, only starting one when none answers.
-    ensure.assert_called_once_with(state_dir / "broker_heartbeat.txt", None)
+    ensure.assert_called_once_with(state_dir, None)
     # Seeded at what this session opens on — full volume for the sound, no cap on
     # the OSR2, F-mode off, on the Main Funestra, with no session to come back to.
     seed.assert_called_once_with(
@@ -1122,7 +1079,7 @@ def _launched_main_funestra(tmp_path: Path, **overrides) -> list[str]:
         pid = 42
 
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
         launch_main_funestra(**_a_main_funestra_launch(log_file=tmp_path / "main_funestra.log", **overrides))
     return popen.call_args.args[0]
@@ -1226,7 +1183,7 @@ def test_launch_main_funestra_is_told_the_state_dir_it_remembers_in(tmp_path: Pa
             self.pid = pid
 
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
         launch_main_funestra(
             python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
@@ -1248,7 +1205,7 @@ def test_launch_main_funestra_forwards_metadata_dir_when_given(tmp_path: Path):
             self.pid = pid
 
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
         launch_main_funestra(
             python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
@@ -1272,7 +1229,7 @@ def test_launch_main_funestra_omits_metadata_dir_when_absent(tmp_path: Path):
             self.pid = pid
 
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
         launch_main_funestra(
             python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
@@ -1295,7 +1252,7 @@ def test_launch_main_funestra_forwards_flicks_dir_when_given(tmp_path: Path):
             self.pid = pid
 
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
         launch_main_funestra(
             python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
@@ -1318,7 +1275,7 @@ def test_launch_main_funestra_omits_flicks_dir_when_absent(tmp_path: Path):
             self.pid = pid
 
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
         launch_main_funestra(
             python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
@@ -1341,7 +1298,7 @@ def test_launch_main_funestra_hands_it_fun_times_icon(tmp_path: Path):
             self.pid = pid
 
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
         launch_main_funestra(
             python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
@@ -1371,7 +1328,7 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
     def _launched(self, launch, **kwargs) -> list[str]:
         with patch("fun_time.windows_bridge_startup.subprocess.Popen",
                    return_value=self._FakeProc()) as popen, \
-             patch("fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
+             patch("fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}):
             launch(**kwargs)
         return popen.call_args.args[0]
 
@@ -1478,7 +1435,7 @@ class TestTheCheckoutsTheMainFunestraStartsWith:
         checkout.mkdir()
 
         with self._popen() as popen, patch(
-                "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
+                "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}):
             launch_main_funestra(**self._main_funestra(tmp_path, sibling_checkouts=str(checkout)))
 
         assert self._path(popen)[0] == str(checkout)
@@ -1492,7 +1449,7 @@ class TestTheCheckoutsTheMainFunestraStartsWith:
         core.mkdir()
 
         with self._popen() as popen, patch(
-                "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
+                "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}):
             launch_main_funestra(**self._main_funestra(
                 tmp_path, sibling_checkouts=os.pathsep.join([str(fun_time), str(core)])))
 
@@ -1502,7 +1459,7 @@ class TestTheCheckoutsTheMainFunestraStartsWith:
         """What every session did before this, and what an ordinary one still
         does: nothing said about the path, so the venv's install answers."""
         with self._popen() as popen, patch(
-                "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
+                "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}):
             launch_main_funestra(**self._main_funestra(tmp_path))
 
         assert "env" not in popen.call_args.kwargs
@@ -1511,7 +1468,7 @@ class TestTheCheckoutsTheMainFunestraStartsWith:
         """A worktree named in the config outlives the worktree itself — a
         session must still start rather than die on its way up."""
         with self._popen() as popen, patch(
-                "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
+                "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}):
             launch_main_funestra(**self._main_funestra(tmp_path, sibling_checkouts=str(tmp_path / "removed")))
 
         assert "env" not in popen.call_args.kwargs
@@ -1525,7 +1482,7 @@ def test_launch_main_funestra_sends_child_output_to_its_own_log(tmp_path: Path):
 
     log_file = tmp_path / "main_funestra.log"
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
         launch_main_funestra(
             python_exe="pythonw.exe",
@@ -1557,7 +1514,7 @@ def test_launching_the_main_funestra_starts_it_and_says_which_process_it_is(tmp_
             self.pid = pid
 
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(43)) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={"creationflags": 1}
     ):
         pid = launch_main_funestra(
             python_exe="python.exe",
@@ -1671,7 +1628,7 @@ def test_launch_ui_companions_launches_dashboard_and_audio(tmp_path: Path):
         "fun_time.windows_bridge_startup.subprocess.Popen",
         side_effect=[_FakeProc(11), _FakeProc(33)],
     ) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={"creationflags": 1}
     ):
         _call_launch_ui_companions(result_file, dashboard_enabled=True)
 
@@ -1697,7 +1654,7 @@ def test_launch_ui_companions_sends_both_companions_to_the_named_checkouts(tmp_p
         "fun_time.windows_bridge_startup.subprocess.Popen",
         side_effect=[_FakeProc(11), _FakeProc(33)],
     ) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
         _call_launch_ui_companions(result_file, dashboard_enabled=True,
                                    sibling_checkouts=str(checkout))
@@ -1713,7 +1670,7 @@ def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
         "fun_time.windows_bridge_startup.subprocess.Popen",
         side_effect=[_FakeProc(33)],
     ) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={"creationflags": 1}
     ):
         _call_launch_ui_companions(result_file, dashboard_enabled=False)
 
@@ -1891,7 +1848,7 @@ def test_launching_a_satellite_starts_it_and_says_which_process_it_is(tmp_path: 
             self.pid = pid
 
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(51)) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={"creationflags": 1}
     ):
         pid = launch_satellite(
             python_exe="python.exe",
@@ -1920,7 +1877,7 @@ def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
 
     log_file = tmp_path / "portrait_satellite.log"
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
         launch_satellite(
             python_exe="pythonw.exe",
@@ -1991,7 +1948,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
             pid = 7
 
         with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
-            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+            "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
         ):
             launch_ui_companions(
                 python_exe=self._interpreter(tmp_path),
@@ -2013,7 +1970,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
             pid = 8
 
         with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
-            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+            "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
         ):
             launch_ui_companions(
                 python_exe=self._interpreter(tmp_path),
@@ -2036,7 +1993,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
 
         for role, title in (("Portrait", "Portrait AI Funestra"), ("Landscape", "Landscape AI Funestra")):
             with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
-                "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+                "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
             ):
                 launch_satellite(
                     python_exe=self._interpreter(tmp_path),
@@ -2054,7 +2011,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
             pid = 10
 
         with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
-            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+            "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
         ):
             launch_main_funestra(
                 python_exe=self._interpreter(tmp_path),
@@ -2084,7 +2041,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
             random_favs_browser=WindowRect(x=0, y=206, width=853, height=1234),
         )
         with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
-            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+            "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
         ):
             launch_origenerator(
                 python_exe=self._interpreter(tmp_path),
@@ -2135,7 +2092,7 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
     )
     with patch("fun_time.windows_bridge_startup.subprocess.Popen",
                return_value=FakeProc()) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs",
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs",
         return_value={"creationflags": 1},
     ):
         pid = launch_origenerator(
@@ -2196,7 +2153,7 @@ def test_hosting_a_worktree_runs_it_as_a_branch_session(tmp_path: Path):
     worktree = tmp_path / "origenerator" / ".claude" / "worktrees" / "my-branch"
     with patch("fun_time.windows_bridge_startup.subprocess.Popen",
                return_value=FakeProc()) as popen, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={},
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={},
     ):
         launch_origenerator(
             python_exe="C:/py/python.exe",
@@ -2234,7 +2191,7 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
         with patch(
             "fun_time.windows_bridge_startup.subprocess.Popen", return_value=_FakeProc(33),
         ) as popen, patch(
-            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+            "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={"creationflags": 1}
         ):
             proc = launch_audio_companion(
                 python_exe="C:/example/python.exe", audio_module="fun_time.audio_companion_app",

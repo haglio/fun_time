@@ -190,11 +190,6 @@ class ProjectConfig:
         return self.paths.broker_state_dir / state_files.BROKER_CMD
 
     @property
-    def broker_heartbeat_file(self) -> Path:
-        """Stamped every half second while the broker holds the serial port."""
-        return self.paths.broker_state_dir / state_files.BROKER_HEARTBEAT
-
-    @property
     def genau_cmd_file(self) -> Path:
         return self.paths.state_dir / state_files.GENAU_CMD
 

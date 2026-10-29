@@ -333,7 +333,7 @@ class TestRunStartupSequence:
 
         assert core_called["state_dir"] == tmp_path
         assert core_called["regen_metadata_root"] == tmp_path / "metadata"
-        assert core_called["broker_heartbeat_file"] == str(cfg.broker_heartbeat_file)
+        assert core_called["broker_state_dir"] == str(cfg.paths.broker_state_dir)
         assert core_called["broker_cmd_file"] == str(cfg.broker_cmd_file)
 
     def test_the_ui_launch_enables_the_dashboard_and_forwards_the_rfb_rect(self, cfg_factory, tmp_path):

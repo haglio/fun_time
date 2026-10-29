@@ -64,7 +64,7 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
         "portrait_playlist_file", "portrait_hud_file", "portrait_origenerator_hud_file",
         "landscape_cmd_file", "landscape_paused_file", "landscape_status_file",
         "landscape_playlist_file", "landscape_hud_file", "landscape_origenerator_hud_file",
-        "broker_cmd_file", "broker_heartbeat_file", "broker_state_dir",
+        "broker_cmd_file", "broker_state_dir",
         "broker_tray_launcher", "audio_paused_file", "audio_volume_file",
         "dashboard_state_file", "dashboard_cmd_file",
         "state_dir", "main_funestra_notice_file",

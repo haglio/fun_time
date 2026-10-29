@@ -400,7 +400,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # its cell format and on the run that carried its pages onto the records.
 # 5721 the same day: the history a spoken word is back-dated against moved to
 # funestra, and its notes went with it.
-MAX_PROSE_LINES = 5721
+# 5691 the same day: the Broker button, its press and the reader of the
+# broker's contract moved to funestra, and their notes went with them.
+MAX_PROSE_LINES = 5691
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

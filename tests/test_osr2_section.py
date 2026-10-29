@@ -9,26 +9,29 @@ from funestra.console import (
     OSR2_PARKED,
     OSR2_RETRACTED,
     console_text,
+    osr2_controls,
     read_console,
 )
 from funestra.console_hud import ConsoleHud, ConsolePainter, hud_xy
 from funestra.drive_layout import MAX_INTENSITY
 from funestra.drive_readout import DriveHud
 from funestra.hud_button import Button
-from funestra.hud_marks import BROKER_ICON, shared_mark
+from funestra.hud_marks import shared_mark
 from funestra.modes import MainMode, Osr2State
 from funestra.robot_hand import WaveformShape
 
 from fun_time.console_buttons import MainSlot, console_rows, osr2_rows
 from fun_time.main_funestra_console import osr2_state
-from fun_time.osr2_section import osr2_button, osr2_controls, osr2_part
+from fun_time.osr2_section import osr2_button, osr2_part
 from fun_time.room_funestras import RoomFunestra
 
 
 def _part(holder: RoomFunestra = RoomFunestra.MAIN, *, main_mode: MainMode = MainMode.KINO,
-          control: str = OSR2_DRIVING, learned: bool = False, shape: str = "sine"):
+          control: str = OSR2_DRIVING, learned: bool = False, shape: str = "sine",
+          broker: bool = True):
     return osr2_part(holder, main_mode=main_mode, osr2=Osr2State.ROBOT_HAND, control=control,
-                     paused=False, learned=learned, shape=shape, broker=True, max_intensity=100)
+                     paused=False, learned=learned, shape=shape, broker=broker,
+                     max_intensity=100)
 
 
 def _button(part, action: str) -> Button:
@@ -158,21 +161,9 @@ class TestTheReadoutTheWordLeaves:
 class TestTheBroker:
     """The device's own control: the broker that talks to the OSR2 at all."""
 
-    def test_is_a_control_and_says_which_way_a_press_goes(self):
-        (running,), (down,) = osr2_controls(broker=True), osr2_controls(broker=False)
-
-        assert running.command == down.command == "broker_panel"
-        assert running.lit is True
-        assert down.lit is False and down.warn is True
-        assert (running.tooltip, down.tooltip) == (
-            "Broker is running — press to stop it",
-            "Broker is not running — press to start it",
-        )
-
-    def test_asks_for_its_own_icon_rather_than_the_word(self):
-        (broker,) = osr2_controls(broker=True)
-
-        assert broker.glyph == BROKER_ICON
+    @pytest.mark.parametrize("running", [True, False])
+    def test_the_part_wears_funestras_broker_button_as_the_broker_stands(self, running):
+        assert _part(broker=running).osr2_controls == osr2_controls(broker_running=running)
 
 
 class TestTheOsr2Button:

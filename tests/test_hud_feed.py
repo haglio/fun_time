@@ -55,7 +55,6 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
         main_funestra_paused_file=tmp_path / "main_player_paused.txt",
         main_funestra_status_file=tmp_path / "main_player_status.txt",
         dashboard_state_file=tmp_path / "dashboard_state.ini",
-        broker_heartbeat_file=tmp_path / "broker_heartbeat.txt",
     )
     settings.update(overrides)
     return BridgeConfig(**settings)
@@ -488,7 +487,6 @@ class TestHudPublishing:
         feed = make_feed(tmp_path, config=make_config(
             tmp_path,
             broker_state_dir=broker_state,
-            broker_heartbeat_file=broker_state / "broker_heartbeat.txt",
         ))
         state = BridgeState()
 

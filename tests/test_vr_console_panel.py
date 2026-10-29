@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 
-from funestra.console import ConsoleModel, _row_width
+from funestra.console import ConsoleModel, _row_width, osr2_controls
 from funestra.console_hud import _PAD, ConsoleHud, ConsolePainter, ModeHud
 from funestra.drive_readout import DriveHud
 from funestra.hud_placement import HudEdge
@@ -11,7 +11,6 @@ from shared_ui.palette import AMBER, GREEN, RED, TEXT_MUTED, TEXT_PRIMARY
 
 from fun_time.console_buttons import MainSlot, console_rows
 from fun_time.event_log import FAVORITE, NOTICE
-from fun_time.osr2_section import osr2_controls
 from fun_time_vr.console_panel import PANEL_WIDTH_PX, level_color, panel_hangs_from
 
 
@@ -23,7 +22,7 @@ def _the_console_in(mode: str) -> ConsoleHud:
         console=ConsoleModel(main_mode=mode, locked=False,
                              rows=console_rows(MainSlot(main_mode=mode, locked=False),
                                                in_vr=True),
-                             osr2_controls=osr2_controls(broker=True)),
+                             osr2_controls=osr2_controls(broker_running=True)),
         drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine", position=1000,
                        advance_interval=10, waveform=tuple([0.5] * 80), trace_seconds=12.0),
     )

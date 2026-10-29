@@ -17,6 +17,8 @@ from app_support import osr2_device
 from app_support.file_channel import consume_command_file, read_flag
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import force_foreground_window, window_exists
+from funestra import broker
+from funestra.console import BROKER_PRESS
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, play_file
 from funestra.modes import NoticeLevel, read_mode
@@ -52,7 +54,6 @@ from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_SYSTEM, notice
 from .funestra_handover import PanelStamp, hand_back, let_go_since, panel_stamp
 from .funestra_settings import read_funestra_reports, with_what_the_funestras_report
 from .funestra_status import (
-    broker_is_running,
     origenerator_has_published,
     read_genau_status,
     read_main_funestra_status,
@@ -109,7 +110,6 @@ from .win32 import (
 from .window_layout import SecondaryMonitorRects
 from .window_roles import ORIGENERATOR_ROLE, visible_roles
 from .windows_bridge_random_favs_browser import open_rfb_tab
-from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 
 logger = logging.getLogger(__name__)
 
@@ -598,12 +598,8 @@ class DispatchLoopRunner:
                 ).start()
         elif cmd == BROWSE_LIBRARY_CLOSE:
             self._publish_panel(LIBRARY_OPEN_FILENAME, toggling=False)
-        elif cmd == "broker_panel":
-            threading.Thread(
-                target=self._handle_broker_toggle,
-                daemon=True,
-                name="broker-toggle",
-            ).start()
+        elif cmd == BROKER_PRESS:
+            broker.press(self.config.broker_state, self.config.broker_tray_launcher)
         # -- idempotent voice commands --
         elif cmd == "pause":
             if not self.state.omni_paused:
@@ -754,9 +750,6 @@ class DispatchLoopRunner:
             return
         self.windows.converge_origenerator_window(self.state.rfb_slot)
 
-    def _broker_is_running(self) -> bool:
-        return broker_is_running(self.config.broker_heartbeat_file, self.config.broker_state)
-
     def _publish_panel(self, filename: str, *, toggling: bool) -> None:
         path = Path(self.config.state_dir) / filename
         write_flag_file(path, toggling and not read_flag(path, default=False))
@@ -795,32 +788,14 @@ class DispatchLoopRunner:
         if message:
             notice(logger, message, source=SOURCE_MAIN)
 
-    def _handle_broker_toggle(self) -> None:
-        """Stop the broker if it is running, start it if it is not; only the
-        stopping half may kill."""
-        if self._broker_is_running():
-            stop_broker_processes(self.config.broker_tray_launcher)
-        else:
-            launch_broker_tray(self.config.broker_tray_launcher)
-
     def _handle_broker_start(self) -> None:
         """Start the broker if none is running: a start, never a restart."""
-        if not self._broker_is_running():
-            threading.Thread(
-                target=lambda: launch_broker_tray(self.config.broker_tray_launcher),
-                daemon=True,
-                name="broker-start",
-            ).start()
+        if not broker.is_running(self.config.broker_state):
+            broker.start(self.config.broker_tray_launcher)
 
     def _handle_broker_stop(self) -> None:
-        """Stop broker only if currently running."""
-        if self._broker_is_running():
-            threading.Thread(
-                target=lambda: stop_broker_processes(
-                    self.config.broker_tray_launcher),
-                daemon=True,
-                name="broker-stop",
-            ).start()
+        if broker.is_running(self.config.broker_state):
+            broker.stop(self.config.broker_state, self.config.broker_tray_launcher)
 
     def _handle_omniminimize(self) -> None:
         """Minimize the windows the modes show — the "omniminimize" command.
@@ -1036,8 +1011,8 @@ def _run_open_rfb_tab(runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 
 def _run_save_clip(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    # Slow work runs beside the loop, like the browse and the broker toggles;
-    # the thread flashes the result when the save lands.
+    # Slow work runs beside the loop, like the browse; the thread flashes the
+    # result when the save lands.
     runner._answers += 1
     threading.Thread(
         target=runner._handle_genaumacher_save,
@@ -1139,7 +1114,6 @@ def build_bridge_config_from_manifest(
         main_funestra_notice_file=Path(commands.main_funestra_notice_file),
         dashboard_state_file=Path(commands.dashboard_state_file),
         broker_cmd_file=Path(commands.broker_cmd_file),
-        broker_heartbeat_file=Path(commands.broker_heartbeat_file),
         broker_state_dir=Path(v) if (v := commands.broker_state_dir.strip()) else None,
         broker_tray_launcher=Path(v) if (v := commands.broker_tray_launcher.strip()) else None,
         regen_media_root=Path(v) if (v := manifest.regen.media_root.strip()) else None,

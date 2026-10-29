@@ -158,11 +158,9 @@ class TestLoadConfig:
         assert cfg.paths.broker_state_dir == broker_state
         assert cfg.paths.state_dir != broker_state
         assert [
-            cfg.broker_heartbeat_file,
             cfg.broker_cmd_file,
             cfg.broker_mode_file,
         ] == [
-            broker_state / "broker_heartbeat.txt",
             broker_state / "broker_cmd.txt",
             broker_state / "broker_mode.txt",
         ]
