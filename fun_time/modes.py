@@ -15,6 +15,7 @@ from .folder_listings import FolderListings
 from .media_metadata import (
     GroupIndex,
     build_group_index,
+    is_favorite,
     normalize_path_key,
     path_matches_query,
     recorded_duration_seconds,
@@ -138,24 +139,8 @@ def plays_in_f_mode(video_path: str, metadata_root: Path | None = None, *,
     return script.active_ms(duration_ms) >= LEAST_SCRIPTED_SHARE * duration_ms
 
 
-def read_favs_content(favs_file: Path) -> str:
-    try:
-        if not favs_file.exists():
-            return ""
-        return favs_file.read_text(encoding="utf-8")
-    except OSError:
-        return ""
-
-
-def is_favorite_path(video_path: str, favs_content: str) -> bool:
-    if not video_path or not favs_content:
-        return False
-    return video_path in favs_content
-
-
-def keep_favorites[P: (str, Path)](paths: Iterable[P], favs_file: Path) -> list[P]:
-    favs_content = read_favs_content(favs_file)
-    return [path for path in paths if is_favorite_path(str(path), favs_content)]
+def keep_favorites[P: (str, Path)](paths: Iterable[P], metadata_root: Path | None) -> list[P]:
+    return [path for path in paths if is_favorite(path, metadata_root)]
 
 
 def shuffle_paths(paths: list[str], *, rng: random.Random | None = None) -> list[str]:
@@ -311,13 +296,12 @@ def _collapse_recent(
 def satellite_narrowing(
     files: list[str],
     favorites_filter: bool,
-    favs_file: Path,
     *,
     filter_query: str = "",
     metadata_root: Path | None = None,
 ) -> list[str]:
     if favorites_filter:
-        files = keep_favorites(files, favs_file)
+        files = keep_favorites(files, metadata_root)
     # An act filter narrows to videos whose recorded act matches; it needs the
     # metadata root to reach each sidecar, so without it the filter is a no-op.
     if filter_query and metadata_root is not None:
@@ -328,14 +312,13 @@ def satellite_narrowing(
 def build_satellite_playlist_paths(
     source_spec: str,
     favorites_filter: bool,
-    favs_file: Path,
     *,
     filter_query: str = "",
     recent: bool = False,
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
 ) -> list[str]:
-    files = satellite_narrowing(collect_video_files(source_spec), favorites_filter, favs_file,
+    files = satellite_narrowing(collect_video_files(source_spec), favorites_filter,
                                 filter_query=filter_query, metadata_root=metadata_root)
     filtered = bool(filter_query) and metadata_root is not None
     # With a metadata root, both orders collapse to one slot per group: Latest
@@ -385,7 +368,6 @@ def build_one_satellite_playlist(
     *,
     sources: str,
     name: str,
-    favs_file: Path,
     state_dir: Path,
     favorites_filter: bool,
     recent: bool,
@@ -395,7 +377,7 @@ def build_one_satellite_playlist(
 ) -> None:
     """Build and write the playlist file a single satellite plays from."""
     paths = build_satellite_playlist_paths(
-        sources, favorites_filter, favs_file, filter_query=filter_query, recent=recent, rng=rng,
+        sources, favorites_filter, filter_query=filter_query, recent=recent, rng=rng,
         metadata_root=metadata_root,
     )
     write_playlist_file(build_playlist_file_path(state_dir, name), paths,
@@ -418,7 +400,6 @@ def build_satellite_playlists(
     *,
     portrait: SatelliteBuild,
     landscape: SatelliteBuild,
-    favs_file: Path,
     state_dir: Path,
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
@@ -427,12 +408,12 @@ def build_satellite_playlists(
     :class:`SatelliteBuild` (action-group collapse and watch weighting apply
     when *metadata_root* is given)."""
     build_one_satellite_playlist(
-        sources=portrait.sources, name=PLAYLIST_PORTRAIT, favs_file=favs_file,
+        sources=portrait.sources, name=PLAYLIST_PORTRAIT,
         state_dir=state_dir, favorites_filter=portrait.favorites_filter, recent=portrait.recent,
         filter_query=portrait.filter_query, rng=rng, metadata_root=metadata_root,
     )
     build_one_satellite_playlist(
-        sources=landscape.sources, name=PLAYLIST_LANDSCAPE, favs_file=favs_file,
+        sources=landscape.sources, name=PLAYLIST_LANDSCAPE,
         state_dir=state_dir, favorites_filter=landscape.favorites_filter, recent=landscape.recent,
         filter_query=landscape.filter_query, rng=rng, metadata_root=metadata_root,
     )

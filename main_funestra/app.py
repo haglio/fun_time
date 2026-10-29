@@ -68,7 +68,6 @@ def _genau(args):
         notices=NoticeWriter(args.notice_file),
         start_flick=Path(args.genau_start_flick) if args.genau_start_flick else None,
         latest=args.genau_latest,
-        favs_file=args.favs_file,
         f_mode=args.genau_f_mode,
         orientations=orientations_from(args.genau_orientations),
         metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,

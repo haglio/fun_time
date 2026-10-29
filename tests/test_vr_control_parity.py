@@ -191,7 +191,7 @@ def _genau_in_the_headset(tmp_path: Path) -> GenauInTheHeadset:
         flicks_folder=flicks, settings=GenauSettings(shuffle_on_load=False),
         channels=GenauChannels(command=state / "genau_cmd.txt", paused=state / "genau_paused.txt",
                                status=state / "genau_status.txt", drive=state / "genau_drive.txt"),
-        notifier=FakeNotifier(), tcode_sink=FakeSink(), favs_file=tmp_path / "favs.csv",
+        notifier=FakeNotifier(), tcode_sink=FakeSink(),
         decode=lambda _flick: [np.zeros((8, 16, 3), dtype=np.uint8)],
         start_thread=_every_thread_but_the_beats_reader_at_once)
 

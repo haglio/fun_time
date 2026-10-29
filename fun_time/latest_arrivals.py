@@ -61,7 +61,7 @@ class _ASatellite:
 
     def lets_through(self, paths: list[str]) -> list[str]:
         side = self.state.satellite(self.funestra)
-        return satellite_narrowing(paths, side.favorites_filter, self.config.favs_file,
+        return satellite_narrowing(paths, side.favorites_filter,
                                    filter_query=side.filter,
                                    metadata_root=self.config.regen_metadata_root)
 

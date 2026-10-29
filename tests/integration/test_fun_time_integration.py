@@ -24,7 +24,7 @@ from fun_time.funestra_status import (
     read_genau_status,
     read_main_funestra_status,
 )
-from fun_time.media_actions import remove_from_favs
+from fun_time.media_metadata import mark_favorite
 from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 from fun_time.shared_state import read_shared_state, shared_state_path
@@ -823,9 +823,9 @@ def _showing(side: SatelliteFiles) -> Path:
 def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     isolated_integration_session: FunTimeIntegrationSession,
 ):
-    """Every sample the isolated session links in is seeded into its favs.csv, so
-    the clip on screen is a favorite and discard demotes it: the row leaves the
-    list, the file stays in the library, and the clip stays in the rotation —
+    """Every sample the isolated session links in is marked a favorite on its
+    record, so the clip on screen is a favorite and discard demotes it: the mark
+    comes off, the file stays in the library, and the clip stays in the rotation —
     W then A comes straight back to it."""
     s = isolated_integration_session
     landscape = s.config.satellite(RoomFunestra.LANDSCAPE)
@@ -839,8 +839,8 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     assert demoted_path == Path(held.video).resolve()
 
     s.wait_until(
-        lambda: not s.favs_contains(demoted_path),
-        description="landscape sample to be removed from integration favs.csv",
+        lambda: not s.is_favorite(demoted_path),
+        description="landscape sample's favorite mark to come off its record",
     )
     assert demoted_path.exists(), "A demoted favorite must stay where it is"
     assert not any(p.name == demoted_path.name for p in s.weird_dir.iterdir())
@@ -884,7 +884,7 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
     held = published_status(read_satellite_status, status_file).video
     # Take the clip out of the favorites the way the app does, so the discard
     # below meets an ordinary library file rather than a favorite.
-    remove_from_favs(isolated_integration_session.favs_file, held)
+    mark_favorite(held, isolated_integration_session.config.regen.metadata_root, False)
 
     isolated_integration_session.write_dashboard_command("portrait_trash")
     chunk = isolated_integration_session.wait_for_new_log("Discarding from Funestra 2:")
@@ -893,8 +893,8 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
     trashed_path = Path(match.group(1).strip()).resolve()
 
     isolated_integration_session.wait_until(
-        lambda: not isolated_integration_session.favs_contains(trashed_path),
-        description="portrait sample to be removed from integration favs.csv",
+        lambda: not isolated_integration_session.is_favorite(trashed_path),
+        description="portrait sample to be no favorite",
     )
     isolated_integration_session.wait_until(
         lambda: any(p.name == trashed_path.name for p in isolated_integration_session.weird_dir.iterdir()),

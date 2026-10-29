@@ -55,7 +55,6 @@ class Genau:
         notices: NoticeWriter | None = None,
         start_flick: Path | None = None,
         latest: bool = False,
-        favs_file: Path | None = None,
         f_mode: bool = False,
         orientations: Included = BOTH,
         metadata_root: Path | None = None,
@@ -69,7 +68,6 @@ class Genau:
         self._flicks_folder = Path(flicks_folder)
         self._settings = settings
         self._recent = latest
-        self._favs_file = favs_file
         self._f_mode = f_mode
         self._orientations = orientations
         self._metadata_root = metadata_root
@@ -200,9 +198,9 @@ class Genau:
         return flicks
 
     def _favorites_of(self, flicks: list[Path]) -> list[Path]:
-        if not self._f_mode or self._favs_file is None:
+        if not self._f_mode or self._metadata_root is None:
             return flicks
-        return keep_favorites(flicks, self._favs_file)
+        return keep_favorites(flicks, self._metadata_root)
 
     def _rescan(self, recent: bool) -> list[Path]:
         self._recent = recent

@@ -24,6 +24,7 @@ from fun_time.bridge_records import BridgeConfig
 from fun_time.crown import Crown
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
+from fun_time.media_metadata import load_metadata, mark_favorite, metadata_path_for
 from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_button, osr2_part_path
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, SatelliteState
@@ -597,11 +598,13 @@ class TestHudPublishing:
 
     def test_each_sides_panel_says_whether_its_own_clip_is_a_favorite(self, tmp_path):
         """The dashboard's panel used to say this by turning green; the HUD marks
-        it, so the loop has to judge each Funestra's clip against the favs file."""
+        it, so the loop has to judge each Funestra's clip against its record."""
         feed, state = make_feed(tmp_path), BridgeState()
-        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
-        publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
-        feed.config.favs_file.write_text("local,C:/v/p.mp4,web\n", encoding="utf-8")
+        feed.config.regen_metadata_root = tmp_path / "metadata"
+        portrait, landscape = tmp_path / "v" / "p.mp4", tmp_path / "v" / "l.mp4"
+        publish_satellite_status(tmp_path / "portrait_status.txt", str(portrait))
+        publish_satellite_status(tmp_path / "landscape_status.txt", str(landscape))
+        mark_favorite(portrait, feed.config.regen_metadata_root, True)
 
         feed.publish(state)
 
@@ -610,22 +613,24 @@ class TestHudPublishing:
         assert portrait["is_favorite"] is True
         assert landscape["is_favorite"] is False
 
-    def test_the_favorites_file_is_re_read_only_when_it_moves(self, tmp_path):
+    def test_a_clips_record_is_re_read_only_when_it_moves(self, tmp_path):
         """Every publish asks the question, ~7x a second for the whole session,
-        while the list itself moves a few times an hour — so the read is gated on
-        the file actually having changed, and picks the change up when it does."""
+        while a record moves a few times an hour — so the read is gated on the
+        file actually having changed, and picks the change up when it does."""
         feed, state = make_feed(tmp_path), BridgeState()
-        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
-        favs = feed.config.favs_file
-        favs.write_text("local,C:/v/other.mp4,web\n", encoding="utf-8")
+        feed.config.regen_metadata_root = tmp_path / "metadata"
+        video = tmp_path / "v" / "p.mp4"
+        publish_satellite_status(tmp_path / "portrait_status.txt", str(video))
+        record = metadata_path_for(video, feed.config.regen_metadata_root)
+        record.parent.mkdir(parents=True)
+        record.write_text('{"video": {}}', encoding="utf-8")
 
-        with patch("fun_time.hud_feed.read_favs_content",
-                   side_effect=lambda path: path.read_text(encoding="utf-8")) as read:
+        with patch("fun_time.hud_feed.load_metadata", side_effect=load_metadata) as read:
             feed.publish(state)
             feed.publish(state)
-            assert read.call_count == 1, "an unmoved file is not read again"
+            assert read.call_count == 1, "an unmoved record is not read again"
 
-            favs.write_text("local,C:/v/p.mp4,web\nlocal,C:/v/other.mp4,web\n", encoding="utf-8")
+            mark_favorite(video, feed.config.regen_metadata_root, True)
             feed.publish(state)
             assert read.call_count == 2
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app_support import osr2_device
+from app_support import favorites, osr2_device
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra.console import console_text
 from funestra.drive_readout import read_drive
@@ -34,8 +34,8 @@ from .funestra_status import (
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SatelliteInputs, build_satellite_panel
 from .main_funestra_console import MainSlotInputs, console_model, osr2_state
+from .media_metadata import load_metadata, metadata_path_for
 from .media_renditions import renditions
-from .modes import is_favorite_path, read_favs_content
 from .osr2_section import (
     DASHBOARD_OSR2_PART,
     DeviceBlock,
@@ -54,6 +54,28 @@ from .ten_second_steps import longer_than_a_step
 PUBLISH_INTERVAL_S = 0.15
 
 
+class _RecordedFavorites:
+    """Whether a video is a favorite, each record re-read only once it has moved:
+    every publish asks it of the clip on screen, ~7x a second."""
+
+    def __init__(self) -> None:
+        self._read: dict[Path, tuple[tuple[int, int], bool]] = {}
+
+    def of(self, video: str, metadata_root: Path | None) -> bool:
+        record = metadata_path_for(video, metadata_root) if video else None
+        if record is None:
+            return False
+        try:
+            stat = record.stat()
+        except OSError:
+            return False
+        stamp = (stat.st_mtime_ns, stat.st_size)
+        read = self._read.get(record)
+        if read is None or read[0] != stamp:
+            read = self._read[record] = (stamp, favorites.is_favorite(load_metadata(record)))
+        return read[1]
+
+
 class HudFeed:
     """Builds both satellites' panels and the console, and publishes them."""
 
@@ -61,10 +83,7 @@ class HudFeed:
         self.config = config
         self.publisher = publisher
         self._last_publish = 0.0
-        # The favorites list, and the stat that says whether it has moved (see
-        # _favs_content) — every publish asks whether the clip on screen is on it.
-        self._favs_text = ""
-        self._favs_stamp: tuple[int, int] | None = None
+        self._favorites = _RecordedFavorites()
         self._last_satellite_status: dict[str, SatelliteStatus] = {}
         self._hosted_panels: dict[RoomFunestra, HudModel | None] = {}
 
@@ -83,7 +102,6 @@ class HudFeed:
         """
         if self.publisher is None:
             return
-        favs = self._favs_content()
         genau = read_genau_status(self.config.genau_status_file)
         broker = broker_is_running(self.config.broker_heartbeat_file, self.config.broker_state)
         osr2_mode, osr2_trouble = self.osr2_mode(), self.osr2_trouble()
@@ -114,7 +132,7 @@ class HudFeed:
                 nav_anchor=values.nav_anchor,
                 latest=values.latest,
                 favorites_filter=values.favorites_filter,
-                is_favorite=is_favorite_path(current, favs),
+                is_favorite=self._favorites.of(current, self.config.regen_metadata_root),
                 nothing_to_reset=satellite_at_defaults(values, status),
                 has_other_versions=bool(renditions(current, self.config.regen_media_root)),
                 longer_than_a_step=longer_than_a_step(status.duration_ms),
@@ -210,23 +228,6 @@ class HudFeed:
         drive = read_drive(self.config.genau_drive_file)
         return drive.advance_interval if drive is not None else 0
 
-    def _favs_content(self) -> str:
-        """The favorites file, re-read only when it has actually changed.
-
-        Each HUD publish asks whether the clip on screen is a favorite, ~7x a
-        second for the life of the session; the list itself moves a handful of
-        times an hour, so gate the read on the file's mtime and size and keep the
-        text between changes.
-        """
-        try:
-            stat = self.config.favs_file.stat()
-            stamp = (stat.st_mtime_ns, stat.st_size)
-        except OSError:
-            stamp = None
-        if stamp != self._favs_stamp:
-            self._favs_stamp = stamp
-            self._favs_text = read_favs_content(self.config.favs_file)
-        return self._favs_text
 
     def _satellite_status(self, funestra: str, status_file: Path) -> SatelliteStatus:
         """What *Funestra* last said about itself, held over a read that comes back

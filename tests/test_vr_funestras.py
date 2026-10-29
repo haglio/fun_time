@@ -430,7 +430,6 @@ class TestGenauOnTheMainFunestra:
 
         handed = built.fakes["GenauInTheHeadset"].call_args.kwargs
         assert handed["f_mode"] is True
-        assert handed["favs_file"] == Path(built.manifest.media.favs_file)
 
     def test_its_robot_hand_reaches_the_osr2_through_the_brokers_slot(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path)

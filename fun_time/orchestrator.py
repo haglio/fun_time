@@ -67,8 +67,6 @@ def require_dir(path: Path) -> None:
 def ensure_runtime_files(config) -> None:
     config.paths.state_dir.mkdir(parents=True, exist_ok=True)
     config.paths.weird_dir.mkdir(parents=True, exist_ok=True)
-    config.paths.favs_file.parent.mkdir(parents=True, exist_ok=True)
-    config.paths.favs_file.touch(exist_ok=True)
     config.random_favs_browser_manifest_file.touch(exist_ok=True)
 
 
