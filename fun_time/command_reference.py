@@ -202,8 +202,8 @@ _SECTIONS: tuple[_Section, ...] = (
                 "\"portrait requests\"), the show's controls "
                 "(\"landscape play slideshow\", \"portrait stop slideshow\"), "
                 "a targeted fix (\"portrait fix teeth\"), \"genau\" to "
-                f"animate the picture as a Genau {_FLICK.one}, or \"enhanced only\" to "
-                "keep just the pictures the show has enhanced.  In this mode the "
+                f"animate the image as a Genau {_FLICK.one}, or \"enhanced only\" to "
+                "keep just the images the show has enhanced.  In this mode the "
                 "side's own \"shuffle\", \"latest\", \"trash\" and \"no filter\" reach the "
                 "show too",
                 (),
@@ -270,7 +270,7 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             _Row(
                 "Park the OSR2, OSR2 control off: it settles home and is held "
-                "there, and while the OSR2 is switched on Genau's picture goes "
+                f"there, and while the OSR2 is switched on Genau's {_FLICK.one} goes "
                 "there with it.  A funscript stands down for it too.  Unlike "
                 "OmniPause the room plays on, the motion included, unheard "
                 "until OSR2 control is on again",
@@ -299,7 +299,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("genau_lock",),
             ),
             _Row(
-                f"Flip the Genau {_FLICK.one} half a loop, for a picture running opposite the "
+                f"Flip the Genau {_FLICK.one} half a loop, for one running opposite the "
                 "OSR2 — it stays flipped, and saying it again puts it back",
                 (),
                 ("genau_flip_ends",),
@@ -341,13 +341,13 @@ _SECTIONS: tuple[_Section, ...] = (
                 "Cycle the video's VR projection — flat screen, equirectangular, "
                 "fisheye, stereographic, equisolid, rectilinear, 360 — remembered per "
                 "video; a controller's stick pushed right or left steps forward or "
-                "back through them, and while the picture wraps the view its up and "
-                "down shortens or stretches the picture (FunTimeVR)",
+                "back through them, and while the video wraps the view its up and "
+                "down shortens or stretches the video (FunTimeVR)",
                 ("P",),
                 ("projection_cycle", "projection_cycle_back"),
             ),
             _Row(
-                "Narrow / widen the angle a wrapped VR picture spans, remembered per "
+                "Narrow / widen the angle a wrapped VR video spans, remembered per "
                 "video (FunTimeVR)",
                 ("Alt+Left", "Alt+Right"),
                 ("projection_narrower", "projection_wider"),
@@ -396,8 +396,8 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             _Row(
                 "Move this Funestra's panel — one key each way round the corners "
-                "of the picture, or round the sides of the Funestra in the headset. "
-                "A click in a corner of the picture sends it there and opens it, "
+                "of the Funestra, or round the sides of the Funestra in the headset. "
+                "A click in a corner of the Funestra sends it there and opens it, "
                 "and so does a squeeze beside a side of the Funestra in the headset",
                 ("Ctrl+[", "Ctrl+]"),
                 ("main_hud_counterclockwise", "main_hud_clockwise"),
@@ -528,9 +528,9 @@ _SECTIONS: tuple[_Section, ...] = (
                 hotkeys_alt=("Shift+W", "Shift+S"),
             ),
             _Row(
-                "Move this Funestra's HUD — round the corners of its picture, or "
+                "Move this Funestra's HUD — round the corners of the Funestra, or "
                 "against a side of its Funestra in the headset. A click in a corner "
-                "of the picture sends it there and opens it, and so does a squeeze "
+                "of the Funestra sends it there and opens it, and so does a squeeze "
                 "beside a side of the Funestra in the headset",
                 ("Ctrl+Left", "Ctrl+Right", "Ctrl+Up", "Ctrl+Down"),
                 ("portrait_hud_left", "portrait_hud_right",

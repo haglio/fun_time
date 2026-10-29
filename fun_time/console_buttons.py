@@ -216,7 +216,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
                lit=slot.f_mode, favorite=True),
         Button("genau_flip_ends", FLIP_ENDS_ICON,
                f"Flipped — this {flick.one} stays that way; press to put it back" if slot.flipped
-               else f"Flip this {flick.one}, for a picture running opposite the OSR2 — it stays flipped",
+               else f"Flip this {flick.one}, for one running opposite the OSR2 — it stays flipped",
                lit=slot.flipped, group_break=True),
         Button("genau_weird_flick", TRASH_ICON, "Mark weird — move it out", danger=True),
         *browse_order_buttons("main", latest=slot.latest),
