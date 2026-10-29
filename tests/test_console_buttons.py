@@ -136,7 +136,7 @@ class TestTransport:
         assert held["main_lock"] == "Locked — this pip repeats; press to move on every 7s"
         assert loose["main_lock"] == "Unlocked — moving on every 7s; press to hold this pip"
         assert tips(flipped=True)["genau_flip_ends"] == "Flipped — this pip stays that way; press to put it back"
-        assert tips()["genau_flip_ends"] == ("Flip this pip, for a picture running opposite the OSR2 — "
+        assert tips()["genau_flip_ends"] == ("Flip this pip, for one running opposite the OSR2 — "
                                              "it stays flipped")
 
 
