@@ -25,6 +25,7 @@ _FILLED = SatelliteChannels(
     drive=Path("state/genau_drive.txt"),
     osr2_sender="portrait",
     osr2_port=50558,
+    osr2_readout=Path("state/portrait_osr2_readout.txt"),
 )
 
 _PLACED = WindowPlacement(x=2560, y=0, width=1440, height=2500,

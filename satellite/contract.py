@@ -27,6 +27,7 @@ CHANNELS = (
     ("tcode_port", None, None),
     ("osr2_sender", "--osr2-sender", None),
     ("osr2_port", "--osr2-port", None),
+    ("osr2_readout", "--osr2-readout-file", None),
 )
 
 PLACEMENT = (
@@ -58,6 +59,8 @@ def _argv(record, table) -> list[str]:
 class SatelliteChannels(Channels):
     """The files a Funestra is driven through, as a satellite is launched with them."""
 
+    osr2_readout: Path | None = None
+
     @classmethod
     def from_args(cls, args) -> SatelliteChannels:
         # Spelled out rather than read off CHANNELS: the dead-code gate asks
@@ -73,6 +76,7 @@ class SatelliteChannels(Channels):
             drive=args.drive_file,
             osr2_sender=args.osr2_sender,
             osr2_port=args.osr2_port,
+            osr2_readout=args.osr2_readout_file,
         )
 
     @classmethod

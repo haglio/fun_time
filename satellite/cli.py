@@ -39,6 +39,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="The name this Funestra's funscript reaches the OSR2 under, "
                         "through the broker's one slot, while it has the OSR2")
     p.add_argument("--osr2-port", type=int, default=None)
+    p.add_argument("--osr2-readout-file", type=Path, default=None,
+                   help="Where this Funestra hands on the motion it composes while it "
+                        "has the OSR2, for the Dashboard to draw")
     p.add_argument("--dashboard-cmd-file", type=Path, default=None,
                    help="Where a click on the lock HUD, or on the picture itself, "
                         "posts its fun_time command")
