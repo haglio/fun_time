@@ -256,6 +256,56 @@ class TestAWindowThatHasStoppedAnswering:
             answering.set()  # the window starts taking messages again
             assert landed.wait(5), "the call the caller gave up on never happened"
 
+    def test_a_window_that_is_not_answering_takes_its_calls_in_the_order_they_were_made(
+            self, monkeypatch):
+        """When the window takes messages again, Windows wakes every call waiting
+        on it at once and whichever thread runs first lands first: a demotion made
+        before a promotion then lands after it, 8 times in 200 on a real stalled
+        window, and the Funestra sits out of the band a pause and a resume put it
+        back in.  So a window is sent its next call only once the last has landed."""
+        monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.05)
+        monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
+        answering = threading.Event()
+        both_landed = threading.Event()
+        happened: list[str] = []
+
+        def place(_hwnd, insert_after, *_args):
+            band = "on top" if insert_after is HWND_TOPMOST else "not on top"
+            happened.append(f"{band} sent")
+            answering.wait(10)
+            happened.append(f"{band} landed")
+            if len(happened) == 4:
+                both_landed.set()
+
+        with patch("fun_time.win32._user32") as mock:
+            mock.SetWindowPos.side_effect = place
+            set_always_on_top(111, False)
+            set_always_on_top(111, True)
+            answering.set()
+            assert both_landed.wait(5), f"only {happened} happened"
+
+        assert happened == ["not on top sent", "not on top landed", "on top sent", "on top landed"]
+
+    def test_a_call_that_fails_is_named_and_holds_up_none_of_the_windows_later_calls(
+            self, monkeypatch, caplog):
+        monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.5)
+        monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
+        placed: list = []
+
+        def place(_hwnd, insert_after, *_args):
+            if insert_after is HWND_NOTOPMOST:
+                raise OSError("the window went away")
+            placed.append(insert_after)
+
+        with patch("fun_time.win32._user32") as mock, \
+                caplog.at_level(logging.ERROR, logger="fun_time.win32"):
+            mock.SetWindowPos.side_effect = place
+            set_always_on_top(222, False)
+            set_always_on_top(222, True)
+
+        assert placed == [HWND_TOPMOST]
+        assert "set_always_on_top(222, False)" in caplog.text
+
 
 class TestActivateWindow:
     def test_activating_asks_windows_to_bring_it_to_the_foreground(self):
