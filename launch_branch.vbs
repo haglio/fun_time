@@ -4,7 +4,7 @@
 
 Option Explicit
 
-Dim fso, shell, root, app, interpreter, directory, arguments, base, updater, gates, held(), checkout, label, logPath, readyFile, exitedFlag, notePath, noteText, screenFolder, screenUp
+Dim fso, shell, root, app, interpreter, directory, arguments, base, updater, gates, held(), checkout, label, logPath, readyFile, exitedFlag, notePath, noteText, screenFolder, screenUp, picturesFolder
 
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
@@ -29,6 +29,7 @@ Sub Decide()
   exitedFlag = fso.BuildPath(checkout, "state\launcher.exited")
   notePath = fso.BuildPath(checkout, "state\branch_out_of_date.txt")
   screenFolder = fso.BuildPath(checkout, "state\launcher.screen")
+  picturesFolder = fso.BuildPath(root, "state\launcher.screen\preview")
   arguments = "-m fun_time.branch_session """ & checkout & """"
   For index = 1 To WScript.Arguments.Count - 1
     Select Case LCase(WScript.Arguments(index))
@@ -39,6 +40,7 @@ Sub Decide()
         exitedFlag = fso.BuildPath(checkout, "state\vr_launcher.exited")
         notePath = fso.BuildPath(checkout, "state\branch_out_of_date.txt")
         screenFolder = fso.BuildPath(checkout, "state\vr_launcher.screen")
+        picturesFolder = fso.BuildPath(root, "state\vr_launcher.screen\preview")
         arguments = arguments & " --vr"
       Case Else
         If index = 1 Then label = WScript.Arguments(index)
@@ -73,6 +75,7 @@ Sub Report()
   Next
   WScript.Echo "loading screen: " & LoadingScreen()
   WScript.Echo "screen: " & screenFolder
+  WScript.Echo "pictures: " & picturesFolder
 End Sub
 
 Sub Launch()
@@ -179,13 +182,14 @@ End Function
 Sub ShowLoadingScreen()
   Dim name
   shell.Environment("Process").Item("HAGLIO_LOADING_SCREEN") = screenFolder
+  shell.Environment("Process").Item("HAGLIO_LOADING_SCREEN_PICTURES") = picturesFolder
   shell.Environment("Process").Item("HAGLIO_LOADING_SCREEN_LINES") = "[""Updating Fun Time..."", ""Updating Origenerator...""]"
   If Not fso.FolderExists(fso.GetParentFolderName(screenFolder)) Then fso.CreateFolder fso.GetParentFolderName(screenFolder)
   If Not fso.FolderExists(screenFolder) Then fso.CreateFolder screenFolder
   For Each name In Array("shown.json", "taken", "started", "ended", "canceled", "updated")
     If fso.FileExists(fso.BuildPath(screenFolder, name)) Then fso.DeleteFile fso.BuildPath(screenFolder, name)
   Next
-  If fso.FileExists(updater) And fso.FileExists(fso.BuildPath(screenFolder, "pictures.json")) Then
+  If fso.FileExists(updater) And fso.FileExists(fso.BuildPath(picturesFolder, "pictures.json")) Then
     shell.Run LoadingScreen(), 1, False
     screenUp = True
   End If
