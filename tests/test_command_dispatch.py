@@ -496,8 +496,8 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
 
 def test_portrait_trash_queues_a_trash_verb_and_condemns_the_clip(tmp_path: Path):
     """An unlocked discard queues a bare TRASH (the native Funestra drops the
-    current clip and plays the next) and condemns the clip — favs removal +
-    weird, this clip not being a favorite (``test_lock`` covers that branch)."""
+    current clip and plays the next) and condemns the clip — unfavorited and
+    moved to weird, this clip not being a favorite (``test_lock`` covers that branch)."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=False))
 
@@ -5069,7 +5069,7 @@ class TestALockOnAHostedSide:
     @pytest.mark.parametrize("kept_for_kino", [False, True])
     def test_a_pressed_lock_locks_the_funestra_and_leaves_the_rest_to_the_hosted_app(
             self, kept_for_kino, funestra_locked, tmp_path):
-        config = _origenerator_config(tmp_path)
+        config = replace(_origenerator_config(tmp_path), regen_metadata_root=tmp_path / "metadata")
         image = tmp_path / "scene one.png"
         image.write_text("x", encoding="utf-8")
         _set_current(config, RoomFunestra.PORTRAIT, str(image), locked=funestra_locked)
@@ -5081,7 +5081,7 @@ class TestALockOnAHostedSide:
         assert _cmds(config, RoomFunestra.PORTRAIT) == ["LOCK_ON"]
         assert _origenerator_cmds(config) == ["portrait_lock"]
         assert (ops, state.satellite(RoomFunestra.PORTRAIT).locked) == ([], kept_for_kino)
-        assert config.favs_file.read_text(encoding="utf-8") == "local_file,web_url\n"
+        assert not metadata_path_for(image, config.regen_metadata_root).exists()
         assert not (config.state_dir / "watch_stats.json").exists()
 
     def test_a_spoken_lock_brings_back_the_image_up_when_he_began_and_locks_that(
@@ -5281,8 +5281,8 @@ def _favorite_clip(tmp_path: Path, config, name: str) -> Path:
 
 
 def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path, caplog):
-    """Discarding a favorite demotes it instead of condemning it: the row leaves
-    the favs list, and nothing else about the clip changes."""
+    """Discarding a favorite demotes it instead of condemning it: its record
+    stops marking it a favorite, and nothing else about the clip changes."""
     config = _make_config(tmp_path)
     video = _favorite_clip(tmp_path, config, "kept.mp4")
     _set_current(config, 3, str(video))
