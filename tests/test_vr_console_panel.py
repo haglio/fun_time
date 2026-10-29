@@ -64,7 +64,7 @@ class TestTheHeldWidth:
 
 class TestWhichSideTheConsoleHangsOn:
     """The keys move this panel round the sides of the Main Funestra.  A video that
-    wraps the viewer leaves no picture edge to hang against, so there it hangs
+    wraps the viewer leaves no edge to hang against, so there it hangs
     under the dashboard as it always has."""
 
     def test_it_takes_the_side_its_keys_named(self):

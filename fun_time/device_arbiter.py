@@ -148,7 +148,7 @@ class DeviceArbiter:
     def _holding_for_park_touch(self, status: ScriptedStatus) -> bool:
         """Whether the hand-to-script flip still waits for the touch-down the holder's
         trace drew its blue ending on -- one chooser, so the device cannot stop at a
-        different trough than the picture drew; capped so a stalled playhead cannot
+        different trough than the trace drew; capped so a stalled playhead cannot
         hold it forever."""
         touch = status.handoff_touch_ms
         if touch is None or status.position_ms >= touch:

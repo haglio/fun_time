@@ -153,7 +153,7 @@ e::QueueCommand("landscape_loop")
 +w::QueueCommand("landscape_nav_up")
 +s::QueueCommand("landscape_nav_down")
 ; Where each Funestra's HUD sits.  Ctrl and the side's own step keys move that
-; Funestra's HUD: round the four corners of its picture on the desktop, against a
+; Funestra's HUD: round the four corners of its item on the desktop, against a
 ; side of its Funestra in the headset.  The Main Funestra has one pair of keys
 ; rather than a cluster, so its HUD walks the ring: Ctrl+[ against the clock,
 ; Ctrl+] with it.  The bracket scancodes are bound beside the characters for the

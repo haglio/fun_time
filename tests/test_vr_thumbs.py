@@ -149,8 +149,8 @@ def test_the_stick_coming_back_to_rest_settles_what_it_moved_once():
     assert not resting.settled
 
 
-class TestDialingAWrappedPicture:
-    def test_either_sticks_up_and_down_stretches_the_picture_and_sizes_no_funestra(self):
+class TestDialingAWrappedFrame:
+    def test_either_sticks_up_and_down_stretches_the_frame_and_sizes_no_funestra(self):
         for hands in (_hands(left=HandInput(stick_y=-1.0)), _hands(right=HandInput(stick_y=-1.0))):
             thumb = Thumbs().frame(hands, _Squeeze(), elapsed_s=0.5, dialing=True)
 
@@ -164,7 +164,7 @@ class TestDialingAWrappedPicture:
 
         assert thumb.stretch == pytest.approx(2.0 ** (0.5 * DOUBLINGS_PER_S * DIALING_SHARE))
 
-    def test_pushing_away_shortens_the_picture_and_pulling_back_stretches_it(self):
+    def test_pushing_away_shortens_the_frame_and_pulling_back_stretches_it(self):
         away = Thumbs().frame(
             _hands(right=HandInput(stick_y=1.0)), _Squeeze(), elapsed_s=0.5, dialing=True)
         back = Thumbs().frame(
@@ -194,7 +194,7 @@ class TestDialingAWrappedPicture:
         assert thumb.commands == ("projection_cycle",)
         assert thumb.stretch == 1.0
 
-    def test_without_a_wrapped_picture_either_stick_sizes_a_funestra_as_before(self):
+    def test_without_a_wrapped_frame_either_stick_sizes_a_funestra_as_before(self):
         thumb = Thumbs().frame(_hands(left=HandInput(stick_y=-1.0)), _Squeeze(), elapsed_s=0.5)
 
         assert thumb.grow == pytest.approx(2.0 ** (0.5 * DOUBLINGS_PER_S))

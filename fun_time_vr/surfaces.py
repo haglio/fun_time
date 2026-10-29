@@ -1,5 +1,5 @@
 """The two surfaces a headset gives a Funestra: the panel as a bitmap to hang
-beside the picture, and a User's own picture as a frame to hang in the slot."""
+beside the item, and a User's own frames to hang in the slot."""
 from __future__ import annotations
 
 import threading
@@ -50,20 +50,20 @@ class PanelBitmap:
         return left + px, top + py
 
 
-class LatestPicture:
+class LatestFrame:
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._picture: Picture | None = None
+        self._flick_frame: Picture | None = None
 
-    def show(self, picture: Picture, _window: tuple[int, int]) -> None:
+    def show(self, flick_frame: Picture, _window: tuple[int, int]) -> None:
         with self._lock:
-            self._picture = picture
+            self._flick_frame = flick_frame
 
     def hide(self) -> None:
         with self._lock:
-            self._picture = None
+            self._flick_frame = None
 
     @property
-    def picture(self) -> Picture | None:
+    def flick_frame(self) -> Picture | None:
         with self._lock:
-            return self._picture
+            return self._flick_frame

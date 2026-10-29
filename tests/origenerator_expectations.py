@@ -46,11 +46,11 @@ EXPECTATIONS = Path(__file__).with_suffix(".json")
 # app's to answer, and answered by nothing over there.  Keyed by what the line
 # says after the side.
 LEFT_UNANSWERED: dict[str, str] = {
-    "wrong_action": "a show's picture carries no act label to strike, and the app "
+    "wrong_action": "a show's image carries no act label to strike, and the app "
                     "refuses the strike on purpose",
-    "nudge_next": "a show holds each picture or video for as long as its own pace "
+    "nudge_next": "a show holds each image or video for as long as its own pace "
                   "says, and has no ten-second step through one",
-    "nudge_prev": "a show holds each picture or video for as long as its own pace "
+    "nudge_prev": "a show holds each image or video for as long as its own pace "
                   "says, and has no ten-second step through one",
 }
 

@@ -1,4 +1,4 @@
-"""The headset's main picture is painted at a 60fps video's own rate: every
+"""The headset's main screen is painted at a 60fps video's own rate: every
 frame the engine decodes reaches the texture, not every other one."""
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ PAINTED_PER_S_AT_LEAST = 45
 MEASURING_GIVES_UP_AFTER_S = 60.0
 
 
-def _pictures_shown(video, target: RenderTarget, *, seconds: float) -> tuple[int, float, float]:
+def _frames_shown(video, target: RenderTarget, *, seconds: float) -> tuple[int, float, float]:
     shown = 0
     period = 1.0 / HEADSET_HZ
     began = time.monotonic()
@@ -46,7 +46,7 @@ def _pictures_shown(video, target: RenderTarget, *, seconds: float) -> tuple[int
         return shown, on_time.seconds(), time.monotonic() - began
 
 
-def test_the_main_picture_is_painted_at_a_sixty_fps_videos_own_rate():
+def test_the_main_frame_is_painted_at_a_sixty_fps_videos_own_rate():
     pattern = clip_of_a_test_pattern(build_integration_temp_root() / "sixty_fps_test_pattern.mp4",
                                      size="1280x720", seconds=VIDEO_SECONDS, rate=VIDEO_FPS)
     assert glfw.init(), "glfw failed to initialize"
@@ -59,7 +59,7 @@ def test_the_main_picture_is_painted_at_a_sixty_fps_videos_own_rate():
         video.engine.load(pattern)
         wait_for(lambda: video.show_newest(target), desc="the video's first painted frame")
         with ahead_of_background_work():
-            shown, on_time_s, wall_s = _pictures_shown(video, target, seconds=MEASURED_S)
+            shown, on_time_s, wall_s = _frames_shown(video, target, seconds=MEASURED_S)
     finally:
         video.close()
         target.close()
@@ -67,9 +67,9 @@ def test_the_main_picture_is_painted_at_a_sixty_fps_videos_own_rate():
         glfw.terminate()
     assert on_time_s >= MEASURED_S, (
         f"in {wall_s:.0f}s the run had the processor on time for only {on_time_s:.1f}s, "
-        "so the picture's rate was never measured")
+        "so the frame's rate was never measured")
     per_second = shown / on_time_s
     assert per_second >= PAINTED_PER_S_AT_LEAST, (
-        f"the main picture was painted {per_second:.0f} times a second for a {VIDEO_FPS}fps "
-        f"video: {shown} pictures in the {on_time_s:.1f}s of {wall_s:.1f}s the run had the "
+        f"the main screen was painted {per_second:.0f} times a second for a {VIDEO_FPS}fps "
+        f"video: {shown} frames in the {on_time_s:.1f}s of {wall_s:.1f}s the run had the "
         "processor on time")

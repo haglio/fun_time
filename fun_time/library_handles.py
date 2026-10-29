@@ -69,7 +69,7 @@ class LibraryHandle:
 
         An upscale runs to hundreds of megabytes of HEVC where the original it
         came from is a couple of megabytes of H.264: minutes rather than seconds
-        to decode a frame out of, for the same picture.
+        to decode a frame out of, for the same video.
         """
         return self.versions[-1]
 

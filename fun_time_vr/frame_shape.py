@@ -11,7 +11,7 @@ MOSTLY = 0.8
 # past the circle is black; a studio's mark, where there is one, sits further
 # out in the corner.
 _JUST_PAST_THE_CIRCLE = (1.05, 1.25)
-# The ring a fisheye's picture still reaches whatever its circle's exact size, and
+# The ring a fisheye's frame still reaches whatever its circle's exact size, and
 # a dim scene fading toward its edges does not.
 _JUST_INSIDE_THE_CIRCLE = (0.80, 0.93)
 

@@ -49,9 +49,9 @@ class HudToggle:
         self._painted: np.ndarray | None = None
         self._tip_painted: np.ndarray | None = None
 
-    def hang(self, outside, picture: Placement, aspect: float, *, edge: HudEdge) -> None:
+    def hang(self, outside, item: Placement, aspect: float, *, edge: HudEdge) -> None:
         self._outside = outside
-        placement = attached_to(edge, picture, aspect=aspect, width_deg=BUTTON_DEG,
+        placement = attached_to(edge, item, aspect=aspect, width_deg=BUTTON_DEG,
                                 hanging_aspect=1.0, gap_deg=HUD_GAP_DEG)
         self._button = Screen(toggle_screen_name(self._screen_name), placement, 1.0,
                               pressable=True)
@@ -77,11 +77,11 @@ class HudToggle:
     def hangings(self) -> tuple[Hanging, ...]:
         if self._button is None:
             return ()
-        button = Hanging(self._button, mesh=self._mesh, picture=self._texture, blend=True,
+        button = Hanging(self._button, mesh=self._mesh, frame=self._texture, blend=True,
                          forward_with=self._screen_name)
         if self._tip is None:
             return (button,)
-        return (button, Hanging(self._tip, mesh=self._tip_mesh, picture=self._tip_texture,
+        return (button, Hanging(self._tip, mesh=self._tip_mesh, frame=self._tip_texture,
                                 blend=True, forward_with=self._screen_name))
 
     def point(self, screen_name: str | None) -> None:

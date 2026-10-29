@@ -9,11 +9,11 @@ from fun_time_vr.hud_sides import HudSides, side_named, side_screen_name, sides
 from fun_time_vr.pointer import HANDLE_DEG, PRESS, RELEASE, PressEvent
 from fun_time_vr.scene import RADIUS_M, Placement, center_height, half_width
 
-PICTURE = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
+ITEM = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
 
 
 def _sides(panel_edge: HudEdge = HudEdge.LOWER, *, minimized: bool = False):
-    return sides(OutsideButtons("portrait", minimized=minimized), "portrait", PICTURE, 16 / 9,
+    return sides(OutsideButtons("portrait", minimized=minimized), "portrait", ITEM, 16 / 9,
                  panel_edge=panel_edge)
 
 
@@ -27,13 +27,13 @@ class TestTheSidesThePanelIsNotAgainst:
             assert side.screen.pressable
             assert side_named(side.screen.name) is side.edge
 
-    def test_the_one_above_hangs_clear_of_the_strip_a_squeeze_moves_the_picture_by(self):
+    def test_the_one_above_hangs_clear_of_the_strip_a_squeeze_moves_the_item_by(self):
         upper, = (side for side in _sides() if side.edge is HudEdge.UPPER)
         placement = upper.screen.placement
 
         side_bottom = center_height(placement) - half_width(placement.width_deg) / upper.screen.aspect
-        picture_top = center_height(PICTURE) + half_width(PICTURE.width_deg) / (16 / 9)
-        assert side_bottom >= picture_top + RADIUS_M * math.radians(HANDLE_DEG)
+        item_top = center_height(ITEM) + half_width(ITEM.width_deg) / (16 / 9)
+        assert side_bottom >= item_top + RADIUS_M * math.radians(HANDLE_DEG)
 
 
 class TestAFunestrasSides:
@@ -41,7 +41,7 @@ class TestAFunestrasSides:
     def _sides():
         posted: list[str] = []
         hud_sides = HudSides("landscape", post=posted.append, mesh=_Mesh(), texture=_Texture())
-        hud_sides.hang(OutsideButtons("landscape"), PICTURE, 16 / 9, panel_edge=HudEdge.LOWER)
+        hud_sides.hang(OutsideButtons("landscape"), ITEM, 16 / 9, panel_edge=HudEdge.LOWER)
         return hud_sides, posted
 
     def test_a_squeeze_on_one_asks_for_the_panel_there_open(self):
@@ -102,7 +102,7 @@ class TestHangingThem:
 
     @staticmethod
     def _hang(hud_sides) -> None:
-        hud_sides.hang(OutsideButtons("portrait"), PICTURE, 16 / 9, panel_edge=HudEdge.LOWER)
+        hud_sides.hang(OutsideButtons("portrait"), ITEM, 16 / 9, panel_edge=HudEdge.LOWER)
 
     def test_only_the_side_pointed_at_is_drawn(self):
         hud_sides, texture, mesh = self._sides()
@@ -110,11 +110,11 @@ class TestHangingThem:
 
         self._hang(hud_sides)
 
-        drawn = {side_named(one.screen.name): one.mesh is mesh and one.picture is texture
+        drawn = {side_named(one.screen.name): one.mesh is mesh and one.frame is texture
                  for one in hud_sides.hangings()}
         assert drawn == {HudEdge.UPPER: False, HudEdge.RIGHT: True, HudEdge.LEFT: False}
 
-    def test_every_side_comes_forward_with_the_picture_it_hangs_beside(self):
+    def test_every_side_comes_forward_with_the_item_it_hangs_beside(self):
         hud_sides, _texture, _mesh = self._sides()
 
         self._hang(hud_sides)

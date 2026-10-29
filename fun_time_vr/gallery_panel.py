@@ -60,15 +60,15 @@ class GalleryPanel:
         return self._size
 
     def frame(self, now: float | None = None) -> tuple[int, int, bytes] | None:
-        picture = self._frames.latest(TOKEN)
+        frame = self._frames.latest(TOKEN)
         if now is not None and self._looked_since is None:
             self._looked_since = now
-        if picture is not None:
-            self._size = (picture[0], picture[1])
+        if frame is not None:
+            self._size = (frame[0], frame[1])
             if now is not None:
                 self._answered_at = now
                 self._said_it_went_quiet = False
-        return picture
+        return frame
 
     def went_quiet(self, now: float) -> str | None:
         if self._said_it_went_quiet:
@@ -98,7 +98,7 @@ class GalleryPanel:
         append_command(self._input, line)
 
     def press(self, event: PressEvent) -> None:
-        # Dropped where no picture has arrived to place it on.
+        # Dropped where no frame has arrived to place it on.
         if self._size is None:
             return
         self.send(event_line(event, self._size))

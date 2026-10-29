@@ -1,10 +1,10 @@
 """The banner a notice flashes over the Funestra it names, drawn for a video.
 
 The desktop hangs a frameless window over that Funestra's; a headset has none, so
-the same banner is composited into the picture the way the scrubber is.  Shape
+the same banner is composited into the frame the way the scrubber is.  Shape
 and colors are :class:`fun_time.notice_overlay.NoticeOverlay`'s.
 
-Every measurement scales with the picture, which is not the size of a window: a
+Every measurement scales with the frame, which is not the size of a window: a
 satellite decodes to 2048px and the Main Funestra to 8192, so the desktop's own
 19px type came out a tenth of the height it reads at there.
 """
@@ -30,7 +30,7 @@ from .console_panel import level_color
 from .surfaces import red_and_blue_swapped
 
 # The type as a fraction of the height, never under the desktop's own; the rest
-# of the shape is the desktop's in multiples of it, so the proportions hold on any picture.
+# of the shape is the desktop's in multiples of it, so the proportions hold on any frame.
 FONT_FRACTION = 0.030
 MIN_FONT_PX = in_pixels(NOTICE_TYPE_SIZE)
 _PAD_X = NOTICE_PAD_H / MIN_FONT_PX
@@ -42,17 +42,17 @@ _RADIUS = NOTICE_RADIUS / MIN_FONT_PX
 _WINDOW_HEIGHT_PX = 1000
 TOP_MARGIN_FRACTION = NOTICE_TOP_MARGIN / _WINDOW_HEIGHT_PX
 
-WIDTH_FRACTION = 0.9  # most of the picture's width, never all of it
+WIDTH_FRACTION = 0.9  # most of the frame's width, never all of it
 MAX_LINES = 3
 _LINE_GAP = GAP_SMALL / MIN_FONT_PX
 
 
-def font_px(height: int) -> int:  # the type size for a picture this tall
+def font_px(height: int) -> int:  # the type size for a frame this tall
     return max(MIN_FONT_PX, round(height * FONT_FRACTION))
 
 
 def paint_banner(message: str, level: int, *, max_width: int, size: int) -> Image.Image:
-    """The banner, sized to what it says and to the picture it goes on."""
+    """The banner, sized to what it says and to the frame it goes on."""
     font = load_font(size)
     pad_x, pad_y = round(size * _PAD_X), round(size * _PAD_Y)
     room = max(1, max_width - 2 * pad_x)
@@ -79,7 +79,7 @@ def paint_banner(message: str, level: int, *, max_width: int, size: int) -> Imag
 
 
 def banner_placement(banner: Image.Image, width: int, height: int) -> tuple[int, int]:
-    """Centered across the top, never off a narrow picture's left edge."""
+    """Centered across the top, never off a narrow frame's left edge."""
     return max(0, (width - banner.width) // 2), round(height * TOP_MARGIN_FRACTION)
 
 

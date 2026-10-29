@@ -649,7 +649,7 @@ class TestRunStartupSequence:
 
     def test_a_genau_session_leaves_kinos_video_held_at_the_reveal(self, cfg_factory, tmp_path):
         """Genau's own mode: Kino's video stays held, so nothing plays under
-        Genau's picture."""
+        Genau's flick."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
         _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "genau")

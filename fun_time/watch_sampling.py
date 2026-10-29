@@ -59,7 +59,7 @@ class WatchSampler:
         The clock advances whether or not the room is paused, so resuming does
         not fire an off-cadence sample the moment the pause lifts.  The
         satellites *hosted* book nothing: in their Origenerator mode they play
-        the hosted app's pictures, which are no library videos to book a watch
+        the hosted app's items, which are no library videos to book a watch
         against.
         """
         if now - self._last_sample < SAMPLE_INTERVAL_S:

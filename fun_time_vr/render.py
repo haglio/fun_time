@@ -241,7 +241,7 @@ def _compile_program(vert_src: str, frag_src: str) -> int:
 
 
 class RenderTarget:
-    """A Funestra's picture as a texture, with the FBO that fills it.
+    """A Funestra's frame as a texture, with the FBO that fills it.
 
     Plain RGBA8 (not sRGB) on purpose — see the module docstring's color note.
     Reallocated whenever the video's size changes, so the texture always holds
@@ -284,10 +284,10 @@ class RenderTarget:
 
     @property
     def ready(self) -> bool:
-        return self.width > 0  # allocated: hangable, not yet a picture
+        return self.width > 0  # allocated: hangable, not yet a frame
 
     @property
-    def has_picture(self) -> bool:
+    def has_frame(self) -> bool:
         return self.painted  # mpv reports the size frames before it presents
 
     @property
@@ -300,7 +300,7 @@ class RenderTarget:
 
 
 class FrameTexture:
-    """A picture handed over as pixels (a Genau frame, the console panel) as a
+    """Pixels handed over (a Genau frame, the console panel) as a
     texture: RGB or RGBA rows, top row first, uploaded the way up GL reads them."""
 
     def __init__(self) -> None:
@@ -338,7 +338,7 @@ class FrameTexture:
     def ready(self) -> bool:
         return self.width > 0
 
-    has_picture = ready  # sized only by upload: the same question here
+    has_frame = ready  # sized only by upload: the same question here
 
     @property
     def aspect(self) -> float:

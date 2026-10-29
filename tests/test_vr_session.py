@@ -44,7 +44,7 @@ def test_a_fully_tracked_view_is_renderable():
 
 def test_orientation_alone_is_enough():
     """Inside-out tracking drops to orientation-only in a dim room, and used to
-    take the whole picture with it: nothing was submitted and the headset showed
+    take the whole scene with it: nothing was submitted and the headset showed
     the runtime's own pass-through.  The renderer never reads head position --
     the eye pass passes (0, 0, 0) on purpose -- so there is nothing to wait for.
     """

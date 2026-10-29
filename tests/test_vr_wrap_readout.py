@@ -32,17 +32,17 @@ def test_every_projection_is_named_in_the_apps_own_words():
     }
 
 
-def test_a_wrapped_picture_reads_its_projection_angle_and_height():
+def test_a_wrapped_frame_reads_its_projection_angle_and_height():
     wrap = immersive_wrap(FISHEYE_180_SBS, fov_deg=158.4, height=1.2)
 
     assert readout(FISHEYE_180_SBS, wrap) == "Fisheye · 158° · height 1.20"
 
 
-def test_a_picture_nobody_dialed_reads_what_its_projection_carries():
+def test_a_frame_nobody_dialed_reads_what_its_projection_carries():
     assert readout(EQUIRECT_180_SBS, immersive_wrap(EQUIRECT_180_SBS)) == "Equirectangular · 180° · height 1.00"
 
 
-def test_a_flat_picture_and_the_360_read_their_name_alone():
+def test_a_flat_frame_and_the_360_read_their_name_alone():
     assert readout(FLAT, immersive_wrap(FLAT)) == "Flat"
     assert readout(EQUIRECT_360, immersive_wrap(EQUIRECT_360)) == "360°"
 

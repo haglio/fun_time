@@ -1,4 +1,4 @@
-"""The geometry of one screen in the VR scene: where a picture hangs, and the
+"""The geometry of one screen in the VR scene: where an item hangs, and the
 flat rectangle that carries it, square on to the viewer with its middle on one
 cylinder around the head.  Immersive projections (equirect/fisheye) don't use
 these at all — they fill the view from a shader — so this module is the whole

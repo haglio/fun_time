@@ -120,13 +120,13 @@ since closed is never believed, and then the shape of its items, `portrait`,
 puts Origenerator on both satellites too.
 
 Coming back to a Funestra's Origenerator mode means putting back what the mode took. While the hosted app
-has a satellite, that Funestra's playlist file holds the app's pictures and the
+has a satellite, that Funestra's playlist file holds the app's images and the
 session's own list waits beside it (`fun_time.funestra_handover`). A session quit
 there, or killed there, never brings the Funestra home — so `resume_playlists`
 takes every kept list back before it reads anything, and a room built in video
 mode opens on video lists, at the clip each side was showing when it left.
 Without that, the session after a quit in Origenerator mode opened in Kino mode
-on two locked pictures, each with a one-square map and nothing to step to
+on two locked images, each with a one-square map and nothing to step to
 (2026-09-19). The kept lists are taken back even when the resume goes on to find
 nothing to resume: one that outlived the rebuild would be dealt over it the next
 time that Funestra came home.

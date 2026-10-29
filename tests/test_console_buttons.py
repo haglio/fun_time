@@ -619,7 +619,7 @@ class TestLayout:
 class TestFaces:
     def test_no_button_types_a_face_of_its_own(self):
         """Every face is one of the family's marks or a word: a typed symbol is
-        a font's picture of the control rather than the family's."""
+        a font's drawing of the control rather than the family's."""
         assert not {b.glyph for b in _every_button() if len(b.glyph) == 1 and not b.glyph.isalnum()}
 
     def test_every_mark_a_button_names_is_one_the_family_draws(self):

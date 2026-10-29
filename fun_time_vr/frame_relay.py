@@ -45,7 +45,7 @@ def capped_size(dims: tuple[int, int], cap_px: int) -> tuple[int, int] | None:
 
 
 @dataclass(frozen=True)
-class Picture:
+class RelayedFrame:
     slot: int
     texture: int
     width: int
@@ -57,7 +57,7 @@ class Picture:
 class FrameRelay:
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._newest: Picture | None = None
+        self._newest: RelayedFrame | None = None
         self._shown = 0
         self._copying: int | None = None
 
@@ -69,9 +69,9 @@ class FrameRelay:
     def painted(self, slot: int, *, texture: int, width: int, height: int, video: str) -> None:
         with self._lock:
             number = 1 if self._newest is None else self._newest.number + 1
-            self._newest = Picture(slot, texture, width, height, number, video)
+            self._newest = RelayedFrame(slot, texture, width, height, number, video)
 
-    def take(self) -> Picture | None:
+    def take(self) -> RelayedFrame | None:
         with self._lock:
             newest = self._newest
             if self._copying is not None or newest is None or newest.number == self._shown:

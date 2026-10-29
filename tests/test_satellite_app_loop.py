@@ -169,7 +169,7 @@ def test_no_audio_opens_a_silent_one(tmp_path):
     assert opens.asked[1]["audible"] is False
 
 
-def test_tile_opens_one_that_tiles_its_picture(tmp_path):
+def test_tile_opens_one_that_tiles_its_item(tmp_path):
     args = _loop_args(tmp_path, _clips(tmp_path, "v0"), tile=True)
 
     _code, opens, _fake = _run_loop(tmp_path, args)

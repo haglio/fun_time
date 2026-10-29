@@ -57,7 +57,7 @@ def _side_by_side(eye):
     return np.concatenate([eye, eye], axis=1)
 
 
-def _picture_whose_red_is_the_distance_from_each_eyes_center():
+def _frame_whose_red_is_the_distance_from_each_eyes_center():
     ys, xs = np.mgrid[0:SOURCE_EYE_PX, 0:SOURCE_EYE_PX]
     distance = np.hypot((xs + 0.5) / SOURCE_EYE_PX - 0.5, (ys + 0.5) / SOURCE_EYE_PX - 0.5) / 0.5
     eye = np.zeros((SOURCE_EYE_PX, SOURCE_EYE_PX, 4), np.uint8)
@@ -66,7 +66,7 @@ def _picture_whose_red_is_the_distance_from_each_eyes_center():
     return _side_by_side(eye)
 
 
-def _picture_whose_red_and_green_are_where_in_its_eye_each_pixel_is():
+def _frame_whose_red_and_green_are_where_in_its_eye_each_pixel_is():
     across = (np.arange(SOURCE_EYE_PX) + 0.5) / SOURCE_EYE_PX
     eye = np.zeros((SOURCE_EYE_PX, SOURCE_EYE_PX, 4), np.uint8)
     eye[..., 0] = np.round(across[None, :] * 255).astype(np.uint8)
@@ -121,9 +121,9 @@ def _made_taller(reads, height):
     return np.stack([reads[..., 0], 0.5 + (reads[..., 1] - 0.5) / height], axis=-1)
 
 
-def _drawn(renderer, wrap, picture):
+def _drawn(renderer, wrap, frame):
     source = FrameTexture()
-    source.upload(picture)
+    source.upload(frame)
     target = RenderTarget()
     target.ensure(DRAWN_PX, DRAWN_PX)
     try:
@@ -143,21 +143,21 @@ def _drawn(renderer, wrap, picture):
 def _red_drawn_for(renderer, projection):
     return _drawn(
         renderer, immersive_wrap(projection),
-        _picture_whose_red_is_the_distance_from_each_eyes_center())[..., 0]
+        _frame_whose_red_is_the_distance_from_each_eyes_center())[..., 0]
 
 
 def _the_coordinates_it_reads_are_where_it_should(renderer, wrap, reads):
-    drawn = _drawn(renderer, wrap, _picture_whose_red_and_green_are_where_in_its_eye_each_pixel_is())
+    drawn = _drawn(renderer, wrap, _frame_whose_red_and_green_are_where_in_its_eye_each_pixel_is())
 
     inside = np.all((reads > EDGE_BAND) & (reads < 1 - EDGE_BAND), axis=-1)
     outside = np.any((reads < -EDGE_BAND) | (reads > 1 + EDGE_BAND), axis=-1)
-    assert inside.sum() > DRAWN_PX, "the check reached too little of the picture to say anything"
+    assert inside.sum() > DRAWN_PX, "the check reached too little of the frame to say anything"
     assert np.abs(drawn[..., :2] - reads)[inside].max() < CLOSE_ENOUGH
     assert np.all(drawn[outside] == 0.0)
 
 
 @pytest.mark.parametrize("projection", list(RADIUS_READ_AT))
-def test_each_fisheye_reads_the_picture_out_along_its_own_curve(renderer, projection):
+def test_each_fisheye_reads_the_frame_out_along_its_own_curve(renderer, projection):
     off_axis = _angle_off_axis_at_each_drawn_pixel()
     away_from_the_center = off_axis > math.radians(5)
 
@@ -167,7 +167,7 @@ def test_each_fisheye_reads_the_picture_out_along_its_own_curve(renderer, projec
     assert difference.max() < CLOSE_ENOUGH, (projection, float(difference.max()))
 
 
-def test_the_three_curves_draw_three_different_pictures(renderer):
+def test_the_three_curves_draw_three_different_frames(renderer):
     drawn = [_red_drawn_for(renderer, projection) for projection in RADIUS_READ_AT]
 
     for first, second in ((0, 1), (0, 2), (1, 2)):
@@ -175,21 +175,21 @@ def test_the_three_curves_draw_three_different_pictures(renderer):
 
 
 @pytest.mark.parametrize("fov_deg", [180.0, 130.0])
-def test_an_equirect_reads_the_picture_across_the_angle_it_is_given(renderer, fov_deg):
+def test_an_equirect_reads_the_frame_across_the_angle_it_is_given(renderer, fov_deg):
     _the_coordinates_it_reads_are_where_it_should(
         renderer, immersive_wrap(EQUIRECT_180_SBS, fov_deg=fov_deg),
         _where_in_the_eye_an_equirect_reads(fov_deg))
 
 
 @pytest.mark.parametrize("fov_deg", [120.0, 90.0])
-def test_a_rectilinear_window_reads_the_picture_across_the_angle_it_is_given(renderer, fov_deg):
+def test_a_rectilinear_window_reads_the_frame_across_the_angle_it_is_given(renderer, fov_deg):
     _the_coordinates_it_reads_are_where_it_should(
         renderer, immersive_wrap(RECTILINEAR_SBS, fov_deg=fov_deg),
         _where_in_the_eye_a_rectilinear_reads(fov_deg))
 
 
 @pytest.mark.parametrize("fov_deg", [190.0, 140.0])
-def test_a_fisheye_reads_the_picture_out_to_the_angle_it_is_given_and_past_its_circle(renderer, fov_deg):
+def test_a_fisheye_reads_the_frame_out_to_the_angle_it_is_given_and_past_its_circle(renderer, fov_deg):
     _the_coordinates_it_reads_are_where_it_should(
         renderer, immersive_wrap(FISHEYE_180_SBS, fov_deg=fov_deg),
         _where_in_the_eye_a_fisheye_reads(fov_deg))
@@ -200,6 +200,6 @@ def test_a_fisheye_reads_the_picture_out_to_the_angle_it_is_given_and_past_its_c
     (RECTILINEAR_SBS, _where_in_the_eye_a_rectilinear_reads(120.0)),
     (FISHEYE_180_SBS, _where_in_the_eye_a_fisheye_reads(180.0)),
 ], ids=["equirect", "rectilinear", "fisheye"])
-def test_a_height_stretches_the_picture_about_its_middle(renderer, projection, reads):
+def test_a_height_stretches_the_frame_about_its_middle(renderer, projection, reads):
     _the_coordinates_it_reads_are_where_it_should(
         renderer, immersive_wrap(projection, height=1.5), _made_taller(reads, 1.5))

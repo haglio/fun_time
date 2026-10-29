@@ -151,25 +151,25 @@ class TestResumePlaylists:
 
     def test_opens_a_funestra_that_never_came_home_on_its_own_list(self, tmp_path: Path):
         """A session quit while the hosted Origenerator had the Funestra leaves that
-        app's pictures in the playlist file and the Funestra's own list kept aside.
+        app's items in the playlist file and the Funestra's own list kept aside.
         Every room is built in kino mode, so its own list is what it opens on —
         at the clip it was showing when it left."""
-        a, b, picture = _clips(tmp_path, "a.mp4", "b.mp4", "picture.png")
-        channel = _never_came_home(tmp_path, own=[a, b], showing=b, hosted=[picture])
+        a, b, image = _clips(tmp_path, "a.mp4", "b.mp4", "image.png")
+        channel = _never_came_home(tmp_path, own=[a, b], showing=b, hosted=[image])
 
-        assert resume_playlists([(channel.playlist_file, picture)]) is True
+        assert resume_playlists([(channel.playlist_file, image)]) is True
 
         assert channel.playlist_file.read_text(encoding="utf-8").splitlines() == [b, a]
 
     def test_spends_a_kept_list_even_when_there_is_nothing_to_resume(self, tmp_path: Path):
         """The caller then rebuilds every playlist, and a kept list that outlived
         the rebuild would be dealt over it the next time that Funestra came home."""
-        a, picture = _clips(tmp_path, "a.mp4", "picture.png")
-        channel = _never_came_home(tmp_path, own=[a], showing=a, hosted=[picture])
+        a, image = _clips(tmp_path, "a.mp4", "image.png")
+        channel = _never_came_home(tmp_path, own=[a], showing=a, hosted=[image])
 
         resumed = resume_playlists([
             (tmp_path / "landscape_playlist.tsv", ""),
-            (channel.playlist_file, picture),
+            (channel.playlist_file, image),
         ])
 
         assert resumed is False

@@ -115,7 +115,7 @@ _STUB_MAIN = textwrap.dedent(
     from funestra.satellite_hud import HudModel, hud_text
 
     SIDES = ("portrait", "landscape")
-    PICTURES = Path(__file__).resolve().parent.parent / "pictures"
+    IMAGES = Path(__file__).resolve().parent.parent / "images"
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--fun-time", action="store_true")
@@ -243,7 +243,7 @@ _STUB_MAIN = textwrap.dedent(
         playlist = handed(side, "playlist")
         if side in held or playlist is None:
             return
-        write_playlist(playlist, [PlaylistItem(PICTURES / f"{side}.png")])
+        write_playlist(playlist, [PlaylistItem(IMAGES / f"{side}.png")])
         queued = append_command(handed(side, "cmd_file"), "RELOAD_PLAYLIST")
         note(f"{side}: list written, reload queued={queued}")
         publish_whole(handed(side, "hud_file"), hud_text(
@@ -305,7 +305,7 @@ _A_START_WITH_EVERY_CORE_BUSY_S = 2 * START_BUDGET_S
 _A_START_THAT_WAITS_FOR_THE_APP_S = (
     _A_START_WITH_EVERY_CORE_BUSY_S + ORIGENERATOR_BOOT_BUDGET_S)
 # Every wait the two-session check makes, at its own budget: both starts and
-# both Funestras' pictures in the second one.
+# both Funestras' images in the second one.
 _TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S = (
     _A_START_WITH_EVERY_CORE_BUSY_S + _A_START_THAT_WAITS_FOR_THE_APP_S
     + 2 * COMMAND_BUDGET_S)
@@ -320,10 +320,10 @@ def _write_stub_checkout(destination: Path) -> Path:
     package.mkdir(parents=True, exist_ok=True)
     (package / "__init__.py").write_text("", encoding="utf-8")
     (package / "__main__.py").write_text(_STUB_MAIN, encoding="utf-8")
-    pictures = destination / "pictures"
-    pictures.mkdir(exist_ok=True)
+    images = destination / "images"
+    images.mkdir(exist_ok=True)
     for funestra, color in zip(_FUNESTRAS, ((40, 90, 160), (160, 90, 40)), strict=True):
-        Image.new("RGB", (320, 240), color).save(pictures / f"{funestra.label}.png")
+        Image.new("RGB", (320, 240), color).save(images / f"{funestra.label}.png")
     return destination
 
 
@@ -391,10 +391,10 @@ def _own_clips(session, funestra: RoomFunestra) -> list[Path]:
 
 
 def _wait_for_the_slideshows(session) -> None:
-    """Wait for the hosted app to have put its picture on both Funestras."""
+    """Wait for the hosted app to have put its slideshow on both Funestras."""
     for funestra in _FUNESTRAS:
         wait_for(lambda funestra=funestra: _shows_the_stub(session, funestra),
-                 desc=f"the {funestra.label} Funestra to show the hosted app's picture")
+                 desc=f"the {funestra.label} Funestra to show the hosted app's slideshow")
 
 
 def _bring_the_satellites_home(session) -> None:
@@ -405,7 +405,7 @@ def _bring_the_satellites_home(session) -> None:
     never took, so the press has to come after the app has answered the open
     the way in sent it: pressed before that, the app writes its lists onto the
     Funestras after this test has ended, and the next one reads a playlist
-    holding the app's picture (tests/test_origenerator_mode_way_back.py).
+    holding the app's items (tests/test_origenerator_mode_way_back.py).
     """
     _wait_for_the_slideshows(session)
     for funestra in _FUNESTRAS:
@@ -476,7 +476,7 @@ def test_the_strip_raises_the_parked_window_and_the_browsers_button_parks_it(hos
 def test_the_funestras_play_the_hosted_apps_slideshows_and_come_back_to_their_own(hosted_session):
     """What the mode is for, on the real Funestras: each one plays the list the
     hosted app writes for it, and leaving the mode hands it back the session's
-    own list — the same clips, not the app's picture and not an empty list."""
+    own list — the same clips, not the app's items and not an empty list."""
     session, _hwnd = hosted_session
     own_lists = {funestra: sorted(_own_clips(session, funestra)) for funestra in _FUNESTRAS}
     assert all(own_lists.values()), "the Funestras had no lists of their own to begin with"
@@ -499,7 +499,7 @@ def test_one_satellite_plays_the_hosted_apps_slideshow_while_the_other_and_the_b
     state_file = _press_once_origenerator_is_up(
         session, f"{portrait.label}_origenerator_activate")
     wait_for(lambda: _shows_the_stub(session, portrait),
-             desc="the Portrait Funestra to show the hosted app's picture")
+             desc="the Portrait Funestra to show the hosted app's slideshow")
 
     state = read_shared_state(state_file)
     assert state.satellite(landscape).mode is SatellitesMode.KINO
@@ -573,7 +573,7 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
 
 @pytest.mark.timeout(_A_SESSION_A_QUIT_AND_FIVE_WAITS_S)
 def test_entering_the_mode_on_a_real_session_leaves_its_slideshows_on_top():
-    """The one he kept reporting: the mode puts a picture on each side and then
+    """The one he kept reporting: the mode puts a slideshow on each side and then
     something buries it a few seconds later.
 
     A session of its own rather than the module's, because what buries a side
@@ -615,7 +615,7 @@ def test_entering_the_mode_on_a_real_session_leaves_its_slideshows_on_top():
 
         funestras = {title: await_window(title, 10, exact=True) for title in _FUNESTRA_TITLES}
         # Ten seconds of it, because the burial he saw landed seconds after the
-        # picture did.  The first cover wins: report it and stop.
+        # image did.  The first cover wins: report it and stop.
         # Each other is not a burial: the faked monitors are small enough that
         # the two Funestras' rects overlap here, which they never do on his.
         siblings = set(funestras.values())
@@ -704,7 +704,7 @@ def test_a_slideshow_open_in_an_origenerator_the_room_takes_over_goes_on_on_its_
         session.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S)
 
         wait_for(lambda: _shows_the_stub(session, portrait),
-                 desc="the Portrait Funestra to show the hosted app's picture")
+                 desc="the Portrait Funestra to show the hosted app's slideshow")
         state = read_shared_state(shared_state_path(session.config.paths.state_dir))
         assert state.satellite(landscape).mode is SatellitesMode.KINO
         assert state.rfb_slot is RfbSlot.ORIGENERATOR

@@ -129,7 +129,7 @@ class TestNobodyDriving:
 
         assert genau(driver) == [TCODE_OFF, "PAUSE", "RETRACT", TCODE_OFF, "RESUME", "RETRACT"]
 
-    def test_a_switched_off_device_keeps_genaus_picture_out_of_every_hold(self, tmp_path):
+    def test_a_switched_off_device_keeps_genaus_flick_out_of_every_hold(self, tmp_path):
         for control in (OSR2_PARKED, OSR2_RETRACTED):
             driver = make_driver(tmp_path / control, device_on=lambda: False)
             publish_main_funestra(driver)
@@ -138,7 +138,7 @@ class TestNobodyDriving:
 
             assert genau(driver) == [TCODE_OFF, "RESUME"], control
 
-    def test_a_device_switched_on_under_a_hold_takes_genaus_picture_there_at_once(self, tmp_path):
+    def test_a_device_switched_on_under_a_hold_takes_genaus_flick_there_at_once(self, tmp_path):
         device = {"on": False}
         driver = make_driver(tmp_path, device_on=lambda: device["on"])
         publish_main_funestra(driver)
@@ -192,7 +192,7 @@ class TestNobodyDriving:
         assert main_funestra(driver) == [TCODE_ON, TCODE_OFF]
         assert genau(driver) == [*HAND_YIELDS, *OMNIPAUSED]
 
-    def test_omnipause_with_the_device_switched_off_leaves_genaus_picture_where_it_is(
+    def test_omnipause_with_the_device_switched_off_leaves_genaus_flick_where_it_is(
             self, tmp_path):
         driver = make_driver(tmp_path, device_on=lambda: False)
         publish_main_funestra(driver)
@@ -227,7 +227,7 @@ class TestKinoModeFunscriptHandoff:
     gaps, which the Main Funestra flags as ``funscript_resting``."""
 
     def test_the_flip_waits_for_the_touch_the_trace_chose(self, tmp_path):
-        """The Main Funestra publishes the touch-down its picture drew the blue ending on;
+        """The Main Funestra publishes the touch-down its trace drew the blue ending on;
         the hand keeps the device until the playhead reaches it.  When each side
         chose its own touch from its own read of the wave, the arbiter could
         take an earlier one — and the leftover drawn blue vanished the moment
@@ -280,7 +280,7 @@ class TestKinoModeFunscriptHandoff:
 
     def test_a_seek_into_the_script_s_turn_flips_at_once(self, tmp_path):
         """A hold honors a drawn blue ending, and a seek-entry never drew one:
-        jumped into dense action from a rest, the picture already shows the
+        jumped into dense action from a rest, the trace already shows the
         script's turn running — even a touch left published from before the
         seek must not hold the flip."""
         driver = make_driver(tmp_path)

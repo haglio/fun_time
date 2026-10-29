@@ -228,7 +228,7 @@ def scene_ready_file(state_dir: str | Path) -> Path:
 class SceneReady:
     """Watches the room fill in under the cover, and says once when it has.
     Without it the reveal lands on the Funestra's first STATUS write: a role
-    having PICKED a video, a second before the pictures land."""
+    having PICKED a video, a second before the frames land."""
 
     def __init__(
         self,
@@ -244,7 +244,7 @@ class SceneReady:
         self._reported = False
 
     def note(self, *, blank: Sequence[str], read: bool) -> None:
-        """One frame's answer -- which screens have no picture, and whether the
+        """One frame's answer -- which screens have no frame, and whether the
         cover has had its dwell on screen -- written once: on the first frame
         with neither left to wait for, or on the grace running out."""
         if self._reported:
@@ -258,7 +258,7 @@ class SceneReady:
         elif waited < self._grace_s:
             return
         elif blank:
-            logger.warning("No picture yet on %s after %.0fs; revealing anyway",
+            logger.warning("No frame yet on %s after %.0fs; revealing anyway",
                            ", ".join(blank), self._grace_s)
         else:
             logger.warning("The cover never had %.0fs on screen; revealing anyway",

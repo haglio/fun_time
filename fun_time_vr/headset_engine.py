@@ -3,7 +3,7 @@ texture, and silent until the headset is worn.
 
 A sink parked on the stand takes the stream without draining it, and mpv's
 clock follows audio, so an engine heard before the compositor is presenting
-freezes its picture on frame 1.  What the room or a chip asks before then is
+freezes on frame 1.  What the room or a chip asks before then is
 remembered and comes on with the sound, and a radio's stations open with it.
 """
 from __future__ import annotations

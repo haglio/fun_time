@@ -93,7 +93,7 @@ class TestWhereTheAppsOwnWindowGoes:
 
 class TestHandingTheWindowToTheHeadset:
     """A headset session has no monitor to put the app's window on, so it asks
-    for the window's picture instead and sends its pointer's presses back."""
+    for the window's frames instead and sends its pointer's presses back."""
 
     def _launch(self, cfg_factory, tmp_path, *, in_a_headset):
         origenerator = tmp_path / "origenerator"
@@ -117,7 +117,7 @@ class TestHandingTheWindowToTheHeadset:
         assert captured["input_file"] == str(config.origenerator_input_file)
 
     def test_a_session_on_the_monitors_names_neither(self, cfg_factory, tmp_path):
-        """The window itself is what is seen there, and a picture written every
+        """The window itself is what is seen there, and a frame written every
         tick for nobody is a grab of a window every tick for nothing."""
         _config, captured = self._launch(cfg_factory, tmp_path, in_a_headset=False)
 
@@ -203,17 +203,17 @@ class TestTellingAKeptAppWhereItsWindowGoes:
         assert app is not None and app.already_open
         return config, consume_command_file(config.origenerator_cmd_file, uppercase=False)
 
-    def test_a_headset_session_asks_for_the_picture(self, cfg_factory, tmp_path):
+    def test_a_headset_session_asks_for_the_frame(self, cfg_factory, tmp_path):
         config, said = self._adopt(cfg_factory, tmp_path, in_a_headset=True)
 
         assert said == [f"{HAND_OVER}|{config.origenerator_frames_file}"
                         f"|{config.origenerator_input_file}"]
 
-    def test_a_headset_session_starts_with_no_picture_and_no_presses(
+    def test_a_headset_session_starts_with_no_frame_and_no_presses(
             self, cfg_factory, tmp_path):
         """What an earlier session left in those two files still reads as a live
-        picture and as presses nobody made.  On 2026-10-08 his room drew the
-        picture a session twelve days earlier had left there -- Origenerator in
+        frame and as presses nobody made.  On 2026-10-08 his room drew the
+        frame a session twelve days earlier had left there -- Origenerator in
         the shape the monitors give it -- and he judged this change on it."""
         config, _said = self._adopt(
             cfg_factory, tmp_path, in_a_headset=True, left_over=True)
@@ -222,10 +222,10 @@ class TestTellingAKeptAppWhereItsWindowGoes:
         assert not Path(config.origenerator_input_file).exists()
 
 
-    def test_an_app_still_publishing_keeps_the_picture_it_is_publishing(
+    def test_an_app_still_publishing_keeps_the_frame_it_is_publishing(
             self, cfg_factory, tmp_path):
         """Windows refuses to remove a file a process has mapped, which is how
-        the clearing above tells a dead session's picture from a live one's."""
+        the clearing above tells a dead session's frame from a live one's."""
         held = tmp_path / "state" / "origenerator_frame.bin"
         held.parent.mkdir(parents=True, exist_ok=True)
         held.write_bytes(bytes(64))
@@ -239,7 +239,7 @@ class TestTellingAKeptAppWhereItsWindowGoes:
 
     def test_a_desktop_session_takes_the_window_back(self, cfg_factory, tmp_path):
         """One the headset had shown is still publishing and still up; here it
-        parks, as a hosted window boots, and writes no picture for nobody."""
+        parks, as a hosted window boots, and writes no frame for nobody."""
         _config, said = self._adopt(cfg_factory, tmp_path, in_a_headset=False)
 
         assert said == [TAKE_BACK]

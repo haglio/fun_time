@@ -260,10 +260,10 @@ def _within_the_part(px: int, py: int) -> tuple[int, int]:
 
 
 def with_the_osr2_part(dash: Image.Image,
-                       picture: tuple[bytes, tuple[int, int]] | None) -> Image.Image:
-    if picture is None:
+                       drawing: tuple[bytes, tuple[int, int]] | None) -> Image.Image:
+    if drawing is None:
         return dash
-    raw, size = picture
+    raw, size = drawing
     place = osr2_part_rect()
     shown = dash.copy()
     shown.alpha_composite(Image.frombytes("RGBA", size, raw), (place.x, place.y))

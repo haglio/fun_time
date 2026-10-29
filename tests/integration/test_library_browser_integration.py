@@ -60,9 +60,9 @@ def _handles(tmp_path: Path, cache: Path) -> list[LibraryHandle]:
     for index, title in enumerate(TITLES):
         video = tmp_path / f"v{index}.mp4"
         video.write_bytes(b"\0" * (100 + index))
-        picture = Image.new("RGB", (176, 99), (40, 60, 90))
-        ImageDraw.Draw(picture).rectangle((10, 10, 60, 60), fill=(200, 120, 40))
-        picture.save(thumbnail_path(video, cache), "JPEG")
+        image = Image.new("RGB", (176, 99), (40, 60, 90))
+        ImageDraw.Draw(image).rectangle((10, 10, 60, 60), fill=(200, 120, 40))
+        image.save(thumbnail_path(video, cache), "JPEG")
         handles.append(
             LibraryHandle(title=title, versions=(str(video),), section=SECTIONS[index])
         )

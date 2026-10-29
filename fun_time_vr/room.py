@@ -13,7 +13,7 @@ from .stacking import Pane, Stacking
 class Hanging:
     screen: Screen
     mesh: object | None = None  # the quad it is drawn on; None while it is round the viewer
-    picture: object | None = None
+    frame: object | None = None
     blend: bool = False  # painted over whatever it covers
     wrap: object | None = None  # the projection it is drawn round the viewer in, instead
     forward_with: str = ""  # comes forward with that screen; "" → on its own
@@ -49,9 +49,9 @@ def drawn(hangings: Sequence[Hanging], *, screens: Sequence[Screen],
           as_quads: set[str]) -> list[tuple[object, object, bool]]:
     """In the order *screens* stand, less those the compositor took as quads and
     the one round the viewer, which is drawn on its own."""
-    pictures = {one.screen.name: one for one in hangings}
-    return [(one.mesh.mesh, one.picture.texture, one.blend)
-            for one in (pictures[screen.name] for screen in screens
+    frames = {one.screen.name: one for one in hangings}
+    return [(one.mesh.mesh, one.frame.texture, one.blend)
+            for one in (frames[screen.name] for screen in screens
                         if not screen.immersive and screen.name not in as_quads)
             if one.mesh is not None and one.mesh.ready]
 

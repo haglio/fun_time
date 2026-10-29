@@ -113,7 +113,7 @@ UP_LABEL = "back"
 UP_TO_LIBRARY = "all folders"
 
 # The hairline between a folder tile's four stills, so they read as four
-# pictures rather than one.
+# thumbnails rather than one.
 MONTAGE_GAP = HAIRLINE
 
 # How often the grid picks up thumbnails the background extractor has finished.
@@ -143,7 +143,7 @@ class BrowseList(QListWidget):
 
 
 class LibraryGrid(BrowseList):
-    """The tiles: one per folder or video in the folder being shown, pictured.
+    """The tiles: one per folder or video in the folder being shown, thumbnailed.
 
     Ordered as :func:`fun_time.library_handles.build_library_handles` ranked the
     library, which is what makes this the half you browse — the bulk of the
@@ -223,7 +223,7 @@ class LibraryGrid(BrowseList):
         self.addItem(item)
 
     def _tile_item(self, handle: LibraryHandle, listings: FolderListings) -> QListWidgetItem:
-        return self._pictured_item(handle.title, handle.preview, listings)
+        return self._thumbnailed_item(handle.title, handle.preview, listings)
 
     def _folder_item(self, child: SubFolder, listings: FolderListings) -> QListWidgetItem:
         """A folder tile: its name, how much is in it, and stills from inside."""
@@ -249,7 +249,7 @@ class LibraryGrid(BrowseList):
         item.setForeground(TEXT_MUTED)
         return item
 
-    def _pictured_item(
+    def _thumbnailed_item(
         self, label: str, preview: str, listings: FolderListings
     ) -> QListWidgetItem:
         item = QListWidgetItem(label)
@@ -691,7 +691,7 @@ def fitted_icon(still: str | Path) -> QIcon:
     """*still* grown to meet a tile's edge, with its proportions untouched.
 
     Qt would otherwise draw the icon at exactly the icon size, stretching a
-    picture that is not the tile's shape — and a library holds both tall videos
+    thumbnail that is not the tile's shape — and a library holds both tall videos
     and wide ones, so one of the two axes always has room to spare.  Scaling here
     rather than leaving it to the view also grows a still that is *smaller* than
     the tile: the cache caps its longest edge below the tile's, so an unscaled
@@ -725,13 +725,13 @@ def montage_icon(stills: Sequence[str | Path]) -> QIcon:
     painter = QPainter(canvas)
     try:
         for index, still in enumerate(stills[:4]):
-            picture = _fitted(still, cell_width, cell_height)
+            thumbnail = _fitted(still, cell_width, cell_height)
             left = (index % 2) * (cell_width + MONTAGE_GAP)
             top = (index // 2) * (cell_height + MONTAGE_GAP)
             painter.drawPixmap(
-                left + (cell_width - picture.width()) // 2,
-                top + (cell_height - picture.height()) // 2,
-                picture,
+                left + (cell_width - thumbnail.width()) // 2,
+                top + (cell_height - thumbnail.height()) // 2,
+                thumbnail,
             )
     finally:
         painter.end()
@@ -739,7 +739,7 @@ def montage_icon(stills: Sequence[str | Path]) -> QIcon:
 
 
 def previews_of(what: LibraryHandle | SubFolder | None) -> tuple[str, ...]:
-    """The videos a row is pictured with — one for a video, up to four for a folder."""
+    """The videos a row is thumbnailed with — one for a video, up to four for a folder."""
     return what.previews if what is not None else ()
 
 
@@ -749,7 +749,7 @@ def rows_needing_stills(
 ) -> list[int]:
     """Which rows still need a still extracted — the cache misses, in order.
 
-    The go-back row pictures nothing and is skipped; a folder row counts as a
+    The go-back row has no thumbnail and is skipped; a folder row counts as a
     miss while any of its four is missing, so its tile completes.
     """
     dated = listings or FolderListings()

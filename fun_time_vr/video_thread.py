@@ -15,8 +15,8 @@ from .paint_watch import (
     GIVE_UP,
     GIVE_UP_AFTER_S,
     WAIT,
+    FrameWatch,
     GpuWait,
-    PictureWatch,
 )
 from .render import RenderTarget
 from .scheduling import scheduled_as_a_game
@@ -24,7 +24,7 @@ from .scheduling import scheduled_as_a_game
 logger = logging.getLogger(__name__)
 
 PAINT_POLL_S = 0.002
-# What the picture check reads a frame at: enough for a fisheye circle's edge,
+# What the frame check reads a frame at: enough for a fisheye circle's edge,
 # small enough that painting one costs nothing beside a real frame.
 STILL_SIZE_PX = (512, 256)
 CLOSE_TIMEOUT_S = 10.0
@@ -92,17 +92,17 @@ class VideoThread:
                 return False
             self._copying = False
             self._relay.copied()
-        picture = self._relay.take()
-        if picture is None:
+        frame = self._relay.take()
+        if frame is None:
             return False
         if self._copy is None:
             self._copy = GpuMark()
-        target.ensure(picture.width, picture.height)
-        target.video = picture.video
+        target.ensure(frame.width, frame.height)
+        target.video = frame.video
         GL.glCopyImageSubData(
-            picture.texture, GL.GL_TEXTURE_2D, 0, 0, 0, 0,
+            frame.texture, GL.GL_TEXTURE_2D, 0, 0, 0, 0,
             target.texture, GL.GL_TEXTURE_2D, 0, 0, 0, 0,
-            picture.width, picture.height, 1,
+            frame.width, frame.height, 1,
         )
         self._copy.set()
         GL.glFlush()
@@ -153,12 +153,12 @@ class VideoThread:
 
     def _paint(self, targets: list[RenderTarget], still: RenderTarget | None) -> None:
         mark = GpuMark()
-        wait, watch = GpuWait(), PictureWatch()
+        wait, watch = GpuWait(), FrameWatch()
         drawn: tuple[int, int, int, int, str] | None = None
         try:
             while not self._stop.is_set():
                 if drawn is not None:
-                    if not self._finished_on_the_gpu(wait, mark, "picture"):
+                    if not self._finished_on_the_gpu(wait, mark, "frame"):
                         time.sleep(PAINT_POLL_S)
                         continue
                     slot, texture, width, height, video = drawn

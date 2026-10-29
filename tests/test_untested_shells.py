@@ -20,7 +20,7 @@ from funestra.render_engine import MpvRenderEngine
 
 from fun_time_vr.headset_engine import HeadsetEngine
 from fun_time_vr.headset_verbs import HeadsetVerbs
-from fun_time_vr.surfaces import LatestPicture, PanelBitmap
+from fun_time_vr.surfaces import LatestFrame, PanelBitmap
 from tests.test_coverage import NOT_UNIT_TESTED
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,7 +29,7 @@ HELD_BY_THE_SHELLS: dict[str, dict[str, type]] = {
     "fun_time_vr/video_thread.py": {"engine": MpvRenderEngine},
     "fun_time_vr/funestras.py": {
         "engine": HeadsetEngine, "funestra": Funestra, "verbs": HeadsetVerbs,
-        "panel": PanelBitmap, "users_picture": LatestPicture,
+        "panel": PanelBitmap, "users_picture": LatestFrame,
     },
 }
 

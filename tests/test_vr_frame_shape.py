@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from fun_time_vr.picture_shape import FISHEYE_CIRCLE, FULL_FRAME, shape_of
+from fun_time_vr.frame_shape import FISHEYE_CIRCLE, FULL_FRAME, shape_of
 
 EYE_PX = 128
 
@@ -24,7 +24,7 @@ def test_a_lit_circle_in_each_eyes_square_is_a_fisheye_recording():
     assert shape_of(_side_by_side(lambda x, y, r: r < 0.97)) == FISHEYE_CIRCLE
 
 
-def test_a_picture_lit_to_its_corners_fills_the_frame():
+def test_a_frame_lit_to_its_corners_fills_the_frame():
     assert shape_of(_side_by_side(lambda x, y, r: r < 9)) == FULL_FRAME
 
 
@@ -38,7 +38,7 @@ def test_a_fisheye_recording_with_a_studios_mark_in_each_corner_is_still_one():
     assert shape_of(marked) == FISHEYE_CIRCLE
 
 
-class TestPicturesThatFillTheFrameInTheirOwnWays:
+class TestFramesThatFillTheFrameInTheirOwnWays:
     """Each is a shape the library's 180 masters really come in, measured there."""
 
     def test_corners_rounded_off_by_a_lens_a_little_short_of_180(self):
@@ -65,5 +65,5 @@ def test_the_two_eyes_have_to_agree():
 
 def test_a_circle_wider_than_its_square_is_left_to_the_videos_name():
     """How a 200-degree master is cut: the square crops the circle, so its corners
-    are neither black nor picture, and the name is what says which lens it was."""
+    are neither black nor video, and the name is what says which lens it was."""
     assert shape_of(_side_by_side(lambda x, y, r: r < 1.15)) is None

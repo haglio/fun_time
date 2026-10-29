@@ -9,7 +9,7 @@ from fun_time_vr.pointer import PRESS, RELEASE, PressEvent
 from fun_time_vr.satellite_hud import HUD_GAP_DEG
 from fun_time_vr.scene import Placement, attached_to
 
-PICTURE = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
+ITEM = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
 ASPECT = 16 / 9
 
 
@@ -37,20 +37,20 @@ def _toggle():
 
 
 def _hung(toggle: HudToggle, edge: HudEdge = HudEdge.LOWER, *, minimized: bool = False):
-    toggle.hang(OutsideButtons("portrait", minimized=minimized), PICTURE, ASPECT, edge=edge)
+    toggle.hang(OutsideButtons("portrait", minimized=minimized), ITEM, ASPECT, edge=edge)
     button, *_tip = toggle.hangings()
     return button
 
 
 class TestWhereItHangs:
     @pytest.mark.parametrize("edge", list(HudEdge))
-    def test_against_the_side_the_panel_is_on_just_off_the_picture(self, edge):
+    def test_against_the_side_the_panel_is_on_just_off_the_item(self, edge):
         toggle, _posted = _toggle()
 
         button = _hung(toggle, edge)
 
         assert button.screen.placement == attached_to(
-            edge, PICTURE, aspect=ASPECT, width_deg=BUTTON_DEG, hanging_aspect=1.0,
+            edge, ITEM, aspect=ASPECT, width_deg=BUTTON_DEG, hanging_aspect=1.0,
             gap_deg=HUD_GAP_DEG)
 
     def test_the_minus_and_the_plus_hang_on_one_spot(self):
@@ -65,7 +65,7 @@ class TestWhereItHangs:
     def test_the_panel_hangs_past_it_by_the_same_gap(self, edge):
         toggle, _posted = _toggle()
         button = _hung(toggle, edge).screen.placement
-        panel = attached_to(edge, PICTURE, aspect=ASPECT, width_deg=20.0,
+        panel = attached_to(edge, ITEM, aspect=ASPECT, width_deg=20.0,
                             hanging_aspect=1.0, gap_deg=PANEL_GAP_DEG)
 
         outward = 1 if edge is HudEdge.RIGHT else -1
@@ -74,7 +74,7 @@ class TestWhereItHangs:
 
         assert outward * (panel_near - button_far) == pytest.approx(HUD_GAP_DEG)
 
-    def test_it_comes_forward_with_the_picture_it_hangs_beside(self):
+    def test_it_comes_forward_with_the_item_it_hangs_beside(self):
         toggle, _posted = _toggle()
 
         assert {one.forward_with for one in (_hung(toggle),)} == {"portrait"}
@@ -145,13 +145,13 @@ class TestWhatItSays:
 
 
 class TestTheNameOfWhatHasJustStarted:
-    """Minimized, the HUD is the plus hanging beside the picture, and it names
+    """Minimized, the HUD is the plus hanging beside the item, and it names
     a video for its first few seconds where the plus's own name would hang."""
 
     @staticmethod
     def _flashing(toggle: HudToggle, *, minimized: bool = True) -> OutsideButtons:
         outside = OutsideButtons("portrait", minimized=minimized, flash="scene one")
-        toggle.hang(outside, PICTURE, ASPECT, edge=HudEdge.LOWER)
+        toggle.hang(outside, ITEM, ASPECT, edge=HudEdge.LOWER)
         return outside
 
     def test_hangs_beside_the_plus(self):

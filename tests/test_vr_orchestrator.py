@@ -276,7 +276,7 @@ class TestOrigeneratorInVr:
 
         assert given["sibling_checkouts"] == "manifest.runtime.sibling_checkouts"
         # No monitor in here to put the app's own window on, so the launch asks
-        # for its picture instead.
+        # for its frame instead.
         assert given["in_a_headset"] == "True"
 
     def test_a_session_with_no_checkout_named_still_hosts_none(self, config, tmp_path):
@@ -1425,7 +1425,7 @@ class TestTheClosingCover:
         assert heard == [False]
 
     def test_a_session_the_funestra_ended_gets_no_cover(self, tmp_path):
-        """Nothing is left that can put a picture in the headset -- and nothing
+        """Nothing is left that can put a frame in the headset -- and nothing
         left to hide either, the cut to the runtime's own environment having
         already happened."""
         with _closing_cover(tmp_path, _AliveFunestra(alive=False), enabled=False) as shutdown:
@@ -1453,7 +1453,7 @@ class TestTheClosingCover:
 
 
 class TestWaitingForTheRoom:
-    """The cover comes down when the pictures are up, not when the first status
+    """The cover comes down when the frames are up, not when the first status
     line is written -- that one says a role picked a video, which is a second or
     so before any of it reaches the headset."""
 

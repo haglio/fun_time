@@ -64,12 +64,12 @@ class TestTheBanner:
         assert wrapped.height > one_line.height
 
 
-class TestItIsSizedToThePictureItGoesOn:
+class TestItIsSizedToTheFrameItGoesOn:
     """A Funestra decodes to 2048 or 8192 pixels, not to the size of a window, so
     the desktop's own 19px type came out a tenth of the height it reads at
     there -- with a 1px border and a 4px corner nobody could see at all."""
 
-    def test_the_type_grows_with_the_picture(self):
+    def test_the_type_grows_with_the_frame(self):
         assert font_px(MAIN_VIDEO_CAP_PX) > font_px(SATELLITE_VIDEO_CAP_PX) > font_px(720)
 
     def test_it_never_goes_under_the_desktops_own_size(self):
@@ -77,14 +77,14 @@ class TestItIsSizedToThePictureItGoesOn:
 
     def test_the_whole_shape_grows_with_it_and_not_just_the_type(self):
         """The padding, the border and the corner are multiples of the type, so
-        a banner on a big picture is the same shape rather than thin type in a
+        a banner on a big frame is the same shape rather than thin type in a
         box that stayed small."""
         small = _banner(size=20)
         large = _banner(size=80)
 
         assert large.height / small.height > 3.0
 
-    def test_a_bigger_picture_gets_a_bigger_banner(self):
+    def test_a_bigger_frame_gets_a_bigger_banner(self):
         _x, _y, small = banner_bgra("skip", NOTICE, width=1280, height=720)
         _x, _y, large = banner_bgra("skip", NOTICE, width=3840, height=2160)
 
@@ -101,20 +101,20 @@ class TestWhereItSits:
         assert 0 < y < 1080 // 10
 
     def test_it_sits_where_the_desktop_sits_it(self):
-        """On a picture as tall as a Funestra's window the banner sits where the
+        """On a frame as tall as a Funestra's window the banner sits where the
         desktop sits its notice; it was once twice as far down."""
         _x, y = banner_placement(_banner(), 1920, 1000)
 
         assert y == NOTICE_TOP_MARGIN
 
-    def test_it_never_starts_off_the_left_of_a_narrow_picture(self):
+    def test_it_never_starts_off_the_left_of_a_narrow_frame(self):
         banner = _banner("landscape shuffle", max_width=4000, size=64)
 
         x, _y = banner_placement(banner, 40, 400)
 
         assert x == 0
 
-    def test_the_margin_scales_with_the_picture(self):
+    def test_the_margin_scales_with_the_frame(self):
         banner = _banner()
 
         _x, small = banner_placement(banner, 1280, 720)
@@ -132,12 +132,12 @@ class TestWhatTheOverlayGets:
         assert bgra.shape[2] == 4
         assert x >= 0 and y >= 0
 
-    def test_the_banner_stays_inside_the_picture(self):
+    def test_the_banner_stays_inside_the_frame(self):
         x, _y, bgra = banner_bgra("landscape shuffle please", NOTICE, width=1152, height=2048)
 
         assert x + bgra.shape[1] <= 1152
 
-    def test_a_picture_with_no_size_yet_gets_nothing(self):
+    def test_a_frame_with_no_size_yet_gets_nothing(self):
         """Before mpv reports its dimensions the target is 1x1; a banner drawn
         onto that is a banner mpv would scale over the whole screen."""
         assert banner_bgra("skip", NOTICE, width=1, height=1) is None

@@ -667,7 +667,7 @@ class TestTheOsr2Part:
     """The part the room publishes, at the right end from the top, as the
     desktop's Dashboard draws it, and pressed there."""
 
-    def test_its_picture_is_drawn_in_the_room_kept_for_it(self):
+    def test_its_frame_is_drawn_in_the_room_kept_for_it(self):
         dash = paint_dash(DashState(), [])
         raw, (width, height) = DevicePanel(post=[].append).picture(
             ConsoleHud(console=a_part(), drive=a_readout()))
