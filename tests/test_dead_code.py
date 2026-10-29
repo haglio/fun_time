@@ -393,7 +393,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 5761 the same day: the OSR2 part stands at the Dashboard's right end, and the
 # notes saying the bar and the log fill the whole window went to tests of where
 # each one stands.
-MAX_PROSE_LINES = 5761
+# 5756 on 2026-10-29: a favorite is a mark on the video's record, so the notes
+# on favs.csv's cells and on re-reading the whole file for the HUD went.
+MAX_PROSE_LINES = 5756
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
