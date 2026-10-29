@@ -7,6 +7,8 @@ MAIN_EQUIVALENTS = {
     "prev": "main_prev",
     "nudge_next": "main_nudge_next",
     "nudge_prev": "main_nudge_prev",
+    "funscript_jump": "main_player_funscript_jump",
+    "next_funscripted": "main_player_next_funscripted",
     "no_loop": "main_player_loop_cancel",
     "lock_on": "main_lock_on",
     "lock_off": "main_lock_off",

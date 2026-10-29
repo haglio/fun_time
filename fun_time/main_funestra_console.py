@@ -96,6 +96,7 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         flipped=genau.flipped,
         crowned=inputs.crowned,
         has_osr2=inputs.has_osr2,
+        has_funscript=main_funestra.has_funscript,
     )
     return ConsoleModel(
         main_mode=inputs.main_mode,

@@ -21,6 +21,7 @@ from funestra.funestra import Funestra
 from funestra.funestra_priority import ahead_on_the_processor
 from funestra.genau_notifier import GenauNotifier
 from funestra.modes import MainMode
+from funestra.notices import NoticeWriter
 from funestra.sdl_hints import deliver_the_focusing_click
 
 from fun_time.genau_config import GenauSettings
@@ -39,7 +40,6 @@ from .genau import ROBOT_HAND, Genau, GenauChannels
 from .genau_verbs import orientations_from
 from .input import Input
 from .loading import LoadingCanceled, LoadingScreen
-from .notice import NoticeWriter
 from .window import take_outside_resizes, wear_the_icon
 
 logger = logging.getLogger(__name__)

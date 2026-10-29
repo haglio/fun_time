@@ -136,6 +136,8 @@ class HudFeed:
                 nothing_to_reset=satellite_at_defaults(values, status),
                 has_other_versions=bool(renditions(current, self.config.regen_media_root)),
                 longer_than_a_step=longer_than_a_step(status.duration_ms),
+                has_osr2=funestra is with_the_osr2,
+                has_funscript=status.has_funscript,
                 # None for a session hosting no Origenerator — the HUD then draws
                 # no mode pair at all, rather than a switch that can only dead-end.
                 mode=values.mode if self.config.origenerator_enabled else None,

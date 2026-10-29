@@ -499,15 +499,18 @@ class TestSkipAhead:
         assert "main_player_funscript_jump" in self._transport_row(slot)
         assert osr2_rows(slot) == ((osr2_button(RoomFunestra.MAIN, has_it=has_osr2),),)
 
-    def test_skip_ahead_grays_out_while_another_funestra_has_the_osr2(self):
-        held = _button(MainSlot(main_mode=MainMode.KINO, has_osr2=True), "main_player_funscript_jump")
-        given_away = _button(MainSlot(main_mode=MainMode.KINO, has_osr2=False),
-                             "main_player_funscript_jump")
+    @pytest.mark.parametrize(("has_osr2", "has_funscript", "why"), [
+        (False, True, " (this Funestra doesn't have the OSR2)"),
+        (True, False, " (this video has no funscript)"),
+        (True, True, ""),
+    ])
+    def test_skip_ahead_grays_out_without_the_osr2_or_a_funscript(self, has_osr2, has_funscript,
+                                                                  why):
+        jump = _button(MainSlot(main_mode=MainMode.KINO, has_osr2=has_osr2,
+                                has_funscript=has_funscript), "main_player_funscript_jump")
 
-        assert (held.dim, given_away.dim) == (False, True)
-        assert held.tooltip == "Skip ahead to where this video's scripting starts up again"
-        assert given_away.tooltip == ("Skip ahead to where this video's scripting starts up again"
-                                      " (this Funestra doesn't have the OSR2)")
+        assert jump.dim is bool(why)
+        assert jump.tooltip == f"Skip ahead to where this video's scripting starts up again{why}"
 
     def test_skip_ahead_rides_a_video_alone(self):
         assert "main_player_funscript_jump" not in _actions(MainSlot(main_mode=MainMode.GENAU))

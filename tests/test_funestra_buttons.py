@@ -14,6 +14,7 @@ _ON_THE_CONSOLE = {
     "nudge_prev": "main_nudge_prev",
     "nudge_next": "main_nudge_next",
     "next": "main_next",
+    "funscript_jump": "main_player_funscript_jump",
     "lock": "main_lock",
     "reset": "main_reset",
     "shuffle": "main_shuffle",
@@ -29,9 +30,11 @@ def _declared(rows) -> dict:
 
 @pytest.mark.parametrize("state", [
     {"locked": True, "latest": True, "nothing_to_reset": True, "has_other_versions": True,
-     "longer_than_a_step": True},
+     "longer_than_a_step": True, "has_osr2": True, "has_funscript": True},
     {"locked": False, "latest": False, "nothing_to_reset": False, "has_other_versions": False,
-     "longer_than_a_step": False},
+     "longer_than_a_step": False, "has_osr2": False, "has_funscript": False},
+    {"locked": False, "latest": False, "has_osr2": True, "has_funscript": False},
+    {"locked": False, "latest": False, "has_osr2": False, "has_funscript": True},
 ])
 def test_a_control_both_huds_carry_looks_and_reads_the_same_on_each(state):
     console = _declared(console_rows(MainSlot(main_mode=MainMode.KINO, **state)))

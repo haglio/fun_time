@@ -675,17 +675,19 @@ def test_no_say_column_leaks_the_raw_omni_pause_form():
             assert "omni pause" not in phrase, phrase
 
 
-def test_funscript_row_shows_the_joined_word_the_recognizer_cannot_hear():
+def test_funscript_rows_show_the_joined_word_the_recognizer_cannot_hear():
     """The small vosk model has no "funscript" token, so the recognizer listens
     for "fun script" — but nobody says it that way, and reading it in the popup
     would teach the wrong phrase."""
-    assert VOICE_COMMANDS["jump to fun script"] == "main_player_funscript_jump"
+    assert VOICE_COMMANDS["jump to fun script"] == "active_funscript_jump"
     assert "jump to funscript" not in VOICE_COMMANDS  # display-only
 
-    rows = [r for r in _all_rows() if "main_player_funscript_jump" in r.commands]
-    assert len(rows) == 1, "expected exactly one funscript navigation row"
-    assert rows[0].voice == ("jump to funscript", "next funscripted")
-    assert _keys(rows[0]) == ()
+    main = [r for r in _all_rows() if "main_player_funscript_jump" in r.commands]
+    sides = [r for r in _all_rows() if "portrait_funscript_jump" in r.commands]
+    assert len(main) == len(sides) == 1, "expected one funscript row per section"
+    assert {"main jump to funscript", "main next funscripted"} <= set(main[0].voice)
+    assert sides[0].voice == ("jump to funscript", "next funscripted")
+    assert _keys(main[0]) == _keys(sides[0]) == ()
     for row in _all_rows():
         for phrase in row.voice:
             assert "fun script" not in phrase, phrase

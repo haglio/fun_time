@@ -486,6 +486,14 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Nudge back 10 seconds", (), _sided("nudge_prev")),
             _Row("Nudge forward 10 seconds", (), _sided("nudge_next")),
             _Row(
+                "Funscript navigation: \"jump to funscript\" skips ahead to where "
+                "the clip's scripting starts up again, while that Satellite has the "
+                "OSR2; \"next funscripted\" leaves for the next scripted clip in the "
+                "playlist, landing where its action begins",
+                (),
+                _sided("funscript_jump", "next_funscripted"),
+            ),
+            _Row(
                 "Unfavorite the clip — or mark it weird when it is not a favorite",
                 ("Up",),
                 _sided("trash"),

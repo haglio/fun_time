@@ -15,6 +15,7 @@ from funestra.flick_decode import load_flick_frames
 from funestra.flick_folder import flat_flicks_in, scan_flicks, weird_folder_for
 from funestra.flick_overlay import FlickFrame
 from funestra.modes import NoticeLevel
+from funestra.notices import NoticeWriter
 from shared_ui.orientation import PORTRAIT
 
 from fun_time.arrivals import LOOK_EVERY_S, Arrivals
@@ -26,7 +27,6 @@ from fun_time.media_metadata import recorded_for, recorded_orientation
 from fun_time.modes import keep_favorites, videos_in
 
 from .genau_verbs import apply_command as answer_genaus_verb
-from .notice import NoticeWriter
 
 logger = logging.getLogger(__name__)
 

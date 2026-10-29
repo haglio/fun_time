@@ -19,9 +19,11 @@ from funestra.console import (
 )
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import (
+    JUMP_TO_FUNSCRIPT,
     LOCK_OFF,
     LOCK_ON,
     NEXT,
+    NEXT_FUNSCRIPTED,
     PREV,
     SEEK_BACK,
     SEEK_FWD,
@@ -182,6 +184,12 @@ _PLAYHEAD_ACTS = {
     "nudge_prev": SEEK_BACK,
     "nudge_next": SEEK_FWD,
 }
+# Past the lull the playhead is in, or on to the next scripted item: every
+# Funestra answers both, the Main Funestra under the ids its console posts.
+_FUNSCRIPT_MOVES = {
+    "funscript_jump": JUMP_TO_FUNSCRIPT,
+    "next_funscripted": NEXT_FUNSCRIPTED,
+}
 # A video's own playback rate, as opposed to the motion's, said of one Funestra.
 _PLAYBACK_RATE_ACTS = {
     "speed_down": SPEED_DOWN,
@@ -245,16 +253,11 @@ _MAIN_FUNESTRA_CMD_MAP = {
     "main_player_end_compilation": "END_COMPILATION",
     "main_player_full_vid": "PLAY_FULL_VID",
     "main_player_clip_jump": "PLAY_CLIP_JUMP",
-    # Funscript navigation: past this video's quiet stretch, or on to the next
-    # video in the playlist that has a script at all (landing on its action).
-    # Only the Main Funestra can answer either — it holds the playlist's funscript column and
-    # the parsed script of what is playing.
-    "main_player_funscript_jump": "JUMP_TO_FUNSCRIPT",
-    "main_player_next_funscripted": "NEXT_FUNSCRIPTED",
+    **{f"main_player_{act}": verb for act, verb in _FUNSCRIPT_MOVES.items()},
 }
 
 _VERBS_THE_MAIN_FUNESTRA_ANSWERS = frozenset({
-    "PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP", "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED",
+    "PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP", JUMP_TO_FUNSCRIPT, NEXT_FUNSCRIPTED,
 })
 
 
@@ -1556,17 +1559,35 @@ def _transport(funestra: RoomFunestra, verb: str, state: BridgeState, config: Br
     return state, []
 
 
-_SATELLITE_SPEEDS: dict[str, tuple[RoomFunestra, str]] = {
+# A satellite's own playback rate, and its funscript moves: each verb goes to
+# that satellite as it is.
+_SENT_TO_A_SATELLITE: dict[str, tuple[RoomFunestra, str]] = {
     f"{funestra.label}_{act}": (funestra, verb)
     for funestra in RoomFunestra.SATELLITES
-    for act, verb in _PLAYBACK_RATE_ACTS.items()
+    for act, verb in (*_PLAYBACK_RATE_ACTS.items(), *_FUNSCRIPT_MOVES.items())
 }
 
 
-def _satellite_speed(funestra: RoomFunestra, verb: str, state: BridgeState, config: BridgeConfig,
-                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+def _send_to_satellite(funestra: RoomFunestra, verb: str, state: BridgeState, config: BridgeConfig,
+                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    if verb == JUMP_TO_FUNSCRIPT and (refused := _skip_ahead_refused(funestra, state)):
+        return state, refused
     send_satellite(config, funestra, verb)
     return state, []
+
+
+_SKIP_AHEAD_NAMES = {
+    RoomFunestra.MAIN: "Main Funestra",
+    RoomFunestra.PORTRAIT: "portrait Satellite",
+    RoomFunestra.LANDSCAPE: "landscape Satellite",
+}
+
+
+def _skip_ahead_refused(funestra: RoomFunestra, state: BridgeState) -> list[WindowOp]:
+    if funestra_with_the_osr2(state) is funestra:
+        return []
+    return [WindowOp(op="notice", key=f"The {_SKIP_AHEAD_NAMES[funestra]} doesn't have the OSR2",
+                     level=logging.WARNING)]
 
 
 _PLAYHEAD_COMMANDS: dict[str, tuple[RoomFunestra, str]] = {
@@ -1623,9 +1644,8 @@ def _forward_to_main_funestra_on_screen(verb: str, state: BridgeState, config: B
 
 def _skip_ahead_on_the_main_funestra(state: BridgeState, config: BridgeConfig,
                                      target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if kino_shows(state.main_mode) and funestra_with_the_osr2(state) is not RoomFunestra.MAIN:
-        return state, [WindowOp(op="notice", key="The Main Funestra doesn't have the OSR2",
-                                level=logging.WARNING)]
+    if kino_shows(state.main_mode) and (refused := _skip_ahead_refused(RoomFunestra.MAIN, state)):
+        return state, refused
     return _forward_to_main_funestra_on_screen(
         _MAIN_FUNESTRA_CMD_MAP["main_player_funscript_jump"], state, config, target_path)
 
@@ -1841,8 +1861,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers: dict[str, Handler] = {}
     handlers.update({cmd: partial(_transport, funestra, verb)
                      for cmd, (funestra, verb) in _TRANSPORT_COMMANDS.items()})
-    handlers.update({cmd: partial(_satellite_speed, funestra, verb)
-                     for cmd, (funestra, verb) in _SATELLITE_SPEEDS.items()})
+    handlers.update({cmd: partial(_send_to_satellite, funestra, verb)
+                     for cmd, (funestra, verb) in _SENT_TO_A_SATELLITE.items()})
     handlers.update({cmd: partial(_step_through, funestra, verb)
                      for cmd, (funestra, verb) in _PLAYHEAD_COMMANDS.items()})
     handlers.update({cmd: partial(_toggle_lock, funestra)
