@@ -154,7 +154,7 @@ def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
     assert _cmds(config, 2) == ["LOCK_ON"]
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
-    assert f'"{make_web_url_from_path(path)}"' in _tab_page(rfb_ops[0].key)
+    assert f'"{make_web_url_from_path(path, load_web_providers())}"' in _tab_page(rfb_ops[0].key)
 
 
 def test_lock_landing_page_plays_the_locked_video(tmp_path: Path):
@@ -306,7 +306,7 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
     assert _cmds(config, 3) == ["LOCK_ON"]
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
-    assert f'"{make_web_url_from_path(path)}"' in _tab_page(rfb_ops[0].key)
+    assert f'"{make_web_url_from_path(path, load_web_providers())}"' in _tab_page(rfb_ops[0].key)
 
 
 def test_landscape_lock_emits_regen_url_when_metadata_present(tmp_path: Path):

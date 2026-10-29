@@ -2,15 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .content import WebProvider, load_web_providers, provider_that_made
+from .content import WebProvider, provider_that_made
 
 
-def make_web_url_from_path(
-    full_path: str, providers: tuple[WebProvider, ...] | None = None
-) -> str:
+def make_web_url_from_path(full_path: str, providers: tuple[WebProvider, ...]) -> str:
     if not full_path:
         return ""
-    provider = provider_that_made(full_path, load_web_providers() if providers is None else providers)
+    provider = provider_that_made(full_path, providers)
     if provider is None:
         return ""
     name_no_ext = Path(full_path.replace("/", "\\")).stem
