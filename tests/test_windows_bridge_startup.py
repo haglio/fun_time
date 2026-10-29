@@ -32,6 +32,7 @@ from fun_time.funestra_deaths import (
 )
 from fun_time.loopback_server import omnipause_url
 from fun_time.main_list import MainList, MainListSettings, WrittenList
+from fun_time.media_metadata import mark_favorite
 from fun_time.modes import SatelliteBuild
 from fun_time.process_identity import NAMER
 from fun_time.project_paths import PROJECT_ICON
@@ -256,15 +257,14 @@ def _rfb_config(cfg_factory, tmp_path: Path, *, lazy_load: bool) -> Path:
         json.dumps({"profile": {"info_cache": {"Profile 2": {"name": "Jane Doe"}}}}),
         encoding="utf-8",
     )
-    favs = tmp_path / "favs.csv"
-    favs.write_text(
-        "local_file,web_url\r\n"
-        '"","=HYPERLINK(""https://example.com/image/abc"";""https://example.com/image/abc"")"\r\n',
-        encoding="utf-8",
-    )
+    favorite = tmp_path / "videos" / "videos" / "scene one.mp4"
+    favorite.parent.mkdir(parents=True)
+    favorite.write_bytes(b"")
+    records = tmp_path / "videos" / "metadata"
+    mark_favorite(favorite, records, True, page="https://example.com/image/abc")
     return cfg_factory(
         {
-            "paths": {"favs_file": str(favs)},
+            "regen": {"metadata_root": str(records)},
             "random_favs_browser": {
                 "enabled": True,
                 "profile_name": "Jane Doe",
@@ -517,7 +517,6 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
                         WindowRect(x=1664, y=0, width=896, height=1392)),
         main_funestra_status_file=state_dir / "main_player_status.txt",
         main_sources=f"{tmp_path / 'main_a'}|{tmp_path / 'main_b'}",
-        favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         result_file=tmp_path / "core_session.ini",
         regen_metadata_root=tmp_path / "metadata",
@@ -574,7 +573,6 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     build.assert_called_once_with(
         portrait=SatelliteBuild(sources=kwargs["portrait"].sources),
         landscape=SatelliteBuild(sources=kwargs["landscape"].sources),
-        favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         metadata_root=tmp_path / "metadata",
     )
@@ -1184,11 +1182,9 @@ def test_the_launch_names_genaus_orientations_only_for_a_session_left_narrowed(t
     assert named((False, False)) == ["--genau-orientations"]
 
 
-def test_the_main_funestra_is_handed_the_favorites_and_where_its_notices_are_read(tmp_path: Path):
-    command = _launched_main_funestra(tmp_path, favs_file="a-library/favs.csv",
-                                      notice_file="a-state-dir/main_player_notice.txt")
+def test_the_main_funestra_is_handed_where_its_notices_are_read(tmp_path: Path):
+    command = _launched_main_funestra(tmp_path, notice_file="a-state-dir/main_player_notice.txt")
 
-    assert command[command.index("--favs-file") + 1] == "a-library/favs.csv"
     assert command[command.index("--notice-file") + 1] == "a-state-dir/main_player_notice.txt"
 
 

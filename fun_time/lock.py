@@ -6,7 +6,8 @@ from funestra.file_channel import append_command
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .content import load_web_providers
-from .media_actions import ensure_in_favs, make_web_url_from_path
+from .media_actions import ensure_in_favs, make_web_url_from_path, remove_from_favs
+from .media_metadata import mark_favorite
 from .origenerator_switches import RfbSlot
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_slot import switch_the_rfb_slot
@@ -27,17 +28,23 @@ def a_lock_holds(item: str, state: BridgeState,
                  config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
     if not item:
         return state, []
-    ensure_in_favs(config.favs_file, item)
-    record_watch_event(watch_stats_path(config.state_dir), item, "lock")
-    return _where_more_of_it_is_made(item, state, config)
-
-
-def _where_more_of_it_is_made(item: str, state: BridgeState,
-                              config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
     providers = load_web_providers()
-    target = target_for_fav(
-        FavEntry(local_path=item, web_url=make_web_url_from_path(item, providers)),
-        config.regen, providers)
+    page = make_web_url_from_path(item, providers)
+    mark_favorite(item, config.regen_metadata_root, True, page=page)
+    ensure_in_favs(config.favs_file, item, providers)
+    record_watch_event(watch_stats_path(config.state_dir), item, "lock")
+    return _where_more_of_it_is_made(FavEntry(local_path=item, web_url=page), state, config)
+
+
+def unfavorite(item: str, config: BridgeConfig) -> None:
+    mark_favorite(item, config.regen_metadata_root, False)
+    remove_from_favs(config.favs_file, item)
+
+
+def _where_more_of_it_is_made(favorite: FavEntry, state: BridgeState,
+                              config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
+    item = favorite.local_path
+    target = target_for_fav(favorite, config.regen, load_web_providers())
     if not target.url:
         if state.origenerator_ready and config.hosts_origenerator:
             append_command(config.origenerator_cmd_file, go_to_line(item))

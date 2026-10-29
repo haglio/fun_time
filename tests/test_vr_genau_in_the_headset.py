@@ -16,7 +16,7 @@ from funestra.funestra import User
 from fun_time.arrivals import LOOK_EVERY_S
 from fun_time.content import no_other_flicks
 from fun_time.genau_config import GenauSettings
-from fun_time.media_actions import ensure_in_favs
+from fun_time.media_metadata import mark_favorite
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
 from main_funestra.genau import GenauChannels
 from main_funestra.genau_verbs import genau_f_mode
@@ -76,7 +76,7 @@ class World:
         self.flat_dir.mkdir(parents=True)
         for name in flat_flicks:
             (self.flat_dir / name).write_bytes(b"flick")
-        self.favs_file = tmp_path / "favs.csv"
+        self.metadata_root = tmp_path / "metadata"
         state = tmp_path / "state"
         state.mkdir()
         self.channels = GenauChannels(
@@ -96,7 +96,7 @@ class World:
             stop_event=self.stop,
             start_flick=start_flick,
             latest=latest,
-            favs_file=self.favs_file,
+            metadata_root=self.metadata_root,
             notices=NoticeWriter(self.notice_file),
             decode=lambda _path: _frames(),
             start_thread=start_thread,
@@ -261,8 +261,8 @@ class TestWhatArrivesInItsFolders:
 class TestFMode:
     def test_it_keeps_the_favorites_of_the_shape_kept(self, tmp_path):
         world = World(tmp_path, flat_flicks=("delta.mp4", "epsilon.mp4"))
-        ensure_in_favs(world.favs_file, str(world.flat_dir / "epsilon.mp4"))
-        ensure_in_favs(world.favs_file, str(world.vr_dir / "beta_180.mp4"))
+        mark_favorite(world.flat_dir / "epsilon.mp4", world.metadata_root, True)
+        mark_favorite(world.vr_dir / "beta_180.mp4", world.metadata_root, True)
         world.send("SHAPES flat")
 
         world.genau.apply_command(genau_f_mode(True))
@@ -274,7 +274,7 @@ class TestFMode:
 
     def test_the_title_says_f_mode_while_it_is_on(self, tmp_path):
         world = World(tmp_path)
-        ensure_in_favs(world.favs_file, str(world.vr_dir / "alpha_180.mp4"))
+        mark_favorite(world.vr_dir / "alpha_180.mp4", world.metadata_root, True)
 
         world.genau.apply_command(genau_f_mode(True))
 

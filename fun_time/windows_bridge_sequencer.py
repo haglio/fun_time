@@ -349,7 +349,6 @@ def _launch_the_satellites(
         main_funestra_status_file=m.commands.main_funestra_status_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
         main_sources=m.media.main_funestra_library_sources,
-        favs_file=m.media.favs_file,
         state_dir=state_dir,
         result_file=str(core_result_file),
         regen_metadata_root=Path(regen_metadata_raw) if regen_metadata_raw else None,
@@ -434,7 +433,6 @@ def _launch_the_main_funestra(
         genau_latest=state.genau_latest,
         genau_f_mode=state.genau_favorites_filter,
         genau_orientations=(state.genau_plays_portrait, state.genau_plays_landscape),
-        favs_file=m.media.favs_file,
         notice_file=m.commands.main_funestra_notice_file,
         sibling_checkouts=sibling_checkouts,
     )

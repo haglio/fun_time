@@ -85,8 +85,6 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                    help="The flick Genau opens on: where the last session left it")
     p.add_argument("--genau-latest", action="store_true", default=False,
                    help="Browse Genau's flicks newest-first from the start")
-    p.add_argument("--favs-file", type=Path, default=None,
-                   help="The favorites a lock puts a flick in, which F-Mode keeps")
     p.add_argument("--genau-orientations", nargs="*", choices=ORIENTATIONS, default=None,
                    help="The orientations of flick Genau plays; absent is both")
     p.add_argument("--genau-f-mode", action="store_true", default=False,

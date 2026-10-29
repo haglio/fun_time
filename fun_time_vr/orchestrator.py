@@ -308,7 +308,6 @@ def stock_the_playlists(
         build_satellite_playlists(
             portrait=SatelliteBuild(sources=manifest.media.portrait_dirs),
             landscape=SatelliteBuild(sources=manifest.media.landscape_dirs),
-            favs_file=Path(manifest.media.favs_file),
             state_dir=state_dir,
             metadata_root=metadata_root,
         )

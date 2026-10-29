@@ -18,8 +18,7 @@ from fun_time.arrivals import LOOK_EVERY_S
 from fun_time.content import Noun
 from fun_time.genau_config import GenauSettings
 from fun_time.inclusion_pairs import BOTH
-from fun_time.media_actions import ensure_in_favs
-from fun_time.media_metadata import metadata_path_for
+from fun_time.media_metadata import mark_favorite, metadata_path_for
 from main_funestra.genau import Genau, GenauChannels
 from main_funestra.genau_verbs import genau_f_mode, genau_orientations
 from tests.genau_fakes import FakeNotifier, FakeSink
@@ -70,7 +69,7 @@ class World:
     def __init__(self, tmp_path: Path, *, flicks=("alpha one.mp4", "beta two.mp4", "gamma three.mp4"),
                  favorites=(), f_mode=False, start_flick=None, latest=False, metadata_root=None,
                  turned=(), orientations=BOTH, start_thread=_run_now) -> None:
-        self.favs_file = tmp_path / "favs.csv"
+        self.metadata_root = tmp_path / "metadata" if metadata_root is None else metadata_root
         self.flicks_folder = tmp_path / "flicks"
         self.flat_dir = self.flicks_folder / "2D" / "non_AI"
         self.flat_dir.mkdir(parents=True)
@@ -78,13 +77,13 @@ class World:
             flick = self.flat_dir / name
             flick.write_bytes(b"flick")
             os.utime(flick, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
-        for name in favorites:
-            ensure_in_favs(self.favs_file, str(self.flat_dir / name))
         for name, orientation in turned:
-            sidecar = metadata_path_for(self.flat_dir / name, metadata_root)
+            sidecar = metadata_path_for(self.flat_dir / name, self.metadata_root)
             sidecar.parent.mkdir(parents=True, exist_ok=True)
             sidecar.write_text(json.dumps({"video": {"orientation": orientation}}),
                                encoding="utf-8")
+        for name in favorites:
+            mark_favorite(self.flat_dir / name, self.metadata_root, True)
         state = tmp_path / "state"
         state.mkdir()
         self.channels = GenauChannels(
@@ -103,10 +102,9 @@ class World:
             tcode_sink=self.sink,
             start_flick=start_flick,
             latest=latest,
-            favs_file=self.favs_file,
             f_mode=f_mode,
             orientations=orientations,
-            metadata_root=metadata_root,
+            metadata_root=self.metadata_root,
             decode=lambda _path: _frames(),
             start_thread=start_thread,
             clock=self.clock,
@@ -271,7 +269,7 @@ class TestWhatArrivesInItsFolder:
 class TestFMode:
     def test_it_keeps_only_the_favorites(self, tmp_path):
         world = World(tmp_path)
-        ensure_in_favs(world.favs_file, str(world.flat_dir / "gamma three.mp4"))
+        mark_favorite(world.flat_dir / "gamma three.mp4", world.metadata_root, True)
 
         assert world.genau.apply_command(genau_f_mode(True)) is True
         world.send("NEXT")
@@ -280,7 +278,7 @@ class TestFMode:
 
     def test_off_it_brings_every_flick_back_and_keeps_the_one_on_screen(self, tmp_path):
         world = World(tmp_path)
-        ensure_in_favs(world.favs_file, str(world.flat_dir / "gamma three.mp4"))
+        mark_favorite(world.flat_dir / "gamma three.mp4", world.metadata_root, True)
         world.genau.apply_command(genau_f_mode(True))
 
         world.genau.apply_command(genau_f_mode(False))
@@ -291,7 +289,7 @@ class TestFMode:
 
     def test_the_title_says_f_mode_while_it_is_on(self, tmp_path):
         world = World(tmp_path)
-        ensure_in_favs(world.favs_file, str(world.flat_dir / "gamma three.mp4"))
+        mark_favorite(world.flat_dir / "gamma three.mp4", world.metadata_root, True)
 
         world.genau.apply_command(genau_f_mode(True))
 

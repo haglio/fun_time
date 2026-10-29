@@ -5,7 +5,7 @@ import os
 import random
 from pathlib import Path
 
-from fun_time.media_metadata import load_metadata, metadata_path_for
+from fun_time.media_metadata import is_favorite, load_metadata, mark_favorite, metadata_path_for
 from fun_time.modes import (
     SatelliteBuild,
     build_generated_marker_path,
@@ -15,10 +15,8 @@ from fun_time.modes import (
     collect_video_files,
     has_handcrafted_funscript,
     has_matching_funscript,
-    is_favorite_path,
     matching_funscript,
     order_paths,
-    read_favs_content,
     shuffle_paths,
     sort_paths_by_recency,
     write_playlist_file,
@@ -91,42 +89,41 @@ def test_build_mirrored_funscript_path_uses_video_path_directly(tmp_path: Path):
 
 
 def test_build_satellite_playlist_paths_filters_to_favorites_in_f_mode(tmp_path: Path):
-    source_root = tmp_path / "portrait"
+    source_root = tmp_path / "videos" / "videos" / "portrait"
+    metadata_root = tmp_path / "videos" / "metadata"
     first = source_root / "keep.mp4"
     second = source_root / "skip.mp4"
     source_root.mkdir(parents=True)
     first.write_text("x", encoding="utf-8")
     second.write_text("x", encoding="utf-8")
-    favs_file = tmp_path / "favs.csv"
-    favs_file.write_text(f'local_file,web_url\r\n"x","{first}"\r\n', encoding="utf-8")
+    mark_favorite(first, metadata_root, True)
 
-    paths = build_satellite_playlist_paths(str(source_root), True, favs_file, rng=random.Random(1))
+    paths = build_satellite_playlist_paths(str(source_root), True, rng=random.Random(1),
+                                           metadata_root=metadata_root)
 
     assert paths == [str(first)]
 
 
 def test_build_satellite_playlists_writes_each_sides_own_favorites(tmp_path: Path):
-    portrait_root = tmp_path / "portrait"
-    landscape_root = tmp_path / "landscape"
+    portrait_root = tmp_path / "videos" / "videos" / "portrait"
+    landscape_root = tmp_path / "videos" / "videos" / "landscape"
+    metadata_root = tmp_path / "videos" / "metadata"
     for root in (portrait_root, landscape_root):
         root.mkdir(parents=True)
     portrait_video = portrait_root / "portrait.mp4"
     landscape_video = landscape_root / "landscape.mp4"
     for path in (portrait_video, landscape_video, portrait_root / "skip.mp4"):
         path.write_text("x", encoding="utf-8")
-    favs_file = tmp_path / "favs.csv"
-    favs_file.write_text(
-        f'local_file,web_url\r\n"x","{portrait_video}"\r\n"x","{landscape_video}"\r\n',
-        encoding="utf-8",
-    )
+    for favorite in (portrait_video, landscape_video):
+        mark_favorite(favorite, metadata_root, True)
     state_dir = tmp_path / "state"
 
     build_satellite_playlists(
         portrait=SatelliteBuild(sources=str(portrait_root), favorites_filter=True),
         landscape=SatelliteBuild(sources=str(landscape_root), favorites_filter=True),
-        favs_file=favs_file,
         state_dir=state_dir,
         rng=random.Random(1),
+        metadata_root=metadata_root,
     )
 
     assert _lines(state_dir / "portrait_playlist.tsv") == [str(portrait_video)]
@@ -298,16 +295,12 @@ def test_the_main_funestras_playlist_pairs_a_kept_video_with_the_librarys_script
     assert str(script) in _lines(playlist)[0]
 
 
-# --- read_favs_content / is_favorite_path edge cases ---
+def test_a_video_with_no_record_is_no_favorite(tmp_path: Path):
+    assert not is_favorite(tmp_path / "videos" / "videos" / "scene one.mp4", tmp_path / "videos" / "metadata")
 
 
-def test_a_favorites_file_that_is_not_there_reads_as_no_favorites(tmp_path: Path):
-    assert read_favs_content(tmp_path / "nope.csv") == ""
-
-
-def test_an_empty_path_is_not_a_favorite():
-    assert is_favorite_path("", "some content") is False
-    assert is_favorite_path("video.mp4", "") is False
+def test_with_no_records_folder_no_video_is_a_favorite(tmp_path: Path):
+    assert not is_favorite(tmp_path / "videos" / "videos" / "scene one.mp4", None)
 
 
 # --- recency ordering ---
@@ -367,7 +360,7 @@ def test_build_satellite_playlist_paths_recent_orders_newest_first(tmp_path: Pat
     _touch_with_mtime(old, 1000)
     _touch_with_mtime(new, 2000)
 
-    paths = build_satellite_playlist_paths(str(d), False, tmp_path / "favs.csv", recent=True)
+    paths = build_satellite_playlist_paths(str(d), False, recent=True)
 
     assert paths == [str(new), str(old)]
 
@@ -386,7 +379,6 @@ def test_build_satellite_playlists_writes_both_recency_ordered_files(tmp_path: P
     build_satellite_playlists(
         portrait=SatelliteBuild(sources=str(portrait_root), recent=True),
         landscape=SatelliteBuild(sources=str(landscape_root), recent=True),
-        favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
     )
 
@@ -413,7 +405,7 @@ def test_with_f_mode_off_a_satellites_playlist_holds_every_video(tmp_path: Path)
     d.mkdir()
     (d / "a.mp4").write_text("x", encoding="utf-8")
     (d / "b.mp4").write_text("x", encoding="utf-8")
-    paths = build_satellite_playlist_paths(str(d), False, tmp_path / "favs.csv", rng=random.Random(1))
+    paths = build_satellite_playlist_paths(str(d), False, rng=random.Random(1))
     assert len(paths) == 2
 
 
@@ -434,7 +426,7 @@ def test_shuffled_satellite_build_plays_one_item_per_action_group(tmp_path: Path
     seen: set[str] = set()
     for round_no in range(30):
         built = build_satellite_playlist_paths(
-            str(source_dir), False, tmp_path / "favs.csv",
+            str(source_dir), False,
             rng=random.Random(round_no), metadata_root=metadata_root,
         )
         chosen = group.intersection(built)
@@ -456,7 +448,7 @@ def test_group_item_choice_follows_the_weights_stamped_on_the_sidecars(tmp_path:
 
     loved_picks = sum(
         paths["loved"] in build_satellite_playlist_paths(
-            str(source_dir), False, tmp_path / "favs.csv",
+            str(source_dir), False,
             rng=random.Random(round_no), metadata_root=metadata_root,
         )
         for round_no in range(40)
@@ -474,7 +466,7 @@ def test_chronically_skipped_standalone_video_sits_most_builds_out(tmp_path: Pat
 
     appearances = sum(
         paths["disliked"] in build_satellite_playlist_paths(
-            str(source_dir), False, tmp_path / "favs.csv",
+            str(source_dir), False,
             rng=random.Random(round_no), metadata_root=metadata_root,
         )
         for round_no in range(40)
@@ -497,7 +489,7 @@ def test_latest_build_collapses_groups_to_newest_item(tmp_path: Path):
         os.utime(Path(paths[name]), (mtime, mtime))
 
     built = build_satellite_playlist_paths(
-        str(source_dir), False, tmp_path / "favs.csv",
+        str(source_dir), False,
         recent=True, rng=random.Random(1), metadata_root=metadata_root,
     )
 
@@ -515,7 +507,6 @@ def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path:
     build_satellite_playlists(
         portrait=SatelliteBuild(sources=str(source_dir), recent=False),
         landscape=SatelliteBuild(sources=str(source_dir), recent=False),
-        favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         rng=random.Random(5),
         metadata_root=metadata_root,
@@ -536,7 +527,7 @@ def test_satellite_filter_narrows_to_the_matching_action(tmp_path: Path):
         "twirl": _i2v_meta("3", "Twirling"),
     })
     got = build_satellite_playlist_paths(
-        str(source_dir), False, tmp_path / "favs.csv",
+        str(source_dir), False,
         filter_query="beta gamma", rng=random.Random(1), metadata_root=metadata_root,
     )
     assert got == [paths["prone"]]
@@ -548,7 +539,7 @@ def test_satellite_filter_drops_videos_without_a_sidecar(tmp_path: Path):
         "nometa": None,
     })
     got = build_satellite_playlist_paths(
-        str(source_dir), False, tmp_path / "favs.csv",
+        str(source_dir), False,
         filter_query="alpha", rng=random.Random(1), metadata_root=metadata_root,
     )
     assert got == [paths["clip"]]
@@ -565,7 +556,7 @@ def test_satellite_filter_composes_with_latest_ordering(tmp_path: Path):
     os.utime(paths["old"], (1000, 1000))
     os.utime(paths["new"], (2000, 2000))
     got = build_satellite_playlist_paths(
-        str(source_dir), False, tmp_path / "favs.csv",
+        str(source_dir), False,
         filter_query="alpha", recent=True, metadata_root=metadata_root,
     )
     assert got == [paths["new"], paths["old"]]  # filtered, newest-first
@@ -577,7 +568,7 @@ def test_satellite_filter_is_ignored_without_a_library(tmp_path: Path):
     d.mkdir()
     (d / "a.mp4").write_text("x", encoding="utf-8")
     got = build_satellite_playlist_paths(
-        str(d), False, tmp_path / "favs.csv", filter_query="alpha", rng=random.Random(1)
+        str(d), False, filter_query="alpha", rng=random.Random(1)
     )
     assert len(got) == 1
 
@@ -606,7 +597,6 @@ def test_build_satellite_playlists_applies_independent_per_satellite_filters(tmp
     build_satellite_playlists(
         portrait=SatelliteBuild(sources=str(portrait_dir), recent=True, filter_query="alpha"),
         landscape=SatelliteBuild(sources=str(landscape_dir), recent=True, filter_query="twirling"),
-        favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         metadata_root=metadata_root,
     )
@@ -646,7 +636,7 @@ def test_filtered_build_collapses_same_params_different_seed(tmp_path: Path):
     os.utime(paths["clip_b"], (2000, 2000))
 
     built = build_satellite_playlist_paths(
-        str(source_dir), False, tmp_path / "favs.csv",
+        str(source_dir), False,
         filter_query="alpha", recent=True, metadata_root=metadata_root,
     )
 
@@ -664,7 +654,7 @@ def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
     os.utime(paths["clip_b"], (2000, 2000))
 
     built = build_satellite_playlist_paths(
-        str(source_dir), False, tmp_path / "favs.csv", recent=True, metadata_root=metadata_root,
+        str(source_dir), False, recent=True, metadata_root=metadata_root,
     )
 
     assert sorted(built) == sorted([paths["clip_a"], paths["clip_b"]])
@@ -683,7 +673,7 @@ def test_filtered_build_keeps_distinct_actions_apart(tmp_path: Path):
     # collapses only within a seed family, so Alpha collapses to one and Theta
     # survives.
     built = build_satellite_playlist_paths(
-        str(source_dir), False, tmp_path / "favs.csv",
+        str(source_dir), False,
         filter_query="side", recent=True, metadata_root=metadata_root,
     )
 

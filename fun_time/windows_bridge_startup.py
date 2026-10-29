@@ -353,7 +353,6 @@ def start_core_session(
     landscape: SatelliteSlot,
     main_funestra_status_file: str | Path,
     main_sources: str,
-    favs_file: str | Path,
     state_dir: str | Path,
     result_file: str | Path,
     dashboard_cmd_file: str | Path | None = None,
@@ -425,7 +424,6 @@ def start_core_session(
         build_satellite_playlists(
             portrait=SatelliteBuild(sources=portrait.sources),
             landscape=SatelliteBuild(sources=landscape.sources),
-            favs_file=Path(favs_file),
             state_dir=state_path,
             metadata_root=regen_metadata_root,
         )
@@ -630,7 +628,6 @@ def launch_main_funestra(
     genau_latest: bool = False,
     genau_f_mode: bool = False,
     genau_orientations: Included = BOTH,
-    favs_file: str | Path | None = None,
     notice_file: str | Path | None = None,
     osr2_port: str | None = None,
     sibling_checkouts: str | None = None,
@@ -708,8 +705,6 @@ def launch_main_funestra(
         cmd.append("--genau-f-mode")
     if genau_orientations != BOTH:
         cmd += ["--genau-orientations", *orientation_words(genau_orientations)]
-    if favs_file:
-        cmd += ["--favs-file", str(favs_file)]
     if notice_file:
         cmd += ["--notice-file", str(notice_file)]
     if osr2_port:

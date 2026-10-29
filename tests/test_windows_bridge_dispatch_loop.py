@@ -41,7 +41,6 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.media_metadata import normalize_path_key
-from fun_time.modes import is_favorite_path, read_favs_content
 from fun_time.origenerator_switches import RfbSlot
 from fun_time.regen import build_regen_url
 from fun_time.rfb_slideshow import RfbSlideshow
@@ -3342,13 +3341,12 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
         runner = self._genau_beside_the_gallery(tmp_path)
         _genau_publishes(tmp_path, locked=False, flick=self.FIRST)
 
-        runner._dispatch("main_lock")
-        _genau_publishes(tmp_path, locked=True, flick=self.NEXT)
-        runner.tick()
+        with patch("fun_time.lock.mark_favorite") as marked:
+            runner._dispatch("main_lock")
+            _genau_publishes(tmp_path, locked=True, flick=self.NEXT)
+            runner.tick()
 
-        favorites = read_favs_content(runner.config.favs_file)
-        assert is_favorite_path(self.NEXT, favorites)
-        assert not is_favorite_path(self.FIRST, favorites)
+        assert [call.args[0] for call in marked.call_args_list] == [self.NEXT]
 
 
 def _the_main_funestra_publishes(tmp_path, *, locked: bool, video: str) -> None:
@@ -3384,13 +3382,15 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
         runner = self._kino_beside_origenerator(tmp_path)
         _the_main_funestra_publishes(tmp_path, locked=False, video=self.MADE_HERE)
 
-        runner._dispatch("main_lock")
-        runner.tick()
-        assert not is_favorite_path(self.MADE_HERE, read_favs_content(runner.config.favs_file))
+        with patch("fun_time.lock.mark_favorite") as marked:
+            runner._dispatch("main_lock")
+            runner.tick()
+            assert marked.call_count == 0
 
-        _the_main_funestra_publishes(tmp_path, locked=True, video=self.MADE_HERE)
-        runner.tick()
-        assert is_favorite_path(self.MADE_HERE, read_favs_content(runner.config.favs_file))
+            _the_main_funestra_publishes(tmp_path, locked=True, video=self.MADE_HERE)
+            runner.tick()
+        assert [call.args[:3] for call in marked.call_args_list] == [
+            (self.MADE_HERE, runner.config.regen_metadata_root, True)]
         stats = load_watch_stats(tmp_path / "watch_stats.json")
         assert stats[normalize_path_key(self.MADE_HERE)]["locks"] == 1
 

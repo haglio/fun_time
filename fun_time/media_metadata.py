@@ -19,8 +19,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support import favorites
 from app_support.json_store import locked_update
 from app_support.mirrored_tree import LIBRARY_DIR_NAME, library_roots_beside, mirrored_path
+from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.video_families import action_group_key, normalized_text, seed_group_key
 from shared_ui.orientation import LANDSCAPE, ORIENTATIONS
 
@@ -180,6 +182,22 @@ def recorded_for(
 ) -> dict:
     record = metadata_path_for(video_path, metadata_root, outlying_dirs=outlying_dirs)
     return {} if record is None else load_metadata(record)
+
+
+def is_favorite(video_path: str | Path, metadata_root: str | Path | None) -> bool:
+    return favorites.is_favorite(recorded_for(video_path, metadata_root))
+
+
+def mark_favorite(video_path: str | Path, metadata_root: str | Path | None, favorite: bool, *,
+                  page: str = "") -> bool:
+    record = metadata_path_for(video_path, metadata_root)
+    return record is not None and favorites.mark(record, favorite, page=page)
+
+
+def favorites_in(metadata_root: str | Path) -> list[favorites.Favorite]:
+    return favorites.favorites_under(
+        Path(metadata_root), video_roots=library_roots_beside(Path(metadata_root)),
+        video_suffixes=sorted(SUPPORTED_VIDEO_EXTS))
 
 
 # Where a struck-out act is kept once a viewer has said it is wrong.  Clearing

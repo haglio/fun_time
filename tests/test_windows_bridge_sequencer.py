@@ -325,13 +325,12 @@ class TestRunStartupSequence:
         assert ui_called["dashboard_width"] > 0
 
     def test_the_core_launch_carries_the_session_files_through(self, cfg_factory, tmp_path):
-        """The favs list and state dir, the provider roots (so the startup
+        """The state dir, the provider roots (so the startup
         build can collapse action groups), and the broker's heartbeat and
         command paths (so startup can leave a live broker running, and park
         the OSR2 for the long wait)."""
         cfg, _result, core_called, _ui = self._captured_launch(cfg_factory, tmp_path)
 
-        assert core_called["favs_file"] == str(cfg.paths.favs_file)
         assert core_called["state_dir"] == tmp_path
         assert core_called["regen_metadata_root"] == tmp_path / "metadata"
         assert core_called["broker_heartbeat_file"] == str(cfg.broker_heartbeat_file)
@@ -410,7 +409,6 @@ class TestRunStartupSequence:
             "genau_latest": False,
             "genau_f_mode": False,
             "genau_orientations": (True, True),
-            "favs_file": str(cfg.paths.favs_file),
             "notice_file": str(cfg.main_funestra_notice_file),
             # Where a press on the Main Funestra's volume control posts its command — the same
             # file the dashboard and each satellite's HUD write to.
@@ -567,7 +565,6 @@ class TestRunStartupSequence:
         given = stubs.launch_main_funestra.call_args.kwargs
         manifest = LaunchManifest.read(manifest_path)
         assert given["genau_f_mode"] is True
-        assert given["favs_file"] == manifest.media.favs_file
         assert given["notice_file"] == manifest.commands.main_funestra_notice_file
 
     def test_genau_is_launched_knowing_where_the_librarys_records_are(self, cfg_factory, tmp_path):

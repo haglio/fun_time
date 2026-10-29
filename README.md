@@ -41,18 +41,7 @@ Runtime state:
 
 Local runtime data:
 
-- `favs.csv` — favorites CSV written whenever something is locked
 - `Fun Time.lnk` — convenience shortcut
-
-## Recommended project-local paths
-
-`favs.csv` should live inside the project folder, not in the old top-level location.
-
-Recommended:
-
-- `C:\path\to\fun_time\favs.csv`
-
-It should be ignored by Git.
 
 ## Configuration
 
@@ -446,8 +435,8 @@ The alternative was worse than it sounds: a Funestra that closed itself left the
 F-Mode is **per Funestra** — the Main Funestra, portrait and landscape each have their own — and setting one rebuilds that Funestra's playlist immediately, rather than waiting for the next advance, then sends it `RELOAD_PLAYLIST`. A Funestra that was not named is not rebuilt at all, so narrowing one side never reshuffles the other's queue. What it narrows to differs by Funestra:
 
 - the main playlist (the Main Funestra) keeps only videos with a hand-written `.funscript` at the mirrored path (`videos\videos\…` maps to `videos\scripts\scripts\….funscript`, and an empty mark under `videos\scripts\generated` says no person wrote it) that is in action for at least 30% of the running time Evolver recorded for the video, counting each run of action from its first cycle to its last, a pause of under five seconds staying inside its run (`plays_in_f_mode`). A video whose running time Evolver has not recorded yet — a new one, or one of the headset's own videos on the cloud drive that it has not reached, a few of which it measures each run — stays in
-- each satellite plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
-- Genau, which has the main slot in Genau mode, keeps only the flicks listed in `favs.csv` — a lock on Genau puts its flick there, as a satellite's lock does — and is told over `SET_GENAU_F_MODE`, since it rescans its own folder rather than playing a list; its F-Mode is its own, apart from the Main Funestra's, the way its browse order is
+- each satellite plays only items that are in its normal portrait/landscape pool *and* marked a favorite on their metadata sidecar
+- Genau, which has the main slot in Genau mode, keeps only the flicks marked a favorite on their sidecar — a lock on Genau marks its flick, as a satellite's lock does — and is told over `SET_GENAU_F_MODE`, since it rescans its own folder rather than playing a list; its F-Mode is its own, apart from the Main Funestra's, the way its browse order is
 
 Every Funestra carries its own F button in the first row of icons on its own HUD (the satellites' control band, the main console's transport row), with that Funestra's reset button just past it. The dashboard's F button, the `F` key and the spoken "all f mode" reach all three at once — they turn F-Mode **on** unless every Funestra is already in it, so the whole-room gesture can never leave half the room narrowed. In Origenerator mode the portrait and Landscape Funestras' part of it is each slideshow's own F-Mode switch, and the dashboard's F button lights off those. A bare spoken "f mode" reaches the Funestra last addressed, and naming a Funestra narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "both f mode off" — either word order, and `both` means the two satellites. A satellite also takes its side's "favorites" — "portrait favorites", "landscape favorites" — as its F-Mode, the word Origenerator's shows answer with their own F-Mode switch in Origenerator mode.
 
@@ -499,7 +488,7 @@ Fun Time records how you treat each satellite video (`fun_time/watch_stats.py`, 
 - pressing next/prev (or cycling action/seed) early in a video counts a **skip**
 - **locking** a video is the strongest positive signal
 
-Warm Gun, on the phone, records the same three for what it plays. Evolver's Watch Weights stage sums the two onto every library video's metadata sidecar as a `watch` block — the counts and a playback weight, `2^((completions + 3·locks − skips)/3)` clamped to between ⅛× and 8× — and Fun Time reads that weight off the sidecar at every shuffled satellite build: weighted shuffle order (loved videos surface early), weighted pick inside collapsed action groups (the acts you finish win the slot), and probabilistic inclusion (a weight-⅛ video sits out ~7 of 8 builds). So what you skip on the phone fades here too, and the other way round. This is the continuous companion to mark-as-weird: hated videos fade away instead of leaving. Neutral videos are never excluded, the transitions the system causes itself (unlock's auto-advance, discards) never penalize anything, and a video Evolver has not stamped yet weighs 1. The same stage carries favorites both ways: a favorite made on the phone lands in `favs.csv`, and every row of `favs.csv` is flagged `favorite` on its sidecar for the phone.
+Warm Gun, on the phone, records the same three for what it plays. Evolver's Watch Weights stage sums the two onto every library video's metadata sidecar as a `watch` block — the counts and a playback weight, `2^((completions + 3·locks − skips)/3)` clamped to between ⅛× and 8× — and Fun Time reads that weight off the sidecar at every shuffled satellite build: weighted shuffle order (loved videos surface early), weighted pick inside collapsed action groups (the acts you finish win the slot), and probabilistic inclusion (a weight-⅛ video sits out ~7 of 8 builds). So what you skip on the phone fades here too, and the other way round. This is the continuous companion to mark-as-weird: hated videos fade away instead of leaving. Neutral videos are never excluded, the transitions the system causes itself (unlock's auto-advance, discards) never penalize anything, and a video Evolver has not stamped yet weighs 1. A favorite is the `favorite` mark on the video's sidecar, the one place Fun Time, Evolver and the phone all read it; the same stage applies a favorite made or taken back on the phone to that mark.
 
 Check the current standings any time with the leaderboard (from the project root):
 
@@ -509,10 +498,10 @@ Check the current standings any time with the leaderboard (from the project root
 
 It ranks every stamped clip in the configured library by that weight — "Rising" then "Fading" — with its action, image seed, and prompt pulled from the same sidecar. Columns: **WEIGHT** is the shuffle-frequency multiplier; **C** = completions (full watches — one per repeat loop while locked), **L** = locks, **S** = skips, **O** = orientation (P portrait / L landscape). Options: `--top N` (rows per section, default 15), `--all`.
 
-## Favorites CSV behavior
+## Favorites
 
-Every lock adds the item it holds to `favs.csv`, through one routine
-(`fun_time.lock.a_lock_holds`), however it was asked for:
+Every lock marks the item it holds a favorite on its metadata sidecar, through
+one routine (`fun_time.lock.a_lock_holds`), however it was asked for:
 
 - a satellite's lock key, its padlock button, or "lock" said to it
 - a double-click on a thumbnail in a satellite's HUD, locked or not
@@ -532,14 +521,11 @@ Browser, putting the browser back in its place first when Origenerator holds it,
 and anything else is offered to the hosted Origenerator as `GO_TO|<file>`, which
 comes up over the browser on the item in its folder when it made it.
 
-The CSV contains two columns:
-
-- `local_file`
-- `web_url`
-
-These are written as spreadsheet-friendly hyperlink formulas so they are clickable in LibreOffice Calc.
-
-If an item is later discarded, it is removed from `favs.csv`.
+The mark is the sidecar's top-level `favorite: true`, written through
+`app_support.favorites` beside `web_url`, the page a website's item came from,
+which the Random Favs Browser opens and Evolver bookmarks. An item with no
+sidecar yet gets one at its mirrored path. If an item is later discarded, the
+mark comes off.
 
 ## Runtime files in `state/`
 
