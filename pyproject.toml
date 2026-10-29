@@ -99,6 +99,7 @@ log = 'state\launcher.log'
 watch = true
 note = 'branch_out_of_date.txt'
 loading-screen = ["Updating Fun Time...", "Updating Origenerator..."]
+preview = true
 
 [tool.haglio.launchers."launch_branch.vbs".checkout-argument]
 missing = """

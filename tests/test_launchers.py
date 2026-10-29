@@ -134,6 +134,16 @@ def test_a_branch_launch_reads_the_note_branch_session_leaves_where_it_leaves_it
 
 
 @on_windows
+def test_a_new_previews_first_click_shows_the_pictures_an_earlier_preview_left(tmp_path: Path):
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+
+    report = dry_run(PROJECT_DIR / LAUNCHER_NAME, str(worktree), "example-branch")
+
+    assert Path(report.value("pictures")) == STATE / "launcher.screen" / "preview"
+
+
+@on_windows
 def test_the_branch_launcher_on_its_own_says_what_to_double_click_instead():
     """He is never asked to find a branch: the agent with something to show
     leaves a Verify shortcut naming its worktree."""
