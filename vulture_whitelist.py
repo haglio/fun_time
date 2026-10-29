@@ -49,6 +49,7 @@ _.plays_its_own_list
 _.lets_through
 _.put_up_next
 to_argv  # satellite.contract; the session's satellite launcher
+osr2_readout  # satellite.contract's _argv reads it by name off CHANNELS; funestra's Funestra once it declares the channel
 compositor_layers  # fun_time_vr/orchestrator.py
 process_running  # win32_process; fun_time_vr's shutdown asks it whether the VR runtime is up
 

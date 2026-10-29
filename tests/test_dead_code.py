@@ -63,13 +63,14 @@ def test_no_constructor_parameter_is_stored_and_never_read():
 
 
 def test_no_dataclass_field_goes_unread():
-    # CommandFiles.funestra_file asks for a side's file by kind, so the two the
-    # satellites' channels now take that way are read by getattr rather than by
-    # name. Their four neighbours escape this only because other modules happen
+    # CommandFiles.funestra_file asks for a side's file by kind, and a satellite's
+    # command line is spelled off CHANNELS, so these are read by getattr rather
+    # than by name. Their neighbors escape this only because other modules happen
     # to spell them out.
     unread.assert_no_dataclass_field_goes_unread(
         ROOT, SCANNED,
-        allowing=("CommandFiles.portrait_hud_file", "CommandFiles.landscape_hud_file"))
+        allowing=("CommandFiles.portrait_hud_file", "CommandFiles.landscape_hud_file",
+                  "SatelliteChannels.osr2_readout"))
 
 
 def test_every_declared_command_line_option_is_read():
