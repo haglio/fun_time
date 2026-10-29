@@ -124,6 +124,7 @@ def test_the_unit_suite_never_inherits_the_integration_flag():
     assert os.environ.get("FUN_TIME_RUN_INTEGRATION") is None
 
 
+@pytest.mark.repo_check
 def test_every_integration_module_stays_off_a_machine_that_is_not_windows():
     """Off Windows the session-start refusal returns early, so a module's own
     platform mark is all that keeps ``pytest tests/integration/`` from starting

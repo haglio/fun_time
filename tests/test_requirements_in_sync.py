@@ -11,6 +11,10 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.repo_check
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = PROJECT_ROOT / "pyproject.toml"
 REQUIREMENTS = PROJECT_ROOT / "requirements.txt"

@@ -113,12 +113,14 @@ def _asks_for_no_console(call: ast.Call) -> bool:
                for keyword in call.keywords)
 
 
+@pytest.mark.repo_check
 def test_there_are_spawns_to_check():
     """The sweeps below pass vacuously if the scan stops finding them."""
     assert len(_popen_calls()) >= 15
     assert len(_spawn_calls()) >= 20
 
 
+@pytest.mark.repo_check
 @pytest.mark.parametrize(
     ("path", "call"),
     [pytest.param(path, call, id=f"{path.name}:{call.lineno}")
@@ -134,6 +136,7 @@ def test_every_child_says_where_its_output_goes(path: Path, call: ast.Call):
     )
 
 
+@pytest.mark.repo_check
 @pytest.mark.parametrize(
     ("path", "call"),
     [pytest.param(path, call, id=f"{path.name}:{call.lineno}")
