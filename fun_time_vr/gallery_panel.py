@@ -77,14 +77,14 @@ class GalleryPanel:
             if self._looked_since is None or now - self._looked_since < QUIET_S:
                 return None
             self._said_it_went_quiet = True
-            return (f"The hosted app has published no picture at all in "
+            return (f"The hosted app has published no frame at all in "
                     f"{now - self._looked_since:.0f}s, so its screen in the room "
                     f"is blank")
         waiting = self._lines_waiting()
         if not waiting or now - self._answered_at < QUIET_S:
             return None
         self._said_it_went_quiet = True
-        return (f"The hosted app has gone quiet: no new picture for "
+        return (f"The hosted app has gone quiet: no new frame for "
                 f"{now - self._answered_at:.0f}s and {waiting} lines of the room's "
                 f"presses unread in {self._input}")
 
