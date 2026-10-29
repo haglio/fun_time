@@ -477,4 +477,4 @@ class TestTakingOverFromTheLaunchersLoadingScreen:
         cover.run()
 
         assert place.taken
-        assert place.pictures().covers_every_monitor
+        assert place.snapshots().covers_every_monitor

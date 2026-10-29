@@ -3,8 +3,8 @@ beside the item, and a User's own frames to hang in the slot."""
 from __future__ import annotations
 
 import numpy as np
-from funestra.flick_picture import Picture
-from funestra.funestra import PanelSurface, UsersPicture
+from funestra.flick_overlay import FlickFrame
+from funestra.funestra import PanelSurface, UsersFrames
 from funestra.satellite_hud import MARGIN
 
 from fun_time_vr.surfaces import LatestFrame, PanelBitmap
@@ -59,13 +59,13 @@ class TestThePanelBitmap:
 
 class TestTheLatestFrame:
     def test_it_is_where_a_funestra_puts_a_users_own_frame(self):
-        assert isinstance(LatestFrame(), UsersPicture)
+        assert isinstance(LatestFrame(), UsersFrames)
 
     def test_the_frame_put_up_is_the_one_the_render_thread_finds(self):
         latest = LatestFrame()
         frame = np.zeros((8, 16, 3), dtype=np.uint8)
 
-        latest.show(Picture(frame=frame, played=3, count=8), (640, 480))
+        latest.show(FlickFrame(frame=frame, played=3, count=8), (640, 480))
 
         assert latest.flick_frame.frame is frame
         assert latest.flick_frame.played == 3
@@ -74,7 +74,7 @@ class TestTheLatestFrame:
         latest = LatestFrame()
         assert latest.flick_frame is None
 
-        latest.show(Picture(frame=np.zeros((8, 16, 3), dtype=np.uint8)), (640, 480))
+        latest.show(FlickFrame(frame=np.zeros((8, 16, 3), dtype=np.uint8)), (640, 480))
         latest.hide()
 
         assert latest.flick_frame is None

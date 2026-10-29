@@ -332,11 +332,11 @@ class TestItsFrame:
         shown = set()
         for _ in range(40):
             world.tick(0.05)
-            picture = world.genau.picture()
-            if picture.frame is not None:
-                shown.add(int(picture.frame[0, 0, 0]))
-                assert picture.count == 8
-                assert 0 <= picture.played < 8
+            flick_frame = world.genau.own_frame()
+            if flick_frame.frame is not None:
+                shown.add(int(flick_frame.frame[0, 0, 0]))
+                assert flick_frame.count == 8
+                assert 0 <= flick_frame.played < 8
 
         assert len(shown) > 1
 
@@ -346,7 +346,7 @@ class TestItsFrame:
         world.tick(0.05)
         sent_before = len(world.sink.sent)
 
-        world.genau.picture().seek_loop(0.5)
+        world.genau.own_frame().seek_loop(0.5)
         world.tick(0.05)
 
         assert len(world.sink.sent) > sent_before
@@ -357,22 +357,22 @@ class TestItsFrame:
         world = World(tmp_path)
         world.tick(0.05)
 
-        picture = world.genau.picture()
+        flick_frame = world.genau.own_frame()
 
-        assert (picture.elapsed_ms, picture.interval_ms) == (0.0, 10_000.0)
+        assert (flick_frame.elapsed_ms, flick_frame.interval_ms) == (0.0, 10_000.0)
 
     def test_a_press_along_its_track_puts_the_flick_that_far_into_its_time(self, tmp_path):
         world = World(tmp_path)
         world.tick(0.05)
 
-        world.genau.picture().seek_time(7_000.0)
+        world.genau.own_frame().seek_time(7_000.0)
 
-        assert world.genau.picture().elapsed_ms == 7_000.0
+        assert world.genau.own_frame().elapsed_ms == 7_000.0
 
     def test_what_is_still_decoding_is_said_on_the_frame(self, tmp_path):
         world = World(tmp_path)
 
-        assert world.genau.picture().loading is None
+        assert world.genau.own_frame().loading is None
 
 
 class TestWhoHasTheWindow:

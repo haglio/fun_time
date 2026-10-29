@@ -542,7 +542,7 @@ class _MainUnit(_VideoUnit):
         self._presses = _Presses(MAIN, PANEL)
         self._vr_dirs = () if vr.flicks_folder is None else (vr_flicks_in(vr.flicks_folder),)
         self.panel = PanelBitmap(width=PANEL_WIDTH_PX)
-        self.users_picture = LatestFrame()
+        self.users_frames = LatestFrame()
         self.users_frame_texture = FrameTexture()
         self._uploaded_frame = None
         self._flick_projection: tuple[Path | None, str] = (None, "")
@@ -568,7 +568,7 @@ class _MainUnit(_VideoUnit):
             locked=True, sound_is_the_rooms=True,
             users=_users(manifest, vr, stop,
                          kino=library.kino()),
-            panel_surface=self.panel, users_picture=self.users_picture,
+            panel_surface=self.panel, users_frames=self.users_frames,
             window_verbs=self._apply_the_headsets_verb, host_controls=self.projection,
         )
         self.verbs = HeadsetVerbs(
@@ -652,7 +652,7 @@ class _MainUnit(_VideoUnit):
         -- uploaded untouched, and wrapped the way its flick is."""
         if self.owns_the_slot:
             return
-        latest = self.users_picture.flick_frame
+        latest = self.users_frames.flick_frame
         if latest is None or latest.frame is None:
             return
         if latest.frame is not self._uploaded_frame:
@@ -1091,7 +1091,7 @@ class _DashUnit:
         hover = surface_pixel(*aim[1], size) if aim is not None else None
         self._pointer.hover(hover)
         published = self._osr2.read()
-        part = None if published is None else self._pointer.part.picture(published)
+        part = None if published is None else self._pointer.part.drawing(published)
         painted = (self._pointer.state, records, hover)
         if painted != self._painted:
             self._bar_and_log = paint_dash(*painted, shown_as=self._shown_as)

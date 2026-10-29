@@ -11,7 +11,7 @@ from __future__ import annotations
 # --- Called by a framework, not by us ---
 _.do_GET  # http.server dispatches by getattr
 _.set_showing  # the Funestra (funestra) tells each User whether it has the window
-_.picture  # the Funestra asks the User in front for the picture it brings
+_.own_frame  # the Funestra asks the User in front for the frame it brings
 _.hide  # the Funestra takes a User's own frame down off the headset's surface
 _.hud  # the Funestra asks the headset's projection controls what their list and bar show
 _.pick  # the Funestra hands them the projection picked off the list

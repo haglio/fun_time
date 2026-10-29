@@ -70,7 +70,7 @@ class Kino:
     def set_showing(self, _showing: bool) -> None:
         pass
 
-    def picture(self) -> None:
+    def own_frame(self) -> None:
         pass
 
     def close(self) -> None:

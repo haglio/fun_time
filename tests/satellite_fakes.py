@@ -31,7 +31,7 @@ class FakeSatelliteEngine(RefusesSeeks):
         self.seeks: list[float] = []
         self.speed = 1.0
         self.pace_s: float | None = None
-        self.showing_picture = False
+        self.showing_image = False
         self.showing_video = True
         self.idle = False
         # How many times the loop has asked for a still's move to be
