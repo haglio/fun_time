@@ -92,10 +92,12 @@ def make_feed(tmp_path, *, config=None) -> HudFeed:
 
 
 def publish_satellite_status(path: Path, video, *, fraction: float = 0.1,
-                             speed: float = 1.0, duration_ms: int = 1000) -> None:
+                             speed: float = 1.0, duration_ms: int = 1000,
+                             has_funscript: bool = False) -> None:
     path.write_text(
         f"video={video}\nposition_ms={round(fraction * duration_ms)}\n"
-        f"duration_ms={duration_ms}\npaused=0\nlocked=0\nspeed={speed}\n",
+        f"duration_ms={duration_ms}\npaused=0\nlocked=0\nspeed={speed}\n"
+        f"has_funscript={int(has_funscript)}\n",
         encoding="utf-8",
     )
 
@@ -122,6 +124,12 @@ def reset_button(published: dict) -> dict:
     """The reset button a published panel declares, as written."""
     return next(button for row in published["rows"] for button in row
                 if button["command"].endswith("reset"))
+
+
+def skip_ahead(published: dict) -> dict:
+    """The Skip ahead button a published HUD declares, as written."""
+    return next(button for row in published["rows"] for button in row
+                if button.get("command", "").endswith("_funscript_jump"))
 
 
 def ten_second_steps(published: dict) -> list[dict]:
@@ -363,6 +371,36 @@ class TestHudPublishing:
 
         assert not reset_button(panel(tmp_path, "portrait")).get("dim")
         assert reset_button(panel(tmp_path, "landscape"))["dim"] is True
+
+    def test_a_sides_skip_ahead_is_pressable_only_with_the_osr2_and_a_funscripted_clip(
+            self, tmp_path):
+        feed = make_feed(tmp_path)
+        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4",
+                                 has_funscript=True)
+        publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/landscape.mp4",
+                                 has_funscript=True)
+
+        feed.publish(BridgeState(osr2_funestra=RoomFunestra.PORTRAIT))
+
+        assert not skip_ahead(panel(tmp_path, "portrait")).get("dim")
+        assert skip_ahead(panel(tmp_path, "landscape"))["dim"] is True
+
+        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4")
+        feed.publish(BridgeState(osr2_funestra=RoomFunestra.PORTRAIT))
+
+        assert skip_ahead(panel(tmp_path, "portrait"))["dim"] is True
+
+    def test_the_main_funestras_skip_ahead_is_pressable_only_with_the_osr2_and_a_funscript(
+            self, tmp_path):
+        feed = make_feed(tmp_path)
+        (tmp_path / "main_player_status.txt").write_text("has_funscript=1\n", encoding="utf-8")
+
+        feed.publish(BridgeState(osr2_funestra=RoomFunestra.MAIN))
+        held = skip_ahead(console(tmp_path))
+        feed.publish(BridgeState(osr2_funestra=RoomFunestra.LANDSCAPE))
+
+        assert not held.get("dim")
+        assert skip_ahead(console(tmp_path))["dim"] is True
 
     def test_a_side_on_a_clip_of_ten_seconds_or_shorter_dims_its_ten_second_steps(
             self, tmp_path):
