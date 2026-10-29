@@ -112,7 +112,6 @@ def config(tmp_path, monkeypatch):
             "portrait_dirs": ["%(flat)s"],
             "landscape_dirs": ["%(flat)s"],
             "weird_dir": "%(weird)s",
-            "favs_file": "%(favs)s",
             "state_dir": "%(state)s"
           },
           "layout": {
@@ -131,7 +130,6 @@ def config(tmp_path, monkeypatch):
             "python": str(python).replace("\\", "/"),
             "flat": str(flat_dir).replace("\\", "/"),
             "weird": str(tmp_path / "weird").replace("\\", "/"),
-            "favs": str(tmp_path / "favs.csv").replace("\\", "/"),
             "state": str(tmp_path / "state").replace("\\", "/"),
             "vr": str(vr_dir).replace("\\", "/"),
         },

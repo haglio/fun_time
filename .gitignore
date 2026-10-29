@@ -31,7 +31,6 @@ htmlcov/
 # Where the app works: what it has put away, and what it is doing now.
 archive/
 state/
-favs.csv
 
 # Named in this repo's pytest config as a directory not to walk into.
 pytest-cache-files-*/

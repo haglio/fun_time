@@ -39,7 +39,6 @@ class PathsConfig:
     weird_dir: Path
     genau_dir: Path
     genau_audio_dir: Path
-    favs_file: Path
     state_dir: Path
     # Where the machine's one OSR2 broker keeps its own channel: the heartbeat and
     # serial-activity stamps it writes, and the command, mode and permission files
@@ -317,7 +316,6 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir
         weird_dir=require_path(paths_raw, "weird_dir", source_path, base=project_dir, context="config.paths"),
         genau_dir=Path(haglio_settings.value("genau_dir")),
         genau_audio_dir=Path(haglio_settings.value("genau_audio_dir")),
-        favs_file=require_path(paths_raw, "favs_file", source_path, base=project_dir, context="config.paths"),
         state_dir=state_dir,
         broker_state_dir=resolve_path(project_dir, paths_raw["broker_state_dir"]) if paths_raw.get("broker_state_dir") else state_dir,
         genau_config_path=resolve_path(project_dir, paths_raw["genau_config_path"]) if paths_raw.get("genau_config_path") else None,

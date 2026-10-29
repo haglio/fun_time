@@ -55,8 +55,6 @@ def room_config(root: Path, *, names_an_origenerator: bool = True):
         "primary", "portrait", "landscape", "vr", "weird", "state")}
     for folder in folders.values():
         folder.mkdir(parents=True, exist_ok=True)
-    favs_file = root / "favs.csv"
-    favs_file.write_text("local_file,web_url\n", encoding="utf-8")
     paths = {
         "ahk_exe": str(root / "AutoHotkey64.exe"),
         "python_exe": str(root / "python.exe"),
@@ -64,7 +62,6 @@ def room_config(root: Path, *, names_an_origenerator: bool = True):
         "portrait_dirs": [str(folders["portrait"])],
         "landscape_dirs": [str(folders["landscape"])],
         "weird_dir": str(folders["weird"]),
-        "favs_file": str(favs_file),
         "state_dir": str(folders["state"]),
     }
     if names_an_origenerator:

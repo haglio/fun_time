@@ -626,7 +626,7 @@ entering its Origenerator mode, which fills it with its base state),
 `portrait_close_slideshow` / `landscape_close_slideshow`, `CLOSE_SLIDESHOWS` (a crossing
 parking the app, which lets go of both), `QUIT` and `RELEASE`, `PORTRAIT_SAY:<phrase>` for a
 spoken command the session heard about one side, and `GO_TO|<file>` once a lock
-holds an item no website made (see "Favorites CSV behavior"), which the app
+holds an item no website made (see "Favorites"), which the app
 answers only for an item it made: it asks for its place over the Random Favs
 Browser (`origenerator_activate` on the dashboard's channel) and goes to the item
 in its folder. The paused flag freezes its shows for OmniPause. The status file says only
@@ -764,7 +764,6 @@ These should generally be ignored:
 - `state/`
 - `archive/`
 - `*.lnk`
-- `favs.csv`
 
 ## Current source of truth
 

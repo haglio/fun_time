@@ -128,9 +128,8 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
     ``config._resolve_path`` anchors a relative value on ``config.PROJECT_DIR``,
     whichever checkout imported the package -- so the same config file read from
     a worktree names files *inside that worktree*.  The live config leans on that
-    for ``favs.csv`` (which would come up empty), the broker's launcher (a
-    directory above the primary, which from a worktree is nothing), and the
-    Chrome shortcut, untracked and so in no worktree.
+    for the broker's launcher (a directory above the primary, which from a
+    worktree is nothing) and the Chrome shortcut, untracked and so in no worktree.
 
     ``broker_state_dir`` is pinned for a different reason: it defaults to
     ``state_dir``, which is the one value this rewrite goes on to move.  The
@@ -152,7 +151,6 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
             "portrait_dirs": paths.portrait_dirs,
             "landscape_dirs": paths.landscape_dirs,
             "weird_dir": paths.weird_dir,
-            "favs_file": paths.favs_file,
             "state_dir": paths.state_dir,
             "broker_state_dir": paths.broker_state_dir,
             "genau_config_path": paths.genau_config_path,

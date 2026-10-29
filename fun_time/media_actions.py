@@ -3,17 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from .content import WebProvider, load_web_providers, provider_that_made
-from .favs_csv import FAVS_HEADER, hyperlink_cell
-
-
-def csv_escape(value: str) -> str:
-    return '"' + value.replace('"', '""') + '"'
-
-
-def to_file_uri(win_path: str) -> str:
-    if not win_path:
-        return ""
-    return "file:///" + win_path.replace("\\", "/").replace(" ", "%20")
 
 
 def make_web_url_from_path(
@@ -27,58 +16,6 @@ def make_web_url_from_path(
     name_no_ext = Path(full_path.replace("/", "\\")).stem
     image_id = name_no_ext.rsplit("_", 1)[0] if "_" in name_no_ext else name_no_ext
     return provider.gallery_url.format(id=image_id)
-
-
-def make_local_cell(full_path: str) -> str:
-    if not full_path:
-        return ""
-    uri = to_file_uri(full_path)
-    return hyperlink_cell(uri, full_path)
-
-
-def make_web_cell(
-    full_path: str, providers: tuple[WebProvider, ...] | None = None
-) -> str:
-    url = make_web_url_from_path(full_path, providers)
-    if not url:
-        return ""
-    return hyperlink_cell(url, url)
-
-
-def ensure_in_favs(
-    favs_file: Path, full_path: str, providers: tuple[WebProvider, ...] | None = None
-) -> None:
-    if not full_path or not favs_file.is_file():
-        return
-
-    local_cell = make_local_cell(full_path)
-    web_cell = make_web_cell(full_path, providers)
-    content = favs_file.read_text(encoding="utf-8")
-    prefix = csv_escape(local_cell) + ","
-    if prefix in content:
-        return
-    row = prefix + csv_escape(web_cell) + "\r\n"
-    with favs_file.open("a", encoding="utf-8", newline="") as fp:
-        fp.write(row)
-
-
-def remove_from_favs(favs_file: Path, full_path: str) -> None:
-    if not full_path or not favs_file.exists():
-        return
-
-    target_prefix = csv_escape(make_local_cell(full_path)) + ","
-    kept_lines: list[str] = []
-    for raw_line in favs_file.read_text(encoding="utf-8").splitlines():
-        if not raw_line:
-            continue
-        if raw_line.startswith(FAVS_HEADER):
-            kept_lines.append(raw_line)
-            continue
-        if raw_line.startswith(target_prefix):
-            continue
-        kept_lines.append(raw_line)
-    with favs_file.open("w", encoding="utf-8", newline="") as fp:
-        fp.write("".join(line + "\r\n" for line in kept_lines))
 
 
 def move_to_weird(weird_dir: Path, source: Path, *, destination_name: str | None = None) -> Path:

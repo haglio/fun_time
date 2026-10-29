@@ -17,7 +17,6 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
         landscape_paused_file=state_dir / "landscape_paused.txt",
         landscape_status_file=state_dir / "landscape_status.txt",
         landscape_playlist_file=state_dir / "landscape_playlist.tsv",
-        favs_file=tmp_path / "favs.csv",
         weird_dir=tmp_path / "weird",
         state_dir=state_dir,
         main_sources=str(tmp_path / "primary"),

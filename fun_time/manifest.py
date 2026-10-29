@@ -56,7 +56,6 @@ def build_windows_bridge_manifest(
             "portrait_dirs": "|".join(str(path) for path in config.paths.portrait_dirs),
             "landscape_dirs": "|".join(str(path) for path in config.paths.landscape_dirs),
             "weird_dir": str(config.paths.weird_dir),
-            "favs_file": str(config.paths.favs_file),
             "genau_flicks": str(config.paths.flicks_dir),
             "genau_vr_flicks": "",
             "genau_audio": str(config.paths.genau_audio_dir),
@@ -188,7 +187,6 @@ class MediaSources:
     portrait_dirs: str
     landscape_dirs: str
     weird_dir: str
-    favs_file: str
     genau_flicks: str
     genau_audio: str
     # Defaulted, so this parse refuses no manifest a reader accepts today.

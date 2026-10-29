@@ -394,8 +394,11 @@ def test_no_module_reaches_into_another_ones_privates():
 # notes saying the bar and the log fill the whole window went to tests of where
 # each one stands.
 # 5756 on 2026-10-29: a favorite is a mark on the video's record, so the notes
-# on favs.csv's cells and on re-reading the whole file for the HUD went.
-MAX_PROSE_LINES = 5756
+# on the favorites spreadsheet's cells and on re-reading the whole file for the
+# HUD went.
+# 5743 the same day: the spreadsheet itself is gone, and with it the notes on
+# its cell format and on the run that carried its pages onto the records.
+MAX_PROSE_LINES = 5743
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
