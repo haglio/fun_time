@@ -3,13 +3,15 @@ from __future__ import annotations
 import contextlib
 import os
 import threading
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
 
 from app_support.integration_runs import RunRecord, read_run, write_run
 from app_support.win32 import process_started
+
+from tests.scratch import remove_scratch
 
 KEPT_FOR = timedelta(days=14)
 SEEN_EVERY_S = 15.0
@@ -36,7 +38,7 @@ class Visit:
              now: datetime | None = None, seen_every_s: float = SEEN_EVERY_S) -> Visit:
         joined = (now or _now()).replace(microsecond=0)
         runs.mkdir(parents=True, exist_ok=True)
-        _forget_runs_before(runs, joined - KEPT_FOR)
+        forget_what_was_kept_before(runs.glob("*.json"), joined - KEPT_FOR)
         return cls(runs, RunRecord(checkout=checkout, branch=branch, what=what, short=short, pid=os.getpid(),
                                    joined=joined, session=session, process_started=process_started(os.getpid()),
                                    seen=joined), seen_every_s)
@@ -68,12 +70,16 @@ class Visit:
             write_run(self._folder, self.run)
 
 
-def require_a_run_that_holds_the_machine(environment: Mapping[str, str] = os.environ) -> None:
+def this_run(environment: Mapping[str, str] = os.environ) -> RunRecord | None:
     named = environment.get(RUN_RECORD_ENV)
     try:
-        run = read_run(Path(named)) if named else None
+        return read_run(Path(named)) if named else None
     except (OSError, ValueError, TypeError):
-        run = None
+        return None
+
+
+def require_a_run_that_holds_the_machine(environment: Mapping[str, str] = os.environ) -> None:
+    run = this_run(environment)
     if run is None or run.got_the_machine is None or run.ended is not None:
         raise RuntimeError(
             "These tests run only inside a run that has waited its turn in Fun Time's integration line and "
@@ -81,8 +87,11 @@ def require_a_run_that_holds_the_machine(environment: Mapping[str, str] = os.env
             "    .venv/Scripts/python.exe -m tests.integration.hidden_desktop\n")
 
 
-def _forget_runs_before(runs: Path, cutoff: datetime) -> None:
-    for record in runs.glob("*.json"):
+def forget_what_was_kept_before(kept: Iterable[Path], cutoff: datetime) -> None:
+    for entry in kept:
         with contextlib.suppress(OSError):
-            if record.stat().st_mtime < cutoff.timestamp():
-                record.unlink()
+            if entry.stat().st_mtime < cutoff.timestamp():
+                if entry.is_dir():
+                    remove_scratch(entry)
+                else:
+                    entry.unlink()

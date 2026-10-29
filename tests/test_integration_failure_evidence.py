@@ -7,12 +7,16 @@ sent to fix it spent most of its budget making the failure happen again.
 """
 from __future__ import annotations
 
+import os
+import re
 import tempfile
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from app_support.integration_runs import RunRecord, write_run
 
 from tests.integration import conftest, integration_support
 from tests.integration.integration_support import (
@@ -20,7 +24,9 @@ from tests.integration.integration_support import (
     build_integration_temp_root,
     clear_run_roots,
     keep_what_the_run_logged,
+    where_failed_runs_are_kept,
 )
+from tests.integration.line_record import RUN_RECORD_ENV
 
 
 @pytest.fixture(autouse=True)
@@ -103,6 +109,35 @@ def test_a_run_that_built_no_roots_keeps_nothing(tmp_path: Path):
     assert not (tmp_path / "kept").exists()
 
 
+def test_a_failed_runs_records_are_named_for_when_it_failed_and_the_worktree_and_branch_it_ran_on(
+    tmp_path: Path, monkeypatch,
+):
+    _a_session_root(tmp_path, "one")
+    (tmp_path / "line").mkdir()
+    record = write_run(tmp_path / "line", RunRecord(
+        checkout="made-up-worktree", branch="claude/made-up-branch", what=[], short=False, pid=4321,
+        joined=datetime.now().astimezone()))
+    monkeypatch.setenv(RUN_RECORD_ENV, str(record))
+
+    kept = keep_what_the_run_logged(tmp_path / "kept")
+
+    assert re.fullmatch(r"\d{8}-\d{6}_made-up-worktree_claude-made-up-branch", kept.name)
+
+
+def test_keeping_a_failed_runs_records_forgets_those_kept_more_than_two_weeks_before(tmp_path: Path):
+    kept_in = tmp_path / "kept"
+    for name, age in (("old", timedelta(days=15)), ("recent", timedelta(days=13))):
+        (kept_in / name / "01-a-session").mkdir(parents=True)
+        (kept_in / name / "01-a-session" / "main_funestra.log").write_text("a log", encoding="utf-8")
+        then = (datetime.now() - age).timestamp()
+        os.utime(kept_in / name, (then, then))
+    _a_session_root(tmp_path, "one")
+
+    keep_what_the_run_logged(kept_in)
+
+    assert not (kept_in / "old").exists() and (kept_in / "recent").exists()
+
+
 def test_two_failed_runs_keep_their_logs_apart(tmp_path: Path):
     _a_session_root(tmp_path, "first")
     first = keep_what_the_run_logged(tmp_path / "kept")
@@ -151,6 +186,10 @@ def test_a_root_left_behind_leaves_pytest_to_say_why_a_failed_run_failed():
     assert session.exitstatus == pytest.ExitCode.TESTS_FAILED
 
 
-def test_failure_evidence_lands_in_the_checkouts_ignored_state_dir():
-    checkout = Path(__file__).resolve().parents[1]
-    assert checkout / "state" / "integration_failures" == conftest.FAILURE_EVIDENCE
+def test_a_failed_run_in_a_worktree_keeps_its_records_in_the_production_checkout():
+    production = Path("C:/checkouts/fun_time")
+    worktree = production / ".claude" / "worktrees" / "made-up-worktree"
+
+    assert where_failed_runs_are_kept(worktree) == where_failed_runs_are_kept(production) == (
+        production / "state" / "integration_failures")
+    assert where_failed_runs_are_kept(Path(__file__).resolve().parents[1]) == conftest.FAILURE_EVIDENCE

@@ -590,8 +590,12 @@ def shortcut_name(worktree: Path, branch: str, *, vr: bool = False) -> str:
     other characters Windows reserves become dashes, a worktree on no branch at
     all falls back to its directory, and a *vr* one says so.
     """
-    stem = re.sub(RESERVED_IN_FILENAMES, "-", branch_label(worktree, branch)).strip()
+    stem = as_a_filename(branch_label(worktree, branch))
     return f"{SHORTCUT_PREFIX}{stem}{SHORTCUT_VR_INFIX if vr else ''}{SHORTCUT_SUFFIX}"
+
+
+def as_a_filename(name: str) -> str:
+    return re.sub(RESERVED_IN_FILENAMES, "-", name).strip()
 
 
 def _generated_shortcuts(folder: Path) -> dict[Path, Path]:
