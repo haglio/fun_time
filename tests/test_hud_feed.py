@@ -18,7 +18,7 @@ from funestra.drive_readout import DriveHud, publish_drive
 from funestra.hud_button import Button
 from funestra.hud_placement import HudCorner
 from funestra.modes import MainMode, Osr2State, SatellitesMode
-from funestra.satellite_hud import HudCell, HudModel, PictureFoot, hud_text, parse_hud
+from funestra.satellite_hud import HudCell, HudModel, PaintedFoot, hud_text, parse_hud
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.crown import Crown
@@ -195,11 +195,11 @@ class TestHudPublishing:
         assert [button.command for button in portrait.rows[1]] == ["portrait_next"]
 
     def test_the_job_queue_the_hosted_app_painted_reaches_that_sides_panel(self, tmp_path):
-        """The hosted app paints its Job Queue to a picture while its own window
-        is hidden behind the Random Favs Browser, and the Satellite showing its
-        slideshow draws that picture at its panel's foot."""
+        """The hosted app paints its Job Queue to a file while Core is hidden
+        behind the Random Favs Browser, and the Satellite showing its slideshow
+        draws that file at its HUD's foot."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
-        foot = PictureFoot(picture=str(tmp_path / "origenerator_portrait_hud_foot_a1.png"),
+        foot = PaintedFoot(file=str(tmp_path / "origenerator_portrait_hud_foot_a1.png"),
                            width=200, height=40, stamp="a1",
                            targets=(((4, 4, 40, 18), Button("cancel|j1", "Cancel", "Drop it")),))
         (tmp_path / "origenerator_portrait_hud.json").write_text(
