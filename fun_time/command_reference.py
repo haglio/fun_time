@@ -456,7 +456,8 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             _Row(
                 "Funscript navigation: \"jump to funscript\" skips ahead to "
-                "where this video's scripting starts up again; \"next "
+                "where this video's scripting starts up again, while the Main "
+                "Funestra has the OSR2; \"next "
                 "funscripted\" leaves for the next scripted video in the "
                 "playlist, landing where its action begins",
                 (),

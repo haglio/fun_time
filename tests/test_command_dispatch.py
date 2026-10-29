@@ -953,6 +953,17 @@ def test_funscript_jump_writes_jump_to_funscript(tmp_path: Path):
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT\n"
 
 
+def test_funscript_jump_is_refused_while_a_satellite_has_the_osr2(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(main_mode=MainMode.KINO, osr2_funestra=RoomFunestra.PORTRAIT)
+
+    _, ops = dispatch_command("main_player_funscript_jump", state, config)
+
+    assert not config.main_funestra_cmd_file.exists()
+    assert ops == [WindowOp(op="notice", key="The Main Funestra doesn't have the OSR2",
+                            level=logging.WARNING)]
+
+
 def test_next_funscripted_writes_next_funscripted(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_player_next_funscripted", _make_state(main_mode=MainMode.KINO), config)
