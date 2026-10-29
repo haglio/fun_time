@@ -61,8 +61,6 @@ def _argv(record, table) -> list[str]:
 class SatelliteChannels(Channels):
     """The files a Funestra is driven through, as a satellite is launched with them."""
 
-    osr2_readout: Path | None = None
-
     @classmethod
     def from_args(cls, args) -> SatelliteChannels:
         # Spelled out rather than read off CHANNELS: the dead-code gate asks
