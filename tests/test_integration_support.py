@@ -1064,12 +1064,14 @@ def _tests_left_to_a_reaped_shared_session(source: str) -> list[str]:
     return [name for name, on_shared in tests[first_on_its_own:] if on_shared]
 
 
+@pytest.mark.repo_check
 def test_a_modules_shared_session_is_done_with_before_a_test_starts_one_of_its_own():
     for module in sorted((Path(__file__).parent / "integration").glob("test_*.py")):
         assert _tests_left_to_a_reaped_shared_session(
             module.read_text(encoding="utf-8")) == [], module.name
 
 
+@pytest.mark.repo_check
 def test_every_app_a_run_stands_in_for_is_python_that_parses():
     """A stub app is Python inside a string, so nothing compiles it until a real
     run launches it -- and a stub that dies on import reads as the session waiting
@@ -1146,6 +1148,7 @@ def _waits_on_the_wall(tree: ast.AST) -> list[int]:
     return found
 
 
+@pytest.mark.repo_check
 def test_no_check_waits_in_the_walls_seconds():
     integration = Path(integration_support.__file__).parent
     waits = {path.name: lines for path in sorted(integration.glob("*.py"))
@@ -1183,6 +1186,7 @@ def _links_or_dates_what_it_did_not_make(tree: ast.AST) -> list[int]:
     return sorted(found)
 
 
+@pytest.mark.repo_check
 def test_no_check_links_a_file_or_dates_any_but_a_clip_it_made():
     integration = Path(integration_support.__file__).parent
     reaches = {path.name: lines for path in sorted(integration.glob("*.py"))

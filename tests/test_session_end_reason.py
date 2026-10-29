@@ -17,6 +17,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 from fun_time.config import load_config
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
@@ -124,6 +126,7 @@ def _hotkey_script() -> str:
     return script.read_text(encoding="utf-8")
 
 
+@pytest.mark.repo_check
 def test_everything_that_asks_for_the_end_says_what_asked_first():
     """The rule the phrases depend on, over the whole package: writing
     "end_session" to the hotkey script's mailbox ends the session, and every
