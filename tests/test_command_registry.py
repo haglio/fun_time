@@ -19,13 +19,13 @@ import ast
 import itertools
 from pathlib import Path
 
+from funestra.console import osr2_controls
 from funestra.modes import LengthMode, MainMode, SatellitesMode
 
 from fun_time import command_dispatch, dashboard_actions, windows_bridge_dispatch_loop
 from fun_time.aiming import MAIN_EQUIVALENTS, resolve_active_funestra_command
 from fun_time.command_reference import build_reference_sections
 from fun_time.console_buttons import MainSlot, console_rows
-from fun_time.osr2_section import osr2_controls
 from fun_time.satellite_buttons import funestra_rows
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS, expand_group_command
@@ -165,7 +165,7 @@ def _console_verbs() -> frozenset[str]:
             in_vr=in_vr)
         for button in row
     )
-    brokers = (button.command for broker in (False, True) for button in osr2_controls(broker=broker))
+    brokers = (button.command for broker in (False, True) for button in osr2_controls(broker_running=broker))
     return frozenset(command for command in (*declared, *brokers) if command)
 
 

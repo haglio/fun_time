@@ -15,6 +15,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from app_support import osr2_hold
+from app_support.subprocess_utils import hidden_subprocess_kwargs
+from funestra import broker
 from funestra.file_channel import append_command
 from funestra.modes import MainMode
 from funestra.robot_hand import FULL_INTENSITY
@@ -22,7 +24,7 @@ from funestra.robot_hand import FULL_INTENSITY
 from main_funestra.genau_verbs import orientation_words
 from satellite.contract import SatelliteChannels, WindowPlacement
 
-from . import broker_contract, preview_marker
+from . import preview_marker
 from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import write_broker_command
 from .checkout_overrides import is_a_worktree, primary_of, sibling_checkouts_kwargs
@@ -31,20 +33,13 @@ from .config import load_config
 from .content import load_web_providers
 from .funestra_handover import take_back_the_list
 from .funestra_settings import reports_published_in
-from .funestra_status import (
-    is_broker_heartbeat_fresh,
-    read_main_funestra_status,
-)
+from .funestra_status import read_main_funestra_status
 from .hosted_contract import the_args_it_declares
 from .inclusion_pairs import BOTH, Included
 from .main_list import MainList, MainListSettings
 from .max_intensity import publish_max_intensity
 from .mode_plan import STARTUP_MAIN_MODE, show_verb
 from .modes import SatelliteBuild, build_satellite_playlists
-from .orchestrator_broker import (
-    broker_launch_kwargs,
-    subprocess_window_kwargs,
-)
 from .process_identity import NAMER
 from .process_sweep import processes_matching
 from .process_tree import kill_process_tree
@@ -102,11 +97,11 @@ def _write_result_file(result_file: str | Path, values: dict[str, int | str]) ->
 def stop_broker_processes(broker_tray_launcher: Path | str | None) -> None:
     """Kill every broker and broker-tray process on the machine.
 
-    What to match is the broker's own to say (:mod:`fun_time.broker_contract`);
+    What to match is the broker's own to say (:func:`funestra.broker.read_contract`);
     one that says nothing is left alone rather than swept for blindly.  Matched
     by command line, so there is nothing for a working directory to scope.
     """
-    contract = broker_contract.read(broker_tray_launcher)
+    contract = broker.read_contract(broker_tray_launcher)
     if contract is None:
         return
     for found in (*processes_matching(contract.image_pattern, contract.command_line_pattern),
@@ -134,31 +129,6 @@ def reap_orphaned_satellites(
             kill_process_tree(found.pid)
 
 
-def launch_broker_tray(broker_tray_launcher: Path | None) -> None:
-    """Start the broker's tray, or do nothing if one is already up.
-
-    The tray and the broker each hold a single-instance mutex, so launching
-    over a live pair costs one process that exits immediately.  That is what
-    makes this safe to run on a liveness reading we do not fully trust: the
-    worst case is a wasted launch, where killing first cannot be taken back.
-
-    The tray goes up with the broker's own kwargs, not the ordinary
-    hidden-window ones: it has to break away from an integration run's job
-    object and outlive the run that started it.
-    """
-    if not (broker_tray_launcher and broker_tray_launcher.is_file()):
-        logger.warning(
-            "No broker started: broker_tray_launcher is not configured or is "
-            "missing (%s)", broker_tray_launcher)
-        return
-    subprocess.Popen(
-        ["wscript.exe", str(broker_tray_launcher)],
-        cwd=broker_tray_launcher.parent,
-        **no_child_log(),
-        **broker_launch_kwargs(),
-    )
-
-
 def broker_source_mtime(broker_tray_launcher: Path | None) -> float | None:
     """When the broker's own sources were last written, or None if unreadable.
 
@@ -166,7 +136,7 @@ def broker_source_mtime(broker_tray_launcher: Path | None) -> float | None:
     counts: the config, logs and state beside it change without changing what
     the process runs, and the siblings it imports belong to four apps.
     """
-    contract = broker_contract.read(broker_tray_launcher)
+    contract = broker.read_contract(broker_tray_launcher)
     if contract is None:
         return None
     package = broker_tray_launcher.parent / contract.package_dir
@@ -181,7 +151,7 @@ def broker_process_started_at(broker_tray_launcher: Path | str | None) -> float 
 
     The oldest is the one reported: that is the one at risk of being stale.
     """
-    contract = broker_contract.read(broker_tray_launcher)
+    contract = broker.read_contract(broker_tray_launcher)
     if contract is None:
         return None
     started = [created for found in processes_matching(
@@ -191,7 +161,7 @@ def broker_process_started_at(broker_tray_launcher: Path | str | None) -> float 
 
 
 def ensure_broker(
-    broker_heartbeat_file: str | Path | None,
+    broker_state_dir: str | Path | None,
     broker_tray_launcher: Path | None = None,
 ) -> None:
     """Start the broker if one is not already running, or replace a stale one.
@@ -224,11 +194,11 @@ def ensure_broker(
                 source_mtime - started_at,
             )
             stop_broker_processes(broker_tray_launcher)
-            launch_broker_tray(broker_tray_launcher)
+            broker.start(broker_tray_launcher)
             return
-    if broker_heartbeat_file is not None and is_broker_heartbeat_fresh(Path(broker_heartbeat_file)):
+    if broker_state_dir is not None and broker.is_running(Path(broker_state_dir)):
         return
-    launch_broker_tray(broker_tray_launcher)
+    broker.start(broker_tray_launcher)
 
 
 def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: str | Path) -> None:
@@ -339,7 +309,7 @@ def start_core_session(
     config_path: str | Path,
     broker_cmd_file: str | Path,
     broker_tray_launcher: Path | None = None,
-    broker_heartbeat_file: str | Path | None = None,
+    broker_state_dir: str | Path | None = None,
     random_favs_browser_manifest_file: str | Path,
     genau_paused_file: str | Path,
     genau_cmd_file: str | Path | None = None,
@@ -377,7 +347,7 @@ def start_core_session(
     # long.  The verb keeps in the file until the broker's next tick, so it does
     # not matter that ensure_broker may only now be starting one.
     write_broker_command(broker_cmd_file, osr2_hold.PARK)
-    ensure_broker(broker_heartbeat_file, broker_tray_launcher)
+    ensure_broker(broker_state_dir, broker_tray_launcher)
     state_path = Path(state_dir)
     # Come back to the clips this session was closed on, rather than three the
     # user never chose: each Funestra's status file names the video it had on
@@ -464,7 +434,7 @@ def _start_a_funestra(cmd: list[str], *, log_file: str | Path, sibling_checkouts
     with open_child_log(log_file, cmd) as log:
         proc = subprocess.Popen(
             cmd, stdout=log, stderr=log,
-            **sibling_checkouts_kwargs(sibling_checkouts), **subprocess_window_kwargs())
+            **sibling_checkouts_kwargs(sibling_checkouts), **hidden_subprocess_kwargs())
     return proc.pid
 
 
@@ -550,7 +520,7 @@ def origenerator_launch_kwargs(
     """The environment that argv runs in — also shared with the launch test."""
     kwargs: dict = {"cwd": str(origenerator_dir),
                     **sibling_checkouts_kwargs(sibling_checkouts),
-                    **subprocess_window_kwargs()}
+                    **hidden_subprocess_kwargs()}
     # A worktree checkout is unlanded code under judgment, not the live
     # install: run it as origenerator's own branch session (its preview
     # launcher sets the same flag), which seeds its database from the
@@ -739,7 +709,7 @@ def launch_audio_companion(
     if audio_device:
         cmd.extend(["--audio-device", audio_device])
     return subprocess.Popen(cmd, **no_child_log(), **sibling_checkouts_kwargs(sibling_checkouts),
-                            **subprocess_window_kwargs())
+                            **hidden_subprocess_kwargs())
 
 
 def launch_ui_companions(
@@ -801,13 +771,13 @@ def launch_ui_companions(
                 dashboard_proc = subprocess.Popen(
                     dashboard_cmd, stdout=log, stderr=subprocess.STDOUT,
                     **sibling_checkouts_kwargs(sibling_checkouts),
-                    **subprocess_window_kwargs(),
+                    **hidden_subprocess_kwargs(),
                 )
         else:
             dashboard_proc = subprocess.Popen(
                 dashboard_cmd, **no_child_log(),
                 **sibling_checkouts_kwargs(sibling_checkouts),
-                **subprocess_window_kwargs())
+                **hidden_subprocess_kwargs())
         dashboard_pid = dashboard_proc.pid
 
     audio_proc = launch_audio_companion(

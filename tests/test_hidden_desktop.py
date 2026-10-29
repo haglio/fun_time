@@ -736,10 +736,10 @@ def test_the_broker_a_run_starts_survives_that_runs_job(tmp_path):
     pid_file = tmp_path / "broker_pid.txt"
     spawn_broker = (
         "import pathlib, subprocess;"
-        "from fun_time.orchestrator_broker import broker_launch_kwargs;"
+        "from funestra.broker import launch_kwargs;"
         "from tests.child_reports import THE_INTERPRETER_NOT_A_VENVS_LAUNCHER;"
         "p = subprocess.Popen([THE_INTERPRETER_NOT_A_VENVS_LAUNCHER, '-c', 'import time; time.sleep(60)'],"
-        " **broker_launch_kwargs());"
+        " **launch_kwargs());"
         f"pathlib.Path({str(pid_file)!r}).write_text(str(p.pid));"
         "import time; time.sleep(60)"
     )

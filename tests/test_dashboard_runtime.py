@@ -7,7 +7,6 @@ from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.funestra_status import (
     GenauStatus,
     MainFunestraStatus,
-    is_broker_heartbeat_fresh,
     read_genau_status,
     read_key_values,
     read_main_funestra_status,
@@ -67,24 +66,6 @@ def test_load_dashboard_snapshot_reads_whether_every_funestra_has_nothing_to_res
     write_dashboard_snapshot(snapshot_file, DashboardSnapshot(nothing_to_reset=True))
 
     assert load_dashboard_snapshot(snapshot_file).nothing_to_reset is True
-
-
-def test_broker_heartbeat_is_fresh_when_recent(tmp_path: Path):
-    heartbeat_file = tmp_path / "broker_heartbeat.txt"
-    heartbeat_file.write_text("100.0", encoding="utf-8")
-
-    assert is_broker_heartbeat_fresh(heartbeat_file, max_age_seconds=3.0, now=102.5) is True
-
-
-def test_broker_heartbeat_is_stale_when_old_or_invalid(tmp_path: Path):
-    stale_file = tmp_path / "stale_heartbeat.txt"
-    stale_file.write_text("100.0", encoding="utf-8")
-    invalid_file = tmp_path / "invalid_heartbeat.txt"
-    invalid_file.write_text("not-a-float", encoding="utf-8")
-
-    assert is_broker_heartbeat_fresh(stale_file, max_age_seconds=3.0, now=104.0) is False
-    assert is_broker_heartbeat_fresh(invalid_file, now=101.0) is False
-    assert is_broker_heartbeat_fresh(tmp_path / "missing.txt", now=101.0) is False
 
 
 def test_a_genau_that_has_not_reported_yet_reads_at_the_defaults(tmp_path: Path):
@@ -313,25 +294,6 @@ def test_funscript_driving_is_scripted_and_not_resting():
     assert MainFunestraStatus(has_funscript=False).funscript_driving is False
 
 
-
-
-class TestTheBrokersHeartbeat:
-    def _stamped(self, tmp_path, age: float):
-        path = tmp_path / "stamp.txt"
-        path.write_text(str(1000.0 - age), encoding="utf-8")
-        return path
-
-    def test_it_counts_as_fresh_on_its_boundary(self, tmp_path):
-        assert is_broker_heartbeat_fresh(self._stamped(tmp_path, 3.0), now=1000.0) is True
-        assert is_broker_heartbeat_fresh(self._stamped(tmp_path, 3.1), now=1000.0) is False
-
-    def test_a_stamp_that_is_not_there_or_is_not_a_number_is_not_fresh(self, tmp_path):
-        missing = tmp_path / "never_written.txt"
-        garbled = tmp_path / "garbled.txt"
-        garbled.write_text("not a timestamp", encoding="utf-8")
-
-        assert is_broker_heartbeat_fresh(missing, now=1000.0) is False
-        assert is_broker_heartbeat_fresh(garbled, now=1000.0) is False
 
 
 class TestTheStatusFilesShape:

@@ -334,7 +334,7 @@ def _launch_the_satellites(
         config_path=m.runtime.config_path,
         broker_cmd_file=m.commands.broker_cmd_file,
         broker_tray_launcher=Path(broker_launcher_raw) if broker_launcher_raw else None,
-        broker_heartbeat_file=m.commands.broker_heartbeat_file,
+        broker_state_dir=m.commands.broker_state_dir or None,
         random_favs_browser_manifest_file=m.random_favs_browser.manifest_file,
         genau_paused_file=m.commands.genau_paused_file,
         genau_cmd_file=m.commands.genau_cmd_file,

@@ -498,7 +498,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         progress.advance("services")
         write_broker_command(Path(commands.broker_cmd_file), osr2_hold.PARK)
         ensure_broker(
-            commands.broker_heartbeat_file,
+            commands.broker_state_dir or None,
             Path(v) if (v := commands.broker_tray_launcher.strip()) else None,
         )
         reset_satellite_paused_states(

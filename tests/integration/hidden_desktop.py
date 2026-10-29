@@ -28,7 +28,7 @@ Windows destroys a job when its last handle closes, and a job with
 ``KILL_ON_JOB_CLOSE`` takes its processes down with it — so however the run ends, it
 cannot leave a Funestra or an AHK to poison the next one.  The broker is the sole
 exception: it is a service that outlives the session, and it breaks away (see
-``fun_time.orchestrator_broker.broker_launch_kwargs``).
+``funestra.broker.launch_kwargs``).
 
 Usage (default integration command):
 

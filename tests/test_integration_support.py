@@ -589,16 +589,14 @@ def test_a_run_never_starts_or_adopts_the_machines_broker(isolated_ports):
     """The broker is a machine singleton holding the OSR2's serial port.
 
     A session start launches its tray, and the dashboard's broker actions can
-    kill every broker on the machine — a sweep matched by command line, with
-    nothing for a working directory to scope.  Neither belongs to a test run:
-    the broker is not the run's to start, and is emphatically not the run's to
-    kill out from under the user.
+    stop the machine's broker.  Neither belongs to a test run: the broker is not
+    the run's to start, and is emphatically not the run's to stop out from under
+    the user.
 
     Emptying the launcher is what makes all of it inert, without a second mode
-    in the production code: ``start_broker`` and ``launch_broker_tray`` both
-    do nothing without one, and the kill path is only ever reached through a
-    *fresh* heartbeat — which a run's own state dir, where no broker writes,
-    can never show.
+    in the production code: ``funestra.broker`` starts nothing without one, and
+    a stop is only ever asked once a *fresh* heartbeat says a broker is running
+    -- which a run's own state dir, where no broker writes, can never show.
     """
     config, _genau_config = isolated_ports
 
@@ -613,7 +611,7 @@ def test_a_run_never_inherits_a_pin_at_the_machines_broker_directory(isolated_po
     A run copies the config whole, so it would inherit that pin: park and retract
     written into the live broker's command file while the user is using it, and
     the live heartbeat read back as the run's own — which is precisely the fresh
-    heartbeat the broker kill path above is only ever reached through.  Dropped,
+    heartbeat the broker's stop above is only ever asked on.  Dropped,
     the whole channel falls back inside the run's own state dir.
     """
     config, _genau_config = isolated_ports

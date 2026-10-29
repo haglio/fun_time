@@ -175,7 +175,6 @@ class TestControllerManifest:
 
         assert commands["broker_state_dir"] == str(broker_state)
         assert commands["broker_cmd_file"] == str(broker_state / "broker_cmd.txt")
-        assert commands["broker_heartbeat_file"] == str(broker_state / "broker_heartbeat.txt")
         assert commands["broker_mode_file"] == str(broker_state / "broker_mode.txt")
 
     def test_main_funestra_library_dirs_joined_with_pipe(self, tmp_path: Path, cfg_factory):

@@ -66,7 +66,6 @@ class BridgeConfig:
     # bridge process has no Qt event loop to host that window in.
     python_exe: str = ""
     broker_cmd_file: Path | None = None
-    broker_heartbeat_file: Path | None = None
     broker_tray_launcher: Path | None = None
     # The hosted Origenerator's channel (see fun_time.origenerator_switches).  Enabled
     # only when the config names an origenerator checkout; without one nothing

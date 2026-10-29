@@ -78,7 +78,6 @@ def build_windows_bridge_manifest(
             "main_funestra_playlist_file": str(config.main_funestra_playlist_file),
             **_satellite_files(config),
             "broker_cmd_file": str(config.broker_cmd_file),
-            "broker_heartbeat_file": str(config.broker_heartbeat_file),
             # The broker's own directory, so a child needing a broker file not
             # named here resolves it against the broker and not the session --
             # which had put the console's broker and OSR2 lights on an empty dir.
@@ -228,7 +227,6 @@ class CommandFiles:
     landscape_playlist_file: str
     landscape_hud_file: str
     broker_cmd_file: str
-    broker_heartbeat_file: str
     audio_paused_file: str
     audio_volume_file: str
     dashboard_state_file: str

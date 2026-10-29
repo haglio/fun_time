@@ -11,6 +11,7 @@ from pathlib import Path
 
 from app_support import favorites, osr2_device
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
+from funestra import broker
 from funestra.console import console_text
 from funestra.drive_readout import read_drive
 from funestra.modes import MainMode, Osr2State
@@ -27,7 +28,6 @@ from .command_dispatch import (
 from .crown import Crown
 from .funestra_status import (
     MainFunestraStatus,
-    broker_is_running,
     read_genau_status,
     read_main_funestra_status,
 )
@@ -103,7 +103,7 @@ class HudFeed:
         if self.publisher is None:
             return
         genau = read_genau_status(self.config.genau_status_file)
-        broker = broker_is_running(self.config.broker_heartbeat_file, self.config.broker_state)
+        broker_running = broker.is_running(self.config.broker_state)
         osr2_mode, osr2_trouble = self.osr2_mode(), self.osr2_trouble()
         with_the_osr2 = funestra_with_the_osr2(state)
         main_funestra = read_main_funestra_status(self.config.main_funestra_status_file)
@@ -198,7 +198,7 @@ class HudFeed:
         self.publisher.publish_text(DASHBOARD_OSR2_PART, console_text(osr2_part(
             with_the_osr2, main_mode=state.main_mode, osr2=osr2, control=state.osr2_control,
             paused=state.omni_paused, learned=genau.learned_active, shape=genau.shape,
-            broker=broker, max_intensity=state.max_intensity)))
+            broker=broker_running, max_intensity=state.max_intensity)))
 
     def _holders_osr2(self, holder: RoomFunestra, main_mode: MainMode,
                       main_funestra: MainFunestraStatus, osr2_mode: Osr2Mode,

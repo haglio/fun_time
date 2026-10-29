@@ -58,8 +58,6 @@ _SUPPLIES_THE_PAIR = "no_child_log"
 _SUPPRESSES_THE_CONSOLE = frozenset({
     "no_console_window",          # a child that opens windows of its own
     "hidden_subprocess_kwargs",   # a console tool, hidden altogether
-    "subprocess_window_kwargs",   # this repo's name for that one
-    "broker_launch_kwargs",       # that one, plus breaking out of our job
     "origenerator_launch_kwargs",
 })
 

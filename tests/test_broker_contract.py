@@ -9,12 +9,10 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from pathlib import Path
 
-from app_support.process_identity import ProcessNamer
+from funestra import broker
 
-from fun_time import broker_contract
 from fun_time.windows_bridge_startup import (
     broker_process_started_at,
     broker_source_mtime,
@@ -36,7 +34,7 @@ PUBLISHED = {
 def _a_broker_checkout(tmp_path: Path, **published: str) -> Path:
     """A checkout publishing PUBLISHED, and the launcher path this session holds."""
     named = {**PUBLISHED, **published}
-    (tmp_path / broker_contract.CONTRACT_FILE).write_text(
+    (tmp_path / broker.CONTRACT_FILE).write_text(
         json.dumps(named), encoding="utf-8")
     launcher = tmp_path / named["tray_launcher"]
     launcher.write_text("' a launcher", encoding="utf-8")
@@ -64,34 +62,6 @@ def _swept(launcher: Path | None) -> list[int]:
 def _probed(launcher: Path | None) -> float | None:
     with running("fun_time.windows_bridge_startup", MACHINE):
         return broker_process_started_at(launcher)
-
-
-class TestTheImagePattern:
-    """Built from the published label by the same rule the broker names by."""
-
-    def test_it_matches_the_names_a_broker_of_that_name_launches_under(self, tmp_path):
-        pattern = broker_contract.read(_a_broker_checkout(tmp_path)).image_pattern
-
-        for role in ("Broker", "Tray"):
-            name = ProcessNamer(PUBLISHED["app_name"]).exe_name("pythonw.exe", role)
-            assert re.match(pattern, name), name
-
-    def test_it_still_matches_a_broker_that_could_not_be_named(self, tmp_path):
-        # The copy is best-effort, so a broker can arrive under the plain
-        # interpreter and must stay reachable.
-        pattern = broker_contract.read(_a_broker_checkout(tmp_path)).image_pattern
-
-        for name in ("pythonw.exe", "python.exe", "py.exe"):
-            assert re.match(pattern, name), name
-
-    def test_it_leaves_this_sessions_own_processes_alone(self, tmp_path):
-        """The sweep force-kills what it matches, and this session's own
-        children are named too.  The command-line half bounds it as well, but
-        the image half must not be the thing that saves us."""
-        pattern = broker_contract.read(_a_broker_checkout(tmp_path)).image_pattern
-
-        for name in ("FunTime-MainFunestra.exe", "FunTime-Dashboard.exe", "notepad.exe"):
-            assert not re.match(pattern, name), name
 
 
 class TestWhatTheSweepEnds:
