@@ -35,6 +35,7 @@ from .integration_support import (
     close_the_runs_osr2s,
     genau_where_this_machine_keeps_it,
     keep_what_the_run_logged,
+    where_failed_runs_are_kept,
 )
 from .line_record import require_a_run_that_holds_the_machine
 from .throwaway_chrome import ThrowawayChrome
@@ -121,7 +122,7 @@ def pytest_collection_modifyitems(session, config, items):
     refuse_a_run_that_may_not_start()
 
 
-FAILURE_EVIDENCE = Path(__file__).resolve().parents[2] / "state" / "integration_failures"
+FAILURE_EVIDENCE = where_failed_runs_are_kept(Path(__file__).resolve().parents[2])
 
 
 def pytest_sessionfinish(session, exitstatus):

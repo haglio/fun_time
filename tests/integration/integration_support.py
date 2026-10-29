@@ -16,6 +16,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable, Iterator
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
@@ -27,8 +28,8 @@ from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 
-from fun_time.branch_session import _apply_sibling_checkouts_override
-from fun_time.checkout_overrides import STATE_DIRNAME
+from fun_time.branch_session import _apply_sibling_checkouts_override, as_a_filename
+from fun_time.checkout_overrides import STATE_DIRNAME, primary_of
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, SIBLING_CHECKOUTS_KEY, load_config
 from fun_time.event_log import EventRecord, event_log_path, is_announcement, read_events
 from fun_time.funestra_status import (
@@ -62,6 +63,7 @@ from .hidden_desktop import (
     current_desktop_name,
     pids_with_window_on_current_desktop,
 )
+from .line_record import KEPT_FOR, forget_what_was_kept_before, this_run
 from .run_clock import Budget
 
 
@@ -929,15 +931,23 @@ def genau_where_this_machine_keeps_it() -> Iterator[None]:
         yield
 
 
+def where_failed_runs_are_kept(checkout: Path) -> Path:
+    return primary_of(checkout) / STATE_DIRNAME / "integration_failures"
+
+
 def keep_what_the_run_logged(keep_in: Path) -> Path | None:
     if not RUN_ROOTS:
         return None
-    stamp = time.strftime("%Y%m%d-%H%M%S")
-    kept = Path(keep_in) / stamp
+    now = datetime.now()
+    forget_what_was_kept_before(keep_in.glob("*"), now - KEPT_FOR)
+    name = f"{now:%Y%m%d-%H%M%S}"
+    if run := this_run():
+        name = "_".join([name, run.checkout, as_a_filename(run.branch)])
+    kept = keep_in / name
     suffix = 1
     while kept.exists():
         suffix += 1
-        kept = Path(keep_in) / f"{stamp}.{suffix}"
+        kept = keep_in / f"{name}.{suffix}"
     for number, root in enumerate(RUN_ROOTS, 1):
         state = state_dir_of(root)
         if state.is_dir():
