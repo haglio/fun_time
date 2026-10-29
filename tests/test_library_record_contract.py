@@ -71,6 +71,10 @@ def test_the_orientation_the_portrait_and_landscape_buttons_read_is_promised():
     assert set(_record()["video_orientations"]) == set(ORIENTATIONS)
 
 
+def test_the_running_time_f_mode_measures_a_funscript_against_is_promised():
+    assert media_metadata.DURATION_FIELD in _fields("video")
+
+
 def test_the_playback_weight_this_app_draws_by_is_promised():
     """A weight read as missing is a clip shuffled as though nobody had ever
     watched it."""
