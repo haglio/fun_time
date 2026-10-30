@@ -37,7 +37,7 @@ def osr2_state(*, main_mode: MainMode, osr2_mode: Osr2Mode, funscript_driving: b
 
 @dataclass(frozen=True)
 class MainSlotInputs:
-    """Everything the main console's panel is built from — the satellites'
+    """Everything the main console is built from — the satellites'
     :class:`~fun_time.lock_hud.SatelliteInputs` for the main slot.  The lock and
     the browse order are one flag each, resolved to whichever Funestra is on it."""
 
@@ -71,7 +71,7 @@ class MainSlotInputs:
 
 
 def console_model(inputs: MainSlotInputs) -> ConsoleModel:
-    """The console panel as the Main Funestra parses it: the room around the
+    """The console as the Main Funestra parses it: the room around the
     drive readout, and the buttons declared from it."""
     main_funestra, genau = inputs.main_funestra, inputs.genau
     video = kino_shows(inputs.main_mode)

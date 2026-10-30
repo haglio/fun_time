@@ -85,7 +85,7 @@ def test_the_states_light_and_nothing_else_does():
 
 
 def test_the_order_pair_is_declared_only_where_the_order_can_be_switched():
-    """The origenerator-mode panel has an order but no way to change it from
+    """The origenerator-mode HUD has an order but no way to change it from
     here, and two buttons nothing answers are two dead buttons."""
     assert "shuffle" not in _names(_band()) and "latest" not in _names(_band())
     assert "shuffle" in _names(_band(latest=False))

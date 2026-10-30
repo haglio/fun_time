@@ -134,7 +134,7 @@ class VrConfig:
 @dataclass(frozen=True)
 class SatelliteFiles:
     """One satellite's own files, under the session's state dir — the last of
-    them where the hosted Origenerator publishes that side's panel."""
+    them where the hosted Origenerator publishes that side's HUD."""
 
     cmd_file: Path
     paused_file: Path

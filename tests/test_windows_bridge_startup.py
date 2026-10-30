@@ -1901,7 +1901,7 @@ def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
 
 def test_build_satellite_launch_command_forwards_the_hud_files():
     """The HUD is drawn inside the Funestra now, so each satellite is told which
-    panel file to render and where to post the clicks on it."""
+    HUD file to render and where to post the clicks on it."""
     cmd = _a_satellite_argv(hud=Path("state/portrait_hud.json"),
                             dashboard_cmd=Path("state/dashboard_cmd.txt"))
 

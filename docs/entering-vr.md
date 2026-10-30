@@ -290,7 +290,7 @@ is what its first verifications saw — nothing at all. The grace (25s) is the c
 on a screen that never gets a frame at all, which a satellite with an empty
 playlist never does, and its line names the screen it gave up on. A console the
 Funestra has minimized is not one of those screens and is not waited for: with
-the minus drawn beside the panel rather than on it, as it is in the headset, a
+the minus drawn beside the HUD rather than on it, as it is in the headset, a
 closed console paints nothing at all, so counting it held every reveal to the
 grace for as long as he left it closed.
 

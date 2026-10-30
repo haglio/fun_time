@@ -30,7 +30,7 @@ class HudButtons:
              with_sides: bool = True) -> None:
         self._toggle.hang(outside, item, aspect, edge=edge)
         if with_sides:
-            self._sides.hang(outside, item, aspect, panel_edge=edge)
+            self._sides.hang(outside, item, aspect, hud_edge=edge)
         else:
             self._sides.unhang()
 

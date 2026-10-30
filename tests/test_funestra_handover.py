@@ -13,7 +13,7 @@ from funestra.file_channel import consume_command_file, publish_whole
 from funestra.playlist import PlaylistItem, read_playlist, write_playlist
 
 from fun_time.bridge_records import SatelliteChannel
-from fun_time.funestra_handover import hand_back, keep_aside, let_go_since, panel_stamp
+from fun_time.funestra_handover import hand_back, hud_stamp, keep_aside, let_go_since
 
 
 def _channel(tmp_path: Path) -> SatelliteChannel:
@@ -75,10 +75,10 @@ def test_a_side_with_no_list_of_its_own_has_nothing_to_keep(tmp_path):
 
 def test_the_app_has_let_go_once_it_publishes_the_side_empty_after_the_leave(tmp_path):
     """Its close is the one thing it publishes only after it has read the
-    leave, so an empty panel from before the leave says nothing."""
+    leave, so an empty HUD from before the leave says nothing."""
     channel = _channel(tmp_path)
     publish_whole(channel.origenerator_hud_file, '{"Funestra": "portrait"}')
-    since = panel_stamp(channel)
+    since = hud_stamp(channel)
     assert not let_go_since(channel, since)
 
     publish_whole(channel.origenerator_hud_file, "")
@@ -86,18 +86,18 @@ def test_the_app_has_let_go_once_it_publishes_the_side_empty_after_the_leave(tmp
     assert let_go_since(channel, since)
 
 
-def test_an_empty_panel_already_there_at_the_leave_is_no_letting_go(tmp_path):
+def test_an_empty_hud_already_there_at_the_leave_is_no_letting_go(tmp_path):
     """The app had not taken the side yet: the list it is about to write would
     land on top of the one handed back."""
     channel = _channel(tmp_path)
     publish_whole(channel.origenerator_hud_file, "")
 
-    assert not let_go_since(channel, panel_stamp(channel))
+    assert not let_go_since(channel, hud_stamp(channel))
 
 
-def test_a_panel_the_app_publishes_after_the_leave_is_the_side_still_held(tmp_path):
+def test_a_hud_the_app_publishes_after_the_leave_is_the_side_still_held(tmp_path):
     channel = _channel(tmp_path)
-    since = panel_stamp(channel)
+    since = hud_stamp(channel)
 
     publish_whole(channel.origenerator_hud_file, '{"Funestra": "portrait"}')
 

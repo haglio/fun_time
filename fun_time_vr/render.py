@@ -300,7 +300,7 @@ class RenderTarget:
 
 
 class FrameTexture:
-    """Pixels handed over (a Genau frame, the console panel) as a
+    """Pixels handed over (a Genau frame, the console) as a
     texture: RGB or RGBA rows, top row first, uploaded the way up GL reads them."""
 
     def __init__(self) -> None:

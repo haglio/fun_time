@@ -1,7 +1,7 @@
 """A satellite's HUD hanging under its item: the screen it is, and the size it hangs at."""
 from __future__ import annotations
 
-from fun_time_vr.console_panel import DEG_PER_PX
+from fun_time_vr.console_hud import DEG_PER_PX
 from fun_time_vr.satellite_hud import HUD, ITEM, hud_screen_name, screen_kind
 
 

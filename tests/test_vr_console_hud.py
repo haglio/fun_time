@@ -11,7 +11,7 @@ from shared_ui.palette import AMBER, GREEN, RED, TEXT_MUTED, TEXT_PRIMARY
 
 from fun_time.console_buttons import MainSlot, console_rows
 from fun_time.event_log import FAVORITE, NOTICE
-from fun_time_vr.console_panel import PANEL_WIDTH_PX, level_color, panel_hangs_from
+from fun_time_vr.console_hud import HUD_WIDTH_PX, hud_hangs_from, level_color
 
 
 def _the_console_in(mode: str) -> ConsoleHud:
@@ -29,13 +29,13 @@ def _the_console_in(mode: str) -> ConsoleHud:
 
 
 class TestTheHeldWidth:
-    """He saw the panel change size between the modes: the console sized itself
+    """He saw the HUD change size between the modes: the console sized itself
     to its rows, and the genau-mode ones are narrower.  A screen in a scene that
     changes size is a screen that moves, so the Funestra holds it to one width."""
 
     def test_it_covers_the_widest_row_the_console_can_build(self):
         """The painter widens past this constant for a row it cannot otherwise
-        hold, so a constant short of the widest row makes the panel change size
+        hold, so a constant short of the widest row makes the HUD change size
         when the mode does.  The kino-mode transport row is that row, and it
         grows every time the console grows a button."""
         widest = max(
@@ -44,35 +44,35 @@ class TestTheHeldWidth:
             for mode in ("kino", "genau")
         )
 
-        assert widest + 2 * _PAD <= PANEL_WIDTH_PX
+        assert widest + 2 * _PAD <= HUD_WIDTH_PX
 
     def test_it_clears_the_widest_mode(self):
-        """Held narrower than its rows the painter widens the panel, and the
+        """Held narrower than its rows the painter widens the HUD, and the
         two modes would differ again; the constant has to clear both."""
         for mode in ("kino", "genau"):
-            assert ConsolePainter().rgba(_the_console_in(mode))[1][0] <= PANEL_WIDTH_PX
+            assert ConsolePainter().rgba(_the_console_in(mode))[1][0] <= HUD_WIDTH_PX
 
     def test_the_two_modes_paint_the_same_size_at_it(self):
-        painter = ConsolePainter(width=PANEL_WIDTH_PX)
+        painter = ConsolePainter(width=HUD_WIDTH_PX)
 
         kino = painter.rgba(_the_console_in("kino"))[1]
         genau = painter.rgba(_the_console_in("genau"))[1]
 
-        assert kino[0] == genau[0] == PANEL_WIDTH_PX
+        assert kino[0] == genau[0] == HUD_WIDTH_PX
 
 
 class TestWhichSideTheConsoleHangsOn:
-    """The keys move this panel round the sides of the Main Funestra.  A video that
+    """The keys move this HUD round the sides of the Main Funestra.  A video that
     wraps the viewer leaves no edge to hang against, so there it hangs
     under the dashboard as it always has."""
 
     def test_it_takes_the_side_its_keys_named(self):
         for edge in HudEdge:
-            assert panel_hangs_from(edge, wrapped=False) is edge
+            assert hud_hangs_from(edge, wrapped=False) is edge
 
     def test_a_wrapped_video_leaves_it_under_the_dashboard(self):
         for edge in HudEdge:
-            assert panel_hangs_from(edge, wrapped=True) is HudEdge.LOWER
+            assert hud_hangs_from(edge, wrapped=True) is HudEdge.LOWER
 
 
 class TestTheColorOfANotice:

@@ -1,4 +1,4 @@
-"""The console panel Fun Time publishes for the Main Funestra's HUD to draw."""
+"""The console Fun Time publishes for the Main Funestra's HUD to draw."""
 from __future__ import annotations
 
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
@@ -147,10 +147,10 @@ class TestPayload:
         assert _button(unknown, "main_player_clip_jump").dim is True
 
 
-def test_the_panel_carries_the_main_funestras_browse_order():
+def test_the_hud_carries_the_main_funestras_browse_order():
     """Latest and Shuffle are the orchestrator's to set — a spoken word or a key it
     owns — and the Main Funestra cannot tell which way round the playlist it was handed was built,
-    so the order rides the panel exactly as F-mode does."""
+    so the order rides the HUD exactly as F-mode does."""
     assert _payload(latest=True).latest is True
     assert _payload().latest is False
     assert _button(_payload(latest=True), "main_latest").lit is True
@@ -189,7 +189,7 @@ def test_the_order_reported_is_the_order_of_whoever_is_showing():
     assert _payload(main_mode=MainMode.GENAU, latest=True, genau_latest=False).latest is False
 
 
-def test_the_panel_says_which_shapes_of_video_the_browse_may_reach():
+def test_the_hud_says_which_shapes_of_video_the_browse_may_reach():
     """Two flags with a third answer: None where the rotation holds one shape,
     which is every session outside the headset, and the console then draws no pair
     of buttons for a choice there is none to make."""
@@ -241,9 +241,9 @@ def test_the_published_text_carries_the_rows_the_funestra_draws():
 class TestTheDeclaredRows:
     @staticmethod
     def _readout(payload: ConsoleModel, tmp_path):
-        panel = tmp_path / "main_player_console.json"
-        panel.write_text(console_text(payload), encoding="utf-8")
-        console = read_console(panel)
+        hud = tmp_path / "main_player_console.json"
+        hud.write_text(console_text(payload), encoding="utf-8")
+        console = read_console(hud)
         assert console is not None
         painter = ConsolePainter()
         painter.rgba(ConsoleHud(console=console))
@@ -257,7 +257,7 @@ class TestTheDeclaredRows:
 
     def test_the_declared_rows_are_what_the_funestra_presses(self, tmp_path):
         """The whole way round: a button declared here, published, read back and
-        painted, posts on the panel exactly the verb it was declared with."""
+        painted, posts on the HUD exactly the verb it was declared with."""
         painter, origin = self._readout(_payload(main_mode=MainMode.KINO), tmp_path)
 
         rect = next(r for r, b in painter.buttons if b.command == "main_next")

@@ -56,7 +56,7 @@
     rather than a discovery in the log.
   - Every notice a command raises is a desktop overlay window the session does not
     launch, so a key that only flashes a confirmation on the desktop (`X` in a VR
-    session, say) shows nothing in the headset. What the panel and the satellite
+    session, say) shows nothing in the headset. What the console and the satellite
     HUDs draw is unaffected: those are in-scene surfaces, not windows.
   - With `vr.compositor_layers` on, the controllers, their laser, the handles and
     the spot the laser lands on draw in the projection layer, which the runtime

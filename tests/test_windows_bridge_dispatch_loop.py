@@ -260,7 +260,7 @@ def test_the_session_ends_a_line_said_aloud_the_way_its_origenerator_publishes(
         " @{said_at_epoch_seconds}")
 
 
-def test_each_side_reads_the_hosted_panel_where_the_manifest_names_it(cfg_factory, tmp_path):
+def test_each_side_reads_the_hosted_hud_where_the_manifest_names_it(cfg_factory, tmp_path):
     config = load_config(cfg_factory({}))
     manifest = LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini"))
 

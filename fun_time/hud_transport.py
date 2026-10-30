@@ -5,12 +5,12 @@ families, action groups and thumbnails.  The *drawing* lives in the Satellite
 Funestra, which composites it straight into the video with mpv — so the HUD has no
 window of its own and no z-order to fight (see :mod:`funestra.satellite_hud`).
 
-This module is the seam between the two: it turns a :class:`~fun_time.lock_hud.HudPanel`
+This module is the seam between the two: it turns a :class:`~fun_time.lock_hud.SatelliteHud`
 into the :class:`~funestra.satellite_hud.HudModel` the Funestra parses back, and
 writes its text only when it actually changed, so a Funestra polling the file
 re-renders per clip change rather than per tick.  The Main Funestra's console
 rides the same publisher, and so does a side the hosted Origenerator holds —
-whose panel is that app's own, under the session's row.
+whose HUD is that app's own, under the session's row.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from funestra.hud_placement import HudCorner, HudEdge
 from funestra.satellite_hud import HudCell, HudModel, hud_text
 
 from .folder_listings import FolderListings
-from .lock_hud import ACTION_LIMIT, SEED_LIMIT, HudPanel, locate_cell, panel_thumbnails
+from .lock_hud import ACTION_LIMIT, SEED_LIMIT, SatelliteHud, hud_thumbnails, locate_cell
 from .origenerator_switches import ORIGENERATOR_MODE
 from .osr2_section import DeviceBlock
 from .satellite_buttons import funestra_rows, mode_row
@@ -49,7 +49,7 @@ def _cells(paths: list[str], cache_dir: Path, listings: FolderListings, *, limit
     by_path = dict(zip(paths, labels, strict=False))
     return tuple(
         _cell(path, thumb, by_path.get(path, ""))
-        for path, thumb in panel_thumbnails(
+        for path, thumb in hud_thumbnails(
             paths, cache_dir, limit=limit,
             thumbnailer=lambda path, cache: cached_thumbnail(path, cache, listings))
     )
@@ -70,9 +70,9 @@ def _loop_cells(paths: list[str], cache_dir: Path, listings: FolderListings,
                  for path in paths)
 
 
-def hud_model(panel: HudPanel, cache_dir: Path,
+def hud_model(hud: SatelliteHud, cache_dir: Path,
               camera_words: tuple[str, ...] = ()) -> HudModel:
-    """*panel* as the record the Satellite Funestra renders.
+    """*HUD* as the record the Satellite Funestra renders.
 
     Thumbnails are resolved here, so the Funestra never touches the library: it gets
     image paths and draws them.  ``playing`` is resolved to a map *cell* against the
@@ -83,46 +83,46 @@ def hud_model(panel: HudPanel, cache_dir: Path,
     # The looped axis is published whole — the Funestra windows it around the clip on
     # screen; the other axis is the ordinary browse map, drawn to its cap.
     seeds = (
-        _loop_cells(panel.seed_siblings, cache_dir, listings) if panel.active_loop == "seed"
-        else _cells(panel.seed_siblings, cache_dir, listings, limit=SEED_LIMIT)
+        _loop_cells(hud.seed_siblings, cache_dir, listings) if hud.active_loop == "seed"
+        else _cells(hud.seed_siblings, cache_dir, listings, limit=SEED_LIMIT)
     )
     actions = (
-        _loop_cells(panel.action_siblings, cache_dir, listings, panel.action_labels)
-        if panel.active_loop == "action"
-        else _cells(panel.action_siblings, cache_dir, listings, limit=ACTION_LIMIT,
-                    labels=panel.action_labels)
+        _loop_cells(hud.action_siblings, cache_dir, listings, hud.action_labels)
+        if hud.active_loop == "action"
+        else _cells(hud.action_siblings, cache_dir, listings, limit=ACTION_LIMIT,
+                    labels=hud.action_labels)
     )
     corner = None
-    if panel.current:
-        corner = _cell(panel.current, cached_thumbnail(panel.current, cache_dir, listings))
+    if hud.current:
+        corner = _cell(hud.current, cached_thumbnail(hud.current, cache_dir, listings))
     playing = locate_cell(
-        panel.playing, panel.current,
+        hud.playing, hud.current,
         [cell.path for cell in seeds], [cell.path for cell in actions],
     ) or ("corner", 0)
     return HudModel(
-        funestra=panel.funestra,
-        hud_corner=panel.hud_corner,
-        hud_edge=panel.hud_edge,
-        hud_minimized=panel.hud_minimized,
-        locked=panel.locked,
-        title=panel.title,
-        active=panel.active,
-        is_favorite=panel.is_favorite,
-        rows=funestra_rows(panel.funestra, locked=panel.locked,
-                         favorites_filter=panel.favorites_filter, latest=panel.latest,
-                         mode=panel.mode,
-                         origenerator_ready=panel.origenerator_ready,
-                         nothing_to_reset=panel.nothing_to_reset,
-                         has_other_versions=panel.has_other_versions,
-                         longer_than_a_step=panel.longer_than_a_step,
-                         in_vr=panel.in_vr, crowned=panel.crowned,
-                         has_osr2=panel.has_osr2, has_funscript=panel.has_funscript),
-        filter_query=panel.filter_query,
+        funestra=hud.funestra,
+        hud_corner=hud.hud_corner,
+        hud_edge=hud.hud_edge,
+        hud_minimized=hud.hud_minimized,
+        locked=hud.locked,
+        title=hud.title,
+        active=hud.active,
+        is_favorite=hud.is_favorite,
+        rows=funestra_rows(hud.funestra, locked=hud.locked,
+                         favorites_filter=hud.favorites_filter, latest=hud.latest,
+                         mode=hud.mode,
+                         origenerator_ready=hud.origenerator_ready,
+                         nothing_to_reset=hud.nothing_to_reset,
+                         has_other_versions=hud.has_other_versions,
+                         longer_than_a_step=hud.longer_than_a_step,
+                         in_vr=hud.in_vr, crowned=hud.crowned,
+                         has_osr2=hud.has_osr2, has_funscript=hud.has_funscript),
+        filter_query=hud.filter_query,
         camera_words=camera_words,
-        seed_count=panel.seed_count,
-        action_count=panel.action_count,
-        active_loop=panel.active_loop,
-        current_action=panel.current_action,
+        seed_count=hud.seed_count,
+        action_count=hud.action_count,
+        active_loop=hud.active_loop,
+        current_action=hud.current_action,
         playing=playing,
         corner=corner,
         seeds=seeds,
@@ -137,18 +137,18 @@ def hosted_model(funestra: str, hosted: HudModel | None, *, active: bool,
                  hud_edge: HudEdge = HudEdge.LOWER,
                  hud_minimized: bool = False) -> HudModel:
     """What *Funestra* wears while the hosted app holds its Funestra: that app's own
-    panel, or the mode's name while it has none, under the session's row."""
-    panel = hosted or HudModel(funestra=funestra, title=ORIGENERATOR_MODE_LABEL)
+    HUD, or the mode's name while it has none, under the session's row."""
+    hud = hosted or HudModel(funestra=funestra, title=ORIGENERATOR_MODE_LABEL)
     row = mode_row(funestra, mode=ORIGENERATOR_MODE,
                    origenerator_ready=origenerator_ready, in_vr=in_vr, crowned=crowned)
-    model = replace(panel, funestra=funestra, active=active, hud_corner=hud_corner,
+    model = replace(hud, funestra=funestra, active=active, hud_corner=hud_corner,
                     hud_edge=hud_edge, hud_minimized=hud_minimized,
-                    rows=(row, *panel.rows))
+                    rows=(row, *hud.rows))
     return model if device is None else device.worn_by(model)
 
 
 class HudPublisher:
-    """Writes each Funestra's HUD file, skipping unchanged panels.
+    """Writes each Funestra's HUD file, skipping unchanged HUDs.
 
     Named for what it publishes to rather than what it publishes: the satellites
     take a map of clips and the Main Funestra takes its console, and both want the same
@@ -162,10 +162,10 @@ class HudPublisher:
         self._camera_words = camera_words
         self._last: dict[str, str] = {}
 
-    def publish(self, funestra: str, panel: HudPanel,
+    def publish(self, funestra: str, hud: SatelliteHud,
                 device: DeviceBlock | None = None) -> bool:
-        """Write *Funestra*'s map if the panel changed; return whether it wrote."""
-        model = hud_model(panel, self._cache_dir, self._camera_words)
+        """Write *Funestra*'s map if the HUD changed; return whether it wrote."""
+        model = hud_model(hud, self._cache_dir, self._camera_words)
         return self.publish_text(
             funestra, hud_text(model if device is None else device.worn_by(model)))
 
@@ -176,11 +176,11 @@ class HudPublisher:
             return False
         if text == self._last.get(name):
             return False
-        # Published whole: the Funestra polls this file every frame, so a panel
+        # Published whole: the Funestra polls this file every frame, so a HUD
         # written in place would sometimes be read half-drawn.
         if not publish_whole(path, text):
             return False
-        # Remembered only once the panel is actually on disk: a write that never
+        # Remembered only once the HUD is actually on disk: a write that never
         # landed must be retried on the next tick, not treated as published.
         self._last[name] = text
         return True

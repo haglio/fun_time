@@ -183,7 +183,7 @@ def test_the_command_under_test_is_the_one_production_builds(tmp_path):
 
     assert command[1:3] == ["-m", "origenerator"]
     assert "--fun-time" in command
-    # The RFB's rect is the main window's, and both Funestras are handed over.
+    # The RFB's rect is Core's, and both Funestras are handed over.
     assert command[command.index("--width") + 1] == "854"
     assert command[command.index("--portrait-playlist") + 1] == str(
         tmp_path / "portrait_playlist.tsv")

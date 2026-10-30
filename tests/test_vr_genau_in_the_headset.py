@@ -281,12 +281,12 @@ class TestFMode:
         assert world.genau.top_block() == ModeHud(video="alpha_180", scripted_filter=True)
 
 
-class TestWhatThePanelCallsTheFlick:
+class TestWhatTheHudCallsTheFlick:
     def test_the_flick_on_screen_by_its_name(self, tmp_path):
         assert World(tmp_path).genau.top_block() == ModeHud(video="alpha_180")
 
     def test_the_one_still_decoding_while_the_last_stays_up(self, tmp_path):
-        """The headset's panel names what is on its way rather than what is
+        """The headset's HUD names what is on its way rather than what is
         still up, as it always has there.  The flick after the first is decoded
         ahead by the first pass; the one after that is not, so a step onto it
         waits for its decode."""

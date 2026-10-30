@@ -57,7 +57,7 @@ class TestTheRoundTrip:
         assert WindowPlacement.from_args(parsed) == WindowPlacement()
 
     def test_a_channel_left_out_is_left_out_of_the_command_line(self):
-        """A session that draws no lock panel hands over neither the panel nor
+        """A session that draws no lock HUD hands over neither the HUD nor
         the file a click on it would post to."""
         argv = SatelliteChannels(playlist=Path("p.tsv")).to_argv()
 
@@ -131,7 +131,7 @@ class TestReadOutOfTheManifest:
 
     def test_the_dashboard_s_command_file_is_the_session_s_one(self):
         """Shared by every child rather than carried per side: a click on any
-        lock panel posts to the same place."""
+        lock HUD posts to the same place."""
         commands = self._commands()
 
         portrait = SatelliteChannels.from_manifest(commands, "portrait")

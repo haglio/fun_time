@@ -7,7 +7,7 @@ in VR all three are funestra Funestras in this one, each playing through
 :class:`fun_time_vr.headset_engine.HeadsetEngine` into a texture.  Kino and
 Genau run on the Main Funestra as they do on the desktop, with the headset's
 own verbs beside them (:mod:`fun_time_vr.headset_verbs`); each Funestra draws
-its panel on a bitmap that hangs beside its item and hands a User's own
+its HUD on a bitmap that hangs beside its item and hands a User's own
 frames over to hang in the slot (:mod:`fun_time_vr.surfaces`), and the controllers move
 and resize every screen (:mod:`fun_time_vr.pointer`).
 
@@ -88,7 +88,7 @@ from satellite.contract import SatelliteChannels
 
 from . import room, vr_runtime
 from .bringup import open_vr_session
-from .console_panel import DEG_PER_PX, PANEL_WIDTH_PX, panel_hangs_from
+from .console_hud import DEG_PER_PX, HUD_WIDTH_PX, hud_hangs_from
 from .controller_mesh import controllers_strip
 from .cover import (
     COVER_CLEAR,
@@ -119,9 +119,10 @@ from .headset_engine import HeadsetEngine
 from .headset_verbs import HeadsetVerbs
 from .headset_wear import HeadsetWear
 from .hud_buttons import HudButtons, hud_button_names
-from .hud_toggle import PANEL_GAP_DEG
+from .hud_toggle import HUD_GAP_PAST_THE_TOGGLE_DEG
 from .layout import (
     BANNER,
+    CONSOLE,
     DASH,
     FUNESTRAS,
     GALLERY,
@@ -129,7 +130,6 @@ from .layout import (
     LAYOUT_FILENAME,
     LIBRARY,
     MAIN,
-    PANEL,
     PORTRAIT,
     REFERENCE,
     Layout,
@@ -217,7 +217,7 @@ from .scene import (
 )
 from .scheduling import ahead_of_background_work
 from .stacking import Stacking
-from .surfaces import LatestFrame, PanelBitmap
+from .surfaces import HudBitmap, LatestFrame
 from .thumbs import Thumbs, strongest
 from .video_thread import VideoThread
 from .wrap_readout import WrapReadout, readout
@@ -242,7 +242,7 @@ PUMP_HZ = 30.0
 # flick's frames per cycle of the motion.
 MAIN_TICK_HZ = 120.0
 
-OFF_THE_PANEL = (-1, -1)
+OFF_THE_HUD = (-1, -1)
 
 LASER_REACH_M = 3.0  # when the laser meets no screen
 HANDLE_COLOR = as_fractions(BORDER_DEFAULT, 0.35)
@@ -382,7 +382,7 @@ class _VideoUnit:
 
     def _window(self) -> tuple[int, int]:
         """The frame's own pixels, which is the window the Funestra places
-        its panel in; the panel hangs beside the item, so only the
+        its HUD in; the HUD hangs beside the item, so only the
         placing's arithmetic sees these numbers."""
         return max(1, self.target.width), max(1, self.target.height)
 
@@ -398,13 +398,13 @@ class _VideoUnit:
         if self._audio_device:
             logger.info("Audio device %r -> %s", self._audio_device, picked or "no match; default")
 
-    def _press_on_the_panel(self, event: PressEvent) -> None:
-        """A squeeze on the hanging panel, placed by the Funestra the way a
-        click on the desktop's is: in the window's pixels, at the panel's own."""
-        size = self.panel.size
+    def _press_on_the_hud(self, event: PressEvent) -> None:
+        """A squeeze on the hanging HUD, placed by the Funestra the way a
+        click on the desktop's is: in the window's pixels, at the HUD's own."""
+        size = self.hud.size
         if size is None:
             return
-        at = self.panel.in_the_window(*surface_pixel(event.u, event.v, size))
+        at = self.hud.in_the_window(*surface_pixel(event.u, event.v, size))
         if event.kind == PRESS:
             self._held = True
             self.funestra.press(*at, window=self._window())
@@ -414,17 +414,17 @@ class _VideoUnit:
             self._held = False
             self.funestra.release()
 
-    def _hover_over_the_panel(self, hovered: tuple[str, tuple[float, float]] | None,
-                              panel_screen: str) -> None:
-        """Where the pointer rests on the panel, for its tooltip -- off it
+    def _hover_over_the_hud(self, hovered: tuple[str, tuple[float, float]] | None,
+                            hud_screen: str) -> None:
+        """Where the pointer rests on the HUD, for its tooltip -- off it
         entirely while a press is held, since the press's own drags say where
         the pointer is."""
         if self._held:
             return
-        size = self.panel.size
-        at = OFF_THE_PANEL
-        if hovered is not None and hovered[0] == panel_screen and size is not None:
-            at = self.panel.in_the_window(*surface_pixel(*hovered[1], size))
+        size = self.hud.size
+        at = OFF_THE_HUD
+        if hovered is not None and hovered[0] == hud_screen and size is not None:
+            at = self.hud.in_the_window(*surface_pixel(*hovered[1], size))
         self.funestra.motion(*at, held=False, window=self._window())
 
     def _post(self, command: str) -> None:
@@ -539,9 +539,9 @@ class _MainUnit(_VideoUnit):
         self._notices = notices
         self._watch = PlaybackWatch()
         self._readout = WrapReadout()
-        self._presses = _Presses(MAIN, PANEL)
+        self._presses = _Presses(MAIN, CONSOLE)
         self._vr_dirs = () if vr.flicks_folder is None else (vr_flicks_in(vr.flicks_folder),)
-        self.panel = PanelBitmap(width=PANEL_WIDTH_PX)
+        self.hud = HudBitmap(width=HUD_WIDTH_PX)
         self.users_frames = LatestFrame()
         self.users_frame_texture = FrameTexture()
         self._uploaded_frame = None
@@ -569,7 +569,7 @@ class _MainUnit(_VideoUnit):
             locked=True, sound_is_the_rooms=True,
             users=_users(manifest, vr, stop,
                          kino=library.kino()),
-            panel_surface=self.panel, users_frames=self.users_frames,
+            hud_surface=self.hud, users_frames=self.users_frames,
             window_verbs=self._apply_the_headsets_verb, host_controls=self.projection,
         )
         self.verbs = HeadsetVerbs(
@@ -679,11 +679,11 @@ class _MainUnit(_VideoUnit):
 
     def _take_presses(self) -> None:
         for event in self._presses.drain():
-            if event.screen == PANEL:
-                self._press_on_the_panel(event)
+            if event.screen == CONSOLE:
+                self._press_on_the_hud(event)
             elif event.kind == PRESS:
                 self._post(OMNIPAUSE_TOGGLE)
-        self._hover_over_the_panel(self._presses.hover, PANEL)
+        self._hover_over_the_hud(self._presses.hover, CONSOLE)
 
     def _watch_progress(self, now: float) -> None:
         """Say it out loud when the video stops advancing, and reopen it once:
@@ -778,11 +778,11 @@ class _SatelliteUnit(_VideoUnit):
             play_points=Path(commands.state_dir) / play_points_filename(funestra))
         self._dashboard_cmd_file = channels.dashboard_cmd
         self._audio_device = vr.audio_device.strip()
-        self.panel = PanelBitmap()
+        self.hud = HudBitmap()
         self.funestra = Funestra(
             self.engine, channels=channels, playlist=read_playlist(channels.playlist),
             tcode=FunscriptTCodeDriver(_osr2_slot(commands, funestra)),
-            panel_surface=self.panel,
+            hud_surface=self.hud,
         )
         self.hud_texture = FrameTexture()
         self.hud_screen = _HangingScreen(self.screen.placement)
@@ -819,23 +819,23 @@ class _SatelliteUnit(_VideoUnit):
 
     def render_latest_frame(self) -> None:
         super().render_latest_frame()
-        rgba, version = self.panel.take()
+        rgba, version = self.hud.take()
         if version != self._hud_version:
             self._hud_version = version
             self._hud_shown = rgba is not None
             if rgba is not None:
                 self.hud_texture.upload(rgba)
-        minimized = self.funestra.panel_minimized
+        minimized = self.funestra.hud_minimized
         if self.target.ready and (self._hud_shown or minimized):
             self._buttons.hang(self.funestra.outside_buttons, self.shown, self.target.aspect,
-                               edge=self.funestra.panel_edge)
+                               edge=self.funestra.hud_edge)
         else:
             self._buttons.unhang()
         if self._hud_shown and self.target.ready:
             self.hud_screen.placement = attached_to(
-                self.funestra.panel_edge, self.shown, aspect=self.target.aspect,
+                self.funestra.hud_edge, self.shown, aspect=self.target.aspect,
                 width_deg=self.hud_texture.width * DEG_PER_PX,
-                hanging_aspect=self.hud_texture.aspect, gap_deg=PANEL_GAP_DEG,
+                hanging_aspect=self.hud_texture.aspect, gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG,
             )
             self.hud_screen.rehang(self.hud_texture.aspect)
 
@@ -850,12 +850,12 @@ class _SatelliteUnit(_VideoUnit):
             if self._buttons.take(event):
                 continue
             if screen_kind(event.screen) == HUD:
-                self._press_on_the_panel(event)
+                self._press_on_the_hud(event)
             elif event.kind == PRESS:
                 self._post(OMNIPAUSE_TOGGLE)
         hovered = self._presses.hover
         self._buttons.point(None if hovered is None else hovered[0])
-        self._hover_over_the_panel(hovered, hud_screen_name(self.screen_name))
+        self._hover_over_the_hud(hovered, hud_screen_name(self.screen_name))
 
     def close(self) -> None:
         self.video.close()  # frees mpv on the thread whose context it renders in
@@ -903,7 +903,7 @@ def _upload(unit) -> bool:
     return unit.texture.ready
 
 
-class _PanelUnit:
+class _ConsoleUnit:
     """The console the Main Funestra draws, hanging under whichever item
     fills the main slot -- or, while that item wraps the viewer and there is
     nothing to dock to, under the dashboard."""
@@ -923,14 +923,14 @@ class _PanelUnit:
 
     @property
     def in_the_room(self) -> bool:
-        return not self._main_unit.funestra.panel_minimized
+        return not self._main_unit.funestra.hud_minimized
 
     def hangings(self) -> tuple[Hanging, ...]:
         beside = self._buttons.hangings()
         if not (self._shown and self.texture.ready):
             return beside
         return (*beside, Hanging(
-            Screen(PANEL, self.screen.placement, self.texture.aspect, pressable=True),
+            Screen(CONSOLE, self.screen.placement, self.texture.aspect, pressable=True),
             mesh=self.screen, frame=self.texture, blend=True, docked_to=MAIN))
 
     def hangs_by(self) -> dict[str, Hangs]:
@@ -949,7 +949,7 @@ class _PanelUnit:
         self._buttons.point(None if hovered is None else hovered[0])
 
     def render_latest_frame(self) -> None:
-        rgba, version = self._main_unit.panel.take()
+        rgba, version = self._main_unit.hud.take()
         if version != self._version:
             self._version = version
             self._shown = rgba is not None
@@ -960,8 +960,8 @@ class _PanelUnit:
         under, aspect = (
             (self._dash.screen.placement, self._dash.texture.aspect) if wrapped else
             (shown_at(MAIN, self._main_unit.screen.placement, slot_aspect), slot_aspect))
-        edge = panel_hangs_from(self._main_unit.funestra.panel_edge, wrapped=wrapped)
-        minimized = self._main_unit.funestra.panel_minimized
+        edge = hud_hangs_from(self._main_unit.funestra.hud_edge, wrapped=wrapped)
+        minimized = self._main_unit.funestra.hud_minimized
         if self._shown or minimized:
             self._buttons.hang(self._main_unit.funestra.outside_buttons, under, aspect, edge=edge,
                                with_sides=not wrapped)
@@ -971,7 +971,7 @@ class _PanelUnit:
             return
         self.screen.placement = attached_to(
             edge, under, aspect=aspect, width_deg=self.texture.width * DEG_PER_PX,
-            hanging_aspect=self.texture.aspect, gap_deg=PANEL_GAP_DEG,
+            hanging_aspect=self.texture.aspect, gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG,
         )
         self.screen.rehang(self.texture.aspect)
 
@@ -1003,7 +1003,7 @@ class _DashUnit:
         DASH: Placement(azimuth_deg=0.0, elevation_deg=_two_handles_over_the_main(_DASH_WIDTH_DEG),
                         width_deg=_DASH_WIDTH_DEG),
         # Carrying the console, the video having wrapped the viewer: lower, under it.
-        PANEL: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=_DASH_WIDTH_DEG),
+        CONSOLE: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=_DASH_WIDTH_DEG),
     }
 
     def __init__(self, main_unit: _MainUnit, *,
@@ -1015,7 +1015,7 @@ class _DashUnit:
         self._state_file = dashboard_state_file
         self._reference_flag = reference_flag
         self._floating = _at_the_dashs_own_width(remembered.get(DASH, self.SPOTS[DASH]))
-        self._wrapped = _at_the_dashs_own_width(remembered.get(PANEL, self.SPOTS[PANEL]))
+        self._wrapped = _at_the_dashs_own_width(remembered.get(CONSOLE, self.SPOTS[CONSOLE]))
         self._pointer = DashPointer(
             post=lambda command: append_command(dashboard_cmd_file, command))
         self._shown_as = preview_marker.shown_as()
@@ -1036,7 +1036,7 @@ class _DashUnit:
 
     @property
     def layout_key(self) -> str:  # which remembered spot a drag lands in
-        return PANEL if self.carrying_the_console else DASH
+        return CONSOLE if self.carrying_the_console else DASH
 
     @property
     def placement(self) -> Placement:
@@ -1051,7 +1051,7 @@ class _DashUnit:
             self._floating = placement
 
     def put_back(self) -> None:
-        self._floating, self._wrapped = self.SPOTS[DASH], self.SPOTS[PANEL]
+        self._floating, self._wrapped = self.SPOTS[DASH], self.SPOTS[CONSOLE]
         self.placement = self.SPOTS[self.layout_key]
 
     def hangings(self) -> tuple[Hanging, ...]:
@@ -1121,9 +1121,9 @@ class _ReferenceUnit:
 
     SPOTS: dict[str, Placement] = {}
 
-    def __init__(self, dash: _DashUnit, panel: _PanelUnit, *, flag: Path) -> None:
+    def __init__(self, dash: _DashUnit, console: _ConsoleUnit, *, flag: Path) -> None:
         self._dash = dash
-        self._panel = panel
+        self._console = console
         self._flag = flag
         self._pointer = ReferencePointer()
         self._presses = _Presses(REFERENCE)
@@ -1171,7 +1171,7 @@ class _ReferenceUnit:
     def render_latest_frame(self) -> None:
         if not _upload(self):
             return
-        under = self._panel if self._dash.carrying_the_console else self._dash
+        under = self._console if self._dash.carrying_the_console else self._dash
         self.screen.placement = attached_below(
             under.screen.placement, aspect=under.texture.aspect,
             width_deg=REFERENCE_WIDTH_DEG, hanging_aspect=self.texture.aspect)
@@ -1856,14 +1856,14 @@ def _osr2_slot(commands, sender: str) -> _SaysWhenItFirstMoves:
     return _SaysWhenItFirstMoves(Osr2Sender(sender, port=int(commands.osr2_slot_port)), sender)
 
 
-def _still_blank(main_unit, satellites: Sequence, panel) -> tuple[str, ...]:
+def _still_blank(main_unit, satellites: Sequence, console) -> tuple[str, ...]:
     """Which screens the session opens with have yet to RENDER a frame, as
     against merely being sized (``has_frame``, never ``ready``); the main slot
     counts once.  Named, so the reveal can say which one it gave up on."""
     frames = [(main_unit.screen_name, main_unit.texture_in_the_slot)]
     frames += [(satellite.screen_name, satellite.target) for satellite in satellites]
-    if panel.in_the_room:
-        frames.append((PANEL, panel.texture))
+    if console.in_the_room:
+        frames.append((CONSOLE, console.texture))
     return tuple(name for name, frame in frames if not frame.has_frame)
 
 
@@ -2046,8 +2046,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
         reference_flag=reference_flag,
         state_dir=Path(commands.state_dir),
     )
-    panel = _PanelUnit(main_unit, dash)
-    reference = _ReferenceUnit(dash, panel, flag=reference_flag)
+    console = _ConsoleUnit(main_unit, dash)
+    reference = _ReferenceUnit(dash, console, flag=reference_flag)
     library = _LibraryUnit(
         remembered=remembered.placements,
         flag=Path(state_dir) / LIBRARY_OPEN_FILENAME,
@@ -2073,8 +2073,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     posts = _ControllerPosts(Path(commands.dashboard_cmd_file))
     wear = HeadsetWear()
     # The room, each thing saying for itself what it hangs there.  Dash before
-    # panel: the console hangs off where the dashboard ended up.
-    units = [main_unit, *satellites, dash, panel, reference, library,
+    # The console hangs off where the dashboard ended up.
+    units = [main_unit, *satellites, dash, console, reference, library,
              banner, gallery, cover]
     closing = [notices, *units, keeper, posts]
     # The Main Funestra ticks on a worker of its own, at Genau's rate.
@@ -2129,7 +2129,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
             t1 = time.perf_counter()
             for unit in units:
                 unit.render_latest_frame()
-            blank = _still_blank(main_unit, satellites, panel)
+            blank = _still_blank(main_unit, satellites, console)
             cover.anchor_settled = cover_worn.dwelt and session.views_tracked
             cover.awaiting_wearer = not blank and not session.focused  # set before he looks
             scene_ready.note(blank=blank, read=cover_on_screen.dwelt)

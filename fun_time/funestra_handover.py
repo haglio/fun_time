@@ -17,11 +17,11 @@ from .bridge_records import SatelliteChannel
 from .modes import rotated_onto
 from .satellite_control import read_satellite_status
 
-PanelStamp = tuple[int, int] | None
+HudStamp = tuple[int, int] | None
 
 
-def panel_stamp(channel: SatelliteChannel) -> PanelStamp:
-    """Which copy of *channel*'s hosted panel is on disk; each publish replaces it."""
+def hud_stamp(channel: SatelliteChannel) -> HudStamp:
+    """Which copy of *channel*'s hosted HUD is on disk; each publish replaces it."""
     if channel.origenerator_hud_file is None:
         return None
     try:
@@ -35,20 +35,20 @@ def show_f_mode(channel: SatelliteChannel) -> bool | None:
     if channel.origenerator_hud_file is None:
         return None
     try:
-        panel = parse_hud(channel.origenerator_hud_file.read_text(encoding="utf-8"))
+        hud = parse_hud(channel.origenerator_hud_file.read_text(encoding="utf-8"))
     except OSError:
         return None
-    if panel is None:
+    if hud is None:
         return None
-    return next((button.lit for row in panel.rows for button in row
-                 if button.command == f"{panel.funestra}_fmode"), None)
+    return next((button.lit for row in hud.rows for button in row
+                 if button.command == f"{hud.funestra}_fmode"), None)
 
 
-def let_go_since(channel: SatelliteChannel, stamp: PanelStamp) -> bool:
-    """Whether the hosted app has published *channel*'s panel empty since *stamp* --
+def let_go_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:
+    """Whether the hosted app has published *channel*'s HUD empty since *stamp* --
     its close, which only reading the way out makes it do.  An empty one already
     there at *stamp* is an app that may not have taken the Funestra yet."""
-    if panel_stamp(channel) == stamp:
+    if hud_stamp(channel) == stamp:
         return False
     try:
         return not channel.origenerator_hud_file.read_text(encoding="utf-8").strip()

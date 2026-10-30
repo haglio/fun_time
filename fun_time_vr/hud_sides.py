@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 from funestra.hud_placement import HudEdge
 
-from .console_panel import DEG_PER_PX
+from .console_hud import DEG_PER_PX
 from .pointer import HANDLE_DEG, PRESS, PressEvent, Screen
 from .room import Hanging
 from .satellite_hud import HUD_GAP_DEG
@@ -37,9 +37,9 @@ def side_named(name: str) -> HudEdge | None:
 
 
 def sides(outside, screen_name: str, item: Placement, aspect: float, *,
-          panel_edge: HudEdge) -> tuple[Side, ...]:
+          hud_edge: HudEdge) -> tuple[Side, ...]:
     return tuple(_side(outside, screen_name, item, aspect, edge)
-                 for edge in HudEdge if edge is not panel_edge)
+                 for edge in HudEdge if edge is not hud_edge)
 
 
 def _gap_deg(edge: HudEdge) -> float:
@@ -68,9 +68,9 @@ class HudSides:
         self._hung: tuple[Side, ...] = ()
         self._shown: Side | None = None
 
-    def hang(self, outside, item: Placement, aspect: float, *, panel_edge: HudEdge) -> None:
+    def hang(self, outside, item: Placement, aspect: float, *, hud_edge: HudEdge) -> None:
         self._outside = outside
-        self._hung = sides(outside, self._screen_name, item, aspect, panel_edge=panel_edge)
+        self._hung = sides(outside, self._screen_name, item, aspect, hud_edge=hud_edge)
         shown = next((side for side in self._hung if side.edge is self.pointed_at), None)
         if shown is not None:
             if self._shown is None or shown.bgra is not self._shown.bgra:

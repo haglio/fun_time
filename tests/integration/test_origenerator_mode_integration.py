@@ -83,15 +83,15 @@ pytestmark = [
 
 # A fabricated stand-in for the hosted app: parses the --fun-time contract
 # loosely, boots the way the real one does — a short-lived splash wearing the
-# app's caption FIRST (the twin that once got cached as the app), then the
-# main window, parked (iconified) and topmost — and exits on QUIT.  It
+# app's caption FIRST (the twin that once got cached as the app), then
+# Core, parked (iconified) and topmost — and exits on QUIT.  It
 # publishes the status file too, from the same poll and only once booted, which
 # is what the real app's Fun Time bridge does and what a session reads to learn
 # the app is up: a stub that stayed silent there would leave origenerator mode
 # closed for the whole run.  Its shows are the real app's shape too: a list
 # written for each Funestra it was handed, the verb that makes that Funestra read
-# it, and a panel for the session to put on the Funestra.  Launched without
-# --fun-time it opens on its own, as he opens the real one, offers itself to a
+# it, and a HUD for the session to put on the Funestra.  Launched without
+# --fun-time it opens in Standalone, as he opens the real one, offers itself to a
 # session and answers a takeover -- holding its first status back afterwards,
 # as a busy app would, so a session that waited to hear from an app already
 # open would show the mode closed.
@@ -336,7 +336,7 @@ def _host_stub(config_path: Path, stub_root: Path) -> None:
     config_path.write_text(json.dumps(raw), encoding="utf-8")
 
 
-def _parked_main_window(pid: int) -> int:
+def _parked_core(pid: int) -> int:
     hwnd = find_origenerators_window(pid)
     return hwnd if hwnd and is_window_minimized(hwnd) else 0
 
@@ -359,9 +359,9 @@ def hosted_session():
         session.start()
         pid = session.read_child_pids().get("origenerator_pid", 0)
         assert pid, "the session did not record a hosted origenerator child"
-        # Wait past the splash decoy for the PARKED main window — the decoy
+        # Wait past the splash decoy for the PARKED Core — the decoy
         # wears the same caption but is a normal visible window.
-        hwnd = seen_within(lambda: _parked_main_window(pid), seconds=20.0)
+        hwnd = seen_within(lambda: _parked_core(pid), seconds=20.0)
         stderr_file = session.config.paths.state_dir / "orchestrator_stderr.log"
         stderr_tail = stderr_file.read_text(encoding="utf-8", errors="replace")[-2000:] \
             if stderr_file.exists() else "(no stderr file)"
@@ -580,7 +580,7 @@ def test_entering_the_mode_on_a_real_session_leaves_its_slideshows_on_top():
     is the settle pass and the bands a full launch lays down, so the mode has
     to be entered on a session that took the loading-screen path with every
     window real — and with the dashboard enabled, since that is what publishes
-    the panels the Funestras wear.  Asked over ten seconds rather than once: the
+    the HUDs the Funestras wear.  Asked over ten seconds rather than once: the
     burial arrived a few seconds late every time he saw it, so a single look
     right after the switch is exactly the check that kept passing.
     """
@@ -607,8 +607,8 @@ def test_entering_the_mode_on_a_real_session_leaves_its_slideshows_on_top():
         for funestra in _FUNESTRAS:
             hud_file = session.config.satellite(funestra).hud_file
             worn = wait_for(
-                lambda hud_file=hud_file, funestra=funestra: _panel_of(hud_file, funestra),
-                desc=f"the {funestra.label} Funestra to wear the hosted app's panel")
+                lambda hud_file=hud_file, funestra=funestra: _hud_of(hud_file, funestra),
+                desc=f"the {funestra.label} Funestra to wear the hosted app's HUD")
             assert [button.command for button in worn.rows[0]][:2] == [
                 f"{funestra.label}_kino_activate", f"{funestra.label}_origenerator_activate"]
             assert worn.rows[0][1].lit
@@ -633,14 +633,14 @@ def _first_burial(funestras: dict[str, int], siblings: set[int]) -> str:
     return ""
 
 
-def _panel_of(hud_file: Path, funestra: RoomFunestra):
-    """The panel published for *Funestra*, once it is the hosted app's own."""
+def _hud_of(hud_file: Path, funestra: RoomFunestra):
+    """The HUD published for *Funestra*, once it is the hosted app's own."""
     if not hud_file.exists():
         return None
-    panel = parse_hud(hud_file.read_text(encoding="utf-8"))
-    if panel is None or panel.title != f"Stub {funestra.label} slideshow":
+    hud = parse_hud(hud_file.read_text(encoding="utf-8"))
+    if hud is None or hud.title != f"Stub {funestra.label} slideshow":
         return None
-    return panel
+    return hud
 
 
 @pytest.mark.timeout(_TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S)
@@ -740,7 +740,7 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
         state_file = shared_state_path(session.config.paths.state_dir)
         wait_for(lambda: read_shared_state(state_file).origenerator_ready, timeout=5,
                  desc="the mode to open without waiting to hear from the app")
-        hwnd = wait_for(lambda: _parked_main_window(offered_pid),
+        hwnd = wait_for(lambda: _parked_core(offered_pid),
                         desc="the open app's window to be parked by the takeover")
         session.write_dashboard_command("origenerator_activate")
         session.wait_for_log("Origenerator in the Random Favs Browser's place")

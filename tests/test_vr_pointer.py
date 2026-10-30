@@ -468,12 +468,12 @@ _LANDSCAPE = Screen("landscape", Placement(38.0, 10.0, 28.0), aspect=16 / 9,
                     movable=True, resizable=True)
 _PORTRAIT = Screen("portrait", Placement(-38.0, 10.0, 28.0), aspect=9 / 16,
                    movable=True, resizable=True, pressable=True, item=True)
-_PANEL = Screen("panel", Placement(0.0, 32.0, 24.0), aspect=1.3, pressable=True)
+_CONSOLE = Screen("panel", Placement(0.0, 32.0, 24.0), aspect=1.3, pressable=True)
 _GALLERY = Screen("gallery", Placement(-68.0, 2.0, 26.0), aspect=0.7,
                   movable=True, resizable=True, pressable=True, right_clicks=True)
 _WRAPPED = Screen("primary", Placement(0.0, 0.0, 72.0), aspect=16 / 9,
                   pressable=True, immersive=True)
-_SCENE = [_LANDSCAPE, _PANEL]
+_SCENE = [_LANDSCAPE, _CONSOLE]
 
 
 class TestThePointerOverTheScene:
@@ -499,10 +499,10 @@ class TestThePointerOverTheScene:
         assert frame.moved == {}
 
     def test_the_screen_drawn_last_is_the_one_under_the_ray_where_two_overlap(self):
-        under = Screen("under", _PANEL.placement, aspect=1.3, pressable=True)
+        under = Screen("under", _CONSOLE.placement, aspect=1.3, pressable=True)
 
-        frame = self._frame(Pointer(), _hands(right=_aim_at_uv(_PANEL, 0.5, 0.5)),
-                            screens=[under, _PANEL])
+        frame = self._frame(Pointer(), _hands(right=_aim_at_uv(_CONSOLE, 0.5, 0.5)),
+                            screens=[under, _CONSOLE])
 
         assert frame.hover.screen == "panel"
 
@@ -566,7 +566,7 @@ class TestThePointerOverTheScene:
         assert hovered.taken is None and dragged.taken is None
 
     def test_pressing_a_screen_takes_hold_of_it_too(self):
-        frame = self._frame(Pointer(), _hands(right=_aim_at_uv(_PANEL, 0.5, 0.5), right_trigger=1.0))
+        frame = self._frame(Pointer(), _hands(right=_aim_at_uv(_CONSOLE, 0.5, 0.5), right_trigger=1.0))
 
         assert frame.taken == "panel"
 
@@ -590,24 +590,24 @@ class TestThePointerOverTheScene:
         assert grown.width_deg == pytest.approx(1.25 * 28.0)
         assert grown.azimuth_deg == pytest.approx(top_left.azimuth_deg + grown.width_deg / 2)
 
-    def test_a_squeeze_on_the_panel_presses_it_and_the_drag_and_release_follow(self):
+    def test_a_squeeze_on_the_hud_presses_it_and_the_drag_and_release_follow(self):
         pointer = Pointer()
 
-        pressed = self._frame(pointer, _hands(right=_aim_at_uv(_PANEL, 0.25, 0.75), right_trigger=1.0))
+        pressed = self._frame(pointer, _hands(right=_aim_at_uv(_CONSOLE, 0.25, 0.75), right_trigger=1.0))
         assert len(pressed.events) == 1
         assert pressed.events[0].kind == PRESS
         assert pressed.events[0].screen == "panel"
         assert (pressed.events[0].u, pressed.events[0].v) == pytest.approx((0.25, 0.75), abs=1e-6)
 
-        dragged = self._frame(pointer, _hands(right=_aim_at_uv(_PANEL, 0.5, 0.75), right_trigger=1.0))
+        dragged = self._frame(pointer, _hands(right=_aim_at_uv(_CONSOLE, 0.5, 0.75), right_trigger=1.0))
         assert dragged.events[0].kind == DRAG
         assert dragged.events[0].u == pytest.approx(0.5, abs=1e-6)
         assert dragged.hover.screen == "panel"
 
-        released = self._frame(pointer, _hands(right=_aim_at_uv(_PANEL, 0.5, 0.75)))
+        released = self._frame(pointer, _hands(right=_aim_at_uv(_CONSOLE, 0.5, 0.75)))
         assert released.events == (PressEvent(RELEASE, "panel"),)
         assert not released.settled
-        assert self._frame(pointer, _hands(right=_aim_at_uv(_PANEL, 0.5, 0.75))).events == ()
+        assert self._frame(pointer, _hands(right=_aim_at_uv(_CONSOLE, 0.5, 0.75))).events == ()
 
     def test_a_squeeze_on_a_funestras_frame_that_moves_carries_the_main_funestra_instead(self):
         landscape = replace(_LANDSCAPE, pressable=True, item=True)
@@ -637,9 +637,9 @@ class TestThePointerOverTheScene:
         no point on it to give."""
         pointer = Pointer()
         held = self._frame(pointer, _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0),
-                           screens=[_WRAPPED, _PANEL])
+                           screens=[_WRAPPED, _CONSOLE])
         let_go = self._frame(pointer, _hands(right=_aim_at(140.0, -0.6)),
-                             screens=[_WRAPPED, _PANEL])
+                             screens=[_WRAPPED, _CONSOLE])
 
         assert held.events == ()
         assert let_go.events == (PressEvent(PRESS, "primary", 0.5, 0.5),
@@ -665,18 +665,18 @@ class TestThePointerOverTheScene:
         """Only the hosted app's window has a menu to open on one, and every
         other screen reads an event kind it has never heard of as a release."""
         pointer = Pointer()
-        aimed = _aim_at_uv(_PANEL, 0.25, 0.75)
+        aimed = _aim_at_uv(_CONSOLE, 0.25, 0.75)
 
         held = self._frame(pointer, _hands(right=aimed, right_trigger=1.0,
-                                           right_stick_pressed=True), screens=[_PANEL])
+                                           right_stick_pressed=True), screens=[_CONSOLE])
 
         (press,) = held.events
         assert (press.kind, press.screen) == (PRESS, "panel")
 
     def test_a_screen_hanging_in_front_of_the_wrap_still_takes_its_own_presses(self):
-        frame = self._frame(Pointer(), _hands(right=_aim_at_uv(_PANEL, 0.25, 0.75),
+        frame = self._frame(Pointer(), _hands(right=_aim_at_uv(_CONSOLE, 0.25, 0.75),
                                               right_trigger=1.0),
-                            screens=[_WRAPPED, _PANEL])
+                            screens=[_WRAPPED, _CONSOLE])
 
         assert frame.events[0].screen == "panel"
 
@@ -685,7 +685,7 @@ class TestThePointerOverTheScene:
         what is under it — and there is nothing out there to hold or to drag."""
         pointer = Pointer()
         away = _hands(right=_aim_at(140.0, -0.6))
-        scene = [_WRAPPED, _PANEL]
+        scene = [_WRAPPED, _CONSOLE]
 
         resting = self._frame(pointer, away, screens=scene)
         held = self._frame(pointer, _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0),
@@ -700,7 +700,7 @@ class TestThePointerOverTheScene:
     def test_a_click_on_a_funestras_frame_presses_it_when_let_go(self):
         portrait = _PORTRAIT
         pointer = Pointer()
-        scene = [portrait, _PANEL]
+        scene = [portrait, _CONSOLE]
 
         held = self._frame(pointer, _hands(right=_aim_at_uv(portrait, 0.4, 0.6), right_trigger=1.0),
                            screens=scene)
@@ -717,13 +717,13 @@ class TestThePointerOverTheScene:
 
     @pytest.mark.parametrize("u, v", [(0.3, 0.02), (0.97, 0.02)], ids=["lower edge", "corner"])
     def test_a_squeeze_along_a_frames_lower_edge_is_a_click_on_it_like_any_other(self, u, v):
-        """The row that was drawn along a frame's lower edge is on the panel
+        """The row that was drawn along a frame's lower edge is on the HUD
         beside it now, so no part of a frame seeks or sets the level: a
         squeeze there still sat on an invisible scrubber and chip for two
         weeks after the row moved."""
         portrait = _PORTRAIT
         pointer = Pointer()
-        scene = [portrait, _PANEL]
+        scene = [portrait, _CONSOLE]
 
         held = self._frame(pointer, _hands(right=_aim_at_uv(portrait, u, v), right_trigger=1.0),
                            screens=scene)
@@ -736,7 +736,7 @@ class TestThePointerOverTheScene:
     def test_a_squeeze_spent_on_something_else_never_clicks_when_let_go(self):
         portrait = _PORTRAIT
         pointer = Pointer()
-        scene = [portrait, _PANEL]
+        scene = [portrait, _CONSOLE]
 
         self._frame(pointer, _hands(right=_aim_at_uv(portrait, 0.4, 0.6), right_trigger=1.0),
                     screens=scene)
@@ -749,7 +749,7 @@ class TestThePointerOverTheScene:
 
     def test_a_squeeze_over_the_wrap_that_carries_it_never_presses_it(self):
         pointer = Pointer()
-        scene = [_WRAPPED, _PANEL]
+        scene = [_WRAPPED, _CONSOLE]
 
         self._frame(pointer, _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0), screens=scene)
         self._frame(pointer, _hands(right=_aim_at(150.0, -0.6), right_trigger=1.0), screens=scene)
@@ -759,7 +759,7 @@ class TestThePointerOverTheScene:
 
     def test_letting_go_blind_still_ends_a_squeeze_the_way_it_began(self):
         pointer = Pointer()
-        scene = [_WRAPPED, _PANEL]
+        scene = [_WRAPPED, _CONSOLE]
 
         self._frame(pointer, _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0), screens=scene)
         self._frame(pointer, _hands(right_trigger=1.0), screens=scene)
@@ -777,13 +777,13 @@ class TestThePointerOverTheScene:
 
     def test_a_wrap_that_is_not_pressable_takes_nothing(self):
         frame = self._frame(Pointer(), _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0),
-                            screens=[replace(_WRAPPED, pressable=False), _PANEL])
+                            screens=[replace(_WRAPPED, pressable=False), _CONSOLE])
 
         assert frame.events == ()
 
     def test_the_hand_that_squeezes_takes_the_pointer_and_keeps_it(self):
         pointer = Pointer()
-        both = dict(right=_aim_at_uv(_LANDSCAPE, 0.5, 0.5), left=_aim_at_uv(_PANEL, 0.5, 0.5))
+        both = dict(right=_aim_at_uv(_LANDSCAPE, 0.5, 0.5), left=_aim_at_uv(_CONSOLE, 0.5, 0.5))
 
         assert self._frame(pointer, _hands(**both)).hover.screen == "landscape"
         assert self._frame(pointer, _hands(**both, left_trigger=1.0)).hover.screen == "panel"
@@ -792,7 +792,7 @@ class TestThePointerOverTheScene:
 
     def test_a_hand_cannot_take_the_pointer_mid_press(self):
         pointer = Pointer()
-        both = dict(right=_aim_at_uv(_PANEL, 0.5, 0.5), left=_aim_at_uv(_LANDSCAPE, 0.5, 0.5))
+        both = dict(right=_aim_at_uv(_CONSOLE, 0.5, 0.5), left=_aim_at_uv(_LANDSCAPE, 0.5, 0.5))
 
         pressed = self._frame(pointer, _hands(**both, right_trigger=1.0))
         stolen = self._frame(pointer, _hands(**both, right_trigger=1.0, left_trigger=1.0))
@@ -804,7 +804,7 @@ class TestThePointerOverTheScene:
         assert released.events == (PressEvent(RELEASE, "panel"),)
 
     def test_the_pointer_comes_from_whichever_hand_is_tracked(self):
-        frame = self._frame(Pointer(), _hands(left=_aim_at_uv(_PANEL, 0.5, 0.5)))
+        frame = self._frame(Pointer(), _hands(left=_aim_at_uv(_CONSOLE, 0.5, 0.5)))
 
         assert frame.hover.screen == "panel"
 

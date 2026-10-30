@@ -211,7 +211,7 @@ class WindowRoles:
     def minimize(self, role: str) -> None:
         # Minimize instead of SW_HIDE so the window keeps its taskbar button
         # (running indicator) the whole session — and, for a satellite parked
-        # from its own HUD, so there is something left to click: that panel goes
+        # from its own HUD, so there is something left to click: that HUD goes
         # down with the window, so the taskbar button is the way back.
         # No-activate, so parking one Funestra never yanks focus to the next.
         hwnd = self.hwnd(role)
@@ -323,7 +323,7 @@ class WindowRoles:
             set_always_on_top(hwnd, True)
 
     def converge_origenerator_window(self, rfb_slot: RfbSlot) -> None:
-        """Keep the hosted app's main window where the browser's place says.
+        """Keep hosted Core where the browser's place says.
 
         The switch's ops restore or park it when a command fires, but the
         window arrives mid-session — the room opens without waiting the app

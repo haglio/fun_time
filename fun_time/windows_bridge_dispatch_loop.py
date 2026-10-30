@@ -59,7 +59,7 @@ from .event_log import (
     SOURCE_SYSTEM,
     notice,
 )
-from .funestra_handover import PanelStamp, hand_back, let_go_since, panel_stamp
+from .funestra_handover import HudStamp, hand_back, hud_stamp, let_go_since
 from .funestra_settings import read_funestra_reports, with_what_the_funestras_report
 from .funestra_status import (
     origenerator_has_published,
@@ -273,8 +273,8 @@ class DispatchLoopRunner:
         self._answers = 0
         self._ignored_because = ""
         # Satellites on their way back from the hosted app: by when they land,
-        # and which of their hosted panels was up when they were sent for.
-        self._coming_home: dict[RoomFunestra, tuple[float, PanelStamp]] = {}
+        # and which of their hosted HUDs was up when they were sent for.
+        self._coming_home: dict[RoomFunestra, tuple[float, HudStamp]] = {}
         self.watch = WatchSampler(
             main_funestra_status_file=config.main_funestra_status_file,
             satellite_status_files={2: config.portrait_status_file,
@@ -455,7 +455,7 @@ class DispatchLoopRunner:
         """*funestras* are on their way back from the hosted app."""
         for funestra in funestras:
             self._coming_home[funestra] = (
-                now + LET_GO_TIMEOUT_S, panel_stamp(self.config.satellite(funestra)))
+                now + LET_GO_TIMEOUT_S, hud_stamp(self.config.satellite(funestra)))
 
     def bring_the_funestras_home(self, *, now: float) -> None:
         """Hand each satellite its own list again once the hosted app has let

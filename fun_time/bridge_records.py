@@ -81,7 +81,7 @@ class BridgeConfig:
     # until it appears: the file existing is how a session learns the app has
     # finished booting, which is when Origenerator is first offered.
     origenerator_status_file: Path | None = None
-    # Where the hosted app publishes the panel for each Funestra it holds.
+    # Where the hosted app publishes the HUD for each Funestra it holds.
     portrait_origenerator_hud_file: Path | None = None
     landscape_origenerator_hud_file: Path | None = None
     # Where the broker keeps the rest of its channel.  Unset it falls back to
@@ -152,7 +152,7 @@ class BridgeConfig:
 class SatelliteChannel:
     """One satellite's channel, by value: the file quartet it is driven and
     read through, its browse sources, and where the hosted app publishes the
-    panel for it."""
+    HUD for it."""
 
     cmd_file: Path
     paused_file: Path

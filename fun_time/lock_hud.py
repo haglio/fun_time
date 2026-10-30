@@ -1,6 +1,6 @@
 """What each satellite's HUD shows.
 
-Assembles the panel drawn over each satellite: the side's own state — locked,
+Assembles the HUD drawn over each satellite: the side's own state — locked,
 looping, filtered, favorite — and the other videos reachable in the current
 clip's action group and seed family.  Only fun_time has the library metadata this
 needs, so the model lives here — :mod:`fun_time.hud_transport` publishes it, and
@@ -55,7 +55,7 @@ def _title(
 
 
 @dataclass(frozen=True)
-class HudPanel:
+class SatelliteHud:
     """One satellite's HUD contents (portrait or landscape).
 
     The current clip anchors the map: seeds (the same act, other subjects) run
@@ -93,7 +93,7 @@ class HudPanel:
     action_count: int = 0
     filter_query: str = ""
     # Whether this side is the one a bare, side-less command reaches — the Funestra
-    # addressed most recently.  Global state, published per side so each panel can
+    # addressed most recently.  Global state, published per side so each HUD can
     # answer "is it me?" without knowing what the others are.
     active: bool = False
     # Which axis this side is looping ("" none / "action" / "seed").  While a loop
@@ -277,7 +277,7 @@ def _axis_holding(index: GroupIndex, anchor: str, current: str, widened_pool: li
 
 @dataclass(frozen=True)
 class SatelliteInputs:
-    """Everything one satellite's panel is built from.
+    """Everything one satellite's HUD is built from.
 
     The two sides take an identical set, so they travel as one object each
     rather than as ``portrait_``/``landscape_`` twins of every field.
@@ -324,7 +324,7 @@ class _MapHold:
 
 @dataclass(frozen=True)
 class _Map:
-    """The cells drawn around one panel's anchor, and which of them is on screen."""
+    """The cells drawn around one HUD's anchor, and which of them is on screen."""
 
     seed: list[str]
     action: list[str]
@@ -336,7 +336,7 @@ class _Map:
 
     @classmethod
     def unmapped(cls, anchor: str) -> _Map:
-        """No clip on screen, or no index to place one in: the panel draws no map,
+        """No clip on screen, or no index to place one in: the HUD draws no map,
         and the counts read zero rather than the one clip an axis always has."""
         return cls([], [], "", (), anchor, 0, 0)
 
@@ -445,7 +445,7 @@ def _map_around(
     )
 
 
-def build_hud_panel(
+def build_hud(
     inputs: SatelliteInputs,
     *,
     index: GroupIndex | None,
@@ -453,8 +453,8 @@ def build_hud_panel(
     origenerator_ready: bool = True,
     in_vr: bool = False,
     crowned: bool = False,
-) -> HudPanel:
-    """One side's HUD panel, from everything that side is (:class:`SatelliteInputs`).
+) -> SatelliteHud:
+    """One side's HUD HUD, from everything that side is (:class:`SatelliteInputs`).
 
     ``inputs.widen_clip`` names the clip the seed row was widened around ("more
     seeds"); while it is in force the row grows past the exact parameter set to
@@ -479,7 +479,7 @@ def build_hud_panel(
         pool_keys = {normalize_path_key(item) for item in widened_pool}
         hold = _resolve_anchor(index, inputs, widened_pool, pool_keys)
         drawn = _map_around(index, hold, inputs, widened_pool, pool_keys)
-    return HudPanel(
+    return SatelliteHud(
         funestra=inputs.funestra,
         locked=inputs.locked,
         hud_corner=inputs.hud_corner,
@@ -512,10 +512,10 @@ def build_hud_panel(
     )
 
 
-def build_satellite_panel(
+def build_satellite_hud(
     inputs: SatelliteInputs, metadata_root: Path | None, active_funestra: str,
     origenerator_ready: bool = True, in_vr: bool = False, crowned: str = "",
-) -> HudPanel:
+) -> SatelliteHud:
     index: GroupIndex | None = None
     if inputs.current:
         # The up-front index, never a per-clip rebuild: what arrives is learned into
@@ -527,7 +527,7 @@ def build_satellite_panel(
             metadata_root=metadata_root,
             must_contain=None,
         )
-    return build_hud_panel(
+    return build_hud(
         inputs, index=index, active=active_funestra == inputs.funestra,
         origenerator_ready=origenerator_ready, in_vr=in_vr,
         crowned=crowned == inputs.funestra,
@@ -547,7 +547,7 @@ def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) ->
             )
 
 
-def panel_thumbnails(
+def hud_thumbnails(
     paths: list[str],
     cache_dir: str | Path,
     *,

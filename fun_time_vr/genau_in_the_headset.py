@@ -1,6 +1,6 @@
 """Genau as it runs on the headset's Main Funestra: the desktop's own, browsing
 its VR flicks with the desktop's flat ones, narrowed to a shape when the room
-asks, and naming the flick still decoding on the panel as it always has there."""
+asks, and naming the flick still decoding on the HUD as it always has there."""
 from __future__ import annotations
 
 from dataclasses import replace

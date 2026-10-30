@@ -505,7 +505,7 @@ def navigate_hud(
     red like the other no-effect notices.
 
     A vertical step from a seed cell dives into THAT seed's own action column —
-    the one the HUD draws under the lit cell (``build_hud_panel`` hangs it
+    the one the HUD draws under the lit cell (``build_hud`` hangs it
     there) — re-rooting the map on the seed it stepped down from.  The frozen
     anchor's own acts belong to the corner's seed, which is a different clip.
     """

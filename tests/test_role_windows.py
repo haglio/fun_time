@@ -203,7 +203,7 @@ class TestTopmostBands:
         """His: the Random Favs Browser flashes over Origenerator for a moment
         every time the room resumes from OmniPause.
 
-        The browser shares its rect with the hosted app's main window, and the
+        The browser shares its rect with hosted Core, and the
         band policy already answers "not topmost" for it in origenerator mode
         — but this path promoted every fixed role without asking, so the
         browser went to the top of the band (HWND_TOPMOST inserts there) and

@@ -6,7 +6,7 @@ import numpy as np
 from funestra.hud_placement import HudEdge
 from shared_ui.spacing import BUTTON_SIZE_HUD
 
-from .console_panel import DEG_PER_PX
+from .console_hud import DEG_PER_PX
 from .pointer import PRESS, PressEvent, Screen
 from .room import Hanging
 from .satellite_hud import HUD_GAP_DEG
@@ -16,7 +16,7 @@ from .surfaces import red_and_blue_swapped
 TOGGLE = "toggle"
 TIP = "tip"
 BUTTON_DEG = BUTTON_SIZE_HUD * DEG_PER_PX
-PANEL_GAP_DEG = HUD_GAP_DEG + BUTTON_DEG + HUD_GAP_DEG
+HUD_GAP_PAST_THE_TOGGLE_DEG = HUD_GAP_DEG + BUTTON_DEG + HUD_GAP_DEG
 
 _TIP_GAP_DEG = HUD_GAP_DEG / 2
 

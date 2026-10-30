@@ -10,6 +10,6 @@ from fun_time.room_funestras import RoomFunestra
 
 
 def publish_the_show(config: BridgeConfig, funestra: RoomFunestra, *, f_mode: bool) -> None:
-    panel = HudModel(funestra=funestra.label, rows=((
+    hud = HudModel(funestra=funestra.label, rows=((
         Button(f"{funestra.label}_fmode", FMODE_ICON, F_MODE_LABEL, lit=f_mode),),))
-    config.satellite(funestra).origenerator_hud_file.write_text(hud_text(panel), encoding="utf-8")
+    config.satellite(funestra).origenerator_hud_file.write_text(hud_text(hud), encoding="utf-8")

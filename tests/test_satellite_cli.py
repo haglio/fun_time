@@ -63,8 +63,8 @@ def test_title_is_taken_from_the_flag():
     assert args.title == "Portrait AI Funestra"
 
 
-def test_parser_takes_the_hud_panel_and_command_files():
-    """The lock HUD is drawn inside the Funestra, so fun_time hands it the panel to
+def test_parser_takes_the_hud_and_command_files():
+    """The lock HUD is drawn inside the Funestra, so fun_time hands it the HUD to
     render and the command file its clicks post back to."""
     args = build_parser().parse_args(
         ["--hud-file", "state/portrait_hud.json",

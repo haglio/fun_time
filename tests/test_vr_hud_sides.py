@@ -12,12 +12,12 @@ from fun_time_vr.scene import RADIUS_M, Placement, center_height, half_width
 ITEM = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
 
 
-def _sides(panel_edge: HudEdge = HudEdge.LOWER, *, minimized: bool = False):
+def _sides(hud_edge: HudEdge = HudEdge.LOWER, *, minimized: bool = False):
     return sides(OutsideButtons("portrait", minimized=minimized), "portrait", ITEM, 16 / 9,
-                 panel_edge=panel_edge)
+                 hud_edge=hud_edge)
 
 
-class TestTheSidesThePanelIsNotAgainst:
+class TestTheSidesTheHudIsNotAgainst:
     def test_there_is_one_beside_each_of_the_other_three(self):
         assert {side.edge for side in _sides(HudEdge.LEFT)} == {
             HudEdge.UPPER, HudEdge.RIGHT, HudEdge.LOWER}
@@ -41,10 +41,10 @@ class TestAFunestrasSides:
     def _sides():
         posted: list[str] = []
         hud_sides = HudSides("landscape", post=posted.append, mesh=_Mesh(), texture=_Texture())
-        hud_sides.hang(OutsideButtons("landscape"), ITEM, 16 / 9, panel_edge=HudEdge.LOWER)
+        hud_sides.hang(OutsideButtons("landscape"), ITEM, 16 / 9, hud_edge=HudEdge.LOWER)
         return hud_sides, posted
 
-    def test_a_squeeze_on_one_asks_for_the_panel_there_open(self):
+    def test_a_squeeze_on_one_asks_for_the_hud_there_open(self):
         hud_sides, posted = self._sides()
 
         took = hud_sides.take(PressEvent(PRESS, side_screen_name("landscape", HudEdge.LEFT)))
@@ -102,7 +102,7 @@ class TestHangingThem:
 
     @staticmethod
     def _hang(hud_sides) -> None:
-        hud_sides.hang(OutsideButtons("portrait"), ITEM, 16 / 9, panel_edge=HudEdge.LOWER)
+        hud_sides.hang(OutsideButtons("portrait"), ITEM, 16 / 9, hud_edge=HudEdge.LOWER)
 
     def test_only_the_side_pointed_at_is_drawn(self):
         hud_sides, texture, mesh = self._sides()
