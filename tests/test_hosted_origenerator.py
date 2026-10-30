@@ -55,7 +55,7 @@ def _manifest_for(cfg_factory, tmp_path, overrides):
 
 
 class TestWhereTheAppsOwnWindowGoes:
-    """The one thing a headset session cannot show: the app's main window, which
+    """The one thing a headset session cannot show: the app's Core, which
     shares the Random Favs Browser's rect.  It boots parked there and nothing in
     a headset session restores it, so the session crossing back to the monitors
     is what finds it where it belongs."""

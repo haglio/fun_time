@@ -442,7 +442,7 @@ def _start_a_funestra(cmd: list[str], *, log_file: str | Path, sibling_checkouts
 class HandedFunestra:
     """One Satellite Funestra as the hosted app is handed it: the files the
     Funestra contract trades through, plus the one that app publishes the side's
-    panel to for the session to put on the Funestra."""
+    HUD to for the session to put on the Funestra."""
 
     playlist_file: str | Path
     cmd_file: str | Path
@@ -630,7 +630,7 @@ def launch_main_funestra(
         str(status_file),
         "--state-dir",
         str(state_dir),
-        # The Main Funestra's HUD is this session's console: it reads the panel we
+        # The Main Funestra's HUD is this session's console: it reads the HUD we
         # publish, reads Genau's readout for the section under it, and posts a
         # press -- on a button or on the volume control -- back onto the
         # dashboard's command file.

@@ -835,7 +835,7 @@ class TestFindWindowForProcess:
             assert win32.find_window_for_process(500) == 12
 
     def test_a_parked_window_still_resolves_for_a_caller_that_asks_for_one(self, monkeypatch):
-        """The hosted app's main window boots hidden and must still be found,
+        """Hosted Core boots hidden and must still be found,
         which is what ``include_hidden`` is for."""
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         with patch("fun_time.win32._user32") as mock:

@@ -3653,7 +3653,7 @@ class TestTheHudPublisherASessionStarts:
 
     def test_it_names_the_camera_words_the_content_overlay_lists(self, cfg_factory, tmp_path):
         """The desktop session and the headset's both start their publisher here,
-        so this is the one place the overlay's words reach every Funestra's panel."""
+        so this is the one place the overlay's words reach every Funestra's HUD."""
         publisher, _manifest_path = self._started(cfg_factory, tmp_path,
                                                   camera_words=("Side", "XYZ"))
 

@@ -26,7 +26,7 @@ from fun_time.command_dispatch import dispatch_command
 from fun_time.filter_vocab import load_camera_words
 from fun_time.hud_transport import HudPublisher
 from fun_time.latest_arrivals import LatestArrivals
-from fun_time.lock_hud import HudPanel
+from fun_time.lock_hud import SatelliteHud
 from fun_time.modes import write_playlist_file
 from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_control import read_satellite_status
@@ -321,14 +321,14 @@ def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
         family, widened = [playing, others[0]], [playing, *others]
 
         # The HUD is up throughout, as in a real session: widening is the one
-        # gesture that grows the panel — a two-cell seed row becomes eight — so the
+        # gesture that grows the HUD — a two-cell seed row becomes eight — so the
         # Funestra re-renders it at a new size and hands mpv a differently-shaped
         # overlay while the video under it keeps decoding.
         publisher = HudPublisher({"portrait": satellite.hud},
                                  tmp_path / THUMBNAIL_CACHE_DIRNAME, load_camera_words())
 
         def publish(row: list[str], loop: str) -> None:
-            publisher.publish("portrait", HudPanel(
+            publisher.publish("portrait", SatelliteHud(
                 funestra="portrait", locked=False, title="Looping seeds", current=playing,
                 seed_siblings=[v for v in row if v != playing], action_siblings=[],
                 seed_count=len(row), active_loop=loop, playing=playing,

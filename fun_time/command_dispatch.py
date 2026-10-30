@@ -852,7 +852,7 @@ def _dispatch_leave_omnipause(
     state = replace(state, omni_paused=result.next_omni_paused)
     # Un-minimize first, then re-band, then focus: leaving OmniPause is the room
     # coming back, so a Funestra put away with its own minimize button comes back
-    # with it — it has no panel left to ask with, its HUD having gone down with the
+    # with it — it has no HUD left to ask with, its HUD having gone down with the
     # window.  Before the bands, so the re-stack and the activate below land on
     # windows that are actually on screen.
     ops = [WindowOp(op="restore_parked"), WindowOp(op="restore_all_topmost"),

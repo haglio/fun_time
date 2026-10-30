@@ -46,5 +46,5 @@ def test_the_osr2_readout_it_hands_on_is_kept_in_the_state_dir():
     assert MainChannels.from_args(_args()).osr2_readout == osr2_readout_path(Path("C:/state"), "main")
 
 
-def test_a_main_funestra_draws_the_console_never_a_satellite_panel():
+def test_a_main_funestra_draws_the_console_never_a_satellite_hud():
     assert MainChannels.from_args(_args()).hud is None

@@ -236,7 +236,7 @@ This README deliberately does not repeat the key table — open the **?** popup 
 
 The satellite voice commands can be spoken with or without naming a side. The side word always comes first, so naming one — "portrait lock", "landscape next" — acts on that Funestra as always. Said **bare** — "lock", "unlock", "next", "previous", "skip", "back", "weird", "wrong action", "action", "seed" — the command acts on the **active side**: whichever satellite you most recently touched, by voice *or* by keyboard. So if you were just navigating the portrait with `←`/`→`, a plain "lock" locks the portrait; switch to the landscape with `A`/`D` and "lock" now locks the landscape. The active side is remembered (persisted in the bridge's shared state) until the other side is addressed. Bare commands are voice-only — the keys stay side-specific.
 
-Every Funestra says whether it is the one those bare words would reach: the **dot** at the head of its HUD is green on the active Funestra and gray on the others. It is always drawn — an absent dot could not be told from an idle one — so exactly one dot is lit at any moment. Each satellite reads its own off the panel the dispatch loop publishes; the Main Funestra is told over `SET_ACTIVE`, appended to its command file so the message cannot displace a queued verb.
+Every Funestra says whether it is the one those bare words would reach: the **dot** at the head of its HUD is green on the active Funestra and gray on the others. It is always drawn — an absent dot could not be told from an idle one — so exactly one dot is lit at any moment. Each satellite reads its own off the HUD the dispatch loop publishes; the Main Funestra is told over `SET_ACTIVE`, appended to its command file so the message cannot displace a queued verb.
 
 ### Playback speed
 
@@ -420,7 +420,7 @@ Minimizing the **dashboard** minimizes the whole room with it (`omniminimize`), 
 
 For one Funestra on its own, every Funestra's HUD carries a **minimize bar**: last in each satellite's control band, and beside the mode buttons on the main console (the row that is the same in every mode, so it does not move as you flip). Every one of these windows is borderless — the video fills its slot, so none has a title bar to carry a minimize button — and this is the only affordance that parks one. The main console's button parks the Main Funestra's window, which Kino and Genau both run on. In the headset there is no minimize bar at all: its Funestras are screens in the scene rather than windows, so there is nothing for one to park.
 
-The Funestra keeps running under it — its lock, loop and playlist are untouched, and the press does not even move the active side, since a Funestra you have just put away should not be the one a bare "lock" reaches. Three things bring it back: its own **taskbar button** (the panel went down with the window, so there is nothing left to press), a dashboard minimize + restore, and **leaving OmniPause** — resuming is the room coming back, so every window a minimize button parked returns to its slot, in its band, before the re-stack and the focus land.
+The Funestra keeps running under it — its lock, loop and playlist are untouched, and the press does not even move the active side, since a Funestra you have just put away should not be the one a bare "lock" reaches. Three things bring it back: its own **taskbar button** (the HUD went down with the window, so there is nothing left to press), a dashboard minimize + restore, and **leaving OmniPause** — resuming is the room coming back, so every window a minimize button parked returns to its slot, in its band, before the re-stack and the focus land.
 
 ### Closing one window closes the session
 
@@ -634,14 +634,14 @@ that the app is up (`ready=1`), which is what lights every Origenerator button. 
 show the app is asked for on a Funestra still in Kino mode posts
 `portrait_origenerator_activate` / `landscape_origenerator_activate` on the
 dashboard's channel and opens once the session hands that Funestra over. A side the app
-has let go of is one whose panel it has published empty; the session waits for
+has let go of is one whose HUD it has published empty; the session waits for
 that, up to three seconds, before handing that Funestra its own list back — kept
 meanwhile in `portrait_playlist.kept.tsv` / `landscape_playlist.kept.tsv`.
 
 The app is handed each Funestra's own playlist, command and status files at
-launch, and publishes the panel for each Funestra it holds to its
+launch, and publishes the HUD for each Funestra it holds to its
 `origenerator_<side>_hud.json`; the session puts its own mode row over that
-panel and publishes the result to the Funestra's HUD file.
+HUD and publishes the result to the Funestra's HUD file.
 
 ### `event_log.jsonl`
 

@@ -5,13 +5,13 @@ from pathlib import Path
 
 from fun_time.lock_hud import (
     SatelliteInputs,
-    build_hud_panel,
-    build_satellite_panel,
+    build_hud,
+    build_satellite_hud,
     cell_path,
     hud_map_cells,
+    hud_thumbnails,
     locate_cell,
     navigate_cell,
-    panel_thumbnails,
     prime_group_indexes,
 )
 from fun_time.media_metadata import (
@@ -54,78 +54,78 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
     )
 
 
-def _panel(funestra: str = "portrait", *, index, active: bool = False, **side_fields):
-    """One Funestra's panel, built from the SatelliteInputs production builds."""
-    return build_hud_panel(SatelliteInputs(funestra, **side_fields), index=index,
-                           active=active)
+def _hud(funestra: str = "portrait", *, index, active: bool = False, **side_fields):
+    """One Funestra's HUD, built from the SatelliteInputs production builds."""
+    return build_hud(SatelliteInputs(funestra, **side_fields), index=index,
+                     active=active)
 
 
-def test_panel_gathers_action_and_seed_siblings_and_labels_the_lock():
+def test_hud_gathers_action_and_seed_siblings_and_labels_the_lock():
     index = _index(current=CUR, action_sibs=[A1, A2], seed_sibs=[S1])
 
-    panel = _panel("portrait", locked=True, current=CUR, index=index)
+    hud = _hud("portrait", locked=True, current=CUR, index=index)
 
-    assert panel.funestra == "portrait"
-    assert panel.locked is True
-    assert panel.title == "Locked · Shuffle"
-    assert panel.current == CUR
-    assert panel.action_siblings == sorted([A1, A2])
-    assert panel.seed_siblings == [S1]
+    assert hud.funestra == "portrait"
+    assert hud.locked is True
+    assert hud.title == "Locked · Shuffle"
+    assert hud.current == CUR
+    assert hud.action_siblings == sorted([A1, A2])
+    assert hud.seed_siblings == [S1]
 
 
-def test_panel_carries_axis_labels_for_the_map():
+def test_hud_carries_axis_labels_for_the_map():
     """The map's rows are named by action: the current clip's own action labels
     the top row, and each action sibling carries its action name, in step with
     action_siblings, so the HUD can draw the row labels."""
     index = _index(current=CUR, action_sibs=[A1, A2], seed_sibs=[S1])
 
-    panel = _panel("portrait", locked=True, current=CUR, index=index)
+    hud = _hud("portrait", locked=True, current=CUR, index=index)
 
-    assert panel.current_action == "Alpha"
+    assert hud.current_action == "Alpha"
     # action_siblings is sorted([A1, A2]); A1→"Act0", A2→"Act1" in _index.
-    assert panel.action_labels == ("Act0", "Act1")
-    assert len(panel.action_labels) == len(panel.action_siblings)
+    assert hud.action_labels == ("Act0", "Act1")
+    assert len(hud.action_labels) == len(hud.action_siblings)
 
 
-def test_panel_labels_an_unlocked_satellite():
+def test_hud_labels_an_unlocked_satellite():
     index = _index(current=CUR, action_sibs=[A1])
 
-    panel = _panel("landscape", locked=False, current=CUR, index=index)
+    hud = _hud("landscape", locked=False, current=CUR, index=index)
 
-    assert panel.locked is False
-    assert panel.title == "Unlocked · Shuffle"
-    assert panel.action_siblings == [A1]  # siblings show whether locked or not
+    assert hud.locked is False
+    assert hud.title == "Unlocked · Shuffle"
+    assert hud.action_siblings == [A1]  # siblings show whether locked or not
 
 
 
-def test_panel_without_a_current_video_has_no_siblings():
+def test_hud_without_a_current_video_has_no_siblings():
     index = _index(current=CUR, action_sibs=[A1], seed_sibs=[S1])
 
-    panel = _panel("portrait", locked=False, current="", index=index)
+    hud = _hud("portrait", locked=False, current="", index=index)
 
-    assert panel.action_siblings == []
-    assert panel.seed_siblings == []
+    assert hud.action_siblings == []
+    assert hud.seed_siblings == []
 
 
-def test_panel_carries_the_active_filter():
+def test_hud_carries_the_active_filter():
     index = _index(current=CUR)
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=CUR, index=index, filter_query="beta gamma"
     )
 
-    assert panel.filter_query == "beta gamma"
-    assert _panel("portrait", locked=False, current=CUR, index=index).filter_query == ""
+    assert hud.filter_query == "beta gamma"
+    assert _hud("portrait", locked=False, current=CUR, index=index).filter_query == ""
 
 
 def test_without_a_loop_the_map_anchors_on_the_live_clip():
     index = _index(current=CUR, seed_sibs=[S1])
 
-    panel = _panel("portrait", locked=False, current=CUR, index=index)
+    hud = _hud("portrait", locked=False, current=CUR, index=index)
 
-    assert panel.active_loop == ""
-    assert panel.current == CUR
-    assert panel.playing == CUR  # the corner is what's on
+    assert hud.active_loop == ""
+    assert hud.current == CUR
+    assert hud.playing == CUR  # the corner is what's on
 
 
 def test_a_seed_loop_freezes_the_map_on_the_clip_the_loop_started_on():
@@ -137,14 +137,14 @@ def test_a_seed_loop_freezes_the_map_on_the_clip_the_loop_started_on():
     index = _index(current=CUR, seed_sibs=[S1])
 
     # The loop started on S1, so S1 is the corner even though CUR sorts first.
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=S1, index=index, loop_axis="seed", map_anchor=S1,
     )
 
-    assert panel.active_loop == "seed"
-    assert panel.current == S1        # the clip the loop started on — the corner
-    assert panel.playing == S1        # …and, at the start, what is on screen
-    assert panel.seed_siblings == [CUR]   # the rest of the family runs right from it
+    assert hud.active_loop == "seed"
+    assert hud.current == S1        # the clip the loop started on — the corner
+    assert hud.playing == S1        # …and, at the start, what is on screen
+    assert hud.seed_siblings == [CUR]   # the rest of the family runs right from it
 
 
 def test_a_seed_loop_keeps_its_anchor_as_the_loop_advances():
@@ -153,13 +153,13 @@ def test_a_seed_loop_keeps_its_anchor_as_the_loop_advances():
     index = _index(current=CUR, seed_sibs=[S1])
 
     # Started on S1; the loop has since advanced to CUR.
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=CUR, index=index, loop_axis="seed", map_anchor=S1,
     )
 
-    assert panel.current == S1        # frozen on the loop's head
-    assert panel.playing == CUR       # the seed actually on screen
-    assert panel.seed_siblings == [CUR]
+    assert hud.current == S1        # frozen on the loop's head
+    assert hud.playing == CUR       # the seed actually on screen
+    assert hud.seed_siblings == [CUR]
 
 
 A = "C:/vids/anchor.mp4"
@@ -190,25 +190,25 @@ def test_a_seed_loops_column_belongs_to_the_playing_seed():
     ones you would step down into from here are the seed on screen's."""
     index = _two_seed_index()
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=N, index=index, loop_axis="seed", map_anchor=A,
     )
 
-    assert panel.current == A              # the map still hangs on the loop's head
-    assert panel.playing == N
-    assert panel.action_siblings == [NX]   # the playing seed's other act
-    assert panel.action_labels == ("Zeta",)
+    assert hud.current == A              # the map still hangs on the loop's head
+    assert hud.playing == N
+    assert hud.action_siblings == [NX]   # the playing seed's other act
+    assert hud.action_labels == ("Zeta",)
 
 
 def test_at_the_loops_head_the_column_is_the_corners_own():
     index = _two_seed_index()
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=A, index=index, loop_axis="seed", map_anchor=A,
     )
 
-    assert panel.action_siblings == [AY]
-    assert panel.action_labels == ("Beta",)
+    assert hud.action_siblings == [AY]
+    assert hud.action_labels == ("Beta",)
 
 
 def test_a_map_held_after_the_loop_keeps_the_column_on_the_playing_seed():
@@ -216,13 +216,13 @@ def test_a_map_held_after_the_loop_keeps_the_column_on_the_playing_seed():
     playing seed's, exactly as it stood the moment the loop was switched off."""
     index = _two_seed_index()
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=N, index=index, loop_axis="", map_anchor=A,
     )
 
-    assert panel.current == A
-    assert panel.playing == N
-    assert panel.action_siblings == [NX]
+    assert hud.current == A
+    assert hud.playing == N
+    assert hud.action_siblings == [NX]
 
 
 def test_a_nav_frozen_maps_column_follows_the_selected_seed():
@@ -230,13 +230,13 @@ def test_a_nav_frozen_maps_column_follows_the_selected_seed():
     is that seed's own acts, the ones a further "down" dives into."""
     index = _two_seed_index()
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=N, index=index, nav_anchor=A,
     )
 
-    assert panel.current == A
-    assert panel.playing == N
-    assert panel.action_siblings == [NX]
+    assert hud.current == A
+    assert hud.playing == N
+    assert hud.action_siblings == [NX]
 
 
 def test_a_clip_down_the_column_keeps_the_corners_column():
@@ -244,17 +244,17 @@ def test_a_clip_down_the_column_keeps_the_corners_column():
     it stays the corner's — for the held map and for the nav-frozen one alike."""
     index = _two_seed_index()
 
-    held = _panel(
+    held = _hud(
         "portrait", locked=False, current=AY, index=index, map_anchor=A,
     )
-    frozen = _panel(
+    frozen = _hud(
         "portrait", locked=False, current=AY, index=index, nav_anchor=A,
     )
 
-    for panel in (held, frozen):
-        assert panel.current == A
-        assert panel.playing == AY
-        assert panel.action_siblings == [AY]
+    for hud in (held, frozen):
+        assert hud.current == A
+        assert hud.playing == AY
+        assert hud.action_siblings == [AY]
 
 
 def test_an_action_loop_anchors_on_its_start_clip_and_marks_the_playing_action():
@@ -263,14 +263,14 @@ def test_an_action_loop_anchors_on_its_start_clip_and_marks_the_playing_action()
     from wherever the group's lowest-keyed item happened to sit."""
     index = _index(current=CUR, action_sibs=[A1])
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=CUR, index=index, loop_axis="action", map_anchor=CUR,
     )
 
-    assert panel.active_loop == "action"
-    assert panel.current == CUR       # the corner is where the loop started
-    assert panel.playing == CUR
-    assert panel.action_siblings == [A1]   # the other act runs down from it
+    assert hud.active_loop == "action"
+    assert hud.current == CUR       # the corner is where the loop started
+    assert hud.playing == CUR
+    assert hud.action_siblings == [A1]   # the other act runs down from it
 
 
 def _twin_index(current: str, twin: str) -> GroupIndex:
@@ -294,12 +294,12 @@ def test_a_running_action_loop_draws_every_clip_it_cycles():
     """
     index = _twin_index(CUR, A1)
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=CUR, index=index, loop_axis="action", map_anchor=CUR,
     )
 
-    assert panel.action_siblings == [A1]
-    assert panel.action_count == 2      # the size the loop's own notice reports
+    assert hud.action_siblings == [A1]
+    assert hud.action_count == 2      # the size the loop's own notice reports
 
 
 def test_a_looped_action_column_lights_the_twin_actually_playing():
@@ -307,12 +307,12 @@ def test_a_looped_action_column_lights_the_twin_actually_playing():
     the lit row follows the loop instead of falling back to the corner."""
     index = _twin_index(CUR, A1)
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=A1, index=index, loop_axis="action", map_anchor=CUR,
     )
 
-    assert panel.current == CUR   # the map still hangs on the clip the loop started on
-    assert panel.playing == A1    # …and lights the twin on screen
+    assert hud.current == CUR   # the map still hangs on the clip the loop started on
+    assert hud.playing == A1    # …and lights the twin on screen
 
 
 def test_the_browse_map_still_collapses_same_act_twins():
@@ -320,10 +320,10 @@ def test_the_browse_map_still_collapses_same_act_twins():
     row: the collapse is right there, and wrong only while a loop is running."""
     index = _twin_index(CUR, A1)
 
-    panel = _panel("portrait", locked=False, current=CUR, index=index)
+    hud = _hud("portrait", locked=False, current=CUR, index=index)
 
-    assert panel.action_siblings == []
-    assert panel.action_count == 1
+    assert hud.action_siblings == []
+    assert hud.action_count == 1
 
 
 def test_ending_a_loop_leaves_the_map_hanging_where_it_was():
@@ -332,14 +332,14 @@ def test_ending_a_loop_leaves_the_map_hanging_where_it_was():
     so the thumbnails do not re-home onto whichever item the loop had reached."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=S1, index=index, loop_axis="", map_anchor=CUR,
     )
 
-    assert panel.active_loop == ""      # the loop is off, so no chrome
-    assert panel.current == CUR         # …but the map has not moved
-    assert panel.playing == S1          # and still lights the clip on screen
-    assert panel.seed_siblings == [S1]
+    assert hud.active_loop == ""      # the loop is off, so no chrome
+    assert hud.current == CUR         # …but the map has not moved
+    assert hud.playing == S1          # and still lights the clip on screen
+    assert hud.seed_siblings == [S1]
 
 
 def test_a_map_anchor_is_let_go_once_the_clip_leaves_the_map():
@@ -347,11 +347,11 @@ def test_a_map_anchor_is_let_go_once_the_clip_leaves_the_map():
     browse moves on past the group, the map re-homes on the live clip."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current="C:/vids/unrelated.mp4", index=index, map_anchor=CUR,
     )
 
-    assert panel.current == "C:/vids/unrelated.mp4"
+    assert hud.current == "C:/vids/unrelated.mp4"
 
 
 def test_ending_a_widened_loop_keeps_the_row_wide():
@@ -372,26 +372,26 @@ def test_ending_a_widened_loop_keeps_the_row_wide():
 
     # The loop was widened around CUR and had advanced onto the near-match when it
     # was switched off.
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=near, index=index,
         loop_axis="", map_anchor=CUR, widen_clip=CUR,
     )
 
-    assert panel.current == CUR
-    assert panel.seed_siblings == [near]  # still the widened row, not CUR's exact family
+    assert hud.current == CUR
+    assert hud.seed_siblings == [near]  # still the widened row, not CUR's exact family
 
 
 def test_the_title_holds_every_state_the_side_is_in():
     """One line to read the satellite off: the lock, what is looping, which order its
     browse is in, and the filter.  Anything the HUD knows about how the Funestra is
-    behaving belongs up there, not spread around the panel."""
+    behaving belongs up there, not spread around the HUD."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    looping = _panel(
+    looping = _hud(
         "portrait", locked=False, current=CUR, index=index,
         loop_axis="seed", map_anchor=CUR, latest=True, filter_query="beta gamma",
     )
-    locked = _panel("portrait", locked=True, current=CUR, index=index)
+    locked = _hud("portrait", locked=True, current=CUR, index=index)
 
     assert looping.title == "Looping seeds · Latest · beta gamma"
     assert locked.title == "Locked · Shuffle"
@@ -403,8 +403,8 @@ def test_the_title_says_when_f_mode_is_narrowing_the_library():
     to a handful of clips looks identical to one browsing everything."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    on = _panel("portrait", locked=False, current=CUR, index=index, favorites_filter=True)
-    off = _panel("portrait", locked=False, current=CUR, index=index)
+    on = _hud("portrait", locked=False, current=CUR, index=index, favorites_filter=True)
+    off = _hud("portrait", locked=False, current=CUR, index=index)
 
     assert on.title == "Unlocked · Shuffle · F-Mode"
     assert "F-Mode" not in off.title
@@ -416,12 +416,12 @@ def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
     rather than after."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=CUR, index=index,
         favorites_filter=True, filter_query="beta gamma",
     )
 
-    assert panel.title == "Unlocked · Shuffle · F-Mode · beta gamma"
+    assert hud.title == "Unlocked · Shuffle · F-Mode · beta gamma"
 
 
 def test_the_title_names_the_axis_that_is_looping():
@@ -429,9 +429,9 @@ def test_the_title_names_the_axis_that_is_looping():
     seed_index = _index(current=CUR, seed_sibs=[S1])
     action_index = _index(current=CUR, action_sibs=[A1])
 
-    seeds = _panel("portrait", locked=False, current=CUR, index=seed_index,
+    seeds = _hud("portrait", locked=False, current=CUR, index=seed_index,
                             loop_axis="seed", map_anchor=CUR)
-    actions = _panel("portrait", locked=False, current=CUR, index=action_index,
+    actions = _hud("portrait", locked=False, current=CUR, index=action_index,
                               loop_axis="action", map_anchor=CUR)
 
     assert seeds.title.startswith("Looping seeds")
@@ -444,12 +444,12 @@ def test_the_lock_word_stands_down_while_a_loop_runs():
     Funestra goes back to playing."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=CUR, index=index, loop_axis="seed", map_anchor=CUR,
     )
 
-    assert "Locked" not in panel.title and "Unlocked" not in panel.title
-    assert "Shuffle" in panel.title
+    assert "Locked" not in hud.title and "Unlocked" not in hud.title
+    assert "Shuffle" in hud.title
 
 
 def test_a_lock_taken_inside_a_loop_joins_the_line_instead_of_replacing_it():
@@ -458,28 +458,28 @@ def test_a_lock_taken_inside_a_loop_joins_the_line_instead_of_replacing_it():
     loop having ended, and then unlocking looked like it came back from nowhere."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=True, current=CUR, index=index, loop_axis="seed", map_anchor=CUR,
     )
 
-    assert panel.title == "Looping seeds · Locked · Shuffle"
+    assert hud.title == "Looping seeds · Locked · Shuffle"
 
 
 def test_a_lock_inside_a_loop_keeps_the_loops_chrome_and_rings_the_held_clip():
-    """The whole panel goes on reading as a loop: the button stays lit, the map
+    """The whole HUD goes on reading as a loop: the button stays lit, the map
     stays anchored on the clip the loop started on, and ``playing`` names the item
     the lock is holding — which is the cell the HUD rings."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     # The loop started on CUR and had reached S1 when the lock was taken.
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=True, current=S1, index=index, loop_axis="seed", map_anchor=CUR,
     )
 
-    assert panel.locked is True
-    assert panel.active_loop == "seed"   # still looping — the lit button, the rectangle
-    assert panel.current == CUR          # …over the map the loop pinned
-    assert panel.playing == S1           # …held on the item it had reached
+    assert hud.locked is True
+    assert hud.active_loop == "seed"   # still looping — the lit button, the rectangle
+    assert hud.current == CUR          # …over the map the loop pinned
+    assert hud.playing == S1           # …held on the item it had reached
 
 
 def test_the_title_says_looping_without_counting():
@@ -487,23 +487,23 @@ def test_the_title_says_looping_without_counting():
     looping, not how much of it."""
     index = _index(current=CUR, seed_sibs=[S1, "C:/vids/seed2.mp4"])
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=CUR, index=index, loop_axis="seed", map_anchor=CUR,
     )
 
-    assert "Looping seeds" in panel.title
-    assert "3" not in panel.title
+    assert "Looping seeds" in hud.title
+    assert "3" not in hud.title
 
 
-def test_the_panel_counts_the_seeds_and_actions_the_map_stands_for():
+def test_the_hud_counts_the_seeds_and_actions_the_map_stands_for():
     """The map draws only the cells that fit, so the counts are the only thing that
     says how big each axis really is — counted before any draw cap."""
     index = _index(current=CUR, seed_sibs=[S1, "C:/vids/seed2.mp4"], action_sibs=[A1])
 
-    panel = _panel("portrait", locked=False, current=CUR, index=index)
+    hud = _hud("portrait", locked=False, current=CUR, index=index)
 
-    assert panel.seed_count == 3    # the whole family, the clip on screen included
-    assert panel.action_count == 2  # the distinct acts, its own included
+    assert hud.seed_count == 3    # the whole family, the clip on screen included
+    assert hud.action_count == 2  # the distinct acts, its own included
 
 
 def test_a_loop_without_a_recorded_anchor_still_freezes_the_map():
@@ -512,13 +512,13 @@ def test_a_loop_without_a_recorded_anchor_still_freezes_the_map():
     the group's lowest-keyed item instead of re-orienting on every auto-advance."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=S1, index=index, loop_axis="seed", map_anchor="",
     )
 
-    assert panel.active_loop == "seed"
-    assert panel.current == CUR       # lowest-keyed item, stable across advances
-    assert panel.playing == S1
+    assert hud.active_loop == "seed"
+    assert hud.current == CUR       # lowest-keyed item, stable across advances
+    assert hud.playing == S1
 
 
 def test_widen_grows_the_seed_row_with_the_nearest_clips():
@@ -539,8 +539,8 @@ def test_widen_grows_the_seed_row_with_the_nearest_clips():
         seed_items={"S": sorted([CUR, S1])},
     )
 
-    narrow = _panel("portrait", locked=False, current=CUR, index=index)
-    wide = _panel("portrait", locked=False, current=CUR, index=index, widen_clip=CUR)
+    narrow = _hud("portrait", locked=False, current=CUR, index=index)
+    wide = _hud("portrait", locked=False, current=CUR, index=index, widen_clip=CUR)
 
     assert narrow.seed_siblings == [S1]                 # exact family only
     assert set(wide.seed_siblings) == {S1, other}       # widened to the near-match
@@ -562,9 +562,9 @@ def test_widen_off_a_loop_resets_once_its_anchor_clip_leaves_the_screen():
     )
 
     # Widened around CUR, but the live clip is now `other` and no loop is running.
-    panel = _panel("portrait", locked=False, current=other, index=index, widen_clip=CUR)
+    hud = _hud("portrait", locked=False, current=other, index=index, widen_clip=CUR)
 
-    assert panel.seed_siblings == []  # `other` has no same-act sisters of its own
+    assert hud.seed_siblings == []  # `other` has no same-act sisters of its own
 
 
 def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_widened_pool():
@@ -588,14 +588,14 @@ def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_widened_pool():
 
     # The loop was widened around x; the satellite has auto-advanced to y, a near-match
     # that is NOT in x's exact seed family {x, x2}.
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=y, index=index, loop_axis="seed", widen_clip=x,
     )
 
-    assert panel.active_loop == "seed"                 # still looping — not reset
-    assert panel.current == x                          # frozen on the widened anchor (min key)
-    assert panel.playing == y                          # the widened item actually on screen
-    assert set(panel.seed_siblings) == {x2, y, z}      # the whole widened pool, minus the anchor
+    assert hud.active_loop == "seed"                 # still looping — not reset
+    assert hud.current == x                          # frozen on the widened anchor (min key)
+    assert hud.playing == y                          # the widened item actually on screen
+    assert set(hud.seed_siblings) == {x2, y, z}      # the whole widened pool, minus the anchor
 
 
 def test_a_non_widened_seed_loop_ignores_a_cleared_widen_anchor():
@@ -613,13 +613,13 @@ def test_a_non_widened_seed_loop_ignores_a_cleared_widen_anchor():
         seed_items={"F1": sorted([x, x2]), "F2": [y]},
     )
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=x2, index=index, loop_axis="seed", widen_clip="",
     )
 
-    assert panel.active_loop == "seed"
-    assert panel.current == x                     # anchored on the exact family, not widened
-    assert set(panel.seed_siblings) == {x2}       # exact family only — y is not on the row
+    assert hud.active_loop == "seed"
+    assert hud.current == x                     # anchored on the exact family, not widened
+    assert set(hud.seed_siblings) == {x2}       # exact family only — y is not on the row
 
 
 def test_a_group_of_one_does_not_freeze_the_map():
@@ -627,11 +627,11 @@ def test_a_group_of_one_does_not_freeze_the_map():
     freeze — the map stays anchored on the live clip and reports no loop."""
     index = _index(current=CUR)
 
-    panel = _panel("portrait", locked=False, current=CUR, index=index, loop_axis="seed")
+    hud = _hud("portrait", locked=False, current=CUR, index=index, loop_axis="seed")
 
-    assert panel.active_loop == ""
-    assert panel.current == CUR
-    assert panel.playing == CUR
+    assert hud.active_loop == ""
+    assert hud.current == CUR
+    assert hud.playing == CUR
 
 
 def test_nav_anchor_freezes_the_map_on_the_clip_navigation_began_from():
@@ -642,23 +642,23 @@ def test_nav_anchor_freezes_the_map_on_the_clip_navigation_began_from():
     index = _index(current=CUR, seed_sibs=[S1])
 
     # Started from CUR; the satellite has since been switched to seed S1.
-    panel = _panel("portrait", locked=False, current=S1, index=index, nav_anchor=CUR)
+    hud = _hud("portrait", locked=False, current=S1, index=index, nav_anchor=CUR)
 
-    assert panel.current == CUR       # frozen on the start clip, not the live one
-    assert panel.playing == S1        # the seed actually on screen is lit
-    assert panel.seed_siblings == [S1]
-    assert panel.active_loop == ""
+    assert hud.current == CUR       # frozen on the start clip, not the live one
+    assert hud.playing == S1        # the seed actually on screen is lit
+    assert hud.seed_siblings == [S1]
+    assert hud.active_loop == ""
 
 
 def test_nav_anchor_lights_a_selected_action_cell():
     index = _index(current=CUR, action_sibs=[A1])
 
     # Navigated down from CUR onto its action sibling A1.
-    panel = _panel("portrait", locked=False, current=A1, index=index, nav_anchor=CUR)
+    hud = _hud("portrait", locked=False, current=A1, index=index, nav_anchor=CUR)
 
-    assert panel.current == CUR
-    assert panel.playing == A1
-    assert panel.action_siblings == [A1]
+    assert hud.current == CUR
+    assert hud.playing == A1
+    assert hud.action_siblings == [A1]
 
 
 def test_nav_anchor_equal_to_the_live_clip_is_the_ordinary_map():
@@ -666,11 +666,11 @@ def test_nav_anchor_equal_to_the_live_clip_is_the_ordinary_map():
     clip, so the map is the plain one homed on it."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    panel = _panel("portrait", locked=False, current=CUR, index=index, nav_anchor=CUR)
+    hud = _hud("portrait", locked=False, current=CUR, index=index, nav_anchor=CUR)
 
-    assert panel.current == CUR
-    assert panel.playing == CUR
-    assert panel.seed_siblings == [S1]
+    assert hud.current == CUR
+    assert hud.playing == CUR
+    assert hud.seed_siblings == [S1]
 
 
 def test_nav_anchor_re_homes_once_the_clip_drifts_off_the_map():
@@ -679,11 +679,11 @@ def test_nav_anchor_re_homes_once_the_clip_drifts_off_the_map():
     index = _index(current=CUR, seed_sibs=[S1])
     elsewhere = "C:/vids/elsewhere.mp4"  # not on CUR's family — the satellite advanced off it
 
-    panel = _panel("portrait", locked=False, current=elsewhere, index=index, nav_anchor=CUR)
+    hud = _hud("portrait", locked=False, current=elsewhere, index=index, nav_anchor=CUR)
 
-    assert panel.current == elsewhere   # frozen anchor abandoned
-    assert panel.playing == elsewhere
-    assert panel.seed_siblings == []
+    assert hud.current == elsewhere   # frozen anchor abandoned
+    assert hud.playing == elsewhere
+    assert hud.seed_siblings == []
 
 
 def test_a_loop_takes_precedence_over_a_stale_nav_anchor():
@@ -691,12 +691,12 @@ def test_a_loop_takes_precedence_over_a_stale_nav_anchor():
     anchor, so if both arrive the loop's frozen group is what shows."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    panel = _panel(
+    hud = _hud(
         "portrait", locked=False, current=S1, index=index, loop_axis="seed", nav_anchor="C:/vids/other.mp4"
     )
 
-    assert panel.active_loop == "seed"
-    assert panel.current == CUR  # the loop's family anchor, not the nav anchor
+    assert hud.active_loop == "seed"
+    assert hud.current == CUR  # the loop's family anchor, not the nav anchor
 
 
 # --- map navigation geometry ---
@@ -790,7 +790,7 @@ def test_hud_map_cells_caps_each_axis_at_the_draw_limit():
     assert len(seeds) == 6
 
 
-# --- build_satellite_panel ---
+# --- build_satellite_hud ---
 
 
 def _i2v(action: str, video_seed: str, image_seed: str = "100") -> dict:
@@ -833,16 +833,16 @@ def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
     assert index.entries
 
 
-def test_a_satellites_panel_indexes_its_own_side_and_carries_the_lock(tmp_path: Path):
+def test_a_satellites_hud_indexes_its_own_side_and_carries_the_lock(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sibling = _clip(media_root, metadata_root, "b", _i2v("Beta", "2"))
     sources = str(media_root / "portrait")
 
-    portrait = build_satellite_panel(
+    portrait = build_satellite_hud(
         SatelliteInputs("portrait", sources=sources, current=current, locked=True,
                    filter_query="beta gamma"), metadata_root, "")
-    landscape = build_satellite_panel(SatelliteInputs("landscape"), metadata_root, "")
+    landscape = build_satellite_hud(SatelliteInputs("landscape"), metadata_root, "")
 
     assert portrait.funestra == "portrait" and portrait.locked is True
     assert portrait.action_siblings == [sibling]
@@ -852,16 +852,16 @@ def test_a_satellites_panel_indexes_its_own_side_and_carries_the_lock(tmp_path: 
     assert landscape.filter_query == ""
 
 
-def test_only_the_active_funestras_panel_is_marked_active(tmp_path: Path):
+def test_only_the_active_funestras_hud_is_marked_active(tmp_path: Path):
     """A bare "lock" or "next" goes to whichever Funestra was addressed last, and
-    nothing on screen said which that was — so each panel carries whether it is
+    nothing on screen said which that was — so each HUD carries whether it is
     the one those words would reach.  Exactly one Funestra can be it."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
 
     def actives(active_funestra: str) -> tuple[bool, ...]:
-        return tuple(build_satellite_panel(
+        return tuple(build_satellite_hud(
             SatelliteInputs(funestra, sources=sources, current=current),
             metadata_root, active_funestra).active for funestra in ("portrait", "landscape"))
 
@@ -870,17 +870,17 @@ def test_only_the_active_funestras_panel_is_marked_active(tmp_path: Path):
     assert actives("main") == (False, False)  # the Main Funestra has it; neither satellite does
 
 
-def test_a_satellites_panel_says_f_mode_only_when_that_side_is_in_it(tmp_path: Path):
+def test_a_satellites_hud_says_f_mode_only_when_that_side_is_in_it(tmp_path: Path):
     """F-mode is sided now — each satellite has its own button for it — so the
-    title says it on the Funestra it is on, and the other panel stays silent."""
+    title says it on the Funestra it is on, and the other HUD stays silent."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
 
-    portrait = build_satellite_panel(
+    portrait = build_satellite_hud(
         SatelliteInputs("portrait", sources=sources, current=current, favorites_filter=True),
         metadata_root, "")
-    landscape = build_satellite_panel(
+    landscape = build_satellite_hud(
         SatelliteInputs("landscape", sources=sources, current=current), metadata_root, "")
 
     assert "F-Mode" in portrait.title
@@ -889,15 +889,15 @@ def test_a_satellites_panel_says_f_mode_only_when_that_side_is_in_it(tmp_path: P
     assert (portrait.favorites_filter, landscape.favorites_filter) == (True, False)
 
 
-def test_a_satellites_panel_carries_the_loop_kind(tmp_path: Path):
-    """The loop kind comes off the shared state and must reach the panel so the
+def test_a_satellites_hud_carries_the_loop_kind(tmp_path: Path):
+    """The loop kind comes off the shared state and must reach the HUD so the
     map freezes — two seeds of one act make a real family to loop."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     _a = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     b = _clip(media_root, metadata_root, "b", _i2v("Alpha", "2"))
     sources = str(media_root / "portrait")
 
-    portrait = build_satellite_panel(
+    portrait = build_satellite_hud(
         SatelliteInputs("portrait", sources=sources, current=b, loop_axis="seed"),
         metadata_root, "")
 
@@ -905,8 +905,8 @@ def test_a_satellites_panel_carries_the_loop_kind(tmp_path: Path):
     assert portrait.seed_siblings  # the other seed is on the row
 
 
-def test_a_satellites_panel_carries_the_nav_anchor(tmp_path: Path):
-    """The nav anchor comes off the shared state and must reach the panel so the
+def test_a_satellites_hud_carries_the_nav_anchor(tmp_path: Path):
+    """The nav anchor comes off the shared state and must reach the HUD so the
     map freezes on the clip navigation began from while the satellite plays a
     sibling."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
@@ -915,7 +915,7 @@ def test_a_satellites_panel_carries_the_nav_anchor(tmp_path: Path):
     sources = str(media_root / "portrait")
 
     # Navigation began from a; the satellite has since switched to its seed sibling b.
-    portrait = build_satellite_panel(
+    portrait = build_satellite_hud(
         SatelliteInputs("portrait", sources=sources, current=b, nav_anchor=a),
         metadata_root, "")
 
@@ -923,10 +923,10 @@ def test_a_satellites_panel_carries_the_nav_anchor(tmp_path: Path):
     assert portrait.playing == b       # the sibling on screen is lit
 
 
-def test_a_satellites_panel_keeps_a_widened_seed_loop_wide_across_the_loose_family(
+def test_a_satellites_hud_keeps_a_widened_seed_loop_wide_across_the_loose_family(
         tmp_path: Path):
     """The repro: widen the row, loop it, then let the loop auto-advance to a loose-
-    family re-render that is not in the exact seed family.  The panel must stay
+    family re-render that is not in the exact seed family.  The HUD must stay
     widened and frozen on the anchor — not collapse with no loop shown."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     # a and a2 share the exact seed family (identical config, seed varied); b is the
@@ -941,7 +941,7 @@ def test_a_satellites_panel_keeps_a_widened_seed_loop_wide_across_the_loose_fami
 
     # Widened around `a`; the loop has auto-advanced to `b`, a loose-family re-render
     # that is not in a's exact seed family {a, a2}.
-    portrait = build_satellite_panel(
+    portrait = build_satellite_hud(
         SatelliteInputs("portrait", sources=sources, current=b, loop_axis="seed", widen_clip=a),
         metadata_root, "")
 
@@ -951,16 +951,16 @@ def test_a_satellites_panel_keeps_a_widened_seed_loop_wide_across_the_loose_fami
     assert set(portrait.seed_siblings) == {a2, b}    # the whole loose family, minus the anchor
 
 
-# --- panel_thumbnails ---
+# --- hud_thumbnails ---
 
 
-def test_panel_thumbnails_caps_at_limit_and_skips_unreadable():
+def test_hud_thumbnails_caps_at_limit_and_skips_unreadable():
     def fake_thumbnailer(path: str, cache_dir) -> Path | None:
         if "bad" in path:
             return None  # unreadable clip
         return Path(cache_dir) / f"{Path(path).stem}.jpg"
 
-    pairs = panel_thumbnails(
+    pairs = hud_thumbnails(
         ["a_good.mp4", "b_bad.mp4", "c_good.mp4", "d_good.mp4"],
         Path("cache"),
         limit=2,
@@ -971,5 +971,5 @@ def test_panel_thumbnails_caps_at_limit_and_skips_unreadable():
     assert all(isinstance(thumb, Path) for _path, thumb in pairs)
 
 
-def test_a_panel_with_no_clips_in_it_shows_no_thumbnails():
-    assert panel_thumbnails([], Path("cache"), limit=4, thumbnailer=lambda *_: None) == []
+def test_a_hud_with_no_clips_in_it_shows_no_thumbnails():
+    assert hud_thumbnails([], Path("cache"), limit=4, thumbnailer=lambda *_: None) == []

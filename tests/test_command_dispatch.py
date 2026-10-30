@@ -2650,7 +2650,7 @@ def test_the_motion_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
     """The console's ± marks sit on one readout or the other, so each must move
     the engine it sits on: Genau's pair stayed on the motion even mid-funscript,
     from when one shared pair made pressing Genau's − move the playback rate
-    across the panel instead."""
+    across the HUD instead."""
     config = _make_config(tmp_path)
     _set_main_funestra_driving(config, driving=True)
     state = _make_state(main_mode=MainMode.KINO)
@@ -3799,7 +3799,7 @@ def test_locking_holds_your_place_in_a_loop_rather_than_ending_it(tmp_path: Path
 
     LOCK repeats the clip on screen and leaves the loop's queue untouched, so the
     Funestra really is still looping — dropping the flag only stopped the HUD from
-    saying so, and then unlocking put you back into a loop the panel had disowned.
+    saying so, and then unlocking put you back into a loop the HUD had disowned.
     """
     config = _make_config(tmp_path)
     clip = r"C:\videos\provider2\abc_123.mp4"
@@ -4918,7 +4918,7 @@ class TestEachSatellitesOwnMode:
 class TestTheRandomFavsBrowsersPlace:
     def test_origenerator_takes_the_browsers_place_and_leaves_the_funestras_alone(
             self, tmp_path):
-        """Its main window is restored over the browser and the pair stacked
+        """Its Core is restored over the browser and the pair stacked
         (restack_rfb): the browser out of the band, the hosted window in it."""
         config = _origenerator_config(tmp_path)
         state, ops = dispatch_command("origenerator_activate", _up(), config)
@@ -4963,8 +4963,8 @@ class TestTheRandomFavsBrowsersPlace:
 
 class TestOrigeneratorTransport:
     def test_side_transport_reaches_the_hosted_app_not_the_funestra(self, tmp_path):
-        """The hosted app drives its own Funestra: a press on its panel is its to
-        answer, so it goes there as the panel posted it, and the session does
+        """The hosted app drives its own Funestra: a press on its HUD is its to
+        answer, so it goes there as the HUD posted it, and the session does
         not step the Funestra on its own account."""
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
@@ -4973,7 +4973,7 @@ class TestOrigeneratorTransport:
         assert _cmds(config, 2) == []
 
     def test_every_press_on_a_hosted_side_routes_as_it_was_posted(self, tmp_path):
-        """The buttons on that Funestra's panel are the hosted app's own, and so is
+        """The buttons on that Funestra's HUD are the hosted app's own, and so is
         the map under them -- whatever it declared, it answers, so the session
         routes every one of them but the Lock without needing to know what it
         means."""
@@ -5550,7 +5550,7 @@ class TestAClickInACorner:
         assert _origenerator_cmds(config) == ["landscape_hud_corner|lower_left",
                                               "landscape_hud_minimized|0"]
 
-    def test_in_the_headset_it_names_a_side_and_hangs_the_panel_there_open(self, tmp_path):
+    def test_in_the_headset_it_names_a_side_and_hangs_the_hud_there_open(self, tmp_path):
         config = _make_config(tmp_path, vr_main_funestra=True)
         state, _ops = dispatch_command("portrait_hud_minimize", BridgeState(), config)
 
@@ -5573,7 +5573,7 @@ class TestAClickInACorner:
 
 class TestMinimizingAHud:
     """The minus on a HUD collapses it to a square with a plus; the plus brings
-    the panel back.  Said as well as pressed, and kept across a mode switch."""
+    the HUD back.  Said as well as pressed, and kept across a mode switch."""
 
     def test_a_funestras_minus_collapses_its_hud_and_its_plus_brings_it_back(self, tmp_path):
         config = _make_config(tmp_path)
@@ -5585,7 +5585,7 @@ class TestMinimizingAHud:
         state, _ops = dispatch_command("landscape_hud_restore", state, config)
         assert state.satellite(RoomFunestra.LANDSCAPE).hud_minimized is False
 
-    def test_the_main_funestras_panel_collapses_the_same_way(self, tmp_path):
+    def test_the_main_funestras_hud_collapses_the_same_way(self, tmp_path):
         config = _make_config(tmp_path)
 
         state, _ops = dispatch_command("main_hud_minimize", BridgeState(), config)

@@ -11,7 +11,7 @@ from fun_time.event_log import FAVORITE, NOTICE
 DEG_PER_PX = 32.6 / 380  # every control in the scene, one size
 # Pixels across, held: the screen keeps one size whatever it carries, so its
 # bitmap never rescales.
-PANEL_WIDTH_PX = 560
+HUD_WIDTH_PX = 560
 
 # fun_time.log_panel's own mapping.
 _LEVEL_COLORS: dict[int, tuple[int, int, int]] = {
@@ -30,5 +30,5 @@ def level_color(level: int) -> tuple[int, int, int]:
     return TEXT_MUTED
 
 
-def panel_hangs_from(edge: HudEdge, *, wrapped: bool) -> HudEdge:
+def hud_hangs_from(edge: HudEdge, *, wrapped: bool) -> HudEdge:
     return HudEdge.LOWER if wrapped else edge

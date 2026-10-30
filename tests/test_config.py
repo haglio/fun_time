@@ -473,7 +473,7 @@ class TestOrigeneratorPaths:
         assert cfg.origenerator_input_file == (
             cfg.paths.state_dir / "origenerator_input.txt")
 
-    def test_each_sides_hosted_panel_lives_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
+    def test_each_sides_hosted_hud_lives_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         state = (tmp_path / "state").resolve()
         assert cfg.satellite(RoomFunestra.PORTRAIT).origenerator_hud_file == (

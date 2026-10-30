@@ -66,7 +66,7 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--status-file", type=Path, default=None,
                    help="Publish playback status to this file")
     p.add_argument("--console-file", type=Path, default=None,
-                   help="Poll this file for the console panel Fun Time publishes")
+                   help="Poll this file for the console Fun Time publishes")
     p.add_argument("--drive-file", type=Path, default=None,
                    help="Poll this file for the OSR2 readout Genau publishes")
     p.add_argument("--dashboard-cmd-file", type=Path, default=None,

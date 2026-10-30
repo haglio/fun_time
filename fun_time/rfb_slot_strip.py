@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from functools import cache
 
+from funestra.hud import SYMBOL_FONT, draw_button, load_font, text_width
 from funestra.hud_button import FIT_THE_WORD, Button
-from funestra.hud_panel import SYMBOL_FONT, draw_button, load_font, text_width
 from funestra.satellite_hud import MODE_LABEL_PAD, button_row_rects
 from PIL import Image, ImageDraw
 from shared_ui.fonts import SIZE_BODY, SIZE_TINY

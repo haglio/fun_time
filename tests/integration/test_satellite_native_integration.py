@@ -3,7 +3,7 @@ composites its lock HUD.
 
 Proves the mpv-backed Satellite Funestra (this repo's `satellite` package) works
 end-to-end on the real platform — through the file quartet fun_time drives it
-with, plus the HUD panel fun_time publishes for it to draw.  Launched via the
+with, plus the HUD HUD fun_time publishes for it to draw.  Launched via the
 production `launch_satellite`; the playlist is a random real sample.
 """
 from __future__ import annotations
@@ -19,7 +19,7 @@ from PIL import Image
 
 from fun_time.filter_vocab import load_camera_words
 from fun_time.hud_transport import HudPublisher
-from fun_time.lock_hud import SatelliteInputs, build_hud_panel
+from fun_time.lock_hud import SatelliteInputs, build_hud
 from fun_time.satellite_control import read_satellite_status
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, thumbnail_for
 from fun_time.win32_process import get_process_creation_time
@@ -97,10 +97,10 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
     """The HUD is drawn INTO the video by mpv, so nothing outside the Funestra can
     read it back — what this proves is that the whole render path survives the
     real platform: real thumbnails, real fonts, a real BGRA overlay handed to a
-    real mpv, redrawn when the panel changes, with the clip still advancing after.
+    real mpv, redrawn when the HUD changes, with the clip still advancing after.
     A crash anywhere in it takes the Funestra down and the status file goes stale.
 
-    The panel is built by the production publisher from a production HudPanel, so
+    The HUD is built by the production publisher from a production SatelliteHud, so
     the bytes the Funestra parses are exactly the bytes fun_time writes.
     """
     videos = library_clips_of("portrait", 2)
@@ -111,7 +111,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
     publisher = HudPublisher({"portrait": satellite.hud}, cache_dir, load_camera_words())
 
     def publish(locked: bool) -> None:
-        publisher.publish("portrait", build_hud_panel(
+        publisher.publish("portrait", build_hud(
             SatelliteInputs(
                 "portrait", locked=locked, current=str(videos[0]),
                 filter_query="alpha" if locked else "",
@@ -123,7 +123,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
 
     with satellite.launched(videos, width=800, height=600, hud=True):
         satellite.wait_until_playing()
-        # Republish a changed panel: the Funestra must re-render and composite it
+        # Republish a changed HUD: the Funestra must re-render and composite it
         # without disturbing playback.
         publish(locked=True)
         before = published_status(read_satellite_status, satellite.status).position_ms

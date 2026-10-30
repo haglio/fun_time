@@ -34,7 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Where this Funestra writes down the point each clip was "
                         "left at, so playing one again picks up there")
     p.add_argument("--hud-file", type=Path, default=None,
-                   help="Lock-HUD panel fun_time publishes; drawn into the video")
+                   help="Lock HUD fun_time publishes; drawn into the video")
     p.add_argument("--drive-file", type=Path, default=None,
                    help="The motion Genau publishes, drawn under the OSR2 line "
                         "while this Funestra has the OSR2")

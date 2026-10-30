@@ -4,7 +4,12 @@ import pytest
 from funestra.hud_placement import HudEdge
 from funestra.outside_buttons import OutsideButtons
 
-from fun_time_vr.hud_toggle import BUTTON_DEG, PANEL_GAP_DEG, HudToggle, toggle_screen_name
+from fun_time_vr.hud_toggle import (
+    BUTTON_DEG,
+    HUD_GAP_PAST_THE_TOGGLE_DEG,
+    HudToggle,
+    toggle_screen_name,
+)
 from fun_time_vr.pointer import PRESS, RELEASE, PressEvent
 from fun_time_vr.satellite_hud import HUD_GAP_DEG
 from fun_time_vr.scene import Placement, attached_to
@@ -44,7 +49,7 @@ def _hung(toggle: HudToggle, edge: HudEdge = HudEdge.LOWER, *, minimized: bool =
 
 class TestWhereItHangs:
     @pytest.mark.parametrize("edge", list(HudEdge))
-    def test_against_the_side_the_panel_is_on_just_off_the_item(self, edge):
+    def test_against_the_side_the_hud_is_on_just_off_the_item(self, edge):
         toggle, _posted = _toggle()
 
         button = _hung(toggle, edge)
@@ -62,17 +67,17 @@ class TestWhereItHangs:
         assert minus == plus
 
     @pytest.mark.parametrize("edge", [HudEdge.LEFT, HudEdge.RIGHT])
-    def test_the_panel_hangs_past_it_by_the_same_gap(self, edge):
+    def test_the_hud_hangs_past_it_by_the_same_gap(self, edge):
         toggle, _posted = _toggle()
         button = _hung(toggle, edge).screen.placement
-        panel = attached_to(edge, ITEM, aspect=ASPECT, width_deg=20.0,
-                            hanging_aspect=1.0, gap_deg=PANEL_GAP_DEG)
+        hud = attached_to(edge, ITEM, aspect=ASPECT, width_deg=20.0,
+                          hanging_aspect=1.0, gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG)
 
         outward = 1 if edge is HudEdge.RIGHT else -1
         button_far = button.azimuth_deg + outward * button.width_deg / 2
-        panel_near = panel.azimuth_deg - outward * panel.width_deg / 2
+        hud_near = hud.azimuth_deg - outward * hud.width_deg / 2
 
-        assert outward * (panel_near - button_far) == pytest.approx(HUD_GAP_DEG)
+        assert outward * (hud_near - button_far) == pytest.approx(HUD_GAP_DEG)
 
     def test_it_comes_forward_with_the_item_it_hangs_beside(self):
         toggle, _posted = _toggle()
@@ -81,7 +86,7 @@ class TestWhereItHangs:
 
 
 class TestASqueezeOnIt:
-    def test_on_the_minus_minimizes_the_panel(self):
+    def test_on_the_minus_minimizes_the_hud(self):
         toggle, posted = _toggle()
         _hung(toggle, minimized=False)
 
@@ -90,7 +95,7 @@ class TestASqueezeOnIt:
         assert took
         assert posted == ["portrait_hud_minimize"]
 
-    def test_on_the_plus_opens_the_panel(self):
+    def test_on_the_plus_opens_the_hud(self):
         toggle, posted = _toggle()
         _hung(toggle, minimized=True)
 

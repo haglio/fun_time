@@ -13,7 +13,6 @@ _.do_GET  # http.server dispatches by getattr
 _.set_showing  # the Funestra (funestra) tells each User whether it has the window
 _.own_frame  # the Funestra asks the User in front for the frame it brings
 _.hide  # the Funestra takes a User's own frame down off the headset's surface
-_.hud  # the Funestra asks the headset's projection controls what their list and bar show
 _.pick  # the Funestra hands them the projection picked off the list
 _.set_bar  # the Funestra hands them the angle the Angle bar is set to
 _.leaveEvent  # Qt calls it when the pointer leaves the dashboard bar

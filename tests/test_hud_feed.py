@@ -71,7 +71,7 @@ def _hosted(state: BridgeState, *funestras: str) -> BridgeState:
 
 def hosting_config(tmp_path) -> BridgeConfig:
     """A session hosting an Origenerator, with the files that app publishes
-    each Funestra's panel to."""
+    each Funestra's HUD to."""
     return make_config(
         tmp_path, origenerator_enabled=True,
         origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
@@ -102,7 +102,7 @@ def publish_satellite_status(path: Path, video, *, fraction: float = 0.1,
     )
 
 
-def panel(tmp_path, funestra: str) -> dict:
+def hud(tmp_path, funestra: str) -> dict:
     return json.loads((tmp_path / f"{funestra}_hud.json").read_text(encoding="utf-8"))
 
 
@@ -115,13 +115,13 @@ def dashboard(tmp_path) -> dict:
 
 
 def f_mode_button(published: dict) -> dict:
-    """The F-mode button a published satellite panel declares, as written."""
+    """The F-mode button a published satellite HUD declares, as written."""
     return next(button for row in published["rows"] for button in row
                 if button["command"].endswith("_fmode"))
 
 
 def reset_button(published: dict) -> dict:
-    """The reset button a published panel declares, as written."""
+    """The reset button a published HUD declares, as written."""
     return next(button for row in published["rows"] for button in row
                 if button["command"].endswith("reset"))
 
@@ -133,13 +133,13 @@ def skip_ahead(published: dict) -> dict:
 
 
 def ten_second_steps(published: dict) -> list[dict]:
-    """The back and forward 10s buttons a published panel declares, as written."""
+    """The back and forward 10s buttons a published HUD declares, as written."""
     return [button for row in published["rows"] for button in row
             if button.get("command", "").endswith(("_nudge_prev", "_nudge_next"))]
 
 
 def version_button(published: dict) -> dict:
-    """The versions button a published satellite panel declares, as written."""
+    """The versions button a published satellite HUD declares, as written."""
     return next(button for row in published["rows"] for button in row
                 if button["command"].endswith("_cycle_version"))
 
@@ -156,7 +156,7 @@ class TestHudPublishing:
     """Each satellite's lock map and the main console, built from the session's
     config and the bridge state and published to the files the Funestras read."""
 
-    def test_each_satellites_panel_carries_its_own_clip_and_lock(self, tmp_path):
+    def test_each_satellites_hud_carries_its_own_clip_and_lock(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
@@ -164,8 +164,8 @@ class TestHudPublishing:
 
         feed.publish(state)
 
-        portrait = panel(tmp_path, "portrait")
-        landscape = panel(tmp_path, "landscape")
+        portrait = hud(tmp_path, "portrait")
+        landscape = hud(tmp_path, "landscape")
         assert portrait["player"] == "portrait"
         assert portrait["locked"] is True
         # The title composes the lot — lock, order, and the filter unlabeled.
@@ -175,7 +175,7 @@ class TestHudPublishing:
         assert landscape["corner"]["path"] == "C:/v/l.mp4"
 
 
-    def test_a_side_the_hosted_app_has_wears_that_apps_own_panel(self, tmp_path):
+    def test_a_side_the_hosted_app_has_wears_that_apps_own_hud(self, tmp_path):
         """The hosted app publishes the Funestra's map, line and buttons; the
         session puts its own row over them -- the way back to its videos, and
         minimize for the Funestra's window -- and says which Funestra has the floor."""
@@ -202,7 +202,7 @@ class TestHudPublishing:
         assert [button.lit for button in portrait.rows[0][:2]] == [False, True]
         assert [button.command for button in portrait.rows[1]] == ["portrait_next"]
 
-    def test_the_job_queue_the_hosted_app_painted_reaches_that_sides_panel(self, tmp_path):
+    def test_the_job_queue_the_hosted_app_painted_reaches_that_sides_hud(self, tmp_path):
         """The hosted app paints its Job Queue to a file while Core is hidden
         behind the Random Favs Browser, and the Satellite showing its slideshow
         draws that file at its HUD's foot."""
@@ -218,7 +218,7 @@ class TestHudPublishing:
         assert parse_hud((tmp_path / "portrait_hud.json").read_text(encoding="utf-8")).foot == foot
 
     def test_a_side_the_hosted_app_has_not_filled_wears_the_mode_alone(self, tmp_path):
-        """Between the switch and the app's first panel -- and after it lets a
+        """Between the switch and the app's first HUD -- and after it lets a
         Funestra go -- there is nothing of the app's to draw: the Funestra names the
         mode, with the way back on it, and no map of the videos it left."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
@@ -266,15 +266,15 @@ class TestHudPublishing:
             state = _hosted(state, side)
         feed.publish(state)
 
-        published = [panel(tmp_path, "portrait"), panel(tmp_path, "landscape"), console(tmp_path)]
+        published = [hud(tmp_path, "portrait"), hud(tmp_path, "landscape"), console(tmp_path)]
         commands = [button.get("command", "") for each in published for row in each["rows"]
                     for button in row]
         assert commands
         assert [command for command in commands if command.endswith("_minimize")] == []
 
-    def test_a_hosted_panel_caught_mid_write_leaves_the_last_one_up(self, tmp_path):
+    def test_a_hosted_hud_caught_mid_write_leaves_the_last_one_up(self, tmp_path):
         """A read that loses to the app's own republish is not the app letting
-        go: the Funestra keeps the panel it had rather than flashing the mode's."""
+        go: the Funestra keeps the HUD it had rather than flashing the mode's."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted_file = tmp_path / "origenerator_portrait_hud.json"
         hosted_file.write_text(hud_text(HudModel(funestra="portrait", title="Locked")),
@@ -291,7 +291,7 @@ class TestHudPublishing:
         with patch.object(Path, "read_text", busy):
             feed.publish(replace(state, active_funestra=3))
 
-        assert panel(tmp_path, "portrait")["title"] == "Locked"
+        assert hud(tmp_path, "portrait")["title"] == "Locked"
 
     def test_what_the_hosted_app_says_about_the_image_on_screen_reaches_the_funestra(
         self, tmp_path,
@@ -302,7 +302,7 @@ class TestHudPublishing:
 
         feed.publish(_hosted(BridgeState()))
 
-        assert panel(tmp_path, "portrait")["item_note"] == "Enhancing…"
+        assert hud(tmp_path, "portrait")["item_note"] == "Enhancing…"
 
     def test_a_hosted_app_still_booting_is_published_so_the_button_can_dim(
         self, tmp_path,
@@ -318,7 +318,7 @@ class TestHudPublishing:
         publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
 
         def origenerator_button() -> dict:
-            return next(button for row in panel(tmp_path, "portrait")["rows"]
+            return next(button for row in hud(tmp_path, "portrait")["rows"]
                         for button in row
                         if button["command"] == "portrait_origenerator_activate")
 
@@ -328,7 +328,7 @@ class TestHudPublishing:
         feed.publish(BridgeState(origenerator_ready=True))
         assert not origenerator_button().get("dim")
 
-    def test_the_published_panel_says_when_that_sides_f_mode_is_on(self, tmp_path):
+    def test_the_published_hud_says_when_that_sides_f_mode_is_on(self, tmp_path):
         """The flag lives on the bridge state and nowhere the Funestra can see, so the
         publish is the only way F-mode reaches the screen a satellite is on — as the
         title, and as the flag its own button lights off.
@@ -342,8 +342,8 @@ class TestHudPublishing:
 
         feed.publish(state)
 
-        portrait = panel(tmp_path, "portrait")
-        landscape = panel(tmp_path, "landscape")
+        portrait = hud(tmp_path, "portrait")
+        landscape = hud(tmp_path, "landscape")
         assert portrait["title"] == "Unlocked · Shuffle · F-Mode"
         assert f_mode_button(portrait)["lit"] is True
         assert landscape["title"] == "Unlocked · Shuffle"
@@ -358,8 +358,8 @@ class TestHudPublishing:
 
         feed.publish(replace(BridgeState(), portrait=SatelliteState(locked=True)))
 
-        assert not reset_button(panel(tmp_path, "portrait")).get("dim")
-        assert reset_button(panel(tmp_path, "landscape"))["dim"] is True
+        assert not reset_button(hud(tmp_path, "portrait")).get("dim")
+        assert reset_button(hud(tmp_path, "landscape"))["dim"] is True
 
     def test_a_side_playing_off_normal_speed_has_a_reset_to_offer(self, tmp_path):
         feed = make_feed(tmp_path)
@@ -369,8 +369,8 @@ class TestHudPublishing:
 
         feed.publish(BridgeState())
 
-        assert not reset_button(panel(tmp_path, "portrait")).get("dim")
-        assert reset_button(panel(tmp_path, "landscape"))["dim"] is True
+        assert not reset_button(hud(tmp_path, "portrait")).get("dim")
+        assert reset_button(hud(tmp_path, "landscape"))["dim"] is True
 
     def test_a_sides_skip_ahead_is_pressable_only_with_the_osr2_and_a_funscripted_clip(
             self, tmp_path):
@@ -382,13 +382,13 @@ class TestHudPublishing:
 
         feed.publish(BridgeState(osr2_funestra=RoomFunestra.PORTRAIT))
 
-        assert not skip_ahead(panel(tmp_path, "portrait")).get("dim")
-        assert skip_ahead(panel(tmp_path, "landscape"))["dim"] is True
+        assert not skip_ahead(hud(tmp_path, "portrait")).get("dim")
+        assert skip_ahead(hud(tmp_path, "landscape"))["dim"] is True
 
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4")
         feed.publish(BridgeState(osr2_funestra=RoomFunestra.PORTRAIT))
 
-        assert skip_ahead(panel(tmp_path, "portrait"))["dim"] is True
+        assert skip_ahead(hud(tmp_path, "portrait"))["dim"] is True
 
     def test_the_main_funestras_skip_ahead_is_pressable_only_with_the_osr2_and_a_funscript(
             self, tmp_path):
@@ -412,9 +412,9 @@ class TestHudPublishing:
 
         feed.publish(BridgeState())
 
-        assert [step.get("dim") for step in ten_second_steps(panel(tmp_path, "portrait"))] == [
+        assert [step.get("dim") for step in ten_second_steps(hud(tmp_path, "portrait"))] == [
             True, True]
-        assert [step.get("dim") for step in ten_second_steps(panel(tmp_path, "landscape"))] == [
+        assert [step.get("dim") for step in ten_second_steps(hud(tmp_path, "landscape"))] == [
             None, None]
 
     def test_the_versions_button_lights_for_a_clip_the_library_has_twice(self, tmp_path):
@@ -434,8 +434,8 @@ class TestHudPublishing:
 
         feed.publish(BridgeState())
 
-        assert not version_button(panel(tmp_path, "portrait")).get("dim")
-        assert version_button(panel(tmp_path, "landscape"))["dim"] is True
+        assert not version_button(hud(tmp_path, "portrait")).get("dim")
+        assert version_button(hud(tmp_path, "landscape"))["dim"] is True
 
 
     def test_a_hosted_shows_reset_is_never_faded_by_the_session(self, tmp_path):
@@ -450,11 +450,11 @@ class TestHudPublishing:
 
         feed.publish(_hosted(BridgeState()))
 
-        assert not reset_button(panel(tmp_path, "portrait")).get("dim")
+        assert not reset_button(hud(tmp_path, "portrait")).get("dim")
 
-    def test_the_published_panel_says_which_side_has_the_floor(self, tmp_path):
+    def test_the_published_hud_says_which_side_has_the_floor(self, tmp_path):
         """The active Funestra is a slot number in the state and a Funestra *name* on the
-        panel, so exactly one satellite can claim it — and neither does while the
+        HUD, so exactly one satellite can claim it — and neither does while the
         the Main Funestra holds it."""
         feed, state = make_feed(tmp_path), BridgeState()
         for funestra in ("portrait", "landscape"):
@@ -463,7 +463,7 @@ class TestHudPublishing:
 
         def actives(slot: int) -> tuple[bool, bool]:
             feed.publish(replace(state, active_funestra=slot))
-            return tuple(panel(tmp_path, funestra)["active"]
+            return tuple(hud(tmp_path, funestra)["active"]
                          for funestra in ("portrait", "landscape"))
 
         assert actives(2) == (True, False)
@@ -472,7 +472,7 @@ class TestHudPublishing:
 
     def test_the_console_says_when_the_primary_has_the_floor(self, tmp_path):
         """The Main Funestra's dot rides the console file, the same file that carries the
-        rest of its panel — one source for both Funestras, in place of the separate
+        rest of its HUD — one source for both Funestras, in place of the separate
         command it used to be sent."""
         feed, state = make_feed(tmp_path), BridgeState()
 
@@ -646,8 +646,8 @@ class TestHudPublishing:
         feed.publish(state)
         assert not reset_button(console(tmp_path)).get("dim")
 
-    def test_each_sides_panel_says_whether_its_own_clip_is_a_favorite(self, tmp_path):
-        """The dashboard's panel used to say this by turning green; the HUD marks
+    def test_each_sides_hud_says_whether_its_own_clip_is_a_favorite(self, tmp_path):
+        """The dashboard's HUD used to say this by turning green; the HUD marks
         it, so the loop has to judge each Funestra's clip against its record."""
         feed, state = make_feed(tmp_path), BridgeState()
         feed.config.regen_metadata_root = tmp_path / "metadata"
@@ -658,8 +658,8 @@ class TestHudPublishing:
 
         feed.publish(state)
 
-        portrait = panel(tmp_path, "portrait")
-        landscape = panel(tmp_path, "landscape")
+        portrait = hud(tmp_path, "portrait")
+        landscape = hud(tmp_path, "landscape")
         assert portrait["is_favorite"] is True
         assert landscape["is_favorite"] is False
 
@@ -684,11 +684,11 @@ class TestHudPublishing:
             feed.publish(state)
             assert read.call_count == 2
 
-        portrait = panel(tmp_path, "portrait")
+        portrait = hud(tmp_path, "portrait")
         assert portrait["is_favorite"] is True
 
     def test_publishing_is_throttled_below_the_tick_rate(self, tmp_path):
-        """The loop ticks 20x/s; rebuilding and rewriting both panels that often
+        """The loop ticks 20x/s; rebuilding and rewriting both HUDs that often
         is waste the map never shows, so publishing runs on its own cadence."""
         feed, state = make_feed(tmp_path), BridgeState()
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
@@ -706,7 +706,7 @@ class TestHudPublishing:
         """A satellite always has a clip, so a status file that reads blank means
         the read lost — not that the Funestra has nothing.
 
-        Believing the blank republishes an empty panel, which the Funestra renders
+        Believing the blank republishes an empty HUD, which the Funestra renders
         as a HUD with nothing on it, and the next tick puts it back: the map
         blinks.  It is most visible under OmniPause, where the frame is frozen
         and the map is the only thing that can move.
@@ -719,7 +719,7 @@ class TestHudPublishing:
         status.write_text("", encoding="utf-8")  # caught mid-republish
         feed.publish(state)
 
-        portrait = panel(tmp_path, "portrait")
+        portrait = hud(tmp_path, "portrait")
         assert portrait["corner"]["path"] == "C:/v/p.mp4"
 
     def test_a_status_that_cannot_be_read_keeps_the_speed_it_last_named(self, tmp_path):
@@ -731,16 +731,16 @@ class TestHudPublishing:
         status.write_text("", encoding="utf-8")  # caught mid-republish
         feed.publish(state)
 
-        assert not reset_button(panel(tmp_path, "portrait")).get("dim")
+        assert not reset_button(hud(tmp_path, "portrait")).get("dim")
 
-    def test_a_satellite_that_has_not_started_yet_publishes_an_empty_panel(self, tmp_path):
+    def test_a_satellite_that_has_not_started_yet_publishes_an_empty_hud(self, tmp_path):
         # The other Funestra of it: before a satellite's first status there is no
         # clip to hold onto, and an empty map is the truth.
         feed, state = make_feed(tmp_path), BridgeState()
 
         feed.publish(state)
 
-        portrait = panel(tmp_path, "portrait")
+        portrait = hud(tmp_path, "portrait")
         assert portrait["corner"] is None
 
     def test_a_session_without_a_publisher_publishes_nothing(self, tmp_path):
@@ -938,21 +938,21 @@ def test_the_consoles_crown_goes_dark_once_the_room_gives_it_to_the_portrait_fun
     assert not crown.get("lit")
 
 
-def test_the_portrait_panels_crown_is_lit_once_the_room_gives_it_the_crown(tmp_path):
+def test_the_portrait_huds_crown_is_lit_once_the_room_gives_it_the_crown(tmp_path):
     feed = make_feed(tmp_path)
 
     feed.publish(BridgeState(crowned=Crown.PORTRAIT))
 
-    crown = next(button for row in panel(tmp_path, "portrait")["rows"] for button in row
+    crown = next(button for row in hud(tmp_path, "portrait")["rows"] for button in row
                  if button["command"] == "portrait_crown")
     assert crown.get("lit")
 
 
-class TestWhatThePanelSaysAboutWhereItSits:
-    """Where a HUD sits and whether it is collapsed travel with the panel: the
+class TestWhatTheHudSaysAboutWhereItSits:
+    """Where a HUD sits and whether it is collapsed travel with the HUD: the
     Funestra draws them, and only the session knows what the keys did."""
 
-    def test_each_panel_carries_its_own_corner_and_collapse(self, tmp_path):
+    def test_each_hud_carries_its_own_corner_and_collapse(self, tmp_path):
         feed = make_feed(tmp_path)
         state = replace(
             BridgeState(),
@@ -961,10 +961,10 @@ class TestWhatThePanelSaysAboutWhereItSits:
 
         feed.publish(state)
 
-        assert panel(tmp_path, "portrait")["hud_corner"] == HudCorner.LOWER_RIGHT
-        assert panel(tmp_path, "portrait")["hud_minimized"] is True
-        assert panel(tmp_path, "landscape")["hud_corner"] == HudCorner.UPPER_LEFT
-        assert panel(tmp_path, "landscape")["hud_minimized"] is False
+        assert hud(tmp_path, "portrait")["hud_corner"] == HudCorner.LOWER_RIGHT
+        assert hud(tmp_path, "portrait")["hud_minimized"] is True
+        assert hud(tmp_path, "landscape")["hud_corner"] == HudCorner.UPPER_LEFT
+        assert hud(tmp_path, "landscape")["hud_minimized"] is False
         assert console(tmp_path)["hud_corner"] == HudCorner.UPPER_RIGHT
         assert console(tmp_path)["hud_minimized"] is True
 
@@ -979,5 +979,5 @@ class TestWhatThePanelSaysAboutWhereItSits:
 
         feed.publish(state)
 
-        assert panel(tmp_path, "portrait")["hud_corner"] == HudCorner.LOWER_LEFT
-        assert panel(tmp_path, "portrait")["hud_minimized"] is True
+        assert hud(tmp_path, "portrait")["hud_corner"] == HudCorner.LOWER_LEFT
+        assert hud(tmp_path, "portrait")["hud_minimized"] is True

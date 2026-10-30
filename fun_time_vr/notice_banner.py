@@ -26,7 +26,7 @@ from shared_ui.palette import BG_SECONDARY
 from shared_ui.spacing import GAP_SMALL
 from shared_ui.type_scale import in_pixels
 
-from .console_panel import level_color
+from .console_hud import level_color
 from .surfaces import red_and_blue_swapped
 
 # The type as a fraction of the height, never under the desktop's own; the rest

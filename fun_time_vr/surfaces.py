@@ -1,4 +1,4 @@
-"""The two surfaces a headset gives a Funestra: the panel as a bitmap to hang
+"""The two surfaces a headset gives a Funestra: the HUD as a bitmap to hang
 beside the item, and a User's own frames to hang in the slot."""
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ def red_and_blue_swapped(pixels: np.ndarray) -> np.ndarray:
     return np.ascontiguousarray(pixels[:, :, [2, 1, 0, 3]])
 
 
-class PanelBitmap:
+class HudBitmap:
     def __init__(self, width: int | None = None) -> None:
         self.width = width
         self._lock = threading.Lock()

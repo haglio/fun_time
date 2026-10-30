@@ -1,7 +1,7 @@
 """What the Funestras draw for themselves: the lock HUDs and the main console.
 
 The dispatch loop holds the state these are drawn from (locks, filters, loops)
-and already ticks, so it is what feeds them — but building a panel is a question
+and already ticks, so it is what feeds them — but building a HUD is a question
 about the session's config and its state, not about the loop, and this is where
 that question is answered.
 """
@@ -32,7 +32,7 @@ from .funestra_status import (
     read_main_funestra_status,
 )
 from .hud_transport import HudPublisher, hosted_model
-from .lock_hud import SatelliteInputs, build_satellite_panel
+from .lock_hud import SatelliteInputs, build_satellite_hud
 from .main_funestra_console import MainSlotInputs, console_model, osr2_state
 from .media_metadata import load_metadata, metadata_path_for
 from .media_renditions import renditions
@@ -49,8 +49,8 @@ from .ten_second_steps import longer_than_a_step
 
 # The satellites play ~5 s clips, so the HUD map has to track the current clip
 # almost the instant it changes — but not at the loop's own 20 Hz.  Building a
-# panel is index lookups plus a stat per thumbnail, and the publisher skips the
-# write entirely when the panel is unchanged, so an idle tick is nearly free.
+# HUD is index lookups plus a stat per thumbnail, and the publisher skips the
+# write entirely when the HUD is unchanged, so an idle tick is nearly free.
 PUBLISH_INTERVAL_S = 0.15
 
 
@@ -77,7 +77,7 @@ class _RecordedFavorites:
 
 
 class HudFeed:
-    """Builds both satellites' panels and the console, and publishes them."""
+    """Builds both satellites' HUDs and the console, and publishes them."""
 
     def __init__(self, *, config: BridgeConfig, publisher: HudPublisher | None) -> None:
         self.config = config
@@ -85,7 +85,7 @@ class HudFeed:
         self._last_publish = 0.0
         self._favorites = _RecordedFavorites()
         self._last_satellite_status: dict[str, SatelliteStatus] = {}
-        self._hosted_panels: dict[RoomFunestra, HudModel | None] = {}
+        self._hosted_huds: dict[RoomFunestra, HudModel | None] = {}
 
     def publish_due(self, state: BridgeState, *, now: float) -> None:
         """Publish, if the cadence says it is time."""
@@ -95,7 +95,7 @@ class HudFeed:
         self.publish(state)
 
     def publish(self, state: BridgeState) -> None:
-        """Rebuild both satellites' HUD panels and publish the ones that changed.
+        """Rebuild both satellites' HUD HUDs and publish the ones that changed.
 
         Runs under OmniPause too: playback is frozen, but the map stays up so the
         user can still see — and click — what each satellite is holding.
@@ -146,7 +146,7 @@ class HudFeed:
         for funestra in RoomFunestra.SATELLITES:
             if hosts(funestra, state, self.config):
                 self.publisher.publish_text(funestra.label, hud_text(hosted_model(
-                    funestra.label, self._hosted_panel(funestra),
+                    funestra.label, self._hosted_hud(funestra),
                     active=state.active_funestra == funestra,
                     origenerator_ready=state.origenerator_ready,
                     in_vr=self.config.vr_main_funestra,
@@ -155,7 +155,7 @@ class HudFeed:
                     hud_edge=state.satellite(funestra).hud_edge,
                     hud_minimized=state.satellite(funestra).hud_minimized)))
                 continue
-            self.publisher.publish(funestra.label, build_satellite_panel(
+            self.publisher.publish(funestra.label, build_satellite_hud(
                 satellite(funestra), self.config.regen_metadata_root,
                 RoomFunestra.label_of(state.active_funestra),
                 origenerator_ready=state.origenerator_ready,
@@ -211,9 +211,9 @@ class HudFeed:
         scripted = read_satellite_status(self.config.satellite(holder).status_file)
         return Osr2State.of(osr2_mode, funscript_driving=scripted.funscript_driving, trouble=trouble)
 
-    def _hosted_panel(self, funestra: RoomFunestra) -> HudModel | None:
-        """The hosted app's panel for *Funestra*'s side, or None; one it is
-        replacing this instant leaves the panel read before it standing."""
+    def _hosted_hud(self, funestra: RoomFunestra) -> HudModel | None:
+        """The hosted app's HUD for *Funestra*'s side, or None; one it is
+        replacing this instant leaves the HUD read before it standing."""
         path = self.config.satellite(funestra).origenerator_hud_file
         if path is None:
             return None
@@ -222,9 +222,9 @@ class HudFeed:
         except FileNotFoundError:
             text = ""
         except OSError:
-            return self._hosted_panels.get(funestra)
-        panel = self._hosted_panels[funestra] = parse_hud(text)
-        return panel
+            return self._hosted_huds.get(funestra)
+        hud = self._hosted_huds[funestra] = parse_hud(text)
+        return hud
 
     def _genau_pace_s(self) -> int:
         drive = read_drive(self.config.genau_drive_file)
@@ -238,7 +238,7 @@ class HudFeed:
         A satellite always has a clip — it cannot discard its way to an empty
         playlist — so once one has named a clip, a blank status means the read
         lost a race with the Funestra's own republish, not that the Funestra has
-        nothing.  Believing the blank builds an empty panel, and publishing that
+        nothing.  Believing the blank builds an empty HUD, and publishing that
         blanks the map on screen until the next tick puts it back.  Before a
         satellite's first status there is nothing to hold, and an empty map is
         the truth.
