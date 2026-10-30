@@ -6,6 +6,7 @@ import inspect
 import json
 import logging
 import os
+import textwrap
 import threading
 import time
 from dataclasses import fields, replace
@@ -267,7 +268,7 @@ class TestOrigeneratorInVr:
     def test_the_app_runs_the_checkouts_this_session_names(self):
         """It imports funestra too, so a branch of it reaches the app the way
         it reaches every other child."""
-        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        tree = ast.parse(_the_session_as_one_source())
         (call,) = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
                    and ast.unparse(n.func) == "bring_up_the_hosted_app"]
         given = {kw.arg: ast.unparse(kw.value) for kw in call.keywords}
@@ -393,7 +394,7 @@ class TestWaitForSessionEnd:
         """Up over the closing cover so Esc stays live, and never left running
         once the teardown is done: a script outliving its session swallows
         every key it binds."""
-        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        tree = ast.parse(_the_session_as_one_source())
         (session,) = [n for n in ast.walk(tree) if isinstance(n, ast.Try) and any(
             isinstance(c, ast.Call) and ast.unparse(c.func) == "_wait_for_session_end"
             for c in ast.walk(n))]
@@ -430,7 +431,9 @@ class TestTheModeASessionComesBackIn:
 
     @staticmethod
     def _calls(function_name: str, spelling: str):
-        tree = ast.parse(inspect.getsource(getattr(orchestrator, function_name)))
+        source = (_the_session_as_one_source() if function_name == "run_vr_bridge"
+                  else inspect.getsource(getattr(orchestrator, function_name)))
+        tree = ast.parse(source)
         return [n for n in ast.walk(tree)
                 if isinstance(n, ast.Call) and ast.unparse(n.func) == spelling]
 
@@ -470,7 +473,7 @@ class TestTheModeASessionComesBackIn:
     def test_the_flags_are_seeded_after_the_main_list_has_said_what_it_opens_on(self):
         """A list that would hold nothing puts its buttons back to their defaults,
         and the Main Funestra is told F-mode from what the list was built under."""
-        source = inspect.getsource(orchestrator.run_vr_bridge)
+        source = _the_session_as_one_source()
 
         assert source.index("stock_the_playlists(") < source.index("seed_startup_states(")
 
@@ -488,7 +491,7 @@ class TestTheModeASessionComesBackIn:
     def test_it_is_queued_after_the_playlists_are_stocked(self):
         """The rebuild and its rotation are what decide whether the clip the loop
         was cut from is the one this session opens on."""
-        source = inspect.getsource(orchestrator.run_vr_bridge)
+        source = _the_session_as_one_source()
 
         assert source.index("stock_the_playlists(") < source.index("resume_main_loop(")
 
@@ -1094,9 +1097,42 @@ class TestTheOnePin:
         stamp.assert_called_once_with()
 
 
+def _the_session_as_one_source() -> str:
+    """``run_vr_bridge`` with each step of its own it calls written out where it
+    calls it, so what comes after what reads across the steps as one source."""
+    steps = {name: thing for name, thing in vars(orchestrator).items()
+             if inspect.isfunction(thing) and name.startswith("_")}
+
+    def written_out(function, seen: frozenset) -> list[str]:
+        source = textwrap.dedent(inspect.getsource(function))
+        called_at: dict[int, list[tuple[int, str]]] = {}
+        for node in ast.walk(ast.parse(source)):
+            if not isinstance(node, ast.stmt):
+                continue
+            own = [child for name, child in ast.iter_fields(node)
+                   if not (isinstance(child, list) and child and isinstance(child[0], ast.stmt))]
+            for piece in own:
+                for call in ast.walk(piece) if isinstance(piece, ast.AST) else ():
+                    if (isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+                            and call.func.id in steps and call.func.id not in seen):
+                        called_at.setdefault(node.lineno, []).append((node.col_offset, call.func.id))
+        lines: list[str] = []
+        for number, line in enumerate(source.splitlines(), start=1):
+            for indent, name in called_at.get(number, []):
+                lines += [" " * indent + inner if inner else inner
+                          for inner in written_out(steps[name], seen | {name})]
+            lines.append(line)
+        return lines
+
+    return "\n".join(written_out(orchestrator.run_vr_bridge, frozenset()))
+
+
 def _call_lines_in_run_vr_bridge() -> dict[str, int]:
-    tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
-    return {ast.unparse(n.func): n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call)}
+    """Where each call falls in the session's one source; a spelling made more
+    than once keeps its last."""
+    calls = sorted((n for n in ast.walk(ast.parse(_the_session_as_one_source()))
+                    if isinstance(n, ast.Call)), key=lambda n: n.lineno)
+    return {ast.unparse(n.func): n.lineno for n in calls}
 
 
 class TestTheAudioCompanionInVr:
@@ -1104,7 +1140,7 @@ class TestTheAudioCompanionInVr:
     Genau's role says which flick is up, and sent to the headset's output."""
 
     def test_it_is_launched_on_the_headsets_output(self):
-        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        tree = ast.parse(_the_session_as_one_source())
         (launch,) = [n for n in ast.walk(tree)
                      if isinstance(n, ast.Call) and ast.unparse(n.func) == "launch_audio_companion"]
         given = {kw.arg: ast.unparse(kw.value) for kw in launch.keywords}
@@ -1117,7 +1153,7 @@ class TestTheAudioCompanionInVr:
         calls = _call_lines_in_run_vr_bridge()
 
         assert calls["launch_audio_companion"] < calls["launch_vr_funestras"]
-        assert "for child in children.values():" in inspect.getsource(orchestrator.run_vr_bridge)
+        assert "for child in launched.children.values():" in _the_session_as_one_source()
 
 
 class TestTheHeadsetsCover:
@@ -1432,14 +1468,14 @@ class TestTheClosingCover:
 
     def test_the_funestra_is_the_last_child_teardown_kills(self):
         """It wears the cover, so it goes after everything it was hiding."""
-        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        tree = ast.parse(_the_session_as_one_source())
         kills = [ast.unparse(n) for n in sorted(
             (n for n in ast.walk(tree)
              if isinstance(n, ast.Call) and ast.unparse(n.func) == "kill_recorded_child"),
             key=lambda n: n.lineno)]
 
-        assert kills[-1] == "kill_recorded_child(children['vr_funestras_pid'])"
-        assert "kill_recorded_child(children['audio_pid'])" in kills
+        assert kills[-1] == "kill_recorded_child(launched.children['vr_funestras_pid'])"
+        assert "kill_recorded_child(launched.children['audio_pid'])" in kills
 
     def test_everything_stops_and_the_osr2_is_held_before_either_cover_goes_up(self):
         calls = _call_lines_in_run_vr_bridge()
@@ -1474,7 +1510,7 @@ class TestWaitingForTheRoom:
         something stranger than a slow decode -- and holding a launch on it
         would be worse than a room with one screen still blank.  The answer is
         deliberately dropped: nothing downstream may branch on it."""
-        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        tree = ast.parse(_the_session_as_one_source())
         (call,) = [n for n in ast.walk(tree)
                    if isinstance(n, ast.Call) and ast.unparse(n.func) == "_wait_for_the_room"]
         discarded = [n for n in ast.walk(tree)
@@ -1490,7 +1526,7 @@ class TestWaitingForTheRoom:
 
     def test_a_previous_sessions_marker_cannot_vouch_for_this_one(self):
         """It would say the room was up before a frame of it existed."""
-        source = inspect.getsource(orchestrator.run_vr_bridge)
+        source = _the_session_as_one_source()
 
         assert "room_ready_file.unlink(missing_ok=True)" in source
         assert source.index("room_ready_file.unlink") < source.index("launch_vr_funestras(")
@@ -1521,7 +1557,7 @@ class TestEscDuringTheLongWait:
     def test_both_waits_are_handed_the_reporter_that_carries_the_flag(self):
         """Passed nothing they are plain waits, so a call site that forgot it is
         a phase Esc cannot reach."""
-        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        tree = ast.parse(_the_session_as_one_source())
         waits = [ast.unparse(n) for n in ast.walk(tree)
                  if isinstance(n, ast.Call)
                  and ast.unparse(n.func) in ("_wait_for_funestra", "_wait_for_the_room")]
