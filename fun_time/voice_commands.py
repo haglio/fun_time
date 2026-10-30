@@ -182,7 +182,7 @@ def build_voice_commands(
         "landscape and portrait": "main_orientation_both",
         # The unfiltered library the Main Funestra opens in, and so the way back out of either
         # half.  "main reset" contains this and puts back every other default too
-        # (see the main-player grid below); this is the narrow gesture of the pair.
+        # (see the Main Funestra grid below); this is the narrow gesture of the pair.
         "mixed": "main_player_length_mixed",
         # Clip navigation (clips carved from compilations); "full
         # video" is the reliable phrase, "full vid" a fallback.

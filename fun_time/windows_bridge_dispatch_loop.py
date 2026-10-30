@@ -120,7 +120,7 @@ _FUNESTRA_GROUPS = {
 
 
 def expand_group_command(command: str) -> list[str]:
-    """A ``both_``/``all_`` command as the per-player commands it stands for,
+    """A ``both_``/``all_`` command as the per-Funestra commands it stands for,
     each then handled exactly as if said alone; anything else as itself."""
     for group, funestras in _FUNESTRA_GROUPS.items():
         if command.startswith(group):

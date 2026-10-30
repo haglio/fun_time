@@ -1051,7 +1051,7 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
 
 
 # Genau runs on the Main Funestra's window, driven through files of its own, so
-# every main-player launch carries them; spelled once so a test about something
+# every Main Funestra launch carries them; spelled once so a test about something
 # else need not list them.
 GENAUS_FILES = dict(
     genau_command_file="a-state-dir/genau_cmd.txt",

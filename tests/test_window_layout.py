@@ -136,7 +136,7 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
 def test_the_main_funestras_rect_is_on_the_secondary_below_the_portrait_satellite(cfg_path: Path):
     """The Main Funestra fills the secondary monitor below the portrait's slice
     — the rect startup launches Main Funestra/Genau into and the notice overlay flashes
-    main-player notices over.  It abuts the portrait window with no gap and no
+    Main Funestra notices over.  It abuts the portrait window with no gap and no
     overlap, and reaches the monitor's lower edge."""
     config = load_config(cfg_path)
     secondary = MonitorRect(2560, 0, 1440, 3440)

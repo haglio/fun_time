@@ -1,4 +1,4 @@
-"""What drives the on-player flash: a second tail of the event log, faster than
+"""What drives the notices flashed over a Funestra: a second tail of the event log, faster than
 the panel's 500ms refresh so a "Clip saved" lands promptly, drawn over the
 window it concerns — from the same layout functions startup and the crown place
 that window with.

@@ -224,7 +224,7 @@ def _origenerator_transport(
     """Hand a side's press to the hosted app, or ``None`` to fall through to
     the session's own handling.
 
-    None of the player-side bookkeeping (lock flags, favorites, RFB tabs)
+    None of Kino's bookkeeping (lock flags, favorites, RFB tabs)
     applies to a show, and a press goes over as it was posted: the app declared
     the button, so it is what knows the verb.
     """
