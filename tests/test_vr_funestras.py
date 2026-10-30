@@ -9,8 +9,12 @@ from __future__ import annotations
 
 import ast
 import inspect
+import json
+import logging
+import math
 import threading
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import DEFAULT, MagicMock, call, patch
@@ -33,6 +37,7 @@ from shared_ui.palette import BLUE
 from fun_time.config import load_config
 from fun_time.dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
+    HEADSET_ON,
     HELP_REFERENCE,
     LIBRARY_OPEN_FILENAME,
     QUIT_BUTTON,
@@ -52,7 +57,7 @@ from fun_time.overlay_progress import (
     PhaseProgress,
 )
 from fun_time.room_funestras import RoomFunestra
-from fun_time.shared_state import BridgeState, shared_state_path
+from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time_vr import funestras, room
 from fun_time_vr.console_hud import DEG_PER_PX, HUD_WIDTH_PX
 from fun_time_vr.cover import (
@@ -72,12 +77,15 @@ from fun_time_vr.dash_panel import (
     with_the_osr2_part,
 )
 from fun_time_vr.funestras import (
+    MAIN_TICK_HZ,
     OFF_THE_HUD,
+    Arrangement,
+    CoverUnit,
+    CoverWatch,
     VrSettings,
     _BannerUnit,
     _ConsoleUnit,
     _ControllerPosts,
-    _CoverUnit,
     _DashUnit,
     _draw_eyes,
     _GalleryUnit,
@@ -93,8 +101,9 @@ from fun_time_vr.funestras import (
     _users,
     _VideoUnit,
     build_parser,
+    hang_the_room,
 )
-from fun_time_vr.headset_verbs import HeadsetVerbs
+from fun_time_vr.headset_verbs import AngleRequest, HeadsetVerbs, HostRequest
 from fun_time_vr.hud_buttons import HudButtons
 from fun_time_vr.hud_sides import side_screen_name
 from fun_time_vr.hud_toggle import HUD_GAP_PAST_THE_TOGGLE_DEG, toggle_screen_name
@@ -113,8 +122,10 @@ from fun_time_vr.layout import (
     shown_at,
 )
 from fun_time_vr.library_panel import LIBRARY_SIZE_PX, scroll_from_stick, scroll_line
+from fun_time_vr.matrices import yaw_of_orientation
 from fun_time_vr.notices import NoticeBoard
 from fun_time_vr.orchestrator import build_vr_manifest
+from fun_time_vr.perf import FramePerf
 from fun_time_vr.pointer import (
     DRAG,
     HANDLE_DEG,
@@ -149,6 +160,7 @@ from fun_time_vr.scene import (
 )
 from fun_time_vr.stacking import Stacking
 from fun_time_vr.surfaces import HudBitmap, LatestFrame
+from fun_time_vr.thumbs import NUDGE_FORWARD
 from fun_time_vr.video_thread import VideoThread
 from fun_time_vr.wrap_readout import WrapReadout, label
 from main_funestra.cli import build_parser as build_main_funestra_parser
@@ -753,7 +765,7 @@ class TestASqueezeOnAHangingHud:
 # loop's `finally` then closes one by one: `pumped` in `Funestra._run`.
 _EVERYTHING_THE_WORKER_IS_HANDED = [
     NoticeBoard, _MainUnit, _SatelliteUnit, _DashUnit, _ConsoleUnit, _ReferenceUnit,
-    _LibraryUnit, _BannerUnit, _CoverUnit, _LayoutKeeper, _ControllerPosts,
+    _LibraryUnit, _BannerUnit, CoverUnit, _LayoutKeeper, _ControllerPosts,
 ]
 
 
@@ -1241,7 +1253,7 @@ def cover_graphics():
 
 class TestTheCoverUnit:
     def test_an_idle_state_dir_shows_the_scene(self, tmp_path, cover_graphics):
-        unit = _CoverUnit(tmp_path)
+        unit = CoverUnit(tmp_path)
 
         unit.render_latest_frame()
 
@@ -1256,7 +1268,7 @@ class TestTheCoverUnit:
         PhaseProgress(tmp_path / PROGRESS_FILENAME,
                       phases=VR_STARTUP_PHASES).advance("funestras")
 
-        unit = _CoverUnit(tmp_path)
+        unit = CoverUnit(tmp_path)
         unit.render_latest_frame()
 
         assert unit.showing
@@ -1266,7 +1278,7 @@ class TestTheCoverUnit:
             self, tmp_path, cover_graphics):
         progress = PhaseProgress(tmp_path / PROGRESS_FILENAME, phases=VR_STARTUP_PHASES)
         progress.advance("funestras")
-        unit = _CoverUnit(tmp_path)
+        unit = CoverUnit(tmp_path)
         unit.render_latest_frame()
         unit.render_latest_frame()
         assert len(unit.texture.uploads) == 1
@@ -1284,7 +1296,7 @@ class TestTheCoverUnit:
         him -- they have to be right before he looks, not after."""
         PhaseProgress(tmp_path / PROGRESS_FILENAME,
                       phases=VR_STARTUP_PHASES).advance("funestras")
-        unit = _CoverUnit(tmp_path)
+        unit = CoverUnit(tmp_path)
         assert unit._cover.status == "Waiting for Funestras..."
 
         unit.awaiting_wearer = True
@@ -1299,7 +1311,7 @@ class TestTheCoverUnit:
         """The closing cover is shown to someone already wearing it."""
         PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
                       phases=VR_SHUTDOWN_PHASES).advance("funestras")
-        unit = _CoverUnit(tmp_path)
+        unit = CoverUnit(tmp_path)
 
         unit.awaiting_wearer = True
         unit.pump(threading.Event(), 0.0)
@@ -1309,7 +1321,7 @@ class TestTheCoverUnit:
     def test_done_hands_the_headset_back(self, tmp_path, cover_graphics):
         progress = PhaseProgress(tmp_path / PROGRESS_FILENAME, phases=VR_STARTUP_PHASES)
         progress.advance("finalizing")
-        unit = _CoverUnit(tmp_path)
+        unit = CoverUnit(tmp_path)
         unit.render_latest_frame()
         assert unit.showing
 
@@ -1324,7 +1336,7 @@ class TestTheCoverUnit:
         dropping it would hand back a promise about the wrong panel."""
         PhaseProgress(tmp_path / PROGRESS_FILENAME,
                       phases=VR_STARTUP_PHASES).advance("funestras")
-        unit = _CoverUnit(tmp_path)
+        unit = CoverUnit(tmp_path)
         unit.render_latest_frame()
 
         unit.settled()
@@ -1334,7 +1346,7 @@ class TestTheCoverUnit:
     def test_a_painted_closing_cover_reports_itself(self, tmp_path, cover_graphics):
         PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
                       phases=VR_SHUTDOWN_PHASES).advance("controls")
-        unit = _CoverUnit(tmp_path)
+        unit = CoverUnit(tmp_path)
         unit.render_latest_frame()
         assert unit.closing
 
@@ -1350,7 +1362,7 @@ class TestTheCoverUnit:
         PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
                       phases=VR_SHUTDOWN_PHASES).advance("controls")
 
-        unit = _CoverUnit(tmp_path)
+        unit = CoverUnit(tmp_path)
 
         assert unit.closing
         assert not unit.showing  # nothing uploaded yet
@@ -1360,20 +1372,20 @@ class TestTheCoverUnit:
     def test_an_idle_state_dir_wants_no_cover_at_all(self, tmp_path, cover_graphics):
         """A Funestra run with no orchestrator -- the integration suite -- must
         not be held at bring-up waiting for a cover that is not coming."""
-        assert not _CoverUnit(tmp_path).wanted
+        assert not CoverUnit(tmp_path).wanted
 
     def test_a_launch_in_progress_wants_one(self, tmp_path, cover_graphics):
         PhaseProgress(tmp_path / PROGRESS_FILENAME,
                       phases=VR_STARTUP_PHASES).advance("funestras")
 
-        assert _CoverUnit(tmp_path).wanted
+        assert CoverUnit(tmp_path).wanted
 
     def test_the_anchor_is_let_go_when_the_cover_does(self, tmp_path, cover_graphics):
         """So the closing cover hangs where the viewer is by then, not where
         the loading one was, a whole session earlier."""
         progress = PhaseProgress(tmp_path / PROGRESS_FILENAME, phases=VR_STARTUP_PHASES)
         progress.advance("funestras")
-        unit = _CoverUnit(tmp_path)
+        unit = CoverUnit(tmp_path)
         unit.render_latest_frame()
         assert unit.anchor.heading(1.2) == pytest.approx(1.2)
 
@@ -1387,7 +1399,7 @@ class TestTheCoverUnit:
             self, tmp_path, cover_graphics):
         """Its window was closed, so nobody is going to write a shutdown file —
         and its own units are about to go down one at a time."""
-        unit = _CoverUnit(tmp_path)
+        unit = CoverUnit(tmp_path)
         unit.render_latest_frame()
         assert not unit.showing
 
@@ -1467,13 +1479,6 @@ class TestWhenTheRoomIsUp:
         assert _MainUnit.texture_in_the_slot.fget(unit) is unit.users_frame_texture
 
 
-def test_the_headset_opens_its_screens_where_the_room_remembers_them():
-    tree = ast.parse(inspect.getsource(funestras._run))
-    called = {ast.unparse(node.func) for node in ast.walk(tree) if isinstance(node, ast.Call)}
-
-    assert "remembered_layout" in called
-
-
 def test_the_cover_goes_up_before_the_funestras_are_built():
     """Built first and shown after, it was on screen for the tail of a launch
     that had already finished -- which is why none of it was ever seen."""
@@ -1483,10 +1488,23 @@ def test_the_cover_goes_up_before_the_funestras_are_built():
         if isinstance(node, ast.Call):
             calls.setdefault(ast.unparse(node.func), node.lineno)
 
-    assert calls["_CoverUnit"] < calls["_MainUnit"]
-    assert calls["_raise_the_cover"] < calls["_MainUnit"]
-    assert calls["_raise_the_cover"] < calls["_SatelliteUnit"]
-    assert calls["_raise_the_cover"] < calls["_ConsoleUnit"]
+    assert calls["CoverUnit"] < calls["_raise_the_cover"] < calls["hang_the_room"]
+
+
+def test_the_room_hears_from_the_headset_whether_anyone_is_wearing_it():
+    assert "the_room.note_the_wearer(session.focused, now=time.monotonic())" in (
+        inspect.getsource(funestras._show_the_room))
+
+
+def test_the_eyes_are_handed_the_arrangement_the_pointer_was():
+    """One arrangement goes to the pointer and to the eye pass, so what a squeeze
+    lands on is what was in front."""
+    tree = ast.parse(inspect.getsource(funestras._frame))
+    (drawn,) = [n for n in ast.walk(tree)
+                if isinstance(n, ast.Call) and ast.unparse(n.func) == "_draw_eyes"]
+
+    assert {k.arg: ast.unparse(k.value) for k in drawn.keywords} == {
+        "screens": "arranged.screens", "as_quads": "as_quads"}
 
 
 def test_the_headset_builds_kino_with_the_desktops_own_builder():
@@ -1512,152 +1530,6 @@ def test_the_headsets_genau_keeps_its_flips_where_the_library_keeps_its_records(
         "_metadata_root(manifest)")
 
 
-def test_the_headsets_browse_asks_whether_genau_has_the_main_slot():
-    assert _keyword_given(funestras._run, "_LibraryUnit", "genau_has_the_slot") == (
-        "lambda: not main_unit.owns_the_slot")
-
-
-def test_the_main_funestra_keeps_the_cover_moving_while_it_reads_the_library():
-    """Reading the library takes seconds on a cold cache, and nothing else
-    presents a frame while the units are built."""
-    assert _keyword_given(funestras._run, "_MainUnit", "while_reading") == (
-        "lambda: _present_the_cover(session, renderer, cover)")
-
-
-def test_the_main_funestra_ticks_on_a_worker_of_its_own_at_genaus_rate():
-    tree = ast.parse(inspect.getsource(funestras._run))
-    workers = {
-        ast.unparse(call.keywords[-1].value): call
-        for call in ast.walk(tree)
-        if isinstance(call, ast.Call) and ast.unparse(call.func) == "start_daemon_thread"
-    }
-
-    main = workers["'main-funestra'"]
-    assert ast.unparse(next(k.value for k in main.keywords if k.arg == "args")) == (
-        "([main_unit], stop, perf)")
-    assert ast.unparse(next(k.value for k in main.keywords if k.arg == "kwargs")) == (
-        "{'hz': MAIN_TICK_HZ}")
-    assert ast.unparse(next(k.value for k in workers["'file-channels'"].keywords
-                            if k.arg == "args")) == "(pumped, stop, perf)"
-
-
-@pytest.mark.parametrize("screen", ["dash", "library"])
-def test_every_screen_is_registered_in_the_room(screen):
-    """Out of the room a screen is never painted, pumped, pointed at, drawn or
-    closed.  The dash was pumped, pointed at and placed in the layout and left
-    out of the eye pass, so it existed everywhere except in front of him."""
-    tree = ast.parse(inspect.getsource(funestras._run))
-    (units,) = [node for node in ast.walk(tree)
-                if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "units"]
-
-    assert screen in ast.unparse(units.value)
-
-
-def test_everything_the_room_closes_when_it_ends_has_a_close():
-    tree = ast.parse(inspect.getsource(funestras._run))
-    built = {node.targets[0].id: node.value for node in ast.walk(tree)
-             if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)}
-    (closing,) = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
-                  and ast.unparse(node.func) == "_close_channels"]
-
-    def made_by(expr):
-        if isinstance(expr, ast.Name):
-            yield from made_by(built[expr.id])
-        elif isinstance(expr, ast.Starred):
-            yield from made_by(expr.value)
-        elif isinstance(expr, (ast.List, ast.Tuple)):
-            for element in expr.elts:
-                yield from made_by(element)
-        elif isinstance(expr, ast.ListComp):
-            yield from made_by(expr.elt)
-        elif isinstance(expr, ast.Call):
-            yield getattr(funestras, ast.unparse(expr.func))
-
-    closed = list(made_by(closing.args[0]))
-
-    assert funestras.NoticeBoard in closed
-    assert [kind.__name__ for kind in closed if not callable(getattr(kind, "close", None))] == []
-
-
-def test_the_reveal_waits_for_the_cover_to_have_been_on_screen_not_for_a_wearer():
-    """The cover reads the same whether or not anyone is at the lenses, and
-    waiting for a WORN headset spent the whole 25s grace in 26 of his last 40
-    sessions -- so the reveal counts the frames the cover was drawn on."""
-    tree = ast.parse(inspect.getsource(funestras._run))
-    (note,) = [n for n in ast.walk(tree)
-               if isinstance(n, ast.Call) and ast.unparse(n.func) == "scene_ready.note"]
-    (counted,) = [n for n in ast.walk(tree)
-                  if isinstance(n, ast.Call)
-                  and ast.unparse(n.func) == "cover_on_screen.note"]
-
-    assert "read=cover_on_screen.dwelt" in ast.unparse(note)
-    assert "blank=blank" in ast.unparse(note)
-    assert ast.unparse(counted) == "cover_on_screen.note(covered)"
-
-
-def test_the_cover_holds_its_heading_once_a_wearer_has_had_time_at_it():
-    """Where it hangs is still the wearer's question: latched on a frame nobody
-    was at, the panel sits where he is not looking when he puts the headset on."""
-    tree = ast.parse(inspect.getsource(funestras._run))
-    (counted,) = [n for n in ast.walk(tree)
-                  if isinstance(n, ast.Call) and ast.unparse(n.func) == "cover_worn.note"]
-    (settled,) = [n for n in ast.walk(tree)
-                  if isinstance(n, ast.Assign)
-                  and ast.unparse(n.targets[0]) == "cover.anchor_settled"]
-
-    assert ast.unparse(counted) == "cover_worn.note(covered and session.focused)"
-    assert ast.unparse(settled.value) == "cover_worn.dwelt and session.views_tracked"
-
-
-def test_the_cover_is_told_it_is_waiting_on_him_only_once_the_room_is_up():
-    """Said before that, it would blame him for a launch still building the
-    room; said off the same value the reveal reads, the two cannot disagree."""
-    tree = ast.parse(inspect.getsource(funestras._run))
-    (told,) = [n for n in ast.walk(tree)
-               if isinstance(n, ast.Assign)
-               and ast.unparse(n.targets[0]) == "cover.awaiting_wearer"]
-
-    assert ast.unparse(told.value).replace("(", "").replace(")", "") == (
-        "not blank and not session.focused"
-    )
-
-
-def _posted(tree) -> list[str]:
-    return [ast.unparse(node) for node in ast.walk(tree)
-            if isinstance(node, ast.Call) and ast.unparse(node.func) == "posts.post"]
-
-
-def test_the_controllers_reach_the_frames_own_controls_and_the_worker():
-    tree = ast.parse(inspect.getsource(funestras._run))
-    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
-    (made,) = [call for call in calls if ast.unparse(call.func) == "Pointer"]
-    (closing,) = [node for node in ast.walk(tree)
-                  if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "closing"]
-
-    assert made.keywords == []
-    assert "posts.post(thumb.commands)" in _posted(tree)
-    assert "posts" in ast.unparse(closing.value)
-
-
-def test_the_room_hears_from_the_headset_whether_anyone_is_wearing_it():
-    tree = ast.parse(inspect.getsource(funestras._run))
-
-    assert "posts.post(wear.said(session.focused, now=time.monotonic()))" in _posted(tree)
-
-
-def test_a_carry_turns_the_room_whatever_the_main_funestra_is_showing():
-    """It used to turn the scene only while a video wrapped the viewer, and move
-    the Main Funestra's own placement otherwise; every carry turns the room now."""
-    tree = ast.parse(inspect.getsource(funestras._run))
-    carries = [node for node in ast.walk(tree)
-               if isinstance(node, ast.Call) and ast.unparse(node.func) == "carried_heading"]
-    conditions = [ast.unparse(node.test) for node in ast.walk(tree) if isinstance(node, ast.If)
-                  for inner in ast.walk(node) if inner in carries]
-
-    assert len(carries) == 1
-    assert not [test for test in conditions if "immersive" in test or "wrapped" in test]
-
-
 def test_the_headset_session_runs_ahead_of_background_work():
     tree = ast.parse(inspect.getsource(funestras.main))
     (scheduled,) = [n for n in ast.walk(tree)
@@ -1668,16 +1540,443 @@ def test_the_headset_session_runs_ahead_of_background_work():
     assert ast.unparse(scheduled.body) == "return _run(manifest, vr, args.manifest)"
 
 
-def test_a_squeeze_brings_forward_what_the_ray_and_the_eyes_both_see():
-    """One arrangement goes to the pointer and to the eye pass, so what a squeeze
-    lands on is what was in front -- and what it takes hold of is what moves."""
-    tree = ast.parse(inspect.getsource(funestras._run))
-    calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
-    handed = {ast.unparse(call.func): ast.unparse(keyword.value)
-              for call in calls for keyword in call.keywords if keyword.arg == "screens"}
+# --- The room as the headset hangs it ---
 
-    assert handed == {"pointer.frame": "screens", "_draw_eyes": "screens"}
-    assert "stacking.take(frame.taken)" in {ast.unparse(call) for call in calls}
+def _hang_a_room(tmp_path, *, present_the_cover=lambda: None, cover=None):
+    """The whole room, every collaborator that needs a device, a process or a
+    listener of its own faked."""
+    manifest = _manifest_for_a_vr_session(tmp_path)
+    with patch("fun_time_vr.funestras.LibraryHost"), \
+            patch("fun_time_vr.funestras.UnloggedNotices"), \
+            patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
+        return hang_the_room(
+            manifest, _A_SESSION, _NO_GL_CONTEXTS, manifest_path=tmp_path / "launch.ini",
+            cover=cover or CoverUnit(tmp_path), present_the_cover=present_the_cover)
+
+
+def _kinds_of_screen() -> dict[str, type]:
+    return {name: thing for name, thing in vars(funestras).items()
+            if isinstance(thing, type) and name.endswith("Unit")}
+
+
+class TestHangingTheRoom:
+    """Out of the room a screen is never painted, pumped, pointed at, drawn or
+    closed.  The dash was pumped, pointed at and placed in the layout and left
+    out of the eye pass, so it existed everywhere except in front of him."""
+
+    def test_it_holds_one_of_every_kind_of_screen_but_the_shared_base(
+            self, tmp_path, faked_collaborators):
+        kinds = _kinds_of_screen()
+        held = {name for name, kind in kinds.items()
+                if not any(other is not kind and issubclass(other, kind)
+                           for other in kinds.values())}
+        assert len(held) >= 8, "the gate below passes trivially if this ever comes back empty"
+
+        the_room = _hang_a_room(tmp_path)
+
+        assert {type(unit).__name__ for unit in the_room.units} == held
+
+    def test_everything_it_holds_answers_every_question_it_is_asked(
+            self, tmp_path, faked_collaborators):
+        """Half a screen -- pumped but never drawn, drawn but never closed -- is
+        what threading them by hand kept producing."""
+        the_room = _hang_a_room(tmp_path)
+
+        for unit in the_room.units:
+            for asked in ("hangings", "hangs_by", "put_back", "point", "pump",
+                          "render_latest_frame", "close"):
+                assert callable(getattr(unit, asked, None)), (type(unit).__name__, asked)
+
+    def test_the_cover_it_is_handed_hangs_in_it(self, tmp_path, faked_collaborators):
+        cover = CoverUnit(tmp_path)
+
+        the_room = _hang_a_room(tmp_path, cover=cover)
+
+        assert the_room.cover is cover
+        assert cover in the_room.units
+
+    def test_it_is_the_one_list_everything_is_read_off(self, tmp_path, faked_collaborators):
+        """One registration per screen: the same list is what is closed, what is
+        pumped (less the Main Funestra, on a worker of its own), what the pointer
+        reaches, what is drawn and what a drag moves."""
+        the_room = _hang_a_room(tmp_path)
+
+        assert all(unit in the_room.closing for unit in the_room.units)
+        assert the_room.pumped == [one for one in the_room.closing if one is not the_room.main_unit]
+        assert set(the_room.where) == set(room.where_they_hang(the_room.units))
+        assert the_room.hangings() == room.what_hangs(the_room.units)
+
+    def test_everything_it_closes_when_it_ends_has_a_close(self, tmp_path, faked_collaborators):
+        the_room = _hang_a_room(tmp_path)
+
+        assert any(isinstance(one, NoticeBoard) for one in the_room.closing)
+        assert the_room.posts in the_room.closing
+        assert [type(one).__name__ for one in the_room.closing
+                if not callable(getattr(one, "close", None))] == []
+
+    def _closed_by(self, the_room, *, keep_the_cover: bool) -> list:
+        closed: list = []
+        for one in the_room.closing:
+            one.close = partial(closed.append, one)
+        the_room.close(keep_the_cover=keep_the_cover)
+        return closed
+
+    def test_closing_it_closes_everything_it_holds(self, tmp_path, faked_collaborators):
+        the_room = _hang_a_room(tmp_path)
+
+        assert self._closed_by(the_room, keep_the_cover=False) == the_room.closing
+
+    def test_a_cover_kept_up_for_the_next_session_is_the_one_thing_left_open(
+            self, tmp_path, faked_collaborators):
+        the_room = _hang_a_room(tmp_path)
+
+        closed = self._closed_by(the_room, keep_the_cover=True)
+
+        assert the_room.cover not in closed
+        assert closed == [one for one in the_room.closing if one is not the_room.cover]
+
+    def test_the_main_funestra_ticks_on_a_worker_of_its_own_at_genaus_rate(
+            self, tmp_path, faked_collaborators):
+        the_room = _hang_a_room(tmp_path)
+        perf = FramePerf(logger=funestras.logger)
+        started: list[dict] = []
+
+        with patch("fun_time_vr.funestras.start_daemon_thread",
+                   side_effect=lambda **how: started.append(how) or SimpleNamespace(**how)):
+            workers = the_room.start_pumping(perf)
+
+        by_name = {one["name"]: one for one in started}
+        assert by_name["main-funestra"]["args"] == ([the_room.main_unit], the_room.stop, perf)
+        assert by_name["main-funestra"]["kwargs"] == {"hz": MAIN_TICK_HZ}
+        assert by_name["file-channels"]["args"] == (the_room.pumped, the_room.stop, perf)
+        assert all(one["target"] is funestras._pump_channels for one in started)
+        assert len(workers) == len(started) == 2
+
+    def test_the_browse_asks_whether_genau_has_the_main_slot(self, tmp_path, faked_collaborators):
+        the_room = _hang_a_room(tmp_path)
+
+        faked_collaborators["Funestra"].return_value.showing = MainMode.KINO
+        assert the_room.library._genau_has_the_slot() is False
+        faked_collaborators["Funestra"].return_value.showing = MainMode.GENAU
+        assert the_room.library._genau_has_the_slot() is True
+
+    def test_the_main_funestra_keeps_the_cover_moving_while_it_reads_the_library(
+            self, tmp_path, faked_collaborators):
+        """Reading the library takes seconds on a cold cache, and nothing else
+        presents a frame while the units are built."""
+        present = MagicMock()
+
+        _hang_a_room(tmp_path, present_the_cover=present)
+
+        assert faked_collaborators["_TheLibrary"].call_args.kwargs["while_reading"] is present
+
+    def test_the_cover_is_presented_between_the_funestras_being_built(
+            self, tmp_path, faked_collaborators):
+        """Each opens media, which takes long enough to notice."""
+        order: list[str] = []
+        faked_collaborators["Funestra"].side_effect = (
+            lambda *_args, **_kwargs: order.append("funestra") or MagicMock())
+
+        _hang_a_room(tmp_path, present_the_cover=lambda: order.append("cover"))
+
+        assert order == ["funestra", "cover", "funestra", "funestra", "cover"]
+
+    def test_it_opens_its_screens_where_the_last_session_left_them(
+            self, tmp_path, faked_collaborators):
+        moved = Placement(azimuth_deg=18.0, elevation_deg=-6.0, width_deg=95.0)
+        write_shared_state(shared_state_path(tmp_path), BridgeState(headset_layout=json.dumps({
+            MAIN: {"azimuth_deg": 18.0, "elevation_deg": -6.0, "width_deg": 95.0}})))
+
+        the_room = _hang_a_room(tmp_path)
+
+        assert the_room.main_unit.screen.placement == moved
+
+    def test_what_the_headset_says_about_its_wearer_goes_to_the_dashboard(
+            self, tmp_path, faked_collaborators):
+        the_room = _hang_a_room(tmp_path)
+        posted: list[str] = []
+        the_room.posts.post = posted.extend
+
+        the_room.note_the_wearer(True, now=10.0)
+
+        assert posted == [HEADSET_ON]
+
+
+# --- The cover's time in front of the eyes ---
+
+class TestWatchingTheCover:
+    def _watch(self, *, dwell_s: float = 0.0):
+        cover = SimpleNamespace(anchor_settled=None, awaiting_wearer=None, settled=MagicMock())
+        scene_ready = MagicMock()
+        watch = CoverWatch(cover, scene_ready, dwell_s=dwell_s)
+        return cover, scene_ready, watch
+
+    def test_the_reveal_waits_for_the_cover_to_have_been_on_screen_not_for_a_wearer(self):
+        """The cover reads the same whether or not anyone is at the lenses, and
+        waiting for a WORN headset spent the whole 25s grace in 26 of his last 40
+        sessions -- so the reveal counts the frames the cover was drawn on."""
+        cover, scene_ready, watch = self._watch()
+
+        watch.frame_ended(covered=True, focused=False, should_render=True, now=1.0)
+        watch.frame_began(blank=(), focused=False, views_tracked=True)
+
+        scene_ready.note.assert_called_with(blank=(), read=True)
+
+    def test_a_blank_screen_is_named_to_the_reveal(self):
+        cover, scene_ready, watch = self._watch()
+
+        watch.frame_began(blank=("portrait",), focused=False, views_tracked=True)
+
+        scene_ready.note.assert_called_with(blank=("portrait",), read=False)
+
+    def test_the_cover_holds_its_heading_once_a_wearer_has_had_time_at_it(self):
+        """Where it hangs is still the wearer's question: latched on a frame nobody
+        was at, the panel sits where he is not looking when he puts the headset on."""
+        cover, _scene_ready, watch = self._watch()
+
+        watch.frame_ended(covered=True, focused=False, should_render=True, now=1.0)
+        watch.frame_began(blank=(), focused=False, views_tracked=True)
+        unworn = cover.anchor_settled
+        watch.frame_ended(covered=True, focused=True, should_render=True, now=2.0)
+        watch.frame_began(blank=(), focused=True, views_tracked=True)
+        worn = cover.anchor_settled
+        watch.frame_began(blank=(), focused=True, views_tracked=False)
+
+        assert (unworn, worn, cover.anchor_settled) == (False, True, False)
+
+    def test_the_cover_is_told_it_is_waiting_on_him_only_once_the_room_is_up(self):
+        """Said before that, it would blame him for a launch still building the
+        room; said off the same value the reveal reads, the two cannot disagree."""
+        cover, _scene_ready, watch = self._watch()
+
+        watch.frame_began(blank=("main",), focused=False, views_tracked=True)
+        building = cover.awaiting_wearer
+        watch.frame_began(blank=(), focused=False, views_tracked=True)
+        built = cover.awaiting_wearer
+        watch.frame_began(blank=(), focused=True, views_tracked=True)
+
+        assert (building, built, cover.awaiting_wearer) == (False, True, False)
+
+    def test_the_cover_settles_on_a_frame_it_reached_or_that_nothing_reached(self):
+        """A quit made with the headset off would else buy the timeout and no cover."""
+        cover, _scene_ready, watch = self._watch()
+
+        watch.frame_ended(covered=False, focused=True, should_render=True, now=1.0)
+        assert not cover.settled.called
+        watch.frame_ended(covered=True, focused=True, should_render=True, now=2.0)
+        watch.frame_ended(covered=False, focused=True, should_render=False, now=3.0)
+
+        assert cover.settled.call_count == 2
+
+    def test_it_says_once_when_the_cover_went_up_and_once_when_it_came_down(self, caplog):
+        _cover, _scene_ready, watch = self._watch()
+
+        with caplog.at_level(logging.INFO, logger="fun_time_vr.funestras"):
+            watch.drawing(now=10.0)
+            watch.drawing(now=11.0)
+            watch.frame_ended(covered=False, focused=True, should_render=True, now=12.5)
+            watch.frame_ended(covered=False, focused=True, should_render=True, now=13.5)
+
+        assert caplog.messages == ["Cover drawing to the headset", "Cover down after 2.5s on screen"]
+
+
+# --- The controllers arranging the room, frame by frame ---
+
+def _a_view(*, yaw_deg: float = 0.0):
+    half = math.radians(yaw_deg) / 2
+    return SimpleNamespace(pose=SimpleNamespace(
+        position=SimpleNamespace(x=0.0, y=1.6, z=0.0),
+        orientation=SimpleNamespace(x=0.0, y=math.sin(half), z=0.0, w=math.cos(half))))
+
+
+class _APointer:
+    """A pointer answering a canned frame, so the room's answer to it is what is tested."""
+
+    squeezing = False
+
+    def __init__(self, *frames: Frame) -> None:
+        self._frames = list(frames)
+        self.let_go_asked = 0
+        self.handed: list = []
+
+    def let_go(self) -> None:
+        self.let_go_asked += 1
+
+    def spend_the_squeeze(self) -> None:
+        pass
+
+    def frame(self, hands, *, head, scene_rotation, screens) -> Frame:
+        self.handed.append(list(screens))
+        return self._frames.pop(0) if self._frames else Frame()
+
+
+def _a_room_to_arrange(*, main=None, satellites=(), others=()):
+    """A room of stand-ins: what the arrangement moves, asks and tells."""
+    main = main or _a_main_slot()
+    main.verbs.recenter = HostRequest()
+    main.verbs.layout_reset = HostRequest()
+    main.verbs.angle_asked = AngleRequest()
+    main.verbs.tilt_deg = 0.0
+    main.verbs.nudge_tilt = MagicMock()
+    main.can_dial_the_wrap = False
+    main.dial_the_wrap = MagicMock()
+    main.flash_the_readout = MagicMock()
+    satellites = list(satellites) or [_a_satellite(PORTRAIT), _a_satellite(LANDSCAPE)]
+    units = [main, *satellites, *others]
+    for unit in units:
+        unit.point = MagicMock()
+        unit.put_back = MagicMock()
+    return SimpleNamespace(
+        main_unit=main, satellites=satellites, units=units,
+        where=room.where_they_hang(units), hangings=lambda: room.what_hangs(units),
+        library=SimpleNamespace(takes_the_stick=False),
+        gallery=SimpleNamespace(takes_the_stick=False),
+        posts=MagicMock(), keeper=MagicMock(), pointing=MagicMock(),
+    )
+
+
+class TestArrangingTheRoom:
+    def _arrange(self, the_room, pointer=None, *, hands=None, views=None, now=5.0):
+        arranging = Arrangement(the_room, pointer=pointer or _APointer())
+        return arranging, arranging.arrange(
+            hands or {}, views or [_a_view()], elapsed_s=1 / 90, now=now)
+
+    def test_a_carry_turns_the_room_whatever_the_main_funestra_is_showing(self):
+        """It used to turn the scene only while a video wrapped the viewer, and move
+        the Main Funestra's own placement otherwise; every carry turns the room now."""
+        turned = []
+        for projection in (FLAT, EQUIRECT_180_SBS):
+            the_room = _a_room_to_arrange(main=_a_main_slot(projection=projection))
+            arranging, _arranged = self._arrange(
+                the_room, _APointer(Frame(carried=(90.0, 0.0))))
+            turned.append(arranging.scene_yaw)
+
+        assert turned == pytest.approx([-math.pi / 2, -math.pi / 2])
+
+    def test_a_lift_while_carrying_tilts_the_room_and_remembers_the_tilt_as_carried(self):
+        the_room = _a_room_to_arrange()
+        the_room.main_unit.verbs.nudge_tilt = lambda degrees: setattr(
+            the_room.main_unit.verbs, "tilt_deg", the_room.main_unit.verbs.tilt_deg + degrees)
+
+        _arranging, arranged = self._arrange(the_room, _APointer(Frame(carried=(0.0, 5.0))))
+
+        assert arranged.scene_pitch_deg == 5.0
+        the_room.keeper.tilt.assert_called_once_with(5.0, carried=True)
+
+    def test_recentering_turns_the_room_onto_the_wearers_heading(self):
+        the_room = _a_room_to_arrange()
+        the_room.main_unit.verbs.recenter.ask()
+
+        arranging, _arranged = self._arrange(the_room, views=[_a_view(yaw_deg=30.0)])
+
+        assert arranging.scene_yaw == pytest.approx(yaw_of_orientation(
+            (0.0, math.sin(math.radians(15.0)), 0.0, math.cos(math.radians(15.0)))))
+
+    def test_a_layout_reset_puts_every_screen_back_and_forgets_the_layout(self):
+        the_room = _a_room_to_arrange()
+        the_room.main_unit.verbs.layout_reset.ask()
+        pointer = _APointer()
+
+        self._arrange(the_room, pointer)
+
+        assert all(unit.put_back.called for unit in the_room.units)
+        the_room.keeper.forget.assert_called_once_with()
+        the_room.keeper.settle.assert_called_once_with()
+        assert pointer.let_go_asked == 1
+
+    def test_a_frame_that_moves_nothing_puts_nothing_back_and_settles_nothing(self):
+        the_room = _a_room_to_arrange()
+
+        self._arrange(the_room)
+
+        assert not any(unit.put_back.called for unit in the_room.units)
+        assert not the_room.keeper.settle.called
+        assert not the_room.keeper.place.called
+
+    def test_a_dragged_screen_hangs_where_it_was_dragged_and_is_remembered_there(self):
+        the_room = _a_room_to_arrange()
+        dragged = Placement(azimuth_deg=-50.0, elevation_deg=12.0, width_deg=30.0)
+
+        self._arrange(the_room, _APointer(Frame(moved={LANDSCAPE: dragged}, settled=True)))
+
+        assert the_room.where[LANDSCAPE].placement == dragged
+        the_room.keeper.place.assert_called_once_with(LANDSCAPE, dragged)
+        the_room.keeper.settle.assert_called_once_with()
+
+    def test_the_sticks_and_the_keyboard_dial_a_wrap_that_can_be_dialed(self):
+        the_room = _a_room_to_arrange()
+        the_room.main_unit.can_dial_the_wrap = True
+        the_room.main_unit.verbs.angle_asked.ask(1.5)
+
+        self._arrange(the_room)
+
+        the_room.main_unit.dial_the_wrap.assert_called_once_with(zoom=1.5, stretch=1.0)
+
+    def test_a_flat_frame_is_not_dialed(self):
+        the_room = _a_room_to_arrange()
+        the_room.main_unit.verbs.angle_asked.ask(1.5)
+
+        self._arrange(the_room)
+
+        assert not the_room.main_unit.dial_the_wrap.called
+
+    def test_the_main_funestra_is_asked_for_its_reading_every_frame(self):
+        the_room = _a_room_to_arrange()
+
+        self._arrange(the_room, now=7.0)
+
+        the_room.main_unit.flash_the_readout.assert_called_once_with(7.0)
+
+    def test_what_the_thumbs_ask_for_is_posted_to_the_dashboard(self):
+        the_room = _a_room_to_arrange()
+
+        self._arrange(the_room, hands={"right": HandInput(forward=True)})
+
+        the_room.posts.post.assert_called_once_with((NUDGE_FORWARD,))
+
+    def test_every_unit_is_pointed_at_with_the_frame(self):
+        the_room = _a_room_to_arrange()
+        frame = Frame(settled=True)
+
+        self._arrange(the_room, _APointer(frame))
+
+        for unit in the_room.units:
+            unit.point.assert_called_once_with(frame)
+
+    def test_a_squeeze_brings_forward_what_the_ray_and_the_eyes_both_see(self):
+        """One arrangement goes to the pointer and to the eye pass, so what a squeeze
+        lands on is what was in front -- and what it takes hold of is what moves."""
+        the_room = _a_room_to_arrange()
+        pointer = _APointer(Frame(taken=PORTRAIT))
+
+        arranging, first = self._arrange(the_room, pointer)
+        second = arranging.arrange({}, [_a_view()], elapsed_s=1 / 90, now=6.0)
+
+        assert pointer.handed[0] == first.screens
+        assert {screen.name for screen in first.screens} == {MAIN, PORTRAIT, LANDSCAPE}
+        assert pointer.handed[1] == second.screens
+        assert [screen.name for screen in second.screens][-1] == PORTRAIT
+
+    def test_the_eyes_are_handed_the_rooms_hangings_and_the_rotation_it_was_turned_to(self):
+        the_room = _a_room_to_arrange()
+
+        _arranging, arranged = self._arrange(the_room, _APointer(Frame(carried=(90.0, 0.0))))
+
+        assert arranged.hangings == room.what_hangs(the_room.units)
+        assert arranged.scene_rotation == pytest.approx(
+            funestras._scene_rotation(-math.pi / 2, 0.0))
+
+    def test_the_controllers_are_drawn_where_they_are_held(self):
+        the_room = _a_room_to_arrange()
+        frame = Frame()
+
+        _arranging, arranged = self._arrange(the_room, _APointer(frame))
+
+        the_room.pointing.update.assert_called_once()
+        handed_frame, handed_screens, held = the_room.pointing.update.call_args.args
+        assert handed_frame is frame
+        assert handed_screens == arranged.screens
+        assert held == []
 
 
 def _like(kind, stand_in):
@@ -1802,13 +2101,6 @@ class TestDialingTheMainFunestrasWrap:
 
         assert dialed == {}
 
-    def test_the_frame_loop_hands_the_sticks_and_the_keyboard_to_the_wrap(self):
-        loop = inspect.getsource(funestras._run)
-
-        assert "dialing=dialing" in loop
-        assert "zoom = main_unit.verbs.angle_asked.take()" in loop
-        assert "main_unit.dial_the_wrap(zoom=zoom, stretch=thumb.stretch)" in loop
-
 
 class TestTheReadoutOfAWrappedFrame:
     VIDEO = "C:/videos/wide.mp4"
@@ -1836,9 +2128,6 @@ class TestTheReadoutOfAWrappedFrame:
 
         assert flashed == [("Fisheye · 158° · height 1.20",
                             {"level": NOTICE, "screen": MAIN, "now": 1.0})]
-
-    def test_the_frame_loop_asks_the_main_funestra_for_its_reading_every_frame(self):
-        assert "main_unit.flash_the_readout(now)" in inspect.getsource(funestras._run)
 
 
 class TestTheBannerOverAWrappedFrame:
@@ -1889,10 +2178,6 @@ class TestTheBannerOverAWrappedFrame:
         _BannerUnit.pump(unit, None, now=3.0)
 
         assert _BannerUnit.hangings(unit) == ()
-
-    def test_the_banner_is_one_of_the_room(self):
-        assert "banner = _BannerUnit(main_unit, notices)" in inspect.getsource(funestras._run)
-        assert "banner, gallery, cover]" in inspect.getsource(funestras._run)
 
 
 class TestTheMainSlotUnderThePointer:
@@ -3070,7 +3355,7 @@ class TestPuttingTheRoomBack:
 
         assert unit.screen.placement == _LibraryUnit.SPOTS[LIBRARY]
 
-    @pytest.mark.parametrize("kind", [_ConsoleUnit, _ReferenceUnit, _CoverUnit])
+    @pytest.mark.parametrize("kind", [_ConsoleUnit, _ReferenceUnit, CoverUnit])
     def test_what_rides_on_another_screen_keeps_no_spot_and_is_left_riding(self, kind):
         """Each of these hangs off something else and finds its place again every
         frame, so putting the room back must not pull it off what it rides on."""

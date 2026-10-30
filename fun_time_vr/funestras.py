@@ -92,6 +92,7 @@ from .console_hud import DEG_PER_PX, HUD_WIDTH_PX, hud_hangs_from
 from .controller_mesh import controllers_strip
 from .cover import (
     COVER_CLEAR,
+    COVER_DWELL_S,
     COVER_WIDTH_DEG,
     WEARER_STATUS,
     Cover,
@@ -218,7 +219,7 @@ from .scene import (
 from .scheduling import ahead_of_background_work
 from .stacking import Stacking
 from .surfaces import HudBitmap, LatestFrame
-from .thumbs import Thumbs, strongest
+from .thumbs import Thumb, Thumbs, strongest
 from .video_thread import VideoThread
 from .wrap_readout import WrapReadout, readout
 
@@ -1442,7 +1443,7 @@ class _GalleryUnit:  # the hosted app's window
         self.screen.close()
 
 
-class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
+class CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
     SPOTS: dict[str, Placement] = {}
 
     def __init__(self, state_dir: Path) -> None:
@@ -1789,15 +1790,13 @@ def _update_quad_layer(
     )
 
 
-def _draw_cover(session, renderer: SceneRenderer, cover: _CoverUnit, views) -> None:
+def _draw_cover(session, renderer: SceneRenderer, cover: CoverUnit, views) -> None:
     """Fill both eyes with the cover: ground edge to edge, panel at the heading
     he is facing, latched once he is at the lenses (:class:`CoverAnchor`), through
     the rotation-only view matrix the scene uses so it holds still as he turns."""
     was_held = cover.anchor.held
-    heading = cover.anchor.heading(yaw_of_orientation((
-        views[0].pose.orientation.x, views[0].pose.orientation.y,
-        views[0].pose.orientation.z, views[0].pose.orientation.w,
-    )), settled=cover.anchor_settled)
+    heading = cover.anchor.heading(
+        yaw_of_orientation(_orientation_of(views[0])), settled=cover.anchor_settled)
     if was_held is None and cover.anchor.held is not None:
         logger.info("Cover placed at heading %.0f°", math.degrees(heading))
     hanging = yaw_rotation_matrix(heading)
@@ -1810,11 +1809,7 @@ def _draw_cover(session, renderer: SceneRenderer, cover: _CoverUnit, views) -> N
                 view.fov.angle_up, view.fov.angle_down,
                 0.05, 100.0,
             )
-            view_matrix = pose_to_view_matrix(
-                (0.0, 0.0, 0.0),
-                (view.pose.orientation.x, view.pose.orientation.y,
-                 view.pose.orientation.z, view.pose.orientation.w),
-            )
+            view_matrix = pose_to_view_matrix((0.0, 0.0, 0.0), _orientation_of(view))
             renderer.draw_screen(
                 cover.screen.mesh, cover.texture.texture,
                 np.ascontiguousarray(projection @ view_matrix @ hanging, dtype=np.float32),
@@ -1868,6 +1863,250 @@ def _hands_for_the_funestras(
     return {name: replace(hand, stick_x=0.0, stick_y=0.0) for name, hand in hands.items()}
 
 
+class TheRoom:
+    """Everything the headset hangs in front of him, and the one list each is read off."""
+
+    def __init__(
+        self, *, main_unit: _MainUnit, satellites: Sequence[_SatelliteUnit], dash: _DashUnit,
+        console: _ConsoleUnit, reference: _ReferenceUnit, library: _LibraryUnit,
+        banner: _BannerUnit, gallery: _GalleryUnit, cover: CoverUnit, notices: NoticeBoard,
+        keeper: _LayoutKeeper, posts: _ControllerPosts, pointing: _PointerDrawing,
+        cover_watch: CoverWatch, stop: threading.Event,
+    ) -> None:
+        self.main_unit = main_unit
+        self.satellites = tuple(satellites)
+        self.console = console
+        self.library = library
+        self.gallery = gallery
+        self.cover = cover
+        self.keeper = keeper
+        self.posts = posts
+        self.pointing = pointing
+        self.cover_watch = cover_watch
+        self.stop = stop
+        self.wear = HeadsetWear()
+        # Dash before the console, which hangs off where the dashboard ended up.
+        self.units = [main_unit, *self.satellites, dash, console, reference, library,
+                      banner, gallery, cover]
+        self.closing = [notices, *self.units, keeper, posts]
+        self.pumped = [one for one in self.closing if one is not main_unit]
+        self.where = room.where_they_hang(self.units)
+
+    @property
+    def videos(self) -> tuple[_VideoUnit, ...]:
+        return (self.main_unit, *self.satellites)
+
+    def start_pumping(self, perf: FramePerf) -> tuple[threading.Thread, threading.Thread]:
+        return (
+            start_daemon_thread(
+                target=_pump_channels, args=(self.pumped, self.stop, perf), name="file-channels"),
+            start_daemon_thread(
+                target=_pump_channels, args=([self.main_unit], self.stop, perf),
+                kwargs={"hz": MAIN_TICK_HZ}, name="main-funestra"),
+        )
+
+    def note_the_wearer(self, worn: bool, *, now: float) -> None:
+        self.posts.post(self.wear.said(worn, now=now))
+
+    def render_latest_frames(self) -> None:
+        for unit in self.units:
+            unit.render_latest_frame()
+
+    def still_blank(self) -> tuple[str, ...]:
+        return _still_blank(self.main_unit, self.satellites, self.console)
+
+    def route_audio(self) -> None:
+        for unit in self.videos:
+            unit.route_audio()
+
+    def hangings(self) -> list[Hanging]:
+        return room.what_hangs(self.units)
+
+    def close(self, *, keep_the_cover: bool) -> None:
+        _close_channels(self.closing, keep=self.cover if keep_the_cover else None)
+
+
+def hang_the_room(
+    manifest: LaunchManifest, vr: VrSettings, contexts, *, manifest_path: Path,
+    cover: CoverUnit, perf: FramePerf | None = None,
+    present_the_cover: Callable[[], object] = lambda: None,
+) -> TheRoom:
+    commands = manifest.commands
+    state_dir = Path(commands.dashboard_cmd_file).parent
+    remembered = remembered_layout(state_dir)
+    stop = threading.Event()
+    # One read of the event log per tick, pumped before every screen's banner.
+    notices = NoticeBoard(event_log_path(state_dir), unlogged=UnloggedNotices(state_dir))
+    main_unit = _MainUnit(
+        manifest, vr, contexts, remembered=remembered, stop=stop, notices=notices, perf=perf,
+        while_reading=present_the_cover)
+    present_the_cover()  # the Main Funestra has opened its media, and the satellites are next
+    satellites = [
+        _SatelliteUnit(funestra, manifest, contexts, vr=vr, remembered=remembered.placements,
+                       notices=notices, perf=perf)
+        for funestra in (PORTRAIT, LANDSCAPE)
+    ]
+    present_the_cover()
+    reference_flag = state_dir / REFERENCE_OPEN_FILENAME
+    dash = _DashUnit(
+        main_unit,
+        remembered=remembered.placements,
+        dashboard_cmd_file=Path(commands.dashboard_cmd_file),
+        notices=notices,
+        dashboard_state_file=Path(commands.dashboard_state_file),
+        reference_flag=reference_flag,
+        state_dir=Path(commands.state_dir),
+    )
+    console = _ConsoleUnit(main_unit, dash)
+    library = _LibraryUnit(
+        remembered=remembered.placements,
+        flag=state_dir / LIBRARY_OPEN_FILENAME,
+        host=LibraryHost(manifest_path=manifest_path, state_dir=state_dir),
+        main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
+        main_funestra_status_file=Path(commands.main_funestra_status_file),
+        genau_cmd_file=Path(commands.genau_cmd_file),
+        genau_status_file=Path(commands.genau_status_file),
+        genau_has_the_slot=lambda: not main_unit.owns_the_slot,
+        dashboard_cmd_file=Path(commands.dashboard_cmd_file),
+        metadata_root=_metadata_root(manifest),
+    )
+    return TheRoom(
+        main_unit=main_unit, satellites=satellites, dash=dash, console=console,
+        reference=_ReferenceUnit(dash, console, flag=reference_flag), library=library,
+        banner=_BannerUnit(main_unit, notices),
+        gallery=_GalleryUnit(remembered=remembered.placements, state_dir=state_dir,
+                             shared_state_file=shared_state_path(state_dir)),
+        cover=cover, notices=notices,
+        keeper=_LayoutKeeper(state_dir / LAYOUT_FILENAME, remembered),
+        posts=_ControllerPosts(Path(commands.dashboard_cmd_file)),
+        pointing=_PointerDrawing(),
+        cover_watch=CoverWatch(cover, SceneReady(scene_ready_file(state_dir))),
+        stop=stop,
+    )
+
+
+class CoverWatch:
+    """How long the cover has been in front of the eyes, and of a wearer's."""
+
+    def __init__(self, cover: CoverUnit, scene_ready: SceneReady, *,
+                 dwell_s: float = COVER_DWELL_S) -> None:
+        self._cover = cover
+        self._scene_ready = scene_ready
+        self._on_screen = CoverDwell(dwell_s=dwell_s)
+        self._worn = CoverDwell(dwell_s=dwell_s)
+        self._up_at: float | None = None
+        self._down_said = False
+
+    def frame_began(self, *, blank: Sequence[str], focused: bool, views_tracked: bool) -> None:
+        self._cover.anchor_settled = self._worn.dwelt and views_tracked
+        self._cover.awaiting_wearer = not blank and not focused  # set before he looks
+        self._scene_ready.note(blank=blank, read=self._on_screen.dwelt)
+
+    def drawing(self, now: float) -> None:
+        if self._up_at is None:
+            self._up_at = now
+            logger.info("Cover drawing to the headset")
+
+    def frame_ended(self, *, covered: bool, focused: bool, should_render: bool,
+                    now: float) -> None:
+        self._on_screen.note(covered)
+        self._worn.note(covered and focused)
+        if self._up_at is not None and not covered and not self._down_said:
+            self._down_said = True
+            logger.info("Cover down after %.1fs on screen", now - self._up_at)
+        if covered or not should_render:
+            self._cover.settled()
+
+
+@dataclass(frozen=True)
+class Arranged:
+    hangings: list[Hanging]
+    screens: list[Screen]  # back to front, as the eyes draw them
+    scene_rotation: np.ndarray
+    scene_yaw: float
+    scene_pitch_deg: float
+
+
+class Arrangement:
+    """The controllers' hold on the room, frame by frame."""
+
+    def __init__(self, the_room: TheRoom, *, pointer: Pointer | None = None) -> None:
+        self._room = the_room
+        self._pointer = pointer or Pointer()
+        self._thumbs = Thumbs()
+        self._stacking = Stacking()
+        # The recentering yaw, with the role's tilt read in beside it each frame.
+        self.scene_yaw = 0.0
+        self.scene_rotation = np.eye(4, dtype=np.float32)
+
+    def arrange(self, hands: Mapping[str, HandInput], views, *, elapsed_s: float,
+                now: float) -> Arranged:
+        the_room = self._room
+        main_unit = the_room.main_unit
+        verbs = main_unit.verbs
+        if verbs.recenter.take():
+            self.scene_yaw = yaw_of_orientation(_orientation_of(views[0]))
+            logger.info("Recentered the scene onto heading %.0f°", math.degrees(self.scene_yaw))
+        reset = verbs.layout_reset.take()
+        if reset:
+            self._pointer.let_go()
+            logger.info("Put the Funestras and the dashboard back in their default spots and sizes")
+        self.scene_rotation = _scene_rotation(self.scene_yaw, verbs.tilt_deg)
+        hangings = the_room.hangings()
+        screens = room.arranged(self._stacking, hangings)
+        head = head_position([_position_of(view) for view in views])
+        frame = self._pointer.frame(
+            hands, head=head, scene_rotation=self.scene_rotation, screens=screens)
+        if frame.taken is not None:
+            self._stacking.take(frame.taken)
+        dialing = main_unit.can_dial_the_wrap
+        thumb = self._thumbs.frame(
+            _hands_for_the_funestras(the_room.library, the_room.gallery, hands, elapsed_s=elapsed_s),
+            self._pointer, elapsed_s=elapsed_s, dialing=dialing)
+        the_room.posts.post(thumb.commands)
+        zoom = verbs.angle_asked.take()
+        if dialing:
+            main_unit.dial_the_wrap(zoom=zoom, stretch=thumb.stretch)
+        main_unit.flash_the_readout(now)
+        self.scene_yaw, lift_deg = carried_heading(self.scene_yaw, frame.carried)
+        verbs.nudge_tilt(lift_deg)
+        scene_pitch_deg = verbs.tilt_deg
+        self.scene_rotation = _scene_rotation(self.scene_yaw, scene_pitch_deg)
+        self._move(frame, thumb, reset=reset, lifted=bool(lift_deg), tilt_deg=scene_pitch_deg)
+        for unit in the_room.units:
+            unit.point(frame)
+        the_room.pointing.update(frame, screens, held_controllers(
+            hands, head=head, scene_rotation=self.scene_rotation))
+        return Arranged(hangings, screens, self.scene_rotation, self.scene_yaw, scene_pitch_deg)
+
+    def _move(self, frame: Frame, thumb: Thumb, *, reset: bool, lifted: bool,
+              tilt_deg: float) -> None:
+        the_room = self._room
+        funestras = {name: frame.moved.get(name, the_room.where[name].placement)
+                     for name in FUNESTRAS}
+        moved = frame.moved | rearranged(funestras, grow=thumb.grow, nearer_by=thumb.nearer)
+        for name, placement in moved.items():
+            the_room.where[name].put(placement)  # its own spot, of however many
+            the_room.keeper.place(the_room.where[name].spot(name), placement)
+        the_room.keeper.tilt(tilt_deg, carried=lifted)
+        if reset:
+            for unit in the_room.units:
+                unit.put_back()
+            the_room.keeper.forget()
+        if frame.settled or thumb.settled or reset:
+            the_room.keeper.settle()
+
+
+def _orientation_of(view) -> tuple[float, float, float, float]:
+    orientation = view.pose.orientation
+    return (orientation.x, orientation.y, orientation.z, orientation.w)
+
+
+def _position_of(view) -> tuple[float, float, float]:
+    position = view.pose.position
+    return (position.x, position.y, position.z)
+
+
 def _draw_eyes(
     session,
     renderer: SceneRenderer,
@@ -1894,11 +2133,7 @@ def _draw_eyes(
         )
         # Rotation only: the scene must not parallax with head
         # translation, or a projected sphere swims.
-        view_matrix = pose_to_view_matrix(
-            (0.0, 0.0, 0.0),
-            (view.pose.orientation.x, view.pose.orientation.y,
-             view.pose.orientation.z, view.pose.orientation.w),
-        )
+        view_matrix = pose_to_view_matrix((0.0, 0.0, 0.0), _orientation_of(view))
         view_proj = projection_matrix @ view_matrix @ scene_rotation
         view_proj32 = np.ascontiguousarray(view_proj, dtype=np.float32)
         if wrap is not None:
@@ -1915,7 +2150,7 @@ TEARDOWN_COVER_TIMEOUT_S = 1.0  # a couple of frames; past this, not worth it
 FIRST_COVER_TIMEOUT_S = 5.0  # the READY event, a frame or two after the session
 
 
-def _present_the_cover(session, renderer: SceneRenderer, cover: _CoverUnit) -> bool:
+def _present_the_cover(session, renderer: SceneRenderer, cover: CoverUnit) -> bool:
     """One frame of cover; whether it reached the eyes.  Never at the cost of
     the launch or quit it runs inside."""
     try:
@@ -1931,7 +2166,7 @@ def _present_the_cover(session, renderer: SceneRenderer, cover: _CoverUnit) -> b
         return False
 
 
-def _raise_the_cover(session, renderer: SceneRenderer, cover: _CoverUnit) -> None:
+def _raise_the_cover(session, renderer: SceneRenderer, cover: CoverUnit) -> None:
     """Get the cover in front of the eyes BEFORE the Funestras are built: built
     first and shown after, it was up for the tail of a launch that had already
     finished.  One frame here carries through the mpv bring-up."""
@@ -1950,7 +2185,7 @@ HEADSET_HOLD_TIMEOUT_S = 180.0
 
 
 def _hold_the_headset(
-    session, renderer: SceneRenderer, cover: _CoverUnit, state_dir: Path,
+    session, renderer: SceneRenderer, cover: CoverUnit, state_dir: Path,
 ) -> None:
     """Cover the headset until the next session releases it."""
     report_the_headset_held(state_dir)
@@ -1968,7 +2203,7 @@ def _hold_the_headset(
         logger.debug("Could not hold the headset's cover", exc_info=True)
 
 
-def _cover_the_teardown(session, renderer: SceneRenderer, cover: _CoverUnit) -> None:
+def _cover_the_teardown(session, renderer: SceneRenderer, cover: CoverUnit) -> None:
     """Raise the closing cover and hold it while this process comes apart.  The
     ordinary quit asks through the shutdown progress file; this is the other way
     out — window closed, interrupt, a runtime that ended the session."""
@@ -2001,261 +2236,137 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
         _show_error_popup(opened.message)
         return 1
     session = opened.session
-
     renderer = SceneRenderer()
-    contexts = session.shared_contexts()
     perf = FramePerf(logger=logger)
-    stop = threading.Event()
-    commands = manifest.commands
-    state_dir = Path(commands.dashboard_cmd_file).parent
-    layout_path = state_dir / LAYOUT_FILENAME
-    remembered = remembered_layout(state_dir)
+    state_dir = Path(manifest.commands.dashboard_cmd_file).parent
     # Before the Funestras and refreshed between them: each opens media.
-    cover = _CoverUnit(state_dir)
+    cover = CoverUnit(state_dir)
     _raise_the_cover(session, renderer, cover)
-    # One read of the event log per tick, pumped before every screen's banner.
-    notices = NoticeBoard(event_log_path(state_dir), unlogged=UnloggedNotices(state_dir))
-    main_unit = _MainUnit(
-        manifest, vr, contexts, remembered=remembered, stop=stop, notices=notices, perf=perf,
-        while_reading=lambda: _present_the_cover(session, renderer, cover))
-    _present_the_cover(session, renderer, cover)
-    satellites = [
-        _SatelliteUnit(funestra, manifest, contexts, vr=vr, remembered=remembered.placements,
-                       notices=notices, perf=perf)
-        for funestra in (PORTRAIT, LANDSCAPE)
-    ]
-    _present_the_cover(session, renderer, cover)
-    reference_flag = Path(state_dir) / REFERENCE_OPEN_FILENAME
-    dash = _DashUnit(
-        main_unit,
-        remembered=remembered.placements,
-        dashboard_cmd_file=Path(commands.dashboard_cmd_file),
-        notices=notices,
-        dashboard_state_file=Path(commands.dashboard_state_file),
-        reference_flag=reference_flag,
-        state_dir=Path(commands.state_dir),
-    )
-    console = _ConsoleUnit(main_unit, dash)
-    reference = _ReferenceUnit(dash, console, flag=reference_flag)
-    library = _LibraryUnit(
-        remembered=remembered.placements,
-        flag=Path(state_dir) / LIBRARY_OPEN_FILENAME,
-        host=LibraryHost(manifest_path=manifest_path, state_dir=Path(state_dir)),
-        main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
-        main_funestra_status_file=Path(commands.main_funestra_status_file),
-        genau_cmd_file=Path(commands.genau_cmd_file),
-        genau_status_file=Path(commands.genau_status_file),
-        genau_has_the_slot=lambda: not main_unit.owns_the_slot,
-        dashboard_cmd_file=Path(commands.dashboard_cmd_file),
-        metadata_root=_metadata_root(manifest),
-    )
-    banner = _BannerUnit(main_unit, notices)
-    gallery = _GalleryUnit(
-        remembered=remembered.placements,
-        state_dir=Path(state_dir),
-        shared_state_file=shared_state_path(Path(state_dir)),
-    )
-    keeper = _LayoutKeeper(layout_path, remembered)
-    scene_ready = SceneReady(scene_ready_file(state_dir))
-    cover_on_screen = CoverDwell()
-    cover_worn = CoverDwell()
-    posts = _ControllerPosts(Path(commands.dashboard_cmd_file))
-    wear = HeadsetWear()
-    # The room, each thing saying for itself what it hangs there.  Dash before
-    # The console hangs off where the dashboard ended up.
-    units = [main_unit, *satellites, dash, console, reference, library,
-             banner, gallery, cover]
-    closing = [notices, *units, keeper, posts]
-    # The Main Funestra ticks on a worker of its own, at Genau's rate.
-    pumped = [one for one in closing if one is not main_unit]
-    where = room.where_they_hang(units)
-    pointer = Pointer()
-    thumbs = Thumbs()
-    stacking = Stacking()
-    pointing = _PointerDrawing()
-    use_layers = vr.compositor_layers
-    # The recentering yaw, with the role's tilt read in beside it each frame.
-    scene_yaw = 0.0
-    scene_rotation = np.eye(4, dtype=np.float32)
-    last_frame_time = time.monotonic()
-    cover_up_at: float | None = None
-    cover_down_said = False
-    pump_thread = start_daemon_thread(
-        target=_pump_channels, args=(pumped, stop, perf), name="file-channels",
-    )
-    main_thread = start_daemon_thread(
-        target=_pump_channels, args=([main_unit], stop, perf), kwargs={"hz": MAIN_TICK_HZ},
-        name="main-funestra",
-    )
+    the_room = hang_the_room(
+        manifest, vr, session.shared_contexts(), manifest_path=manifest_path, cover=cover,
+        perf=perf, present_the_cover=lambda: _present_the_cover(session, renderer, cover))
+    workers = the_room.start_pumping(perf)
     logger.info(
         "Entering the VR loop (three Funestras up, compositor layers %s)",
-        "on" if use_layers else "off",
+        "on" if vr.compositor_layers else "off",
     )
-
     try:
-        while session.running and not stop.is_set():
-            session.poll_events()
-            posts.post(wear.said(session.focused, now=time.monotonic()))
-            if session.window_close_requested():
-                break
-            if cover.holding:
-                break  # the session is crossing over; the teardown holds it up
-
-            if not session.session_ready:
-                # The pump thread keeps every channel live while the headset
-                # warms up, so the orchestrator sees status the moment it asks.
-                cover.settled()  # nothing can be shown from here, cover included
-                glfw.poll_events()
-                time.sleep(0.01)
-                continue
-
-            now = time.monotonic()
-            frame_dt = now - last_frame_time
-            last_frame_time = now
-
-            t0 = time.perf_counter()
-            should_render, display_time, views = session.frame_begin()
-            t1 = time.perf_counter()
-            for unit in units:
-                unit.render_latest_frame()
-            blank = _still_blank(main_unit, satellites, console)
-            cover.anchor_settled = cover_worn.dwelt and session.views_tracked
-            cover.awaiting_wearer = not blank and not session.focused  # set before he looks
-            scene_ready.note(blank=blank, read=cover_on_screen.dwelt)
-            t2 = time.perf_counter()
-
-            quads = []
-            project = False
-            covered = False
-            t3 = t2
-            if should_render and views and cover.showing:
-                # No quads: the runtime composites those OVER our layer, so a
-                # screen submitted as one shows through the cover.
-                covered = True
-                if cover_up_at is None:
-                    cover_up_at = now
-                    logger.info("Cover drawing to the headset")
-                project = True
-                t3 = time.perf_counter()
-                _draw_cover(session, renderer, cover, views)
-            elif should_render and views:
-                if session.focused:
-                    for unit in (main_unit, *satellites):
-                        unit.route_audio()
-                if main_unit.verbs.recenter.take():
-                    scene_yaw = yaw_of_orientation((
-                        views[0].pose.orientation.x, views[0].pose.orientation.y,
-                        views[0].pose.orientation.z, views[0].pose.orientation.w,
-                    ))
-                    logger.info(
-                        "Recentered the scene onto heading %.0f°", math.degrees(scene_yaw)
-                    )
-                reset = main_unit.verbs.layout_reset.take()
-                if reset:
-                    pointer.let_go()
-                    logger.info(
-                        "Put the Funestras and the dashboard back in their default spots and sizes")
-                session.sync_controller(display_time)
-                scene_rotation = _scene_rotation(scene_yaw, main_unit.verbs.tilt_deg)
-                hangings = room.what_hangs(units)
-                screens = room.arranged(stacking, hangings)
-                head = head_position([
-                    (view.pose.position.x, view.pose.position.y, view.pose.position.z)
-                    for view in views
-                ])
-                frame = pointer.frame(
-                    session.hands, head=head, scene_rotation=scene_rotation, screens=screens)
-                if frame.taken is not None:
-                    stacking.take(frame.taken)
-                dialing = main_unit.can_dial_the_wrap
-                thumb = thumbs.frame(
-                    _hands_for_the_funestras(
-                        library, gallery, session.hands, elapsed_s=frame_dt),
-                    pointer, elapsed_s=frame_dt, dialing=dialing)
-                posts.post(thumb.commands)
-                zoom = main_unit.verbs.angle_asked.take()
-                if dialing:
-                    main_unit.dial_the_wrap(zoom=zoom, stretch=thumb.stretch)
-                main_unit.flash_the_readout(now)
-                scene_yaw, lift_deg = carried_heading(scene_yaw, frame.carried)
-                main_unit.verbs.nudge_tilt(lift_deg)
-                scene_pitch_deg = main_unit.verbs.tilt_deg
-                scene_rotation = _scene_rotation(scene_yaw, scene_pitch_deg)
-                funestras = {name: frame.moved.get(name, where[name].placement)
-                           for name in FUNESTRAS}
-                moved = frame.moved | rearranged(
-                    funestras, grow=thumb.grow, nearer_by=thumb.nearer)
-                for name, placement in moved.items():
-                    where[name].put(placement)  # its own spot, of however many
-                    keeper.place(where[name].spot(name), placement)
-                keeper.tilt(scene_pitch_deg, carried=bool(lift_deg))
-                if reset:
-                    for unit in units:
-                        unit.put_back()
-                    keeper.forget()
-                if frame.settled or thumb.settled or reset:
-                    keeper.settle()
-                for unit in units:
-                    unit.point(frame)
-                pointing.update(frame, screens, held_controllers(
-                    session.hands, head=head, scene_rotation=scene_rotation))
-                as_quads: set[str] = set()
-                if use_layers:
-                    # The mpv-backed screens as quads, out of the scene as each is
-                    # taken -- and a frame wrapping the view is never taken.
-                    for index, unit in enumerate([main_unit, *satellites]):
-                        if unit is main_unit and (
-                                main_unit.wraps_the_viewer or not main_unit.owns_the_slot):
-                            continue
-                        quad = _update_quad_layer(
-                            session, renderer, index, unit,
-                            math.degrees(scene_yaw), scene_pitch_deg,
-                        )
-                        if quad is not None:
-                            quads.append(quad)
-                            as_quads.add(unit.screen_name)
-                project = True  # the panel lives in the projection layer
-                t3 = time.perf_counter()
-                _draw_eyes(session, renderer, hangings, pointing, views, scene_rotation,
-                           screens=screens, as_quads=as_quads)
-            t4 = time.perf_counter()
-            session.frame_end(display_time, views, project=project, quads=quads)
-            t5 = time.perf_counter()
-            cover_on_screen.note(covered)
-            cover_worn.note(covered and session.focused)
-            if cover_up_at is not None and not covered and not cover_down_said:
-                cover_down_said = True
-                logger.info("Cover down after %.1fs on screen", now - cover_up_at)
-            if covered or not should_render:
-                cover.settled()
-            glfw.poll_events()
-            perf.note("wait", (t1 - t0) * 1e3)
-            perf.note("frames", (t2 - t1) * 1e3)
-            perf.note("layers", (t3 - t2) * 1e3)
-            perf.note("eyes", (t4 - t3) * 1e3)
-            perf.note("end", (t5 - t4) * 1e3)
-            perf.frame_done()
+        _show_the_room(session, renderer, the_room, perf, glfw, use_layers=vr.compositor_layers)
     except KeyboardInterrupt:
         logger.info("Interrupted")
     finally:
-        _cover_the_teardown(session, renderer, cover)
-        stop.set()
-        # Only to settle the file channels — funestra.mpv_gate makes the closes safe.
-        pump_thread.join(timeout=2.0)
-        main_thread.join(timeout=2.0)
-        held = headset_hold_asked(state_dir)
-        stop_runtime = held and headset_hold_stops_the_runtime(state_dir)  # while it is there
-        _close_channels(closing, keep=cover if held else None)
-        if held:
-            _hold_the_headset(session, renderer, cover, state_dir)
-            cover.close()
-        pointing.close()
-        renderer.close()
-        session.close()
-        logger.info("Shutdown complete")
-        if stop_runtime:  # the orchestrator that knew this exited under the hold
-            vr_runtime.stop_the_runtime_a_session_started(state_dir)
+        _tear_down(session, renderer, the_room, workers, state_dir)
     return 0
+
+
+def _show_the_room(session, renderer: SceneRenderer, the_room: TheRoom, perf: FramePerf,
+                   glfw, *, use_layers: bool) -> None:
+    arranging = Arrangement(the_room)
+    cover = the_room.cover
+    last_frame_time = time.monotonic()
+    while session.running and not the_room.stop.is_set():
+        session.poll_events()
+        the_room.note_the_wearer(session.focused, now=time.monotonic())
+        if session.window_close_requested():
+            break
+        if cover.holding:
+            break  # the session is crossing over; the teardown holds it up
+        if not session.session_ready:
+            # The pump thread keeps every channel live while the headset
+            # warms up, so the orchestrator sees status the moment it asks.
+            cover.settled()  # nothing can be shown from here, cover included
+            glfw.poll_events()
+            time.sleep(0.01)
+            continue
+        now = time.monotonic()
+        _frame(session, renderer, the_room, arranging, perf,
+               elapsed_s=now - last_frame_time, now=now, use_layers=use_layers)
+        last_frame_time = now
+        glfw.poll_events()
+
+
+def _frame(session, renderer: SceneRenderer, the_room: TheRoom, arranging: Arrangement,
+           perf: FramePerf, *, elapsed_s: float, now: float, use_layers: bool) -> None:
+    cover = the_room.cover
+    t0 = time.perf_counter()
+    should_render, display_time, views = session.frame_begin()
+    t1 = time.perf_counter()
+    the_room.render_latest_frames()
+    the_room.cover_watch.frame_began(
+        blank=the_room.still_blank(), focused=session.focused,
+        views_tracked=session.views_tracked)
+    t2 = time.perf_counter()
+    quads: list = []
+    project = covered = False
+    t3 = t2
+    if should_render and views and cover.showing:
+        # No quads: the runtime composites those OVER our layer, so a
+        # screen submitted as one shows through the cover.
+        covered = project = True
+        the_room.cover_watch.drawing(now)
+        t3 = time.perf_counter()
+        _draw_cover(session, renderer, cover, views)
+    elif should_render and views:
+        if session.focused:
+            the_room.route_audio()
+        session.sync_controller(display_time)
+        arranged = arranging.arrange(session.hands, views, elapsed_s=elapsed_s, now=now)
+        quads, as_quads = (_quad_layers(session, renderer, the_room, arranged) if use_layers
+                           else ([], set()))
+        project = True  # the panel lives in the projection layer
+        t3 = time.perf_counter()
+        _draw_eyes(session, renderer, arranged.hangings, the_room.pointing, views,
+                   arranged.scene_rotation, screens=arranged.screens, as_quads=as_quads)
+    t4 = time.perf_counter()
+    session.frame_end(display_time, views, project=project, quads=quads)
+    t5 = time.perf_counter()
+    the_room.cover_watch.frame_ended(
+        covered=covered, focused=session.focused, should_render=should_render, now=now)
+    perf.note("wait", (t1 - t0) * 1e3)
+    perf.note("frames", (t2 - t1) * 1e3)
+    perf.note("layers", (t3 - t2) * 1e3)
+    perf.note("eyes", (t4 - t3) * 1e3)
+    perf.note("end", (t5 - t4) * 1e3)
+    perf.frame_done()
+
+
+def _quad_layers(session, renderer: SceneRenderer, the_room: TheRoom,
+                 arranged: Arranged) -> tuple[list, set[str]]:
+    """The mpv-backed screens as quads, out of the scene as each is taken."""
+    quads: list = []
+    as_quads: set[str] = set()
+    main_unit = the_room.main_unit
+    for index, unit in enumerate(the_room.videos):
+        if unit is main_unit and (main_unit.wraps_the_viewer or not main_unit.owns_the_slot):
+            continue
+        quad = _update_quad_layer(
+            session, renderer, index, unit, math.degrees(arranged.scene_yaw),
+            arranged.scene_pitch_deg)
+        if quad is not None:
+            quads.append(quad)
+            as_quads.add(unit.screen_name)
+    return quads, as_quads
+
+
+def _tear_down(session, renderer: SceneRenderer, the_room: TheRoom,
+               workers: Sequence[threading.Thread], state_dir: Path) -> None:
+    _cover_the_teardown(session, renderer, the_room.cover)
+    the_room.stop.set()
+    # Only to settle the file channels -- funestra.mpv_gate makes the closes safe.
+    for worker in workers:
+        worker.join(timeout=2.0)
+    held = headset_hold_asked(state_dir)
+    stop_runtime = held and headset_hold_stops_the_runtime(state_dir)  # while it is there
+    the_room.close(keep_the_cover=held)
+    if held:
+        _hold_the_headset(session, renderer, the_room.cover, state_dir)
+        the_room.cover.close()
+    the_room.pointing.close()
+    renderer.close()
+    session.close()
+    logger.info("Shutdown complete")
+    if stop_runtime:  # the orchestrator that knew this exited under the hold
+        vr_runtime.stop_the_runtime_a_session_started(state_dir)
 
 
 if __name__ == "__main__":
