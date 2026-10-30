@@ -954,7 +954,7 @@ def start_voice_control(
         voice_controller = prepared.controller.result(timeout=ASKING_BUDGET_S)
     except Exception:
         return None, None
-    dispatch_runner.voice_controller = voice_controller
+    dispatch_runner.voice.controller = voice_controller
     dispatch_runner.hear_as_a_lock(voice_controller.hosted.lock_phrases)
     voice_controller.active_funestra = lambda: dispatch_runner.state.active_funestra
     voice_controller.hosted_sides = lambda: hosted_satellites(dispatch_runner.state,
@@ -989,7 +989,7 @@ def activate_origenerator_under_the_cover(
     *,
     progress: ProgressReporter,
 ) -> RfbSlot:
-    if not runner.activates_origenerator:
+    if not runner.opening.activates:
         return runner.state.rfb_slot
     started = time.monotonic()
 

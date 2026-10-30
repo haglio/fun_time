@@ -83,3 +83,17 @@ def with_what_the_funestras_report(state: BridgeState, reports: FunestraReports)
     if reports.headset_layout is not None:
         state = replace(state, headset_layout=reports.headset_layout)
     return state
+
+
+RECORD_EVERY_S = 1.0
+
+
+class FunestraReporting:
+    def __init__(self) -> None:
+        self._last_recorded = float("-inf")
+
+    def recorded(self, state: BridgeState, config, *, now: float) -> BridgeState:
+        if now - self._last_recorded < RECORD_EVERY_S:
+            return state
+        self._last_recorded = now
+        return with_what_the_funestras_report(state, read_funestra_reports(config))

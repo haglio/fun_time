@@ -15,7 +15,6 @@ any of them fails by name.
 """
 from __future__ import annotations
 
-import ast
 import itertools
 from pathlib import Path
 
@@ -76,48 +75,10 @@ def _handler_ids() -> frozenset[str]:
 
 
 def _loop_branch_ids() -> frozenset[str]:
-    """The ids _handle_command branches on, read from its source.
-
-    The loop's if/elif IS the definition of what it intercepts; a parallel
-    hand-kept list would be one more surface to miss.  Every comparison in it is
-    a literal or a named table of ids the loop imports (HELP_REFERENCE_COMMANDS,
-    HANDOFF_COMMANDS), so the parse is exact — a new branch shape, or a name
-    that is not a collection of ids, fails an assert below.
-    """
-    source = (_REPO_ROOT / "fun_time" / "windows_bridge_dispatch_loop.py").read_text(
-        encoding="utf-8"
-    )
-    tree = ast.parse(source)
-    handle = next(
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef) and node.name == "_handle_command"
-    )
-    ids: set[str] = set()
-    for node in ast.walk(handle):
-        if not isinstance(node, ast.Compare):
-            continue
-        left, comparator = node.left, node.comparators[0]
-        if not (isinstance(left, ast.Name) and left.id == "cmd"):
-            continue
-        if isinstance(node.ops[0], ast.NotIn):
-            continue  # the omnipause suspend-exempt guard, not a dispatch branch
-        if isinstance(comparator, ast.Constant):
-            ids.add(comparator.value)
-        elif isinstance(comparator, ast.Tuple):
-            ids.update(element.value for element in comparator.elts)
-        elif isinstance(comparator, ast.Name):
-            # A branch that reaches for a constant rather than repeating a
-            # literal — one spelling, two files.  dashboard_actions holds the
-            # ids the bar posts; the loop's own module holds the tables that
-            # group several of them under one branch.
-            named = getattr(dashboard_actions, comparator.id,
-                            getattr(windows_bridge_dispatch_loop, comparator.id, None))
-            assert named is not None, ast.dump(node)
-            ids.update({named} if isinstance(named, str) else named)
-        else:  # pragma: no cover - a new branch shape must be classified here
-            raise AssertionError(f"unrecognized _handle_command comparison: {ast.dump(node)}")
-    return frozenset(ids)
+    """The ids the loop answers itself: its own command table, and the headset's
+    two signals, which it takes ahead of the table."""
+    return (frozenset(windows_bridge_dispatch_loop._LOOP_COMMANDS)
+            | dashboard_actions.HEADSET_SIGNALS)
 
 
 def _reference_ids() -> frozenset[str]:

@@ -6,16 +6,23 @@ where the Funestra opens at its top: exactly where it left off.
 """
 from __future__ import annotations
 
+from collections.abc import Collection
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from funestra.file_channel import append_command
-from funestra.funestra_verbs import RELOAD_PLAYLIST
+from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST
 from funestra.playlist import read_playlist, write_playlist
 from funestra.satellite_hud import parse_hud
 
-from .bridge_records import SatelliteChannel
+from .bridge_records import BridgeConfig, SatelliteChannel
 from .modes import rotated_onto
+from .origenerator_switches import origenerator_shows
+from .room_funestras import RoomFunestra
 from .satellite_control import read_satellite_status
+
+if TYPE_CHECKING:
+    from .shared_state import BridgeState
 
 HudStamp = tuple[int, int] | None
 
@@ -99,3 +106,43 @@ def hand_back(channel: SatelliteChannel) -> bool:
         return False
     append_command(channel.cmd_file, RELOAD_PLAYLIST)
     return True
+
+
+# How long the hosted app is given to let go of the Funestras when origenerator
+# mode ends: a ceiling for an app that has stalled, not a wait anyone sits through.
+LET_GO_TIMEOUT_S = 3.0
+
+
+class Homecoming:
+    """Satellites on their way back from the hosted app: by when each lands,
+    and which of its hosted panels was up when it was sent for."""
+
+    def __init__(self) -> None:
+        self._coming: dict[RoomFunestra, tuple[float, HudStamp]] = {}
+
+    @property
+    def funestras(self) -> Collection[RoomFunestra]:
+        return self._coming.keys()
+
+    def expect(self, funestras: tuple[RoomFunestra, ...], config: BridgeConfig, *,
+               now: float) -> None:
+        for funestra in funestras:
+            self._coming[funestra] = (
+                now + LET_GO_TIMEOUT_S, hud_stamp(config.satellite(funestra)))
+
+    def bring(self, state: BridgeState, config: BridgeConfig, *, now: float) -> None:
+        """Hand each satellite its own list again once the hosted app has let
+        go of it, or has had long enough to -- never before, when a list the app
+        wrote after it would take the Funestra straight back."""
+        for funestra, (deadline, stamp) in list(self._coming.items()):
+            if origenerator_shows(state.satellite(funestra).mode):
+                del self._coming[funestra]
+                continue
+            channel = config.satellite(funestra)
+            if now < deadline and not let_go_since(channel, stamp):
+                continue
+            del self._coming[funestra]
+            hand_back(channel)
+            # The session's own hold stands again, whatever the app left.
+            append_command(channel.cmd_file,
+                           LOCK_ON if state.satellite(funestra).locked else LOCK_OFF)
