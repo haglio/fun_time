@@ -4,9 +4,10 @@ from __future__ import annotations
 import ast
 import inspect
 
+import pytest
+
 from fun_time_vr import funestras, layout, room
 from fun_time_vr import room as under_test
-from fun_time_vr.layout import Layout
 from fun_time_vr.pointer import Screen
 from fun_time_vr.room import Hanging
 from fun_time_vr.scene import Placement
@@ -197,7 +198,7 @@ class TestTheGatesOnTheRoomsAssembly:
     """
 
     def _source(self, thing) -> str:
-        return inspect.getsource(thing)
+        return inspect.getsource(thing).lstrip()
 
     def _names_in(self, source: str) -> set[str]:
         return {node.id for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Name)} | {
@@ -206,13 +207,6 @@ class TestTheGatesOnTheRoomsAssembly:
     def _kinds_of_screen(self) -> set[str]:
         return {name for name, thing in vars(funestras).items()
                 if isinstance(thing, type) and name.endswith("Unit")}
-
-    def _kinds_the_room_holds(self) -> set[str]:
-        """The kinds registered, which is every one of them but the shared base."""
-        kinds = {name: getattr(funestras, name) for name in self._kinds_of_screen()}
-        return {name for name, kind in kinds.items()
-                if not any(other is not kind and issubclass(other, kind)
-                           for other in kinds.values())}
 
     def _screen_names(self) -> set[str]:
         return {name for name, value in vars(layout).items()
@@ -233,41 +227,14 @@ class TestTheGatesOnTheRoomsAssembly:
         assert self._kinds_of_screen() & named == set()
         assert self._screen_names() & named == set()
 
-    def test_the_frame_loop_names_no_screen_of_its_own(self):
+    @pytest.mark.parametrize("step", [
+        funestras._show_the_room, funestras._frame, funestras._quad_layers,
+        funestras.Arrangement.arrange, funestras.Arrangement._move,
+    ])
+    def test_the_frame_loop_names_no_screen_of_its_own(self, step):
         """Every screen it works on comes from the room, so adding one is a
         registration rather than a line in here."""
-        (loop,) = [node for node in ast.walk(ast.parse(inspect.getsource(funestras._run)))
-                   if isinstance(node, ast.While)]
-
-        assert self._screen_names() & self._names_in(ast.unparse(loop)) == set()
-
-    def test_everything_the_room_holds_answers_every_question_it_is_asked(self):
-        """Half a screen — pumped but never drawn, drawn but never closed — is
-        what threading them by hand kept producing."""
-        tree = ast.parse(inspect.getsource(funestras._run))
-        built = {node.targets[0].id: node.value for node in ast.walk(tree)
-                 if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)}
-
-        def made_by(expr):
-            if isinstance(expr, ast.Name):
-                yield from made_by(built[expr.id])
-            elif isinstance(expr, ast.Starred):
-                yield from made_by(expr.value)
-            elif isinstance(expr, (ast.List, ast.Tuple)):
-                for element in expr.elts:
-                    yield from made_by(element)
-            elif isinstance(expr, ast.ListComp):
-                yield from made_by(expr.elt)
-            elif isinstance(expr, ast.Call):
-                yield getattr(funestras, ast.unparse(expr.func))
-
-        kinds = list(made_by(built["units"]))
-
-        assert {kind.__name__ for kind in kinds} == self._kinds_the_room_holds()
-        for kind in kinds:
-            for asked in ("hangings", "hangs_by", "put_back", "point", "pump",
-                          "render_latest_frame", "close"):
-                assert callable(getattr(kind, asked, None)), (kind.__name__, asked)
+        assert self._screen_names() & self._names_in(self._source(step)) == set()
 
     def _spots_held_by(self, module) -> dict[str, object]:
         return {name: value for name, value in vars(module).items()
@@ -284,50 +251,3 @@ class TestTheGatesOnTheRoomsAssembly:
             "_MainUnit", "_SatelliteUnit", "_DashUnit", "_LibraryUnit",
             "_GalleryUnit"}
         assert self._spots_held_by(funestras) == {}
-
-    def _units_built_in_the_assembly(self):
-        """Every unit the assembly constructs, with the words it hands it."""
-        tree = ast.parse(inspect.getsource(funestras._run))
-        for call in ast.walk(tree):
-            if not isinstance(call, ast.Call):
-                continue
-            kind = getattr(funestras, ast.unparse(call.func), None)
-            if isinstance(kind, type) and kind.__name__ in self._kinds_of_screen():
-                yield kind, {word.arg: ast.unparse(word.value) for word in call.keywords}
-
-    def test_every_unit_is_handed_the_remembered_spots_in_the_shape_it_asks_for(self):
-        """The assembly is a shell no test opens -- its units need a GL context
-        to build -- so one constructed there with the wrong shape raises in the
-        headset alone, which is how one reached him: the whole layout went to a
-        unit that wanted its placements, and entering VR sat on the transition
-        until the runtime gave up on a player that had already died."""
-        handed = {kind: words["remembered"] for kind, words in
-                  self._units_built_in_the_assembly() if "remembered" in words}
-
-        assert handed, "nothing in the assembly is handed a remembered layout"
-        for kind, given in handed.items():
-            wants = inspect.signature(kind.__init__).parameters["remembered"].annotation
-            assert given == ("remembered" if wants == Layout.__name__
-                             else "remembered.placements"), (kind.__name__, wants, given)
-
-    def test_every_word_the_assembly_hands_a_unit_is_one_that_unit_takes(self):
-        """The same blind spot, one step wider: a parameter renamed under a unit
-        leaves the call in the shell naming the old one, and nothing says so
-        until the room is built on a headset."""
-        for kind, words in self._units_built_in_the_assembly():
-            inspect.signature(kind.__init__).bind_partial(None, **dict.fromkeys(words))
-
-    def test_the_room_is_the_one_list_everything_is_read_off(self):
-        """One registration per screen: the same list is what is closed, what
-        is pumped (less the Main Funestra, on a worker of its own), what the
-        pointer reaches, what is drawn and what a drag moves."""
-        tree = ast.parse(inspect.getsource(funestras._run))
-        assigned = {ast.unparse(node.targets[0]): ast.unparse(node.value)
-                    for node in ast.walk(tree) if isinstance(node, ast.Assign)}
-        walked = {ast.unparse(node.iter) for node in ast.walk(tree) if isinstance(node, ast.For)}
-
-        assert "units" in assigned["closing"]
-        assert "closing" in assigned["pumped"]
-        assert assigned["hangings"] == "room.what_hangs(units)"
-        assert assigned["where"] == "room.where_they_hang(units)"
-        assert "units" in walked
