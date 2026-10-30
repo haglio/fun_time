@@ -5,8 +5,9 @@ from pathlib import Path
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.event_log import FAVORITE, NOTICE
+from fun_time.funestra_notices import read_funestra_notice
 from fun_time.role_windows import ChildPids, WindowRoles
-from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner, read_funestra_notice
+from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner
 from tests.role_window_fakes import MAIN_FUNESTRA_PID
 
 
@@ -76,9 +77,9 @@ class TestFlashFunestraNotices:
         _write(tmp_path / "main_player_notice.txt", 1, "warning", "full video not available")
 
         with caplog.at_level(logging.DEBUG):
-            loop._flash_funestra_notices()
+            loop.notices.flash_new()
             first = [r for r in caplog.records if "full video not available" in r.message]
-            loop._flash_funestra_notices()
+            loop.notices.flash_new()
             again = [r for r in caplog.records if "full video not available" in r.message]
 
         assert len(first) == 1
@@ -93,11 +94,11 @@ class TestFlashFunestraNotices:
         loop = self._loop(tmp_path)
         with caplog.at_level(logging.DEBUG):
             _write(tmp_path / "main_player_notice.txt", 1, "favorite", "funscript jump")
-            loop._flash_funestra_notices()
+            loop.notices.flash_new()
             _write(tmp_path / "main_player_notice.txt", 2, "notice", "full video")
-            loop._flash_funestra_notices()
+            loop.notices.flash_new()
             _write(tmp_path / "main_player_notice.txt", 3, "warning", "money shot not available")
-            loop._flash_funestra_notices()
+            loop.notices.flash_new()
 
         by_message = {r.message: r.levelno for r in caplog.records}
         assert by_message["funscript jump"] == FAVORITE
@@ -108,9 +109,9 @@ class TestFlashFunestraNotices:
         loop = self._loop(tmp_path)
         _write(tmp_path / "main_player_notice.txt", 1, "warning", "full video not available")
         with caplog.at_level(logging.DEBUG):
-            loop._flash_funestra_notices()
+            loop.notices.flash_new()
             _write(tmp_path / "main_player_notice.txt", 2, "warning", "money shot not available")
-            loop._flash_funestra_notices()
+            loop.notices.flash_new()
 
         assert any("money shot not available" in r.message for r in caplog.records)
 
@@ -123,8 +124,8 @@ class TestFlashFunestraNotices:
         _write(tmp_path / "landscape_notice.txt", 1, "favorite", "next funscripted")
 
         with caplog.at_level(logging.DEBUG):
-            loop._flash_funestra_notices()
-            loop._flash_funestra_notices()
+            loop.notices.flash_new()
+            loop.notices.flash_new()
 
         assert sorted((r.getMessage(), r.source, r.levelno) for r in caplog.records) == [
             ("next funscripted", "landscape", FAVORITE),
@@ -145,10 +146,10 @@ def test_a_notice_from_a_previous_session_does_not_flash_on_open(tmp_path):
     seen: list[str] = []
     handler = logging.Handler()
     handler.emit = lambda record: seen.append(record.getMessage())
-    logger = logging.getLogger("fun_time.windows_bridge_dispatch_loop")
+    logger = logging.getLogger("fun_time.funestra_notices")
     logger.addHandler(handler)
     try:
-        loop._flash_funestra_notices()
+        loop.notices.flash_new()
     finally:
         logger.removeHandler(handler)
 

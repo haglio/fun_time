@@ -25,7 +25,7 @@ from funestra.status import StatusWriter
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
-from fun_time import load_config
+from fun_time import load_config, windows_bridge_dispatch_loop
 from fun_time.aiming import resolve_active_funestra_command
 from fun_time.arrivals import keep_looking
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
@@ -34,7 +34,7 @@ from fun_time.crown import Crown
 from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import FAVORITE
-from fun_time.funestra_handover import keep_aside
+from fun_time.funestra_handover import LET_GO_TIMEOUT_S, keep_aside
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -64,7 +64,6 @@ from fun_time.window_layout import MonitorRect, secondary_monitor_rects
 from fun_time.windows_bridge_dispatch_loop import (
     _AHK_PASSTHROUGH_OPS,
     _OP_HANDLERS,
-    LET_GO_TIMEOUT_S,
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
     detect_sleep_gap,
@@ -1151,7 +1150,7 @@ class TestDispatchLoopRunner:
     def test_voice_off_mutes_voice_controller(self, tmp_path):
         runner = make_runner(tmp_path)
         vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
-        runner.voice_controller = vc
+        runner.voice.controller = vc
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("voice_off", encoding="utf-8")
 
@@ -1163,7 +1162,7 @@ class TestDispatchLoopRunner:
         runner = make_runner(tmp_path)
         vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
         vc.mute()
-        runner.voice_controller = vc
+        runner.voice.controller = vc
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("voice_toggle", encoding="utf-8")
 
@@ -1174,7 +1173,7 @@ class TestDispatchLoopRunner:
     def test_voice_toggle_mutes_when_not_muted(self, tmp_path):
         runner = make_runner(tmp_path)
         vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
-        runner.voice_controller = vc
+        runner.voice.controller = vc
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("voice_toggle", encoding="utf-8")
 
@@ -1186,7 +1185,7 @@ class TestDispatchLoopRunner:
         """The mute is this controller's alone, and the session that comes next is
         a new one with a controller of its own."""
         runner = make_runner(tmp_path)
-        runner.voice_controller = VoiceController(
+        runner.voice.controller = VoiceController(
             cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
         (tmp_path / "dashboard_cmd.txt").write_text("voice_off", encoding="utf-8")
 
@@ -1198,7 +1197,7 @@ class TestDispatchLoopRunner:
         runner = make_runner(tmp_path)
         vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
         vc.mute()
-        runner.voice_controller = vc
+        runner.voice.controller = vc
         (tmp_path / "dashboard_cmd.txt").write_text("voice_toggle", encoding="utf-8")
 
         runner.tick()
@@ -1209,7 +1208,7 @@ class TestDispatchLoopRunner:
             self, tmp_path):
         runner = make_runner(tmp_path)
         heard = []
-        runner.voice_controller = SimpleNamespace(
+        runner.voice.controller = SimpleNamespace(
             request_opened=lambda side: heard.append(("opened", side)),
             request_closed=lambda side: heard.append(("closed", side)),
             is_muted=False, unsuspend=lambda: None, suspend=lambda hold: None)
@@ -1226,7 +1225,7 @@ class TestDispatchLoopRunner:
         runner = make_runner(tmp_path)
         vc_cmd = tmp_path / "vc_cmd.txt"
         vc = VoiceController(cmd_file=vc_cmd, model_path="unused", clock=lambda: 0.0)
-        runner.voice_controller = vc
+        runner.voice.controller = vc
         runner.state = replace(runner.state, omni_paused=True)
 
         runner.tick()
@@ -1241,7 +1240,7 @@ class TestDispatchLoopRunner:
         vc_cmd = tmp_path / "vc_cmd.txt"
         vc = VoiceController(cmd_file=vc_cmd, model_path="unused")
         vc.suspend()
-        runner.voice_controller = vc
+        runner.voice.controller = vc
         runner.state = replace(runner.state, omni_paused=False)
 
         runner.tick()
@@ -1253,8 +1252,8 @@ class TestDispatchLoopRunner:
     def test_enter_carries_out_the_command_voice_was_not_sure_of(self, tmp_path):
         runner = make_runner(tmp_path)
         cmd_file = tmp_path / "dashboard_cmd.txt"
-        runner.voice_controller = VoiceController(cmd_file=cmd_file, model_path="unused")
-        runner.voice_controller.handle_heard(Heard(
+        runner.voice.controller = VoiceController(cmd_file=cmd_file, model_path="unused")
+        runner.voice.controller.handle_heard(Heard(
             Recognition(unconfirmed_phrase="landscape next"),
             spoken_at=1.0, peak=2000, audio=b"", candidates={}, words_formed=True))
         cmd_file.write_text("voice_accept", encoding="utf-8")
@@ -1272,7 +1271,7 @@ class TestDispatchLoopRunner:
     ):
         runner = make_runner(tmp_path)
         if listening:
-            runner.voice_controller = VoiceController(
+            runner.voice.controller = VoiceController(
                 cmd_file=tmp_path / "dashboard_cmd.txt", model_path="unused")
         (tmp_path / "dashboard_cmd.txt").write_text("voice_accept", encoding="utf-8")
         flashed = []
@@ -1439,7 +1438,7 @@ class TestWhatASpokenCommandFlashes:
     def test_a_clip_save_that_answers_once_it_lands_says_nothing_now(self, tmp_path):
         spoken = format_spoken_command("genaumacher_save", spoken_at=1.0, said="save clip")
 
-        with patch.object(DispatchLoopRunner, "_handle_genaumacher_save"):
+        with patch.object(windows_bridge_dispatch_loop, "save_and_say"):
             assert self._flashed(tmp_path, spoken, [WindowOp(op="save_clip")]) == []
 
     def test_a_narrowing_that_says_its_words_where_it_is_done_says_nothing_now(self, tmp_path):
@@ -1800,7 +1799,7 @@ class TestAClickIntoATextField:
 
         with (
             patch("fun_time.role_windows.find_window_for_process", side_effect=lookup_hosted),
-            patch("fun_time.windows_bridge_dispatch_loop.window_process",
+            patch("fun_time.role_windows.window_process",
                   side_effect={HOSTED_HWND: origenerator_process}.get),
         ):
             runner.tick()
@@ -1870,9 +1869,9 @@ class TestWhatArrivesInTheLibrary:
     def test_each_tick_hands_it_to_the_room_holding_the_satellites_on_their_way_home(
             self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.expect_the_funestras_home((RoomFunestra.PORTRAIT,), now=time.monotonic() + 3600)
+        runner.homecoming.expect((RoomFunestra.PORTRAIT,), runner.config, now=time.monotonic() + 3600)
 
-        with patch("fun_time.windows_bridge_dispatch_loop.let_go_since", return_value=False), \
+        with patch("fun_time.funestra_handover.let_go_since", return_value=False), \
              patch.object(runner.latest_arrivals, "deliver") as deliver:
             runner.tick()
 
@@ -2416,7 +2415,7 @@ class TestWhatAPausedRoomCarriesOut:
         now = [5.0]
         vc = VoiceController(cmd_file=tmp_path / "dashboard_cmd.txt", model_path="unused",
                              clock=lambda: now[0])
-        runner.voice_controller = vc
+        runner.voice.controller = vc
         runner.tick()
         now[0] = 10.0
         runner.state = replace(runner.state, omni_paused=True)
@@ -2443,7 +2442,7 @@ class TestWhatAPausedRoomCarriesOut:
     def test_a_spoken_resume_still_un_pauses(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
-        with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
+        with patch.object(windows_bridge_dispatch_loop, "_toggle_omnipause") as mock_toggle:
             runner._handle_command("play", spoken_at=123.0)
         mock_toggle.assert_called_once()
 
@@ -2528,11 +2527,11 @@ class TestWithTheHeadsetOff:
         runner = make_runner(tmp_path)
         runner._last_watch_sample = float("inf")
         vc_cmd = tmp_path / "vc_cmd.txt"
-        runner.voice_controller = VoiceController(cmd_file=vc_cmd, model_path="unused",
+        runner.voice.controller = VoiceController(cmd_file=vc_cmd, model_path="unused",
                                                   clock=lambda: 0.0)
 
         runner._handle_command(HEADSET_OFF)
-        runner.voice_controller._write_spoken("landscape next", spoken_at=1.0)
+        runner.voice.controller._write_spoken("landscape next", spoken_at=1.0)
 
         assert not vc_cmd.exists()
 
@@ -2553,7 +2552,7 @@ class TestIdempotentVoiceCommands:
     def test_pause_enters_omnipause_when_not_paused(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
-        with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
+        with patch.object(windows_bridge_dispatch_loop, "_toggle_omnipause") as mock_toggle:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("pause", encoding="utf-8")
             runner.tick()
@@ -2562,7 +2561,7 @@ class TestIdempotentVoiceCommands:
     def test_pause_noop_when_already_paused(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
-        with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
+        with patch.object(windows_bridge_dispatch_loop, "_toggle_omnipause") as mock_toggle:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("pause", encoding="utf-8")
             runner.tick()
@@ -2571,7 +2570,7 @@ class TestIdempotentVoiceCommands:
     def test_play_leaves_omnipause_when_paused(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
-        with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
+        with patch.object(windows_bridge_dispatch_loop, "_toggle_omnipause") as mock_toggle:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("play", encoding="utf-8")
             runner.tick()
@@ -2580,7 +2579,7 @@ class TestIdempotentVoiceCommands:
     def test_play_noop_when_not_paused(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
-        with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
+        with patch.object(windows_bridge_dispatch_loop, "_toggle_omnipause") as mock_toggle:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("play", encoding="utf-8")
             runner.tick()
@@ -2841,10 +2840,10 @@ class TestIdempotentVoiceCommands:
         the one command whose confirmation trails the keypress."""
         runner = make_runner(tmp_path)
         with patch(
-            "fun_time.windows_bridge_dispatch_loop.save_clip_session",
+            "fun_time.genaumacher_save.save_clip_session",
             return_value="Genaumacher: fabricated-session",
         ) as mock_save, caplog.at_level(
-            logging.INFO, logger="fun_time.windows_bridge_dispatch_loop"
+            logging.INFO, logger="fun_time.genaumacher_save"
         ):
             (tmp_path / "dashboard_cmd.txt").write_text("genaumacher_save", encoding="utf-8")
             runner.tick()
@@ -2865,9 +2864,9 @@ class TestIdempotentVoiceCommands:
         an empty notice would flash an empty rectangle."""
         runner = make_runner(tmp_path)
         with patch(
-            "fun_time.windows_bridge_dispatch_loop.save_clip_session", return_value=""
+            "fun_time.genaumacher_save.save_clip_session", return_value=""
         ) as mock_save, caplog.at_level(
-            logging.INFO, logger="fun_time.windows_bridge_dispatch_loop"
+            logging.INFO, logger="fun_time.genaumacher_save"
         ):
             (tmp_path / "dashboard_cmd.txt").write_text("genaumacher_save", encoding="utf-8")
             runner.tick()
@@ -3704,7 +3703,7 @@ class TestOpeningInOrigeneratorMode:
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
 
-        assert runner.activates_origenerator
+        assert runner.opening.activates
         runner.activate_origenerator(wait_for_the_app=self._the_app_answers)
 
         assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
@@ -3861,7 +3860,7 @@ class TestTheFunestrasComeHome:
             keep_aside(channel)
             write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "image.png")])
             publish_whole(channel.origenerator_hud_file, f'{{"Funestra": "{funestra.label}"}}')
-        runner.expect_the_funestras_home(RoomFunestra.SATELLITES, now=100.0)
+        runner.homecoming.expect(RoomFunestra.SATELLITES, runner.config, now=100.0)
         return runner, config
 
     @staticmethod
@@ -3877,7 +3876,7 @@ class TestTheFunestrasComeHome:
         runner, config = self._left_for_origenerator(tmp_path, locked=True)
         self._lets_go_of(config, RoomFunestra.PORTRAIT)
 
-        runner.bring_the_funestras_home(now=100.5)
+        runner.homecoming.bring(runner.state, runner.config, now=100.5)
 
         assert self._queued(config, RoomFunestra.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_ON"]
         assert self._queued(config, RoomFunestra.LANDSCAPE) == []    # still the app's
@@ -3886,7 +3885,7 @@ class TestTheFunestrasComeHome:
         """An app that has stalled or gone does not get to keep the Funestras."""
         runner, config = self._left_for_origenerator(tmp_path)
 
-        runner.bring_the_funestras_home(now=100.0 + LET_GO_TIMEOUT_S + 0.1)
+        runner.homecoming.bring(runner.state, runner.config, now=100.0 + LET_GO_TIMEOUT_S + 0.1)
 
         assert self._queued(config, RoomFunestra.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
         assert self._queued(config, RoomFunestra.LANDSCAPE) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
@@ -3896,12 +3895,12 @@ class TestTheFunestrasComeHome:
         runner.state = _in_origenerator_mode(runner.state, RoomFunestra.PORTRAIT)
         self._lets_go_of(config, RoomFunestra.PORTRAIT)
 
-        runner.bring_the_funestras_home(now=100.5)
+        runner.homecoming.bring(runner.state, runner.config, now=100.5)
 
         assert self._queued(config, RoomFunestra.PORTRAIT) == []
         runner.state = runner.state.with_satellite(RoomFunestra.PORTRAIT,
                                                    mode=SatellitesMode.KINO)
-        runner.bring_the_funestras_home(now=100.6)
+        runner.homecoming.bring(runner.state, runner.config, now=100.6)
         assert self._queued(config, RoomFunestra.PORTRAIT) == []     # nothing owed any more
 
     def test_a_side_the_app_had_not_taken_yet_waits_for_it_to_let_go(self, tmp_path):
@@ -3910,9 +3909,9 @@ class TestTheFunestrasComeHome:
         leave the Funestra on the app's."""
         runner, config = self._left_for_origenerator(tmp_path)
         self._lets_go_of(config, RoomFunestra.PORTRAIT)
-        runner.expect_the_funestras_home(RoomFunestra.SATELLITES, now=101.0)
+        runner.homecoming.expect(RoomFunestra.SATELLITES, runner.config, now=101.0)
 
-        runner.bring_the_funestras_home(now=101.5)
+        runner.homecoming.bring(runner.state, runner.config, now=101.5)
 
         assert self._queued(config, RoomFunestra.PORTRAIT) == []
 
@@ -3921,10 +3920,10 @@ class TestTheFunestrasComeHome:
         runner = make_runner(tmp_path, config=config)
         runner.state = _in_origenerator_mode(replace(runner.state, origenerator_ready=True))
 
-        with patch.object(runner, "expect_the_funestras_home") as expect:
+        with patch.object(runner.homecoming, "expect") as expect:
             runner._dispatch("portrait_kino_activate")
 
-        assert expect.call_args.args == ((RoomFunestra.PORTRAIT,),)
+        assert expect.call_args.args == ((RoomFunestra.PORTRAIT,), runner.config)
 
 
 SECONDARY_MONITOR = MonitorRect(2560, 0, 1440, 3440)

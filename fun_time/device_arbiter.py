@@ -16,6 +16,7 @@ from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from .funestra_status import ScriptedStatus, read_main_funestra_status
 from .mode_plan import kino_shows
+from .osr2_section import funestra_with_the_osr2
 from .room_funestras import RoomFunestra
 from .satellite_control import read_satellite_status
 
@@ -68,6 +69,10 @@ class DeviceArbiter:
         turn = self._turn(main_mode, paused=paused, control=control, holder=holder)
         if turn != self._stated and self._state(turn):
             self._stated = turn
+
+    def follow(self, state) -> None:
+        main_mode, paused, control, holder = who_drives_the_osr2(state)
+        self.sync(main_mode, paused=paused, control=control, holder=holder)
 
     def _turn(self, main_mode: str, *, paused: bool, control: str,
               holder: RoomFunestra) -> Osr2Turn:
@@ -157,3 +162,7 @@ class DeviceArbiter:
         if self._park_touch_deadline is None:
             self._park_touch_deadline = now + PARK_TOUCH_WAIT_CAP_MS / 1000
         return now < self._park_touch_deadline
+
+
+def who_drives_the_osr2(state) -> tuple[str, bool, str, RoomFunestra]:
+    return state.main_mode, state.omni_paused, state.osr2_control, funestra_with_the_osr2(state)

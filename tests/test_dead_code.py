@@ -113,7 +113,7 @@ def test_no_module_reaches_into_another_ones_privates():
     )
 
 
-MAX_PROSE_LINES = 5624
+MAX_PROSE_LINES = 5597
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
@@ -281,4 +281,25 @@ def test_nothing_new_binds_win32_under_the_layer_that_exists_to():
         "the direct-binding count moved.  A file that is new here reaches "
         "ctypes.windll instead of asking fun_time.win32 or fun_time.monitors; "
         "a count that came down is one to lower here in the same commit."
+    )
+
+
+# The dispatch loop's own methods, held as an equality: every feature since the
+# first pass cut it to 26 landed as glue on the loop, each with a module of its
+# own standing beside it.  A count that came down is one to lower here in the
+# same commit; one that went up is glue to move onto its collaborator.
+DISPATCH_LOOP_METHODS = 22
+
+
+def test_the_dispatch_loops_glue_stays_on_its_collaborators():
+    tree = ast.parse(
+        (ROOT / "fun_time" / "windows_bridge_dispatch_loop.py").read_text(encoding="utf-8"))
+    runner = next(node for node in tree.body
+                  if isinstance(node, ast.ClassDef) and node.name == "DispatchLoopRunner")
+    methods = [node.name for node in runner.body
+               if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    assert len(methods) == DISPATCH_LOOP_METHODS, (
+        f"DispatchLoopRunner has {len(methods)} methods: {methods}.  A feature's "
+        "glue goes on the collaborator that holds it; a count that came down is "
+        "one to lower here in the same commit."
     )

@@ -73,3 +73,24 @@ class TextFieldClicks:
         if now >= self._released_at + LATE_S:
             self._press = None
         return None
+
+
+class TypingWatch:
+    def __init__(self, sightings: Sightings | None, *, typed_into: Callable[[Seen], bool]) -> None:
+        self._sightings = sightings
+        self._clicks = TextFieldClicks(watched=typed_into)
+
+    def start(self) -> None:
+        if self._sightings is not None:
+            self._sightings.start()
+
+    def stop(self) -> None:
+        if self._sightings is not None:
+            self._sightings.stop()
+
+    def clicked_into_a_text_field(self, *, now: float) -> bool:
+        if self._sightings is None:
+            return False
+        for seen in self._sightings.take():
+            self._clicks.saw(seen)
+        return self._clicks.clicked_into(now=now) is not None

@@ -28,6 +28,7 @@ from .win32 import (
     place_window,
     restore_window,
     set_always_on_top,
+    window_process,
     window_rect,
 )
 from .window_layout import SecondaryMonitorRects, WindowRect
@@ -275,6 +276,16 @@ class WindowRoles:
 
     def seat(self, rects: SecondaryMonitorRects) -> None:
         self.place([("portrait", rects.portrait), ("main_player", rects.main)])
+
+    def takes_typing(self, window: int, process: int, *, hosted_app: bool) -> bool:
+        """Whether a press on *window* of *process* can land in a text field of
+        this session's: the Random Favs Browser's window, or the hosted app's."""
+        if self.rfb_hwnd and window == self.rfb_hwnd:
+            return True
+        if not hosted_app or not process:
+            return False
+        hwnd = self.hwnd(ORIGENERATOR_ROLE)
+        return bool(hwnd) and process == window_process(hwnd)
 
     def place(self, placements: Iterable[tuple[str, WindowRect]]) -> None:
         moves = []
