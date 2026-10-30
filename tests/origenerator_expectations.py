@@ -17,9 +17,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from fun_time.bridge_records import BridgeConfig
-from fun_time.command_dispatch import dispatch_command, said_to_the_hosted_app
+from fun_time.command_dispatch import dispatch_command
 from fun_time.filter_vocab import decode_filter_command, set_command
-from fun_time.hosted_contract import SAID_AT_FIELD
+from fun_time.hosted_contract import SAID_AT_FIELD, said_to_the_hosted_app
 from fun_time.hosted_origenerator import the_session_it_is_handed, what_an_adopted_app_is_told
 from fun_time.lock import go_to_line
 from fun_time.manifest import LaunchManifest
@@ -150,7 +150,7 @@ def _both_shows_hosted() -> BridgeState:
 def _the_rooms_f_mode(room: BridgeConfig) -> None:
     for funestra in RoomFunestra.SATELLITES:
         publish_the_show(room, funestra, f_mode=False)
-    with patch("fun_time.command_dispatch.apply_fmode",
+    with patch("fun_time.f_mode.apply_fmode",
                return_value=SimpleNamespace(funestras=(), log_message="")):
         dispatch_command("fmode_toggle", _both_shows_hosted(), room)
 

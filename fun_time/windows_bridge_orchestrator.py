@@ -35,7 +35,6 @@ from .append_only import append_line
 from .broker_control import write_broker_command
 from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
-from .command_dispatch import hosted_satellites
 from .config import load_config
 from .crown import majority_now
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
@@ -57,7 +56,7 @@ from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
 from .modes import collect_video_files
-from .origenerator_switches import CLOSE_SLIDESHOWS, RfbSlot
+from .origenerator_switches import CLOSE_SLIDESHOWS, RfbSlot, hosted_satellites
 from .osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from .overlay_progress import (
     ACTIVATING_ORIGENERATOR,

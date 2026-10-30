@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import replace
 from enum import StrEnum
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -11,6 +12,7 @@ from funestra.hud_marks import shared_mark
 from .mode_plan import kino_shows
 
 if TYPE_CHECKING:
+    from .bridge_records import BridgeConfig, WindowOp
     from .role_windows import WindowRoles
     from .shared_state import BridgeState
     from .window_layout import SecondaryMonitorRects
@@ -63,3 +65,11 @@ class Seating:
         most = majority_now(state, self._main_funestra_status_file, self._genau_status_file)
         windows.seat(self._rects(majority=most))
         return state if most is state.majority else replace(state, majority=most)
+
+
+def crowned(crown: Crown, state: BridgeState, _config: BridgeConfig,
+           _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return replace(state, crowned=crown), []
+
+
+HANDLERS = {command: partial(crowned, crown) for command, crown in CROWNS.items()}

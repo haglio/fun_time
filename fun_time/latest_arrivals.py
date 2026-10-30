@@ -10,12 +10,12 @@ from funestra.funestra_verbs import play_next
 
 from .arrivals import Arrivals
 from .bridge_records import BridgeConfig
-from .command_dispatch import hosts
 from .funestra_status import read_main_funestra_status
 from .main_list import MainListSettings
 from .media_metadata import learn_indexed_clip
 from .mode_plan import kino_shows
 from .modes import collect_video_files, satellite_narrowing, scripted_item
+from .origenerator_switches import hosts
 from .room_funestras import RoomFunestra
 from .shared_state import BridgeState
 

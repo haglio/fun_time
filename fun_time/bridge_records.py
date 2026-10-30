@@ -2,9 +2,11 @@
 :class:`WindowOp` out — below the dispatcher and its handler modules."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app_support import state_files
 
@@ -14,6 +16,9 @@ from .loopback_server import LOOPBACK_PORT
 from .main_list import MainList
 from .main_list_builds import BUILDS_HERE, MainListBuilds
 from .room_funestras import RoomFunestra
+
+if TYPE_CHECKING:
+    from .shared_state import BridgeState
 
 
 @dataclass
@@ -199,3 +204,23 @@ class WindowOp:
     # confirmation, FAVORITE (green) for one about the favorites or a funscript,
     # WARNING (yellow) for a dead end, ERROR (red) for a failure.
     level: int = NOTICE
+
+
+Handler = Callable[["BridgeState", "BridgeConfig", str], "tuple[BridgeState, list[WindowOp]]"]
+
+
+IN_KINO_MODE = "in Kino mode"
+
+
+IN_GENAU_MODE = "in Genau mode"
+
+
+OUTSIDE_VR = "outside VR"
+
+
+ON_THE_MAIN_FUNESTRA = "on the Main Funestra"
+
+
+def ignored(state: BridgeState, why: str) -> tuple[BridgeState, list[WindowOp]]:
+    return state, [WindowOp(op=Op.IGNORED, key=why)]
+

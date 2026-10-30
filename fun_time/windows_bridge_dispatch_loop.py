@@ -24,18 +24,11 @@ from funestra.file_channel import append_command
 from funestra.funestra_verbs import play_file
 from funestra.playlist import PlaylistItem
 
-from .aiming import resolve_active_funestra_command
+from .aiming import notice_source, resolve_active_funestra_command
 from .arrivals import keep_looking
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log
-from .command_dispatch import (
-    dispatch_command,
-    every_funestra_in_f_mode,
-    hosts,
-    notice_source,
-    room_at_defaults,
-    routes_to_origenerator,
-)
+from .command_dispatch import dispatch_command, room_at_defaults, routes_to_origenerator
 from .crown import Seating
 from .dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
@@ -50,6 +43,7 @@ from .dashboard_actions import (
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, SatelliteLine, who_drives_the_osr2
 from .event_log import NOTICE, SOURCE_SYSTEM, notice
+from .f_mode import every_funestra_in_f_mode
 from .funestra_handover import Homecoming
 from .funestra_notices import FunestraNotices
 from .funestra_settings import FunestraReporting
@@ -69,7 +63,7 @@ from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .mode_plan import kino_shows
 from .modes import scripted_item
 from .origenerator_opening import OrigeneratorOpening, holding_nothing
-from .origenerator_switches import RfbSlot
+from .origenerator_switches import RfbSlot, hosts
 from .rfb_slideshow import RfbSlideshow
 from .role_windows import WindowRoles
 from .room_funestras import RoomFunestra
