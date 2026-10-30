@@ -909,8 +909,8 @@ def prepare_voice_control(
             logger.error("Voice control enabled but import failed: %s", unavailable)
             return None
         settings = cfg.voice_control
-        second_listener = WhisperReader()
-        second_listener.load_ahead()
+        verifying_listener = WhisperReader()
+        verifying_listener.load_ahead()
         answer = _asked_in_the_background(ask_the_hosted_app)
         controller: Future[VoiceController] = Future()
 
@@ -923,7 +923,7 @@ def prepare_voice_control(
                     device_name=settings.device_name,
                     sample_rate=settings.sample_rate,
                     confirm_commands=settings.confirm_commands,
-                    second_listener=second_listener,
+                    verifying_listener=verifying_listener,
                     hosted=_what_it_answers(answer),
                     hosted_cmd_file=hosted_cmd_file,
                     hosted_said_at_suffix=hosted_said_at_suffix,

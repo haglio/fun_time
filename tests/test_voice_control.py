@@ -62,7 +62,7 @@ class TestCommandRules:
         satellite nudge, a bad one for quitting the room or moving the device."""
         rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
 
-        ruled_out = {phrase for phrase in rules.phrases if rules.never_rescued(phrase)}
+        ruled_out = {phrase for phrase in rules.phrases if rules.never_repaired(phrase)}
 
         assert {"quit", "park it", "park", "o s r two off", "relief omni pause", "stop",
                 "main reset", "portrait reset"} <= ruled_out
@@ -85,7 +85,7 @@ class TestCommandRules:
 
         assert all(rules.stands_alone(phrase) for phrase in rules.phrases)
 
-    def test_the_second_listener_is_shown_a_sound_alike_phrase_as_it_is_written(self):
+    def test_the_verifying_listener_is_shown_a_sound_alike_phrase_as_it_is_written(self):
         rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
 
         assert rules.written("go now mode") == "genau mode"
@@ -101,7 +101,7 @@ class TestCommandRules:
         assert {rules.said_in(phrase) for phrase in
                 ("kino mode", f"{flick} seconds five", f"weird {flick}", "next")} == {None}
 
-    def test_the_second_listener_is_handed_genau_whichever_spelling_the_first_heard(self):
+    def test_the_verifying_listener_is_handed_genau_whichever_spelling_the_first_heard(self):
         rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
         genau_phrases = [phrase for phrase, command in VOICE_COMMANDS.items()
                          if command == "genau_activate"]
@@ -112,7 +112,7 @@ class TestCommandRules:
 def test_the_listener_is_handed_a_reader_for_the_phrases_said_in_german(tmp_path):
     vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
 
-    assert set(vc.engines.second_opinion_in) == {"de"}
+    assert set(vc.engines.verifying_listener_in) == {"de"}
 
 
 def test_the_listener_is_handed_a_speech_detector_so_a_loud_room_cannot_hold_words_open(tmp_path):
@@ -521,15 +521,15 @@ class TestTheListenerItRuns:
 
         assert stopped == [True]
 
-    def test_the_second_listener_is_handed_to_the_first_whichever_way_commands_are_settled(self, tmp_path):
+    def test_the_verifying_listener_is_handed_over_whichever_way_commands_are_settled(self, tmp_path):
         reader = object()
         confirmed = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
-                                    confirm_commands=True, second_listener=reader)
+                                    confirm_commands=True, verifying_listener=reader)
         unconfirmed = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
-                                      confirm_commands=False, second_listener=reader)
+                                      confirm_commands=False, verifying_listener=reader)
 
-        assert confirmed.engines.second_opinion is reader
-        assert unconfirmed.engines.second_opinion is reader
+        assert confirmed.engines.verifying_listener is reader
+        assert unconfirmed.engines.verifying_listener is reader
 
 
 class TestWriteCommand:

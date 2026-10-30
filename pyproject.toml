@@ -28,7 +28,7 @@ dependencies = [
     "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.277",
     # The family's listener: it brings vosk and sounddevice, and hears for this
     # app, Evolver's backfill tool and Origenerator alike.
-    "voice-core @ git+https://github.com/haglio/voice_core@v0.1.80",
+    "voice-core @ git+https://github.com/haglio/voice_core@v0.1.85",
     "numpy>=2.4,<3",
     "opencv-python>=4.8,<5",
     "pillow>=12,<13",
@@ -52,8 +52,8 @@ dev = [
     "ruff==0.16.6",
     "vulture>=2.16,<3",
 ]
-# The second listener a spoken command waits for (voice_core's whisper reader).
-# Without it the first listener's word stands, as it did before there was a second.
+# The verifying listener a spoken command waits for (voice_core's whisper reader).
+# Without it the first listener's word stands, as it did before there was a verifying listener.
 voice = [
     "faster-whisper>=1,<2",
 ]
