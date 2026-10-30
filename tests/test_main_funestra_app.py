@@ -84,7 +84,7 @@ class TestGenauRunsOnItToo:
         channels = _keywords(_call(_function("_genau"), "GenauChannels"))
 
         assert given["flicks_folder"] == "args.flicks_dir"
-        assert given["settings"] == "GenauSettings.read(args.genau_config)"
+        assert given["settings"] == "GenauSettings.read(args.config)"
         assert given["notifier"] == "GenauNotifier(args.notify_host, args.notify_port)"
         assert given["tcode_sink"] == "Osr2Sender(ROBOT_HAND, port=args.osr2_port)"
         assert given["notices"] == "NoticeWriter(args.notice_file)"
@@ -149,7 +149,7 @@ class TestWhichConfigTheFlagsAreReadAgainst:
         return landed[0]
 
     def test_a_named_config_supplies_the_defaults(self, tmp_path, monkeypatch):
-        config = tmp_path / "genau_config.json"
+        config = tmp_path / "fun_time_config.json"
         config.write_text('{"main_player": {"videos_dir": "C:/example/videos"}}', encoding="utf-8")
 
         args = self._main(monkeypatch, ["--config", str(config)])
@@ -157,7 +157,7 @@ class TestWhichConfigTheFlagsAreReadAgainst:
         assert args.videos_dir == Path("C:/example/videos")
 
     def test_a_flag_still_beats_the_config_it_named(self, tmp_path, monkeypatch):
-        config = tmp_path / "genau_config.json"
+        config = tmp_path / "fun_time_config.json"
         config.write_text('{"main_player": {"videos_dir": "C:/example/videos"}}', encoding="utf-8")
 
         args = self._main(

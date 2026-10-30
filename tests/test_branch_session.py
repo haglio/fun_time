@@ -26,6 +26,7 @@ from shared_ui.preview import Preview
 
 from fun_time import branch_session, preview_marker
 from fun_time.config import ProjectConfig, load_config
+from fun_time.genau_config import GenauSettings
 from fun_time.shortcuts import Shortcut, read_shortcuts, write_shortcut
 from fun_time.single_instance import MUTEX_ORCHESTRATOR
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
@@ -59,6 +60,7 @@ def _write_config(path: Path, **paths: str) -> Path:
             "genau_dir": "C:/library/genau",
             "state_dir": "state",
             "genau_config_path": "C:/genau/genau_config.json",
+            "genau_python_exe": "C:/genau/.venv/Scripts/pythonw.exe",
             # Relative on purpose: a sibling checkout sits one directory up from
             # the primary, which from a worktree is a different place entirely.
             "sibling_checkouts": ["../funestra", "../shared_ui"],
@@ -179,14 +181,32 @@ def test_every_path_a_branch_session_reads_is_the_one_the_live_session_reads(che
     assert branch.loopback_port == live.loopback_port
 
 
-def test_a_genau_dir_left_in_the_live_config_does_not_ride_along_into_the_branch_config(checkouts):
+def test_a_branch_session_plays_genau_on_the_live_sessions_numbers(checkouts, tmp_path):
+    old_settings_file = tmp_path / "genau_config.json"
+    old_settings_file.write_text(json.dumps({"genau": {"beats_per_loop": 2.0}}), encoding="utf-8")
+    live = json.loads(checkouts.config_path.read_text(encoding="utf-8"))
+    live["paths"]["genau_config_path"] = str(old_settings_file)
+    checkouts.config_path.write_text(json.dumps(live), encoding="utf-8")
+
     branch_config = branch_session.build_branch_config(
         checkouts.worktree,
         primary_config_path=checkouts.config_path,
         primary=checkouts.primary,
     )
 
-    assert "genau_dir" not in json.loads(branch_config.read_text(encoding="utf-8"))["paths"]
+    assert GenauSettings.read(branch_config) == GenauSettings.read(checkouts.config_path)
+    assert GenauSettings.read(branch_config).beats_per_loop == 2.0
+
+
+@pytest.mark.parametrize("key", ["genau_dir", "genau_python_exe"])
+def test_a_genau_key_no_session_reads_stays_out_of_the_branch_config(checkouts, key):
+    branch_config = branch_session.build_branch_config(
+        checkouts.worktree,
+        primary_config_path=checkouts.config_path,
+        primary=checkouts.primary,
+    )
+
+    assert key not in json.loads(branch_config.read_text(encoding="utf-8"))["paths"]
 
 
 def test_the_branch_session_keeps_its_state_inside_the_worktree(checkouts):

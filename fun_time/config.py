@@ -49,7 +49,6 @@ class PathsConfig:
     # branch one (see :mod:`fun_time.branch_session`), and of an integration run,
     # whose broker is a temp-dir one of its own.
     broker_state_dir: Path
-    genau_config_path: Path | None = None
     # Checkouts of the family's shared code that every program of the session
     # imports ahead of what this repo's venv installs.  Empty in ordinary use.
     sibling_checkouts: tuple[Path, ...] = ()
@@ -315,7 +314,6 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir
         genau_audio_dir=Path(haglio_settings.value("genau_audio_dir")),
         state_dir=state_dir,
         broker_state_dir=resolve_path(project_dir, paths_raw["broker_state_dir"]) if paths_raw.get("broker_state_dir") else state_dir,
-        genau_config_path=resolve_path(project_dir, paths_raw["genau_config_path"]) if paths_raw.get("genau_config_path") else None,
         sibling_checkouts=tuple(
             resolve_path(project_dir, str(value))
             for value in paths_raw.get(SIBLING_CHECKOUTS_KEY, paths_raw.get(

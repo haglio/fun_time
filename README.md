@@ -4,7 +4,7 @@ Fun Time is a Windows desktop setup that launches and coordinates:
 
 - the Main Funestra, which plays the main library's funscript videos (this repo's `main_funestra` package, launched as `python -m main_funestra`)
 - two Satellite Funestras, portrait and landscape (this repo's own mpv-based `satellite` package, launched as `python -m satellite`)
-- Genau, a visualizer for OSR2 auto mode: short looping videos, its flicks, scrubbed to wherever the OSR2 is, on the Main Funestra (`main_funestra/genau.py`; the layout of its flicks folder is `../genau`'s contract). The apps show and hear the flicks under the word the content overlay's `genau_flick_words` gives them
+- Genau, a visualizer for OSR2 auto mode: short looping videos, its flicks, scrubbed to wherever the OSR2 is, on the Main Funestra (`main_funestra/genau.py`; the layout of its flicks folder is `app_support.flick_folder`'s). The apps show and hear the flicks under the word the content overlay's `genau_flick_words` gives them
 - a Genau audio companion
 - a minimal AutoHotkey hotkey shell (window placement and command dispatch run in Python)
 
@@ -88,7 +88,7 @@ Example:
 }
 ```
 
-Genau's playback settings — `shuffle_on_load` among them — are read out of Genau's own config file, the one `paths.genau_config_path` names, and never out of this one. Where Genau's folder and the folder of its sounds are is not in this config either: `genau_dir` and `genau_audio_dir` in the settings all of Haglio shares, `~/.haglio/settings.json`, say so for every app.
+Genau's playback settings — `shuffle_on_load` among them — are this config's `genau` section, or, while a config still names `paths.genau_config_path`, the `genau` section of the file it names, which is where they were kept before. Where Genau's folder and the folder of its sounds are is not in this config either: `genau_dir` and `genau_audio_dir` in the settings all of Haglio shares, `~/.haglio/settings.json`, say so for every app.
 
 The layout values that used to be hard-coded in AutoHotkey now live under `layout`.
 
@@ -129,7 +129,7 @@ Two listeners hear every command (the family's shared listener, `../voice_core`)
 
 - Python (currently launched via Miniconda `pythonw.exe`)
 - Python dependencies are declared in `pyproject.toml` — notably PyQt6 (dashboard), pygame-ce (audio companion), voice_core (the family's listener, which brings vosk + sounddevice; the `voice` extra adds faster-whisper for the second listener), and Pillow / numpy / opencv-python.
-- Kino and Genau run on the Main Funestra, which Fun Time starts as `python -m main_funestra` from this project's venv (`paths.python_exe`), like the Satellite Funestras. It reads its library folders and device port from this project's config, and Genau's engine settings from Genau's config file (`paths.genau_config_path`). The `../genau` repo ships no code: it holds Genau's settings and the flicks-folder layout it promises (`genau_contract.json`).
+- Kino and Genau run on the Main Funestra, which Fun Time starts as `python -m main_funestra` from this project's venv (`paths.python_exe`), like the Satellite Funestras. It reads its library folders, its device port and Genau's engine settings (the `genau` section) from this project's config.
 
 Install the declared dependencies into the project venv before first use.
 
@@ -664,7 +664,7 @@ The Python entry points also write rotating logs in `state/`:
 - `state/windows_bridge.log`
 - `state/genau_audio.log`
 
-The broker and Genau write their own logs (e.g. `broker.log`, `genau_listener.log`, `genau_crash.log`) from the `../broker` and `../genau` projects.
+The broker writes its own log (`broker.log`) in the `../broker` project, and Genau writes to the Main Funestra's, `state/main_funestra.log`.
 
 ## Notes on design
 
@@ -738,7 +738,7 @@ Check:
 - OSR2 is actually entering auto/free mode
 - `state/broker_mode.txt` changes to `1`
 - the broker's log (in `../broker`) for serial parsing / mode transitions
-- Genau's log (in `../genau`) for UI/runtime errors
+- the Main Funestra's log (`state/main_funestra.log`) for Genau's errors
 
 ### Broker will not start
 
@@ -752,7 +752,7 @@ Check:
 - `state/genau_cmd.txt` is being written
 - flick files exist in the `2D` folder of the configured Genau flicks folder (`paths.flicks_dir`)
 - `state/windows_bridge.log` shows the hotkey write
-- Genau's log (in `../genau`) shows command-file consumption errors
+- the Main Funestra's log (`state/main_funestra.log`) shows command-file consumption errors
 
 ### A clip stutters badly
 
@@ -781,7 +781,7 @@ These are the files that define the working system:
 - `fun_time/dashboard_app.py`
 - `fun_time/audio_companion_app.py`
 
-The broker, Genau, and Genaumacher are separate projects: `../broker`, `../genau`, `../genaumacher`.
+The broker and Genaumacher are separate projects: `../broker`, `../genaumacher`.
 
 ## Refactors completed
 
@@ -789,7 +789,7 @@ Completed from the earlier cleanup list:
 
 - orchestration now lives in `fun_time/orchestrator.py`, with `main.sh` kept as a thin wrapper
 - config is centralized in `fun_time_config.json`
-- Genau, the broker, and Genaumacher have been extracted to their own sibling projects (`../genau`, `../broker`, `../genaumacher`)
+- the broker and Genaumacher have been extracted to their own sibling projects (`../broker`, `../genaumacher`); Genau was too, and came back, its engine into funestra and its window into the Main Funestra
 - window/layout constants are configurable through `layout`
 - runtime logging and diagnostics are written to `state/*.log`
 

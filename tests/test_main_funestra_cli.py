@@ -148,7 +148,7 @@ class TestAudioMuted:
 # and the list is written out here rather than derived so the rename shows up as
 # a diff in both repos.
 FUN_TIME_ARGV = [
-    "--config", "C:/example/genau_config.json",
+    "--config", "C:/example/fun_time_config.json",
     "--playlist", "C:/example/state/main_player_playlist.tsv",
     "--command-file", "C:/example/state/main_player_cmd.txt",
     "--paused-file", "C:/example/state/main_player_paused.txt",
@@ -168,7 +168,6 @@ FUN_TIME_ARGV = [
     "--genau-command-file", "C:/example/state/genau_cmd.txt",
     "--genau-paused-file", "C:/example/state/genau_paused.txt",
     "--genau-status-file", "C:/example/state/genau_status.txt",
-    "--genau-config", "C:/example/genau/genau_config.json",
     "--genau-start-flick", "C:/example/library/flicks/2D/alpha one.mp4",
     "--genau-latest",
     "--genau-f-mode",
@@ -179,7 +178,7 @@ FUN_TIME_ARGV = [
 # a Path flag that came through as a str reaches Path(...) somewhere later and
 # a str flag that came through as a Path reaches an argparse default nobody set.
 LANDS_AS = {
-    "config": Path("C:/example/genau_config.json"),
+    "config": Path("C:/example/fun_time_config.json"),
     "playlist": Path("C:/example/state/main_player_playlist.tsv"),
     "command_file": Path("C:/example/state/main_player_cmd.txt"),
     "paused_file": Path("C:/example/state/main_player_paused.txt"),
@@ -199,7 +198,6 @@ LANDS_AS = {
     "genau_command_file": Path("C:/example/state/genau_cmd.txt"),
     "genau_paused_file": Path("C:/example/state/genau_paused.txt"),
     "genau_status_file": Path("C:/example/state/genau_status.txt"),
-    "genau_config": Path("C:/example/genau/genau_config.json"),
     "genau_start_flick": "C:/example/library/flicks/2D/alpha one.mp4",
     "genau_latest": True,
     "genau_f_mode": True,
@@ -270,7 +268,7 @@ class TestTheRestOfTheFlags:
 # namespace it has to produce.  The two views below are the whole orchestrator-
 # facing surface: what an unflagged launch gets, and where each flag lands.
 EVERY_FLAG_ARGV = [
-    "--config", "C:/example/genau_config.json",
+    "--config", "C:/example/fun_time_config.json",
     "--videos-dir", "C:/example/library/videos",
     "--flicks-dir", "C:/example/library/flicks",
     "--state-dir", "C:/example/state",
@@ -291,7 +289,6 @@ EVERY_FLAG_ARGV = [
     "--genau-command-file", "C:/example/state/genau_cmd.txt",
     "--genau-paused-file", "C:/example/state/genau_paused.txt",
     "--genau-status-file", "C:/example/state/genau_status.txt",
-    "--genau-config", "C:/example/genau/genau_config.json",
     "--genau-start-flick", "C:/example/library/flicks/2D/alpha one.mp4",
     "--genau-latest",
     "--genau-f-mode",
@@ -304,7 +301,7 @@ EVERY_FLAG_ARGV = [
 ]
 
 EVERY_FLAG_LANDS_AS = {
-    "config": Path("C:/example/genau_config.json"),
+    "config": Path("C:/example/fun_time_config.json"),
     "videos_dir": Path("C:/example/library/videos"),
     "flicks_dir": Path("C:/example/library/flicks"),
     "state_dir": Path("C:/example/state"),
@@ -325,7 +322,6 @@ EVERY_FLAG_LANDS_AS = {
     "genau_command_file": Path("C:/example/state/genau_cmd.txt"),
     "genau_paused_file": Path("C:/example/state/genau_paused.txt"),
     "genau_status_file": Path("C:/example/state/genau_status.txt"),
-    "genau_config": Path("C:/example/genau/genau_config.json"),
     "genau_start_flick": "C:/example/library/flicks/2D/alpha one.mp4",
     "genau_latest": True,
     "genau_f_mode": True,
@@ -359,7 +355,6 @@ NO_FLAGS_LANDS_AS = {
     "genau_command_file": None,
     "genau_paused_file": None,
     "genau_status_file": None,
-    "genau_config": None,
     "genau_start_flick": None,
     "genau_latest": False,
     "genau_f_mode": False,
@@ -446,7 +441,7 @@ class TestWhereMainFunestraKeepsItsState:
     def test_with_no_state_dir_it_falls_back_beside_its_config(self, tmp_path):
         """Standalone there is no orchestrator to hand one, and writing into the
         working directory would put it wherever the shortcut was started from."""
-        config = tmp_path / "genau_config.json"
+        config = tmp_path / "fun_time_config.json"
         config.write_text("{}", encoding="utf-8")
         args = build_parser({}).parse_args(["--config", str(config)])
 

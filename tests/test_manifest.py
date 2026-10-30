@@ -43,8 +43,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # the next launch.
 _EXPECTED_KEYS: dict[str, set[str]] = {
     "runtime": {
-        "config_path", "windows_bridge_log_file", "genau_config_path",
-        "sibling_checkouts", "origenerator_dir",
+        "config_path", "windows_bridge_log_file", "sibling_checkouts", "origenerator_dir",
     },
     "executables": {"python_exe", "origenerator_python_exe"},
     "media": {

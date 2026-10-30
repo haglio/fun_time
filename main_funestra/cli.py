@@ -39,7 +39,7 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Fun Time's Main Funestra, which plays funscript videos")
     p.add_argument("--config", type=Path, default=None,
                    help="Fun Time's config file, whose main_player section supplies "
-                        "the defaults below")
+                        "the defaults below and whose genau section tunes Genau's engine")
     p.add_argument("--videos-dir", type=Path, default=main_funestra.get("videos_dir"))
     p.add_argument("--flicks-dir", type=Path,
                    help="Genau's delivery folder, which Genau mode plays from")
@@ -79,8 +79,6 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                    help="Flag file that pauses Genau's flick under the OSR2's own beat")
     p.add_argument("--genau-status-file", type=Path, default=None,
                    help="Where Genau publishes what the hand and the flick are doing")
-    p.add_argument("--genau-config", type=Path, default=None,
-                   help="Genau's own config, whose genau section tunes its engine")
     p.add_argument("--genau-start-flick", default=None,
                    help="The flick Genau opens on: where the last session left it")
     p.add_argument("--genau-latest", action="store_true", default=False,

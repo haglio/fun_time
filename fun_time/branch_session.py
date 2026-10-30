@@ -90,7 +90,7 @@ RESERVED_IN_FILENAMES = r'[<>:"/\|?*]'
 FIELD_SEPARATOR = "\t"
 DETACHED = "(detached)"
 
-_SUPERSEDED_PATH_KEYS = ("portrait_dir", "landscape_dir", "genau_dir")
+_SUPERSEDED_PATH_KEYS = ("portrait_dir", "landscape_dir", "genau_dir", "genau_python_exe")
 
 
 def _git(args: list[str], cwd: Path, *, stdin: str | None = None) -> str:
@@ -153,7 +153,6 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
             "weird_dir": paths.weird_dir,
             "state_dir": paths.state_dir,
             "broker_state_dir": paths.broker_state_dir,
-            "genau_config_path": paths.genau_config_path,
             SIBLING_CHECKOUTS_KEY: paths.sibling_checkouts,
             "broker_tray_launcher": paths.broker_tray_launcher,
             "origenerator_dir": paths.origenerator_dir,

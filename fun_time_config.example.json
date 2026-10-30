@@ -14,7 +14,6 @@
     "weird_dir": "C:/path/to/library/misc",
     "state_dir": "state",
     "broker_state_dir": "state",
-    "genau_config_path": "C:/path/to/genau/genau_config.json",
     "broker_tray_launcher": "../broker/launch_broker_tray.vbs",
     "origenerator_dir": "C:/path/to/origenerator"
   },
@@ -56,5 +55,14 @@
   },
   "main_player": {
     "videos_dir": "C:/path/to/library/videos"
+  },
+  "genau": {
+    "beats_per_loop": 1.0,
+    "bpm_smoothing": 0.14,
+    "sync_strength": 0.35,
+    "flick_cache_size": 2,
+    "shuffle_on_load": true,
+    "udp_host": "127.0.0.1",
+    "udp_port": 50555
   }
 }

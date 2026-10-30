@@ -393,12 +393,10 @@ class TestRunStartupSequence:
             "main_funestra_width": PRIMARY_MEDIA_RECT["width"],
             "main_funestra_height": PRIMARY_MEDIA_RECT["height"],
             # Genau runs on this window too, through files of its own: the room's
-            # verbs for the hand and the clip, its pause, the status it publishes,
-            # and the config its engine is tuned by.
+            # verbs for the hand and the clip, its pause, and the status it publishes.
             "genau_command_file": str(cfg.genau_cmd_file),
             "genau_paused_file": str(cfg.genau_paused_file),
             "genau_status_file": str(cfg.genau_status_file),
-            "genau_config_path": str(cfg.paths.genau_config_path or cfg.config_path),
             # Genau's loop-delivery folder, played as shorts by Kino and browsed by Genau.
             "flicks_dir": str(cfg.paths.flicks_dir),
             # This manifest has no regen.metadata_root, so the Main Funestra is left to
@@ -435,11 +433,11 @@ class TestRunStartupSequence:
 
         assert main_funestra_kwargs["python_exe"] == str(cfg.paths.python_exe)
 
-    def test_the_main_funestra_reads_its_settings_from_fun_times_own_config_not_genaus(
+    def test_the_main_funestra_reads_every_setting_from_fun_times_own_config(
             self, cfg_factory, tmp_path):
-        """The Main Funestra's library folders and T-Code port live in Fun Time's
-        config now, so it is handed Fun Time's config file, not genau's -- even
-        when the two are distinct files, as they are on a real machine."""
+        """Its library folders, its T-Code port and Genau's numbers all live in
+        Fun Time's config, so that is the one file it is handed -- even by a
+        config that still names the settings file Genau's checkout kept."""
         genau_config = tmp_path / "genau_config.json"
         genau_config.write_text("{}", encoding="utf-8")
         cfg = load_config(cfg_factory({"paths": {"genau_config_path": str(genau_config)}}))
@@ -456,10 +454,8 @@ class TestRunStartupSequence:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert main_funestra_kwargs["config_path"] == str(cfg.config_path)
-        assert main_funestra_kwargs["config_path"] != str(genau_config)
         assert main_funestra_kwargs["flicks_dir"] == str(cfg.paths.flicks_dir)
-        # And Genau's own config beside it, for the engine's numbers.
-        assert main_funestra_kwargs["genau_config_path"] == str(genau_config)
+        assert str(genau_config) not in main_funestra_kwargs.values()
 
     def test_the_main_funestra_starts_with_the_named_checkouts(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)

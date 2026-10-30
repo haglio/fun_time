@@ -1020,13 +1020,12 @@ class TestGenausRoleInTheManifest:
 
         assert (vr["notify_host"], vr["notify_port"]) == ("127.0.0.1", "50556")
 
-    def test_genaus_numbers_come_off_genaus_config(self, config, tmp_path):
-        genau_config = tmp_path / "genau_config.json"
-        genau_config.write_text(json.dumps({"genau": {"beats_per_loop": 2.0, "udp_port": 50999}}),
-                                encoding="utf-8")
-        pointed = replace(config, paths=replace(config.paths, genau_config_path=genau_config))
+    def test_genaus_numbers_come_off_the_genau_section_of_fun_times_config(self, config):
+        raw = json.loads(config.config_path.read_text(encoding="utf-8"))
+        raw["genau"] = {"beats_per_loop": 2.0, "udp_port": 50999}
+        config.config_path.write_text(json.dumps(raw), encoding="utf-8")
 
-        vr = build_vr_manifest(pointed)["vr"]
+        vr = build_vr_manifest(load_config(config.config_path))["vr"]
 
         assert vr["beats_per_loop"] == "2.0"
         assert vr["beat_udp_port"] == "50999"

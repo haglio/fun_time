@@ -208,11 +208,11 @@ def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, di
         "audio_device": config.vr.audio_device or "",
         "compositor_layers": "1" if config.vr.compositor_layers else "0",
         # Genau's role: its flicks folder, its companion's address, and its
-        # engine's numbers off Genau's own config.
+        # engine's numbers.
         "flicks_folder": str(config.paths.flicks_dir),
         "notify_host": config.audio_companion.host,
         "notify_port": str(config.audio_companion.port),
-        **GenauSettings.read(config.paths.genau_config_path).manifest_fields(),
+        **GenauSettings.read(config.config_path).manifest_fields(),
     }
     return manifest
 

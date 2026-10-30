@@ -591,7 +591,6 @@ def launch_main_funestra(
     genau_command_file: str | Path,
     genau_paused_file: str | Path,
     genau_status_file: str | Path,
-    genau_config_path: str | Path,
     flicks_dir: str | Path | None = None,
     metadata_dir: str | Path | None = None,
     genau_start_flick: str = "",
@@ -605,9 +604,9 @@ def launch_main_funestra(
     """Launch the Main Funestra subprocess, returning its PID.
 
     Kino and Genau both run on its window, so the launch names Genau's own files
-    and settings beside the Funestra's: the channel the room's verbs for the hand
-    and the flick arrive on, the flag that pauses its flick, the status it
-    publishes, its config, and the flick and order it was left browsing.
+    beside the Funestra's: the channel the room's verbs for the hand and the flick
+    arrive on, the flag that pauses its flick, the status it publishes, and the
+    flick and order it was left browsing.
 
     Its stdout and stderr go to *log_file* for the same reason a satellite's do:
     the Main Funestra is the same mpv-backed Funestra under the same windowed
@@ -659,8 +658,6 @@ def launch_main_funestra(
         str(genau_paused_file),
         "--genau-status-file",
         str(genau_status_file),
-        "--genau-config",
-        str(genau_config_path),
     ]
     if flicks_dir:
         cmd += ["--flicks-dir", str(flicks_dir)]

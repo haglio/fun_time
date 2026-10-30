@@ -84,8 +84,6 @@ def validate_config(config) -> None:
     require_dir(config.paths.flicks_dir)
     require_dir(config.paths.genau_audio_dir)
     require_file(config.project_dir / HOTKEY_SCRIPT_NAME)
-    if config.paths.genau_config_path:
-        require_file(config.paths.genau_config_path)
     require_file(config.project_dir / "fun_time" / "audio_companion_app.py")
 
 

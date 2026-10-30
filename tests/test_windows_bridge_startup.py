@@ -1057,7 +1057,6 @@ GENAUS_FILES = dict(
     genau_command_file="a-state-dir/genau_cmd.txt",
     genau_paused_file="a-state-dir/genau_paused.txt",
     genau_status_file="a-state-dir/genau_status.txt",
-    genau_config_path="a-genau-checkout/genau_config.json",
 )
 
 
@@ -1085,16 +1084,15 @@ def _launched_main_funestra(tmp_path: Path, **overrides) -> list[str]:
     return popen.call_args.args[0]
 
 
-def test_the_main_funestra_is_handed_genaus_own_files_and_settings(tmp_path: Path):
-    """Genau's channel, its pause, its status and its config: each one named by
-    the session, because Genau resolving one from its own config is how its
-    status once went where the session never read it."""
+def test_the_main_funestra_is_handed_genaus_own_files(tmp_path: Path):
+    """Genau's channel, its pause and its status: each one named by the session,
+    because Genau resolving one from its own config is how its status once went
+    where the session never read it."""
     command = _launched_main_funestra(tmp_path)
 
     assert command[command.index("--genau-command-file") + 1] == "a-state-dir/genau_cmd.txt"
     assert command[command.index("--genau-paused-file") + 1] == "a-state-dir/genau_paused.txt"
     assert command[command.index("--genau-status-file") + 1] == "a-state-dir/genau_status.txt"
-    assert command[command.index("--genau-config") + 1] == "a-genau-checkout/genau_config.json"
 
 
 def test_the_main_funestra_opens_genau_on_the_flick_it_was_left_showing(tmp_path: Path):
@@ -1577,8 +1575,6 @@ def test_launching_the_main_funestra_starts_it_and_says_which_process_it_is(tmp_
         "a-state-dir/genau_paused.txt",
         "--genau-status-file",
         "a-state-dir/genau_status.txt",
-        "--genau-config",
-        "a-genau-checkout/genau_config.json",
         "--osr2-port",
         "50599",
     ]
