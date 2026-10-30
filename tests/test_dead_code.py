@@ -404,7 +404,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # broker's contract moved to funestra, and their notes went with them.
 # 5660 the same day: Skip ahead's two moves and the notice writer left the Main
 # Funestra for funestra, which answers them on every Funestra.
-MAX_PROSE_LINES = 5660
+# 5629 on 2026-10-30: the loop key came to step the lock, seeds, actions and off
+# by the rule funestra keeps for every app, and the notes on its three stops went.
+MAX_PROSE_LINES = 5629
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

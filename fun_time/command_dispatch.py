@@ -436,9 +436,6 @@ _NO_LOOP_SIDES: dict[str, RoomFunestra] = {
     "landscape_no_loop": RoomFunestra.LANDSCAPE,
 }
 
-# The key command that steps a side's loop cycle (seed, action, off — see
-# :func:`satellite_groups.loop_cycle`), against the explicit <side>_seed_loop /
-# <side>_action_loop / <side>_no_loop the voice commands reach.
 _LOOP_CYCLE_SIDES: dict[str, RoomFunestra] = {
     "portrait_loop": RoomFunestra.PORTRAIT,
     "landscape_loop": RoomFunestra.LANDSCAPE,

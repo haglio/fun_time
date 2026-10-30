@@ -3982,7 +3982,7 @@ def test_next_in_a_loop_of_several_clips_moves_on_within_the_loop(tmp_path: Path
     assert state.portrait.loop == "seed"
 
 
-# --- the loop key's cycle: seeds, actions, off -------------------------------
+# --- the loop key's cycle: the lock, seeds, actions, off ---------------------
 
 def _cycle_config(tmp_path: Path, *, seed_family: bool = True,
                   action_group: bool = True, funestra: int = 2) -> tuple[BridgeConfig, str, str, str]:
@@ -4001,16 +4001,16 @@ def _cycle_config(tmp_path: Path, *, seed_family: bool = True,
     return config, paths["a"], paths["b"], paths["c"]
 
 
-def test_the_loop_key_starts_a_seed_loop_when_nothing_is_looping(tmp_path: Path):
-    """The cycle's first stop: a Funestra that is not looping starts on the seed family."""
-    config, a, _b, c = _cycle_config(tmp_path)
+def test_the_loop_key_locks_the_clip_on_screen_when_nothing_is_looping(tmp_path: Path):
+    config, a, _b, _c = _cycle_config(tmp_path)
 
     _set_current(config, 2, a)
     state, ops = dispatch_command("portrait_loop", _make_state(), config)
 
-    assert state.satellite(RoomFunestra.PORTRAIT).loop == "seed"
-    assert _playlist(config, 2) == [a, c]
-    assert [op.key for op in ops if op.op == "notice"] == ["Loop portrait: 2 seeds"]
+    assert _cmds(config, 2) == ["LOCK_ON"]
+    assert (state.portrait.locked, state.portrait.loop) == (True, "")
+    assert is_favorite(a, config.regen_metadata_root)
+    assert [(op.key, op.level) for op in ops if op.op == "notice"] == [("Locked", FAVORITE)]
 
 
 def test_the_loop_key_steps_a_seed_loop_on_to_the_action_loop(tmp_path: Path):
@@ -4037,63 +4037,33 @@ def test_the_loop_key_steps_an_action_loop_off(tmp_path: Path):
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
 
-def test_the_loop_key_wraps_from_off_back_round_to_the_seeds(tmp_path: Path):
-    """Three presses come back where they started, so the key never dead-ends."""
+def test_four_presses_of_the_loop_key_come_back_round_to_off(tmp_path: Path):
     config, a, _b, _c = _cycle_config(tmp_path)
     _set_current(config, 2, a)
 
     state = _make_state()
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=[a]):
-        axes = []
+        stops = []
         for _press in range(4):
             state, _ops = dispatch_command("portrait_loop", state, config)
-            axes.append(state.satellite(RoomFunestra.PORTRAIT).loop)
+            stops.append((state.portrait.locked, state.portrait.loop))
 
-    assert axes == ["seed", "action", "", "seed"]
+    assert stops == [(True, ""), (False, "seed"), (False, "action"), (False, "")]
 
 
-def test_the_loop_key_steps_over_an_axis_with_no_second_clip(tmp_path: Path):
-    """A clip nobody re-seeded has no seed loop to offer, so the press lands on the
-    action loop instead of on the single-video lock a "loop seeds" would mean.
-
-    Landing on that lock left the Funestra's loop flag empty, so the very next press
-    tried the seeds again and locked again — the action loop was unreachable from
-    the keyboard on every clip with a family of one.
-    """
+def test_the_loop_key_steps_from_the_lock_over_a_seed_row_of_one_to_the_actions(tmp_path: Path):
     config, a, b, _c = _cycle_config(tmp_path, seed_family=False)
 
     _set_current(config, 2, a)
-    state, _ops = dispatch_command("portrait_loop", _make_state(), config)
+    state, _ops = dispatch_command("portrait_loop", _make_state(portrait=SatelliteState(locked=True)),
+                                   config)
 
-    assert state.satellite(RoomFunestra.PORTRAIT).loop == "action"
+    assert (state.portrait.locked, state.portrait.loop) == (False, "action")
     assert _playlist(config, 2) == [a, b]
-    assert "LOCK_ON" not in _cmds(config, 2)
+    assert _cmds(config, 2) == ["LOCK_OFF", "RELOAD_PLAYLIST"]
 
 
-def test_the_loop_key_locks_when_neither_group_holds_a_second_clip(tmp_path: Path):
-    """With nothing on the clip to loop, the press does what "loop seeds" does on a
-    lone clip — a single-video lock — rather than falling through to an off that is
-    already off, which would rebuild the browse for nothing."""
-    config, a, _b, _c = _cycle_config(tmp_path, seed_family=False, action_group=False)
-
-    _set_current(config, 2, a)
-    with patch("fun_time.satellite_groups.satellite_browse_paths") as browse:
-        state, ops = dispatch_command("portrait_loop", _make_state(), config)
-
-    browse.assert_not_called()  # the browse is never rebuilt by a press that locks
-    assert _cmds(config, 2) == ["LOCK_ON"]
-    assert state.satellite(RoomFunestra.PORTRAIT).locked is True
-    assert state.satellite(RoomFunestra.PORTRAIT).loop == ""
-    assert [op.key for op in ops if op.op == "notice"] == ["Locked"]
-
-
-def test_the_loop_key_lets_go_of_the_clip_it_locked(tmp_path: Path):
-    """With nothing to loop the key is a two-stop cycle — lock, then unlock.
-
-    A one-stop cycle would be a trap: the lock is the only thing the key can say on
-    such a clip, so a second press that locked again held the clip with no way to
-    release it from the keys the loop owns.
-    """
+def test_with_nothing_to_loop_the_loop_key_locks_then_lets_go_without_moving_on(tmp_path: Path):
     config, a, _b, _c = _cycle_config(tmp_path, seed_family=False, action_group=False)
 
     _set_current(config, 2, a)
@@ -4105,6 +4075,20 @@ def test_the_loop_key_lets_go_of_the_clip_it_locked(tmp_path: Path):
     assert _cmds(config, 2) == ["LOCK_ON", "LOCK_OFF"]  # let go where it stands, no NEXT
     assert state.satellite(RoomFunestra.PORTRAIT).locked is False
     assert [op.key for op in ops if op.op == "notice"] == ["Unlocked"]
+
+
+def test_the_loop_keys_off_stop_lets_go_of_a_lock_taken_inside_the_loop(tmp_path: Path):
+    config, a, _b, _c = _cycle_config(tmp_path)
+    browse = [r"C:\v\one.mp4", r"C:\v\two.mp4"]
+
+    _set_current(config, 2, a)
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
+        state, ops = dispatch_command(
+            "portrait_loop", _make_state(portrait=SatelliteState(loop="action", locked=True)), config)
+
+    assert (state.portrait.locked, state.portrait.loop) == (False, "")
+    assert _cmds(config, 2) == ["LOCK_OFF", "RELOAD_PLAYLIST"]
+    assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
 
 def test_the_loop_key_ends_a_loop_the_clip_has_drifted_out_of(tmp_path: Path):
@@ -4121,14 +4105,13 @@ def test_the_loop_key_ends_a_loop_the_clip_has_drifted_out_of(tmp_path: Path):
 
 
 def test_the_loop_key_drives_only_its_own_side(tmp_path: Path):
-    config, a, _b, c = _cycle_config(tmp_path, funestra=3)
+    config, a, _b, _c = _cycle_config(tmp_path, funestra=3)
 
     _set_current(config, 3, a)
     state, _ops = dispatch_command("landscape_loop", _make_state(), config)
 
-    assert (state.satellite(RoomFunestra.LANDSCAPE).loop, state.satellite(RoomFunestra.PORTRAIT).loop) == ("seed", "")
-    assert _playlist(config, 3) == [a, c]
-    assert _playlist(config, 2) == []
+    assert (state.landscape.locked, state.portrait.locked) == (True, False)
+    assert (_cmds(config, 3), _cmds(config, 2)) == (["LOCK_ON"], [])
 
 
 def test_the_loop_key_does_nothing_with_no_clip_on_screen(tmp_path: Path):

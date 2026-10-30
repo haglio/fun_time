@@ -8,6 +8,7 @@ from pathlib import Path
 
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST, play_file, step_version
+from funestra.loop_cycle import LOCK, next_stop, standing_at
 
 from .bridge_records import BridgeConfig, WindowOp
 from .event_log import FAVORITE
@@ -313,12 +314,8 @@ def group_loop(
         return state, ops
     items, widened = _loop_items(funestra, axis, state, config, current)
     if len(items) < 2:
-        # Only this clip is in the group, so "looping" it is a single-video lock:
-        # LOCK this one.  Never a dead end — the loop buttons are still valid with
-        # one video, they just mean "lock" then.  A lock is not a loop, so any
-        # prior loop (and widened row) is dropped.
-        state, ops = lock_satellite(funestra, clear_side_grouping(state, funestra), config, current)
-        return state, [WindowOp(op="notice", key="Locked", source=source, level=FAVORITE), *ops]
+        return _locked_by_a_loop_control(funestra, clear_side_grouping(state, funestra), config,
+                                         current)
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
     state = cancel_lock(funestra, state, config)
     # Write the group as the side's playlist with the current clip first, then
@@ -340,13 +337,6 @@ def group_loop(
     return state, ops
 
 
-# What a satellite's one loop key steps through, in order: the seed family, then
-# the action group, then off — and round to the seed family again.  "" is the off
-# stop, and is where a side that is not looping already stands, so the first press
-# starts a seed loop.
-_LOOP_CYCLE: tuple[str, ...] = ("seed", "action", "")
-
-
 def lock_a_loop_left_with_one_clip(
     funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, clip_that_left: str
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -361,49 +351,38 @@ def lock_a_loop_left_with_one_clip(
     return state, [WindowOp(op="notice", key="Locked", source=satellite_source(funestra))]
 
 
+def _locked_by_a_loop_control(
+    funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, current: str
+) -> tuple[BridgeState, list[WindowOp]]:
+    state, ops = lock_satellite(funestra, state, config, current)
+    return state, [WindowOp(op="notice", key="Locked", source=satellite_source(funestra),
+                            level=FAVORITE), *ops]
+
+
 def loop_cycle(
     funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Step a satellite's loop one place around :data:`_LOOP_CYCLE`.
-
-    Where the step starts is read off the loop the side is actually running — the
-    same flag the HUD lights its loop button from — so the key and the HUD can never
-    disagree about where in the cycle the side stands.
-
-    An axis whose group holds only this clip has no loop to offer, and is stepped
-    over rather than landed on.  Without that, a clip nobody re-seeded would answer
-    every press with the same single-video lock (which is what a group of one makes
-    a loop mean) and its action loop would be unreachable from the keyboard.
-
-    When neither axis can loop, that lock is the only thing a press can say, so the
-    cycle collapses to it — never through to an "off" that is already off, which
-    would rebuild the browse for nothing.  There the key is a two-stop cycle: lock
-    the clip, then let it go again.  A one-stop cycle would be a trap, holding a
-    clip the only key on it could no longer release.
-    """
     current = target_path or satellite_current(config, funestra)
     if not current:
         return state, []
-    # Which loop the side is running — the flag the HUD lights its loop button
-    # from, so the key and the HUD can never disagree.
-    running = state.satellite(funestra).loop
-    # An unknown flag (a hand-edited state file) reads as "not looping", so the
-    # cycle starts over at its first axis rather than raising.
-    start = _LOOP_CYCLE.index(running) + 1 if running in _LOOP_CYCLE else 0
-    for step in range(len(_LOOP_CYCLE)):
-        axis = _LOOP_CYCLE[(start + step) % len(_LOOP_CYCLE)]
-        if not axis:
-            if running:
-                return no_loop(funestra, state, config)
-            continue  # nothing is looping, so the off step has nothing to switch off
-        if len(_loop_items(funestra, axis, state, config, current)[0]) >= 2:
-            return group_loop(funestra, axis, state, config, current)
-    if state.satellite(funestra).locked:
-        state = cancel_lock(funestra, state, config)
-        return state, [WindowOp(op="notice", key="Unlocked", source=satellite_source(funestra))]
-    # The lone-clip loop's own lock, so the press means exactly what "loop seeds"
-    # would have meant on this clip.
-    return group_loop(funestra, _LOOP_CYCLE[0], state, config, current)
+    side = state.satellite(funestra)
+    stop = next_stop(standing_at(loop=side.loop, locked=side.locked),
+                     lambda axis: len(_loop_items(funestra, axis, state, config, current)[0]) >= 2)
+    if stop == LOCK:
+        return _locked_by_a_loop_control(funestra, state, config, current)
+    if stop:
+        return group_loop(funestra, stop, state, config, current)
+    return _loop_and_lock_off(funestra, state, config)
+
+
+def _loop_and_lock_off(
+    funestra: RoomFunestra, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    looping = state.satellite(funestra).loop
+    state = cancel_lock(funestra, state, config)
+    if looping:
+        return no_loop(funestra, state, config)
+    return state, [WindowOp(op="notice", key="Unlocked", source=satellite_source(funestra))]
 
 
 def _browse_after(browse: list[str], current: str) -> list[str]:
