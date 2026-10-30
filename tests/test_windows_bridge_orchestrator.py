@@ -3426,11 +3426,11 @@ class _RunsAtOnce:
 
 class TestStartingVoice:
     @staticmethod
-    def _prepared(config_path, tmp_path, *, controller=None, second_listener=None,
+    def _prepared(config_path, tmp_path, *, controller=None, verifying_listener=None,
                   hosted=NO_HOSTED_VOCABULARY, said_at_suffix=""):
         with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
              patch.object(windows_bridge_orchestrator, "WhisperReader",
-                          return_value=second_listener or MagicMock()), \
+                          return_value=verifying_listener or MagicMock()), \
              patch.object(windows_bridge_orchestrator, "VoiceController",
                           controller or MagicMock()), \
              patch.object(windows_bridge_orchestrator.threading, "Thread", _RunsAtOnce):
@@ -3536,41 +3536,41 @@ class TestStartingVoice:
 
         assert controller.call_args.kwargs["confirm_commands"] is False
 
-    def test_the_session_listens_with_the_second_listener_it_started_loading(
+    def test_the_session_listens_with_the_verifying_listener_it_started_loading(
         self, cfg_factory, tmp_path,
     ):
         config_path = cfg_factory({"voice_control": {"enabled": True}})
-        controller, second_listener = MagicMock(), MagicMock()
+        controller, verifying_listener = MagicMock(), MagicMock()
 
         self._started(config_path, tmp_path, controller=controller,
-                      second_listener=second_listener)
+                      verifying_listener=verifying_listener)
 
-        assert controller.call_args.kwargs["second_listener"] is second_listener
+        assert controller.call_args.kwargs["verifying_listener"] is verifying_listener
 
-    def test_a_session_that_listens_starts_loading_its_second_listener_when_voice_is_prepared(
+    def test_a_session_that_listens_starts_loading_its_verifying_listener_when_voice_is_prepared(
         self, cfg_factory, tmp_path,
     ):
         config_path = cfg_factory({"voice_control": {"enabled": True}})
-        second_listener = MagicMock()
+        verifying_listener = MagicMock()
 
-        self._prepared(config_path, tmp_path, second_listener=second_listener)
+        self._prepared(config_path, tmp_path, verifying_listener=verifying_listener)
 
-        second_listener.load_ahead.assert_called_once_with()
+        verifying_listener.load_ahead.assert_called_once_with()
 
     @pytest.mark.parametrize(("enabled", "unavailable"), [(False, ""), (True, "No module named vosk")])
-    def test_a_session_that_will_not_listen_loads_no_second_listener(
+    def test_a_session_that_will_not_listen_loads_no_verifying_listener(
         self, cfg_factory, tmp_path, enabled, unavailable,
     ):
         config_path = cfg_factory({"voice_control": {"enabled": enabled}})
 
         with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=unavailable), \
-             patch.object(windows_bridge_orchestrator, "WhisperReader") as second_listener:
+             patch.object(windows_bridge_orchestrator, "WhisperReader") as verifying_listener:
             prepared = windows_bridge_orchestrator.prepare_voice_control(
                 str(config_path), dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
                 hosted_cmd_file=None)
 
         assert prepared is None
-        second_listener.assert_not_called()
+        verifying_listener.assert_not_called()
 
     def test_a_session_that_will_not_listen_never_loads_the_microphone_stack(
             self, cfg_factory, tmp_path):

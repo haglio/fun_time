@@ -144,15 +144,15 @@ def command_rules(commands: Mapping[str, str], *, confidence_threshold: float,
                   confirm_commands: bool) -> CommandRules:
     """How the listener is to hear Fun Time's phrases.
 
-    With *confirm_commands* a command acts only once the second listener has read
-    it too; without, whatever the first settles acts at once and the second only
-    rescues what the first could not settle.  Relief is the sensation emergency:
+    With *confirm_commands* a command acts only once the verifying listener has read
+    it too; without, whatever the first listener settles acts at once and the verifying
+    listener only settles what the first could not.  Relief is the sensation emergency:
     it acts on the first listener's word either way."""
     relief = frozenset(phrase for phrase, command in commands.items()
                        if command == "relief_omnipause")
     return CommandRules(
         phrases=frozenset(commands),
-        never_rescued=lambda phrase: _holds_or_ends_the_room(commands[phrase]),
+        never_repaired=lambda phrase: _holds_or_ends_the_room(commands[phrase]),
         confidence_threshold=confidence_threshold,
         stands_alone=(relief if confirm_commands else frozenset(commands)).__contains__,
         written=_written,
@@ -178,7 +178,7 @@ class VoiceController:
         device_name: str | None = None,
         sample_rate: int = 16000,
         confirm_commands: bool = True,
-        second_listener: Callable[[bytes, str], str] | None = None,
+        verifying_listener: Callable[[bytes, str], str] | None = None,
         hosted: HostedVocabulary = NO_HOSTED_VOCABULARY,
         hosted_cmd_file: Path | str | None = None,
         hosted_said_at_suffix: str = "",
@@ -221,7 +221,7 @@ class VoiceController:
         rules = command_rules(self.commands, confidence_threshold=confidence_threshold,
                               confirm_commands=confirm_commands)
         self.engines = engines_for(rules, self.listener_events, clock=clock,
-                                   second_opinion=second_listener)
+                                   verifying_listener=verifying_listener)
         self._listener = CommandListener(rules, self.listener_settings, self.listener_events,
                                          self.engines)
 
