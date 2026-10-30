@@ -557,6 +557,7 @@ class _MainUnit(_VideoUnit):
                 command=Path(commands.main_funestra_cmd_file),
                 paused=Path(commands.main_funestra_paused_file),
                 status=Path(commands.main_funestra_status_file),
+                notice=Path(commands.main_funestra_notice_file),
                 play_points=Path(commands.state_dir) / play_points_filename("main_player"),
                 console=Path(commands.main_funestra_console_file),
                 dashboard_cmd=self._dashboard_cmd_file,
