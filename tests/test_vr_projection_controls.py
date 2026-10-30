@@ -95,7 +95,7 @@ class TestTheAngleBar:
 
 
 class TestNothingToShow:
-    def test_while_genau_has_the_main_player(self):
+    def test_while_genau_has_the_main_funestra(self):
         controls, _verbs, showing = _controls()
 
         showing.now = False

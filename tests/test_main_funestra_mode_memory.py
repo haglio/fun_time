@@ -22,7 +22,7 @@ class TestTheRecord:
 
     def test_a_record_from_before_fun_time_kept_the_length_reads_its_compilation(self, tmp_path):
         """The length the file once carried is Fun Time's now, kept with the
-        rest of the Main player's buttons."""
+        rest of the Main Funestra's buttons."""
         path = tmp_path / "main_player_mode.txt"
         path.write_text("length_mode=clips\ncompilation=Vol6\nvideo=C:/v/clip.mp4\n",
                         encoding="utf-8")

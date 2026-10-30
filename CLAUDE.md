@@ -259,7 +259,7 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   changes none of them, which is how you get the venv's installs even if his
   config is pinned to someone else's worktree. Both were named for Genau until
   2026-10-16 (`genau_project_dirs`), and the old names are still read for older
-  branches. Cost the main-player minimize button a round trip on
+  branches. Cost the Main Funestra's minimize button a round trip on
   2026-08-13: it had landed in genau, and the pinned checkout predated it, so it
   was on neither the demo nor his app. Every path in that file also goes onto the
   hosted Origenerator's path, which is why the launcher holds it to Origenerator's

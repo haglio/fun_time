@@ -213,8 +213,8 @@ class TestWhatItSays:
 
 
 class TestKinoOnTheLibrary:
-    """The one Kino the desktop's Main player and the headset's both run: built
-    off the Main player's own flags, the library and the mode it remembers."""
+    """The one Kino the desktop's Main Funestra and the headset's both run: built
+    off the Main Funestra's own flags, the library and the mode it remembers."""
 
     def _args(self, tmp_path):
         return build_parser({}).parse_args([
@@ -228,7 +228,7 @@ class TestKinoOnTheLibrary:
 
         assert made.keywords["clip_nav"].compilation_playlist(world.first) == [world.first, world.second]
 
-    def test_it_reads_and_tells_through_the_files_the_main_player_was_given(self, tmp_path):
+    def test_it_reads_and_tells_through_the_files_the_main_funestra_was_given(self, tmp_path):
         world = World(tmp_path)
         (tmp_path / "main_player_playlist.tsv").write_text(f"{world.second}\n", encoding="utf-8")
 
