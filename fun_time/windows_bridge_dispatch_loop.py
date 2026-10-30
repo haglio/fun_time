@@ -877,7 +877,7 @@ class DispatchLoopRunner:
             # Over the main slot's window: the pick plays there, so the browse
             # stands where it will, and covers nothing else on either monitor.
             genau = not kino_shows(self.state.main_mode)
-            funestra_hwnd = self.windows.hwnd("main_player")
+            funestra_hwnd = self.windows.hwnd("main_funestra")
             selected = browse_library(
                 self.manifest_path,
                 self.config.python_exe,

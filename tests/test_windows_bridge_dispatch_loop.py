@@ -1953,20 +1953,20 @@ class TestResolveRole:
         # The Main Funestra is visible: the pid lookup finds it once, populating the cache.
         with patch("fun_time.role_windows.find_window_by_pid",
                    side_effect=lookup_pid):
-            assert runner.windows.hwnd("main_player") == MAIN_FUNESTRA_HWND
+            assert runner.windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
 
         # The Main Funestra is now minimized: the pid/title lookups are mocked to fail, but
         # the cache still answers, and a show_role op reaches the cached hwnd
         # (show_role restores rather than SW_SHOWs — the idle Funestra is parked
         # by minimizing it, so bringing it back is a restore).
         shown: list[int] = []
-        show_op = WindowOp(op="show_role", key="main_player")
+        show_op = WindowOp(op="show_role", key="main_funestra")
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.role_windows.find_window_by_title", return_value=0), \
              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)), \
              patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
                    return_value=(runner.state, [show_op])):
-            assert runner.windows.hwnd("main_player") == MAIN_FUNESTRA_HWND
+            assert runner.windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
             runner._dispatch("main_kino_activate")
 
         assert shown == [MAIN_FUNESTRA_HWND]
@@ -2147,7 +2147,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch.object(runner.windows, "hwnd", side_effect=lambda role: {"main_player": MAIN_FUNESTRA_HWND}.get(role, 0)), \
+             patch.object(runner.windows, "hwnd", side_effect=lambda role: {"main_funestra": MAIN_FUNESTRA_HWND}.get(role, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.window_rect",
                    side_effect=lambda hwnd: (0, 400, 1080, 1520) if hwnd == MAIN_FUNESTRA_HWND else None), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
@@ -2295,7 +2295,7 @@ class TestBrowseLibrary:
     def test_browses_unplaced_when_the_primary_display_cannot_be_found(self, tmp_path):
         """With no Main Funestra window to stand over, the browser picks its own place.
 
-        find_window_by_title is stubbed too: _resolve_role("main_player") falls back to it
+        find_window_by_title is stubbed too: _resolve_role("main_funestra") falls back to it
         when the pid lookup misses, and left live it would enumerate the real
         desktop and return a stray HWND (a running Fun Time's the Main Funestra window) — a flake.
         """
@@ -3029,13 +3029,13 @@ class TestSeededRoleHwnds:
         could never bring the Main Funestra's window back."""
         runner = make_runner(
             tmp_path,
-            role_hwnds={"main_player": 2001},
+            role_hwnds={"main_funestra": 2001},
         )
         runner.state = BridgeState(main_mode=MainMode.GENAU)
         shown: list[int] = []
 
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0),              patch("fun_time.role_windows.find_window_by_title", return_value=0),              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)):
-            assert runner.windows.hwnd("main_player") == 2001
+            assert runner.windows.hwnd("main_funestra") == 2001
             runner._dispatch("main_kino_activate")
 
         assert shown == [2001]
@@ -3936,7 +3936,7 @@ def _seating_runner(tmp_path, cfg_path, *, main_video_portrait: bool) -> Dispatc
         f"video=C:/fixtures/scene one.mp4\nportrait={int(main_video_portrait)}\n", encoding="utf-8")
     return make_runner(
         tmp_path, config=config,
-        role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_FUNESTRA_HWND},
+        role_hwnds={"portrait": PORTRAIT_HWND, "main_funestra": MAIN_FUNESTRA_HWND},
         secondary_rects=partial(secondary_monitor_rects, SECONDARY_MONITOR,
                                 load_config(cfg_path).layout))
 

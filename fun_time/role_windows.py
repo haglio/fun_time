@@ -133,7 +133,7 @@ class WindowRoles:
         # lookup answers with whatever window it reaches first whose title
         # merely CONTAINS the name (see find_window_by_title), and handing one
         # side's window to the other is the portrait/landscape visual swap.
-        if role == "main_player":
+        if role == "main_funestra":
             hwnd = find_window_by_pid(self.pids.main_funestra) or find_window_by_title("Main Funestra", exact=True)
         elif role == "portrait":
             hwnd = (find_window_by_pid(self.pids.portrait)
@@ -274,7 +274,7 @@ class WindowRoles:
         self._parked_hwnds = []
 
     def seat(self, rects: SecondaryMonitorRects) -> None:
-        self.place([("portrait", rects.portrait), ("main_player", rects.main)])
+        self.place([("portrait", rects.portrait), ("main_funestra", rects.main)])
 
     def place(self, placements: Iterable[tuple[str, WindowRect]]) -> None:
         moves = []

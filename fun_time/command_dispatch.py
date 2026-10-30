@@ -457,7 +457,7 @@ _NO_FILTER_SIDES: dict[str, tuple[RoomFunestra, ...]] = {
 _MINIMIZE_ROLES: dict[str, str] = {
     "portrait_minimize": "portrait",
     "landscape_minimize": "landscape",
-    "main_minimize": "main_player",
+    "main_minimize": "main_funestra",
 }
 
 
@@ -863,7 +863,7 @@ def _dispatch_leave_omnipause(
 def _main_focus_ops() -> list[WindowOp]:
     """Re-activate the main slot's one window (omnipause leave): Kino and Genau
     both run on the Main Funestra's window, whichever of them has it."""
-    return [WindowOp(op="activate_role", key="main_player")]
+    return [WindowOp(op="activate_role", key="main_funestra")]
 
 
 def _main_slot_ops() -> list[WindowOp]:
@@ -872,8 +872,8 @@ def _main_slot_ops() -> list[WindowOp]:
     left is to bring that window back if it was parked and hand it the focus,
     so focus never falls through to another application."""
     return [
-        WindowOp(op="show_role", key="main_player"),
-        WindowOp(op="activate_role", key="main_player"),
+        WindowOp(op="show_role", key="main_funestra"),
+        WindowOp(op="activate_role", key="main_funestra"),
     ]
 
 
@@ -1039,8 +1039,8 @@ def _dispatch_main_reorder(
     describes the playlist file we built and a Genau reorder recorded there would
     light "Latest" over a playlist nobody reordered.
     """
-    on_main_funestra = kino_shows(state.main_mode)
-    if on_main_funestra:
+    kino = kino_shows(state.main_mode)
+    if kino:
         state = replace(state, main_latest=recent,
                         main_shuffle_seed=state.main_shuffle_seed if recent else new_shuffle_seed())
         _rebuild_the_main_list(state, config, start_at_top=True)
@@ -1049,7 +1049,7 @@ def _dispatch_main_reorder(
         append_command(config.genau_cmd_file, _GENAU_ORDER_CMD[recent])
     # The order's own word alone, and self-reported — see _dispatch_reorder.
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
-    logger.info("%s: the Main Funestra (%s)", label, "main_player" if on_main_funestra else "genau")
+    logger.info("%s: the Main Funestra (%s)", label, "kino" if kino else "genau")
     return state, [WindowOp(op="notice", key=label, source=SOURCE_MAIN)]
 
 

@@ -1228,7 +1228,7 @@ def test_the_main_funestras_button_parks_its_window_in_either_mode(tmp_path: Pat
     for mode in ("genau", "kino"):
         _state, ops = dispatch_command(
             "main_minimize", _make_state(main_mode=mode), config)
-        assert ops == [WindowOp(op="minimize_role", key="main_player")], mode
+        assert ops == [WindowOp(op="minimize_role", key="main_funestra")], mode
 
 
 # --- omnipause_toggle ---
@@ -2589,8 +2589,8 @@ def test_a_switch_brings_the_main_funestras_window_back_and_hands_it_the_focus(t
 
         assert new_state.main_mode is to_mode
         assert ops == [
-            WindowOp(op="show_role", key="main_player"),
-            WindowOp(op="activate_role", key="main_player"),
+            WindowOp(op="show_role", key="main_funestra"),
+            WindowOp(op="activate_role", key="main_funestra"),
         ]
 
 
@@ -3388,7 +3388,7 @@ def test_leaving_omnipause_brings_the_main_funestra_forward_in_either_mode(
 
     new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
-    assert any(op.op == "activate_role" and op.key == "main_player" for op in ops)
+    assert any(op.op == "activate_role" and op.key == "main_funestra" for op in ops)
 
 
 # --- Main Funestra nudge ---
