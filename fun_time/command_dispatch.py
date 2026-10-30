@@ -205,7 +205,7 @@ _GENAU_RATE_ENDS = {
 
 
 def _percent_rate(command: str, prefix: str) -> str | None:
-    """'main_player_speed_150' -> 'SET_SPEED 1.5' (percent-of-normal -> multiplier)."""
+    """'main_funestra_speed_150' -> 'SET_SPEED 1.5' (percent-of-normal -> multiplier)."""
     if not command.startswith(prefix):
         return None
     try:
@@ -243,17 +243,17 @@ def _speed_target(state: BridgeState, config: BridgeConfig, *,
 
 
 _MAIN_FUNESTRA_CMD_MAP = {
-    "main_player_record_down": "RECORD_DOWN",
-    "main_player_record_up": "RECORD_UP",
-    "main_player_record_tap": "RECORD_TAP",
-    "main_player_loop_cancel": "LOOP_CANCEL",
-    "main_player_cycle_version": "CYCLE_VERSION",
-    "main_player_cycle_version_back": "CYCLE_VERSION_BACK",
-    "main_player_compilation": "PLAY_COMPILATION",
-    "main_player_end_compilation": "END_COMPILATION",
-    "main_player_full_vid": "PLAY_FULL_VID",
-    "main_player_clip_jump": "PLAY_CLIP_JUMP",
-    **{f"main_player_{act}": verb for act, verb in _FUNSCRIPT_MOVES.items()},
+    "main_funestra_record_down": "RECORD_DOWN",
+    "main_funestra_record_up": "RECORD_UP",
+    "main_funestra_record_tap": "RECORD_TAP",
+    "main_funestra_loop_cancel": "LOOP_CANCEL",
+    "main_funestra_cycle_version": "CYCLE_VERSION",
+    "main_funestra_cycle_version_back": "CYCLE_VERSION_BACK",
+    "main_funestra_compilation": "PLAY_COMPILATION",
+    "main_funestra_end_compilation": "END_COMPILATION",
+    "main_funestra_full_vid": "PLAY_FULL_VID",
+    "main_funestra_clip_jump": "PLAY_CLIP_JUMP",
+    **{f"main_funestra_{act}": verb for act, verb in _FUNSCRIPT_MOVES.items()},
 }
 
 _VERBS_THE_MAIN_FUNESTRA_ANSWERS = frozenset({
@@ -636,7 +636,7 @@ _MAIN_LOCK_COMMANDS = {
 _NORMAL_SPEED = f"{SET_SPEED} 1"
 
 _MAIN_FUNESTRA_RESET_VERBS = (
-    _MAIN_FUNESTRA_CMD_MAP["main_player_loop_cancel"],
+    _MAIN_FUNESTRA_CMD_MAP["main_funestra_loop_cancel"],
     _MAIN_LOCK_COMMANDS["main_lock_off"],
     _NORMAL_SPEED,
 )
@@ -1644,7 +1644,7 @@ def _skip_ahead_on_the_main_funestra(state: BridgeState, config: BridgeConfig,
     if kino_shows(state.main_mode) and (refused := _skip_ahead_refused(RoomFunestra.MAIN, state)):
         return state, refused
     return _forward_to_main_funestra_on_screen(
-        _MAIN_FUNESTRA_CMD_MAP["main_player_funscript_jump"], state, config, target_path)
+        _MAIN_FUNESTRA_CMD_MAP["main_funestra_funscript_jump"], state, config, target_path)
 
 
 def _forward_to_the_vr_main_funestra(verb: str, state: BridgeState, config: BridgeConfig,
@@ -1889,7 +1889,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_main_lock, verb)
                      for cmd, verb in _MAIN_LOCK_COMMANDS.items()})
     handlers["genau_lock"] = partial(_main_lock, TOGGLE_LOCK)
-    handlers["main_player_lock"] = partial(_lock_kino_on_the_main_funestra, TOGGLE_LOCK)
+    handlers["main_funestra_lock"] = partial(_lock_kino_on_the_main_funestra, TOGGLE_LOCK)
     handlers["projection_cycle"] = partial(_forward_to_the_vr_main_funestra, "CYCLE_PROJECTION")
     handlers["projection_cycle_back"] = partial(
         _forward_to_the_vr_main_funestra, "CYCLE_PROJECTION_BACK")
@@ -1904,7 +1904,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["vr_reset"] = partial(_forward_to_the_vr_main_funestra, "LAYOUT_RESET")
     handlers.update({cmd: partial(_forward_to_main_funestra_on_screen, verb)
                      for cmd, verb in _MAIN_FUNESTRA_CMD_MAP.items()})
-    handlers["main_player_funscript_jump"] = _skip_ahead_on_the_main_funestra
+    handlers["main_funestra_funscript_jump"] = _skip_ahead_on_the_main_funestra
     handlers.update({cmd: partial(_set_muted, muted)
                      for cmd, muted in _MUTE_COMMANDS.items()})
     handlers.update({cmd: partial(_volume_step, step)
@@ -1921,7 +1921,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_include, pair, wanted)
                      for pair in (PROJECTION, LENGTH, ORIENTATION)
                      for cmd, wanted in pair.asked.items()})
-    handlers["main_player_toggle_length"] = _main_length_toggle
+    handlers["main_funestra_toggle_length"] = _main_length_toggle
     handlers[MAIN_RESET] = _main_reset
     handlers.update({cmd: partial(_set_filter, funestras, "")
                      for cmd, funestras in _NO_FILTER_SIDES.items()})
@@ -1937,7 +1937,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({command: partial(_crown, crown) for command, crown in CROWNS.items()})
     handlers.update({cmd: partial(_speed, verb, verb, True)
                      for cmd, verb in _SPEED_BY_DRIVER.items()})
-    handlers.update({f"main_player_{act}": partial(_speed, verb, _GENAU_RATE_ENDS.get(act), False)
+    handlers.update({f"main_funestra_{act}": partial(_speed, verb, _GENAU_RATE_ENDS.get(act), False)
                      for act, verb in _PLAYBACK_RATE_ACTS.items()})
     handlers.update({cmd: partial(_forward_to_genau, verb)
                      for cmd, verb in _GENAU_CMD_MAP.items()})
@@ -2023,8 +2023,8 @@ def _parsed_filter(command: str, state: BridgeState, config: BridgeConfig,
 
 def _parsed_main_funestra_speed(command: str, state: BridgeState, config: BridgeConfig,
                       _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    """"main_player_speed_<pct>" — an absolute video rate, the Main Funestra's alone."""
-    main_funestra_cmd = _percent_rate(command, "main_player_speed_")
+    """"main_funestra_speed_<pct>" — an absolute video rate, the Main Funestra's alone."""
+    main_funestra_cmd = _percent_rate(command, "main_funestra_speed_")
     if main_funestra_cmd is None:
         return None
     return _speed(main_funestra_cmd, None, False, state, config, _target_path)

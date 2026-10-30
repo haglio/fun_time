@@ -14,12 +14,12 @@ _ON_THE_CONSOLE = {
     "nudge_prev": "main_nudge_prev",
     "nudge_next": "main_nudge_next",
     "next": "main_next",
-    "funscript_jump": "main_player_funscript_jump",
+    "funscript_jump": "main_funestra_funscript_jump",
     "lock": "main_lock",
     "reset": "main_reset",
     "shuffle": "main_shuffle",
     "latest": "main_latest",
-    "cycle_version": "main_player_cycle_version",
+    "cycle_version": "main_funestra_cycle_version",
     "minimize": "main_minimize",
 }
 
