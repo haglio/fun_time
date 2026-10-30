@@ -130,8 +130,11 @@ def mode_memory(args) -> ModeMemory:
     return ModeMemory(_state_path(args, "main_player_mode.txt"))
 
 
+PLAY_POINTS = play_points_filename("main_player")
+
+
 def play_points_path(args) -> Path:
-    return _state_path(args, play_points_filename("main_player"))
+    return _state_path(args, PLAY_POINTS)
 
 
 def library_source(

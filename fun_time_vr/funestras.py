@@ -46,7 +46,7 @@ from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import set_app_user_model_id
 from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
-from funestra.funestra import Channels, Funestra
+from funestra.funestra import Funestra
 from funestra.funestra_verbs import play_file
 from funestra.genau_notifier import GenauNotifier
 from funestra.modes import MainMode
@@ -71,7 +71,6 @@ from fun_time.funestra_status import read_genau_status, read_main_funestra_statu
 from fun_time.genau_config import GenauSettings
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item
-from fun_time.osr2_section import osr2_readout_path
 from fun_time.project_paths import PROJECT_VR_ICON
 from fun_time.session_handoff import (
     headset_hold_asked,
@@ -82,6 +81,7 @@ from fun_time.shared_state import BridgeState, read_shared_state, shared_state_p
 from fun_time.unlogged_notices import UnloggedNotices
 from main_funestra.cli import build_parser as build_main_funestra_parser
 from main_funestra.cli import kino_on, library_source, load_config, mode_memory, resolve_playlist
+from main_funestra.contract import MainChannels
 from main_funestra.genau import ROBOT_HAND, GenauChannels
 from main_funestra.kino import Kino
 from satellite.contract import SatelliteChannels
@@ -552,18 +552,7 @@ class _MainUnit(_VideoUnit):
                                              showing=lambda: self.owns_the_slot)
         self.funestra = Funestra(
             self.engine,
-            channels=Channels(
-                playlist=Path(commands.main_funestra_playlist_file),
-                command=Path(commands.main_funestra_cmd_file),
-                paused=Path(commands.main_funestra_paused_file),
-                status=Path(commands.main_funestra_status_file),
-                notice=Path(commands.main_funestra_notice_file),
-                play_points=Path(commands.state_dir) / play_points_filename("main_player"),
-                console=Path(commands.main_funestra_console_file),
-                dashboard_cmd=self._dashboard_cmd_file,
-                drive=Path(commands.genau_drive_file),
-                osr2_readout=osr2_readout_path(Path(commands.state_dir), MAIN),
-            ),
+            channels=MainChannels.from_manifest(commands),
             playlist=library.playlist(),
             tcode=FunscriptTCodeDriver(_osr2_slot(commands, MAIN)),
             locked=True, sound_is_the_rooms=True,
