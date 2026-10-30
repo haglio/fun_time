@@ -109,7 +109,7 @@ def _neutralise_topmost_reads():
     These tests are about dispatch, not z-order, and a real read would land on
     whichever window answers on this machine — so the flag read is neutralised
     (nothing is ever found topmost).  The native satellites publish their
-    playback to status files, so a tick's satellite/main-player sampling is inert
+    playback to status files, so a tick's satellite/Main Funestra sampling is inert
     here (no status files written).  A test asserting on topmost state patches
     is_window_topmost itself."""
     with patch("fun_time.role_windows.is_window_topmost", return_value=False):

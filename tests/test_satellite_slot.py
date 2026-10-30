@@ -1,4 +1,4 @@
-"""SatelliteSlot — the launch chain's per-player bundle (finding B_orchestration/001)."""
+"""SatelliteSlot — the launch chain's per-Funestra bundle (finding B_orchestration/001)."""
 from __future__ import annotations
 
 from pathlib import Path

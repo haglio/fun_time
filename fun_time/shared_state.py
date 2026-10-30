@@ -122,8 +122,8 @@ class BridgeState:
     genau_plays_landscape: bool = True
     genau_favorites_filter: bool = False
     # The Funestra most recently navigated, as a :class:`Funestra` slot.  Any command
-    # naming a Funestra, or a main next/prev, updates it; the player-agnostic "active_*"
-    # commands resolve against it — nav reaches all three, the satellite-only
+    # naming a Funestra, or a main next/prev, updates it; the "active_*" commands, which
+    # name none, resolve against it — nav reaches all three, the satellite-only
     # actions only the two.  Starts on the Main Funestra: it is the display the eye
     # opens on, so it holds the floor until a satellite is addressed.
     active_funestra: int = 1

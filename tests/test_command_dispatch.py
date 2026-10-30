@@ -1070,7 +1070,7 @@ def test_landscape_next_drives_its_own_satellite_not_portrait(tmp_path: Path):
 
 
 def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: Path):
-    """Same player-mix-up pin for the destructive sibling: a swapped Funestra here
+    """Same Funestra-mix-up pin for the destructive sibling: a swapped Funestra here
     would condemn whatever the Portrait Funestra happened to be showing."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(locked=True))
@@ -1122,7 +1122,7 @@ def test_a_fresh_session_starts_with_the_primary_active():
 
 def test_portrait_command_sets_active_funestra_to_portrait(tmp_path: Path):
     """A portrait command marks portrait as the active Funestra, so a later
-    player-agnostic command ('lock', 'next', ...) knows which Funestra to hit."""
+    command that names none ('lock', 'next', ...) knows which Funestra to hit."""
     config = _make_config(tmp_path)
     state = _make_state(active_funestra=3)  # currently on landscape
 
@@ -3391,7 +3391,7 @@ def test_leaving_omnipause_brings_the_main_funestra_forward_in_either_mode(
     assert any(op.op == "activate_role" and op.key == "main_player" for op in ops)
 
 
-# --- main-player nudge ---
+# --- Main Funestra nudge ---
 
 
 @pytest.mark.parametrize("main_mode", list(MainMode))
