@@ -346,7 +346,7 @@ def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
     only — the keys say "speed up", which follows the OSR2's driver instead."""
     main_funestra_rows = {s.title: s for s in build_reference_sections()}["Main Funestra"].rows
     descs = [r.description for r in main_funestra_rows]
-    nudge = next(r for r in main_funestra_rows if "main_player_speed_up" in r.commands)
+    nudge = next(r for r in main_funestra_rows if "main_funestra_speed_up" in r.commands)
     assert _keys(nudge) == ()
     assert nudge.voice == ("main playback speed up", "main playback slow down",
                            "main playback speed down")
@@ -547,7 +547,7 @@ def test_kino_mode_is_spoken_as_written_of_either_side_or_of_both():
 
 def test_loop_control_row_consolidates_record_and_cancel():
     rows = _all_rows()
-    loop_rows = [r for r in rows if "main_player_record_down" in r.commands]
+    loop_rows = [r for r in rows if "main_funestra_record_down" in r.commands]
     assert loop_rows, "expected a loop control row"
     row = loop_rows[0]
     assert "R" in _keys(row)
@@ -555,7 +555,7 @@ def test_loop_control_row_consolidates_record_and_cancel():
     assert "loop" in row.voice
     # Record and cancel are one row.  The bare "end loop" is not this row's own: it
     # reaches the Main Funestra's loop only when that is the Funestra last addressed.
-    assert "main_player_loop_cancel" in row.commands
+    assert "main_funestra_loop_cancel" in row.commands
     assert {"main end loop", "end loop main"} <= set(row.voice)
     assert "end loop" not in row.voice
 
@@ -612,7 +612,7 @@ def test_previous_next_pairs_are_ordered_previous_then_next():
 
 
 def test_the_clip_navigation_row_quotes_only_what_voice_answers():
-    row = next(r for r in _all_rows() if "main_player_clip_jump" in r.commands)
+    row = next(r for r in _all_rows() if "main_funestra_clip_jump" in r.commands)
     spoken = {phrase.lower() for phrase in VOICE_COMMANDS} | set(row.voice)
 
     assert set(re.findall(r'"([^"]+)"', row.description)) <= spoken
@@ -689,7 +689,7 @@ def test_funscript_rows_show_the_joined_word_the_recognizer_cannot_hear():
     assert VOICE_COMMANDS["jump to fun script"] == "active_funscript_jump"
     assert "jump to funscript" not in VOICE_COMMANDS  # display-only
 
-    main = [r for r in _all_rows() if "main_player_funscript_jump" in r.commands]
+    main = [r for r in _all_rows() if "main_funestra_funscript_jump" in r.commands]
     sides = [r for r in _all_rows() if "portrait_funscript_jump" in r.commands]
     assert len(main) == len(sides) == 1, "expected one funscript row per section"
     assert {"main jump to funscript", "main next funscripted"} <= set(main[0].voice)
@@ -738,6 +738,28 @@ def test_render_reference_html_has_no_heading_or_subtitle():
     assert "<h2" not in html
     assert "Hotkeys &amp; Voice Commands Reference" not in html
     assert "Global while Fun Time" not in html
+
+
+def test_no_command_name_reaches_the_reference_on_either_screen():
+    """The popup and the headset's page draw a row's keys, its spoken words and
+    what it does, never the name of the command it sends, so a command can be
+    renamed without a word of the reference changing."""
+    sections = build_reference_sections()
+    names = {command for section in sections for row in section.rows
+             for command in row.commands if "_" in command}
+    shown = [render_reference_html()] + [
+        text
+        for section in sections
+        for text in (section.title, section.note, *section.key_headers)
+    ] + [
+        text
+        for section in sections
+        for row in section.rows
+        for text in (row.description, *row.voice,
+                     *(key for column in row.key_columns for key in column))
+    ]
+    assert len(names) > 100
+    assert not [name for name in sorted(names) if any(name in text for text in shown)]
 
 
 def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():

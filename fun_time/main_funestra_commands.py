@@ -38,17 +38,17 @@ _PLAYHEAD_ACTS = {
 
 
 MAIN_FUNESTRA_CMD_MAP = {
-    "main_player_record_down": "RECORD_DOWN",
-    "main_player_record_up": "RECORD_UP",
-    "main_player_record_tap": "RECORD_TAP",
-    "main_player_loop_cancel": "LOOP_CANCEL",
-    "main_player_cycle_version": "CYCLE_VERSION",
-    "main_player_cycle_version_back": "CYCLE_VERSION_BACK",
-    "main_player_compilation": "PLAY_COMPILATION",
-    "main_player_end_compilation": "END_COMPILATION",
-    "main_player_full_vid": "PLAY_FULL_VID",
-    "main_player_clip_jump": "PLAY_CLIP_JUMP",
-    **{f"main_player_{act}": verb for act, verb in FUNSCRIPT_MOVES.items()},
+    "main_funestra_record_down": "RECORD_DOWN",
+    "main_funestra_record_up": "RECORD_UP",
+    "main_funestra_record_tap": "RECORD_TAP",
+    "main_funestra_loop_cancel": "LOOP_CANCEL",
+    "main_funestra_cycle_version": "CYCLE_VERSION",
+    "main_funestra_cycle_version_back": "CYCLE_VERSION_BACK",
+    "main_funestra_compilation": "PLAY_COMPILATION",
+    "main_funestra_end_compilation": "END_COMPILATION",
+    "main_funestra_full_vid": "PLAY_FULL_VID",
+    "main_funestra_clip_jump": "PLAY_CLIP_JUMP",
+    **{f"main_funestra_{act}": verb for act, verb in FUNSCRIPT_MOVES.items()},
 }
 
 
@@ -122,7 +122,7 @@ def _skip_ahead_on_the_main_funestra(state: BridgeState, config: BridgeConfig,
     if kino_shows(state.main_mode) and (refused := skip_ahead_refused(RoomFunestra.MAIN, state)):
         return state, refused
     return _forward_to_main_funestra_on_screen(
-        MAIN_FUNESTRA_CMD_MAP["main_player_funscript_jump"], state, config, target_path)
+        MAIN_FUNESTRA_CMD_MAP["main_funestra_funscript_jump"], state, config, target_path)
 
 
 def _forward_to_the_vr_main_funestra(verb: str, state: BridgeState, config: BridgeConfig,
@@ -182,7 +182,7 @@ _VR_MAIN_FUNESTRA_VERBS = {
     "vr_reset": "LAYOUT_RESET",
 }
 
-SKIP_AHEAD = "main_player_funscript_jump"
+SKIP_AHEAD = "main_funestra_funscript_jump"
 
 HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_step_through, funestra, verb)
@@ -190,7 +190,7 @@ HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_forward_to_main_funestra, verb) for cmd, verb in _MAIN_TRANSPORT.items()},
     **{cmd: partial(_main_lock, verb) for cmd, verb in MAIN_LOCK_COMMANDS.items()},
     "genau_lock": partial(_main_lock, TOGGLE_LOCK),
-    "main_player_lock": partial(_lock_kino_on_the_main_funestra, TOGGLE_LOCK),
+    "main_funestra_lock": partial(_lock_kino_on_the_main_funestra, TOGGLE_LOCK),
     **{cmd: partial(_forward_to_the_vr_main_funestra, verb)
        for cmd, verb in _VR_MAIN_FUNESTRA_VERBS.items()},
     **{cmd: partial(_forward_to_main_funestra_on_screen, verb)

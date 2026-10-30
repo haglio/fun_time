@@ -471,8 +471,8 @@ class TestResolveActiveSideCommand:
         assert resolve_active_funestra_command("active_prev", 1) == "main_prev"
 
     def test_the_funscript_moves_follow_the_funestra_last_navigated_the_main_under_its_own_ids(self):
-        for action, main in (("funscript_jump", "main_player_funscript_jump"),
-                             ("next_funscripted", "main_player_next_funscripted")):
+        for action, main in (("funscript_jump", "main_funestra_funscript_jump"),
+                             ("next_funscripted", "main_funestra_next_funscripted")):
             assert resolve_active_funestra_command(f"active_{action}", 1) == main
             assert resolve_active_funestra_command(f"active_{action}", 2) == f"portrait_{action}"
             assert resolve_active_funestra_command(f"active_{action}", 3) == f"landscape_{action}"
@@ -492,7 +492,7 @@ class TestResolveActiveSideCommand:
         """A side-agnostic phrase may mean a different thing on each Funestra: on a
         satellite "end loop" ends a group loop, on the Main Funestra it cancels the Main Funestra's A-B
         loop.  The resolution is where that translation belongs."""
-        assert resolve_active_funestra_command("active_no_loop", 1) == "main_player_loop_cancel"
+        assert resolve_active_funestra_command("active_no_loop", 1) == "main_funestra_loop_cancel"
         assert resolve_active_funestra_command("active_no_loop", 2) == "portrait_no_loop"
         assert resolve_active_funestra_command("active_no_loop", 3) == "landscape_no_loop"
 
@@ -533,7 +533,7 @@ class TestResolveActiveSideCommand:
 
     def test_a_bare_playback_speed_reaches_whichever_funestra_is_active(self):
         for action in ("speed_up", "speed_down", "speed_150"):
-            assert resolve_active_funestra_command(f"active_{action}", 1) == f"main_player_{action}"
+            assert resolve_active_funestra_command(f"active_{action}", 1) == f"main_funestra_{action}"
             assert resolve_active_funestra_command(f"active_{action}", 2) == f"portrait_{action}"
             assert resolve_active_funestra_command(f"active_{action}", 3) == f"landscape_{action}"
 
@@ -1390,7 +1390,7 @@ class TestWhatASpokenCommandFlashes:
         self, tmp_path,
     ):
         flashed = self._run_for_real(
-            tmp_path, "main_player_compilation", "compilation", main_mode=MainMode.GENAU)
+            tmp_path, "main_funestra_compilation", "compilation", main_mode=MainMode.GENAU)
 
         assert flashed == [("ignored in Genau mode: compilation", "main", logging.WARNING)]
 
@@ -1420,14 +1420,14 @@ class TestWhatASpokenCommandFlashes:
 
     def test_a_jump_the_headsets_main_funestra_cannot_answer_says_what_was_heard(self, tmp_path):
         flashed = self._run_for_real(
-            tmp_path, "main_player_compilation", "compilation",
+            tmp_path, "main_funestra_compilation", "compilation",
             config=make_config(tmp_path, vr_main_funestra=True), main_mode=MainMode.KINO)
 
         assert flashed == [("compilation", "main", 25)]
 
     @pytest.mark.parametrize("command", [
-        "main_player_compilation", "main_player_full_vid", "main_player_clip_jump",
-        "main_player_funscript_jump", "main_player_next_funscripted",
+        "main_funestra_compilation", "main_funestra_full_vid", "main_funestra_clip_jump",
+        "main_funestra_funscript_jump", "main_funestra_next_funscripted",
     ])
     def test_a_jump_the_main_funestra_answers_itself_says_nothing_now(self, tmp_path, command):
         flashed = self._run_for_real(
@@ -1442,7 +1442,7 @@ class TestWhatASpokenCommandFlashes:
             assert self._flashed(tmp_path, spoken, [WindowOp(op="save_clip")]) == []
 
     def test_a_narrowing_that_says_its_words_where_it_is_done_says_nothing_now(self, tmp_path):
-        spoken = format_spoken_command("main_player_length_clips", spoken_at=1.0, said="clips")
+        spoken = format_spoken_command("main_funestra_length_clips", spoken_at=1.0, said="clips")
 
         assert self._flashed(tmp_path, spoken, [WindowOp(op=Op.NARROWING_ANSWERS)]) == []
 

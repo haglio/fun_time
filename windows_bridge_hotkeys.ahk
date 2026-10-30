@@ -177,7 +177,7 @@ e::QueueCommand("landscape_loop")
 ; cluster below, so each key holds the Funestra whose keys sit around it.  The
 ; apostrophe gave up Save clip to take this — that moved one key left, to the
 ; semicolon (bound by scancode because a bare ; opens a comment in AHK).
-'::QueueCommand("main_player_lock")
+'::QueueCommand("main_funestra_lock")
 SC027::QueueCommand("genaumacher_save")
 
 ; The Main Funestra loop recording: hold R to mark, release to loop, press again to cancel.
@@ -188,25 +188,25 @@ r:: {
     if RecordHeld
         return
     RecordHeld := true
-    QueueCommand("main_player_record_down")
+    QueueCommand("main_funestra_record_down")
 }
 r up:: {
     global RecordHeld
     RecordHeld := false
-    QueueCommand("main_player_record_up")
+    QueueCommand("main_funestra_record_up")
 }
 
 ; The Main Funestra: cycle to another same-content version of the current video.
 ; The shifted step keys walk the same versions either way, as the shifted step
 ; keys on each satellite side do.
-v::QueueCommand("main_player_cycle_version")
-+[::QueueCommand("main_player_cycle_version_back")
-+SC01A::QueueCommand("main_player_cycle_version_back")
-+]::QueueCommand("main_player_cycle_version")
-+SC01B::QueueCommand("main_player_cycle_version")
+v::QueueCommand("main_funestra_cycle_version")
++[::QueueCommand("main_funestra_cycle_version_back")
++SC01A::QueueCommand("main_funestra_cycle_version_back")
++]::QueueCommand("main_funestra_cycle_version")
++SC01B::QueueCommand("main_funestra_cycle_version")
 
 ; The Main Funestra: cycle the length of what plays — mixed (everything) / clips / full.
-t::QueueCommand("main_player_toggle_length")
+t::QueueCommand("main_funestra_toggle_length")
 
 ; FunTimeVR: cycle the Main Funestra's video's projection.  Desktop Main Funestra ignores the verb.
 p::QueueCommand("projection_cycle")

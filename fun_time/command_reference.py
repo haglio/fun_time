@@ -326,7 +326,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 "Lock / unlock the video — locked (the default) it repeats; "
                 "unlocked it moves on and the list runs around",
                 ("'",),
-                ("main_player_lock",),
+                ("main_funestra_lock",),
             ),
             _Row(
                 "Lock / unlock whichever Funestra is on the main screen — the "
@@ -371,7 +371,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 "Nudge the video's playback rate up / down — both satellites take "
                 "the rate it lands on",
                 (),
-                ("main_player_speed_up", "main_player_speed_down"),
+                ("main_funestra_speed_up", "main_funestra_speed_down"),
                 voice_display=("main playback speed up", "main playback slow down",
                                "main playback speed down"),
             ),
@@ -380,9 +380,9 @@ _SECTIONS: tuple[_Section, ...] = (
                 "satellites)",
                 (),
                 (
-                    "main_player_speed_min", "main_player_speed_max",
-                    "main_player_speed_25", "main_player_speed_50", "main_player_speed_75", "main_player_speed_100",
-                    "main_player_speed_125", "main_player_speed_150", "main_player_speed_175", "main_player_speed_200",
+                    "main_funestra_speed_min", "main_funestra_speed_max",
+                    "main_funestra_speed_25", "main_funestra_speed_50", "main_funestra_speed_75", "main_funestra_speed_100",
+                    "main_funestra_speed_125", "main_funestra_speed_150", "main_funestra_speed_175", "main_funestra_speed_200",
                 ),
                 voice_display=("main min speed", "main max speed", "main reset speed",
                                "main half speed", "main double speed",
@@ -392,7 +392,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 "Step through the other versions of this video — the same "
                 "content at another size or from another encode",
                 ("Shift+[", "Shift+]", "V"),
-                ("main_player_cycle_version_back", "main_player_cycle_version"),
+                ("main_funestra_cycle_version_back", "main_funestra_cycle_version"),
             ),
             _Row(
                 "Move this Funestra's HUD — one key each way round the corners "
@@ -426,8 +426,8 @@ _SECTIONS: tuple[_Section, ...] = (
                 "compilation with it; the console's own pair reaches a fourth "
                 "state, neither, which holds the video on screen",
                 ("T",),
-                ("main_player_toggle_length", "main_player_length_clips", "main_player_length_full",
-                 "main_player_length_mixed", "main_player_length_none"),
+                ("main_funestra_toggle_length", "main_funestra_length_clips", "main_funestra_length_full",
+                 "main_funestra_length_mixed", "main_funestra_length_none"),
             ),
             _Row(
                 "Orientation of what plays, the video here and Genau's "
@@ -451,8 +451,8 @@ _SECTIONS: tuple[_Section, ...] = (
                 "you were in; \"full video\" plays the full scene the clip came "
                 "from, and the clip jump goes back to the clip",
                 (),
-                ("main_player_compilation", "main_player_end_compilation", "main_player_full_vid",
-                 "main_player_clip_jump"),
+                ("main_funestra_compilation", "main_funestra_end_compilation", "main_funestra_full_vid",
+                 "main_funestra_clip_jump"),
             ),
             _Row(
                 "Funscript navigation: \"jump to funscript\" skips ahead to "
@@ -461,12 +461,12 @@ _SECTIONS: tuple[_Section, ...] = (
                 "funscripted\" leaves for the next scripted video in the "
                 "playlist, landing where its action begins",
                 (),
-                ("main_player_funscript_jump", "main_player_next_funscripted"),
+                ("main_funestra_funscript_jump", "main_funestra_next_funscripted"),
             ),
             _Row(
                 "Loop control: hold and release to set a loop, press to end loop",
                 ("R",),
-                ("main_player_record_down", "main_player_record_up", "main_player_record_tap", "main_player_loop_cancel"),
+                ("main_funestra_record_down", "main_funestra_record_up", "main_funestra_record_tap", "main_funestra_loop_cancel"),
             ),
             _Row(
                 "F-Mode on the Main Funestra alone — play only the well funscripted "

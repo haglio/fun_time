@@ -95,8 +95,8 @@ class TestPayload:
         to ask — so where the Main Funestra is in the gesture rides here with the rest of the
         room, and the record button can say which press comes next."""
         recording = _button(_payload(main_funestra=MainFunestraStatus(loop_state=LoopState.RECORDING)),
-                            "main_player_record_tap")
-        resting = _button(_payload(), "main_player_record_tap")
+                            "main_funestra_record_tap")
+        resting = _button(_payload(), "main_funestra_record_tap")
 
         assert recording.warn and "out point" in recording.tooltip
         assert not resting.warn and not resting.hold
@@ -139,12 +139,12 @@ class TestPayload:
             compilation="Vol 3", has_compilation=True, has_other_versions=True, jump_to="scene"))
         unknown = _payload()
 
-        assert _button(known, "main_player_end_compilation").lit is True
-        assert _button(unknown, "main_player_compilation").dim is True
-        assert _button(known, "main_player_cycle_version").dim is False
-        assert _button(unknown, "main_player_cycle_version").dim is True
-        assert _button(known, "main_player_full_vid").dim is False
-        assert _button(unknown, "main_player_clip_jump").dim is True
+        assert _button(known, "main_funestra_end_compilation").lit is True
+        assert _button(unknown, "main_funestra_compilation").dim is True
+        assert _button(known, "main_funestra_cycle_version").dim is False
+        assert _button(unknown, "main_funestra_cycle_version").dim is True
+        assert _button(known, "main_funestra_full_vid").dim is False
+        assert _button(unknown, "main_funestra_clip_jump").dim is True
 
 
 def test_the_hud_carries_the_main_funestras_browse_order():
@@ -171,7 +171,7 @@ def test_the_length_pair_lights_off_what_the_orchestrator_holds():
     """The length narrows Fun Time's one list, so its pair is lit from Fun Time's
     own state, as F-mode and the order are, whatever the Funestra has said."""
     lit = [button.lit for button in _payload(length_mode=LengthMode.CLIPS).rows[1]
-           if button.command.startswith("main_player_length")]
+           if button.command.startswith("main_funestra_length")]
 
     assert lit == [True, False]
 

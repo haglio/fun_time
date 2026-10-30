@@ -128,7 +128,7 @@ def _file_controls(slot: MainSlot) -> tuple[Button, ...]:
                        group_break=True),)
     return (
         Button("browse_library", OPEN_ICON, "Browse the library", group_break=True),
-        Button("main_player_record_tap", RECORD_ICON,
+        Button("main_funestra_record_tap", RECORD_ICON,
                "Stop recording — mark the loop's out point"
                if slot.loop_state is LoopState.RECORDING else
                "Looping — press to drop the loop" if slot.loop_state is LoopState.LOOPING
@@ -162,7 +162,7 @@ def _inclusion_buttons(slot: MainSlot, *, remembered: bool, things: str) -> tupl
 def _compilation_button(slot: MainSlot) -> Button:
     inside = bool(slot.compilation)
     return Button(
-        "main_player_end_compilation" if inside else "main_player_compilation",
+        "main_funestra_end_compilation" if inside else "main_funestra_compilation",
         COMPILATION_ICON,
         "Playing this compilation in order — press to leave it" if inside
         else "Play this video's compilation, in order"
@@ -174,7 +174,7 @@ def _compilation_button(slot: MainSlot) -> Button:
 def _clip_scene_button(slot: MainSlot) -> Button:
     to_scene = slot.jump_to == "scene"
     return Button(
-        "main_player_full_vid" if to_scene else "main_player_clip_jump",
+        "main_funestra_full_vid" if to_scene else "main_funestra_clip_jump",
         CLIP_TO_SCENE_ICON if to_scene else SCENE_TO_CLIP_ICON,
         "Play the full scene this clip came from" if to_scene
         else "Back to the clip taken from this scene" if slot.jump_to == "clip"
@@ -189,7 +189,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
         remembered = bool(slot.compilation)
         return (
             *transport("main", noun=MAIN_FUNESTRA_NOUN, longer_than_a_step=slot.longer_than_a_step),
-            funscript_jump_button("main_player_funscript_jump", noun=MAIN_FUNESTRA_NOUN,
+            funscript_jump_button("main_funestra_funscript_jump", noun=MAIN_FUNESTRA_NOUN,
                                   has_osr2=slot.has_osr2, has_funscript=slot.has_funscript),
             lock_button("main", locked=slot.locked, noun=MAIN_FUNESTRA_NOUN),
             Button("main_fmode", FMODE_ICON,
@@ -200,7 +200,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
             *_inclusion_buttons(slot, remembered=remembered, things="videos"),
             _compilation_button(slot),
             _clip_scene_button(slot),
-            versions_button("main_player_cycle_version", noun=MAIN_FUNESTRA_NOUN,
+            versions_button("main_funestra_cycle_version", noun=MAIN_FUNESTRA_NOUN,
                             has_other_versions=slot.has_other_versions),
         )
     flick = genau_flick_noun()
@@ -230,10 +230,10 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
 def _playback_speed_row() -> tuple[Button, ...]:
     return (
         Button("", "Playback speed", "", width=ROW_LABEL_W),
-        Button("main_player_speed_down", LESS_ICON, "Play the video slower",
+        Button("main_funestra_speed_down", LESS_ICON, "Play the video slower",
                group_break=True),
         Button("", "", "", width=VALUE_W, host_value="playback_speed"),
-        Button("main_player_speed_up", MORE_ICON, "Play the video faster"),
+        Button("main_funestra_speed_up", MORE_ICON, "Play the video faster"),
     )
 
 

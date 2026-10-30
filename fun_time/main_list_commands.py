@@ -67,8 +67,8 @@ def _dispatch_main_reorder(
     describes the playlist file we built and a Genau reorder recorded there would
     light "Latest" over a playlist nobody reordered.
     """
-    on_main_funestra = kino_shows(state.main_mode)
-    if on_main_funestra:
+    kino = kino_shows(state.main_mode)
+    if kino:
         state = replace(state, main_latest=recent,
                         main_shuffle_seed=state.main_shuffle_seed if recent else new_shuffle_seed())
         _rebuild_the_main_list(state, config, start_at_top=True)
@@ -77,7 +77,7 @@ def _dispatch_main_reorder(
         append_command(config.genau_cmd_file, _GENAU_ORDER_CMD[recent])
     # The order's own word alone, and self-reported — see _dispatch_reorder.
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
-    logger.info("%s: the Main Funestra (%s)", label, "main_player" if on_main_funestra else "genau")
+    logger.info("%s: the Main Funestra (%s)", label, "kino" if kino else "genau")
     return state, [WindowOp(op="notice", key=label, source=SOURCE_MAIN)]
 
 
@@ -218,7 +218,7 @@ def main_funestra_at_defaults(
 
 
 _MAIN_FUNESTRA_RESET_VERBS = (
-    MAIN_FUNESTRA_CMD_MAP["main_player_loop_cancel"],
+    MAIN_FUNESTRA_CMD_MAP["main_funestra_loop_cancel"],
     MAIN_LOCK_COMMANDS["main_lock_off"],
     NORMAL_SPEED,
 )
@@ -273,6 +273,6 @@ HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_include, pair, wanted)
        for pair in (PROJECTION, LENGTH, ORIENTATION)
        for cmd, wanted in pair.asked.items()},
-    "main_player_toggle_length": _main_length_toggle,
+    "main_funestra_toggle_length": _main_length_toggle,
     MAIN_RESET: _main_reset,
 }
