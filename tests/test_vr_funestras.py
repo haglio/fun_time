@@ -151,6 +151,8 @@ from fun_time_vr.stacking import Stacking
 from fun_time_vr.surfaces import HudBitmap, LatestFrame
 from fun_time_vr.video_thread import VideoThread
 from fun_time_vr.wrap_readout import WrapReadout, label
+from main_funestra.cli import build_parser as build_main_funestra_parser
+from main_funestra.contract import MainChannels
 from main_funestra.genau import ROBOT_HAND, GenauChannels
 from tests.headset_layout_reports import reported_layout
 from tests.made_up_genau import with_made_up_genau
@@ -371,6 +373,30 @@ def test_what_its_funscript_moves_say_goes_where_the_session_reads_the_main_fune
 
     assert (faked_collaborators["Funestra"].call_args.kwargs["channels"].notice
             == Path(manifest.commands.main_funestra_notice_file))
+
+
+def _every_file_a_main_funestras_command_line_can_name():
+    parser = build_main_funestra_parser({})
+    argv = ["--osr2-port", "51000"]
+    for action in parser._actions:
+        flag = next((option for option in action.option_strings if option.startswith("--")), "")
+        if flag.endswith("-file") or flag in ("--playlist", "--state-dir"):
+            argv += [flag, f"C:/state/{action.dest}"]
+    return parser.parse_args(argv)
+
+
+def _handed(channels) -> set[str]:
+    return {name for name, value in vars(channels).items() if value is not None}
+
+
+def test_the_main_funestra_is_handed_every_file_the_desktops_can_be_but_the_osr2s(
+        tmp_path, faked_collaborators):
+    """The OSR2 is the one thing it takes another way: the broker's slot itself."""
+    _a_main_unit(tmp_path)
+
+    headset = faked_collaborators["Funestra"].call_args.kwargs["channels"]
+    desktop = MainChannels.from_args(_every_file_a_main_funestras_command_line_can_name())
+    assert _handed(headset) == _handed(desktop) - {"osr2_sender", "osr2_port"}
 
 
 def test_the_main_slot_reaches_the_osr2_through_the_brokers_slot(tmp_path, faked_collaborators):
