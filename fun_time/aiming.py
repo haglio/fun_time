@@ -8,9 +8,9 @@ MAIN_EQUIVALENTS = {
     "prev": "main_prev",
     "nudge_next": "main_nudge_next",
     "nudge_prev": "main_nudge_prev",
-    "funscript_jump": "main_player_funscript_jump",
-    "next_funscripted": "main_player_next_funscripted",
-    "no_loop": "main_player_loop_cancel",
+    "funscript_jump": "main_funestra_funscript_jump",
+    "next_funscripted": "main_funestra_next_funscripted",
+    "no_loop": "main_funestra_loop_cancel",
     "lock_on": "main_lock_on",
     "lock_off": "main_lock_off",
     "fmode": "main_fmode",
@@ -30,7 +30,7 @@ def named_first_or_last(funestra_word: str, words: str, command: str) -> dict[st
 
 def on_the_main_funestra(action: str) -> str | None:
     if action.startswith("speed_"):
-        return f"main_player_{action}"
+        return f"main_funestra_{action}"
     return MAIN_EQUIVALENTS.get(action)
 
 

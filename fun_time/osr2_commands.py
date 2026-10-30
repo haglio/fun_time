@@ -68,7 +68,7 @@ _GENAU_RATE_ENDS = {
 
 
 def percent_rate(command: str, prefix: str) -> str | None:
-    """'main_player_speed_150' -> 'SET_SPEED 1.5' (percent-of-normal -> multiplier)."""
+    """'main_funestra_speed_150' -> 'SET_SPEED 1.5' (percent-of-normal -> multiplier)."""
     if not command.startswith(prefix):
         return None
     try:
@@ -164,8 +164,8 @@ def _take_the_osr2(funestra: RoomFunestra, state: BridgeState, _config: BridgeCo
 
 def _parsed_main_funestra_speed(command: str, state: BridgeState, config: BridgeConfig,
                       _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    """"main_player_speed_<pct>" — an absolute video rate, the Main Funestra's alone."""
-    main_funestra_cmd = percent_rate(command, "main_player_speed_")
+    """"main_funestra_speed_<pct>" — an absolute video rate, the Main Funestra's alone."""
+    main_funestra_cmd = percent_rate(command, "main_funestra_speed_")
     if main_funestra_cmd is None:
         return None
     return _speed(main_funestra_cmd, None, False, state, config, _target_path)
@@ -173,7 +173,7 @@ def _parsed_main_funestra_speed(command: str, state: BridgeState, config: Bridge
 
 HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_speed, verb, verb, True) for cmd, verb in _SPEED_BY_DRIVER.items()},
-    **{f"main_player_{act}": partial(_speed, verb, _GENAU_RATE_ENDS.get(act), False)
+    **{f"main_funestra_{act}": partial(_speed, verb, _GENAU_RATE_ENDS.get(act), False)
        for act, verb in PLAYBACK_RATE_ACTS.items()},
     OSR2_CONTROL_BUTTONS[OSR2_PARKED]: partial(robot_hand_hold, OSR2_PARKED),
     OSR2_CONTROL_BUTTONS[OSR2_DRIVING]: _robot_hand_release,

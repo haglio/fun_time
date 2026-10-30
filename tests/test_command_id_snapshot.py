@@ -12,7 +12,7 @@ or console posts, and holds the result to one literal list.
 The act-filter ids (``filter_<scope>_<act>``) come from the content overlay,
 which differs per machine, so they are pinned by shape against
 :mod:`fun_time.filter_vocab` rather than by literal act names.  The numeric
-families (``robot_hand_amp_50``, ``main_player_speed_150``, ...) are pinned by regenerating
+families (``robot_hand_amp_50``, ``main_funestra_speed_150``, ...) are pinned by regenerating
 them the way the vocabulary does.
 """
 from __future__ import annotations
@@ -201,6 +201,28 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "main_fmode",
     "main_fmode_off",
     "main_fmode_on",
+    "main_funestra_clip_jump",
+    "main_funestra_compilation",
+    "main_funestra_cycle_version",
+    "main_funestra_cycle_version_back",
+    "main_funestra_end_compilation",
+    "main_funestra_full_vid",
+    "main_funestra_funscript_jump",
+    "main_funestra_length_clips",
+    "main_funestra_length_full",
+    "main_funestra_length_mixed",
+    "main_funestra_length_none",
+    "main_funestra_lock",
+    "main_funestra_loop_cancel",
+    "main_funestra_next_funscripted",
+    "main_funestra_record_down",
+    "main_funestra_record_tap",
+    "main_funestra_record_up",
+    "main_funestra_speed_down",
+    "main_funestra_speed_max",
+    "main_funestra_speed_min",
+    "main_funestra_speed_up",
+    "main_funestra_toggle_length",
     "main_hud_clockwise",
     "main_hud_counterclockwise",
     "main_hud_minimize",
@@ -216,28 +238,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "main_orientation_landscape",
     "main_orientation_none",
     "main_orientation_portrait",
-    "main_player_clip_jump",
-    "main_player_compilation",
-    "main_player_cycle_version",
-    "main_player_cycle_version_back",
-    "main_player_end_compilation",
-    "main_player_full_vid",
-    "main_player_funscript_jump",
-    "main_player_length_clips",
-    "main_player_length_full",
-    "main_player_length_mixed",
-    "main_player_length_none",
-    "main_player_lock",
-    "main_player_loop_cancel",
-    "main_player_next_funscripted",
-    "main_player_record_down",
-    "main_player_record_tap",
-    "main_player_record_up",
-    "main_player_speed_down",
-    "main_player_speed_max",
-    "main_player_speed_min",
-    "main_player_speed_up",
-    "main_player_toggle_length",
     "main_prev",
     "main_projection_both",
     "main_projection_flat",
@@ -333,7 +333,7 @@ def _expected_numeric_ids() -> set[str]:
     ids |= {f"genau_flick_seconds_{value}" for value in range(1, 61)}
     ids |= {
         f"{funestra}_speed_{pct}"
-        for funestra in ("main_player", "active", "both", "portrait", "landscape")
+        for funestra in ("main_funestra", "active", "both", "portrait", "landscape")
         for pct in (25, 50, 75, 100, 125, 150, 175, 200)
     }
     return ids

@@ -80,8 +80,8 @@ PROJECTION = InclusionPair(
 LENGTH = InclusionPair(
     Kind("Clips", shared_mark("clips"), "clips"),
     Kind("Full", shared_mark("full"), "full videos"),
-    {(True, True): "main_player_length_mixed", (True, False): "main_player_length_clips",
-     (False, True): "main_player_length_full", (False, False): "main_player_length_none"},
+    {(True, True): "main_funestra_length_mixed", (True, False): "main_funestra_length_clips",
+     (False, True): "main_funestra_length_full", (False, False): "main_funestra_length_none"},
 )
 
 ORIENTATION = InclusionPair(

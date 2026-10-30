@@ -157,14 +157,14 @@ def build_voice_commands(
         "browse": "browse_library",
         "clip": "genaumacher_save",
         "save clip": "genaumacher_save",
-        "record": "main_player_record_down",
-        "loop": "main_player_record_up",
+        "record": "main_funestra_record_down",
+        "loop": "main_funestra_record_up",
         # The Main Funestra's other encodes of the same video.  The bare axis word cycles it, the
         # way "action"/"seed" do on a satellite; the "cycle / next / change version"
         # verb forms come from the cycle-axis grid below.
-        "version": "main_player_cycle_version",
-        "clips": "main_player_length_clips",
-        "full": "main_player_length_full",
+        "version": "main_funestra_cycle_version",
+        "clips": "main_funestra_length_clips",
+        "full": "main_funestra_length_full",
         # Which shape of video the Funestra on the main screen may reach, in the
         # headset, where its library holds both.  "mixed" is taken by the length
         # above, so the both-shapes phrase names the shapes instead; neither
@@ -183,15 +183,15 @@ def build_voice_commands(
         # The unfiltered library the Main Funestra opens in, and so the way back out of either
         # half.  "main reset" contains this and puts back every other default too
         # (see the Main Funestra grid below); this is the narrow gesture of the pair.
-        "mixed": "main_player_length_mixed",
+        "mixed": "main_funestra_length_mixed",
         # Clip navigation (clips carved from compilations); "full
         # video" is the reliable phrase, "full vid" a fallback.
-        "compilation": "main_player_compilation",
+        "compilation": "main_funestra_compilation",
         # …and back out of one, without having to name a length: the Main Funestra returns to
         # whichever mode was feeding the playlist when it went in.
-        "end compilation": "main_player_end_compilation",
-        "full video": "main_player_full_vid",
-        "full vid": "main_player_full_vid",
+        "end compilation": "main_funestra_end_compilation",
+        "full video": "main_funestra_full_vid",
+        "full vid": "main_funestra_full_vid",
         # The phrases for the clip jump are library vocabulary, so they come from
         # the content overlay and are merged in below rather than written here.
         # Nothing in these words names an engine, so they follow whichever holds
@@ -234,7 +234,7 @@ def build_voice_commands(
     # they live in the content overlay (content.example.json documents the shape).
     if clip_jump_phrases is None:
         clip_jump_phrases = tuple(load_content()["clip_jump_phrases"])
-    commands.update(dict.fromkeys(clip_jump_phrases, "main_player_clip_jump"))
+    commands.update(dict.fromkeys(clip_jump_phrases, "main_funestra_clip_jump"))
     if flick_flip_phrases is None:
         flick_flip_phrases = tuple(load_content()["flick_flip_phrases"])
     commands.update(dict.fromkeys(flick_flip_phrases, "genau_flip_ends"))
@@ -295,7 +295,7 @@ def build_voice_commands(
     for _funestra_word, _command in (("portrait", "portrait_cycle_version"),
                                      ("landscape", "landscape_cycle_version"),
                                      ("both", "both_cycle_version"),
-                                     ("main", "main_player_cycle_version")):
+                                     ("main", "main_funestra_cycle_version")):
         commands.update(named_first_or_last(_funestra_word, "version", _command))
 
     # Group commands act on the current clip's GROUP rather than on the playlist,
@@ -346,7 +346,7 @@ def build_voice_commands(
         "action": "active_cycle_action",
         "scene": "active_cycle_action",
         "seed": "active_cycle_seed",
-        "version": "main_player_cycle_version",
+        "version": "main_funestra_cycle_version",
     }
     for _axis_word, _axis_cmd in _CYCLE_AXES.items():
         for _cycle_verb in ("cycle", "next", "change"):

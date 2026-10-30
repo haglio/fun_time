@@ -118,16 +118,16 @@ class TestVoiceCommands:
             "previous main": "main_prev",
             "skip": "active_nudge_next",
             "back": "active_nudge_prev",
-            "record": "main_player_record_down",
-            "loop": "main_player_record_up",
+            "record": "main_funestra_record_down",
+            "loop": "main_funestra_record_up",
             # "end loop" is side-agnostic — it reaches the Main Funestra's own loop through the
             # active-side resolution, not by naming the Funestra here.
             "end loop": "active_no_loop",
             # The bare axis word is the literal one; "cycle / next / change
             # version" are generated with the other cycle axes.
-            "version": "main_player_cycle_version",
-            "clips": "main_player_length_clips",
-            "full": "main_player_length_full",
+            "version": "main_funestra_cycle_version",
+            "clips": "main_funestra_length_clips",
+            "full": "main_funestra_length_full",
             "browse": "browse_library",
             "clip": "genaumacher_save",
             "save clip": "genaumacher_save",
@@ -317,7 +317,7 @@ class TestVoiceCommands:
         """"version" is an axis like "action" and "seed": the bare word cycles
         it, and so does an explicit verb up front."""
         for phrase in ("version", "cycle version", "next version", "change version"):
-            assert VOICE_COMMANDS[phrase] == "main_player_cycle_version"
+            assert VOICE_COMMANDS[phrase] == "main_funestra_cycle_version"
 
     def test_a_side_version_is_said_of_that_side_and_never_bare(self):
         """The bare word is the Main Funestra's own axis, so a satellite's
@@ -326,21 +326,21 @@ class TestVoiceCommands:
         for funestra in ("portrait", "landscape", "both"):
             assert VOICE_COMMANDS[f"{funestra} version"] == f"{funestra}_cycle_version"
             assert VOICE_COMMANDS[f"version {funestra}"] == f"{funestra}_cycle_version"
-        assert VOICE_COMMANDS["version"] == "main_player_cycle_version"
+        assert VOICE_COMMANDS["version"] == "main_funestra_cycle_version"
 
     def test_the_main_funestras_version_is_said_of_it_as_a_satellites_is(self):
         assert VOICE_COMMANDS["main version"] == VOICE_COMMANDS["version main"] == (
-            "main_player_cycle_version")
+            "main_funestra_cycle_version")
 
     def test_the_main_funestras_loop_is_ended_by_naming_it_as_a_satellites_is(self):
         for words in ("end loop", "no loop", "loop off"):
             assert VOICE_COMMANDS[f"main {words}"] == VOICE_COMMANDS[f"{words} main"] == (
-                "main_player_loop_cancel")
+                "main_funestra_loop_cancel")
 
     def test_main_funestra_length_phrases(self):
-        assert VOICE_COMMANDS["clips"] == "main_player_length_clips"
-        assert VOICE_COMMANDS["full"] == "main_player_length_full"
-        assert VOICE_COMMANDS["mixed"] == "main_player_length_mixed"
+        assert VOICE_COMMANDS["clips"] == "main_funestra_length_clips"
+        assert VOICE_COMMANDS["full"] == "main_funestra_length_full"
+        assert VOICE_COMMANDS["mixed"] == "main_funestra_length_mixed"
 
     def test_main_funestra_orientation_phrases_say_it_the_way_the_shapes_are_said(self):
         assert VOICE_COMMANDS["portrait only"] == "main_orientation_portrait"
@@ -355,7 +355,7 @@ class TestVoiceCommands:
     def test_end_compilation_leaves_without_naming_a_length(self):
         """"compilation" gets you in; this gets you out, back to whichever length
         mode was feeding the playlist before — the same shape as "end loop"."""
-        assert VOICE_COMMANDS["end compilation"] == "main_player_end_compilation"
+        assert VOICE_COMMANDS["end compilation"] == "main_funestra_end_compilation"
 
     def test_main_reset_returns_the_playlist_to_the_default_browse(self):
         """"reset" means for the Main Funestra what it means for a satellite — drop
@@ -561,8 +561,8 @@ class TestVoiceCommands:
             for side in ("portrait", "landscape", "both"):
                 assert VOICE_COMMANDS[f"{side} {phrase}"] == f"{side}_{act}"
                 assert VOICE_COMMANDS[f"{phrase} {side}"] == f"{side}_{act}"
-            assert VOICE_COMMANDS[f"main {phrase}"] == f"main_player_{act}"
-            assert VOICE_COMMANDS[f"{phrase} main"] == f"main_player_{act}"
+            assert VOICE_COMMANDS[f"main {phrase}"] == f"main_funestra_{act}"
+            assert VOICE_COMMANDS[f"{phrase} main"] == f"main_funestra_{act}"
 
 
 def test_group_commands_join_the_order_agnostic_grid():
@@ -638,7 +638,7 @@ def test_group_commands_do_not_shadow_the_single_word_actions():
     assert VOICE_COMMANDS["lock"] == "active_lock_on"
     assert VOICE_COMMANDS["action"] == "active_cycle_action"
     assert VOICE_COMMANDS["seed"] == "active_cycle_seed"
-    assert VOICE_COMMANDS["loop"] == "main_player_record_up"
+    assert VOICE_COMMANDS["loop"] == "main_funestra_record_up"
     # "filter" (put one on) must not disturb the phrases that drop one.
     assert VOICE_COMMANDS["no filter"] == "active_no_filter"
     assert VOICE_COMMANDS["filter off"] == "active_no_filter"
@@ -688,7 +688,7 @@ class TestBuildVoiceCommands:
             filter_commands={"fabricated act": "filter_both_fabricated_act"},
             clip_jump_phrases=("fabricated jump phrase",),
         )
-        assert built["fabricated jump phrase"] == "main_player_clip_jump"
+        assert built["fabricated jump phrase"] == "main_funestra_clip_jump"
         assert built["fabricated act"] == "filter_both_fabricated_act"
         assert "fabricated jump phrase" not in VOICE_COMMANDS
         assert built["quit"] == "quit"
