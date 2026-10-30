@@ -1,21 +1,30 @@
-"""Genau's tunables, read off its own config for the engine the headset runs."""
+"""Genau's numbers, read off the genau section of Fun Time's config."""
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 
 import pytest
 
+from fun_time.config import EXAMPLE_CONFIG_PATH
 from fun_time.genau_config import GenauSettings
 
 
 def _write(tmp_path: Path, payload) -> Path:
-    path = tmp_path / "genau_config.json"
+    path = tmp_path / "fun_time_config.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
 
 
-class TestReadingGenausConfig:
+def test_the_example_config_names_each_number_at_its_default():
+    section = json.loads(EXAMPLE_CONFIG_PATH.read_text(encoding="utf-8"))["genau"]
+
+    assert set(section) == {field.name for field in dataclasses.fields(GenauSettings)}
+    assert GenauSettings.read(EXAMPLE_CONFIG_PATH) == GenauSettings()
+
+
+class TestReadingTheGenauSection:
     def test_the_genau_section_is_what_is_read(self, tmp_path):
         path = _write(tmp_path, {"genau": {
             "beats_per_loop": 2.0, "bpm_smoothing": 0.5, "sync_strength": 0.1,
@@ -39,6 +48,16 @@ class TestReadingGenausConfig:
         assert settings.beats_per_loop == 3.0
         assert settings.bpm_smoothing == GenauSettings().bpm_smoothing
         assert settings.udp_port == GenauSettings().udp_port
+
+    def test_a_config_still_naming_genaus_old_settings_file_is_read_from_that_file(self, tmp_path):
+        """Until a config holds the numbers itself, they are where Genau's checkout
+        kept them, so a session plays on what it played on before they moved."""
+        old = tmp_path / "genau_config.json"
+        old.write_text(json.dumps({"genau": {"beats_per_loop": 2.0}}), encoding="utf-8")
+        path = _write(tmp_path, {"paths": {"genau_config_path": str(old)},
+                                 "genau": {"beats_per_loop": 3.0}})
+
+        assert GenauSettings.read(path).beats_per_loop == 2.0
 
     @pytest.mark.parametrize("payload", [{}, {"genau": "not a section"}, [1, 2]])
     def test_a_config_with_no_genau_section_is_the_defaults(self, tmp_path, payload):

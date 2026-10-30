@@ -406,7 +406,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # Funestra for funestra, which answers them on every Funestra.
 # 5629 on 2026-10-30: the loop key came to step the lock, seeds, actions and off
 # by the rule funestra keeps for every app, and the notes on its three stops went.
-MAX_PROSE_LINES = 5629
+# 5627 the same day: Genau's numbers moved into this config's genau section,
+# and the notes on the settings file Genau's checkout kept went with them.
+MAX_PROSE_LINES = 5627
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

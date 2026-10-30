@@ -1072,10 +1072,8 @@ def _config_whose_genau_browses_in_folder_order(temp_root: Path) -> Path:
     it was left in."""
     config_path = build_integration_config(temp_root)
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    genau_config_path = Path(config["paths"]["genau_config_path"])
-    genau_config = json.loads(genau_config_path.read_text(encoding="utf-8"))
-    genau_config["genau"]["shuffle_on_load"] = False
-    genau_config_path.write_text(json.dumps(genau_config), encoding="utf-8")
+    config["genau"]["shuffle_on_load"] = False
+    config_path.write_text(json.dumps(config), encoding="utf-8")
     return config_path
 
 

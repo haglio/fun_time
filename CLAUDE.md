@@ -284,8 +284,9 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   this repo's own funestra pin is the only one a Fun Time change moves.** It
   started the Main Funestra from `../genau/.venv` until 2026-10-13, which held Fun
   Time changes back until Genau's pin moved and that venv was reinstalled while
-  he was not using Fun Time; a config still naming `paths.genau_python_exe` is
-  ignored.
+  he was not using Fun Time. Genau's numbers are this config's `genau` section, or
+  the file `paths.genau_config_path` names while a config still names one; a
+  config still naming `paths.genau_python_exe` is ignored.
 - **A funestra worktree named on that chain needs nothing copied in, and a
   launch proves that before it opens a window.** The DLL is fetched rather than
   tracked, so a worktree of that repo has no `vendor/` of its own; every launch

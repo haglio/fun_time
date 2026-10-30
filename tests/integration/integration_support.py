@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import configparser
 import contextlib
+import dataclasses
 import json
 import logging
 import os
@@ -36,6 +37,7 @@ from fun_time.funestra_status import (
     MainFunestraStatus,
     read_main_funestra_status,
 )
+from fun_time.genau_config import GenauSettings
 from fun_time.media_metadata import is_favorite, mark_favorite
 from fun_time.modes import (
     build_mirrored_funscript_path,
@@ -683,18 +685,17 @@ def close_the_runs_osr2s() -> None:
         osr2.close()
 
 
-def _isolate_shared_ports(config: dict, genau_config: dict) -> None:
+def _isolate_shared_ports(config: dict) -> None:
     """Move every port this run would otherwise share with the machine.
 
     Three fixed ports are machine-global, and a socket is not per-desktop — so
     the hidden desktop does nothing for any of them:
 
-    * The **audio companion** ``bind``s its port, and Genau notifies it on the
-      matching ``notify_port``.  Two sessions cannot both have it: the loser dies
+    * The **audio companion** ``bind``s its port, and Genau notifies it there,
+      off the same key.  Two sessions cannot both have it: the loser dies
       with WSAEADDRINUSE, and if the run got there first the loser is the user's
       — they open Fun Time and it comes up with no companion audio and nothing to
-      say why.  Both sides of the pair move together, or the run's own Genau is
-      left shouting at nobody.
+      say why.
     * **Genau's inbound port** is bound with SO_REUSEADDR, which on Windows lets
       a second Genau bind it rather than refusing — so two Genaus split one
       datagram stream between them at random, and a run's Genau swallows packets
@@ -706,11 +707,11 @@ def _isolate_shared_ports(config: dict, genau_config: dict) -> None:
       every Funestra and Genau of the run connect, so a run's stream is heard
       where it lands.
     """
-    companion_port = _free_udp_port()
-    config["audio_companion"]["port"] = companion_port
-    genau_config["genau"]["notify_port"] = companion_port
+    config["audio_companion"]["port"] = _free_udp_port()
 
-    genau_config["genau"]["udp_port"] = _free_udp_port()
+    genaus_own = {field.name for field in dataclasses.fields(GenauSettings)}
+    config["genau"] = {key: value for key, value in config.get("genau", {}).items()
+                       if key in genaus_own} | {"udp_port": _free_udp_port()}
 
     config["osr2_slot_port"] = _a_slot_of_the_runs_own()
 
@@ -738,8 +739,8 @@ def real_config_path() -> Path:
     return (PROJECT_DIR / common_dir).resolve().parent / DEFAULT_CONFIG_PATH.name
 
 
-def isolate_shared_resources(config: dict, genau_config: dict) -> None:
-    """Strip the pair of everything a run would otherwise share with the machine.
+def isolate_shared_resources(config: dict) -> None:
+    """Strip the config of everything a run would otherwise share with the machine.
 
     Rewriting *paths* gives a run its own state dir, media and logs; the hidden
     desktop gives it its own windows, input queue and process sweep.  What is
@@ -753,7 +754,7 @@ def isolate_shared_resources(config: dict, genau_config: dict) -> None:
     terms, where a ``FUN_TIME_RUN_INTEGRATION`` branch would be a second
     behavior that only the tests exercise.
     """
-    _isolate_shared_ports(config, genau_config)
+    _isolate_shared_ports(config)
 
     # The loopback server binds a fixed TCP port, and the loser of a race for it
     # loses the surface entirely: no Tampermonkey auto-update, and RFB tab pages
@@ -783,13 +784,6 @@ def isolate_shared_resources(config: dict, genau_config: dict) -> None:
     # it would listen in on the user and act on what they said to their own
     # session.
     config["voice_control"]["enabled"] = False
-
-    # fun_time stopped parsing this section when Genau moved to its own repo, so
-    # it does nothing — but it is still sitting in every config file written
-    # before then, naming the machine's ports, and a run copies the file whole.
-    # Dead config that names a live endpoint is how the next consumer of that key
-    # gets pointed at the user's session, so it goes rather than rides along.
-    config.pop("genau", None)
 
     # The hosted Origenerator brings a second app with machine ends of its own:
     # the one ComfyUI server on its fixed port (which it would START if absent),
@@ -880,11 +874,9 @@ def build_integration_config(tmp_path: Path) -> Path:
 
     point_the_main_funestra_at(config, primary_dir)
     config.setdefault("regen", {})["metadata_root"] = str(metadata_root)
-    genau_config = json.loads(Path(config["paths"]["genau_config_path"]).read_text(encoding="utf-8"))
-    isolate_shared_resources(config, genau_config)
-    test_genau_config = integration_root / "genau_integration_config.json"
-    test_genau_config.write_text(json.dumps(genau_config), encoding="utf-8")
-    config["paths"]["genau_config_path"] = str(test_genau_config)
+    config["genau"] = dataclasses.asdict(GenauSettings.read(real.config_path))
+    config["paths"].pop("genau_config_path", None)
+    isolate_shared_resources(config)
 
     config_path = integration_root / INTEGRATION_CONFIG_NAME
     config_path.write_text(json.dumps(config), encoding="utf-8")

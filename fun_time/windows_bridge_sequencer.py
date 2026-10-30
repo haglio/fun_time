@@ -426,7 +426,6 @@ def _launch_the_main_funestra(
         genau_command_file=m.commands.genau_cmd_file,
         genau_paused_file=m.commands.genau_paused_file,
         genau_status_file=m.commands.genau_status_file,
-        genau_config_path=m.runtime.genau_config_path,
         flicks_dir=m.media.genau_flicks,
         metadata_dir=regen_metadata_raw or None,
         genau_start_flick=genau_flick,

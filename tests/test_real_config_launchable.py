@@ -72,7 +72,6 @@ def test_the_paths_that_reach_outside_this_checkout_are_where_the_config_says():
     for label, path in (
         ("paths.python_exe", paths.python_exe),
         ("paths.ahk_exe", paths.ahk_exe),
-        ("paths.genau_config_path", paths.genau_config_path),
     ):
         if path is None:
             continue

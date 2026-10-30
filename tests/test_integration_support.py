@@ -31,12 +31,14 @@ from funestra.playlist import read_playlist
 from fun_time import funestra_status, windows_bridge_orchestrator
 from fun_time.config import load_config
 from fun_time.funestra_status import MainFunestraStatus
+from fun_time.genau_config import GenauSettings
 from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.main_list import MainListSettings
 from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
 from fun_time.monitors import enumerate_monitors
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
+from main_funestra.cli import build_parser
 from tests.integration import integration_support, run_clock
 from tests.integration.integration_support import (
     COMMAND_BUDGET_S,
@@ -73,11 +75,11 @@ AUDIO_COMPANION_PORT = 50556
 EXAMPLE_CONFIG = Path(__file__).resolve().parent.parent / "fun_time_config.example.json"
 
 
-def _the_users_config() -> tuple[dict, dict]:
-    """The two configs as the user's own session has them, naming what the machine shares.
+def _the_users_config() -> dict:
+    """The config as the user's own session has it, naming what the machine shares.
 
-    Fun Time's side is read from the committed example his real config is written
-    from, so a section that moves into it reaches every check here the day it lands.
+    Read from the committed example his real config is written from, so a section
+    that moves into it reaches every check here the day it lands.
     """
     config = json.loads(EXAMPLE_CONFIG.read_text(encoding="utf-8"))
     # A session may be pinned at the broker's own directory rather than its own
@@ -85,28 +87,19 @@ def _the_users_config() -> tuple[dict, dict]:
     config["paths"]["broker_state_dir"] = "C:/Users/Example/workspace/fun_time/state"
     config["voice_control"]["enabled"] = True
     config["loopback_port"] = LOOPBACK_PORT
-    # Vestigial: fun_time stopped parsing this when Genau moved to its own
-    # repo, but the section is still sitting in every config file written
-    # before then — including the one a run copies.
-    config["genau"] = {"udp_host": "127.0.0.1", "udp_port": GENAU_INBOUND_PORT,
-                       "notify_port": AUDIO_COMPANION_PORT, "status_hide_ms": 1200}
-    genau_config = {
-        "genau": {
-            "udp_port": GENAU_INBOUND_PORT,
-            "notify_host": "127.0.0.1",
-            "notify_port": AUDIO_COMPANION_PORT,
-        },
-    }
-    return config, genau_config
+    # A key no session reads, still in the genau section of configs written when
+    # Genau ran in a program of its own, naming the companion's port.
+    config["genau"]["notify_port"] = AUDIO_COMPANION_PORT
+    return config
 
 
 @pytest.fixture
 def isolated_ports():
-    """The rewritten pair, with the run's own slot for the OSR2 closed afterwards."""
-    config, genau_config = _the_users_config()
-    isolate_shared_resources(config, genau_config)
+    """The rewritten config, with the run's own slot for the OSR2 closed afterwards."""
+    config = _the_users_config()
+    isolate_shared_resources(config)
     try:
-        yield config, genau_config
+        yield config
     finally:
         close_the_runs_osr2s()
 
@@ -488,12 +481,10 @@ def test_the_integration_config_never_shares_the_live_sessions_audio_port(isolat
     while both were up, Genau's notifications went to whichever companion won,
     which need not be its own session's.
     """
-    config, genau_config = isolated_ports
+    config = isolated_ports
 
     assert config["audio_companion"]["port"] != AUDIO_COMPANION_PORT
-    # Sender and receiver have to move together: Genau notifies the port the
-    # companion is listening on, so rewriting one alone just breaks the run.
-    assert genau_config["genau"]["notify_port"] == config["audio_companion"]["port"]
+    assert build_parser(config).parse_args([]).notify_port == config["audio_companion"]["port"]
 
 
 def test_the_integration_config_never_reaches_the_machines_osr2(isolated_ports):
@@ -505,14 +496,14 @@ def test_the_integration_config_never_reaches_the_machines_osr2(isolated_ports):
     user's OSR2 while they are using it, and no amount of desktop or state-dir
     isolation touches that: a socket is not per-desktop.
     """
-    config, _genau_config = isolated_ports
+    config = isolated_ports
 
     assert config["osr2_slot_port"] != OSR2_SLOT_PORT
     assert integration_support.the_runs_osr2(config["osr2_slot_port"]).port == config["osr2_slot_port"]
 
 
 def test_a_runs_main_funestra_browses_the_runs_copy_of_the_library_not_the_machines():
-    config, _genau_config = _the_users_config()
+    config = _the_users_config()
     run_videos = Path("C:\\Temp\\fun_time_integration_run\\integration_runtime\\videos\\videos\\primary")
 
     point_the_main_funestra_at(config, run_videos)
@@ -533,18 +524,34 @@ def _a_machines_config_over_a_made_up_library(root: Path) -> Path:
     for folder in sides.values():
         for name in ("alpha", "beta"):
             (folder / f"{name}.mp4").write_bytes(b"")
-    config, genau_config = _the_users_config()
-    genau_config_path = root / "genau_config.json"
-    genau_config_path.write_text(json.dumps(genau_config), encoding="utf-8")
+    config = _the_users_config()
     config["paths"].update(
         main_player_library_dirs=[str(films)],
         portrait_dirs=[str(sides["portrait"])], landscape_dirs=[str(sides["landscape"])],
-        genau_config_path=str(genau_config_path), state_dir=str(root / "state"))
+        state_dir=str(root / "state"))
     config["main_player"]["videos_dir"] = str(films)
     config["regen"]["metadata_root"] = str(library / "metadata")
     config_path = root / "fun_time_config.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")
     return config_path
+
+
+def test_a_runs_genau_plays_on_the_machines_numbers_off_a_port_of_its_own(tmp_path, monkeypatch):
+    machine = _a_machines_config_over_a_made_up_library(tmp_path / "machine")
+    old_settings_file = tmp_path / "machine" / "genau_config.json"
+    old_settings_file.write_text(json.dumps(
+        {"genau": {"beats_per_loop": 2.0, "udp_port": GENAU_INBOUND_PORT}}), encoding="utf-8")
+    raw = json.loads(machine.read_text(encoding="utf-8"))
+    raw["paths"]["genau_config_path"] = str(old_settings_file)
+    machine.write_text(json.dumps(raw), encoding="utf-8")
+    monkeypatch.setattr(integration_support, "real_config_path", lambda: machine)
+    try:
+        run = GenauSettings.read(build_integration_config(tmp_path / "run"))
+    finally:
+        close_the_runs_osr2s()
+
+    assert run.beats_per_loop == 2.0
+    assert run.udp_port != GENAU_INBOUND_PORT
 
 
 def test_a_runs_room_plays_each_main_video_with_the_funscript_the_run_copied_for_it(
@@ -568,7 +575,7 @@ def test_a_runs_room_plays_each_main_video_with_the_funscript_the_run_copied_for
 
 
 def test_the_runs_slot_listens_so_the_runs_senders_have_somewhere_to_connect(isolated_ports):
-    config, _genau_config = isolated_ports
+    config = isolated_ports
 
     with socket.create_connection(("127.0.0.1", config["osr2_slot_port"]), timeout=5.0):
         pass
@@ -580,7 +587,7 @@ def test_a_run_serves_its_loopback_surface_somewhere_of_its_own(isolated_ports):
     pages that never hear about OmniPause.  A run held it for minutes at a time
     and the guard is what kept the user's session from being that loser.
     """
-    config, _genau_config = isolated_ports
+    config = isolated_ports
 
     assert config["loopback_port"] != LOOPBACK_PORT
 
@@ -598,7 +605,7 @@ def test_a_run_never_starts_or_adopts_the_machines_broker(isolated_ports):
     a stop is only ever asked once a *fresh* heartbeat says a broker is running
     -- which a run's own state dir, where no broker writes, can never show.
     """
-    config, _genau_config = isolated_ports
+    config = isolated_ports
 
     assert config["paths"]["broker_tray_launcher"] == ""
 
@@ -614,7 +621,7 @@ def test_a_run_never_inherits_a_pin_at_the_machines_broker_directory(isolated_po
     heartbeat the broker's stop above is only ever asked on.  Dropped,
     the whole channel falls back inside the run's own state dir.
     """
-    config, _genau_config = isolated_ports
+    config = isolated_ports
 
     assert "broker_state_dir" not in config["paths"]
 
@@ -627,7 +634,7 @@ def test_a_run_never_opens_the_microphone(isolated_ports):
     act on what they said to their own session.  There is one microphone and no
     per-desktop version of it, so the only isolation is not opening it.
     """
-    config, _genau_config = isolated_ports
+    config = isolated_ports
 
     assert config["voice_control"]["enabled"] is False
 
@@ -638,9 +645,7 @@ def test_the_integration_config_never_shares_genaus_inbound_socket(isolated_port
     rather than refusing it.  Two Genaus then split one datagram stream between
     them at random, so a run's Genau would swallow packets meant for the user's.
     """
-    _config, genau_config = isolated_ports
-
-    assert genau_config["genau"]["udp_port"] != GENAU_INBOUND_PORT
+    assert isolated_ports["genau"]["udp_port"] != GENAU_INBOUND_PORT
 
 
 def _every_value(node) -> list:
@@ -662,12 +667,12 @@ def test_no_endpoint_of_the_machines_survives_anywhere_in_a_runs_config(isolated
     reach the user's session at all, which is what lets the two share a machine
     instead of taking turns on it.
     """
-    config, genau_config = isolated_ports
+    config = isolated_ports
     machines_own = {AUDIO_COMPANION_PORT, GENAU_INBOUND_PORT, OSR2_SLOT_PORT, LOOPBACK_PORT}
 
     survivors = [
         value
-        for value in _every_value(config) + _every_value(genau_config)
+        for value in _every_value(config)
         if value in machines_own or str(value) in {str(port) for port in machines_own}
     ]
 
@@ -688,7 +693,7 @@ def test_a_run_never_hosts_the_machines_origenerator(isolated_ports):
     the GPU that server generates on, and the app's one database.  None has a
     per-desktop version, so a run hosts none — the key gone means the session
     has no origenerator mode at all."""
-    config, _genau_config = isolated_ports
+    config = isolated_ports
 
     assert "origenerator_dir" not in config["paths"]
     assert "origenerator_python_exe" not in config["paths"]

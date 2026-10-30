@@ -1,5 +1,4 @@
-"""Genau's own config file, as this session reads it: the numbers its engine is
-tuned with."""
+"""The genau section of Fun Time's config: the numbers Genau's engine is tuned with."""
 from __future__ import annotations
 
 import json
@@ -9,19 +8,27 @@ from pathlib import Path
 from app_support import ports
 
 
-def read_genau_config(genau_config_path: str | Path | None) -> dict:
-    if genau_config_path is None:
+def _json_object(path: str | Path | None) -> dict:
+    if path is None:
         return {}
     try:
-        raw = json.loads(Path(genau_config_path).read_text(encoding="utf-8"))
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return raw if isinstance(raw, dict) else {}
 
 
+def _genau_section(config_path: str | Path | None) -> object:
+    config = _json_object(config_path)
+    paths = config.get("paths")
+    old_settings_file = paths.get("genau_config_path") if isinstance(paths, dict) else None
+    if old_settings_file:
+        config = _json_object(Path(config_path).parent / old_settings_file)
+    return config.get("genau")
+
+
 @dataclass(frozen=True)
 class GenauSettings:
-    # Genau's own defaults, the ones its example config ships.
     beats_per_loop: float = 1.0
     bpm_smoothing: float = 0.14
     sync_strength: float = 0.35
@@ -32,8 +39,8 @@ class GenauSettings:
     udp_port: int = ports.GENAU_UDP
 
     @classmethod
-    def read(cls, genau_config_path: str | Path | None) -> GenauSettings:
-        section = read_genau_config(genau_config_path).get("genau")
+    def read(cls, config_path: str | Path | None) -> GenauSettings:
+        section = _genau_section(config_path)
         if not isinstance(section, dict):
             return cls()
         defaults = cls()

@@ -39,7 +39,6 @@ def build_windows_bridge_manifest(
         "runtime": {
             "config_path": str(config.config_path),
             "windows_bridge_log_file": str(config.log_file("windows_bridge")),
-            "genau_config_path": str(config.paths.genau_config_path or config.config_path),
             "sibling_checkouts": config.paths.sibling_checkouts_path,
             # The Origenerator checkout the session hosts, or "" for a session
             # hosting none (see fun_time.origenerator_switches).
@@ -159,7 +158,6 @@ class RuntimePaths:
 
     config_path: str
     windows_bridge_log_file: str
-    genau_config_path: str
     sibling_checkouts: str = ""
     # The Origenerator checkout the session hosts, or "" for a session
     # hosting none.
