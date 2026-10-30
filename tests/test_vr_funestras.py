@@ -363,6 +363,16 @@ def test_the_library_names_the_sessions_notice_file_to_kino(tmp_path):
     assert library.args.notice_file == Path(manifest.commands.main_funestra_notice_file)
 
 
+def test_what_its_funscript_moves_say_goes_where_the_session_reads_the_main_funestras_notices(
+        tmp_path, faked_collaborators):
+    manifest = _manifest_for_a_vr_session(tmp_path)
+
+    _a_main_unit(tmp_path, manifest=manifest)
+
+    assert (faked_collaborators["Funestra"].call_args.kwargs["channels"].notice
+            == Path(manifest.commands.main_funestra_notice_file))
+
+
 def test_the_main_slot_reaches_the_osr2_through_the_brokers_slot(tmp_path, faked_collaborators):
     _a_main_unit(tmp_path, manifest=_manifest_for_a_vr_session(tmp_path, osr2_slot_port=8123))
 
