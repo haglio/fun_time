@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app_support.frame_channel import FrameReader
 from funestra.file_channel import append_command
 
-from .frame_channel import FrameReader
 from .pointer import RELEASE, PressEvent, surface_pixel
 from .thumbs import CONTROLLER_DEADZONE
 

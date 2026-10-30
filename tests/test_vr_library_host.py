@@ -9,13 +9,13 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+from app_support.frame_channel import FrameReader, FrameWriter
 from PyQt6.QtCore import QPoint
 
 from fun_time import library_browser
 from fun_time.library_browser import FLICKS_TOP_LEVEL_NAME, TOP_LEVEL_NAME
 from fun_time.library_handles import LibraryHandle
 from fun_time_vr import library_host
-from fun_time_vr.frame_channel import FrameReader, FrameWriter
 from fun_time_vr.library_host import (
     LISTING_FILENAME,
     HeadsetBrowse,

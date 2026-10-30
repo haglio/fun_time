@@ -8,6 +8,7 @@ import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
+from app_support.frame_channel import FrameWriter
 from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command, consume_command_file
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt, QTimer
@@ -27,7 +28,6 @@ from fun_time.library_handles import LibraryHandle, handles_by_shape
 from fun_time.modes import collect_video_files
 from fun_time.win32_process import is_process_alive
 
-from .frame_channel import FrameWriter
 from .library_listing_cache import remembered_listing
 from .library_panel import (
     DISMISSED,
