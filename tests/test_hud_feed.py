@@ -83,7 +83,7 @@ def make_feed(tmp_path, *, config=None) -> HudFeed:
     publisher = HudPublisher(
         {"portrait": tmp_path / "portrait_hud.json",
          "landscape": tmp_path / "landscape_hud.json",
-         "main_player": tmp_path / "main_player_console.json",
+         "main_funestra": tmp_path / "main_player_console.json",
          DASHBOARD_OSR2_PART: osr2_part_path(tmp_path)},
         tmp_path / "thumbs",
         (),

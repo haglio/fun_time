@@ -166,7 +166,7 @@ class HudFeed:
         # command reaches -- none of which the Funestra can see for itself.
         main_shapes = main_video_shapes(state, self.config)
         genau_shapes = genau_flick_shapes(state, self.config)
-        self.publisher.publish_text("main_player", console_text(console_model(MainSlotInputs(
+        self.publisher.publish_text("main_funestra", console_text(console_model(MainSlotInputs(
             main_mode=state.main_mode,
             hud_corner=state.main_hud_corner,
             hud_edge=state.main_hud_edge,

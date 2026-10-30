@@ -731,7 +731,7 @@ class TestTheOrderInsideTheStartupPhases:
         stubs = dict(
             screen_layout=dict(side_effect=note("layout", fake_screen_layout)),
             start_core_session=dict(side_effect=note("core", _fake_core)),
-            launch_main_funestra=dict(side_effect=note("main_player", _fake_main_funestra)),
+            launch_main_funestra=dict(side_effect=note("main_funestra", _fake_main_funestra)),
             launch_ui_companions=dict(side_effect=note("companions", _fake_ui)),
         )
         stubs.update(extra_stubs or {})
@@ -757,7 +757,7 @@ class TestTheOrderInsideTheStartupPhases:
         continues — which is only worth anything if the rest still follows."""
         order = self._sequence(cfg_factory, tmp_path)
 
-        assert order.index("main_player") < order.index("companions")
+        assert order.index("main_funestra") < order.index("companions")
 
     def test_the_browser_is_up_before_the_dashboard_that_opens_over_it(
             self, cfg_factory, tmp_path):
@@ -930,7 +930,7 @@ class TestLoadingScreenStartup:
         # booting when the room opens, so the dispatch loop resolves each the
         # first time it is asked for one.
         assert result.role_hwnds == {
-            "portrait": 3030, "landscape": 4040, "main_player": 2525,
+            "portrait": 3030, "landscape": 4040, "main_funestra": 2525,
             "dashboard": 5050, "rfb": 0,
         }
 
@@ -941,7 +941,7 @@ class TestTheRoomIsBandedUnderTheCover:
     which, on a loaded machine, it does late."""
 
     ROLE_HWNDS = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
-                  "main_player": 55}
+                  "main_funestra": 55}
     COVER = 999
 
     def _calls(self, **kwargs):

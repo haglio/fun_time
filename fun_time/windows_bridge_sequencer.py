@@ -134,7 +134,7 @@ def _startup_role_hwnds(
     return {
         "portrait": portrait_hwnd,
         "landscape": landscape_hwnd,
-        "main_player": main_funestra_hwnd,
+        "main_funestra": main_funestra_hwnd,
         "dashboard": dashboard_hwnd,
         "rfb": rfb_hwnd,
     }

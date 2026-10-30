@@ -32,8 +32,8 @@ def _main_slot_ops() -> list[WindowOp]:
     left is to bring that window back if it was parked and hand it the focus,
     so focus never falls through to another application."""
     return [
-        WindowOp(op="show_role", key="main_player"),
-        WindowOp(op="activate_role", key="main_player"),
+        WindowOp(op="show_role", key="main_funestra"),
+        WindowOp(op="activate_role", key="main_funestra"),
     ]
 
 
